@@ -1,5 +1,5 @@
 {
-	"name": "getvela-app",
+	"name": "getvela",
 	"compatibility_date": "2025-01-01",
 	"assets": {
 		"directory": ".svelte-kit/cloudflare"

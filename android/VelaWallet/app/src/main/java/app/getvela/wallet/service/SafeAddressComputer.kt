@@ -25,7 +25,7 @@ object SafeAddressComputer {
         return calculateProxyAddress(setupData, saltNonce)
     }
 
-    private fun parsePublicKey(hex: String): Pair<ByteArray, ByteArray> {
+    internal fun parsePublicKey(hex: String): Pair<ByteArray, ByteArray> {
         var clean = hex.removePrefix("0x")
         if (clean.startsWith("04")) clean = clean.drop(2)
         if (clean.length != 128) return Pair(ByteArray(0), ByteArray(0))
@@ -39,7 +39,7 @@ object SafeAddressComputer {
         return EthCrypto.keccak256(encoded)
     }
 
-    private fun encodeSetupData(x: ByteArray, y: ByteArray): ByteArray {
+    internal fun encodeSetupData(x: ByteArray, y: ByteArray): ByteArray {
         // 1. enableModules([safe4337Module])
         val enableModulesSelector = EthCrypto.functionSelector("enableModules(address[])")
         val enableModulesData = enableModulesSelector +

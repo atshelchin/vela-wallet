@@ -1,6 +1,11 @@
 package app.getvela.wallet.ui.wallet
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -13,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.core.content.ContextCompat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,7 +52,48 @@ fun ConnectScreen(wallet: WalletState) {
     var pendingRequest by remember { mutableStateOf<BLEIncomingRequest?>(null) }
     var isSigning by remember { mutableStateOf(false) }
     var signError by remember { mutableStateOf<String?>(null) }
+    var blePermissionDenied by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // BLE permission launcher
+    val blePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.values.all { it }
+        if (allGranted) {
+            ble.startAdvertising(
+                context = context,
+                walletAddress = wallet.address,
+                accountName = wallet.activeAccount?.name ?: "Wallet",
+                chainId = 1,
+                allAccounts = wallet.accounts.map { Pair(it.name, it.address) },
+            )
+        } else {
+            blePermissionDenied = true
+        }
+    }
+
+    fun startBleWithPermissionCheck() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val needed = arrayOf(
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+                Manifest.permission.BLUETOOTH_CONNECT,
+            ).filter {
+                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+            }
+            if (needed.isNotEmpty()) {
+                blePermissionLauncher.launch(needed.toTypedArray())
+                return
+            }
+        }
+        ble.startAdvertising(
+            context = context,
+            walletAddress = wallet.address,
+            accountName = wallet.activeAccount?.name ?: "Wallet",
+            chainId = 1,
+            allAccounts = wallet.accounts.map { Pair(it.name, it.address) },
+        )
+    }
 
     // Set up BLE callbacks
     LaunchedEffect(Unit) {
@@ -77,19 +124,25 @@ fun ConnectScreen(wallet: WalletState) {
         ) {
             Spacer(Modifier.height(24.dp))
 
-            if (!ble.isAdvertising && !ble.isConnected) {
+            if (blePermissionDenied) {
+                // Permission denied state
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier.size(80.dp).background(VelaColor.accentSoft, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(Icons.Default.BluetoothDisabled, null, Modifier.size(36.dp), tint = VelaColor.accent)
+                    }
+                    Spacer(Modifier.height(20.dp))
+                    Text(stringResource(R.string.connect_permission_denied), style = VelaTypography.heading(18f), color = VelaColor.textPrimary, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.connect_permission_desc), style = VelaTypography.body(14f), color = VelaColor.textSecondary, textAlign = TextAlign.Center)
+                }
+            } else if (!ble.isAdvertising && !ble.isConnected) {
                 // Disconnected state
                 DisconnectedView(
                     wallet = wallet,
-                    onStart = {
-                        ble.startAdvertising(
-                            context = context,
-                            walletAddress = wallet.address,
-                            accountName = wallet.activeAccount?.name ?: "Wallet",
-                            chainId = 1,
-                            allAccounts = wallet.accounts.map { Pair(it.name, it.address) },
-                        )
-                    },
+                    onStart = { startBleWithPermissionCheck() },
                 )
             } else if (ble.isAdvertising && !ble.isConnected) {
                 // Advertising / waiting state

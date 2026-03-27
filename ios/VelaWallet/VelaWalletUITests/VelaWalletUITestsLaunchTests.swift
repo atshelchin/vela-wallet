@@ -1,10 +1,3 @@
-//
-//  VelaWalletUITestsLaunchTests.swift
-//  VelaWalletUITests
-//
-//  Created by shelchin on 2026/3/26.
-//
-
 import XCTest
 
 final class VelaWalletUITestsLaunchTests: XCTestCase {
@@ -22,12 +15,31 @@ final class VelaWalletUITestsLaunchTests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
-
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @MainActor
+    func testLaunchShowsWelcome() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        // First launch should always show welcome screen
+        let createButton = app.buttons["welcome.create"]
+        XCTAssertTrue(createButton.waitForExistence(timeout: 5))
+
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = "Welcome Screen"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testLaunchPerformance() throws {
+        measure(metrics: [XCTApplicationLaunchMetric()]) {
+            XCUIApplication().launch()
+        }
     }
 }

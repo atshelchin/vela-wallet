@@ -1,32 +1,30 @@
-//
-//  VelaWalletApp.swift
-//  VelaWallet
-//
-//  Created by shelchin on 2026/3/26.
-//
-
 import SwiftUI
-import SwiftData
 
 @main
 struct VelaWalletApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    @State private var walletState: WalletState
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+    init() {
+        let state = WalletState()
+
+        // Restore accounts from iCloud/local storage
+        let storedAccounts = LocalStorage.shared.loadAccounts()
+        if !storedAccounts.isEmpty {
+            state.hasWallet = true
+            state.accounts = storedAccounts.map {
+                Account(id: $0.id, name: $0.name, address: $0.address, createdAt: $0.createdAt)
+            }
+            state.activeAccountIndex = 0
+            state.address = storedAccounts[0].address
         }
-    }()
+
+        _walletState = State(initialValue: state)
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(walletState)
         }
-        .modelContainer(sharedModelContainer)
     }
 }

@@ -432,7 +432,10 @@ function broadcastState() {
             type: 'VELA_ACCOUNTS_CHANGED',
             accounts: [walletInfo!.address],
             chainId: walletInfo!.chainId,
-          }).then(() => sent++).catch(() => {});
+          }).then(() => {
+            sent++;
+            console.log('[BG] accountsChanged sent to tab:', tab.id, tab.url?.slice(0, 40));
+          }).catch(() => {});
         }
       }
       console.log('[BG] Sent accountsChanged to', tabs.length, 'tabs');

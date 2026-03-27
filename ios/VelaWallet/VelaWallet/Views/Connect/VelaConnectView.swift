@@ -92,7 +92,8 @@ struct VelaConnectView: View {
                     Text(ble.isAdvertising ? String(localized: "connect.stop") : String(localized: "connect.pair_button"))
                 }
             }
-            .buttonStyle(ble.isAdvertising ? VelaSecondaryButtonStyle() : BlueButtonStyle())
+            .buttonStyle(BlueButtonStyle())
+            .opacity(ble.isAdvertising ? 0.6 : 1)
             .padding(.horizontal, 28)
             .padding(.bottom, 24)
         }
@@ -289,7 +290,7 @@ struct VelaConnectView: View {
                 let assertion = try await passkeyService.sign(data: dataToSign)
 
                 guard let sig = assertion.signature else {
-                    throw PasskeyService.PasskeyError.signatureFailed
+                    throw PasskeyService.PasskeyError.failed("Signature not returned")
                 }
 
                 let response = BLEOutgoingResponse(

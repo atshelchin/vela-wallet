@@ -82,6 +82,29 @@ export default defineBackground(() => {
       return true;
     }
 
+    // Messages from pairing page (BLE events)
+    if (msg.type === 'VELA_BLE_STATE') {
+      connectionState = msg.connectionState;
+      connectedDevice = msg.device;
+      broadcastState();
+      return false;
+    }
+    if (msg.type === 'VELA_BLE_WALLET_INFO') {
+      walletInfo = msg.walletInfo;
+      broadcastState();
+      return false;
+    }
+    if (msg.type === 'VELA_BLE_RESPONSE') {
+      const response = msg.response;
+      const callback = responseCallbacks.get(response.id);
+      if (callback) {
+        callback({ result: response.result, error: response.error });
+        responseCallbacks.delete(response.id);
+        pendingRequests.delete(response.id);
+      }
+      return false;
+    }
+
     return false;
   });
 });
@@ -166,12 +189,15 @@ async function handlePopupAction(
 ) {
   switch (msg.action) {
     case 'startScan':
-      try {
-        await bleClient.connect();
-        sendResponse({ ok: true });
-      } catch (error) {
-        sendResponse({ error: (error as Error).message });
-      }
+      // Web Bluetooth requires a full page context (not popup/sidepanel)
+      // Open the pairing page in a new tab
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('/pairing.html'),
+        active: true,
+      });
+      connectionState = 'searching';
+      broadcastState();
+      sendResponse({ ok: true });
       break;
 
     case 'disconnect':

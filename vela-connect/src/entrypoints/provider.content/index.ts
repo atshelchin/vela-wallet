@@ -1,6 +1,8 @@
 /**
- * Provider injection script — runs in MAIN world.
- * This injects the EIP-1193 provider directly into the page context.
+ * EIP-1193 Provider — injected into MAIN world.
+ *
+ * dApps interact with this via window.ethereum.
+ * Supports EIP-1193 (request/events) and EIP-6963 (provider discovery).
  */
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -8,13 +10,17 @@ export default defineContentScript({
   world: 'MAIN',
 
   main() {
-    // ─── EIP-1193 Provider ───
-
+    // ─── Event System ───
     const eventHandlers: Map<string, Set<(...args: unknown[]) => void>> = new Map();
     let requestCounter = 0;
 
     function emit(event: string, ...args: unknown[]) {
-      eventHandlers.get(event)?.forEach(h => h(...args));
+      const handlers = eventHandlers.get(event);
+      if (!handlers) return;
+      console.log(`[Vela] emit('${event}')`, args[0]);
+      handlers.forEach(h => {
+        try { h(...args); } catch (e) { console.error('[Vela] event handler error:', e); }
+      });
     }
 
     function getFavicon(): string {
@@ -22,9 +28,14 @@ export default defineContentScript({
       return link?.href || `${window.location.origin}/favicon.ico`;
     }
 
+    // ─── Provider ───
     const provider = {
       isVela: true,
       isMetaMask: true,
+      selectedAddress: null as string | null,
+      chainId: null as string | null,
+      networkVersion: null as string | null,
+      isConnected: () => true,
 
       async request({ method, params = [] }: { method: string; params?: unknown[] }): Promise<unknown> {
         const id = `vela_${Date.now()}_${++requestCounter}`;
@@ -35,15 +46,21 @@ export default defineContentScript({
             window.removeEventListener('message', handler);
 
             if (event.data.error) {
-              reject(new Error(event.data.error.message));
+              reject(event.data.error);
             } else {
+              const result = event.data.result;
+
+              // Update local state
               if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
-                const accounts = event.data.result as string[];
-                if (accounts?.[0]) emit('accountsChanged', accounts);
+                const accounts = result as string[];
+                if (accounts?.[0]) {
+                  provider.selectedAddress = accounts[0];
+                }
               } else if (method === 'eth_chainId') {
-                emit('chainChanged', event.data.result);
+                provider.chainId = result as string;
               }
-              resolve(event.data.result);
+
+              resolve(result);
             }
           };
 
@@ -58,10 +75,10 @@ export default defineContentScript({
             favicon: getFavicon(),
           }, '*');
 
-          // 5 minute timeout
+          // 5 minute timeout (user might be approving on phone)
           setTimeout(() => {
             window.removeEventListener('message', handler);
-            reject(new Error('Request timed out'));
+            reject({ code: -32603, message: 'Request timed out' });
           }, 300_000);
         });
       },
@@ -74,9 +91,36 @@ export default defineContentScript({
       removeListener(event: string, handler: (...args: unknown[]) => void) {
         eventHandlers.get(event)?.delete(handler);
       },
+
+      // Legacy support
+      enable: () => provider.request({ method: 'eth_requestAccounts' }),
+      send: (method: string, params?: unknown[]) => provider.request({ method, params }),
+      sendAsync: (payload: { method: string; params?: unknown[] }, callback: (err: unknown, result: unknown) => void) => {
+        provider.request(payload).then(result => callback(null, { result })).catch(err => callback(err, null));
+      },
     };
 
-    // Inject as window.ethereum
+    // ─── Listen for events from content script ───
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      if (event.data?.type !== 'VELA_EMIT_EVENT') return;
+
+      const { event: eventName, data } = event.data;
+      console.log(`[Vela] received VELA_EMIT_EVENT: ${eventName}`, data);
+
+      if (eventName === 'accountsChanged') {
+        provider.selectedAddress = Array.isArray(data) ? data[0] : null;
+        emit('accountsChanged', data);
+      } else if (eventName === 'chainChanged') {
+        provider.chainId = data as string;
+        provider.networkVersion = String(parseInt(data as string, 16));
+        emit('chainChanged', data);
+      } else {
+        emit(eventName, data);
+      }
+    });
+
+    // ─── Inject as window.ethereum ───
     Object.defineProperty(window, 'ethereum', {
       value: provider,
       writable: false,
@@ -85,41 +129,21 @@ export default defineContentScript({
 
     window.dispatchEvent(new Event('ethereum#initialized'));
 
-    // EIP-6963 announcement
-    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
-      detail: Object.freeze({
-        info: {
-          uuid: 'vela-wallet-001',
-          name: 'Vela Wallet',
-          icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="%23E8572A"/></svg>',
-          rdns: 'app.getvela',
-        },
-        provider,
-      }),
-    }));
-
-    // Listen for EIP-6963 requests
-    window.addEventListener('eip6963:requestProvider', () => {
-      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
-        detail: Object.freeze({
-          info: {
-            uuid: 'vela-wallet-001',
-            name: 'Vela Wallet',
-            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="%23E8572A"/></svg>',
-            rdns: 'app.getvela',
-          },
-          provider,
-        }),
-      }));
+    // ─── EIP-6963 ───
+    const providerInfo = Object.freeze({
+      info: {
+        uuid: 'vela-wallet-001',
+        name: 'Vela Wallet',
+        icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="%23E8572A"/></svg>',
+        rdns: 'app.getvela',
+      },
+      provider,
     });
 
-    // Listen for events from content script (account/chain changes)
-    window.addEventListener('message', (event) => {
-      if (event.source !== window) return;
-      if (event.data?.type !== 'VELA_EMIT_EVENT') return;
+    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: providerInfo }));
 
-      const { event: eventName, data } = event.data;
-      emit(eventName, data);
+    window.addEventListener('eip6963:requestProvider', () => {
+      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: providerInfo }));
     });
   },
 });

@@ -142,11 +142,32 @@ async function handleProviderRequest(
   const SUPPORTED_CHAINS = [1, 56, 137, 42161, 10, 8453, 43114];
 
   // Handle read-only methods locally
-  if (msg.method === 'eth_accounts' || msg.method === 'eth_requestAccounts') {
+  if (msg.method === 'eth_accounts') {
+    sendResponse({ result: walletInfo ? [walletInfo.address] : [] });
+    return;
+  }
+
+  if (msg.method === 'eth_requestAccounts') {
     if (walletInfo) {
       sendResponse({ result: [walletInfo.address] });
     } else {
-      sendResponse({ error: { code: 4100, message: 'Not connected to wallet' } });
+      // Not connected yet — open pairing tab and wait for connection
+      const pairingUrl = chrome.runtime.getURL('/pairing.html');
+      chrome.tabs.query({ url: pairingUrl }, (tabs) => {
+        if (tabs.length === 0) chrome.tabs.create({ url: pairingUrl, active: true });
+      });
+      // Wait for wallet to connect (poll for up to 60s)
+      let waited = 0;
+      const interval = setInterval(() => {
+        waited += 500;
+        if (walletInfo) {
+          clearInterval(interval);
+          sendResponse({ result: [walletInfo.address] });
+        } else if (waited > 60000) {
+          clearInterval(interval);
+          sendResponse({ error: { code: 4001, message: 'Connection timed out' } });
+        }
+      }, 500);
     }
     return;
   }
@@ -157,11 +178,33 @@ async function handleProviderRequest(
   }
 
   if (msg.method === 'wallet_requestPermissions') {
-    if (walletInfo) {
-      sendResponse({ result: [{ parentCapability: 'eth_accounts' }] });
+    sendResponse({ result: [{ parentCapability: 'eth_accounts' }] });
+    return;
+  }
+
+  // wallet_switchEthereumChain — Safe address is same on all chains
+  if (msg.method === 'wallet_switchEthereumChain') {
+    const params = msg.params as Array<{ chainId: string }>;
+    const chainIdHex = params?.[0]?.chainId;
+    if (chainIdHex) {
+      const chainId = parseInt(chainIdHex, 16);
+      if (SUPPORTED_CHAINS.includes(chainId)) {
+        // Update local chainId and notify
+        if (walletInfo) walletInfo = { ...walletInfo, chainId };
+        broadcastState();
+        sendResponse({ result: null }); // Success
+      } else {
+        sendResponse({ error: { code: 4902, message: `Chain ${chainId} not supported` } });
+      }
     } else {
-      sendResponse({ error: { code: 4100, message: 'Not connected' } });
+      sendResponse({ error: { code: -32602, message: 'Invalid params' } });
     }
+    return;
+  }
+
+  if (msg.method === 'wallet_addEthereumChain') {
+    // We support all 7 chains — just return success
+    sendResponse({ result: null });
     return;
   }
 

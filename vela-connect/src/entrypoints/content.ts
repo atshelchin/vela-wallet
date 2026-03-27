@@ -48,6 +48,7 @@ export default defineContentScript({
     chrome.runtime.onMessage.addListener((msg) => {
       // Account changed — emit accountsChanged + chainChanged to dApp
       if (msg.type === 'VELA_ACCOUNTS_CHANGED') {
+        console.log('[Vela Content] accountsChanged:', msg.accounts);
         window.postMessage({
           type: 'VELA_EMIT_EVENT',
           event: 'accountsChanged',

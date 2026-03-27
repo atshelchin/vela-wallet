@@ -333,19 +333,23 @@ function broadcastState() {
 
   // Notify dApps if account changed
   if (walletInfo?.address && walletInfo.address !== lastBroadcastAddress) {
+    const prevAddr = lastBroadcastAddress;
     lastBroadcastAddress = walletInfo.address;
+    console.log('[BG] Account changed:', prevAddr?.slice(0, 10), '→', walletInfo.address.slice(0, 10));
+
     // Send accountsChanged to all tabs via content scripts
     chrome.tabs.query({}, (tabs) => {
+      let sent = 0;
       for (const tab of tabs) {
-        if (tab.id) {
+        if (tab.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
           chrome.tabs.sendMessage(tab.id, {
             type: 'VELA_ACCOUNTS_CHANGED',
             accounts: [walletInfo!.address],
             chainId: walletInfo!.chainId,
-          }).catch(() => {}); // Tab might not have content script
+          }).then(() => sent++).catch(() => {});
         }
       }
+      console.log('[BG] Sent accountsChanged to', tabs.length, 'tabs');
     });
-    console.log('[BG] Broadcasted accountsChanged to dApps:', walletInfo.address.slice(0, 12));
   }
 }

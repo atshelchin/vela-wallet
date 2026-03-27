@@ -220,17 +220,24 @@ async function handleProviderRequest(
   }
 }
 
-/** Send a BLE request through the sidepanel (which holds the Web Bluetooth connection). */
+/** Send a BLE request through the pairing tab (which holds the Web Bluetooth connection). */
 async function sendViaBLE(request: BLERequest): Promise<void> {
   console.log('[BG] sendViaBLE:', request.method, request.id);
-  try {
-    await chrome.runtime.sendMessage({
+  const pairingUrl = chrome.runtime.getURL('/pairing.html');
+  const tabs = await chrome.tabs.query({ url: pairingUrl });
+  if (tabs.length === 0 || !tabs[0].id) {
+    throw new Error('Not connected — please pair first');
+  }
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabs[0].id!, {
       type: 'VELA_BLE_SEND_REQUEST',
       request,
+    }, (response) => {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+      else if (response?.error) reject(new Error(response.error));
+      else resolve();
     });
-  } catch {
-    throw new Error('Sidepanel not open — please open Vela Connect side panel');
-  }
+  });
 }
 
 // ─── Popup Action Handler ───
@@ -240,17 +247,29 @@ async function handlePopupAction(
   sendResponse: (response: unknown) => void
 ) {
   switch (msg.action) {
-    case 'startScan':
-      // Open sidepanel — it owns the BLE connection
-      chrome.sidePanel.open({ windowId: chrome.windows.WINDOW_ID_CURRENT as number });
+    case 'startScan': {
+      // Open pairing tab — Web Bluetooth only works in tab context
+      const pairingUrl = chrome.runtime.getURL('/pairing.html');
+      chrome.tabs.query({ url: pairingUrl }, (tabs) => {
+        if (tabs.length > 0 && tabs[0].id) {
+          chrome.tabs.update(tabs[0].id, { active: true });
+        } else {
+          chrome.tabs.create({ url: pairingUrl, active: true });
+        }
+      });
       sendResponse({ ok: true });
       break;
+    }
 
     case 'disconnect':
       connectionState = 'disconnected';
       connectedDevice = undefined;
       walletInfo = undefined;
       broadcastState();
+      // Close pairing tab (disconnects BLE)
+      chrome.tabs.query({ url: chrome.runtime.getURL('/pairing.html') }, (tabs) => {
+        tabs.forEach(t => { if (t.id) chrome.tabs.remove(t.id); });
+      });
       sendResponse({ ok: true });
       break;
 

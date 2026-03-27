@@ -220,8 +220,13 @@ async function handleProviderRequest(
   }
 
   if (msg.method === 'wallet_addEthereumChain') {
-    // We support all 7 chains — just return success
-    sendResponse({ result: null });
+    const addParams = msg.params as Array<{ chainId: string }>;
+    const addChainId = addParams?.[0]?.chainId ? parseInt(addParams[0].chainId, 16) : 0;
+    if (addChainId && SUPPORTED_CHAINS.includes(addChainId)) {
+      sendResponse({ result: null });
+    } else {
+      sendResponse({ error: { code: 4902, message: `Chain ${addChainId} not supported` } });
+    }
     return;
   }
 
@@ -367,7 +372,9 @@ async function handlePopupAction(
       connectionState = 'disconnected';
       connectedDevice = undefined;
       walletInfo = undefined;
+      lastBroadcastAddress = undefined;
       broadcastState();
+      notifyDApps('disconnect', { code: 4900, message: 'Disconnected' });
       // Close pairing tab (disconnects BLE)
       chrome.tabs.query({ url: chrome.runtime.getURL('/pairing.html') }, (tabs) => {
         tabs.forEach(t => { if (t.id) chrome.tabs.remove(t.id); });

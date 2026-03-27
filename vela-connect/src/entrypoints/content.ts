@@ -30,13 +30,13 @@ export default defineContentScript({
           id,
           result: response?.result,
           error: response?.error,
-        }, '*');
+        }, window.location.origin);
       } catch (error) {
         window.postMessage({
           type: 'VELA_PROVIDER_RESPONSE',
           id,
           error: { code: -32603, message: (error as Error).message },
-        }, '*');
+        }, window.location.origin);
       }
     });
 
@@ -45,9 +45,9 @@ export default defineContentScript({
       // Account/chain changed
       if (msg.type === 'VELA_ACCOUNTS_CHANGED') {
         console.log('[Vela Content] accountsChanged:', msg.accounts);
-        window.postMessage({ type: 'VELA_EMIT_EVENT', event: 'accountsChanged', data: msg.accounts }, '*');
+        window.postMessage({ type: 'VELA_EMIT_EVENT', event: 'accountsChanged', data: msg.accounts }, window.location.origin);
         if (msg.chainId) {
-          window.postMessage({ type: 'VELA_EMIT_EVENT', event: 'chainChanged', data: '0x' + msg.chainId.toString(16) }, '*');
+          window.postMessage({ type: 'VELA_EMIT_EVENT', event: 'chainChanged', data: '0x' + msg.chainId.toString(16) }, window.location.origin);
         }
         sendResponse({ ok: true }); // Acknowledge receipt
         return true;
@@ -56,7 +56,7 @@ export default defineContentScript({
       // Generic event forwarding (connect, disconnect, etc.)
       if (msg.type === 'VELA_EMIT') {
         console.log('[Vela Content] emit:', msg.event, msg.data);
-        window.postMessage({ type: 'VELA_EMIT_EVENT', event: msg.event, data: msg.data }, '*');
+        window.postMessage({ type: 'VELA_EMIT_EVENT', event: msg.event, data: msg.data }, window.location.origin);
         sendResponse({ ok: true });
         return true;
       }

@@ -84,7 +84,10 @@ final class BLEPeripheralService: NSObject, ObservableObject {
             walletInfoChar?.value = data
 
             // Push update via sendResponse (uses chunked protocol with \n\n marker)
-            let infoResult: [String: Any] = ["address": walletAddress, "chainId": chainId, "name": accountName]
+            let infoResult: [String: Any] = [
+                "address": walletAddress, "chainId": chainId, "name": accountName,
+                "accounts": advAllAccounts
+            ]
             sendResponse(BLEOutgoingResponse(
                 id: "wallet_info_update",
                 result: AnyCodable(infoResult),
@@ -105,12 +108,9 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     }
 
     /// Send response back to the connected central (Chrome extension).
-    /// Uses chunked transfer with END marker for reliable delivery.
-    ///
-    /// Protocol: each chunk is sent as a BLE notify. The last chunk ends with \n\n (double newline).
-    /// Receiver buffers until it sees \n\n, then parses the complete JSON.
+    /// Uses chunked transfer with \n\n end marker. Serialized via outgoing queue.
     func sendResponse(_ response: BLEOutgoingResponse) {
-        guard let central = subscribedCentral else {
+        guard subscribedCentral != nil else {
             print("[BLE] No central connected")
             return
         }
@@ -120,61 +120,68 @@ final class BLEPeripheralService: NSObject, ObservableObject {
             return
         }
 
-        // Append end-of-message marker
-        let endMarker = Data("\n\n".utf8)
-        let fullData = data + endMarker
+        let fullData = data + Data("\n\n".utf8)
+        print("[BLE] Queuing: id=\(response.id), size=\(data.count) bytes")
 
-        let mtu = central.maximumUpdateValueLength
-        print("[BLE] Sending: id=\(response.id), size=\(data.count) bytes, MTU=\(mtu)")
-
-        var offset = 0
-        var chunkIndex = 0
-        pendingChunks = []
-
-        while offset < fullData.count {
-            let end = min(offset + mtu, fullData.count)
-            let chunk = Data(fullData[offset..<end])
-            pendingChunks.append(chunk)
-            offset = end
-            chunkIndex += 1
+        // Queue the message and start sending if not already in progress
+        outgoingQueue.append(fullData)
+        if !isSending {
+            sendNextMessage()
         }
-
-        // Send chunks, handling queue-full gracefully
-        sendNextChunk()
     }
 
-    private var pendingChunks: [Data] = []
+    /// Serialized outgoing message queue — prevents chunk interleaving
+    private var outgoingQueue: [Data] = []
+    private var currentChunks: [Data] = []
     private var currentChunkIndex = 0
+    private var isSending = false
 
-    private func sendNextChunk() {
-        guard let central = subscribedCentral else { return }
+    private func sendNextMessage() {
+        guard let central = subscribedCentral else {
+            outgoingQueue.removeAll()
+            isSending = false
+            return
+        }
 
-        while currentChunkIndex < pendingChunks.count {
-            let chunk = pendingChunks[currentChunkIndex]
+        if currentChunkIndex >= currentChunks.count {
+            // Current message done — dequeue next
+            if outgoingQueue.isEmpty {
+                isSending = false
+                return
+            }
+
+            let fullData = outgoingQueue.removeFirst()
+            let mtu = central.maximumUpdateValueLength
+            currentChunks = stride(from: 0, to: fullData.count, by: mtu).map {
+                Data(fullData[$0..<min($0 + mtu, fullData.count)])
+            }
+            currentChunkIndex = 0
+            isSending = true
+        }
+
+        // Send chunks until queue full
+        while currentChunkIndex < currentChunks.count {
+            let chunk = currentChunks[currentChunkIndex]
             let sent = peripheralManager.updateValue(chunk, for: responseChar, onSubscribedCentrals: [central])
-
             if sent {
                 currentChunkIndex += 1
             } else {
-                // Queue full — peripheralManagerIsReady will be called when ready
-                print("[BLE] Queue full at chunk \(currentChunkIndex + 1)/\(pendingChunks.count), waiting...")
-                return
+                return // peripheralManagerIsReady will resume
             }
         }
 
-        // All chunks sent
-        print("[BLE] All \(pendingChunks.count) chunks sent")
-        pendingChunks = []
-        currentChunkIndex = 0
+        // All chunks of current message sent — continue with next
+        sendNextMessage()
     }
 
     // MARK: - Private
 
     private func setupAndAdvertise() {
-        // Don't re-advertise if already advertising
+        // Stop existing advertising first
         if isAdvertising {
-            print("[BLE] Already advertising, skipping")
-            return
+            peripheralManager.stopAdvertising()
+            peripheralManager.removeAllServices()
+            isAdvertising = false
         }
 
         // Remove previous service if exists
@@ -222,11 +229,24 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         print("[BLE] Advertising: \(advAccountName) (\(advWalletAddress.prefix(10))...)")
     }
 
+    private var bufferTimer: Timer?
+
     private func handleIncomingData(_ data: Data) {
         incomingBuffer.append(data)
 
+        // Reset buffer timeout — clear stale data after 30s
+        bufferTimer?.invalidate()
+        bufferTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+            if let self, !self.incomingBuffer.isEmpty {
+                print("[BLE] Buffer timeout — clearing \(self.incomingBuffer.count) stale bytes")
+                self.incomingBuffer = Data()
+            }
+        }
+
+        // Try to parse complete JSON (handles single-chunk messages)
         if let request = try? JSONDecoder().decode(BLEIncomingRequest.self, from: incomingBuffer) {
             incomingBuffer = Data()
+            bufferTimer?.invalidate()
             print("[BLE] Request: \(request.method) from \(request.origin)")
 
             // Handle account switch internally
@@ -247,7 +267,8 @@ final class BLEPeripheralService: NSObject, ObservableObject {
             if request.method == "wallet_switchEthereumChain",
                let params = request.params.first?.value as? [String: Any],
                let chainIdHex = params["chainId"] as? String {
-                let newChainId = Int(chainIdHex.dropFirst(2), radix: 16) ?? currentChainId
+                let stripped = chainIdHex.hasPrefix("0x") ? String(chainIdHex.dropFirst(2)) : chainIdHex
+                let newChainId = Int(stripped, radix: 16) ?? currentChainId
                 print("[BLE] Switch chain to: \(newChainId)")
                 currentChainId = newChainId
                 advChainId = newChainId
@@ -266,8 +287,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
 extension BLEPeripheralService: CBPeripheralManagerDelegate {
 
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
-        // Called when updateValue previously returned false — continue sending
-        sendNextChunk()
+        sendNextMessage()
     }
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {

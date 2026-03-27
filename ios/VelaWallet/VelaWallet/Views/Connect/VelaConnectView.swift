@@ -76,7 +76,7 @@ struct VelaConnectView: View {
                 ble.updateWalletInfo(
                     walletAddress: wallet.address,
                     accountName: wallet.activeAccount?.name ?? "Wallet",
-                    chainId: 1,
+                    chainId: ble.currentChainId,
                     allAccounts: wallet.accounts.map { ($0.name, $0.address) }
                 )
             }
@@ -352,7 +352,7 @@ struct VelaConnectView: View {
         ble.startAdvertising(
             walletAddress: wallet.address,
             accountName: wallet.activeAccount?.name ?? "Vela Wallet",
-            chainId: 1,
+            chainId: ble.currentChainId,
             allAccounts: wallet.accounts.map { ($0.name, $0.address) }
         )
     }
@@ -381,6 +381,12 @@ struct VelaConnectView: View {
                 isSigning = false
             } catch {
                 print("[VelaConnect] Error: \(error)")
+                // Send error response back so dApp's promise resolves
+                ble.sendResponse(BLEOutgoingResponse(
+                    id: request.id, result: nil,
+                    error: BLEError(code: -32603, message: error.localizedDescription)
+                ))
+                incomingRequest = nil
                 isSigning = false
                 signError = error.localizedDescription
             }
@@ -463,8 +469,12 @@ struct VelaConnectView: View {
         guard let hexMsg = request.params.first?.value as? String else {
             throw PasskeyService.PasskeyError.failed("Invalid message")
         }
+
+        // Ethereum personal sign: hash with prefix
         let clean = hexMsg.hasPrefix("0x") ? String(hexMsg.dropFirst(2)) : hexMsg
-        let dataToSign = Data(hexString: clean) ?? Data(hexMsg.utf8)
+        let msgBytes = Data(hexString: clean) ?? Data(hexMsg.utf8)
+        let prefix = Data("\u{19}Ethereum Signed Message:\n\(msgBytes.count)".utf8)
+        let dataToSign = EthCrypto.keccak256(prefix + msgBytes)
 
         let assertion = try await passkeyService.sign(data: dataToSign, credentialID: credentialID)
         guard let sig = assertion.signature,
@@ -472,9 +482,10 @@ struct VelaConnectView: View {
             throw PasskeyService.PasskeyError.failed("No signature")
         }
 
-        // Return 65-byte signature: r(32) + s(32) + v(1)
-        let v: UInt8 = 27
-        let sigHex = "0x" + rawSig.hexString + String(format: "%02x", v)
+        // Note: P256 passkey signature — v is not recoverable like secp256k1.
+        // For Safe EIP-1271 signature verification, this format works.
+        // v=0 indicates contract signature validation path.
+        let sigHex = "0x" + rawSig.hexString + "00"
         return AnyCodable(sigHex)
     }
 
@@ -484,7 +495,7 @@ struct VelaConnectView: View {
         let passkeyService = PasskeyService()
         let credentialID = wallet.activeAccount?.id.flatMap { Data(hexString: $0) }
 
-        // Hash the typed data params
+        // Hash the typed data params with keccak256
         let jsonData = try JSONEncoder().encode(request.params)
         let dataToSign = EthCrypto.keccak256(jsonData)
 
@@ -494,8 +505,7 @@ struct VelaConnectView: View {
             throw PasskeyService.PasskeyError.failed("No signature")
         }
 
-        let v: UInt8 = 27
-        let sigHex = "0x" + rawSig.hexString + String(format: "%02x", v)
+        let sigHex = "0x" + rawSig.hexString + "00"
         return AnyCodable(sigHex)
     }
 

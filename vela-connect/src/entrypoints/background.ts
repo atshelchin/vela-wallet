@@ -222,6 +222,23 @@ async function handlePopupAction(
       sendResponse({ ok: true });
       break;
 
+    case 'switchAccount': {
+      // Send switch request to phone via BLE
+      const switchReq: BLERequest = {
+        id: `switch_${Date.now()}`,
+        method: 'wallet_switchAccount',
+        params: [msg.address],
+        origin: 'chrome-extension',
+      };
+      try {
+        await bleClient.sendRequest(switchReq);
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ error: (e as Error).message });
+      }
+      break;
+    }
+
     default:
       sendResponse({ error: 'Unknown action' });
   }

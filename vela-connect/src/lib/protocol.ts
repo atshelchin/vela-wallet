@@ -38,6 +38,7 @@ export type MessageType =
   | 'eth_signTypedData_v4'
   | 'wallet_switchEthereumChain'
   | 'wallet_addEthereumChain'
+  | 'wallet_switchAccount'
   | 'disconnect';
 
 /** Request: extension → phone */
@@ -56,11 +57,18 @@ export interface BLEResponse {
   error?: { code: number; message: string };
 }
 
+/** Single account */
+export interface AccountInfo {
+  address: string;
+  name: string;
+}
+
 /** Wallet info from phone (read from WALLET_INFO characteristic) */
 export interface WalletInfo {
   address: string;
   chainId: number;
-  name: string;        // account name
+  name: string;        // active account name
+  accounts?: AccountInfo[];  // all accounts for switching
 }
 
 // ─── Connection State ───

@@ -29,7 +29,11 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     private var advWalletAddress = ""
     private var advAccountName = ""
     private var advChainId = 1
+    private var advAllAccounts: [[String: String]] = []
     private var shouldAutoRestart = false
+
+    /// Called when phone switches account (from Chrome extension request)
+    var onSwitchAccount: ((String) -> Void)?
 
     /// Callback when a dApp request arrives.
     var onRequest: ((BLEIncomingRequest) -> Void)?
@@ -44,10 +48,11 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     // MARK: - Public API
 
     /// Start advertising as Vela Wallet peripheral.
-    func startAdvertising(walletAddress: String, accountName: String, chainId: Int) {
+    func startAdvertising(walletAddress: String, accountName: String, chainId: Int, allAccounts: [(name: String, address: String)] = []) {
         advWalletAddress = walletAddress
         advAccountName = accountName
         advChainId = chainId
+        advAllAccounts = allAccounts.map { ["name": $0.name, "address": $0.address] }
         shouldAutoRestart = true
 
         guard peripheralManager.state == .poweredOn else {
@@ -59,12 +64,18 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     }
 
     /// Update wallet info (e.g. when account switches). Updates characteristic value.
-    func updateWalletInfo(walletAddress: String, accountName: String, chainId: Int) {
+    func updateWalletInfo(walletAddress: String, accountName: String, chainId: Int, allAccounts: [(name: String, address: String)]? = nil) {
         advWalletAddress = walletAddress
         advAccountName = accountName
         advChainId = chainId
+        if let allAccounts { advAllAccounts = allAccounts.map { ["name": $0.name, "address": $0.address] } }
 
-        let info: [String: Any] = ["address": walletAddress, "chainId": chainId, "name": accountName]
+        let info: [String: Any] = [
+            "address": walletAddress,
+            "chainId": chainId,
+            "name": accountName,
+            "accounts": advAllAccounts
+        ]
         if let data = try? JSONSerialization.data(withJSONObject: info) {
             walletInfoChar?.value = data
         }
@@ -131,6 +142,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
             "address": advWalletAddress,
             "chainId": advChainId,
             "name": advAccountName,
+            "accounts": advAllAccounts,
         ]
         let infoData = try? JSONSerialization.data(withJSONObject: walletInfo)
 
@@ -160,6 +172,21 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         if let request = try? JSONDecoder().decode(BLEIncomingRequest.self, from: incomingBuffer) {
             incomingBuffer = Data()
             print("[BLE] Request: \(request.method) from \(request.origin)")
+
+            // Handle account switch internally
+            if request.method == "wallet_switchAccount",
+               let address = request.params.first?.value as? String {
+                print("[BLE] Switch account to: \(address)")
+                onSwitchAccount?(address)
+                // Respond immediately
+                sendResponse(BLEOutgoingResponse(
+                    id: request.id,
+                    result: AnyCodable(true),
+                    error: nil
+                ))
+                return
+            }
+
             lastRequest = request
             onRequest?(request)
         }

@@ -61,13 +61,21 @@ struct VelaConnectView: View {
             ble.onRequest = { request in
                 incomingRequest = request
             }
+            // Handle account switch from Chrome extension
+            ble.onSwitchAccount = { address in
+                if let index = wallet.accounts.firstIndex(where: { $0.address == address }) {
+                    wallet.activeAccountIndex = index
+                    wallet.address = address
+                }
+            }
         }
         .onChange(of: wallet.address) {
             if ble.isAdvertising || ble.isConnected {
                 ble.updateWalletInfo(
                     walletAddress: wallet.address,
                     accountName: wallet.activeAccount?.name ?? "Wallet",
-                    chainId: 1
+                    chainId: 1,
+                    allAccounts: wallet.accounts.map { ($0.name, $0.address) }
                 )
             }
         }
@@ -311,7 +319,8 @@ struct VelaConnectView: View {
         ble.startAdvertising(
             walletAddress: wallet.address,
             accountName: wallet.activeAccount?.name ?? "Vela Wallet",
-            chainId: 1
+            chainId: 1,
+            allAccounts: wallet.accounts.map { ($0.name, $0.address) }
         )
     }
 

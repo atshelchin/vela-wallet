@@ -218,18 +218,41 @@ async function handleProviderRequest(
   }
 
   if (msg.method === 'net_version') {
-    if (walletInfo) {
-      sendResponse({ result: walletInfo.chainId.toString() });
-    } else {
-      sendResponse({ error: { code: 4100, message: 'Not connected' } });
-    }
+    sendResponse({ result: walletInfo ? walletInfo.chainId.toString() : '1' });
+    return;
+  }
+
+  // Methods that dApps call but don't need BLE
+  if (msg.method === 'eth_blockNumber' || msg.method === 'eth_getBalance' ||
+      msg.method === 'eth_call' || msg.method === 'eth_estimateGas' ||
+      msg.method === 'eth_gasPrice' || msg.method === 'eth_getTransactionReceipt' ||
+      msg.method === 'eth_getTransactionByHash' || msg.method === 'eth_getCode' ||
+      msg.method === 'eth_getLogs') {
+    // These should be forwarded to an RPC node, not the phone
+    // For now, return method not supported — dApp should use its own RPC
+    sendResponse({ error: { code: -32601, message: `${msg.method}: use your own RPC provider` } });
+    return;
+  }
+
+  if (msg.method === 'wallet_watchAsset') {
+    sendResponse({ result: true });
+    return;
+  }
+
+  if (msg.method === 'eth_getTransactionCount' || msg.method === 'eth_getBlockByNumber') {
+    sendResponse({ error: { code: -32601, message: 'Use RPC provider' } });
     return;
   }
 
   // Forward signing/transaction requests to phone via BLE
+  console.log('[BG] Forward to phone:', msg.method, 'connectionState:', connectionState, 'walletInfo:', !!walletInfo);
   if (connectionState !== 'connected') {
-    sendResponse({ error: { code: 4900, message: 'Not connected to wallet' } });
-    return;
+    // If we have wallet info but state is wrong, try anyway
+    if (!walletInfo) {
+      sendResponse({ error: { code: 4900, message: 'Not connected to wallet. Please pair first.' } });
+      return;
+    }
+    console.log('[BG] State is', connectionState, 'but walletInfo exists, trying anyway');
   }
 
   // Store pending request

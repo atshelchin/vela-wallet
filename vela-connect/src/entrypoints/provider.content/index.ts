@@ -46,7 +46,10 @@ export default defineContentScript({
             window.removeEventListener('message', handler);
 
             if (event.data.error) {
-              reject(event.data.error);
+              // Reject with proper Error object — dApps expect error.message
+              const err = new Error(event.data.error.message || 'Unknown error');
+              (err as any).code = event.data.error.code || -32603;
+              reject(err);
             } else {
               const result = event.data.result;
 
@@ -78,7 +81,9 @@ export default defineContentScript({
           // 5 minute timeout (user might be approving on phone)
           setTimeout(() => {
             window.removeEventListener('message', handler);
-            reject({ code: -32603, message: 'Request timed out' });
+            const err = new Error('Request timed out');
+            (err as any).code = -32603;
+            reject(err);
           }, 300_000);
         });
       },

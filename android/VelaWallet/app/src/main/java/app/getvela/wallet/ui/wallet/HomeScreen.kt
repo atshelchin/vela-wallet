@@ -398,19 +398,8 @@ private fun TokenRow(
             .padding(horizontal = 28.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Token icon placeholder
-        Box(
-            modifier = Modifier
-                .size(42.dp)
-                .background(VelaColor.ethBg, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = token.symbol.take(3),
-                style = VelaTypography.label(14f),
-                color = VelaColor.textSecondary,
-            )
-        }
+        // Token icon
+        app.getvela.wallet.ui.components.TokenLogo(token = token, size = 42.dp)
 
         Spacer(Modifier.width(VelaSpacing.itemGap))
 

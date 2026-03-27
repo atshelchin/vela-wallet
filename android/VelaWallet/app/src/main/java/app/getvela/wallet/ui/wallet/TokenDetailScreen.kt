@@ -59,18 +59,7 @@ fun TokenDetailScreen(
             Spacer(Modifier.height(8.dp))
 
             // Token icon
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .background(VelaColor.ethBg, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = token.symbol.take(3),
-                    style = VelaTypography.label(20f),
-                    color = VelaColor.textSecondary,
-                )
-            }
+            app.getvela.wallet.ui.components.TokenLogo(token = token, size = 64.dp)
 
             Spacer(Modifier.height(16.dp))
 

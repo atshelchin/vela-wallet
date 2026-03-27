@@ -3,6 +3,7 @@ package app.getvela.wallet.ui.wallet
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -38,11 +40,16 @@ import app.getvela.wallet.model.Network
 import app.getvela.wallet.model.WalletState
 import app.getvela.wallet.ui.components.VelaNavBar
 import app.getvela.wallet.ui.components.NetworkDot
+import app.getvela.wallet.model.formatBalance
+import app.getvela.wallet.service.WalletApiService
 import app.getvela.wallet.ui.components.TokenIcon
 import app.getvela.wallet.ui.theme.*
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ReceiveScreen(
@@ -52,7 +59,41 @@ fun ReceiveScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
+    var depositDetected by remember { mutableStateOf(false) }
+    var depositInfo by remember { mutableStateOf<String?>(null) }
     val qrBitmap = remember(wallet.address) { generateQR(wallet.address) }
+
+    // Deposit listening (poll every 10s, matches iOS)
+    LaunchedEffect(wallet.address) {
+        if (wallet.address.isEmpty()) return@LaunchedEffect
+        val api = WalletApiService()
+        val initialBalances = mutableMapOf<String, Double>()
+
+        // Snapshot
+        val tokens = withContext(Dispatchers.IO) { api.fetchTokens(wallet.address) }
+        tokens.forEach { initialBalances[it.id] = it.usdValue }
+
+        // Poll
+        while (isActive) {
+            delay(10_000)
+            if (!isActive) break
+            val current = withContext(Dispatchers.IO) { api.fetchTokens(wallet.address) }
+            for (token in current) {
+                val old = initialBalances[token.id] ?: 0.0
+                if (token.usdValue > old + 0.001) {
+                    val diff = token.balanceDouble - (old / (token.priceUsd ?: 1.0))
+                    depositDetected = true
+                    depositInfo = if (diff > 0) "+${formatBalance(diff)} ${token.symbol} on ${token.chainName}"
+                    else "${token.symbol} on ${token.chainName}"
+                    initialBalances[token.id] = token.usdValue
+                    delay(15_000)
+                    depositDetected = false
+                    depositInfo = null
+                    break
+                }
+            }
+        }
+    }
 
     LaunchedEffect(copied) {
         if (copied) {
@@ -142,10 +183,11 @@ fun ReceiveScreen(
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Network.defaults.forEach { network ->
-                    TokenIcon(
-                        label = network.iconLabel,
-                        color = network.iconColor,
-                        bg = network.iconBg,
+                    app.getvela.wallet.ui.components.ChainLogo(
+                        chainId = network.chainId,
+                        fallbackLabel = network.iconLabel,
+                        fallbackColor = network.iconColor,
+                        fallbackBg = network.iconBg,
                         size = 30.dp,
                     )
                 }
@@ -153,12 +195,42 @@ fun ReceiveScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // Listening indicator
+            // Deposit detection banner
+            if (depositDetected && depositInfo != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(VelaRadius.card))
+                        .background(VelaColor.greenSoft)
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Done, null, Modifier.size(20.dp), tint = VelaColor.green)
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("Deposit Detected", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = VelaColor.green)
+                        Text(depositInfo!!, fontSize = 12.sp, color = VelaColor.textSecondary)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Listening indicator with pulsing dot
+            val pulseTransition = rememberInfiniteTransition(label = "pulse")
+            val dotAlpha by pulseTransition.animateFloat(
+                initialValue = 1f, targetValue = 0.3f,
+                animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
+                label = "dotPulse",
+            )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                NetworkDot(color = VelaColor.green, size = 7.dp)
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .background(VelaColor.green.copy(alpha = dotAlpha), CircleShape),
+                )
                 Text(
                     text = stringResource(R.string.receive_listening),
                     fontSize = 13.sp,

@@ -168,12 +168,7 @@ private fun SelectTokenStep(
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            Modifier.size(40.dp).background(VelaColor.ethBg, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(token.symbol.take(3), style = VelaTypography.label(13f), color = VelaColor.textSecondary)
-                        }
+                        app.getvela.wallet.ui.components.TokenLogo(token = token, size = 40.dp)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
                             Text(token.symbol, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = VelaColor.textPrimary)

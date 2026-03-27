@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import app.getvela.wallet.R
 import app.getvela.wallet.model.shortAddr
 import app.getvela.wallet.service.ApiNft
+import coil3.compose.SubcomposeAsyncImage
 import app.getvela.wallet.ui.components.VelaNavBar
 import app.getvela.wallet.ui.theme.*
 import kotlinx.coroutines.delay
@@ -48,18 +49,34 @@ fun NFTDetailScreen(
     ) {
         VelaNavBar(title = nft.displayName, onBack = onBack)
 
-        // NFT image placeholder
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(360.dp)
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(VelaRadius.card))
-                .background(VelaColor.bgWarm),
-            contentAlignment = Alignment.Center,
-        ) {
-            // TODO: AsyncImage with Coil for actual NFT image loading
-            Text("🖼", fontSize = 48.sp)
+        // NFT image
+        if (nft.imageUrl != null) {
+            SubcomposeAsyncImage(
+                model = nft.imageUrl,
+                contentDescription = nft.displayName,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp)
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(VelaRadius.card)),
+                contentScale = ContentScale.Crop,
+                error = {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(360.dp).background(VelaColor.bgWarm),
+                        contentAlignment = Alignment.Center,
+                    ) { Text("🖼", fontSize = 48.sp) }
+                },
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp)
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(VelaRadius.card))
+                    .background(VelaColor.bgWarm),
+                contentAlignment = Alignment.Center,
+            ) { Text("🖼", fontSize = 48.sp) }
         }
 
         Spacer(Modifier.height(16.dp))

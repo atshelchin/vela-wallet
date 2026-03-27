@@ -107,6 +107,17 @@ export default defineBackground(() => {
     }
     if (msg.type === 'VELA_BLE_RESPONSE') {
       const response = msg.response;
+      console.log('[BG] BLE response via pairing tab:', response.id);
+
+      // Handle wallet info push
+      if (response.id === 'wallet_info_update' && response.result) {
+        walletInfo = response.result as WalletInfo;
+        console.log('[BG] Wallet info updated from push:', walletInfo.name, walletInfo.address?.slice(0, 12));
+        broadcastState();
+        return false;
+      }
+
+      // Route to waiting callback
       const callback = responseCallbacks.get(response.id);
       if (callback) {
         callback({ result: response.result, error: response.error });
@@ -219,7 +230,7 @@ async function sendViaBLE(request: BLERequest): Promise<void> {
 // ─── Popup Action Handler ───
 
 async function handlePopupAction(
-  msg: { action: string; requestId?: string },
+  msg: { action: string; requestId?: string; address?: string },
   sendResponse: (response: unknown) => void
 ) {
   switch (msg.action) {

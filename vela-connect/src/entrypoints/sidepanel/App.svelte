@@ -44,6 +44,10 @@
     chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'rejectRequest', requestId: id });
   }
 
+  function switchAccount(address: string) {
+    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'switchAccount', address });
+  }
+
   function switchToPopup() {
     // Close side panel and tell background to use popup mode
     chrome.storage.local.set({ uiMode: 'popup' });
@@ -140,25 +144,39 @@
 
     {#if walletInfo}
       <div class="wallet-card">
-        <div class="wallet-avatar">V</div>
+        <div class="wallet-avatar">{walletInfo.name?.[0]?.toUpperCase() || 'V'}</div>
         <div style="flex:1;min-width:0;">
           <div class="wallet-addr">{shortAddr(walletInfo.address)}</div>
           <div class="wallet-network">{walletInfo.name}</div>
         </div>
       </div>
+
+      {#if walletInfo.accounts && walletInfo.accounts.length > 1}
+        <div style="margin-top:10px;">
+          <div style="font-size:10px;font-weight:600;letter-spacing:1px;color:var(--text-3);margin-bottom:6px;">SWITCH ACCOUNT</div>
+          {#each walletInfo.accounts as account}
+            {#if account.address !== walletInfo.address}
+              <button
+                style="display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:4px;text-align:left;"
+                onclick={() => switchAccount(account.address)}
+              >
+                <div style="width:28px;height:28px;border-radius:50%;background:var(--bg-warm);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text-2);">
+                  {account.name?.[0]?.toUpperCase() || '?'}
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:12px;font-weight:600;color:var(--text-1);">{account.name}</div>
+                  <div style="font-size:10px;color:var(--text-3);font-family:'Space Grotesk',sans-serif;">{shortAddr(account.address)}</div>
+                </div>
+              </button>
+            {/if}
+          {/each}
+        </div>
+      {/if}
     {/if}
 
     <div class="inject-banner">
       <div class="inject-dot"></div>
       Provider active — dApps can send requests
-    </div>
-
-    <!-- Request history placeholder -->
-    <div style="margin-top:24px;">
-      <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;color:var(--text-3);margin-bottom:12px;">RECENT REQUESTS</div>
-      <div style="text-align:center;padding:32px 0;color:var(--text-3);font-size:13px;">
-        No recent requests
-      </div>
     </div>
 
     <div style="margin-top:auto;padding-top:20px;">

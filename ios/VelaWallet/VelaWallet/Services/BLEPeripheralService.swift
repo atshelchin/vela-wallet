@@ -35,6 +35,9 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     /// Called when phone switches account (from Chrome extension request)
     var onSwitchAccount: ((String) -> Void)?
 
+    /// Current chain ID from advertising config
+    @Published var currentChainId: Int = 1
+
     /// Callback when a dApp request arrives.
     var onRequest: ((BLEIncomingRequest) -> Void)?
 
@@ -52,6 +55,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         advWalletAddress = walletAddress
         advAccountName = accountName
         advChainId = chainId
+        currentChainId = chainId
         advAllAccounts = allAccounts.map { ["name": $0.name, "address": $0.address] }
         shouldAutoRestart = true
 
@@ -236,6 +240,18 @@ final class BLEPeripheralService: NSObject, ObservableObject {
                     result: AnyCodable(true),
                     error: nil
                 ))
+                return
+            }
+
+            // Handle chain switch internally
+            if request.method == "wallet_switchEthereumChain",
+               let params = request.params.first?.value as? [String: Any],
+               let chainIdHex = params["chainId"] as? String {
+                let newChainId = Int(chainIdHex.dropFirst(2), radix: 16) ?? currentChainId
+                print("[BLE] Switch chain to: \(newChainId)")
+                currentChainId = newChainId
+                advChainId = newChainId
+                sendResponse(BLEOutgoingResponse(id: request.id, result: AnyCodable(NSNull()), error: nil))
                 return
             }
 

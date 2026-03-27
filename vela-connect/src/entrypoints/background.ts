@@ -197,10 +197,19 @@ async function handleProviderRequest(
     if (chainIdHex) {
       const chainId = parseInt(chainIdHex, 16);
       if (SUPPORTED_CHAINS.includes(chainId)) {
-        // Update local chainId and notify
+        // Update local chainId
         if (walletInfo) walletInfo = { ...walletInfo, chainId };
+        // Notify phone to sync chainId
+        sendViaBLE({
+          id: `chain_${Date.now()}`,
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: chainIdHex }],
+          origin: msg.origin,
+        }).catch(() => {}); // best effort
+        // Notify dApps
+        notifyDApps('chainChanged', chainIdHex);
         broadcastState();
-        sendResponse({ result: null }); // Success
+        sendResponse({ result: null });
       } else {
         sendResponse({ error: { code: 4902, message: `Chain ${chainId} not supported` } });
       }

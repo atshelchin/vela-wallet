@@ -274,15 +274,46 @@ struct VelaConnectView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Text(request.method.uppercased())
+                    Text(methodDisplayName(request.method).uppercased())
                         .font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(VelaColor.textTertiary)
                     Spacer()
+                    Text(chainName(ble.currentChainId))
+                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(VelaColor.blue)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(VelaColor.blueSoft).clipShape(Capsule())
                 }
                 .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 8)
 
-                Text(methodDisplayName(request.method))
-                    .font(VelaFont.heading(20)).foregroundStyle(VelaColor.textPrimary)
-                    .padding(.horizontal, 16).padding(.bottom, 14)
+                // Show tx details for eth_sendTransaction
+                if request.method == "eth_sendTransaction",
+                   let txDict = request.params.first?.value as? [String: Any] {
+                    let toAddr = txDict["to"] as? String ?? "Unknown"
+                    let valueHex = txDict["value"] as? String ?? "0x0"
+                    let hasData = (txDict["data"] as? String ?? "0x") != "0x"
+                    let valueWei = UInt64(valueHex.dropFirst(2), radix: 16) ?? 0
+                    let valueEth = Double(valueWei) / 1e18
+
+                    if valueEth > 0 {
+                        Text(String(format: "%.6f", valueEth) + " " + nativeSymbol(ble.currentChainId))
+                            .font(.system(size: 24, weight: .bold)).foregroundStyle(VelaColor.textPrimary)
+                            .padding(.horizontal, 16).padding(.bottom, 4)
+                    }
+
+                    if hasData {
+                        Text("Contract Interaction")
+                            .font(.system(size: 14, weight: .medium)).foregroundStyle(VelaColor.textSecondary)
+                            .padding(.horizontal, 16).padding(.bottom, 4)
+                    }
+
+                    VelaColor.border.frame(height: 1)
+                    txDetailRow(label: "To", value: shortAddr(toAddr))
+                    txDetailRow(label: "From", value: shortAddr(wallet.address))
+                    txDetailRow(label: "Network", value: chainName(ble.currentChainId))
+                } else {
+                    Text(methodDisplayName(request.method))
+                        .font(VelaFont.heading(20)).foregroundStyle(VelaColor.textPrimary)
+                        .padding(.horizontal, 16).padding(.bottom, 14)
+                }
             }
             .background(VelaColor.bgCard)
             .clipShape(RoundedRectangle(cornerRadius: VelaRadius.card))
@@ -390,8 +421,7 @@ struct VelaConnectView: View {
 
     private func executeSendTransaction(to: String, valueHex: String, dataHex: String, publicKeyHex: String) async throws -> AnyCodable {
         let service = SafeTransactionService()
-        // Determine network from wallet info
-        let chainId = 137 // TODO: get from BLE wallet info
+        let chainId = ble.currentChainId
 
         let networkMap: [Int: String] = [
             1: "eth-mainnet", 56: "bnb-mainnet", 137: "matic-mainnet",
@@ -401,7 +431,7 @@ struct VelaConnectView: View {
 
         let valueClean = valueHex.hasPrefix("0x") ? String(valueHex.dropFirst(2)) : valueHex
 
-        print("[VelaConnect] Sending tx: to=\(to.prefix(10))... value=\(valueHex) chain=\(chainId)")
+        print("[VelaConnect] Sending tx: to=\(to.prefix(10))... value=\(valueHex) data=\(dataHex.prefix(10))... chain=\(chainId)")
 
         let txResult: SafeTransactionService.TransactionResult
         if dataHex == "0x" || dataHex.isEmpty {
@@ -411,12 +441,11 @@ struct VelaConnectView: View {
                 network: network, chainId: chainId, publicKeyHex: publicKeyHex
             )
         } else {
-            // Contract call — build callData with executeUserOp
-            let callDataBytes = Data(hexString: String(dataHex.dropFirst(2))) ?? Data()
-            // For contract calls, we use sendNative with the call data embedded
-            // TODO: implement sendContractCall in SafeTransactionService
-            txResult = try await service.sendNative(
-                from: wallet.address, to: to, valueWei: valueClean,
+            // Contract call (swap, approve, etc.)
+            let dataClean = dataHex.hasPrefix("0x") ? String(dataHex.dropFirst(2)) : dataHex
+            let txData = Data(hexString: dataClean) ?? Data()
+            txResult = try await service.sendContractCall(
+                from: wallet.address, to: to, valueWei: valueClean, data: txData,
                 network: network, chainId: chainId, publicKeyHex: publicKeyHex
             )
         }
@@ -493,12 +522,50 @@ struct VelaConnectView: View {
 
     private func methodDisplayName(_ method: String) -> String {
         switch method {
-        case "eth_sendTransaction": "Send Transaction"
+        case "eth_sendTransaction": "Transaction"
         case "personal_sign": "Sign Message"
         case "eth_signTypedData_v4": "Sign Typed Data"
         case "eth_requestAccounts": "Connect"
         default: method
         }
+    }
+
+    private func shortAddr(_ addr: String) -> String {
+        guard addr.count > 12 else { return addr }
+        return "\(addr.prefix(8))...\(addr.suffix(6))"
+    }
+
+    private func chainName(_ chainId: Int) -> String {
+        switch chainId {
+        case 1: "Ethereum"
+        case 56: "BNB Chain"
+        case 137: "Polygon"
+        case 42161: "Arbitrum"
+        case 10: "Optimism"
+        case 8453: "Base"
+        case 43114: "Avalanche"
+        default: "Chain \(chainId)"
+        }
+    }
+
+    private func nativeSymbol(_ chainId: Int) -> String {
+        switch chainId {
+        case 1, 42161, 10, 8453: "ETH"
+        case 56: "BNB"
+        case 137: "POL"
+        case 43114: "AVAX"
+        default: "ETH"
+        }
+    }
+
+    private func txDetailRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label).font(.system(size: 12)).foregroundStyle(VelaColor.textTertiary)
+            Spacer()
+            Text(value).font(VelaFont.mono(12)).foregroundStyle(VelaColor.textPrimary)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .overlay(alignment: .bottom) { VelaColor.border.frame(height: 1) }
     }
 }
 

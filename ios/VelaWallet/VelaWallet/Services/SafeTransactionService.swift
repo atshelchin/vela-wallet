@@ -28,6 +28,29 @@ final class SafeTransactionService {
         )
     }
 
+    // MARK: - Send Contract Call (arbitrary tx with data)
+
+    /// Send arbitrary contract call (e.g. dApp interaction like swap).
+    @MainActor
+    func sendContractCall(
+        from safeAddress: String,
+        to: String,
+        valueWei: String,
+        data: Data,
+        network: String,
+        chainId: Int,
+        publicKeyHex: String
+    ) async throws -> TransactionResult {
+        let callData = buildExecuteCallData(to: to, value: valueWei, data: data)
+        return try await sendUserOp(
+            safeAddress: safeAddress,
+            callData: callData,
+            network: network,
+            chainId: chainId,
+            publicKeyHex: publicKeyHex
+        )
+    }
+
     // MARK: - Send ERC-20 Token
 
     /// Send ERC-20 token.

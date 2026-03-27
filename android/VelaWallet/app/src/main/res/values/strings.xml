@@ -1,3 +1,25 @@
 <resources>
-    <string name="app_name">VelaWallet</string>
+    <string name="app_name">Vela</string>
+
+    <!-- Tabs -->
+    <string name="tab_wallet">Wallet</string>
+    <string name="tab_dapps">dApps</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Welcome -->
+    <string name="welcome_tagline">Your keys, your coins.\nSecured by passkey.</string>
+    <string name="welcome_create">Create Wallet</string>
+    <string name="welcome_import">I already have a wallet</string>
+
+    <!-- Create Wallet -->
+    <string name="create_title">Create Wallet</string>
+    <string name="create_description">Name your wallet and secure it with a passkey. No seed phrases needed.</string>
+    <string name="create_name_label">ACCOUNT NAME</string>
+    <string name="create_name_placeholder">e.g. Personal, Trading…</string>
+    <string name="create_security_note">Secured by device biometrics</string>
+    <string name="create_button">Create with Passkey</string>
+    <string name="create_retry_upload">Retry Upload</string>
+    <string name="create_skip">Skip for Now</string>
+    <string name="create_upload_failed_title">Upload Failed</string>
+    <string name="create_upload_failed_desc">Your wallet was created locally but we couldn\'t upload your public key. You can retry or skip for now.</string>
 </resources>

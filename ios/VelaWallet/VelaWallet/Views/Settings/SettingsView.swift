@@ -561,7 +561,7 @@ struct AccountSwitcherView: View {
                 dismiss()
             } catch {
                 isCreating = false
-                print("[Settings] Login failed: \(error)")
+                debugLog("[Settings] Login failed: \(error)")
             }
         }
     }

@@ -290,7 +290,7 @@ struct HomeView: View {
         } catch is CancellationError {
             // Silently ignore — task was replaced by a newer one
         } catch {
-            print("[HomeView] Failed to load tokens: \(error.localizedDescription)")
+            debugLog("[HomeView] Failed to load tokens: \(error.localizedDescription)")
         }
     }
 
@@ -301,7 +301,7 @@ struct HomeView: View {
         } catch is CancellationError {
             // Silently ignore
         } catch {
-            print("[HomeView] Failed to load NFTs: \(error.localizedDescription)")
+            debugLog("[HomeView] Failed to load NFTs: \(error.localizedDescription)")
         }
     }
 }

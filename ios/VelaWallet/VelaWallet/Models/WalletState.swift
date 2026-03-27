@@ -158,6 +158,14 @@ func shortAddr(_ address: String) -> String {
     return "\(address.prefix(8))...\(address.suffix(6))"
 }
 
+/// Debug-only logging — compiled out in release builds.
+@inline(__always)
+func debugLog(_ message: @autoclosure () -> String) {
+    #if DEBUG
+    print(message())
+    #endif
+}
+
 // MARK: - Token
 
 struct Token: Identifiable {

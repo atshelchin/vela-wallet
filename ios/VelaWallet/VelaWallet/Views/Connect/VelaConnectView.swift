@@ -70,9 +70,9 @@ struct VelaConnectView: View {
             }
         }
         .onChange(of: wallet.address) {
-            print("[VelaConnect] wallet.address changed to: \(wallet.address.prefix(12))... isAdvertising=\(ble.isAdvertising) isConnected=\(ble.isConnected)")
+            debugLog("[VelaConnect] wallet.address changed to: \(wallet.address.prefix(12))... isAdvertising=\(ble.isAdvertising) isConnected=\(ble.isConnected)")
             if ble.isAdvertising || ble.isConnected {
-                print("[VelaConnect] Pushing wallet info update via BLE")
+                debugLog("[VelaConnect] Pushing wallet info update via BLE")
                 ble.updateWalletInfo(
                     walletAddress: wallet.address,
                     accountName: wallet.activeAccount?.name ?? "Wallet",
@@ -375,12 +375,12 @@ struct VelaConnectView: View {
                 }
 
                 let response = BLEOutgoingResponse(id: request.id, result: result, error: nil)
-                print("[VelaConnect] Sending BLE response for \(request.id)")
+                debugLog("[VelaConnect] Sending BLE response for \(request.id)")
                 ble.sendResponse(response)
                 incomingRequest = nil
                 isSigning = false
             } catch {
-                print("[VelaConnect] Error: \(error)")
+                debugLog("[VelaConnect] Error: \(error)")
                 // Send error response back so dApp's promise resolves
                 ble.sendResponse(BLEOutgoingResponse(
                     id: request.id, result: nil,
@@ -430,7 +430,7 @@ struct VelaConnectView: View {
         let chainId = ble.currentChainId
         let valueClean = valueHex.hasPrefix("0x") ? String(valueHex.dropFirst(2)) : valueHex
 
-        print("[VelaConnect] Sending tx: to=\(to.prefix(10))... value=\(valueHex) data=\(dataHex.prefix(10))... chain=\(chainId)")
+        debugLog("[VelaConnect] Sending tx: to=\(to.prefix(10))... value=\(valueHex) data=\(dataHex.prefix(10))... chain=\(chainId)")
 
         let txResult: SafeTransactionService.TransactionResult
         if dataHex == "0x" || dataHex.isEmpty {
@@ -447,7 +447,7 @@ struct VelaConnectView: View {
             )
         }
 
-        print("[VelaConnect] Tx hash: \(txResult.txHash)")
+        debugLog("[VelaConnect] Tx hash: \(txResult.txHash)")
         return AnyCodable(txResult.txHash)
     }
 

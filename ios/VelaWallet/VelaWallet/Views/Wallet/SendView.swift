@@ -289,7 +289,7 @@ struct SendView: View {
             // Filter out zero-balance tokens
             tokens = tokens.filter { $0.balanceDouble > 0 }
         } catch {
-            print("[SendView] Failed to load tokens: \(error)")
+            debugLog("[SendView] Failed to load tokens: \(error)")
         }
         isLoading = false
     }
@@ -504,7 +504,7 @@ struct ConfirmTransactionView: View {
 
             // Fallback: query public key index server
             if publicKeyHex == nil || publicKeyHex?.isEmpty == true {
-                print("[Send] Public key not in local storage, querying server...")
+                debugLog("[Send] Public key not in local storage, querying server...")
                 if let record = try? await PublicKeyIndexService().query(
                     rpId: PasskeyService.relyingParty,
                     credentialId: credentialId
@@ -519,7 +519,7 @@ struct ConfirmTransactionView: View {
                         createdAt: Date()
                     )
                     LocalStorage.shared.saveAccount(stored)
-                    print("[Send] Public key recovered from server")
+                    debugLog("[Send] Public key recovered from server")
                 }
             }
 
@@ -578,7 +578,8 @@ struct ConfirmTransactionView: View {
 
             // Rough estimation: (verificationGas + callGas + preVerificationGas) * maxFeePerGas
             let isDeployed = try await checkDeployed(chainId: chainId, rpc: rpc)
-            let totalGas: UInt64 = isDeployed ? 460_000 : 960_000
+            let totalGas = (isDeployed ? SafeTransactionService.verificationGasDeployed : SafeTransactionService.verificationGasUndeployed)
+                + SafeTransactionService.callGasLimit + SafeTransactionService.preVerificationGas
             let feeWei = totalGas * maxFee
             let feeEth = Double(feeWei) / 1e18
 

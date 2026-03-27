@@ -60,7 +60,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         shouldAutoRestart = true
 
         guard peripheralManager.state == .poweredOn else {
-            print("[BLE] Bluetooth not ready, will start when powered on")
+            debugLog("[BLE] Bluetooth not ready, will start when powered on")
             return
         }
 
@@ -104,24 +104,24 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         isAdvertising = false
         isConnected = false
         subscribedCentral = nil
-        print("[BLE] Stopped")
+        debugLog("[BLE] Stopped")
     }
 
     /// Send response back to the connected central (Chrome extension).
     /// Uses chunked transfer with \n\n end marker. Serialized via outgoing queue.
     func sendResponse(_ response: BLEOutgoingResponse) {
         guard subscribedCentral != nil else {
-            print("[BLE] No central connected")
+            debugLog("[BLE] No central connected")
             return
         }
 
         guard let data = try? JSONEncoder().encode(response) else {
-            print("[BLE] Response encode failed for \(response.id)")
+            debugLog("[BLE] Response encode failed for \(response.id)")
             return
         }
 
         let fullData = data + Data("\n\n".utf8)
-        print("[BLE] Queuing: id=\(response.id), size=\(data.count) bytes")
+        debugLog("[BLE] Queuing: id=\(response.id), size=\(data.count) bytes")
 
         // Queue the message and start sending if not already in progress
         outgoingQueue.append(fullData)
@@ -226,7 +226,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         ])
 
         isAdvertising = true
-        print("[BLE] Advertising: \(advAccountName) (\(advWalletAddress.prefix(10))...)")
+        debugLog("[BLE] Advertising: \(advAccountName) (\(advWalletAddress.prefix(10))...)")
     }
 
     private var bufferTimer: Timer?
@@ -238,7 +238,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         bufferTimer?.invalidate()
         bufferTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
             if let self, !self.incomingBuffer.isEmpty {
-                print("[BLE] Buffer timeout — clearing \(self.incomingBuffer.count) stale bytes")
+                debugLog("[BLE] Buffer timeout — clearing \(self.incomingBuffer.count) stale bytes")
                 self.incomingBuffer = Data()
             }
         }
@@ -247,12 +247,12 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         if let request = try? JSONDecoder().decode(BLEIncomingRequest.self, from: incomingBuffer) {
             incomingBuffer = Data()
             bufferTimer?.invalidate()
-            print("[BLE] Request: \(request.method) from \(request.origin)")
+            debugLog("[BLE] Request: \(request.method) from \(request.origin)")
 
             // Handle account switch internally
             if request.method == "wallet_switchAccount",
                let address = request.params.first?.value as? String {
-                print("[BLE] Switch account to: \(address)")
+                debugLog("[BLE] Switch account to: \(address)")
                 onSwitchAccount?(address)
                 // Respond immediately
                 sendResponse(BLEOutgoingResponse(
@@ -269,7 +269,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
                let chainIdHex = params["chainId"] as? String {
                 let stripped = chainIdHex.hasPrefix("0x") ? String(chainIdHex.dropFirst(2)) : chainIdHex
                 let newChainId = Int(stripped, radix: 16) ?? currentChainId
-                print("[BLE] Switch chain to: \(newChainId)")
+                debugLog("[BLE] Switch chain to: \(newChainId)")
                 currentChainId = newChainId
                 advChainId = newChainId
                 sendResponse(BLEOutgoingResponse(id: request.id, result: AnyCodable(NSNull()), error: nil))
@@ -291,7 +291,7 @@ extension BLEPeripheralService: CBPeripheralManagerDelegate {
     }
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        print("[BLE] State: \(peripheral.state.rawValue)")
+        debugLog("[BLE] State: \(peripheral.state.rawValue)")
         if peripheral.state == .poweredOn && shouldAutoRestart && !isAdvertising {
             setupAndAdvertise()
         }
@@ -307,13 +307,13 @@ extension BLEPeripheralService: CBPeripheralManagerDelegate {
 
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
         if let error {
-            print("[BLE] Advertising error: \(error)")
+            debugLog("[BLE] Advertising error: \(error)")
             isAdvertising = false
         }
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        print("[BLE] Central subscribed to \(characteristic.uuid)")
+        debugLog("[BLE] Central subscribed to \(characteristic.uuid)")
         if characteristic.uuid == Self.responseCharUUID {
             subscribedCentral = central
             isConnected = true
@@ -321,14 +321,14 @@ extension BLEPeripheralService: CBPeripheralManagerDelegate {
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        print("[BLE] Central unsubscribed from \(characteristic.uuid)")
+        debugLog("[BLE] Central unsubscribed from \(characteristic.uuid)")
         if characteristic.uuid == Self.responseCharUUID {
             subscribedCentral = nil
             isConnected = false
 
             // Auto re-advertise so central can reconnect
             if shouldAutoRestart {
-                print("[BLE] Auto re-advertising for reconnection...")
+                debugLog("[BLE] Auto re-advertising for reconnection...")
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                     guard let self, self.shouldAutoRestart, !self.isConnected else { return }
                     self.setupAndAdvertise()

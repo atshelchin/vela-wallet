@@ -161,8 +161,8 @@ struct CreateWalletView: View {
                 let publicKeyHex = pubKey.uncompressedHex
                 // Compute real Safe address from P-256 public key (CREATE2)
                 let address = SafeAddressComputer.computeAddress(publicKeyHex: publicKeyHex)
-                print("[CreateWallet] publicKey: \(publicKeyHex)")
-                print("[CreateWallet] Safe address: \(address)")
+                debugLog("[CreateWallet] publicKey: \(publicKeyHex)")
+                debugLog("[CreateWallet] Safe address: \(address)")
 
                 // Save to local storage immediately
                 let stored = LocalStorage.StoredAccount(
@@ -213,18 +213,18 @@ struct CreateWalletView: View {
 
             // Convert DER signature to raw r||s
             let derSig = assertion.signature ?? Data()
-            print("[Upload] DER sig hex: \(derSig.hexString)")
-            print("[Upload] DER sig length: \(derSig.count) bytes")
+            debugLog("[Upload] DER sig hex: \(derSig.hexString)")
+            debugLog("[Upload] DER sig length: \(derSig.count) bytes")
 
             guard let rawSig = AttestationParser.derSignatureToRaw(derSig) else {
-                print("[Upload] DER→raw conversion failed")
+                debugLog("[Upload] DER→raw conversion failed")
                 throw PasskeyService.PasskeyError.failed("Failed to convert signature format")
             }
 
-            print("[Upload] Raw sig hex: \(rawSig.hexString)")
-            print("[Upload] publicKey: \(publicKeyHex)")
-            print("[Upload] authData hex: \(assertion.authenticatorData?.hexString ?? "nil")")
-            print("[Upload] clientDataJSON: \(String(data: assertion.clientDataJSON ?? Data(), encoding: .utf8) ?? "nil")")
+            debugLog("[Upload] Raw sig hex: \(rawSig.hexString)")
+            debugLog("[Upload] publicKey: \(publicKeyHex)")
+            debugLog("[Upload] authData hex: \(assertion.authenticatorData?.hexString ?? "nil")")
+            debugLog("[Upload] clientDataJSON: \(String(data: assertion.clientDataJSON ?? Data(), encoding: .utf8) ?? "nil")")
 
             let createRequest = PublicKeyIndexService.CreateRequest(
                 rpId: PasskeyService.relyingParty,

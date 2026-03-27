@@ -5,6 +5,17 @@ final class SafeTransactionService {
     private let rpc = RPCAdapter.shared
     private let passkeyService = PasskeyService()
 
+    // MARK: - Gas Constants
+
+    /// Verification gas for already-deployed Safe wallets.
+    static let verificationGasDeployed: UInt64 = 300_000
+    /// Verification gas for first tx (includes Safe deployment).
+    static let verificationGasUndeployed: UInt64 = 600_000
+    /// Gas limit for the inner call execution.
+    static let callGasLimit: UInt64 = 150_000
+    /// Pre-verification overhead.
+    static let preVerificationGas: UInt64 = 60_000
+
     // MARK: - Send Native Token
 
     /// Send native token (ETH, POL, BNB, etc.)
@@ -94,9 +105,9 @@ final class SafeTransactionService {
         let (maxFee, maxPriority) = try await getGasPrices(chainId: chainId)
 
         // 5. Initial gas estimates
-        let verificationGas: UInt64 = deployed ? 300_000 : 600_000
-        let callGas: UInt64 = 150_000
-        let preVerificationGas: UInt64 = 60_000
+        let verificationGas = deployed ? Self.verificationGasDeployed : Self.verificationGasUndeployed
+        let callGas = Self.callGasLimit
+        let preVerificationGas = Self.preVerificationGas
 
         // 6. Build dummy UserOp for gas estimation
         let dummySig = buildDummySignature()
@@ -137,9 +148,9 @@ final class SafeTransactionService {
         let authenticatorData = assertion.authenticatorData ?? Data()
         let clientDataFields = extractClientDataFields(from: clientDataJSON)
 
-        print("[WebAuthn] authenticatorData: \(authenticatorData.hexString)")
-        print("[WebAuthn] sigR: \(rawSig.prefix(32).hexString)")
-        print("[WebAuthn] sigS: \(rawSig.suffix(32).hexString)")
+        debugLog("[WebAuthn] authenticatorData: \(authenticatorData.hexString)")
+        debugLog("[WebAuthn] sigR: \(rawSig.prefix(32).hexString)")
+        debugLog("[WebAuthn] sigS: \(rawSig.suffix(32).hexString)")
 
         let realSig = buildUserOpSignature(
             authenticatorData: authenticatorData,
@@ -262,7 +273,7 @@ final class SafeTransactionService {
         guard skipIndex < endIndex else { return "" }
 
         let fields = String(json[skipIndex..<endIndex])
-        print("[WebAuthn] clientDataFields: \(fields)")
+        debugLog("[WebAuthn] clientDataFields: \(fields)")
         return fields
     }
 
@@ -404,7 +415,7 @@ final class SafeTransactionService {
             let maxFee = UInt64(maxFeeHex.dropFirst(2), radix: 16) ?? 0
             let maxPriority = UInt64(maxPriorityHex.dropFirst(2), radix: 16) ?? 0
             if maxFee > 0 {
-                print("[Gas] pimlico price: maxFee=\(maxFee), maxPriority=\(maxPriority)")
+                debugLog("[Gas] pimlico price: maxFee=\(maxFee), maxPriority=\(maxPriority)")
                 return (maxFee, maxPriority)
             }
         }
@@ -420,7 +431,7 @@ final class SafeTransactionService {
             return (50_000_000_000, 25_000_000_000)
         }
         let gasPrice = UInt64(String(result.dropFirst(2)), radix: 16) ?? 50_000_000_000
-        print("[Gas] eth_gasPrice fallback: \(gasPrice), using \(gasPrice * 3 / 2)")
+        debugLog("[Gas] eth_gasPrice fallback: \(gasPrice), using \(gasPrice * 3 / 2)")
         return (gasPrice * 3 / 2, gasPrice)
     }
 

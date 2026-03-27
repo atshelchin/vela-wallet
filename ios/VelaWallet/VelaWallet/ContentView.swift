@@ -74,7 +74,7 @@ struct OnboardingFlow: View {
                     }
 
                     guard !address.isEmpty else {
-                        print("[Login] Cannot determine Safe address — no local data or server")
+                        debugLog("[Login] Cannot determine Safe address — no local data or server")
                         return // Stay on welcome, don't show a wrong address
                     }
 
@@ -86,7 +86,7 @@ struct OnboardingFlow: View {
                 wallet.hasWallet = true
             } catch {
                 // Don't silently swallow — at least log it
-                print("[Login] Failed: \(error.localizedDescription)")
+                debugLog("[Login] Failed: \(error.localizedDescription)")
             }
         }
     }
@@ -323,7 +323,7 @@ struct PendingUploadOverlay: View {
                     LocalStorage.shared.removePendingUpload(credentialId: pending.id)
                 } catch {
                     failedNames.append(pending.name)
-                    print("[PendingUpload] \(pending.name) failed: \(error.localizedDescription)")
+                    debugLog("[PendingUpload] \(pending.name) failed: \(error.localizedDescription)")
                 }
             }
 

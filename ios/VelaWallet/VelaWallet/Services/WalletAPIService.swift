@@ -17,14 +17,14 @@ final class WalletAPIService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            print("[API] /wallet failed: HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            debugLog("[API] /wallet failed: HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
             throw APIError.fetchFailed
         }
 
         let result = try JSONDecoder().decode(WalletResponse.self, from: data)
         let filtered = result.tokens.filter { !$0.spam }
         let total = filtered.reduce(0) { $0 + $1.usdValue }
-        print("[API] /wallet: \(filtered.count) tokens, total $\(String(format: "%.2f", total))")
+        debugLog("[API] /wallet: \(filtered.count) tokens, total $\(String(format: "%.2f", total))")
         return filtered
     }
 
@@ -44,29 +44,6 @@ final class WalletAPIService {
         return result.rate
     }
 
-    // MARK: - Bundler (JSON-RPC proxy)
-
-    /// Send a JSON-RPC request to the bundler/RPC proxy.
-    func bundlerRequest(method: String, params: [Any], network: String = "eth-mainnet") async throws -> Data {
-        let url = URL(string: "\(Self.baseURL)/bundler")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "method": method,
-            "params": params,
-            "network": network
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw APIError.fetchFailed
-        }
-        return data
-    }
-
     // MARK: - NFTs
 
     /// Fetch NFTs across all supported networks.
@@ -79,12 +56,12 @@ final class WalletAPIService {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            print("[API] /nft failed: HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            debugLog("[API] /nft failed: HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
             throw APIError.fetchFailed
         }
 
         let result = try JSONDecoder().decode(NFTResponse.self, from: data)
-        print("[API] /nft: \(result.nfts.count) NFTs")
+        debugLog("[API] /nft: \(result.nfts.count) NFTs")
         return result.nfts
     }
 

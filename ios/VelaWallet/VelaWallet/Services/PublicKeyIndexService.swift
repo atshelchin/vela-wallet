@@ -30,13 +30,13 @@ final class PublicKeyIndexService {
         urlRequest.httpBody = body
 
         // Log request for debugging
-        print("[PublicKeyIndex] POST /api/create")
-        print("[PublicKeyIndex] rpId: \(request.rpId)")
-        print("[PublicKeyIndex] credentialId: \(request.credentialId.prefix(20))...")
-        print("[PublicKeyIndex] publicKey length: \(request.publicKey.count) chars")
-        print("[PublicKeyIndex] signature length: \(request.signature.count) chars")
-        print("[PublicKeyIndex] authenticatorData length: \(request.authenticatorData.count) chars")
-        print("[PublicKeyIndex] clientDataJSON length: \(request.clientDataJSON.count) chars")
+        debugLog("[PublicKeyIndex] POST /api/create")
+        debugLog("[PublicKeyIndex] rpId: \(request.rpId)")
+        debugLog("[PublicKeyIndex] credentialId: \(request.credentialId.prefix(20))...")
+        debugLog("[PublicKeyIndex] publicKey length: \(request.publicKey.count) chars")
+        debugLog("[PublicKeyIndex] signature length: \(request.signature.count) chars")
+        debugLog("[PublicKeyIndex] authenticatorData length: \(request.authenticatorData.count) chars")
+        debugLog("[PublicKeyIndex] clientDataJSON length: \(request.clientDataJSON.count) chars")
 
         let (data, response) = try await URLSession.shared.data(for: urlRequest)
         try validateResponse(response, data: data, expected: 201)
@@ -74,7 +74,7 @@ final class PublicKeyIndexService {
             } else if let data {
                 serverMessage = String(data: data, encoding: .utf8) ?? ""
             }
-            print("[PublicKeyIndex] HTTP \(http.statusCode): \(serverMessage)")
+            debugLog("[PublicKeyIndex] HTTP \(http.statusCode): \(serverMessage)")
             throw APIError.httpError(http.statusCode, serverMessage)
         }
     }

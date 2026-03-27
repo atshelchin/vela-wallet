@@ -31,6 +31,8 @@ import app.getvela.wallet.ui.theme.*
 fun SettingsScreen(
     wallet: WalletState,
     onLogout: () -> Unit,
+    onAccountSwitcher: () -> Unit = {},
+    onNetworkEditor: () -> Unit = {},
 ) {
     Column(
         modifier = Modifier
@@ -51,7 +53,7 @@ fun SettingsScreen(
                 iconTint = VelaColor.accent,
                 title = wallet.activeAccount?.name ?: "No Wallet",
                 subtitle = wallet.shortAddress.ifEmpty { stringResource(R.string.settings_switch_account) },
-                onClick = { /* TODO: account switcher */ },
+                onClick = onAccountSwitcher,
             )
         }
 
@@ -65,7 +67,7 @@ fun SettingsScreen(
                 iconTint = VelaColor.blue,
                 title = stringResource(R.string.settings_networks),
                 subtitle = stringResource(R.string.settings_networks_rpc_desc),
-                onClick = { /* TODO: network editor */ },
+                onClick = onNetworkEditor,
             )
         }
 

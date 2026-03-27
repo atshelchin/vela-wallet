@@ -111,4 +111,10 @@
     <string name="nft_type">Type</string>
     <string name="nft_token_id">Token ID</string>
     <string name="nft_contract">Contract</string>
+
+    <!-- Account Switcher -->
+    <string name="accounts_title">Accounts</string>
+    <string name="accounts_create_new">Create New Account</string>
+    <string name="accounts_login">Login with Passkey</string>
+    <string name="accounts_cancel">Cancel</string>
 </resources>

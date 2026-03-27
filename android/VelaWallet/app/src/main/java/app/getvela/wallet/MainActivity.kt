@@ -154,10 +154,14 @@ private fun MainTabs(wallet: WalletState) {
     var showReceive by remember { mutableStateOf(false) }
     var showSend by remember { mutableStateOf(false) }
     var showAddToken by remember { mutableStateOf(false) }
+    var showAccountSwitcher by remember { mutableStateOf(false) }
+    var showNetworkEditor by remember { mutableStateOf(false) }
     var sendPreselectedToken by remember { mutableStateOf<ApiToken?>(null) }
 
     // Overlay screens
     when {
+        showAccountSwitcher -> AccountSwitcherScreen(wallet = wallet, onBack = { showAccountSwitcher = false })
+        showNetworkEditor -> NetworkEditorScreen(onBack = { showNetworkEditor = false })
         showAddToken -> AddTokenScreen(onBack = { showAddToken = false })
         selectedNft != null -> NFTDetailScreen(nft = selectedNft!!, onBack = { selectedNft = null })
         showSend -> SendScreen(
@@ -216,11 +220,16 @@ private fun MainTabs(wallet: WalletState) {
                     onAddTokenClick = { showAddToken = true },
                 )
                 1 -> ConnectScreen(wallet)
-                2 -> SettingsScreen(wallet, onLogout = {
-                    wallet.hasWallet = false
-                    wallet.accounts = emptyList()
-                    wallet.address = ""
-                })
+                2 -> SettingsScreen(
+                    wallet = wallet,
+                    onLogout = {
+                        wallet.hasWallet = false
+                        wallet.accounts = emptyList()
+                        wallet.address = ""
+                    },
+                    onAccountSwitcher = { showAccountSwitcher = true },
+                    onNetworkEditor = { showNetworkEditor = true },
+                )
             }
         }
     }

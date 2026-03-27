@@ -1,5 +1,6 @@
 package app.getvela.wallet.ui.wallet
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -31,12 +33,14 @@ import app.getvela.wallet.R
 import app.getvela.wallet.model.WalletState
 import app.getvela.wallet.model.formatBalance
 import app.getvela.wallet.model.shortAddr
-import app.getvela.wallet.service.ApiToken
-import app.getvela.wallet.service.WalletApiService
+import app.getvela.wallet.service.*
 import app.getvela.wallet.ui.components.*
 import app.getvela.wallet.ui.theme.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.math.BigDecimal
+import java.math.BigInteger
 
 private enum class SendStep { SelectToken, EnterDetails, Confirm, Success }
 
@@ -54,6 +58,9 @@ fun SendScreen(
     var amount by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var txHash by remember { mutableStateOf<String?>(null) }
+    val activity = LocalContext.current as Activity
+    val scope = rememberCoroutineScope()
 
     // Load tokens
     LaunchedEffect(Unit) {
@@ -94,10 +101,28 @@ fun SendScreen(
             errorMessage = errorMessage,
             onBack = { step = SendStep.EnterDetails },
             onConfirm = {
-                // TODO: actual passkey signing + SafeTransactionService
                 isSending = true
-                errorMessage = "Passkey signing not yet implemented on Android"
-                isSending = false
+                errorMessage = null
+                scope.launch {
+                    try {
+                        val token = selectedToken ?: throw Exception("No token selected")
+                        val stored = LocalStorage.shared.findAccount(wallet.activeAccount?.id ?: "")
+                        val publicKeyHex = stored?.publicKeyHex ?: throw Exception("Public key not found")
+                        val txService = SafeTransactionService()
+
+                        val amountWei = amountToWeiHex(amount, token.decimals)
+                        val result = if (token.isNative) {
+                            txService.sendNative(activity, wallet.address, toAddress, amountWei, token.chainId, publicKeyHex)
+                        } else {
+                            txService.sendERC20(activity, wallet.address, token.tokenAddress!!, toAddress, amountWei, token.chainId, publicKeyHex)
+                        }
+                        txHash = result.txHash
+                        step = SendStep.Success
+                    } catch (e: Exception) {
+                        errorMessage = e.message ?: "Transaction failed"
+                    }
+                    isSending = false
+                }
             },
         )
         SendStep.Success -> SuccessStep(
@@ -463,4 +488,14 @@ private fun SuccessStep(
             modifier = Modifier.padding(horizontal = 28.dp),
         )
     }
+}
+
+// MARK: - Amount to Wei Hex
+
+private fun amountToWeiHex(amount: String, decimals: Int): String {
+    val decimal = BigDecimal(amount)
+    var multiplier = BigDecimal.ONE
+    repeat(decimals) { multiplier = multiplier.multiply(BigDecimal.TEN) }
+    val wei = decimal.multiply(multiplier).toBigInteger()
+    return "0x${wei.toString(16)}"
 }

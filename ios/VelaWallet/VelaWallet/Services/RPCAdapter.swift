@@ -15,21 +15,10 @@ final class RPCAdapter {
     /// Default proxy (used when user has no custom config).
     static let defaultProxyURL = "https://getvela.app/api/bundler"
 
-    /// Public RPC fallbacks (used when both custom and proxy fail).
-    private static let publicRPCs: [Int: String] = [
-        1:     "https://eth.llamarpc.com",
-        56:    "https://bsc-dataseed.binance.org",
-        137:   "https://polygon-rpc.com",
-        42161: "https://arb1.arbitrum.io/rpc",
-        10:    "https://mainnet.optimism.io",
-        8453:  "https://mainnet.base.org",
-        43114: "https://api.avax.network/ext/bc/C/rpc",
-    ]
-
-    private static let networkMap: [Int: String] = [
-        1: "eth-mainnet", 56: "bnb-mainnet", 137: "matic-mainnet",
-        42161: "arb-mainnet", 10: "opt-mainnet", 8453: "base-mainnet", 43114: "avax-mainnet",
-    ]
+    /// Public RPC fallback URL for a chain (sourced from Network.defaults).
+    private static func publicRPC(for chainId: Int) -> String? {
+        Network.defaults.first { $0.chainId == chainId }?.rpcURL
+    }
 
     private init() {}
 
@@ -51,7 +40,7 @@ final class RPCAdapter {
         }
 
         // 3. Public RPC fallback
-        if let publicURL = Self.publicRPCs[chainId] {
+        if let publicURL = Self.publicRPC(for: chainId) {
             return try await directRPC(url: publicURL, method: method, params: params)
         }
 
@@ -102,7 +91,7 @@ final class RPCAdapter {
     // MARK: - Proxy RPC (via getvela.app)
 
     private func proxyRPC(method: String, params: [Any], chainId: Int) async throws -> Data {
-        let network = Self.networkMap[chainId] ?? "eth-mainnet"
+        let network = Network.networkId(for: chainId)
         guard let url = URL(string: Self.defaultProxyURL) else { throw RPCError.invalidURL }
 
         var request = URLRequest(url: url)

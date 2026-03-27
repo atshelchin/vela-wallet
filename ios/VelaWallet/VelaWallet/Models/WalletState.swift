@@ -1,8 +1,21 @@
 import SwiftUI
 import Observation
 
+// MARK: - HasAddress (shared shortAddress)
+
+protocol HasAddress {
+    var address: String { get }
+}
+
+extension HasAddress {
+    var shortAddress: String {
+        guard address.count > 10 else { return address }
+        return "\(address.prefix(6))...\(address.suffix(4))"
+    }
+}
+
 @Observable
-final class WalletState {
+final class WalletState: HasAddress {
     var hasWallet = false
     var address: String = ""
     var isConnectedToBrowser = false
@@ -15,25 +28,15 @@ final class WalletState {
         guard !accounts.isEmpty, activeAccountIndex < accounts.count else { return nil }
         return accounts[activeAccountIndex]
     }
-
-    var shortAddress: String {
-        guard address.count > 10 else { return address }
-        return "\(address.prefix(6))...\(address.suffix(4))"
-    }
 }
 
 // MARK: - Account
 
-struct Account: Identifiable {
+struct Account: Identifiable, HasAddress {
     let id: String  // passkey credential ID
     let name: String  // user-chosen display name
     let address: String
     let createdAt: Date
-
-    var shortAddress: String {
-        guard address.count > 10 else { return address }
-        return "\(address.prefix(6))...\(address.suffix(4))"
-    }
 }
 
 // MARK: - Network

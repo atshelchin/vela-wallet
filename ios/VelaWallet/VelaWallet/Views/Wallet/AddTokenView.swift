@@ -194,40 +194,30 @@ struct AddTokenView: View {
         isLoading = true
         errorMessage = nil
 
-        let network: String
-        switch selectedNetwork.chainId {
-        case 1: network = "eth-mainnet"
-        case 42161: network = "arb-mainnet"
-        case 8453: network = "base-mainnet"
-        case 10: network = "opt-mainnet"
-        case 137: network = "matic-mainnet"
-        case 56: network = "bnb-mainnet"
-        case 43114: network = "avax-mainnet"
-        default: network = "eth-mainnet"
-        }
+        let chainId = selectedNetwork.chainId
 
         Task {
             do {
                 // Use eth_call to read name(), symbol(), decimals() from contract
-                let api = WalletAPIService()
+                let rpc = RPCAdapter.shared
 
                 // name() = 0x06fdde03
-                let nameData = try await api.bundlerRequest(
+                let nameData = try await rpc.call(
                     method: "eth_call",
                     params: [["to": contractAddress, "data": "0x06fdde03"], "latest"],
-                    network: network
+                    chainId: chainId
                 )
                 // symbol() = 0x95d89b41
-                let symbolData = try await api.bundlerRequest(
+                let symbolData = try await rpc.call(
                     method: "eth_call",
                     params: [["to": contractAddress, "data": "0x95d89b41"], "latest"],
-                    network: network
+                    chainId: chainId
                 )
                 // decimals() = 0x313ce567
-                let decimalsData = try await api.bundlerRequest(
+                let decimalsData = try await rpc.call(
                     method: "eth_call",
                     params: [["to": contractAddress, "data": "0x313ce567"], "latest"],
-                    network: network
+                    chainId: chainId
                 )
 
                 tokenName = decodeABIString(from: nameData) ?? ""

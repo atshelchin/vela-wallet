@@ -572,11 +572,12 @@ struct ConfirmTransactionView: View {
     private func estimateGas() async {
         guard let token else { return }
         do {
-            let api = WalletAPIService()
-            let (maxFee, _) = try await getGasPrices(network: token.network, api: api)
+            let rpc = RPCAdapter.shared
+            let chainId = token.chainId
+            let (maxFee, _) = try await getGasPrices(chainId: chainId, rpc: rpc)
 
             // Rough estimation: (verificationGas + callGas + preVerificationGas) * maxFeePerGas
-            let isDeployed = try await checkDeployed(network: token.network, api: api)
+            let isDeployed = try await checkDeployed(chainId: chainId, rpc: rpc)
             let totalGas: UInt64 = isDeployed ? 460_000 : 960_000
             let feeWei = totalGas * maxFee
             let feeEth = Double(feeWei) / 1e18
@@ -595,16 +596,16 @@ struct ConfirmTransactionView: View {
         }
     }
 
-    private func getGasPrices(network: String, api: WalletAPIService) async throws -> (UInt64, UInt64) {
-        let data = try await api.bundlerRequest(method: "eth_gasPrice", params: [], network: network)
+    private func getGasPrices(chainId: Int, rpc: RPCAdapter) async throws -> (UInt64, UInt64) {
+        let data = try await rpc.call(method: "eth_gasPrice", params: [], chainId: chainId)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let hex = json["result"] as? String else { return (2_000_000_000, 1_000_000_000) }
         let gas = UInt64(hex.dropFirst(2), radix: 16) ?? 2_000_000_000
         return (gas * 2, gas / 2)
     }
 
-    private func checkDeployed(network: String, api: WalletAPIService) async throws -> Bool {
-        let data = try await api.bundlerRequest(method: "eth_getCode", params: [wallet.address, "latest"], network: network)
+    private func checkDeployed(chainId: Int, rpc: RPCAdapter) async throws -> Bool {
+        let data = try await rpc.call(method: "eth_getCode", params: [wallet.address, "latest"], chainId: chainId)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let code = json["result"] as? String else { return false }
         return code != "0x" && code.count > 2

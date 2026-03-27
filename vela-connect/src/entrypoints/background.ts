@@ -40,6 +40,15 @@ bleClient.setHandlers({
   },
 
   onResponse(response: BLEResponse) {
+    // Handle wallet info push from phone (account switch notification)
+    if (response.id === 'wallet_info_update' && response.result) {
+      const info = response.result as WalletInfo;
+      walletInfo = info;
+      broadcastState();
+      console.log('[BG] Wallet info updated:', info.name, info.address?.slice(0, 10));
+      return;
+    }
+
     // Route response back to the waiting content script
     const callback = responseCallbacks.get(response.id);
     if (callback) {

@@ -78,6 +78,18 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         ]
         if let data = try? JSONSerialization.data(withJSONObject: info) {
             walletInfoChar?.value = data
+
+            // Push update to connected extension via notify
+            if let central = subscribedCentral {
+                let notification: [String: Any] = [
+                    "id": "wallet_info_update",
+                    "result": info
+                ]
+                if let notifyData = try? JSONSerialization.data(withJSONObject: notification) {
+                    peripheralManager.updateValue(notifyData, for: responseChar, onSubscribedCentrals: [central])
+                    print("[BLE] Pushed wallet info update to extension")
+                }
+            }
         }
     }
 

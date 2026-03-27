@@ -70,11 +70,20 @@ final class PasskeyService: NSObject {
     // MARK: - Sign Data
 
     /// Sign arbitrary data using a Passkey assertion.
-    /// The challenge contains the data to sign; the assertion signature is the result.
+    /// - Parameters:
+    ///   - data: The challenge/data to sign
+    ///   - credentialID: Optional credential ID to use (avoids showing picker)
     @MainActor
-    func sign(data: Data) async throws -> PasskeyResult {
+    func sign(data: Data, credentialID: Data? = nil) async throws -> PasskeyResult {
         let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: Self.relyingParty)
         let request = provider.createCredentialAssertionRequest(challenge: data)
+
+        // Specify which credential to use — avoids showing passkey picker
+        if let credentialID {
+            request.allowedCredentials = [
+                ASAuthorizationPlatformPublicKeyCredentialDescriptor(credentialID: credentialID)
+            ]
+        }
 
         return try await performRequest(request)
     }

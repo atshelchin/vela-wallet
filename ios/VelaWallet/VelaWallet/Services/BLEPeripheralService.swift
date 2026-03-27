@@ -112,23 +112,68 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     }
 
     /// Send response back to the connected central (Chrome extension).
+    /// Uses chunked transfer with END marker for reliable delivery.
+    ///
+    /// Protocol: each chunk is sent as a BLE notify. The last chunk ends with \n\n (double newline).
+    /// Receiver buffers until it sees \n\n, then parses the complete JSON.
     func sendResponse(_ response: BLEOutgoingResponse) {
         guard let central = subscribedCentral else {
             print("[BLE] No central connected")
             return
         }
 
-        guard let data = try? JSONEncoder().encode(response) else { return }
+        guard let data = try? JSONEncoder().encode(response) else {
+            print("[BLE] Response encode failed for \(response.id)")
+            return
+        }
+
+        // Append end-of-message marker
+        let endMarker = Data("\n\n".utf8)
+        let fullData = data + endMarker
 
         let mtu = central.maximumUpdateValueLength
-        let chunks = stride(from: 0, to: data.count, by: mtu).map {
-            data[$0..<min($0 + mtu, data.count)]
+        print("[BLE] Sending: id=\(response.id), size=\(data.count) bytes, MTU=\(mtu)")
+
+        var offset = 0
+        var chunkIndex = 0
+        pendingChunks = []
+
+        while offset < fullData.count {
+            let end = min(offset + mtu, fullData.count)
+            let chunk = Data(fullData[offset..<end])
+            pendingChunks.append(chunk)
+            offset = end
+            chunkIndex += 1
         }
 
-        for chunk in chunks {
-            peripheralManager.updateValue(Data(chunk), for: responseChar, onSubscribedCentrals: [central])
+        // Send chunks, handling queue-full gracefully
+        sendNextChunk()
+    }
+
+    private var pendingChunks: [Data] = []
+    private var currentChunkIndex = 0
+
+    private func sendNextChunk() {
+        guard let central = subscribedCentral else { return }
+
+        while currentChunkIndex < pendingChunks.count {
+            let chunk = pendingChunks[currentChunkIndex]
+            let sent = peripheralManager.updateValue(chunk, for: responseChar, onSubscribedCentrals: [central])
+
+            if sent {
+                currentChunkIndex += 1
+            } else {
+                // Queue full — peripheralManagerIsReady will be called when ready
+                print("[BLE] Queue full at chunk \(currentChunkIndex + 1)/\(pendingChunks.count), waiting...")
+                return
+            }
         }
-        print("[BLE] Response sent: \(response.id)")
+
+        // All chunks sent
+        print("[BLE] All \(pendingChunks.count) chunks sent")
+        pendingChunks = []
+        currentChunkIndex = 0
+    }
     }
 
     // MARK: - Private
@@ -215,6 +260,11 @@ final class BLEPeripheralService: NSObject, ObservableObject {
 // MARK: - CBPeripheralManagerDelegate
 
 extension BLEPeripheralService: CBPeripheralManagerDelegate {
+
+    func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
+        // Called when updateValue previously returned false — continue sending
+        sendNextChunk()
+    }
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         print("[BLE] State: \(peripheral.state.rawValue)")

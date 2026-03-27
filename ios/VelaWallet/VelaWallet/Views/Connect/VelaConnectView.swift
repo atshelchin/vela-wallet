@@ -331,19 +331,43 @@ struct VelaConnectView: View {
         Task {
             do {
                 let passkeyService = PasskeyService()
+
+                // Get credential ID for current account (avoids passkey picker)
+                let credentialID: Data?
+                if let accountId = wallet.activeAccount?.id {
+                    credentialID = Data(hexString: accountId)
+                } else {
+                    credentialID = nil
+                }
+
                 let dataToSign: Data
                 if request.method == "personal_sign", let hexMsg = request.params.first?.value as? String {
-                    dataToSign = Data(hexString: String(hexMsg.dropFirst(2))) ?? Data(hexMsg.utf8)
+                    let clean = hexMsg.hasPrefix("0x") ? String(hexMsg.dropFirst(2)) : hexMsg
+                    dataToSign = Data(hexString: clean) ?? Data(hexMsg.utf8)
                 } else {
                     let jsonData = try JSONEncoder().encode(request.params)
                     dataToSign = EthCrypto.keccak256(jsonData)
                 }
-                let assertion = try await passkeyService.sign(data: dataToSign)
-                guard let sig = assertion.signature else { throw PasskeyService.PasskeyError.failed("No signature") }
-                ble.sendResponse(BLEOutgoingResponse(id: request.id, result: AnyCodable("0x" + sig.hexString), error: nil))
-                incomingRequest = nil; isSigning = false
+
+                print("[VelaConnect] Signing \(request.method), dataSize=\(dataToSign.count)")
+                let assertion = try await passkeyService.sign(data: dataToSign, credentialID: credentialID)
+                guard let sig = assertion.signature else {
+                    throw PasskeyService.PasskeyError.failed("No signature returned")
+                }
+
+                let sigHex = "0x" + sig.hexString
+                print("[VelaConnect] Signature: \(sigHex.prefix(20))... (\(sigHex.count) chars)")
+
+                let response = BLEOutgoingResponse(id: request.id, result: AnyCodable(sigHex), error: nil)
+                print("[VelaConnect] Sending BLE response for \(request.id)")
+                ble.sendResponse(response)
+
+                incomingRequest = nil
+                isSigning = false
             } catch {
-                isSigning = false; signError = error.localizedDescription
+                print("[VelaConnect] Sign error: \(error)")
+                isSigning = false
+                signError = error.localizedDescription
             }
         }
     }

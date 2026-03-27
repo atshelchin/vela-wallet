@@ -138,6 +138,10 @@ class BLEClient {
 
   private _responseBuffer = '';
 
+  /**
+   * Receive BLE notify data. Phone sends JSON terminated by \n\n.
+   * Buffer chunks until we see the end marker, then parse complete message.
+   */
   private onResponseReceived(event: Event) {
     const target = event.target as BluetoothRemoteGATTCharacteristic;
     if (!target.value) return;
@@ -145,15 +149,23 @@ class BLEClient {
     const chunk = new TextDecoder().decode(target.value.buffer);
     this._responseBuffer += chunk;
 
-    // Try parsing the accumulated buffer
+    // Check for end-of-message marker (\n\n)
+    const endIdx = this._responseBuffer.indexOf('\n\n');
+    if (endIdx === -1) {
+      console.log('[BLE] Buffering chunk, total:', this._responseBuffer.length, 'bytes');
+      return;
+    }
+
+    // Extract complete message (before \n\n)
+    const json = this._responseBuffer.substring(0, endIdx);
+    this._responseBuffer = this._responseBuffer.substring(endIdx + 2); // Keep remainder
+
     try {
-      const response = JSON.parse(this._responseBuffer) as BLEResponse;
-      this._responseBuffer = ''; // Clear on success
-      console.log('[BLE] Response:', response.id, JSON.stringify(response).slice(0, 100));
+      const response = JSON.parse(json) as BLEResponse;
+      console.log('[BLE] Response complete:', response.id, json.length, 'bytes');
       this.handlers?.onResponse(response);
-    } catch {
-      // Incomplete JSON — wait for more chunks
-      console.log('[BLE] Buffering response chunk, total:', this._responseBuffer.length, 'bytes');
+    } catch (e) {
+      console.error('[BLE] Parse error after reassembly:', (e as Error).message, 'length:', json.length);
     }
   }
 

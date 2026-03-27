@@ -53,9 +53,16 @@ export default defineContentScript({
         return true;
       }
 
+      // Generic event forwarding (connect, disconnect, etc.)
+      if (msg.type === 'VELA_EMIT') {
+        console.log('[Vela Content] emit:', msg.event, msg.data);
+        window.postMessage({ type: 'VELA_EMIT_EVENT', event: msg.event, data: msg.data }, '*');
+        sendResponse({ ok: true });
+        return true;
+      }
+
       // Popup state updates — ignore (for popup/sidepanel only)
       if (msg.type === 'VELA_POPUP_STATE') return false;
-
       // BLE send request — ignore (for pairing tab only)
       if (msg.type === 'VELA_BLE_SEND_REQUEST') return false;
 

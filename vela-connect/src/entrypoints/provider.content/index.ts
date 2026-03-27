@@ -35,7 +35,8 @@ export default defineContentScript({
       selectedAddress: null as string | null,
       chainId: null as string | null,
       networkVersion: null as string | null,
-      isConnected: () => true,
+      _isConnected: false,
+      isConnected: () => provider._isConnected,
 
       async request({ method, params = [] }: { method: string; params?: unknown[] }): Promise<unknown> {
         const id = `vela_${Date.now()}_${++requestCounter}`;
@@ -113,8 +114,18 @@ export default defineContentScript({
       const { event: eventName, data } = event.data;
       console.log(`[Vela] received VELA_EMIT_EVENT: ${eventName}`, data);
 
-      if (eventName === 'accountsChanged') {
+      if (eventName === 'connect') {
+        const info = data as { chainId: string };
+        provider.chainId = info?.chainId || null;
+        provider._isConnected = true;
+        emit('connect', data);
+      } else if (eventName === 'disconnect') {
+        provider._isConnected = false;
+        provider.selectedAddress = null;
+        emit('disconnect', data);
+      } else if (eventName === 'accountsChanged') {
         provider.selectedAddress = Array.isArray(data) ? data[0] : null;
+        provider._isConnected = true;
         emit('accountsChanged', data);
       } else if (eventName === 'chainChanged') {
         provider.chainId = data as string;

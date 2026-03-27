@@ -102,7 +102,11 @@ export default defineBackground(() => {
     }
     if (msg.type === 'VELA_BLE_WALLET_INFO') {
       walletInfo = msg.walletInfo;
+      // Force notify all dApps on first connection
+      lastBroadcastAddress = undefined;
       broadcastState();
+      // Also emit 'connect' event
+      notifyDApps('connect', { chainId: '0x' + (walletInfo.chainId || 1).toString(16) });
       return false;
     }
     if (msg.type === 'VELA_BLE_RESPONSE') {
@@ -444,4 +448,20 @@ function broadcastState() {
       console.log('[BG] Sent accountsChanged to', tabs.length, 'tabs');
     });
   }
+}
+
+/** Send an EIP-1193 event to all dApp tabs */
+function notifyDApps(eventName: string, data: unknown) {
+  chrome.tabs.query({}, (tabs) => {
+    for (const tab of tabs) {
+      if (tab.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'VELA_EMIT',
+          event: eventName,
+          data,
+        }).catch(() => {});
+      }
+    }
+  });
+  console.log('[BG] Emitted', eventName, 'to all dApps');
 }

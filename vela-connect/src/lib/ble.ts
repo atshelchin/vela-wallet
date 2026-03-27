@@ -30,6 +30,10 @@ class BLEClient {
   private responseChar: BluetoothRemoteGATTCharacteristic | null = null;
   private handlers: BLEEventHandler | null = null;
   private _state: ConnectionState = 'disconnected';
+  private _autoReconnect = true;
+  private _reconnectAttempts = 0;
+  private static readonly MAX_RECONNECT_ATTEMPTS = 10;
+  private static readonly RECONNECT_INTERVAL_MS = 3000;
 
   get state(): ConnectionState { return this._state; }
   get connectedDevice(): ConnectedDevice | null {
@@ -57,12 +61,12 @@ class BLEClient {
         return;
       }
 
-      // Listen for disconnection
+      // Listen for disconnection — auto-reconnect
       this.device.addEventListener('gattserverdisconnected', () => {
-        console.log('[BLE] Device disconnected');
+        console.log('[BLE] Device disconnected, will try to reconnect...');
         this.cleanup();
-        this.handlers?.onDisconnect();
-        this.setState('disconnected');
+        this.setState('searching');
+        this.autoReconnect();
       });
 
       // Connect GATT
@@ -113,6 +117,7 @@ class BLEClient {
 
   /** Disconnect from the phone. */
   disconnect(): void {
+    this._autoReconnect = false;
     if (this.server?.connected) {
       this.server.disconnect();
     }
@@ -145,11 +150,52 @@ class BLEClient {
     this.handlers?.onStateChange(state, device);
   }
 
+  /** Try to reconnect to a previously paired device (no user gesture needed). */
+  private async autoReconnect() {
+    if (!this._autoReconnect || !this.device?.gatt) return;
+
+    while (this._reconnectAttempts < BLEClient.MAX_RECONNECT_ATTEMPTS && this._autoReconnect) {
+      this._reconnectAttempts++;
+      console.log(`[BLE] Reconnect attempt ${this._reconnectAttempts}/${BLEClient.MAX_RECONNECT_ATTEMPTS}...`);
+
+      await new Promise(r => setTimeout(r, BLEClient.RECONNECT_INTERVAL_MS));
+      if (!this._autoReconnect) break;
+
+      try {
+        this.server = await this.device!.gatt!.connect();
+        const service = await this.server.getPrimaryService(BLE.SERVICE_UUID);
+        this.requestChar = await service.getCharacteristic(BLE.REQUEST_UUID);
+        this.responseChar = await service.getCharacteristic(BLE.RESPONSE_UUID);
+        await this.responseChar.startNotifications();
+        this.responseChar.addEventListener('characteristicvaluechanged', this.onResponseReceived.bind(this));
+
+        // Re-read wallet info
+        try {
+          const infoChar = await service.getCharacteristic(BLE.WALLET_INFO_UUID);
+          const infoVal = await infoChar.readValue();
+          const walletInfo = decodeMessage<WalletInfo>(infoVal.buffer);
+          this.handlers?.onWalletInfo(walletInfo);
+        } catch {}
+
+        this._reconnectAttempts = 0;
+        this.setState('connected', this.connectedDevice ?? undefined);
+        console.log('[BLE] Reconnected!');
+        return;
+      } catch (e) {
+        console.log(`[BLE] Reconnect failed: ${(e as Error).message}`);
+      }
+    }
+
+    // All attempts failed
+    console.log('[BLE] Giving up reconnection');
+    this.handlers?.onDisconnect();
+    this.setState('disconnected');
+  }
+
   private cleanup() {
     this.requestChar = null;
     this.responseChar = null;
     this.server = null;
-    // Don't null device — keep for reconnection info
   }
 }
 

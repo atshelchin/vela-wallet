@@ -6,7 +6,6 @@ struct VelaConnectView: View {
 
     @State private var incomingRequest: BLEIncomingRequest?
     @State private var isSigning = false
-    @State private var signResult: String?
     @State private var signError: String?
 
     var body: some View {
@@ -16,7 +15,7 @@ struct VelaConnectView: View {
 
                 if let request = incomingRequest {
                     requestView(request)
-                } else if ble.connectedCentral != nil {
+                } else if ble.isConnected {
                     connectedState
                 } else {
                     pairingState
@@ -28,6 +27,16 @@ struct VelaConnectView: View {
         .onAppear {
             ble.onRequest = { request in
                 incomingRequest = request
+            }
+        }
+        // When account switches, update BLE wallet info without reconnecting
+        .onChange(of: wallet.address) {
+            if ble.isAdvertising {
+                ble.updateWalletInfo(
+                    walletAddress: wallet.address,
+                    accountName: wallet.activeAccount?.name ?? "Wallet",
+                    chainId: 1
+                )
             }
         }
     }
@@ -49,26 +58,28 @@ struct VelaConnectView: View {
                     Circle()
                         .fill(VelaColor.blueSoft)
                         .frame(width: 100, height: 100)
-                    Image(systemName: "antenna.radiowaves.left.and.right")
+                    Image(systemName: ble.isAdvertising ? "antenna.radiowaves.left.and.right" : "antenna.radiowaves.left.and.right")
                         .font(.system(size: 32))
                         .foregroundStyle(VelaColor.blue)
                 }
 
                 VStack(spacing: 10) {
-                    Text("connect.heading")
+                    Text(ble.isAdvertising ? "connect.waiting" : "connect.heading")
                         .font(VelaFont.heading(24))
                         .foregroundStyle(VelaColor.textPrimary)
-                    Text("connect.description")
+                    Text(ble.isAdvertising ? "connect.waiting_desc" : "connect.description")
                         .font(VelaFont.body(14))
                         .foregroundStyle(VelaColor.textSecondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
                 }
 
-                VStack(spacing: 12) {
-                    StepRow(number: 1, text: String(localized: "connect.step1"))
-                    StepRow(number: 2, text: String(localized: "connect.step2"))
-                    StepRow(number: 3, text: String(localized: "connect.step3"))
+                if !ble.isAdvertising {
+                    VStack(spacing: 12) {
+                        StepRow(number: 1, text: String(localized: "connect.step1"))
+                        StepRow(number: 2, text: String(localized: "connect.step2"))
+                        StepRow(number: 3, text: String(localized: "connect.step3"))
+                    }
                 }
             }
             .padding(.horizontal, 36)
@@ -79,10 +90,9 @@ struct VelaConnectView: View {
                 if ble.isAdvertising {
                     ble.stopAdvertising()
                 } else {
-                    let name = wallet.activeAccount?.name ?? "Vela Wallet"
                     ble.startAdvertising(
                         walletAddress: wallet.address,
-                        accountName: name,
+                        accountName: wallet.activeAccount?.name ?? "Vela Wallet",
                         chainId: 1
                     )
                 }
@@ -93,7 +103,6 @@ struct VelaConnectView: View {
                 }
             }
             .buttonStyle(BlueButtonStyle())
-            .opacity(ble.isAdvertising ? 0.6 : 1)
             .padding(.horizontal, 28)
             .padding(.bottom, 24)
         }
@@ -124,7 +133,6 @@ struct VelaConnectView: View {
                             .foregroundStyle(VelaColor.green)
                     }
                 }
-
                 Spacer()
             }
             .padding(16)
@@ -137,6 +145,33 @@ struct VelaConnectView: View {
             .padding(.horizontal, VelaSpacing.screenH)
             .padding(.top, 24)
 
+            // Current wallet info
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(VelaColor.accentSoft)
+                        .frame(width: 36, height: 36)
+                    Text(String((wallet.activeAccount?.name ?? "V").prefix(1)).uppercased())
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(VelaColor.accent)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(wallet.activeAccount?.name ?? "Wallet")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(VelaColor.textPrimary)
+                    Text(wallet.shortAddress)
+                        .font(VelaFont.mono(12))
+                        .foregroundStyle(VelaColor.textTertiary)
+                }
+                Spacer()
+            }
+            .padding(14)
+            .background(VelaColor.bgWarm)
+            .clipShape(RoundedRectangle(cornerRadius: VelaRadius.cardSmall))
+            .padding(.horizontal, VelaSpacing.screenH)
+            .padding(.top, 12)
+
             Spacer()
 
             VStack(spacing: 20) {
@@ -148,7 +183,6 @@ struct VelaConnectView: View {
                         .font(.system(size: 26, weight: .semibold))
                         .foregroundStyle(VelaColor.green)
                 }
-
                 VStack(spacing: 8) {
                     Text("connect.connected")
                         .font(VelaFont.heading(22))
@@ -164,9 +198,7 @@ struct VelaConnectView: View {
 
             Spacer()
 
-            Button {
-                ble.stopAdvertising()
-            } label: {
+            Button { ble.stopAdvertising() } label: {
                 Text("connect.disconnect")
             }
             .buttonStyle(DisconnectButtonStyle())
@@ -179,7 +211,6 @@ struct VelaConnectView: View {
 
     private func requestView(_ request: BLEIncomingRequest) -> some View {
         VStack(spacing: 0) {
-            // Origin
             HStack(spacing: 8) {
                 if let favicon = request.favicon, let url = URL(string: favicon) {
                     AsyncImage(url: url) { image in
@@ -198,7 +229,6 @@ struct VelaConnectView: View {
             .padding(.top, 16)
             .padding(.bottom, 12)
 
-            // Request card
             VStack(spacing: 0) {
                 HStack {
                     Text(request.method.uppercased())
@@ -236,7 +266,6 @@ struct VelaConnectView: View {
 
             Spacer()
 
-            // Approve / Reject
             VStack(spacing: 10) {
                 Button { approveRequest(request) } label: {
                     if isSigning {
@@ -272,23 +301,17 @@ struct VelaConnectView: View {
 
         Task {
             do {
-                // TODO: Route to SafeTransactionService based on method
-                // For now, sign with Passkey and return
                 let passkeyService = PasskeyService()
-
-                // Build the data to sign based on method
                 let dataToSign: Data
                 if request.method == "personal_sign",
                    let hexMsg = request.params.first?.value as? String {
                     dataToSign = Data(hexString: String(hexMsg.dropFirst(2))) ?? Data(hexMsg.utf8)
                 } else {
-                    // Generic: hash the request params
                     let jsonData = try JSONEncoder().encode(request.params)
                     dataToSign = EthCrypto.keccak256(jsonData)
                 }
 
                 let assertion = try await passkeyService.sign(data: dataToSign)
-
                 guard let sig = assertion.signature else {
                     throw PasskeyService.PasskeyError.failed("Signature not returned")
                 }

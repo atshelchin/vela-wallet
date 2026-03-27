@@ -15,7 +15,7 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     static let walletInfoCharUUID = CBUUID(string: "0003BE1A-0000-1000-8000-00805F9B34FB")
 
     @Published var isAdvertising = false
-    @Published var connectedCentral: CBCentral? = nil
+    @Published var isConnected = false
     @Published var lastRequest: BLEIncomingRequest? = nil
 
     private var peripheralManager: CBPeripheralManager!
@@ -23,8 +23,15 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     private var responseChar: CBMutableCharacteristic!
     private var walletInfoChar: CBMutableCharacteristic!
     private var service: CBMutableService!
+    private var subscribedCentral: CBCentral?
 
-    /// Callback when a dApp request arrives. The handler must call `sendResponse` when done.
+    // Advertising config — kept for auto-restart
+    private var advWalletAddress = ""
+    private var advAccountName = ""
+    private var advChainId = 1
+    private var shouldAutoRestart = false
+
+    /// Callback when a dApp request arrives.
     var onRequest: ((BLEIncomingRequest) -> Void)?
 
     private var incomingBuffer = Data()
@@ -38,12 +45,68 @@ final class BLEPeripheralService: NSObject, ObservableObject {
 
     /// Start advertising as Vela Wallet peripheral.
     func startAdvertising(walletAddress: String, accountName: String, chainId: Int) {
+        advWalletAddress = walletAddress
+        advAccountName = accountName
+        advChainId = chainId
+        shouldAutoRestart = true
+
         guard peripheralManager.state == .poweredOn else {
-            print("[BLE] Bluetooth not ready, state: \(peripheralManager.state.rawValue)")
+            print("[BLE] Bluetooth not ready, will start when powered on")
             return
         }
 
-        // Build service
+        setupAndAdvertise()
+    }
+
+    /// Update wallet info (e.g. when account switches). Updates characteristic value.
+    func updateWalletInfo(walletAddress: String, accountName: String, chainId: Int) {
+        advWalletAddress = walletAddress
+        advAccountName = accountName
+        advChainId = chainId
+
+        let info: [String: Any] = ["address": walletAddress, "chainId": chainId, "name": accountName]
+        if let data = try? JSONSerialization.data(withJSONObject: info) {
+            walletInfoChar?.value = data
+        }
+    }
+
+    /// Stop advertising.
+    func stopAdvertising() {
+        shouldAutoRestart = false
+        peripheralManager.stopAdvertising()
+        peripheralManager.removeAllServices()
+        isAdvertising = false
+        isConnected = false
+        subscribedCentral = nil
+        print("[BLE] Stopped")
+    }
+
+    /// Send response back to the connected central (Chrome extension).
+    func sendResponse(_ response: BLEOutgoingResponse) {
+        guard let central = subscribedCentral else {
+            print("[BLE] No central connected")
+            return
+        }
+
+        guard let data = try? JSONEncoder().encode(response) else { return }
+
+        let mtu = central.maximumUpdateValueLength
+        let chunks = stride(from: 0, to: data.count, by: mtu).map {
+            data[$0..<min($0 + mtu, data.count)]
+        }
+
+        for chunk in chunks {
+            peripheralManager.updateValue(Data(chunk), for: responseChar, onSubscribedCentrals: [central])
+        }
+        print("[BLE] Response sent: \(response.id)")
+    }
+
+    // MARK: - Private
+
+    private func setupAndAdvertise() {
+        // Remove previous service if exists
+        peripheralManager.removeAllServices()
+
         requestChar = CBMutableCharacteristic(
             type: Self.requestCharUUID,
             properties: [.write, .writeWithoutResponse],
@@ -59,9 +122,9 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         )
 
         let walletInfo: [String: Any] = [
-            "address": walletAddress,
-            "chainId": chainId,
-            "name": accountName,
+            "address": advWalletAddress,
+            "chainId": advChainId,
+            "name": advAccountName,
         ]
         let infoData = try? JSONSerialization.data(withJSONObject: walletInfo)
 
@@ -74,49 +137,26 @@ final class BLEPeripheralService: NSObject, ObservableObject {
 
         service = CBMutableService(type: Self.serviceUUID, primary: true)
         service.characteristics = [requestChar, responseChar, walletInfoChar]
-
         peripheralManager.add(service)
+
         peripheralManager.startAdvertising([
             CBAdvertisementDataServiceUUIDsKey: [Self.serviceUUID],
             CBAdvertisementDataLocalNameKey: "Vela Wallet",
         ])
 
         isAdvertising = true
-        print("[BLE] Advertising started")
+        print("[BLE] Advertising: \(advAccountName) (\(advWalletAddress.prefix(10))...)")
     }
 
-    /// Stop advertising.
-    func stopAdvertising() {
-        peripheralManager.stopAdvertising()
-        peripheralManager.removeAllServices()
-        isAdvertising = false
-        connectedCentral = nil
-        print("[BLE] Advertising stopped")
-    }
+    private func handleIncomingData(_ data: Data) {
+        incomingBuffer.append(data)
 
-    /// Send response back to the connected central (Chrome extension).
-    func sendResponse(_ response: BLEOutgoingResponse) {
-        guard let central = connectedCentral else {
-            print("[BLE] No central connected, cannot send response")
-            return
+        if let request = try? JSONDecoder().decode(BLEIncomingRequest.self, from: incomingBuffer) {
+            incomingBuffer = Data()
+            print("[BLE] Request: \(request.method) from \(request.origin)")
+            lastRequest = request
+            onRequest?(request)
         }
-
-        guard let data = try? JSONEncoder().encode(response) else {
-            print("[BLE] Failed to encode response")
-            return
-        }
-
-        // Chunk if needed (BLE MTU limit)
-        let mtu = central.maximumUpdateValueLength
-        let chunks = stride(from: 0, to: data.count, by: mtu).map {
-            data[$0..<min($0 + mtu, data.count)]
-        }
-
-        for chunk in chunks {
-            peripheralManager.updateValue(Data(chunk), for: responseChar, onSubscribedCentrals: [central])
-        }
-
-        print("[BLE] Response sent: \(response.id)")
     }
 }
 
@@ -126,42 +166,54 @@ extension BLEPeripheralService: CBPeripheralManagerDelegate {
 
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         print("[BLE] State: \(peripheral.state.rawValue)")
+        if peripheral.state == .poweredOn && shouldAutoRestart && !isAdvertising {
+            setupAndAdvertise()
+        }
         if peripheral.state != .poweredOn {
             isAdvertising = false
+            isConnected = false
         }
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
-        if let error {
-            print("[BLE] Failed to add service: \(error)")
-        } else {
-            print("[BLE] Service added")
-        }
+        if let error { print("[BLE] Service error: \(error)") }
     }
 
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
         if let error {
-            print("[BLE] Advertising failed: \(error)")
+            print("[BLE] Advertising error: \(error)")
             isAdvertising = false
         }
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        print("[BLE] Central subscribed: \(characteristic.uuid)")
-        connectedCentral = central
+        print("[BLE] Central subscribed to \(characteristic.uuid)")
+        if characteristic.uuid == Self.responseCharUUID {
+            subscribedCentral = central
+            isConnected = true
+        }
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        print("[BLE] Central unsubscribed")
+        print("[BLE] Central unsubscribed from \(characteristic.uuid)")
         if characteristic.uuid == Self.responseCharUUID {
-            connectedCentral = nil
+            subscribedCentral = nil
+            isConnected = false
+
+            // Auto re-advertise so central can reconnect
+            if shouldAutoRestart {
+                print("[BLE] Auto re-advertising for reconnection...")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                    guard let self, self.shouldAutoRestart, !self.isConnected else { return }
+                    self.setupAndAdvertise()
+                }
+            }
         }
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
         for request in requests {
-            if request.characteristic.uuid == Self.requestCharUUID,
-               let data = request.value {
+            if request.characteristic.uuid == Self.requestCharUUID, let data = request.value {
                 peripheral.respond(to: request, withResult: .success)
                 handleIncomingData(data)
             } else {
@@ -178,24 +230,9 @@ extension BLEPeripheralService: CBPeripheralManagerDelegate {
             peripheral.respond(to: request, withResult: .requestNotSupported)
         }
     }
-
-    // MARK: - Private
-
-    private func handleIncomingData(_ data: Data) {
-        // Try to parse directly; if fails, buffer for chunked messages
-        incomingBuffer.append(data)
-
-        if let request = try? JSONDecoder().decode(BLEIncomingRequest.self, from: incomingBuffer) {
-            incomingBuffer = Data()
-            print("[BLE] Request received: \(request.method) from \(request.origin)")
-            lastRequest = request
-            onRequest?(request)
-        }
-        // If parse fails, wait for more chunks
-    }
 }
 
-// MARK: - BLE Message Types (must match protocol.ts)
+// MARK: - BLE Message Types
 
 struct BLEIncomingRequest: Codable, Identifiable {
     let id: String
@@ -216,7 +253,6 @@ struct BLEError: Codable {
     let message: String
 }
 
-/// Type-erased Codable wrapper for heterogeneous JSON
 struct AnyCodable: Codable {
     let value: Any
 

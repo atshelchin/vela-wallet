@@ -78,6 +78,9 @@
     "Chain %lld" : {
 
     },
+    "Chrome — Vela Connect" : {
+
+    },
     "confirm.address" : {
       "localizations" : {
         "en" : {
@@ -108,12 +111,6 @@
             "value" : "通过面容 ID 确认"
           }
         }
-      }
-    },
-    "confirm.pubkey_not_found" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Public key not found. Please check your network connection and try again." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到公钥。请检查网络连接后重试。" } }
       }
     },
     "confirm.cancel" : {
@@ -176,6 +173,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "网络"
+          }
+        }
+      }
+    },
+    "confirm.pubkey_not_found" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public key not found. Please check your network connection and try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到公钥。请检查网络连接后重试。"
           }
         }
       }
@@ -308,12 +321,6 @@
         }
       }
     },
-    "connect.stop" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop Advertising" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止广播" } }
-      }
-    },
     "connect.disconnect" : {
       "localizations" : {
         "en" : {
@@ -439,6 +446,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点击下方按钮开始配对"
+          }
+        }
+      }
+    },
+    "connect.waiting" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Waiting for connection..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等待连接..." } }
+      }
+    },
+    "connect.waiting_desc" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Bluetooth is advertising. Open Vela Connect in Chrome and click \"Pair with phone\"." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "蓝牙正在广播中。打开 Chrome 的 Vela Connect 插件，点击「配对手机」。" } }
+      }
+    },
+    "connect.stop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop Advertising"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止广播"
           }
         }
       }
@@ -769,9 +804,6 @@
     "Loading..." : {
 
     },
-    "MacBook Pro — Chrome" : {
-
-    },
     "MAX" : {
 
     },
@@ -881,8 +913,18 @@
     },
     "receive.deposit_detected" : {
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Deposit received!" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "收到转入！" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deposit received!"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收到转入！"
+          }
+        }
       }
     },
     "receive.listening" : {
@@ -965,6 +1007,9 @@
         }
       }
     },
+    "Reject" : {
+
+    },
     "send.amount" : {
       "localizations" : {
         "en" : {
@@ -1029,12 +1074,6 @@
         }
       }
     },
-    "send.scan" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Scan QR" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扫码" } }
-      }
-    },
     "send.review" : {
       "localizations" : {
         "en" : {
@@ -1047,6 +1086,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "确认"
+          }
+        }
+      }
+    },
+    "send.scan" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan QR"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫码"
           }
         }
       }
@@ -1503,6 +1558,9 @@
           }
         }
       }
+    },
+    "Signing..." : {
+
     },
     "tab.dapps" : {
       "localizations" : {

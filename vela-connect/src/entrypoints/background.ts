@@ -120,9 +120,13 @@ export default defineBackground(() => {
       // Route to waiting callback
       const callback = responseCallbacks.get(response.id);
       if (callback) {
+        console.log('[BG] Resolving callback for:', response.id);
         callback({ result: response.result, error: response.error });
         responseCallbacks.delete(response.id);
         pendingRequests.delete(response.id);
+        broadcastState(); // Update sidepanel to clear pending request
+      } else {
+        console.log('[BG] No callback found for:', response.id);
       }
       return false;
     }
@@ -240,6 +244,17 @@ async function handleProviderRequest(
     console.log('[BG] State is', connectionState, 'but walletInfo exists, trying anyway');
   }
 
+  // Clean up stale pending requests (older than 5 minutes)
+  const now = Date.now();
+  for (const [id, req] of pendingRequests) {
+    if (now - req.timestamp > 300_000) {
+      const cb = responseCallbacks.get(id);
+      if (cb) cb({ error: { code: -32603, message: 'Request timed out' } });
+      pendingRequests.delete(id);
+      responseCallbacks.delete(id);
+    }
+  }
+
   // Store pending request
   const pending: PendingRequest = {
     id: msg.id,
@@ -247,7 +262,7 @@ async function handleProviderRequest(
     params: msg.params,
     origin: msg.origin,
     favicon: msg.favicon,
-    timestamp: Date.now(),
+    timestamp: now,
   };
   pendingRequests.set(msg.id, pending);
   responseCallbacks.set(msg.id, sendResponse);

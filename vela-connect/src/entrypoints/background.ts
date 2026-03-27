@@ -138,12 +138,29 @@ async function handleProviderRequest(
   _sender: chrome.runtime.MessageSender,
   sendResponse: (response: unknown) => void
 ) {
+  // Supported chain IDs (same address on all via CREATE2)
+  const SUPPORTED_CHAINS = [1, 56, 137, 42161, 10, 8453, 43114];
+
   // Handle read-only methods locally
   if (msg.method === 'eth_accounts' || msg.method === 'eth_requestAccounts') {
     if (walletInfo) {
       sendResponse({ result: [walletInfo.address] });
     } else {
       sendResponse({ error: { code: 4100, message: 'Not connected to wallet' } });
+    }
+    return;
+  }
+
+  if (msg.method === 'wallet_getPermissions') {
+    sendResponse({ result: [{ parentCapability: 'eth_accounts' }] });
+    return;
+  }
+
+  if (msg.method === 'wallet_requestPermissions') {
+    if (walletInfo) {
+      sendResponse({ result: [{ parentCapability: 'eth_accounts' }] });
+    } else {
+      sendResponse({ error: { code: 4100, message: 'Not connected' } });
     }
     return;
   }
@@ -205,14 +222,15 @@ async function handleProviderRequest(
 
 /** Send a BLE request through the sidepanel (which holds the Web Bluetooth connection). */
 async function sendViaBLE(request: BLERequest): Promise<void> {
-  // Broadcast to all extension views — sidepanel will pick it up
-  chrome.runtime.sendMessage({
-    type: 'VELA_BLE_SEND_REQUEST',
-    request,
-  }).catch(() => {
-    // Sidepanel might not be open
+  console.log('[BG] sendViaBLE:', request.method, request.id);
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'VELA_BLE_SEND_REQUEST',
+      request,
+    });
+  } catch {
     throw new Error('Sidepanel not open — please open Vela Connect side panel');
-  });
+  }
 }
 
 // ─── Popup Action Handler ───
@@ -287,10 +305,28 @@ function getPopupState(): PopupState {
   };
 }
 
+let lastBroadcastAddress: string | undefined;
+
 function broadcastState() {
   const state = getPopupState();
-  // Send to all extension pages (popup, etc.)
-  chrome.runtime.sendMessage(state).catch(() => {
-    // Popup might not be open — ignore
-  });
+  // Send to all extension pages (popup, sidepanel)
+  chrome.runtime.sendMessage(state).catch(() => {});
+
+  // Notify dApps if account changed
+  if (walletInfo?.address && walletInfo.address !== lastBroadcastAddress) {
+    lastBroadcastAddress = walletInfo.address;
+    // Send accountsChanged to all tabs via content scripts
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of tabs) {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'VELA_ACCOUNTS_CHANGED',
+            accounts: [walletInfo!.address],
+            chainId: walletInfo!.chainId,
+          }).catch(() => {}); // Tab might not have content script
+        }
+      }
+    });
+    console.log('[BG] Broadcasted accountsChanged to dApps:', walletInfo.address.slice(0, 12));
+  }
 }

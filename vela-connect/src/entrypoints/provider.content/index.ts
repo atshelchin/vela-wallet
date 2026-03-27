@@ -112,5 +112,14 @@ export default defineContentScript({
         }),
       }));
     });
+
+    // Listen for events from content script (account/chain changes)
+    window.addEventListener('message', (event) => {
+      if (event.source !== window) return;
+      if (event.data?.type !== 'VELA_EMIT_EVENT') return;
+
+      const { event: eventName, data } = event.data;
+      emit(eventName, data);
+    });
   },
 });

@@ -2,15 +2,17 @@
  * Content Script — bridges page ↔ background (ISOLATED world).
  *
  * Provider is injected via provider.content (MAIN world) by WXT automatically.
- * This script listens for VELA_PROVIDER_REQUEST from the provider,
- * forwards to background, and returns responses.
+ * This script:
+ * 1. Forwards VELA_PROVIDER_REQUEST from page to background
+ * 2. Returns VELA_PROVIDER_RESPONSE to page
+ * 3. Forwards accountsChanged/chainChanged events from background to page
  */
 export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_start',
 
   main() {
-    // Listen for requests from the injected provider (MAIN world)
+    // Forward provider requests from page → background
     window.addEventListener('message', async (event) => {
       if (event.source !== window) return;
       if (event.data?.type !== 'VELA_PROVIDER_REQUEST') return;
@@ -42,14 +44,21 @@ export default defineContentScript({
       }
     });
 
-    // Listen for state updates from background
+    // Listen for events from background → forward to page as EIP-1193 events
     chrome.runtime.onMessage.addListener((msg) => {
-      if (msg.type === 'VELA_STATE_UPDATE') {
-        if (msg.walletInfo) {
+      // Account changed — emit accountsChanged + chainChanged to dApp
+      if (msg.type === 'VELA_ACCOUNTS_CHANGED') {
+        window.postMessage({
+          type: 'VELA_EMIT_EVENT',
+          event: 'accountsChanged',
+          data: msg.accounts,
+        }, '*');
+
+        if (msg.chainId) {
           window.postMessage({
-            type: 'VELA_PROVIDER_RESPONSE',
-            id: 'state_update',
-            result: msg.walletInfo,
+            type: 'VELA_EMIT_EVENT',
+            event: 'chainChanged',
+            data: '0x' + msg.chainId.toString(16),
           }, '*');
         }
       }

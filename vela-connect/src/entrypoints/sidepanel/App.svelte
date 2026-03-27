@@ -29,8 +29,11 @@
         pendingRequests = msg.pendingRequests || [];
       }
       // Background asks us to send a BLE request
-      if (msg.type === 'VELA_BLE_SEND_REQUEST') {
-        bleClient.sendRequest(msg.request).catch(e => console.error('[SP] BLE send failed:', e));
+      if (msg.type === 'VELA_BLE_SEND_REQUEST' && msg.request) {
+        console.log('[SP] Sending BLE request:', msg.request.method, msg.request.id);
+        bleClient.sendRequest(msg.request)
+          .then(() => console.log('[SP] BLE request sent OK'))
+          .catch(e => console.error('[SP] BLE send failed:', e));
       }
     };
     chrome.runtime.onMessage.addListener(listener);

@@ -1,5 +1,6 @@
 package app.getvela.wallet.ui.wallet
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.Image
@@ -48,6 +49,7 @@ fun ReceiveScreen(
     wallet: WalletState,
     onBack: () -> Unit,
 ) {
+    val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
     val qrBitmap = remember(wallet.address) { generateQR(wallet.address) }
@@ -185,7 +187,13 @@ fun ReceiveScreen(
                     .clip(RoundedCornerShape(VelaRadius.cardSmall))
                     .border(1.dp, VelaColor.border, RoundedCornerShape(VelaRadius.cardSmall))
                     .background(VelaColor.bgCard)
-                    .clickable { /* TODO: share intent */ }
+                    .clickable {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, wallet.address)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Share Address"))
+                    }
                     .padding(vertical = 13.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,

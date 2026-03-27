@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ContentCopy
@@ -25,12 +26,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.getvela.wallet.R
 import app.getvela.wallet.model.WalletState
 import app.getvela.wallet.model.formatBalance
+import app.getvela.wallet.service.ApiNft
 import app.getvela.wallet.service.ApiToken
 import app.getvela.wallet.service.WalletApiService
 import app.getvela.wallet.ui.theme.*
@@ -44,12 +47,16 @@ import kotlinx.coroutines.withContext
 fun HomeScreen(
     wallet: WalletState,
     onTokenClick: (ApiToken) -> Unit = {},
+    onNftClick: (ApiNft) -> Unit = {},
     onSendClick: () -> Unit = {},
     onReceiveClick: () -> Unit = {},
+    onAddTokenClick: () -> Unit = {},
 ) {
     var tokens by remember { mutableStateOf<List<ApiToken>>(emptyList()) }
+    var nfts by remember { mutableStateOf<List<ApiNft>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var activeTab by remember { mutableIntStateOf(0) } // 0=tokens, 1=nfts
     val clipboard = LocalClipboardManager.current
 
     val totalUSD by remember(tokens) {
@@ -59,16 +66,17 @@ fun HomeScreen(
         derivedStateOf { tokens.sortedByDescending { it.usdValue } }
     }
 
-    // Load data + auto refresh
+    // Load data + auto refresh every 30s
     LaunchedEffect(wallet.address) {
         if (wallet.address.isEmpty()) return@LaunchedEffect
         val api = WalletApiService()
         while (isActive) {
             isLoading = tokens.isEmpty()
-            val result = withContext(Dispatchers.IO) {
-                api.fetchTokens(wallet.address)
+            val (fetchedTokens, fetchedNfts) = withContext(Dispatchers.IO) {
+                Pair(api.fetchTokens(wallet.address), api.fetchNFTs(wallet.address))
             }
-            tokens = result
+            tokens = fetchedTokens
+            nfts = fetchedNfts
             isLoading = false
             delay(30_000)
         }
@@ -176,25 +184,114 @@ fun HomeScreen(
                 }
             }
 
-            // Section header
+            // Tab picker (Tokens / NFTs)
             item {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
                         .padding(horizontal = VelaSpacing.screenH)
-                        .padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .padding(bottom = 12.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(VelaRadius.cardSmall))
+                        .background(VelaColor.bgWarm)
+                        .padding(3.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.home_tokens),
-                        style = VelaTypography.caption().copy(letterSpacing = 1.5.sp),
-                        color = VelaColor.textTertiary,
-                    )
+                    listOf(stringResource(R.string.home_tokens) to 0, stringResource(R.string.home_nfts) to 1).forEach { (label, tab) ->
+                        Text(
+                            text = label,
+                            style = VelaTypography.label(13f),
+                            color = if (activeTab == tab) VelaColor.textPrimary else VelaColor.textTertiary,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (activeTab == tab) VelaColor.bgCard else Color.Transparent)
+                                .clickable { activeTab = tab }
+                                .padding(vertical = 10.dp),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             }
 
-            // Loading / Empty / Token list
-            if (isLoading && tokens.isEmpty()) {
+            // Add token button (only in tokens tab)
+            if (activeTab == 0) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = VelaSpacing.screenH)
+                            .padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Spacer(Modifier.weight(1f))
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(VelaColor.accentSoft)
+                                .clickable(onClick = onAddTokenClick)
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(Icons.Default.Add, null, Modifier.size(12.dp), tint = VelaColor.accent)
+                            Text("Add Token", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = VelaColor.accent)
+                        }
+                    }
+                }
+            }
+
+            // Content based on active tab
+            if (activeTab == 1) {
+                // NFT grid
+                if (nfts.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("🖼", fontSize = 32.sp)
+                            Spacer(Modifier.height(12.dp))
+                            Text(stringResource(R.string.home_no_nfts), style = VelaTypography.body(14f), color = VelaColor.textTertiary)
+                        }
+                    }
+                } else {
+                    // 2-column grid via chunked pairs
+                    val rows = nfts.chunked(2)
+                    items(rows.size) { rowIndex ->
+                        val row = rows[rowIndex]
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            row.forEach { nft ->
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(VelaRadius.card))
+                                        .background(VelaColor.bgCard)
+                                        .border(1.dp, VelaColor.border, RoundedCornerShape(VelaRadius.card))
+                                        .clickable { onNftClick(nft) },
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().height(160.dp).background(VelaColor.bgWarm),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text("🖼", fontSize = 24.sp)
+                                    }
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text(nft.displayName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = VelaColor.textPrimary, maxLines = 1)
+                                        Text(nft.collectionName ?: nft.chainName, fontSize = 11.sp, color = VelaColor.textTertiary, maxLines = 1)
+                                    }
+                                }
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+            }
+
+            // Token list (only when tokens tab active)
+            if (activeTab == 0 && isLoading && tokens.isEmpty()) {
                 item {
                     Column(
                         modifier = Modifier
@@ -211,7 +308,7 @@ fun HomeScreen(
                         Text("Loading...", style = VelaTypography.body(14f), color = VelaColor.textTertiary)
                     }
                 }
-            } else if (tokens.isEmpty()) {
+            } else if (activeTab == 0 && tokens.isEmpty()) {
                 item {
                     Column(
                         modifier = Modifier
@@ -235,7 +332,7 @@ fun HomeScreen(
                         )
                     }
                 }
-            } else {
+            } else if (activeTab == 0) {
                 items(sortedTokens, key = { it.id }) { token ->
                     TokenRow(
                         token = token,

@@ -80,4 +80,35 @@
     <string name="settings_about">About</string>
     <string name="settings_version">Version 1.0.0</string>
     <string name="settings_logout">Log Out</string>
+
+    <!-- Connect / dApps -->
+    <string name="connect_title">Connect to dApps</string>
+    <string name="connect_description">Start BLE advertising to connect with the Vela Connect Chrome extension.</string>
+    <string name="connect_start">Start Advertising</string>
+    <string name="connect_stop">Stop</string>
+    <string name="connect_waiting">Waiting for Chrome…</string>
+    <string name="connect_waiting_desc">Open a dApp in Chrome with Vela Connect extension installed.</string>
+    <string name="connect_connected">Connected</string>
+    <string name="connect_disconnect">Disconnect</string>
+    <string name="connect_approve">Approve</string>
+    <string name="connect_reject">Reject</string>
+    <string name="connect_approve_desc">This dApp is requesting your approval.</string>
+
+    <!-- Add Token -->
+    <string name="add_token_title">Add Token</string>
+    <string name="add_token_network">NETWORK</string>
+    <string name="add_token_contract">CONTRACT ADDRESS</string>
+    <string name="add_token_contract_placeholder">0x…</string>
+    <string name="add_token_fetch">Fetch</string>
+    <string name="add_token_name">Name</string>
+    <string name="add_token_symbol">Symbol</string>
+    <string name="add_token_decimals">Decimals</string>
+    <string name="add_token_add">Add Token</string>
+    <string name="add_token_fetch_failed">Failed to fetch token info</string>
+
+    <!-- NFT -->
+    <string name="nft_network">Network</string>
+    <string name="nft_type">Type</string>
+    <string name="nft_token_id">Token ID</string>
+    <string name="nft_contract">Contract</string>
 </resources>

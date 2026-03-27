@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import app.getvela.wallet.model.Account
 import app.getvela.wallet.model.WalletState
 import app.getvela.wallet.service.*
+import app.getvela.wallet.service.ApiNft
 import app.getvela.wallet.ui.onboarding.CreateWalletScreen
 import app.getvela.wallet.ui.onboarding.WelcomeScreen
 import app.getvela.wallet.ui.theme.VelaColor
@@ -149,12 +150,16 @@ private enum class OnboardingStep { Welcome, Create }
 private fun MainTabs(wallet: WalletState) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedToken by remember { mutableStateOf<ApiToken?>(null) }
+    var selectedNft by remember { mutableStateOf<ApiNft?>(null) }
     var showReceive by remember { mutableStateOf(false) }
     var showSend by remember { mutableStateOf(false) }
+    var showAddToken by remember { mutableStateOf(false) }
     var sendPreselectedToken by remember { mutableStateOf<ApiToken?>(null) }
 
-    // Overlay screens (token detail, receive, send)
+    // Overlay screens
     when {
+        showAddToken -> AddTokenScreen(onBack = { showAddToken = false })
+        selectedNft != null -> NFTDetailScreen(nft = selectedNft!!, onBack = { selectedNft = null })
         showSend -> SendScreen(
             wallet = wallet,
             preselectedToken = sendPreselectedToken,
@@ -205,8 +210,10 @@ private fun MainTabs(wallet: WalletState) {
                 0 -> HomeScreen(
                     wallet = wallet,
                     onTokenClick = { selectedToken = it },
+                    onNftClick = { selectedNft = it },
                     onSendClick = { showSend = true },
                     onReceiveClick = { showReceive = true },
+                    onAddTokenClick = { showAddToken = true },
                 )
                 1 -> ConnectScreen(wallet)
                 2 -> SettingsScreen(wallet, onLogout = {

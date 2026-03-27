@@ -104,6 +104,12 @@ final class BLEPeripheralService: NSObject, ObservableObject {
     // MARK: - Private
 
     private func setupAndAdvertise() {
+        // Don't re-advertise if already advertising
+        if isAdvertising {
+            print("[BLE] Already advertising, skipping")
+            return
+        }
+
         // Remove previous service if exists
         peripheralManager.removeAllServices()
 

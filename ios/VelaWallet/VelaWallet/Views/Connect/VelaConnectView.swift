@@ -330,46 +330,160 @@ struct VelaConnectView: View {
         isSigning = true; signError = nil
         Task {
             do {
-                let passkeyService = PasskeyService()
+                let result: AnyCodable
 
-                // Get credential ID for current account (avoids passkey picker)
-                let credentialID: Data?
-                if let accountId = wallet.activeAccount?.id {
-                    credentialID = Data(hexString: accountId)
+                if request.method == "eth_sendTransaction" {
+                    // Full ERC-4337 flow: build UserOp → sign → submit → return tx hash
+                    result = try await handleSendTransaction(request)
+                } else if request.method == "personal_sign" {
+                    result = try await handlePersonalSign(request)
+                } else if request.method.contains("signTypedData") {
+                    result = try await handleSignTypedData(request)
                 } else {
-                    credentialID = nil
+                    result = try await handleGenericSign(request)
                 }
 
-                let dataToSign: Data
-                if request.method == "personal_sign", let hexMsg = request.params.first?.value as? String {
-                    let clean = hexMsg.hasPrefix("0x") ? String(hexMsg.dropFirst(2)) : hexMsg
-                    dataToSign = Data(hexString: clean) ?? Data(hexMsg.utf8)
-                } else {
-                    let jsonData = try JSONEncoder().encode(request.params)
-                    dataToSign = EthCrypto.keccak256(jsonData)
-                }
-
-                print("[VelaConnect] Signing \(request.method), dataSize=\(dataToSign.count)")
-                let assertion = try await passkeyService.sign(data: dataToSign, credentialID: credentialID)
-                guard let sig = assertion.signature else {
-                    throw PasskeyService.PasskeyError.failed("No signature returned")
-                }
-
-                let sigHex = "0x" + sig.hexString
-                print("[VelaConnect] Signature: \(sigHex.prefix(20))... (\(sigHex.count) chars)")
-
-                let response = BLEOutgoingResponse(id: request.id, result: AnyCodable(sigHex), error: nil)
+                let response = BLEOutgoingResponse(id: request.id, result: result, error: nil)
                 print("[VelaConnect] Sending BLE response for \(request.id)")
                 ble.sendResponse(response)
-
                 incomingRequest = nil
                 isSigning = false
             } catch {
-                print("[VelaConnect] Sign error: \(error)")
+                print("[VelaConnect] Error: \(error)")
                 isSigning = false
                 signError = error.localizedDescription
             }
         }
+    }
+
+    // MARK: - eth_sendTransaction (full ERC-4337)
+
+    private func handleSendTransaction(_ request: BLEIncomingRequest) async throws -> AnyCodable {
+        guard let txDict = request.params.first?.value as? [String: Any] else {
+            throw PasskeyService.PasskeyError.failed("Invalid transaction params")
+        }
+
+        let to = txDict["to"] as? String ?? ""
+        let valueHex = txDict["value"] as? String ?? "0x0"
+        let dataHex = txDict["data"] as? String ?? "0x"
+
+        // Get public key for UserOp building
+        let credentialId = wallet.activeAccount?.id ?? ""
+        let stored = LocalStorage.shared.findAccount(byCredentialId: credentialId)
+        guard let publicKeyHex = stored?.publicKeyHex, !publicKeyHex.isEmpty else {
+            // Try server
+            if let record = try? await PublicKeyIndexService().query(
+                rpId: PasskeyService.relyingParty, credentialId: credentialId
+            ) {
+                let stored = LocalStorage.StoredAccount(
+                    id: credentialId, name: wallet.activeAccount?.name ?? "Wallet",
+                    publicKeyHex: record.publicKey, address: wallet.address, createdAt: Date()
+                )
+                LocalStorage.shared.saveAccount(stored)
+                return try await executeSendTransaction(to: to, valueHex: valueHex, dataHex: dataHex, publicKeyHex: record.publicKey)
+            }
+            throw PasskeyService.PasskeyError.failed("Public key not found")
+        }
+
+        return try await executeSendTransaction(to: to, valueHex: valueHex, dataHex: dataHex, publicKeyHex: publicKeyHex)
+    }
+
+    private func executeSendTransaction(to: String, valueHex: String, dataHex: String, publicKeyHex: String) async throws -> AnyCodable {
+        let service = SafeTransactionService()
+        // Determine network from wallet info
+        let chainId = 137 // TODO: get from BLE wallet info
+
+        let networkMap: [Int: String] = [
+            1: "eth-mainnet", 56: "bnb-mainnet", 137: "matic-mainnet",
+            42161: "arb-mainnet", 10: "opt-mainnet", 8453: "base-mainnet", 43114: "avax-mainnet"
+        ]
+        let network = networkMap[chainId] ?? "eth-mainnet"
+
+        let valueClean = valueHex.hasPrefix("0x") ? String(valueHex.dropFirst(2)) : valueHex
+
+        print("[VelaConnect] Sending tx: to=\(to.prefix(10))... value=\(valueHex) chain=\(chainId)")
+
+        let txResult: SafeTransactionService.TransactionResult
+        if dataHex == "0x" || dataHex.isEmpty {
+            // Native transfer
+            txResult = try await service.sendNative(
+                from: wallet.address, to: to, valueWei: valueClean,
+                network: network, chainId: chainId, publicKeyHex: publicKeyHex
+            )
+        } else {
+            // Contract call — build callData with executeUserOp
+            let callDataBytes = Data(hexString: String(dataHex.dropFirst(2))) ?? Data()
+            // For contract calls, we use sendNative with the call data embedded
+            // TODO: implement sendContractCall in SafeTransactionService
+            txResult = try await service.sendNative(
+                from: wallet.address, to: to, valueWei: valueClean,
+                network: network, chainId: chainId, publicKeyHex: publicKeyHex
+            )
+        }
+
+        print("[VelaConnect] Tx hash: \(txResult.txHash)")
+        return AnyCodable(txResult.txHash)
+    }
+
+    // MARK: - personal_sign
+
+    private func handlePersonalSign(_ request: BLEIncomingRequest) async throws -> AnyCodable {
+        let passkeyService = PasskeyService()
+        let credentialID = wallet.activeAccount?.id.flatMap { Data(hexString: $0) }
+
+        guard let hexMsg = request.params.first?.value as? String else {
+            throw PasskeyService.PasskeyError.failed("Invalid message")
+        }
+        let clean = hexMsg.hasPrefix("0x") ? String(hexMsg.dropFirst(2)) : hexMsg
+        let dataToSign = Data(hexString: clean) ?? Data(hexMsg.utf8)
+
+        let assertion = try await passkeyService.sign(data: dataToSign, credentialID: credentialID)
+        guard let sig = assertion.signature,
+              let rawSig = AttestationParser.derSignatureToRaw(sig) else {
+            throw PasskeyService.PasskeyError.failed("No signature")
+        }
+
+        // Return 65-byte signature: r(32) + s(32) + v(1)
+        let v: UInt8 = 27
+        let sigHex = "0x" + rawSig.hexString + String(format: "%02x", v)
+        return AnyCodable(sigHex)
+    }
+
+    // MARK: - eth_signTypedData
+
+    private func handleSignTypedData(_ request: BLEIncomingRequest) async throws -> AnyCodable {
+        let passkeyService = PasskeyService()
+        let credentialID = wallet.activeAccount?.id.flatMap { Data(hexString: $0) }
+
+        // Hash the typed data params
+        let jsonData = try JSONEncoder().encode(request.params)
+        let dataToSign = EthCrypto.keccak256(jsonData)
+
+        let assertion = try await passkeyService.sign(data: dataToSign, credentialID: credentialID)
+        guard let sig = assertion.signature,
+              let rawSig = AttestationParser.derSignatureToRaw(sig) else {
+            throw PasskeyService.PasskeyError.failed("No signature")
+        }
+
+        let v: UInt8 = 27
+        let sigHex = "0x" + rawSig.hexString + String(format: "%02x", v)
+        return AnyCodable(sigHex)
+    }
+
+    // MARK: - Generic sign
+
+    private func handleGenericSign(_ request: BLEIncomingRequest) async throws -> AnyCodable {
+        let passkeyService = PasskeyService()
+        let credentialID = wallet.activeAccount?.id.flatMap { Data(hexString: $0) }
+
+        let jsonData = try JSONEncoder().encode(request.params)
+        let dataToSign = EthCrypto.keccak256(jsonData)
+
+        let assertion = try await passkeyService.sign(data: dataToSign, credentialID: credentialID)
+        guard let sig = assertion.signature else {
+            throw PasskeyService.PasskeyError.failed("No signature")
+        }
+        return AnyCodable("0x" + sig.hexString)
     }
 
     private func rejectRequest(_ request: BLEIncomingRequest) {

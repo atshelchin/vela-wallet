@@ -132,16 +132,24 @@ class BLEClient {
 
   // ─── Private ───
 
+  private _responseBuffer = '';
+
   private onResponseReceived(event: Event) {
     const target = event.target as BluetoothRemoteGATTCharacteristic;
     if (!target.value) return;
 
+    const chunk = new TextDecoder().decode(target.value.buffer);
+    this._responseBuffer += chunk;
+
+    // Try parsing the accumulated buffer
     try {
-      const response = decodeMessage<BLEResponse>(target.value.buffer);
-      console.log('[BLE] Response:', response.id, response.error ? 'ERROR' : 'OK');
+      const response = JSON.parse(this._responseBuffer) as BLEResponse;
+      this._responseBuffer = ''; // Clear on success
+      console.log('[BLE] Response:', response.id, JSON.stringify(response).slice(0, 100));
       this.handlers?.onResponse(response);
-    } catch (e) {
-      console.error('[BLE] Failed to parse response:', e);
+    } catch {
+      // Incomplete JSON — wait for more chunks
+      console.log('[BLE] Buffering response chunk, total:', this._responseBuffer.length, 'bytes');
     }
   }
 

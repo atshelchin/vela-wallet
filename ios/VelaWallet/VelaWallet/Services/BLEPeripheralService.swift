@@ -79,17 +79,20 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         if let data = try? JSONSerialization.data(withJSONObject: info) {
             walletInfoChar?.value = data
 
-            // Push update to connected extension via notify
+            // Push compact update to connected extension via notify
+            // Only send active account (not full accounts list) to stay within MTU
             if let central = subscribedCentral {
-                let notification: [String: Any] = [
+                let compact: [String: Any] = [
                     "id": "wallet_info_update",
-                    "result": info
+                    "result": [
+                        "address": walletAddress,
+                        "chainId": chainId,
+                        "name": accountName
+                    ] as [String: Any]
                 ]
-                if let notifyData = try? JSONSerialization.data(withJSONObject: notification) {
+                if let notifyData = try? JSONSerialization.data(withJSONObject: compact) {
                     let sent = peripheralManager.updateValue(notifyData, for: responseChar, onSubscribedCentrals: [central])
-                    print("[BLE] Push wallet info: sent=\(sent), size=\(notifyData.count) bytes, address=\(walletAddress.prefix(12))...")
-                } else {
-                    print("[BLE] Push wallet info: JSON serialization failed")
+                    print("[BLE] Push wallet info: sent=\(sent), size=\(notifyData.count) bytes, name=\(accountName)")
                 }
             } else {
                 print("[BLE] Push wallet info: no subscribedCentral")

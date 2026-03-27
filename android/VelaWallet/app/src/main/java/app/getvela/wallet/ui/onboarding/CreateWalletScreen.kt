@@ -23,16 +23,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.getvela.wallet.R
-import app.getvela.wallet.service.EthCrypto
-import app.getvela.wallet.service.LocalStorage
-import app.getvela.wallet.service.PasskeyService
-import app.getvela.wallet.service.SafeAddressComputer
+import app.getvela.wallet.service.*
 import app.getvela.wallet.ui.components.VelaAccentButton
 import app.getvela.wallet.ui.components.VelaNavBar
 import app.getvela.wallet.ui.components.VelaPrimaryButton
 import app.getvela.wallet.ui.components.VelaSecondaryButton
 import app.getvela.wallet.ui.theme.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CreateWalletScreen(
@@ -268,8 +267,57 @@ fun CreateWalletScreen(
                                     )
                                 )
 
+                                // Save pending upload in case server upload fails
+                                LocalStorage.shared.savePendingUpload(
+                                    LocalStorage.PendingUpload(
+                                        id = credentialId,
+                                        name = name,
+                                        publicKeyHex = publicKeyHex,
+                                        attestationObjectHex = attestation?.let { EthCrypto.bytesToHex(it) } ?: "",
+                                    )
+                                )
+
                                 pendingAddress = address
                                 pendingName = name
+
+                                // Upload public key to server
+                                try {
+                                    val indexService = PublicKeyIndexService()
+                                    val challenge = withContext(Dispatchers.IO) { indexService.getChallenge() }
+                                    val assertion = passkeyService.sign(activity, challenge.toByteArray())
+                                    val derSig = assertion.signature
+                                    val rawSig = derSig?.let { passkeyService.derSignatureToRaw(it) }
+
+                                    if (rawSig != null) {
+                                        val createReq = PublicKeyIndexService.CreateRequest(
+                                            rpId = PasskeyService.RELYING_PARTY,
+                                            credentialId = credentialId,
+                                            publicKey = publicKeyHex,
+                                            challenge = challenge,
+                                            signature = EthCrypto.bytesToHex(rawSig),
+                                            authenticatorData = android.util.Base64.encodeToString(
+                                                assertion.authenticatorData ?: ByteArray(0),
+                                                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP,
+                                            ),
+                                            clientDataJSON = android.util.Base64.encodeToString(
+                                                assertion.clientDataJSON ?: ByteArray(0),
+                                                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP,
+                                            ),
+                                            name = name,
+                                        )
+                                        withContext(Dispatchers.IO) { indexService.create(createReq) }
+                                        // Upload succeeded — remove pending
+                                        LocalStorage.shared.removePendingUpload(credentialId)
+                                    }
+                                } catch (uploadErr: Exception) {
+                                    // Upload failed — pending upload saved for retry
+                                    android.util.Log.w("CreateWallet", "Public key upload failed: ${uploadErr.message}")
+                                    uploadFailed = true
+                                    errorMessage = uploadErr.message
+                                    isLoading = false
+                                    return@launch
+                                }
+
                                 isLoading = false
                                 onCreated(address, name)
                             } catch (e: Exception) {

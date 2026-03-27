@@ -66,19 +66,28 @@ fun HomeScreen(
         derivedStateOf { tokens.sortedByDescending { it.usdValue } }
     }
 
+    val api = remember { WalletApiService() }
+    var refreshTrigger by remember { mutableIntStateOf(0) }
+
     // Load data + auto refresh every 30s
+    LaunchedEffect(wallet.address, refreshTrigger) {
+        if (wallet.address.isEmpty()) return@LaunchedEffect
+        isLoading = tokens.isEmpty()
+        val (fetchedTokens, fetchedNfts) = withContext(Dispatchers.IO) {
+            Pair(api.fetchTokens(wallet.address), api.fetchNFTs(wallet.address))
+        }
+        tokens = fetchedTokens
+        nfts = fetchedNfts
+        isLoading = false
+        isRefreshing = false
+    }
+
+    // Auto refresh every 30s
     LaunchedEffect(wallet.address) {
         if (wallet.address.isEmpty()) return@LaunchedEffect
-        val api = WalletApiService()
         while (isActive) {
-            isLoading = tokens.isEmpty()
-            val (fetchedTokens, fetchedNfts) = withContext(Dispatchers.IO) {
-                Pair(api.fetchTokens(wallet.address), api.fetchNFTs(wallet.address))
-            }
-            tokens = fetchedTokens
-            nfts = fetchedNfts
-            isLoading = false
             delay(30_000)
+            refreshTrigger++
         }
     }
 
@@ -86,7 +95,7 @@ fun HomeScreen(
         isRefreshing = isRefreshing,
         onRefresh = {
             isRefreshing = true
-            // Trigger reload via coroutine
+            refreshTrigger++
         },
     ) {
         LazyColumn(

@@ -157,6 +157,13 @@ private fun MainTabs(wallet: WalletState) {
     var showAccountSwitcher by remember { mutableStateOf(false) }
     var showNetworkEditor by remember { mutableStateOf(false) }
     var sendPreselectedToken by remember { mutableStateOf<ApiToken?>(null) }
+    var showPendingUploads by remember { mutableStateOf(LocalStorage.shared.hasPendingUploads()) }
+
+    // Pending upload overlay (matches iOS PendingUploadOverlay)
+    if (showPendingUploads) {
+        PendingUploadOverlay(onDismiss = { showPendingUploads = false })
+        return
+    }
 
     // Overlay screens
     when {

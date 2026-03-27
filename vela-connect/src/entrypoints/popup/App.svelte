@@ -32,10 +32,8 @@
   });
 
   function startScan() {
-    error = undefined;
-    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'startScan' }, (response) => {
-      if (response?.error) error = response.error;
-    });
+    // Open sidepanel for BLE pairing (Web Bluetooth needs a persistent page)
+    switchToSidePanel();
   }
 
   function disconnect() {

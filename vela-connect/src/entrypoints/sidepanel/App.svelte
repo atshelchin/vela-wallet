@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { ConnectionState, ConnectedDevice, WalletInfo, PendingRequest, PopupState } from '../../lib/protocol';
+  import { bleClient } from '../../lib/ble';
+  import type { ConnectionState, ConnectedDevice, WalletInfo, PendingRequest, PopupState, BLEResponse } from '../../lib/protocol';
 
   let connectionState: ConnectionState = $state('disconnected');
   let device: ConnectedDevice | undefined = $state(undefined);
@@ -7,7 +8,9 @@
   let pendingRequests: PendingRequest[] = $state([]);
   let error: string | undefined = $state(undefined);
 
+  // Sidepanel owns the BLE connection
   $effect(() => {
+    // Get current state from background
     chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'getState' }, (response: PopupState) => {
       if (response) {
         connectionState = response.connectionState;
@@ -17,27 +20,66 @@
       }
     });
 
-    const listener = (msg: PopupState) => {
+    // Listen for state updates from background
+    const listener = (msg: any) => {
       if (msg.type === 'VELA_POPUP_STATE') {
         connectionState = msg.connectionState;
         device = msg.device;
         walletInfo = msg.walletInfo;
         pendingRequests = msg.pendingRequests || [];
       }
+      // Background asks us to send a BLE request
+      if (msg.type === 'VELA_BLE_SEND_REQUEST') {
+        bleClient.sendRequest(msg.request).catch(e => console.error('[SP] BLE send failed:', e));
+      }
     };
     chrome.runtime.onMessage.addListener(listener);
+
+    // Set up BLE event handlers — sidepanel is the BLE connection owner
+    bleClient.setHandlers({
+      onStateChange(state, dev) {
+        connectionState = state;
+        device = dev;
+        chrome.runtime.sendMessage({ type: 'VELA_BLE_STATE', connectionState: state, device: dev });
+      },
+      onWalletInfo(info) {
+        walletInfo = info;
+        chrome.runtime.sendMessage({ type: 'VELA_BLE_WALLET_INFO', walletInfo: info });
+      },
+      onResponse(response: BLEResponse) {
+        console.log('[SP] BLE response:', response.id);
+        // Update local wallet info if it's a push
+        if (response.id === 'wallet_info_update' && response.result) {
+          walletInfo = response.result as WalletInfo;
+        }
+        chrome.runtime.sendMessage({ type: 'VELA_BLE_RESPONSE', response });
+      },
+      onDisconnect() {
+        connectionState = 'disconnected';
+        chrome.runtime.sendMessage({ type: 'VELA_BLE_STATE', connectionState: 'disconnected' });
+      },
+    });
+
     return () => chrome.runtime.onMessage.removeListener(listener);
   });
 
-  function startScan() {
+  async function startScan() {
     error = undefined;
-    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'startScan' }, (r) => {
-      if (r?.error) error = r.error;
-    });
+    connectionState = 'searching';
+    try {
+      await bleClient.connect();
+    } catch (e) {
+      error = (e as Error).message;
+      connectionState = 'disconnected';
+    }
   }
 
   function disconnect() {
-    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'disconnect' });
+    bleClient.disconnect();
+    connectionState = 'disconnected';
+    device = undefined;
+    walletInfo = undefined;
+    chrome.runtime.sendMessage({ type: 'VELA_BLE_STATE', connectionState: 'disconnected' });
   }
 
   function rejectRequest(id: string) {
@@ -46,12 +88,6 @@
 
   function switchAccount(address: string) {
     chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'switchAccount', address });
-  }
-
-  function switchToPopup() {
-    // Close side panel and tell background to use popup mode
-    chrome.storage.local.set({ uiMode: 'popup' });
-    window.close();
   }
 
   function shortAddr(addr: string): string {
@@ -206,5 +242,4 @@
 
 <div class="footer">
   <span>Vela Connect v1.0.0</span>
-  <button class="mode-toggle" onclick={switchToPopup}>Switch to Popup</button>
 </div>

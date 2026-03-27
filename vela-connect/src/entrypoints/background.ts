@@ -222,74 +222,15 @@ async function handleProviderRequest(
     return;
   }
 
-  // RPC read methods — forward to our RPC proxy, not to the phone
-  const RPC_METHODS = [
-    'eth_blockNumber', 'eth_getBalance', 'eth_call', 'eth_estimateGas',
-    'eth_gasPrice', 'eth_getTransactionReceipt', 'eth_getTransactionByHash',
-    'eth_getCode', 'eth_getLogs', 'eth_getTransactionCount',
-    'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_maxPriorityFeePerGas',
-    'eth_feeHistory',
-  ];
-
-  if (RPC_METHODS.includes(msg.method)) {
-    // Forward to getvela.app/api/bundler as RPC proxy
-    const chainId = walletInfo?.chainId || 1;
-    const networkMap: Record<number, string> = {
-      1: 'eth-mainnet', 56: 'bnb-mainnet', 137: 'matic-mainnet',
-      42161: 'arb-mainnet', 10: 'opt-mainnet', 8453: 'base-mainnet', 43114: 'avax-mainnet',
-    };
-    const network = networkMap[chainId] || 'eth-mainnet';
-
-    try {
-      const rpcResponse = await fetch('https://getvela.app/api/bundler', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ method: msg.method, params: msg.params, network }),
-      });
-      const rpcResult = await rpcResponse.json();
-      if (rpcResult.error) {
-        sendResponse({ error: rpcResult.error });
-      } else {
-        sendResponse({ result: rpcResult.result });
-      }
-    } catch (e) {
-      sendResponse({ error: { code: -32603, message: (e as Error).message } });
-    }
-    return;
-  }
-
-  if (msg.method === 'wallet_watchAsset') {
-    sendResponse({ result: true });
-    return;
-  }
-
-  // EIP-5792: wallet capabilities
-  if (msg.method === 'wallet_getCapabilities') {
-    sendResponse({ result: {} }); // No special capabilities
-    return;
-  }
-
-  if (msg.method === 'wallet_sendCalls' || msg.method === 'wallet_getCallsStatus') {
-    sendResponse({ error: { code: -32601, message: 'Not supported' } });
-    return;
-  }
-
-  // Only these methods need phone approval (signing/transaction)
+  // ─── Signing methods → forward to phone via BLE ───
   const SIGNING_METHODS = [
     'eth_sendTransaction', 'eth_signTransaction',
     'personal_sign', 'eth_sign',
     'eth_signTypedData', 'eth_signTypedData_v3', 'eth_signTypedData_v4',
   ];
 
-  if (!SIGNING_METHODS.includes(msg.method)) {
-    // Unknown method — return not supported
-    console.log('[BG] Unsupported method:', msg.method);
-    sendResponse({ error: { code: -32601, message: `Method ${msg.method} not supported` } });
-    return;
-  }
-
-  // Forward signing/transaction requests to phone via BLE
-  console.log('[BG] Forward to phone:', msg.method);
+  if (SIGNING_METHODS.includes(msg.method)) {
+    console.log('[BG] Forward to phone:', msg.method);
   if (connectionState !== 'connected') {
     // If we have wallet info but state is wrong, try anyway
     if (!walletInfo) {
@@ -327,6 +268,28 @@ async function handleProviderRequest(
     sendResponse({ error: { code: -32603, message: 'Failed to send to wallet' } });
     pendingRequests.delete(msg.id);
     responseCallbacks.delete(msg.id);
+  }
+    return;
+  }
+
+  // ─── Everything else → forward to RPC node ───
+  const chainId = walletInfo?.chainId || 1;
+  const networkMap: Record<number, string> = {
+    1: 'eth-mainnet', 56: 'bnb-mainnet', 137: 'matic-mainnet',
+    42161: 'arb-mainnet', 10: 'opt-mainnet', 8453: 'base-mainnet', 43114: 'avax-mainnet',
+  };
+  const network = networkMap[chainId] || 'eth-mainnet';
+
+  try {
+    const rpcResponse = await fetch('https://getvela.app/api/bundler', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: msg.method, params: msg.params, network }),
+    });
+    const rpcResult = await rpcResponse.json();
+    sendResponse(rpcResult.error ? { error: rpcResult.error } : { result: rpcResult.result });
+  } catch (e) {
+    sendResponse({ error: { code: -32603, message: (e as Error).message } });
   }
 }
 

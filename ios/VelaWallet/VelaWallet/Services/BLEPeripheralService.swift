@@ -174,7 +174,6 @@ final class BLEPeripheralService: NSObject, ObservableObject {
         pendingChunks = []
         currentChunkIndex = 0
     }
-    }
 
     // MARK: - Private
 

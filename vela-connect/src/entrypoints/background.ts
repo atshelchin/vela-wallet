@@ -222,25 +222,44 @@ async function handleProviderRequest(
     return;
   }
 
-  // Methods that dApps call but don't need BLE
-  if (msg.method === 'eth_blockNumber' || msg.method === 'eth_getBalance' ||
-      msg.method === 'eth_call' || msg.method === 'eth_estimateGas' ||
-      msg.method === 'eth_gasPrice' || msg.method === 'eth_getTransactionReceipt' ||
-      msg.method === 'eth_getTransactionByHash' || msg.method === 'eth_getCode' ||
-      msg.method === 'eth_getLogs') {
-    // These should be forwarded to an RPC node, not the phone
-    // For now, return method not supported — dApp should use its own RPC
-    sendResponse({ error: { code: -32601, message: `${msg.method}: use your own RPC provider` } });
+  // RPC read methods — forward to our RPC proxy, not to the phone
+  const RPC_METHODS = [
+    'eth_blockNumber', 'eth_getBalance', 'eth_call', 'eth_estimateGas',
+    'eth_gasPrice', 'eth_getTransactionReceipt', 'eth_getTransactionByHash',
+    'eth_getCode', 'eth_getLogs', 'eth_getTransactionCount',
+    'eth_getBlockByNumber', 'eth_getBlockByHash', 'eth_maxPriorityFeePerGas',
+    'eth_feeHistory',
+  ];
+
+  if (RPC_METHODS.includes(msg.method)) {
+    // Forward to getvela.app/api/bundler as RPC proxy
+    const chainId = walletInfo?.chainId || 1;
+    const networkMap: Record<number, string> = {
+      1: 'eth-mainnet', 56: 'bnb-mainnet', 137: 'matic-mainnet',
+      42161: 'arb-mainnet', 10: 'opt-mainnet', 8453: 'base-mainnet', 43114: 'avax-mainnet',
+    };
+    const network = networkMap[chainId] || 'eth-mainnet';
+
+    try {
+      const rpcResponse = await fetch('https://getvela.app/api/bundler', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method: msg.method, params: msg.params, network }),
+      });
+      const rpcResult = await rpcResponse.json();
+      if (rpcResult.error) {
+        sendResponse({ error: rpcResult.error });
+      } else {
+        sendResponse({ result: rpcResult.result });
+      }
+    } catch (e) {
+      sendResponse({ error: { code: -32603, message: (e as Error).message } });
+    }
     return;
   }
 
   if (msg.method === 'wallet_watchAsset') {
     sendResponse({ result: true });
-    return;
-  }
-
-  if (msg.method === 'eth_getTransactionCount' || msg.method === 'eth_getBlockByNumber') {
-    sendResponse({ error: { code: -32601, message: 'Use RPC provider' } });
     return;
   }
 
@@ -286,22 +305,23 @@ async function handleProviderRequest(
   }
 }
 
-/** Send a BLE request through the pairing tab (which holds the Web Bluetooth connection). */
+/** Send a BLE request to the pairing page (which holds the Web Bluetooth connection). */
 async function sendViaBLE(request: BLERequest): Promise<void> {
   console.log('[BG] sendViaBLE:', request.method, request.id);
-  const pairingUrl = chrome.runtime.getURL('/pairing.html');
-  const tabs = await chrome.tabs.query({ url: pairingUrl });
-  if (tabs.length === 0 || !tabs[0].id) {
-    throw new Error('Not connected — please pair first');
-  }
+  // Use chrome.runtime.sendMessage — pairing page listens on chrome.runtime.onMessage
+  // (NOT chrome.tabs.sendMessage which only reaches content scripts)
   return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabs[0].id!, {
+    chrome.runtime.sendMessage({
       type: 'VELA_BLE_SEND_REQUEST',
       request,
     }, (response) => {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
-      else if (response?.error) reject(new Error(response.error));
-      else resolve();
+      if (chrome.runtime.lastError) {
+        reject(new Error('BLE bridge not available — please pair first'));
+      } else if (response?.error) {
+        reject(new Error(response.error));
+      } else {
+        resolve();
+      }
     });
   });
 }

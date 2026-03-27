@@ -47,10 +47,8 @@ class BLEClient {
 
   /** Scan for and connect to a Vela Wallet device. Requires user gesture. */
   async connect(): Promise<void> {
-    this.setState('searching');
-
     try {
-      // Request device with Vela service
+      // Request device — shows system picker (user gesture required)
       this.device = await navigator.bluetooth.requestDevice({
         filters: [{ services: [BLE.SERVICE_UUID] }],
         optionalServices: [BLE.SERVICE_UUID],
@@ -60,6 +58,9 @@ class BLEClient {
         this.setState('disconnected');
         return;
       }
+
+      // Device selected — now connecting
+      this.setState('searching');
 
       // Listen for disconnection — auto-reconnect
       this.device.addEventListener('gattserverdisconnected', () => {

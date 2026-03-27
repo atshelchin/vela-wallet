@@ -68,11 +68,16 @@
 
   async function startScan() {
     error = undefined;
-    connectionState = 'searching';
     try {
       await bleClient.connect();
     } catch (e) {
-      error = (e as Error).message;
+      const msg = (e as Error).message || '';
+      // User cancelled the device picker — not an error, just reset
+      if (msg.includes('cancelled') || msg.includes('canceled')) {
+        connectionState = 'disconnected';
+        return;
+      }
+      error = msg;
       connectionState = 'disconnected';
     }
   }

@@ -2,7 +2,7 @@ import Foundation
 
 /// Builds, signs, and submits ERC-4337 UserOperations for Safe wallets.
 final class SafeTransactionService {
-    private let bundlerAPI = WalletAPIService()
+    private let rpc = RPCAdapter.shared
     private let passkeyService = PasskeyService()
 
     // MARK: - Send Native Token
@@ -13,16 +13,13 @@ final class SafeTransactionService {
         from safeAddress: String,
         to: String,
         valueWei: String,
-        network: String,
         chainId: Int,
         publicKeyHex: String
     ) async throws -> TransactionResult {
-        // callData: executeUserOp(to, value, "0x", 0)
         let callData = buildExecuteCallData(to: to, value: valueWei, data: Data())
         return try await sendUserOp(
             safeAddress: safeAddress,
             callData: callData,
-            network: network,
             chainId: chainId,
             publicKeyHex: publicKeyHex
         )
@@ -37,7 +34,6 @@ final class SafeTransactionService {
         to: String,
         valueWei: String,
         data: Data,
-        network: String,
         chainId: Int,
         publicKeyHex: String
     ) async throws -> TransactionResult {
@@ -45,7 +41,6 @@ final class SafeTransactionService {
         return try await sendUserOp(
             safeAddress: safeAddress,
             callData: callData,
-            network: network,
             chainId: chainId,
             publicKeyHex: publicKeyHex
         )
@@ -60,22 +55,18 @@ final class SafeTransactionService {
         tokenAddress: String,
         to: String,
         amountWei: String,
-        network: String,
         chainId: Int,
         publicKeyHex: String
     ) async throws -> TransactionResult {
-        // ERC-20 transfer(address,uint256)
         let transferSelector = EthCrypto.functionSelector("transfer(address,uint256)")
         let transferData = transferSelector
             + EthCrypto.abiEncode(address: to)
             + EthCrypto.abiEncode(uint256Hex: amountWei)
 
-        // callData: executeUserOp(tokenAddress, 0, transfer(...), 0)
         let callData = buildExecuteCallData(to: tokenAddress, value: "0", data: transferData)
         return try await sendUserOp(
             safeAddress: safeAddress,
             callData: callData,
-            network: network,
             chainId: chainId,
             publicKeyHex: publicKeyHex
         )
@@ -87,21 +78,20 @@ final class SafeTransactionService {
     private func sendUserOp(
         safeAddress: String,
         callData: Data,
-        network: String,
         chainId: Int,
         publicKeyHex: String
     ) async throws -> TransactionResult {
         // 1. Check if deployed
-        let deployed = try await isDeployed(address: safeAddress, network: network)
+        let deployed = try await isDeployed(address: safeAddress, chainId: chainId)
 
         // 2. Build initCode if needed
         let initCode: Data = deployed ? Data() : buildInitCode(publicKeyHex: publicKeyHex)
 
         // 3. Get nonce (0 for undeployed wallets)
-        let nonce: String = deployed ? try await getNonce(safeAddress: safeAddress, network: network) : "0x0"
+        let nonce: String = deployed ? try await getNonce(safeAddress: safeAddress, chainId: chainId) : "0x0"
 
         // 4. Get gas prices
-        let (maxFee, maxPriority) = try await getGasPrices(network: network)
+        let (maxFee, maxPriority) = try await getGasPrices(chainId: chainId)
 
         // 5. Initial gas estimates
         let verificationGas: UInt64 = deployed ? 300_000 : 600_000
@@ -125,7 +115,7 @@ final class SafeTransactionService {
         )
 
         // 7. Estimate gas via bundler
-        if let estimated = try? await estimateGas(userOp: userOp, network: network) {
+        if let estimated = try? await estimateGas(userOp: userOp, chainId: chainId) {
             userOp.verificationGasLimit = max(userOp.verificationGasLimit, estimated.verificationGasLimit * 13 / 10)
             userOp.callGasLimit = max(userOp.callGasLimit, estimated.callGasLimit * 13 / 10)
             userOp.preVerificationGas = max(userOp.preVerificationGas, estimated.preVerificationGas + 5000)
@@ -160,10 +150,10 @@ final class SafeTransactionService {
         userOp.signature = realSig
 
         // 11. Submit to bundler
-        let userOpHash = try await submitUserOp(userOp: userOp, network: network)
+        let userOpHash = try await submitUserOp(userOp: userOp, chainId: chainId)
 
         // 12. Wait for receipt
-        let txHash = try await waitForReceipt(userOpHash: userOpHash, network: network)
+        let txHash = try await waitForReceipt(userOpHash: userOpHash, chainId: chainId)
 
         return TransactionResult(userOpHash: userOpHash, txHash: txHash)
     }
@@ -371,27 +361,27 @@ final class SafeTransactionService {
 
     // MARK: - Bundler RPC Calls
 
-    private func isDeployed(address: String, network: String) async throws -> Bool {
-        let data = try await bundlerAPI.bundlerRequest(
+    private func isDeployed(address: String, chainId: Int) async throws -> Bool {
+        let data = try await rpc.call(
             method: "eth_getCode",
             params: [address, "latest"],
-            network: network
+            chainId: chainId
         )
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? String else { return false }
         return result != "0x" && result.count > 2
     }
 
-    private func getNonce(safeAddress: String, network: String) async throws -> String {
+    private func getNonce(safeAddress: String, chainId: Int) async throws -> String {
         let selector = EthCrypto.functionSelector("getNonce(address,uint192)").hexString
         let addressEncoded = EthCrypto.abiEncode(address: safeAddress).hexString
         let keyEncoded = EthCrypto.abiEncode(uint256: 0).hexString
         let callData = "0x" + selector + addressEncoded + keyEncoded
 
-        let data = try await bundlerAPI.bundlerRequest(
+        let data = try await rpc.call(
             method: "eth_call",
             params: [["to": SafeAddressComputer.entryPoint, "data": callData], "latest"],
-            network: network
+            chainId: chainId
         )
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -399,12 +389,12 @@ final class SafeTransactionService {
         return result
     }
 
-    private func getGasPrices(network: String) async throws -> (maxFee: UInt64, maxPriority: UInt64) {
+    private func getGasPrices(chainId: Int) async throws -> (maxFee: UInt64, maxPriority: UInt64) {
         // Try pimlico_getUserOperationGasPrice first (recommended by Pimlico)
-        if let data = try? await bundlerAPI.bundlerRequest(
+        if let data = try? await rpc.call(
             method: "pimlico_getUserOperationGasPrice",
             params: [],
-            network: network
+            chainId: chainId
         ),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let result = json["result"] as? [String: Any],
@@ -420,10 +410,10 @@ final class SafeTransactionService {
         }
 
         // Fallback: eth_gasPrice * 1.5
-        let data = try await bundlerAPI.bundlerRequest(
+        let data = try await rpc.call(
             method: "eth_gasPrice",
             params: [],
-            network: network
+            chainId: chainId
         )
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? String else {
@@ -434,12 +424,12 @@ final class SafeTransactionService {
         return (gasPrice * 3 / 2, gasPrice)
     }
 
-    private func estimateGas(userOp: UserOperation, network: String) async throws -> GasEstimate {
+    private func estimateGas(userOp: UserOperation, chainId: Int) async throws -> GasEstimate {
         let params: [Any] = [userOp.toDict() as Any, SafeAddressComputer.entryPoint]
-        let data = try await bundlerAPI.bundlerRequest(
+        let data = try await rpc.call(
             method: "eth_estimateUserOperationGas",
             params: params,
-            network: network
+            chainId: chainId
         )
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? [String: Any] else {
@@ -452,12 +442,12 @@ final class SafeTransactionService {
         )
     }
 
-    private func submitUserOp(userOp: UserOperation, network: String) async throws -> String {
+    private func submitUserOp(userOp: UserOperation, chainId: Int) async throws -> String {
         let params: [Any] = [userOp.toDict() as Any, SafeAddressComputer.entryPoint]
-        let data = try await bundlerAPI.bundlerRequest(
+        let data = try await rpc.call(
             method: "eth_sendUserOperation",
             params: params,
-            network: network
+            chainId: chainId
         )
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let result = json["result"] as? String else {
@@ -467,13 +457,13 @@ final class SafeTransactionService {
         return result
     }
 
-    private func waitForReceipt(userOpHash: String, network: String, timeout: Int = 120) async throws -> String {
+    private func waitForReceipt(userOpHash: String, chainId: Int, timeout: Int = 120) async throws -> String {
         let start = Date()
         while Date().timeIntervalSince(start) < Double(timeout) {
-            let data = try await bundlerAPI.bundlerRequest(
+            let data = try await rpc.call(
                 method: "eth_getUserOperationReceipt",
                 params: [userOpHash],
-                network: network
+                chainId: chainId
             )
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let result = json["result"] as? [String: Any],

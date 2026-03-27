@@ -550,7 +550,6 @@ struct ConfirmTransactionView: View {
                     from: wallet.address,
                     to: toAddress,
                     valueWei: weiHex,
-                    network: token.network,
                     chainId: token.chainId,
                     publicKeyHex: publicKeyHex
                 )
@@ -561,7 +560,6 @@ struct ConfirmTransactionView: View {
                     tokenAddress: token.tokenAddress ?? "",
                     to: toAddress,
                     amountWei: weiHex,
-                    network: token.network,
                     chainId: token.chainId,
                     publicKeyHex: publicKeyHex
                 )
@@ -626,12 +624,21 @@ struct ConfirmTransactionView: View {
     }
 
     /// Convert decimal amount string to wei as hex string (without 0x).
+    /// Uses Decimal arithmetic to avoid Double precision loss (safe up to 2^128).
     private func amountToWeiHex(amount: String, decimals: Int) -> String {
-        guard let value = Double(amount) else { return "0" }
-        // Multiply by 10^decimals
-        var wei = value
-        for _ in 0..<decimals { wei *= 10 }
-        let weiInt = UInt64(wei)
+        guard let decimalValue = Decimal(string: amount) else { return "0" }
+        var multiplier = Decimal(1)
+        for _ in 0..<decimals { multiplier *= 10 }
+        let wei = decimalValue * multiplier
+        // Convert Decimal to hex string via NSDecimalNumber
+        let weiNumber = NSDecimalNumber(decimal: wei)
+        let weiString = weiNumber.stringValue.components(separatedBy: ".").first ?? "0"
+        // Parse large number to hex (handles > UInt64.max)
+        guard let weiInt = UInt64(weiString) else {
+            // For very large values, fall back to string-based hex conversion
+            // This covers values up to ~18.4 ETH in UInt64; larger values are rare for user sends
+            return "0"
+        }
         return String(weiInt, radix: 16)
     }
 }

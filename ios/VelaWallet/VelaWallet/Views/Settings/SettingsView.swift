@@ -532,20 +532,36 @@ struct AccountSwitcherView: View {
                     wallet.activeAccountIndex = existingIndex
                     wallet.address = wallet.accounts[existingIndex].address
                 } else {
-                    // Extract username from userID, fallback to local storage
                     let nameFromPasskey = result.userID.flatMap { PasskeyService.decodeUserName(from: $0) }
                     let stored = LocalStorage.shared.findAccount(byCredentialId: credentialId)
                     let name = nameFromPasskey ?? stored?.name ?? "Wallet"
-                    let address = stored?.address ?? "0x" + String(credentialId.prefix(40))
-                    let account = Account(id: credentialId, name: name, address: address, createdAt: Date())
-                    wallet.accounts.append(account)
-                    wallet.activeAccountIndex = wallet.accounts.count - 1
-                    wallet.address = address
+
+                    // Compute correct address — never use credentialId as address
+                    var address = stored?.address ?? ""
+                    if address.isEmpty {
+                        if let record = try? await PublicKeyIndexService().query(
+                            rpId: PasskeyService.relyingParty, credentialId: credentialId
+                        ) {
+                            address = SafeAddressComputer.computeAddress(publicKeyHex: record.publicKey)
+                            LocalStorage.shared.saveAccount(LocalStorage.StoredAccount(
+                                id: credentialId, name: name, publicKeyHex: record.publicKey,
+                                address: address, createdAt: Date()
+                            ))
+                        }
+                    }
+
+                    if !address.isEmpty {
+                        let account = Account(id: credentialId, name: name, address: address, createdAt: Date())
+                        wallet.accounts.append(account)
+                        wallet.activeAccountIndex = wallet.accounts.count - 1
+                        wallet.address = address
+                    }
                 }
                 isCreating = false
                 dismiss()
             } catch {
                 isCreating = false
+                print("[Settings] Login failed: \(error)")
             }
         }
     }

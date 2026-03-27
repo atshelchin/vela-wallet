@@ -31,7 +31,6 @@ export default defineContentScript({
     // ─── Provider ───
     const provider = {
       isVela: true,
-      isMetaMask: true,
       selectedAddress: null as string | null,
       chainId: null as string | null,
       networkVersion: null as string | null,

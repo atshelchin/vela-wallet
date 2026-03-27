@@ -53,11 +53,31 @@ struct OnboardingFlow: View {
                     wallet.activeAccountIndex = existingIndex
                     wallet.address = wallet.accounts[existingIndex].address
                 } else {
-                    // Extract username from userID (encoded as "name\0uuid")
+                    // Extract username from userID
                     let nameFromPasskey = result.userID.flatMap { PasskeyService.decodeUserName(from: $0) }
                     let stored = LocalStorage.shared.findAccount(byCredentialId: credentialId)
                     let name = nameFromPasskey ?? stored?.name ?? "Wallet"
-                    let address = stored?.address ?? "0x" + String(credentialId.prefix(40))
+
+                    // Compute correct Safe address from public key — NEVER use credentialId as address
+                    var address = stored?.address ?? ""
+                    if address.isEmpty {
+                        // Try to get public key from server
+                        if let record = try? await PublicKeyIndexService().query(
+                            rpId: PasskeyService.relyingParty, credentialId: credentialId
+                        ) {
+                            address = SafeAddressComputer.computeAddress(publicKeyHex: record.publicKey)
+                            LocalStorage.shared.saveAccount(LocalStorage.StoredAccount(
+                                id: credentialId, name: name, publicKeyHex: record.publicKey,
+                                address: address, createdAt: Date()
+                            ))
+                        }
+                    }
+
+                    guard !address.isEmpty else {
+                        print("[Login] Cannot determine Safe address — no local data or server")
+                        return // Stay on welcome, don't show a wrong address
+                    }
+
                     let account = Account(id: credentialId, name: name, address: address, createdAt: Date())
                     wallet.accounts.append(account)
                     wallet.activeAccountIndex = wallet.accounts.count - 1
@@ -65,7 +85,8 @@ struct OnboardingFlow: View {
                 }
                 wallet.hasWallet = true
             } catch {
-                // User cancelled or error — stay on welcome
+                // Don't silently swallow — at least log it
+                print("[Login] Failed: \(error.localizedDescription)")
             }
         }
     }

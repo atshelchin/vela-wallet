@@ -39,7 +39,7 @@ fun WelcomeScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            VelaSailLogo(size = 80.dp, color = VelaColor.accent)
+            VelaSailLogo(size = 80.dp, color = VelaColor.accent.copy(alpha = 0.9f))
 
             Spacer(Modifier.height(32.dp))
 

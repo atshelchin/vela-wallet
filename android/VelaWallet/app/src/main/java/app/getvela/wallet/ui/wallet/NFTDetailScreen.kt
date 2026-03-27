@@ -52,7 +52,7 @@ fun NFTDetailScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp)
+                .height(360.dp)
                 .padding(horizontal = 16.dp)
                 .clip(RoundedCornerShape(VelaRadius.card))
                 .background(VelaColor.bgWarm),
@@ -67,7 +67,7 @@ fun NFTDetailScreen(
         // Title
         Text(
             nft.displayName,
-            style = VelaTypography.heading(20f),
+            style = VelaTypography.heading(22f),
             color = VelaColor.textPrimary,
             modifier = Modifier.padding(horizontal = VelaSpacing.screenH),
         )

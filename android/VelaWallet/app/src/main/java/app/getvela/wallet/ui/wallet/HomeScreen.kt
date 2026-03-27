@@ -141,7 +141,7 @@ fun HomeScreen(
                     // Total balance
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            text = "$${String.format("%,d", totalUSD.toLong())}",
+                            text = "$${totalUSD.toLong()}",
                             fontSize = 44.sp,
                             fontWeight = FontWeight.Bold,
                             color = VelaColor.textPrimary,

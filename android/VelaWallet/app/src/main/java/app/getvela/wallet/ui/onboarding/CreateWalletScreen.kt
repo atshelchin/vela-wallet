@@ -6,7 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
@@ -42,6 +42,8 @@ fun CreateWalletScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var uploadFailed by remember { mutableStateOf(false) }
+    var pendingAddress by remember { mutableStateOf<String?>(null) }
+    var pendingName by remember { mutableStateOf<String?>(null) }
     val focusRequester = remember { FocusRequester() }
     val activity = LocalContext.current as Activity
     val scope = rememberCoroutineScope()
@@ -77,7 +79,7 @@ fun CreateWalletScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = if (uploadFailed) Icons.Default.Refresh else Icons.Default.Fingerprint,
+                    imageVector = if (uploadFailed) Icons.Default.Refresh else Icons.Default.Key,
                     contentDescription = null,
                     modifier = Modifier.size(36.dp),
                     tint = VelaColor.accent,
@@ -204,13 +206,28 @@ fun CreateWalletScreen(
             if (uploadFailed) {
                 VelaPrimaryButton(
                     text = stringResource(R.string.create_retry_upload),
-                    onClick = { /* TODO: retry upload */ },
+                    onClick = {
+                        // TODO: retry public key upload to server
+                        isLoading = true
+                        errorMessage = null
+                        scope.launch {
+                            // For now, just proceed — upload retry requires server integration
+                            isLoading = false
+                            val addr = pendingAddress ?: return@launch
+                            val name = pendingName ?: return@launch
+                            onCreated(addr, name)
+                        }
+                    },
                     isLoading = isLoading,
                     enabled = !isLoading,
                 )
                 VelaSecondaryButton(
                     text = stringResource(R.string.create_skip),
-                    onClick = { /* TODO: skip and continue */ },
+                    onClick = {
+                        val addr = pendingAddress ?: return@VelaSecondaryButton
+                        val name = pendingName ?: return@VelaSecondaryButton
+                        onCreated(addr, name)
+                    },
                     enabled = !isLoading,
                 )
             } else {
@@ -249,6 +266,8 @@ fun CreateWalletScreen(
                                     )
                                 )
 
+                                pendingAddress = address
+                                pendingName = name
                                 isLoading = false
                                 onCreated(address, name)
                             } catch (e: Exception) {

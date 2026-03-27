@@ -74,7 +74,7 @@ fun VelaPrimaryButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(54.dp),
+        modifier = modifier.fillMaxWidth().height(51.dp),
         enabled = enabled && !isLoading,
         shape = VelaButtonShape,
         colors = ButtonDefaults.buttonColors(
@@ -107,7 +107,7 @@ fun VelaSecondaryButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(54.dp),
+        modifier = modifier.fillMaxWidth().height(51.dp),
         enabled = enabled,
         shape = VelaButtonShape,
         border = BorderStroke(1.5.dp, VelaColor.border),
@@ -131,7 +131,7 @@ fun VelaAccentButton(
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(54.dp),
+        modifier = modifier.fillMaxWidth().height(51.dp),
         enabled = enabled && !isLoading,
         shape = VelaButtonShape,
         colors = ButtonDefaults.buttonColors(

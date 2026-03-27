@@ -40,6 +40,8 @@ bleClient.setHandlers({
   },
 
   onResponse(response: BLEResponse) {
+    console.log('[BG] onResponse received:', response.id, JSON.stringify(response).slice(0, 200));
+
     // Handle wallet info push from phone (account switch notification)
     if (response.id === 'wallet_info_update' && response.result) {
       const info = response.result as WalletInfo;
@@ -181,13 +183,37 @@ async function handleProviderRequest(
   };
 
   try {
-    await bleClient.sendRequest(bleRequest);
-    broadcastState(); // Update popup with new pending request
+    await sendViaBLE(bleRequest);
+    broadcastState();
   } catch (error) {
     sendResponse({ error: { code: -32603, message: 'Failed to send to wallet' } });
     pendingRequests.delete(msg.id);
     responseCallbacks.delete(msg.id);
   }
+}
+
+/** Send a BLE request through the pairing tab (which holds the Web Bluetooth connection). */
+async function sendViaBLE(request: BLERequest): Promise<void> {
+  // Find the pairing tab
+  const tabs = await chrome.tabs.query({ url: chrome.runtime.getURL('/pairing.html') });
+  if (tabs.length === 0 || !tabs[0].id) {
+    throw new Error('Pairing tab not found — please reconnect');
+  }
+
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabs[0].id!, {
+      type: 'VELA_BLE_SEND_REQUEST',
+      request,
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else if (response?.error) {
+        reject(new Error(response.error));
+      } else {
+        resolve();
+      }
+    });
+  });
 }
 
 // ─── Popup Action Handler ───
@@ -210,7 +236,14 @@ async function handlePopupAction(
       break;
 
     case 'disconnect':
-      bleClient.disconnect();
+      connectionState = 'disconnected';
+      connectedDevice = undefined;
+      walletInfo = undefined;
+      broadcastState();
+      // Close pairing tab (which will disconnect BLE)
+      chrome.tabs.query({ url: chrome.runtime.getURL('/pairing.html') }, (tabs) => {
+        tabs.forEach(t => { if (t.id) chrome.tabs.remove(t.id); });
+      });
       sendResponse({ ok: true });
       break;
 
@@ -240,7 +273,7 @@ async function handlePopupAction(
         origin: 'chrome-extension',
       };
       try {
-        await bleClient.sendRequest(switchReq);
+        await sendViaBLE(switchReq);
         sendResponse({ ok: true });
       } catch (e) {
         sendResponse({ error: (e as Error).message });

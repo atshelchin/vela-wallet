@@ -70,7 +70,9 @@ struct VelaConnectView: View {
             }
         }
         .onChange(of: wallet.address) {
+            print("[VelaConnect] wallet.address changed to: \(wallet.address.prefix(12))... isAdvertising=\(ble.isAdvertising) isConnected=\(ble.isConnected)")
             if ble.isAdvertising || ble.isConnected {
+                print("[VelaConnect] Pushing wallet info update via BLE")
                 ble.updateWalletInfo(
                     walletAddress: wallet.address,
                     accountName: wallet.activeAccount?.name ?? "Wallet",

@@ -86,9 +86,13 @@ final class BLEPeripheralService: NSObject, ObservableObject {
                     "result": info
                 ]
                 if let notifyData = try? JSONSerialization.data(withJSONObject: notification) {
-                    peripheralManager.updateValue(notifyData, for: responseChar, onSubscribedCentrals: [central])
-                    print("[BLE] Pushed wallet info update to extension")
+                    let sent = peripheralManager.updateValue(notifyData, for: responseChar, onSubscribedCentrals: [central])
+                    print("[BLE] Push wallet info: sent=\(sent), size=\(notifyData.count) bytes, address=\(walletAddress.prefix(12))...")
+                } else {
+                    print("[BLE] Push wallet info: JSON serialization failed")
                 }
+            } else {
+                print("[BLE] Push wallet info: no subscribedCentral")
             }
         }
     }

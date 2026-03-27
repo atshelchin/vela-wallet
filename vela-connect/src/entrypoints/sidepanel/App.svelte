@@ -68,11 +68,21 @@
 
   async function startScan() {
     error = undefined;
+    console.log('[SP] startScan called');
+    console.log('[SP] navigator.bluetooth:', typeof navigator.bluetooth);
+    console.log('[SP] navigator.bluetooth.requestDevice:', typeof navigator.bluetooth?.requestDevice);
+
+    if (!navigator.bluetooth) {
+      error = 'Web Bluetooth is not available in this context. Try opening Vela Connect in a tab.';
+      // Fallback: open as a tab where Web Bluetooth works
+      chrome.tabs.create({ url: chrome.runtime.getURL('/sidepanel.html') });
+      return;
+    }
+
     try {
       await bleClient.connect();
     } catch (e) {
       const msg = (e as Error).message || '';
-      // User cancelled the device picker — not an error, just reset
       if (msg.includes('cancelled') || msg.includes('canceled')) {
         connectionState = 'disconnected';
         return;

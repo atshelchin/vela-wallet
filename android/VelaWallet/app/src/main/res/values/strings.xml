@@ -22,4 +22,29 @@
     <string name="create_skip">Skip for Now</string>
     <string name="create_upload_failed_title">Upload Failed</string>
     <string name="create_upload_failed_desc">Your wallet was created locally but we couldn\'t upload your public key. You can retry or skip for now.</string>
+
+    <!-- Home -->
+    <string name="home_send">Send</string>
+    <string name="home_receive">Receive</string>
+    <string name="home_tokens">TOKENS</string>
+    <string name="home_nfts">NFTS</string>
+    <string name="home_no_activity">No tokens yet</string>
+    <string name="home_no_nfts">No NFTs found</string>
+
+    <!-- Token Detail -->
+    <string name="token_info">TOKEN INFO</string>
+    <string name="token_name">Name</string>
+    <string name="token_symbol">Symbol</string>
+    <string name="token_network">Network</string>
+    <string name="token_decimals">Decimals</string>
+    <string name="token_contract">Contract</string>
+    <string name="token_type">Type</string>
+    <string name="token_price">Price</string>
+
+    <!-- Receive -->
+    <string name="receive_title">Receive</string>
+    <string name="receive_supported_networks">SUPPORTED NETWORKS</string>
+    <string name="receive_listening">Listening for deposits…</string>
+    <string name="receive_warning">Only send tokens on supported networks.\nSending on unsupported networks may result in permanent loss.</string>
+    <string name="receive_share">Share Address</string>
 </resources>

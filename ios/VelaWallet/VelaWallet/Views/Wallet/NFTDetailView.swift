@@ -54,7 +54,7 @@ struct NFTDetailView: View {
                     NFTInfoRow(label: String(localized: "token.network"), value: nft.chainName)
                     NFTInfoRow(label: String(localized: "token.type"), value: nft.tokenType)
                     NFTInfoRow(label: "Token ID", value: nft.tokenId.count > 12 ? "\(nft.tokenId.prefix(8))..." : nft.tokenId)
-                    NFTInfoRow(label: String(localized: "token.contract"), value: "\(nft.contractAddress.prefix(8))...\(nft.contractAddress.suffix(6))", copyValue: nft.contractAddress, isLast: true)
+                    NFTInfoRow(label: String(localized: "token.contract"), value: shortAddr(nft.contractAddress), copyValue: nft.contractAddress, isLast: true)
                 }
                 .background(VelaColor.bgCard)
                 .clipShape(RoundedRectangle(cornerRadius: VelaRadius.card))

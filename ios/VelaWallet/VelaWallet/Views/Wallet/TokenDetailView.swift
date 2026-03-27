@@ -117,12 +117,6 @@ struct TokenDetailView: View {
         .sheet(isPresented: $showReceive) { ReceiveView() }
     }
 
-    private func formatBalance(_ value: Double) -> String {
-        if value == 0 { return "0" }
-        if value >= 1000 { return value.formatted(.number.precision(.fractionLength(2))) }
-        if value >= 1 { return value.formatted(.number.precision(.fractionLength(4))) }
-        return value.formatted(.number.precision(.significantDigits(4)))
-    }
 }
 
 // MARK: - Info Row
@@ -151,7 +145,7 @@ private struct InfoRow: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(value.count > 20 ? "\(value.prefix(8))...\(value.suffix(6))" : value)
+                        Text(shortAddr(value))
                             .font(isMono ? VelaFont.mono(12) : .system(size: 13))
                             .foregroundStyle(VelaColor.textPrimary)
                         Image(systemName: copied ? "checkmark" : "doc.on.doc")

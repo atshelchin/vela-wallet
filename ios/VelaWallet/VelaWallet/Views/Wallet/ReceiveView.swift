@@ -216,11 +216,6 @@ struct ReceiveView: View {
         }
     }
 
-    private func formatBalance(_ value: Double) -> String {
-        if value >= 1000 { return value.formatted(.number.precision(.fractionLength(2))) }
-        if value >= 1 { return value.formatted(.number.precision(.fractionLength(4))) }
-        return value.formatted(.number.precision(.significantDigits(4)))
-    }
 
     private func generateQR(from string: String) -> UIImage? {
         let filter = CIFilter.qrCodeGenerator()

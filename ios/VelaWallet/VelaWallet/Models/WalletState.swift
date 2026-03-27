@@ -107,6 +107,52 @@ struct Network: Identifiable, Equatable {
     static var defaults: [Network] {
         [.ethereum, .bnb, .polygon, .arbitrum, .optimism, .base, .avalanche]
     }
+
+    /// Lookup chain name by ID (used across views).
+    static func chainName(for chainId: Int) -> String {
+        defaults.first { $0.chainId == chainId }?.displayName ?? "Chain \(chainId)"
+    }
+
+    /// Lookup native token symbol by chain ID.
+    static func nativeSymbol(for chainId: Int) -> String {
+        switch chainId {
+        case 1, 42161, 10, 8453: "ETH"
+        case 56: "BNB"
+        case 137: "POL"
+        case 43114: "AVAX"
+        default: "ETH"
+        }
+    }
+
+    /// Lookup network API identifier by chain ID.
+    static func networkId(for chainId: Int) -> String {
+        switch chainId {
+        case 1: "eth-mainnet"
+        case 56: "bnb-mainnet"
+        case 137: "matic-mainnet"
+        case 42161: "arb-mainnet"
+        case 10: "opt-mainnet"
+        case 8453: "base-mainnet"
+        case 43114: "avax-mainnet"
+        default: "eth-mainnet"
+        }
+    }
+}
+
+// MARK: - Shared Utilities
+
+/// Format a balance with appropriate precision.
+func formatBalance(_ value: Double) -> String {
+    if value == 0 { return "0" }
+    if value >= 1000 { return value.formatted(.number.precision(.fractionLength(2))) }
+    if value >= 1 { return value.formatted(.number.precision(.fractionLength(4))) }
+    return value.formatted(.number.precision(.significantDigits(4)))
+}
+
+/// Shorten an address to "0x1234...abcd" format.
+func shortAddr(_ address: String) -> String {
+    guard address.count > 12 else { return address }
+    return "\(address.prefix(8))...\(address.suffix(6))"
 }
 
 // MARK: - Token

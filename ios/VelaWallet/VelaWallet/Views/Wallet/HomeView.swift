@@ -373,12 +373,6 @@ private struct TokenRow: View {
         .contentShape(Rectangle())
     }
 
-    private func formatBalance(_ value: Double) -> String {
-        if value == 0 { return "0" }
-        if value >= 1000 { return value.formatted(.number.precision(.fractionLength(2))) }
-        if value >= 1 { return value.formatted(.number.precision(.fractionLength(4))) }
-        return value.formatted(.number.precision(.significantDigits(4)))
-    }
 }
 
 // MARK: - NFT Card

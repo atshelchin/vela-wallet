@@ -101,7 +101,7 @@ struct SendView: View {
                                     Spacer()
 
                                     VStack(alignment: .trailing, spacing: 2) {
-                                        Text(formatBal(token.balanceDouble))
+                                        Text(formatBalance(token.balanceDouble))
                                             .font(VelaFont.label(14))
                                             .foregroundStyle(VelaColor.textPrimary)
                                         if token.usdValue > 0 {
@@ -231,7 +231,7 @@ struct SendView: View {
                 // Balance hint
                 if let token = selectedToken {
                     HStack {
-                        Text(String(localized: "send.balance", defaultValue: "Balance: \(formatBal(token.balanceDouble)) \(token.symbol)"))
+                        Text(String(localized: "send.balance", defaultValue: "Balance: \(formatBalance(token.balanceDouble)) \(token.symbol)"))
                             .font(.system(size: 13))
                             .foregroundStyle(VelaColor.textTertiary)
 
@@ -294,12 +294,6 @@ struct SendView: View {
         isLoading = false
     }
 
-    private func formatBal(_ value: Double) -> String {
-        if value == 0 { return "0" }
-        if value >= 1000 { return value.formatted(.number.precision(.fractionLength(2))) }
-        if value >= 1 { return value.formatted(.number.precision(.fractionLength(4))) }
-        return value.formatted(.number.precision(.significantDigits(4)))
-    }
 }
 
 // MARK: - QR Scanner Sheet

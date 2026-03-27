@@ -277,7 +277,7 @@ struct VelaConnectView: View {
                     Text(methodDisplayName(request.method).uppercased())
                         .font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(VelaColor.textTertiary)
                     Spacer()
-                    Text(chainName(ble.currentChainId))
+                    Text(Network.chainName(for: ble.currentChainId))
                         .font(.system(size: 10, weight: .semibold)).foregroundStyle(VelaColor.blue)
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(VelaColor.blueSoft).clipShape(Capsule())
@@ -294,7 +294,7 @@ struct VelaConnectView: View {
                     let valueEth = Double(valueWei) / 1e18
 
                     if valueEth > 0 {
-                        Text(String(format: "%.6f", valueEth) + " " + nativeSymbol(ble.currentChainId))
+                        Text(String(format: "%.6f", valueEth) + " " + Network.nativeSymbol(for: ble.currentChainId))
                             .font(.system(size: 24, weight: .bold)).foregroundStyle(VelaColor.textPrimary)
                             .padding(.horizontal, 16).padding(.bottom, 4)
                     }
@@ -308,7 +308,7 @@ struct VelaConnectView: View {
                     VelaColor.border.frame(height: 1)
                     txDetailRow(label: "To", value: shortAddr(toAddr))
                     txDetailRow(label: "From", value: shortAddr(wallet.address))
-                    txDetailRow(label: "Network", value: chainName(ble.currentChainId))
+                    txDetailRow(label: "Network", value: Network.chainName(for: ble.currentChainId))
                 } else {
                     Text(methodDisplayName(request.method))
                         .font(VelaFont.heading(20)).foregroundStyle(VelaColor.textPrimary)
@@ -528,34 +528,6 @@ struct VelaConnectView: View {
         case "eth_signTypedData_v4": "Sign Typed Data"
         case "eth_requestAccounts": "Connect"
         default: method
-        }
-    }
-
-    private func shortAddr(_ addr: String) -> String {
-        guard addr.count > 12 else { return addr }
-        return "\(addr.prefix(8))...\(addr.suffix(6))"
-    }
-
-    private func chainName(_ chainId: Int) -> String {
-        switch chainId {
-        case 1: "Ethereum"
-        case 56: "BNB Chain"
-        case 137: "Polygon"
-        case 42161: "Arbitrum"
-        case 10: "Optimism"
-        case 8453: "Base"
-        case 43114: "Avalanche"
-        default: "Chain \(chainId)"
-        }
-    }
-
-    private func nativeSymbol(_ chainId: Int) -> String {
-        switch chainId {
-        case 1, 42161, 10, 8453: "ETH"
-        case 56: "BNB"
-        case 137: "POL"
-        case 43114: "AVAX"
-        default: "ETH"
         }
     }
 

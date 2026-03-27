@@ -47,4 +47,25 @@
     <string name="receive_listening">Listening for deposits…</string>
     <string name="receive_warning">Only send tokens on supported networks.\nSending on unsupported networks may result in permanent loss.</string>
     <string name="receive_share">Share Address</string>
+
+    <!-- Send -->
+    <string name="send_select_token">Select Token</string>
+    <string name="send_title">Send</string>
+    <string name="send_no_tokens">No tokens with balance</string>
+    <string name="send_change">Change</string>
+    <string name="send_to">TO</string>
+    <string name="send_to_placeholder">0x… or ENS name</string>
+    <string name="send_amount">AMOUNT</string>
+    <string name="send_review">Review Transaction</string>
+    <string name="send_scan">Scan</string>
+
+    <!-- Confirm -->
+    <string name="confirm_title">Confirm</string>
+    <string name="confirm_sending">SENDING</string>
+    <string name="confirm_address">Address</string>
+    <string name="confirm_network">Network</string>
+    <string name="confirm_fee">Est. Fee</string>
+    <string name="confirm_send">Confirm &amp; Send</string>
+    <string name="confirm_sent">Transaction Sent</string>
+    <string name="confirm_done">Done</string>
 </resources>

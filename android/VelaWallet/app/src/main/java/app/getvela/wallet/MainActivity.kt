@@ -96,14 +96,25 @@ private fun MainTabs(wallet: WalletState) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var selectedToken by remember { mutableStateOf<ApiToken?>(null) }
     var showReceive by remember { mutableStateOf(false) }
+    var showSend by remember { mutableStateOf(false) }
+    var sendPreselectedToken by remember { mutableStateOf<ApiToken?>(null) }
 
-    // Overlay screens (token detail, receive)
+    // Overlay screens (token detail, receive, send)
     when {
+        showSend -> SendScreen(
+            wallet = wallet,
+            preselectedToken = sendPreselectedToken,
+            onBack = { showSend = false; sendPreselectedToken = null },
+        )
         selectedToken != null -> TokenDetailScreen(
             token = selectedToken!!,
             onBack = { selectedToken = null },
-            onSend = { /* TODO: navigate to send */ },
-            onReceive = { showReceive = true },
+            onSend = {
+                sendPreselectedToken = selectedToken
+                selectedToken = null
+                showSend = true
+            },
+            onReceive = { selectedToken = null; showReceive = true },
         )
         showReceive -> ReceiveScreen(
             wallet = wallet,
@@ -140,7 +151,7 @@ private fun MainTabs(wallet: WalletState) {
                 0 -> HomeScreen(
                     wallet = wallet,
                     onTokenClick = { selectedToken = it },
-                    onSendClick = { /* TODO */ },
+                    onSendClick = { showSend = true },
                     onReceiveClick = { showReceive = true },
                 )
                 1 -> ConnectScreen(wallet)

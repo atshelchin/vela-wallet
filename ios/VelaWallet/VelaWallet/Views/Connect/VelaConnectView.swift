@@ -464,7 +464,7 @@ struct VelaConnectView: View {
 
     private func handlePersonalSign(_ request: BLEIncomingRequest) async throws -> AnyCodable {
         let passkeyService = PasskeyService()
-        let credentialID = wallet.activeAccount?.id.flatMap { Data(hexString: $0) }
+        let credentialID: Data? = if let id = wallet.activeAccount?.id { Data(hexString: id) } else { nil }
 
         guard let hexMsg = request.params.first?.value as? String else {
             throw PasskeyService.PasskeyError.failed("Invalid message")
@@ -493,7 +493,7 @@ struct VelaConnectView: View {
 
     private func handleSignTypedData(_ request: BLEIncomingRequest) async throws -> AnyCodable {
         let passkeyService = PasskeyService()
-        let credentialID = wallet.activeAccount?.id.flatMap { Data(hexString: $0) }
+        let credentialID: Data? = if let id = wallet.activeAccount?.id { Data(hexString: id) } else { nil }
 
         // Hash the typed data params with keccak256
         let jsonData = try JSONEncoder().encode(request.params)
@@ -513,7 +513,7 @@ struct VelaConnectView: View {
 
     private func handleGenericSign(_ request: BLEIncomingRequest) async throws -> AnyCodable {
         let passkeyService = PasskeyService()
-        let credentialID = wallet.activeAccount?.id.flatMap { Data(hexString: $0) }
+        let credentialID: Data? = if let id = wallet.activeAccount?.id { Data(hexString: id) } else { nil }
 
         let jsonData = try JSONEncoder().encode(request.params)
         let dataToSign = EthCrypto.keccak256(jsonData)

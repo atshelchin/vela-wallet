@@ -1,6 +1,8 @@
 package app.getvela.wallet
 
+import android.app.Activity
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -10,14 +12,17 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import app.getvela.wallet.model.Account
 import app.getvela.wallet.model.WalletState
-import app.getvela.wallet.service.ApiToken
-import app.getvela.wallet.service.LocalStorage
+import app.getvela.wallet.service.*
 import app.getvela.wallet.ui.onboarding.CreateWalletScreen
 import app.getvela.wallet.ui.onboarding.WelcomeScreen
 import app.getvela.wallet.ui.theme.VelaColor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import app.getvela.wallet.ui.theme.VelaWalletTheme
 import app.getvela.wallet.ui.wallet.*
 
@@ -62,12 +67,61 @@ private fun VelaApp(wallet: WalletState) {
 @Composable
 private fun OnboardingFlow(wallet: WalletState) {
     var step by remember { mutableStateOf(OnboardingStep.Welcome) }
+    val activity = LocalContext.current as Activity
+    val scope = rememberCoroutineScope()
 
     when (step) {
         OnboardingStep.Welcome -> WelcomeScreen(
             onCreateWallet = { step = OnboardingStep.Create },
             onLogin = {
-                // TODO: Passkey authentication via CredentialManager
+                scope.launch {
+                    try {
+                        val passkeyService = PasskeyService()
+                        val result = passkeyService.authenticate(activity)
+                        val credentialId = EthCrypto.bytesToHex(result.credentialId)
+
+                        // Check if already in memory
+                        val existingIndex = wallet.accounts.indexOfFirst { it.id == credentialId }
+                        if (existingIndex >= 0) {
+                            wallet.activeAccountIndex = existingIndex
+                            wallet.address = wallet.accounts[existingIndex].address
+                        } else {
+                            val nameFromPasskey = result.userID?.let { PasskeyService.decodeUserName(it) }
+                            val stored = LocalStorage.shared.findAccount(credentialId)
+                            val name = nameFromPasskey ?: stored?.name ?: "Wallet"
+
+                            var address = stored?.address ?: ""
+                            if (address.isEmpty()) {
+                                // Try server lookup
+                                try {
+                                    val record = withContext(Dispatchers.IO) {
+                                        PublicKeyIndexService().query(PasskeyService.RELYING_PARTY, credentialId)
+                                    }
+                                    address = SafeAddressComputer.computeAddress(record.publicKey)
+                                    LocalStorage.shared.saveAccount(
+                                        LocalStorage.StoredAccount(
+                                            id = credentialId, name = name,
+                                            publicKeyHex = record.publicKey, address = address,
+                                        )
+                                    )
+                                } catch (_: Exception) {}
+                            }
+
+                            if (address.isEmpty()) {
+                                Log.w("Login", "Cannot determine Safe address")
+                                return@launch
+                            }
+
+                            val account = Account(id = credentialId, name = name, address = address)
+                            wallet.accounts = wallet.accounts + account
+                            wallet.activeAccountIndex = wallet.accounts.size - 1
+                            wallet.address = address
+                        }
+                        wallet.hasWallet = true
+                    } catch (e: Exception) {
+                        Log.e("Login", "Failed: ${e.message}")
+                    }
+                }
             },
         )
         OnboardingStep.Create -> CreateWalletScreen(

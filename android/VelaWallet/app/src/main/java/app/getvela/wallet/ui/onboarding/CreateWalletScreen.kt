@@ -1,5 +1,6 @@
 package app.getvela.wallet.ui.onboarding
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -14,17 +15,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.getvela.wallet.R
+import app.getvela.wallet.service.EthCrypto
+import app.getvela.wallet.service.LocalStorage
+import app.getvela.wallet.service.PasskeyService
+import app.getvela.wallet.service.SafeAddressComputer
 import app.getvela.wallet.ui.components.VelaAccentButton
 import app.getvela.wallet.ui.components.VelaNavBar
 import app.getvela.wallet.ui.components.VelaPrimaryButton
 import app.getvela.wallet.ui.components.VelaSecondaryButton
 import app.getvela.wallet.ui.theme.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun CreateWalletScreen(
@@ -36,6 +43,9 @@ fun CreateWalletScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var uploadFailed by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val activity = LocalContext.current as Activity
+    val scope = rememberCoroutineScope()
+    val passkeyService = remember { PasskeyService() }
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -207,8 +217,46 @@ fun CreateWalletScreen(
                 VelaPrimaryButton(
                     text = stringResource(R.string.create_button),
                     onClick = {
-                        // TODO: Passkey creation via CredentialManager
                         isLoading = true
+                        errorMessage = null
+                        val name = accountName.trim()
+                        scope.launch {
+                            try {
+                                val result = passkeyService.register(activity, name)
+                                val credentialId = EthCrypto.bytesToHex(result.credentialId)
+
+                                // Extract P256 public key from attestation
+                                val attestation = result.attestationObject
+                                val keyPair = attestation?.let { passkeyService.extractPublicKeyFromAttestation(it) }
+                                val publicKeyHex = if (keyPair != null) {
+                                    "04" + EthCrypto.bytesToHex(keyPair.first) + EthCrypto.bytesToHex(keyPair.second)
+                                } else ""
+
+                                // Compute Safe address
+                                val address = if (publicKeyHex.isNotEmpty()) {
+                                    SafeAddressComputer.computeAddress(publicKeyHex)
+                                } else {
+                                    "0x" + credentialId.take(40)
+                                }
+
+                                // Save locally
+                                LocalStorage.shared.saveAccount(
+                                    LocalStorage.StoredAccount(
+                                        id = credentialId,
+                                        name = name,
+                                        publicKeyHex = publicKeyHex,
+                                        address = address,
+                                    )
+                                )
+
+                                isLoading = false
+                                onCreated(address, name)
+                            } catch (e: Exception) {
+                                isLoading = false
+                                if (e.message?.contains("cancel", ignoreCase = true) == true) return@launch
+                                errorMessage = e.message ?: "Passkey creation failed"
+                            }
+                        }
                     },
                     isLoading = isLoading,
                     enabled = accountName.isNotBlank(),

@@ -1,80 +1,332 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+  --bg: #FAFAF8;
+  --bg-card: #FFFFFF;
+  --bg-warm: #F5F3EF;
+  --text-1: #1A1A18;
+  --text-2: #7A776E;
+  --text-3: #B0ADA5;
+  --accent: #E8572A;
+  --accent-soft: #FFF0EB;
+  --green: #2D8E5F;
+  --green-soft: #EDFAF2;
+  --blue: #4267F4;
+  --blue-soft: #EDF0FF;
+  --border: #ECEAE4;
+  --radius: 14px;
+  --radius-sm: 10px;
 }
 
 body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-.card {
-  padding: 2em;
+  font-family: 'Inter', -apple-system, sans-serif;
+  background: var(--bg);
+  width: 360px;
+  min-height: 400px;
+  -webkit-font-smoothing: antialiased;
+  color: var(--text-1);
 }
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+/* ─── Header ─── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.logo-text {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.5px;
+}
+.logo-text span { color: var(--accent); }
+
+/* ─── Status Badge ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.badge.off { background: var(--bg-warm); color: var(--text-3); }
+.badge.searching { background: var(--blue-soft); color: var(--blue); }
+.badge.on { background: var(--green-soft); color: var(--green); }
+.badge-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.badge.searching .badge-dot { animation: blink 1.2s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ─── Buttons ─── */
+.btn {
+  width: 100%;
+  padding: 13px 20px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: border-color 0.25s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
 }
-button:hover {
-  border-color: #646cff;
+.btn-blue { background: var(--blue); color: #fff; }
+.btn-dark { background: var(--text-1); color: var(--bg); }
+.btn-outline { background: none; color: var(--text-1); border: 1.5px solid var(--border); }
+.btn-ghost { background: none; color: var(--text-2); font-size: 13px; padding: 8px; }
+.btn-red { background: none; color: var(--accent); border: 1.5px solid rgba(232,87,42,0.25); }
+.btn:active { opacity: 0.8; }
+.btn + .btn { margin-top: 8px; }
+
+/* ─── Body ─── */
+.body { padding: 18px 16px; flex: 1; }
+
+/* ─── Empty / Center State ─── */
+.center-state {
+  text-align: center;
+  padding: 24px 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+.center-icon {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  font-size: 28px;
+}
+.center-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: 6px;
+}
+.center-desc {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 20px;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+/* ─── Pulse Animation ─── */
+.pulse-ring {
+  position: relative;
+}
+.pulse-ring::before, .pulse-ring::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(66,103,244,0.12);
+  animation: pulse 2s ease-out infinite;
+}
+.pulse-ring::after { inset: -26px; border-width: 1px; animation-delay: 0.5s; border-color: rgba(66,103,244,0.06); }
+@keyframes pulse { 0%{transform:scale(0.92);opacity:1} 100%{transform:scale(1.12);opacity:0} }
+
+/* ─── Device Card ─── */
+.device-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.device-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--blue-soft);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.device-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.device-status {
+  font-size: 11px; font-weight: 500;
+  color: var(--green);
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 1px;
+}
+
+/* ─── Wallet Info ─── */
+.wallet-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-top: 10px;
+}
+.wallet-avatar {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700; font-size: 14px;
+  color: var(--accent);
+}
+.wallet-addr {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px; font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wallet-network { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+/* ─── Inject Banner ─── */
+.inject-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--green-soft);
+  border-radius: var(--radius-sm);
+  margin-top: 12px;
+  font-size: 12px; font-weight: 500;
+  color: var(--green);
+}
+.inject-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+
+/* ─── dApp Origin ─── */
+.dapp-origin {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: var(--bg-warm);
+  border-radius: var(--radius-sm);
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.dapp-favicon {
+  width: 18px; height: 18px;
+  border-radius: 3px;
+  background: #fff;
+  border: 1px solid var(--border);
+  object-fit: contain;
+}
+.dapp-url {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500; color: var(--text-1);
+}
+
+/* ─── Transaction Card ─── */
+.tx-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.tx-header { padding: 14px; border-bottom: 1px solid var(--border); }
+.tx-type {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 4px;
+}
+.tx-amount {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 22px; font-weight: 700;
+  color: var(--text-1); letter-spacing: -0.5px;
+}
+.tx-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.tx-row:last-child { border-bottom: none; }
+.tx-label { color: var(--text-3); }
+.tx-value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500; color: var(--text-1);
+}
+
+/* ─── Spinner ─── */
+.spinner {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Permissions ─── */
+.perm-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-1);
+  padding: 9px 12px;
+  background: var(--bg-warm);
+  border-radius: var(--radius-sm);
+  margin-bottom: 6px;
+}
+.perm-check { color: var(--green); }
+
+/* ─── Footer ─── */
+.footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-3);
+  background: var(--bg-card);
+}
+
+/* ─── Button Row ─── */
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { flex: 1; }
+.btn-row .btn + .btn { margin-top: 0; }
+
+/* ─── Success ─── */
+.success-icon {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--green-soft);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+  font-size: 24px; color: var(--green);
+}
+.success-hash {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px; color: var(--text-3);
 }

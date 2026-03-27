@@ -1,42 +1,187 @@
 <script lang="ts">
-  import svelteLogo from '../../assets/svelte.svg'
-  import Counter from '../../lib/Counter.svelte'
+  import type { ConnectionState, ConnectedDevice, WalletInfo, PendingRequest, PopupState } from '../../lib/protocol';
+
+  let connectionState: ConnectionState = $state('disconnected');
+  let device: ConnectedDevice | undefined = $state(undefined);
+  let walletInfo: WalletInfo | undefined = $state(undefined);
+  let pendingRequests: PendingRequest[] = $state([]);
+  let error: string | undefined = $state(undefined);
+
+  // Load state from background on mount
+  $effect(() => {
+    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'getState' }, (response: PopupState) => {
+      if (response) {
+        connectionState = response.connectionState;
+        device = response.device;
+        walletInfo = response.walletInfo;
+        pendingRequests = response.pendingRequests || [];
+      }
+    });
+
+    // Listen for state updates
+    const listener = (msg: PopupState) => {
+      if (msg.type === 'VELA_POPUP_STATE') {
+        connectionState = msg.connectionState;
+        device = msg.device;
+        walletInfo = msg.walletInfo;
+        pendingRequests = msg.pendingRequests || [];
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => chrome.runtime.onMessage.removeListener(listener);
+  });
+
+  function startScan() {
+    error = undefined;
+    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'startScan' }, (response) => {
+      if (response?.error) error = response.error;
+    });
+  }
+
+  function disconnect() {
+    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'disconnect' });
+  }
+
+  function rejectRequest(id: string) {
+    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'rejectRequest', requestId: id });
+  }
+
+  function shortAddr(addr: string): string {
+    if (!addr || addr.length < 12) return addr;
+    return addr.slice(0, 8) + '...' + addr.slice(-6);
+  }
+
+  function methodLabel(method: string): string {
+    const labels: Record<string, string> = {
+      eth_sendTransaction: 'Transaction',
+      personal_sign: 'Sign Message',
+      eth_signTypedData_v4: 'Sign Typed Data',
+      eth_signTransaction: 'Sign Transaction',
+    };
+    return labels[method] || method;
+  }
+
+  // Current pending request for detail view
+  let activeRequest: PendingRequest | undefined = $derived(pendingRequests[0]);
 </script>
 
-<main>
-  <div>
-    <a href="https://wxt.dev" target="_blank" rel="noreferrer">
-      <img src="/wxt.svg" class="logo" alt="WXT Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank" rel="noreferrer">
-      <img src={svelteLogo} class="logo svelte" alt="Svelte Logo" />
-    </a>
+<!-- Header -->
+<div class="header">
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 80 80" fill="none">
+      <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#E8572A"/>
+      <path d="M40 54L40 72" stroke="#E8572A" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <div class="logo-text">vel<span>a</span></div>
   </div>
-  <h1>WXT + Svelte</h1>
-
-  <div class="card">
-    <Counter />
+  <div class="badge" class:off={connectionState === 'disconnected'} class:searching={connectionState === 'searching'} class:on={connectionState === 'connected'}>
+    <div class="badge-dot"></div>
+    {#if connectionState === 'disconnected'}No device
+    {:else if connectionState === 'searching'}Searching…
+    {:else}Connected{/if}
   </div>
+</div>
 
-  <p class="read-the-docs">
-    Click on the WXT and Svelte logos to learn more
-  </p>
-</main>
+<div class="body">
+  {#if connectionState === 'connected' && activeRequest}
+    <!-- Pending Request -->
+    <div class="dapp-origin">
+      {#if activeRequest.favicon}
+        <img class="dapp-favicon" src={activeRequest.favicon} alt="" />
+      {/if}
+      <span class="dapp-url">{new URL(activeRequest.origin).hostname}</span>
+    </div>
 
-<style>
-  .logo {
-    height: 6em;
-    padding: 1.5em;
-    will-change: filter;
-    transition: filter 300ms;
-  }
-  .logo:hover {
-    filter: drop-shadow(0 0 2em #54bc4ae0);
-  }
-  .logo.svelte:hover {
-    filter: drop-shadow(0 0 2em #ff3e00aa);
-  }
-  .read-the-docs {
-    color: #888;
-  }
-</style>
+    <div class="tx-card">
+      <div class="tx-header">
+        <div class="tx-type">{methodLabel(activeRequest.method)}</div>
+        {#if activeRequest.method === 'eth_sendTransaction'}
+          {@const tx = activeRequest.params[0] as Record<string, string>}
+          <div class="tx-amount">{tx.value ? (parseInt(tx.value, 16) / 1e18).toFixed(4) + ' ETH' : 'Contract Call'}</div>
+        {:else if activeRequest.method === 'personal_sign'}
+          <div style="font-size:13px;color:var(--text-1);line-height:1.5;margin-top:4px;font-family:'Space Grotesk',sans-serif;">
+            {typeof activeRequest.params[0] === 'string' ? activeRequest.params[0].slice(0, 100) : 'Message'}
+          </div>
+        {:else}
+          <div class="tx-amount">{activeRequest.method}</div>
+        {/if}
+      </div>
+      <div class="tx-row">
+        <span class="tx-label">From</span>
+        <span class="tx-value">{walletInfo ? shortAddr(walletInfo.address) : '...'}</span>
+      </div>
+      {#if activeRequest.method === 'eth_sendTransaction'}
+        {@const tx = activeRequest.params[0] as Record<string, string>}
+        <div class="tx-row">
+          <span class="tx-label">To</span>
+          <span class="tx-value">{shortAddr(tx.to || '')}</span>
+        </div>
+      {/if}
+    </div>
+
+    <div style="text-align:center;padding:16px 0;">
+      <div class="spinner"></div>
+      <div style="font-size:14px;font-weight:500;color:var(--text-1);">Confirm on phone</div>
+      <div style="font-size:12px;color:var(--text-3);">Check Vela Wallet for the request</div>
+    </div>
+
+    <button class="btn btn-red" onclick={() => rejectRequest(activeRequest!.id)}>Reject</button>
+
+  {:else if connectionState === 'connected'}
+    <!-- Connected Idle -->
+    <div class="device-card">
+      <div class="device-icon">💻</div>
+      <div>
+        <div class="device-name">{device?.name || 'Phone'}</div>
+        <div class="device-status">
+          <div class="badge-dot" style="width:5px;height:5px;background:var(--green);border-radius:50%;"></div>
+          Bluetooth connected
+        </div>
+      </div>
+    </div>
+
+    {#if walletInfo}
+      <div class="wallet-card">
+        <div class="wallet-avatar">V</div>
+        <div style="flex:1;min-width:0;">
+          <div class="wallet-addr">{shortAddr(walletInfo.address)}</div>
+          <div class="wallet-network">{walletInfo.name}</div>
+        </div>
+      </div>
+    {/if}
+
+    <div class="inject-banner">
+      <div class="inject-dot"></div>
+      Provider active — dApps can send requests
+    </div>
+
+    <div style="margin-top:auto;padding-top:20px;">
+      <button class="btn btn-red" onclick={disconnect}>Disconnect</button>
+    </div>
+
+  {:else if connectionState === 'searching'}
+    <!-- Searching -->
+    <div class="center-state">
+      <div class="center-icon pulse-ring" style="background:var(--blue-soft);">🔗</div>
+      <div class="center-title">Searching…</div>
+      <div class="center-desc">Make sure Vela Wallet is open on your phone with Bluetooth enabled.</div>
+      <button class="btn btn-ghost" onclick={disconnect}>Cancel</button>
+    </div>
+
+  {:else}
+    <!-- Disconnected -->
+    <div class="center-state">
+      <div class="center-icon" style="background:var(--blue-soft);">📱</div>
+      <div class="center-title">Connect your phone</div>
+      <div class="center-desc">Pair with Vela Wallet on your phone via Bluetooth to use dApps.</div>
+      {#if error}
+        <div style="font-size:12px;color:var(--accent);margin-bottom:12px;">{error}</div>
+      {/if}
+      <button class="btn btn-blue" onclick={startScan}>
+        Pair with phone
+      </button>
+    </div>
+  {/if}
+</div>
+
+<div class="footer">Vela Connect v1.0.0</div>

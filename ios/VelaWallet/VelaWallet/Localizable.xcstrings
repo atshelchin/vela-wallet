@@ -308,6 +308,12 @@
         }
       }
     },
+    "connect.stop" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop Advertising" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止广播" } }
+      }
+    },
     "connect.disconnect" : {
       "localizations" : {
         "en" : {

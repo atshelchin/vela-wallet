@@ -1,7 +1,17 @@
 import { defineConfig } from 'wxt';
 
-// See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-svelte'],
+  manifest: {
+    name: 'Vela Connect',
+    description: 'Connect your Vela Wallet to dApps via Bluetooth',
+    permissions: ['bluetooth', 'storage'],
+    web_accessible_resources: [
+      {
+        resources: ['provider.js'],
+        matches: ['<all_urls>'],
+      },
+    ],
+  },
 });

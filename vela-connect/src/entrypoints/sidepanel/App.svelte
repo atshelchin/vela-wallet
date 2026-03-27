@@ -7,7 +7,6 @@
   let pendingRequests: PendingRequest[] = $state([]);
   let error: string | undefined = $state(undefined);
 
-  // Load state from background on mount
   $effect(() => {
     chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'getState' }, (response: PopupState) => {
       if (response) {
@@ -18,7 +17,6 @@
       }
     });
 
-    // Listen for state updates
     const listener = (msg: PopupState) => {
       if (msg.type === 'VELA_POPUP_STATE') {
         connectionState = msg.connectionState;
@@ -33,8 +31,8 @@
 
   function startScan() {
     error = undefined;
-    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'startScan' }, (response) => {
-      if (response?.error) error = response.error;
+    chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'startScan' }, (r) => {
+      if (r?.error) error = r.error;
     });
   }
 
@@ -44,6 +42,12 @@
 
   function rejectRequest(id: string) {
     chrome.runtime.sendMessage({ type: 'VELA_POPUP_ACTION', action: 'rejectRequest', requestId: id });
+  }
+
+  function switchToPopup() {
+    // Close side panel and tell background to use popup mode
+    chrome.storage.local.set({ uiMode: 'popup' });
+    window.close();
   }
 
   function shortAddr(addr: string): string {
@@ -56,17 +60,10 @@
       eth_sendTransaction: 'Transaction',
       personal_sign: 'Sign Message',
       eth_signTypedData_v4: 'Sign Typed Data',
-      eth_signTransaction: 'Sign Transaction',
     };
     return labels[method] || method;
   }
 
-  function switchToSidePanel() {
-    chrome.sidePanel.open({ windowId: chrome.windows.WINDOW_ID_CURRENT as number });
-    window.close();
-  }
-
-  // Current pending request for detail view
   let activeRequest: PendingRequest | undefined = $derived(pendingRequests[0]);
 </script>
 
@@ -103,12 +100,8 @@
         {#if activeRequest.method === 'eth_sendTransaction'}
           {@const tx = activeRequest.params[0] as Record<string, string>}
           <div class="tx-amount">{tx.value ? (parseInt(tx.value, 16) / 1e18).toFixed(4) + ' ETH' : 'Contract Call'}</div>
-        {:else if activeRequest.method === 'personal_sign'}
-          <div style="font-size:13px;color:var(--text-1);line-height:1.5;margin-top:4px;font-family:'Space Grotesk',sans-serif;">
-            {typeof activeRequest.params[0] === 'string' ? activeRequest.params[0].slice(0, 100) : 'Message'}
-          </div>
         {:else}
-          <div class="tx-amount">{activeRequest.method}</div>
+          <div class="tx-amount">{methodLabel(activeRequest.method)}</div>
         {/if}
       </div>
       <div class="tx-row">
@@ -124,16 +117,16 @@
       {/if}
     </div>
 
-    <div style="text-align:center;padding:16px 0;">
+    <div style="text-align:center;padding:20px 0;">
       <div class="spinner"></div>
-      <div style="font-size:14px;font-weight:500;color:var(--text-1);">Confirm on phone</div>
-      <div style="font-size:12px;color:var(--text-3);">Check Vela Wallet for the request</div>
+      <div style="font-size:15px;font-weight:500;color:var(--text-1);">Confirm on phone</div>
+      <div style="font-size:13px;color:var(--text-3);margin-top:4px;">Check Vela Wallet for the request</div>
     </div>
 
     <button class="btn btn-red" onclick={() => rejectRequest(activeRequest!.id)}>Reject</button>
 
   {:else if connectionState === 'connected'}
-    <!-- Connected Idle -->
+    <!-- Connected -->
     <div class="device-card">
       <div class="device-icon">💻</div>
       <div>
@@ -160,12 +153,19 @@
       Provider active — dApps can send requests
     </div>
 
+    <!-- Request history placeholder -->
+    <div style="margin-top:24px;">
+      <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;color:var(--text-3);margin-bottom:12px;">RECENT REQUESTS</div>
+      <div style="text-align:center;padding:32px 0;color:var(--text-3);font-size:13px;">
+        No recent requests
+      </div>
+    </div>
+
     <div style="margin-top:auto;padding-top:20px;">
       <button class="btn btn-red" onclick={disconnect}>Disconnect</button>
     </div>
 
   {:else if connectionState === 'searching'}
-    <!-- Searching -->
     <div class="center-state">
       <div class="center-icon pulse-ring" style="background:var(--blue-soft);">🔗</div>
       <div class="center-title">Searching…</div>
@@ -174,7 +174,6 @@
     </div>
 
   {:else}
-    <!-- Disconnected -->
     <div class="center-state">
       <div class="center-icon" style="background:var(--blue-soft);">📱</div>
       <div class="center-title">Connect your phone</div>
@@ -182,14 +181,12 @@
       {#if error}
         <div style="font-size:12px;color:var(--accent);margin-bottom:12px;">{error}</div>
       {/if}
-      <button class="btn btn-blue" onclick={startScan}>
-        Pair with phone
-      </button>
+      <button class="btn btn-blue" onclick={startScan}>Pair with phone</button>
     </div>
   {/if}
 </div>
 
-<div class="footer" style="display:flex;justify-content:space-between;align-items:center;">
+<div class="footer">
   <span>Vela Connect v1.0.0</span>
-  <button style="font-size:10px;font-weight:500;color:var(--blue);cursor:pointer;background:none;border:none;padding:3px 6px;border-radius:4px;" onclick={switchToSidePanel}>Open Side Panel</button>
+  <button class="mode-toggle" onclick={switchToPopup}>Switch to Popup</button>
 </div>

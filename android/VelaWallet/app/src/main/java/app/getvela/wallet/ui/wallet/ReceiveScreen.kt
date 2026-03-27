@@ -86,6 +86,9 @@ fun ReceiveScreen(
                     depositInfo = if (diff > 0) "+${formatBalance(diff)} ${token.symbol} on ${token.chainName}"
                     else "${token.symbol} on ${token.chainName}"
                     initialBalances[token.id] = token.usdValue
+                    // Haptic feedback
+                    @Suppress("DEPRECATION")
+                    (context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator)?.vibrate(200)
                     delay(15_000)
                     depositDetected = false
                     depositInfo = null

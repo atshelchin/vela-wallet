@@ -1,0 +1,120 @@
+<resources>
+    <string name="app_name">Vela</string>
+
+    <!-- Tabs -->
+    <string name="tab_wallet">钱包</string>
+    <string name="tab_dapps">应用</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Welcome -->
+    <string name="welcome_tagline">你的密钥，你的资产。\n轻触即用。</string>
+    <string name="welcome_create">创建钱包</string>
+    <string name="welcome_import">我已有钱包</string>
+
+    <!-- Create Wallet -->
+    <string name="create_title">设置 Passkey</string>
+    <string name="create_description">创建一个 Passkey 来保护你的钱包。无需助记词，无需密码。</string>
+    <string name="create_name_label">账户名称</string>
+    <string name="create_name_placeholder">例如：个人、交易...</string>
+    <string name="create_security_note">无需助记词，无需密码</string>
+    <string name="create_button">创建 Passkey</string>
+    <string name="create_retry_upload">重试上传</string>
+    <string name="create_skip">暂时跳过</string>
+    <string name="create_upload_failed_title">上传失败</string>
+    <string name="create_upload_failed_desc">Passkey 已创建成功，但公钥上传到服务器失败。你可以重试或暂时跳过。</string>
+
+    <!-- Home -->
+    <string name="home_send">发送</string>
+    <string name="home_receive">收款</string>
+    <string name="home_tokens">代币</string>
+    <string name="home_nfts">NFT</string>
+    <string name="home_no_activity">暂无代币</string>
+    <string name="home_no_nfts">暂无 NFT</string>
+
+    <!-- Token Detail -->
+    <string name="token_info">代币信息</string>
+    <string name="token_name">名称</string>
+    <string name="token_symbol">符号</string>
+    <string name="token_network">网络</string>
+    <string name="token_decimals">精度</string>
+    <string name="token_contract">合约地址</string>
+    <string name="token_type">类型</string>
+    <string name="token_price">价格</string>
+
+    <!-- Receive -->
+    <string name="receive_title">收款</string>
+    <string name="receive_supported_networks">支持的网络</string>
+    <string name="receive_listening">正在监听转入…</string>
+    <string name="receive_warning">请仅通过上方支持的网络发送资产。\n使用不支持的网络转账可能导致资产永久丢失。</string>
+    <string name="receive_share">分享地址</string>
+
+    <!-- Send -->
+    <string name="send_select_token">选择代币</string>
+    <string name="send_title">发送</string>
+    <string name="send_no_tokens">没有有余额的代币</string>
+    <string name="send_change">更换</string>
+    <string name="send_to">收款方</string>
+    <string name="send_to_placeholder">地址或 ENS 名称</string>
+    <string name="send_amount">金额</string>
+    <string name="send_review">确认</string>
+    <string name="send_scan">扫码</string>
+
+    <!-- Confirm -->
+    <string name="confirm_title">确认交易</string>
+    <string name="confirm_sending">发送中</string>
+    <string name="confirm_address">地址</string>
+    <string name="confirm_network">网络</string>
+    <string name="confirm_fee">预估费用</string>
+    <string name="confirm_send">确认并发送</string>
+    <string name="confirm_sent">交易已发送</string>
+    <string name="confirm_done">完成</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_account">账户</string>
+    <string name="settings_switch_account">切换或添加账户</string>
+    <string name="settings_networks_section">网络</string>
+    <string name="settings_networks">RPC 与网络</string>
+    <string name="settings_networks_rpc_desc">配置自定义 RPC 端点</string>
+    <string name="settings_general">通用</string>
+    <string name="settings_about">关于 Vela</string>
+    <string name="settings_version">版本 1.0.0</string>
+    <string name="settings_logout">退出登录</string>
+
+    <!-- Connect / dApps -->
+    <string name="connect_title">连接 dApp</string>
+    <string name="connect_description">开启蓝牙广播以连接 Vela Connect Chrome 扩展。</string>
+    <string name="connect_start">开始广播</string>
+    <string name="connect_stop">停止</string>
+    <string name="connect_waiting">等待 Chrome 连接…</string>
+    <string name="connect_waiting_desc">在 Chrome 中打开安装了 Vela Connect 扩展的 dApp。</string>
+    <string name="connect_connected">已连接</string>
+    <string name="connect_disconnect">断开连接</string>
+    <string name="connect_approve">批准</string>
+    <string name="connect_reject">拒绝</string>
+    <string name="connect_approve_desc">此 dApp 正在请求你的批准。</string>
+
+    <!-- Add Token -->
+    <string name="add_token_title">添加代币</string>
+    <string name="add_token_network">网络</string>
+    <string name="add_token_contract">合约地址</string>
+    <string name="add_token_contract_placeholder">0x…</string>
+    <string name="add_token_fetch">获取</string>
+    <string name="add_token_name">名称</string>
+    <string name="add_token_symbol">符号</string>
+    <string name="add_token_decimals">精度</string>
+    <string name="add_token_add">添加代币</string>
+    <string name="add_token_fetch_failed">无法获取代币信息</string>
+
+    <!-- NFT -->
+    <string name="nft_network">网络</string>
+    <string name="nft_type">类型</string>
+    <string name="nft_token_id">Token ID</string>
+    <string name="nft_contract">合约地址</string>
+
+    <!-- Account Switcher -->
+    <string name="accounts_title">账户</string>
+    <string name="accounts_create_new">创建新账户</string>
+    <string name="accounts_login">使用 Passkey 登录</string>
+    <string name="accounts_cancel">取消</string>
+</resources>

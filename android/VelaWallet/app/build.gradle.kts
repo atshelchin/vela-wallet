@@ -61,8 +61,11 @@ dependencies {
     // Serialization
     implementation(libs.kotlinx.serialization.json)
 
-    // QR Code
+    // QR Code + Camera
     implementation(libs.zxing.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
 
     // Credentials (Passkey)
     implementation(libs.androidx.credentials)

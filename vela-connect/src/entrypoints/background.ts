@@ -263,8 +263,33 @@ async function handleProviderRequest(
     return;
   }
 
+  // EIP-5792: wallet capabilities
+  if (msg.method === 'wallet_getCapabilities') {
+    sendResponse({ result: {} }); // No special capabilities
+    return;
+  }
+
+  if (msg.method === 'wallet_sendCalls' || msg.method === 'wallet_getCallsStatus') {
+    sendResponse({ error: { code: -32601, message: 'Not supported' } });
+    return;
+  }
+
+  // Only these methods need phone approval (signing/transaction)
+  const SIGNING_METHODS = [
+    'eth_sendTransaction', 'eth_signTransaction',
+    'personal_sign', 'eth_sign',
+    'eth_signTypedData', 'eth_signTypedData_v3', 'eth_signTypedData_v4',
+  ];
+
+  if (!SIGNING_METHODS.includes(msg.method)) {
+    // Unknown method — return not supported
+    console.log('[BG] Unsupported method:', msg.method);
+    sendResponse({ error: { code: -32601, message: `Method ${msg.method} not supported` } });
+    return;
+  }
+
   // Forward signing/transaction requests to phone via BLE
-  console.log('[BG] Forward to phone:', msg.method, 'connectionState:', connectionState, 'walletInfo:', !!walletInfo);
+  console.log('[BG] Forward to phone:', msg.method);
   if (connectionState !== 'connected') {
     // If we have wallet info but state is wrong, try anyway
     if (!walletInfo) {

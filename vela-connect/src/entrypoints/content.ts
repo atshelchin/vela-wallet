@@ -1,24 +1,16 @@
 /**
- * Content Script — bridges page ↔ background.
+ * Content Script — bridges page ↔ background (ISOLATED world).
  *
- * 1. Injects provider.ts into the page (MAIN world)
- * 2. Listens for VELA_PROVIDER_REQUEST from page
- * 3. Forwards to background via chrome.runtime.sendMessage
- * 4. Returns response back to page via window.postMessage
+ * Provider is injected via provider.content (MAIN world) by WXT automatically.
+ * This script listens for VELA_PROVIDER_REQUEST from the provider,
+ * forwards to background, and returns responses.
  */
 export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_start',
 
   main() {
-    // 1. Inject the provider script into the page's MAIN world
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('/provider.js');
-    script.type = 'module';
-    (document.head || document.documentElement).appendChild(script);
-    script.onload = () => script.remove();
-
-    // 2. Listen for requests from the injected provider
+    // Listen for requests from the injected provider (MAIN world)
     window.addEventListener('message', async (event) => {
       if (event.source !== window) return;
       if (event.data?.type !== 'VELA_PROVIDER_REQUEST') return;
@@ -26,7 +18,6 @@ export default defineContentScript({
       const { id, method, params, origin, favicon } = event.data;
 
       try {
-        // Forward to background
         const response = await chrome.runtime.sendMessage({
           type: 'VELA_PROVIDER_REQUEST',
           id,
@@ -36,7 +27,6 @@ export default defineContentScript({
           favicon,
         });
 
-        // Return response to page
         window.postMessage({
           type: 'VELA_PROVIDER_RESPONSE',
           id,
@@ -52,7 +42,7 @@ export default defineContentScript({
       }
     });
 
-    // 3. Listen for state updates from background (account/chain changes)
+    // Listen for state updates from background
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg.type === 'VELA_STATE_UPDATE') {
         if (msg.walletInfo) {

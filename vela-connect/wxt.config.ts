@@ -7,11 +7,5 @@ export default defineConfig({
     name: 'Vela Connect',
     description: 'Connect your Vela Wallet to dApps via Bluetooth',
     permissions: ['bluetooth', 'storage', 'sidePanel'],
-    web_accessible_resources: [
-      {
-        resources: ['provider.js'],
-        matches: ['<all_urls>'],
-      },
-    ],
   },
 });

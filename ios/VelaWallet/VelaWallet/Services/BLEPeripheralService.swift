@@ -1,4 +1,5 @@
 import CoreBluetooth
+import Combine
 import UIKit
 
 /// BLE Peripheral — iOS app advertises as a Vela Wallet peripheral.
@@ -25,6 +26,8 @@ final class BLEPeripheralService: NSObject, ObservableObject {
 
     /// Callback when a dApp request arrives. The handler must call `sendResponse` when done.
     var onRequest: ((BLEIncomingRequest) -> Void)?
+
+    private var incomingBuffer = Data()
 
     private override init() {
         super.init()
@@ -177,8 +180,6 @@ extension BLEPeripheralService: CBPeripheralManagerDelegate {
     }
 
     // MARK: - Private
-
-    private var incomingBuffer = Data()
 
     private func handleIncomingData(_ data: Data) {
         // Try to parse directly; if fails, buffer for chunked messages

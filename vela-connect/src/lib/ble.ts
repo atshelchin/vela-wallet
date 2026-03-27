@@ -95,7 +95,10 @@ class BLEClient {
       this.setState('connected', this.connectedDevice ?? undefined);
       console.log('[BLE] Connected to', this.device.name);
     } catch (error) {
-      console.error('[BLE] Connection failed:', error);
+      const msg = (error as Error).message || '';
+      if (!msg.includes('cancel')) {
+        console.error('[BLE] Connection failed:', msg);
+      }
       this.cleanup();
       this.setState('disconnected');
       throw error;

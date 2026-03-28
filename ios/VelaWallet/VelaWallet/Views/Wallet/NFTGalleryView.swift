@@ -6,12 +6,16 @@ struct NFTGalleryView: View {
     @State private var isLoading = false
     @State private var expandedCollection: String?
     @State private var selectedNFT: APINFT?
-    @State private var nftToSend: APINFT?
+    @State private var showSendFor: APINFT?
+    @State private var showAddCollection = false
+    @State private var viewMode: ViewMode = .collections
 
-    private var collections: [NFTCollection] {
+    enum ViewMode { case collections, all }
+
+    private var collections: [NFTCollectionGroup] {
         Dictionary(grouping: nfts) { $0.collectionName ?? $0.contractAddress }
             .map { (name, items) in
-                NFTCollection(
+                NFTCollectionGroup(
                     name: name,
                     contractAddress: items[0].contractAddress,
                     chainName: items[0].chainName,
@@ -24,66 +28,214 @@ struct NFTGalleryView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
-                    if isLoading {
-                        Spacer(minLength: 100)
-                        ProgressView()
-                        Spacer()
-                    } else if collections.isEmpty {
-                        Spacer(minLength: 80)
-                        VStack(spacing: 16) {
-                            Text("🖼").font(.system(size: 40))
-                            Text("tab.nfts.empty")
-                                .font(VelaFont.body(14))
-                                .foregroundStyle(VelaColor.textTertiary)
-                        }
-                        Spacer()
-                    } else {
-                        ForEach(collections, id: \.contractAddress) { collection in
-                            CollectionCard(
-                                collection: collection,
-                                isExpanded: expandedCollection == collection.name,
-                                onToggle: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        expandedCollection = expandedCollection == collection.name ? nil : collection.name
-                                    }
-                                },
-                                onNFTTap: { nft in selectedNFT = nft }
-                            )
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 24)
-            }
-            .background(VelaColor.bg)
-            .navigationBarHidden(true)
-            .safeAreaInset(edge: .top) {
+            VStack(spacing: 0) {
+                // Header
                 HStack {
                     Text("tab.nfts")
                         .font(VelaFont.title(17))
                         .foregroundStyle(VelaColor.textPrimary)
+
                     Spacer()
+
+                    // View mode toggle
+                    HStack(spacing: 0) {
+                        viewModeButton(icon: "square.stack.fill", mode: .collections)
+                        viewModeButton(icon: "square.grid.2x2.fill", mode: .all)
+                    }
+                    .padding(2)
+                    .background(VelaColor.bgWarm)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    // Add button
+                    Button { showAddCollection = true } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(VelaColor.accent)
+                            .frame(width: 32, height: 32)
+                            .background(VelaColor.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
                 }
                 .padding(.horizontal, VelaSpacing.screenH)
                 .padding(.vertical, 12)
                 .background(VelaColor.bg)
+
+                // Stats bar
+                if !nfts.isEmpty {
+                    HStack(spacing: 16) {
+                        statBadge(value: "\(collections.count)", label: String(localized: "nft.collections"))
+                        statBadge(value: "\(nfts.count)", label: String(localized: "nft.items"))
+                        Spacer()
+                    }
+                    .padding(.horizontal, VelaSpacing.screenH)
+                    .padding(.bottom, 12)
+                }
+
+                // Content
+                if isLoading {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                } else if nfts.isEmpty {
+                    emptyState
+                } else {
+                    ScrollView {
+                        switch viewMode {
+                        case .collections:
+                            collectionsView
+                        case .all:
+                            allNFTsGrid
+                        }
+                    }
+                    .refreshable { await loadNFTs() }
+                }
             }
+            .background(VelaColor.bg)
+            .navigationBarHidden(true)
             .task { await loadNFTs() }
             .sheet(item: $selectedNFT) { nft in
-                NFTDetailView(nft: nft, onSend: { nftToSend = $0 })
+                NFTDetailView(nft: nft, onSend: { sendNFT in
+                    selectedNFT = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        showSendFor = sendNFT
+                    }
+                })
             }
-            .sheet(item: $nftToSend) { nft in
+            .sheet(item: $showSendFor) { nft in
                 NFTSendView(nft: nft)
+            }
+            .sheet(isPresented: $showAddCollection) {
+                AddTokenView() // Reuse existing add token view for now
             }
         }
     }
 
+    // MARK: - View Mode Button
+
+    private func viewModeButton(icon: String, mode: ViewMode) -> some View {
+        Button { withAnimation(.easeInOut(duration: 0.15)) { viewMode = mode } } label: {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(viewMode == mode ? VelaColor.textPrimary : VelaColor.textTertiary)
+                .frame(width: 28, height: 28)
+                .background(viewMode == mode ? VelaColor.bgCard : .clear)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    // MARK: - Stat Badge
+
+    private func statBadge(value: String, label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(VelaColor.textPrimary)
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(VelaColor.textTertiary)
+        }
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: 20) {
+            Spacer()
+            ZStack {
+                Circle().fill(VelaColor.bgWarm).frame(width: 80, height: 80)
+                Text("🖼").font(.system(size: 36))
+            }
+            VStack(spacing: 8) {
+                Text("nft.empty_title")
+                    .font(VelaFont.heading(20))
+                    .foregroundStyle(VelaColor.textPrimary)
+                Text("nft.empty_desc")
+                    .font(VelaFont.body(14))
+                    .foregroundStyle(VelaColor.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+            }
+            .padding(.horizontal, 40)
+
+            Button { showAddCollection = true } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill")
+                    Text("nft.add_collection")
+                }
+            }
+            .buttonStyle(VelaSecondaryButtonStyle())
+            .padding(.horizontal, 40)
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Collections View
+
+    private var collectionsView: some View {
+        LazyVStack(spacing: 12) {
+            ForEach(collections, id: \.contractAddress) { collection in
+                CollectionCard(
+                    collection: collection,
+                    isExpanded: expandedCollection == collection.name,
+                    onToggle: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            expandedCollection = expandedCollection == collection.name ? nil : collection.name
+                        }
+                    },
+                    onNFTTap: { nft in selectedNFT = nft }
+                )
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 24)
+    }
+
+    // MARK: - All NFTs Grid
+
+    private var allNFTsGrid: some View {
+        let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+        return LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(nfts) { nft in
+                Button { selectedNFT = nft } label: {
+                    VStack(alignment: .leading, spacing: 0) {
+                        CachedAsyncImage(url: nft.imageURL) {
+                            ZStack {
+                                Rectangle().fill(VelaColor.bgWarm)
+                                Text("🖼").font(.system(size: 24))
+                            }
+                        }
+                        .scaledToFill()
+                        .frame(height: 160)
+                        .clipped()
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(nft.displayName)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(VelaColor.textPrimary)
+                                .lineLimit(1)
+                            Text(nft.collectionName ?? nft.chainName)
+                                .font(.system(size: 11))
+                                .foregroundStyle(VelaColor.textTertiary)
+                                .lineLimit(1)
+                        }
+                        .padding(10)
+                    }
+                    .background(VelaColor.bgCard)
+                    .clipShape(RoundedRectangle(cornerRadius: VelaRadius.card))
+                    .overlay(RoundedRectangle(cornerRadius: VelaRadius.card).stroke(VelaColor.border, lineWidth: 1))
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 24)
+    }
+
+    // MARK: - Load Data
+
     private func loadNFTs() async {
         guard !wallet.address.isEmpty else { return }
-        isLoading = true
+        isLoading = nfts.isEmpty
         do {
             nfts = try await WalletAPIService().fetchNFTs(address: wallet.address)
         } catch {
@@ -93,9 +245,9 @@ struct NFTGalleryView: View {
     }
 }
 
-// MARK: - Collection Model
+// MARK: - Collection Group Model
 
-private struct NFTCollection {
+private struct NFTCollectionGroup {
     let name: String
     let contractAddress: String
     let chainName: String
@@ -106,7 +258,7 @@ private struct NFTCollection {
 // MARK: - Collection Card
 
 private struct CollectionCard: View {
-    let collection: NFTCollection
+    let collection: NFTCollectionGroup
     let isExpanded: Bool
     let onToggle: () -> Void
     let onNFTTap: (APINFT) -> Void
@@ -117,18 +269,17 @@ private struct CollectionCard: View {
             Button(action: onToggle) {
                 HStack(spacing: 12) {
                     // Collection icon
-                    if let urlStr = collection.image, let url = URL(string: urlStr.hasPrefix("ipfs://") ? "https://ipfs.io/ipfs/\(urlStr.dropFirst(7))" : urlStr) {
-                        CachedAsyncImage(url: url) {
-                            collectionFallback
-                        }
-                        .scaledToFill()
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    if let urlStr = collection.image,
+                       let url = URL(string: urlStr.hasPrefix("ipfs://") ? "https://ipfs.io/ipfs/\(urlStr.dropFirst(7))" : urlStr) {
+                        CachedAsyncImage(url: url) { collectionFallback }
+                            .scaledToFill()
+                            .frame(width: 48, height: 48)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                     } else {
                         collectionFallback
                     }
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(collection.name)
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(VelaColor.textPrimary)
@@ -149,6 +300,9 @@ private struct CollectionCard: View {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(VelaColor.textTertiary)
+                        .frame(width: 28, height: 28)
+                        .background(VelaColor.bgWarm)
+                        .clipShape(Circle())
                 }
                 .padding(14)
             }
@@ -195,12 +349,12 @@ private struct CollectionCard: View {
 
     private var collectionFallback: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 10).fill(VelaColor.bgWarm)
+            RoundedRectangle(cornerRadius: 12).fill(VelaColor.bgWarm)
             Text(String(collection.name.prefix(2)).uppercased())
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(VelaColor.textSecondary)
         }
-        .frame(width: 44, height: 44)
+        .frame(width: 48, height: 48)
     }
 }
 
@@ -218,7 +372,6 @@ struct NFTSendView: View {
 
     var body: some View {
         if let hash = txHash {
-            // Success
             VStack(spacing: 20) {
                 Spacer()
                 Image(systemName: "checkmark.circle.fill")
@@ -304,12 +457,11 @@ struct NFTSendView: View {
                     throw PasskeyService.PasskeyError.failed("Public key not found")
                 }
 
-                // safeTransferFrom(from, to, tokenId)
                 let selector = EthCrypto.functionSelector("safeTransferFrom(address,address,uint256)")
-                let fromEncoded = EthCrypto.abiEncode(address: wallet.address)
-                let toEncoded = EthCrypto.abiEncode(address: toAddress)
-                let tokenIdEncoded = EthCrypto.abiEncode(uint256: UInt64(nft.tokenId) ?? 0)
-                let calldata = selector + fromEncoded + toEncoded + tokenIdEncoded
+                let calldata = selector
+                    + EthCrypto.abiEncode(address: wallet.address)
+                    + EthCrypto.abiEncode(address: toAddress)
+                    + EthCrypto.abiEncode(uint256: UInt64(nft.tokenId) ?? 0)
 
                 let service = SafeTransactionService()
                 let result = try await service.sendContractCall(

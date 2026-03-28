@@ -3,6 +3,7 @@
   "strings": {
     "": {},
     ".%@": {},
+    "·": {},
     "%@": {},
     "%@ %@": {
       "localizations": {
@@ -15,7 +16,9 @@
       }
     },
     "%lld": {},
+    "%lld items": {},
     "≈ %@": {},
+    "🖼": {},
     "$%.2f": {},
     "$%@": {},
     "0": {},
@@ -688,6 +691,7 @@
       }
     },
     "home.nfts": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -720,6 +724,7 @@
       }
     },
     "home.no_nfts": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -785,6 +790,7 @@
       }
     },
     "home.tokens": {
+      "extractionState": "stale",
       "localizations": {
         "en": {
           "stringUnit": {
@@ -820,6 +826,7 @@
       }
     },
     "NFT": {},
+    "NFT Sent": {},
     "on %@": {},
     "pending.all_success": {
       "localizations": {
@@ -999,6 +1006,7 @@
       }
     },
     "Reject": {},
+    "Send NFT": {},
     "send.amount": {
       "localizations": {
         "en": {
@@ -1159,6 +1167,7 @@
         }
       }
     },
+    "Sending...": {},
     "settings.about": {
       "localizations": {
         "en": {
@@ -1588,6 +1597,38 @@
         }
       }
     },
+    "tab.nfts": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NFTs"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NFT"
+          }
+        }
+      }
+    },
+    "tab.nfts.empty": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No NFTs found"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无 NFT"
+          }
+        }
+      }
+    },
     "tab.settings": {
       "localizations": {
         "en": {
@@ -1620,6 +1661,7 @@
         }
       }
     },
+    "Token ID: %@": {},
     "token.add_button": {
       "localizations": {
         "en": {
@@ -1882,34 +1924,82 @@
     "切换语言": {},
     "切换语言需要重新打开应用才能生效。": {},
     "取消": {},
-    "tab.nfts": {
+    "nft.collections": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "NFTs"
+            "value": "Collections"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "NFT"
+            "value": "系列"
           }
         }
       }
     },
-    "tab.nfts.empty": {
+    "nft.items": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No NFTs found"
+            "value": "Items"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "个"
+          }
+        }
+      }
+    },
+    "nft.empty_title": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No NFTs Yet"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "暂无 NFT"
+          }
+        }
+      }
+    },
+    "nft.empty_desc": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your NFT collections will appear here. Add a collection or receive NFTs to get started."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的 NFT 收藏将显示在这里。添加系列或接收 NFT 即可开始。"
+          }
+        }
+      }
+    },
+    "nft.add_collection": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Collection"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加系列"
           }
         }
       }

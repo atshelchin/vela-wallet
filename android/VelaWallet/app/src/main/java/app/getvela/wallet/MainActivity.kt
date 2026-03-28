@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.activity.compose.BackHandler
 import app.getvela.wallet.model.Account
 import app.getvela.wallet.model.WalletState
 import app.getvela.wallet.service.*
@@ -165,31 +166,52 @@ private fun MainTabs(wallet: WalletState) {
         return
     }
 
-    // Overlay screens
+    // Overlay screens — each with BackHandler for system back button
     when {
-        showAccountSwitcher -> AccountSwitcherScreen(wallet = wallet, onBack = { showAccountSwitcher = false })
-        showNetworkEditor -> NetworkEditorScreen(onBack = { showNetworkEditor = false })
-        showAddToken -> AddTokenScreen(onBack = { showAddToken = false })
-        selectedNft != null -> NFTDetailScreen(nft = selectedNft!!, onBack = { selectedNft = null })
-        showSend -> SendScreen(
-            wallet = wallet,
-            preselectedToken = sendPreselectedToken,
-            onBack = { showSend = false; sendPreselectedToken = null },
-        )
-        selectedToken != null -> TokenDetailScreen(
-            token = selectedToken!!,
-            onBack = { selectedToken = null },
-            onSend = {
-                sendPreselectedToken = selectedToken
-                selectedToken = null
-                showSend = true
-            },
-            onReceive = { selectedToken = null; showReceive = true },
-        )
-        showReceive -> ReceiveScreen(
-            wallet = wallet,
-            onBack = { showReceive = false },
-        )
+        showAccountSwitcher -> {
+            BackHandler { showAccountSwitcher = false }
+            AccountSwitcherScreen(wallet = wallet, onBack = { showAccountSwitcher = false })
+        }
+        showNetworkEditor -> {
+            BackHandler { showNetworkEditor = false }
+            NetworkEditorScreen(onBack = { showNetworkEditor = false })
+        }
+        showAddToken -> {
+            BackHandler { showAddToken = false }
+            AddTokenScreen(onBack = { showAddToken = false })
+        }
+        selectedNft != null -> {
+            BackHandler { selectedNft = null }
+            NFTDetailScreen(nft = selectedNft!!, onBack = { selectedNft = null })
+        }
+        showSend -> {
+            BackHandler { showSend = false; sendPreselectedToken = null }
+            SendScreen(
+                wallet = wallet,
+                preselectedToken = sendPreselectedToken,
+                onBack = { showSend = false; sendPreselectedToken = null },
+            )
+        }
+        selectedToken != null -> {
+            BackHandler { selectedToken = null }
+            TokenDetailScreen(
+                token = selectedToken!!,
+                onBack = { selectedToken = null },
+                onSend = {
+                    sendPreselectedToken = selectedToken
+                    selectedToken = null
+                    showSend = true
+                },
+                onReceive = { selectedToken = null; showReceive = true },
+            )
+        }
+        showReceive -> {
+            BackHandler { showReceive = false }
+            ReceiveScreen(
+                wallet = wallet,
+                onBack = { showReceive = false },
+            )
+        }
         else -> Scaffold(
             bottomBar = {
                 NavigationBar(containerColor = VelaColor.bgCard) {

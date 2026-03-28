@@ -1,6 +1,7 @@
 package app.getvela.wallet.ui.wallet
 
 import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,6 +74,16 @@ fun SendScreen(
         }
         tokens = result.filter { it.balanceDouble > 0 }
         isLoading = false
+    }
+
+    // System back button handling
+    BackHandler {
+        when {
+            showScanner -> showScanner = false
+            step == SendStep.Confirm -> step = SendStep.EnterDetails
+            step == SendStep.EnterDetails -> step = SendStep.SelectToken
+            else -> onBack()
+        }
     }
 
     // QR Scanner overlay

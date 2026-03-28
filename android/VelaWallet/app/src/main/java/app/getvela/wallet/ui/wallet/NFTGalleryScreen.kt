@@ -67,7 +67,7 @@ fun NFTGalleryScreen(
         if (useMockData) { nfts = mockNfts(); return@LaunchedEffect }
         if (wallet.address.isEmpty()) return@LaunchedEffect
         isLoading = nfts.isEmpty()
-        nfts = withContext(Dispatchers.IO) { WalletApiService().fetchNFTs(wallet.address) }
+        nfts = withContext(Dispatchers.IO) { WalletApiService().fetchNFTs(wallet.address) }.take(500)
         isLoading = false
         isRefreshing = false
     }

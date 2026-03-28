@@ -436,7 +436,8 @@ struct VelaConnectView: View {
     private func executeSendTransaction(to: String, valueHex: String, dataHex: String, publicKeyHex: String) async throws -> AnyCodable {
         let service = SafeTransactionService()
         let chainId = ble.currentChainId
-        let valueClean = valueHex.hasPrefix("0x") ? String(valueHex.dropFirst(2)) : valueHex
+        let stripped = valueHex.hasPrefix("0x") ? String(valueHex.dropFirst(2)) : valueHex
+        let valueClean = stripped.isEmpty ? "0" : stripped
 
         debugLog("[VelaConnect] Sending tx: to=\(to.prefix(10))... value=\(valueHex) data=\(dataHex.prefix(10))... chain=\(chainId)")
 

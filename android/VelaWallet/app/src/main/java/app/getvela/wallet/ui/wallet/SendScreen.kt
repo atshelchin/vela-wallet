@@ -131,9 +131,10 @@ fun SendScreen(
                 errorMessage = null
                 scope.launch(kotlinx.coroutines.NonCancellable) {
                     try {
-                        val token = selectedToken ?: throw Exception("No token selected")
-                        val stored = LocalStorage.shared.findAccount(wallet.activeAccount?.id ?: "")
-                        val publicKeyHex = stored?.publicKeyHex ?: throw Exception("Public key not found")
+                        val token = selectedToken ?: throw Exception("Please select a token first.")
+                        val accountId = wallet.activeAccount?.id ?: throw Exception("No active account. Please create a wallet first.")
+                        val stored = LocalStorage.shared.findAccount(accountId)
+                        val publicKeyHex = stored?.publicKeyHex ?: throw Exception("Wallet key not found. Please re-import your account.")
                         val txService = SafeTransactionService()
 
                         val amountWei = amountToWeiHex(amount, token.decimals)

@@ -503,7 +503,8 @@ private suspend fun handleRequest(activity: Activity, request: BLEIncomingReques
             val dataHex = params["data"] as? String ?: "0x"
             val valueClean = valueHex.removePrefix("0x").ifEmpty { "0" }
 
-            val credentialId = wallet.activeAccount?.id ?: ""
+            val credentialId = wallet.activeAccount?.id
+                ?: throw Exception("No active account. Please create or import a wallet first.")
             var publicKeyHex = LocalStorage.shared.findAccount(credentialId)?.publicKeyHex ?: ""
 
             // Server fallback if public key not found locally
@@ -542,9 +543,10 @@ private suspend fun handleRequest(activity: Activity, request: BLEIncomingReques
             val prefix = "\u0019Ethereum Signed Message:\n${messageBytes.size}".toByteArray()
             val hash = EthCrypto.keccak256(prefix + messageBytes)
 
-            val assertion = PasskeyService().sign(activity, hash)
-            val rawSig = assertion.signature?.let { PasskeyService().derSignatureToRaw(it) }
-                ?: throw Exception("No signature")
+            val passkeyService = PasskeyService()
+            val assertion = passkeyService.sign(activity, hash)
+            val rawSig = assertion.signature?.let { passkeyService.derSignatureToRaw(it) }
+                ?: throw Exception("Signing was cancelled or failed. Please try again.")
             "0x${EthCrypto.bytesToHex(rawSig)}00"
         }
 

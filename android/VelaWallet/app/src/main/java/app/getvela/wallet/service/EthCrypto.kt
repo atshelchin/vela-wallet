@@ -75,8 +75,9 @@ object EthCrypto {
     }
 
     fun abiEncodeUint256Hex(hex: String): ByteArray {
-        val clean = hex.removePrefix("0x")
-        val padded = clean.padStart(64, '0').take(64)
+        val clean = hex.removePrefix("0x").ifEmpty { "0" }
+        require(clean.length <= 64) { "uint256 hex overflow: ${clean.length} chars" }
+        val padded = clean.padStart(64, '0')
         return hexToBytes(padded)
     }
 

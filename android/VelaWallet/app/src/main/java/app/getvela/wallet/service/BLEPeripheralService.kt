@@ -94,6 +94,11 @@ class BLEPeripheralService private constructor() {
         isAdvertising = false
         isConnected = false
         connectedDevice = null
+        onRequest = null
+        onSwitchAccount = null
+        incomingBuffer = ByteArray(0)
+        outgoingQueue.clear()
+        isSending = false
         Log.d(TAG, "Stopped")
     }
 

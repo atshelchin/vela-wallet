@@ -1,21 +1,32 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Vela Wallet ProGuard Rules
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Keep serialization model classes (used for JSON parsing)
+-keep class app.getvela.wallet.service.ApiToken { *; }
+-keep class app.getvela.wallet.service.ApiNft { *; }
+-keep class app.getvela.wallet.service.WalletResponse { *; }
+-keep class app.getvela.wallet.service.NftResponse { *; }
+-keep class app.getvela.wallet.service.ExchangeRateResponse { *; }
+-keep class app.getvela.wallet.service.LocalStorage$* { *; }
+-keep class app.getvela.wallet.service.PublicKeyIndexService$* { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep model classes
+-keep class app.getvela.wallet.model.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Kotlinx serialization
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
+-keepclasseswithmembers class kotlinx.serialization.json.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+-keep,includedescriptorclasses class app.getvela.wallet.**$$serializer { *; }
+-keepclassmembers class app.getvela.wallet.** {
+    *** Companion;
+}
+-keepclasseswithmembers class app.getvela.wallet.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+# Keep line numbers for crash reports
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile

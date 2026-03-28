@@ -79,6 +79,29 @@ struct SettingsView: View {
                             showDivider: false
                         )
                     }
+                    // Logout
+                    Button {
+                        wallet.hasWallet = false
+                        wallet.accounts = []
+                        wallet.address = ""
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 15))
+                            Text("settings.logout")
+                                .font(VelaFont.label(15))
+                        }
+                        .foregroundStyle(VelaColor.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(VelaColor.bgCard)
+                        .clipShape(RoundedRectangle(cornerRadius: VelaRadius.card))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: VelaRadius.card)
+                                .stroke(VelaColor.border, lineWidth: 1)
+                        )
+                    }
+                    .padding(.horizontal, 16)
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 24)

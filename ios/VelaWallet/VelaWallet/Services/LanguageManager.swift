@@ -12,14 +12,11 @@ final class LanguageManager {
         current = saved.hasPrefix("zh") ? .chinese : .english
     }
 
-    /// Set language, persist, and restart app to apply.
-    /// iOS Bundle.main locale is fixed at launch, so a restart is required.
+    /// Set language and persist. Caller is responsible for restarting the app.
     func setLanguage(_ language: AppLanguage) {
         current = language
         UserDefaults.standard.set([language.code], forKey: "AppleLanguages")
         UserDefaults.standard.synchronize()
-        // Restart — iOS apps relaunch in < 0.5s, feels like a refresh
-        exit(0)
     }
 }
 

@@ -167,6 +167,8 @@ struct SettingsView: View {
 
 struct LanguagePickerView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var showRestartConfirm = false
+    @State private var pendingLanguage: AppLanguage?
     private var lang: LanguageManager { .shared }
 
     var body: some View {
@@ -186,8 +188,8 @@ struct LanguagePickerView: View {
                 ForEach(AppLanguage.allCases) { language in
                     Button {
                         if language != lang.current {
-                            lang.setLanguage(language)
-                            dismiss()
+                            pendingLanguage = language
+                            showRestartConfirm = true
                         }
                     } label: {
                         HStack(spacing: 14) {
@@ -225,6 +227,24 @@ struct LanguagePickerView: View {
             Spacer()
         }
         .background(VelaColor.bg)
+        .alert(
+            pendingLanguage == .chinese ? "切换语言" : "Switch Language",
+            isPresented: $showRestartConfirm
+        ) {
+            Button(pendingLanguage == .chinese ? "切换并重启" : "Switch & Restart") {
+                if let language = pendingLanguage {
+                    lang.setLanguage(language)
+                    exit(0)
+                }
+            }
+            Button(pendingLanguage == .chinese ? "取消" : "Cancel", role: .cancel) {
+                pendingLanguage = nil
+            }
+        } message: {
+            Text(pendingLanguage == .chinese
+                 ? "切换语言需要重新打开应用才能生效。"
+                 : "Switching language requires reopening the app to take effect.")
+        }
     }
 }
 

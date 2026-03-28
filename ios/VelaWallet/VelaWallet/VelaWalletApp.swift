@@ -25,7 +25,6 @@ struct VelaWalletApp: App {
         WindowGroup {
             RootView()
                 .environment(walletState)
-                .id(LanguageManager.shared.refreshId)
         }
     }
 }

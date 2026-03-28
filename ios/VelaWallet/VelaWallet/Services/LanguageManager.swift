@@ -6,21 +6,20 @@ final class LanguageManager {
     static let shared = LanguageManager()
 
     private(set) var current: AppLanguage
-    /// Incremented to force full UI refresh after language change.
-    var refreshId: Int = 0
 
     private init() {
         let saved = UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first ?? ""
         current = saved.hasPrefix("zh") ? .chinese : .english
     }
 
-    /// Set language, persist, and trigger UI refresh.
+    /// Set language, persist, and restart app to apply.
+    /// iOS Bundle.main locale is fixed at launch, so a restart is required.
     func setLanguage(_ language: AppLanguage) {
         current = language
         UserDefaults.standard.set([language.code], forKey: "AppleLanguages")
         UserDefaults.standard.synchronize()
-        // Force SwiftUI to rebuild all localized strings
-        refreshId += 1
+        // Restart — iOS apps relaunch in < 0.5s, feels like a refresh
+        exit(0)
     }
 }
 

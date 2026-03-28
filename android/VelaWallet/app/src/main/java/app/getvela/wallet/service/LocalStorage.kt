@@ -33,6 +33,7 @@ class LocalStorage private constructor(private val prefs: SharedPreferences) {
     private val accountsKey = "vela.accounts"
     private val pendingUploadsKey = "vela.pendingUploads"
     private val customTokensKey = "vela.customTokens"
+    private val networkConfigKey = "vela.networkConfig"
 
     // MARK: - Accounts
 
@@ -130,6 +131,35 @@ class LocalStorage private constructor(private val prefs: SharedPreferences) {
             emptyList()
         }
     }
+
+    // MARK: - Network Config
+
+    @Serializable
+    data class NetworkConfig(
+        val chainId: Int,
+        val rpcURL: String,
+        val explorerURL: String,
+        val bundlerURL: String,
+    )
+
+    fun saveNetworkConfig(config: NetworkConfig) {
+        val configs = loadNetworkConfigs().toMutableList()
+        configs.removeAll { it.chainId == config.chainId }
+        configs.add(config)
+        save(networkConfigKey, json.encodeToString(configs))
+    }
+
+    fun loadNetworkConfigs(): List<NetworkConfig> {
+        val data = prefs.getString(networkConfigKey, null) ?: return emptyList()
+        return try {
+            json.decodeFromString(data)
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getNetworkConfig(chainId: Int): NetworkConfig? =
+        loadNetworkConfigs().find { it.chainId == chainId }
 
     private fun save(key: String, value: String) {
         prefs.edit().putString(key, value).apply()

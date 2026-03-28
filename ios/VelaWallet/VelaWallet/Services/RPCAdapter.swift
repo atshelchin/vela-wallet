@@ -115,35 +115,21 @@ final class RPCAdapter {
 
     // MARK: - User Config
 
-    /// Read user-configured RPC URL for a chain from Network settings.
+    /// Read user-configured RPC URL for a chain.
     private func userRPCURL(for chainId: Int) -> String? {
-        let networks = loadUserNetworks()
-        guard let network = networks.first(where: { $0.chainId == chainId }) else { return nil }
-        let url = network.rpcURL
+        guard let config = LocalStorage.shared.getNetworkConfig(chainId: chainId) else { return nil }
+        let defaultNet = Network.defaults.first { $0.chainId == chainId }
         // Only use if user has actually customized it (not the default)
-        let defaults = Network.defaults
-        if let defaultNet = defaults.first(where: { $0.chainId == chainId }), defaultNet.rpcURL == url {
-            return nil // Using default — let the proxy handle it
-        }
-        return url.isEmpty ? nil : url
+        if config.rpcURL == defaultNet?.rpcURL { return nil }
+        return config.rpcURL.isEmpty ? nil : config.rpcURL
     }
 
     /// Read user-configured bundler URL for a chain.
     private func userBundlerURL(for chainId: Int) -> String? {
-        let networks = loadUserNetworks()
-        guard let network = networks.first(where: { $0.chainId == chainId }) else { return nil }
-        let url = network.bundlerURL
-        let defaults = Network.defaults
-        if let defaultNet = defaults.first(where: { $0.chainId == chainId }), defaultNet.bundlerURL == url {
-            return nil
-        }
-        return url.isEmpty ? nil : url
-    }
-
-    /// Load network config — for now from Network.defaults (TODO: persist user edits)
-    private func loadUserNetworks() -> [Network] {
-        // TODO: Load from LocalStorage when NetworkEditorView saves changes
-        return Network.defaults
+        guard let config = LocalStorage.shared.getNetworkConfig(chainId: chainId) else { return nil }
+        let defaultNet = Network.defaults.first { $0.chainId == chainId }
+        if config.bundlerURL == defaultNet?.bundlerURL { return nil }
+        return config.bundlerURL.isEmpty ? nil : config.bundlerURL
     }
 
     // MARK: - Errors

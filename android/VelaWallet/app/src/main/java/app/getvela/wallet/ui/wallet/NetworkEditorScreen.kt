@@ -49,10 +49,24 @@ fun NetworkEditorScreen(onBack: () -> Unit) {
 
 @Composable
 private fun NetworkConfigCard(network: Network) {
+    // Load saved config or fall back to defaults
+    val savedConfig = remember { app.getvela.wallet.service.LocalStorage.shared.getNetworkConfig(network.chainId) }
     var isExpanded by remember { mutableStateOf(false) }
-    var rpcUrl by remember { mutableStateOf(network.rpcURL) }
-    var explorerUrl by remember { mutableStateOf(network.explorerURL) }
-    var bundlerUrl by remember { mutableStateOf(network.bundlerURL) }
+    var rpcUrl by remember { mutableStateOf(savedConfig?.rpcURL ?: network.rpcURL) }
+    var explorerUrl by remember { mutableStateOf(savedConfig?.explorerURL ?: network.explorerURL) }
+    var bundlerUrl by remember { mutableStateOf(savedConfig?.bundlerURL ?: network.bundlerURL) }
+
+    // Auto-save when values change
+    fun saveConfig() {
+        app.getvela.wallet.service.LocalStorage.shared.saveNetworkConfig(
+            app.getvela.wallet.service.LocalStorage.NetworkConfig(
+                chainId = network.chainId,
+                rpcURL = rpcUrl,
+                explorerURL = explorerUrl,
+                bundlerURL = bundlerUrl,
+            )
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -96,9 +110,9 @@ private fun NetworkConfigCard(network: Network) {
             Column {
                 HorizontalDivider(color = VelaColor.border)
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    ConfigField("RPC URL", rpcUrl) { rpcUrl = it }
-                    ConfigField("Explorer", explorerUrl) { explorerUrl = it }
-                    ConfigField("Bundler", bundlerUrl) { bundlerUrl = it }
+                    ConfigField("RPC URL", rpcUrl) { rpcUrl = it; saveConfig() }
+                    ConfigField("Explorer", explorerUrl) { explorerUrl = it; saveConfig() }
+                    ConfigField("Bundler", bundlerUrl) { bundlerUrl = it; saveConfig() }
                 }
             }
         }

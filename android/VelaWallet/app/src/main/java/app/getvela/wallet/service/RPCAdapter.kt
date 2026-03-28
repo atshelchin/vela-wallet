@@ -22,7 +22,16 @@ object RPCAdapter {
 
     /** Send a standard JSON-RPC call. Tries user config → proxy → public RPC. */
     fun call(method: String, params: JSONArray, chainId: Int): String {
-        // 1. User-configured RPC (TODO: load from user settings)
+        // 1. User-configured RPC
+        val userConfig = try { LocalStorage.shared.getNetworkConfig(chainId) } catch (_: Exception) { null }
+        val defaultNetwork = Network.defaults.find { it.chainId == chainId }
+        if (userConfig != null && userConfig.rpcURL != defaultNetwork?.rpcURL) {
+            try {
+                return directRPC(userConfig.rpcURL, method, params)
+            } catch (e: Exception) {
+                Log.d(TAG, "User RPC failed for $method: ${e.message}")
+            }
+        }
 
         // 2. Vela proxy
         try {
@@ -48,7 +57,16 @@ object RPCAdapter {
 
     /** Send a bundler-specific call (eth_sendUserOperation, etc.). */
     fun bundlerCall(method: String, params: JSONArray, chainId: Int): String {
-        // 1. User-configured bundler (TODO)
+        // 1. User-configured bundler
+        val userConfig = try { LocalStorage.shared.getNetworkConfig(chainId) } catch (_: Exception) { null }
+        val defaultNetwork = Network.defaults.find { it.chainId == chainId }
+        if (userConfig != null && userConfig.bundlerURL != defaultNetwork?.bundlerURL) {
+            try {
+                return directRPC(userConfig.bundlerURL, method, params)
+            } catch (e: Exception) {
+                Log.d(TAG, "User bundler failed for $method: ${e.message}")
+            }
+        }
 
         // 2. Vela proxy
         return proxyRPC(method, params, chainId)

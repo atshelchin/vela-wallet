@@ -277,6 +277,17 @@ private struct NetworkConfigCard: View {
     @Binding var network: Network
     @State private var isExpanded = false
 
+    private func saveConfig() {
+        LocalStorage.shared.saveNetworkConfig(
+            LocalStorage.NetworkConfig(
+                chainId: network.chainId,
+                rpcURL: network.rpcURL,
+                explorerURL: network.explorerURL,
+                bundlerURL: network.bundlerURL
+            )
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Header row
@@ -319,6 +330,9 @@ private struct NetworkConfigCard: View {
                     ConfigField(label: "Bundler", text: $network.bundlerURL)
                 }
                 .padding(16)
+                .onChange(of: network.rpcURL) { saveConfig() }
+                .onChange(of: network.explorerURL) { saveConfig() }
+                .onChange(of: network.bundlerURL) { saveConfig() }
             }
         }
         .background(VelaColor.bgCard)

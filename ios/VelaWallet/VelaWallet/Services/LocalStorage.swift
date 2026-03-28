@@ -118,6 +118,32 @@ final class LocalStorage {
         save(tokens, forKey: customTokensKey)
     }
 
+    // MARK: - Network Config
+
+    private let networkConfigKey = "vela.networkConfig"
+
+    struct NetworkConfig: Codable {
+        let chainId: Int
+        let rpcURL: String
+        let explorerURL: String
+        let bundlerURL: String
+    }
+
+    func saveNetworkConfig(_ config: NetworkConfig) {
+        var configs = loadNetworkConfigs()
+        configs.removeAll { $0.chainId == config.chainId }
+        configs.append(config)
+        save(configs, forKey: networkConfigKey)
+    }
+
+    func loadNetworkConfigs() -> [NetworkConfig] {
+        load(forKey: networkConfigKey) ?? []
+    }
+
+    func getNetworkConfig(chainId: Int) -> NetworkConfig? {
+        loadNetworkConfigs().first { $0.chainId == chainId }
+    }
+
     // MARK: - Private
 
     private func save<T: Encodable>(_ value: T, forKey key: String) {

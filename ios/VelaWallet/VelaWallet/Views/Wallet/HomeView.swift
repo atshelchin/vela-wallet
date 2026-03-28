@@ -7,13 +7,8 @@ struct HomeView: View {
     @State private var showReceive = false
     @State private var showAddToken = false
     @State private var tokens: [APIToken] = []
-    @State private var nfts: [APINFT] = []
     @State private var isLoading = false
     @State private var selectedToken: APIToken?
-    @State private var selectedNFT: APINFT?
-    @State private var activeTab: AssetTab = .tokens
-
-    enum AssetTab { case tokens, nfts }
 
     private var totalUSD: Double { tokens.reduce(0) { $0 + $1.usdValue } }
     private var sortedTokens: [APIToken] { tokens.sorted { $0.usdValue > $1.usdValue } }
@@ -24,12 +19,7 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     balanceSection
                     actionButtons
-                    assetTabPicker
-                    if activeTab == .tokens {
-                        tokenSection
-                    } else {
-                        nftSection
-                    }
+                    tokenSection
                 }
                 .padding(.bottom, 24)
             }
@@ -50,9 +40,6 @@ struct HomeView: View {
             }
             .sheet(item: $selectedToken) { token in
                 TokenDetailView(token: token)
-            }
-            .sheet(item: $selectedNFT) { nft in
-                NFTDetailView(nft: nft)
             }
             .task { await loadData() }
             .onReceive(autoRefreshTimer) { _ in
@@ -128,30 +115,6 @@ struct HomeView: View {
 
     // MARK: - Tokens / NFTs Tab Picker
 
-    private var assetTabPicker: some View {
-        HStack(spacing: 0) {
-            tabButton(title: String(localized: "home.tokens"), tab: .tokens)
-            tabButton(title: String(localized: "home.nfts"), tab: .nfts)
-        }
-        .padding(3)
-        .background(VelaColor.bgWarm)
-        .clipShape(RoundedRectangle(cornerRadius: VelaRadius.cardSmall))
-        .padding(.horizontal, VelaSpacing.screenH)
-        .padding(.bottom, 16)
-    }
-
-    private func tabButton(title: String, tab: AssetTab) -> some View {
-        Button { withAnimation(.easeInOut(duration: 0.15)) { activeTab = tab } } label: {
-            Text(title)
-                .font(VelaFont.label(13))
-                .foregroundStyle(activeTab == tab ? VelaColor.textPrimary : VelaColor.textTertiary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(activeTab == tab ? VelaColor.bgCard : .clear)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-        }
-    }
-
     // MARK: - Tokens
 
     private var tokenSection: some View {
@@ -197,34 +160,6 @@ struct HomeView: View {
         }
     }
 
-    // MARK: - NFTs
-
-    private var nftSection: some View {
-        VStack(spacing: 12) {
-            if isLoading && nfts.isEmpty {
-                VStack(spacing: 16) {
-                    ProgressView()
-                    Text("Loading...")
-                        .font(VelaFont.body(14))
-                        .foregroundStyle(VelaColor.textTertiary)
-                }
-                .padding(.vertical, 40)
-            } else if nfts.isEmpty {
-                emptyState(icon: "photo.on.rectangle.angled", text: String(localized: "home.no_nfts"))
-            } else {
-                let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(nfts) { nft in
-                        Button { selectedNFT = nft } label: {
-                            NFTCard(nft: nft)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-        }
-    }
-
     // MARK: - Empty State
 
     private func emptyState(icon: String, text: String) -> some View {
@@ -255,7 +190,6 @@ struct HomeView: View {
         let api = WalletAPIService()
 
         await loadTokensData(api: api)
-        await loadNFTsData(api: api)
 
         isLoading = false
     }
@@ -294,16 +228,6 @@ struct HomeView: View {
         }
     }
 
-    private func loadNFTsData(api: WalletAPIService) async {
-        do {
-            guard !Task.isCancelled else { return }
-            nfts = try await api.fetchNFTs(address: wallet.address)
-        } catch is CancellationError {
-            // Silently ignore
-        } catch {
-            debugLog("[HomeView] Failed to load NFTs: \(error.localizedDescription)")
-        }
-    }
 }
 
 // MARK: - Action Button
@@ -373,49 +297,6 @@ private struct TokenRow: View {
         .contentShape(Rectangle())
     }
 
-}
-
-// MARK: - NFT Card
-
-private struct NFTCard: View {
-    let nft: APINFT
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Image
-            CachedAsyncImage(url: nft.imageURL) {
-                ZStack {
-                    Rectangle().fill(VelaColor.bgWarm)
-                    Image(systemName: "photo")
-                        .font(.system(size: 24))
-                        .foregroundStyle(VelaColor.textTertiary)
-                }
-            }
-            .scaledToFill()
-            .frame(height: 160)
-            .clipped()
-
-            // Info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(nft.displayName)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(VelaColor.textPrimary)
-                    .lineLimit(1)
-
-                Text(nft.collectionName ?? nft.chainName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(VelaColor.textTertiary)
-                    .lineLimit(1)
-            }
-            .padding(10)
-        }
-        .background(VelaColor.bgCard)
-        .clipShape(RoundedRectangle(cornerRadius: VelaRadius.card))
-        .overlay(
-            RoundedRectangle(cornerRadius: VelaRadius.card)
-                .stroke(VelaColor.border, lineWidth: 1)
-        )
-    }
 }
 
 #Preview {

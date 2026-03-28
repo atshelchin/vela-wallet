@@ -126,6 +126,7 @@
     <string name="nft_send">Send NFT</string>
     <string name="nft_sent">NFT Sent</string>
     <string name="nft_add_collection">Add</string>
+    <string name="nft_add_collection_title">Add Collection</string>
 
     <!-- Account Switcher -->
     <string name="accounts_title">Accounts</string>

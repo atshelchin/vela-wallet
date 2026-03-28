@@ -3,8 +3,10 @@ import SwiftUI
 struct NFTDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let nft: APINFT
+    var onSend: ((APINFT) -> Void)?
 
     var body: some View {
+        VStack(spacing: 0) {
         ScrollView {
             VStack(spacing: 0) {
                 VelaNavBar(title: "NFT", onBack: { dismiss() })
@@ -65,6 +67,23 @@ struct NFTDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 24)
             }
+        }
+
+        // Send button
+        if let onSend {
+            Button {
+                dismiss()
+                onSend(nft)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "paperplane.fill").font(.system(size: 14))
+                    Text("Send NFT")
+                }
+            }
+            .buttonStyle(VelaPrimaryButtonStyle())
+            .padding(.horizontal, 28)
+            .padding(.bottom, 24)
+        }
         }
         .background(VelaColor.bg)
     }

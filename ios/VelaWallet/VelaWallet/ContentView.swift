@@ -97,7 +97,7 @@ struct MainTabView: View {
     @State private var showPendingUploads = false
 
     enum Tab {
-        case wallet, dapps, settings
+        case wallet, nfts, dapps, settings
     }
 
     var body: some View {
@@ -108,6 +108,12 @@ struct MainTabView: View {
                         Label(String(localized: "tab.wallet"), systemImage: "square.grid.2x2.fill")
                     }
                     .tag(Tab.wallet)
+
+                NFTGalleryView()
+                    .tabItem {
+                        Label(String(localized: "tab.nfts"), systemImage: "star.fill")
+                    }
+                    .tag(Tab.nfts)
 
                 VelaConnectView()
                     .tabItem {

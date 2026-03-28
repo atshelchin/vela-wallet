@@ -126,6 +126,7 @@
     <string name="nft_send">发送 NFT</string>
     <string name="nft_sent">NFT 已发送</string>
     <string name="nft_add_collection">添加</string>
+    <string name="nft_add_collection_title">添加 NFT 系列</string>
 
     <!-- Account Switcher -->
     <string name="accounts_title">账户</string>

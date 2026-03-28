@@ -167,6 +167,7 @@ private fun MainTabs(wallet: WalletState) {
     var showReceive by remember { mutableStateOf(false) }
     var showSend by remember { mutableStateOf(false) }
     var showAddToken by remember { mutableStateOf(false) }
+    var showAddNFTCollection by remember { mutableStateOf(false) }
     var showAccountSwitcher by remember { mutableStateOf(false) }
     var showNetworkEditor by remember { mutableStateOf(false) }
     var sendPreselectedToken by remember { mutableStateOf<ApiToken?>(null) }
@@ -192,6 +193,10 @@ private fun MainTabs(wallet: WalletState) {
         showAddToken -> {
             BackHandler { showAddToken = false }
             AddTokenScreen(onBack = { showAddToken = false })
+        }
+        showAddNFTCollection -> {
+            BackHandler { showAddNFTCollection = false }
+            AddNFTCollectionScreen(onBack = { showAddNFTCollection = false })
         }
         nftToSend != null -> {
             BackHandler { nftToSend = null }
@@ -253,6 +258,7 @@ private fun MainTabs(wallet: WalletState) {
                 1 -> NFTGalleryScreen(
                     wallet = wallet,
                     onNftClick = { selectedNft = it },
+                    onAddCollection = { showAddNFTCollection = true },
                     useMockData = true, // TODO: remove when real data is available
                 )
                 2 -> ConnectScreen(wallet, onAccountSwitcher = { showAccountSwitcher = true })

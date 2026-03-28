@@ -117,7 +117,9 @@ struct VelaConnectView: View {
 
             Button { startBLE() } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "personalhotspot")
+                    Image("bluetooth")
+                        .renderingMode(.template)
+                        .resizable().scaledToFit()
                     Text("connect.pair_button")
                 }
             }
@@ -135,7 +137,9 @@ struct VelaConnectView: View {
                 ZStack {
                     Circle().stroke(VelaColor.blue.opacity(0.1), lineWidth: 1.5).frame(width: 120, height: 120)
                     Circle().fill(VelaColor.blueSoft).frame(width: 88, height: 88)
-                    Image(systemName: "personalhotspot")
+                    Image("bluetooth")
+                        .renderingMode(.template)
+                        .resizable().scaledToFit()
                         .font(.system(size: 28)).foregroundStyle(VelaColor.blue)
                         .symbolEffect(.pulse, options: .repeating)
                 }

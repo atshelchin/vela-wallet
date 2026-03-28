@@ -127,6 +127,10 @@
     <string name="nft_sent">NFT Sent</string>
     <string name="nft_add_collection">Add</string>
     <string name="nft_add_collection_title">Add Collection</string>
+    <string name="nft_stat_collections">Collections</string>
+    <string name="nft_stat_items">Items</string>
+    <string name="nft_empty_title">No NFTs Yet</string>
+    <string name="nft_empty_desc">Your NFT collections will appear here. Add a collection or receive NFTs to get started.</string>
 
     <!-- Account Switcher -->
     <string name="accounts_title">Accounts</string>

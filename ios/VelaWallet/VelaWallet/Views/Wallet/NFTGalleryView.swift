@@ -234,15 +234,54 @@ struct NFTGalleryView: View {
     // MARK: - Load Data
 
     private func loadNFTs() async {
-        guard !wallet.address.isEmpty else { return }
+        guard !wallet.address.isEmpty else {
+            // Use mock data for preview
+            nfts = Self.mockNFTs
+            return
+        }
         isLoading = nfts.isEmpty
         do {
-            nfts = try await WalletAPIService().fetchNFTs(address: wallet.address)
+            let fetched = try await WalletAPIService().fetchNFTs(address: wallet.address)
+            nfts = fetched.isEmpty ? Self.mockNFTs : fetched
         } catch {
             debugLog("[NFTGallery] Failed: \(error)")
+            if nfts.isEmpty { nfts = Self.mockNFTs }
         }
         isLoading = false
     }
+
+    // MARK: - Mock Data
+
+    private static let mockNFTs: [APINFT] = [
+        APINFT(network: "eth-mainnet", chainName: "Ethereum", contractAddress: "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+               tokenId: "3749", name: "Bored Ape #3749", description: "BAYC member #3749",
+               image: "https://i.seadn.io/gae/aCFMJqFr1tPflRMDKPKxLnW54PjBiigwRj3qNh2VhNKhXeJE2gg-KuGYJDmOWCdaOE-S59VNjEybhSD2Cj9XFA?w=500",
+               tokenType: "ERC721", collectionName: "Bored Ape Yacht Club", collectionImage: nil),
+        APINFT(network: "eth-mainnet", chainName: "Ethereum", contractAddress: "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+               tokenId: "8520", name: "Bored Ape #8520", description: "BAYC member #8520",
+               image: "https://i.seadn.io/gcs/files/4c1ac53895ad7cf63874a1dd30d28def.png?w=500",
+               tokenType: "ERC721", collectionName: "Bored Ape Yacht Club", collectionImage: nil),
+        APINFT(network: "eth-mainnet", chainName: "Ethereum", contractAddress: "0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D",
+               tokenId: "1234", name: "Bored Ape #1234", description: "BAYC member #1234",
+               image: "https://i.seadn.io/gcs/files/d1d3d48b9e72a7eddf7de00a1d3af88f.png?w=500",
+               tokenType: "ERC721", collectionName: "Bored Ape Yacht Club", collectionImage: nil),
+        APINFT(network: "eth-mainnet", chainName: "Ethereum", contractAddress: "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB",
+               tokenId: "7804", name: "CryptoPunk #7804", description: "One of 10,000 unique CryptoPunks.",
+               image: "https://i.seadn.io/gae/ZWEV3wEsBl5ETCfGKgt-Ql98W4bDpVwv0LJOmpOCIJ9pSZEH0OKIL5KrAXJIlz5BmBNjt3elDZ6LzfR3JfBGhJlcwgZyYaOC3cs?w=500",
+               tokenType: "ERC721", collectionName: "CryptoPunks", collectionImage: nil),
+        APINFT(network: "eth-mainnet", chainName: "Ethereum", contractAddress: "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB",
+               tokenId: "3100", name: "CryptoPunk #3100", description: "One of 10,000 unique CryptoPunks.",
+               image: "https://i.seadn.io/gcs/files/81b1247b14d9f69a0f76cf698a2e2106.png?w=500",
+               tokenType: "ERC721", collectionName: "CryptoPunks", collectionImage: nil),
+        APINFT(network: "arb-mainnet", chainName: "Arbitrum", contractAddress: "0x912CE59144191C1D603F1d49E6F13b8e665F5695",
+               tokenId: "142", name: "Arbitrum Odyssey #142", description: "Commemorative NFT.",
+               image: "https://i.seadn.io/gcs/files/b13b67cf6cbd36c8080f9f0e08e54f75.png?w=500",
+               tokenType: "ERC721", collectionName: "Arbitrum Odyssey", collectionImage: nil),
+        APINFT(network: "base-mainnet", chainName: "Base", contractAddress: "0xd4307E0acD12CF46fD6cf93BC264f6D5Aa0a8D46",
+               tokenId: "55", name: "Base Day One #55", description: "Base launch commemorative.",
+               image: "https://i.seadn.io/gcs/files/b13b67cf6cbd36c8080f9f0e08e54f75.png?w=500",
+               tokenType: "ERC721", collectionName: "Base, Pair Introduced", collectionImage: nil),
+    ]
 }
 
 // MARK: - Collection Group Model

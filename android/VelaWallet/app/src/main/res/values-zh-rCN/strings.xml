@@ -127,6 +127,10 @@
     <string name="nft_sent">NFT 已发送</string>
     <string name="nft_add_collection">添加</string>
     <string name="nft_add_collection_title">添加 NFT 系列</string>
+    <string name="nft_stat_collections">系列</string>
+    <string name="nft_stat_items">个</string>
+    <string name="nft_empty_title">暂无 NFT</string>
+    <string name="nft_empty_desc">你的 NFT 收藏将显示在这里。添加系列或接收 NFT 即可开始。</string>
 
     <!-- Account Switcher -->
     <string name="accounts_title">账户</string>

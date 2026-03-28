@@ -36,12 +36,13 @@ import kotlinx.coroutines.withContext
 @Composable
 fun CreateWalletScreen(
     onBack: () -> Unit,
-    onCreated: (address: String, name: String) -> Unit,
+    onCreated: (credentialId: String, address: String, name: String) -> Unit,
 ) {
     var accountName by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var uploadFailed by remember { mutableStateOf(false) }
+    var pendingCredentialId by remember { mutableStateOf<String?>(null) }
     var pendingAddress by remember { mutableStateOf<String?>(null) }
     var pendingName by remember { mutableStateOf<String?>(null) }
     val focusRequester = remember { FocusRequester() }
@@ -216,7 +217,7 @@ fun CreateWalletScreen(
                             isLoading = false
                             val addr = pendingAddress ?: return@launch
                             val name = pendingName ?: return@launch
-                            onCreated(addr, name)
+                            onCreated(pendingCredentialId ?: "", addr, name)
                         }
                     },
                     isLoading = isLoading,
@@ -227,7 +228,7 @@ fun CreateWalletScreen(
                     onClick = {
                         val addr = pendingAddress ?: return@VelaSecondaryButton
                         val name = pendingName ?: return@VelaSecondaryButton
-                        onCreated(addr, name)
+                        onCreated(pendingCredentialId ?: "", addr, name)
                     },
                     enabled = !isLoading,
                 )
@@ -277,6 +278,7 @@ fun CreateWalletScreen(
                                     )
                                 )
 
+                                pendingCredentialId = credentialId
                                 pendingAddress = address
                                 pendingName = name
 
@@ -319,7 +321,7 @@ fun CreateWalletScreen(
                                 }
 
                                 isLoading = false
-                                onCreated(address, name)
+                                onCreated(credentialId, address, name)
                             } catch (e: Exception) {
                                 isLoading = false
                                 if (e.message?.contains("cancel", ignoreCase = true) == true) return@launch
@@ -339,6 +341,6 @@ fun CreateWalletScreen(
 @Composable
 private fun CreateWalletScreenPreview() {
     VelaWalletTheme {
-        CreateWalletScreen(onBack = {}, onCreated = { _, _ -> })
+        CreateWalletScreen(onBack = {}, onCreated = { _, _, _ -> })
     }
 }

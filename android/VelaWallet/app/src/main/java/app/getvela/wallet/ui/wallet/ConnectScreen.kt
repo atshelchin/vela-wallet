@@ -175,7 +175,7 @@ fun ConnectScreen(wallet: WalletState) {
                 val req = pendingRequest ?: return@RequestApprovalModal
                 isSigning = true
                 signError = null
-                scope.launch {
+                scope.launch(kotlinx.coroutines.NonCancellable) {
                     try {
                         val result = handleRequest(context as Activity, req, wallet, ble.currentChainId)
                         ble.sendResponse(req.id, result)

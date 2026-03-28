@@ -60,6 +60,7 @@ class BLEPeripheralService private constructor() {
     private var incomingBuffer = ByteArray(0)
     private val outgoingQueue = mutableListOf<ByteArray>()
     private var isSending = false
+    private var negotiatedMtu = 23 // BLE default, updated via MTU callback
 
     // MARK: - Public API
 
@@ -101,7 +102,14 @@ class BLEPeripheralService private constructor() {
             if (error != null) {
                 put("error", JSONObject().put("code", error.code).put("message", error.message))
             } else {
-                put("result", result ?: JSONObject.NULL)
+                // Convert Kotlin collections to JSON types
+                val jsonResult = when (result) {
+                    is List<*> -> JSONArray(result)
+                    is Map<*, *> -> JSONObject(result as Map<String, Any?>)
+                    null -> JSONObject.NULL
+                    else -> result
+                }
+                put("result", jsonResult)
             }
         }
         val data = json.toString().toByteArray() + "\n\n".toByteArray()
@@ -265,7 +273,8 @@ class BLEPeripheralService private constructor() {
         isSending = true
 
         val fullData = outgoingQueue.removeFirst()
-        val mtu = 512 // default safe MTU
+        // Use negotiated MTU minus 3 bytes ATT header, or conservative default
+        val mtu = (negotiatedMtu - 3).coerceIn(20, 512)
         val chunks = fullData.toList().chunked(mtu).map { it.toByteArray() }
 
         for (chunk in chunks) {
@@ -292,6 +301,11 @@ class BLEPeripheralService private constructor() {
     }
 
     private val gattCallback = object : BluetoothGattServerCallback() {
+        override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
+            negotiatedMtu = mtu
+            Log.d(TAG, "MTU negotiated: $mtu")
+        }
+
         override fun onConnectionStateChange(device: BluetoothDevice?, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 connectedDevice = device

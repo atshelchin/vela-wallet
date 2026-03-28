@@ -265,7 +265,8 @@ fun HomeScreen(
                 } else {
                     // 2-column grid via chunked pairs
                     val rows = nfts.chunked(2)
-                    items(rows.size) { rowIndex ->
+                    items(rows.size, key = { it }) { rowIndex ->
+                        if (rowIndex >= rows.size) return@items
                         val row = rows[rowIndex]
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),

@@ -127,9 +127,9 @@ private fun OnboardingFlow(wallet: WalletState) {
         )
         OnboardingStep.Create -> CreateWalletScreen(
             onBack = { step = OnboardingStep.Welcome },
-            onCreated = { address, name ->
+            onCreated = { credentialId, address, name ->
                 val account = Account(
-                    id = java.util.UUID.randomUUID().toString(),
+                    id = credentialId.ifEmpty { java.util.UUID.randomUUID().toString() },
                     name = name,
                     address = address,
                 )

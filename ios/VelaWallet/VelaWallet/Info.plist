@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>Vela Wallet</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Vela Wallet needs camera access to scan QR codes for wallet addresses.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>

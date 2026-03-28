@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Vela</string>
+    <string name="app_name">Vela 钱包</string>
 
     <!-- Tabs -->
     <string name="tab_wallet">钱包</string>

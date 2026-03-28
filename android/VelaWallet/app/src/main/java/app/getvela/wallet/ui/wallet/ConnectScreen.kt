@@ -165,13 +165,13 @@ private fun startBle(context: android.content.Context, wallet: WalletState, ble:
 @Composable
 private fun ColumnScope.IdleView(wallet: WalletState, onStart: () -> Unit) {
     Column(
-        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 36.dp),
+        modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(32.dp))
 
         // Concentric circles + bluetooth icon (matches iOS)
-        Box(contentAlignment = Alignment.Center) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 36.dp)) {
             Box(Modifier.size(160.dp).border(1.dp, VelaColor.blue.copy(alpha = 0.06f), CircleShape))
             Box(Modifier.size(128.dp).border(1.5.dp, VelaColor.blue.copy(alpha = 0.12f), CircleShape))
             Box(Modifier.size(100.dp).background(VelaColor.blueSoft, CircleShape), contentAlignment = Alignment.Center) {
@@ -181,29 +181,33 @@ private fun ColumnScope.IdleView(wallet: WalletState, onStart: () -> Unit) {
 
         Spacer(Modifier.height(32.dp))
 
-        Text(stringResource(R.string.connect_heading), style = VelaTypography.heading(24f), color = VelaColor.textPrimary)
+        Text(stringResource(R.string.connect_heading), style = VelaTypography.heading(24f), color = VelaColor.textPrimary,
+            modifier = Modifier.padding(horizontal = 36.dp))
         Spacer(Modifier.height(10.dp))
-        Text(stringResource(R.string.connect_idle_desc), style = VelaTypography.body(14f), color = VelaColor.textSecondary, textAlign = TextAlign.Center, lineHeight = 20.sp)
+        Text(stringResource(R.string.connect_idle_desc), style = VelaTypography.body(14f), color = VelaColor.textSecondary,
+            textAlign = TextAlign.Center, lineHeight = 20.sp, modifier = Modifier.padding(horizontal = 36.dp))
 
         Spacer(Modifier.height(24.dp))
 
         // Steps (matches iOS StepRow)
-        listOf(
-            stringResource(R.string.connect_step1),
-            stringResource(R.string.connect_step2),
-            stringResource(R.string.connect_step3),
-        ).forEachIndexed { index, text ->
-            StepRow(number = index + 1, text = text)
-            Spacer(Modifier.height(12.dp))
+        Column(modifier = Modifier.padding(horizontal = 36.dp)) {
+            listOf(
+                stringResource(R.string.connect_step1),
+                stringResource(R.string.connect_step2),
+                stringResource(R.string.connect_step3),
+            ).forEachIndexed { index, text ->
+                StepRow(number = index + 1, text = text)
+                Spacer(Modifier.height(12.dp))
+            }
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(16.dp))
     }
 
-    // Blue button at bottom
+    // Blue button at bottom — outside scrollable area so always visible
     Button(
         onClick = onStart,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 24.dp).height(51.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp).padding(bottom = 24.dp).height(51.dp),
         shape = VelaButtonShape,
         colors = ButtonDefaults.buttonColors(containerColor = VelaColor.blue),
     ) {

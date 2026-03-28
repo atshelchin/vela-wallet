@@ -83,9 +83,17 @@
     <string name="settings_logout">Log Out</string>
 
     <!-- Connect / dApps -->
-    <string name="connect_title">Connect to dApps</string>
-    <string name="connect_description">Start BLE advertising to connect with the Vela Connect Chrome extension.</string>
-    <string name="connect_start">Start Advertising</string>
+    <string name="connect_header">dApps</string>
+    <string name="connect_heading">Connect to dApps</string>
+    <string name="connect_idle_desc">Pair with the Vela Connect Chrome extension to sign transactions from your browser.</string>
+    <string name="connect_step1">Install the Vela Connect extension in Chrome</string>
+    <string name="connect_step2">Open a dApp and click the Vela Connect icon</string>
+    <string name="connect_step3">Tap "Pair" below to connect via Bluetooth</string>
+    <string name="connect_pair_button">Pair with Chrome</string>
+    <string name="connect_status_connected">Connected</string>
+    <string name="connect_connected_title">Connected</string>
+    <string name="connect_connected_desc">Requests from dApps will appear here for your approval.</string>
+    <string name="connect_approve_button">Confirm</string>
     <string name="connect_stop">Stop</string>
     <string name="connect_waiting">Waiting for Chrome…</string>
     <string name="connect_waiting_desc">Open a dApp in Chrome with Vela Connect extension installed.</string>

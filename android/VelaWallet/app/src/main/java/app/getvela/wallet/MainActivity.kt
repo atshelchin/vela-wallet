@@ -226,7 +226,7 @@ private fun MainTabs(wallet: WalletState) {
                     onReceiveClick = { showReceive = true },
                     onAddTokenClick = { showAddToken = true },
                 )
-                1 -> ConnectScreen(wallet)
+                1 -> ConnectScreen(wallet, onAccountSwitcher = { showAccountSwitcher = true })
                 2 -> SettingsScreen(
                     wallet = wallet,
                     onLogout = {

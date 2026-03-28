@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Settings
@@ -236,13 +237,17 @@ private fun MainTabs(wallet: WalletState) {
                 0 -> HomeScreen(
                     wallet = wallet,
                     onTokenClick = { selectedToken = it },
-                    onNftClick = { selectedNft = it },
                     onSendClick = { showSend = true },
                     onReceiveClick = { showReceive = true },
                     onAddTokenClick = { showAddToken = true },
                 )
-                1 -> ConnectScreen(wallet, onAccountSwitcher = { showAccountSwitcher = true })
-                2 -> SettingsScreen(
+                1 -> NFTGalleryScreen(
+                    wallet = wallet,
+                    onNftClick = { selectedNft = it },
+                    useMockData = true, // TODO: remove when real data is available
+                )
+                2 -> ConnectScreen(wallet, onAccountSwitcher = { showAccountSwitcher = true })
+                3 -> SettingsScreen(
                     wallet = wallet,
                     onLogout = {
                         wallet.hasWallet = false
@@ -262,8 +267,9 @@ private fun MainTabs(wallet: WalletState) {
 private fun VelaTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
     val tabs = listOf(
         Triple(Icons.Default.GridView, R.string.tab_wallet, 0),
-        Triple(Icons.Default.Language, R.string.tab_dapps, 1),
-        Triple(Icons.Default.Settings, R.string.tab_settings, 2),
+        Triple(Icons.Default.Star, R.string.tab_nfts, 1),
+        Triple(Icons.Default.Language, R.string.tab_dapps, 2),
+        Triple(Icons.Default.Settings, R.string.tab_settings, 3),
     )
 
     androidx.compose.foundation.layout.Row(

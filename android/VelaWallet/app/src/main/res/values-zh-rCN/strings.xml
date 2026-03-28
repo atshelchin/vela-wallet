@@ -3,6 +3,7 @@
 
     <!-- Tabs -->
     <string name="tab_wallet">钱包</string>
+    <string name="tab_nfts">NFT</string>
     <string name="tab_dapps">应用</string>
     <string name="tab_settings">设置</string>
 

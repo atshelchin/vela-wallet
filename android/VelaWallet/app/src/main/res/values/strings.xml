@@ -3,6 +3,7 @@
 
     <!-- Tabs -->
     <string name="tab_wallet">Wallet</string>
+    <string name="tab_nfts">NFTs</string>
     <string name="tab_dapps">dApps</string>
     <string name="tab_settings">Settings</string>
 

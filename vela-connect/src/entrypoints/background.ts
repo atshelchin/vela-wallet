@@ -160,14 +160,7 @@ async function handleProviderRequest(
       sendResponse({ result: [walletInfo.address] });
     } else {
       // Not connected yet — open pairing tab and wait for connection
-      if (!openingPairingTab) {
-        openingPairingTab = true;
-        const pairingUrl = chrome.runtime.getURL('/pairing.html');
-        chrome.tabs.query({ url: pairingUrl }, (tabs) => {
-          if (tabs.length === 0) chrome.tabs.create({ url: pairingUrl, active: true });
-          openingPairingTab = false;
-        });
-      }
+      ensurePairingTab();
       // Wait for wallet to connect (poll for up to 60s)
       let waited = 0;
       const interval = setInterval(() => {
@@ -385,6 +378,31 @@ async function sendViaBLE(request: BLERequest): Promise<void> {
   });
 }
 
+// ─── Pairing Tab Management ───
+
+/** Ensure exactly one pairing tab exists. Reuse existing or create new. */
+function ensurePairingTab() {
+  if (pairingTabId !== undefined) {
+    chrome.tabs.get(pairingTabId, (tab: any) => {
+      if (chrome.runtime.lastError || !tab) {
+        pairingTabId = undefined;
+        createPairingTab();
+      } else {
+        chrome.tabs.update(pairingTabId!, { active: true });
+      }
+    });
+  } else {
+    createPairingTab();
+  }
+}
+
+function createPairingTab() {
+  const url = chrome.runtime.getURL('/pairing.html');
+  chrome.tabs.create({ url, active: true }, (tab: any) => {
+    if (tab?.id) pairingTabId = tab.id;
+  });
+}
+
 // ─── Popup Action Handler ───
 
 async function handlePopupAction(
@@ -394,18 +412,7 @@ async function handlePopupAction(
   switch (msg.action) {
     case 'startScan': {
       // Open pairing tab — Web Bluetooth only works in tab context
-      // Guard against rapid clicks creating duplicate tabs
-      if (openingPairingTab) { sendResponse({ ok: true }); break; }
-      openingPairingTab = true;
-      const pairingUrl = chrome.runtime.getURL('/pairing.html');
-      chrome.tabs.query({ url: pairingUrl }, (tabs) => {
-        if (tabs.length > 0 && tabs[0].id) {
-          chrome.tabs.update(tabs[0].id, { active: true });
-        } else {
-          chrome.tabs.create({ url: pairingUrl, active: true });
-        }
-        openingPairingTab = false;
-      });
+      ensurePairingTab();
       sendResponse({ ok: true });
       break;
     }
@@ -418,9 +425,10 @@ async function handlePopupAction(
       broadcastState();
       notifyDApps('disconnect', { code: 4900, message: 'Disconnected' });
       // Close pairing tab (disconnects BLE)
-      chrome.tabs.query({ url: chrome.runtime.getURL('/pairing.html') }, (tabs) => {
-        tabs.forEach(t => { if (t.id) chrome.tabs.remove(t.id); });
-      });
+      if (pairingTabId !== undefined) {
+        chrome.tabs.remove(pairingTabId).catch(() => {});
+        pairingTabId = undefined;
+      }
       sendResponse({ ok: true });
       break;
 
@@ -476,7 +484,7 @@ function getPopupState(): PopupState {
 }
 
 let lastBroadcastAddress: string | undefined;
-let openingPairingTab = false;
+let pairingTabId: number | undefined;
 
 function broadcastState() {
   const state = getPopupState();

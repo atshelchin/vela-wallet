@@ -61,7 +61,14 @@ fun ReceiveScreen(
     var copied by remember { mutableStateOf(false) }
     var depositDetected by remember { mutableStateOf(false) }
     var depositInfo by remember { mutableStateOf<String?>(null) }
-    val qrBitmap = remember(wallet.address) { generateQR(wallet.address) }
+    var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // Generate QR off main thread
+    LaunchedEffect(wallet.address) {
+        if (wallet.address.isNotEmpty()) {
+            qrBitmap = withContext(Dispatchers.Default) { generateQR(wallet.address) }
+        }
+    }
 
     // Deposit listening (poll every 10s, matches iOS)
     LaunchedEffect(wallet.address) {

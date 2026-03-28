@@ -118,7 +118,7 @@ fun SendScreen(
             onConfirm = {
                 isSending = true
                 errorMessage = null
-                scope.launch {
+                scope.launch(kotlinx.coroutines.NonCancellable) {
                     try {
                         val token = selectedToken ?: throw Exception("No token selected")
                         val stored = LocalStorage.shared.findAccount(wallet.activeAccount?.id ?: "")

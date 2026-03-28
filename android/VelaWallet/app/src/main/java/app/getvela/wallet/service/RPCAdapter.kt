@@ -89,7 +89,23 @@ object RPCAdapter {
         if (connection.responseCode !in 200..299) {
             throw RPCException("HTTP ${connection.responseCode}")
         }
-        return connection.inputStream.bufferedReader().readText()
+        val responseText = connection.inputStream.bufferedReader().readText()
+
+        // Check for JSON-RPC error in response body — throw so caller can fall back
+        try {
+            val json = JSONObject(responseText)
+            if (json.has("error") && !json.isNull("error")) {
+                val error = json.optJSONObject("error")
+                val msg = error?.optString("message", "") ?: json.optString("error", "")
+                throw RPCException("RPC error: $msg")
+            }
+        } catch (e: RPCException) {
+            throw e
+        } catch (_: Exception) {
+            // Not valid JSON or no error field — return as-is
+        }
+
+        return responseText
     }
 
     class RPCException(message: String) : Exception(message)

@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vela Connect — Chrome Extension Prototype v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #FAFAF8;
+    --bg-card: #FFFFFF;
+    --bg-warm: #F5F3EF;
+    --text-primary: #1A1A18;
+    --text-secondary: #7A776E;
+    --text-tertiary: #B0ADA5;
+    --accent: #2BA4C8;
+    --accent-soft: #E8F6FB;
+    --green: #2D8E5F;
+    --green-soft: #EDFAF2;
+    --blue: #2B8FD9;
+    --blue-soft: #E6F1FB;
+    --border: #ECEAE4;
+    --shadow: 0 1px 3px rgba(26,26,24,0.04), 0 4px 12px rgba(26,26,24,0.03);
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-full: 9999px;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: #E8E6E0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 48px;
+    padding: 60px 40px;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1.page-title {
+    width: 100%;
+    text-align: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #7A776E;
+    margin-bottom: -10px;
+  }
+
+  .screen-group {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 48px;
+  }
+
+  .screen-group-title {
+    width: 100%;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: #B0ADA5;
+    padding-left: 8px;
+    border-left: 2px solid var(--accent);
+    margin-bottom: -20px;
+    margin-left: calc(50% - 280px);
+  }
+
+  /* Chrome Extension Popup Frame */
+  .popup {
+    width: 360px;
+    background: var(--bg);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.06),
+      0 20px 60px rgba(0,0,0,0.12),
+      0 4px 16px rgba(0,0,0,0.06);
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .popup-label {
+    text-align: center;
+    margin-top: 12px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: #7A776E;
+    letter-spacing: 0.5px;
+  }
+
+  /* Extension Header */
+  .ext-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .ext-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ext-logo-icon {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ext-logo-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+  }
+  .ext-logo-text span { color: var(--accent); }
+  .ext-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .ext-header-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+  }
+  .ext-header-btn:hover { background: var(--bg-warm); }
+
+  /* Status Badge */
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .status-badge.disconnected {
+    background: var(--bg-warm);
+    color: var(--text-tertiary);
+  }
+  .status-badge.searching {
+    background: var(--blue-soft);
+    color: var(--blue);
+  }
+  .status-badge.connected {
+    background: var(--green-soft);
+    color: var(--green);
+  }
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .status-dot.off { background: var(--text-tertiary); }
+  .status-dot.pulse { background: var(--blue); animation: blink 1.2s ease infinite; }
+  .status-dot.on { background: var(--green); }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  /* Popup Body */
+  .popup-body {
+    padding: 20px 18px;
+  }
+
+  /* Empty / Disconnected State */
+  .empty-state {
+    text-align: center;
+    padding: 28px 12px;
+  }
+  .empty-icon-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .empty-icon-wrap.bt { background: var(--blue-soft); }
+  .empty-icon-wrap svg { width: 32px; height: 32px; }
+  .empty-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+  .empty-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 24px;
+  }
+
+  /* Buttons */
+  .btn {
+    width: 100%;
+    padding: 14px 20px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn svg { width: 16px; height: 16px; }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-dark { background: var(--text-primary); color: var(--bg); }
+  .btn-outline {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1.5px solid var(--border);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 10px;
+  }
+  .btn-red-outline {
+    background: transparent;
+    color: var(--accent);
+    border: 1.5px solid rgba(43,164,200,0.25);
+  }
+  .btn + .btn { margin-top: 8px; }
+
+  /* Searching Animation */
+  .search-anim {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--blue-soft);
+    margin: 0 auto 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .search-anim::before {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(43,143,217,0.12);
+    animation: pulse 2s ease-out infinite;
+  }
+  .search-anim::after {
+    content: '';
+    position: absolute;
+    inset: -26px;
+    border-radius: 50%;
+    border: 1px solid rgba(43,143,217,0.06);
+    animation: pulse 2s ease-out 0.6s infinite;
+  }
+  @keyframes pulse {
+    0% { transform: scale(0.92); opacity: 1; }
+    100% { transform: scale(1.12); opacity: 0; }
+  }
+  .search-anim svg { width: 28px; height: 28px; color: var(--blue); }
+
+  /* Connected Wallet Info */
+  .wallet-info {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .wallet-info-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .wallet-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .wallet-avatar.orange { background: var(--accent-soft); color: var(--accent); }
+  .wallet-detail { flex: 1; min-width: 0; }
+  .wallet-addr {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .wallet-network-tag {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .wallet-copy-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  /* Device Info */
+  .device-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+  }
+  .device-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--blue-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .device-icon svg { width: 18px; height: 18px; color: var(--blue); }
+  .device-detail { flex: 1; }
+  .device-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .device-status {
+    font-size: 11px;
+    color: var(--green);
+    font-weight: 500;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .device-status .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+
+  /* dApp Info */
+  .dapp-origin {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-warm);
+    border-radius: var(--radius-sm);
+    margin-bottom: 16px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .dapp-favicon {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: #fff;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex-shrink: 0;
+  }
+  .dapp-url {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  /* Transaction Request Card */
+  .tx-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .tx-card-header {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tx-type {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+  }
+  .tx-amount {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -1px;
+  }
+  .tx-amount-usd {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+  }
+  .tx-details {
+    padding: 0;
+  }
+  .tx-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tx-row:last-child { border-bottom: none; }
+  .tx-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .tx-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+    max-width: 180px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Waiting Spinner */
+  .waiting-section {
+    text-align: center;
+    padding: 20px 0 8px;
+  }
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .waiting-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .waiting-sub {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  /* Success State */
+  .success-section {
+    text-align: center;
+    padding: 20px 0 8px;
+  }
+  .success-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--green-soft);
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .success-icon svg { width: 26px; height: 26px; color: var(--green); }
+  .success-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .success-hash {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+  }
+
+  /* Inject Banner */
+  .inject-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--green-soft);
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+  }
+  .inject-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+  .inject-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--green);
+    flex: 1;
+  }
+
+  /* Footer */
+  .popup-footer {
+    padding: 12px 18px 16px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    background: var(--bg-card);
+  }
+
+  /* Separator */
+  .sep {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  /* Approval: connect site */
+  .site-connect-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid var(--border);
+    margin: 0 auto 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--text-primary);
+  }
+  .connect-arrow {
+    text-align: center;
+    color: var(--text-tertiary);
+    margin: 8px 0;
+  }
+  .perm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 16px 0;
+  }
+  .perm-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-primary);
+    padding: 10px 14px;
+    background: var(--bg-warm);
+    border-radius: var(--radius-sm);
+  }
+  .perm-item svg { width: 16px; height: 16px; color: var(--green); flex-shrink: 0; }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+  .btn-row .btn { flex: 1; }
+  .btn-row .btn + .btn { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Vela Connect — Chrome Extension Prototype v2</h1>
+
+<!-- ==================== PAIRING ==================== -->
+<div class="screen-group">
+  <div class="screen-group-title">Bluetooth Pairing</div>
+
+  <!-- Not Connected -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge disconnected">
+            <div class="status-dot off"></div>
+            No device
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="empty-state">
+          <div class="empty-icon-wrap bt">
+            <svg viewBox="0 0 24 24" fill="#2B8FD9"><path d="M12 2L7 7l4.3 4.3L7 15.5 12 22v-8.5L15.5 17l-1.4 1.4L12 16.2v5l3-3.6-3-3.6V2zM12 2v8.5L8.5 7l1.4-1.4L12 7.8v-5l-3 3.6 3 3.6z"/></svg>
+          </div>
+          <div class="empty-title">Connect your phone</div>
+          <div class="empty-desc">Pair with Vela Wallet on your phone via Bluetooth to use dApps.</div>
+          <button class="btn btn-blue">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L7 7l4.3 4.3L7 15.5 12 22v-8.5L15.5 17l-1.4 1.4L12 16.2v5l3-3.6-3-3.6V2zM12 2v8.5L8.5 7l1.4-1.4L12 7.8v-5l-3 3.6 3 3.6z"/></svg>
+            Pair with phone
+          </button>
+        </div>
+      </div>
+      <div class="popup-footer">Vela Connect v1.0.0</div>
+    </div>
+    <div class="popup-label">Disconnected</div>
+  </div>
+
+  <!-- Searching -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge searching">
+            <div class="status-dot pulse"></div>
+            Searching…
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="empty-state">
+          <div class="search-anim">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L7 7l4.3 4.3L7 15.5 12 22v-8.5L15.5 17l-1.4 1.4L12 16.2v5l3-3.6-3-3.6V2zM12 2v8.5L8.5 7l1.4-1.4L12 7.8v-5l-3 3.6 3 3.6z"/></svg>
+          </div>
+          <div class="empty-title">Searching…</div>
+          <div class="empty-desc">Make sure Vela Wallet is open on your phone with Bluetooth enabled.</div>
+          <button class="btn btn-ghost">Cancel</button>
+        </div>
+      </div>
+      <div class="popup-footer">Vela Connect v1.0.0</div>
+    </div>
+    <div class="popup-label">Searching</div>
+  </div>
+
+  <!-- Connected / Idle -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge connected">
+            <div class="status-dot on"></div>
+            Connected
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="device-card">
+          <div class="device-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="2" width="14" height="20" rx="3"/><path d="M12 18h.01"/></svg>
+          </div>
+          <div class="device-detail">
+            <div class="device-name">Shel's iPhone</div>
+            <div class="device-status">
+              <div class="dot"></div>
+              Bluetooth connected
+            </div>
+          </div>
+        </div>
+
+        <div class="wallet-info">
+          <div class="wallet-info-row">
+            <div class="wallet-avatar orange">V</div>
+            <div class="wallet-detail">
+              <div class="wallet-addr">0x7a3F8c2D...1c9e92B</div>
+              <div class="wallet-network-tag">
+                <svg width="10" height="10" viewBox="0 0 20 20" fill="none"><path d="M10 1L4 10.2l6 3.5 6-3.5L10 1z" fill="#627EEA"/></svg>
+                Ethereum
+              </div>
+            </div>
+            <button class="wallet-copy-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="inject-banner">
+          <div class="inject-dot"></div>
+          <div class="inject-text">Provider active — dApps can send requests</div>
+        </div>
+
+        <button class="btn btn-red-outline">Disconnect</button>
+      </div>
+      <div class="popup-footer">Vela Connect v1.0.0</div>
+    </div>
+    <div class="popup-label">Connected — Idle</div>
+  </div>
+</div>
+
+<!-- ==================== DAPP INTERACTIONS ==================== -->
+<div class="screen-group">
+  <div class="screen-group-title">dApp Interactions</div>
+
+  <!-- Site Connect Request -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge connected">
+            <div class="status-dot on"></div>
+            Connected
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="dapp-origin">
+          <div class="dapp-favicon">U</div>
+          <span class="dapp-url">app.uniswap.org</span>
+          <span>wants to connect</span>
+        </div>
+
+        <div style="text-align:center; padding: 12px 0 4px">
+          <div class="site-connect-icon">U</div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600;color:var(--text-primary);margin-top:8px">Uniswap</div>
+          <div style="font-size:12px;color:var(--text-tertiary);margin-top:2px">app.uniswap.org</div>
+        </div>
+
+        <div class="perm-list">
+          <div class="perm-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+            View your wallet address
+          </div>
+          <div class="perm-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+            Request transaction approval
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-outline">Reject</button>
+          <button class="btn btn-dark">Connect</button>
+        </div>
+      </div>
+    </div>
+    <div class="popup-label">Site Connect Request</div>
+  </div>
+
+  <!-- Transaction Request -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge connected">
+            <div class="status-dot on"></div>
+            Connected
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="dapp-origin">
+          <div class="dapp-favicon">U</div>
+          <span class="dapp-url">app.uniswap.org</span>
+        </div>
+
+        <div class="tx-card">
+          <div class="tx-card-header">
+            <div class="tx-type">Swap</div>
+            <div class="tx-amount">0.5 ETH → 1,580 USDC</div>
+            <div class="tx-amount-usd">≈ $1,599.50</div>
+          </div>
+          <div class="tx-details">
+            <div class="tx-row">
+              <span class="tx-label">Contract</span>
+              <span class="tx-value">Uniswap V3 Router</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Network</span>
+              <span class="tx-value">Ethereum</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Est. fee</span>
+              <span class="tx-value">$2.14</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="waiting-section">
+          <div class="spinner"></div>
+          <div class="waiting-text">Waiting for phone…</div>
+          <div class="waiting-sub">Confirm on Vela Wallet</div>
+        </div>
+      </div>
+    </div>
+    <div class="popup-label">Transaction — Waiting for Phone</div>
+  </div>
+
+  <!-- Transaction Confirmed -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge connected">
+            <div class="status-dot on"></div>
+            Connected
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="dapp-origin">
+          <div class="dapp-favicon">U</div>
+          <span class="dapp-url">app.uniswap.org</span>
+        </div>
+
+        <div class="success-section">
+          <div class="success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div class="success-title">Transaction Sent</div>
+          <div class="success-hash">0x8f3a...7e2d</div>
+        </div>
+
+        <div class="tx-card" style="margin-top:8px">
+          <div class="tx-details">
+            <div class="tx-row">
+              <span class="tx-label">Type</span>
+              <span class="tx-value">Swap</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Amount</span>
+              <span class="tx-value">0.5 ETH → 1,580 USDC</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">Fee</span>
+              <span class="tx-value">$2.14</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px">
+          <button class="btn btn-outline">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+            View on Etherscan
+          </button>
+          <button class="btn btn-ghost">Close</button>
+        </div>
+      </div>
+    </div>
+    <div class="popup-label">Transaction — Confirmed</div>
+  </div>
+</div>
+
+<!-- ==================== SIGN MESSAGE ==================== -->
+<div class="screen-group">
+  <div class="screen-group-title">Message Signing</div>
+
+  <!-- Sign Message -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge connected">
+            <div class="status-dot on"></div>
+            Connected
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="dapp-origin">
+          <div class="dapp-favicon" style="background:#000;color:#fff;font-size:10px">OS</div>
+          <span class="dapp-url">opensea.io</span>
+          <span>requests signature</span>
+        </div>
+
+        <div class="tx-card">
+          <div class="tx-card-header">
+            <div class="tx-type">Sign Message</div>
+            <div style="font-size:13px;color:var(--text-primary);line-height:1.6;font-family:'Space Grotesk',sans-serif;margin-top:4px">
+              Welcome to OpenSea!<br><br>
+              Click to sign in and accept the OpenSea Terms of Service.
+            </div>
+          </div>
+          <div class="tx-details">
+            <div class="tx-row">
+              <span class="tx-label">Type</span>
+              <span class="tx-value">EIP-712</span>
+            </div>
+            <div class="tx-row">
+              <span class="tx-label">From</span>
+              <span class="tx-value">0x7a3F...e92B</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="waiting-section">
+          <div class="spinner"></div>
+          <div class="waiting-text">Confirm on phone</div>
+          <div class="waiting-sub">Check Vela Wallet for the signing request</div>
+        </div>
+      </div>
+    </div>
+    <div class="popup-label">Sign Message — Waiting</div>
+  </div>
+
+  <!-- Error / Rejected -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge connected">
+            <div class="status-dot on"></div>
+            Connected
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div class="dapp-origin">
+          <div class="dapp-favicon" style="background:#000;color:#fff;font-size:10px">OS</div>
+          <span class="dapp-url">opensea.io</span>
+        </div>
+
+        <div style="text-align:center;padding:24px 0 16px">
+          <div style="width:56px;height:56px;border-radius:50%;background:var(--accent-soft);margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2BA4C8" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Rejected</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5">The request was rejected on your phone.</div>
+        </div>
+
+        <button class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+    <div class="popup-label">Request Rejected</div>
+  </div>
+
+  <!-- Connection Lost -->
+  <div>
+    <div class="popup">
+      <div class="ext-header">
+        <div class="ext-logo">
+          <div class="ext-logo-icon">
+            <svg width="24" height="24" viewBox="0 0 80 80" fill="none">
+              <path d="M38 12C38 12 22 44 18 64C18 64 38 56 40 54C42 56 62 64 62 64C58 44 42 12 42 12C42 12 40 10 38 12Z" fill="#2BA4C8"/>
+              <path d="M40 54L40 72" stroke="#2BA4C8" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="ext-logo-text">vel<span>a</span></div>
+        </div>
+        <div class="ext-header-actions">
+          <div class="status-badge disconnected">
+            <div class="status-dot off"></div>
+            Disconnected
+          </div>
+        </div>
+      </div>
+      <div class="popup-body">
+        <div style="text-align:center;padding:28px 12px">
+          <div style="width:72px;height:72px;border-radius:50%;background:var(--accent-soft);margin:0 auto 20px;display:flex;align-items:center;justify-content:center">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2BA4C8" stroke-width="1.8" stroke-linecap="round">
+              <path d="M2 2l20 20"/>
+              <path d="M8.5 16.5a5 5 0 017 0"/>
+              <path d="M2 8.82a15 15 0 0120 0" opacity="0.3"/>
+              <path d="M5 12.86a10 10 0 0114 0" opacity="0.3"/>
+              <circle cx="12" cy="20" r="1" fill="#2BA4C8"/>
+            </svg>
+          </div>
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:8px">Connection lost</div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:24px">Bluetooth connection to your phone was interrupted. Make sure your phone is nearby.</div>
+          <button class="btn btn-blue">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+            Reconnect
+          </button>
+        </div>
+      </div>
+      <div class="popup-footer">Vela Connect v1.0.0</div>
+    </div>
+    <div class="popup-label">Connection Lost</div>
+  </div>
+</div>
+
+</body>
+</html>

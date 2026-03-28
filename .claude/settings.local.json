@@ -2,7 +2,19 @@
   "permissions": {
     "allow": [
       "Bash(xcodebuild test:*)",
-      "Bash(xcodebuild build:*)"
+      "Bash(xcodebuild build:*)",
+      "Bash(xcodebuild -scheme VelaWallet -destination 'platform=iOS Simulator,name=iPhone 16' build)",
+      "Bash(xcodebuild -scheme VelaWallet -destination 'id=1829E1B2-1C84-46F3-A343-FCF8A3905C59' build)",
+      "Bash(./gradlew assembleDebug)",
+      "Bash(./gradlew assembleDebug --stacktrace)",
+      "Bash(./gradlew testDebugUnitTest)",
+      "Bash(./gradlew testDebugUnitTest --tests \"app.getvela.wallet.EthCryptoTest.keccak256_emptyInput\")",
+      "Bash(./gradlew testDebugUnitTest --tests \"app.getvela.wallet.EthCryptoTest.keccak256_emptyInput\" --info)",
+      "Bash(./gradlew compileDebugKotlin)",
+      "Bash(./gradlew testDebugUnitTest --tests \"app.getvela.wallet.UtilityTest.shortAddr_longAddress\" --info)",
+      "Bash(./gradlew installDebug)",
+      "Bash(./gradlew testDebugUnitTest assembleDebug)",
+      "Bash(./gradlew testDebugUnitTest installDebug)"
     ]
   }
 }

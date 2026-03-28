@@ -75,6 +75,9 @@
         }
       }
     },
+    "Cancel" : {
+
+    },
     "Chain %lld" : {
 
     },
@@ -1606,6 +1609,15 @@
     "Signing..." : {
 
     },
+    "Switch & Restart" : {
+
+    },
+    "Switch Language" : {
+
+    },
+    "Switching language requires reopening the app to take effect." : {
+
+    },
     "tab.dapps" : {
       "localizations" : {
         "en" : {
@@ -1913,6 +1925,18 @@
           }
         }
       }
+    },
+    "切换并重启" : {
+
+    },
+    "切换语言" : {
+
+    },
+    "切换语言需要重新打开应用才能生效。" : {
+
+    },
+    "取消" : {
+
     }
   },
   "version" : "1.0"

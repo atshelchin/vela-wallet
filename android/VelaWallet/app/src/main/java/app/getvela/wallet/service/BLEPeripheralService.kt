@@ -3,6 +3,8 @@ package app.getvela.wallet.service
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -48,7 +50,7 @@ class BLEPeripheralService private constructor() {
 
     private var gattServer: BluetoothGattServer? = null
     private var advertiser: BluetoothLeAdvertiser? = null
-    private var connectedDevice: BluetoothDevice? = null
+    private var subscribedDevice: BluetoothDevice? = null // only set after CCCD subscription (matches iOS subscribedCentral)
     private var responseChar: BluetoothGattCharacteristic? = null
     private var walletInfoChar: BluetoothGattCharacteristic? = null
 
@@ -56,12 +58,21 @@ class BLEPeripheralService private constructor() {
     private var advAccountName = ""
     private var advChainId = 1
     private var advAllAccounts: List<Map<String, String>> = emptyList()
+    private var shouldAutoRestart = false
+
+    private var bluetoothManager: BluetoothManager? = null
+    private var appContext: Context? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var incomingBuffer = ByteArray(0)
-    private var lastBufferTime = 0L // timestamp of last buffer append
+    private var lastBufferTime = 0L
+    private var negotiatedMtu = 23
+
+    // Serialized outgoing queue — matches iOS pattern with flow control
     private val outgoingQueue = mutableListOf<ByteArray>()
+    private var currentChunks: List<ByteArray> = emptyList()
+    private var currentChunkIndex = 0
     private var isSending = false
-    private var negotiatedMtu = 23 // BLE default, updated via MTU callback
 
     // MARK: - Public API
 
@@ -77,41 +88,52 @@ class BLEPeripheralService private constructor() {
         advChainId = chainId
         currentChainId = chainId
         advAllAccounts = allAccounts.map { mapOf("name" to it.first, "address" to it.second) }
+        shouldAutoRestart = true
 
-        val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return
-        val adapter = bluetoothManager.adapter ?: return
+        val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager ?: return
+        val adapter = btManager.adapter ?: return
         advertiser = adapter.bluetoothLeAdvertiser ?: return
+        bluetoothManager = btManager
+        appContext = context.applicationContext
 
-        setupGattServer(context, bluetoothManager)
+        setupGattServer(context, btManager)
         startBleAdvertising()
     }
 
     fun stopAdvertising() {
+        shouldAutoRestart = false
         try {
             advertiser?.stopAdvertising(advertiseCallback)
             gattServer?.close()
         } catch (_: SecurityException) {}
         isAdvertising = false
         isConnected = false
-        connectedDevice = null
+        subscribedDevice = null
         onRequest = null
         onSwitchAccount = null
         incomingBuffer = ByteArray(0)
         outgoingQueue.clear()
+        currentChunks = emptyList()
+        currentChunkIndex = 0
         isSending = false
         Log.d(TAG, "Stopped")
     }
 
     fun sendResponse(id: String, result: Any?, error: BLEError? = null) {
+        if (subscribedDevice == null) {
+            Log.d(TAG, "No subscribed central, dropping response $id")
+            return
+        }
+
         val json = JSONObject().apply {
             put("id", id)
             if (error != null) {
                 put("error", JSONObject().put("code", error.code).put("message", error.message))
             } else {
-                // Convert Kotlin collections to JSON types
                 val jsonResult = when (result) {
                     is List<*> -> JSONArray(result)
                     is Map<*, *> -> JSONObject(result as Map<String, Any?>)
+                    is JSONObject -> result
                     null -> JSONObject.NULL
                     else -> result
                 }
@@ -119,8 +141,9 @@ class BLEPeripheralService private constructor() {
             }
         }
         val data = json.toString().toByteArray() + "\n\n".toByteArray()
+        Log.d(TAG, "Queuing response: id=$id, size=${data.size} bytes")
         outgoingQueue.add(data)
-        if (!isSending) sendNextMessage()
+        if (!isSending) sendNextChunk()
     }
 
     fun updateWalletInfo(walletAddress: String, accountName: String, chainId: Int) {
@@ -215,7 +238,6 @@ class BLEPeripheralService private constructor() {
     // MARK: - Message Handling
 
     private fun handleIncomingData(data: ByteArray) {
-        // Clear stale buffer (30s timeout, matches iOS)
         val now = System.currentTimeMillis()
         if (incomingBuffer.isNotEmpty() && now - lastBufferTime > 30_000) {
             Log.d(TAG, "Buffer timeout — clearing ${incomingBuffer.size} stale bytes")
@@ -243,9 +265,12 @@ class BLEPeripheralService private constructor() {
 
             // Handle chain switch
             if (request.method == "wallet_switchEthereumChain") {
-                @Suppress("UNCHECKED_CAST")
-                val params = request.params.firstOrNull() as? Map<String, Any>
-                val chainIdHex = params?.get("chainId") as? String
+                val raw = request.params.firstOrNull()
+                val chainIdHex: String? = when (raw) {
+                    is JSONObject -> raw.optString("chainId", null)
+                    is Map<*, *> -> (raw as? Map<String, Any>)?.get("chainId") as? String
+                    else -> null
+                }
                 if (chainIdHex != null) {
                     currentChainId = chainIdHex.removePrefix("0x").toIntOrNull(16) ?: currentChainId
                     advChainId = currentChainId
@@ -278,27 +303,54 @@ class BLEPeripheralService private constructor() {
         return (0 until arr.length()).map { arr.opt(it) }
     }
 
-    private fun sendNextMessage() {
-        val device = connectedDevice ?: run { outgoingQueue.clear(); isSending = false; return }
+    // MARK: - Chunked Sending (matches iOS flow control pattern)
+    //
+    // iOS uses peripheralManager.updateValue() which returns false when the
+    // transmit queue is full, then resumes via peripheralManagerIsReady callback.
+    //
+    // Android equivalent: send one chunk via notifyCharacteristicChanged(),
+    // then WAIT for onNotificationSent() callback before sending the next chunk.
+
+    private fun sendNextChunk() {
+        val device = subscribedDevice ?: run { outgoingQueue.clear(); isSending = false; return }
         val char = responseChar ?: run { isSending = false; return }
 
-        if (outgoingQueue.isEmpty()) { isSending = false; return }
-        isSending = true
-
-        val fullData = outgoingQueue.removeFirst()
-        // Use negotiated MTU minus 3 bytes ATT header, or conservative default
-        val mtu = (negotiatedMtu - 3).coerceIn(20, 512)
-        val chunks = fullData.toList().chunked(mtu).map { it.toByteArray() }
-
-        for (chunk in chunks) {
-            char.value = chunk
-            try {
-                gattServer?.notifyCharacteristicChanged(device, char, false)
-            } catch (_: SecurityException) {}
+        // Need to prepare chunks from next message?
+        if (currentChunkIndex >= currentChunks.size) {
+            if (outgoingQueue.isEmpty()) {
+                isSending = false
+                return
+            }
+            val fullData = outgoingQueue.removeFirst()
+            val mtu = (negotiatedMtu - 3).coerceIn(20, 512)
+            currentChunks = fullData.toList().chunked(mtu).map { it.toByteArray() }
+            currentChunkIndex = 0
+            isSending = true
+            Log.d(TAG, "Sending message: ${fullData.size} bytes, ${currentChunks.size} chunks (mtu=$mtu)")
         }
 
-        // Continue with next message
-        sendNextMessage()
+        // Send one chunk, then wait for onNotificationSent
+        if (currentChunkIndex < currentChunks.size) {
+            val chunk = currentChunks[currentChunkIndex]
+            char.value = chunk
+            try {
+                val sent = gattServer?.notifyCharacteristicChanged(device, char, false) ?: false
+                if (sent) {
+                    currentChunkIndex++
+                    // onNotificationSent callback will call sendNextChunk() for the next chunk
+                } else {
+                    // BLE buffer full — retry after a short delay
+                    Log.d(TAG, "BLE buffer full, retrying chunk $currentChunkIndex")
+                    mainHandler.postDelayed({ sendNextChunk() }, 10)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "BLE notify failed: ${e.message}")
+                outgoingQueue.clear()
+                currentChunks = emptyList()
+                currentChunkIndex = 0
+                isSending = false
+            }
+        }
     }
 
     // MARK: - Callbacks
@@ -321,13 +373,40 @@ class BLEPeripheralService private constructor() {
 
         override fun onConnectionStateChange(device: BluetoothDevice?, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                connectedDevice = device
-                isConnected = true
-                Log.d(TAG, "Central connected")
+                Log.d(TAG, "Central connected (waiting for subscription)")
+                // Don't set isConnected here — wait for CCCD subscription (matches iOS)
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                connectedDevice = null
+                subscribedDevice = null
                 isConnected = false
                 Log.d(TAG, "Central disconnected")
+
+                // Auto re-advertise so central can reconnect (matches iOS)
+                if (shouldAutoRestart) {
+                    Log.d(TAG, "Auto re-advertising for reconnection...")
+                    mainHandler.postDelayed({
+                        if (shouldAutoRestart && !isConnected) {
+                            val ctx = appContext ?: return@postDelayed
+                            val btManager = bluetoothManager ?: return@postDelayed
+                            setupGattServer(ctx, btManager)
+                            startBleAdvertising()
+                        }
+                    }, 1000)
+                }
+            }
+        }
+
+        // Flow control: called when a notification chunk has been sent.
+        // This is the Android equivalent of iOS peripheralManagerIsReady(toUpdateSubscribers:).
+        override fun onNotificationSent(device: BluetoothDevice?, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                // Previous chunk sent — send next one
+                sendNextChunk()
+            } else {
+                Log.e(TAG, "Notification failed with status $status")
+                outgoingQueue.clear()
+                currentChunks = emptyList()
+                currentChunkIndex = 0
+                isSending = false
             }
         }
 
@@ -367,11 +446,11 @@ class BLEPeripheralService private constructor() {
                 try { gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null) }
                 catch (_: SecurityException) {}
             }
-            // CCCD write = subscription
+            // CCCD write = subscription — NOW we're connected (matches iOS subscribedCentral)
             if (descriptor?.characteristic?.uuid == RESPONSE_CHAR_UUID) {
-                connectedDevice = device
+                subscribedDevice = device
                 isConnected = true
-                Log.d(TAG, "Central subscribed to response")
+                Log.d(TAG, "Central subscribed to response — connected")
             }
         }
     }

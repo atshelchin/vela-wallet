@@ -2,6 +2,7 @@ package app.getvela.wallet.ui.wallet
 
 import android.Manifest
 import android.app.Activity
+import android.util.Log
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -136,11 +137,14 @@ fun ConnectScreen(
                             val result = handleRequest(context as Activity, req, wallet, ble.currentChainId)
                             ble.sendResponse(req.id, result)
                             pendingRequest = null
-                        } catch (e: Exception) {
-                            signError = e.message
-                            ble.sendResponse(req.id, null, BLEError(4001, e.message ?: "Failed"))
+                        } catch (e: Throwable) {
+                            Log.e("VelaConnect", "Signing failed", e)
+                            signError = e.message ?: "Unknown error"
+                            try { ble.sendResponse(req.id, null, BLEError(4001, e.message ?: "Failed")) }
+                            catch (_: Throwable) {}
+                        } finally {
+                            isSigning = false
                         }
-                        isSigning = false
                     }
                 },
                 onReject = {

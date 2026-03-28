@@ -6,6 +6,6 @@ export default defineConfig({
   manifest: {
     name: 'Vela Connect',
     description: 'Connect your Vela Wallet to dApps via Bluetooth',
-    permissions: ['bluetooth', 'storage', 'sidePanel'],
+    permissions: ['bluetooth', 'storage', 'sidePanel', 'tabs'],
   },
 });

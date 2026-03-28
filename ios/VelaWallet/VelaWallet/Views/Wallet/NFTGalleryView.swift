@@ -105,7 +105,7 @@ struct NFTGalleryView: View {
                 NFTSendView(nft: nft)
             }
             .sheet(isPresented: $showAddCollection) {
-                AddTokenView() // Reuse existing add token view for now
+                AddTokenView(isNFT: true)
             }
         }
     }

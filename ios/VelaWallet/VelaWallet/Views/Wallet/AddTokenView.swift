@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AddTokenView: View {
     @Environment(\.dismiss) private var dismiss
+    var isNFT: Bool = false
 
     @State private var contractAddress = ""
     @State private var selectedNetwork: Network = .ethereum
@@ -18,7 +19,7 @@ struct AddTokenView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            VelaNavBar(title: "token.add_title", onBack: { dismiss() })
+            VelaNavBar(title: isNFT ? "nft.add_collection" : "token.add_title", onBack: { dismiss() })
 
             ScrollView {
                 VStack(spacing: 20) {

@@ -167,8 +167,6 @@ struct SettingsView: View {
 
 struct LanguagePickerView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var showRestartAlert = false
-    @State private var selectedLanguage: AppLanguage?
     private var lang: LanguageManager { .shared }
 
     var body: some View {
@@ -188,8 +186,8 @@ struct LanguagePickerView: View {
                 ForEach(AppLanguage.allCases) { language in
                     Button {
                         if language != lang.current {
-                            selectedLanguage = language
-                            showRestartAlert = true
+                            lang.setLanguage(language)
+                            exit(0)
                         }
                     } label: {
                         HStack(spacing: 14) {
@@ -227,24 +225,6 @@ struct LanguagePickerView: View {
             Spacer()
         }
         .background(VelaColor.bg)
-        .alert("settings.language_restart_title", isPresented: $showRestartAlert) {
-            Button(String(localized: "settings.language_restart_now"), role: .destructive) {
-                if let language = selectedLanguage {
-                    lang.setLanguage(language)
-                    // Force quit to apply language change
-                    exit(0)
-                }
-            }
-            Button(String(localized: "settings.language_restart_later")) {
-                if let language = selectedLanguage {
-                    lang.setLanguage(language)
-                }
-                dismiss()
-            }
-            Button(String(localized: "confirm.cancel"), role: .cancel) {}
-        } message: {
-            Text("settings.language_restart_message")
-        }
     }
 }
 

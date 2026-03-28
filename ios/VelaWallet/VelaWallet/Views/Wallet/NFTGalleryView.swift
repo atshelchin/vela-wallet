@@ -408,6 +408,7 @@ struct NFTSendView: View {
     @State private var isSending = false
     @State private var errorMessage: String?
     @State private var txHash: String?
+    @State private var showScanner = false
 
     var body: some View {
         if let hash = txHash {
@@ -451,9 +452,19 @@ struct NFTSendView: View {
 
                         // To address
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("send.to")
-                                .font(.system(size: 12, weight: .semibold)).tracking(1)
-                                .foregroundStyle(VelaColor.textTertiary).padding(.leading, 4)
+                            HStack {
+                                Text("send.to")
+                                    .font(.system(size: 12, weight: .semibold)).tracking(1)
+                                    .foregroundStyle(VelaColor.textTertiary).padding(.leading, 4)
+                                Spacer()
+                                Button { showScanner = true } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "qrcode.viewfinder").font(.system(size: 14))
+                                        Text("send.scan").font(.system(size: 12, weight: .semibold))
+                                    }
+                                    .foregroundStyle(VelaColor.accent)
+                                }
+                            }
                             TextField(String(localized: "send.to_placeholder"), text: $toAddress)
                                 .font(VelaFont.mono(14))
                                 .autocorrectionDisabled().textInputAutocapitalization(.never)
@@ -483,6 +494,29 @@ struct NFTSendView: View {
                 .padding(.horizontal, 28).padding(.bottom, 24)
             }
             .background(VelaColor.bg)
+            .fullScreenCover(isPresented: $showScanner) {
+                ZStack(alignment: .topLeading) {
+                    QRScannerView(onScanned: { value in
+                        if value.hasPrefix("ethereum:") {
+                            toAddress = String(value.dropFirst("ethereum:".count).prefix(42))
+                        } else {
+                            toAddress = value
+                        }
+                        showScanner = false
+                    })
+                    .ignoresSafeArea()
+
+                    Button { showScanner = false } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+                    .padding(.top, 60).padding(.leading, 20)
+                }
+            }
         }
     }
 

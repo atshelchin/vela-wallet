@@ -3,6 +3,7 @@ package app.getvela.wallet.ui.wallet
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,10 +50,27 @@ fun NFTSendScreen(
     var isSending by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var txHash by remember { mutableStateOf<String?>(null) }
+    var showScanner by remember { mutableStateOf(false) }
     val activity = LocalContext.current as Activity
     val scope = rememberCoroutineScope()
 
-    BackHandler { if (txHash == null) onBack() }
+    BackHandler {
+        when {
+            showScanner -> showScanner = false
+            txHash == null -> onBack()
+        }
+    }
+
+    if (showScanner) {
+        app.getvela.wallet.ui.components.QRScannerScreen(
+            onScanned = { value ->
+                toAddress = if (value.startsWith("ethereum:")) value.removePrefix("ethereum:").take(42) else value
+                showScanner = false
+            },
+            onClose = { showScanner = false },
+        )
+        return
+    }
 
     if (txHash != null) {
         // Success
@@ -116,8 +135,19 @@ fun NFTSendScreen(
             Spacer(Modifier.height(24.dp))
 
             // To address
-            Text(stringResource(R.string.send_to), style = VelaTypography.caption().copy(letterSpacing = 1.sp), color = VelaColor.textTertiary,
-                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.send_to), style = VelaTypography.caption().copy(letterSpacing = 1.sp), color = VelaColor.textTertiary,
+                    modifier = Modifier.padding(start = 4.dp))
+                Spacer(Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { showScanner = true }.padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(Icons.Default.QrCodeScanner, null, Modifier.size(14.dp), tint = VelaColor.accent)
+                    Text(stringResource(R.string.send_scan), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = VelaColor.accent)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = toAddress,
                 onValueChange = { toAddress = it },

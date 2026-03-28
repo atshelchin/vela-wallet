@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,8 +45,17 @@ fun AddTokenScreen(onBack: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var tokenFetched by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showScanner by remember { mutableStateOf(false) }
     var showNetworkPicker by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    if (showScanner) {
+        app.getvela.wallet.ui.components.QRScannerScreen(
+            onScanned = { value -> contractAddress = value; showScanner = false },
+            onClose = { showScanner = false },
+        )
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -113,12 +123,18 @@ fun AddTokenScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(20.dp))
 
             // Contract address
-            Text(
-                stringResource(R.string.add_token_contract),
-                style = VelaTypography.caption().copy(letterSpacing = 1.sp),
-                color = VelaColor.textTertiary,
-                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.add_token_contract), style = VelaTypography.caption().copy(letterSpacing = 1.sp), color = VelaColor.textTertiary, modifier = Modifier.padding(start = 4.dp))
+                Spacer(Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { showScanner = true }.padding(horizontal = 4.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(Icons.Default.QrCodeScanner, null, Modifier.size(14.dp), tint = VelaColor.accent)
+                    Text(stringResource(R.string.send_scan), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = VelaColor.accent)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
                     value = contractAddress,

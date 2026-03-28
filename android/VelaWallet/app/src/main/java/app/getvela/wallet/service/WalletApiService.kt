@@ -4,6 +4,8 @@ import android.util.Log
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -14,10 +16,10 @@ private val json = Json { ignoreUnknownKeys = true }
 
 class WalletApiService {
 
-    suspend fun fetchTokens(address: String): List<ApiToken> {
+    suspend fun fetchTokens(address: String): List<ApiToken> = withContext(Dispatchers.IO) {
         val url = "$BASE_URL/wallet?address=$address"
-        val data = httpGet(url) ?: return emptyList()
-        return try {
+        val data = httpGet(url) ?: return@withContext emptyList()
+        try {
             val response = json.decodeFromString<WalletResponse>(data)
             val filtered = response.tokens.filter { !it.spam }
             Log.d(TAG, "/wallet: ${filtered.size} tokens, total $${String.format("%.2f", filtered.sumOf { it.usdValue })}")
@@ -28,10 +30,10 @@ class WalletApiService {
         }
     }
 
-    suspend fun fetchNFTs(address: String): List<ApiNft> {
+    suspend fun fetchNFTs(address: String): List<ApiNft> = withContext(Dispatchers.IO) {
         val url = "$BASE_URL/nft?address=$address"
-        val data = httpGet(url) ?: return emptyList()
-        return try {
+        val data = httpGet(url) ?: return@withContext emptyList()
+        try {
             val response = json.decodeFromString<NftResponse>(data)
             Log.d(TAG, "/nft: ${response.nfts.size} NFTs")
             response.nfts
@@ -41,10 +43,10 @@ class WalletApiService {
         }
     }
 
-    suspend fun fetchExchangeRate(currency: String = "CNY"): Double {
+    suspend fun fetchExchangeRate(currency: String = "CNY"): Double = withContext(Dispatchers.IO) {
         val url = "$BASE_URL/exchange-rate?currency=$currency"
-        val data = httpGet(url) ?: return 0.0
-        return try {
+        val data = httpGet(url) ?: return@withContext 0.0
+        try {
             json.decodeFromString<ExchangeRateResponse>(data).rate
         } catch (e: Exception) {
             0.0

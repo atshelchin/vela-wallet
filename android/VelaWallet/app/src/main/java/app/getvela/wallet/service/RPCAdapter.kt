@@ -34,7 +34,11 @@ object RPCAdapter {
         // 3. Public RPC fallback
         val publicUrl = Network.defaults.find { it.chainId == chainId }?.rpcURL
         if (publicUrl != null) {
-            return directRPC(publicUrl, method, params)
+            try {
+                return directRPC(publicUrl, method, params)
+            } catch (e: Exception) {
+                Log.d(TAG, "Public RPC failed for $method: ${e.message}")
+            }
         }
 
         throw RPCException("All RPC endpoints failed for $method on chain $chainId")

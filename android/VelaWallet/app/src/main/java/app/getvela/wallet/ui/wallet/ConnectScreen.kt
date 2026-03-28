@@ -488,8 +488,12 @@ private suspend fun handleRequest(
         }
         "personal_sign" -> {
             val message = request.params.firstOrNull() as? String ?: throw Exception("No message")
-            // Sign with passkey
-            val messageBytes = EthCrypto.hexToBytes(message.removePrefix("0x"))
+            // Decode message: hex-encoded (0x...) or plain text
+            val messageBytes = if (message.startsWith("0x") && message.length > 2 && message.drop(2).all { it in "0123456789abcdefABCDEF" }) {
+                EthCrypto.hexToBytes(message.removePrefix("0x"))
+            } else {
+                message.toByteArray()
+            }
             val prefix = "\u0019Ethereum Signed Message:\n${messageBytes.size}".toByteArray()
             val hash = EthCrypto.keccak256(prefix + messageBytes)
 

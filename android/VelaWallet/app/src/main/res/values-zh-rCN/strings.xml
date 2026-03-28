@@ -84,15 +84,15 @@
 
     <!-- Connect / dApps -->
     <string name="connect_header">应用</string>
-    <string name="connect_heading">连接 dApp</string>
-    <string name="connect_idle_desc">与 Vela Connect Chrome 扩展配对，从浏览器签署交易。</string>
-    <string name="connect_step1">在 Chrome 中安装 Vela Connect 扩展</string>
-    <string name="connect_step2">打开 dApp 并点击 Vela Connect 图标</string>
-    <string name="connect_step3">点击下方「配对」通过蓝牙连接</string>
-    <string name="connect_pair_button">与 Chrome 配对</string>
+    <string name="connect_heading">连接浏览器</string>
+    <string name="connect_idle_desc">通过蓝牙将钱包连接到 Vela Connect Chrome 插件。</string>
+    <string name="connect_step1">打开 Chrome 并点击 Vela Connect 插件</string>
+    <string name="connect_step2">在插件弹窗中点击「配对手机」</string>
+    <string name="connect_step3">点击下方按钮开始配对</string>
+    <string name="connect_pair_button">开始蓝牙配对</string>
     <string name="connect_status_connected">已连接</string>
     <string name="connect_connected_title">已连接</string>
-    <string name="connect_connected_desc">来自 dApp 的请求将显示在此处等待你的批准。</string>
+    <string name="connect_connected_desc">Vela Connect 已激活。来自 dApp 的交易请求将在此显示等待签名。</string>
     <string name="connect_approve_button">确认</string>
     <string name="connect_stop">停止</string>
     <string name="connect_waiting">等待 Chrome 连接…</string>

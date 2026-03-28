@@ -93,8 +93,7 @@ struct VelaConnectView: View {
                     Circle().stroke(VelaColor.blue.opacity(0.06), lineWidth: 1).frame(width: 160, height: 160)
                     Circle().stroke(VelaColor.blue.opacity(0.12), lineWidth: 1.5).frame(width: 128, height: 128)
                     Circle().fill(VelaColor.blueSoft).frame(width: 100, height: 100)
-                    Image(systemName: "personalhotspot")
-                        .font(.system(size: 32)).foregroundStyle(VelaColor.blue)
+                    BluetoothIcon(size: 32, color: VelaColor.blue)
                 }
                 VStack(spacing: 10) {
                     Text("connect.heading")
@@ -557,6 +556,38 @@ private struct StepRow: View {
         .background(VelaColor.bgCard)
         .clipShape(RoundedRectangle(cornerRadius: VelaRadius.card))
         .overlay(RoundedRectangle(cornerRadius: VelaRadius.card).stroke(VelaColor.border, lineWidth: 1))
+    }
+}
+
+/// Draws the Bluetooth ᛒ symbol using Canvas paths.
+private struct BluetoothIcon: View {
+    var size: CGFloat = 32
+    var color: Color = VelaColor.blue
+
+    var body: some View {
+        Canvas { context, canvasSize in
+            let w = canvasSize.width
+            let h = canvasSize.height
+            let cx = w / 2
+            let lineWidth: CGFloat = size * 0.08
+
+            // Bluetooth symbol: vertical line + two arrow chevrons
+            var path = Path()
+            // Vertical line
+            path.move(to: CGPoint(x: cx, y: h * 0.1))
+            path.addLine(to: CGPoint(x: cx, y: h * 0.9))
+            // Top-right arrow
+            path.move(to: CGPoint(x: w * 0.25, y: h * 0.3))
+            path.addLine(to: CGPoint(x: w * 0.7, y: h * 0.5))
+            path.addLine(to: CGPoint(x: cx, y: h * 0.1))
+            // Bottom-right arrow
+            path.move(to: CGPoint(x: w * 0.25, y: h * 0.7))
+            path.addLine(to: CGPoint(x: w * 0.7, y: h * 0.5))
+            path.addLine(to: CGPoint(x: cx, y: h * 0.9))
+
+            context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: size, height: size)
     }
 }
 

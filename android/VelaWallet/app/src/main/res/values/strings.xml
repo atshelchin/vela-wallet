@@ -84,15 +84,15 @@
 
     <!-- Connect / dApps -->
     <string name="connect_header">dApps</string>
-    <string name="connect_heading">Connect to dApps</string>
-    <string name="connect_idle_desc">Pair with the Vela Connect Chrome extension to sign transactions from your browser.</string>
-    <string name="connect_step1">Install the Vela Connect extension in Chrome</string>
-    <string name="connect_step2">Open a dApp and click the Vela Connect icon</string>
-    <string name="connect_step3">Tap "Pair" below to connect via Bluetooth</string>
-    <string name="connect_pair_button">Pair with Chrome</string>
+    <string name="connect_heading">Connect to Browser</string>
+    <string name="connect_idle_desc">Link your wallet to the Vela Connect Chrome extension via Bluetooth.</string>
+    <string name="connect_step1">Open Chrome and click the Vela Connect extension</string>
+    <string name="connect_step2">Click "Pair with phone" in the extension popup</string>
+    <string name="connect_step3">Tap the button below to start pairing</string>
+    <string name="connect_pair_button">Start Bluetooth Pairing</string>
     <string name="connect_status_connected">Connected</string>
     <string name="connect_connected_title">Connected</string>
-    <string name="connect_connected_desc">Requests from dApps will appear here for your approval.</string>
+    <string name="connect_connected_desc">Vela Connect is active. Transaction requests from dApps will appear here for signing.</string>
     <string name="connect_approve_button">Confirm</string>
     <string name="connect_stop">Stop</string>
     <string name="connect_waiting">Waiting for Chrome…</string>

@@ -17,6 +17,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
 import app.getvela.wallet.model.Account
 import app.getvela.wallet.model.WalletState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
 import app.getvela.wallet.service.*
 import app.getvela.wallet.service.ApiNft
 import app.getvela.wallet.ui.onboarding.CreateWalletScreen
@@ -238,7 +241,8 @@ private fun MainTabs(wallet: WalletState) {
                     )
                 }
             },
-        ) { _ ->
+        ) { innerPadding ->
+            Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
                 0 -> HomeScreen(
                     wallet = wallet,
@@ -259,6 +263,7 @@ private fun MainTabs(wallet: WalletState) {
                     onAccountSwitcher = { showAccountSwitcher = true },
                     onNetworkEditor = { showNetworkEditor = true },
                 )
+            }
             }
         }
     }

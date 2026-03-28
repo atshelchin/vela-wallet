@@ -17,9 +17,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
 import app.getvela.wallet.model.Account
 import app.getvela.wallet.model.WalletState
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.getvela.wallet.service.*
 import app.getvela.wallet.service.ApiNft
 import app.getvela.wallet.ui.onboarding.CreateWalletScreen
@@ -217,29 +225,10 @@ private fun MainTabs(wallet: WalletState) {
         }
         else -> Scaffold(
             bottomBar = {
-                NavigationBar(containerColor = VelaColor.bgCard) {
-                    NavigationBarItem(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.GridView, contentDescription = null) },
-                        label = { Text(stringResource(R.string.tab_wallet)) },
-                        colors = navBarItemColors(),
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.Default.Language, contentDescription = null) },
-                        label = { Text(stringResource(R.string.tab_dapps)) },
-                        colors = navBarItemColors(),
-                    )
-                    NavigationBarItem(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        label = { Text(stringResource(R.string.tab_settings)) },
-                        colors = navBarItemColors(),
-                    )
-                }
+                VelaTabBar(
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                )
             },
         ) { innerPadding ->
             Box(modifier = Modifier.padding(innerPadding)) {
@@ -270,10 +259,46 @@ private fun MainTabs(wallet: WalletState) {
 }
 
 @Composable
-private fun navBarItemColors() = NavigationBarItemDefaults.colors(
-    selectedIconColor = VelaColor.accent,
-    selectedTextColor = VelaColor.accent,
-    indicatorColor = VelaColor.accentSoft,
-    unselectedIconColor = VelaColor.textTertiary,
-    unselectedTextColor = VelaColor.textTertiary,
-)
+private fun VelaTabBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
+    val tabs = listOf(
+        Triple(Icons.Default.GridView, R.string.tab_wallet, 0),
+        Triple(Icons.Default.Language, R.string.tab_dapps, 1),
+        Triple(Icons.Default.Settings, R.string.tab_settings, 2),
+    )
+
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(VelaColor.bgCard)
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .navigationBarsPadding(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        tabs.forEach { (icon, labelRes, index) ->
+            val selected = selectedTab == index
+            androidx.compose.foundation.layout.Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                    .background(if (selected) VelaColor.accentSoft else Color.Transparent)
+                    .clickable { onTabSelected(index) }
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = if (selected) VelaColor.accent else VelaColor.textTertiary,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = stringResource(labelRes),
+                    fontSize = 11.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (selected) VelaColor.accent else VelaColor.textTertiary,
+                )
+            }
+        }
+    }
+}

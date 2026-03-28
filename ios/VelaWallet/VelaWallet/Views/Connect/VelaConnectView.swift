@@ -120,6 +120,7 @@ struct VelaConnectView: View {
                     Image("bluetooth")
                         .renderingMode(.template)
                         .resizable().scaledToFit()
+                        .frame(width: 16, height: 16)
                     Text("connect.pair_button")
                 }
             }
@@ -140,8 +141,8 @@ struct VelaConnectView: View {
                     Image("bluetooth")
                         .renderingMode(.template)
                         .resizable().scaledToFit()
-                        .font(.system(size: 28)).foregroundStyle(VelaColor.blue)
-                        .symbolEffect(.pulse, options: .repeating)
+                        .frame(width: 28, height: 28)
+                        .foregroundStyle(VelaColor.blue)
                 }
                 VStack(spacing: 8) {
                     Text("connect.waiting")

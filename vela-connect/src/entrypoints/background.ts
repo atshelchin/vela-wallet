@@ -160,10 +160,14 @@ async function handleProviderRequest(
       sendResponse({ result: [walletInfo.address] });
     } else {
       // Not connected yet — open pairing tab and wait for connection
-      const pairingUrl = chrome.runtime.getURL('/pairing.html');
-      chrome.tabs.query({ url: pairingUrl }, (tabs) => {
-        if (tabs.length === 0) chrome.tabs.create({ url: pairingUrl, active: true });
-      });
+      if (!openingPairingTab) {
+        openingPairingTab = true;
+        const pairingUrl = chrome.runtime.getURL('/pairing.html');
+        chrome.tabs.query({ url: pairingUrl }, (tabs) => {
+          if (tabs.length === 0) chrome.tabs.create({ url: pairingUrl, active: true });
+          openingPairingTab = false;
+        });
+      }
       // Wait for wallet to connect (poll for up to 60s)
       let waited = 0;
       const interval = setInterval(() => {
@@ -390,6 +394,9 @@ async function handlePopupAction(
   switch (msg.action) {
     case 'startScan': {
       // Open pairing tab — Web Bluetooth only works in tab context
+      // Guard against rapid clicks creating duplicate tabs
+      if (openingPairingTab) { sendResponse({ ok: true }); break; }
+      openingPairingTab = true;
       const pairingUrl = chrome.runtime.getURL('/pairing.html');
       chrome.tabs.query({ url: pairingUrl }, (tabs) => {
         if (tabs.length > 0 && tabs[0].id) {
@@ -397,6 +404,7 @@ async function handlePopupAction(
         } else {
           chrome.tabs.create({ url: pairingUrl, active: true });
         }
+        openingPairingTab = false;
       });
       sendResponse({ ok: true });
       break;
@@ -468,6 +476,7 @@ function getPopupState(): PopupState {
 }
 
 let lastBroadcastAddress: string | undefined;
+let openingPairingTab = false;
 
 function broadcastState() {
   const state = getPopupState();

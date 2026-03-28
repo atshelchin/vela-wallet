@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 @Composable
 fun ConnectScreen(
@@ -420,8 +421,13 @@ private fun ColumnScope.RequestView(
 
             // Transaction details for eth_sendTransaction
             if (request.method == "eth_sendTransaction") {
+                val rawTx = request.params.firstOrNull()
                 @Suppress("UNCHECKED_CAST")
-                val txDict = request.params.firstOrNull() as? Map<String, Any>
+                val txDict: Map<String, Any>? = when (rawTx) {
+                    is JSONObject -> rawTx.keys().asSequence().associateWith { rawTx.get(it) }
+                    is Map<*, *> -> rawTx as? Map<String, Any>
+                    else -> null
+                }
                 if (txDict != null) {
                     val toAddr = txDict["to"] as? String ?: "Unknown"
                     val valueHex = txDict["value"] as? String ?: "0x0"
@@ -496,8 +502,14 @@ private suspend fun handleRequest(activity: Activity, request: BLEIncomingReques
         "eth_chainId" -> "0x${chainId.toString(16)}"
 
         "eth_sendTransaction" -> {
+            val rawParam = request.params.firstOrNull() ?: throw Exception("Invalid params")
+            // BLE parseJsonArray returns JSONObject, not Map — convert it
             @Suppress("UNCHECKED_CAST")
-            val params = request.params.firstOrNull() as? Map<String, Any> ?: throw Exception("Invalid params")
+            val params: Map<String, Any> = when (rawParam) {
+                is JSONObject -> rawParam.keys().asSequence().associateWith { rawParam.get(it) }
+                is Map<*, *> -> rawParam as Map<String, Any>
+                else -> throw Exception("Invalid params")
+            }
             val to = params["to"] as? String ?: throw Exception("Missing 'to'")
             val valueHex = params["value"] as? String ?: "0x0"
             val dataHex = params["data"] as? String ?: "0x"

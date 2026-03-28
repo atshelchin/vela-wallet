@@ -210,17 +210,20 @@ private fun getCurrentLanguageDisplayName(): String {
 
 private fun setAppLanguage(context: Context, langCode: String) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        // Android 13+: system handles Activity recreation automatically
         val localeManager = context.getSystemService(LocaleManager::class.java)
         val tag = if (langCode == "zh") "zh-Hans" else "en"
         localeManager.applicationLocales = LocaleList.forLanguageTags(tag)
     } else {
-        // For Android 12 (API 31-32), update locale manually
+        // Android 12: update locale and recreate Activity to refresh UI
         val locale = if (langCode == "zh") Locale.SIMPLIFIED_CHINESE else Locale.ENGLISH
         Locale.setDefault(locale)
         val config = context.resources.configuration
         config.setLocale(locale)
         @Suppress("DEPRECATION")
         context.resources.updateConfiguration(config, context.resources.displayMetrics)
+        // Recreate to apply — seamless, no app exit
+        (context as? android.app.Activity)?.recreate()
     }
 }
 

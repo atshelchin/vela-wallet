@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -50,6 +51,7 @@ fun HomeScreen(
     onSendClick: () -> Unit = {},
     onReceiveClick: () -> Unit = {},
     onAddTokenClick: () -> Unit = {},
+    onHistoryClick: () -> Unit = {},
 ) {
     var tokens by remember { mutableStateOf<List<ApiToken>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -184,6 +186,13 @@ fun HomeScreen(
                         title = stringResource(R.string.home_receive),
                         isPrimary = false,
                         onClick = onReceiveClick,
+                        modifier = Modifier.weight(1f),
+                    )
+                    HomeActionButton(
+                        icon = Icons.Default.DateRange,
+                        title = stringResource(R.string.home_history),
+                        isPrimary = false,
+                        onClick = onHistoryClick,
                         modifier = Modifier.weight(1f),
                     )
                 }

@@ -27,6 +27,7 @@
     <!-- Home -->
     <string name="home_send">Send</string>
     <string name="home_receive">Receive</string>
+    <string name="home_history">History</string>
     <string name="home_tokens">TOKENS</string>
     <string name="home_nfts">NFTS</string>
     <string name="home_no_activity">No tokens yet</string>
@@ -131,6 +132,17 @@
     <string name="nft_stat_items">Items</string>
     <string name="nft_empty_title">No NFTs Yet</string>
     <string name="nft_empty_desc">Your NFT collections will appear here. Add a collection or receive NFTs to get started.</string>
+
+    <!-- Transaction History -->
+    <string name="tx_history_title">Transaction History</string>
+    <string name="tx_history_empty">No transactions yet</string>
+    <string name="tx_detail_title">Transaction</string>
+    <string name="tx_detail_status">Status</string>
+    <string name="tx_detail_network">Network</string>
+    <string name="tx_detail_from">From</string>
+    <string name="tx_detail_to">To</string>
+    <string name="tx_detail_hash">Tx Hash</string>
+    <string name="tx_detail_time">Time</string>
 
     <!-- Account Switcher -->
     <string name="accounts_title">Accounts</string>

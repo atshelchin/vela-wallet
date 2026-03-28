@@ -27,6 +27,7 @@
     <!-- Home -->
     <string name="home_send">发送</string>
     <string name="home_receive">收款</string>
+    <string name="home_history">记录</string>
     <string name="home_tokens">代币</string>
     <string name="home_nfts">NFT</string>
     <string name="home_no_activity">暂无代币</string>
@@ -131,6 +132,17 @@
     <string name="nft_stat_items">个</string>
     <string name="nft_empty_title">暂无 NFT</string>
     <string name="nft_empty_desc">你的 NFT 收藏将显示在这里。添加系列或接收 NFT 即可开始。</string>
+
+    <!-- Transaction History -->
+    <string name="tx_history_title">交易记录</string>
+    <string name="tx_history_empty">暂无交易记录</string>
+    <string name="tx_detail_title">交易详情</string>
+    <string name="tx_detail_status">状态</string>
+    <string name="tx_detail_network">网络</string>
+    <string name="tx_detail_from">发送方</string>
+    <string name="tx_detail_to">接收方</string>
+    <string name="tx_detail_hash">交易哈希</string>
+    <string name="tx_detail_time">时间</string>
 
     <!-- Account Switcher -->
     <string name="accounts_title">账户</string>

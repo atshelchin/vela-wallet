@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var showSend = false
     @State private var showReceive = false
     @State private var showAddToken = false
+    @State private var showHistory = false
     @State private var tokens: [APIToken] = []
     @State private var isLoading = false
     @State private var selectedToken: APIToken?
@@ -37,6 +38,9 @@ struct HomeView: View {
             .sheet(isPresented: $showAddToken) {
                 AddTokenView()
                     .onDisappear { Task { await loadData() } }
+            }
+            .sheet(isPresented: $showHistory) {
+                TransactionHistoryView()
             }
             .sheet(item: $selectedToken) { token in
                 TokenDetailView(token: token)
@@ -107,6 +111,9 @@ struct HomeView: View {
             }
             ActionButton(icon: "arrow.down", title: String(localized: "home.receive")) {
                 showReceive = true
+            }
+            ActionButton(icon: "clock.arrow.circlepath", title: String(localized: "home.history")) {
+                showHistory = true
             }
         }
         .padding(.horizontal, VelaSpacing.screenH)

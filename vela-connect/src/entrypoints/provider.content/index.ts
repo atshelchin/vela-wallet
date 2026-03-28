@@ -61,6 +61,7 @@ export default defineContentScript({
                 }
               } else if (method === 'eth_chainId') {
                 provider.chainId = result as string;
+                provider.networkVersion = String(parseInt(result as string, 16));
               }
 
               resolve(result);
@@ -136,10 +137,11 @@ export default defineContentScript({
     });
 
     // ─── Inject as window.ethereum ───
+    // Only inject if no other wallet is present, or replace with ours
     Object.defineProperty(window, 'ethereum', {
       value: provider,
       writable: false,
-      configurable: true,
+      configurable: false,
     });
 
     window.dispatchEvent(new Event('ethereum#initialized'));

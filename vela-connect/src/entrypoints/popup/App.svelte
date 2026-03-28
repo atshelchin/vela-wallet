@@ -111,9 +111,24 @@
           {@const tx = activeRequest.params[0] as Record<string, string>}
           <div class="tx-amount">{tx.value ? (parseInt(tx.value, 16) / 1e18).toFixed(4) + ' ETH' : 'Contract Call'}</div>
         {:else if activeRequest.method === 'personal_sign'}
-          <div style="font-size:13px;color:var(--text-1);line-height:1.5;margin-top:4px;font-family:'Space Grotesk',sans-serif;">
-            {typeof activeRequest.params[0] === 'string' ? activeRequest.params[0].slice(0, 100) : 'Message'}
+          {@const rawMsg = typeof activeRequest.params[0] === 'string' ? activeRequest.params[0] : ''}
+          {@const decodedMsg = rawMsg.startsWith('0x') ? (() => { try { const bytes = []; for (let i = 2; i < rawMsg.length; i += 2) bytes.push(parseInt(rawMsg.slice(i, i+2), 16)); return new TextDecoder().decode(new Uint8Array(bytes)); } catch { return rawMsg; } })() : rawMsg}
+          <div style="font-size:13px;color:var(--text-1);line-height:1.5;margin-top:4px;font-family:'Space Grotesk',sans-serif;max-height:120px;overflow-y:auto;word-break:break-all;">
+            {decodedMsg || 'Message'}
           </div>
+        {:else if activeRequest.method.includes('signTypedData')}
+          {@const typedData = (() => { try { return typeof activeRequest.params[1] === 'string' ? JSON.parse(activeRequest.params[1]) : activeRequest.params[1]; } catch { return null; } })()}
+          {#if typedData?.domain}
+            <div style="font-size:12px;color:var(--text-2);margin-top:4px;">
+              <strong>{typedData.domain.name || 'Unknown dApp'}</strong>
+              {#if typedData.domain.chainId} · Chain {typedData.domain.chainId}{/if}
+            </div>
+          {/if}
+          {#if typedData?.message}
+            <div style="font-size:11px;color:var(--text-2);margin-top:6px;max-height:100px;overflow-y:auto;font-family:monospace;background:var(--bg-2);padding:8px;border-radius:8px;">
+              {JSON.stringify(typedData.message, null, 2)}
+            </div>
+          {/if}
         {:else}
           <div class="tx-amount">{activeRequest.method}</div>
         {/if}
@@ -128,6 +143,22 @@
           <span class="tx-label">To</span>
           <span class="tx-value">{shortAddr(tx.to || '')}</span>
         </div>
+        {#if tx.data && tx.data !== '0x'}
+          <div class="tx-row">
+            <span class="tx-label">Type</span>
+            <span class="tx-value">Contract Call</span>
+          </div>
+          <div class="tx-row">
+            <span class="tx-label">Data</span>
+            <span class="tx-value" style="font-family:monospace;font-size:11px;">{tx.data.slice(0, 10)}...</span>
+          </div>
+        {/if}
+        {#if tx.gas || tx.gasLimit}
+          <div class="tx-row">
+            <span class="tx-label">Gas Limit</span>
+            <span class="tx-value">{parseInt(tx.gas || tx.gasLimit, 16).toLocaleString()}</span>
+          </div>
+        {/if}
       {/if}
     </div>
 

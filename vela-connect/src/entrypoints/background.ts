@@ -197,8 +197,9 @@ async function handleProviderRequest(
     if (chainIdHex) {
       const chainId = parseInt(chainIdHex, 16);
       if (SUPPORTED_CHAINS.includes(chainId)) {
-        // Update local chainId
+        // Update local chainId and persist
         if (walletInfo) walletInfo = { ...walletInfo, chainId };
+        chrome.storage.local.set({ velaChainId: chainId });
         // Notify phone to sync chainId
         sendViaBLE({
           id: `chain_${Date.now()}`,
@@ -314,16 +315,48 @@ async function handleProviderRequest(
   };
   const network = networkMap[chainId] || 'eth-mainnet';
 
+  // Public RPC fallbacks (same as mobile apps)
+  const publicRPCs: Record<number, string> = {
+    1: 'https://eth.llamarpc.com', 56: 'https://bsc-dataseed.binance.org',
+    137: 'https://polygon-rpc.com', 42161: 'https://arb1.arbitrum.io/rpc',
+    10: 'https://mainnet.optimism.io', 8453: 'https://mainnet.base.org',
+    43114: 'https://api.avax.network/ext/bc/C/rpc',
+  };
+
+  async function directRPC(url: string): Promise<unknown> {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: msg.method, params: msg.params }),
+    });
+    const json = await resp.json();
+    if (json.error) throw new Error(json.error.message || 'RPC error');
+    return json.result;
+  }
+
   try {
+    // 1. Try Vela proxy first
     const rpcResponse = await fetch('https://getvela.app/api/bundler', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ method: msg.method, params: msg.params, network }),
     });
     const rpcResult = await rpcResponse.json();
-    sendResponse(rpcResult.error ? { error: rpcResult.error } : { result: rpcResult.result });
-  } catch (e) {
-    sendResponse({ error: { code: -32603, message: (e as Error).message } });
+    if (rpcResult.error) throw new Error(rpcResult.error.message || 'Proxy error');
+    sendResponse({ result: rpcResult.result });
+  } catch (proxyErr) {
+    // 2. Fallback to public RPC
+    const publicUrl = publicRPCs[chainId];
+    if (publicUrl) {
+      try {
+        const result = await directRPC(publicUrl);
+        sendResponse({ result });
+        return;
+      } catch (publicErr) {
+        console.log('[BG] Public RPC also failed:', (publicErr as Error).message);
+      }
+    }
+    sendResponse({ error: { code: -32603, message: (proxyErr as Error).message } });
   }
 }
 

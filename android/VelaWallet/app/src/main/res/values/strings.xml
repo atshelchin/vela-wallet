@@ -123,6 +123,9 @@
     <string name="nft_type">Type</string>
     <string name="nft_token_id">Token ID</string>
     <string name="nft_contract">Contract</string>
+    <string name="nft_send">Send NFT</string>
+    <string name="nft_sent">NFT Sent</string>
+    <string name="nft_add_collection">Add</string>
 
     <!-- Account Switcher -->
     <string name="accounts_title">Accounts</string>

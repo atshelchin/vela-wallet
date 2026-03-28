@@ -170,6 +170,7 @@ private fun MainTabs(wallet: WalletState) {
     var showAccountSwitcher by remember { mutableStateOf(false) }
     var showNetworkEditor by remember { mutableStateOf(false) }
     var sendPreselectedToken by remember { mutableStateOf<ApiToken?>(null) }
+    var nftToSend by remember { mutableStateOf<ApiNft?>(null) }
     var showPendingUploads by remember { mutableStateOf(LocalStorage.shared.hasPendingUploads()) }
 
     // Pending upload overlay (matches iOS PendingUploadOverlay)
@@ -192,9 +193,17 @@ private fun MainTabs(wallet: WalletState) {
             BackHandler { showAddToken = false }
             AddTokenScreen(onBack = { showAddToken = false })
         }
+        nftToSend != null -> {
+            BackHandler { nftToSend = null }
+            NFTSendScreen(nft = nftToSend!!, wallet = wallet, onBack = { nftToSend = null })
+        }
         selectedNft != null -> {
             BackHandler { selectedNft = null }
-            NFTDetailScreen(nft = selectedNft!!, onBack = { selectedNft = null })
+            NFTDetailScreen(
+                nft = selectedNft!!,
+                onBack = { selectedNft = null },
+                onSend = { nft -> selectedNft = null; nftToSend = nft },
+            )
         }
         showSend -> {
             BackHandler { showSend = false; sendPreselectedToken = null }

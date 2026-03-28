@@ -58,6 +58,7 @@ class BLEPeripheralService private constructor() {
     private var advAllAccounts: List<Map<String, String>> = emptyList()
 
     private var incomingBuffer = ByteArray(0)
+    private var lastBufferTime = 0L // timestamp of last buffer append
     private val outgoingQueue = mutableListOf<ByteArray>()
     private var isSending = false
     private var negotiatedMtu = 23 // BLE default, updated via MTU callback
@@ -209,6 +210,13 @@ class BLEPeripheralService private constructor() {
     // MARK: - Message Handling
 
     private fun handleIncomingData(data: ByteArray) {
+        // Clear stale buffer (30s timeout, matches iOS)
+        val now = System.currentTimeMillis()
+        if (incomingBuffer.isNotEmpty() && now - lastBufferTime > 30_000) {
+            Log.d(TAG, "Buffer timeout — clearing ${incomingBuffer.size} stale bytes")
+            incomingBuffer = ByteArray(0)
+        }
+        lastBufferTime = now
         incomingBuffer += data
 
         try {

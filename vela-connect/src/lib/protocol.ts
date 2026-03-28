@@ -10,8 +10,8 @@
 // ─── BLE Service & Characteristics ───
 
 export const BLE = {
-  /** Vela Connect BLE service UUID */
-  SERVICE_UUID: '0000vela-0000-1000-8000-00805f9b34fb'.replace('vela', 'be1a'),
+  /** Vela Connect BLE service UUID (lowercase required by Web Bluetooth API) */
+  SERVICE_UUID: '0000be1a-0000-1000-8000-00805f9b34fb',
 
   /** Extension writes requests to this characteristic */
   REQUEST_UUID: '0001be1a-0000-1000-8000-00805f9b34fb',

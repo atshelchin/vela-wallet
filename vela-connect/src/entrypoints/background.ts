@@ -253,55 +253,56 @@ async function handleProviderRequest(
 
   if (SIGNING_METHODS.includes(msg.method)) {
     console.log('[BG] Forward to phone:', msg.method);
-  if (connectionState !== 'connected') {
-    // If we have wallet info but state is wrong, try anyway
-    if (!walletInfo) {
-      sendResponse({ error: { code: 4900, message: 'Not connected to wallet. Please pair first.' } });
-      return;
+
+    if (connectionState !== 'connected') {
+      // If we have wallet info but state is wrong, try anyway
+      if (!walletInfo) {
+        sendResponse({ error: { code: 4900, message: 'Not connected to wallet. Please pair first.' } });
+        return;
+      }
+      console.log('[BG] State is', connectionState, 'but walletInfo exists, trying anyway');
     }
-    console.log('[BG] State is', connectionState, 'but walletInfo exists, trying anyway');
-  }
 
-  // Clean up stale pending requests (older than 5 minutes)
-  const now = Date.now();
-  for (const [id, req] of pendingRequests) {
-    if (now - req.timestamp > 300_000) {
-      const cb = responseCallbacks.get(id);
-      if (cb) cb({ error: { code: -32603, message: 'Request timed out' } });
-      pendingRequests.delete(id);
-      responseCallbacks.delete(id);
+    // Clean up stale pending requests (older than 5 minutes)
+    const now = Date.now();
+    for (const [id, req] of pendingRequests) {
+      if (now - req.timestamp > 300_000) {
+        const cb = responseCallbacks.get(id);
+        if (cb) cb({ error: { code: -32603, message: 'Request timed out' } });
+        pendingRequests.delete(id);
+        responseCallbacks.delete(id);
+      }
     }
-  }
 
-  // Store pending request
-  const pending: PendingRequest = {
-    id: msg.id,
-    method: msg.method,
-    params: msg.params,
-    origin: msg.origin,
-    favicon: msg.favicon,
-    timestamp: now,
-  };
-  pendingRequests.set(msg.id, pending);
-  responseCallbacks.set(msg.id, sendResponse);
+    // Store pending request
+    const pending: PendingRequest = {
+      id: msg.id,
+      method: msg.method,
+      params: msg.params,
+      origin: msg.origin,
+      favicon: msg.favicon,
+      timestamp: now,
+    };
+    pendingRequests.set(msg.id, pending);
+    responseCallbacks.set(msg.id, sendResponse);
 
-  // Send to phone
-  const bleRequest: BLERequest = {
-    id: msg.id,
-    method: msg.method as BLERequest['method'],
-    params: msg.params,
-    origin: msg.origin,
-    favicon: msg.favicon,
-  };
+    // Send to phone
+    const bleRequest: BLERequest = {
+      id: msg.id,
+      method: msg.method as BLERequest['method'],
+      params: msg.params,
+      origin: msg.origin,
+      favicon: msg.favicon,
+    };
 
-  try {
-    await sendViaBLE(bleRequest);
-    broadcastState();
-  } catch (error) {
-    sendResponse({ error: { code: -32603, message: 'Failed to send to wallet' } });
-    pendingRequests.delete(msg.id);
-    responseCallbacks.delete(msg.id);
-  }
+    try {
+      await sendViaBLE(bleRequest);
+      broadcastState();
+    } catch (error) {
+      sendResponse({ error: { code: -32603, message: 'Failed to send to wallet' } });
+      pendingRequests.delete(msg.id);
+      responseCallbacks.delete(msg.id);
+    }
     return;
   }
 
@@ -458,7 +459,9 @@ function broadcastState() {
           }).then(() => {
             sent++;
             console.log('[BG] accountsChanged sent to tab:', tab.id, tab.url?.slice(0, 40));
-          }).catch(() => {});
+          }).catch((err) => {
+            console.log('[BG] accountsChanged failed for tab:', tab.id, err.message);
+          });
         }
       }
       console.log('[BG] Sent accountsChanged to', tabs.length, 'tabs');

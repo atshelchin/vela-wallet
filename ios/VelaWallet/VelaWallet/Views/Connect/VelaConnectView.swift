@@ -93,7 +93,7 @@ struct VelaConnectView: View {
                     Circle().stroke(VelaColor.blue.opacity(0.06), lineWidth: 1).frame(width: 160, height: 160)
                     Circle().stroke(VelaColor.blue.opacity(0.12), lineWidth: 1.5).frame(width: 128, height: 128)
                     Circle().fill(VelaColor.blueSoft).frame(width: 100, height: 100)
-                    Image(systemName: "wave.3.right")
+                    Image(systemName: "dot.radiowaves.left.and.right")
                         .font(.system(size: 32)).foregroundStyle(VelaColor.blue)
                 }
                 VStack(spacing: 10) {
@@ -114,7 +114,7 @@ struct VelaConnectView: View {
 
             Button { startBLE() } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "wave.3.right")
+                    Image(systemName: "dot.radiowaves.left.and.right")
                     Text("connect.pair_button")
                 }
             }
@@ -132,7 +132,7 @@ struct VelaConnectView: View {
                 ZStack {
                     Circle().stroke(VelaColor.blue.opacity(0.1), lineWidth: 1.5).frame(width: 120, height: 120)
                     Circle().fill(VelaColor.blueSoft).frame(width: 88, height: 88)
-                    Image(systemName: "wave.3.right")
+                    Image(systemName: "dot.radiowaves.left.and.right")
                         .font(.system(size: 28)).foregroundStyle(VelaColor.blue)
                         .symbolEffect(.pulse, options: .repeating)
                 }

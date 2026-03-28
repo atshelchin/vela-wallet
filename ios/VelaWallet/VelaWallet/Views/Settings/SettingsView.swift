@@ -187,7 +187,7 @@ struct LanguagePickerView: View {
                     Button {
                         if language != lang.current {
                             lang.setLanguage(language)
-                            exit(0)
+                            dismiss()
                         }
                     } label: {
                         HStack(spacing: 14) {

@@ -234,18 +234,12 @@ struct NFTGalleryView: View {
     // MARK: - Load Data
 
     private func loadNFTs() async {
-        guard !wallet.address.isEmpty else {
-            // Use mock data for preview
-            nfts = Self.mockNFTs
-            return
-        }
+        guard !wallet.address.isEmpty else { return }
         isLoading = nfts.isEmpty
         do {
-            let fetched = try await WalletAPIService().fetchNFTs(address: wallet.address)
-            nfts = fetched.isEmpty ? Self.mockNFTs : fetched
+            nfts = try await WalletAPIService().fetchNFTs(address: wallet.address)
         } catch {
             debugLog("[NFTGallery] Failed: \(error)")
-            if nfts.isEmpty { nfts = Self.mockNFTs }
         }
         isLoading = false
     }

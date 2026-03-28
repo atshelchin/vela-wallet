@@ -259,7 +259,7 @@ private fun MainTabs(wallet: WalletState) {
                     wallet = wallet,
                     onNftClick = { selectedNft = it },
                     onAddCollection = { showAddNFTCollection = true },
-                    useMockData = true, // TODO: remove when real data is available
+                    useMockData = false,
                 )
                 2 -> ConnectScreen(wallet, onAccountSwitcher = { showAccountSwitcher = true })
                 3 -> SettingsScreen(

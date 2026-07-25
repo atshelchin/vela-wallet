@@ -370,6 +370,17 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
         });
         return;
       }
+      // A pending signing confirmation tied to the previous (global) chain MUST
+      // be cancelled on a chain switch. Per-request extension signs carry their
+      // own __chainId and are self-contained, so they are left intact.
+      const priorPending = incomingRequestRef.current;
+      if (priorPending && priorPending.__chainId == null) {
+        responseTransport(priorPending, transportRef.current)?.sendResponse(
+          priorPending.id, undefined,
+          { code: 4001, message: 'Cancelled: the wallet switched chains' },
+        );
+        setIncomingRequest(null);
+      }
       chainIdRef.current = nc;
       setChainId(nc);
       owner?.sendResponse(id, null);

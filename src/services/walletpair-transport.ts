@@ -536,6 +536,12 @@ export class WalletPairTransport implements DAppTransport {
       }
     });
 
+    this.session.on('peerLeft', () => {
+      // The dApp dropped from the channel; the encrypted session stays valid for a
+      // possible reconnect, so surface it for observability without tearing down.
+      console.log('[WalletPair] peer (dApp) left the channel');
+    });
+
     this.session.on('request', (req: EthereumRequest) => {
       console.log('[WalletPair] request:', req.method, req.id);
       try {

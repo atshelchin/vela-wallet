@@ -670,7 +670,15 @@ async function pickFastestRpcUrl(chainId: number): Promise<string | undefined> {
         });
         if (!res.ok) return;
         const json = await res.json();
-        if (!json?.result) return;
+        // Verify the endpoint actually serves this chain (spec: the endpoint's
+        // eth_chainId MUST match the selected chain). A fast endpoint on the WRONG
+        // chain must never be handed to the bundler as chain `chainId`.
+        const reported = typeof json?.result === 'string' ? parseInt(json.result, 16) : NaN;
+        if (!Number.isFinite(reported)) return;
+        if (reported !== chainId) {
+          console.warn(`[RPC] ${shorten(ep.url)} reports chain ${reported}, expected ${chainId} — excluded`);
+          return;
+        }
         results.push({ url: ep.url, ms: Date.now() - t0 });
       } catch { /* timeout or network error — skip */ } finally {
         clearTimeout(timer);

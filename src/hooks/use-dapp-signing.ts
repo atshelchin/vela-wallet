@@ -118,10 +118,21 @@ export function assertChainSupported(chainId: number): void {
  * Extract an embedded chain ID from a dApp request's params, if present.
  * Returns undefined when the request carries no chain hint.
  */
+/**
+ * Pick the typed-data param by method, per the MetaMask ecosystem order the
+ * WalletPair spec pins: unsuffixed / `_v1` = [typedData, address]; `_v3` / `_v4`
+ * = [address, typedData].
+ */
+export function pickTypedDataParam(method: string, params: any[]): unknown {
+  return method === 'eth_signTypedData' || method === 'eth_signTypedData_v1'
+    ? params[0]
+    : params[1] ?? params[0];
+}
+
 export function extractRequestChainId(method: string, params: any[]): number | undefined {
   try {
     if (method.includes('signTypedData')) {
-      const raw = params[1] ?? params[0];
+      const raw = pickTypedDataParam(method, params);
       const typed = typeof raw === 'string' ? JSON.parse(raw) : raw;
       const cid = typed?.domain?.chainId;
       if (cid != null) {
@@ -205,7 +216,7 @@ export async function handleSignTypedData(
   safeAddress: string,
   chainId: number,
 ): Promise<string> {
-  const typedDataRaw = request.params[1] ?? request.params[0];
+  const typedDataRaw = pickTypedDataParam(request.method, request.params);
   const typedData: TypedData = typeof typedDataRaw === 'string'
     ? JSON.parse(typedDataRaw)
     : typedDataRaw;
@@ -487,6 +498,24 @@ export const INSTANT_READONLY_METHODS = new Set([
 ]);
 
 /**
+ * Read methods that MAY be forwarded to a public RPC endpoint — an explicit
+ * allowlist (the base read-only set of the WalletPair Ethereum protocol). The
+ * spec forbids inferring safety from "not a signing method" or an `eth_` prefix,
+ * so an unknown method is never blindly forwarded.
+ */
+export const FORWARDABLE_READ_METHODS = new Set([
+  'web3_clientVersion', 'eth_syncing', 'eth_blockNumber',
+  'eth_call', 'eth_estimateGas', 'eth_createAccessList', 'eth_feeHistory',
+  'eth_gasPrice', 'eth_maxPriorityFeePerGas',
+  'eth_getBalance', 'eth_getCode', 'eth_getStorageAt', 'eth_getProof',
+  'eth_getTransactionCount', 'eth_getBlockByHash', 'eth_getBlockByNumber',
+  'eth_getBlockTransactionCountByHash', 'eth_getBlockTransactionCountByNumber',
+  'eth_getTransactionByHash', 'eth_getTransactionByBlockHashAndIndex',
+  'eth_getTransactionByBlockNumberAndIndex', 'eth_getTransactionReceipt',
+  'eth_getLogs',
+]);
+
+/**
  * Cache of the wallet's own deployed Safe code, keyed by `${chainId}|${address}`.
  * A deployed Safe's code is immutable, so once observed we answer eth_getCode for
  * our own address without re-querying the RPC (defense-in-depth for older SDKs that
@@ -631,8 +660,10 @@ export async function handleReadOnlyRPC(
       }
     }
     default:
-      // Try forwarding as RPC query
-      if (!isSigningMethod(method)) {
+      // Forward ONLY explicitly allow-listed read methods. Never blindly forward
+      // an unknown method (which could reach debug/trace/admin namespaces) just
+      // because it is not a signing method.
+      if (FORWARDABLE_READ_METHODS.has(method)) {
         try {
           const res = await rpcCall(method, params ?? [], chainId);
           return { handled: true, result: res.result ?? null };

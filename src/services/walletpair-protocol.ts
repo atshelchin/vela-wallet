@@ -282,6 +282,22 @@ function parseChannelJoined(value: unknown): ChannelJoined | null {
   }
 }
 
+interface ChannelLeft {
+  type: 'channel_left';
+  ch: string;
+  pubkey: string;
+}
+
+/** A relay `channel_left` event: the named participant dropped from the channel. */
+function parseChannelLeft(value: unknown): ChannelLeft | null {
+  if (!isPlainRecord(value) || value.type !== 'channel_left') return null;
+  const expected = ['ch', 'pubkey', 'type'];
+  const keys = Object.keys(value).sort();
+  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) return null;
+  if (typeof value.ch !== 'string' || typeof value.pubkey !== 'string') return null;
+  return { type: 'channel_left', ch: value.ch, pubkey: value.pubkey };
+}
+
 /** Four digit code displayed while the user compares dApp and wallet. */
 export function computeDappPairingCode(parsed: ParsedPairingUri): string {
   const dapp: RelayIdentity = parsed;
@@ -808,6 +824,18 @@ export class WalletPairSession {
       }
       return;
     }
+
+    const left = parseChannelLeft(parsed);
+    if (left) {
+      // The pinned dApp left the channel. The relay socket and cipher stay valid
+      // (the dApp may reconnect and resume with the same keys), so this is an
+      // observability signal, not a teardown or reconnect trigger.
+      if (left.ch === this.dapp?.ch && left.pubkey === this.dapp?.pubkey) {
+        this.emit('peerLeft', { pubkey: left.pubkey });
+      }
+      return;
+    }
+
     if (socket !== this.socket || !this.ownJoinReceived || this.phase !== 'connected' || !this.cipher) return;
     let opened: { value: JsonValue; caip2: string };
     try {

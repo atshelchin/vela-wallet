@@ -51,6 +51,21 @@ beforeEach(() => {
   __resetReadOnlyCache();
 });
 
+describe('handleReadOnlyRPC — read-method allowlist', () => {
+  test('forwards an allow-listed read method to the RPC', async () => {
+    rpcCallMock.mockResolvedValue({ result: '0x123' });
+    const res = await handleReadOnlyRPC('eth_blockNumber', [], OWN, CHAIN);
+    expect(res).toEqual({ handled: true, result: '0x123' });
+    expect(rpcCallMock).toHaveBeenCalledWith('eth_blockNumber', [], CHAIN);
+  });
+
+  test('does NOT forward a non-allow-listed method (no blind forwarding)', async () => {
+    const res = await handleReadOnlyRPC('debug_traceTransaction', ['0xabc'], OWN, CHAIN);
+    expect(res).toEqual({ handled: false });
+    expect(rpcCallMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('handleReadOnlyRPC — eth_getCode counterfactual override', () => {
   test('returns Safe proxy runtime code when own account is undeployed (real code 0x)', async () => {
     rpcCallMock.mockResolvedValue({ result: '0x' });

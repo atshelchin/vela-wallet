@@ -13,7 +13,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 jest.mock('@/modules/passkey', () => ({}));
 
-import { isSigningMethod, extractRequestChainId, resolveChainId } from '@/hooks/use-dapp-signing';
+import { isSigningMethod, extractRequestChainId, resolveChainId, pickTypedDataParam } from '@/hooks/use-dapp-signing';
 import { keccak256 } from '@/services/eth-crypto';
 import { fromHex, toHex } from '@/services/hex';
 
@@ -52,6 +52,21 @@ describe('dapp-signing', () => {
       expect(isSigningMethod('eth_getBalance')).toBe(false);
       expect(isSigningMethod('eth_blockNumber')).toBe(false);
       expect(isSigningMethod('net_version')).toBe(false);
+    });
+  });
+
+  describe('pickTypedDataParam (ecosystem param order)', () => {
+    const td = { domain: { chainId: 137 }, primaryType: 'X', types: {}, message: {} };
+    test('v3/v4 read typedData at params[1] ([address, typedData])', () => {
+      expect(pickTypedDataParam('eth_signTypedData_v4', ['0xaddr', td])).toBe(td);
+      expect(pickTypedDataParam('eth_signTypedData_v3', ['0xaddr', td])).toBe(td);
+    });
+    test('unsuffixed / v1 read typedData at params[0] ([typedData, address])', () => {
+      expect(pickTypedDataParam('eth_signTypedData', [td, '0xaddr'])).toBe(td);
+      expect(pickTypedDataParam('eth_signTypedData_v1', [td, '0xaddr'])).toBe(td);
+    });
+    test('extractRequestChainId honours the legacy order', () => {
+      expect(extractRequestChainId('eth_signTypedData', [td, '0xaddr'])).toBe(137);
     });
   });
 

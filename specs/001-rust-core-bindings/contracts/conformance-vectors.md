@@ -9,7 +9,6 @@ One JSON file per suite (`primitives.json`, `abi.json`, `eip712.json`, `safe.jso
 ```json
 {
   "suite": "safe",
-  "generated": "2026-07-28T00:00:00Z",
   "source": "scripts/dump-vectors (TS oracle @ <git sha>)",
   "cases": [
     {
@@ -60,4 +59,4 @@ Shape-only TS asserts (`length == 32`) are NOT ported as vectors — dump replac
 
 ## Regeneration policy
 
-The corpus is regenerated ONLY by re-running dump-vectors against TS at a recorded git sha, and diffs are reviewed like code — a changed expected value means either a TS bug was fixed (document) or the oracle drifted (investigate). After FR-007 deletes the TS paths, the corpus freezes and becomes the sole cross-platform truth.
+The corpus carries no timestamp and pins its WebAuthn assertion inputs to a committed fixture file (ECDSA signs with a random nonce), so re-running the dump on unchanged code produces byte-identical files — any diff is a real behavior change. Refresh the assertion inputs deliberately with `VELA_REGEN_ASSERTIONS=1 npm run dump:vectors`. The corpus is regenerated ONLY by re-running dump-vectors against TS at a recorded git sha, and diffs are reviewed like code — a changed expected value means either a TS bug was fixed (document) or the oracle drifted (investigate). After FR-007 deletes the TS paths, the corpus freezes and becomes the sole cross-platform truth.

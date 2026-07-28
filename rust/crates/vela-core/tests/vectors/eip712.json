@@ -1,7 +1,6 @@
 {
  "suite": "eip712",
- "generated": "2026-07-28T08:11:49.640Z",
- "source": "scripts/dump-vectors (TS oracle @ a68797a)",
+ "source": "scripts/dump-vectors (TS oracle @ 1c494f6)",
  "cases": [
   {
    "name": "hashTypedData/mail-spec-example",

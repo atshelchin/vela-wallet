@@ -1,7 +1,6 @@
 {
  "suite": "primitives",
- "generated": "2026-07-28T08:11:49.610Z",
- "source": "scripts/dump-vectors (TS oracle @ a68797a)",
+ "source": "scripts/dump-vectors (TS oracle @ 1c494f6)",
  "cases": [
   {
    "name": "keccak256/empty",

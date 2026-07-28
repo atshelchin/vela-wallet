@@ -65,9 +65,12 @@ export function writeSuite(suite: string, cases: VectorCase[]): void {
   } catch {
     // sha stays 'unknown' outside a git checkout
   }
+  // No timestamp field on purpose: the corpus must be byte-stable across runs
+  // so that ANY diff means a behavior change. A wall-clock stamp would rewrite
+  // all five files on every dump and drown the signal. Git records when the
+  // file changed; `source` records which oracle commit produced it.
   const doc = {
     suite,
-    generated: new Date().toISOString(),
     source: `scripts/dump-vectors (TS oracle @ ${sha})`,
     cases,
   };

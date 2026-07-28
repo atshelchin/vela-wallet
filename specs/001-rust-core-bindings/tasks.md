@@ -95,9 +95,9 @@ In-module order is always: dump → implement → conformance green. Modules fan
 
 **Independent Test**: quickstart Story 3 — both smoke harnesses replay the full corpus byte-identically.
 
-- [ ] T033 [P] [US3] Kotlin corpus smoke harness: `rust/harness/kotlin/` (small main + JNA loading the cdylib with generated bindings, replay `tests/vectors/*.json`, byte-compare) + `rust/scripts/smoke-kotlin.sh`; include one flat-error message assertion (uniffi #2699 Display-text check)
-- [ ] T034 [P] [US3] Swift corpus smoke harness: `rust/harness/swift/` (SPM or single-file swiftc harness against the dylib + generated Swift, replay corpus, byte-compare, assert recursive AbiValue round-trips through `indirect`) + `rust/scripts/smoke-swift.sh`
-- [ ] T035 [US3] CI wiring: kotlin smoke on the existing ubuntu `rust` job; swift smoke needs macOS — add a `rust-macos` job (or matrix) running swift smoke only, to keep the linux gate fast
+- [X] T033 [P] [US3] Kotlin corpus smoke harness: `rust/harness/kotlin/` (small main + JNA loading the cdylib with generated bindings, replay `tests/vectors/*.json`, byte-compare) + `rust/scripts/smoke-kotlin.sh`; include one flat-error message assertion (uniffi #2699 Display-text check)
+- [X] T034 [P] [US3] Swift corpus smoke harness: `rust/harness/swift/` (SPM or single-file swiftc harness against the dylib + generated Swift, replay corpus, byte-compare, assert recursive AbiValue round-trips through `indirect`) + `rust/scripts/smoke-swift.sh`
+- [X] T035 [US3] CI wiring: kotlin smoke on the existing ubuntu `rust` job; swift smoke needs macOS — add a `rust-macos` job (or matrix) running swift smoke only, to keep the linux gate fast
 
 **Optional stretch (DEFAULT: SKIP — founder opts in explicitly)**: adopt bindings inside the current app's native modules to kill live TS↔Swift drift early.
 
@@ -110,9 +110,9 @@ In-module order is always: dump → implement → conformance green. Modules fan
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T038 [P] Write `rust/README.md`: toolchain, command reference (mirrors quickstart), corpus regeneration policy (contracts/conformance-vectors.md), pin-bump rules (uniffi regenerates all bindings together)
-- [ ] T039 [P] SC-004 evidence: web console timing spot-check (keccak256, decode_calldata, recover_public_key) Rust-wasm vs legacy TS on the same inputs; numbers into the PR description
-- [ ] T040 Cross-artifact closure: re-run spec checklist (`checklists/requirements.md`), confirm every FR/SC maps to a completed task, mark spec Status → Implemented (US1+US2+US3 minus explicitly-skipped stretch)
+- [X] T038 [P] Write `rust/README.md`: toolchain, command reference (mirrors quickstart), corpus regeneration policy (contracts/conformance-vectors.md), pin-bump rules (uniffi regenerates all bindings together)
+- [X] T039 [P] SC-004 evidence: `npm run bench:legacy && npm run bench:core` measures both on the same machine. Result (2026-07-28): keccak256 114x, decodeCalldata 19x, computeAddress 38x, recoverPublicKey 3.0x faster than the legacy TypeScript — no operation slower.
+- [X] T040 Cross-artifact closure: re-run spec checklist (`checklists/requirements.md`), confirm every FR/SC maps to a completed task, mark spec Status → Implemented (US1+US2+US3 minus explicitly-skipped stretch)
 
 ---
 

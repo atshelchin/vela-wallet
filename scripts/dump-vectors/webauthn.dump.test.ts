@@ -3,11 +3,14 @@
  *
  * Sources: attestation-parser.ts (DER + CBOR), webauthn-verify.ts +
  * public-key-upload.ts (client-data rules), p256-recovery.ts (two-assertion
- * recovery). The recovery fixtures are CAPTURED from freshly generated
- * WebCrypto P-256 keys (the TS tests are property-based) — regenerating this
- * suite produces different-but-equivalent fixtures; review diffs like code.
+ * recovery). The TS recovery tests are property-based, so the recovery cases
+ * here are captured from two FIXED test keys rather than generated ones: a
+ * fresh key per run would rewrite every fixture on each dump, and the vector
+ * diff is the review signal for whether behavior actually changed.
  */
 
+import * as fs from 'fs';
+import * as path from 'path';
 import { webcrypto } from 'node:crypto';
 import { derSignatureToRaw, extractPublicKey } from '@/services/attestation-parser';
 import { verifySafeWebAuthn } from '@/services/webauthn-verify';
@@ -96,10 +99,42 @@ function makeAttestationObject(authData: Uint8Array): Uint8Array {
   return out;
 }
 
+/**
+ * A WebAuthn assertion for `challenge`, signed by `key`.
+ *
+ * Read from a committed fixture file rather than signed live: ECDSA draws a
+ * random nonce per signature, so signing here would rewrite every recovery
+ * fixture on each dump and make the vector diff — the signal for whether
+ * behavior actually changed — pure noise. The EXPECTATIONS are still computed
+ * by the TS oracle on every run; only these inputs are pinned.
+ *
+ * To refresh them deliberately: `VELA_REGEN_ASSERTIONS=1 npm run dump:vectors`.
+ */
+const ASSERTIONS_FILE = path.join(__dirname, 'fixtures', 'webauthn-assertions.json');
+const REGENERATE = process.env.VELA_REGEN_ASSERTIONS === '1';
+
+type StoredAssertion = { signatureHex: string; authenticatorDataHex: string; clientDataJSONHex: string };
+const storedAssertions: Record<string, StoredAssertion> = fs.existsSync(ASSERTIONS_FILE)
+  ? JSON.parse(fs.readFileSync(ASSERTIONS_FILE, 'utf8'))
+  : {};
+const regenerated: Record<string, StoredAssertion> = {};
+
 async function makeAssertion(
   key: webcrypto.CryptoKeyPair,
   challenge: string,
+  keyLabel = 'primary',
 ): Promise<RecoverableAssertion> {
+  const slot = `${keyLabel}/${challenge}`;
+  if (!REGENERATE) {
+    const stored = storedAssertions[slot];
+    if (!stored) {
+      throw new Error(
+        `no stored assertion for ${slot}. Add it with: VELA_REGEN_ASSERTIONS=1 npm run dump:vectors`,
+      );
+    }
+    return stored;
+  }
+
   const authData = makeAuthData(0x05); // UP | UV
   const clientData = utf8(`{"type":"webauthn.get","challenge":"${challenge}","origin":"https://getvela.app"}`);
   const message = new Uint8Array(authData.length + 32);
@@ -108,11 +143,22 @@ async function makeAssertion(
   const rawSig = new Uint8Array(
     await webcrypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key.privateKey, message),
   );
-  return {
+  const assertion = {
     signatureHex: toHex(rawToDer(rawSig)),
     authenticatorDataHex: toHex(authData),
     clientDataJSONHex: toHex(clientData),
   };
+  regenerated[slot] = assertion;
+  return assertion;
+}
+
+/** Persist freshly signed assertions when running with VELA_REGEN_ASSERTIONS=1. */
+function saveRegeneratedAssertions(): void {
+  if (!REGENERATE) return;
+  fs.mkdirSync(path.dirname(ASSERTIONS_FILE), { recursive: true });
+  const merged = { ...storedAssertions, ...regenerated };
+  const ordered = Object.fromEntries(Object.keys(merged).sort().map((k) => [k, merged[k]]));
+  fs.writeFileSync(ASSERTIONS_FILE, JSON.stringify(ordered, null, 1) + '\n');
 }
 
 const assertionInput = (a: RecoverableAssertion) => ({
@@ -120,6 +166,38 @@ const assertionInput = (a: RecoverableAssertion) => ({
   client_data_json: '0x' + a.clientDataJSONHex,
   signature_der: '0x' + a.signatureHex,
 });
+
+
+/** The fixed P-256 test key the recovery fixtures are built from. */
+const FIXTURE_JWK = {
+  kty: 'EC',
+  crv: 'P-256',
+  d: '3galurkXUPnoxiCFevMMo5aElmTgYtOZueBqYXWQQBU',
+  x: 'D4QOKonsMuvBBeA7EJiuguMtrOKr7X-r43so8kFs0aE',
+  y: 'Kdyq8UXff3JbBDFN8WnJBLMtQ59tQCpPxC9bCltIZ1A',
+} as const;
+
+/** A SECOND fixed key, for the "assertions from different credentials" case. */
+const OTHER_FIXTURE_JWK = {
+  kty: 'EC',
+  crv: 'P-256',
+  d: '0QbMAAgYHUPBLLIUIZRFkwszs8LOWS1H3J7Bmewxv2o',
+  x: 'rXqRMvsbSEe9XUuz5BjzmpCXxfdkxB8BibnGqxoUoFo',
+  y: 'Vqx3hmyGOaA7PPbsFKrh392fOSZ17Oyr-xPLsAAEKcQ',
+} as const;
+
+type FixtureJwk = { kty: string; crv: string; d: string; x: string; y: string };
+
+async function importJwkPair(jwk: FixtureJwk): Promise<webcrypto.CryptoKeyPair> {
+  const alg = { name: 'ECDSA', namedCurve: 'P-256' } as const;
+  const privateKey = await webcrypto.subtle.importKey('jwk', { ...jwk, key_ops: ['sign'] }, alg, true, ['sign']);
+  const { d: _d, ...publicJwk } = jwk;
+  const publicKey = await webcrypto.subtle.importKey('jwk', { ...publicJwk, key_ops: ['verify'] }, alg, true, ['verify']);
+  return { privateKey, publicKey };
+}
+
+const importFixtureKey = () => importJwkPair(FIXTURE_JWK);
+const importSecondFixtureKey = () => importJwkPair(OTHER_FIXTURE_JWK);
 
 // ---------------------------------------------------------------------------
 
@@ -226,7 +304,11 @@ test('dump webauthn vectors', async () => {
   }
 
   // --- extract_attestation_public_key --------------------------------------
-  const keyPair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  // A FIXED test key, not a generated one: a fresh key per run would rewrite
+  // every recovery fixture on each `npm run dump:vectors`, so the vector diff —
+  // the review signal that says whether behavior changed — would be pure noise.
+  // This key exists only in this file and signs only test payloads.
+  const keyPair = await importFixtureKey();
   const rawPub = new Uint8Array(await webcrypto.subtle.exportKey('raw', keyPair.publicKey)); // 04‖x‖y
   const pubX = rawPub.slice(1, 33);
   const pubY = rawPub.slice(33, 65);
@@ -373,9 +455,9 @@ test('dump webauthn vectors', async () => {
   }
   // Assertions from different credentials → null.
   {
-    const otherPair = await webcrypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+    const otherPair = await importSecondFixtureKey();
     const a = await makeAssertion(keyPair, 'a2V5LW9uZQ');
-    const b = await makeAssertion(otherPair, 'a2V5LXR3bw');
+    const b = await makeAssertion(otherPair, 'a2V5LXR3bw', 'other');
     if (recoverPublicKeyFromAssertions(a, b) !== null) throw new Error('oracle: cross-key not null');
     cases.push({
       name: 'recoverPublicKey/different-credentials',
@@ -385,5 +467,6 @@ test('dump webauthn vectors', async () => {
     });
   }
 
+  saveRegeneratedAssertions();
   writeSuite('webauthn', cases);
 });

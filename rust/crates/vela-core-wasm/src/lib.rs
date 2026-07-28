@@ -140,11 +140,7 @@ pub fn function_selector(signature: &str) -> JsResult<Vec<u8>> {
 }
 
 #[wasm_bindgen(js_name = create2Address)]
-pub fn create2_address(
-    deployer_hex: &str,
-    salt: &[u8],
-    init_code_hash: &[u8],
-) -> JsResult<String> {
+pub fn create2_address(deployer_hex: &str, salt: &[u8], init_code_hash: &[u8]) -> JsResult<String> {
     vela_core::primitives::create2_address(deployer_hex, salt, init_code_hash).map_err(err)
 }
 

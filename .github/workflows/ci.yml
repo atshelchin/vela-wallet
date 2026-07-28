@@ -95,12 +95,41 @@ jobs:
       - name: Conformance corpus through the shipped web artifact
         working-directory: .
         run: node rust/scripts/verify-web.mjs
-      - name: Bindgen smoke (Kotlin + Swift generate from compiled library)
+      - name: Swift bindings generate (compiled here, exercised in rust-macos)
         run: |
           cargo build --release -p vela-core-uniffi
           cargo run --release -p vela-core-uniffi --bin uniffi-bindgen -- generate \
-            --library target/release/libvela_core_uniffi.so --language kotlin --out-dir /tmp/ubind --no-format
-          cargo run --release -p vela-core-uniffi --bin uniffi-bindgen -- generate \
             --library target/release/libvela_core_uniffi.so --language swift --out-dir /tmp/ubind
           test -s /tmp/ubind/vela_core_uniffi.swift
-          find /tmp/ubind -name '*.kt' | grep -q .
+      - name: Set up JDK (for the Kotlin corpus harness)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Set up Kotlin
+        run: |
+          curl -fsSL -o /tmp/kotlin.zip \
+            https://github.com/JetBrains/kotlin/releases/download/v2.1.0/kotlin-compiler-2.1.0.zip
+          unzip -q /tmp/kotlin.zip -d /opt
+          echo "/opt/kotlinc/bin" >> "$GITHUB_PATH"
+      - name: Conformance corpus through the Kotlin bindings
+        run: ./scripts/smoke-kotlin.sh
+
+  # Swift half of the SC-001 cross-platform check — its own job because the
+  # Swift toolchain needs a macOS runner, and keeping it separate leaves the
+  # linux gate fast.
+  rust-macos:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Conformance corpus through the Swift bindings
+        run: ./scripts/smoke-swift.sh

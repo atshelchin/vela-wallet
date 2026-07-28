@@ -4,7 +4,10 @@
 
 **Created**: 2026-07-28
 
-**Status**: Approved (amended 2026-07-28 at plan review)
+**Status**: Implemented 2026-07-28 — US1 (`df97fee`), US2 (`1c494f6`), US3. The two
+optional stretch tasks (T036/T037: adopting the bindings inside the CURRENT app's
+native modules) remain deliberately unstarted; they are superseded by the native
+rewrite this feature was built for.
 
 **Input**: User description: "Create a shared Rust core library (vela-core) for Vela Wallet that becomes the single implementation of pure, correctness-critical computation (parsing, encoding, hashing, big-integer math, data assembly/validation — no I/O, no UI, no network), distributed to all platforms via three binding routes: uniffi-rs for Kotlin (Android) and Swift (iOS), wasm-bindgen for Web (JS/TS), and uniffi-bindgen-react-native for React Native (Hermes)."
 

@@ -15,7 +15,9 @@ module.exports = {
   rootDir: '../..',
   roots: ['<rootDir>/scripts/dump-vectors'],
   setupFiles: ['<rootDir>/jest.setup.js'],
-  testMatch: ['**/*.dump.test.ts'],
+  // `dump:vectors` and `bench:legacy` share this config but select different
+  // files — regenerating vectors must not drag a 20-second benchmark along.
+  testMatch: ['**/*.dump.test.ts', '**/*.bench.test.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },

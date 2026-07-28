@@ -172,6 +172,14 @@ fun runCase(fn: String, input: JSONObject): Any? = when (fn) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * The corpus is five suites, discovered by scanning the directory. Asserting the
+ * exact set is what stops a vector file lost to a bad merge or a partial checkout
+ * from making this harness report "green" over a corpus that silently shrank —
+ * the precise false confidence this feature exists to prevent.
+ */
+val REQUIRED_SUITES = listOf("abi", "eip712", "primitives", "safe", "webauthn")
+
 fun main(args: Array<String>) {
     val vectorsDir = File(args.getOrElse(0) { "crates/vela-core/tests/vectors" })
     val failures = mutableListOf<String>()
@@ -184,9 +192,11 @@ fun main(args: Array<String>) {
         System.exit(1)
     }
 
+    val seenSuites = mutableListOf<String>()
     for (file in files) {
         val suite = JSONObject(file.readText())
         val suiteName = suite.getString("suite")
+        seenSuites.add(suiteName)
         val cases = suite.getJSONArray("cases")
         for (i in 0 until cases.length()) {
             total++
@@ -242,6 +252,10 @@ fun main(args: Array<String>) {
         }
     }
 
+    if (seenSuites.sorted() != REQUIRED_SUITES) {
+        System.err.println("smoke-kotlin: corpus is not the expected suite set — got $seenSuites, want $REQUIRED_SUITES")
+        System.exit(1)
+    }
     if (failures.isNotEmpty()) {
         System.err.println("smoke-kotlin: ${failures.size} of $total cases FAILED:")
         failures.forEach { System.err.println("  $it") }

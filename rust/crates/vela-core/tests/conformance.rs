@@ -29,6 +29,13 @@ struct Case {
     divergence: Option<Value>,
 }
 
+/// The corpus is five suites, discovered by scanning the directory. Every runner
+/// asserts that exact set is present: without it, a vector file lost to a bad merge
+/// or a partial checkout would make all four surfaces report "green" over a corpus
+/// that had silently shrunk — the precise false confidence this feature exists to
+/// prevent.
+const REQUIRED_SUITES: [&str; 5] = ["abi", "eip712", "primitives", "safe", "webauthn"];
+
 fn vectors_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors")
 }
@@ -347,11 +354,14 @@ fn run_case(case: &Case) -> Result<(), String> {
 fn conformance_corpus() {
     let dir = vectors_dir();
     if !dir.exists() {
-        // No corpus yet (pre-dump) — nothing to check.
-        return;
+        panic!(
+            "no conformance corpus at {} — regenerate it with `npm run dump:vectors`",
+            dir.display()
+        );
     }
     let mut total = 0usize;
     let mut failures: Vec<String> = Vec::new();
+    let mut seen_suites: Vec<String> = Vec::new();
     let mut entries: Vec<_> = fs::read_dir(&dir)
         .map(|it| it.flatten().collect::<Vec<_>>())
         .unwrap_or_default();
@@ -375,6 +385,7 @@ fn conformance_corpus() {
                 continue;
             }
         };
+        seen_suites.push(suite.suite.clone());
         for case in &suite.cases {
             total += 1;
             if let Err(e) = run_case(case) {
@@ -385,6 +396,12 @@ fn conformance_corpus() {
             }
         }
     }
+    seen_suites.sort();
+    assert_eq!(
+        seen_suites, REQUIRED_SUITES,
+        "conformance corpus is not the expected set of suites (a dropped or renamed \
+         vector file would otherwise pass silently with fewer cases)"
+    );
     assert!(
         failures.is_empty(),
         "{} of {total} conformance cases FAILED:\n{}",

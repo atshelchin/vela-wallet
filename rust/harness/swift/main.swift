@@ -45,6 +45,11 @@ func abiValueToJson(_ v: AbiValue) -> [String: Any] {
 /// compare by their JSON meaning, not by Swift dynamic type.
 func jsonEquals(_ a: Any?, _ b: Any?) -> Bool {
     if a == nil && b == nil { return true }
+    // Exactly one side nil — an expectation naming a field the result does not
+    // have (a typo'd or renamed key). This MUST report as a mismatch: the
+    // force-unwrap below would trap and abort the whole run, so every case
+    // after it would go unchecked while CI showed only a crash.
+    if a == nil || b == nil { return false }
     if a is NSNull && b is NSNull { return true }
     if a is NSNull || b is NSNull { return false }
     if let ad = a as? [String: Any], let bd = b as? [String: Any] {
@@ -211,8 +216,15 @@ if vectorFiles.isEmpty {
     exit(1)
 }
 
+/// The corpus is five suites, discovered by scanning the directory. Asserting the
+/// exact set is what stops a vector file lost to a bad merge or a partial checkout
+/// from making this harness report "green" over a corpus that silently shrank —
+/// the precise false confidence this feature exists to prevent.
+let REQUIRED_SUITES = ["abi", "eip712", "primitives", "safe", "webauthn"]
+
 var total = 0
 var failures: [String] = []
+var seenSuites: [String] = []
 
 for name in vectorFiles {
     let raw = try Data(contentsOf: URL(fileURLWithPath: "\(vectorsPath)/\(name)"))
@@ -222,6 +234,7 @@ for name in vectorFiles {
         failures.append("\(name) — bad schema")
         continue
     }
+    seenSuites.append(suiteName)
     for c in cases {
         total += 1
         let caseName = c["name"] as? String ?? "?"
@@ -274,6 +287,12 @@ for name in vectorFiles {
     }
 }
 
+if seenSuites.sorted() != REQUIRED_SUITES {
+    FileHandle.standardError.write(
+        "smoke-swift: corpus is not the expected suite set — got \(seenSuites.sorted()), want \(REQUIRED_SUITES)\n"
+            .data(using: .utf8)!)
+    exit(1)
+}
 if !failures.isEmpty {
     var out = "smoke-swift: \(failures.count) of \(total) cases FAILED:\n"
     for f in failures { out += "  \(f)\n" }

@@ -89,12 +89,21 @@ function check(expect, actual) {
   return null;
 }
 
+// The corpus is five suites, discovered by scanning the directory. Every runner
+// asserts that exact set is present: without it, a vector file lost to a bad merge
+// or a partial checkout would make all four surfaces report "green" over a corpus
+// that had silently shrunk — the precise false confidence this feature exists to
+// prevent.
+const REQUIRED_SUITES = ['abi', 'eip712', 'primitives', 'safe', 'webauthn'];
+
 let total = 0;
 const failures = [];
+const seenSuites = [];
 
 for (const file of readdirSync(VECTORS_DIR).sort()) {
   if (!file.endsWith('.json')) continue;
   const suite = JSON.parse(readFileSync(join(VECTORS_DIR, file), 'utf8'));
+  seenSuites.push(suite.suite);
   for (const c of suite.cases) {
     total++;
     const run = DISPATCH[c.fn];
@@ -127,6 +136,12 @@ for (const file of readdirSync(VECTORS_DIR).sort()) {
   }
 }
 
+if (seenSuites.sort().join(',') !== REQUIRED_SUITES.join(',')) {
+  console.error(
+    `verify-web: corpus is not the expected suite set — got [${seenSuites}], want [${REQUIRED_SUITES}]`,
+  );
+  process.exit(1);
+}
 if (failures.length) {
   console.error(`verify-web: ${failures.length} of ${total} cases FAILED:\n${failures.join('\n')}`);
   process.exit(1);

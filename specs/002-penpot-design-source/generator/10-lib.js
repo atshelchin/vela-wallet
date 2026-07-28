@@ -143,6 +143,26 @@ lib.upsertRect = (parent, name, spec) => {
   return { rect: r, created };
 };
 
+// Instantiate a library component by family name (+ optional variant props) and place it.
+// Screen boards MUST compose from instances, not redrawn copies (FR-005, US4-AS2).
+// Returns null when the family is missing so a chunk can fall back to a placeholder and
+// report the gap instead of dying mid-board.
+lib.instance = (familyName, props, parent, x, y) => {
+  const n = lib.norm(familyName);
+  const candidates = penpot.library.local.components.filter(c => c.name === n);
+  if (!candidates.length) return null;
+  let comp = candidates[0];
+  if (props && candidates.length > 1) {
+    const match = candidates.find(c => typeof c.variantProps === 'object' && c.variantProps &&
+      Object.entries(props).every(([k, v]) => String(c.variantProps[k]) === String(v)));
+    if (match) comp = match;
+  }
+  const inst = comp.instance();
+  if (parent) parent.appendChild(inst);
+  if (x !== undefined) penpotUtils.setParentXY(inst, x, y);
+  return inst;
+};
+
 lib.done = (chunk, summary) => {
   storage.progress = storage.progress || {};
   storage.progress[chunk] = Object.assign({ done: true }, summary);

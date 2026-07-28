@@ -1,3 +1,4 @@
+import { fromHex, toHex } from '@/services/vela-core';
 import { makeRecipientId, recipientsAreValid, type RecipientDraft } from '@/components/send/MultiRecipientEditor';
 import { type ReceiptTransfer } from '@/components/ui/TransactionReceipt';
 import { amountToWeiHex, balanceToWei, canCoverNativeTransfer, encErc20Transfer, isValidAddress, synthErc20Token, synthNativeToken } from './send-utils';
@@ -13,7 +14,6 @@ import { buildMultiTokenCalls, buildSplitCalls, maxNativeSendable, reserveFeeTok
 import { probeTreasury, parseBundlerUnderfunded, type TreasuryStatus } from '@/services/bundler-service';
 import { fromBaseUnits, toBaseUnits } from '@/services/eip681';
 import { resolveTokenAmount } from '@/services/fiat-convert';
-import { fromHex, toHex } from '@/services/hex';
 import { useLocalePrefs } from '@/services/locale-format';
 import { hapticError, hapticSuccess, showAlert } from '@/services/platform';
 import { resolveRecipientIdentity, type RecipientIdentity } from '@/services/recipient-identity';
@@ -173,7 +173,7 @@ export function useSendController() {
   // Prefetch account credential + webauthn module while user reviews confirm screen
   const amountInputRef = useRef<TextInput>(null);
   const prefetchedAccount = useRef<{ publicKeyHex: string } | null>(null);
-  const webauthnModuleRef = useRef<typeof import('@/services/webauthn-verify') | null>(null);
+  const webauthnModuleRef = useRef<typeof import('@/services/vela-core') | null>(null);
 
   // Resolve a locked EIP-681 request against the loaded token list. Sets the
   // exact token (held, or a synthetic zero-balance placeholder), recipient and
@@ -276,7 +276,7 @@ export function useSendController() {
               })
                 .then((f) => { if (mountedRef.current) setFeeEstimate(f); })
                 .catch(() => {});
-              import('@/services/webauthn-verify').then((m) => { webauthnModuleRef.current = m; });
+              import('@/services/vela-core').then((m) => { webauthnModuleRef.current = m; });
             }
           }
           return;
@@ -617,7 +617,7 @@ export function useSendController() {
       })
         .then((f) => { if (mountedRef.current) setFeeEstimate(f); })
         .catch(() => {});
-      import('@/services/webauthn-verify').then((m) => { webauthnModuleRef.current = m; });
+      import('@/services/vela-core').then((m) => { webauthnModuleRef.current = m; });
       // Warm a gas estimate so the detail list can show the native line net of
       // its reserve right away (not just at confirm).
     }
@@ -637,7 +637,7 @@ export function useSendController() {
       const chainId = tokenChainId(token);
       prefetchForSend(activeAccount.address, chainId);
       findAccountByCredentialId(activeAccount.id).then(s => { prefetchedAccount.current = s ?? null; });
-      import('@/services/webauthn-verify').then(m => { webauthnModuleRef.current = m; });
+      import('@/services/vela-core').then(m => { webauthnModuleRef.current = m; });
     }
   };
 
@@ -705,7 +705,7 @@ export function useSendController() {
         return;
       }
       if (!webauthnModuleRef.current) {
-        import('@/services/webauthn-verify').then(m => { webauthnModuleRef.current = m; });
+        import('@/services/vela-core').then(m => { webauthnModuleRef.current = m; });
       }
 
       // Estimate gas + check the relayer treasury BEFORE advancing to confirm.
@@ -896,7 +896,7 @@ export function useSendController() {
         const assertion = await Passkey.sign(challengeHex, activeAccount.id);
 
         // Use prefetched module if available, otherwise dynamic import
-        const webauthnMod = webauthnModuleRef.current ?? await import('@/services/webauthn-verify');
+        const webauthnMod = webauthnModuleRef.current ?? await import('@/services/vela-core');
         const compat = webauthnMod.verifySafeWebAuthn(assertion);
         if (!compat.ok) {
           throw new Error(

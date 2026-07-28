@@ -8,9 +8,9 @@
  * Balance queries are REAL (on-chain eth_getBalance via rpcCall).
  */
 
+import { keccak256 } from '@/services/vela-core';
 import type { BundlerDeployerInfo, NetworkFundingStatus, FundingStatus } from '@/models/types';
 import { rpcCall } from './rpc-adapter';
-import { keccak256 } from './eth-crypto';
 // Shared wei→ETH formatter (was a local 4-decimal copy). Aliased so call sites are
 // unchanged; >= 1 ETH balances now render with the app-wide 3-decimal precision.
 import { formatWeiToEth as formatWei } from './format-eth';

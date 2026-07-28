@@ -21,10 +21,9 @@
  * Boundary: real space = real device passkeys. Parallel space = these fixtures.
  * Nothing else about the two environments differs.
  */
+import { computeAddress, concatBytes, fromHex, stripHexPrefix, toHex } from '@/services/vela-core';
 import { p256 } from '@noble/curves/p256';
 import { sha256 } from '@noble/hashes/sha256';
-import { computeAddress } from '@/services/safe-address';
-import { fromHex, toHex, stripHexPrefix, concatBytes } from '@/services/hex';
 import type { PasskeyAssertionResult, PasskeyRegistrationResult } from '@/modules/passkey';
 
 // ---------------------------------------------------------------------------

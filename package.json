@@ -13,6 +13,8 @@
     "lint": "expo lint",
     "test:unit": "jest --ci",
     "dump:vectors": "jest --ci --config scripts/dump-vectors/jest.config.js",
+    "build:wasm": "node rust/scripts/build-web.mjs",
+    "verify:wasm": "node rust/scripts/verify-web.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",

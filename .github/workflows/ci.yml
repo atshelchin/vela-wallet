@@ -87,6 +87,14 @@ jobs:
         run: cargo test --workspace
       - name: Wasm build (getrandom canary)
         run: cargo build --target wasm32-unknown-unknown -p vela-core-wasm
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked --version 0.15.0
+      - name: Web build is current (rust/pkg-web committed and matching)
+        working-directory: .
+        run: node rust/scripts/build-web.mjs --check
+      - name: Conformance corpus through the shipped web artifact
+        working-directory: .
+        run: node rust/scripts/verify-web.mjs
       - name: Bindgen smoke (Kotlin + Swift generate from compiled library)
         run: |
           cargo build --release -p vela-core-uniffi

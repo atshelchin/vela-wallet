@@ -1,3 +1,4 @@
+import { computeAddress, extractPublicKey, fromHex, toHex, verifySafeWebAuthn } from '@/services/vela-core';
 import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -11,14 +12,10 @@ import { BugReportModal } from '@/components/ui/BugReportModal';
 import { useLanguagePreference } from '@/i18n/language';
 import { useWallet } from '@/models/wallet-state';
 import { saveAccount, savePendingUpload } from '@/services/storage';
-import { computeAddress } from '@/services/safe-address';
 import { getAllNetworksSync } from '@/models/network';
-import { extractPublicKey } from '@/services/attestation-parser';
-import { fromHex, toHex } from '@/services/hex';
 import * as Passkey from '@/modules/passkey';
 import { PasskeyError, PasskeyErrorCode } from '@/modules/passkey';
 import { uploadPublicKey } from '@/services/public-key-upload';
-import { verifySafeWebAuthn } from '@/services/webauthn-verify';
 import type { StoredAccount } from '@/models/types';
 import {
   ArrowLeft, CheckCircle2, AlertTriangle, Loader, Copy, Check, Square, CheckSquare,

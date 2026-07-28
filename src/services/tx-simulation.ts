@@ -20,14 +20,14 @@
  * Safe's native balance), the native delta of the inner call is pure value flow
  * with no gas noise — cleaner than simulating an EOA transaction.
  */
+import { toQuantity } from '@/services/vela-core';
 import { poolRpcCall } from '@/services/rpc-pool';
-import { toQuantity } from '@/services/hex';
 import { nativeSymbol } from '@/models/network';
 import { resolveTokenMetadata, type TokenMetadata } from '@/services/token-metadata';
 import { fetchChainTokens } from '@/services/chain-tokens';
 import { knownToken } from '@/services/tokens';
 import { getCachedHeldTokens } from '@/services/wallet-api';
-import { parseRevertReason, type AssetDelta, type SimCall } from '@/services/sim-assets';
+import { parseRevertReason, simValueParam, type AssetDelta, type SimCall } from '@/services/sim-assets';
 import { rpcSimulate } from '@/services/sim-engine-rpc';
 import { tevmSimulate } from '@/services/sim-engine-tevm';
 
@@ -134,7 +134,7 @@ export async function simulateCall(
   try {
     const res = await poolRpcCall(
       'eth_call',
-      [{ from, to, data: data && data !== '0x' ? data : '0x', value: toQuantity(value) }, 'latest'],
+      [{ from, to, data: data && data !== '0x' ? data : '0x', value: simValueParam(value) }, 'latest'],
       chainId,
     );
     if (res?.error) {

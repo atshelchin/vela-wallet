@@ -16,8 +16,8 @@
  * immutable, so a long TTL is safe); the computed rate map is cached in-memory with
  * a short TTL and persisted for offline first-paint.
  */
+import { keccak256 } from '@/services/vela-core';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { keccak256 } from './eth-crypto';
 import { poolRpcCall } from './rpc-pool';
 import {
   MULTICALL3, encAggregate3, decAggregate3, encLatestRound, encDecimals,

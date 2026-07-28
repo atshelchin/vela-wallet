@@ -2,18 +2,16 @@
  * Shared dApp request signing logic.
  * Used by both BLE (native) and WalletConnect (web) connect screens.
  */
+import { SAFE_PROXY_RUNTIME_CODE, derSignatureToRaw, fromHex, hashTypedData, keccak256, stripHexPrefix, toHex } from '@/services/vela-core';
+import type { TypedData } from '@/services/vela-core';
+import { isHexPayload } from '@/services/decode-sign-message';
 import type { Account } from '@/models/types';
 import * as Passkey from '@/modules/passkey';
-import { derSignatureToRaw } from '@/services/attestation-parser';
-import { keccak256 } from '@/services/eth-crypto';
-import { hashTypedData, type TypedData } from '@/services/eip712';
-import { fromHex, stripHexPrefix, toHex } from '@/services/hex';
 import * as PublicKeyIndex from '@/services/public-key-index';
 import { rpcCall } from '@/services/rpc-adapter';
 import { sendContractCall, sendNative, buildEip1271Signature, extractClientDataFields, computeSafeMessageHash, type QuotedInBandFee } from '@/services/safe-transaction';
 import { enforceNoUnlimited } from '@/services/approval-guard';
 import { findAccountByCredentialId } from '@/services/storage';
-import { SAFE_PROXY_RUNTIME_CODE } from '@/services/safe-address';
 import { getAllNetworksSync } from '@/models/network';
 
 export interface DAppRequest {
@@ -179,6 +177,22 @@ function buildContractSignature(assertion: Passkey.PasskeyAssertionResult): stri
 }
 
 /**
+ * Bytes to sign for a personal_sign payload.
+ *
+ * Not every dApp hex-encodes the message — plain UTF-8 text is common enough
+ * that the history decoder already special-cases it (decodeSignMessage in
+ * dapp-history.ts). Treat a non-hex payload as UTF-8, which is what MetaMask
+ * does and what the signing sheet already displays. The old hex decoder turned
+ * such payloads into zero/garbage bytes and signed those, producing a
+ * signature the dApp could never verify against its own text.
+ */
+function personalSignBytes(payload: string): Uint8Array {
+  return isHexPayload(payload)
+    ? fromHex(stripHexPrefix(payload))
+    : new TextEncoder().encode(payload);
+}
+
+/**
  * Handle a personal_sign request.
  * Returns a full Safe contract signature (EIP-1271 compatible).
  */
@@ -191,9 +205,9 @@ export async function handlePersonalSign(
   // personal_sign has no embedded chainId — use the fallback
   assertChainSupported(chainId);
 
+
   const hexMsg = request.params[0] as string;
-  const clean = stripHexPrefix(hexMsg);
-  const msgBytes = fromHex(clean);
+  const msgBytes = personalSignBytes(hexMsg);
 
   const prefix = new TextEncoder().encode(`\x19Ethereum Signed Message:\n${msgBytes.length}`);
   const combined = new Uint8Array(prefix.length + msgBytes.length);
@@ -269,7 +283,7 @@ export async function handleSendTransaction(
   const signFn = async (challenge: Uint8Array) => {
     const assertion = await Passkey.sign(toHex(challenge), account.id);
 
-    const { verifySafeWebAuthn } = await import('@/services/webauthn-verify');
+    const { verifySafeWebAuthn } = await import('@/services/vela-core');
     const compat = verifySafeWebAuthn(assertion);
     if (!compat.ok) {
       throw new Error(
@@ -415,7 +429,7 @@ export async function handleSendCalls(
   const signFn = async (challenge: Uint8Array) => {
     const assertion = await Passkey.sign(toHex(challenge), account.id);
 
-    const { verifySafeWebAuthn } = await import('@/services/webauthn-verify');
+    const { verifySafeWebAuthn } = await import('@/services/vela-core');
     const compat = verifySafeWebAuthn(assertion);
     if (!compat.ok) {
       throw new Error(

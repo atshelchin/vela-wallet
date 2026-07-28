@@ -2,10 +2,10 @@
  * Wallet state management using React Context.
  * Matches iOS WalletState.swift.
  */
+import { computeAddress } from '@/services/vela-core';
 import React, { createContext, useContext, useReducer, useEffect, useState, type Dispatch } from 'react';
 import type { Account } from './types';
 import { loadAccounts, saveAccount, loadActiveAccountIndex, saveActiveAccountIndex } from '@/services/storage';
-import { computeAddress } from '@/services/safe-address';
 
 // MARK: - State Shape
 

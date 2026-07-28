@@ -16,10 +16,13 @@
  *   vela.slowRpc(4000)     // add 4s latency to every RPC call
  *   vela.flakyRpc(0.5)     // randomly fail 50% of RPC calls
  *   vela.nullPrice(1)      // Ethereum tokens load but have no price (undercount)
+ *   vela.velaCoreDiff()    // web: run Rust core + legacy TS on every call, log divergence
  *   vela.clear()           // reset everything
  *   vela.status()          // print active faults
  *   vela.help()            // print this list
  */
+
+import { setDiffEnabled, getMismatches, clearMismatches } from '@/services/vela-core';
 
 interface Faults {
   rpcFailAll: boolean;
@@ -159,6 +162,12 @@ const HELP = [
   "  vela.nullPrice(chainId | 'all') tokens load but have no price → total undercounts",
   "  vela.forceFunding(chain|'all')  force the gas-account check to report 'deposit needed' → funding UX",
   "  vela.zeroGasQuote(chain|'all')  force bundler gas quote to 0x0 → fee must fall back, never '~0'",
+  '',
+  '  vela.velaCoreDiff(on?)          web: run the Rust core AND legacy TS on every shared-core call,',
+  '                                  logging any divergence (gate before the legacy path is deleted)',
+  '  vela.velaCoreMismatches()       list recorded divergences',
+  '  vela.velaCoreClearMismatches()  reset the divergence log',
+  '',
   '  vela.clear()                    reset all faults',
   '  vela.status()                   show active faults',
   '  vela.help()                     show this help',
@@ -212,6 +221,29 @@ export function installFaultConsole(): void {
     zeroGasQuote(chain: ChainArg) {
       toggleChain(faults.gasQuoteZeroChains, 'gasQuoteZeroAll', chain);
       return api.status();
+    },
+    /**
+     * Side-by-side verification of the shared Rust core (web only): run both
+     * the core and the legacy TypeScript on every facade call and log any
+     * divergence. Gate for spec FR-006 / SC-003 before the legacy path is
+     * deleted. `vela.velaCoreDiff()` toggles on; pass false to stop.
+     */
+    velaCoreDiff(on: boolean = true) {
+      setDiffEnabled(on);
+      if (!on) {
+        const found = getMismatches();
+        if (found.length) console.warn('[vela] core mismatches:', found);
+      }
+      return on ? 'diff ON' : `diff OFF (${getMismatches().length} mismatches)`;
+    },
+    velaCoreMismatches() {
+      const found = getMismatches();
+      console.log(found.length ? found : '[vela] no core mismatches recorded');
+      return found;
+    },
+    velaCoreClearMismatches() {
+      clearMismatches();
+      return 'cleared';
     },
     clear() {
       faults.rpcFailAll = false;

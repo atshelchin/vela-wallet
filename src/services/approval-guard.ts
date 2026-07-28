@@ -1,3 +1,4 @@
+import { abiEncodeUint256, functionSelector, stripHexPrefix, toHex } from '@/services/vela-core';
 /**
  * Approval guard — the "unlimited can never leave the wallet" core.
  *
@@ -21,8 +22,6 @@
  * "unlimited" sentinels (uint256-max, 2^255, uint160-max), so it cleanly
  * separates "a big finite number the user chose" from "unlimited".
  */
-import { functionSelector, abiEncodeUint256 } from '@/services/eth-crypto';
-import { toHex, stripHexPrefix } from '@/services/hex';
 
 // ---------------------------------------------------------------------------
 // Caps

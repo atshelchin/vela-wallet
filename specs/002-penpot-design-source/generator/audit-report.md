@@ -13,6 +13,21 @@
 
 Token state: 147 tokens — `core` 93, `color-light` 27, `color-dark` 27; active combination = core + color-light (Light).
 
+### US1 boards (T011/T012) — verified persisted + rendering
+
+- `01 Design Language`: 3 doc boards, 48 objects (principles ×10, a11y floor, 12 resolved conflicts) — backend-verified.
+- `02 Tokens & Type`: 3 boards, 163 objects (27 token-bound color chips w/ L+D hex labels, type specimens for all 9 sizes + 4 weights + mono, spacing/radius/shadow/icon scales) — backend-verified, renders clean.
+
+### Persistence incident (2026-07-29, resolved)
+
+Chunks 22/24 first ran against a workspace session whose sync channel had wedged: the plugin
+accepted all mutations and reported success, but the backend kept 1 object on the page
+(verified via REST get-file) and other clients showed "Something wrong has happened".
+Recovery: restart penpot-penpot-mcp-1 → healthy session took plugin ownership → re-ran
+10-lib + 22 + 24 → backend now 163 objects. Codified as generator-contract platform rule 5
+(always verify persistence from outside the plugin; chunk return values prove nothing about
+durability).
+
 ### Deviations / platform bugs recorded
 
 1. **Penpot themes API broken in this deployment** (mcp:2.16 plugin vs Penpot 2.16.2): `TokenTheme.addSet()` is a silent no-op, leaving themes empty; activating an empty theme deactivates all sets. **Fallback**: modes are expressed by direct set activation (Light = `core`+`color-light`; Dark = swap `color-light`→`color-dark`); no theme objects exist in the file. Recorded in consumption contract.

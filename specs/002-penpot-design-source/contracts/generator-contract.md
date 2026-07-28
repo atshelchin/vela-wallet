@@ -8,6 +8,7 @@ Audience: the implementing agent (this feature's implement phase) and anyone re-
 2. **Mutations are current-page-only**: create/remove/reparent silently no-op on non-current pages. `await lib.open(page)` before mutating.
 3. **openPage settles asynchronously**: poll `penpot.currentPage.id` until it matches (lib.open does; fixed sleeps are unreliable) — otherwise shapes land on the previously-current page.
 4. **Page roots share the zero-uuid id**: a shape's owning page CANNOT be resolved by walking parents to the root. To locate/mutate across pages, iterate pages and scoped-search `penpot.currentPage.root` (see `lib.removeWhere`).
+5. **execute_code reads the plugin session's MEMORY, not the backend.** A workspace session whose sync channel has wedged (symptom: "Something wrong has happened" toast in other clients) keeps accepting plugin mutations that are NEVER persisted — chunks report success while the backend stays empty. After each chunk (or at minimum each phase), verify persistence from OUTSIDE the plugin: `fetch('/api/main/methods/get-file?id=<file-id>')` (browser session) and check the page's object count grew. Recovery from a wedged session: `docker restart penpot-penpot-mcp-1`, reload the automation workspace tab so a HEALTHY session takes plugin ownership, re-run `10-lib.js`, then replay the affected chunks (idempotency makes replay safe). Never treat a chunk's return value alone as proof of durability.
 
 ## Chunk discipline
 

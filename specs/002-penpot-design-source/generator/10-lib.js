@@ -126,7 +126,22 @@ lib.removeWhere = async (pred) => {
 
 // Deterministic board grid inside a page (row = surface, col = state).
 lib.screenPos = (row, col) => ({ x: col * 450, y: row * 950 });
-lib.docGeom = (row, col, h) => ({ x: (col || 0) * 900, y: row * ((h || 600) + 100), w: 800, h: h || 600, fill: '#FFFFFF' });
+lib.docGeom = (y, col, h) => ({ x: (col || 0) * 900, y, w: 800, h: h || 600, fill: '#FFFFFF' }); // explicit y — row-index math overlapped with mixed heights
+
+// Upsert a rectangle child of parent by name. CALLER must have parent's page current.
+lib.upsertRect = (parent, name, spec) => {
+  const s = Object.assign({ x: 0, y: 0, w: 40, h: 40 }, spec || {});
+  const n = lib.norm(name);
+  let r = penpotUtils.findShape(sh => sh.name === n && sh.type === 'rectangle', parent);
+  let created = false;
+  if (!r) { r = penpot.createRectangle(); r.name = name; parent.appendChild(r); created = true; }
+  if (Math.round(r.width) !== s.w || Math.round(r.height) !== s.h) r.resize(s.w, s.h);
+  penpotUtils.setParentXY(r, s.x, s.y);
+  if (s.fill) r.fills = [{ fillColor: s.fill, fillOpacity: 1 }];
+  if (s.radius !== undefined) r.borderRadius = s.radius;
+  if (s.stroke) r.strokes = [{ strokeColor: s.stroke, strokeWidth: s.strokeWidth || 1, strokeAlignment: 'inner' }];
+  return { rect: r, created };
+};
 
 lib.done = (chunk, summary) => {
   storage.progress = storage.progress || {};

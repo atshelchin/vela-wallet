@@ -6,6 +6,13 @@
 
 **Tests**: No unit-test tasks; verification is the audit-chunk suite (90–95) mandated by the spec's Success Criteria and the generator contract.
 
+> **⚠️ SUPERSEDED IN PART — see [PIVOT-2026-07-29.md](PIVOT-2026-07-29.md).** Tasks below that describe
+> authoring component/screen boards *from the inventory reports* are replaced by the
+> render-and-screenshot pipeline: capture the running app (screenshot + DOM layout dump), then
+> generate boards from that. Phases 1–3 (corrections, foundation, tokens) and Phase 5 (IA, derived
+> from the router rather than from pixels) stand as completed. US2/US4 outputs built before the
+> pivot are drafts to be rebuilt, not baselines to patch.
+
 **Organization**: Grouped by user story (US1 tokens+language → US2 components → US3 IA → US4 screens/overlays/interactions → US5 gate). "Chunk" = a numbered script in `specs/002-penpot-design-source/generator/` executed via `mcp__penpot__execute_code` under the rules of [contracts/generator-contract.md](contracts/generator-contract.md) (upsert-by-name, <15s, `// inv:` traceability).
 
 ## Phase 1: Setup (inventory corrections + manifest)

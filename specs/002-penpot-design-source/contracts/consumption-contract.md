@@ -21,6 +21,8 @@ Audience: a future AI agent (SvelteKit / GPUI / native iOS / native Android rebu
 - Non-pointer transitions: `edge:` chips (text shapes named `edge:*` on the source board): `edge:<condition> → <destination board name>`.
 - Journeys: named flows (`penpot.currentPage.flows`): onboarding, send, receive, sign, connect, browse.
 - Elements with no interaction AND no `edge:` chip are terminal/static by contract — not an omission (omissions are a generator defect; report them).
+- Shapes whose name starts with `deco:` are purely decorative (title bars, backdrop panels) — machine consumers MUST ignore them.
+- Icon placeholders carry their real identity in the shape name: `icon:<LucideName> <size>/<stroke>` (e.g. `icon:ArrowLeft 22/2.2`) — implement the named Lucide icon at that size/stroke, not the placeholder rectangle.
 
 ## Interpretation rules (normative)
 

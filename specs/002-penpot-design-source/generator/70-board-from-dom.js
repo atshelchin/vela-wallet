@@ -56,8 +56,19 @@ function build(n, path, depth) {
       text: n.text, size, weight, zone: isMono ? 'mono' : 'sans',
       color: c.color, x: Math.round(n.x), y: Math.round(n.y),
     });
+    if (c.opacity < 1) text.opacity = c.opacity;           // colours like "#FFFFFF@45%"
     if (n.font?.transform === 'uppercase') text.textTransform = 'uppercase';
     if (n.font?.letterSpacing) text.letterSpacing = String(n.font.letterSpacing);
+    if (n.font?.lineHeight && n.font.size) {
+      // DOM gives absolute px; Penpot wants a multiplier
+      text.lineHeight = String(Math.round((n.font.lineHeight / n.font.size) * 100) / 100);
+    }
+    // a wrapped paragraph must keep its measured box, otherwise auto-width relayouts it
+    if (n.text.includes('\n') || n.w < 300) {
+      text.growType = 'auto-height';
+      text.resize(Math.round(n.w), Math.round(n.h));
+      penpotUtils.setParentXY(text, Math.round(n.x), Math.round(n.y));
+    }
     stats.texts++;
   } else if (n.kind === 'img' || n.kind === 'svg') {
     // icons/logos are represented by a named placeholder — the name IS the contract
@@ -78,7 +89,8 @@ function build(n, path, depth) {
     rect.fills = bg ? [{ fillColor: bg.color, fillOpacity: bg.opacity }] : [];
     if (n.border) {
       const bc = hex(n.border.color);
-      if (bc) rect.strokes = [{ strokeColor: bc.color, strokeWidth: n.border.w, strokeAlignment: 'inner' }];
+      // strokeOpacity matters: hairlines are frequently a low-alpha white/black
+      if (bc) rect.strokes = [{ strokeColor: bc.color, strokeOpacity: bc.opacity, strokeWidth: n.border.w, strokeAlignment: 'inner' }];
     }
     if (n.opacity !== undefined) rect.opacity = n.opacity;
     stats.rects++;

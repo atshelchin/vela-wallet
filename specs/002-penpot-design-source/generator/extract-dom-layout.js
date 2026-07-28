@@ -10,7 +10,7 @@
 // divide by 1.2 to recover the token base.
 
 function extractLayout(opts) {
-  const O = Object.assign({ maxDepth: 30, minSize: 2 }, opts || {});
+  const O = Object.assign({ maxDepth: 60, minSize: 2 }, opts || {});
 
   // The app renders inside a fixed 390px phone frame on desktop web; find it so all
   // coordinates come out in screen space (0,0 = top-left of the phone), not window space.
@@ -48,10 +48,21 @@ function extractLayout(opts) {
   function walk(el, depth) {
     if (depth > O.maxDepth || seen.has(el)) return null;
     seen.add(el);
-    const r = el.getBoundingClientRect();
-    if (r.width < O.minSize || r.height < O.minSize) return null;
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return null;
+    // `display: contents` boxes (expo-router / react-navigation screen wrappers) generate no box
+    // of their own, so getBoundingClientRect() is 0×0. Without this pass-through the size gate
+    // below would prune the entire screen underneath them. Returns an array, flattened by callers.
+    if (cs.display === 'contents') {
+      const out = [];
+      for (const child of Array.from(el.children)) {
+        const c = walk(child, depth);
+        if (c) out.push(...(Array.isArray(c) ? c : [c]));
+      }
+      return out.length ? out : null;
+    }
+    const r = el.getBoundingClientRect();
+    if (r.width < O.minSize || r.height < O.minSize) return null;
 
     // direct text (excluding text inside child elements)
     const own = Array.from(el.childNodes)
@@ -98,7 +109,7 @@ function extractLayout(opts) {
     const kids = [];
     for (const child of Array.from(el.children)) {
       const c = walk(child, depth + 1);
-      if (c) kids.push(c);
+      if (c) kids.push(...(Array.isArray(c) ? c : [c]));
     }
     if (kids.length) node.children = kids;
 
@@ -115,7 +126,7 @@ function extractLayout(opts) {
   const tree = [];
   for (const child of Array.from(root.children)) {
     const n = walk(child, 0);
-    if (n) tree.push(n);
+    if (n) tree.push(...(Array.isArray(n) ? n : [n]));
   }
   return {
     url: location.pathname + location.search,

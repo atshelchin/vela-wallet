@@ -52,3 +52,4 @@ test-results/
 # Design-source screenshot corpus: regenerable from the running app via the capture
 # procedure in specs/002-penpot-design-source/PIVOT-2026-07-29.md (17MB+ of PNGs).
 specs/002-penpot-design-source/screenshots/
+specs/002-penpot-design-source/dom-dumps/

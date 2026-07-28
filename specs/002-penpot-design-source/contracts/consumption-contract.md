@@ -10,7 +10,7 @@ Audience: a future AI agent (SvelteKit / GPUI / native iOS / native Android rebu
 
 ## Reading the design system
 
-- **Tokens**: `penpot.library.local.tokens` → sets `core`, `color-light`, `color-dark`; themes `Light`/`Dark`. Token names are the same identifiers the original RN code used — implement them as your stack's design tokens 1:1. `resolvedValue` per active theme is the ground truth.
+- **Tokens**: `penpot.library.local.tokens` → sets `core` (mode-independent), `color-light`, `color-dark`. **There are NO theme objects** (the themes API is broken in this deployment — see generator/audit-report.md): the mode axis is expressed by set activation. Default active = `core`+`color-light` (Light). To resolve Dark values, read the `color-dark` set's tokens directly (same names), or toggle set activation. Token names are the same identifiers the original RN code used — implement them as your stack's design tokens 1:1.
 - **Components**: `penpot.library.local.components` — names `C/<Group>/<Name>`; variant axes enumerate visual variants × states. Read geometry/fills/typography from the main instance; token bindings via `shape.tokens`. A variant's board name encodes its axis values.
 - **Screens/Overlays**: boards `S/<route>/<state>` and `O/<overlay>/<state>` (390×844 screens). Recurring elements are component instances — resolve `instance.component()` to identify them; layout comes from board flex properties, not absolute eyeballing.
 - **Motion/haptics/a11y/platform/i18n**: NOT visual — read `09 Patterns` doc boards (`D/patterns/*`). Every animated element carries an annotation naming its pattern.

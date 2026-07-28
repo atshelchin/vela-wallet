@@ -28,6 +28,16 @@ Recovery: restart penpot-penpot-mcp-1 → healthy session took plugin ownership 
 (always verify persistence from outside the plugin; chunk return values prove nothing about
 durability).
 
+### Duplicate-flush incident (2026-07-29, resolved)
+
+After the wedged-session recovery, the ORIGINAL session's websocket recovered later and
+flushed its stale in-memory copies of chunks 22/24 → exact same-name duplicate boards on
+`02 Tokens & Type` (163→325 objects, id prefixes revealing both sessions). Deduped by id
+(kept newest copy; page back to 3 unique boards). Operational rule: while generation runs,
+keep exactly ONE workspace session open on the agent account (spectator tabs on the same
+account can wake up and flush stale changes at any time). The 90 audit must assert
+board-name uniqueness per page to catch this class automatically.
+
 ### Deviations / platform bugs recorded
 
 1. **Penpot themes API broken in this deployment** (mcp:2.16 plugin vs Penpot 2.16.2): `TokenTheme.addSet()` is a silent no-op, leaving themes empty; activating an empty theme deactivates all sets. **Fallback**: modes are expressed by direct set activation (Light = `core`+`color-light`; Dark = swap `color-light`→`color-dark`); no theme objects exist in the file. Recorded in consumption contract.

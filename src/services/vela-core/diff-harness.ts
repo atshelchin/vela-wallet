@@ -19,12 +19,51 @@ export interface DiffMismatch {
   at: number;
 }
 
-let enabled = false;
+/**
+ * The flag survives a reload (web dev only).
+ *
+ * Without this the harness could only ever be switched on AFTER boot, which
+ * leaves exactly the flows the SC-003 checklist names first — wallet creation
+ * and address display — permanently unverifiable: they derive the account's
+ * counterfactual address during startup, long before any console command can
+ * run. Persisting the flag is what makes a cold-start comparison possible.
+ */
+const STORAGE_KEY = 'vela.coreDiff';
+
+function readPersistedFlag(): boolean {
+  try {
+    return (
+      __DEV__ && typeof localStorage !== 'undefined' && localStorage.getItem(STORAGE_KEY) === '1'
+    );
+  } catch {
+    return false; // no localStorage (native, SSR, blocked storage) — off
+  }
+}
+
+function persistFlag(on: boolean): void {
+  try {
+    if (!__DEV__ || typeof localStorage === 'undefined') return;
+    if (on) localStorage.setItem(STORAGE_KEY, '1');
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Storage unavailable — the in-memory flag still works for this session.
+  }
+}
+
+let enabled = readPersistedFlag();
 const mismatches: DiffMismatch[] = [];
 const MAX_RECORDED = 200;
 
+if (enabled) {
+  // Say so at boot. A harness that is silently armed is indistinguishable from
+  // one that is silently disarmed, and "zero mismatches" from a harness that
+  // never ran is the most expensive kind of false confidence.
+  console.log('[vela-core] diff harness ON from boot (persisted) — comparing core vs legacy');
+}
+
 export function setDiffEnabled(on: boolean): void {
   enabled = on;
+  persistFlag(on);
   if (on) {
     console.log('[vela-core] diff harness ON — every call runs core + legacy and compares');
   } else {

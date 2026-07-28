@@ -1,6 +1,6 @@
 {
  "suite": "primitives",
- "source": "scripts/dump-vectors (TS oracle @ c0b4c7c)",
+ "source": "scripts/dump-vectors (extracted from the production TypeScript)",
  "cases": [
   {
    "name": "keccak256/empty",

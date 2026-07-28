@@ -26,8 +26,16 @@ fun hex(bytes: ByteArray): String {
     return sb.toString()
 }
 
+/**
+ * Strict hex decode, mirroring `in_bytes` in conformance.rs.
+ *
+ * An odd length must fail rather than silently drop the trailing nibble: a case
+ * decoded from truncated input satisfies its expectation only by accident, and
+ * the harness would report green over arguments the corpus never specified.
+ */
 fun bytes(s: String): ByteArray {
     val clean = if (s.startsWith("0x")) s.substring(2) else s
+    require(clean.length % 2 == 0) { "odd-length hex `$s`" }
     val out = ByteArray(clean.length / 2)
     for (i in out.indices) {
         out[i] = clean.substring(i * 2, i * 2 + 2).toInt(16).toByte()
@@ -241,8 +249,14 @@ fun main(args: Array<String>) {
                 if (obj == null) {
                     failures.add("$label — expected an object result, got $actual")
                 } else {
-                    for (k in expect.keys()) {
-                        if (k == "error") continue
+            // An expectation with no fields would pass over ANY result — the
+            // corpus must never contain one, and if it does the harness has to
+            // say so rather than count a case it never checked.
+            val fields = expect.keys().asSequence().filter { it != "error" }.toList()
+                    if (fields.isEmpty()) {
+                        failures.add("$label — expectation has no fields to check")
+                    }
+                    for (k in fields) {
                         if (!jsonEquals(expect.get(k), obj.opt(k))) {
                             failures.add("$label — field `$k`: expected ${expect.get(k)}, got ${obj.opt(k)}")
                         }

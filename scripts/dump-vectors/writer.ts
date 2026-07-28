@@ -7,7 +7,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
 
 export interface Divergence {
   ts_behavior: string;
@@ -57,21 +56,16 @@ export function expectOracleThrow(label: string, errorCode: string, call: () => 
 
 export function writeSuite(suite: string, cases: VectorCase[]): void {
   fs.mkdirSync(VECTORS_DIR, { recursive: true });
-  let sha = 'unknown';
-  try {
-    sha = execSync('git rev-parse --short HEAD', { cwd: path.join(__dirname, '..', '..') })
-      .toString()
-      .trim();
-  } catch {
-    // sha stays 'unknown' outside a git checkout
-  }
-  // No timestamp field on purpose: the corpus must be byte-stable across runs
-  // so that ANY diff means a behavior change. A wall-clock stamp would rewrite
-  // all five files on every dump and drown the signal. Git records when the
-  // file changed; `source` records which oracle commit produced it.
+  // Deliberately NO timestamp and NO git sha: the corpus must be byte-stable so
+  // that ANY diff is a behavior change — that invariant is what lets CI
+  // regenerate the corpus and assert zero diff, which is the only check that
+  // catches the TypeScript oracle drifting away from the committed vectors.
+  // A wall-clock stamp or a HEAD sha would rewrite all five files on every run
+  // (or every commit) and make that check impossible. Git already records when
+  // each file changed and which commit produced it.
   const doc = {
     suite,
-    source: `scripts/dump-vectors (TS oracle @ ${sha})`,
+    source: 'scripts/dump-vectors (extracted from the production TypeScript)',
     cases,
   };
   const file = path.join(VECTORS_DIR, `${suite}.json`);

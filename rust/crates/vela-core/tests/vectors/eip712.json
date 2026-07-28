@@ -1,6 +1,6 @@
 {
  "suite": "eip712",
- "source": "scripts/dump-vectors (TS oracle @ c0b4c7c)",
+ "source": "scripts/dump-vectors (extracted from the production TypeScript)",
  "cases": [
   {
    "name": "hashTypedData/mail-spec-example",

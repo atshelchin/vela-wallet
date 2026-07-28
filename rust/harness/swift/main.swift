@@ -19,13 +19,24 @@ func hex(_ data: Data) -> String {
     "0x" + data.map { String(format: "%02x", $0) }.joined()
 }
 
-func bytes(_ s: String) -> Data {
+/// Strict hex decode, mirroring `in_bytes` in conformance.rs.
+///
+/// It must THROW rather than substitute. Returning zeros for junk (`?? 0`) or
+/// trapping on an odd length would let a case that never received its real
+/// input still satisfy its expectation — the harness would report green over
+/// arguments the corpus never specified. Kotlin and Rust are both strict here;
+/// Swift silently substituting made 34 of 195 cases pass regardless of input.
+func bytes(_ s: String) throws -> Data {
     let clean = s.hasPrefix("0x") ? String(s.dropFirst(2)) : s
+    guard clean.count % 2 == 0 else { throw BadInput(detail: "odd-length hex `\(s)`") }
     var out = Data(capacity: clean.count / 2)
     var index = clean.startIndex
     while index < clean.endIndex {
         let next = clean.index(index, offsetBy: 2)
-        out.append(UInt8(clean[index..<next], radix: 16) ?? 0)
+        guard let byte = UInt8(clean[index..<next], radix: 16) else {
+            throw BadInput(detail: "bad hex pair `\(clean[index..<next])` in `\(s)`")
+        }
+        out.append(byte)
         index = next
     }
     return out
@@ -104,53 +115,65 @@ func errorMessage(_ error: CoreError) -> String {
 }
 
 struct NoDispatch: Error { let fn: String }
+struct BadInput: Error { let detail: String }
 
 // ---------------------------------------------------------------------------
 // Dispatch — one arm per contracts/core-api.md function (mirrors conformance.rs)
 // ---------------------------------------------------------------------------
 
-func str(_ input: [String: Any], _ key: String) -> String { input[key] as? String ?? "" }
-func data(_ input: [String: Any], _ key: String) -> Data { bytes(str(input, key)) }
+/// A required string input. Missing means the corpus and this dispatch disagree
+/// about the input key — a case that ran on "" would prove nothing.
+func str(_ input: [String: Any], _ key: String) throws -> String {
+    guard let v = input[key] as? String else { throw BadInput(detail: "missing string input `\(key)`") }
+    return v
+}
+
+func data(_ input: [String: Any], _ key: String) throws -> Data { try bytes(try str(input, key)) }
+
+func bool(_ input: [String: Any], _ key: String) throws -> Bool {
+    guard let v = input[key] as? Bool else { throw BadInput(detail: "missing bool input `\(key)`") }
+    return v
+}
 
 func runCase(_ fn: String, _ input: [String: Any]) throws -> Any? {
     switch fn {
     // primitives
-    case "keccak256": return hex(keccak256(data: data(input, "data")))
-    case "sha256": return hex(sha256(data: data(input, "data")))
-    case "to_hex": return toHex(data: data(input, "data"), prefixed: input["prefixed"] as? Bool ?? false)
-    case "from_hex": return hex(try fromHex(s: str(input, "s")))
-    case "to_quantity": return try toQuantity(value: str(input, "value"))
-    case "checksum_address": return try checksumAddress(addressHex: str(input, "address_hex"))
-    case "function_selector": return hex(try functionSelector(signature: str(input, "signature")))
+    case "keccak256": return hex(keccak256(data: try data(input, "data")))
+    case "sha256": return hex(sha256(data: try data(input, "data")))
+    case "to_hex": return toHex(data: try data(input, "data"), prefixed: try bool(input, "prefixed"))
+    case "from_hex": return hex(try fromHex(s: try str(input, "s")))
+    case "to_quantity": return try toQuantity(value: try str(input, "value"))
+    case "checksum_address": return try checksumAddress(addressHex: try str(input, "address_hex"))
+    case "function_selector": return hex(try functionSelector(signature: try str(input, "signature")))
     case "create2_address":
         return try create2Address(
-            deployerHex: str(input, "deployer_hex"),
-            salt: data(input, "salt"),
-            initCodeHash: data(input, "init_code_hash"))
-    case "to_base64url": return toBase64url(data: data(input, "data"))
-    case "from_base64url": return hex(try fromBase64url(s: str(input, "s")))
-    case "abi_encode_address": return hex(try abiEncodeAddress(addressHex: str(input, "address_hex")))
-    case "abi_encode_uint256": return hex(try abiEncodeUint256(valueHex: str(input, "value_hex")))
-    case "abi_encode_bytes32": return hex(try abiEncodeBytes32(data: data(input, "data")))
+            deployerHex: try str(input, "deployer_hex"),
+            salt: try data(input, "salt"),
+            initCodeHash: try data(input, "init_code_hash"))
+    case "to_base64url": return toBase64url(data: try data(input, "data"))
+    case "from_base64url": return hex(try fromBase64url(s: try str(input, "s")))
+    case "abi_encode_address": return hex(try abiEncodeAddress(addressHex: try str(input, "address_hex")))
+    case "abi_encode_uint256": return hex(try abiEncodeUint256(valueHex: try str(input, "value_hex")))
+    case "abi_encode_bytes32": return hex(try abiEncodeBytes32(data: try data(input, "data")))
 
     // abi
-    case "canonicalize_signature": return try canonicalizeSignature(sig: str(input, "sig"))
-    case "compute_selector": return try computeSelector(sig: str(input, "sig"))
+    case "canonicalize_signature": return try canonicalizeSignature(sig: try str(input, "sig"))
+    case "compute_selector": return try computeSelector(sig: try str(input, "sig"))
     case "match_selector":
-        return try matchSelector(sig: str(input, "sig"), calldata: data(input, "calldata"))
+        return try matchSelector(sig: try str(input, "sig"), calldata: try data(input, "calldata"))
     case "decode_calldata":
-        return abiValueToJson(try decodeCalldata(sig: str(input, "sig"), calldata: data(input, "calldata")))
+        return abiValueToJson(try decodeCalldata(sig: try str(input, "sig"), calldata: try data(input, "calldata")))
 
     // eip712
-    case "hash_typed_data": return hex(try hashTypedData(typedDataJson: str(input, "typed_data_json")))
-    case "encode_type": return try encodeType(typedDataJson: str(input, "typed_data_json"))
+    case "hash_typed_data": return hex(try hashTypedData(typedDataJson: try str(input, "typed_data_json")))
+    case "encode_type": return try encodeType(typedDataJson: try str(input, "typed_data_json"))
 
     // safe
     case "parse_public_key":
-        let key = try parsePublicKey(hex: str(input, "hex"))
+        let key = try parsePublicKey(hex: try str(input, "hex"))
         return ["x": hex(key.x), "y": hex(key.y)]
     case "compute_safe_address":
-        let info = try computeSafeAddress(x: data(input, "x"), y: data(input, "y"))
+        let info = try computeSafeAddress(x: try data(input, "x"), y: try data(input, "y"))
         return [
             "address": info.address,
             "salt_nonce": hex(info.saltNonce),
@@ -158,40 +181,48 @@ func runCase(_ fn: String, _ input: [String: Any]) throws -> Any? {
             "init_code_hash": hex(info.initCodeHash),
         ]
     case "compute_splitter_address":
-        return try computeSplitterAddress(treasuryHex: str(input, "treasury_hex"))
+        return try computeSplitterAddress(treasuryHex: try str(input, "treasury_hex"))
     case "encode_splitter_deploy_call":
-        return hex(try encodeSplitterDeployCall(treasuryHex: str(input, "treasury_hex")))
+        return hex(try encodeSplitterDeployCall(treasuryHex: try str(input, "treasury_hex")))
     case "safe_proxy_runtime_code": return try safeProxyRuntimeCode()
 
     // webauthn
     case "extract_attestation_public_key":
-        let key = try extractAttestationPublicKey(attestationObject: data(input, "attestation_object"))
+        let key = try extractAttestationPublicKey(attestationObject: try data(input, "attestation_object"))
         return ["x": hex(key.x), "y": hex(key.y)]
     case "der_signature_to_raw_low_s":
-        return hex(try derSignatureToRawLowS(der: data(input, "der")))
+        return hex(try derSignatureToRawLowS(der: try data(input, "der")))
     case "validate_client_data":
-        let kind: ClientDataKind = str(input, "kind") == "Create" ? .create : .get
+        // An unrecognised kind must fail, not silently fall through to .get —
+        // that would run every Create case against the Get rules.
+        let kindName = try str(input, "kind")
+        let kind: ClientDataKind
+        switch kindName {
+        case "Create": kind = .create
+        case "Get": kind = .get
+        default: throw BadInput(detail: "unknown ClientDataKind `\(kindName)`")
+        }
         try validateClientData(
             kind: kind,
-            clientDataJson: data(input, "client_data_json"),
-            authenticatorData: data(input, "authenticator_data"))
+            clientDataJson: try data(input, "client_data_json"),
+            authenticatorData: try data(input, "authenticator_data"))
         return true
     case "webauthn_signing_hash":
         return hex(webauthnSigningHash(
-            authenticatorData: data(input, "authenticator_data"),
-            clientDataJson: data(input, "client_data_json")))
+            authenticatorData: try data(input, "authenticator_data"),
+            clientDataJson: try data(input, "client_data_json")))
     case "recover_public_key_from_assertions":
-        let a = input["a"] as? [String: Any] ?? [:]
-        let b = input["b"] as? [String: Any] ?? [:]
+        guard let a = input["a"] as? [String: Any] else { throw BadInput(detail: "missing input `a`") }
+        guard let b = input["b"] as? [String: Any] else { throw BadInput(detail: "missing input `b`") }
         let key = try recoverPublicKeyFromAssertions(
             a: WebAuthnAssertion(
-                authenticatorData: data(a, "authenticator_data"),
-                clientDataJson: data(a, "client_data_json"),
-                signatureDer: data(a, "signature_der")),
+                authenticatorData: try data(a, "authenticator_data"),
+                clientDataJson: try data(a, "client_data_json"),
+                signatureDer: try data(a, "signature_der")),
             b: WebAuthnAssertion(
-                authenticatorData: data(b, "authenticator_data"),
-                clientDataJson: data(b, "client_data_json"),
-                signatureDer: data(b, "signature_der")))
+                authenticatorData: try data(b, "authenticator_data"),
+                clientDataJson: try data(b, "client_data_json"),
+                signatureDer: try data(b, "signature_der")))
         guard let key else { return NSNull() }
         return "04" + String(hex(key.x).dropFirst(2)) + String(hex(key.y).dropFirst(2))
 
@@ -278,7 +309,12 @@ for name in vectorFiles {
                 failures.append("\(label) — expected an object result, got \(actual ?? "nil")")
                 continue
             }
-            for (k, want) in expect where k != "error" {
+            // An expectation with no fields would pass over ANY result.
+            let fields = expect.filter { $0.key != "error" }
+            if fields.isEmpty {
+                failures.append("\(label) — expectation has no fields to check")
+            }
+            for (k, want) in fields {
                 if !jsonEquals(want, obj[k]) {
                     failures.append("\(label) — field `\(k)`: expected \(want), got \(obj[k] ?? "nil")")
                 }

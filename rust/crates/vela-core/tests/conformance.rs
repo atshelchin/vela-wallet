@@ -147,6 +147,10 @@ fn check_object(expect: &Value, actual: Result<Value, vela_core::CoreError>) -> 
             let expect_obj = expect
                 .as_object()
                 .ok_or_else(|| "expectation is not an object".to_owned())?;
+            // An expectation with no fields would pass over ANY result.
+            if expect_obj.keys().all(|k| k == "error") {
+                return Err("expectation has no fields to check".to_owned());
+            }
             for (key, want) in expect_obj {
                 let got = actual_obj
                     .get(key)

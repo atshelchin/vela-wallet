@@ -46,6 +46,18 @@ jobs:
         run: npx expo lint -- --max-warnings=10000
       - name: Unit tests
         run: npx jest --ci
+      # The conformance corpus is extracted from the TypeScript implementations,
+      # so it is only trustworthy while it still MATCHES them. Re-deriving it and
+      # requiring a zero diff is the only check that catches the oracle drifting
+      # away from the committed vectors — and the only one that notices cases
+      # disappearing from inside a vector file (the per-runner suite-set pin sees
+      # a lost FILE, not a lost case). This works because the dump is byte-stable:
+      # no timestamp, no git sha, WebAuthn assertion inputs pinned.
+      - name: Conformance corpus matches the TypeScript oracle
+        run: |
+          npm run dump:vectors
+          git diff --exit-code -- rust/crates/vela-core/tests/vectors \
+            || { echo "::error::The corpus no longer matches the TypeScript it was extracted from. Re-run 'npm run dump:vectors' and review the diff: a changed expectation means either a TS behavior change (intentional? document it in contracts/core-api.md) or oracle drift."; exit 1; }
       - name: Web production build
         run: npm run build:web
 
@@ -62,8 +74,10 @@ jobs:
         run: bun run check
 
   # vela-core shared Rust library (specs/001-rust-core-bindings).
-  # NOTE (founder action): add `rust` to branch-protection required checks so it
-  # gates merges like `app` and `site` do.
+  # NOTE (founder action): add BOTH `rust` and `rust-macos` to branch-protection
+  # required checks so they gate merges like `app` and `site` do. `rust-macos` is
+  # the only job that exercises the Swift bindings — without it in the required
+  # set, an iOS-side FFI divergence merges green.
   rust:
     runs-on: ubuntu-latest
     defaults:

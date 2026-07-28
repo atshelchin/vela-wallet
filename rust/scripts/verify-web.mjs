@@ -81,8 +81,10 @@ function check(expect, actual) {
     return null;
   }
   // Field-wise object expectation (parse_public_key, compute_safe_address).
-  for (const [key, want] of Object.entries(expect)) {
-    if (key === 'error') continue;
+  // An expectation with no fields would pass over ANY result.
+  const fields = Object.entries(expect).filter(([k]) => k !== 'error');
+  if (fields.length === 0) return 'expectation has no fields to check';
+  for (const [key, want] of fields) {
     const got = actual?.[key];
     if (want !== got) return `field \`${key}\`: expected ${want}, got ${got}`;
   }

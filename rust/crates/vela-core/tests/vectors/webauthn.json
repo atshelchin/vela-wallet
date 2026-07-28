@@ -1,0 +1,382 @@
+{
+ "suite": "webauthn",
+ "generated": "2026-07-28T08:11:49.716Z",
+ "source": "scripts/dump-vectors (TS oracle @ a68797a)",
+ "cases": [
+  {
+   "name": "derSignatureToRaw/standard-32-32",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x30440220111111111111111111111111111111111111111111111111111111111111111102202222222222222222222222222222222222222222222222222222222222222222"
+   },
+   "expect": {
+    "value": "0x11111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/leading-zero-stripped",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x3045022100aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa02201111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "expect": {
+    "value": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1111111111111111111111111111111111111111111111111111111111111111"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/short-r-padded",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x3043021f4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c02201111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "expect": {
+    "value": "0x004c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c1111111111111111111111111111111111111111111111111111111111111111"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/high-s-normalized",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x304502201111111111111111111111111111111111111111111111111111111111111111022100dddddddcdddddddedddddddddddddddd9ac4d88b84f57c62d197a8a0da41032f"
+   },
+   "expect": {
+    "value": "0x11111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/single-zero-byte",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x00"
+   },
+   "expect": {
+    "error": "InvalidSignature"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/empty-sequence",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x3000"
+   },
+   "expect": {
+    "error": "InvalidSignature"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/empty",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x"
+   },
+   "expect": {
+    "error": "InvalidSignature"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/trailing-garbage",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x30440220111111111111111111111111111111111111111111111111111111111111111102202222222222222222222222222222222222222222222222222222222222222222dead"
+   },
+   "expect": {
+    "error": "InvalidSignature"
+   },
+   "divergence": {
+    "ts_behavior": "ignores the outer SEQUENCE length and any trailing bytes",
+    "reason": "strict DER: a signature blob with trailing bytes is malformed"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/unnecessary-zero-prefix",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x3046022100aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0221001111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "expect": {
+    "error": "InvalidSignature"
+   },
+   "divergence": {
+    "ts_behavior": "strips any leading zero without checking minimality",
+    "reason": "canonical DER forbids a 0x00 prefix unless the high bit is set; real authenticators emit minimal DER"
+   }
+  },
+  {
+   "name": "derSignatureToRaw/negative-form-short-r",
+   "fn": "der_signature_to_raw_low_s",
+   "input": {
+    "der": "0x3043021fcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc02201111111111111111111111111111111111111111111111111111111111111111"
+   },
+   "expect": {
+    "error": "InvalidSignature"
+   },
+   "divergence": {
+    "ts_behavior": "reads the two's-complement-negative body as an unsigned scalar",
+    "reason": "DER INTEGERs are signed; an unsigned scalar with a set high bit must carry the 0x00 prefix"
+   }
+  },
+  {
+   "name": "extractPublicKey/real-key",
+   "fn": "extract_attestation_public_key",
+   "input": {
+    "attestation_object": "0xa363666d74646e6f6e656761747453746d74a0686175746844617461590094a69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3494500000001000000000000000000000000000000000010cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcda5010203262001215820c3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630df225820a348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2c"
+   },
+   "expect": {
+    "x": "0xc3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630df",
+    "y": "0xa348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2c"
+   }
+  },
+  {
+   "name": "extractPublicKey/real-key-with-ed-extensions",
+   "fn": "extract_attestation_public_key",
+   "input": {
+    "attestation_object": "0xa363666d74646e6f6e656761747453746d74a06861757468446174615900a2a69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df349c500000001000000000000000000000000000000000010cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcda5010203262001215820c3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630df225820a348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2ca16b6372656450726f7465637402"
+   },
+   "expect": {
+    "x": "0xc3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630df",
+    "y": "0xa348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2c"
+   }
+  },
+  {
+   "name": "extractPublicKey/empty-input",
+   "fn": "extract_attestation_public_key",
+   "input": {
+    "attestation_object": "0x"
+   },
+   "expect": {
+    "error": "InvalidCbor"
+   }
+  },
+  {
+   "name": "extractPublicKey/non-cbor",
+   "fn": "extract_attestation_public_key",
+   "input": {
+    "attestation_object": "0x000102"
+   },
+   "expect": {
+    "error": "InvalidCbor"
+   }
+  },
+  {
+   "name": "extractPublicKey/short-authdata",
+   "fn": "extract_attestation_public_key",
+   "input": {
+    "attestation_object": "0xa363666d74646e6f6e656761747453746d74a068617574684461746159001e000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "error": "InvalidCbor"
+   }
+  },
+  {
+   "name": "extractPublicKey/off-curve-point",
+   "fn": "extract_attestation_public_key",
+   "input": {
+    "attestation_object": "0xa363666d74646e6f6e656761747453746d74a0686175746844617461590094a69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3494500000001000000000000000000000000000000000010cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcda501020326200121582011111111111111111111111111111111111111111111111111111111111111112258202222222222222222222222222222222222222222222222222222222222222222"
+   },
+   "expect": {
+    "error": "InvalidPublicKey"
+   },
+   "divergence": {
+    "ts_behavior": "returns the fabricated (x, y) without an on-curve check",
+    "reason": "an off-curve point must never become a wallet identity"
+   }
+  },
+  {
+   "name": "validateClientData/get-ok",
+   "fn": "validate_client_data",
+   "input": {
+    "kind": "Get",
+    "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a2261475673624738222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+    "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001"
+   },
+   "expect": {
+    "value": true
+   }
+  },
+  {
+   "name": "validateClientData/get-reordered-fields",
+   "fn": "validate_client_data",
+   "input": {
+    "kind": "Get",
+    "client_data_json": "0x7b226368616c6c656e6765223a2261475673624738222c2274797065223a22776562617574686e2e676574222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+    "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001"
+   },
+   "expect": {
+    "error": "InvalidClientData"
+   }
+  },
+  {
+   "name": "validateClientData/get-uv-not-set",
+   "fn": "validate_client_data",
+   "input": {
+    "kind": "Get",
+    "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a2261475673624738222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+    "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490100000001"
+   },
+   "expect": {
+    "error": "InvalidClientData"
+   }
+  },
+  {
+   "name": "validateClientData/get-authdata-too-short",
+   "fn": "validate_client_data",
+   "input": {
+    "kind": "Get",
+    "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a2261475673624738222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+    "authenticator_data": "0x0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "error": "InvalidClientData"
+   }
+  },
+  {
+   "name": "validateClientData/create-ok",
+   "fn": "validate_client_data",
+   "input": {
+    "kind": "Create",
+    "client_data_json": "0x7b2274797065223a22776562617574686e2e637265617465222c226368616c6c656e6765223a2261475673624738222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+    "authenticator_data": "0x"
+   },
+   "expect": {
+    "value": true
+   }
+  },
+  {
+   "name": "validateClientData/create-wrong-type",
+   "fn": "validate_client_data",
+   "input": {
+    "kind": "Create",
+    "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a2261475673624738222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+    "authenticator_data": "0x"
+   },
+   "expect": {
+    "error": "InvalidClientData"
+   }
+  },
+  {
+   "name": "webauthnSigningHash/standard",
+   "fn": "webauthn_signing_hash",
+   "input": {
+    "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+    "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a2261475673624738222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d"
+   },
+   "expect": {
+    "value": "0x3dc23f5a49110f33830bd76ee9074b1c7845f4bc5ab6687828c4e9ed389fbe1f"
+   }
+  },
+  {
+   "name": "recoverPublicKey/pair-0",
+   "fn": "recover_public_key_from_assertions",
+   "input": {
+    "a": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573041222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3045022100e7250fc7fd1fd48916aca2a31d62d1a1c353c168af4da1c643b3e735641c275f0220162e4c9c620d5f53140c29f938fd6eea8cf872ce94ad5da0863b9859f951ead6"
+    },
+    "b": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573042222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x304402205742e663783c4cfe220edd055f014495bb1ec65baf430a870f7ce877d43ae57d02206e085c76b90857116ae4580966fcabe14c42ef8dcc6f524d557013ae043dd58d"
+    }
+   },
+   "expect": {
+    "value": "04c3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630dfa348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2c"
+   }
+  },
+  {
+   "name": "recoverPublicKey/pair-1",
+   "fn": "recover_public_key_from_assertions",
+   "input": {
+    "a": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573141222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3044022060ec9e27d01f7a8007cffdfe989a917ea29f600d67a32f840b3d5baa6e37e38d02203dc0cf9532c7c096d03f74640f12c7931c944f4f0f348755ff520cb47b2832da"
+    },
+    "b": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573142222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3045022100a539d2673bf6b29c05ee8a17d68fd28bacf0635f577787651e0648005c2b1f2e022058f231d7cb90ec9788c01f6fda78ed71b2408beed1d3a21b7517ef53651c50a0"
+    }
+   },
+   "expect": {
+    "value": "04c3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630dfa348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2c"
+   }
+  },
+  {
+   "name": "recoverPublicKey/pair-2",
+   "fn": "recover_public_key_from_assertions",
+   "input": {
+    "a": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573241222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3045022078f2a78bf00c490f96bb1768eb646b8a932fb122b0d13869b1a0cfb318c64566022100d91e32bfbf0f7d5c340f8858f8aa4225561a54a01c89c4f2f83a0ac2510a0290"
+    },
+    "b": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573242222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3046022100aa5ed9cd0381cfce0bdee6de87d1bfa45f7d41f853fb615829fe4b3815aa9cbb022100d9861af0b2454be0cec294cd9b842c7425f26280bced1114c828402a271aa62c"
+    }
+   },
+   "expect": {
+    "value": "04c3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630dfa348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2c"
+   }
+  },
+  {
+   "name": "recoverPublicKey/pair-3",
+   "fn": "recover_public_key_from_assertions",
+   "input": {
+    "a": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573341222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3045022100ccc35e7bbddaf5471bf8e9b98d055c761919b8638a0616ac843bc59ec163237a022002673a579b58a8833870b1e25eedab10b06e1d2522b0332bb697711c7f83f16e"
+    },
+    "b": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22593268686247786c626d646c4c573342222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x304502206a786db59eb594adf33043cadd9ac8234530b44bef65091e752e1506a4e986bd022100e1264991a663df01e5130aa599e9481a9e60ade5fe6bf7abec34650c678ef9f6"
+    }
+   },
+   "expect": {
+    "value": "04c3a09481c3bef65e3b51389b7ea9187de860f2dc7c42fff42de13164e73630dfa348fe4c5d0c7def6c6a76c2949a3abffdf2a4d63607812d7dab8b96a0696a2c"
+   }
+  },
+  {
+   "name": "recoverPublicKey/same-signature-twice",
+   "fn": "recover_public_key_from_assertions",
+   "input": {
+    "a": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22633246745a53317a615763222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3046022100bf7a7130112f0b0259d6742fc734a614c50602e64f6935ae6f2bcfbbce3a386b022100d6f9dd955aa5aa1799b4481ce4a6fd5598af8803a841c18e7d1983894bf720ca"
+    },
+    "b": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22633246745a53317a615763222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3046022100bf7a7130112f0b0259d6742fc734a614c50602e64f6935ae6f2bcfbbce3a386b022100d6f9dd955aa5aa1799b4481ce4a6fd5598af8803a841c18e7d1983894bf720ca"
+    }
+   },
+   "expect": {
+    "value": null
+   }
+  },
+  {
+   "name": "recoverPublicKey/different-credentials",
+   "fn": "recover_public_key_from_assertions",
+   "input": {
+    "a": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22613256354c5739755a51222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x3046022100aa35937126003715060cdff78ad336f6339ac6e53168a982837971936ff22422022100c0e5c96f9926a8fbc6b0dcbcc02d56af5a6eaed2c5f5f8747525682a38c1dc81"
+    },
+    "b": {
+     "authenticator_data": "0xa69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df3490500000001",
+     "client_data_json": "0x7b2274797065223a22776562617574686e2e676574222c226368616c6c656e6765223a22613256354c5852336277222c226f726967696e223a2268747470733a2f2f67657476656c612e617070227d",
+     "signature_der": "0x304502207a2caa3435f48de6204afb643079cbd79f89840408c345f8684b28d34bc56e0c022100cd43ba7c05af25cfc4230c875f76b712a41143ff387ac8117980bd9b3ba679fa"
+    }
+   },
+   "expect": {
+    "value": null
+   }
+  }
+ ]
+}

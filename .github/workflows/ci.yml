@@ -60,3 +60,39 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Svelte check
         run: bun run check
+
+  # vela-core shared Rust library (specs/001-rust-core-bindings).
+  # NOTE (founder action): add `rust` to branch-protection required checks so it
+  # gates merges like `app` and `site` do.
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests (conformance corpus + proptests)
+        run: cargo test --workspace
+      - name: Wasm build (getrandom canary)
+        run: cargo build --target wasm32-unknown-unknown -p vela-core-wasm
+      - name: Bindgen smoke (Kotlin + Swift generate from compiled library)
+        run: |
+          cargo build --release -p vela-core-uniffi
+          cargo run --release -p vela-core-uniffi --bin uniffi-bindgen -- generate \
+            --library target/release/libvela_core_uniffi.so --language kotlin --out-dir /tmp/ubind --no-format
+          cargo run --release -p vela-core-uniffi --bin uniffi-bindgen -- generate \
+            --library target/release/libvela_core_uniffi.so --language swift --out-dir /tmp/ubind
+          test -s /tmp/ubind/vela_core_uniffi.swift
+          find /tmp/ubind -name '*.kt' | grep -q .

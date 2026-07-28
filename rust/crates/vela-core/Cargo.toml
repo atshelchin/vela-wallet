@@ -1,0 +1,30 @@
+[package]
+name = "vela-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Vela Wallet shared computation core: pure, correctness-critical parsing/encoding/hashing/assembly. No I/O, no FFI deps."
+
+[lib]
+crate-type = ["lib"]
+
+[dependencies]
+alloy-primitives = { workspace = true }
+alloy-dyn-abi = { workspace = true }
+alloy-json-abi = { workspace = true }
+sha2 = { workspace = true }
+p256 = { workspace = true }
+ecdsa = { workspace = true }
+ciborium = { workspace = true }
+ciborium-io = { workspace = true }
+coset = { workspace = true }
+base64 = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
+hex-literal = { workspace = true }
+# deterministic RFC-6979 signing inside recovery proptests only — never a prod dependency
+p256 = { workspace = true, features = ["ecdsa", "alloc"] }

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
     "test:unit": "jest --ci",
+    "dump:vectors": "jest --ci --config scripts/dump-vectors/jest.config.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",

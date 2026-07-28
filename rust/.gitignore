@@ -1,0 +1,4 @@
+target/
+bindings/
+harness/kotlin/build/
+harness/swift/.build/

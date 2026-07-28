@@ -1,0 +1,1013 @@
+{
+ "suite": "primitives",
+ "generated": "2026-07-28T08:11:49.610Z",
+ "source": "scripts/dump-vectors (TS oracle @ a68797a)",
+ "cases": [
+  {
+   "name": "keccak256/empty",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x"
+   },
+   "expect": {
+    "value": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+   }
+  },
+  {
+   "name": "keccak256/hello",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x68656c6c6f"
+   },
+   "expect": {
+    "value": "0x1c8aff950685c2ed4bc3174f3472287b56d9517b9c948127319a09a7a36deac8"
+   }
+  },
+  {
+   "name": "keccak256/fox",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x54686520717569636b2062726f776e20666f78206a756d7073206f76657220746865206c617a7920646f67"
+   },
+   "expect": {
+    "value": "0x4d741b6f1eb29cb2a9b9911c82f56fa8d73b04959d3d9d222895df6c0b28aa15"
+   }
+  },
+  {
+   "name": "keccak256/abc",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x616263"
+   },
+   "expect": {
+    "value": "0x4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45"
+   }
+  },
+  {
+   "name": "keccak256/single-zero-byte",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x00"
+   },
+   "expect": {
+    "value": "0xbc36789e7a1e281436464229828f817d6612f7b477d66591ff96a9e064bcc98a"
+   }
+  },
+  {
+   "name": "keccak256/rate-minus-1",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31"
+   },
+   "expect": {
+    "value": "0x8ab570337c9a3a773c3605160ca58e3f0546d92d217c908669cc4f35a31933bc"
+   }
+  },
+  {
+   "name": "keccak256/rate-exact",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b3239"
+   },
+   "expect": {
+    "value": "0x16b30a6be318a7acbcba7a2194789f628abf68dfbbf55a4d840f22f6a4d29efd"
+   }
+  },
+  {
+   "name": "keccak256/rate-plus-1",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x8990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41"
+   },
+   "expect": {
+    "value": "0x6a7e8293441d51be41bf4994995b35981f90c07866c7fd0465f405e2b7a8f8dd"
+   }
+  },
+  {
+   "name": "keccak256/two-blocks",
+   "fn": "keccak256",
+   "input": {
+    "data": "0x10171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b7279"
+   },
+   "expect": {
+    "value": "0x443464c0c3ac8036d14a6f8647fc93b592d514adefbe88683cbbda3b4b2c4553"
+   }
+  },
+  {
+   "name": "sha256/empty",
+   "fn": "sha256",
+   "input": {
+    "data": "0x"
+   },
+   "expect": {
+    "value": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   }
+  },
+  {
+   "name": "sha256/abc",
+   "fn": "sha256",
+   "input": {
+    "data": "0x616263"
+   },
+   "expect": {
+    "value": "0xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+   }
+  },
+  {
+   "name": "sha256/size-1",
+   "fn": "sha256",
+   "input": {
+    "data": "0x01"
+   },
+   "expect": {
+    "value": "0x4bf5122f344554c53bde2ebb8cd2b7e3d1600ad631c385a5d7cce23c7785459a"
+   }
+  },
+  {
+   "name": "sha256/size-31",
+   "fn": "sha256",
+   "input": {
+    "data": "0x1f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1"
+   },
+   "expect": {
+    "value": "0x6c56c9f0cdd4759c04aa75b8583e11614c25b347c984ca4c6bcb1fdfb09fb268"
+   }
+  },
+  {
+   "name": "sha256/size-55",
+   "fn": "sha256",
+   "input": {
+    "data": "0x373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1"
+   },
+   "expect": {
+    "value": "0x81afe5b788dc2ce138ff83d9b20164db75a94d75d2b2432eea4a0ef605088c72"
+   }
+  },
+  {
+   "name": "sha256/size-56",
+   "fn": "sha256",
+   "input": {
+    "data": "0x383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9"
+   },
+   "expect": {
+    "value": "0x2aba54f0ac632420a2b502431408866e40e1d5e430df4cd822642c78ab2eb9c1"
+   }
+  },
+  {
+   "name": "sha256/size-63",
+   "fn": "sha256",
+   "input": {
+    "data": "0x3f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1"
+   },
+   "expect": {
+    "value": "0x733d3d4ee79ee67145bf73da13588f6f235d37414fc64b14a2f00f1762792f5e"
+   }
+  },
+  {
+   "name": "sha256/size-64",
+   "fn": "sha256",
+   "input": {
+    "data": "0x40474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   },
+   "expect": {
+    "value": "0x79322907b3e9d013d7dc2c2f256674dbf733045cde01df3539271c6f5605feb8"
+   }
+  },
+  {
+   "name": "sha256/size-65",
+   "fn": "sha256",
+   "input": {
+    "data": "0x41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01"
+   },
+   "expect": {
+    "value": "0xd85c007c6eb440f085afa2b84f6f2bce4658b240e9f62cb1364bf0485a57e720"
+   }
+  },
+  {
+   "name": "sha256/size-127",
+   "fn": "sha256",
+   "input": {
+    "data": "0x7f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1"
+   },
+   "expect": {
+    "value": "0x68f6ff710276900c0ffbbc57426f67e00c2e01f0750c7edc25ac06b8ce7a8095"
+   }
+  },
+  {
+   "name": "sha256/size-128",
+   "fn": "sha256",
+   "input": {
+    "data": "0x80878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   },
+   "expect": {
+    "value": "0x489d55fea9a73af36b6dd0be7b4117d8e5683386d39544e8a44c99a87f368707"
+   }
+  },
+  {
+   "name": "sha256/size-1000",
+   "fn": "sha256",
+   "input": {
+    "data": "0xe8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b323940474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f900070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9e0e7eef5fc030a11181f262d343b424950575e656c737a81888f969da4abb2b9c0c7ced5dce3eaf1f8ff060d141b222930373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb020910171e252c333a41484f565d646b727980878e959ca3aab1b8bfc6cdd4dbe2e9f0f7fe050c131a21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01080f161d242b3239"
+   },
+   "expect": {
+    "value": "0x6b0df76627243d095b0c4400cb658b7e804dd03461cc03aee8fc8fe0bcada168"
+   }
+  },
+  {
+   "name": "checksumAddress/known-vector",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+   },
+   "expect": {
+    "value": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "name": "checksumAddress/eip55-spec-1",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "0xfb6916095ca1df60bb79ce92ce3ea74c37c5d359"
+   },
+   "expect": {
+    "value": "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359"
+   }
+  },
+  {
+   "name": "checksumAddress/eip55-spec-2",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "0xdbf03b407c01e7cd3cbea99509d93f8dddc8c6fb"
+   },
+   "expect": {
+    "value": "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB"
+   }
+  },
+  {
+   "name": "checksumAddress/eip55-spec-3",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "0xd1220a0cf47c7b9be7a2e6ba89f429762e7b9adb"
+   },
+   "expect": {
+    "value": "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb"
+   }
+  },
+  {
+   "name": "checksumAddress/all-caps-input",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "0x52908400098527886E0F7030069857D2E4169EE7"
+   },
+   "expect": {
+    "value": "0x52908400098527886E0F7030069857D2E4169EE7"
+   }
+  },
+  {
+   "name": "checksumAddress/no-prefix",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "5aaeb6053f3e94c9b9a09f33669435e7ef1beaed"
+   },
+   "expect": {
+    "value": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "name": "checksumAddress/already-checksummed",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   },
+   "expect": {
+    "value": "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed"
+   }
+  },
+  {
+   "name": "checksumAddress/wrong-length",
+   "fn": "checksum_address",
+   "input": {
+    "address_hex": "0x1234"
+   },
+   "expect": {
+    "error": "InvalidAddress"
+   }
+  },
+  {
+   "name": "functionSelector/transfer",
+   "fn": "function_selector",
+   "input": {
+    "signature": "transfer(address,uint256)"
+   },
+   "expect": {
+    "value": "0xa9059cbb"
+   }
+  },
+  {
+   "name": "functionSelector/approve",
+   "fn": "function_selector",
+   "input": {
+    "signature": "approve(address,uint256)"
+   },
+   "expect": {
+    "value": "0x095ea7b3"
+   }
+  },
+  {
+   "name": "functionSelector/setup",
+   "fn": "function_selector",
+   "input": {
+    "signature": "setup(address[],uint256,address,bytes,address,address,uint256,address)"
+   },
+   "expect": {
+    "value": "0xb63e800d"
+   }
+  },
+  {
+   "name": "functionSelector/multiSend",
+   "fn": "function_selector",
+   "input": {
+    "signature": "multiSend(bytes)"
+   },
+   "expect": {
+    "value": "0x8d80ff0a"
+   }
+  },
+  {
+   "name": "functionSelector/balanceOf",
+   "fn": "function_selector",
+   "input": {
+    "signature": "balanceOf(address)"
+   },
+   "expect": {
+    "value": "0x70a08231"
+   }
+  },
+  {
+   "name": "functionSelector/enableModules",
+   "fn": "function_selector",
+   "input": {
+    "signature": "enableModules(address[])"
+   },
+   "expect": {
+    "value": "0x8d0dc49f"
+   }
+  },
+  {
+   "name": "create2Address/arachnid-factory",
+   "fn": "create2_address",
+   "input": {
+    "deployer_hex": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "salt": "0x462704a78d561681250bca53d570ba2d9b9604b46f9b645da9cd5164c5cdc0dc",
+    "init_code_hash": "0x57cbded1235625f8ad0faca9d2ccca1fa32ada477f86700ed7de15f1987fca9d"
+   },
+   "expect": {
+    "value": "0xA20beb686e6f6C65Fa4feB3d4D4E36b34695D193"
+   }
+  },
+  {
+   "name": "create2Address/safe-proxy-factory",
+   "fn": "create2_address",
+   "input": {
+    "deployer_hex": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+    "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "init_code_hash": "0x0482a4f179dd72714281d481b6b6f77f654814449ed3ad56c38e7903788fcbef"
+   },
+   "expect": {
+    "value": "0xC9733A395adAD85EC7b564243A27E7fbAc3AAD4F"
+   }
+  },
+  {
+   "name": "create2Address/zero-salt-zero-hash",
+   "fn": "create2_address",
+   "input": {
+    "deployer_hex": "0x0000000000000000000000000000000000000001",
+    "salt": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "init_code_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": "0xe07D489D16f827aE3ef19663fD167C7755cD767b"
+   }
+  },
+  {
+   "name": "create2Address/short-salt",
+   "fn": "create2_address",
+   "input": {
+    "deployer_hex": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "salt": "0x00000000000000000000000000000000000000000000000000000000000000",
+    "init_code_hash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "error": "InvalidAddress"
+   }
+  },
+  {
+   "name": "toHex/empty-unprefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0x",
+    "prefixed": false
+   },
+   "expect": {
+    "value": ""
+   }
+  },
+  {
+   "name": "toHex/empty-prefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0x",
+    "prefixed": true
+   },
+   "expect": {
+    "value": "0x"
+   }
+  },
+  {
+   "name": "toHex/deadbeef-unprefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0xdeadbeef",
+    "prefixed": false
+   },
+   "expect": {
+    "value": "deadbeef"
+   }
+  },
+  {
+   "name": "toHex/deadbeef-prefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0xdeadbeef",
+    "prefixed": true
+   },
+   "expect": {
+    "value": "0xdeadbeef"
+   }
+  },
+  {
+   "name": "toHex/leading-zero-unprefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0x0001",
+    "prefixed": false
+   },
+   "expect": {
+    "value": "0001"
+   }
+  },
+  {
+   "name": "toHex/leading-zero-prefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0x0001",
+    "prefixed": true
+   },
+   "expect": {
+    "value": "0x0001"
+   }
+  },
+  {
+   "name": "toHex/all-values-run-unprefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0x40474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9",
+    "prefixed": false
+   },
+   "expect": {
+    "value": "40474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   }
+  },
+  {
+   "name": "toHex/all-values-run-prefixed",
+   "fn": "to_hex",
+   "input": {
+    "data": "0x40474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9",
+    "prefixed": true
+   },
+   "expect": {
+    "value": "0x40474e555c636a71787f868d949ba2a9b0b7bec5ccd3dae1e8eff6fd040b121920272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   }
+  },
+  {
+   "name": "fromHex/prefixed",
+   "fn": "from_hex",
+   "input": {
+    "s": "0xdeadbeef"
+   },
+   "expect": {
+    "value": "0xdeadbeef"
+   }
+  },
+  {
+   "name": "fromHex/bare",
+   "fn": "from_hex",
+   "input": {
+    "s": "deadbeef"
+   },
+   "expect": {
+    "value": "0xdeadbeef"
+   }
+  },
+  {
+   "name": "fromHex/mixed-case",
+   "fn": "from_hex",
+   "input": {
+    "s": "DeAdBeEf"
+   },
+   "expect": {
+    "value": "0xdeadbeef"
+   }
+  },
+  {
+   "name": "fromHex/empty",
+   "fn": "from_hex",
+   "input": {
+    "s": ""
+   },
+   "expect": {
+    "value": "0x"
+   }
+  },
+  {
+   "name": "fromHex/bare-0x",
+   "fn": "from_hex",
+   "input": {
+    "s": "0x"
+   },
+   "expect": {
+    "value": "0x"
+   }
+  },
+  {
+   "name": "fromHex/odd-length",
+   "fn": "from_hex",
+   "input": {
+    "s": "abc"
+   },
+   "expect": {
+    "error": "InvalidHex"
+   }
+  },
+  {
+   "name": "toQuantity/ethers-v5-padded",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0x0de0b6b3a7640000"
+   },
+   "expect": {
+    "value": "0xde0b6b3a7640000"
+   }
+  },
+  {
+   "name": "toQuantity/already-canonical",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0xde0b6b3a7640000"
+   },
+   "expect": {
+    "value": "0xde0b6b3a7640000"
+   }
+  },
+  {
+   "name": "toQuantity/zero-hex",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0x0"
+   },
+   "expect": {
+    "value": "0x0"
+   }
+  },
+  {
+   "name": "toQuantity/zero-padded",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0x000"
+   },
+   "expect": {
+    "value": "0x0"
+   }
+  },
+  {
+   "name": "toQuantity/empty-string",
+   "fn": "to_quantity",
+   "input": {
+    "value": ""
+   },
+   "expect": {
+    "value": "0x0"
+   }
+  },
+  {
+   "name": "toQuantity/bare-0x",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0x"
+   },
+   "expect": {
+    "value": "0x0"
+   }
+  },
+  {
+   "name": "toQuantity/decimal",
+   "fn": "to_quantity",
+   "input": {
+    "value": "123"
+   },
+   "expect": {
+    "value": "0x7b"
+   }
+  },
+  {
+   "name": "toQuantity/decimal-zero",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0"
+   },
+   "expect": {
+    "value": "0x0"
+   }
+  },
+  {
+   "name": "toQuantity/uppercase-hex",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0xABC"
+   },
+   "expect": {
+    "value": "0xabc"
+   }
+  },
+  {
+   "name": "toQuantity/u256-max",
+   "fn": "to_quantity",
+   "input": {
+    "value": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+   },
+   "expect": {
+    "value": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   }
+  },
+  {
+   "name": "toQuantity/uppercase-0x-prefix",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0X1F"
+   },
+   "expect": {
+    "value": "0x1f"
+   }
+  },
+  {
+   "name": "toQuantity/surrounding-whitespace",
+   "fn": "to_quantity",
+   "input": {
+    "value": " 12 "
+   },
+   "expect": {
+    "value": "0xc"
+   }
+  },
+  {
+   "name": "toQuantity/leading-plus",
+   "fn": "to_quantity",
+   "input": {
+    "value": "+5"
+   },
+   "expect": {
+    "value": "0x5"
+   }
+  },
+  {
+   "name": "toQuantity/binary-prefix",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0b101"
+   },
+   "expect": {
+    "value": "0x5"
+   }
+  },
+  {
+   "name": "toQuantity/octal-prefix",
+   "fn": "to_quantity",
+   "input": {
+    "value": "0o17"
+   },
+   "expect": {
+    "value": "0xf"
+   }
+  },
+  {
+   "name": "toBase64Url/empty",
+   "fn": "to_base64url",
+   "input": {
+    "data": "0x"
+   },
+   "expect": {
+    "value": ""
+   }
+  },
+  {
+   "name": "fromBase64Url/empty",
+   "fn": "from_base64url",
+   "input": {
+    "s": ""
+   },
+   "expect": {
+    "value": "0x"
+   }
+  },
+  {
+   "name": "toBase64Url/one-byte",
+   "fn": "to_base64url",
+   "input": {
+    "data": "0x00"
+   },
+   "expect": {
+    "value": "AA"
+   }
+  },
+  {
+   "name": "fromBase64Url/one-byte",
+   "fn": "from_base64url",
+   "input": {
+    "s": "AA"
+   },
+   "expect": {
+    "value": "0x00"
+   }
+  },
+  {
+   "name": "toBase64Url/two-bytes",
+   "fn": "to_base64url",
+   "input": {
+    "data": "0xfffe"
+   },
+   "expect": {
+    "value": "__4"
+   }
+  },
+  {
+   "name": "fromBase64Url/two-bytes",
+   "fn": "from_base64url",
+   "input": {
+    "s": "__4"
+   },
+   "expect": {
+    "value": "0xfffe"
+   }
+  },
+  {
+   "name": "toBase64Url/three-bytes",
+   "fn": "to_base64url",
+   "input": {
+    "data": "0xfffefd"
+   },
+   "expect": {
+    "value": "__79"
+   }
+  },
+  {
+   "name": "fromBase64Url/three-bytes",
+   "fn": "from_base64url",
+   "input": {
+    "s": "__79"
+   },
+   "expect": {
+    "value": "0xfffefd"
+   }
+  },
+  {
+   "name": "toBase64Url/hello-world",
+   "fn": "to_base64url",
+   "input": {
+    "data": "0x68656c6c6f20776f726c64"
+   },
+   "expect": {
+    "value": "aGVsbG8gd29ybGQ"
+   }
+  },
+  {
+   "name": "fromBase64Url/hello-world",
+   "fn": "from_base64url",
+   "input": {
+    "s": "aGVsbG8gd29ybGQ"
+   },
+   "expect": {
+    "value": "0x68656c6c6f20776f726c64"
+   }
+  },
+  {
+   "name": "toBase64Url/credential-id-shaped",
+   "fn": "to_base64url",
+   "input": {
+    "data": "0x20272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   },
+   "expect": {
+    "value": "ICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM_W3eTr8vk"
+   }
+  },
+  {
+   "name": "fromBase64Url/credential-id-shaped",
+   "fn": "from_base64url",
+   "input": {
+    "s": "ICcuNTxDSlFYX2ZtdHuCiZCXnqWss7rByM_W3eTr8vk"
+   },
+   "expect": {
+    "value": "0x20272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   }
+  },
+  {
+   "name": "toBase64Url/url-unsafe-chars",
+   "fn": "to_base64url",
+   "input": {
+    "data": "0xfbffbf3e3f"
+   },
+   "expect": {
+    "value": "-_-_Pj8"
+   }
+  },
+  {
+   "name": "fromBase64Url/url-unsafe-chars",
+   "fn": "from_base64url",
+   "input": {
+    "s": "-_-_Pj8"
+   },
+   "expect": {
+    "value": "0xfbffbf3e3f"
+   }
+  },
+  {
+   "name": "fromBase64Url/padded-input-tolerated",
+   "fn": "from_base64url",
+   "input": {
+    "s": "AA=="
+   },
+   "expect": {
+    "value": "0x00"
+   }
+  },
+  {
+   "name": "fromBase64Url/excess-padding",
+   "fn": "from_base64url",
+   "input": {
+    "s": "AA===="
+   },
+   "expect": {
+    "error": "InvalidBase64Url"
+   }
+  },
+  {
+   "name": "abiEncodeAddress/checksummed",
+   "fn": "abi_encode_address",
+   "input": {
+    "address_hex": "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+   },
+   "expect": {
+    "value": "0x0000000000000000000000004e59b44847b379578588920ca78fbf26c0b4956c"
+   }
+  },
+  {
+   "name": "abiEncodeAddress/short",
+   "fn": "abi_encode_address",
+   "input": {
+    "address_hex": "0x1234"
+   },
+   "expect": {
+    "error": "InvalidAddress"
+   }
+  },
+  {
+   "name": "abiEncodeUint256/one",
+   "fn": "abi_encode_uint256",
+   "input": {
+    "value_hex": "0x1"
+   },
+   "expect": {
+    "value": "0x0000000000000000000000000000000000000000000000000000000000000001"
+   }
+  },
+  {
+   "name": "abiEncodeUint256/wei-amount",
+   "fn": "abi_encode_uint256",
+   "input": {
+    "value_hex": "0xde0b6b3a7640000"
+   },
+   "expect": {
+    "value": "0x0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+   }
+  },
+  {
+   "name": "abiEncodeUint256/max",
+   "fn": "abi_encode_uint256",
+   "input": {
+    "value_hex": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "expect": {
+    "value": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   }
+  },
+  {
+   "name": "abiEncodeBytes32/short-payload",
+   "fn": "abi_encode_bytes32",
+   "input": {
+    "data": "0x76656c61"
+   },
+   "expect": {
+    "value": "0x76656c6100000000000000000000000000000000000000000000000000000000"
+   }
+  },
+  {
+   "name": "abiEncodeBytes32/full-width",
+   "fn": "abi_encode_bytes32",
+   "input": {
+    "data": "0x20272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   },
+   "expect": {
+    "value": "0x20272e353c434a51585f666d747b828990979ea5acb3bac1c8cfd6dde4ebf2f9"
+   }
+  },
+  {
+   "name": "abiEncodeBytes32/too-long",
+   "fn": "abi_encode_bytes32",
+   "input": {
+    "data": "0x21282f363d444b525960676e757c838a91989fa6adb4bbc2c9d0d7dee5ecf3fa01"
+   },
+   "expect": {
+    "error": "InvalidHex"
+   }
+  },
+  {
+   "name": "fromHex/junk-input",
+   "fn": "from_hex",
+   "input": {
+    "s": "zz"
+   },
+   "expect": {
+    "error": "InvalidHex"
+   },
+   "divergence": {
+    "ts_behavior": "parseInt('zz',16)=NaN coerces to a single 0x00 byte — silent junk acceptance",
+    "reason": "FR-004: parse failure must never yield a default value"
+   }
+  },
+  {
+   "name": "toQuantity/negative-input",
+   "fn": "to_quantity",
+   "input": {
+    "value": "-5"
+   },
+   "expect": {
+    "error": "InvalidQuantity"
+   },
+   "divergence": {
+    "ts_behavior": "negative values silently clamp to '0x0'",
+    "reason": "FR-004: a negative quantity forwarded from a dApp is malformed, not zero"
+   }
+  },
+  {
+   "name": "toQuantity/garbage-input",
+   "fn": "to_quantity",
+   "input": {
+    "value": "not-a-number"
+   },
+   "expect": {
+    "error": "InvalidQuantity"
+   },
+   "divergence": {
+    "ts_behavior": "BigInt() throws internally and the catch returns '0x0'",
+    "reason": "FR-004: parse failure must never yield a default value"
+   }
+  },
+  {
+   "name": "fromBase64Url/embedded-whitespace",
+   "fn": "from_base64url",
+   "input": {
+    "s": "AA\n"
+   },
+   "expect": {
+    "error": "InvalidBase64Url"
+   },
+   "divergence": {
+    "ts_behavior": "Node's atob silently ignores ASCII whitespace, decoding 'AA\\n' to one byte",
+    "reason": "credential IDs and challenges are never whitespace-padded; silent stripping hides malformed input"
+   }
+  },
+  {
+   "name": "fromBase64Url/standard-alphabet-input",
+   "fn": "from_base64url",
+   "input": {
+    "s": "a+b/"
+   },
+   "expect": {
+    "error": "InvalidBase64Url"
+   },
+   "divergence": {
+    "ts_behavior": "atob() accepts standard-alphabet '+'/'/' after the url-safe replace, silently decoding mixed-alphabet input",
+    "reason": "FR-004: a base64url decoder must only accept the url-safe alphabet; credential IDs are always url-safe"
+   }
+  }
+ ]
+}

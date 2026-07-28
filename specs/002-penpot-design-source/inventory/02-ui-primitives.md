@@ -1,6 +1,6 @@
 # Vela Wallet — UI Primitives Spec (02)
 
-Scope: every file in `src/components/ui/` (41 files) plus `src/components/themed-text.tsx`, `themed-view.tsx`, `animated-icon.tsx` / `animated-icon.web.tsx`.
+Scope: every file in `src/components/ui/` (40 files) plus `src/components/themed-text.tsx`, `themed-view.tsx`, `animated-icon.tsx` / `animated-icon.web.tsx`.
 Purpose: source-of-truth input for a Penpot component library (variant axes proposed per component). Visual + structural + behavioral only; RN implementation trivia omitted except where it encodes design behavior.
 
 Authoritative style docs: `docs/DESIGN-LANGUAGE.md` (CONFIRMED current: de-containered, hairline dividers, open heroes) overrides `DESIGN_SYSTEM.md` where they conflict. Conflicts found are flagged in §Z.
@@ -44,8 +44,8 @@ All components reference these tokens. Values below are the ground truth (DESIGN
 
 ### 0.4 Type scale (base px, before user scale)
 `xs 10 · sm 11 · base 13 · lg 15 · xl 17 · 2xl 20 · 3xl 26 · 4xl 32 · 5xl 40`
-- User text-scale multiplier **0.85×–1.28×** applies to every token size; design layouts must survive both extremes.
-- **Web-only ×1.2 boost** on top (native additionally inherits OS font scaling).
+- User text-scale multiplier: **6 levels, 0.82×–1.35×** (compact 0.82 · small 0.91 · standard 1.0 · comfortable 1.10 · large 1.22 · xlarge 1.35) — `// src/constants/text-scale.ts:15-22`. Default is `standard` on BOTH platforms (`// text-scale.ts:25`; the file's own header comment "Android defaults to comfortable" is stale). Applies to every token size; design layouts must survive both extremes (0.82 and 1.35).
+- **Web-only ×1.2 boost** on top (`WEB_TEXT_BOOST`, `// src/constants/theme.ts:61`); native instead additionally inherits OS font scaling.
 - Weights: regular 400 / medium 500 / semibold 600 / bold 700.
 - **Typeface: Plus Jakarta Sans** in all four weights (the code export is named `inter` for historic reasons — the actual family is PlusJakartaSans_400/500/600/700). `font.display` = Plus Jakarta Bold. `font.mono` = Menlo (iOS) / `monospace` (Android/web). `font.numeric` = Plus Jakarta Regular (no separate tabular face — see §Z-2).
 - Line heights (`leading`): none 1 / tight 1.2 / normal 1.4 / relaxed 1.6 (mostly used ad hoc: explicit lineHeight 18–22 on paragraphs).
@@ -231,9 +231,9 @@ All components reference these tokens. Values below are the ground truth (DESIGN
 - **initial** (classic): circle `accent.soft` fill, letter = first char uppercased (fallback "V"), `bold accent.base`.
 - **identicon**: `<Identicon>` at size (requires `address`). If `enlargeable` and address valid: tappable (stops propagation, selection haptic) → opens IdenticonViewerSheet. Deliberately NOT role=button (lives inside button rows; avoids nested-button invalid HTML on web) — has a11y label only.
 
-**Usage**: HomeScreen account button (44), AccountSwitcherModal rows (40, enlargeable), TransactionReceipt from-party (38), ConfirmStep, browser account switcher.
+**Usage**: HomeScreen account button (44), AccountSwitcherModal rows (40, enlargeable), TransactionReceipt from-party (38), ConfirmStep, browser bottom-bar account pill (**20**, `letterSize 11` — `// src/app/browser.tsx:476`, the dApp-browser account-switcher trigger).
 
-**Penpot axes**: `style (initial/identicon) × size (32/38/40/44)`.
+**Penpot axes**: `style (initial/identicon) × size (20/32/38/40/44)`.
 
 ---
 
@@ -608,7 +608,9 @@ AppModal wrapper: sheet `paddingHorizontal 20`, header pattern (X is 18px here),
 
 ## D9. BundlerFundingModal + BundlerFundingView (`ui/BundlerFundingModal.tsx`)
 
-**Purpose**: gas-account funding fallback sheet (silent sponsorship failed). Renders standalone (Send) or as in-sheet content swap (dApp signing — iOS can't stack modals). Modes: topup / confirming / funded.
+**Purpose**: gas-account funding fallback sheet (silent sponsorship failed). Modes: topup / confirming / funded.
+
+⚠ **Standalone `BundlerFundingModal` (AppModal wrapper) is dead code — do not board.** Zero imports of the wrapper anywhere in `src/`; only `BundlerFundingView` is imported, as the in-sheet content swap inside SigningRequestModal (`// src/components/signing/SigningRequestModal.tsx:8` — iOS can't stack modals). The Send path that used the standalone sheet was replaced by TreasuryBootstrapSheet. Everything below specs the live `BundlerFundingView` content.
 
 **Shared header** (centered): 44px circle `accent.soft` with `Fuel 22 accent sw2` · title `text.lg (15) bold` · network chip: `bg.sunken`, `radius.full`, `padding 8/3`, ChainLogo 16 + name `text.xs (10) semibold fg.base`.
 
@@ -628,7 +630,7 @@ AppModal wrapper: sheet `paddingHorizontal 20`, header pattern (X is 18px here),
 
 **funded**: centered 56px circle `success.soft` with `Check 28 success sw2.5` · title `text.lg semibold fg.base` · accent "Continue" (auto-advances after 1.2s success beat).
 
-**Penpot axes**: `mode (topup/confirming/funded) × QR (collapsed/open) × retry (none/available/retrying) × surface (standalone/dapp-swap)`.
+**Penpot axes**: `mode (topup/confirming/funded) × QR (collapsed/open) × retry (none/available/retrying)` — dApp content-swap surface only (standalone wrapper is dead code, see ⚠ above).
 
 ---
 
@@ -799,7 +801,7 @@ Splash-screen animation. Native: full-screen solid **`#208AEF`** overlay scaling
 4. **Two competing "selected row" conventions**: FeeTokenSelector's comment claims the app-wide picker convention is "accent check only, no filled tint", but CurrencySheet and NetworkFilterSheet still use **raised card rows with a 1.5px accent border** on selection (plus the check). TokenRow's checkbox mode uses an `accent.soft` fill. Penpot needs a ruling on the canonical selected-row treatment.
 5. **SectionLabel letterSpacing**: code 0.6 vs DESIGN_SYSTEM's documented 0.8–1.2 (other uppercase micro-labels in sheets do use 0.5–0.8 ad hoc).
 6. **AddTokenPanel tab switcher** is an old filled-track segmented control with an **accent-colored active label** — conflicts with both "SegmentedToggle is the only segmented control" and "accent reserved for money-moving actions".
-7. **Hardcoded values escaping the token system**: `#C07A0A` warning-icon tint (RpcTroubleBanner + RpcFixForm); `rgba(45,142,95,0.3)` success border (SlideToConfirmButton); `rgba(0,0,0,0.35)` modal backdrops (AppModal/AppAlert); `#FFFFFF` QR plates (intentional); BrowserHistorySheet raw fontWeight + 12px; TransactionReceipt "Done" re-implements VelaButton primary; RpcFixForm save button re-implements VelaButton accent; canvas renderer uses font name "Inter" though the app ships Plus Jakarta Sans.
+7. **Hardcoded values escaping the token system**: `#C07A0A` warning-icon tint (RpcTroubleBanner + RpcFixForm); `rgba(45,142,95,0.3)` success border (SlideToConfirmButton); `rgba(0,0,0,0.35)` modal backdrops (AppModal/AppAlert); `#FFFFFF` QR plates (intentional); custom networks added via AddNetworkModal get ChainLogo fallback-disc defaults `iconColor '#888888'` / `iconBg '#F0F0F0'` (`// src/screens/settings/SettingsScreen.tsx:658-659`) — fixed light-mode grays baked into stored data, so the disc renders as a bright plate in dark mode; BrowserHistorySheet raw fontWeight + 12px; TransactionReceipt "Done" re-implements VelaButton primary; RpcFixForm save button re-implements VelaButton accent; canvas renderer uses font name "Inter" though the app ships Plus Jakarta Sans.
 8. **Entrance animations are iOS-only** (helper returns undefined on Android/web to avoid a blank first frame). Android/web boards should be specced WITHOUT entrance motion; press springs still apply everywhere.
 9. **AppAlert visual spec applies to web only** — native shows OS alerts; a future GPUI/native re-implementation must decide whether to adopt the styled dialog on all platforms.
 10. **Legacy components** (ThemedText/ThemedView/Collapsible/AnimatedIcon) use a parallel legacy palette + Expo branding; exclude or mark legacy.
@@ -818,7 +820,7 @@ Splash-screen animation. Native: full-screen solid **`#208AEF`** overlay scaling
 | AmountText | mode(fiat/preformatted) × symbol(full/subordinated/none) × decimals × representation(full/compact) |
 | Input recipe (+AutoGrow) | kind(single/multiline) × state(empty/filled/error) |
 | Identicon | size |
-| WalletAvatar | style(initial/identicon) × size(32/38/40/44) |
+| WalletAvatar | style(initial/identicon) × size(20/32/38/40/44) |
 | SegmentedToggle | segment(active/inactive) × badge × icon |
 | SlideToConfirmButton | state(idle/dragging/committed/disabled/loading) |
 | VelaRefresh indicator | state(idle/pulling/armed/refreshing) × caption |

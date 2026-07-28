@@ -2,6 +2,13 @@
 
 Audience: the implementing agent (this feature's implement phase) and anyone re-running or extending generation later. Chunks live in `specs/002-penpot-design-source/generator/` as numbered `.js` files whose bodies are passed verbatim to `mcp__penpot__execute_code`.
 
+## Penpot platform rules (verified empirically 2026-07-29, Penpot 2.16.2 + mcp:2.16)
+
+1. **Name normalization**: `/` in shape names is stored as ` / ` (space-padded). Every lookup must `lib.norm()` first; never compare against the compact grammar form.
+2. **Mutations are current-page-only**: create/remove/reparent silently no-op on non-current pages. `await lib.open(page)` before mutating.
+3. **openPage settles asynchronously**: poll `penpot.currentPage.id` until it matches (lib.open does; fixed sleeps are unreliable) — otherwise shapes land on the previously-current page.
+4. **Page roots share the zero-uuid id**: a shape's owning page CANNOT be resolved by walking parents to the root. To locate/mutate across pages, iterate pages and scoped-search `penpot.currentPage.root` (see `lib.removeWhere`).
+
 ## Chunk discipline
 
 1. **Numbered + phased**: `NN-<phase>-<slug>.js` (e.g. `20-tokens-color.js`, `52-screens-send.js`). Execution order = numeric order; any suffix of the pipeline must be re-runnable alone.

@@ -33,7 +33,7 @@ All values below are read directly from source. **Token → value tables are giv
 | `border.base` | `#ECEBE4` | `#2C2C28` |
 | `border.strong` | `#D8D6CE` | `#3E3E38` |
 
-### 0.2 Type scale (base px; multiplied by user scale 0.85–1.28, and ×1.2 on web)
+### 0.2 Type scale (base px; multiplied by user scale 0.82–1.35, and ×1.2 on web)
 
 `xs`=10, `sm`=11, `base`=13, `lg`=15, `xl`=17, `2xl`=20, `3xl`=26, `4xl`=32, `5xl`=40. `scaleFont(N)` = raw N (×1.2 web only, no user scale participation beyond createStyles rebuild).
 

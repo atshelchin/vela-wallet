@@ -39,6 +39,8 @@ Drift flags   recorded in coverage matrix, not in Penpot names
 
 Rules: lowercase route/state slugs, `/` separators, no spaces inside slugs; names are unique file-wide within their prefix class; renames are breaking changes to the consumption contract and require a matrix regeneration.
 
+**Canonical stored form** (verified 2026-07-29): Penpot normalizes `/` in shape names to ` / ` (padded with spaces) — `S/home/default` is stored as `S / home / default`. Grammar strings in docs/scripts use the compact form; ALL lookups must normalize first (`lib.norm`); consumers must match on the padded form.
+
 ## 3. Token model
 
 - **Entity**: Penpot `Token` in one of the three sets; `value` uses direct values (hex/px) or references (`{color.accent.base}`) where the app derives one token from another (e.g. `color.accent.soft`).

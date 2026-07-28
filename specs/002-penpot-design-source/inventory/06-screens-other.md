@@ -36,7 +36,7 @@ NOTE: `DESIGN_SYSTEM.md` §3.1 still lists the pre-WCAG values `fg.muted #7A776E
 - Radius: sm 4, md 8, lg 12, xl 16, 2xl 20, full 9999.
 - Shadows: sm (0,1, 4% α, r3, elev1), md (0,2, 6% α, r8, elev3), lg (0,4, 8% α, r16, elev6); shadow color always `#1A1A18`.
 - Motion: fast 150ms, normal 250ms, slow 400ms; press spring `{damping 15, stiffness 150, mass 0.8}`.
-- **Entrance animations run on iOS + web only.** `fadeIn/fadeInDown/fadeInUp` return `undefined` on Android (deliberate — avoids a blank first frame). Any re-implementation must treat entrances as iOS/web-only polish, never load-bearing.
+- **Entrance animations run on iOS ONLY.** All three helpers early-return `undefined` unless `Platform.OS === 'ios'` (`src/constants/entering.ts:19-37` — `if (!isIOS) return undefined`), so Android AND web render the settled state instantly (deliberate on Android — avoids a visible opacity-0 first frame; web simply takes the same non-iOS path). Rule for the rebuild: entrance motion is an iOS-only enhancement, never load-bearing — every board's default state is the settled one.
 
 ### 0.3 Shared primitives used by these screens (specs the screens rely on)
 
@@ -108,6 +108,18 @@ The bottom tab bar is hidden app-wide (`(tabs)/_layout.tsx` sets `tabBarStyle di
 - Number options (sample 1,234,567.89): Automatic (note "System") · `1,234,567.89` · `1.234.567,89` · `1 234 567,89` · `12,34,567.89` (note "Indian").
 - Date options (sample 2026-06-13): Automatic (note "System") · `2026/06/13` · `06/13/2026` · `13/06/2026` · `13.06.2026` · `2026-06-13`.
 - Time options (sample 13:45): Automatic (System) · `13:45` (note "24-hour") · `1:45 PM` (note "12-hour").
+
+**LanguagePickerModal** (AppModal page; `src/screens/settings/SettingsScreen.tsx:951-1005`, styles L1680-1742) — same shell + row recipe as FormatPickerModal, but this is the board where **all 15 scripts render simultaneously** (the app's natural i18n stress board):
+- Container bg `bg.base`; header row (paddingH 24 / paddingV 16, bottom hairline `border.base`): title "Language" (`language.pickerTitle`) text.xl bold + X 22 stroke2 `fg.base`, hitSlop 8.
+- Scroll content padding 16, paddingBottom 48; subtitle paragraph text.sm regular `fg.muted` lineHeight 20, paddingH 4, marginBottom 16: "Choose the language used throughout the app."
+- **16 rows** = 1 Follow-System row + all 15 `SUPPORTED_LANGUAGES`. Row (`fmtRow`): paddingV 12 / paddingH 8, gap 12, centered; hairline separator 1px `border.base` marginH 8 between rows (none above the first).
+- **Row anatomy**: left column flex 1 (gap 2) — label text.lg (15) semibold `fg.base` with **`font.mono` fontFamily** (inherited from `fmtExample`, the format-example style; Menlo iOS / `monospace` Android+web) + optional note text.sm regular `fg.muted`. Trailing: Check 20 `accent.base` stroke 2.6 on the selected row only — the left column flexes, so selection never shifts layout (identical to the format pickers).
+- **Row 0 — Follow System**: label = localized `language.followSystem` ("Follow System"); note = **the endonym of the concrete language the device resolves to** (e.g. "English", "简体中文") — the ONLY row with a subtitle.
+- **Rows 1–15**: each language by its **endonym, never translated** (`LANGUAGE_NATIVE_NAMES`, `src/i18n/index.ts:57-73`), in picker order English-first-then-by-region (`i18n/index.ts:46-53`): English · 简体中文 · 繁體中文（台灣） · 繁體中文（香港） · 日本語 · 한국어 · Tiếng Việt · Bahasa Indonesia · Türkçe · Русский · Español (México) · Português (Brasil) · Français · Italiano · Deutsch. Scripts on one screen: Latin (plain + Vietnamese diacritics), Han simplified + traditional (with fullwidth parentheses （）), Kana/Han, Hangul, Cyrillic.
+- **Truncation: none.** No `numberOfLines` anywhere in this modal — a long label wraps inside the flexing left column rather than ellipsizing; the trailing check is fixed-size. (Contrast: SettingsRow subtitles elsewhere truncate.)
+- Behavior: tap = select + close (no confirm step); selection persists `'auto'` or the concrete code. Accessibility: role button, `selected` state, label = the endonym.
+- Footer — contribute link (Pressable, marginTop 12, paddingH 4 / paddingV 8, gap 4): note text.sm regular `fg.muted` lh20 "See wording that reads wrong in your language? Help us fix it — thank you for making Vela better."; CTA row (gap 2): "Suggest a fix on GitHub" text.sm medium `accent.base` + ExternalLink 14 `accent.base` stroke 2.4 → opens the GitHub translation issue form prefilled for the **effective** language (auto resolves to the system language; `language` query param matches the issue-template dropdown verbatim — `SettingsScreen.tsx:941-948`).
+- Flag: the mono fontFamily on endonym labels is a side effect of reusing the format-example row style, and the mono face lacks CJK/Hangul/Cyrillic glyphs — those endonyms fall back to system fonts, so rows are visually mixed-typeface. The rebuild should decide whether language names are really mono (recommended: no).
 
 **Section: ADVANCED** (= "Advanced") — collapsible; header row = SectionLabel + ChevronDown 14 `fg.subtle` (rotates 180° when open), paddingRight 16. Collapsed by default. When open, 4 SettingsRows:
 1. [Globe/Network icon] "Networks" / "RPC, Explorer & Bundler URLs" → **NetworkEditorModal**.
@@ -340,6 +352,41 @@ ScreenContainer (top+bottom safe edges). Three mutually exclusive content states
 
 **QRScanner** (modal, shared component): full-screen camera with corner frame, torch/zoom/flip/photo-import controls, jsQR+zbar decoding on web — spec belongs to the components report.
 
+### 3.2 WebRequestScreen — route `/web-request?session={id}` (web-only dApp popup)
+
+**Purpose**: the HTTPS popup a dApp opens via the Vela SDK (`src/app/web-request.tsx`, 376 lines). One route, **7 phases** (`type Phase`, L23): `waiting` · `onboarding` · `consent` · `unsupported-chain` · `processing` · `done` · `error`. Handshake: the popup posts READY to `window.opener` every 300ms until the dApp answers INIT over a MessagePort; dApp metadata is presentation-only — **the security identity is always `event.origin`** (name trimmed, capped at 80 chars, falls back to the host).
+
+**Shared scaffold** — every phase except `onboarding` renders one centered card (L352-353):
+- Page: flex 1, minHeight 560, centered both axes, padding 20, bg `bg.base`.
+- Card: width 100% / maxWidth 390, centered column, gap 8, padding 24, **radius 24** (off the radius scale — largest token is 2xl 20), bg `bg.raised`, 1px `border.base`.
+
+**Identity row** (L265-280, styles L354-360) — the Vela ↔ dApp handshake graphic; shown in `consent`, `unsupported-chain` and `onboarding`; all other phases show the lone Vela brand column:
+- Row, alignItems flex-start, center-justified, gap 16: two brand columns (width 96, centered, gap 8) flanking a connection mark.
+- Brand logo tile: 68×68, radius 19, 1px `border.base`, bg `bg.sunken`. Left = Vela `icon.png`. Right = the dApp icon, loaded ONLY when it resolves to the exact requesting origin over https (`trustedDAppLogo` L39-50 — "metadata cannot turn the wallet into a third-party tracking-image client"); on failure/absence, fallback tile: same 68×68 with bg `#0B0E0C` + up-to-3-letter uppercase initials text.base bold `#99F6B7` (both HARDCODED hexes, identical in light + dark).
+- Brand name: width 96, text.sm semibold `fg.base`, centered; the dApp side is `numberOfLines 1` — the truncating side (the Vela side never truncates).
+- Connection mark: 38×38 circle (radius 19), marginTop 15 (optically centers it against the 68px logos), bg `accent.soft`, 1px `border.base`, containing Link2 19 `accent.base` stroke 2.4.
+
+**Shared atoms** (styles L361-375):
+- Title: text.xl bold `fg.base`, centered. Note: text.sm `fg.muted`, lineHeight 20, centered.
+- Primary button: full width, paddingV 14, radius 14, bg `accent.base`, label text.base semibold `#fff` — a bespoke Pressable, NOT VelaButton (radius 14 vs 16, paddingV 14 vs 16, no press spring, no haptic) → belongs on the VelaButton-only migration-debt list.
+- Secondary button: full width, paddingV 12, transparent, label text.base medium `fg.muted`.
+- Error icon: 44×44 circle (radius 22), bg `error.soft`, X 22 `error.base`.
+- Origin pill: row, gap 6, paddingH 10 / paddingV 7, radius 999, bg `success.soft`; ShieldCheck 15 `success.base` + host text.sm medium `success.base`.
+- Account box: full width, padding 16, gap 4, radius 16, bg `bg.sunken` — label "Account" text.xs medium `fg.subtle` · account name text.base semibold `fg.base` · address text.sm `font.mono` `fg.muted`, numberOfLines 1.
+- Network box: same recipe, gap 7 — label "Networks available in Vela" + list text.xs `fg.muted` lh18, left-aligned: every supported network as "DisplayName (chainId)" joined by " · ".
+
+**Per phase**:
+1. `waiting` (default) — Vela brand + small `accent.base` ActivityIndicator + title "Connecting securely…" + note "You can close this window after it finishes."
+2. `onboarding` (no wallet yet; L282-295) — the one phase NOT in the card: full page (flex 1, minHeight 640, bg `bg.base`); context header (maxWidth 480, centered, gap 4, paddingH 24 / top 24 / bottom 8): identity row + title "Set up Vela to continue" text.lg bold + note "Create or recover your wallet. Your connection request from {dApp} will continue automatically."; below it the REAL `OnboardingScreen` embedded (flex 1, maxWidth 480) with `onComplete` → the held request re-evaluates (chain validation deliberately runs AFTER setup completes).
+3. `consent` (connect request with no prior grant) — identity row → title "Connect with Vela" → origin pill → account box → note "This site can view your wallet address and request signatures. Every signature still requires your approval." → primary "Connect" → secondary "Cancel". Approve persists the grant {origin, address, chainId} then responds; reject responds 4001 "User rejected the connection".
+4. `unsupported-chain` — identity row → error icon → title "Network not supported" → note "{dApp} requested Chain ID {n}. Vela cannot safely process this request." → network box → secondary "Close" (responds with the chain error; default code 4902).
+5. `processing` — Vela brand + spinner + title "Confirm in Vela" + note "Review the request in the Vela confirmation sheet." (signing hands off to the shared extension-sign path via WebPopupTransport; account auto-switches to the granted account first).
+6. `done` — Vela brand + spinner + title "Done" + note "You can close this window after it finishes."; the popup self-closes after 250ms (`closePopupSoon`, L52-55).
+7. `error` — Vela brand only (never the dApp column) + error icon + title "Request unavailable" + note = the error text or "Set up or recover Vela Wallet, then try again from the dApp." + secondary "Close". Entered on: missing session param ("Invalid Vela request session."), no `window.opener` ("Open this page from a dApp using the Vela SDK."), or any error response.
+- Invisible respond-and-close outcomes (no UI state): already-granted connect resolves instantly; non-connect without a grant → 4100 "Connect Vela Wallet to this site first"; address mismatch → 4100 "The requested account is no longer authorized"; closing the popup mid-flight → 4001 "Vela request was closed".
+
+**Copy record (corrects 07 §3.6 — and the "12 t() calls" claim in the gaps audit)**: verified by grep, `web-request.tsx` contains **zero `t()` calls** (no `useTranslation` import at all) — every string in the file (~25 user-facing, including the RPC error messages above) is hardcoded English. The route as RENDERED is still partially localized, because the `onboarding` phase embeds the fully-i18n'd OnboardingScreen inside the hardcoded-English shell ("Set up Vela to continue" + note). So: not "fully hardcoded" as a screen, and not mixed-in-file either — a hardcoded English shell around one localized embedded screen.
+
 ---
 
 ## 4. DEV (brief)
@@ -365,7 +412,7 @@ Gate: `__DEV__` or `dev_unlocked` (same pattern as clear-signing-test). **Purpos
 4. **Hardcoded hexes**: WelcomeScreen (deliberate, documented brand-dark exception), ClearSigningTestScreen scenario icon tints (light-only values — will look wrong in dark mode), SafariExtensionScreen CTA (`#fff` text, radius 15), TreasuryModal QR card `#FFFFFF` (deliberate for scan contrast).
 5. **No destructive button variant** — Sign Out overrides VelaButton-accent's background with `error.base`; a Penpot component should model `destructive` as a first-class variant.
 6. **Text-scale slider**: code comment says the fill carries accent; implementation paints fill in `border.base` (neutral). Rebuild should decide one way (implemented = neutral).
-7. **Entrances are iOS/web-only** (Android renders instantly) — capture animations as optional layers.
+7. **Entrances are iOS-only** (`src/constants/entering.ts`: all three helpers `if (!isIOS) return undefined` — Android AND web render the settled state instantly) — capture entrance animations as optional iOS-only layers.
 8. **SettingsRow divider inset is 66px** while icon+padding math gives 62 (16+34+12) — the 66 is intentional-looking but undocumented.
-9. **i18n index comment says "12 locales"; SUPPORTED_LANGUAGES actually lists 15** (en, zh, zh-TW, zh-HK, ja, ko, vi, id, tr, ru, es-MX, pt-BR, fr, it, de) → language picker renders 16 rows (Follow System + 15).
+9. **i18n index header comment says "12 locales" (`src/i18n/index.ts:4`) — STALE; SUPPORTED_LANGUAGES actually lists 15** (en, zh, zh-TW, zh-HK, ja, ko, vi, id, tr, ru, es-MX, pt-BR, fr, it, de) → language picker renders 16 rows (Follow System + 15; full spec in §1.1 LanguagePickerModal). Terminology guard: earlier project notes saying "14 locales" mean 14 *translations* — the shipped count is 15 languages = en + 14 translations.
 10. **Hidden affordances to preserve**: About-logo 6-tap dev unlock (3s window, success haptic); Welcome-logo DEV long-press for settings; dev sections/routes keyed off the same `dev_unlocked` flag.

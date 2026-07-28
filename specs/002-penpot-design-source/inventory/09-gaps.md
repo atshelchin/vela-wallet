@@ -72,8 +72,10 @@ Two design-system-critical facts:
 ### 1.5 web-request.tsx covered only at phase-name depth
 `src/app/web-request.tsx` (376 lines). 07 §3.6 lists the 7 phases but gives no
 layout/measurement spec (identity row geometry, origin pill, account box, button row).
-Also its copy is **mixed**: 12 `t()` calls *plus* hardcoded English ("Set up Vela to
-continue", "Connect with Vela") — 07's "copy is hardcoded English" is only half right.
+Copy record CORRECTED 2026-07-29 (this file originally claimed "12 t() calls" — wrong):
+`web-request.tsx` has **zero** `t()` calls (no `useTranslation` import); all ~25 in-file
+strings are hardcoded English. The route only *renders* localized content in its
+onboarding phase because it embeds the fully-i18n'd OnboardingScreen. See 06 §3.2.
 - [ ] Expand to full per-phase spec; file the partial-i18n state precisely.
 
 ### 1.6 Custom-network fallback disc colors are hardcoded light-mode grays
@@ -178,3 +180,43 @@ there is no consolidated section.
   CTAs/segmented controls in one place.
 - **Boot spinner / +html phone frame / QRScanner / ReceiptHarness / privacy mask** — all
   verified covered; no action.
+
+---
+
+## 6. Scope rulings (2026-07-29)
+
+Resolves the open scope decisions in gaps 1.3 and 1.4. These rulings are normative for
+the Penpot file; record them on the `00 Start Here` page so no future agent re-litigates.
+
+### 6.1 Safari-extension popup — EXCLUDED from the Penpot source of truth
+`packages/safari-extension/src/popup.html` + `popup.js` (iOS target copy
+`targets/safari/assets/popup.html`) is **not** boarded. It is a WebKit-hosted HTML
+surface with its own rendering constraints, not a React Native screen. Two standing
+warnings travel with this exclusion:
+- **Palette drift risk**: its CSS hand-duplicates the Vela color tokens — the file
+  says so itself: "Vela tokens — kept in sync with src/constants/theme.ts (canonical:
+  lib/theme.js)" (`popup.html:6`), light/dark via `data-theme` +
+  `prefers-color-scheme`. Same failure mode as the bundler string coupling: any
+  theme.ts palette change (§15 of report 08) silently strands the popup. A token
+  change in Penpot does NOT propagate here; the sync obligation is manual.
+- **Typeface divergence**: the popup sets
+  `font: 14px/1.45 -apple-system, "SF Pro Text", system-ui` (`popup.html:33`;
+  mono = `ui-monospace/"SF Mono"/Menlo`, `popup.html:45`) — **SF Pro, not Plus
+  Jakarta Sans**. Treat as accepted platform-native styling for the extension
+  chrome, not a bug — but it means popup screenshots must never be used as type
+  reference for the app.
+
+### 6.2 safe-recovery-extension — OUT OF SCOPE (separate product)
+`packages/safe-recovery-extension/` (WXT/MV3; `sidepanel/` + `webauthn/` entrypoints
+under `src/entrypoints/`) is a separate user-facing product, not part of the wallet
+app's design surface. Not audited by reports 01–08, not boarded, not in the
+acceptance gate. A future design pass on it starts from zero — nothing in this
+inventory covers it.
+
+### 6.3 Dev / parallel space — documented on page `10`, excluded from acceptance gate
+Per `data-model.md` §1: page `10 Dev & Parallel Space` (dev screens, PARALLEL SPACE
+badge/env, fault-injection UX) is **documented but excluded from the gate** —
+matching the code reality that `/parallel` registers only when `__DEV__` (or
+`dev_unlocked === '1'`) and reuses every real screen with a fixture signer
+(report 04 §route table). The badge itself stays in scope (03 §6) because it renders
+inside production screens.

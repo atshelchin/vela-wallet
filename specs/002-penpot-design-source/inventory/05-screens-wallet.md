@@ -27,7 +27,7 @@ Authoritative language: `docs/DESIGN-LANGUAGE.md` ("quiet, typographic, de-conta
 | `PayScreen.tsx` | Public payment-link bridge | `/pay` |
 | `AddTokenScreen.tsx` | Add Token/Network full-screen host | `/add-token` |
 
-Out of this directory (referenced but owned elsewhere — flag for the other scope reports): dApp **browser** screen (`/browser`, `src/app/browser.tsx` → connect screens), **contacts** UI (`src/components/contacts/*` — ContactPicker, ContactAvatar, RecipientTrust, RecipientTypeBadge), account switcher (`src/components/ui/AccountSwitcherModal`), QR scanner (`src/components/QRScanner`), signing sheets (`SigningReplaySheet`, `TransactionDetailSheet`, `ConnectionEventDetailSheet`), `ReceiveShareCard`. This report specs their **placement and role** on wallet screens plus full specs for the send/home-specific shared components (§8).
+Out of this directory (referenced but owned elsewhere — flag for the other scope reports): dApp **browser** screen (`/browser`, `src/app/browser.tsx` — its persistent chrome + center states are now specced in §11 below; its overlays live in report 07), **contacts** UI (`src/components/contacts/*` — ContactPicker, ContactAvatar, RecipientTrust, RecipientTypeBadge), account switcher (`src/components/ui/AccountSwitcherModal`), QR scanner (`src/components/QRScanner`), signing sheets (`SigningReplaySheet`, `TransactionDetailSheet`, `ConnectionEventDetailSheet`), `ReceiveShareCard`. This report specs their **placement and role** on wallet screens plus full specs for the send/home-specific shared components (§8).
 
 ---
 
@@ -62,14 +62,14 @@ Note: dark mode `bg.sunken` is DARKER than `bg.raised` (inverted vs light). Comp
 
 ### 1.2 Typography
 - Typeface: **Plus Jakarta Sans** (400/500/600/700 files; export still named `inter.*`). `font.display` = PlusJakartaSans Bold (hero numbers). `font.mono` = Menlo (iOS) / `monospace` (Android/web) — addresses, hashes. `font.numeric` = PlusJakartaSans Regular (tabular-ish balance columns).
-- Size scale (base px, user-scalable 0.85×–1.28×; web gets a fixed extra ×1.2 boost): `xs` 10, `sm` 11, `base` 13, `lg` 15, `xl` 17, `2xl` 20, `3xl` 26, `4xl` 32, `5xl` 40. Line-height presets `leading`: none 1, tight 1.2, normal 1.4, relaxed 1.6.
+- Size scale (base px, user-scalable **0.82×–1.35×** — 6 levels compact 0.82 / small 0.91 / standard 1.0 / comfortable 1.10 / large 1.22 / xlarge 1.35, default `standard` on BOTH platforms per `src/constants/text-scale.ts` (its header comment "Android defaults to comfortable" is stale); web gets a fixed extra ×1.2 boost): `xs` 10, `sm` 11, `base` 13, `lg` 15, `xl` 17, `2xl` 20, `3xl` 26, `4xl` 32, `5xl` 40. Line-height presets `leading`: none 1, tight 1.2, normal 1.4, relaxed 1.6.
 - Weights: 400 regular / 500 medium / 600 semibold / 700 bold.
 
 ### 1.3 Spacing / radius / shadow / motion
 - Space (4px grid): xs 2, sm 4, md 8, lg 12, xl 16, 2xl 20, 3xl 24, 4xl 32, 5xl 48.
 - Radius: sm 4, md 8, lg 12, xl 16, 2xl 20, full 9999.
 - Shadows (all shadowColor `#1A1A18`): `sm` (0,1) 4% ×3 r, elev 1 · `md` (0,2) 6% ×8 r, elev 3 · `lg` (0,4) 8% ×16 r, elev 6.
-- Motion: fast 150 ms, normal 250 ms, slow 400 ms; `spring` {damping 15, stiffness 150, mass 0.8}; `springGentle` {20, 120, 1}. Press feedback is always spring-scale (buttons 0.97, list rows 0.98). Entrance = FadeIn/FadeInDown 300–400 ms — **iOS + web only; Android renders instantly** (`entering.ts` returns undefined on Android to avoid a blank-frame flicker). Entrances play ONCE per mount (gated by a "hasEntered" ref) — never replay on re-render.
+- Motion: fast 150 ms, normal 250 ms, slow 400 ms; `spring` {damping 15, stiffness 150, mass 0.8}; `springGentle` {20, 120, 1}. Press feedback is always spring-scale (buttons 0.97, list rows 0.98). Entrance = FadeIn/FadeInDown 300–400 ms — **iOS-ONLY; Android AND web render the settled state instantly** (`src/constants/entering.ts`: every helper is `if (!isIOS) return undefined` — web takes the Android path; the guard exists to avoid Android's blank first frame at opacity 0). Entrances play ONCE per mount (gated by a "hasEntered" ref) — never replay on re-render.
 - Screen chrome: `ScreenContainer` = page bg `bg.base`, safe-area top only, horizontal padding **24** (`space.3xl`), iOS keyboard avoidance `padding` behavior.
 
 ---
@@ -323,7 +323,7 @@ One-line monetary display: (1) fit-to-width from ideal size, (2) below `minScale
 5. **Error color**: doc's `#EF4444` superseded by `#C62828` (light) for AA contrast.
 6. **Empty-state icon spec** (§6.4: 56 px circle) varies by screen in practice: Home activity 64, Connections 56, Assets 48 — capture per-screen.
 7. **DESIGN_SYSTEM §6.1 nav pattern** (Back · Title · spacer) holds for Receive/TokenDetail/AddToken, but SendScreen deliberately has NO nav title (step titles instead) — keep as a variant.
-8. **Entrances**: doc says "FadeInDown on screen entry" unconditionally; actual rule = iOS/web only, once-per-mount, Android instant.
+8. **Entrances**: doc says "FadeInDown on screen entry" unconditionally; actual rule = iOS-only, once-per-mount; Android AND web instant (see §1.3).
 
 ## 10. Behavioral invariants worth boards/notes in Penpot
 
@@ -338,3 +338,53 @@ One-line monetary display: (1) fit-to-width from ideal size, (2) below `minScale
 - Every send commit = slide-to-confirm; the surface is never red.
 - QR quiet zones are literal `#FFFFFF` in both themes (Receive, Pay, Treasury).
 - Hairline insets always align under TEXT, past the leading icon: 58 (activity 44 px avatar), 60 (token rows 40 px logo), 56 (send hero 44), 48 (balance-sheet 36), 44 (sweep rows 32).
+
+---
+
+## 11. dApp browser screen chrome (`/browser` — `src/app/browser.tsx`, 647 lines)
+
+Closes gap 09 §1.1. A NON-modal full-screen route (expo-router header hidden) so the root-level global `SigningRequestModal` renders ABOVE it. Shell: `SafeAreaView` edges top+bottom on page `bg.base` — no ScreenContainer, no 24 px page gutter; the web view is edge-to-edge between two chrome bars. Overlays stay owned by report 07 (connect-consent fit-sheet 07 §8.1, load-error overlay 07 §8.2); this section is the **persistent chrome + center states**, which no report previously specced.
+
+### 11.1 Top bar (`topBar` // browser.tsx:575-583)
+Row, alignItems center, gap 4 (`space.sm`), padH 12 (`space.lg`), padV 4 (`space.sm`); bottom hairline (`StyleSheet.hairlineWidth`, i.e. 1 physical px) `border.base`.
+- **Leading security/site indicator** — exactly one of three (a11y role "image", labeled secure/insecure; // browser.tsx:382-397):
+  - insecure origin (not `https://`) → `TriangleAlert` 14 `warning.base`;
+  - secure + captured page favicon → 16×16 favicon image, radius 4 (`favicon` // browser.tsx:584); a broken image flips to the Lock fallback, and the broken flag resets whenever the favicon URL changes (page B's valid icon never hidden by page A's broken one);
+  - secure, no favicon (or broken) → `Lock` 14 `fg.muted`.
+- **`hostWrap`** (flex 1; two stacked lines, each `numberOfLines 1` // browser.tsx:398-401):
+  - **host** — `text.sm` (11) semibold `fg.base` (e.g. `app.uniswap.org`);
+  - **page title** — literal **11 px** regular `fg.subtle` (hard-coded size: does NOT follow the user text scale, unlike the host line); rendered only once the page reports a title.
+- No actions in the top bar — disconnect + close moved into the account-switcher footer (§11.4; code comment "used to live in the top bar" // browser.tsx:530-531).
+
+### 11.2 Loading strip (`loadingBar` // browser.tsx:404, 610)
+While `nav.loading`: a full-bleed **2 px tall `accent.base` strip** rendered directly UNDER the top bar's hairline, above the web content. Static presence indicator — no width animation, no progress; it appears with document-load start and vanishes on settle. SPA `pushState` route changes never set `loading`, so the strip marks only real document loads (which are also the moments in-flight requests get settled — §11.6).
+
+### 11.3 Bottom bar (`bottomBar` // browser.tsx:444-494, 622-630)
+Row, alignItems center, **gap 16** (`space.xl`), padH 12 (`space.lg`), padV 4 (`space.sm`); top hairline `border.base`. Icon buttons are plain `iconBtn` (padding 2 `space.xs`, no bg/border) + `hitSlop` 8. Left→right:
+1. **Back** — `ArrowLeft` 22; enabled = `fg.base`, **dims to `fg.subtle` AND is disabled when `!canGoBack`** (// browser.tsx:447-453). Android hardware back mirrors it: web history first; the route closes only when the page can't go back (// browser.tsx:144-154).
+2. **Reload** — `RotateCw` 20 `fg.muted` → `webview.reload()`.
+3. **Account pill** (`acctPill` // browser.tsx:468-482, 591-602; rendered only when a wallet account exists) — **THE dApp-browser account-switcher trigger** (gap 09 §1.1): quiet sunken chip — `bg.sunken` fill, radius full (999), padLeft 4 / padRight 8 (`space.md`) / padV 4, gap 4 (`space.sm`). Contents:
+   - `WalletAvatar` **size 20, letterSize 11** (the 20 px size missing from 02's WalletAvatar 32/38/40/44 axis);
+   - short address `0x1234…abcd` — literal **13 px** semibold `fg.base`, `tabular-nums`, maxWidth 130, 1 line (fixed size; ignores text scale). NOTE (code beats the gap note's "account name"): the pill shows the **short ADDRESS**, specifically the **connected/granted** address when the site holds a grant, else the active account's (`connectedAddr ?? activeAccount.address` // browser.tsx:478);
+   - **green connected dot** — 7×7 round `success.base` (`acctPillDot`), ONLY while the site holds a resolved grant.
+   - Tap (hitSlop 8) → AccountSwitcherModal (§11.4).
+4. **Flex spacer**.
+5. **Open in system browser** — `ExternalLink` 20 `fg.muted` → OS browser at the current URL.
+- **There is NO ✕ close button in the bar** — closing the page is a switcher-footer action (§11.4).
+
+### 11.4 Account switcher — trigger payload (// browser.tsx:532-554, 603-609)
+The Home-style `AccountSwitcherModal` (modal itself specced in 07 §5.8), title `connect.browser.switchAccount`, plus a **browser-only footer** (top hairline `border.base`, padH 16 `space.xl`, marginTop 8 `space.md`); rows = row, gap 8 (`space.md`), padV 12 (`space.lg`), label `text.base` semibold:
+- **Disconnect** row (only while connected) — `Plug` 18 `error.base` stroke 2 + label in `error.base`; tap closes the switcher then shows a **destructive confirm dialog** before revoking (the pill reads as a status badge — a bare tap must never silently revoke // browser.tsx:287-293). Followed by `footerSep`: 1 px `border.base`, inset left 26 (18 icon + 8 gap).
+- **Close page** row — `X` 18 `fg.base` stroke 2 + ink label; closes the browser route (`router.back()`).
+- Switching accounts while connected is REAL, not cosmetic: the per-origin grant is re-pointed to the new address and the page receives `accountsChanged`; nothing is emitted for a site that never connected (// browser.tsx:301-311).
+
+### 11.5 Center states (replace the web view; `center` = flex-1 centered column, gap 8 `space.md`; text = `dim`: `text.sm` `fg.muted`)
+- **Preparing wallet** (wallet state still loading // browser.tsx:429-433): `ActivityIndicator` in `accent.base` + `connect.browser.preparing` ("Preparing wallet…").
+- **No wallet** (state loaded but none exists — e.g. `/browser` deep link before onboarding; deliberately never spins forever // browser.tsx:434-441): `Plug` 26 `fg.subtle` stroke 2 + `connect.list.noWallet`.
+- **Unsupported / no-URL fallbacks** (// browser.tsx:364-369, 559-566): chrome-less full screen with a single centered `dim` line (`connect.browser.unsupported` / `connect.browser.noUrl`). The `url` route param is re-validated as http(s) — `file:`/`javascript:` schemes land here, never in the WebView.
+- **Load-error overlay** (owned by 07 §8.2; placement note only): absolute-fill over the web area on `bg.base`, centered, gap 4, padH 16 — `TriangleAlert` 28 `fg.subtle`, title `text.base` semibold, body `text.sm` `fg.muted` centered ≤2 lines, secondary `VelaButton` retry minWidth 140. Chrome bars stay visible above/below it.
+
+### 11.6 Behavioral invariants worth a Penpot note
+- Every fresh document load: in-flight dApp requests settle with code 4900 ("Navigated away — check Vela Activity", never 4001), a pending consent sheet is rejected+closed, and a stale signing modal owned by this tab is torn down (unless the tx already committed) — a page can never swap context under an open prompt (// browser.tsx:330-357).
+- The connected dot / pill address are per-ORIGIN state: refreshed only when navigation actually changes origin; a grant pinned to a since-deleted account is physically revoked.
+- Grants are judged against ALL wallet addresses, so a grant to a non-active account still reads "connected" — the pill then shows that granted address, not the active one (// browser.tsx:174-186).

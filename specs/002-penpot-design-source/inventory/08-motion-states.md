@@ -33,11 +33,13 @@ element.
 - `fadeIn(delay = 0, duration = 300)` → Reanimated `FadeIn.delay(d).duration(dur)`
 - `fadeInDown(delay = 0, duration = 300)` → `FadeInDown…`
 - `fadeInUp(delay = 0, duration = 400)` → `FadeInUp…`
-- **iOS only.** On Android all three return `undefined` (element renders instantly) —
-  Android paints one visible frame at opacity 0 → flicker. Web behaves like iOS.
-- Design consequence: entrance motion is an iOS/web enhancement; the Android design is
-  the *settled* state. Penpot boards must not depend on entrance motion to establish
-  hierarchy.
+- **iOS only.** All three helpers are `if (!isIOS) return undefined`
+  (`entering.ts:23/29/35`) — on Android AND web the element renders instantly.
+  Rationale is Android's blank-frame flicker (one visible frame at opacity 0);
+  web simply rides the same non-iOS branch and gets the settled render.
+- Design consequence: entrance motion is an iOS-only enhancement; Android and web
+  ship the *settled* state. Penpot boards must not depend on entrance motion to
+  establish hierarchy.
 
 ### 2.2 Stagger recipes actually in use (delay ms / duration ms)
 
@@ -475,8 +477,8 @@ Mechanics with design consequences:
   `{{disabled, busy}}` (VelaButton), `{{disabled}}` (SlideToConfirm).
 - Touch targets: ≥ 44×44 via size (WalletAvatar 44, ActivityRow avatar 44, QRScanner
   header buttons 44, SegmentedToggle `minHeight 44` — commented "WCAG 2.5.8 floor",
-  contact/batch rows minHeight 44) or `hitSlop` (8 standard, 6 on a few dense headers;
-  111 usages).
+  contact/batch rows minHeight 44) or `hitSlop` (default 8, 6 on a few dense headers;
+  ~100+ usages — raw grep counts drift between audits, don't pin an exact number).
 - Web focus ring (global.css): keyboard-only `:focus-visible` on
   a/button/[role=button|link|radio|switch|tab]/[tabindex] — box-shadow
   `0 0 0 2px <page-bg>, 0 0 0 4px #E8572A` (page-bg `#FAFAF8` light / `#141412` dark);
@@ -544,8 +546,85 @@ Mechanics with design consequences:
    language entirely.
 6. **TokenRow entrance not hasEntered-gated** (unlike ActivityRow) — intentional-looking
    but inconsistent with rule 10.
-7. **Entrances are iOS/web-only** (Android suppressed by design) — Penpot must document
-   motion as enhancement, with the static layout as the Android baseline.
+7. **Entrances are iOS-only** (Android and web suppressed by design — `entering.ts`
+   returns `undefined` on both) — Penpot must document motion as enhancement, with the
+   static layout as the Android/web baseline.
 8. **DESIGN_SYSTEM font-zone table is stale**: fonts are Plus Jakarta Sans (export still
    named `inter`), not SF Rounded/System per zone; `font.numeric` = Jakarta regular
    (tabular figures built in), `font.mono` = Menlo/monospace.
+
+---
+
+## 21. i18n resilience (design concern)
+
+15 languages ship (`SUPPORTED_LANGUAGES`, en + 14 translations — `src/i18n/index.ts:46`;
+the file's "12 locales" header comment is stale), including expansion-heavy de/ru/tr/id
+and CJK-compact zh/ja/ko. Every fixed-geometry text surface below must be judged at the
+extremes of §16's user scale (0.82 AND 1.35, ×1.2 web boost on top). Penpot boards
+should carry a "longest shipped string" variant, not just the English string.
+
+### 21.1 WaveDock pills — no truncation rule exists → FLAG
+Label `text.xl` (17) — bold primary / semibold secondary — beside a 22 pt icon, gap
+`space.md` (8), padH `space.md` (8), inside a `flex: 1` pill; the row reserves a 64 px
+scan slot (56 + 2×4) plus `space.lg` (12) side padding (`WaveDock.tsx:53, :151-159,
+:175-185`). The label has **no `numberOfLines` and no font-fit**: an overlong label
+wraps to a second line and grows the pill taller than the fixed `DOCK_BAR_HEIGHT` 86 bar.
+Crunch case: de "Empfangen" (9 ch) / ru "Отправить"/"Получить" (de/ru
+`componentsUi.json:230-231`) at scale 1.35 (17 → 23 px) on narrow (≤360 pt) screens.
+- [ ] Pick a rule: forbid wrap + fit-to-width (ActivityRow-amount style) or a per-locale
+  char budget; document it here and in 02.
+
+### 21.2 SlideToConfirmButton — English-derived ≤15-char budget, busted by 5 locales
+Single-line label (`numberOfLines={1}`, `text.lg` 15 semibold, centered) inside
+symmetric 60 px insets (`labelRow left/right = TRACK_H` —
+`SlideToConfirmButton.tsx:247, :281-282`); overflow = mid-word end-ellipsis, no font-fit.
+The "keep label short (max ~15 chars)" budget is a comment written against English
+(`SigningSheet.tsx:489`). Per-locale audit of the strings actually fed to it:
+- ru `send.confirmSendBtn` "Подтвердить и отправить" = **23 ch**
+- tr `send.checkingGas` "Gas kontrol ediliyor..." = **23 ch**
+- de `send.confirmSendBtn` "Bestätigen & senden" = **19 ch**
+- de `signing.signing` "Wird signiert ..." = **17 ch** · id "Menandatangani..." = **17 ch**
+SigningSheet's `li.length > 12` guard (`SigningSheet.tsx:502`) caps only the interpolated
+*intent*, never the surrounding template (tr `confirmIntentLabel` =
+"{{intent}} işlemini onayla" — 16 ch of fixed text before the intent even lands).
+At scale 1.35 the ru/tr labels ellipsize on common phones.
+- [ ] Per-locale label review or fit-to-width on the track label; re-state the budget as
+  a per-locale rule, not an English char count.
+
+### 21.3 VelaButton / AppAlert buttons vs long ru/de labels
+`VelaButton`: full-width, label `text.lg` semibold (compact: `text.base`), **no
+`numberOfLines`** — a long label wraps and grows button height (`VelaButton.tsx:69,
+:86-92`); benign for stacked full-width CTAs, but side-by-side pairs (e.g. error-state
+"Scan again"/"Retry", §10.5) can end up different heights per locale.
+`AppAlert` buttons: `minWidth 70` + padH 16 (`space.xl`) in a right-aligned
+`flexDirection: row` with gap `space.md` that **never wraps** (`AppAlert.tsx:181-192`) —
+three long ru/de buttons can overflow the maxWidth-340 card. Native alerts are immune
+(system `Alert.alert`); this is web-only exposure.
+- [ ] Stress web AppAlert with 3-button ru variants; allow row wrap or vertical stacking
+  past a width threshold.
+
+### 21.4 Truncation-side inventory (`numberOfLines={1}` — who yields?)
+| Surface | Rule in code | Who wins / who yields |
+|---|---|---|
+| SettingsRow (`SettingsScreen.tsx:84-85, :1671-1673`) | title + subtitle have NO numberOfLines; content `flex: 1` | Nothing truncates — text wraps, the row grows; chevron/right accessory keeps its slot |
+| DetailRow (`DetailRow.tsx:43, :53-56`) | label natural width, no shrink; value wrap `flexShrink 1` + `numberOfLines 1` | Label wins; VALUE end-ellipsizes (long de labels squeeze the value cell) |
+| ActivityRow line 1 (`ActivityRow.tsx:111-127, :205-217`) | title `flexShrink 1` + ellipsis; amount `flexShrink 1` + `adjustsFontSizeToFit minimumFontScale 0.85` | Both shrinkable: amount defends itself by font-fitting to 0.85× before ellipsis; title ellipsizes first in practice |
+| ActivityRow line 2 (`ActivityRow.tsx:132-135, :232-246`) | subtitle `flexGrow/flexShrink 1, minWidth 0`; fiat `flexShrink 0` | FIAT never yields; counterparty truncates |
+
+### 21.5 LanguagePickerModal = the all-scripts stress board
+16 rows (Follow System + 15 endonyms) render Latin, Cyrillic, CJK simplified/
+traditional, Hangul, Kana, Vietnamese diacritics and Turkish simultaneously
+(`SettingsScreen.tsx:951-1005`; names `src/i18n/index.ts:57-73`) — the one screen where
+every script must pass at 0.82 AND 1.35. Board it in Penpot as the i18n acceptance
+surface. ⚠ Row label style `fmtExample` carries `fontFamily: font.mono`
+(`SettingsScreen.tsx:1683` — shared with FormatPickerModal, where mono suits format
+examples): endonyms render in Menlo/monospace with system-font fallback for CJK/Cyrillic
+— decide whether that's intentional for language names.
+
+### 21.6 Content risks (project history — not geometry)
+- **zh-HK register**: must stay spoken Cantonese, not recycled written Chinese — a
+  visual-QA pass can't catch this; needs a Cantonese reader.
+- **Translator-note leakage**: machine translation previously shipped translator notes
+  inside strings; any string that looks "double length" in a board may be one.
+- **No ICU plurals**: i18next here has no ICU — plural/count variants are explicit keys;
+  boards must not assume English singular/plural pairs exist in every locale.

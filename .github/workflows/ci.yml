@@ -46,6 +46,18 @@ jobs:
         run: npx expo lint -- --max-warnings=10000
       - name: Unit tests
         run: npx jest --ci
+      # The conformance corpus is extracted from the TypeScript implementations,
+      # so it is only trustworthy while it still MATCHES them. Re-deriving it and
+      # requiring a zero diff is the only check that catches the oracle drifting
+      # away from the committed vectors — and the only one that notices cases
+      # disappearing from inside a vector file (the per-runner suite-set pin sees
+      # a lost FILE, not a lost case). This works because the dump is byte-stable:
+      # no timestamp, no git sha, WebAuthn assertion inputs pinned.
+      - name: Conformance corpus matches the TypeScript oracle
+        run: |
+          npm run dump:vectors
+          git diff --exit-code -- rust/crates/vela-core/tests/vectors \
+            || { echo "::error::The corpus no longer matches the TypeScript it was extracted from. Re-run 'npm run dump:vectors' and review the diff: a changed expectation means either a TS behavior change (intentional? document it in contracts/core-api.md) or oracle drift."; exit 1; }
       - name: Web production build
         run: npm run build:web
 
@@ -60,3 +72,78 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Svelte check
         run: bun run check
+
+  # vela-core shared Rust library (specs/001-rust-core-bindings).
+  # NOTE (founder action): add BOTH `rust` and `rust-macos` to branch-protection
+  # required checks so they gate merges like `app` and `site` do. `rust-macos` is
+  # the only job that exercises the Swift bindings — without it in the required
+  # set, an iOS-side FFI divergence merges green.
+  rust:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests (conformance corpus + proptests)
+        run: cargo test --workspace
+      - name: Wasm build (getrandom canary)
+        run: cargo build --target wasm32-unknown-unknown -p vela-core-wasm
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked --version 0.15.0
+      - name: Web build is current (rust/pkg-web committed and matching)
+        working-directory: .
+        run: node rust/scripts/build-web.mjs --check
+      - name: Conformance corpus through the shipped web artifact
+        working-directory: .
+        run: node rust/scripts/verify-web.mjs
+      - name: Swift bindings generate (compiled here, exercised in rust-macos)
+        run: |
+          cargo build --release -p vela-core-uniffi
+          cargo run --release -p vela-core-uniffi --bin uniffi-bindgen -- generate \
+            --library target/release/libvela_core_uniffi.so --language swift --out-dir /tmp/ubind
+          test -s /tmp/ubind/vela_core_uniffi.swift
+      - name: Set up JDK (for the Kotlin corpus harness)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Set up Kotlin
+        run: |
+          curl -fsSL -o /tmp/kotlin.zip \
+            https://github.com/JetBrains/kotlin/releases/download/v2.1.0/kotlin-compiler-2.1.0.zip
+          unzip -q /tmp/kotlin.zip -d /opt
+          echo "/opt/kotlinc/bin" >> "$GITHUB_PATH"
+      - name: Conformance corpus through the Kotlin bindings
+        run: ./scripts/smoke-kotlin.sh
+
+  # Swift half of the SC-001 cross-platform check — its own job because the
+  # Swift toolchain needs a macOS runner, and keeping it separate leaves the
+  # linux gate fast.
+  rust-macos:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Conformance corpus through the Swift bindings
+        run: ./scripts/smoke-swift.sh

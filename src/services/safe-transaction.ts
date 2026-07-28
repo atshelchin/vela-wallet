@@ -3,31 +3,10 @@
  * TypeScript port of SafeTransactionService.swift.
  */
 
-import {
-  abiEncodeAddress,
-  abiEncodeBytes32,
-  abiEncodeUint256,
-  abiEncodeUint256Hex,
-  functionSelector,
-  keccak256,
-} from './eth-crypto';
 
-import { concatBytes, fromHex, stripHexPrefix, toHex } from './hex';
 
-import {
-  ENTRY_POINT,
-  MULTI_SEND,
-  SAFE_4337_MODULE,
-  SAFE_PROXY_FACTORY,
-  SAFE_SINGLETON,
-  WEBAUTHN_SIGNER,
-  calculateSaltNonce,
-  encodeMultiSendTx,
-  encodeSetupData,
-  parsePublicKey
-} from './safe-address';
 
-import { derSignatureToRaw } from './attestation-parser';
+import { ENTRY_POINT, MULTI_SEND, SAFE_4337_MODULE, SAFE_PROXY_FACTORY, SAFE_SINGLETON, WEBAUTHN_SIGNER, abiEncodeAddress, abiEncodeBytes32, abiEncodeUint256, abiEncodeUint256Hex, calculateSaltNonce, concatBytes, derSignatureToRaw, encodeMultiSendTx, encodeSetupData, fromHex, functionSelector, keccak256, parsePublicKey, stripHexPrefix, toHex } from '@/services/vela-core';
 import { rpcCall } from './rpc-adapter';
 import { requestUserOpReceipt, USER_OP_RECEIPT_POLL_INTERVAL_MS } from './tx-reconciler';
 import { gasQuoteShouldZero } from './dev/fault-injection';

@@ -29,9 +29,29 @@ function isBinaryChar(code: number): boolean {
   return code === 0xfffd;
 }
 
+/**
+ * Is this `personal_sign` payload hex-encoded bytes, or plain UTF-8 text?
+ *
+ * Not every dApp hex-encodes, so both the SIGNER (personalSignBytes in
+ * use-dapp-signing.ts) and this DISPLAY path must branch on the same predicate.
+ * If they ever disagree, the sheet shows one thing and the passkey signs
+ * another — and the SIWE domain check reads a mangled string.
+ *
+ * MetaMask's rule: only a `0x`-prefixed, even-length, all-hex payload is hex.
+ * A bare `deadbeef` with no prefix is a message that happens to look hexish,
+ * and is signed and displayed as the text it is.
+ */
+export function isHexPayload(payload: string): boolean {
+  if (!payload.startsWith('0x')) return false;
+  const body = payload.slice(2);
+  return body.length % 2 === 0 && /^[0-9a-fA-F]*$/.test(body);
+}
+
 export function decodePersonalMessage(hexMsg: string): string {
+  if (!isHexPayload(hexMsg)) return hexMsg; // plain UTF-8 — show it verbatim
   try {
-    const clean = hexMsg.startsWith('0x') ? hexMsg.slice(2) : hexMsg;
+    const clean = hexMsg.slice(2);
+    if (clean.length === 0) return '';
     const bytes = new Uint8Array(clean.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)));
     const decoded = new TextDecoder().decode(bytes); // non-fatal → U+FFFD on invalid bytes
     for (let i = 0; i < decoded.length; i++) {

@@ -1,0 +1,19 @@
+[package]
+name = "vela-core-uniffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "uniffi shell over vela-core: Kotlin (Android) + Swift (iOS) bindings."
+
+[lib]
+name = "vela_core_uniffi"
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+
+[dependencies]
+vela-core = { workspace = true }
+uniffi = { workspace = true, features = ["cli"] }
+thiserror = { workspace = true }

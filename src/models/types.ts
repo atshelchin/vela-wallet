@@ -2,8 +2,8 @@
  * Core data models shared across the app.
  * Matches iOS WalletState.swift, WalletAPIService.swift models.
  */
+import { checksumAddress } from '@/services/vela-core';
 import { apiNetworkToChainId } from '@/models/chains';
-import { checksumAddress } from '@/services/eth-crypto';
 import { getEthereumDataURL } from '@/services/storage';
 
 // MARK: - Account

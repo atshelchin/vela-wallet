@@ -1,4 +1,17 @@
 /**
+ * ⚠ QUARANTINED — byte-frozen oracle (specs/001-rust-core-bindings, FR-007).
+ *
+ * The real implementation now lives in rust/crates/vela-core. This file stays
+ * for two reasons: it is what still runs on native (Hermes has no wasm, so the
+ * RN layer keeps the TS path until the native rewrite), and it is the oracle
+ * `scripts/dump-vectors` extracts the conformance corpus from.
+ *
+ * Do not add callers — import from `@/services/vela-core` (enforced by
+ * no-restricted-imports). Any behavior change here must be followed by
+ * `npm run dump:vectors` and a review of the resulting vector diff, or the
+ * Rust core silently stops matching what ships.
+ */
+/**
  * P-256 public key recovery from WebAuthn assertion signatures.
  *
  * An ECDSA signature determines its signing key up to a small candidate set

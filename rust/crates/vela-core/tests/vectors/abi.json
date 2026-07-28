@@ -1,0 +1,727 @@
+{
+ "suite": "abi",
+ "source": "scripts/dump-vectors (extracted from the production TypeScript)",
+ "cases": [
+  {
+   "name": "canonicalize/strip-names",
+   "fn": "canonicalize_signature",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)"
+   },
+   "expect": {
+    "value": "transfer(address,uint256)"
+   }
+  },
+  {
+   "name": "canonicalize/tuple",
+   "fn": "canonicalize_signature",
+   "input": {
+    "sig": "swap(address executor, (address srcToken, address dstToken) desc)"
+   },
+   "expect": {
+    "value": "swap(address,(address,address))"
+   }
+  },
+  {
+   "name": "canonicalize/no-params",
+   "fn": "canonicalize_signature",
+   "input": {
+    "sig": "totalSupply()"
+   },
+   "expect": {
+    "value": "totalSupply()"
+   }
+  },
+  {
+   "name": "canonicalize/nested-dynamic-tuple",
+   "fn": "canonicalize_signature",
+   "input": {
+    "sig": "exactInput((bytes path,address recipient,uint256 amountIn,uint256 amountOutMinimum) params)"
+   },
+   "expect": {
+    "value": "exactInput((bytes,address,uint256,uint256))"
+   }
+  },
+  {
+   "name": "canonicalize/arrays",
+   "fn": "canonicalize_signature",
+   "input": {
+    "sig": "batchTransfer(address[] recipients, uint256[] amounts)"
+   },
+   "expect": {
+    "value": "batchTransfer(address[],uint256[])"
+   }
+  },
+  {
+   "name": "canonicalize/fixed-array",
+   "fn": "canonicalize_signature",
+   "input": {
+    "sig": "lock(uint256[2] amounts)"
+   },
+   "expect": {
+    "value": "lock(uint256[2])"
+   }
+  },
+  {
+   "name": "computeSelector/transfer",
+   "fn": "compute_selector",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)"
+   },
+   "expect": {
+    "value": "0xa9059cbb"
+   }
+  },
+  {
+   "name": "computeSelector/approve",
+   "fn": "compute_selector",
+   "input": {
+    "sig": "approve(address _spender, uint256 _value)"
+   },
+   "expect": {
+    "value": "0x095ea7b3"
+   }
+  },
+  {
+   "name": "computeSelector/transferFrom",
+   "fn": "compute_selector",
+   "input": {
+    "sig": "transferFrom(address _from, address _to, uint256 _tokenId)"
+   },
+   "expect": {
+    "value": "0x23b872dd"
+   }
+  },
+  {
+   "name": "computeSelector/setApprovalForAll",
+   "fn": "compute_selector",
+   "input": {
+    "sig": "setApprovalForAll(address _operator, bool _approved)"
+   },
+   "expect": {
+    "value": "0xa22cb465"
+   }
+  },
+  {
+   "name": "computeSelector/tuple-sig",
+   "fn": "compute_selector",
+   "input": {
+    "sig": "exactInput((bytes path,address recipient,uint256 amountIn,uint256 amountOutMinimum) params)"
+   },
+   "expect": {
+    "value": "0xb858183f"
+   }
+  },
+  {
+   "name": "matchSelector/hit",
+   "fn": "match_selector",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)",
+    "calldata": "0xa9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": true
+   }
+  },
+  {
+   "name": "matchSelector/miss",
+   "fn": "match_selector",
+   "input": {
+    "sig": "approve(address _spender, uint256 _value)",
+    "calldata": "0xa9059cbb00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": false
+   }
+  },
+  {
+   "name": "matchSelector/unknown-selector",
+   "fn": "match_selector",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)",
+    "calldata": "0xdeadbeef00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": false
+   }
+  },
+  {
+   "name": "matchSelector/short-data",
+   "fn": "match_selector",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)",
+    "calldata": "0xab"
+   },
+   "expect": {
+    "value": false
+   }
+  },
+  {
+   "name": "decodeCalldata/erc20-transfer",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)",
+    "calldata": "0xa9059cbb000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa96045000000000000000000000000000000000000000000000000000000003b9aca00"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "address",
+       "name": "_to",
+       "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+       "children": []
+      },
+      {
+       "kind": "uint256",
+       "name": "_value",
+       "value": "0x3b9aca00",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/erc20-approve-max",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "approve(address _spender, uint256 _value)",
+    "calldata": "0x095ea7b3000000000000000000000000111111125421ca6dc452d289314280a0f8842a65ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "address",
+       "name": "_spender",
+       "value": "0x111111125421cA6dc452d289314280a0f8842A65",
+       "children": []
+      },
+      {
+       "kind": "uint256",
+       "name": "_value",
+       "value": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/transferFrom-3-params",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "transferFrom(address _from, address _to, uint256 _tokenId)",
+    "calldata": "0x23b872dd000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000000000000000000000000bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0000000000000000000000000000000000000000000000000000000000000064"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "address",
+       "name": "_from",
+       "value": "0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa",
+       "children": []
+      },
+      {
+       "kind": "address",
+       "name": "_to",
+       "value": "0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB",
+       "children": []
+      },
+      {
+       "kind": "uint256",
+       "name": "_tokenId",
+       "value": "0x64",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/bool-param",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "setApprovalForAll(address _operator, bool _approved)",
+    "calldata": "0xa22cb4650000000000000000000000001e0049783f008a0085193e00003d00cd54003c710000000000000000000000000000000000000000000000000000000000000001"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "address",
+       "name": "_operator",
+       "value": "0x1E0049783F008A0085193E00003D00cd54003c71",
+       "children": []
+      },
+      {
+       "kind": "bool",
+       "name": "_approved",
+       "value": "true",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/zero-value",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)",
+    "calldata": "0xa9059cbb000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa960450000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "address",
+       "name": "_to",
+       "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+       "children": []
+      },
+      {
+       "kind": "uint256",
+       "name": "_value",
+       "value": "0x0",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/static-tuple-in-place",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "register((address owner,uint256 id) info)",
+    "calldata": "0x85d6d370000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa960450000000000000000000000000000000000000000000000000000000000000007"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "tuple",
+       "name": "info",
+       "value": "",
+       "children": [
+        {
+         "kind": "address",
+         "name": "owner",
+         "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+         "children": []
+        },
+        {
+         "kind": "uint256",
+         "name": "id",
+         "value": "0x7",
+         "children": []
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/exactInput-nested-dynamic-tuple",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "exactInput((bytes path,address recipient,uint256 amountIn,uint256 amountOutMinimum) params)",
+    "calldata": "0xb858183f00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000080000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa9604500000000000000000000000000000000000000000000000000000000000f424000000000000000000000000000000000000000000000000000000000000003e70000000000000000000000000000000000000000000000000000000000000006aabbccddeeff0000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "tuple",
+       "name": "params",
+       "value": "",
+       "children": [
+        {
+         "kind": "bytes",
+         "name": "path",
+         "value": "0xaabbccddeeff",
+         "children": []
+        },
+        {
+         "kind": "address",
+         "name": "recipient",
+         "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+         "children": []
+        },
+        {
+         "kind": "uint256",
+         "name": "amountIn",
+         "value": "0xf4240",
+         "children": []
+        },
+        {
+         "kind": "uint256",
+         "name": "amountOutMinimum",
+         "value": "0x3e7",
+         "children": []
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/dynamic-address-array",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "route(address[] hops)",
+    "calldata": "0xe6400e9600000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa960450000000000000000000000001111111111111111111111111111111111111111"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "address[]",
+       "name": "hops",
+       "value": "",
+       "children": [
+        {
+         "kind": "address",
+         "name": "",
+         "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+         "children": []
+        },
+        {
+         "kind": "address",
+         "name": "",
+         "value": "0x1111111111111111111111111111111111111111",
+         "children": []
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/empty-dynamic-array",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "route(address[] hops)",
+    "calldata": "0xe6400e9600000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "address[]",
+       "name": "hops",
+       "value": "",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/string-param",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "greet(string name)",
+    "calldata": "0xead710c40000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000568656c6c6f000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "string",
+       "name": "name",
+       "value": "hello",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/bytes-param",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "execute(bytes data)",
+    "calldata": "0x09c5eabe00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000008deadbeef00112233000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "bytes",
+       "name": "data",
+       "value": "0xdeadbeef00112233",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/bytes32-param",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "foo(bytes32 hash)",
+    "calldata": "0x11e814c1abababababababababababababababababababababababababababababababab"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "bytes32",
+       "name": "hash",
+       "value": "0xabababababababababababababababababababababababababababababababab",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/int256-negative",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "adjust(int256 delta)",
+    "calldata": "0xe2a4d7ddffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "int256",
+       "name": "delta",
+       "value": "-0x1",
+       "children": []
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/fixed-array",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "lock(uint256[2] amounts)",
+    "calldata": "0x82d113bb00000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000009"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "uint256[2]",
+       "name": "amounts",
+       "value": "",
+       "children": [
+        {
+         "kind": "uint256",
+         "name": "",
+         "value": "0x5",
+         "children": []
+        },
+        {
+         "kind": "uint256",
+         "name": "",
+         "value": "0x9",
+         "children": []
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/uint-array",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "setAmounts(uint256[] amounts)",
+    "calldata": "0x4331153c0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "uint256[]",
+       "name": "amounts",
+       "value": "",
+       "children": [
+        {
+         "kind": "uint256",
+         "name": "",
+         "value": "0x1",
+         "children": []
+        },
+        {
+         "kind": "uint256",
+         "name": "",
+         "value": "0x0",
+         "children": []
+        },
+        {
+         "kind": "uint256",
+         "name": "",
+         "value": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+         "children": []
+        }
+       ]
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "decodeCalldata/wrong-selector",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)",
+    "calldata": "0xdeadbeef00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "error": "AbiDecode"
+   }
+  },
+  {
+   "name": "decodeCalldata/empty-calldata",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "transfer(address,uint256)",
+    "calldata": "0x"
+   },
+   "expect": {
+    "error": "AbiDecode"
+   }
+  },
+  {
+   "name": "decodeCalldata/bad-signature",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "not a signature ((",
+    "calldata": "0xa9059cbb"
+   },
+   "expect": {
+    "error": "AbiParse"
+   }
+  },
+  {
+   "name": "decodeCalldata/truncated-zero-pad",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "transfer(address _to, uint256 _value)",
+    "calldata": "0xa9059cbb"
+   },
+   "expect": {
+    "error": "AbiDecode"
+   },
+   "divergence": {
+    "ts_behavior": "pads missing calldata words with zeros \"by design\" — selector-only transfer decodes to address(0)/value 0",
+    "reason": "FR-004: fabricated zero values on the signing sheet are worse than falling back to raw-calldata display"
+   }
+  },
+  {
+   "name": "decodeCalldata/empty-string-param",
+   "fn": "decode_calldata",
+   "input": {
+    "sig": "greet(string name)",
+    "calldata": "0xead710c400000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "expect": {
+    "value": {
+     "kind": "tuple",
+     "name": "",
+     "value": "",
+     "children": [
+      {
+       "kind": "string",
+       "name": "name",
+       "value": "",
+       "children": []
+      }
+     ]
+    }
+   },
+   "divergence": {
+    "ts_behavior": "empty string hits a null-regex-match catch and renders as '0x' instead of ''",
+    "reason": "correct utf8 rendering of the empty string; TS behavior is an acknowledged bug"
+   }
+  },
+  {
+   "name": "canonicalize/uint-alias",
+   "fn": "canonicalize_signature",
+   "input": {
+    "sig": "transfer(address to, uint value)"
+   },
+   "expect": {
+    "value": "transfer(address,uint256)"
+   },
+   "divergence": {
+    "ts_behavior": "keeps the 'uint' alias verbatim, so the derived selector differs from Solidity's canonical one",
+    "reason": "Solidity grammar: 'uint'/'int' are aliases for uint256/int256; the selector preimage must be canonical"
+   }
+  },
+  {
+   "name": "computeSelector/uint-alias",
+   "fn": "compute_selector",
+   "input": {
+    "sig": "transfer(address to, uint value)"
+   },
+   "expect": {
+    "value": "0xa9059cbb"
+   },
+   "divergence": {
+    "ts_behavior": "hashes the unnormalized string → wrong selector for aliased signatures",
+    "reason": "same alias normalization as canonicalize_signature"
+   }
+  }
+ ]
+}

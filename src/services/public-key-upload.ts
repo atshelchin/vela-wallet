@@ -3,10 +3,9 @@
  *
  * Flow: createRecord → verify (no signature needed, server signs on-chain tx)
  */
+import { computeAddress, fromHex } from '@/services/vela-core';
 import * as PublicKeyIndex from './public-key-index';
 import { getRelyingPartyId } from '@/modules/passkey';
-import { computeAddress } from './safe-address';
-import { fromHex } from './hex';
 import { loadPendingUploads, removePendingUpload } from './storage';
 
 // ---------------------------------------------------------------------------

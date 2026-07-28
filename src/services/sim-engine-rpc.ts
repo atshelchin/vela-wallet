@@ -18,21 +18,10 @@
  * `{ ok: false }` (per-call `status`/`error`), not `null`.
  */
 import { rpcCall } from '@/services/rpc-adapter';
-import { toQuantity } from '@/services/hex';
 import {
-  deriveAssetDeltas, parseRevertReason,
+  deriveAssetDeltas, parseRevertReason, simValueParam,
   type EngineResult, type SimCall, type SimLog,
 } from '@/services/sim-assets';
-
-/**
- * Normalise a call's value to a canonical hex quantity `eth_simulateV1` accepts.
- * dApp-supplied values (e.g. ethers' zero-padded `0x0de0…`) would otherwise be
- * rejected by go-ethereum with "leading zero digits" and surface as a bogus
- * "Expected to fail" in the preview.
- */
-function valueParam(value: string | undefined): string {
-  return toQuantity(value);
-}
 
 /** A per-call result counts as success only when explicitly status 1. */
 function callSucceeded(call: any): boolean {
@@ -61,7 +50,7 @@ export async function rpcSimulate(
           from,
           to: c.to,
           ...(c.data && c.data !== '0x' ? { data: c.data } : {}),
-          value: valueParam(c.value),
+          value: simValueParam(c.value),
         })),
       },
     ],

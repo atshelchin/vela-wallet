@@ -14,16 +14,14 @@
  *   2. Fallback to ercs/eip712-erc2612-permit.json
  *   3. If no match → blind sign (return null)
  */
+import { create2Address, decodeCalldata, fromHex, keccak256, matchSelector, parseSignature, toHex } from '@/services/vela-core';
+import type { AbiParam, DecodedValue, TypedData } from '@/services/vela-core';
 import { getEthereumDataURL } from '@/services/storage';
-import { keccak256, create2Address } from '@/services/eth-crypto';
-import { toHex, fromHex } from '@/services/hex';
-import { decodeCalldata, matchSelector, parseSignature, type AbiParam, type DecodedValue } from '@/services/abi-decode';
 import { lookupSelector } from '@/services/selector-registry';
 import { groupDigits, numberSeparators, formatNumber, formatDateTime as localeFormatDateTime } from '@/services/locale-format';
 import { localDescriptor, knownContract, interfaceDescriptor, INTERFACE_IDS, type TokenStandard } from '@/services/local-descriptors';
 import { knownTokenSymbol, knownTokenDecimals } from '@/services/tokens';
 import { nativeSymbol } from '@/models/network';
-import type { TypedData } from '@/services/eip712';
 import { poolRpcCall } from '@/services/rpc-pool';
 import { fetchWithTimeout, NET_TIMEOUTS } from '@/services/net';
 

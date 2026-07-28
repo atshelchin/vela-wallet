@@ -1,12 +1,10 @@
+import { computeAddress, recoverPublicKeyFromAssertions, toHex } from '@/services/vela-core';
 import type { StoredAccount } from '@/models/types';
 import { useWallet } from '@/models/wallet-state';
 import * as Passkey from '@/modules/passkey';
 import { PasskeyError, PasskeyErrorCode } from '@/modules/passkey';
-import { toHex } from '@/services/hex';
-import { recoverPublicKeyFromAssertions } from '@/services/p256-recovery';
 import * as PublicKeyIndex from '@/services/public-key-index';
 import { uploadPublicKey } from '@/services/public-key-upload';
-import { computeAddress } from '@/services/safe-address';
 import { loadAccounts, saveAccount } from '@/services/storage';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { showAlert } from '@/services/platform';
@@ -106,7 +104,7 @@ export default function OnboardingScreen({ onComplete }: OnboardingScreenProps =
       __DEV__ && console.log('[Login] credentialId:', assertion.credentialId);
 
       // 2. Verify passkey compatibility with Safe contracts
-      const { verifySafeWebAuthn } = await import('@/services/webauthn-verify');
+      const { verifySafeWebAuthn } = await import('@/services/vela-core');
       const compat = verifySafeWebAuthn(assertion);
       __DEV__ && console.log('[Login] Safe compat:', compat.ok, compat.reason ?? '');
       if (!compat.ok) {

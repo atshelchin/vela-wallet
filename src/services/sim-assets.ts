@@ -14,6 +14,30 @@
  * caveat every log-based simulator (Tenderly/Alchemy) carries.
  */
 
+import { toQuantity } from '@/services/vela-core';
+
+/**
+ * Normalise a call's value to a canonical hex quantity the simulation RPCs
+ * accept. dApp-supplied values (e.g. ethers' zero-padded `0x0de0…`) would
+ * otherwise be rejected by go-ethereum with "leading zero digits" and surface
+ * as a bogus "Expected to fail" in the preview.
+ *
+ * A malformed value must not take down the whole simulation: losing the preview
+ * silently would hide the balance-change and revert warnings on exactly the
+ * hostile input the strict shared core exists to catch. Simulate the call as
+ * zero-value (what the legacy quantity helper silently did) and let the sheet's
+ * own estimate surface the real problem. Both engines share this one policy.
+ */
+export function simValueParam(value: string | undefined): string {
+  try {
+    return toQuantity(value);
+  } catch {
+    console.warn('[sim] malformed call value, simulating as 0:', value);
+    return '0x0';
+  }
+}
+
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

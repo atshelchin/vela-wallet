@@ -17,8 +17,8 @@
  * Only positive results are cached (AsyncStorage, 24h TTL).
  */
 
+import { keccak256 } from '@/services/vela-core';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { keccak256 } from './eth-crypto';
 import { queryByWalletRef } from './public-key-index';
 import { rpcCall } from './rpc-adapter';
 

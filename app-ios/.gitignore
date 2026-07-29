@@ -1,0 +1,26 @@
+# Xcode — per-user UI state (schemes, window layout, breakpoints)
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Build output
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager — local resolution state
+.swiftpm/
+Packages/
+*.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+
+# CocoaPods / Carthage (if ever added)
+Pods/
+Carthage/Build/
+
+# Signing material — never commit
+*.mobileprovision
+*.p12
+*.cer

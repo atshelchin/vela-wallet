@@ -113,10 +113,12 @@ react-native-web TextInput, so the pasted-pairing-URI states came back byte-iden
 resting screen — twice. They now submit through the field's unlabelled arrow button, and the two
 states are real (a 4-digit fingerprint gate; a parse-error card).
 
-**Top of the next session's list — a board that lies.** `O/signing-sheet/{blind-transaction,
-eip-712-unknown, scam-drain}` were captured before their descriptor resolved, so all three depict
-the "Loading…" fallback rather than the blind-sign / unknown-typed-data / drain-warning UI their
-names promise. They must be recaptured with a longer settle. Every other signing board was checked
+**Fixed in the same session.** `O/signing-sheet/{blind-transaction, eip-712-unknown, scam-drain}`
+had been captured before their descriptor resolved, so all three depicted the "Loading…" fallback
+rather than the blind-sign / unknown-typed-data / drain-warning UI their names promise. Recaptured
+with the harness polling until the sheet stops saying "Loading" — it now shows `Mint · Interacting
+with 0x4e1dc6… · Decoded from the function signature (not a verified descriptor)`, the CustomOrder
+typed-data field list, and the drain preview's `− 1.5 WETH`. Every other signing board was checked
 against its scenario title and is correct.
 
 Still absent by choice, with reasons: `connect/{connected, reconnecting}` need a live relay peer;

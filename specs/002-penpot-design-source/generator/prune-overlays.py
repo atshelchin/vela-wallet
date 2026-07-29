@@ -88,9 +88,17 @@ def main(raw_path, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     assets, index, unmapped = {}, [], []
 
-    for slug, dump in raw['captured'].items():
+    for slug, entry in raw['captured'].items():
+        # two capture shapes: the gallery launcher sweep stores a dump per slug, the clear-signing
+        # sweep stores {title, dump} because the scenario's own title is worth carrying onto the
+        # board as a note — 25 signing sheets named only by slug would be unreadable.
+        title = ''
+        if isinstance(entry, dict) and 'dump' in entry:
+            dump, title = entry['dump'], entry.get('title', '')
+        else:
+            dump = entry
         tail = slug.replace('gallery-open-', '')
-        name = NAMES.get(tail)
+        name = NAMES.get(tail) or (('O/signing-sheet/' + tail) if title else None)
         if not name:
             unmapped.append(tail)
             continue
@@ -107,7 +115,7 @@ def main(raw_path, out_dir):
         json.loads(s)
         open(os.path.join(out_dir, tail + '.json'), 'w').write(s)
         index.append({'slug': tail, 'board': name, 'w': out['frame']['w'], 'h': out['frame']['h'],
-                      'bytes': len(s)})
+                      'bytes': len(s), 'note': title})
 
     json.dump(index, open(os.path.join(out_dir, '_index.json'), 'w'), indent=1)
     a = json.dumps(assets, separators=(',', ':'), ensure_ascii=True)

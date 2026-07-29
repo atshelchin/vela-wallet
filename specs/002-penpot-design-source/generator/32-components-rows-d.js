@@ -30,7 +30,8 @@ const txt = (content, size, weight, color, zone, extras) => {
   lib.applyFont(t, zone || 'sans', weight);
   t.fills = [{ fillColor: color, fillOpacity: 1 }];
   t.growType = 'auto-width';
-  if (extras && extras.ls) t.letterSpacing = String(extras.ls);
+  // executor fix: this Penpot build rejects negative letterSpacing (":letterSpacing value not valid"), so tighten-only values are skipped
+  if (extras && extras.ls > 0) t.letterSpacing = String(extras.ls);
   if (extras && extras.upper) t.textTransform = 'uppercase';
   return t;
 };

@@ -104,7 +104,42 @@ function extractLayout(opts) {
       node.flex = { dir: cs.flexDirection, justify: cs.justifyContent, align: cs.alignItems };
       if (px(cs.gap) > 0) node.flex.gap = px(cs.gap);
     }
-    if (el.tagName === 'IMG' || el.tagName === 'SVG' || el.tagName === 'svg') node.kind = el.tagName.toLowerCase();
+    // ---- real assets, not placeholders -------------------------------------------------
+    // Icons (Lucide) and Nimiq identicons are inline SVG: capture the actual markup so Penpot
+    // can rebuild them as vectors. `currentColor` is resolved to the computed colour first,
+    // otherwise the icon lands black regardless of its real tint.
+    if (el.tagName === 'svg' || el.tagName === 'SVG') {
+      node.kind = 'svg';
+      let markup = el.outerHTML;
+      const resolved = rgbToHex(cs.color) || '#1A1A18';
+      const plain = resolved.split('@')[0];
+      markup = markup.split('currentColor').join(plain);
+      // guarantee a viewBox so Penpot scales rather than clips
+      if (!/viewBox=/.test(markup)) {
+        markup = markup.replace('<svg', '<svg viewBox="0 0 ' + Math.round(r.width) + ' ' + Math.round(r.height) + '"');
+      }
+      node.svg = markup;
+      node.svgColor = plain;
+    } else if (el.tagName === 'IMG') {
+      // Token/chain/asset logos. Prefer bytes over URLs: the Penpot backend runs in a container
+      // and cannot resolve localhost, and remote CDNs may be unreachable from it.
+      node.kind = 'img';
+      node.src = el.currentSrc || el.src || '';
+      if (node.src.startsWith('data:')) {
+        node.dataUri = node.src;
+      } else {
+        try {
+          const c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(r.width * 2));
+          c.height = Math.max(1, Math.round(r.height * 2));
+          const ctx = c.getContext('2d');
+          ctx.drawImage(el, 0, 0, c.width, c.height);
+          node.dataUri = c.toDataURL('image/png');   // throws if the image taints the canvas
+        } catch (e) {
+          node.dataUriError = String(e && e.message ? e.message : e);
+        }
+      }
+    }
 
     const kids = [];
     for (const child of Array.from(el.children)) {

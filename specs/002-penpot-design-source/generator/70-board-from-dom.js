@@ -128,12 +128,21 @@ const bindRadius = (shape, r) => {
   if (any) stats.radiusBound++;
 };
 
-const { board } = await lib.upsertBoard(spec.page, spec.name, {
-  x: spec.x || 0, y: spec.y || 0,
-  w: Math.round(dump.frame.w) || 390, h: Math.round(dump.frame.h) || 844,
-  fill: spec.fill || '#FAFAF8',
-});
-bindColor(board, { color: spec.fill || '#FAFAF8', opacity: 1 }, 'fill');   // the page ground itself
+// The caller may own the board (`spec.board`). Component variants need that: they are addressed by
+// a name that is only unique INSIDE their variant container ("default", "compact"), and
+// upsert-by-name searches the whole page — so letting this chunk look them up would let one
+// family's "default" variant find and overwrite another's.
+const W = Math.round(dump.frame.w) || 390, H = Math.round(dump.frame.h) || 844;
+const fill = 'fill' in spec ? spec.fill : '#FAFAF8';
+let board;
+if (spec.board) {
+  board = spec.board;
+  if (Math.round(board.width) !== W || Math.round(board.height) !== H) board.resize(W, H);
+  board.fills = fill ? [{ fillColor: fill, fillOpacity: 1 }] : [];
+} else {
+  ({ board } = await lib.upsertBoard(spec.page, spec.name, { x: spec.x || 0, y: spec.y || 0, w: W, h: H, fill }));
+}
+if (fill) bindColor(board, { color: fill, opacity: 1 }, 'fill');   // the page ground itself
 // Wipe previously generated children (names all start with 'r/'). lib rule 1: Penpot rewrites
 // '/' to ' / ', so the stored name is 'r / 0.1', and a raw startsWith('r/') silently matches
 // NOTHING — which quietly turned every re-run into a second copy stacked on the first.

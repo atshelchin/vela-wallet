@@ -458,40 +458,40 @@ function DesignGalleryScreen() {
 
         {/* ================================================================ */}
         <Section id="buttons" title="Buttons & commit controls" onMeasure={measure}>
-          <Cell id="gallery-velabutton-primary-default" label="VelaButton · variant=primary state=default">
+          <Cell id="gallery-velabutton-primary-default" label="VelaButton · variant=primary size=default state=default">
             <VelaButton title="Continue" onPress={() => {}} />
           </Cell>
-          <Cell id="gallery-velabutton-primary-disabled" label="VelaButton · variant=primary state=disabled">
+          <Cell id="gallery-velabutton-primary-disabled" label="VelaButton · variant=primary size=default state=disabled">
             <VelaButton title="Continue" onPress={() => {}} disabled />
           </Cell>
-          <Cell id="gallery-velabutton-primary-loading" label="VelaButton · variant=primary state=loading">
+          <Cell id="gallery-velabutton-primary-loading" label="VelaButton · variant=primary size=default state=loading">
             <VelaButton title="Continue" onPress={() => {}} loading />
           </Cell>
-          <Cell id="gallery-velabutton-accent-default" label="VelaButton · variant=accent state=default">
+          <Cell id="gallery-velabutton-accent-default" label="VelaButton · variant=accent size=default state=default">
             <VelaButton title="Confirm & Send" onPress={() => {}} variant="accent" />
           </Cell>
-          <Cell id="gallery-velabutton-accent-disabled" label="VelaButton · variant=accent state=disabled">
+          <Cell id="gallery-velabutton-accent-disabled" label="VelaButton · variant=accent size=default state=disabled">
             <VelaButton title="Confirm & Send" onPress={() => {}} variant="accent" disabled />
           </Cell>
-          <Cell id="gallery-velabutton-accent-loading" label="VelaButton · variant=accent state=loading">
+          <Cell id="gallery-velabutton-accent-loading" label="VelaButton · variant=accent size=default state=loading">
             <VelaButton title="Confirm & Send" onPress={() => {}} variant="accent" loading />
           </Cell>
-          <Cell id="gallery-velabutton-secondary-default" label="VelaButton · variant=secondary state=default">
+          <Cell id="gallery-velabutton-secondary-default" label="VelaButton · variant=secondary size=default state=default">
             <VelaButton title="Cancel" onPress={() => {}} variant="secondary" />
           </Cell>
-          <Cell id="gallery-velabutton-secondary-disabled" label="VelaButton · variant=secondary state=disabled">
+          <Cell id="gallery-velabutton-secondary-disabled" label="VelaButton · variant=secondary size=default state=disabled">
             <VelaButton title="Cancel" onPress={() => {}} variant="secondary" disabled />
           </Cell>
-          <Cell id="gallery-velabutton-secondary-loading" label="VelaButton · variant=secondary state=loading">
+          <Cell id="gallery-velabutton-secondary-loading" label="VelaButton · variant=secondary size=default state=loading">
             <VelaButton title="Cancel" onPress={() => {}} variant="secondary" loading />
           </Cell>
-          <Cell id="gallery-velabutton-primary-compact" label="VelaButton · variant=primary compact">
+          <Cell id="gallery-velabutton-primary-compact" label="VelaButton · variant=primary size=compact">
             <VelaButton title="Scan again" onPress={() => {}} compact style={{ alignSelf: 'flex-start' }} />
           </Cell>
-          <Cell id="gallery-velabutton-accent-compact" label="VelaButton · variant=accent compact">
+          <Cell id="gallery-velabutton-accent-compact" label="VelaButton · variant=accent size=compact">
             <VelaButton title="Retry" onPress={() => {}} variant="accent" compact style={{ alignSelf: 'flex-start' }} />
           </Cell>
-          <Cell id="gallery-velabutton-secondary-compact" label="VelaButton · variant=secondary compact">
+          <Cell id="gallery-velabutton-secondary-compact" label="VelaButton · variant=secondary size=compact">
             <VelaButton title="Not now" onPress={() => {}} variant="secondary" compact style={{ alignSelf: 'flex-start' }} />
           </Cell>
 

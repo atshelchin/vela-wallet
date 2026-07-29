@@ -234,7 +234,10 @@ function extractLayout(opts) {
     return node;
   }
 
-  const root = document.body;
+  // `opts.root` extracts one subtree instead of the whole document. Overlays need it: a modal is
+  // opened from inside the design gallery, so dumping document.body would carry all 35,000px of
+  // gallery along with the sheet. Coordinates stay relative to the phone frame either way.
+  const root = O.root || document.body;
   const tree = [];
   for (const child of Array.from(root.children)) {
     const n = walk(child, 0);

@@ -55,7 +55,10 @@ const radiusOf = (n) => {
 // Several tokens legitimately share a value (#FFFFFF is both fg.inverse and bg.raised), so the
 // candidate is chosen by ROLE — a text fill prefers color.fg.*, a shape fill color.bg.*, a stroke
 // color.border.* — otherwise dark mode would recolour backgrounds with a foreground ramp.
-const COLOR_SET = penpot.library.local.tokens.sets.find((s) => s.name === 'color-light');
+// Which colour set the capture's hexes are matched against. A dark-mode capture must resolve
+// against `color-dark` or nothing matches and the whole board falls back to literal hex — the very
+// thing the binding exists to prevent.
+const COLOR_SET = penpot.library.local.tokens.sets.find((s) => s.name === (spec.colorSet || 'color-light'));
 const rankFor = {
   text:   (t) => (t.startsWith('color.fg.') ? 0 : /\.base$/.test(t) ? 1 : 3),
   fill:   (t) => (t.startsWith('color.bg.') ? 0 : /\.soft$/.test(t) ? 1 : /\.base$/.test(t) && !t.startsWith('color.fg.') ? 2 : 3),

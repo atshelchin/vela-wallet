@@ -24,8 +24,12 @@ await lib.open(page);
 for (let i = 0; i < mine.length; i++) {
   const e = mine[i];
   try {
-    storage.domDump = await (await fetch('/plugins/mcp/screens/' + e.slug + '.json')).json();
-    storage.boardSpec = { page, name: e.board, x: (i % 5) * 450, y: Math.floor(i / 5) * 950, fill: '#FAFAF8' };
+    storage.domDump = await (await fetch('/plugins/mcp/' + (storage.screenDir || 'screens') + '/' + e.slug + '.json')).json();
+    // a dark capture must resolve its hexes against `color-dark`, and its page ground is the dark
+    // base — matching against the light set would leave the whole board in literal hex
+    const dark = !!storage.screenColorSet && storage.screenColorSet !== 'color-light';
+    storage.boardSpec = { page, name: e.board, x: (i % 5) * 450, y: Math.floor(i / 5) * 950,
+      fill: dark ? '#010101' : '#FAFAF8', colorSet: storage.screenColorSet || 'color-light' };
     const r = await storage.runChunk('70-board-from-dom.js');
     const b = lib.byName(e.board);
     if (b && e.note) lib.chip(b, 'note', e.note);

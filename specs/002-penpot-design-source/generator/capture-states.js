@@ -92,8 +92,18 @@ async function captureStates(group) {
       return sleep(s.ms || 900);
     }
     if (s.act === 'key') {
-      for (const target of [document, window]) {
-        target.dispatchEvent(new KeyboardEvent('keydown', { key: s.key, keyCode: s.keyCode || 0, bubbles: true }));
+      // Aim at the FOCUSED element first. Dispatching Enter on document only was why a pasted
+      // pairing URI never submitted: react-native-web's TextInput listens on the input itself, so
+      // the connect screen came back identical to its resting state and the "connecting" boards
+      // were quietly duplicates of the disconnected one.
+      const code = s.keyCode || (s.key === 'Enter' ? 13 : 0);
+      const init = { key: s.key, code: s.key === 'Enter' ? 'Enter' : s.key, keyCode: code, which: code, bubbles: true, cancelable: true };
+      const targets = [document.activeElement, document, window].filter(Boolean);
+      for (const t of targets) {
+        for (const type of ['keydown', 'keypress', 'keyup']) {
+          try { t.dispatchEvent(new KeyboardEvent(type, init)); } catch (e) {}
+        }
+        if (t !== document && t !== window) break;    // the focused field got it; do not double-fire
       }
       return sleep(s.ms || 500);
     }

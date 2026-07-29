@@ -90,3 +90,37 @@ Screens: 27 boards built from 28 captured states, 0 failures.
 - No dark-theme representative boards; the token binding means switching the active colour set
   repaints the canvas, which supersedes part of T029 but not all of it.
 - US5 rebuild-readiness gate (T032–T034) not yet run.
+
+### 2026-07-30 · state sweep round 2 — 163 boards
+
+Added: 3 dark representatives (`S/home/assets-dark`, `S/send/select-token-dark`,
+`S/settings/default-dark`) built against the **`color-dark`** token set — 70 now takes
+`spec.colorSet`, because matching a dark capture against `color-light` binds nothing and leaves the
+whole board in literal hex. Plus `S/web-request/{unavailable, error}`,
+`S/connect/{connecting-verify, error}`, `S/settings/advanced-expanded`,
+`S/onboarding/create-form-ready`, `S/send/{locked-network-not-supported, locked-unknown-token,
+receipt-submitted, receipt-confirmed, receipt-failed}`.
+
+Corrections to boards that were **wrong, not just missing**:
+- `S/browser/default` → `S/browser/unsupported-on-web`. The web build cannot render the in-app
+  browser at all (the WebView module is iOS/Android only), so that board is the refusal screen.
+  Under its old name it told a rebuild agent the browser looks like a one-line apology.
+- Removed `S/home/connections-empty` and `S/send/enter-details` — the same states as
+  `S/home/connections` and `S/send/details`, captured twice under two naming generations.
+
+Capture-harness defects fixed: a synthetic Enter dispatched on `document` never reaches a
+react-native-web TextInput, so the pasted-pairing-URI states came back byte-identical to the
+resting screen — twice. They now submit through the field's unlabelled arrow button, and the two
+states are real (a 4-digit fingerprint gate; a parse-error card).
+
+**Top of the next session's list — a board that lies.** `O/signing-sheet/{blind-transaction,
+eip-712-unknown, scam-drain}` were captured before their descriptor resolved, so all three depict
+the "Loading…" fallback rather than the blind-sign / unknown-typed-data / drain-warning UI their
+names promise. They must be recaptured with a longer settle. Every other signing board was checked
+against its scenario title and is correct.
+
+Still absent by choice, with reasons: `connect/{connected, reconnecting}` need a live relay peer;
+`web-request/{waiting, consent, onboarding, processing, done}` need a second tab that opened the
+popup and completed the `VELA_WEB_INIT` handshake; `browser/*` needs a device; the onboarding
+ceremony and `send/confirm/{submitting, error}` would mint a passkey, write an account, or broadcast
+a real transaction.

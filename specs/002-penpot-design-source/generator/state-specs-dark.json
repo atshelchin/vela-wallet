@@ -1,0 +1,27 @@
+[
+ {
+  "url": "/settings",
+  "settle": 3000,
+  "states": [
+   { "slug": "dark-settings", "board": "S/settings/default-dark", "page": "07 Screens · Settings & Onboarding",
+     "note": "dark representative — Appearance switched to Dark in Settings; colours resolve against the color-dark token set",
+     "steps": [{ "act": "click", "text": "Dark" }, { "act": "wait", "ms": 1800 }] }
+  ]
+ },
+ {
+  "url": "/wallet",
+  "settle": 3000,
+  "states": [
+   { "slug": "dark-home-assets", "board": "S/home/assets-dark", "page": "05 Screens · Wallet",
+     "note": "dark representative", "steps": [{ "act": "click", "text": "Assets" }, { "act": "wait", "ms": 1500 }] }
+  ]
+ },
+ {
+  "url": "/send",
+  "settle": 4000,
+  "states": [
+   { "slug": "dark-send-select", "board": "S/send/select-token-dark", "page": "05 Screens · Wallet",
+     "note": "dark representative", "steps": [{ "act": "wait", "ms": 1500 }] }
+  ]
+ }
+]

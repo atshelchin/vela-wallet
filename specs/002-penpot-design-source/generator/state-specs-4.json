@@ -1,0 +1,214 @@
+[
+ {
+  "url": "/web-request",
+  "states": [
+   {
+    "slug": "web-request-error-no-session",
+    "board": "S/web-request/error",
+    "page": "06 Screens · Browser & Connect",
+    "note": "no `session` param -> web-request.tsx:88-92 phase='error', 'Invalid Vela request session.'",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/connect",
+  "settle": 3000,
+  "states": [
+   {
+    "slug": "connect-connecting-verify",
+    "board": "S/connect/connecting-verify",
+    "page": "06 Screens · Browser & Connect",
+    "note": "fabricated but schema-valid walletpair URI; prepareJoin is local-only, so the 4-digit fingerprint card renders with no peer",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "walletpair link or web address",
+      "value": "walletpair:?ch=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef&pubkey=jCYIRGVbVzh1AXEPb9mfbAQ23zWxwBrWCCTyE1AmCV0&relay=wss%3A%2F%2Frelay.invalid%2Fws&name=Demo%20dApp&url=https%3A%2F%2Fdemo.invalid&icon=https%3A%2F%2Fdemo.invalid%2Ficon.png"
+     },
+     {
+      "act": "clickNth",
+      "n": 2
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/connect",
+  "settle": 3000,
+  "states": [
+   {
+    "slug": "connect-error",
+    "board": "S/connect/error",
+    "page": "06 Screens · Browser & Connect",
+    "note": "malformed walletpair URI -> parsePairingUri throws -> status 'error'; offline and deterministic",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/connect"
+     },
+     {
+      "act": "type",
+      "placeholder": "walletpair link or web address",
+      "value": "walletpair:?ch=zz"
+     },
+     {
+      "act": "clickNth",
+      "n": 2
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/onboarding?mode=create",
+  "settle": 3000,
+  "states": [
+   {
+    "slug": "onboarding-create-form-ready",
+    "board": "S/onboarding/create-form-ready",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "name filled and every acknowledgment checked, so Create Wallet leaves its disabled state; the ceremony is NOT run (it would mint a passkey and write an account)",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "Enter a name",
+      "value": "Design Capture"
+     },
+     {
+      "act": "click",
+      "text": "This is a self-custodial wallet"
+     },
+     {
+      "act": "click",
+      "text": "If you lose your device"
+     },
+     {
+      "act": "click",
+      "text": "If your iCloud or Google account is compromised"
+     },
+     {
+      "act": "click",
+      "text": "I agree to the"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/send?locked=1&prefilledChainId=999999&prefilledRecipient=0x7099797f0e6e40d43D8b78ac3F0ac89b0F4F0d8b",
+  "settle": 4000,
+  "states": [
+   {
+    "slug": "send-locked-network",
+    "board": "S/send/locked-network-not-supported",
+    "page": "05 Screens · Wallet",
+    "note": "an EIP-681 link on a chain Vela does not carry -> lockError kind 'network'",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 3000
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/send?locked=1&prefilledChainId=100&prefilledTokenAddress=0x000000000000000000000000000000000000dEaD&prefilledRecipient=0x7099797f0e6e40d43D8b78ac3F0ac89b0F4F0d8b",
+  "settle": 5000,
+  "states": [
+   {
+    "slug": "send-locked-token",
+    "board": "S/send/locked-unknown-token",
+    "page": "05 Screens · Wallet",
+    "note": "a link naming a token that is not a contract on that chain -> lockError kind 'token'",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 4000
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/receipt-harness",
+  "settle": 3500,
+  "states": [
+   {
+    "slug": "receipt-submitted",
+    "board": "S/send/receipt-submitted",
+    "page": "05 Screens · Wallet",
+    "note": "the real TransactionReceipt driven by the dev harness — the Send route reaches this only after signing and submitting a UserOp",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Single"
+     },
+     {
+      "act": "click",
+      "text": "Submitted"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ]
+   },
+   {
+    "slug": "receipt-confirmed",
+    "board": "S/send/receipt-confirmed",
+    "page": "05 Screens · Wallet",
+    "note": "confirmed status carries a tx hash row",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Confirmed"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ]
+   },
+   {
+    "slug": "receipt-failed",
+    "board": "S/send/receipt-failed",
+    "page": "05 Screens · Wallet",
+    "note": "failed stamp",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Failed"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ]
+   }
+  ]
+ }
+]

@@ -1,0 +1,139 @@
+[
+ {
+  "url": "/receive",
+  "states": [
+   {
+    "slug": "receive-gate",
+    "board": "S/receive/safety-gate",
+    "page": "05 Screens · Wallet",
+    "note": "Receive opens on the safety gate, not on the address — the screenshot corrected the inventory here",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/receive"
+     }
+    ]
+   },
+   {
+    "slug": "receive-address",
+    "board": "S/receive/address",
+    "page": "05 Screens · Wallet",
+    "steps": [
+     {
+      "act": "click",
+      "text": "I Understand"
+     }
+    ]
+   },
+   {
+    "slug": "receive-copied",
+    "board": "S/receive/copied",
+    "page": "05 Screens · Wallet",
+    "steps": [
+     {
+      "act": "click",
+      "text": "0xD40086"
+     }
+    ]
+   },
+   {
+    "slug": "receive-request",
+    "board": "S/receive/request",
+    "page": "05 Screens · Wallet",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Request"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/send",
+  "states": [
+   {
+    "slug": "send-details",
+    "board": "S/send/details",
+    "page": "05 Screens · Wallet",
+    "steps": [
+     {
+      "act": "click",
+      "text": "XDAI"
+     }
+    ]
+   },
+   {
+    "slug": "send-details-filled",
+    "board": "S/send/details-filled",
+    "page": "05 Screens · Wallet",
+    "steps": [
+     {
+      "act": "type",
+      "value": "0.5"
+     },
+     {
+      "act": "type",
+      "value": "0x7099797f0e6e40d43D8b78ac3F0ac89b0F4F0d8b",
+      "which": 1,
+      "placeholder": "0x"
+     },
+     {
+      "act": "wait",
+      "ms": 1500
+     }
+    ]
+   },
+   {
+    "slug": "send-details-split",
+    "board": "S/send/details-split",
+    "page": "05 Screens · Wallet",
+    "note": "one token to N people — the split mode the manifest lists under advanced send",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/send"
+     },
+     {
+      "act": "click",
+      "text": "XDAI"
+     },
+     {
+      "act": "click",
+      "text": "Add recipient"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/add-token",
+  "states": [
+   {
+    "slug": "add-token-erc20",
+    "board": "S/add-token/erc20",
+    "page": "05 Screens · Wallet",
+    "steps": []
+   },
+   {
+    "slug": "add-token-native",
+    "board": "S/add-token/native",
+    "page": "05 Screens · Wallet",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Native Token"
+     }
+    ]
+   }
+  ]
+ }
+]

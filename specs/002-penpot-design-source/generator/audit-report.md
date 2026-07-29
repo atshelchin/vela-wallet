@@ -43,3 +43,50 @@ board-name uniqueness per page to catch this class automatically.
 1. **Penpot themes API broken in this deployment** (mcp:2.16 plugin vs Penpot 2.16.2): `TokenTheme.addSet()` is a silent no-op, leaving themes empty; activating an empty theme deactivates all sets. **Fallback**: modes are expressed by direct set activation (Light = `core`+`color-light`; Dark = swap `color-light`→`color-dark`); no theme objects exist in the file. Recorded in consumption contract.
 2. `TokenCatalog.addTheme` takes an object `{group, name}` — the MCP high-level overview's `addTheme(group, name)` signature is wrong.
 3. Shadow token values accept CSS-like strings (`"0 1 3 0 rgba(26,26,24,0.04)"`); rgba() strings are valid color-token values (used for `color.fixed.backdrop`).
+
+---
+
+## 2026-07-29 · render-first rebuild (US2 complete, US4 substantially advanced)
+
+**File state**: 151 boards across all 11 pages (none empty), 65 library components, 147 tokens.
+
+| page | boards | source |
+|---|---|---|
+| 00 Start Here | 1 | consumption contract, in-file copy |
+| 01 Design Language | 1 | designed specimens |
+| 02 Tokens & Type | 3 | token sets |
+| 03 Components | 65 | 56 rebuilt from `/design-gallery` cells + 9 quarantined drafts |
+| 04 IA & Flows | 1 | route-derived diagram |
+| 05 / 06 / 07 / 10 Screens | 31 | scripted state capture of the running app |
+| 08 Overlays | 46 | 21 gallery overlays + 25 clear-signing scenarios |
+| 09 Patterns | 3 | motion / a11y / degraded states |
+
+**Rebuild totals** — components: 189 variants, 1659 shapes, **0 missing assets**, 1173 colours
+token-bound vs 43 literal, 0 variant errors. Overlays + signing: 46 boards, 0 missing, 2 literal.
+Screens: 27 boards built from 28 captured states, 0 failures.
+
+**Graph**: 27 pointer interactions, 5 named flows (home, send, receive, onboarding, connect),
+12 `vela.edge` records (6 cross-page overlay openings, 6 genuinely non-pointer).
+
+### Defects found by looking at the output, not the logs
+
+1. **Stale gallery dump** — captured before the extractor carried svg/image payloads. Every
+   component cell would have built with red MISSING boxes. Recaptured; 103 unique assets now
+   resolve.
+2. **Inverted z-order after variant folding** — `createVariantFromComponents` flips each board's
+   child order, so every wrapper painted over its own contents (token logos blank, button labels
+   buried). Fixed by recovering the DOM path from shape names; 150 boards reordered.
+3. **Single-component variant sets** — `createVariantFromComponents` returns no container for one
+   component; nine one-state families died on it. They are plain components now.
+
+### Known gaps (not fixed, not hidden)
+
+- Screen states: 31 of the manifest's 91. Missing families: `web-request` (7 phases), `connect`
+  connecting/error/reconnecting, the onboarding ceremony beyond the create form, send
+  confirm/receipt/error, and `browser` (web renders "iOS and Android only" — needs a device capture).
+- Three states resisted scripted capture and are absent rather than faked: send confirm and
+  details-filled (the recipient field stops matching once an amount is entered), settings scrolled.
+- Nine component families have no gallery cell and remain `DRAFT (inferred, …)` off-canvas.
+- No dark-theme representative boards; the token binding means switching the active colour set
+  repaints the canvas, which supersedes part of T029 but not all of it.
+- US5 rebuild-readiness gate (T032–T034) not yet run.

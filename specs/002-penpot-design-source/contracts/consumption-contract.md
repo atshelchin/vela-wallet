@@ -18,17 +18,36 @@ Audience: a future AI agent (SvelteKit / GPUI / native iOS / native Android rebu
 ## Traversing behavior (the state graph)
 
 - Pointer behavior: every interactive element carries an `Interaction` — enumerate via the plugin API; `action.type` ∈ navigate-to / open-overlay / close-overlay / previous-screen; `action.destination` is the target board. "What happens when I tap X?" is always answerable mechanically.
-- Non-pointer transitions: `edge:` chips (text shapes named `edge:*` on the source board): `edge:<condition> → <destination board name>`.
+- Non-pointer transitions: read the board's **plugin data**, key `vela.edge`: `<condition> → <destination board name>`. Several edges on one board are joined with ` | `.
 - Journeys: named flows (`penpot.currentPage.flows`): onboarding, send, receive, sign, connect, browse.
-- Elements with no interaction AND no `edge:` chip are terminal/static by contract — not an omission (omissions are a generator defect; report them).
+- Elements with no interaction AND no `vela.edge` entry are terminal/static by contract — not an omission (omissions are a generator defect; report them).
+
+### Annotations live in plugin data, not in shape names
+
+Annotations used to be 8px text shapes named `note:…` / `edge:…` / `platform:…` / `motion:…` parked on
+the board. That printed provenance across the artwork, so they were moved off-canvas and are now read
+with `shape.getPluginData(<key>)` on the **board**:
+
+| key | meaning |
+|---|---|
+| `vela.note` | provenance / generator notes |
+| `vela.edge` | non-pointer transition, `<condition> → <board>` |
+| `vela.platform` | platform divergence (overrides the generic depiction) |
+| `vela.motion` | motion pattern reference |
+| `vela.source` | for DOM-derived screen boards, the app URL the board was captured from |
+
+Multiple values for one key are joined with ` | `. No `note:`/`edge:`/`platform:`/`motion:`-prefixed
+text shapes remain in the file; a consumer that still scans shape names will find nothing.
+On `04 IA & Flows` the arrow labels on `D/ia/map` ARE visible text by design — they are the
+visualisation, not annotation, and are named `e/<i>/<from>→<to>/lbl`.
 - Shapes whose name starts with `deco:` are purely decorative (title bars, backdrop panels) — machine consumers MUST ignore them.
 - Icon placeholders carry their real identity in the shape name: `icon:<LucideName> <size>/<stroke>` (e.g. `icon:ArrowLeft 22/2.2`) — implement the named Lucide icon at that size/stroke, not the placeholder rectangle.
 
 ## Interpretation rules (normative)
 
-- Boards depict light theme at 1.0× text scale in English. Dark = switch token theme; representative dark boards exist per surface family for calibration.
+- Boards depict light theme at 1.0× text scale in English. Dark = **activate the `color-dark` token set and deactivate `color-light`** (exactly one of the two is ever active; `TokenTheme.addSet()` is a no-op in this deployment, so modes are set activation, not themes). Screen-board fills, text colours, strokes, radii and monochrome icon paths are token-bound, so the switch repaints the canvas. Brand artwork — token/chain logos and identicons — is deliberately NOT bound and stays constant across modes.
 - Boards depict the **normative** design language ("quiet, typographic, de-containered" — see `01 Design Language`); where the legacy RN app drifts, the coverage matrix (repo) flags it — the boards win.
-- Platform divergence annotations (`platform:` chips) override the generic depiction for the named platform.
+- Platform divergence annotations (plugin-data key `vela.platform`) override the generic depiction for the named platform.
 - Mono text is depicted in IBM Plex Mono but MUST be implemented as the target platform's mono stack; numeric columns SHOULD use tabular figures (see `D/patterns/typography`).
 - 44×44pt minimum hit targets and the a11y floor on `01 Design Language` are requirements, not suggestions.
 - Text must survive 0.82×–1.35× user scaling and the 15-locale expansion rules on `D/patterns/i18n`.

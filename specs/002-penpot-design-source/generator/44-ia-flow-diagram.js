@@ -66,7 +66,10 @@ const NODES = [
   ['browser',     'dApp browser',        'push',   4, 3, null],
   ['signing',     'Signing sheet',       'overlay',3, 2, 'O/signing-sheet/erc20-transfer'],
 ];
-const COL0 = 60, ROW0 = 150, DX = 230, DY = 168;
+// DX must leave room for the arrow LABEL, not just the arrow: at 230 the gap between cards was
+// 62px while the triggers ("scan / paste WalletPair URI") run to ~125px, so every label crawled
+// across the card it pointed at. 300 gives a 132px gap, which clears the longest trigger.
+const COL0 = 60, ROW0 = 150, DX = 300, DY = 168;
 const pos = {};
 for (const [id, label, kind, col, row, boardName] of NODES) {
   const x = COL0 + col * DX, y = ROW0 + row * DY;
@@ -121,7 +124,11 @@ const edge = (from, to, trigger, i) => {
     // arrow head
     const hx = ax < bx ? x2 - 7 : x1 + 1;
     lib.upsertRect(root, nm + '/head', { x: Math.round(hx), y: y - 4, w: 7, h: 7, radius: 2, fill: C.muted });
-    lib.upsertText(root, nm + '/lbl', { text: trigger, size: 9, weight: 600, color: C.muted, x: Math.round(x1 + 8), y: y - 18 });
+    // centre the label over the gap instead of hanging it off the arrow's start, or a long trigger
+    // reads as if it belonged to the card it is lying on top of
+    const half = trigger.length * 2.3;                       // ~4.6px per char at 9px semibold
+    lib.upsertText(root, nm + '/lbl', { text: trigger, size: 9, weight: 600, color: C.muted,
+      x: Math.round((x1 + x2) / 2 - half), y: y - 18 });
   } else {
     const y1 = ay < by ? a.y + a.h : b.y + b.h;
     const y2 = ay < by ? b.y : a.y;
@@ -135,5 +142,24 @@ const edge = (from, to, trigger, i) => {
 };
 EDGES.forEach(([f, t, trig], i) => edge(f, t, trig, i));
 
+// Fit the board to what was actually drawn. It used to be a fixed 2100×1500, which was far larger
+// than the diagram and swallowed the neighbouring boards on this page — the map's own title
+// collided with 'D / ia / route-tree' and covered two more boards underneath.
+let maxX = 0, maxY = 0;
+for (const p of Object.values(pos)) { maxX = Math.max(maxX, p.x + p.w); maxY = Math.max(maxY, p.y + p.h); }
+root.resize(Math.round(maxX + 60), Math.round(maxY + 60));
+
+// Retire the monospace text dumps this diagram replaces. Parking them off to the side was not
+// enough: five 800×2000 walls of text still dominate the page — fit-all dropped to 22% and the
+// diagram became unreadable, which is exactly the complaint this chunk exists to answer. They are
+// REMOVED, not archived, because nothing is lost: chunks 40/41 still generate that prose verbatim,
+// and the chunks are the source of truth for this file.
+stats.removed = [];
+for (const dead of ['D/ia/route-tree', 'D/ia/flows', 'D/ia/deep-links', 'D/ia/routes', 'D/ia/conventions',
+                    'ARCHIVE D/ia/route-tree', 'ARCHIVE D/ia/flows', 'ARCHIVE D/ia/deep-links',
+                    'ARCHIVE D/ia/routes', 'ARCHIVE D/ia/conventions']) {
+  const b = lib.byName(dead);
+  if (b) { b.remove(); stats.removed.push(dead); }
+}
 lib.chip(root, 'note', 'diagram is generated: node cards reference real board names, so a renamed or missing board shows as ⚠ here');
 return lib.done('44-ia-flow-diagram', stats);

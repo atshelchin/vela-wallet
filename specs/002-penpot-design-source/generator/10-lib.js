@@ -85,19 +85,35 @@ lib.upsertText = (parent, name, spec) => {
   return { text: t, created };
 };
 
-// Annotation chips (consumption contract): name carries semantics,
-// e.g. "edge:fee-quote-resolves → S / send / confirm / ready".
+// Annotations (consumption contract). These used to be 8px text shapes parked on the board, but
+// provenance text sitting on a screen is noise in a design tool — a designer opening the file saw
+// "note:generated 1:1 from the live rendered DOM…" printed across the CTA row. They now live in
+// PLUGIN DATA instead: invisible on canvas, still machine-readable via getPluginData, and no
+// longer able to collide with the artwork. Key is `vela.<kind>`; repeated calls of the same kind
+// append with ' | ' so a board can carry several edges.
+// Consumers: read board.getPluginData('vela.note' | 'vela.edge' | 'vela.platform' | 'vela.motion').
 lib.chip = (board, kind, textContent) => {
-  const name = lib.norm(kind + ':' + textContent);
-  const existing = penpotUtils.findShape(sh => sh.name === name, board);
-  if (existing) return { chip: existing, created: false };
-  const chips = penpotUtils.findShapes(sh => sh.type === 'text' && /^(edge|platform|motion|note):/.test(sh.name), board);
-  const colors = { edge: '#4267F4', platform: '#7A776E', motion: '#2D8E5F', note: '#B0ADA5' };
-  const { text: t } = lib.upsertText(board, name, {
-    text: name, size: 8, weight: 500, color: colors[kind] || '#7A776E',
-    x: 8, y: board.height - 14 - 11 * chips.length,
-  });
-  return { chip: t, created: true };
+  const key = 'vela.' + kind;
+  const prev = board.getPluginData(key) || '';
+  const parts = prev ? prev.split(' | ') : [];
+  if (parts.includes(textContent)) return { chip: board, created: false };
+  parts.push(textContent);
+  board.setPluginData(key, parts.join(' | '));
+  return { chip: board, created: true };
+};
+
+// Remove the legacy on-canvas annotation shapes wherever they still exist. Their names carry the
+// `kind:` prefix, which nothing else uses — the IA diagram's arrow labels are named 'e/…' and are
+// deliberately NOT matched, because there the label IS the visualisation.
+lib.stripChipShapes = (root) => {
+  let removed = 0, guard = 0;
+  while (guard++ < 2000) {
+    const s = penpotUtils.findShape(sh => sh.type === 'text' &&
+      /^(edge|platform|motion|note)\s*:/.test(sh.name || ''), root ?? null);
+    if (!s) break;
+    s.remove(); removed++;
+  }
+  return removed;
 };
 
 lib.bindToken = (shape, tokenName, props) => {
@@ -170,4 +186,4 @@ lib.done = (chunk, summary) => {
 };
 
 storage.lib = lib;
-return { installed: true, version: 4, helpers: Object.keys(lib) };
+return { installed: true, version: 5, helpers: Object.keys(lib) };

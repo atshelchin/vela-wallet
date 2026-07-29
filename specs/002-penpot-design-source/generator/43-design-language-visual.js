@@ -41,7 +41,9 @@ const block = (key, heading, rule, draw) => {
   T(key + '/lbl-do', { text: 'DO', size: 9, weight: 700, color: C.good, x: doX + 30, y: stageY + 15 });
   R(key + '/dot-dont', { x: dontX + 16, y: stageY + 16, w: 8, h: 8, radius: 4, fill: C.bad });
   T(key + '/lbl-dont', { text: "DON'T", size: 9, weight: 700, color: C.bad, x: dontX + 30, y: stageY + 15 });
-  draw(doX + 24, stageY + 40, dontX + 24, stageY + 40, key);
+  // +54, not +40: specimens that caption themselves with a section label draw it at (content − 18),
+  // which at +40 landed on the DO/DON'T badge sitting at +15
+  draw(doX + 24, stageY + 54, dontX + 24, stageY + 54, key);
   Y = stageY + 210 + 46;
   stats.specimens++;
 };
@@ -124,7 +126,8 @@ block('divider', '5 · Hairline dividers, inset', 'A 1px border.base line, inset
     R(k + '/dv', { x: dx + 52, y: dy + 56, w: 298, h: 1, fill: C.line });
     row(k + '/b', dx, dy + 57, 350, 'pathUSD', 'Tempo', '0.0225');
     R(k + '/ind', { x: dx, y: dy + 56, w: 52, h: 1, fill: C.accent });
-    T(k + '/indt', { text: '52 = icon 40 + gap 12', size: 9, weight: 600, color: C.accent, x: dx, y: dy + 62 });
+    // below BOTH rows (they run to dy+113) — at dy+62 this caption sat on the second row
+    T(k + '/indt', { text: '52 = icon 40 + gap 12', size: 9, weight: 600, color: C.accent, x: dx, y: dy + 118 });
     row(k + '/na', nx, ny, 350, 'XDAI', 'Gnosis', '0.996');
     R(k + '/ndv', { x: nx, y: ny + 56, w: 350, h: 1, fill: C.line });
     row(k + '/nb', nx, ny + 57, 350, 'pathUSD', 'Tempo', '0.0225');
@@ -145,9 +148,14 @@ block('iconbtn', '6 · Plain icon buttons', 'Header icons carry no background, b
 board.resize(1180, Y + 40);
 lib.chip(board, 'note', 'specimens are drawn from the same tokens the app uses; the prose version of these rules lives in docs/DESIGN-LANGUAGE.md');
 
-// retire the text-wall boards this chunk replaces
-for (const dead of ['D/design-language/principles', 'D/design-language/conflicts', 'D/design-language/a11y']) {
+// Retire the text-wall boards this chunk replaces. Removed rather than parked off-canvas: an
+// archived wall of prose still sits on the page and still competes with the specimens, and nothing
+// is lost — chunk 23 regenerates that text verbatim, and the chunks are this file's source.
+stats.removed = [];
+for (const dead of ['D/design-language/principles', 'D/design-language/conflicts', 'D/design-language/a11y',
+                    'ARCHIVE D/design-language/principles', 'ARCHIVE D/design-language/conflicts',
+                    'ARCHIVE D/design-language/a11y']) {
   const b = lib.byName(dead);
-  if (b) { b.name = 'ARCHIVE ' + dead; b.x = 2000; }
+  if (b) { b.remove(); stats.removed.push(dead); }
 }
 return lib.done('43-design-language-visual', stats);

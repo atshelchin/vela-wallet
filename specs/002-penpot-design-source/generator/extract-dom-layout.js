@@ -5,12 +5,90 @@
 // like, this shows exactly what the numbers are. Feed both into the Penpot board generator.
 //
 // Usage (chrome-devtools MCP):
-//   evaluate_script with function: () => { <paste this file's body> ; return extractLayout(); }
+//   evaluate_script with function:
+//     async () => { <paste this file's body> ; await preloadAssets(); return extractLayout(); }
+//   preloadAssets() is NOT optional: without it every raster logo comes back as dataUriError.
 // Returns a JSON-serialisable tree. Web caveat: text sizes include the ×1.2 WEB_TEXT_BOOST —
 // divide by 1.2 to recover the token base.
 
+// Asset pre-pass. MUST run (and be awaited) before extractLayout().
+//   await preloadAssets(); const dump = extractLayout();
+// Why it exists: react-native-web's <Image> paints through `background-image` on a <div> and keeps
+// a *transparent* <img> (opacity:0) alongside it only for a11y — so the naive "walk <img> tags"
+// path finds nothing and every chain/token logo lands as an empty box. On top of that the logos are
+// cross-origin (ethereum-data.awesometools.dev), which taints a canvas: drawImage + toDataURL
+// throws SecurityError. fetch() + FileReader gets the original bytes with no tainting and no
+// resolution loss, so that is what we do, once per unique URL.
+async function preloadAssets() {
+  // url -> largest box it is painted into on this screen, so we can cap the bytes we carry.
+  const urls = new Map();
+  const note = (u, el) => {
+    if (!u) return;
+    const r = el.getBoundingClientRect();
+    urls.set(u, Math.max(urls.get(u) || 0, r.width, r.height));
+  };
+  for (const el of Array.from(document.querySelectorAll('*'))) {
+    if (el.tagName === 'IMG') note(el.currentSrc || el.src, el);
+    const m = String(getComputedStyle(el).backgroundImage || '').match(/url\((["']?)([^"')]+)\1\)/);
+    if (m) note(m[2], el);
+  }
+
+  const toDataUri = (blob) => new Promise((ok, no) => {
+    const fr = new FileReader();
+    fr.onload = () => ok(fr.result);
+    fr.onerror = () => no(new Error('read failed'));
+    fr.readAsDataURL(blob);
+  });
+  // Normalise every raster to a PNG no bigger than 3x the box it is painted into.
+  // Two reasons, both learned the hard way:
+  //  - size: the app icon is a 1024px PNG painted at 24px (1.8 MB of base64 for a thumbnail), and
+  //    an inline QR arrives as a 1250px data URI.
+  //  - format: dApp favicons are image/vnd.microsoft.icon, which Penpot's media upload will not
+  //    take. Worse, the chain-logo CDN serves WebP bytes under `Content-Type: image/png`, so the
+  //    declared type is not evidence of anything — trusting it produced a data:image/png URI full
+  //    of RIFF/WEBP that Penpot rejected with a bare "http error".
+  // So: always re-encode through a canvas. An ImageBitmap built from a Blob has no origin, so the
+  // canvas is never tainted, and toDataURL('image/png') is then a PNG by construction.
+  const normalise = async (blob, maxPx) => {
+    const cap = Math.max(64, Math.min(512, Math.ceil(maxPx * 3)));
+    try {
+      const bmp = await createImageBitmap(blob);
+      const big = Math.max(bmp.width, bmp.height);
+      const s = Math.min(1, cap / big);
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(bmp.width * s));
+      c.height = Math.max(1, Math.round(bmp.height * s));
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      return c.toDataURL('image/png');
+    } catch (e) {
+      return toDataUri(blob);   // e.g. remote SVG, which createImageBitmap may refuse
+    }
+  };
+
+  const map = (window.__ASSETMAP = window.__ASSETMAP || {});
+  const errs = (window.__ASSETERR = window.__ASSETERR || {});
+  await Promise.all(Array.from(urls.entries()).map(async ([u, maxPx]) => {
+    if (map[u] || errs[u]) return;
+    try {
+      // data: URIs go through the same mill — they are just as likely to be oversized
+      const r = await fetch(u, u.startsWith('data:') ? undefined : { mode: 'cors', credentials: 'omit' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      map[u] = await normalise(await r.blob(), maxPx);
+    } catch (e) {
+      errs[u] = String((e && e.message) || e);
+    }
+  }));
+  return { urls: urls.size, resolved: Object.keys(map).length, failed: Object.keys(errs).length };
+}
+
 function extractLayout(opts) {
   const O = Object.assign({ maxDepth: 60, minSize: 2 }, opts || {});
+  const AMAP = window.__ASSETMAP || {};
+  const AERR = window.__ASSETERR || {};
+  const urlOf = (v) => {
+    const m = String(v || '').match(/url\((["']?)([^"')]+)\1\)/);
+    return m ? m[2] : null;
+  };
 
   // The app renders inside a fixed 390px phone frame on desktop web; find it so all
   // coordinates come out in screen space (0,0 = top-left of the phone), not window space.
@@ -120,25 +198,22 @@ function extractLayout(opts) {
       }
       node.svg = markup;
       node.svgColor = plain;
-    } else if (el.tagName === 'IMG') {
-      // Token/chain/asset logos. Prefer bytes over URLs: the Penpot backend runs in a container
-      // and cannot resolve localhost, and remote CDNs may be unreachable from it.
+    } else if (el.tagName === 'IMG' || urlOf(cs.backgroundImage)) {
+      // Token/chain/asset logos. Two shapes: a real <img>, or — far more common here — a
+      // react-native-web <Image>, which is a <div> whose `background-image` does the painting.
+      // Prefer bytes over URLs: the Penpot backend runs in a container, cannot resolve localhost,
+      // and may not reach remote CDNs either.
       node.kind = 'img';
-      node.src = el.currentSrc || el.src || '';
-      if (node.src.startsWith('data:')) {
+      node.src = el.tagName === 'IMG' ? (el.currentSrc || el.src || '') : urlOf(cs.backgroundImage);
+      if (node.src && node.src.startsWith('data:')) {
         node.dataUri = node.src;
+      } else if (AMAP[node.src]) {
+        node.dataUri = AMAP[node.src];             // fetched by preloadAssets(), CORS-clean
       } else {
-        try {
-          const c = document.createElement('canvas');
-          c.width = Math.max(1, Math.round(r.width * 2));
-          c.height = Math.max(1, Math.round(r.height * 2));
-          const ctx = c.getContext('2d');
-          ctx.drawImage(el, 0, 0, c.width, c.height);
-          node.dataUri = c.toDataURL('image/png');   // throws if the image taints the canvas
-        } catch (e) {
-          node.dataUriError = String(e && e.message ? e.message : e);
-        }
+        node.dataUriError = AERR[node.src] || 'not preloaded — did you await preloadAssets()?';
       }
+      // react-native-web sets background-size: contain/cover; carry it so Penpot can match
+      if (el.tagName !== 'IMG' && cs.backgroundSize) node.fit = cs.backgroundSize;
     }
 
     const kids = [];
@@ -148,8 +223,10 @@ function extractLayout(opts) {
     }
     if (kids.length) node.children = kids;
 
-    // prune wrappers that add nothing: no paint, no text, exactly one child of the same box
-    const paints = node.bg || node.border || node.shadow || node.text || node.radius;
+    // prune wrappers that add nothing: no paint, no text, exactly one child of the same box.
+    // `node.kind` counts as painting — an rn-web <Image> wrapper is exactly this shape (one
+    // same-size transparent <img> child), and dropping it would throw the logo away.
+    const paints = node.bg || node.border || node.shadow || node.text || node.radius || node.kind;
     if (!paints && kids.length === 1) {
       const k = kids[0];
       if (Math.abs(k.w - node.w) < 1 && Math.abs(k.h - node.h) < 1) return k;

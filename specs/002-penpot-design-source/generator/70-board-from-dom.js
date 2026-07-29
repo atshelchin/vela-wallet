@@ -23,18 +23,32 @@ const hex = (c) => {
   return { color: m[1].toUpperCase(), opacity: m[2] ? parseInt(m[2], 10) / 100 : 1 };
 };
 
-// A node earns a shape only if it paints something or carries text.
-const paints = (n) => !!(n.bg || n.border || n.shadow || (n.radius && n.bg) || n.kind);
+// A node earns a shape if it paints ANYTHING — and a radius alone counts. Rounded wrappers with no
+// background are the app's clipping containers (avatar circles, tab pills, row hit areas, logo
+// discs); dropping them was why almost every corner came out square.
+const paints = (n) => !!(n.bg || n.border || n.shadow || n.radius || n.kind);
+
+// CSS uses a huge number (9999) to mean "fully round"; Penpot needs a real radius, and anything
+// larger than half the shorter side renders wrong. Also normalises the per-corner array form.
+const radiusOf = (n) => {
+  const cap = Math.max(0, Math.min(n.w || 0, n.h || 0) / 2);
+  const one = (v) => Math.round(Math.min(Number(v) || 0, cap));
+  if (Array.isArray(n.radius)) return n.radius.map(one);
+  if (typeof n.radius === 'number') return one(n.radius);
+  return 0;
+};
 
 const { board } = await lib.upsertBoard(spec.page, spec.name, {
   x: spec.x || 0, y: spec.y || 0,
   w: Math.round(dump.frame.w) || 390, h: Math.round(dump.frame.h) || 844,
   fill: spec.fill || '#FAFAF8',
 });
-// wipe previously generated children (names all start with 'r/')
+// Wipe previously generated children (names all start with 'r/'). lib rule 1: Penpot rewrites
+// '/' to ' / ', so the stored name is 'r / 0.1', and a raw startsWith('r/') silently matches
+// NOTHING — which quietly turned every re-run into a second copy stacked on the first.
 let guard = 0;
-while (guard++ < 800) {
-  const old = penpotUtils.findShape((s) => s.name && s.name.startsWith('r/'), board);
+while (guard++ < 4000) {
+  const old = penpotUtils.findShape((s) => s.name && lib.norm(s.name).startsWith('r / '), board);
   if (!old) break;
   old.remove();
 }
@@ -112,10 +126,15 @@ async function build(n, path, depth) {
     // REAL raster: token/chain/asset logos, embedded as bytes so the Penpot backend never
     // has to reach the network (it runs in a container and cannot see localhost)
     const nm = id + ' image:' + (n.label || 'logo') + ' ' + Math.round(n.w) + 'x' + Math.round(n.h);
+    const rr = radiusOf(n);
     const { rect } = lib.upsertRect(board, nm, {
       x: Math.round(n.x), y: Math.round(n.y), w: Math.round(n.w), h: Math.round(n.h),
-      radius: typeof n.radius === 'number' ? Math.round(n.radius) : 0,
+      radius: Array.isArray(rr) ? rr[0] : rr,
     });
+    if (Array.isArray(rr)) {
+      rect.borderRadiusTopLeft = rr[0]; rect.borderRadiusTopRight = rr[1];
+      rect.borderRadiusBottomRight = rr[2]; rect.borderRadiusBottomLeft = rr[3];
+    }
     let ok = false;
     const asset = n.assetKey ? (storage.assets || {})[n.assetKey] : null;
     if (asset && asset.media) {
@@ -132,10 +151,16 @@ async function build(n, path, depth) {
     }
   } else if (paints(n)) {
     const bg = hex(n.bg);
+    const rr = radiusOf(n);
     const { rect } = lib.upsertRect(board, id, {
       x: Math.round(n.x), y: Math.round(n.y), w: Math.round(n.w), h: Math.round(n.h),
-      radius: typeof n.radius === 'number' ? Math.round(n.radius) : (Array.isArray(n.radius) ? Math.round(n.radius[0]) : 0),
+      radius: Array.isArray(rr) ? rr[0] : rr,
     });
+    if (Array.isArray(rr)) {
+      // per-corner (sheet tops are [20,20,0,0])
+      rect.borderRadiusTopLeft = rr[0]; rect.borderRadiusTopRight = rr[1];
+      rect.borderRadiusBottomRight = rr[2]; rect.borderRadiusBottomLeft = rr[3];
+    }
     rect.fills = bg ? [{ fillColor: bg.color, fillOpacity: bg.opacity }] : [];
     if (n.border) {
       const bc = hex(n.border.color);

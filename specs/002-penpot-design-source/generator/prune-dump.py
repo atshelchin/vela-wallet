@@ -61,7 +61,9 @@ def prune(node, frame, assets):
     if kids:
         out['children'] = kids
 
-    paints = any(k in out for k in ('bg', 'border', 'shadow', 'text', 'kind'))
+    # a radius alone is a visual fact (rounded clipping wrapper) — keeping it is what makes
+    # avatar circles, tab pills and logo discs come out round instead of square
+    paints = any(k in out for k in ('bg', 'border', 'shadow', 'text', 'kind', 'radius'))
     if not paints:
         if not kids:
             return None

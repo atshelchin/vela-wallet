@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "app.getvela.velawallet"
+    namespace = "app.getvela.wallet"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.getvela.velawallet"
+        applicationId = "app.getvela.wallet"
         minSdk = 31
         targetSdk = 36
         versionCode = 1

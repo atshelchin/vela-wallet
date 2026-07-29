@@ -1,4 +1,4 @@
-package app.getvela.velawallet
+package app.getvela.wallet
 
 import org.junit.Test
 

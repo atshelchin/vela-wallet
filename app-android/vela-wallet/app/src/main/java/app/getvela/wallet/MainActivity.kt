@@ -1,4 +1,4 @@
-package app.getvela.velawallet
+package app.getvela.wallet
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,7 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
-import app.getvela.velawallet.ui.theme.VelaWalletTheme
+import app.getvela.wallet.ui.theme.VelaWalletTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

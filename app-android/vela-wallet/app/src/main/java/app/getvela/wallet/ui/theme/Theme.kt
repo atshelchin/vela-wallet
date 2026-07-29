@@ -1,4 +1,4 @@
-package app.getvela.velawallet.ui.theme
+package app.getvela.wallet.ui.theme
 
 import android.app.Activity
 import android.os.Build

@@ -1,3 +1,6 @@
+// SUPERSEDED by 45-design-language-page.js — running this would overwrite the current specimen page
+// with the older, smaller version of it. Kept only for its history; do not run.
+
 // 43-design-language-visual.js — turn `01 Design Language` from prose into SPECIMENS.
 // Each principle is shown as a rendered do/don't pair built from the real tokens, with the rule
 // stated in one line underneath. Reading rules is what Markdown is for; a design tool has to show

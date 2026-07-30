@@ -187,6 +187,56 @@ principle('06', 'iconbtn', 'Plain icon buttons',
     T(k + '/nt', { text: 'a box on every header', size: 11, weight: 500, color: C.muted, x: nx + 60, y: dy + 16 });
   });
 
+principle('07', 'hero', 'Open heroes and headers',
+  'A balance, a screen header or a section intro sits open on the page — no plate, no border, no shadow. The whitespace is the container.',
+  (dx, dy, nx, ny, k) => {
+    T(k + '/lab', { text: 'TOTAL BALANCE · USD', size: 10, weight: 600, color: C.subtle, x: dx, y: dy });
+    T(k + '/amt', { text: '$4,182.19', size: 40, weight: 600, color: C.ink, x: dx, y: dy + 22 });
+    T(k + '/sub', { text: '3 networks · updated just now', size: 11, weight: 400, color: C.subtle, x: dx, y: dy + 78 });
+    T(k + '/note', { text: 'nothing frames it — the space does', size: 10, weight: 600, zone: 'mono', color: C.muted, x: dx, y: dy + 120 });
+    const plate = R(k + '/nplate', { x: nx, y: dy - 10, w: COL - 72, h: 116, radius: 16, fill: C.raised, stroke: C.strong });
+    plate.shadows = [{ style: 'drop-shadow', offsetX: 0, offsetY: 2, blur: 8, color: { color: '#1A1A18', opacity: 0.06 } }];
+    T(k + '/nlab', { text: 'TOTAL BALANCE · USD', size: 10, weight: 600, color: C.subtle, x: nx + 18, y: dy + 8 });
+    T(k + '/namt', { text: '$4,182.19', size: 40, weight: 600, color: C.ink, x: nx + 18, y: dy + 30 });
+    T(k + '/nnote', { text: 'a plate around the one thing that already leads', size: 10, weight: 600, zone: 'mono', color: C.muted, x: nx, y: dy + 128 });
+  });
+
+principle('08', 'seclabel', 'Section labels, not headings',
+  'A section opens with SectionLabel — uppercase, letter-spaced, fg.subtle, small. A sentence-case heading reads as a card title and invites a card around it.',
+  (dx, dy, nx, ny, k) => {
+    const lab = T(k + '/lab', { text: 'RECENT ACTIVITY', size: 11, weight: 600, color: C.subtle, x: dx, y: dy });
+    lab.letterSpacing = '0.6';
+    R(k + '/l1', { x: dx, y: dy + 30, w: COL - 100, h: 1, fill: C.line });
+    T(k + '/t1', { text: 'Sent · 12 USDC', size: 14, weight: 500, color: C.ink, x: dx, y: dy + 42 });
+    R(k + '/l2', { x: dx, y: dy + 74, w: COL - 100, h: 1, fill: C.line });
+    T(k + '/t2', { text: 'Received · 0.4 XDAI', size: 14, weight: 500, color: C.ink, x: dx, y: dy + 86 });
+    T(k + '/note', { text: '11px · 0.6 tracking · fg.subtle', size: 10, weight: 600, zone: 'mono', color: C.muted, x: dx, y: dy + 128 });
+    T(k + '/nh', { text: 'Recent activity', size: 20, weight: 700, color: C.ink, x: nx, y: dy });
+    const nc = R(k + '/ncard', { x: nx, y: dy + 36, w: COL - 100, h: 96, radius: 14, fill: C.raised });
+    nc.shadows = [{ style: 'drop-shadow', offsetX: 0, offsetY: 2, blur: 8, color: { color: '#1A1A18', opacity: 0.06 } }];
+    T(k + '/nt1', { text: 'Sent · 12 USDC', size: 14, weight: 500, color: C.ink, x: nx + 16, y: dy + 52 });
+    T(k + '/nt2', { text: 'Received · 0.4 XDAI', size: 14, weight: 500, color: C.ink, x: nx + 16, y: dy + 94 });
+    T(k + '/nnote', { text: 'a title wants a box, and gets one', size: 10, weight: 600, zone: 'mono', color: C.muted, x: nx, y: dy + 148 });
+  });
+
+// ── the two principles that are NOT visual ──────────────────────────────────────────────────────
+// #9 "tokens only" and #10 "entrances play once" cannot be shown as a still comparison: one is
+// about where a value COMES FROM, the other is a behaviour over time. Drawing a fake specimen for
+// them would be worse than saying where they really live — so the page says it, and the count of
+// principles stays honest (8 shown of 10, 2 pointed at).
+T('rest/h', { text: 'The two that a still picture cannot show', size: 18, weight: 700, color: C.ink, x: M + 48, y: Y });
+const restNote = T('rest/r', {
+  text: '09 · Tokens only — every value comes from the token sets, never a literal. A specimen would look '
+      + 'identical either way; what proves it is the mode switch on `02 Tokens & Type`, where a bound board '
+      + 'repaints and a hardcoded one does not.\n'
+      + '10 · Entrances play once — fadeIn / fadeInDown run on first mount and must not replay on re-render. '
+      + 'Motion has no still form; the parameters and the has-entered rule are on `09 Patterns · motion`.',
+  size: 13, weight: 400, color: C.muted, x: M + 48, y: Y + 32,
+});
+restNote.growType = 'auto-height'; restNote.resize(760, 96); restNote.lineHeight = '1.7';
+penpotUtils.setParentXY(restNote, M + 48, Y + 32);
+Y += 172;
+
 board.resize(W, Y + 40);
-lib.chip(board, 'note', 'composed page (not a DOM transcription); specimens use the file tokens and library typographies');
+lib.chip(board, 'note', 'composed page (not a DOM transcription); specimens use the file tokens and library typographies. 8 of the 10 principles are shown as do/don\'t specimens; #9 (tokens only) and #10 (entrances play once) are pointed at their real homes because neither has a still form.');
 return lib.done('45-design-language-page', stats);

@@ -31,6 +31,19 @@ Audience: the implementing agent (this feature's implement phase) and anyone re-
 - Components page: main instances on 100px grid inside per-group section boards.
 - Doc boards: 800w auto-height, flex column, 24px padding.
 
+## Verifying visually (exporter caveat)
+
+`export_shape` renders in a headless browser inside the exporter container, and the first render of
+a board can fire BEFORE its webfonts resolve — the image comes back with every shape drawn and
+**every text missing**, silently. Verified 2026-07-30: the same board, same id, exported twice in a
+row, produced a text-free image and then a complete one.
+
+So: **export twice before believing a visual check**, and treat a text-free render as a race, not as
+a defect in the board. Acting on the first image would mean "fixing" a page that was never broken.
+
+(The exporter also needs `PENPOT_PUBLIC_URI` pointed at the internal frontend host — see the
+deployment note; with the shared localhost value every export fails outright.)
+
 ## Mandatory regen ordering (RESTRUCTURE-2026-07-30 §7)
 
 Any regeneration runs: `72` (component families) → `70`/`73` (boards) → swap pass → `74` (wiring from `edges.json`) → audits (T031 graph + `96-audit-semantic-floor` + `97-audit-library` + mode-toggle restyle check). This sequence overrides plain numeric chunk order.

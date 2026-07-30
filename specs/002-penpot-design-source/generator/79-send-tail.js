@@ -75,17 +75,49 @@ for (const [slug, board, stack] of RECEIPTS) {
 }
 
 // ---- 2. legacy boards: move into their slot, mark the debt
+// Every no-dump legacy board, and where its wall says it belongs. These cannot be regenerated, so
+// nothing else will ever put them back: a rebuild of their page repositions the boards it CAN build
+// and leaves these wherever they were, which is how S/web-request/unavailable kept reappearing in
+// the audit long after it had been moved by hand. Placing them here makes the correction part of the
+// pipeline instead of a thing someone has to remember.
 const LEGACY = [
   ['S/send/confirm', 'step', 2, 0],
   ['S/home/activity-empty', 'home-state', 0, 1],
+  ['S/web-request/unavailable', 'page06-wall', 0, 0],
 ];
 // home band is the first wall; recompute its origin
 const homeWall = walls.find((w) => w.journey === 'home');
 const homeRowY = L.headerH;
+// the web-request wall is the third band on page 06
+const bandOrigin = (pageName, journey) => {
+  let y = 0;
+  for (const w of ((J.pages[pageName] || {}).walls || [])) {
+    const cols = w.kind === 'hub' ? [w.hub].concat(w.spokes || []) : w.steps;
+    let ms = 0;
+    for (const c of cols) ms = Math.max(ms, ((w.states || {})[c] || []).length);
+    if (w.journey === journey) return y + L.headerH;
+    y += L.headerH + (1 + ms) * L.rowH + L.bandGap;
+  }
+  return null;
+};
+
 for (const [name, kind, col, stack] of LEGACY) {
   const b = lib.byName(name);
   if (!b) { stats.skipped.push(name + ' (absent)'); continue; }
   if (kind === 'step') { b.x = colX(col); b.y = rowY + stack * L.rowH; }
+  else if (kind === 'page06-wall') {
+    const y = bandOrigin('06 Screens · Browser & Connect', 'web-request');
+    if (y === null) { stats.skipped.push(name + ' (no web-request wall)'); continue; }
+    await lib.open('06 Screens · Browser & Connect');
+    const wb = lib.byName(name, penpot.currentPage.root);
+    if (!wb) { stats.skipped.push(name + ' (not on page 06)'); continue; }
+    wb.x = L.originX + col * L.colW; wb.y = y + stack * L.rowH;
+    wb.setPluginData('vela.debt', 'RECAPTURE — first-generation capture with no committed dump (the index only carries web-request-error-no-session). Re-drive the popup with no session param, dump it, rebuild via 73.');
+    lib.chip(wb, 'note', 'recapture debt: no committed dump for this board');
+    stats.moved.push(name + ' → (' + Math.round(wb.x) + ',' + Math.round(wb.y) + ')');
+    await lib.open(PAGE);
+    continue;
+  }
   else { b.x = colX(col); b.y = homeRowY + stack * L.rowH; }
   b.setPluginData('vela.debt', 'RECAPTURE — drawn from a first-generation capture whose DOM dump is not in the repo, so this board cannot be regenerated and has no region map. Re-drive the app to this state, dump it, and rebuild via 73.');
   lib.chip(b, 'note', 'recapture debt: no committed dump for this board');

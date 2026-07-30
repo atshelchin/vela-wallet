@@ -47,8 +47,8 @@ const miscY = bandY;       // legacy grid for boards no wall claims
 
 const mine = index.filter((e) => e.page === page && !skip.has(e.slug));
 const stats = { page, boards: 0, shapes: 0, icons: 0, images: 0, missing: 0, bound: 0, literal: 0,
-  stuck: 0, walled: 0, misc: [], regions: 0, regionUnmatched: 0, swapped: 0, swapMissing: 0,
-  built: [], failed: [] };
+  stuck: 0, walled: 0, misc: [], regions: 0, regionUnmatched: 0, regionMapMissing: [],
+  swapped: 0, swapMissing: 0, built: [], failed: [] };
 
 await lib.open(page);
 let miscI = 0;
@@ -57,11 +57,19 @@ for (let i = 0; i < mine.length; i++) {
   try {
     storage.domDump = await (await fetch('/plugins/mcp/' + (storage.screenDir || 'screens') + '/' + e.slug + '.json')).json();
     // committed semantic overlay for this screen, if authored (region-maps are optional per board)
+    // A missing or failed region map must be LOUD. The first version swallowed both cases, and one
+    // transient fetch left S/send/select-token rebuilt with 58 loose shapes and no regions while the
+    // run still reported `regionUnmatched: 0` — a board silently demoted below the semantic floor,
+    // found only because the idempotency snapshot noticed its child count had changed.
     let overlay = null;
     try {
       const r = await fetch('/plugins/mcp/gen/region-maps/' + e.slug + '.json?v=' + Date.now(), { cache: 'reload' });
       if (r.ok) overlay = await r.json();
-    } catch (err2) { /* none authored yet */ }
+      else stats.regionMapMissing.push(e.slug + ' (HTTP ' + r.status + ')');
+    } catch (err2) {
+      stats.regionMapMissing.push(e.slug + ' (' + String((err2 && err2.message) || err2) + ')');
+    }
+    if (overlay && !(overlay.regions || []).length) stats.regionMapMissing.push(e.slug + ' (map has no regions)');
     const p = pos[lib.norm(e.board)];
     if (p) stats.walled++; else stats.misc.push(e.board);
     const at = p || { x: (miscI % 5) * L.colW, y: miscY + Math.floor(miscI / 5) * L.rowH };

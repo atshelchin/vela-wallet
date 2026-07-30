@@ -21,7 +21,11 @@ for (const pageName of lib.PAGES) {
     seen.add(n);
   }
   // stray = a top-level board that follows none of the naming classes
-  const strays = names.filter(n => !/^(S|O|C|D) \/ /.test(n));
+  // Name classes, kept in step with the consumption contract's naming grammar. S/O/C/D were the
+  // original four; W/ (journey wall headers), SEC/ + DOC/ (component shelf) and DRAFT/ (quarantined
+  // non-canon) arrived with the 2026-07-30 restructure. An audit whose grammar lags the file reports
+  // 70 healthy boards as strays and buries the one that matters.
+  const strays = names.filter(n => !/^(S|O|C|D|W|SEC|DOC|DRAFT|Z) \/ /.test(n));
   if (strays.length) report.stray.push({ page: pageName, names: strays });
   report.pages[pageName] = { topBoards: top.length, allBoards: boards.length, shapes: all.length };
   report.totals.boards += top.length;

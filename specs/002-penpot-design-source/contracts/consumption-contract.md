@@ -13,6 +13,22 @@ Audience: a future AI agent (SvelteKit / GPUI / native iOS / native Android rebu
 - **Tokens**: `penpot.library.local.tokens` → sets `core` (mode-independent), `color-light`, `color-dark`. **There are NO theme objects** (the themes API is broken in this deployment — see generator/audit-report.md): the mode axis is expressed by set activation. Default active = `core`+`color-light` (Light). To resolve Dark values, read the `color-dark` set's tokens directly (same names), or toggle set activation. **Read `token.value`, never `token.resolvedValue`, for an inactive set** — resolution runs against the ACTIVE sets, so `color-dark` reports the light palette while Light is active (verified 2026-07-30). Token names are the same identifiers the original RN code used — implement them as your stack's design tokens 1:1.
 - **Components**: `penpot.library.local.components` — names `C/<Group>/<Name>`; variant axes enumerate visual variants × states. Read geometry/fills/typography from the main instance; token bindings via `shape.tokens`. A variant's board name encodes its axis values. Duplicate-named families are being merged **plan-driven** into single variant containers with semantic axes (`variant × size × state`), per RESTRUCTURE-2026-07-30 §5/W1; per-context captured copy is preserved via instance overrides and `vela.note`.
 - **Screens/Overlays**: boards `S/<route>/<state>` and `O/<overlay>/<state>` (390×844 screens). Recurring elements are component instances — resolve `instance.component()` to identify them; layout comes from board flex properties, not absolute eyeballing.
+- **Board name classes** (the file's full naming grammar; an audit and a reader both key off it):
+
+  | prefix | what it is | canon? |
+  |---|---|---|
+  | `S/<route>/<state>` | screen board | yes |
+  | `O/<overlay>/<state>` | overlay board | yes |
+  | `C/<Group>/<Name>` | library component (identity is Penpot `path` + `name`; `name` alone is only the leaf) | yes |
+  | `D/<topic>/<name>` | documentation board (cover, identity, tokens, IA, patterns, changelog, archive index) | yes |
+  | `W/<journey>` | journey-wall band header on a screens page | yes, presentational |
+  | `SEC/<Category>` · `DOC/<component>` | component-shelf section header and its docs block on `03 Components` | yes, presentational |
+  | `e/<from> → <to>` · `e/<from> ↓ <state>` | the VISIBLE edge layer — arrow, head and trigger label. Machine consumers skip these; the same transitions are in interactions and `vela.edge` | no, decoration |
+  | `region/<name>` | semantic region group inside a screen board (header / hero / content / list / actions / dock; backdrop / sheet on overlays) | structural |
+  | `swap/<path> <Component>` | a subtree replaced by a library instance | structural |
+  | `DRAFT/<Group>/<Name>` | pre-pivot draft, quarantined on `03 Components`; indexed on `12 Archive` | NO — ignore |
+  | `Z/<...>` | canvas furniture (band labels) | no |
+
 - **Motion/haptics/a11y/platform/i18n**: NOT visual — read `09 Patterns` doc boards (`D/patterns/*`). Every animated element carries an annotation naming its pattern.
 
 ## Traversing behavior (the state graph)

@@ -264,7 +264,23 @@ Order: **W0 → W3a → W1 → W2 → W3b → W4 → W5**. W1+W2 are the bulk (~
 4. **Rebuild order**: W0 → W3a first as proposed (recommended) vs human layer (W4) first for a
    visible quick win (costs double-handling of `03/05–08` pages).
 
-## 12 · Review record
+## 12 · Verified platform facts (W3a probes, 2026-07-30 live session)
+
+Each of these was probed in the connected file, not inferred. Two overturned earlier assumptions —
+including one of this document's own.
+
+| Probe | Result |
+|---|---|
+| instance text override | write + read-back OK, and it **survives a main-component text change** → §6 rule 2 takes the main path (Tier-1 swaps with overrides), no downgrade needed |
+| `addInteraction` on an instance-internal shape | works → a sheet can be swapped as ONE instance and still have distinct Reject / slide destinations |
+| cross-page `open-overlay` | **throws** → 74's fallback to `vela.edge` is correct |
+| cross-page `navigate-to` | **silently accepted, destination stored EMPTY** → a dead click that still counted as wired. 74 now verifies the read-back and falls back to `vela.edge`; `addInteraction` not throwing is not evidence of success |
+| mode switch by set activation | **DOES repaint bound shapes** — verified by export: the same board renders fully dark after activating `color-dark`. SC-011 stands as written, and the Start Here dark-mode instruction is correct |
+| token application timing | **async, and racy**: binding then toggling activation in the same call leaves the board looking unbound and still light. This is what first made activation look broken (a chunk built on that false premise was written and deleted). Settle — separate call or sleep — before toggling |
+| token `resolvedValue` on an INACTIVE set | resolves against the ACTIVE sets, so `color-dark` reports the LIGHT palette. Exports must read `value` |
+| `export_shape` (PNG/SVG) | was failing for every shape — **environment defect, not MCP**: the exporter container renders in a headless browser inside itself, and the shared `PENPOT_PUBLIC_URI=http://localhost:9001` pointed it at itself (`ERR_CONNECTION_REFUSED …/render.html`). Fixed by overriding that service's URI to `http://penpot-frontend:8080` in the running stack's compose file and recreating only the exporter. Visual self-verification is available again — this is what the remaining visual workstreams depend on |
+
+## 13 · Review record
 
 2026-07-30 adversarial review: 4 lenses × independent agents; 46 findings (10 blocker / 19 major /
 17 minor); full list in the session workflow log. Notable self-corrections it forced: themes are a

@@ -61,6 +61,17 @@ for (const [from, label, to, kind] of EDGES) {
       destination: dst.board,
       ...(kind === 'overlay' ? { overlayPositionType: 'manual', closeWhenClickOutside: true } : {}),
     });
+    // VERIFY THE READ-BACK. A cross-page `navigate-to` does NOT throw: Penpot accepts the call and
+    // stores an interaction whose destination is EMPTY (probed 2026-07-30 — cross-page *overlay*
+    // throws, cross-page *navigate* does not). Counting addInteraction's silence as success made
+    // every cross-page edge a dead click that still incremented `wired` and still satisfied a
+    // connectivity audit. Nothing but the read-back can tell the two apart.
+    const landed = (el.interactions || []).some((i) =>
+      i.action && i.action.destination && i.action.destination.id === dst.board.id);
+    if (!landed) {
+      for (const i of (el.interactions || [])) { try { el.removeInteraction(i); } catch (e2) {} }
+      throw new Error('cross-page destination not accepted (empty read-back)');
+    }
     stats.wired++;
   } catch (e) {
     // Penpot can only open an overlay that lives on the SAME page as its trigger, and every overlay

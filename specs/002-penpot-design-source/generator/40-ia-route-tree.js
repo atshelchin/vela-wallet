@@ -29,7 +29,7 @@ const title = (b, n, y, t) => blob(b, n, y, t, { size: 20, weight: 700, zone: 's
 '├── /onboarding (plain full-screen; welcome ⇄ create steps)',
 '│',
 '├── MODALS (slide-up card over anchor)',
-'│   ├── /send (select-token → enter-details → confirm → receipt)',
+'│   ├── /send (select-token → details → confirm → receipt)',
 '│   ├── /receive (Address | Payment-request toggle)',
 '│   ├── /token-detail   ├── /add-token',
 '│   ├── /about (6-tap logo → dev_unlocked)',

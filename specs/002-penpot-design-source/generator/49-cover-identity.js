@@ -30,7 +30,7 @@ const PAGES_DIR = [
   ['05 Screens · Wallet', 'onboarding, home, send, receive — as journey walls'],
   ['06 Screens · Browser & Connect', 'the dApp surfaces and the pairing flow'],
   ['07 Screens · Settings & Onboarding', 'the settings tree and the account ceremony'],
-  ['08 Overlays', 'sheets, alerts, pickers — and the 27 signing scenarios'],
+  ['08 Overlays', 'sheets, alerts, pickers — and the 25 signing scenarios'],
   ['09 Patterns', 'motion, a11y, resilience, and the recipe for adding a feature'],
   ['10 Dev & Parallel Space', 'dev-only surfaces — excluded from the acceptance gate'],
   ['11 Changelog', 'what each regeneration changed'],
@@ -66,7 +66,10 @@ const meta = [
   ['SOURCE REVISION', storage.coverRev || '(set storage.coverRev)'],
   ['CAPTURED', storage.coverDate || '(set storage.coverDate)'],
   ['METHOD', 'rendered DOM + screenshots of the running app'],
-  ['STATUS', 'tokens + library + IA complete · screens rebuilding on journey walls'],
+  // Honest status beats a flattering one: the acceptance gate accepted the system layer and
+  // rejected the screen layer, and a reader deserves to know that before they trust a board.
+  ['STATUS', 'system layer (tokens · components · patterns · IA) ACCEPTED by the rebuild gate'],
+  ['KNOWN GAP', 'screen captures need a re-shoot: light mode, balance unmasked, populated lists'],
 ];
 meta.forEach(([k, v], i) => {
   cvt('meta-k-' + i, k, { size: 9, weight: 700, color: C.subtle, y: vy + 22 + i * 46 });

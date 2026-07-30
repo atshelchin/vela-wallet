@@ -65,22 +65,37 @@ const card = (key, heading, rows, kind) => {
 
 card('entry', 'Entry protocol', [
   ['1 · high_level_overview', 'learn the plugin API before touching anything'],
-  ['2 · penpotUtils.getPages()', 'expect the 11 numbered pages; read this one first'],
+  ['2 · penpotUtils.getPages()', 'expect 13 numbered pages (00–12); read this one first'],
   ['3 · resolve by NAME', 'never navigate by shape ID across sessions'],
 ], 'code');
 
-card('grammar', 'Naming grammar', [
-  ['C/<Group>/<Name>', 'library component; variant axes carry the states'],
+// The gate's finding: this card listed six forms while the file used thirteen, so a consumer given
+// only the contract could not classify most of what it read. Every prefix that exists is here now.
+card('grammar', 'Naming grammar — every prefix in the file', [
+  ['C/<Group>/<Name>', 'library component. Identity is Penpot path + name; `name` alone is the LEAF'],
   ['S/<route>/<state>', 'screen board, 390 wide, one per state'],
   ['O/<overlay>/<state>', 'overlay board — backdrop plus sheet, as presented'],
-  ['D/<topic>/<name>', 'documentation board (tokens, IA, patterns, this page)'],
-  ['icon:<Lucide> <size>/<stroke>', 'implement THAT icon at that size — not the placeholder'],
-  ['deco:*', 'decorative only; machine consumers must ignore'],
+  ['D/<topic>/<name>', 'documentation board (cover, identity, tokens, IA, patterns, changelog)'],
+  ['W/<journey>', 'journey-wall band header on a screens page'],
+  ['SEC/<Cat>  DOC/<comp>', 'component-shelf section header and its docs block (page 03)'],
+  ['region/<name>', 'semantic region group inside a board: header / hero / content / list /'],
+  ['↳', 'actions / dock — backdrop / sheet on overlays'],
+  ['swap/<path> <Comp>', 'a subtree replaced by a library instance'],
+  ['e/<from> → <to>', 'VISIBLE edge layer (arrow + trigger label). Humans only —'],
+  ['↳', 'machines read the interaction or vela.edge instead'],
+  ['r/<dom-path> …', 'a shape transcribed from the capture; the path is its DOM position'],
+  ['DRAFT/<Group>/<Name>', 'NOT CANON — pre-pivot draft, quarantined on page 03, indexed on 12'],
+  ['Z/*  n/*  lg/*  sh/*', 'page furniture: band labels, IA nodes, legends, this page\'s own cards'],
+  ['icon:<Lucide> <size>/<st>', 'implement THAT icon at that size — not the placeholder'],
+  ['icon:glyph <W>x<H>', 'the capture could NOT resolve a name: an unnamed glyph at that box.'],
+  ['↳', 'A real gap, not a name to look up — take the icon from the RN source'],
 ], 'code');
 
 card('system', 'Reading the design system', [
   ['Tokens', 'sets core + color-light + color-dark; NO theme objects in this deployment'],
   ['Dark mode', 'activate color-dark, deactivate color-light — exactly one is ever active'],
+  ['Read token.value', 'NEVER resolvedValue: it resolves against the ACTIVE sets, so an inactive'],
+  ['↳', 'set reports the other mode — and if neither is active, it returns null'],
   ['Components', 'penpot.library.local.components; geometry from the main instance'],
   ['Screens & overlays', 'built 1:1 from the running app’s DOM, not from source reading'],
   ['Motion, a11y, i18n', 'not visual — read `09 Patterns` (D/patterns/*)'],
@@ -96,6 +111,17 @@ card('annot', 'Annotations live in plugin data', [
 ], 'code');
 
 card('interp', 'Interpretation rules (normative)', [
+  // The acceptance gate called this the single most dangerous omission in the file: the boards are
+  // WEB captures, so their type is already multiplied by 1.2 while every geometric value is 1:1.
+  // A team measuring 56px off the balance hero and shipping it would make every label 20% too big.
+  // kept to one line per row: the card's value column has no measure, so a long string runs off
+  // the card edge (it did, and the export showed it truncated mid-word)
+  ['TYPE ON BOARDS IS ×1.2', 'screen boards are WEB captures — DIVIDE every font size by 1.2 to get'],
+  ['↳', 'the native value: 56 → 47 (Balance hero), 13 → 11 (text.sm)'],
+  ['↳', 'GEOMETRY IS 1:1 — widths, padding, 44×44, icon sizes, the 390 frame'],
+  ['↳', 'are NOT divided. Measuring type off a board ships it 20% too large'],
+  ['Tokens beat boards', 'where the two disagree the text.* ladder and the library typographies'],
+  ['↳', 'win; a board number is only a rendering of them at ×1.2'],
   ['Light, 1.0×, English', 'the depicted baseline; dark is a token-set switch'],
   ['Brand artwork is not bound', 'token/chain logos and identicons stay constant across modes'],
   ['44×44 hit targets', 'a requirement, not a suggestion'],

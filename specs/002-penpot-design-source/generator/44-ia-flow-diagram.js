@@ -31,7 +31,14 @@ const root = (await lib.upsertBoard(PAGE, 'D/ia/map', { x: 0, y: 0, w: 2100, h: 
 // generated content is replaced wholesale
 let guard = 0;
 while (guard++ < 900) {
-  const old = penpotUtils.findShape((s) => s.name && (s.name.startsWith('n/') || s.name.startsWith('e/') || s.name.startsWith('lg/')), root);
+  // lib rule 1: Penpot stores 'e/0/x' as 'e / 0 / x', so a raw startsWith('e/') matches NOTHING.
+  // This wipe silently did nothing for five runs. upsertRect/upsertText hid it — they replace by
+  // name — but the arrowheads are CLONES, created fresh each run, so the map accumulated 75 stale
+  // heads stacked on the real ones. The acceptance gate found them before any human did.
+  const old = penpotUtils.findShape((s) => {
+    const n = lib.norm(s.name || '');
+    return n.startsWith('n / ') || n.startsWith('e / ') || n.startsWith('lg / ');
+  }, root);
   if (!old) break;
   old.remove();
 }

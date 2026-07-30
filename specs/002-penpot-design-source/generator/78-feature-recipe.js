@@ -74,7 +74,7 @@ const EXAMPLES = [
   ['"I am adding a new dApp permission request."',
    'PICK: the signing sheet vocabulary — C/Signing/IntentHeader says what it WILL DO in plain language, C/Signing/ClearSignView for the understood case, C/Signing/EditableApproveCard if an allowance is involved, C/Signing/BalanceChangePreview for the after-state, C/Signing/WarningBanner for the risk, C/Controls/SlideToConfirmButton to commit.\n' +
    'OBEY: never open with a method name or calldata; never default to unlimited; simulated INCOMING assets are not authenticated — do not act on them until the confirmed receipt.\n' +
-   'EXTEND: add the scenario to the signing matrix on 08 Overlays, and add its board to the 27-scenario family so the clear-signing harness and this file stay in step.'],
+   'EXTEND: add the scenario to the signing matrix on 08 Overlays, and add its board to the signing scenario set (25 today; declared in generator/edges.json) so the clear-signing harness and this file stay in step.'],
 ];
 
 const stats2 = {};

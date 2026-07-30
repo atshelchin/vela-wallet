@@ -54,6 +54,17 @@
     { "from": "S/onboarding/create-form-ready", "label": "Account Name", "to": "S/onboarding/create", "kind": "nav" }
   ],
   "nonPointer": [
+    { "from": "S/home/activity", "condition": "tap the gear", "to": "S/settings/default",
+      "$comment": "This block was added 2026-07-30 after audit 93 found 64 of 89 boards unreachable. Most were not wiring bugs but MISSING FACTS: the IA diagram knew about tap-the-gear and tap-a-token-row, this file did not. Anything crossing a page can only ever be a vela.edge, since Penpot drops cross-page destinations." },
+    { "from": "S/home/assets", "condition": "tap a token row", "to": "S/token-detail/default" },
+    { "from": "S/home/connections", "condition": "tap Connect a dApp", "to": "S/connect/disconnected" },
+    { "from": "S/home/activity", "condition": "open a velawallet:// pay link", "to": "S/pay/default" },
+    { "from": "S/pay/default", "condition": "tap Open in Vela", "to": "S/send/details" },
+    { "from": "S/receive/address", "condition": "tap the address → copied confirmation", "to": "S/receive/copied" },
+    { "from": "S/send/select-token", "condition": "the recipient's chain is not supported", "to": "S/send/locked-network-not-supported" },
+    { "from": "S/send/select-token", "condition": "the token is unknown to this wallet", "to": "S/send/locked-unknown-token" },
+    { "from": "S/settings/scrolled", "condition": "tap Safari Extension", "to": "S/safari-extension/default" },
+    { "from": "S/safari-extension/default", "condition": "the extension hands a request to the app", "to": "S/browser/unsupported-on-web" },
     { "from": "S/send/sign", "condition": "tap the sheet's close ✕ → back to confirm (the reject control is an icon, so there is no text handle to wire)", "to": "S/send/confirm" },
     { "from": "S/connect/disconnected", "condition": "a dApp session is established → it appears in Home › Connections", "to": "S/home/connections" },
     { "from": "S/settings/default", "condition": "scroll past Localization → Safari Extension and the developer rows", "to": "S/settings/scrolled" },
@@ -77,6 +88,12 @@
     { "from": "S/home/assets", "condition": "Appearance set to Dark in Settings", "to": "S/home/assets-dark" },
     { "from": "S/send/select-token", "condition": "Appearance set to Dark in Settings", "to": "S/send/select-token-dark" },
     { "from": "S/settings/default", "condition": "Appearance set to Dark in Settings", "to": "S/settings/default-dark" }
+  ],
+  "$entries_note": "Boards a user arrives at from OUTSIDE the app — a dApp popup, a deep link. They have no in-app predecessor, so the graph audit seeds from them instead of reporting them as orphans.",
+  "entries": [
+    "S/web-request/unavailable",
+    "S/web-request/error",
+    "S/pay/default"
   ],
   "flows": [
     { "name": "send", "page": "05 Screens · Wallet", "entry": "S/send/select-token" },

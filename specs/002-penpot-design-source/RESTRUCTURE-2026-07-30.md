@@ -11,6 +11,18 @@ PIVOT's Consequences section.
 agent, pipeline feasibility, spec consistency) — 46 findings; all 10 blockers and 19 majors are
 integrated below.
 
+## 0 · Execution status (2026-07-30)
+
+| Workstream | State |
+|---|---|
+| W0 two-layer pipeline | **done** `fe76f42` — semantic layer in committed data, guard audits 96/97, 13 pages, bookkeeping + spec deltas |
+| W3a cheap connectivity | **done** `1760f34` — DTCG export (147 tokens, verified both ways), mode demo (SC-011 proven by export), IA `vela.target` (13/13 resolve), corridor routing, cross-page dead-edge fix, exporter env fix |
+| W1 component library | **done** `6752858` — six category sections, 53 docs blocks (tier · axes · description · use-when · don't · code path · reuse sites), 53/53 verified code refs, drafts quarantined, audit 97 **passes** |
+| W2 journey walls | **done** `af54c2f` + `a7105f0` — 90 committed region maps, board positions derived from `journeys.json`, visible labelled edge layer, 37 pointer interactions (was 0), audit 96 **passes** (89 canon boards, 3 recorded recapture-debt boards) |
+| W4 human layer | **partial** `da6b097` — cover, identity board (traits shown with live instances), "Adding a feature" recipe (PICK tree reaches all 20 Tier-1 families), changelog page. **Remaining: the 10 principles on `01` are still prose, and the reuse-index board is not built.** |
+| W3b full graph | **pending** — 93-audit-graph updated to read `vela.edge` plugin data (it was still looking for the deleted on-canvas chips); SC-007 pass not yet demonstrated |
+| W5 gates | **pending** — idempotency re-run, US5 agent gate, SC-008 human gate |
+
 ## 1 · The founder's verdict, restated precisely
 
 > "设计稿素材都不像一个严肃的东西……逻辑不清晰……start here / IA / flows / 原则都有，但都不能给

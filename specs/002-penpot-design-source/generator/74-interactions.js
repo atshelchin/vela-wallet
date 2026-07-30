@@ -21,8 +21,9 @@ const lib = storage.lib;
 
 const GRAPH = storage.edgesJson ||
   (storage.edgesJson = await (await fetch('/plugins/mcp/gen/edges.json?v=' + Date.now(), { cache: 'reload' })).json());
-const EDGES = GRAPH.edges.map((e) => [e.from, e.label, e.to, e.kind]);
-const NON_POINTER = GRAPH.nonPointer.map((e) => [e.from, e.condition, e.to]);
+// an entry may be a bare `$comment` note — skip anything without both ends
+const EDGES = GRAPH.edges.filter((e) => e.from && e.to && e.label).map((e) => [e.from, e.label, e.to, e.kind]);
+const NON_POINTER = GRAPH.nonPointer.filter((e) => e.from && e.to).map((e) => [e.from, e.condition, e.to]);
 const FLOWS = GRAPH.flows.map((f) => [f.name, f.page, f.entry]);
 
 const stats = { wired: 0, edges: 0, flows: 0, missingSource: [], missingTarget: [], missingLabel: [] };

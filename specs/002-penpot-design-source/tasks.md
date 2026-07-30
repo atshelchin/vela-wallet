@@ -143,3 +143,15 @@ T025/T026/T027 build boards on three different Penpot pages from three different
 ## Implementation strategy
 
 MVP = Phase 1–3 (US1): corrected facts + tokens + design language — already lets any rebuild get the visual foundation exactly right. Then US2 → US3 → US4 in order, gate last. Each checkpoint is a commit; audits are re-run at every checkpoint, not just at the end.
+
+## Phase 9 status (2026-07-30, same-day execution)
+
+- [x] T039 W0 — two-layer pipeline (`fe76f42`): semantic layer committed (edges.json, journeys.json, region-maps/, _plan.json fields), guard audits 96/97 wired as the regen tail, pages 11/12, spec deltas SC-008..011. Smoke asserts PASSED (instance text override survives a main-component change; addInteraction works on instance-internal shapes).
+- [x] T040 W3a (`1760f34`): docs/design-tokens.json + chunk 26 bidirectional check (147/147, zero drift); 27-mode-demo with SC-011 verified by exporting both modes; 48-ia-targets (13/13 targets resolve, two dangling board names fixed); 44 rerouted through corridors with arrowheads; 74 verifies interaction read-back.
+- [x] T041 W1 (`6752858`): 75-components-shelf (6 category sections, 53 docs blocks), component-code-refs.json (53/53 path-validated), merge-component-docs.mjs (20 Tier-1 use-when/don't), 76-drafts-quarantine, audit 97 PASSES.
+- [x] T042 W2 (`af54c2f`, `a7105f0`): gen-region-maps.mjs → 90 committed maps; 73 derives wall positions; 77-walls draws the visible labelled edge layer; 79-send-tail completes the send journey; audit 96 PASSES (89 canon boards, 0 unexplained flat, 0 position mismatch; 3 boards in the recorded recapture-debt bucket).
+- [ ] T043 W3b: 93-audit-graph corrected to read `vela.edge` plugin data (it was still scanning for the on-canvas `edge:` chips deleted earlier, so it would have reported wired journeys as broken); SC-007 pass still to be demonstrated.
+- [ ] T044 W4: cover, identity board, feature recipe and changelog page shipped (`da6b097`); the ten principles on `01 Design Language` are still prose, and the reuse-index board is not built.
+- [ ] T045 W5: idempotency re-run, US5 agent gate, SC-008 human gate.
+
+> Process rule in force: a box is ticked only alongside a passing audit that re-runs on every regeneration (勾不回滚 guard). T042's tick rests on audit 96; T041's on audit 97.

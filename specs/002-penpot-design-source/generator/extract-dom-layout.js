@@ -160,6 +160,18 @@ function extractLayout(opts) {
     if (label) node.label = label;
     if (el.getAttribute('role')) node.role = el.getAttribute('role');
     if (own) node.text = own;
+    // Interactivity signals (RESTRUCTURE-2026-07-30 §7): without these, "interactive element" is
+    // undetectable on a DOM-derived board and the graph audit (93) is vacuous — it cannot ask
+    // "does every tappable thing carry an edge?". react-native-web renders Pressables as
+    // role=button divs with cursor:pointer and tabindex; capture all three so 70 can stamp
+    // `vela.role` on the leaf and 93 can enumerate exactly the tappable set.
+    const tag = el.tagName.toLowerCase();
+    const interactiveRole = ['button', 'link', 'tab', 'checkbox', 'switch', 'menuitem'].includes(el.getAttribute('role'));
+    const interactiveTag = ['a', 'button', 'input', 'select', 'textarea'].includes(tag);
+    if (interactiveRole) node.tap = el.getAttribute('role');
+    else if (interactiveTag) node.tap = tag;
+    else if (el.hasAttribute('tabindex') && el.getAttribute('tabindex') !== '-1') node.tap = 'tabbable';
+    else if (cs.cursor === 'pointer') node.tap = 'pointer';
 
     const bg = rgbToHex(cs.backgroundColor);
     if (bg) node.bg = bg;

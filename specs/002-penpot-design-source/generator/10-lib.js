@@ -16,7 +16,8 @@ lib.norm = (name) => name.replace(/\s*\/\s*/g, ' / ');
 
 lib.PAGES = ['00 Start Here', '01 Design Language', '02 Tokens & Type', '03 Components',
   '04 IA & Flows', '05 Screens · Wallet', '06 Screens · Browser & Connect',
-  '07 Screens · Settings & Onboarding', '08 Overlays', '09 Patterns', '10 Dev & Parallel Space'];
+  '07 Screens · Settings & Onboarding', '08 Overlays', '09 Patterns', '10 Dev & Parallel Space',
+  '11 Changelog', '12 Archive'];   // 11/12 added by RESTRUCTURE-2026-07-30 §5 (non-breaking additions)
 
 lib.ensurePage = (name) => {
   let p = penpotUtils.getPageByName(name);

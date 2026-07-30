@@ -98,6 +98,7 @@ As the founder, I run the acceptance gate: a fresh AI agent, given *only* MCP ac
 
 1. **Given** a fresh agent with Penpot-MCP access only, **When** it specifies the sample journeys, **Then** its spec contains zero factual contradictions with the running app for structure, tokens, states, and flow.
 2. **Given** a gap the agent hits ("I can't tell what happens when X"), **Then** the gap is logged, the Penpot file/doc pages are amended, and the gate re-run.
+3. **Given** the same file, **When** the founder runs the SC-008 human gate (RESTRUCTURE-2026-07-30 §9), **Then** it passes — a human reader is an acceptance audience of this story, not only the MCP agent.
 
 ---
 
@@ -124,7 +125,7 @@ As the founder, I run the acceptance gate: a fresh AI agent, given *only* MCP ac
 - **FR-005a**: Boards MUST be wired together with native prototype interactions: every interactive element carries its action (navigate to board / open overlay / close overlay / back) with the concrete destination, and named flows exist for the primary journeys (onboarding, send, receive, sign, connect, browse). Non-navigational state transitions (loading→loaded, default→error) MUST be expressed as labeled edges or board annotations naming the trigger condition. The resulting interaction graph MUST be readable programmatically, making the file a traversable UI state machine.
 - **FR-006**: The Penpot file MUST contain documentation pages sufficient for stack-agnostic reimplementation: Design Language (normative principles + resolved conflicts with legacy guidance), Interaction Patterns (motion/haptic parameters), Accessibility rules, Platform divergence notes, Localization & text-scaling rules, and a "Start Here" index explaining the file's organization and naming conventions to a machine reader.
 - **FR-007**: All Penpot assets MUST follow a stable, predictable, machine-discoverable naming and page-organization convention, defined once on the "Start Here" page and applied uniformly.
-- **FR-008**: Generation MUST be idempotent and resumable: re-running against an existing file updates assets in place (matched by stable names) and never creates duplicates.
+- **FR-008**: Generation MUST be idempotent and resumable under the **two-layer model** (RESTRUCTURE-2026-07-30 §7): the fidelity layer is regenerated from committed DOM dumps, and the semantic layer (region grouping, instance swaps + overrides, interactions, journey-wall positions, annotations) is re-applied from committed repo data (`edges.json`, `journeys.json`, `region-maps/`, `_plan.json`). Re-running updates assets in place (matched by stable names), never creates duplicates, and never silently destroys either layer; the mandatory regen ordering (72 → 70/73 → swap pass → 74 → audits) is part of this requirement.
 - **FR-009**: The feature MUST produce a coverage matrix (every route, component, overlay × required states → Penpot asset or recorded exclusion) with no blank cells, recording the source revision it reflects.
 - **FR-010**: The feature MUST define and execute the rebuild-readiness gate (Story 5) and incorporate its findings until the gate passes.
 - **FR-011**: The feature MUST provide a documented re-sync procedure for keeping the Penpot file authoritative as the app evolves.
@@ -147,9 +148,13 @@ As the founder, I run the acceptance gate: a fresh AI agent, given *only* MCP ac
 - **SC-002**: 100% of inventoried reusable components exist as library components; a spot check of any 10 variants finds zero geometry/color deviations from the code-derived spec.
 - **SC-003**: The coverage matrix has zero blank cells across all user-reachable routes and overlays; ≥95% of cells are boards (≤5% recorded exclusions with reasons).
 - **SC-004**: A fresh AI agent with only Penpot-MCP access produces implementation specs for three sample journeys with zero factual contradictions against the running app (structure, tokens, states, flow).
-- **SC-005**: Running generation twice in a row yields zero duplicate assets and zero unintended diffs (idempotency check).
+- **SC-005**: Running the full ordered generation twice in a row yields zero duplicate assets and zero unintended diffs **in both layers** — fidelity shapes AND the re-applied semantic layer (regions, swaps, interactions, wall positions) are stable (idempotency check).
 - **SC-006**: A named-asset lookup convention works end-to-end: for any screen/state or component/variant named in the coverage matrix, an agent can locate the asset in Penpot by name alone on the first try.
 - **SC-007**: 100% of interactive elements on screen/overlay boards carry a prototype interaction or an explicit "terminal" annotation; an agent starting from the Home board can reach every user-reachable board by following interaction edges alone (graph connectivity check).
+- **SC-008** *(human gate — RESTRUCTURE-2026-07-30 §9)*: the founder, opening only the Penpot file, can within 10 minutes: name the three identity traits (stated on `00 Start Here`); list the app's main journeys from the canvas alone; trace send end-to-end by following same-page clicks plus visible `e/` edge labels (cross-page overlay hops are labeled stubs, a platform constraint); and answer a "which components do I reuse for a new token-list feature?" question from `09 Patterns`.
+- **SC-009**: no two distinct variant containers or standalone library components share a name; all variant axes are semantic (`variant × size × state`-style) with no captured-copy values (audit 97).
+- **SC-010**: every canon screen/overlay board meets the semantic floor (named `region/*` top-level groups; Tier-1 elements as instances with overrides; positions derived from the journey manifest) — enforced by audit 96 on every regen, not by sampling.
+- **SC-011**: the mode toggle (activating `color-dark` in place of `color-light`; theme objects only after a verified deployment upgrade — `TokenTheme.addSet()` is a no-op on the current deployment) restyles the demo board pair on `02 Tokens & Type`.
 
 ## Assumptions
 

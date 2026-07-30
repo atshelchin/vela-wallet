@@ -1,4 +1,5 @@
-// 11-scaffold-pages.js — ensure the 11 numbered pages exist (data-model §1). Idempotent.
+// 11-scaffold-pages.js — ensure the 13 numbered pages exist (data-model §1; 11 Changelog and
+// 12 Archive added by RESTRUCTURE-2026-07-30 §5 under the additions-are-non-breaking clause). Idempotent.
 if (!storage.lib) throw new Error('run 10-lib.js first');
 const lib = storage.lib;
 

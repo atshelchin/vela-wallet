@@ -1,0 +1,104 @@
+{
+  "$comment": "Journey-wall manifest (RESTRUCTURE-2026-07-30 §5/§7). Board (x,y) on screen pages is DERIVED from this file by 73-screens-from-states.js — walls are a generated output, never a hand arrangement, so regeneration reproduces them (FR-008). Wall kinds: 'flow' = steps left-to-right in journey order; 'hub' = hub board first column, spokes to its right. states[board] stack BELOW that board (dark twins, empty/error/locked states). Steps may name boards that do not exist yet (S/send/sign, receipts) — 73 skips absent boards but reserves their column, so adding the board later lands it in place. Boards on a page but in no wall fall into an auto 'misc' band after the last wall (legacy grid).",
+  "layout": { "colW": 450, "rowH": 950, "bandGap": 250, "originX": 40, "headerH": 120 },
+  "pages": {
+    "05 Screens · Wallet": {
+      "walls": [
+        {
+          "journey": "home",
+          "kind": "hub",
+          "hub": "S/home/activity",
+          "spokes": ["S/home/assets", "S/home/connections"],
+          "states": {
+            "S/home/activity": ["S/home/activity-empty", "S/home/hidden-balance"],
+            "S/home/assets": ["S/home/assets-dark"]
+          }
+        },
+        {
+          "journey": "send",
+          "kind": "flow",
+          "steps": ["S/send/select-token", "S/send/details", "S/send/confirm", "S/send/sign", "S/send/receipt-submitted"],
+          "states": {
+            "S/send/select-token": ["S/send/select-token-dark", "S/send/locked-network-not-supported", "S/send/locked-unknown-token"],
+            "S/send/details": ["S/send/details-split"],
+            "S/send/receipt-submitted": ["S/send/receipt-confirmed", "S/send/receipt-failed"]
+          }
+        },
+        {
+          "journey": "receive",
+          "kind": "flow",
+          "steps": ["S/receive/safety-gate", "S/receive/address", "S/receive/request"],
+          "states": {
+            "S/receive/address": ["S/receive/copied"]
+          }
+        },
+        {
+          "journey": "tokens",
+          "kind": "hub",
+          "hub": "S/token-detail/default",
+          "spokes": ["S/add-token/erc20"],
+          "states": {
+            "S/add-token/erc20": ["S/add-token/native"]
+          }
+        },
+        {
+          "journey": "pay",
+          "kind": "flow",
+          "steps": ["S/pay/default"],
+          "states": {
+            "S/pay/default": ["S/pay/invalid-link"]
+          }
+        }
+      ]
+    },
+    "06 Screens · Browser & Connect": {
+      "walls": [
+        {
+          "journey": "connect",
+          "kind": "flow",
+          "steps": ["S/connect/disconnected", "S/connect/connecting-verify"],
+          "states": {
+            "S/connect/disconnected": ["S/connect/error"]
+          }
+        },
+        {
+          "journey": "browse",
+          "kind": "hub",
+          "hub": "S/browser/unsupported-on-web",
+          "spokes": ["S/safari-extension/default"],
+          "states": {}
+        },
+        {
+          "journey": "web-request",
+          "kind": "hub",
+          "hub": "S/web-request/unavailable",
+          "spokes": [],
+          "states": {
+            "S/web-request/unavailable": ["S/web-request/error"]
+          }
+        }
+      ]
+    },
+    "07 Screens · Settings & Onboarding": {
+      "walls": [
+        {
+          "journey": "onboarding",
+          "kind": "flow",
+          "steps": ["S/onboarding/welcome", "S/onboarding/create"],
+          "states": {
+            "S/onboarding/create": ["S/onboarding/create-form-ready"]
+          }
+        },
+        {
+          "journey": "settings",
+          "kind": "hub",
+          "hub": "S/settings/default",
+          "spokes": ["S/about/default"],
+          "states": {
+            "S/settings/default": ["S/settings/advanced-expanded", "S/settings/default-dark"]
+          }
+        }
+      ]
+    }
+  }
+}

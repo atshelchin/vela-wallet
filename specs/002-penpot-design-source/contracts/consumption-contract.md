@@ -5,13 +5,13 @@ Audience: a future AI agent (SvelteKit / GPUI / native iOS / native Android rebu
 ## Entry protocol
 
 1. `high_level_overview` (MCP) → learn the plugin API.
-2. `execute_code`: `penpotUtils.getPages()` → expect the 11 numbered pages (data-model §1). Read `00 Start Here` first — it contains the naming grammar and this protocol.
+2. `execute_code`: `penpotUtils.getPages()` → expect the 13 numbered pages (data-model §1; `11 Changelog` and `12 Archive` added per RESTRUCTURE-2026-07-30 — `12 Archive` is non-canon and machine consumers MUST ignore it). Read `00 Start Here` first — it contains the naming grammar and this protocol.
 3. Never navigate by shape ID across sessions; always resolve by name (`penpotUtils.findShape(s => s.name === '<name>')`).
 
 ## Reading the design system
 
 - **Tokens**: `penpot.library.local.tokens` → sets `core` (mode-independent), `color-light`, `color-dark`. **There are NO theme objects** (the themes API is broken in this deployment — see generator/audit-report.md): the mode axis is expressed by set activation. Default active = `core`+`color-light` (Light). To resolve Dark values, read the `color-dark` set's tokens directly (same names), or toggle set activation. Token names are the same identifiers the original RN code used — implement them as your stack's design tokens 1:1.
-- **Components**: `penpot.library.local.components` — names `C/<Group>/<Name>`; variant axes enumerate visual variants × states. Read geometry/fills/typography from the main instance; token bindings via `shape.tokens`. A variant's board name encodes its axis values.
+- **Components**: `penpot.library.local.components` — names `C/<Group>/<Name>`; variant axes enumerate visual variants × states. Read geometry/fills/typography from the main instance; token bindings via `shape.tokens`. A variant's board name encodes its axis values. Duplicate-named families are being merged **plan-driven** into single variant containers with semantic axes (`variant × size × state`), per RESTRUCTURE-2026-07-30 §5/W1; per-context captured copy is preserved via instance overrides and `vela.note`.
 - **Screens/Overlays**: boards `S/<route>/<state>` and `O/<overlay>/<state>` (390×844 screens). Recurring elements are component instances — resolve `instance.component()` to identify them; layout comes from board flex properties, not absolute eyeballing.
 - **Motion/haptics/a11y/platform/i18n**: NOT visual — read `09 Patterns` doc boards (`D/patterns/*`). Every animated element carries an annotation naming its pattern.
 
@@ -21,6 +21,7 @@ Audience: a future AI agent (SvelteKit / GPUI / native iOS / native Android rebu
 - Non-pointer transitions: read the board's **plugin data**, key `vela.edge`: `<condition> → <destination board name>`. Several edges on one board are joined with ` | `.
 - Journeys: named flows (`penpot.currentPage.flows`): onboarding, send, receive, sign, connect, browse.
 - Elements with no interaction AND no `vela.edge` entry are terminal/static by contract — not an omission (omissions are a generator defect; report them).
+- **Edge visibility regime** (RESTRUCTURE-2026-07-30 §5): every transition exists twice — as machine wiring (a prototype interaction, or `vela.edge` plugin data where the platform disallows one) AND as a visible labeled connector on the journey walls named `e / <from> / <to>`. The `e/`-named shapes are for humans; machine consumers skip them and read the wiring instead.
 
 ### Annotations live in plugin data, not in shape names
 
@@ -35,6 +36,10 @@ with `shape.getPluginData(<key>)` on the **board**:
 | `vela.platform` | platform divergence (overrides the generic depiction) |
 | `vela.motion` | motion pattern reference |
 | `vela.source` | for DOM-derived screen boards, the app URL the board was captured from |
+| `vela.codeRef` | on components: source-code reference (file/component in the RN repo) — machine twin of the visible code-ref line in the component's docs block |
+| `vela.usage` | on components: usage guidance (use-when, do/don't, motion ref) — machine twin of the docs block |
+| `vela.componentOf` | on a shape not swapped to a library instance: the `C/<Group>/<Name>` component it corresponds to (instance-swap downgrade fallback, RESTRUCTURE §6) |
+| `vela.role` | on captured leaves: interactivity signal recorded at capture (button/link role, tabindex, cursor:pointer, pressable testid) — makes "interactive element" enumerable |
 
 Multiple values for one key are joined with ` | `. No `note:`/`edge:`/`platform:`/`motion:`-prefixed
 text shapes remain in the file; a consumer that still scans shape names will find nothing.

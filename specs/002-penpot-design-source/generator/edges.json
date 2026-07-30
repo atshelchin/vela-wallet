@@ -1,0 +1,84 @@
+{
+  "$comment": "Single source of truth for the UI graph (RESTRUCTURE-2026-07-30 §7). Consumed by 74-interactions.js (machine wiring: interactions + vela.edge plugin data) and by the journey-wall edge layer (visible e/ connectors). Edit HERE, never in a chunk. kind: nav = navigate-to, overlay = open-overlay (same-page only per platform rule; cross-page falls back to vela.edge).",
+  "edges": [
+    { "from": "S/home/activity", "label": "Send", "to": "S/send/select-token", "kind": "nav" },
+    { "from": "S/home/activity", "label": "Receive", "to": "S/receive/safety-gate", "kind": "nav" },
+    { "from": "S/home/activity", "label": "Assets", "to": "S/home/assets", "kind": "nav" },
+    { "from": "S/home/activity", "label": "Connections", "to": "S/home/connections", "kind": "nav" },
+    { "from": "S/home/activity", "label": "All", "to": "O/network-filter/default", "kind": "overlay" },
+    { "from": "S/home/assets", "label": "Activity", "to": "S/home/activity", "kind": "nav" },
+    { "from": "S/home/assets", "label": "Connections", "to": "S/home/connections", "kind": "nav" },
+    { "from": "S/home/assets", "label": "Add", "to": "S/add-token/erc20", "kind": "nav" },
+    { "from": "S/home/assets", "label": "Send", "to": "S/send/select-token", "kind": "nav" },
+    { "from": "S/home/assets", "label": "Receive", "to": "S/receive/safety-gate", "kind": "nav" },
+    { "from": "S/home/connections", "label": "Activity", "to": "S/home/activity", "kind": "nav" },
+    { "from": "S/home/connections", "label": "Assets", "to": "S/home/assets", "kind": "nav" },
+    { "from": "S/home/hidden-balance", "label": "Assets", "to": "S/home/assets", "kind": "nav" },
+    { "from": "S/home/rate-limited", "label": "Activity", "to": "S/home/activity", "kind": "nav" },
+    { "from": "S/home/rpc-trouble", "label": "Activity", "to": "S/home/activity", "kind": "nav" },
+
+    { "from": "S/send/select-token", "label": "XDAI", "to": "S/send/details", "kind": "nav" },
+    { "from": "S/send/select-token", "label": "Add Token", "to": "S/add-token/erc20", "kind": "nav" },
+    { "from": "S/send/details", "label": "Continue", "to": "S/send/confirm", "kind": "nav" },
+    { "from": "S/send/details", "label": "Add recipient", "to": "S/send/details-split", "kind": "nav" },
+    { "from": "S/send/details", "label": "Import list", "to": "O/batch-import/default", "kind": "overlay" },
+    { "from": "S/send/details-split", "label": "Import list", "to": "O/batch-import/default", "kind": "overlay" },
+    { "from": "S/send/confirm", "label": "Confirm", "to": "S/send/sign", "kind": "nav",
+      "$comment": "S/send/sign is the journey-step proxy board (RESTRUCTURE §5, founder decision 3); until W2 builds it, 74 reports it as missingTarget — expected." },
+
+    { "from": "S/send/sign", "label": "Reject", "to": "S/send/confirm", "kind": "nav" },
+
+    { "from": "S/receive/safety-gate", "label": "I Understand", "to": "S/receive/address", "kind": "nav" },
+    { "from": "S/receive/address", "label": "Request", "to": "S/receive/request", "kind": "nav" },
+    { "from": "S/receive/request", "label": "Address", "to": "S/receive/address", "kind": "nav" },
+
+    { "from": "S/add-token/erc20", "label": "Native Token", "to": "S/add-token/native", "kind": "nav" },
+    { "from": "S/add-token/native", "label": "ERC-20 Token", "to": "S/add-token/erc20", "kind": "nav" },
+
+    { "from": "S/settings/default", "label": "About", "to": "S/about/default", "kind": "nav" },
+    { "from": "S/settings/default", "label": "Contacts", "to": "O/contacts-manager/default", "kind": "overlay" },
+    { "from": "S/settings/default", "label": "Currency", "to": "O/currency/default", "kind": "overlay" },
+    { "from": "S/settings/default", "label": "Safari Extension", "to": "S/safari-extension/default", "kind": "nav" },
+
+    { "from": "S/onboarding/welcome", "label": "Create Wallet", "to": "S/onboarding/create", "kind": "nav" },
+    { "from": "S/connect/disconnected", "label": "Connections", "to": "S/home/connections", "kind": "nav" },
+    { "from": "S/token-detail/default", "label": "Send", "to": "S/send/select-token", "kind": "nav" },
+    { "from": "S/token-detail/default", "label": "Receive", "to": "S/receive/safety-gate", "kind": "nav" },
+
+    { "from": "S/settings/default", "label": "Advanced", "to": "S/settings/advanced-expanded", "kind": "nav" },
+    { "from": "S/settings/advanced-expanded", "label": "About", "to": "S/about/default", "kind": "nav" },
+    { "from": "S/connect/connecting-verify", "label": "Cancel", "to": "S/connect/disconnected", "kind": "nav" },
+    { "from": "S/connect/error", "label": "Scan Again", "to": "S/connect/disconnected", "kind": "nav" },
+    { "from": "S/send/locked-network-not-supported", "label": "Cancel", "to": "S/home/activity", "kind": "nav" },
+    { "from": "S/send/locked-unknown-token", "label": "Cancel", "to": "S/home/activity", "kind": "nav" },
+    { "from": "S/onboarding/create-form-ready", "label": "Account Name", "to": "S/onboarding/create", "kind": "nav" }
+  ],
+  "nonPointer": [
+    { "from": "S/onboarding/create", "condition": "passkey ceremony resolves → wallet created", "to": "S/home/activity" },
+    { "from": "S/send/sign", "condition": "slide to confirm → signed and submitted", "to": "S/send/receipt-submitted" },
+    { "from": "S/send/confirm", "condition": "user operation lands on chain", "to": "O/transaction-detail/single-confirmed" },
+    { "from": "S/home/activity", "condition": "every chain returns 429 → cached balance kept, no RPC banner", "to": "S/home/rate-limited" },
+    { "from": "S/home/activity", "condition": "RPC hard-fails on every chain", "to": "S/home/rpc-trouble" },
+    { "from": "S/home/activity", "condition": "tap the balance hero → all figures masked", "to": "S/home/hidden-balance" },
+    { "from": "S/pay/default", "condition": "link is missing a recipient or an unknown chain", "to": "S/pay/invalid-link" },
+    { "from": "S/connect/disconnected", "condition": "paste a pairing URI → local fingerprint gate, no peer needed", "to": "S/connect/connecting-verify" },
+    { "from": "S/connect/disconnected", "condition": "paste a malformed pairing URI", "to": "S/connect/error" },
+    { "from": "S/connect/connecting-verify", "condition": "tap Confirm → waits on the relay (no board: the wait does not hold in the web build)", "to": "—" },
+    { "from": "S/onboarding/create", "condition": "fill the name and tick every acknowledgment", "to": "S/onboarding/create-form-ready" },
+    { "from": "S/onboarding/create-form-ready", "condition": "passkey ceremony (not boarded: it mints a credential and writes an account)", "to": "—" },
+    { "from": "S/send/receipt-submitted", "condition": "the user operation is included in a block", "to": "S/send/receipt-confirmed" },
+    { "from": "S/send/receipt-submitted", "condition": "the user operation reverts", "to": "S/send/receipt-failed" },
+    { "from": "S/web-request/unavailable", "condition": "no dApp handshake on this popup", "to": "—" },
+    { "from": "S/browser/unsupported-on-web", "condition": "iOS or Android → the real in-app browser (no board: needs a device capture)", "to": "—" },
+    { "from": "S/home/assets", "condition": "Appearance set to Dark in Settings", "to": "S/home/assets-dark" },
+    { "from": "S/send/select-token", "condition": "Appearance set to Dark in Settings", "to": "S/send/select-token-dark" },
+    { "from": "S/settings/default", "condition": "Appearance set to Dark in Settings", "to": "S/settings/default-dark" }
+  ],
+  "flows": [
+    { "name": "send", "page": "05 Screens · Wallet", "entry": "S/send/select-token" },
+    { "name": "receive", "page": "05 Screens · Wallet", "entry": "S/receive/safety-gate" },
+    { "name": "home", "page": "05 Screens · Wallet", "entry": "S/home/activity" },
+    { "name": "onboarding", "page": "07 Screens · Settings & Onboarding", "entry": "S/onboarding/welcome" },
+    { "name": "connect", "page": "06 Screens · Browser & Connect", "entry": "S/connect/disconnected" }
+  ]
+}

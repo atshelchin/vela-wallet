@@ -27,11 +27,15 @@ Audience: the implementing agent (this feature's implement phase) and anyone re-
 
 ## Layout conventions
 
-- Screens: board 390×844 at grid positions x = col·450, y = row·950 within their page; column = state index, row = screen index (deterministic → idempotent geometry).
+- Screens: board 390×844; **(x, y) are journey-manifest-derived** (RESTRUCTURE-2026-07-30 §7): board position derives from journey membership + step order + state-stack order committed in the manifest, so regeneration preserves the walls. The old grid (x = col·450, y = row·950; column = state index, row = screen index) remains only as fallback for boards not in any journey.
 - Components page: main instances on 100px grid inside per-group section boards.
 - Doc boards: 800w auto-height, flex column, 24px padding.
 
-## Audits (chunks 90–95)
+## Mandatory regen ordering (RESTRUCTURE-2026-07-30 §7)
+
+Any regeneration runs: `72` (component families) → `70`/`73` (boards) → swap pass → `74` (wiring from `edges.json`) → audits (T031 graph + `96-audit-semantic-floor` + `97-audit-library` + mode-toggle restyle check). This sequence overrides plain numeric chunk order.
+
+## Audits (chunks 90–97)
 
 | Chunk | Enforces | Spec target |
 |---|---|---|
@@ -41,5 +45,7 @@ Audience: the implementing agent (this feature's implement phase) and anyone re-
 | `93-audit-graph` | BFS from `S/home/default` reaches all boards (minus `entry:` list); zero interactive elements without interaction/`edge:`/terminal mark | SC-007 |
 | `94-audit-lookup` | random sample of matrix names resolvable first-try | SC-006 |
 | `95-audit-visual` | export_shape PNG of sampled boards for human/agent comparison against live web app screenshots | SC-002 spot-check |
+| `96-audit-semantic-floor` | every canon `S/*`, `O/*` board: top-level children are `region/*` groups; Tier-1 elements are instances with overrides; positions match the journey manifest | SC-010 |
+| `97-audit-library` | no two distinct variant containers or standalone components share a name; axes are semantic; broken/detached instance count = 0 | SC-009 |
 
 Audit output goes to the chunk return value AND `generator/audit-report.md` (repo, committed).

@@ -22,7 +22,20 @@ const WEB_BOOST = 1;
 const stats = { rects: 0, texts: 0, icons: 0, images: 0, skipped: 0, maxDepth: 0, negTracking: 0,
   iconMissing: 0, imageMissing: 0, reflowWidened: 0, reflowShrunk: 0, reflowStuck: [],
   colorBound: 0, colorLiteral: 0, colorAlpha: 0, radiusBound: 0, iconColorBound: 0, shadows: 0, dimmed: 0, inlineClipped: 0, inlineTruncated: 0, rawHex: {},
-  iconFallbacks: [], imageFallbacks: [] };
+  iconFallbacks: [], imageFallbacks: [], swapped: 0, swapMissing: [], regions: 0, regionUnmatched: [] };
+
+// ── SEMANTIC OVERLAY (RESTRUCTURE-2026-07-30 §7) ───────────────────────────────────────────────
+// The board is two layers: the fidelity layer this converter draws from the dump, and a semantic
+// layer re-applied from COMMITTED data (region-maps/<slug>.json via spec.regionMap/spec.swapMap).
+// spec.swapMap: [{ path, component, props, overrides: [{ i, text }] }] — the subtree at `path` is
+// replaced by a library-component instance carrying the captured copy as overrides (semantic floor
+// rule 2; override writability proven by the 2026-07-30 smoke test). A missing family falls back
+// to drawing the fidelity layer — audit 96 flags it, silence would hide it.
+// spec.regionMap: [{ name, paths }] — after the build, top-level shapes whose DOM path starts with
+// one of `paths` are grouped as `region / <name>` (semantic floor rule 1). Both are re-applied on
+// every regen precisely BECAUSE the wipe below destroys them — canvas is projection, repo is truth.
+const SWAPS = new Map();
+for (const s of (spec.swapMap || [])) SWAPS.set(String(s.path), s);
 const reflow = [];   // text shapes to settle-and-fit once the whole board is drawn
 
 const hex = (c) => {
@@ -146,12 +159,18 @@ if (spec.board) {
   ({ board } = await lib.upsertBoard(spec.page, spec.name, { x: spec.x || 0, y: spec.y || 0, w: W, h: H, fill }));
 }
 if (fill) bindColor(board, { color: fill, opacity: 1 }, 'fill');   // the page ground itself
-// Wipe previously generated children (names all start with 'r/'). lib rule 1: Penpot rewrites
-// '/' to ' / ', so the stored name is 'r / 0.1', and a raw startsWith('r/') silently matches
-// NOTHING — which quietly turned every re-run into a second copy stacked on the first.
+// Wipe previously generated children: fidelity shapes ('r/…'), swapped instances ('swap/…') and
+// region groups ('region/…') — ALL are projections of committed data and are re-created below, so
+// deleting them is what makes the two-layer model idempotent. lib rule 1: Penpot rewrites '/' to
+// ' / ', so the stored name is 'r / 0.1', and a raw startsWith('r/') silently matches NOTHING —
+// which quietly turned every re-run into a second copy stacked on the first.
 let guard = 0;
 while (guard++ < 4000) {
-  const old = penpotUtils.findShape((s) => s.name && lib.norm(s.name).startsWith('r / '), board);
+  const old = penpotUtils.findShape((s) => {
+    if (!s.name) return false;
+    const n2 = lib.norm(s.name);
+    return n2.startsWith('r / ') || n2.startsWith('swap / ') || n2.startsWith('region / ');
+  }, board);
   if (!old) break;
   old.remove();
 }
@@ -260,7 +279,31 @@ const applyShadow = (shape, css) => {
 
 async function build(n, path, depth, parent, inherited) {
   stats.maxDepth = Math.max(stats.maxDepth, depth);
+  // Semantic swap: this subtree is a known library component — place an instance carrying the
+  // captured copy instead of redrawing raw shapes (US4-AS2). On any failure, fall through and
+  // draw the fidelity layer; the gap is reported, never silent.
+  const swap = SWAPS.get(path);
+  if (swap) {
+    const inst = lib.instance(swap.component, swap.props, board, Math.round(n.x), Math.round(n.y));
+    if (inst) {
+      inst.name = 'swap/' + path + ' ' + swap.component;
+      if (Math.round(inst.width) !== Math.round(n.w) || Math.round(inst.height) !== Math.round(n.h)) {
+        try { inst.resize(Math.round(n.w), Math.round(n.h)); } catch (e) { /* fixed-size master */ }
+      }
+      if (swap.overrides && swap.overrides.length) {
+        await lib.sleep(120);   // instance children materialise asynchronously
+        const texts = penpotUtils.findShapes((s) => s.type === 'text', inst)
+          .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+        for (const ov of swap.overrides) { if (texts[ov.i]) texts[ov.i].characters = ov.text; }
+      }
+      stats.swapped++;
+      return;
+    }
+    stats.swapMissing.push(path + ' → ' + swap.component);
+  }
   const id = 'r/' + path;
+  // interactivity signal from the extractor → machine-enumerable tappable set (audits 93/96)
+  const stamp = (sh) => { if (n.tap && sh) { try { sh.setPluginData('vela.role', String(n.tap)); } catch (e) {} } };
   // the opacity this node's own paint is composited at, and the factor its children inherit
   const eff = (inherited === undefined ? 1 : inherited) * (n.opacity === undefined ? 1 : n.opacity);
 
@@ -321,6 +364,7 @@ async function build(n, path, depth, parent, inherited) {
       color: c.color, x: tx, y: Math.round(n.y),
     });
     withOpacity(text, eff * (c.opacity === undefined ? 1 : c.opacity));   // "#FFFFFF@45%" x ancestors
+    stamp(text);
     // opacity here rides on the SHAPE, not the paint, so the colour itself can still bind
     bindColor(text, { color: c.color, opacity: 1 }, 'text');
     if (n.font?.transform === 'uppercase') text.textTransform = 'uppercase';
@@ -396,7 +440,7 @@ async function build(n, path, depth, parent, inherited) {
     if (svgMarkup) {
       try {
         const g = placeSvg(svgMarkup, n, nm, parent);
-        if (g) { bindVector(g, 0); withOpacity(g, eff); ok = true; stats.icons++; }
+        if (g) { bindVector(g, 0); withOpacity(g, eff); stamp(g); ok = true; stats.icons++; }
       } catch (e) { stats.iconFallbacks.push(nm + ': ' + (e && e.message)); }
     }
     if (!ok) {
@@ -429,6 +473,7 @@ async function build(n, path, depth, parent, inherited) {
       rect.borderRadiusTopLeft = rr[0]; rect.borderRadiusTopRight = rr[1];
       rect.borderRadiusBottomRight = rr[2]; rect.borderRadiusBottomLeft = rr[3];
     }
+    stamp(rect);
     let ok = false;
     const asset = n.assetKey ? (storage.assets || {})[n.assetKey] : null;
     if (asset && asset.media) {
@@ -469,6 +514,7 @@ async function build(n, path, depth, parent, inherited) {
     bindRadius(rect, rr);
     if (n.shadow) applyShadow(rect, n.shadow);
     withOpacity(rect, eff);
+    stamp(rect);
     stats.rects++;
   } else {
     stats.skipped++;
@@ -531,6 +577,27 @@ for (const p of reflow) {
   if (p.widened) stats.reflowWidened++;
   if (p.shrunk) stats.reflowShrunk++;
   if (p.stuck) stats.reflowStuck.push((p.text.characters || '').slice(0, 28));
+}
+
+// ── REGION GROUPING ────────────────────────────────────────────────────────────────────────────
+// Semantic floor rule 1: the layer tree must read. Top-level shapes are folded into named region
+// groups by DOM-path prefix from the committed region map. A subtree is drawn depth-first, so a
+// region's members are a contiguous z-run and grouping preserves paint order. A prefix that
+// matches nothing is REPORTED — after an app change shifts DOM paths, the stale map must fail the
+// guard audit, not silently re-attach to the wrong shapes.
+if (spec.regionMap && spec.regionMap.length) {
+  const pathOf2 = (nm) => { const m = lib.norm(nm || '').match(/^(?:r|swap) \/ ([\d.]+)/); return m ? m[1] : null; };
+  for (const reg of spec.regionMap) {
+    const members = (board.children || []).filter((c) => {
+      const p = pathOf2(c.name);
+      return p && (reg.paths || []).some((pre) => p === String(pre) || p.startsWith(String(pre) + '.'));
+    });
+    if (!members.length) { stats.regionUnmatched.push(reg.name + ' @ ' + (reg.paths || []).join(',')); continue; }
+    try {
+      const g = penpot.group(members);
+      if (g) { g.name = 'region/' + reg.name; stats.regions++; }
+    } catch (e) { stats.regionUnmatched.push(reg.name + ': ' + (e && e.message)); }
+  }
 }
 
 board.setPluginData('vela.source', dump.url);

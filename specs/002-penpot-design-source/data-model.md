@@ -17,6 +17,8 @@ The "data model" of this feature is the structure of the Penpot file itself: pag
 | `08 Overlays` | Every AppModal/AppAlert/sheet/toast surface × state | yes (US4) |
 | `09 Patterns` | Motion (exact params), haptics, a11y, platform divergence, i18n/text-scale resilience | yes (FR-006) |
 | `10 Dev & Parallel Space` | Dev screens, parallel-space badge/env, fault-injection UX | documented, excluded from gate |
+| `11 Changelog` | One entry per regeneration run: date, git rev, pages touched, coverage snapshot, audits passed | documented, added 2026-07-30 (RESTRUCTURE §5) |
+| `12 Archive` | Non-canon: DRAFTs, superseded experiments; carries an explicit machine-ignore marker | no — machine-ignore, non-canon (RESTRUCTURE §5) |
 
 ## 2. Naming grammar (the addressing contract)
 

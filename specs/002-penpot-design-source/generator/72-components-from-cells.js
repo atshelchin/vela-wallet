@@ -164,6 +164,13 @@ else for (const vb of kids0) if (restoreOrder(vb)) stats.reordered++;
 
 lib.chip(container, 'note', 'rebuilt 1:1 from /design-gallery cells (' + plan.cells.length +
   ' rendered states); geometry, colour and type are the app\'s own, not read from source');
+// Machine-readable component docs (RESTRUCTURE-2026-07-30 §5/§7): the plugin API cannot write
+// Penpot's Inspect-tab annotation, so the machine channel is plugin data, written from the PLAN on
+// every rebuild (a hand-entered annotation would die with the container on the next regen — this
+// is why the fields live in _plan.json, not on canvas). Human twin = the visible docs block on
+// `03 Components` (W1). Consumers: getPluginData('vela.codeRef' | 'vela.usage').
+if (plan.codeRef) container.setPluginData('vela.codeRef', plan.codeRef);
+if (plan.usage) container.setPluginData('vela.usage', plan.usage);
 stats.y = cur.y;
 stats.rawHex = Object.entries(stats.rawHex).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([h, n]) => h + '×' + n);
 return lib.done('72-components-from-cells:' + plan.component, stats);

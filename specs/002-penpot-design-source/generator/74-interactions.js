@@ -56,6 +56,15 @@ const EDGES = [
   ['S/connect/disconnected', 'Connections', 'S/home/connections', 'nav'],
   ['S/token-detail/default', 'Send', 'S/send/select-token', 'nav'],
   ['S/token-detail/default', 'Receive', 'S/receive/safety-gate', 'nav'],
+
+  // states added by the second capture sweep
+  ['S/settings/default', 'Advanced', 'S/settings/advanced-expanded', 'nav'],
+  ['S/settings/advanced-expanded', 'About', 'S/about/default', 'nav'],
+  ['S/connect/connecting-verify', 'Cancel', 'S/connect/disconnected', 'nav'],
+  ['S/connect/error', 'Scan Again', 'S/connect/disconnected', 'nav'],
+  ['S/send/locked-network-not-supported', 'Cancel', 'S/home/activity', 'nav'],
+  ['S/send/locked-unknown-token', 'Cancel', 'S/home/activity', 'nav'],
+  ['S/onboarding/create-form-ready', 'Account Name', 'S/onboarding/create', 'nav'],
 ];
 
 // Transitions no single element owns — recorded as plugin data, per the contract.
@@ -66,6 +75,19 @@ const NON_POINTER = [
   ['S/home/activity', 'RPC hard-fails on every chain', 'S/home/rpc-trouble'],
   ['S/home/activity', 'tap the balance hero → all figures masked', 'S/home/hidden-balance'],
   ['S/pay/default', 'link is missing a recipient or an unknown chain', 'S/pay/invalid-link'],
+  ['S/connect/disconnected', 'paste a pairing URI → local fingerprint gate, no peer needed', 'S/connect/connecting-verify'],
+  ['S/connect/disconnected', 'paste a malformed pairing URI', 'S/connect/error'],
+  ['S/connect/connecting-verify', 'tap Confirm → waits on the relay (no board: the wait does not hold in the web build)', '—'],
+  ['S/onboarding/create', 'fill the name and tick every acknowledgment', 'S/onboarding/create-form-ready'],
+  ['S/onboarding/create-form-ready', 'passkey ceremony (not boarded: it mints a credential and writes an account)', '—'],
+  ['S/send/confirm', 'slide to confirm → signed and submitted', 'S/send/receipt-submitted'],
+  ['S/send/receipt-submitted', 'the user operation is included in a block', 'S/send/receipt-confirmed'],
+  ['S/send/receipt-submitted', 'the user operation reverts', 'S/send/receipt-failed'],
+  ['S/web-request/unavailable', 'no dApp handshake on this popup', '—'],
+  ['S/browser/unsupported-on-web', 'iOS or Android → the real in-app browser (no board: needs a device capture)', '—'],
+  ['S/home/assets', 'Appearance set to Dark in Settings', 'S/home/assets-dark'],
+  ['S/send/select-token', 'Appearance set to Dark in Settings', 'S/send/select-token-dark'],
+  ['S/settings/default', 'Appearance set to Dark in Settings', 'S/settings/default-dark'],
 ];
 
 const FLOWS = [

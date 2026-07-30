@@ -2,6 +2,19 @@
   "$comment": "Committed history for page 11. Newest entry FIRST. One entry per regeneration that changed what a reader sees; `rev` is the git revision the file reflected afterwards. Add an entry here \u2014 never by typing on the canvas, which the next regeneration would wipe.",
   "entries": [
     {
+      "date": "2026-07-31",
+      "rev": "feaf7d8",
+      "headline": "Captured from the running app: Home unmasked, the send confirm step, the whole signing matrix",
+      "changes": [
+        "capture/run-capture.mjs drives the app with Playwright \u2014 a recapture is one command instead of a person at a console",
+        "Home recaptured with the balance VISIBLE and the Assets tab populated; hide-balance turned out to be a persisted preference that had masked every later capture",
+        "S/send/confirm, S/send/details-filled and S/home/activity-empty captured \u2014 the boards that had no committed dump at all",
+        "The unlimited-approval sentence is whole again: one text at the paragraph box with the spans restored as styled character ranges. \"ALL\" is back",
+        "Overlay captures are scoped to the overlay root (found by its backdrop), so a sheet no longer carries its host screen into the board",
+        "reconnect-penpot.mjs restores the plugin session headlessly when the browser tab holding it dies"
+      ]
+    },
+    {
       "date": "2026-07-30",
       "rev": "a4bffaa+",
       "headline": "SC-007 passes; the design language is shown; reuse is indexed",

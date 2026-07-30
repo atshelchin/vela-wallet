@@ -3,19 +3,19 @@
  "board": "O/signing-sheet/eip-712-unknown",
  "frame": {
   "w": 390,
-  "h": 806
+  "h": 844
  },
  "regions": [
   {
    "name": "backdrop",
    "paths": [
-    "0.0"
+    "0"
    ]
   },
   {
    "name": "sheet",
    "paths": [
-    "0.1"
+    "1"
    ]
   }
  ]

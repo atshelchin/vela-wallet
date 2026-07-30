@@ -32,7 +32,12 @@ const SETS = [
   { dir: 'screens-dark', index: '_index.json' },
   { dir: 'overlays', index: '_index.json' },
   { dir: 'signing', index: '_index.json', overlay: true },
-  { dir: 'signing-fix', index: '_index.json', overlay: true },
+  // `signing-fix` was a repair pass for three scenarios that failed the original sweep. All 25 are
+  // now captured fresh and scoped, so it is superseded — and while it was still listed it ran LAST
+  // and silently overwrote three fresh maps with its older structure, leaving those boards with
+  // zero regions. See the collision check below: a slug in two sets is now reported, not resolved
+  // by whoever writes last.
+  // { dir: 'signing-fix', index: '_index.json', overlay: true },
 ];
 
 const kidsOf = (n) => (n.children || []).flat(Infinity).filter(Boolean);
@@ -117,7 +122,8 @@ const overlayRegions = (branch, frameH) => {
   return regions;
 };
 
-const summary = { written: 0, perSet: {}, noBranch: [], regionNames: {} };
+const summary = { written: 0, perSet: {}, noBranch: [], regionNames: {}, slugCollisions: [] };
+const slugOwner = new Map();   // slug -> the set that wrote its map
 
 for (const set of SETS) {
   const idxPath = resolve(DUMPS, set.dir, set.index);
@@ -127,6 +133,14 @@ for (const set of SETS) {
   for (const entry of index) {
     const dumpPath = resolve(DUMPS, set.dir, entry.slug + '.json');
     if (!existsSync(dumpPath)) continue;
+    // Two sets holding the same slug means one map silently overwrites the other, and the loser is
+    // whichever set is listed first — a difference no output made visible until three signing
+    // boards came out with no regions at all.
+    if (slugOwner.has(entry.slug)) {
+      summary.slugCollisions.push(entry.slug + ': ' + slugOwner.get(entry.slug) + ' vs ' + set.dir);
+      continue;
+    }
+    slugOwner.set(entry.slug, set.dir);
     const dump = JSON.parse(readFileSync(dumpPath, 'utf8'));
     const frameH = (dump.frame && dump.frame.h) || 844;
     const roots = (dump.tree || []).flat(Infinity).filter(Boolean);

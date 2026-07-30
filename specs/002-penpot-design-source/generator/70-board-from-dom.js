@@ -346,39 +346,78 @@ async function build(n, path, depth, parent, inherited) {
     // on. The old single-slot path drew run 0 and dropped the rest, which is how the unlimited
     // approval sheet lost the word "ALL" — the word that IS the risk on that sheet.
     if (n.textRuns && n.textRuns.length > 1 && inlineKids.length && lh) {
-      const line = inlineKids
-        .filter((k) => Math.abs((k.y || 0) - n.y) < lh * 1.5)
-        .sort((a, b) => (a.x || 0) - (b.x || 0));
-      const gaps = [];
-      let cursor = Math.round(n.x);
-      for (const k of line) {
-        gaps.push([cursor, Math.round(k.x)]);
-        cursor = Math.round((k.x || 0) + (k.w || 0));
-      }
-      gaps.push([cursor, Math.round(n.x + n.w)]);            // the trailing run
-      let placed = 0;
+      // ONE text shape for the whole sentence, with the spans' emphasis restored as styled character
+      // RANGES. Placing each run at its own anchor put every word on the board but in the wrong
+      // reading order — a browser's line-breaking cannot be reproduced from absolutely-positioned
+      // fragments. Rebuilding the sentence and styling ranges reproduces both the words and the
+      // two-colour emphasis the signing sheets are built on.
+      const spans = inlineKids.slice().sort((a, b) => ((a.y || 0) - (b.y || 0)) || ((a.x || 0) - (b.x || 0)));
+      let full = '';
+      const ranges = [];
       n.textRuns.forEach((run, i) => {
-        const g = gaps[i];
-        if (!g || g[1] - g[0] < 6) { stats.inlineTruncated++; return; }
-        const { text: rt } = lib.upsertText(board, id + '.run' + i + ' ' + run.slice(0, 20), {
-          text: run, size, weight, zone: isMono ? 'mono' : 'sans',
-          color: c.color, x: g[0], y: Math.round(n.y),
-        });
-        withOpacity(rt, eff * (c.opacity === undefined ? 1 : c.opacity));
-        stamp(rt);
-        bindColor(rt, { color: c.color, opacity: 1 }, 'text');
-        if (n.font?.size) {
-          const box = Math.min(n.h || Infinity, n.font.lineHeight || Infinity);
-          rt.lineHeight = String(Math.max(0.8, Math.round((Number.isFinite(box) ? box / size : 1.2) * 100) / 100));
+        if (full && !/^[,.;:!?)]/.test(run)) full += ' ';
+        full += run;
+        const sp = spans[i];
+        if (sp && sp.text) {
+          full += ' ';
+          ranges.push({ from: full.length, to: full.length + sp.text.length, sp });
+          full += sp.text;
         }
-        rt.growType = 'auto-width';
-        penpotUtils.setParentXY(rt, g[0], Math.round(n.y));
-        placed++;
-        stats.texts++;
       });
-      stats.inlineRuns = (stats.inlineRuns || 0) + placed;
+      for (let i = n.textRuns.length; i < spans.length; i++) {
+        const sp = spans[i];
+        if (!sp || !sp.text) continue;
+        full += ' ';
+        ranges.push({ from: full.length, to: full.length + sp.text.length, sp });
+        full += sp.text;
+      }
+      const { text: para } = lib.upsertText(board, id + ' ' + full.slice(0, 24), {
+        text: full, size, weight, zone: isMono ? 'mono' : 'sans',
+        color: c.color, x: Math.round(n.x), y: Math.round(n.y),
+      });
+      para.growType = 'auto-height';
+      para.resize(Math.max(24, Math.round(n.w)), Math.max(16, Math.round(n.h)));
+      if (n.font?.size) {
+        const box = Math.min(n.h || Infinity, n.font.lineHeight || Infinity);
+        para.lineHeight = String(Math.max(0.8, Math.round((Number.isFinite(box) ? box / size : 1.4) * 100) / 100));
+      }
+      withOpacity(para, eff * (c.opacity === undefined ? 1 : c.opacity));
+      stamp(para);
+      bindColor(para, { color: c.color, opacity: 1 }, 'text');
+      for (const r of ranges) {
+        try {
+          const rng = para.getRange(r.from, r.to);
+          const rc = hex(r.sp.color);
+          if (rc) rng.fills = [{ fillColor: rc.color, fillOpacity: rc.opacity }];
+          // Penpot rejects a weight the CURRENT font has no variant for ("Font weight '600' not
+          // supported"), and the whole range application then throws — losing the colour too. Set
+          // the weight only when the family really has that variant, and never let it take the
+          // fill down with it.
+          const rw = String(parseInt(r.sp.font?.weight || '0', 10) || '');
+          if (rw && rw !== String(weight)) {
+            try {
+              const fam = penpot.fonts.findByName(isMono ? lib.FONT.mono : lib.FONT.sans);
+              if (fam && fam.variants.some((v) => v.fontWeight === rw && v.fontStyle === 'normal')) rng.fontWeight = rw;
+            } catch (e2) { /* colour already applied; weight is the optional half */ }
+          }
+        } catch (e) { stats.rangeFails = (stats.rangeFails || 0) + 1; }
+      }
+      penpotUtils.setParentXY(para, Math.round(n.x), Math.round(n.y));
+      stats.texts++;
+      stats.inlineRuns = (stats.inlineRuns || 0) + n.textRuns.length;
+      stats.inlineRanges = (stats.inlineRanges || 0) + ranges.length;
+      // the spans are now part of this paragraph — drawing them again would double the words
       const kidsRun = (n.children || []).flat(Infinity);
-      for (let i = 0; i < kidsRun.length; i++) await build(kidsRun[i], path + '.' + i, depth + 1, n, eff);
+      for (let i = 0; i < kidsRun.length; i++) {
+        const k = kidsRun[i];
+        if (k && k.text && spans.includes(k)) {
+          for (let j = 0; j < ((k.children || []).flat(Infinity)).length; j++) {
+            await build((k.children || []).flat(Infinity)[j], path + '.' + i + '.' + j, depth + 2, k, eff);
+          }
+          continue;
+        }
+        await build(k, path + '.' + i, depth + 1, n, eff);
+      }
       return;
     }
     if (inlineKids.length && lh) {

@@ -3,7 +3,7 @@
  "entries": [
   {
    "date": "2026-07-31",
-   "rev": "1a8f4df",
+   "rev": "78a7c7e",
    "headline": "Test-environment chrome scrubbed, a duplicate board retired, the last recapture debt cleared",
    "changes": [
     "The 'PARALLEL SPACE · mock passkey · test' badge had been transcribed onto seven canon boards. It is dev chrome the shipped app never renders; extract-dom-layout.js now drops it by data-testid, at the one choke point every capture path shares, and all seven were re-shot clean.",

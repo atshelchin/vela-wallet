@@ -11,8 +11,12 @@
 if (!storage.lib) (new Function('storage','penpot','penpotUtils', penpot.currentFile.getPluginData('velaLib')))(storage, penpot, penpotUtils);
 const lib = storage.lib;
 
-const J = storage.journeysJson ||
-  (storage.journeysJson = await (await fetch('/plugins/mcp/gen/journeys.json?v=' + Date.now(), { cache: 'reload' })).json());
+// ALWAYS re-fetch: an audit that compares the canvas against a SESSION-CACHED manifest is comparing
+// two stale things. This one reported PASS while a dozen boards sat at positions from the previous
+// layout, because both the boards and the cache predated the change — a false pass produced by the
+// audit's own input, which is the exact failure class it exists to catch.
+const J = (storage.journeysJson =
+  await (await fetch('/plugins/mcp/gen/journeys.json?v=' + Date.now(), { cache: 'reload' })).json());
 const L = J.layout;
 const expectedPos = {};   // per page: norm(name) -> {x, y}
 for (const [pageName, def] of Object.entries(J.pages)) {

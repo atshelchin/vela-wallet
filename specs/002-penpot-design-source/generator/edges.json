@@ -54,6 +54,21 @@
     { "from": "S/onboarding/create-form-ready", "label": "Account Name", "to": "S/onboarding/create", "kind": "nav" }
   ],
   "nonPointer": [
+    { "from": "S/home/activity", "condition": "the wallet has no transactions yet", "to": "S/home/activity-empty" },
+    { "from": "S/home/activity", "condition": "tap a batch (split / sweep) row in Activity", "to": "O/transaction-detail/batch-split" },
+    { "from": "S/home/connections", "condition": "tap a Connections record that captured its original request", "to": "O/connection-event/sign-message" },
+    { "from": "S/home/activity", "condition": "tap the hero's \"total is an estimate\" warning line", "to": "O/balance-detail/degraded-chains" },
+    { "from": "S/home/activity", "condition": "tap any enlargeable avatar", "to": "O/identicon-viewer/default" },
+    { "from": "S/home/activity", "condition": "tap the account avatar", "to": "O/account-switcher/default" },
+    { "from": "S/home/connections", "condition": "tap the clock icon (Recent)", "to": "O/browser-history/default" },
+    { "from": "S/settings/default", "condition": "tap the Send feedback row", "to": "O/bug-report/default" },
+    { "from": "S/home/assets", "condition": "tap Add token", "to": "O/add-token-sheet/default" },
+    { "from": "S/send/confirm", "condition": "the bundler treasury reports bootstrapNeeded on this network (relayer float below floor)", "to": "O/treasury-bootstrap/bootstrap-needed" },
+    { "from": "S/home/rpc-trouble", "condition": "tap the RPC-trouble banner's fix action", "to": "O/rpc-fix/default" },
+    { "from": "S/send/details", "condition": "tap the recipient field", "to": "O/contact-picker/default" },
+    { "from": "S/settings/default", "condition": "confirm an irreversible settings action — AppAlert is shared, this is one depiction of it", "to": "O/app-alert/destructive" },
+    { "from": "S/send/details", "condition": "an action needs a two-way confirmation — shared AppAlert surface", "to": "O/app-alert/two-actions" },
+    { "from": "S/home/activity", "condition": "an outcome needs acknowledging — shared AppAlert surface", "to": "O/app-alert/single-action" },
     { "from": "S/home/activity", "condition": "tap the gear", "to": "S/settings/default",
       "$comment": "This block was added 2026-07-30 after audit 93 found 64 of 89 boards unreachable. Most were not wiring bugs but MISSING FACTS: the IA diagram knew about tap-the-gear and tap-a-token-row, this file did not. Anything crossing a page can only ever be a vela.edge, since Penpot drops cross-page destinations." },
     { "from": "S/home/assets", "condition": "tap a token row", "to": "S/token-detail/default" },
@@ -88,6 +103,45 @@
     { "from": "S/home/assets", "condition": "Appearance set to Dark in Settings", "to": "S/home/assets-dark" },
     { "from": "S/send/select-token", "condition": "Appearance set to Dark in Settings", "to": "S/send/select-token-dark" },
     { "from": "S/settings/default", "condition": "Appearance set to Dark in Settings", "to": "S/settings/default-dark" }
+  ],
+  "$scenarioSets_note": "A scenario set is ONE surface depicted under many inputs. The signing sheet is the app's clearest case: SigningRequestModal hosts a single SigningSheet, and the 25 boards are request KINDS of it, not 25 destinations. Wiring 24 fake edges between them would misdescribe the product; declaring the set says what is true — reach the surface once, and every scenario is a rendering of it. The graph audit counts set members as reached when the canonical board is.",
+  "scenarioSets": [
+    {
+      "surface": "O/signing-sheet",
+      "canonical": "O/signing-sheet/erc-20-transfer",
+      "enteredBy": "any incoming dApp request (WalletPair session, in-app browser provider request, Safari-extension hand-off) or the Send confirm step; the request payload chooses the scenario",
+      "boards": [
+        "O/signing-sheet/blind-transaction",
+        "O/signing-sheet/erc-20-approve-unlimited",
+        "O/signing-sheet/eth-transfer",
+        "O/signing-sheet/personal-sign",
+        "O/signing-sheet/eip-712-permit2",
+        "O/signing-sheet/permit2-approve-unlimited",
+        "O/signing-sheet/eip-712-unknown",
+        "O/signing-sheet/1inch-swap",
+        "O/signing-sheet/nft-transfer",
+        "O/signing-sheet/nft-approve-all",
+        "O/signing-sheet/vault-deposit",
+        "O/signing-sheet/vault-withdraw",
+        "O/signing-sheet/erc-20-transferfrom",
+        "O/signing-sheet/hex-message-sign",
+        "O/signing-sheet/large-eth-send",
+        "O/signing-sheet/erc-20-limited-approve",
+        "O/signing-sheet/eth-sign-raw-hash",
+        "O/signing-sheet/siwe-domain-mismatch",
+        "O/signing-sheet/increaseallowance",
+        "O/signing-sheet/eip-5792-batch",
+        "O/signing-sheet/expired-swap-deadline",
+        "O/signing-sheet/scam-drain",
+        "O/signing-sheet/deploy-contract",
+        "O/signing-sheet/native-swap-eth-token"
+      ]
+    }
+  ],
+  "$exclusions_note": "Boards that are documentation of a container rather than a surface a user can reach. Recorded so the graph audit reports them as excluded, never as orphans — the same discipline the coverage matrix uses.",
+  "exclusions": [
+    { "board": "O/app-modal/page-sheet", "reason": "depiction of the AppModal container itself (iOS/Android page-sheet presentation), not a surface with its own trigger — see 03 Components · Sheets" },
+    { "board": "O/app-modal/fit", "reason": "depiction of the AppModal `fit` presentation; the only real fit sheet in the app is the connect-consent sheet, which is boarded on 06" }
   ],
   "$entries_note": "Boards a user arrives at from OUTSIDE the app — a dApp popup, a deep link. They have no in-app predecessor, so the graph audit seeds from them instead of reporting them as orphans.",
   "entries": [

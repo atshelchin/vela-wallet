@@ -67,8 +67,9 @@ for (const [from, entry] of textEdges) {
 // outside the app, and the spec's own wording allows a board to be "recorded as its own entry
 // point". The declared flow entries in edges.json ARE that record, so the traversal seeds from all
 // of them; anything still unreached is genuinely orphaned.
-const G = storage.edgesJson ||
-  (storage.edgesJson = await (await fetch('/plugins/mcp/gen/edges.json?v=' + Date.now(), { cache: 'reload' })).json());
+// always re-fetch — an audit must never grade the canvas against a session-cached manifest
+const G = (storage.edgesJson =
+  await (await fetch('/plugins/mcp/gen/edges.json?v=' + Date.now(), { cache: 'reload' })).json());
 const START = lib.norm('S/home/activity');   // 'S/home/default' never existed; activity is the default tab
 // a board can also declare itself an entry: a dApp popup and a deep link arrive from OUTSIDE the
 // app, so demanding an in-app path to them would be demanding a fiction
@@ -83,8 +84,21 @@ while (queue.length) {
   for (const next of (edges[cur] || [])) if (!seen.has(next)) { seen.add(next); queue.push(next); }
 }
 
+// A scenario set is one surface under many inputs: reaching its canonical board means every
+// scenario is reachable, because they are the same sheet rendering a different request. Counted
+// separately so the concession is visible rather than folded into the pass number.
+let viaScenario = 0;
+for (const set of (G.scenarioSets || [])) {
+  if (!seen.has(lib.norm(set.canonical))) continue;
+  for (const b of (set.boards || [])) {
+    const n = lib.norm(b);
+    if (boards[n] && !seen.has(n)) { seen.add(n); viaScenario++; }
+  }
+}
+const excluded = new Set((G.exclusions || []).map((e) => lib.norm(e.board)).filter((n) => boards[n]));
+
 const all = Object.keys(boards);
-const unreachable = all.filter((n) => !seen.has(n));
+const unreachable = all.filter((n) => !seen.has(n) && !excluded.has(n));
 const deadEnds = all.filter((n) => !(edges[n] || new Set()).size);
 
 return lib.done('93-audit-graph', {
@@ -92,6 +106,9 @@ return lib.done('93-audit-graph', {
   startExists: !!boards[START],
   totalBoards: all.length,
   reachable: seen.size,
+  reachedViaScenarioSet: viaScenario,
+  excludedCount: excluded.size,
+  excluded: Array.from(excluded),
   unreachableCount: unreachable.length,
   unreachableSample: unreachable.slice(0, 40),
   deadEndCount: deadEnds.length,

@@ -21,7 +21,7 @@ if (!dump || !spec) throw new Error('set storage.domDump and storage.boardSpec f
 const WEB_BOOST = 1;
 const stats = { rects: 0, texts: 0, icons: 0, images: 0, skipped: 0, maxDepth: 0, negTracking: 0,
   iconMissing: 0, imageMissing: 0, reflowWidened: 0, reflowShrunk: 0, reflowStuck: [],
-  colorBound: 0, colorLiteral: 0, colorAlpha: 0, radiusBound: 0, iconColorBound: 0, inlineClipped: 0, inlineTruncated: 0, rawHex: {},
+  colorBound: 0, colorLiteral: 0, colorAlpha: 0, radiusBound: 0, iconColorBound: 0, shadows: 0, dimmed: 0, inlineClipped: 0, inlineTruncated: 0, rawHex: {},
   iconFallbacks: [], imageFallbacks: [] };
 const reflow = [];   // text shapes to settle-and-fit once the whole board is drawn
 
@@ -223,9 +223,44 @@ const placeSvg = (markup, n, nm, parent) => {
   return clip;
 };
 
-async function build(n, path, depth, parent) {
+// ── INHERITED OPACITY ──────────────────────────────────────────────────────────────────────────
+// The browser composites a subtree at its ancestor's opacity; this converter flattens the tree into
+// board siblings, so an ancestor's `opacity: 0.45` reached only the one shape that declared it.
+// Every disabled control was therefore wrong in the same way: VelaButton's disabled variants drew a
+// solid-white label over a 45% fill (neither the app's treatment nor legible), and its three
+// disabled boards were otherwise byte-identical to their enabled twins. Worse, a dimmed WRAPPER
+// that paints nothing produced no shape at all, so FeeTokenSelector's `busy` variant lost its dim
+// entirely and shipped as a pixel-identical copy of `default`.
+// The fix is to carry the product of every ancestor's opacity down the recursion and apply it to
+// each shape actually drawn.
+const withOpacity = (shape, eff) => {
+  if (eff < 0.999) { try { shape.opacity = Math.max(0, Math.min(1, eff)); } catch (e) {} }
+};
+
+// ── SHADOWS ────────────────────────────────────────────────────────────────────────────────────
+// `shadow` was named in paints() but never written to a shape, so 18 cells carried one into the
+// file and lost it. VelaCard's `elevated` variant is defined by nothing else — it has no border —
+// so it published as a plain white rectangle indistinguishable from `default`.
+const parseShadow = (css) => {
+  const s = String(css || '');
+  const m = s.match(/rgba?\(([^)]+)\)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/);
+  if (!m) return null;
+  const p = m[1].split(',').map((x) => parseFloat(x.trim()));
+  const hex2 = '#' + p.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();
+  return { style: 'drop-shadow', offsetX: +m[2], offsetY: +m[3], blur: +m[4], spread: +(m[5] || 0),
+    color: hex2, opacity: p.length > 3 ? p[3] : 1 };
+};
+const applyShadow = (shape, css) => {
+  const sh = parseShadow(css);
+  if (!sh) return;
+  try { shape.shadows = [sh]; stats.shadows++; } catch (e) { /* not fatal */ }
+};
+
+async function build(n, path, depth, parent, inherited) {
   stats.maxDepth = Math.max(stats.maxDepth, depth);
   const id = 'r/' + path;
+  // the opacity this node's own paint is composited at, and the factor its children inherit
+  const eff = (inherited === undefined ? 1 : inherited) * (n.opacity === undefined ? 1 : n.opacity);
 
   if (n.text) {
     const size = Math.round((n.font?.size || 13) / WEB_BOOST * 10) / 10;
@@ -283,7 +318,7 @@ async function build(n, path, depth, parent) {
       text: shown, size, weight, zone: isMono ? 'mono' : 'sans',
       color: c.color, x: tx, y: Math.round(n.y),
     });
-    if (c.opacity < 1) text.opacity = c.opacity;           // colours like "#FFFFFF@45%"
+    withOpacity(text, eff * (c.opacity === undefined ? 1 : c.opacity));   // "#FFFFFF@45%" x ancestors
     // opacity here rides on the SHAPE, not the paint, so the colour itself can still bind
     bindColor(text, { color: c.color, opacity: 1 }, 'text');
     if (n.font?.transform === 'uppercase') text.textTransform = 'uppercase';
@@ -329,7 +364,7 @@ async function build(n, path, depth, parent) {
       penpotUtils.setParentXY(text, tx, Math.round(n.y));
       stats.texts++;
       const kids0 = (n.children || []).flat(Infinity);
-      for (let i = 0; i < kids0.length; i++) await build(kids0[i], path + '.' + i, depth + 1, n);
+      for (let i = 0; i < kids0.length; i++) await build(kids0[i], path + '.' + i, depth + 1, n, eff);
       return;
     }
     const wrapped = n.text.includes('\n') || (lh && (n.h || 0) > lh * 1.5);
@@ -359,7 +394,7 @@ async function build(n, path, depth, parent) {
     if (svgMarkup) {
       try {
         const g = placeSvg(svgMarkup, n, nm, parent);
-        if (g) { bindVector(g, 0); ok = true; stats.icons++; }
+        if (g) { bindVector(g, 0); withOpacity(g, eff); ok = true; stats.icons++; }
       } catch (e) { stats.iconFallbacks.push(nm + ': ' + (e && e.message)); }
     }
     if (!ok) {
@@ -397,6 +432,7 @@ async function build(n, path, depth, parent) {
     if (asset && asset.media) {
       try {
         rect.fills = [{ fillOpacity: 1, fillImage: asset.media }];
+        withOpacity(rect, eff);
         ok = true;
         stats.images++;
       } catch (e) { stats.imageFallbacks.push(nm + ': ' + (e && e.message)); }
@@ -429,7 +465,8 @@ async function build(n, path, depth, parent) {
       }
     }
     bindRadius(rect, rr);
-    if (n.opacity !== undefined) rect.opacity = n.opacity;
+    if (n.shadow) applyShadow(rect, n.shadow);
+    withOpacity(rect, eff);
     stats.rects++;
   } else {
     stats.skipped++;
@@ -438,11 +475,11 @@ async function build(n, path, depth, parent) {
   // children may contain nested arrays (React fragments survive the extractor); flatten or the
   // whole subtree below the array is silently dropped
   const kids = (n.children || []).flat(Infinity);
-  for (let i = 0; i < kids.length; i++) await build(kids[i], path + '.' + i, depth + 1, n);
+  for (let i = 0; i < kids.length; i++) await build(kids[i], path + '.' + i, depth + 1, n, eff);
 }
 
 const roots = dump.tree.flat(Infinity);
-for (let i = 0; i < roots.length; i++) await build(roots[i], String(i), 0, null);
+for (let i = 0; i < roots.length; i++) await build(roots[i], String(i), 0, null, 1);
 
 // ── REFLOW PASS ────────────────────────────────────────────────────────────────────────────────
 // Penpot's text engine is not the browser's: different shaping, and the negative tracking it

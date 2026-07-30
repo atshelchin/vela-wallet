@@ -80,7 +80,12 @@ GROUPS = {
 }
 
 # Families whose cells are launchers rather than the component itself; excluded and reported.
-SKIP = {'open'}
+# ThemedText / ThemedView / Collapsible are Expo-template leftovers on the legacy palette that
+# manifest.json lists under `exclusions` — outside their own files the app references them only from
+# the design gallery. plan-components.py harvested them anyway, so 12 of 189 variants were
+# publishing off-palette surfaces (#F0F0F3, #E0E1E6, #3C87F7), system-font specimens silently
+# re-rendered in Plus Jakarta, and the corpus's only tofu glyph as if they were Vela components.
+SKIP = {'open', 'themedtext', 'themedview', 'collapsible'}
 
 
 def props_for(cells):

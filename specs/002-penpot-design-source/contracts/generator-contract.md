@@ -68,6 +68,17 @@ deployment note; with the shared localhost value every export fails outright.)
 
 Any regeneration runs: `72` (component families) → `70`/`73` (boards) → swap pass → `74` (wiring from `edges.json`) → audits (T031 graph + `96-audit-semantic-floor` + `97-audit-library` + mode-toggle restyle check). This sequence overrides plain numeric chunk order.
 
+### Applying the semantic layer WITHOUT redrawing (`73b`, `73c`)
+
+A full `73` pass redraws every board from its DOM dump. That is the right tool when the pixels changed, and the wrong one when only the *manifest* changed — it needs the uploaded asset library in session memory (which dies with the session, silently turning every icon into a red placeholder) and it takes tens of minutes per page, blocking the plugin bridge throughout.
+
+| Chunk | Applies | When |
+|---|---|---|
+| `73b-reposition` | board `x`/`y` from `journeys.json` | a wall gained or lost a step/state — every band below it shifts by one row |
+| `73c-surface-region` | folds leftover `r / …` wrappers into `region / surface` | after any `70`/`73` build on a page (also emitted by the maps, so a full regen produces it directly) |
+
+Both re-derive from committed data, both are idempotent, and both are verified by `96` — which recomputes expected positions from the same manifest, so a formula that drifts from `73`'s shows up as a position mismatch rather than passing quietly.
+
 ## Audits (chunks 90–97)
 
 | Chunk | Enforces | Spec target |

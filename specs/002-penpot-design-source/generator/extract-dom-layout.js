@@ -122,12 +122,24 @@ function extractLayout(opts) {
     return a < 1 ? hex + '@' + Math.round(a * 100) + '%' : hex;
   };
 
+  // dev-only chrome that must never reach a canon board (matched on data-testid, which is what
+  // React Native Web renders `testID` to)
+  const SCAFFOLD = new Set(['parallel-space-badge']);
+
   const seen = new Set();
   function walk(el, depth) {
     if (depth > O.maxDepth || seen.has(el)) return null;
     seen.add(el);
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return null;
+    // Test-environment chrome is not part of the product. The populated Home only exists under
+    // /parallel, so every capture taken there carried the "PARALLEL SPACE · mock passkey · test"
+    // badge straight into the design source — a strip the shipped app never shows, drawn on seven
+    // canon boards. It also cost those screens their whole region structure: the badge is a second
+    // live child of the root, so the wrapper-descent in gen-region-maps stopped one level early and
+    // every one of them collapsed to a single `content` region. Scrubbed HERE, at the one choke
+    // point every capture path goes through, rather than per-script.
+    if (SCAFFOLD.has(el.dataset && el.dataset.testid)) return null;
     // `display: contents` boxes (expo-router / react-navigation screen wrappers) generate no box
     // of their own, so getBoundingClientRect() is 0×0. Without this pass-through the size gate
     // below would prune the entire screen underneath them. Returns an array, flattened by callers.

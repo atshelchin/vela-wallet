@@ -1,9 +1,9 @@
 {
- "slug": "web-request-error-no-session",
- "board": "S/web-request/error",
+ "slug": "web-request-unavailable",
+ "board": "S/web-request/unavailable",
  "frame": {
   "w": 390,
-  "h": 806
+  "h": 844
  },
  "regions": [
   {
@@ -31,9 +31,15 @@
    ]
   },
   {
-   "name": "copy-4",
+   "name": "actions",
    "paths": [
     "0.0.0.0.4"
+   ]
+  },
+  {
+   "name": "portal-1",
+   "paths": [
+    "1"
    ]
   },
   {

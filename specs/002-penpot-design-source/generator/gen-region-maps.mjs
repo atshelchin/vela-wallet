@@ -42,16 +42,29 @@ const SETS = [
 
 const kidsOf = (n) => (n.children || []).flat(Infinity).filter(Boolean);
 
+// expo-router keeps every screen in the stack mounted, so a route's root can carry a run of
+// full-frame siblings that have no children, no text and no paint. They are invisible in the app
+// and produce no shape in Penpot — but classify() sees `h >= 35% of frame` and hands each one a
+// `content` region, so a 4-text error screen came out with eight regions of which seven claimed
+// nothing (`regionUnmatched: 8`). A node that paints nothing is not a region.
+const paintsNothing = (n) =>
+  !kidsOf(n).length && !n.text && !n.bg && !n.border && !n.borderColor &&
+  !n.shadow && !n.assetKey && !n.dataUri && !n.src;
+
 // Wrapper chains (expo-router / react-navigation / safe-area views) are one-child nodes that paint
 // nothing: walk through them to the first node that actually branches — that is the screen's own
 // top-level layout, and its children are the regions.
+// Those phantom siblings also have to be invisible HERE, or the descent stops one level too early:
+// a root holding [the real screen] + [7 empty stack layers] does not look like a wrapper, so the
+// walk halts at the root and the screen's own header / hero / list / dock are never reached. Every
+// freshly captured screen came out with exactly ONE region because of this.
 const descendToBranch = (root, path) => {
   let n = root, p = path, guard = 0;
   while (guard++ < 12) {
-    const k = kidsOf(n);
-    if (k.length !== 1) break;
-    n = k[0];
-    p = p + '.0';
+    const live = kidsOf(n).map((c, i) => ({ c, i })).filter((x) => !paintsNothing(x.c));
+    if (live.length !== 1) break;
+    n = live[0].c;
+    p = p + '.' + live[0].i;          // the ORIGINAL index — region paths are DOM indices
   }
   return { node: n, path: p };
 };
@@ -83,11 +96,9 @@ const contentName = (child) => {
   return null;
 };
 
-const classify = (child, i, frameH, siblings) => {
+const classify = (child, i, frameH, isFirst, isLast) => {
   const y = child.y || 0, h = child.h || 0;
   const bottom = y + h;
-  const isFirst = i === 0;
-  const isLast = i === siblings.length - 1;
   if (isFirst && y <= 10 && h <= 130) return 'header';
   if (isLast && bottom >= frameH - 12 && h <= 200) return 'dock';
   if (h >= frameH * 0.35) return 'content';
@@ -175,7 +186,10 @@ for (const set of SETS) {
     if (isOverlay) {
       regions.push(...overlayRegions(branch, frameH));
     } else {
-      const named = kids.map((c, i) => ({ c, i, name: classify(c, i, frameH, kids) }));
+      // filter AFTER indexing: region paths are DOM indices, so the original `i` must survive
+      const live = kids.map((c, i) => ({ c, i })).filter((x) => !paintsNothing(x.c));
+      const named = live.map(({ c, i }, li) =>
+        ({ c, i, name: classify(c, i, frameH, li === 0, li === live.length - 1) }));
       // hero first (it lives inside content), then the bands in visual order
       const content = named.find((x) => x.name === 'content');
       if (content) {
@@ -191,6 +205,15 @@ for (const set of SETS) {
       }
     }
     for (let r = 1; r < roots.length; r++) regions.push({ name: 'portal-' + r, paths: [String(r)] });
+
+    // LAST, and only for screens: a catch-all for the wrapper chain above the layout (expo-router /
+    // safe-area boxes that paint the screen background). 70 groups regions in the order given and a
+    // grouped shape stops being a candidate, so by the time this one is offered the named regions
+    // have taken their shapes and only the wrappers are left. Offered any earlier, its path prefix
+    // would swallow the whole screen. Without it every board's layer tree opens with three or four
+    // `r / 0.0.0`-style shapes standing next to the named regions — see 73c, which applies the same
+    // grouping to boards that are already drawn.
+    if (!isOverlay) regions.push({ name: 'surface', paths: ['0'] });
 
     for (const r of regions) summary.regionNames[r.name] = (summary.regionNames[r.name] || 0) + 1;
     writeFileSync(resolve(OUT, entry.slug + '.json'),

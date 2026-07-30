@@ -7,69 +7,33 @@
  },
  "regions": [
   {
+   "name": "hero",
+   "paths": [
+    "0.0.0.0.0.0.1.0.0"
+   ]
+  },
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0.0.0"
+   ]
+  },
+  {
    "name": "content",
    "paths": [
-    "0.0"
-   ]
-  },
-  {
-   "name": "content-2",
-   "paths": [
-    "0.1"
-   ]
-  },
-  {
-   "name": "content-3",
-   "paths": [
-    "0.2"
-   ]
-  },
-  {
-   "name": "content-4",
-   "paths": [
-    "0.3"
-   ]
-  },
-  {
-   "name": "content-5",
-   "paths": [
-    "0.4"
-   ]
-  },
-  {
-   "name": "content-6",
-   "paths": [
-    "0.5"
-   ]
-  },
-  {
-   "name": "content-7",
-   "paths": [
-    "0.6"
-   ]
-  },
-  {
-   "name": "content-8",
-   "paths": [
-    "0.7"
-   ]
-  },
-  {
-   "name": "content-9",
-   "paths": [
-    "0.8"
-   ]
-  },
-  {
-   "name": "content-10",
-   "paths": [
-    "0.9"
+    "0.0.0.0.0.0.1"
    ]
   },
   {
    "name": "portal-1",
    "paths": [
     "1"
+   ]
+  },
+  {
+   "name": "surface",
+   "paths": [
+    "0"
    ]
   }
  ]

@@ -73,7 +73,13 @@ async function captureStates(group) {
       return sleep(s.ms || 900);
     }
     if (s.act === 'click') {
-      const el = s.id ? document.getElementById(s.id) : byText(s.text, s.nth);
+      // `label` matches aria-label as a REGEX. Needed for controls that carry no matchable text of
+      // their own: the balance hero's only label is the amount it shows, so byText finds nothing and
+      // a positional clickNth is index-fragile — the same hero is clickable #1 under /wallet and #2
+      // under /parallel, which is how a "hidden balance" capture came back with the balance visible.
+      const el = s.id ? document.getElementById(s.id)
+        : s.label ? clickable().find((e) => new RegExp(s.label).test(e.getAttribute('aria-label') || ''))
+        : byText(s.text, s.nth);
       // `optional` is for a control that may legitimately be absent because the app remembers a
       // choice — the Receive safety gate stays dismissed once acknowledged, so a step that clicks
       // "I Understand" must be allowed to be a no-op rather than failing the whole state.

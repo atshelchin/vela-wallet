@@ -1,18 +1,5 @@
 [
  {
-  "url": "/web-request?session=preview",
-  "settle": 3000,
-  "states": [
-   {
-    "slug": "web-request-unavailable",
-    "board": "S/web-request/unavailable",
-    "page": "06 Screens · Browser & Connect",
-    "note": "the popup opened without a dApp handshake — the only web-request phase reachable without a real peer",
-    "steps": []
-   }
-  ]
- },
- {
   "url": "/settings",
   "settle": 3000,
   "states": [

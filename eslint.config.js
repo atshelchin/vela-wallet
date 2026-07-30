@@ -22,6 +22,9 @@ const QUARANTINED_LEGACY = [
   'attestation-parser',
   'p256-recovery',
   'webauthn-verify',
+  // specs/003-rust-identicon: same rule, same reason — the avatar must come from
+  // one implementation, and on native that is still this JS path.
+  'identicon',
 ];
 
 const quarantineMessage =

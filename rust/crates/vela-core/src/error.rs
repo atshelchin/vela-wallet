@@ -33,6 +33,8 @@ pub enum CoreError {
     Eip712Parse(String),
     #[error("EIP-712 domain type is not the canonical EIP712Domain: {0}")]
     Eip712NonCanonicalDomain(String),
+    #[error("identicon seed is unrenderable: {0}")]
+    InvalidIdenticonSeed(String),
     #[error("internal invariant violated: {0}")]
     Internal(String),
 }
@@ -55,6 +57,7 @@ impl CoreError {
             CoreError::AbiDecode(_) => "AbiDecode",
             CoreError::Eip712Parse(_) => "Eip712Parse",
             CoreError::Eip712NonCanonicalDomain(_) => "Eip712NonCanonicalDomain",
+            CoreError::InvalidIdenticonSeed(_) => "InvalidIdenticonSeed",
             CoreError::Internal(_) => "Internal",
         }
     }

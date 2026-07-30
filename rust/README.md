@@ -27,6 +27,8 @@ crates/vela-core          pure logic, zero FFI dependencies
   eip712                  eth_signTypedData_v4 digest (+ declared-domain guard)
   safe                    counterfactual Safe & splitter address assembly
   webauthn                COSE extract, DER→low-s, client data, 2-assertion recovery
+  identicon               account avatars — exact port of identicons-esm@1.0.1
+  identicon_features      GENERATED artwork table (84 SVG fragments)
 crates/vela-core-uniffi   uniffi 0.32 shell → Kotlin (Android) + Swift (iOS)
 crates/vela-core-wasm     wasm-bindgen shell → the web app
 pkg-web/                  GENERATED, committed — the shipped web artifact
@@ -46,6 +48,8 @@ workspace `Cargo.toml`; the reasoning behind each is in
 | Test the crate | `cd rust && cargo test --workspace` |
 | Lint | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` |
 | Regenerate conformance vectors | `npm run dump:vectors` (repo root) |
+| Regenerate the identicon artwork table | `npm run gen:identicon-features` |
+| Identicon parity vs the shipped JS library | `npm run verify:identicon` |
 | Build the web artifact | `npm run build:wasm` |
 | Verify the shipped web artifact | `npm run verify:wasm` |
 | Kotlin bindings conformance | `rust/scripts/smoke-kotlin.sh` |
@@ -66,6 +70,15 @@ Kotlin and Swift bindings (`smoke-*.sh`). All four must agree.
 The identity vector — `compute_safe_address` → `0x762EdA60D3B68755c271D608644650278f88329F`,
 cross-referenced with the iOS and Android test suites — is a **release blocker**:
 existing users' wallet addresses must never change.
+
+The identicon suites work the same way but have a different oracle: the pinned
+`identicons-esm@1.0.1` package rather than this repo's TypeScript
+(specs/003-rust-identicon). Their release-blocker rule is the mirror image of the
+address one — **existing users' avatars must never change**, because the avatar is
+how a user recognises an account at a glance. Two files back it: `identicon.json`
+(1,499 curated cases, including all 84 artworks pinned by full text) and
+`identicon-bulk.json` (20,000 hashes). A further 200,000-seed differential run
+lives in `npm run verify:identicon`, which regenerates rather than commits.
 
 Regenerate the corpus only by re-running the dump against the TypeScript oracle,
 and review the resulting diff like code. A changed expectation means either a

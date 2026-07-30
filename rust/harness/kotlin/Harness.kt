@@ -175,6 +175,26 @@ fun runCase(fn: String, input: JSONObject): Any? = when (fn) {
         else "04" + hex(key.x).substring(2) + hex(key.y).substring(2)
     }
 
+    // identicon (specs/003-rust-identicon). Params expectations carry section
+    // INDICES; `sectionIndex` resolves the returned artwork back to one using the
+    // table pinned by the corpus's own `section-table` group, so nothing here is
+    // circular — both ends are anchored to the identicons-esm oracle.
+    "make_hash" -> identiconMakeHash(input.getString("seed"))
+    "identicon_svg" -> identiconSvg(input.getString("seed"))
+    "identicon_svg_circular" -> identiconSvgCircular(input.getString("seed"))
+    "identicon_data_uri" -> identiconDataUri(input.getString("seed"))
+    "normalize_seed" -> identiconNormalizeSeed(input.getString("seed"))
+    "identicon_params" -> identiconParams(input.getString("seed")).let { p ->
+        JSONObject()
+            .put("main", p.main)
+            .put("background", p.background)
+            .put("accent", p.accent)
+            .put("face", sectionIndex("face", p.face))
+            .put("top", sectionIndex("top", p.top))
+            .put("sides", sectionIndex("sides", p.sides))
+            .put("bottom", sectionIndex("bottom", p.bottom))
+    }
+
     else -> throw NoSuchElementException("no dispatch arm for fn `$fn` — add it to Harness.kt")
 }
 
@@ -186,7 +206,29 @@ fun runCase(fn: String, input: JSONObject): Any? = when (fn) {
  * from making this harness report "green" over a corpus that silently shrank —
  * the precise false confidence this feature exists to prevent.
  */
-val REQUIRED_SUITES = listOf("abi", "eip712", "primitives", "safe", "webauthn")
+val REQUIRED_SUITES = listOf(
+    "abi", "eip712", "identicon", "identicon-bulk", "primitives", "safe", "webauthn",
+)
+
+/**
+ * Functions that exist in vela-core but are deliberately NOT on any binding surface
+ * (specs/003-rust-identicon contracts/identicon-api.md): a test-only parity device,
+ * plus helpers no Vela platform calls. Skipping is counted and reported — an
+ * unreported skip is how a corpus quietly stops covering things.
+ */
+val CORE_ONLY_FNS = setOf(
+    "identicon_params_js_compat", "section_svg", "create_identicon",
+    "nimiq_is_valid_address", "constants",
+)
+
+/**
+ * Artwork -> 1-based index, built from the corpus's own `section-table` cases so the
+ * compact index form used by every params expectation can be checked here too.
+ */
+val fragmentIndex = mutableMapOf<String, Int>()
+
+fun sectionIndex(section: String, svg: String): Any =
+    fragmentIndex["$section:$svg"] ?: JSONObject.NULL
 
 fun main(args: Array<String>) {
     val vectorsDir = File(args.getOrElse(0) { "crates/vela-core/tests/vectors" })
@@ -200,17 +242,57 @@ fun main(args: Array<String>) {
         System.exit(1)
     }
 
+    // Build the artwork index before dispatching anything that needs it.
+    files.firstOrNull { it.name == "identicon.json" }?.let { f ->
+        val cases = JSONObject(f.readText()).getJSONArray("cases")
+        val re = Regex("""^section-table/(\w+)_(\d+)$""")
+        for (i in 0 until cases.length()) {
+            val c = cases.getJSONObject(i)
+            re.find(c.getString("name"))?.let { m ->
+                fragmentIndex["${m.groupValues[1]}:${c.getJSONObject("expect").getString("value")}"] =
+                    m.groupValues[2].toInt()
+            }
+        }
+        if (fragmentIndex.size != 84) {
+            System.err.println("smoke-kotlin: expected 84 section-table cases, found ${fragmentIndex.size}")
+            System.exit(1)
+        }
+    }
+
     val seenSuites = mutableListOf<String>()
+    var skipped = 0
     for (file in files) {
         val suite = JSONObject(file.readText())
         val suiteName = suite.getString("suite")
         seenSuites.add(suiteName)
+
+        // The bulk identicon suite uses a compact `pairs` schema and its own runner.
+        if (suite.has("pairs")) {
+            val pairs = suite.getJSONArray("pairs")
+            for (i in 0 until pairs.length()) {
+                total++
+                val pair = pairs.getJSONArray(i)
+                val seed = pair.getString(0)
+                val want = pair.getString(1)
+                val got = identiconMakeHash(seed)
+                if (got != want && failures.size < 10) {
+                    failures.add("$suiteName::makeHash — expected $want, got $got")
+                }
+            }
+            continue
+        }
+
         val cases = suite.getJSONArray("cases")
         for (i in 0 until cases.length()) {
             total++
             val c = cases.getJSONObject(i)
             val name = c.getString("name")
             val fn = c.getString("fn")
+            if (fn in CORE_ONLY_FNS) {
+                total--
+                skipped++
+                continue
+            }
             val input = c.getJSONObject("input")
             val expect = c.getJSONObject("expect")
             val label = "$suiteName::$name [$fn]"
@@ -275,7 +357,10 @@ fun main(args: Array<String>) {
         failures.forEach { System.err.println("  $it") }
         System.exit(1)
     }
-    println("smoke-kotlin: $total conformance cases green through the Kotlin bindings")
+    println(
+        "smoke-kotlin: $total conformance cases green through the Kotlin bindings " +
+            "($skipped skipped — core-only functions with no binding surface)",
+    )
 
     // The uniffi flat-error Display message must survive into Kotlin
     // (uniffi issue #2699 reported it being dropped) — a wrong-but-present

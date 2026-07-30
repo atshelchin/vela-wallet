@@ -310,3 +310,73 @@ pub fn recover_public_key_from_assertions(
         .map(|opt| opt.map(Into::into))
         .map_err(err)
 }
+
+// ---------------------------------------------------------------------------
+// identicon (spec 003-rust-identicon, contracts/identicon-api.md)
+// ---------------------------------------------------------------------------
+
+/// Flattened `IdenticonParams` — the same shape `getIdenticonsParams` returns in
+/// the JS library, so migrating call sites stay recognisable.
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+pub struct IdenticonParams {
+    pub main: String,
+    pub background: String,
+    pub accent: String,
+    pub top: String,
+    pub sides: String,
+    pub face: String,
+    pub bottom: String,
+}
+
+impl From<vela_core::identicon::IdenticonParams> for IdenticonParams {
+    fn from(p: vela_core::identicon::IdenticonParams) -> Self {
+        IdenticonParams {
+            main: p.colors.main.to_owned(),
+            background: p.colors.background.to_owned(),
+            accent: p.colors.accent.to_owned(),
+            top: p.sections.top.to_owned(),
+            sides: p.sections.sides.to_owned(),
+            face: p.sections.face.to_owned(),
+            bottom: p.sections.bottom.to_owned(),
+        }
+    }
+}
+
+/// **The wallet's identicon.** Circular variant, no SVG ids — several instances can
+/// share one DOM without their clip paths colliding.
+#[wasm_bindgen(js_name = identiconSvgCircular)]
+pub fn identicon_svg_circular(seed: &str) -> JsResult<String> {
+    vela_core::identicon::identicon_svg_circular(seed).map_err(err)
+}
+
+/// The library's stock hexagonal output.
+#[wasm_bindgen(js_name = identiconSvg)]
+pub fn identicon_svg(seed: &str) -> JsResult<String> {
+    vela_core::identicon::identicon_svg(seed).map_err(err)
+}
+
+/// Stock output as a `data:image/svg+xml;base64,…` URI.
+#[wasm_bindgen(js_name = identiconDataUri)]
+pub fn identicon_data_uri(seed: &str) -> JsResult<String> {
+    vela_core::identicon::identicon_data_uri(seed).map_err(err)
+}
+
+#[wasm_bindgen(js_name = identiconParams)]
+pub fn identicon_params(seed: &str) -> JsResult<IdenticonParams> {
+    vela_core::identicon::identicon_params(seed)
+        .map(Into::into)
+        .map_err(err)
+}
+
+#[wasm_bindgen(js_name = identiconMakeHash)]
+pub fn identicon_make_hash(seed: &str) -> String {
+    vela_core::identicon::make_hash(seed).as_str().to_owned()
+}
+
+/// Case- and length-normalises a seed. Every platform must call this rather than
+/// lowercasing locally — that is how the platforms drift apart.
+#[wasm_bindgen(js_name = identiconNormalizeSeed)]
+pub fn identicon_normalize_seed(seed: &str) -> String {
+    vela_core::identicon::normalize_seed(seed).into_owned()
+}

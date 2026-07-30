@@ -164,3 +164,73 @@ proptest! {
         prop_assert_eq!(vela_core::webauthn::recover_public_key_from_assertions(&a, &a), Ok(None));
     }
 }
+
+// ---------------------------------------------------------------------------
+// identicon — invariants the corpus cannot express (spec 003-rust-identicon)
+// ---------------------------------------------------------------------------
+
+proptest! {
+    /// No input panics, and the hash keeps its documented shape.
+    #[test]
+    fn identicon_hash_never_panics(seed in ".*") {
+        let hash = vela_core::identicon::make_hash(&seed);
+        prop_assert!((13..=17).contains(&hash.len()), "hash length {} out of range for {seed:?}", hash.len());
+        // Stability: the same seed must always give the same hash.
+        prop_assert_eq!(hash, vela_core::identicon::make_hash(&seed));
+    }
+
+    /// Arbitrary unicode, including astral planes and control characters.
+    #[test]
+    fn identicon_unicode_never_panics(seed in proptest::collection::vec(any::<char>(), 0..64)) {
+        let seed: String = seed.into_iter().collect();
+        let hash = vela_core::identicon::make_hash(&seed);
+        prop_assert!((13..=17).contains(&hash.len()));
+
+        // Params either succeed or return a typed error — never panic, never a
+        // silently-wrong avatar.
+        match vela_core::identicon::identicon_params(&seed) {
+            Ok(params) => {
+                // Every resolved colour is a real palette entry.
+                prop_assert!(vela_core::identicon::COLORS.contains(&params.colors.main));
+                prop_assert!(vela_core::identicon::BACKGROUND_COLORS.contains(&params.colors.background));
+                prop_assert!(vela_core::identicon::COLORS.contains(&params.colors.accent));
+                // Assembly is total once params exist.
+                let svg = vela_core::identicon::assemble_svg_circular(&params);
+                prop_assert!(svg.starts_with("<svg ") && svg.ends_with("</svg>"));
+                prop_assert!(!svg.contains("undefined"));
+            }
+            Err(e) => prop_assert_eq!(e.code(), "InvalidIdenticonSeed"),
+        }
+    }
+
+    /// Section addressing lands in 1..=21 for ANY index, including i64::MIN.
+    #[test]
+    fn identicon_section_index_always_resolves(index in any::<i64>()) {
+        use vela_core::identicon::{section_svg, Section};
+        for section in [Section::Face, Section::Sides, Section::Top, Section::Bottom] {
+            let svg = section_svg(section, index);
+            prop_assert!(svg.is_ok(), "section {section:?} index {index} failed to resolve");
+            prop_assert!(!svg.unwrap_or("").is_empty());
+        }
+    }
+
+    /// `normalize_seed` is idempotent and never exceeds the cap.
+    #[test]
+    fn identicon_normalize_seed_idempotent(seed in ".*") {
+        let once = vela_core::identicon::normalize_seed(&seed).into_owned();
+        let twice = vela_core::identicon::normalize_seed(&once).into_owned();
+        prop_assert_eq!(&once, &twice);
+        prop_assert!(once.chars().map(char::len_utf16).sum::<usize>() <= vela_core::identicon::SEED_MAX_UTF16_LEN);
+        prop_assert!(!once.bytes().any(|b| b.is_ascii_uppercase()));
+    }
+
+    /// ryu-js output stays within the buffer the hash tail assumes.
+    #[test]
+    fn identicon_decimal_form_fits_buffer(bits in any::<u64>()) {
+        let x = f64::from_bits(bits);
+        if x.is_finite() {
+            let mut buf = ryu_js::Buffer::new();
+            prop_assert!(buf.format(x).len() <= 32, "Number::toString({x}) exceeded the 32-byte assumption");
+        }
+    }
+}

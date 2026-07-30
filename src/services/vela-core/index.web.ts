@@ -42,6 +42,10 @@ import {
 } from '@/services/hex';
 import { sha256 as legacySha256 } from '@/services/sha256';
 import {
+  identiconSvgCircular as legacyIdenticonSvgCircular,
+  normalizeIdenticonSeed as legacyNormalizeIdenticonSeed,
+} from '@/services/identicon';
+import {
   parseSignature as legacyParseSignature,
   canonicalize as legacyCanonicalize,
   computeSelector as legacyComputeSelector,
@@ -526,5 +530,29 @@ export function recoverPublicKeyFromAssertions(
       }
     },
     () => legacyRecoverPublicKeyFromAssertions(first, second),
+  );
+}
+
+// --- identicon --------------------------------------------------------------
+// specs/003-rust-identicon. The core is byte-identical to the JS library it
+// replaces — 200,478 seeds verified by scripts/verify-identicon-parity.mjs — so
+// no existing account's avatar changes. The diff harness keeps checking that at
+// runtime, on real accounts, for as long as the legacy path is still linked.
+
+export function identiconSvgCircular(seed: string): string {
+  return compared(
+    'identiconSvgCircular',
+    [seed],
+    () => translated(() => wasm.identiconSvgCircular(seed)),
+    () => legacyIdenticonSvgCircular(seed),
+  );
+}
+
+export function normalizeIdenticonSeed(seed: string): string {
+  return compared(
+    'normalizeIdenticonSeed',
+    [seed],
+    () => wasm.identiconNormalizeSeed(seed),
+    () => legacyNormalizeIdenticonSeed(seed),
   );
 }

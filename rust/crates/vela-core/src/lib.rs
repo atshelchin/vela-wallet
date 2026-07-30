@@ -15,6 +15,8 @@
 pub mod abi;
 pub mod eip712;
 pub mod error;
+pub mod identicon;
+mod identicon_features;
 pub mod primitives;
 pub mod safe;
 pub mod types;
@@ -22,4 +24,8 @@ pub mod webauthn;
 
 pub use abi::AbiValue;
 pub use error::CoreError;
+pub use identicon::{
+    identicon_data_uri, identicon_params, identicon_svg, identicon_svg_circular, make_hash,
+    normalize_seed, Colors, IdenticonHash, IdenticonParams, Section, Sections,
+};
 pub use types::{ClientDataKind, P256PublicKey, SafeAddressInfo, WebAuthnAssertion};

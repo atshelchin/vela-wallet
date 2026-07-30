@@ -26,6 +26,27 @@ initSync({ module: Buffer.from(WASM_BASE64, 'base64') });
 const hex = (bytes) => '0x' + Buffer.from(bytes).toString('hex');
 const bytes = (s) => Buffer.from(s.startsWith('0x') ? s.slice(2) : s, 'hex');
 
+/**
+ * Identicon params expectations carry section INDICES, but the binding returns the
+ * artwork itself. Build the fragment -> index map out of the corpus's own
+ * `section-table` group (all 84 artworks, pinned by full text against the package)
+ * rather than importing identicons-esm here — that keeps this script checking the
+ * SHIPPED artifact against the SAME committed truth `cargo test` uses.
+ */
+const fragmentIndex = new Map();
+{
+  const doc = JSON.parse(readFileSync(join(VECTORS_DIR, 'identicon.json'), 'utf8'));
+  for (const c of doc.cases) {
+    const m = /^section-table\/(\w+)_(\d+)$/.exec(c.name);
+    if (m) fragmentIndex.set(`${m[1]}:${c.expect.value}`, Number(m[2]));
+  }
+  if (fragmentIndex.size !== 84) {
+    console.error(`verify-web: expected 84 section-table cases, found ${fragmentIndex.size}`);
+    process.exit(1);
+  }
+}
+const indexOf = (section, svg) => fragmentIndex.get(`${section}:${svg}`) ?? null;
+
 /** One arm per contracts/core-api.md function — mirrors conformance.rs. */
 const DISPATCH = {
   keccak256: (i) => hex(wasm.keccak256(bytes(i.data))),
@@ -59,6 +80,23 @@ const DISPATCH = {
     return true;
   },
   webauthn_signing_hash: (i) => hex(wasm.webauthnSigningHash(bytes(i.authenticator_data), bytes(i.client_data_json))),
+  make_hash: (i) => wasm.identiconMakeHash(i.seed),
+  identicon_svg: (i) => wasm.identiconSvg(i.seed),
+  identicon_svg_circular: (i) => wasm.identiconSvgCircular(i.seed),
+  identicon_data_uri: (i) => wasm.identiconDataUri(i.seed),
+  normalize_seed: (i) => wasm.identiconNormalizeSeed(i.seed),
+  identicon_params: (i) => {
+    const p = wasm.identiconParams(i.seed);
+    return {
+      main: p.main,
+      background: p.background,
+      accent: p.accent,
+      face: indexOf('face', p.face),
+      top: indexOf('top', p.top),
+      sides: indexOf('sides', p.sides),
+      bottom: indexOf('bottom', p.bottom),
+    };
+  },
   recover_public_key_from_assertions: (i) => {
     const key = wasm.recoverPublicKeyFromAssertions(
       bytes(i.a.authenticator_data), bytes(i.a.client_data_json), bytes(i.a.signature_der),
@@ -91,14 +129,35 @@ function check(expect, actual) {
   return null;
 }
 
-// The corpus is five suites, discovered by scanning the directory. Every runner
+// The corpus is seven suites, discovered by scanning the directory. Every runner
 // asserts that exact set is present: without it, a vector file lost to a bad merge
 // or a partial checkout would make all four surfaces report "green" over a corpus
 // that had silently shrunk — the precise false confidence this feature exists to
 // prevent.
-const REQUIRED_SUITES = ['abi', 'eip712', 'primitives', 'safe', 'webauthn'];
+const REQUIRED_SUITES = [
+  'abi',
+  'eip712',
+  'identicon',
+  'identicon-bulk',
+  'primitives',
+  'safe',
+  'webauthn',
+];
+
+// Functions that exist in vela-core but are deliberately NOT on any binding
+// surface (contracts/identicon-api.md §"Binding surfaces"): a test-only parity
+// device, plus helpers with no caller on any Vela platform. Skipping is reported,
+// never silent — an unreported skip is how a corpus quietly stops covering things.
+const CORE_ONLY_FNS = new Set([
+  'identicon_params_js_compat',
+  'section_svg',
+  'create_identicon',
+  'nimiq_is_valid_address',
+  'constants',
+]);
 
 let total = 0;
+let skipped = 0;
 const failures = [];
 const seenSuites = [];
 
@@ -106,7 +165,26 @@ for (const file of readdirSync(VECTORS_DIR).sort()) {
   if (!file.endsWith('.json')) continue;
   const suite = JSON.parse(readFileSync(join(VECTORS_DIR, file), 'utf8'));
   seenSuites.push(suite.suite);
-  for (const c of suite.cases) {
+
+  // The bulk identicon suite uses a compact `pairs` schema and its own runner.
+  if (Array.isArray(suite.pairs)) {
+    for (const [seed, expected] of suite.pairs) {
+      total++;
+      const got = wasm.identiconMakeHash(seed);
+      if (got !== expected) {
+        if (failures.length < 10) {
+          failures.push(`${suite.suite}::makeHash(${JSON.stringify(seed)}) — expected ${expected}, got ${got}`);
+        }
+      }
+    }
+    continue;
+  }
+
+  for (const c of suite.cases ?? []) {
+    if (CORE_ONLY_FNS.has(c.fn)) {
+      skipped++;
+      continue;
+    }
     total++;
     const run = DISPATCH[c.fn];
     if (!run) {
@@ -148,4 +226,7 @@ if (failures.length) {
   console.error(`verify-web: ${failures.length} of ${total} cases FAILED:\n${failures.join('\n')}`);
   process.exit(1);
 }
-console.log(`verify-web: ${total} conformance cases green through the shipped web artifact`);
+console.log(
+  `verify-web: ${total} conformance cases green through the shipped web artifact` +
+    ` (${skipped} skipped — core-only functions with no binding surface: ${[...CORE_ONLY_FNS].join(', ')})`,
+);

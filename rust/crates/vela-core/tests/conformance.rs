@@ -15,7 +15,15 @@ use std::path::PathBuf;
 #[derive(Deserialize)]
 struct SuiteFile {
     suite: String,
+    /// Absent in the bulk identicon suite, which carries `pairs` instead and is
+    /// replayed by its own runner below.
+    #[serde(default)]
     cases: Vec<Case>,
+}
+
+#[derive(Deserialize)]
+struct BulkSuiteFile {
+    pairs: Vec<(String, String)>,
 }
 
 #[derive(Deserialize)]
@@ -29,12 +37,20 @@ struct Case {
     divergence: Option<Value>,
 }
 
-/// The corpus is five suites, discovered by scanning the directory. Every runner
+/// The corpus is seven suites, discovered by scanning the directory. Every runner
 /// asserts that exact set is present: without it, a vector file lost to a bad merge
 /// or a partial checkout would make all four surfaces report "green" over a corpus
 /// that had silently shrunk — the precise false confidence this feature exists to
 /// prevent.
-const REQUIRED_SUITES: [&str; 5] = ["abi", "eip712", "primitives", "safe", "webauthn"];
+const REQUIRED_SUITES: [&str; 7] = [
+    "abi",
+    "eip712",
+    "identicon",
+    "identicon-bulk",
+    "primitives",
+    "safe",
+    "webauthn",
+];
 
 fn vectors_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors")
@@ -183,6 +199,7 @@ fn in_bool(input: &Value, key: &str) -> Result<bool, String> {
 }
 
 fn run_case(case: &Case) -> Result<(), String> {
+    use vela_core::identicon as ic;
     use vela_core::primitives as prim;
     let input = &case.input;
     let expect = &case.expect;
@@ -348,10 +365,118 @@ fn run_case(case: &Case) -> Result<(), String> {
                 }),
             )
         }
+        // --- identicon ---
+        "make_hash" => check_with(
+            expect,
+            Ok(Value::String(
+                ic::make_hash(&in_str(input, "seed")?).as_str().to_owned(),
+            )),
+        ),
+        "identicon_params" => check_object(
+            expect,
+            ic::identicon_params(&in_str(input, "seed")?).map(params_to_json),
+        ),
+        "identicon_params_js_compat" => check_object(
+            expect,
+            ic::identicon_params_js_compat(&in_str(input, "seed")?).map(params_to_json),
+        ),
+        "section_svg" => {
+            let section = in_section(input)?;
+            let index = in_i64(input, "index")?;
+            check_string(expect, ic::section_svg(section, index).map(str::to_owned))
+        }
+        "identicon_svg" => check_string(expect, ic::identicon_svg(&in_str(input, "seed")?)),
+        "identicon_svg_circular" => {
+            check_string(expect, ic::identicon_svg_circular(&in_str(input, "seed")?))
+        }
+        "identicon_data_uri" => {
+            check_string(expect, ic::identicon_data_uri(&in_str(input, "seed")?))
+        }
+        "create_identicon" => check_string(
+            expect,
+            ic::create_identicon(
+                &in_str(input, "seed")?,
+                ic::CreateOptions {
+                    validate_address: in_bool(input, "validate_address")?,
+                    format: match in_str(input, "format")?.as_str() {
+                        "svg" => ic::IdenticonFormat::Svg,
+                        "image/svg+xml" => ic::IdenticonFormat::DataUri,
+                        other => return Err(format!("unknown identicon format `{other}`")),
+                    },
+                },
+            ),
+        ),
+        "normalize_seed" => check_string(
+            expect,
+            Ok(ic::normalize_seed(&in_str(input, "seed")?).into_owned()),
+        ),
+        "nimiq_is_valid_address" => check_with(
+            expect,
+            Ok(Value::Bool(ic::nimiq_is_valid_address(&in_str(
+                input, "input",
+            )?))),
+        ),
+        // Shared SVG fragments, so a typo in a 400-byte constant fails here rather
+        // than showing up as a subtly wrong avatar.
+        "constants" => check_object(
+            expect,
+            Ok(serde_json::json!({
+                "default_shadow": ic::DEFAULT_SHADOW,
+                "default_circle_shape": ic::default_circle_shape("#FC8702"),
+                "identicon_placeholder": ic::IDENTICON_PLACEHOLDER,
+                "identicon_placeholder_base64": ic::IDENTICON_PLACEHOLDER_BASE64,
+                "default_background_shape": ic::DEFAULT_BACKGROUND_SHAPE,
+            })),
+        ),
         other => Err(format!(
             "no dispatch arm for fn `{other}` — add it to conformance.rs"
         )),
     }
+}
+
+fn in_i64(input: &Value, key: &str) -> Result<i64, String> {
+    input
+        .get(key)
+        .and_then(Value::as_i64)
+        .ok_or_else(|| format!("missing integer input `{key}`"))
+}
+
+fn in_section(input: &Value) -> Result<vela_core::identicon::Section, String> {
+    use vela_core::identicon::Section;
+    match in_str(input, "section")?.as_str() {
+        "face" => Ok(Section::Face),
+        "sides" => Ok(Section::Sides),
+        "top" => Ok(Section::Top),
+        "bottom" => Ok(Section::Bottom),
+        other => Err(format!("unknown identicon section `{other}`")),
+    }
+}
+
+/// Params expectations carry section INDICES rather than the full 2 KB artwork, so
+/// the corpus stays reviewable. That is only trustworthy because the `section-table`
+/// group pins all 84 fragments by full text against the package — both ends are
+/// anchored to the oracle, so resolving an index through the same table here is not
+/// circular.
+fn params_to_json(params: vela_core::identicon::IdenticonParams) -> Value {
+    use vela_core::identicon::{section_svg, Section};
+    let index_of = |section: Section, svg: &str| -> Value {
+        for n in 1..=vela_core::identicon::SECTION_COUNT {
+            #[allow(clippy::cast_possible_wrap)]
+            if section_svg(section, n as i64 - 1).is_ok_and(|s| s == svg) {
+                return Value::from(n);
+            }
+        }
+        Value::Null
+    };
+    serde_json::json!({
+        "main": params.colors.main,
+        "background": params.colors.background,
+        "accent": params.colors.accent,
+        "face": index_of(Section::Face, params.sections.face),
+        "top": index_of(Section::Top, params.sections.top),
+        "sides": index_of(Section::Sides, params.sections.sides),
+        "bottom": index_of(Section::Bottom, params.sections.bottom),
+    })
 }
 
 #[test]
@@ -413,4 +538,54 @@ fn conformance_corpus() {
         failures.join("\n")
     );
     println!("conformance: {total} cases green");
+}
+
+/// The bulk identicon suite: 20,000 `[seed, hash]` pairs in a compact form.
+///
+/// Separate from `conformance_corpus` because it uses a different file schema and
+/// because a hash mismatch here is a different diagnosis — the float pipeline, not
+/// an assembly or palette bug. See specs/003-rust-identicon/contracts/conformance-vectors.md.
+#[test]
+fn identicon_bulk_corpus() {
+    let path = vectors_dir().join("identicon-bulk.json");
+    let raw = match fs::read_to_string(&path) {
+        Ok(r) => r,
+        Err(e) => panic!(
+            "no bulk identicon corpus at {} ({e}) — regenerate with `npm run dump:vectors`",
+            path.display()
+        ),
+    };
+    let suite: BulkSuiteFile = match serde_json::from_str(&raw) {
+        Ok(s) => s,
+        Err(e) => panic!("{}: bad schema: {e}", path.display()),
+    };
+
+    assert!(
+        suite.pairs.len() >= 20_000,
+        "bulk corpus shrank to {} pairs — a truncated corpus would report green over \
+         a fraction of the coverage SC-001 claims",
+        suite.pairs.len()
+    );
+
+    let mut failed = 0_usize;
+    let mut failures = Vec::new();
+    for (seed, expected) in &suite.pairs {
+        let got = vela_core::identicon::make_hash(seed);
+        if got.as_str() != expected {
+            failed += 1;
+            if failures.len() < 10 {
+                failures.push(format!(
+                    "seed({} chars) {seed:?}: expected {expected}, got {got}",
+                    seed.chars().count()
+                ));
+            }
+        }
+    }
+    assert!(
+        failed == 0,
+        "{failed} of {} identicon bulk hashes FAILED (showing up to 10):\n{}",
+        suite.pairs.len(),
+        failures.join("\n")
+    );
+    println!("identicon bulk: {} hashes green", suite.pairs.len());
 }

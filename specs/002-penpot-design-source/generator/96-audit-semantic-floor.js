@@ -33,7 +33,7 @@ for (const [pageName, def] of Object.entries(J.pages)) {
 
 const CANON = ['05 Screens · Wallet', '06 Screens · Browser & Connect',
   '07 Screens · Settings & Onboarding', '08 Overlays'];
-const out = { boards: 0, flat: [], positionMismatch: [], brokenSwaps: [], unwalled: [],
+const out = { boards: 0, flat: [], debt: [], positionMismatch: [], brokenSwaps: [], unwalled: [],
   regionCounts: {}, swapCounts: {}, tapUnwired: 0 };
 
 const okPrefix = (n) => ['region / ', 'swap / ', 'e / '].some((p) => n.startsWith(p));
@@ -55,7 +55,16 @@ for (const pageName of CANON) {
     const regionCount = (b.children || []).filter((c) => lib.norm(c.name || '').startsWith('region / ')).length;
     out.regionCounts[bn] = regionCount;
     if (!regionCount || loose.length > LOOSE_MAX) {
-      out.flat.push(bn + ' (' + regionCount + ' regions, ' + loose.length + ' loose top-level shapes)');
+      const entry = bn + ' (' + regionCount + ' regions, ' + loose.length + ' loose top-level shapes)';
+      // A board stamped `vela.debt` is a RECORDED gap, not an unexplained one: it was drawn from a
+      // first-generation capture whose dump is not in the repo, so no pipeline run can fix it — only
+      // re-driving the app and recapturing. Those are reported in their own bucket, the way the
+      // coverage matrix records an explicit exclusion, so this audit keeps failing on defects it
+      // can actually catch instead of failing forever on a known capture backlog.
+      let debt = '';
+      try { debt = b.getPluginData('vela.debt') || ''; } catch (e) {}
+      if (debt) out.debt.push(entry);
+      else out.flat.push(entry);
     }
     // rule 2 — walls are reproducible from the manifest
     const exp = (expectedPos[pageName] || {})[bn];

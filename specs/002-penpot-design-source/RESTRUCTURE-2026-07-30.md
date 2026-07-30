@@ -19,9 +19,14 @@ integrated below.
 | W3a cheap connectivity | **done** `1760f34` — DTCG export (147 tokens, verified both ways), mode demo (SC-011 proven by export), IA `vela.target` (13/13 resolve), corridor routing, cross-page dead-edge fix, exporter env fix |
 | W1 component library | **done** `6752858` — six category sections, 53 docs blocks (tier · axes · description · use-when · don't · code path · reuse sites), 53/53 verified code refs, drafts quarantined, audit 97 **passes** |
 | W2 journey walls | **done** `af54c2f` + `a7105f0` — 90 committed region maps, board positions derived from `journeys.json`, visible labelled edge layer, 37 pointer interactions (was 0), audit 96 **passes** (89 canon boards, 3 recorded recapture-debt boards) |
-| W4 human layer | **partial** `da6b097` — cover, identity board (traits shown with live instances), "Adding a feature" recipe (PICK tree reaches all 20 Tier-1 families), changelog page. **Remaining: the 10 principles on `01` are still prose, and the reuse-index board is not built.** |
-| W3b full graph | **pending** — 93-audit-graph updated to read `vela.edge` plugin data (it was still looking for the deleted on-canvas chips); SC-007 pass not yet demonstrated |
-| W5 gates | **pending** — idempotency re-run, US5 agent gate, SC-008 human gate |
+| W4 human layer | **done** `da6b097` + `a4bffaa` + `1c40638` — cover, identity board (traits shown with live instances), "Adding a feature" recipe (PICK tree provably reaches all 20 Tier-1 families), changelog page, the design language shown as 8 do/don't specimens with the 2 non-visual principles pointed at their real homes, and the reuse index (component → surfaces, and the reverse) |
+| W3b full graph | **done** `551f449` + `771b337` — audit rewritten (it was scanning for deleted on-canvas chips, and its two-pass global search never finished); overlay triggers authored from the inventory; the signing family declared as ONE scenario set rather than 24 invented edges. **SC-007 PASS**: 87/89 reachable, 2 recorded exclusions |
+| W5 gates | **audits done** `6fa480a` — 96 floor PASS · 93 graph PASS · 97 library PASS · 26 tokens PASS · 90 idempotency PASS (242 boards, 13,339 shapes, zero diff on a full re-run). US5 agent gate and SC-008 human gate outstanding |
+
+**Known debt, recorded rather than hidden**: three boards (`S/home/activity-empty`, `S/send/confirm`,
+`S/web-request/unavailable`) are first-generation pixels with no committed dump. They carry
+`vela.debt=RECAPTURE`, audit 96 reports them in their own bucket, and 79-send-tail keeps them in
+their wall slot — but only re-driving the app and recapturing can actually fix them.
 
 ## 1 · The founder's verdict, restated precisely
 

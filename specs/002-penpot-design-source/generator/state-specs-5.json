@@ -1,0 +1,1550 @@
+[
+ {
+  "url": "/wallet",
+  "settle": 4500,
+  "states": [
+   {
+    "slug": "account-switcher-loading",
+    "board": "O/account-switcher/loading",
+    "page": "08 Overlays",
+    "note": "header ActivityIndicator while every account's balance is re-fetched. Hosted on Home, NOT the gallery launcher: the gallery omits `balances` so the modal self-loads from a pure cache read (balance-cache.ts:62-73, no RPC) and the spinner lives one AsyncStorage tick. Home passes loading={switcherLoading} which is true for the whole refreshAllBalances RPC sweep (useHomeController.ts:454-468), so slowRpc holds it open. Trigger = the account header row 'Parallel One' (openSwitcher, useHomeController.ts:470-479; needs >1 account — the parallel fixture has 3). MUST be the first switcher state in the sweep: fetchTokens memoises 5 min, so a second open would return from cache and the spinner would vanish. MERGE(state-specs-5): first state of the merged /wallet group; the group-level navigation to /wallet is the clean-screen reset.",
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "slowRpc",
+      "args": [
+       6000
+      ]
+     },
+     {
+      "act": "click",
+      "text": "Parallel One"
+     },
+     {
+      "act": "wait",
+      "ms": 1400
+     }
+    ]
+   },
+   {
+    "slug": "account-switcher-privacy-masked",
+    "board": "O/account-switcher/privacy-masked",
+    "page": "08 Overlays",
+    "note": "every fiat figure in the switcher masked to '••••' (AccountSwitcherModal.tsx:73-74 reads the same store as the hero). Reached by tapping the Home hero (clickNth n:1 — the same positional tap state-specs.json home-hidden-balance uses, because after the tap there is no '$3.20' left to match on), then reopening the switcher. WRITES the persisted UI preference vela.balanceHidden (use-balance-privacy.ts:35-39) — benign and already precedented by S/home/hidden-balance; the next state taps the hero again so the group ends unmasked. MERGE(state-specs-5): `click Activity` inserted before `clickNth n:1` to match the proven hero tap in state-specs.json:home-hidden-balance (clickable #1 is the hero only with the Activity tab selected).",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape"
+     },
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "click",
+      "text": "Activity"
+     },
+     {
+      "act": "clickNth",
+      "n": 1
+     },
+     {
+      "act": "click",
+      "text": "Parallel One"
+     },
+     {
+      "act": "wait",
+      "ms": 1600
+     }
+    ]
+   },
+   {
+    "slug": "balance-detail-tokens-only",
+    "board": "O/balance-detail/tokens-only",
+    "page": "08 Overlays",
+    "note": "only the 'Tokens without a price' section — the gallery fixture always renders BOTH sections (design-gallery.tsx:1501-1510 hard-codes failedChainIds=[1,56]), so this shape only exists live. nullPrice('all') leaves every chain reachable (failedChainIds empty) while every held token loses its price (useHomeController.ts:172-179). The long wait is the notice gate: the hero line only appears after 3 silent force-retries drain (useHomeController.ts:53-54 delays 1500/4000/8000 + load time, gate at :349-366). Trigger text is matched loosely on 'be priced' (home.balanceUnpriced = \"Some tokens couldn't be priced.\"). First step re-taps the hero to UNMASK after the previous state.",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape"
+     },
+     {
+      "act": "clickNth",
+      "n": 1
+     },
+     {
+      "act": "vela",
+      "fn": "nullPrice",
+      "args": [
+       "all"
+      ]
+     },
+     {
+      "act": "click",
+      "text": "Assets"
+     },
+     {
+      "act": "click",
+      "text": "Activity"
+     },
+     {
+      "act": "wait",
+      "ms": 26000
+     },
+     {
+      "act": "click",
+      "text": "be priced"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "balance-detail-networks-only",
+    "board": "O/balance-detail/networks-only",
+    "page": "08 Overlays",
+    "note": "only the 'Networks still updating' section, every row hard-failed ('RPC unavailable' + a 'Fix' action) with no rate-limited row and no unpriced-token section — the complement of the gallery fixture. failRpc('all') sets failedChainIds and leaves rateLimitedChainIds empty (rpc-pool.ts:727-732); the parallel account's three holdings are all priced, so hasTokens stays false. Same notice gate as above; trigger matched loosely on 'still updating' (home.balanceStale).",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape"
+     },
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "vela",
+      "fn": "failRpc",
+      "args": [
+       "all"
+      ]
+     },
+     {
+      "act": "click",
+      "text": "Assets"
+     },
+     {
+      "act": "click",
+      "text": "Activity"
+     },
+     {
+      "act": "wait",
+      "ms": 22000
+     },
+     {
+      "act": "click",
+      "text": "still updating"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "home-estimate-notice",
+    "board": "S/home/estimate-notice",
+    "page": "05 Screens · Wallet",
+    "note": "the hero's tappable approximation notice, honest at last: 'Some balances are still updating.' + chevron over the CACHED total, and deliberately NO RpcTroubleBanner — HomeScreen.tsx:110-129 (balancePartial && noticeAllowed) + :136-139 (rate-limited chains filtered out of the banner). rateLimitRpc('all') fails every read instantly (rpc-pool.ts:732-737) so the 3 silent force-retries (useHomeController.ts:53-54, :352-366; 1.5s + 4s + 8s) burn down fast; goto /receive + back re-focuses Home to start the chain immediately (useHomeController.ts:373-377) MERGE(state-specs-5): Escape + vela.clear prepended because this now follows the balance-detail sheet states in the same group (failRpc still armed).",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape"
+     },
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "vela",
+      "fn": "rateLimitRpc",
+      "args": [
+       "all"
+      ]
+     },
+     {
+      "act": "goto",
+      "url": "/receive",
+      "ms": 1500
+     },
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 2500
+     },
+     {
+      "act": "wait",
+      "ms": 12000
+     },
+     {
+      "act": "wait",
+      "ms": 12000
+     }
+    ]
+   },
+   {
+    "slug": "extension-sign-one-tap",
+    "board": "O/extension-sign/one-tap-enabled",
+    "page": "08 Overlays",
+    "note": "Safari-extension Universal-Link attestation beat. /sign is a trampoline (sign.tsx:19-24): it hands the rid to the root ExtensionSignController via extension-sign-bus and returns to the wallet, so the sheet renders OVER /wallet. rid 'ul-selftest' short-circuits to phase='selftest' (ExtensionSignController.tsx:95) -> success Check + 'One-tap signing enabled' + accent Done (:189-191). Nothing is written: markUniversalLinkVerified only fires for a real https://getvela.app/sign URL (AccountFileWriter.tsx:48,111), which a localhost pushState never matches. CAPTURE CAVEAT: this sheet is a plain absolute View with NO z-index (ExtensionSignController.tsx:237) — it is NOT an RN Modal/portal, so the 'fixed/absolute div with z-index >= 1000' overlay-root heuristic will miss it. Extract the FULL document.body frame; the dimmed wallet backdrop is part of the design. MERGE(state-specs-5): ordered LAST in the /wallet group (its sibling leaves DAppConnection.errorMessage set); vela.clear + a /wallet reset drop the rate-limit fault the previous state armed.",
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 2000
+     },
+     {
+      "act": "goto",
+      "url": "/sign?rid=ul-selftest",
+      "ms": 2600
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ]
+   },
+   {
+    "slug": "extension-sign-expired",
+    "board": "O/extension-sign/expired",
+    "page": "08 Overlays",
+    "note": "the 'request not found / expired' settle: any non-selftest rid builds an ExtensionBridgeTransport whose readSignRequest polls the App Group for ~3s (extension-bridge-transport.ts:248-262) and finds nothing, because AppGroup.readFile is a hard no-op off iOS (modules/app-group/index.ts:44-47) -> connect() throws -> phase='missing' (ExtensionSignController.tsx:135-138) -> neutral AlertTriangle + 'This signing request expired' + 'Return to Safari' + muted Done (:192-194). Hence the 4500ms wait. Same full-frame capture caveat as the state above. SIDE EFFECT: the transport's 'error' event sets the DAppConnection provider's errorMessage (dapp-connection.tsx:618); it is only rendered when the connect status is 'error' (ConnectionFlowStates.tsx:110), but keep this group LAST in the sweep so it cannot leak into a /connect capture.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Done"
+     },
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1500
+     },
+     {
+      "act": "goto",
+      "url": "/sign?rid=vela-design-capture-missing",
+      "ms": 2600
+     },
+     {
+      "act": "wait",
+      "ms": 4500
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/receive",
+  "settle": 3500,
+  "states": [
+   {
+    "slug": "token-selector-default",
+    "board": "O/token-selector/default",
+    "page": "08 Overlays",
+    "note": "FIRST overlay board for this family — the gallery only has inline cells (design-gallery.tsx:1304-1322), and the one place TokenSelector is really presented as a sheet is the Receive payment-request asset picker: ReceiveRequestControls.tsx:132-143 wraps it in AppModal with hideTotals and every token incl. zero-balance (:63-73). Trigger = the asset row at :100-112, whose innerText is 'ETH' over 'Ethereum'. MERGE(state-specs-5): VERIFIED: the Address/Request SegmentedToggle renders unconditionally ABOVE the \"Before you receive\" gate (ReceiveScreen.tsx:259-268 vs the gate at :342-364), and fire() dispatches straight on the element, so NO \"I Understand\" tap is needed — this group performs the per-account persisted acknowledge write (ReceiveScreen.tsx:67-70) NOT AT ALL. The default asset is hard-coded ETH/Ethereum (ReceiveRequestControls.tsx:35-37), so `click ETH` is deterministic. Boards are overlay-scoped, so an unacknowledged gate behind the sheet is irrelevant.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Request"
+     },
+     {
+      "act": "wait",
+      "ms": 2800
+     },
+     {
+      "act": "click",
+      "text": "ETH"
+     },
+     {
+      "act": "wait",
+      "ms": 1800
+     }
+    ]
+   },
+   {
+    "slug": "token-selector-searching",
+    "board": "O/token-selector/searching",
+    "page": "08 Overlays",
+    "note": "search field filled — TokenSelector.tsx:136-144 (placeholder send.searchPlaceholder = 'Search tokens...'), filter at :91-97 matches symbol | name | network. Safe to target by placeholder here: /receive has exactly one TokenSelector, whereas /design-gallery renders five inline ones with the same placeholder.",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "Search tokens",
+      "value": "usd"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ]
+   },
+   {
+    "slug": "token-selector-category-filtered",
+    "board": "O/token-selector/category-filtered",
+    "page": "08 Overlays",
+    "note": "the 'Stablecoins' quick-filter chip active (fg.base ink on the chip, chipActive TokenSelector.tsx:340) with the list narrowed by tokenMatchesCategory (:33-41). Chip set is All / Stablecoins / Gas / Other (:113-118). Search is cleared first so the board shows the chip filter alone.",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "Search tokens",
+      "value": ""
+     },
+     {
+      "act": "click",
+      "text": "Stablecoins"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/design-gallery",
+  "settle": 4000,
+  "states": [
+   {
+    "slug": "treasury-bootstrap-open",
+    "board": "O/treasury-bootstrap/bootstrap-needed",
+    "page": "08 Overlays",
+    "note": "WARM-UP + idempotent RE-capture of the board that already exists. The launcher is design-gallery.tsx:1437 -> setOverlay('treasury'); the instance is design-gallery.tsx:1515 <TreasuryBootstrapSheet status={treasuryLow} onRetry={()=>{}}> (fixture at design-gallery.tsx:220). Its ONLY purpose here is to fill window.__ASSETMAP before the next state: the 'copied' beat lives for 1500ms (TreasuryBootstrapSheet.tsx:75) and a COLD preloadAssets pass over this 35,000px gallery page (~100 unique assets) takes longer than that, so without a prior capture on this URL the copied state comes back as the plain sheet. Must be extracted with the overlay-root scoping the original board used (prune-overlays.py header) — if the harness can only dump document.body here, DROP this state and instead order this group after another /design-gallery group in the same page context. MERGE(state-specs-5): ordered FIRST in the merged /design-gallery group so window.__ASSETMAP is warm for every later gallery state, not just the copied beat.",
+    "steps": [
+     {
+      "act": "click",
+      "id": "gallery-open-treasurybootstrapsheet"
+     },
+     {
+      "act": "wait",
+      "ms": 1800
+     }
+    ]
+   },
+   {
+    "slug": "treasury-bootstrap-copied",
+    "board": "O/treasury-bootstrap/copied",
+    "page": "08 Overlays",
+    "note": "copy-confirmed variant: copyAddress (TreasuryBootstrapSheet.tsx:71-76) flips the address-card glyph from Copy to a green success Check (:115-117) and the primary button label from 'Copy address to fund' to 'Copied' (:129-133). It self-reverts after 1500ms (setTimeout at :75), so click ms and state settle are deliberately 1 — everything after the click is preloadAssets, which is why the previous state exists. copyToClipboard is async and never rejects synchronously (platform.ts:59-78), so `copied` is set regardless of clipboard permission.",
+    "settle": 1,
+    "steps": [
+     {
+      "act": "click",
+      "text": "Copy address to fund",
+      "ms": 1
+     }
+    ]
+   },
+   {
+    "slug": "currency-sheet-searching",
+    "board": "O/currency/searching",
+    "page": "08 Overlays",
+    "note": "list narrowed by the always-visible search box (CurrencySheet.tsx:75-92, placeholder componentsUi.currency.searchPlaceholder = 'Search currency'), filter over code|name at :64-68; the clear-✕ appears once the query is non-empty (:87-91) and the open-on-selection auto-scroll stands down (:43-46). 'dollar' keeps several rows so the board shows a real result list. The leading goto pair remounts the gallery so no overlay from a previous group is still up.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery"
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-currencysheet"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     },
+     {
+      "act": "type",
+      "placeholder": "Search currency",
+      "value": "dollar"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "currency-sheet-empty",
+    "board": "O/currency/empty",
+    "page": "08 Overlays",
+    "note": "the no-match state — CurrencySheet.tsx:101-102 renders componentsUi.currency.noMatch ('No currency matches \"zzz\".') in fg.subtle instead of any row.",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "Search currency",
+      "value": "zzz"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "network-filter-sheet-searching",
+    "board": "O/network-filter/searching",
+    "page": "08 Overlays",
+    "note": "the optional search row revealed — NetworkFilterSheet.tsx:122-133 (autoFocus, placeholder componentsUi.networkFilter.searchChains = 'Search chains'); with a query the 'All Networks' row is hidden (:137) and the list is filtered on displayName|iconLabel (:98-102). The toggle that reveals it is icon-only (:117-119, Search glyph + aria-label, empty innerText) so it cannot be clicked by text; it IS the first focusable inside the dialog (headSpacer View and title Text are not focusable), use-web-dialog.ts:78-83 focuses it on open, and RNW's PressResponder fires onPress from an Enter keydown/keyup pair (PressResponder.js:236-256, 209-224) — hence the bare `key Enter`.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery"
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-networkfiltersheet"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     },
+     {
+      "act": "key",
+      "key": "Enter"
+     },
+     {
+      "act": "wait",
+      "ms": 600
+     },
+     {
+      "act": "type",
+      "placeholder": "Search chains",
+      "value": "ba"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "add-token-sheet-resolving",
+    "board": "O/add-token-sheet/resolving",
+    "page": "08 Overlays",
+    "note": "the in-flight lookup: 'Searching all networks...' with VelaButton in its loading state (AddTokenPanel.tsx:407-414) while fetchErc20Meta races every known chain (:159-185). slowRpc(8000) makes that window deterministic (poolRpcCall honours the injected latency, rpc-pool.ts:725-726). The contract input is targeted POSITIONALLY, not by placeholder: its placeholder is '0x...' which is a substring of MultiRecipientEditor's '0x... address' on three inline gallery cells that sit earlier in the document. index 22 = the first field inside the presented overlay — the gallery renders exactly 22 inline input/textarea nodes (counted in dom-dumps/design-gallery-v2.json).",
+    "settle": 500,
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery"
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-addtokensheet"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     },
+     {
+      "act": "type",
+      "which": 22,
+      "value": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d"
+     },
+     {
+      "act": "vela",
+      "fn": "slowRpc",
+      "args": [
+       8000
+      ]
+     },
+     {
+      "act": "click",
+      "text": "Search Token",
+      "ms": 1500
+     }
+    ]
+   },
+   {
+    "slug": "add-token-sheet-resolved",
+    "board": "O/add-token-sheet/resolved",
+    "page": "08 Overlays",
+    "note": "the same lookup landed: one result card per chain where the address really is an ERC-20 (AddTokenPanel.tsx:417-456) — Name / Symbol / Decimals / Network rows plus an accent 'Add to Wallet'. The address is real USDC on BNB Chain, so exactly one card is expected. 'Add to Wallet' is NEVER tapped (:187-218 writes a custom token). No extra click here: the request injected by the previous state is still in flight behind the 8s latency, so clearing the fault and waiting IS the resolution.",
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "wait",
+      "ms": 13000
+     }
+    ]
+   },
+   {
+    "slug": "contact-picker-searching",
+    "board": "O/contact-picker/searching",
+    "page": "08 Overlays",
+    "note": "live search over the address book — ContactPicker.tsx:107-123 field, matchesQuery filter at :68-71; with a query the 'Scan address' row is withdrawn (:127) and the ✕ clear control appears (:118-122). Matches the real saved contact 'Alice Chen'. Positional input (index 22 = first field in the presented overlay): the placeholder contacts.searchPlaceholder is shared verbatim with GroupEditor.tsx:104, which the gallery renders inline and earlier (design-gallery.tsx:1409), so a placeholder match would type into the wrong field.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery"
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-contactpicker"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     },
+     {
+      "act": "type",
+      "which": 22,
+      "value": "ali"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "contact-picker-typed-address",
+    "board": "O/contact-picker/typed-address",
+    "page": "08 Overlays",
+    "note": "a pasted, valid, not-yet-known address offered directly — the 'Use this address' row with identicon, short address and a quiet 'Save' affordance (ContactPicker.tsx:145-166, gated on isAddress at :76-77). The Save control is only rendered, never tapped: :159 would write the contact.",
+    "steps": [
+     {
+      "act": "type",
+      "which": 22,
+      "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "contact-picker-empty",
+    "board": "O/contact-picker/empty",
+    "page": "08 Overlays",
+    "note": "the picker's empty state as it is actually reachable: a query that matches nothing → contacts.noResults ('No matches for “zzzz”') from the isEmpty branch (ContactPicker.tsx:170-186). The never-had-contacts variant of the same branch (emptyPicker + hint + 'Add contact') needs an empty address book, which would mean deleting the fixture contacts — see UNREACHABLE.",
+    "steps": [
+     {
+      "act": "type",
+      "which": 22,
+      "value": "zzzz"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "batch-import-parsed-preview",
+    "board": "O/batch-import/parsed-preview",
+    "page": "08 Overlays",
+    "note": "pasted table parsed into the per-recipient preview — avatar + name/short address + fiat figure → converted token amount (BatchImportSheet.tsx:329-363) with the footer count + total and the CTA turned accent (:382-404). Amounts stay under the fixture's 1,240 USDC balance so no over-balance warning muddies the board. The paste field is safe to target by placeholder ('0xabc…' , send.batchPastePlaceholder, :229) — it is unique across the whole app. The rate must have landed before the rows can convert (:95-111), hence the wait after opening.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery"
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-batchimportsheet"
+     },
+     {
+      "act": "wait",
+      "ms": 1600
+     },
+     {
+      "act": "type",
+      "placeholder": "0xabc",
+      "value": "0x1111111111111111111111111111111111111111, 500\n0x2222222222222222222222222222222222222222, 300"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "batch-import-row-errors",
+    "board": "O/batch-import/row-errors",
+    "page": "08 Overlays",
+    "note": "the rejected-row vocabulary in one board: a dimmed row labelled 'Duplicate — skipped', one labelled 'Invalid address', an em-dash instead of an amount (BatchImportSheet.tsx:332-359 pRowBad + :343-347) and the warning notice '2 rows skipped (invalid or duplicate).' (:372-377). De-dupe/validity logic at :123-141.",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "0xabc",
+      "value": "0x1111111111111111111111111111111111111111, 500\n0x1111111111111111111111111111111111111111, 250\nnot-an-address, 100"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "batch-import-rate-editing",
+    "board": "O/batch-import/rate-editing",
+    "page": "08 Overlays",
+    "note": "the '1 USDC = <editable> USD' sentence overridden by hand: rateEdited flips on, the 'Auto' reset appears at the row end (BatchImportSheet.tsx:306-316) and every row reconverts at the typed rate (:114, :132-137 — the displayed string IS the applied rate). Positional target (index 23 = the sheet's second field, after the paste textarea at 22): the rate input's placeholder is '0', shared with MultiRecipientEditor and EditableApproveCard cells rendered inline and earlier in the gallery.",
+    "steps": [
+     {
+      "act": "type",
+      "which": 23,
+      "value": "7.2"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "batch-import-nested-currency-picker",
+    "board": "O/batch-import/nested-currency-picker",
+    "page": "08 Overlays",
+    "note": "modal-over-modal: the scoped 'Priced in' CurrencySheet presented on top of the batch sheet (BatchImportSheet.tsx:409-418 — a distinct title on purpose, so it never reads as the app-wide display currency, issue #80). Trigger row at :269-281. Both sheets are z-index 99999 portals, so the overlay-root heuristic must resolve to the currency list (≈160 currencies × 3 labels, far more text than the batch sheet).",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Priced in"
+     },
+     {
+      "act": "wait",
+      "ms": 1400
+     }
+    ]
+   },
+   {
+    "slug": "balance-detail-fix-form-swap",
+    "board": "O/balance-detail/fix-form-swap",
+    "page": "08 Overlays",
+    "note": "the balance-detail sheet with its body REPLACED IN PLACE by the RPC-fix form (BalanceDetailSheet.tsx:83-88) — deliberately not a second modal, because on iOS presenting a sibling pageSheet while this one dismisses is dropped by UIKit (:64-66). Reached by the per-chain 'Fix' action, which only exists for genuinely-failed (not rate-limited) chains (:131-135) — Ethereum in the gallery fixture. 'Fix' is safe to match strictly: the inline RpcTroubleBanner cells (design-gallery.tsx:875-880) put 'Fix' inside a chip whose innerText is 'Gnosis\\nFix'.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet"
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery"
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-balancedetailsheet"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     },
+     {
+      "act": "click",
+      "text": "Fix"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "identicon-viewer-copied",
+    "board": "O/identicon-viewer/copied",
+    "page": "08 Overlays",
+    "note": "the copy row in its confirmed state — Copy glyph swapped for a success Check and the mono address replaced by 'Copied' in success ink (IdenticonViewerSheet.tsx:74-88, :128-129). useCopyFeedback(2000) resets it after 2s (:39), so the capture is deliberately tight: click ms 250 + settle 350 lands ≈600ms in. The row is matched by the full address, which is its whole innerText; no earlier gallery clickable carries it (the ThemedText 'code' specimen at design-gallery.tsx:572-574 is not a button). MERGE(state-specs-5): the leading `key Escape` + wait was replaced by a goto /wallet -> /design-gallery reset (deterministic dismissal of whichever sheet the previous sub-flow left open; __ASSETMAP survives a pushState navigation, so the tight copy-feedback timing still holds).",
+    "settle": 350,
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1600
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-identiconviewersheet"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     },
+     {
+      "act": "click",
+      "text": "0x14fB1f3d2b7c9a1E5f4c0a8B2d6E9f0a1D1eA5c0",
+      "ms": 250
+     }
+    ]
+   },
+   {
+    "slug": "rpc-fix-prefilled",
+    "board": "O/rpc-fix/prefilled",
+    "page": "08 Overlays",
+    "note": "the recovery form with a URL in the field, i.e. 'Save & Retry' out of its disabled 0.5-opacity state (RpcTroubleBanner.tsx:181-200). The field is empty on open by design — it pre-fills only from a SAVED override, never from the failing built-in default (:112-117) — and the capture profile has no override for chain 100, so the filled state has to be typed. Placeholder 'https://rpc.example.com' (:185) is the app's only one, so a placeholder match is safe. MERGE(state-specs-5): the leading `key Escape` + wait was replaced by a goto /wallet -> /design-gallery reset (deterministic dismissal of whichever sheet the previous sub-flow left open; __ASSETMAP survives a pushState navigation, so the tight copy-feedback timing still holds).",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1600
+     },
+     {
+      "act": "goto",
+      "url": "/design-gallery",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "id": "gallery-open-rpcfixmodal"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     },
+     {
+      "act": "type",
+      "placeholder": "https://rpc.example.com",
+      "value": "https://rpc.gnosischain.com"
+     },
+     {
+      "act": "wait",
+      "ms": 700
+     }
+    ]
+   },
+   {
+    "slug": "rpc-fix-saving",
+    "board": "O/rpc-fix/saving",
+    "page": "08 Overlays",
+    "note": "the submit button mid-validation: label replaced by an ActivityIndicator while probeRpcChainId runs (RpcTroubleBanner.tsx:192-200, :119-126). The URL is retyped to a non-routable RFC1918 host first, which is what makes this safe AND slow: the probe can never report chainId 100, so saveNetworkConfig (:140-145) is unreachable and nothing is persisted, while the 8s AbortController timeout (rpc-pool.ts:996-999) holds the spinner. Timing-sensitive — capture is ~400ms after the tap; if the probe fails instantly the board will duplicate rpc-fix-prefilled and must be dropped, not kept. Deliberately the LAST state of the sweep: the timeout fires an 'Error' AppAlert ~8s later, which would otherwise sit over the next group's captures.",
+    "settle": 400,
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "https://rpc.example.com",
+      "value": "https://10.255.255.1/"
+     },
+     {
+      "act": "wait",
+      "ms": 500
+     },
+     {
+      "act": "click",
+      "text": "Save & Retry",
+      "ms": 1
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/settings",
+  "settle": 3000,
+  "states": [
+   {
+    "slug": "network-editor-collapsed",
+    "board": "O/network-editor/collapsed",
+    "page": "08 Overlays",
+    "note": "Settings > ADVANCED > row 'Networks' (SettingsScreen.tsx:1538-1540) opens NetworkEditorModal (SettingsScreen.tsx:275-328): modal title 'Networks' + X, then one collapsed NetworkConfigCard per network from getAllNetworks() (:284, :318-323) — ChainLogo + displayName + 'Chain {id}' + chevron (:227-239). Read-only: saveNetworkConfig only runs from a field blur (:254 -> :288), and no field is focused here.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Advanced"
+     },
+     {
+      "act": "click",
+      "text": "Networks"
+     },
+     {
+      "act": "wait",
+      "ms": 1600
+     }
+    ]
+   },
+   {
+    "slug": "network-editor-card-expanded",
+    "board": "O/network-editor/card-expanded",
+    "page": "08 Overlays",
+    "note": "First card (Ethereum, chain 1) expanded by tapping its header (SettingsScreen.tsx:227 setExpanded) -> full-width divider + 'RPC URL' and 'EXPLORER' fields, each with a live HealthBadge (:240-259; checkEndpointHealth :95-151; badge :153-176). The badges resolve from a read-only eth_chainId POST and a no-cors explorer GET, re-run on [expanded,rpcURL,explorerURL] (:214-223). The two TextInputs persist on blur (:254) so they are never focused or typed into. TARGETING RISK: byText('Ethereum') takes the first clickable whose innerText starts with 'Ethereum\\n'; token rows on a still-mounted /wallet start with their SYMBOL (TokenRow.tsx:79-80) so they should not collide, but verify before running.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Ethereum"
+     },
+     {
+      "act": "wait",
+      "ms": 2600
+     }
+    ]
+   },
+   {
+    "slug": "endpoint-editor-default",
+    "board": "O/endpoint-editor/default",
+    "page": "08 Overlays",
+    "note": "Settings > ADVANCED > row 'Service Endpoints' (SettingsScreen.tsx:1548-1550) opens EndpointEditorModal (:432-516): header with ExternalLink + RefreshCw + X (:474-482), the two-line description (:485), then four VelaCards — CHAIN DATA INDEX / PASSKEY INDEX / VELA RELAY / FIAT RATES (:462-467) — each with hint, ServiceHealthBadge (:412-430) and an AutoGrowTextInput (:496-506), plus the 'Reset to Defaults' row (:509). All four probes fire automatically on open (:441-451): three GET /api/health plus one GET of the fiat rates URL, read-only. Nothing is typed and nothing is saved (handleSave is blur-only, :453-460). MERGE(state-specs-5): goto /wallet -> /settings reset prepended: this sub-flow was authored as a fresh arrival on /settings, and remounting SettingsScreen is the only reliable way to dismiss the previous sub-flow modal and re-collapse its section.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1600
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "text": "Advanced"
+     },
+     {
+      "act": "click",
+      "text": "Service Endpoints"
+     },
+     {
+      "act": "wait",
+      "ms": 4000
+     }
+    ]
+   },
+   {
+    "slug": "rpc-providers-idle",
+    "board": "O/rpc-providers/idle",
+    "page": "08 Overlays",
+    "note": "Settings > ADVANCED > row 'RPC Providers' (SettingsScreen.tsx:1541-1544) opens RpcProvidersModal (RpcProvidersModal.tsx:41-219): priority description (:125-129) then three provider cards in PROVIDER_ORDER — Alchemy, dRPC, Ankr (rpc-providers.ts:37, :49-67) — each with 'Not set' status (:227-229), an empty masked key input (:147-157) and a quiet 'Get a key' external link (:168-177); no Test button and no results while hasKey is false. PRECONDITION: no provider key may be stored — a saved key auto-probes on open (:85-96) and this board would then depict testing/results instead. MERGE(state-specs-5): goto /wallet -> /settings reset prepended: this sub-flow was authored as a fresh arrival on /settings, and remounting SettingsScreen is the only reliable way to dismiss the previous sub-flow modal and re-collapse its section.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1600
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "text": "Advanced"
+     },
+     {
+      "act": "click",
+      "text": "RPC Providers"
+     },
+     {
+      "act": "wait",
+      "ms": 1400
+     }
+    ]
+   },
+   {
+    "slug": "rpc-providers-testing",
+    "board": "O/rpc-providers/testing",
+    "page": "08 Overlays",
+    "note": "An obviously-fake key typed into the Alchemy field (RpcProvidersModal.tsx:147-157, onChangeText only — onKeyBlur at :104-109 is what persists, and the field is never focused so it can never blur) then 'Test' (:179): ProviderStatus turns into an ActivityIndicator (:230-232) and the results list stays hidden until status==='done' (:185). RACE — runTest fires 13 parallel probeRpcChainId calls (:72-80, rpc-pool.ts:996) that 401 fast, so this may already be 'done' at extraction; if the dump is identical to rpc-providers-results, DISCARD it rather than publish a duplicate.",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "API key",
+      "value": "vela-design-capture-invalid-key",
+      "ms": 300
+     },
+     {
+      "act": "click",
+      "text": "Test",
+      "ms": 150
+     }
+    ],
+    "settle": 120
+   },
+   {
+    "slug": "rpc-providers-results",
+    "board": "O/rpc-providers/results",
+    "page": "08 Overlays",
+    "note": "status 'done' with an invalid key: the warning statusPill 'Check key' (RpcProvidersModal.tsx:233-241) plus the collapsible summary row 'Supports 0 of 13 networks' with a ChevronDown (:187-198). The expanded per-network ChainLogo + LatencyBadge list (:199-209, :245-264) is not a manifest state, so the summary stays collapsed.",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 9000
+     }
+    ]
+   },
+   {
+    "slug": "add-network-searching",
+    "board": "O/add-network/searching",
+    "page": "08 Overlays",
+    "note": "Settings > ADVANCED > row 'Add Network' (SettingsScreen.tsx:1545-1547) opens AddNetworkModal (:570-853). Board depicts the SEARCH phase: the query in the autoFocus field (:689-698) with the suggestions card below it (:702-720) — chain name + 'Chain {id} · {symbol}' + chevron per row, capped at 10 by searchChains (chain-registry.ts:110-140). The transient 'Searching…' spinner row (:722-727) exists only inside the awaited searchChains call and cannot be pinned by the harness, so it is not what this board shows. MERGE(state-specs-5): goto /wallet -> /settings reset prepended: this sub-flow was authored as a fresh arrival on /settings, and remounting SettingsScreen is the only reliable way to dismiss the previous sub-flow modal and re-collapse its section.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1600
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "text": "Advanced"
+     },
+     {
+      "act": "click",
+      "text": "Add Network"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     },
+     {
+      "act": "type",
+      "placeholder": "e.g. Gnosis",
+      "value": "celo",
+      "ms": 2200
+     }
+    ]
+   },
+   {
+    "slug": "add-network-checking-compatibility",
+    "board": "O/add-network/checking-compatibility",
+    "page": "08 Overlays",
+    "note": "The Celo (42220) suggestion tapped -> handleSelect (SettingsScreen.tsx:610-647) sets loading and renders the 'Checking compatibility...' spinner row (:729-734) while fetchChainInfo then checkNetworkCompatibility run (network-checker.ts:46-90: an eth_chainId latency race across the chain's public RPCs, then 11 eth_getCode + one P256 eth_call — all read-only). Extracted ~550 ms in, i.e. before chainInfo lands, so the board is unambiguously the loading state and cannot be confused with add-network-result.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "42220",
+      "ms": 400
+     }
+    ],
+    "settle": 150
+   },
+   {
+    "slug": "add-network-result",
+    "board": "O/add-network/result",
+    "page": "08 Overlays",
+    "note": "Resolved check: chain-info card (name / 'Chain ID:' / 'Native:' / optional Testnet tag, SettingsScreen.tsx:739-746), 'Custom RPC (optional)' card (:749-770), best-RPC card with the success check + latency (:773-781), and the per-contract Compatibility Check list led by 'P256 Precompile (RIP-7212)' (:784-810). Celo is expected to come back INCOMPATIBLE -> the incompatible hint + 'Open Chain Setup Tool' + 'Re-check' block (:832-848), which is the variant the manifest wants drawn inside this board. If it resolves compatible, the accent 'Add Network' button (:830) appears instead — it must NOT be pressed (handleAdd -> saveCustomNetwork, :668).",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 9000
+     }
+    ]
+   },
+   {
+    "slug": "add-network-error",
+    "board": "O/add-network/error",
+    "page": "08 Overlays",
+    "note": "Query '100' then the Gnosis suggestion tapped: handleSelect finds chain 100 in DEFAULT_NETWORKS and short-circuits before any fetch, setting the error line rendered at SettingsScreen.tsx:736 (set at :620-626). Board = description + search field holding '100' + the red error text, everything else cleared by handleQueryChange (:590-607). FINDING: that string is hardcoded English, not i18n — same for :630 and :641.",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "e.g. Gnosis",
+      "value": "100",
+      "ms": 2200
+     },
+     {
+      "act": "click",
+      "text": "Gnosis",
+      "ms": 1200
+     }
+    ]
+   },
+   {
+    "slug": "language-picker-default",
+    "board": "O/language-picker/default",
+    "page": "08 Overlays",
+    "note": "Settings > Appearance > row 'Language' (SettingsScreen.tsx:1471-1473) opens LanguagePickerModal (:951-1005): title 'Language' + subtitle, 'Follow System' first with the resolved device language as its note, then every SUPPORTED_LANGUAGES entry by endonym (:956-961), hairline-separated de-boxed rows with an accent Check on the current preference (:989), and the 'Suggest a fix on GitHub' contribute footer (:994-1000). The 15-script i18n stress board. No row is tapped — onSelect -> setLangPref persists (i18n/language.tsx:46-52 -> i18n/index.ts:160). MERGE(state-specs-5): goto /wallet -> /settings reset prepended: this sub-flow was authored as a fresh arrival on /settings, and remounting SettingsScreen is the only reliable way to dismiss the previous sub-flow modal and re-collapse its section.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1600
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "text": "Language"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ]
+   },
+   {
+    "slug": "format-picker-number",
+    "board": "O/format-picker/number",
+    "page": "08 Overlays",
+    "note": "Settings > Localization > row 'Number format' (SettingsScreen.tsx:1505-1507) opens FormatPickerModal (:523-562, instance :1514-1517) with the five numberFormatOptions rows (locale-format.ts:290-297): mono live example of 1234567.89 per preset, 'System' / 'Indian' notes, accent Check on the selection. Rows are NOT tapped — onSelect -> applyLocale -> saveLocalePrefs (:544, :1393-1397, storage.ts:256). Previous overlay dismissed with Escape (AppModal web dialog contract, use-web-dialog.ts:85-88).",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 700
+     },
+     {
+      "act": "click",
+      "text": "Number format"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "format-picker-date",
+    "board": "O/format-picker/date",
+    "page": "08 Overlays",
+    "note": "Same picker, six dateFormatOptions rows (locale-format.ts:299-302) from the 'Date format' row (SettingsScreen.tsx:1508-1510, instance :1518-1521): auto + ymd_slash + mdy_slash + dmy_slash + dmy_dot + iso, mono examples of one sample date. Not tapped (saveLocalePrefs).",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 700
+     },
+     {
+      "act": "click",
+      "text": "Date format"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "format-picker-time",
+    "board": "O/format-picker/time",
+    "page": "08 Overlays",
+    "note": "Same picker, three timeFormatOptions rows (locale-format.ts:304-311) from the 'Time format' row (SettingsScreen.tsx:1511-1513, instance :1522-1525): auto / 24-hour / 12-hour with '24-hour' and '12-hour' notes — the shortest instance of the de-boxed selection list. Not tapped (saveLocalePrefs).",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 700
+     },
+     {
+      "act": "click",
+      "text": "Time format"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "contacts-manager-list-searching",
+    "board": "O/contacts-manager/list-searching",
+    "page": "08 Overlays",
+    "note": "search header swapped in for the title row (ContactsManager.tsx:143-160): Groups section, [All|Favorites] segment and Import/Export are all suppressed while searching. Hosted from Settings (SettingsScreen.tsx:1605, row at :1447-1449) instead of the gallery launcher because the gallery renders an inline GroupEditor cell (design-gallery.tsx:1409) whose member-search input uses the SAME placeholder (GroupEditor.tsx:104) and sits earlier in the document — typing by placeholder there would fill the wrong field and the capture would come back identical to O/contacts-manager/default. The search trigger itself is an icon-only Pressable (:165-168, aria-label 'Search name or address', no innerText); it is the FIRST focusable inside the dialog, which use-web-dialog.ts:78-83 focuses on open, so a synthetic Enter activates it through react-native-web's PressResponder keyboard path (PressResponder.js:236-256 + 209-224). MERGE(state-specs-5): goto /wallet -> /settings reset prepended: this sub-flow was authored as a fresh arrival on /settings, and remounting SettingsScreen is the only reliable way to dismiss the previous sub-flow modal and re-collapse its section.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1600
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "text": "Contacts"
+     },
+     {
+      "act": "wait",
+      "ms": 1400
+     },
+     {
+      "act": "key",
+      "key": "Enter"
+     },
+     {
+      "act": "wait",
+      "ms": 600
+     },
+     {
+      "act": "type",
+      "placeholder": "Search name or address",
+      "value": "ali"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     }
+    ]
+   },
+   {
+    "slug": "contacts-manager-form-edit",
+    "board": "O/contacts-manager/form-edit",
+    "page": "08 Overlays",
+    "note": "the add/edit form in EDIT mode — title 'Edit contact', name pre-filled, address field non-editable (ContactsManager.tsx:426-435 editable={!isEdit}) and a destructive Delete row (:442-447). Driven by the real saved contact 'Alice Chen' that already exists in the capture profile (visible in dom-dumps/overlays/contactsmanager.json), reached by tapping its row (:340-342 openEdit). Nothing is saved: Save (:441) and Delete (:121-131) are never tapped.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Alice Chen"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ]
+   },
+   {
+    "slug": "account-switcher-create-actions",
+    "board": "O/account-switcher/create-actions",
+    "page": "08 Overlays",
+    "note": "the switcher WITH its 'Create New Account' / 'Sign In with Existing' pair (AccountSwitcherModal.tsx:138-143), which only renders when showCreateActions is passed — the gallery launcher omits it (design-gallery.tsx:1535-1540), Settings passes it (SettingsScreen.tsx:1598-1604). Buttons are captured only; tapping either routes to /onboarding.",
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape"
+     },
+     {
+      "act": "wait",
+      "ms": 700
+     },
+     {
+      "act": "click",
+      "text": "Parallel One"
+     },
+     {
+      "act": "wait",
+      "ms": 1600
+     }
+    ]
+   },
+   {
+    "slug": "dev-treasury-loading",
+    "board": "O/dev-treasury/loading-balances",
+    "page": "10 Dev & Parallel Space",
+    "note": "Developer-options Treasury viewer (SettingsScreen.tsx:1107 TreasuryModal, opened from the row at :1564-1566 inside the devUnlocked section at :1556). NO dev unlock is performed: the capture profile is already parallel space (settings-root.json renders the 'Developer' header; parallel-space.ts:186 arms dev_unlocked), so the section only needs expanding. This state is the per-row loading beat: the modal's own /v1/treasury REST call is NOT an RPC-pool call, so the address+QR block paints while every balance row still shows its ActivityIndicator (:1272-1273) because slowRpc(20000) (fault-injection.ts:97-100, 203-207) stalls fetchTokens (:1129) and every fetchTreasuryBalance poolRpcCall (:1337-1340). MERGE(state-specs-5): the dev-treasury sub-flow is ordered LAST in the /settings group because it arms slowRpc/failRpc; captureStates clears injected faults at the end of every group (capture-states.js:131), so nothing leaks past it.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1500
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 3000
+     },
+     {
+      "act": "vela",
+      "fn": "slowRpc",
+      "args": [
+       20000
+      ]
+     },
+     {
+      "act": "click",
+      "text": "Developer"
+     },
+     {
+      "act": "click",
+      "text": "Treasury"
+     },
+     {
+      "act": "wait",
+      "ms": 1800
+     }
+    ]
+   },
+   {
+    "slug": "dev-treasury-loaded",
+    "board": "O/dev-treasury/loaded",
+    "page": "10 Dev & Parallel Space",
+    "note": "the resolved viewer: QR + tap-to-copy treasury address (SettingsScreen.tsx:1212-1232), total USD (:1235-1250) and one row per network with balance + fiat (:1251-1299). Rows that are genuinely below gasPrice x 10M gas already render the warning treatment (needsFunding at :1253 -> AlertTriangle + warning-coloured amount at :1277-1286), so this board doubles as the honest 'some rows underfunded' record. Re-entered through /wallet so SettingsScreen remounts and showTreasury resets — closing by label is unreliable ('Close' is not unique across the screen's modals).",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1500
+     },
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 3000
+     },
+     {
+      "act": "click",
+      "text": "Developer"
+     },
+     {
+      "act": "click",
+      "text": "Treasury"
+     },
+     {
+      "act": "wait",
+      "ms": 7000
+     }
+    ]
+   },
+   {
+    "slug": "dev-treasury-rows-need-funding",
+    "board": "O/dev-treasury/rows-need-funding",
+    "page": "10 Dev & Parallel Space",
+    "note": "every row driven into the needs-funding branch deterministically: failRpc('all') makes fetchTreasuryBalance fall into its catch (SettingsScreen.tsx:1351-1353) and return wei=0n recommendedWei=0n, which satisfies the second clause of needsFunding at :1253 for all 12 networks -> AlertTriangle + warning-coloured 'error' amount on every row, and no 'min {amount}' subtitle (:1266 requires recommendedWei > 0n). The /v1/treasury REST fetch is unaffected, so the QR + address block stays. This is the warning-row TREATMENT board; it is not a real underfunded reading.",
+    "steps": [
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 1500
+     },
+     {
+      "act": "vela",
+      "fn": "failRpc",
+      "args": [
+       "all"
+      ]
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 3000
+     },
+     {
+      "act": "click",
+      "text": "Developer"
+     },
+     {
+      "act": "click",
+      "text": "Treasury"
+     },
+     {
+      "act": "wait",
+      "ms": 7000
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/pay?to=0x7099797f0e6e40d43D8b78ac3F0ac89b0F4F0d8b&chain=100&amount=1&sym=XDAI&dec=18",
+  "settle": 2500,
+  "states": [
+   {
+    "slug": "pay-other-request",
+    "board": "S/pay/other-wallet-request",
+    "page": "05 Screens · Wallet",
+    "note": "\"Pay with another wallet\" expanded, QR mode = EIP-681 request — PayScreen.tsx:135-137 (showOther) + :140-157 (qrMode 'eip681' QR + scanHint + 'Open in wallet app'); label = receive.pay.other 'Pay with another wallet'",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Pay with another wallet"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   },
+   {
+    "slug": "pay-other-address",
+    "board": "S/pay/other-wallet-address",
+    "page": "05 Screens · Wallet",
+    "note": "same panel switched to the plain-address QR for wallets with no EIP-681 support — PayScreen.tsx:143-157 (SegmentedToggle 'Address' = receive.pay.qrAddress) + :159-163 (openApp button disappears in address mode)",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Address"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/add-token",
+  "settle": 3000,
+  "states": [
+   {
+    "slug": "addtoken-erc20-resolving",
+    "board": "S/add-token/erc20-resolving",
+    "page": "05 Screens · Wallet",
+    "note": "in-flight multi-chain lookup: button reads 'Searching all networks...' + spinner, disabled — AddTokenPanel.tsx:159-185 (fetchTokenMetadata) + :407-414 (loading label). slowRpc(4000) guarantees the window: poolRpcCall sleeps rpcLatencyMs() before every call (rpc-pool.ts:725-726), so all 12 chains are still asleep at capture time",
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "slowRpc",
+      "args": [
+       4000
+      ]
+     },
+     {
+      "act": "type",
+      "placeholder": "0x",
+      "value": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+     },
+     {
+      "act": "click",
+      "text": "Search Token"
+     },
+     {
+      "act": "wait",
+      "ms": 1500
+     }
+    ]
+   },
+   {
+    "slug": "addtoken-erc20-resolved",
+    "board": "S/add-token/erc20-resolved",
+    "page": "05 Screens · Wallet",
+    "note": "the SAME request completing: one result card per chain where the contract answered name/symbol/decimals (USDT resolves on Ethereum only) + 'Add to Wallet' — AddTokenPanel.tsx:417-456. Latency fault dropped first; the long wait is because a dead chain can burn 3 attempts x 8s (rpc-pool.ts RPC_READ_TIMEOUT_MS = net.ts:25). If the button still says 'Searching all networks...' at capture, raise the waits and re-run this slug",
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "wait",
+      "ms": 14000
+     },
+     {
+      "act": "wait",
+      "ms": 14000
+     },
+     {
+      "act": "wait",
+      "ms": 14000
+     }
+    ]
+   },
+   {
+    "slug": "addtoken-erc20-error",
+    "board": "S/add-token/erc20-error",
+    "page": "05 Screens · Wallet",
+    "note": "'Not Found / Could not find this token on any network.' alert over the form — AddTokenPanel.tsx:180-182 (found.length === 0 -> showAlert), rendered by the web AppAlert portal (AppAlert.tsx:85-127, z-index 9999999). failRpc('all') makes every chain answer instantly (rpc-pool.ts:727-731) so the capture cannot race the resolve; the address is a burn address with no code either way",
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "failRpc",
+      "args": [
+       "all"
+      ]
+     },
+     {
+      "act": "type",
+      "placeholder": "0x",
+      "value": "0x000000000000000000000000000000000000dEaD"
+     },
+     {
+      "act": "click",
+      "text": "Search Token"
+     },
+     {
+      "act": "wait",
+      "ms": 2500
+     }
+    ]
+   },
+   {
+    "slug": "addtoken-network-checking",
+    "board": "S/add-token/network-checking",
+    "page": "05 Screens · Wallet",
+    "note": "chain-info card is already painted while compatibility is still being probed: 'Checking compatibility...' — AddTokenPanel.tsx:114-138 (handleNetSelect sets netChainInfo BEFORE awaiting checkNetworkCompatibility) + :313. First step dismisses the previous state's alert (its only button is 'OK'). Window is real network time, NOT slowRpc-able: network-checker.ts uses raw fetch to the candidate chain's own RPCs (:129, :223); pickFastestRpc awaits ALL candidates (:145-153) so one hung endpoint holds it for its 10s abort (:123-126)",
+    "steps": [
+     {
+      "act": "click",
+      "text": "OK"
+     },
+     {
+      "act": "vela",
+      "fn": "clear",
+      "args": []
+     },
+     {
+      "act": "click",
+      "text": "Native Token"
+     },
+     {
+      "act": "type",
+      "placeholder": "Name or chain ID",
+      "value": "42220"
+     },
+     {
+      "act": "wait",
+      "ms": 3000
+     },
+     {
+      "act": "click",
+      "text": "42220"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   },
+   {
+    "slug": "addtoken-network-incompatible",
+    "board": "S/add-token/network-incompatible",
+    "page": "05 Screens · Wallet",
+    "note": "Compatibility Check card: per-contract tick/cross checklist + P256 (RIP-7212) row + 'Deploy missing contracts' — AddTokenPanel.tsx:314-356. Celo (42220) is outside CHAINS (models/chains.ts:44-115) so it passes the already-added guard (:119-123), and Vela's own contracts (Safe 4337 module / WebAuthn signer, network-checker.ts:20-32) are not deployed there, so compatible=false is structural, not timing-dependent",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 14000
+     },
+     {
+      "act": "wait",
+      "ms": 8000
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/connect",
+  "settle": 3000,
+  "states": [
+   {
+    "slug": "home-connections-connecting",
+    "board": "S/home/connections-connecting",
+    "page": "05 Screens · Wallet",
+    "note": "PRECONDITION: no live dApp session (see report). Home's Connections tab hosting the pairing gate — the 4-digit fingerprint card, dApp identity row and Confirm/Cancel, inline under the balance hero (ConnectionsView.tsx:159-161 -> ConnectionFlowStates.tsx:28-80). Status lives in the root provider (dapp-connection.tsx:203), so it is driven on /connect (where clickNth 2 = the unlabelled ArrowRight submit is already proven, state-specs-4.json:24-44) and then viewed from /wallet. prepareJoin is memory-only, no relay, no storage (walletpair-protocol.ts:676-691)",
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "walletpair link or web address",
+      "value": "walletpair:?ch=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef&pubkey=jCYIRGVbVzh1AXEPb9mfbAQ23zWxwBrWCCTyE1AmCV0&relay=wss%3A%2F%2Frelay.invalid%2Fws&name=Demo%20dApp&url=https%3A%2F%2Fdemo.invalid&icon=https%3A%2F%2Fdemo.invalid%2Ficon.png"
+     },
+     {
+      "act": "clickNth",
+      "n": 2
+     },
+     {
+      "act": "wait",
+      "ms": 1500
+     },
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 2500
+     },
+     {
+      "act": "click",
+      "text": "Connections"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   },
+   {
+    "slug": "home-connections-error",
+    "board": "S/home/connections-error",
+    "page": "05 Screens · Wallet",
+    "note": "same panel after a failed pairing: error medallion, 'Connection Failed', the parse error text and 'Scan Again' (ConnectionFlowStates.tsx:103-127). Cancel first returns the provider to 'disconnected' (dapp-connection.tsx:562-572) so /connect renders its disconnected layout again and clickNth 2 is still the arrow; the malformed URI throws inside parsePairingUri -> setStatus('error') (dapp-connection.tsx:514-517)",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Cancel"
+     },
+     {
+      "act": "wait",
+      "ms": 800
+     },
+     {
+      "act": "goto",
+      "url": "/connect",
+      "ms": 2500
+     },
+     {
+      "act": "type",
+      "placeholder": "walletpair link or web address",
+      "value": "walletpair:?ch=zz"
+     },
+     {
+      "act": "clickNth",
+      "n": 2
+     },
+     {
+      "act": "wait",
+      "ms": 1500
+     },
+     {
+      "act": "goto",
+      "url": "/wallet",
+      "ms": 2500
+     },
+     {
+      "act": "click",
+      "text": "Connections"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   },
+   {
+    "slug": "qr-scanner-web",
+    "board": "O/qr-scanner/scanning-web",
+    "page": "08 Overlays",
+    "note": "the ONLY scanner state that exists on web: black full-bleed camera modal, 240px frame with 4 corner brackets, header X + 'Scan QR' + image-picker, footer hint 'Point camera at a QR code' — QRScanner.tsx:576-644, web branch :578-586 (WebCamera). NO scan line, NO camera-flip, NO zoom slider (ScanLine :187, switchCamera :619, showZoom :510 are all native-only) and NO torch button until getUserMedia resolves (:507). Opened from the error card's 'Scan Again' (ConnectionsView.tsx:160 onScanAgain -> HomeScreen.tsx:296/406). AFTERWARDS: this leaves the scanner mounted (camera live) and conn.status='error' — run this group LAST and reload before any further capture",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Scan Again"
+     },
+     {
+      "act": "wait",
+      "ms": 3500
+     }
+    ]
+   }
+  ]
+ }
+]

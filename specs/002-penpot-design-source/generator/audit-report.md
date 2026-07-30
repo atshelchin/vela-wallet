@@ -126,3 +126,50 @@ Still absent by choice, with reasons: `connect/{connected, reconnecting}` need a
 popup and completed the `VELA_WEB_INIT` handshake; `browser/*` needs a device; the onboarding
 ceremony and `send/confirm/{submitting, error}` would mint a passkey, write an account, or broadcast
 a real transaction.
+
+### 2026-07-30 · adversarial verification, and what it found
+
+Two verifier agents read the pruned dumps of all 88 boards and asked one question per board: does
+the text actually present support the name? **37 were flagged.** The dumps, not the logs, were the
+evidence — every one of these passed the build with zero errors and zero missing assets.
+
+Root causes, each fixed at the cause rather than per-board:
+
+1. **Theme leak (5 boards).** Capturing the dark representatives left the app's Appearance on Dark;
+   every state captured afterwards — connect's fingerprint gate and error card, both locked-send
+   refusals, the ready create form — rendered dark on light pages. `capture-states.js` now derives
+   the theme from the largest opaque background inside the phone frame and REFUSES to record a
+   state whose slug does not agree. (The first version of that check read the frame itself, which
+   is transparent, so `rgba(0,0,0,0)` averaged to zero and called every screen dark.)
+2. **Silent no-op steps.** A "copied" board with no confirmation, a rate-limited board with no
+   balance, an RPC-trouble board with no banner: the step ran, changed nothing, and the capture was
+   recorded anyway. States may now declare `expect` / `forbid` / `expectRe` / `forbidRe`, checked
+   case-insensitively because `innerText` returns the uppercased label the design transforms.
+3. **Corrections losing to what they corrected — twice.** `prune-states.py` resolved slug
+   collisions by FILENAME, so `batch-g` beat `batch-fix`; and it read the spec files in glob order,
+   so `state-specs-4` beat the `state-specs-6` that re-homed three boards. Both now order
+   deterministically: dumps by modification time, specs by name.
+
+Boards removed rather than kept wrong:
+- `S/home/rate-limited` and `S/home/rpc-trouble` — in this environment no balance resolves at all
+  (every token row renders symbol and chain with no figure), so the cached balance the first state
+  exists to prove is absent and the second's banner never fills. They were byte-identical. Two
+  confident duplicates are worse than a recorded gap; the assertions now make it impossible to
+  re-record them wrongly.
+- `S/web-request/unavailable` — `web-request.tsx` sets `phase='error'` for both its messages. One
+  board, two copy variants.
+- `S/browser/default` → `S/browser/unsupported-on-web`, fixed in the SPEC (renaming it in Penpot
+  alone was undone by the next rebuild, since the name comes from the spec).
+- The three receipt boards move to `S/dev/receipt-*` on `10 Dev & Parallel Space`: the harness
+  control panel is in frame, and cropping it would fake a route that cannot produce them without
+  signing and broadcasting.
+
+Still open from the verifiers' list, in priority order: eight signing boards captured mid-resolve
+(fee still "—" or no footer label — recapture with the polling the signing-fix batch used);
+`O/app-modal/{page-sheet,fit}` are one web code path under two iOS names; `O/browser-history/default`
+is the empty state; the three `O/app-alert/*` boards are 1512px desktop dialogs in a 390px family;
+`O/account-switcher/default` shows a balance for one of three accounts.
+
+`state-specs-5.json` (58 states across 7 groups, merged and validated from six recon agents) is
+staged and unrun, with `state-specs-5-NOTES.md` recording what it captures, what it deliberately
+excludes, and what remains unreachable.

@@ -200,9 +200,10 @@
   "states": [
    {
     "slug": "browser-default",
-    "board": "S/browser/default",
+    "board": "S/browser/unsupported-on-web",
     "page": "06 Screens · Browser & Connect",
-    "steps": []
+    "steps": [],
+    "note": "the web build's refusal screen: the WebView module exists only on iOS and Android, so this early return precedes the whole browser. The real browser needs a device capture."
    }
   ]
  },

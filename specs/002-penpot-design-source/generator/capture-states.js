@@ -74,6 +74,10 @@ async function captureStates(group) {
     }
     if (s.act === 'click') {
       const el = s.id ? document.getElementById(s.id) : byText(s.text, s.nth);
+      // `optional` is for a control that may legitimately be absent because the app remembers a
+      // choice — the Receive safety gate stays dismissed once acknowledged, so a step that clicks
+      // "I Understand" must be allowed to be a no-op rather than failing the whole state.
+      if (!el && s.optional) return sleep(50);
       if (!el) throw new Error('no element for ' + JSON.stringify(s));
       fire(el.querySelector('[role="button"],button') || el);
       return sleep(s.ms || 900);
@@ -116,10 +120,77 @@ async function captureStates(group) {
     throw new Error('unknown step ' + JSON.stringify(s));
   };
 
+  // ── assertions ─────────────────────────────────────────────────────────────────────────────
+  // A capture that silently records the wrong screen is worse than one that fails: it ships as a
+  // confident lie. Two whole classes of defect got through before these existed — states captured
+  // while the app was still in Dark appearance (five boards on light pages came out dark), and
+  // states whose distinguishing element never rendered (a rate-limited board with no balance, an
+  // RPC-trouble board with no banner, a "copied" board with no confirmation). So a state may now
+  // declare what must and must not be on screen, and the theme is checked automatically.
+  const bodyText = () => (document.body.innerText || '');
+  // The 390px phone frame itself is TRANSPARENT — reading its background gives rgba(0,0,0,0), whose
+  // channels average to zero and therefore looked "dark" for every screen, light or not. Find the
+  // largest element inside the frame that actually paints something and judge on that.
+  const rootBg = () => {
+    const frame = [...document.querySelectorAll('div')].find((e) => {
+      const r = e.getBoundingClientRect();
+      return Math.abs(r.width - 390) <= 2 && r.height > 600;
+    });
+    if (!frame) return '';
+    let best = null, bestArea = 0;
+    for (const e of [frame, ...frame.querySelectorAll('div')]) {
+      const bg = getComputedStyle(e).backgroundColor;
+      const m = String(bg).match(/rgba?\(([^)]+)\)/);
+      if (!m) continue;
+      const p = m[1].split(',').map((s) => parseFloat(s));
+      if (p.length > 3 && p[3] < 0.9) continue;         // transparent or nearly so: paints nothing
+      const r = e.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (area > bestArea) { bestArea = area; best = bg; }
+    }
+    return best || '';
+  };
+  const isDarkNow = () => {
+    const m = String(rootBg()).match(/rgba?\(([^)]+)\)/);
+    if (!m) return null;
+    const [r, g, b] = m[1].split(',').map((s) => parseFloat(s));
+    return (r + g + b) / 3 < 90;                       // the app's dark base is #010101/#141412
+  };
+  const assertState = (st) => {
+    // innerText returns the TRANSFORMED text, so a label the source writes as "Total balance"
+    // arrives as "TOTAL BALANCE" wherever the design uppercases it. Compare case-insensitively or
+    // every assertion against a section label is a false failure.
+    const txt = bodyText().toLowerCase();
+    for (const want of [].concat(st.expect || [])) {
+      if (!txt.includes(String(want).toLowerCase())) throw new Error('expected on screen but absent: ' + JSON.stringify(want));
+    }
+    for (const no of [].concat(st.forbid || [])) {
+      if (txt.includes(String(no).toLowerCase())) throw new Error('forbidden but present on screen: ' + JSON.stringify(no));
+    }
+    // A regex is the only way to assert that a VALUE rendered rather than a specific string: the
+    // pair of home failure states differ by whether a cached balance survived, and both shipped
+    // identical because the hide-balance toggle had been left on since it was captured hours before.
+    for (const re of [].concat(st.expectRe || [])) {
+      if (!new RegExp(re, 'i').test(txt)) throw new Error('expected pattern absent: /' + re + '/');
+    }
+    for (const re of [].concat(st.forbidRe || [])) {
+      if (new RegExp(re, 'i').test(txt)) throw new Error('forbidden pattern present: /' + re + '/');
+    }
+    // A board's name declares its theme: only a `-dark` slug may be captured dark. This is the
+    // check that would have caught five light-page boards rendered on a dark ground.
+    const wantDark = /(^|[-/])dark(-|$)/.test(st.slug) || st.dark === true;
+    const dark = isDarkNow();
+    if (dark !== null && dark !== wantDark) {
+      throw new Error('theme mismatch: screen is ' + (dark ? 'dark' : 'light') +
+        ' but slug asks for ' + (wantDark ? 'dark' : 'light') + ' (root bg ' + rootBg() + ')');
+    }
+  };
+
   for (const st of group.states) {
     try {
       for (const s of (st.steps || [])) await step(s);
       await sleep(st.settle || 700);
+      assertState(st);
       await window.preloadAssets();
       out.captured[st.slug] = window.extractLayout();
       out.log.push(st.slug + ' ok');

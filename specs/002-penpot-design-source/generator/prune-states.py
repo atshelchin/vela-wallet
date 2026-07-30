@@ -80,14 +80,20 @@ def flatten(items):
 def main(in_dir, out_dir):
     # board/page per slug comes from the spec files, not from the capture
     meta = {}
-    for spec in glob.glob(os.path.join(os.path.dirname(in_dir) or '.', '..', 'generator', 'state-specs*.json')):
+    # sorted, so a higher-numbered spec file wins: state-specs-6 supersedes state-specs-4 where a
+    # state was re-homed. Glob order is arbitrary, and letting it decide meant three receipt boards
+    # kept the page and name their own correction had replaced.
+    for spec in sorted(glob.glob(os.path.join(os.path.dirname(in_dir) or '.', '..', 'generator', 'state-specs*.json'))):
         for group in json.load(open(spec)):
             for st in group['states']:
                 meta[st['slug']] = {'board': st['board'], 'page': st['page'],
                                     'note': st.get('note', ''), 'url': group['url']}
 
     captured = {}
-    for path in sorted(glob.glob(os.path.join(in_dir, '*.json'))):
+    # Order by MODIFICATION TIME, not by filename. Sorting by name meant `batch-g` beat `batch-fix`,
+    # so a re-capture that corrected a defect lost to the very capture it was fixing — five boards
+    # rebuilt from the dark-themed dumps they were supposed to replace. "Later" means later in time.
+    for path in sorted(glob.glob(os.path.join(in_dir, '*.json')), key=os.path.getmtime):
         batch = json.load(open(path))
         for slug, dump in batch.get('captured', {}).items():
             captured[slug] = dump           # later file wins

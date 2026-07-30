@@ -38,8 +38,15 @@ a board can fire BEFORE its webfonts resolve — the image comes back with every
 **every text missing**, silently. Verified 2026-07-30: the same board, same id, exported twice in a
 row, produced a text-free image and then a complete one.
 
-So: **export twice before believing a visual check**, and treat a text-free render as a race, not as
-a defect in the board. Acting on the first image would mean "fixing" a page that was never broken.
+The same race hits RASTER IMAGES: a board whose logos are all present in the file renders them as
+empty rings on the first export and correctly on the second (verified 2026-07-31 on
+`S/home/assets` — the single image shape exported alone was correct throughout, and no shape on the
+board carried a stroke). The acceptance gate's "renders with broken assets" finding on
+`erc-20-approve-unlimited` is most likely this, not board damage.
+
+So: **export twice before believing a visual check**, and treat a text-free or image-free render as a
+race, not as a defect in the board. Acting on the first image would mean "fixing" a page that was
+never broken — which nearly happened twice.
 
 (The exporter also needs `PENPOT_PUBLIC_URI` pointed at the internal frontend host — see the
 deployment note; with the shared localhost value every export fails outright.)

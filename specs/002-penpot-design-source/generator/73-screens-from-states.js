@@ -56,6 +56,10 @@ for (let i = 0; i < mine.length; i++) {
   const e = mine[i];
   try {
     storage.domDump = await (await fetch('/plugins/mcp/' + (storage.screenDir || 'screens') + '/' + e.slug + '.json')).json();
+    // a freshly captured dump carries its raster bytes inline; upload them before drawing or every
+    // logo becomes a red placeholder (pruned dumps skip this — they have no inline dataUri)
+    const inline = await storage.runChunk('71b-upload-inline-assets.js');
+    stats.inlineAssets = (stats.inlineAssets || 0) + (inline.uploaded || 0);
     // committed semantic overlay for this screen, if authored (region-maps are optional per board)
     // A missing or failed region map must be LOUD. The first version swallowed both cases, and one
     // transient fetch left S/send/select-token rebuilt with 58 loose shapes and no regions while the

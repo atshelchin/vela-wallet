@@ -143,11 +143,17 @@ function extractLayout(opts) {
     if (r.width < O.minSize || r.height < O.minSize) return null;
 
     // direct text (excluding text inside child elements)
-    const own = Array.from(el.childNodes)
+    // A node's own text nodes, kept BOTH joined (compat) and as separate RUNS. The runs matter:
+    // when a node owns text AND wraps <span> children, its text is the connective material AROUND
+    // the spans — "You're letting ⟨spender⟩ spend ALL your ⟨token⟩, with no limit." The join loses
+    // where each run sits, so the converter could only place the leading one and dropped the rest.
+    // On the unlimited-approval sheet that silently deleted the word "ALL" — the single word that
+    // carries the risk. Keeping the runs lets the converter put each one in its own gap.
+    const runs = Array.from(el.childNodes)
       .filter((n) => n.nodeType === 3)
       .map((n) => n.textContent.trim())
-      .filter(Boolean)
-      .join(' ');
+      .filter(Boolean);
+    const own = runs.join(' ');
 
     const node = {
       tag: el.tagName.toLowerCase(),
@@ -160,6 +166,7 @@ function extractLayout(opts) {
     if (label) node.label = label;
     if (el.getAttribute('role')) node.role = el.getAttribute('role');
     if (own) node.text = own;
+    if (runs.length > 1) node.textRuns = runs;
     // Interactivity signals (RESTRUCTURE-2026-07-30 §7): without these, "interactive element" is
     // undetectable on a DOM-derived board and the graph audit (93) is vacuous — it cannot ask
     // "does every tappable thing carry an edge?". react-native-web renders Pressables as

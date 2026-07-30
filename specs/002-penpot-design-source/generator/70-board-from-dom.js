@@ -341,6 +341,46 @@ async function build(n, path, depth, parent, inherited) {
     let shown = n.text;
     const inlineKids = (n.children || []).flat(Infinity).filter((k) => k && k.text);
     let slotW = 0;
+    // MULTI-RUN INLINE TEXT. When the extractor captured the connectives as separate runs, each one
+    // belongs in its own gap: run 0 before the first span, run 1 between span 1 and span 2, and so
+    // on. The old single-slot path drew run 0 and dropped the rest, which is how the unlimited
+    // approval sheet lost the word "ALL" — the word that IS the risk on that sheet.
+    if (n.textRuns && n.textRuns.length > 1 && inlineKids.length && lh) {
+      const line = inlineKids
+        .filter((k) => Math.abs((k.y || 0) - n.y) < lh * 1.5)
+        .sort((a, b) => (a.x || 0) - (b.x || 0));
+      const gaps = [];
+      let cursor = Math.round(n.x);
+      for (const k of line) {
+        gaps.push([cursor, Math.round(k.x)]);
+        cursor = Math.round((k.x || 0) + (k.w || 0));
+      }
+      gaps.push([cursor, Math.round(n.x + n.w)]);            // the trailing run
+      let placed = 0;
+      n.textRuns.forEach((run, i) => {
+        const g = gaps[i];
+        if (!g || g[1] - g[0] < 6) { stats.inlineTruncated++; return; }
+        const { text: rt } = lib.upsertText(board, id + '.run' + i + ' ' + run.slice(0, 20), {
+          text: run, size, weight, zone: isMono ? 'mono' : 'sans',
+          color: c.color, x: g[0], y: Math.round(n.y),
+        });
+        withOpacity(rt, eff * (c.opacity === undefined ? 1 : c.opacity));
+        stamp(rt);
+        bindColor(rt, { color: c.color, opacity: 1 }, 'text');
+        if (n.font?.size) {
+          const box = Math.min(n.h || Infinity, n.font.lineHeight || Infinity);
+          rt.lineHeight = String(Math.max(0.8, Math.round((Number.isFinite(box) ? box / size : 1.2) * 100) / 100));
+        }
+        rt.growType = 'auto-width';
+        penpotUtils.setParentXY(rt, g[0], Math.round(n.y));
+        placed++;
+        stats.texts++;
+      });
+      stats.inlineRuns = (stats.inlineRuns || 0) + placed;
+      const kidsRun = (n.children || []).flat(Infinity);
+      for (let i = 0; i < kidsRun.length; i++) await build(kidsRun[i], path + '.' + i, depth + 1, n, eff);
+      return;
+    }
     if (inlineKids.length && lh) {
       let slotRight = n.x + n.w;
       for (const k of inlineKids) {
@@ -439,7 +479,8 @@ async function build(n, path, depth, parent, inherited) {
   } else if (n.kind === 'svg') {
     // REAL vectors: Lucide icons and Nimiq identicons, rebuilt from the markup the app rendered
     const nm = id + ' icon:' + (n.label || 'glyph') + ' ' + Math.round(n.w) + 'x' + Math.round(n.h);
-    const asset = n.assetKey ? (storage.assets || {})[n.assetKey] : null;
+    const assetsSvg = storage.assets || {};
+    const asset = (n.assetKey && assetsSvg[n.assetKey]) || null;
     const svgMarkup = (asset && asset.svg) || n.svg;
     let ok = false;
     if (svgMarkup) {
@@ -480,9 +521,18 @@ async function build(n, path, depth, parent, inherited) {
     }
     stamp(rect);
     let ok = false;
-    const asset = n.assetKey ? (storage.assets || {})[n.assetKey] : null;
+    // A pruned dump references an uploaded asset by `assetKey`; a FRESH capture carries the bytes
+    // inline as `dataUri` and has no key at all. Without this fallback every logo in a
+    // just-captured dump renders as the red missing-asset box — which is exactly what the first
+    // recapture produced.
+    const assets = storage.assets || {};
+    const asset = (n.assetKey && assets[n.assetKey]) || (n.dataUri && assets[n.dataUri]) || null;
     if (asset && asset.media) {
       try {
+        // clear any leftover missing-asset stroke: upsertRect REUSES the shape by name and never
+        // clears strokes, so a board that once failed to resolve a logo kept the red ring around it
+        // even after the bytes arrived — the fill was right and the frame still screamed error
+        rect.strokes = [];
         rect.fills = [{ fillOpacity: 1, fillImage: asset.media }];
         withOpacity(rect, eff);
         ok = true;

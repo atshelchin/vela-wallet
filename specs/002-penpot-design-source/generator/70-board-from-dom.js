@@ -301,7 +301,12 @@ async function build(n, path, depth, parent, inherited) {
     }
     stats.swapMissing.push(path + ' → ' + swap.component);
   }
-  const id = 'r/' + path;
+  // ANATOMY. A layer tree of `r / 0.0.0.0.1.0` tells a reader nothing, and "what are this
+  // component's parts?" is a question the file must answer (RESTRUCTURE §5, W1). The app already
+  // names its own parts — aria-label / testID / id, captured by the extractor as `label` — so the
+  // name carries it whenever the app supplied one. Text nodes keep their content snippet, which is
+  // its own kind of anatomy. Paths stay in the name because the region/swap maps key off them.
+  const id = 'r/' + path + (n.label && !n.text ? ' [' + String(n.label).slice(0, 28) + ']' : '');
   // interactivity signal from the extractor → machine-enumerable tappable set (audits 93/96)
   const stamp = (sh) => { if (n.tap && sh) { try { sh.setPluginData('vela.role', String(n.tap)); } catch (e) {} } };
   // the opacity this node's own paint is composited at, and the factor its children inherit

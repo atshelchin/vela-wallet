@@ -1,0 +1,590 @@
+[
+  {
+    "component": "C/Controls/NetworkFilterButton",
+    "codeRef": "src/components/ui/NetworkFilterSheet.tsx#NetworkFilterButton",
+    "props": ["networks", "selected", "onPress", "onClear"],
+    "desc": "Renders the network-filter trigger pill: either the selected chain's ChainLogo plus its display name and an X clear button, or an overlapped stack of the first three chain logos with the label \"All\" and a chevron.",
+    "usedIn": [
+      "src/screens/wallet/HomeScreen.tsx",
+      "src/components/ui/TokenSelector.tsx",
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "Defined inside NetworkFilterSheet.tsx alongside NetworkFilterSheet (the sheet itself is a separate Penpot component)."
+  },
+  {
+    "component": "C/Controls/ReceiveRequestControls",
+    "codeRef": "src/components/ReceiveRequestControls.tsx",
+    "props": ["recipient", "onChange"],
+    "desc": "Renders the payment-request builder: a tappable asset row (TokenLogo + symbol + network name + chevron), a decimal amount field with the token ticker and a hint line, and an AppModal holding a TokenSelector for picking the asset.",
+    "usedIn": [
+      "src/screens/wallet/ReceiveScreen.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Controls/SegmentedToggle",
+    "codeRef": "src/components/ui/SegmentedToggle.tsx",
+    "props": ["options", "value", "onChange", "options[].badge", "options[].icon"],
+    "desc": "Renders a horizontally scrollable row of content-sized text segments with a spring-animated bg.sunken chip behind the active one, plus an optional numeric badge and leading icon per segment.",
+    "usedIn": [
+      "src/screens/wallet/HomeScreen.tsx",
+      "src/screens/settings/SettingsScreen.tsx",
+      "src/screens/wallet/ReceiveScreen.tsx",
+      "src/components/contacts/ContactsManager.tsx"
+    ]
+  },
+  {
+    "component": "C/Controls/SlideToConfirmButton",
+    "codeRef": "src/components/ui/SlideToConfirmButton.tsx",
+    "props": ["title", "hint", "disabled", "loading", "style"],
+    "desc": "Renders a drag-to-commit control: a raised hairline-bordered track with a centered muted label and hint plus an accent knob the user pans to the end, interpolating the track to success green on commit and dimming at 0.45 opacity when disabled.",
+    "usedIn": [
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Controls/WaveDock",
+    "codeRef": "src/components/ui/WaveDock.tsx",
+    "props": ["onReceive", "onScan", "onSend"],
+    "desc": "Renders the home bottom dock: a full-bleed bar on bg.raised with a 1px top hairline, a circular Scan FAB overlapping the bar's top edge by half, and Receive (secondary) + Send (primary/accent) pill buttons flanking the FAB slot.",
+    "usedIn": [
+      "src/screens/wallet/HomeScreen.tsx",
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "The primary/secondary variant axis lives on the file-private DockButton, not on WaveDock's own props."
+  },
+  {
+    "component": "C/Media/ChainLogo",
+    "codeRef": "src/components/ChainLogo.tsx",
+    "props": ["label", "color", "bgColor", "logoURL", "size"],
+    "desc": "Renders a circular network mark: the remote logoURL image, falling back on load error to a bgColor circle containing the chain's short label.",
+    "usedIn": [
+      "src/components/TokenLogo.tsx",
+      "src/components/ui/NetworkFilterSheet.tsx",
+      "src/components/ui/ActivityRow.tsx",
+      "src/components/signing/DAppBanner.tsx"
+    ]
+  },
+  {
+    "component": "C/Media/ContactAvatar",
+    "codeRef": "src/components/contacts/ContactAvatar.tsx",
+    "props": ["name", "address", "kind", "size", "enlargeable"],
+    "desc": "Renders a contact avatar — an address-seeded Identicon when the avatar-style preference is 'identicon' and the address is valid, otherwise the name's initial over a deterministic muted HSL tint — with a small Wallet badge when kind is 'account'.",
+    "usedIn": [
+      "src/components/contacts/ContactPicker.tsx",
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/screens/wallet/EnterDetailsStep.tsx",
+      "src/components/signing/DAppBanner.tsx"
+    ]
+  },
+  {
+    "component": "C/Media/Identicon",
+    "codeRef": "src/components/ui/Identicon.tsx",
+    "props": ["seed", "size"],
+    "desc": "Renders a deterministic Nimiq identicon as inline SVG (assembled from identicons-esm params, cached by lowercased seed) clipped to a circle of `size`.",
+    "usedIn": [
+      "src/components/contacts/ContactAvatar.tsx",
+      "src/components/ui/WalletAvatar.tsx",
+      "src/components/ui/IdenticonViewerSheet.tsx",
+      "src/components/signing/AdvancedPanel.tsx"
+    ]
+  },
+  {
+    "component": "C/Media/QRCode",
+    "codeRef": "src/components/QRCode.tsx",
+    "props": ["value", "size", "color", "backgroundColor"],
+    "desc": "Renders the QR matrix for `value` as a single SVG path over a background rect, in a viewBox sized to the module count so it stays seamless at any `size`.",
+    "usedIn": [
+      "src/components/ReceiveShareCard.tsx",
+      "src/components/ui/TransactionReceipt.tsx",
+      "src/screens/wallet/ReceiveScreen.tsx",
+      "src/components/ui/TreasuryBootstrapSheet.tsx"
+    ]
+  },
+  {
+    "component": "C/Media/ReceiveShareCard",
+    "codeRef": "src/components/ReceiveShareCard.tsx",
+    "props": ["model", "model.variant", "model.summary", "model.networks"],
+    "desc": "Renders a fixed 360px white share card: Vela brand header, framed QR, account name, then either the request summary plus short address (variant 'request') or the short address plus a grid of supported-network chips (variant 'address'), over a getvela.app footer.",
+    "usedIn": [
+      "src/screens/wallet/ReceiveScreen.tsx",
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "Single prop `model: ShareCardModel`; the visual variant axis is model.variant."
+  },
+  {
+    "component": "C/Media/TokenLogo",
+    "codeRef": "src/components/TokenLogo.tsx",
+    "props": ["symbol", "logoUrl", "logoUrls", "size", "bgColor", "textColor", "chain"],
+    "desc": "Renders a circular token image from the first working URL candidate (falling through logoUrl then logoUrls on image error to a letter monogram tinted from the symbol), with a ChainLogo badge at ~45% size on the bottom-right when `chain` is set.",
+    "usedIn": [
+      "src/components/ui/TokenRow.tsx",
+      "src/components/ui/FeeTokenSelector.tsx",
+      "src/components/signing/TokenCard.tsx",
+      "src/screens/wallet/EnterDetailsStep.tsx"
+    ]
+  },
+  {
+    "component": "C/Media/WalletAvatar",
+    "codeRef": "src/components/ui/WalletAvatar.tsx",
+    "props": ["name", "address", "size", "letterSize", "enlargeable"],
+    "desc": "Renders the account avatar — an address-seeded Identicon when the avatar-style preference is 'identicon' (wrapped in a pressable that opens the large viewer when enlargeable), otherwise the name's initial in a soft accent circle.",
+    "usedIn": [
+      "src/screens/wallet/HomeScreen.tsx",
+      "src/components/ui/AccountSwitcherModal.tsx",
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/components/ui/TransactionReceipt.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/AmountText",
+    "codeRef": "src/components/ui/AmountText.tsx",
+    "props": ["value", "text", "symbol", "unit", "size", "showDecimals", "symbolScale", "maxLines"],
+    "desc": "Renders a money figure as one fit-to-width line — leading currency symbol, integer part at `size`, and a subordinated tail (decimal fraction + unit) — shrinking to `minScale` before falling back to compact notation.",
+    "usedIn": [
+      "src/screens/wallet/BalanceDisplay.tsx",
+      "src/screens/wallet/EnterDetailsStep.tsx",
+      "src/screens/wallet/TokenDetailScreen.tsx",
+      "src/components/ui/TransactionDetailSheet.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/AutoGrowTextInput",
+    "codeRef": "src/components/ui/AutoGrowTextInput.tsx",
+    "props": ["minHeight", "maxHeight", "value", "style"],
+    "desc": "Renders a forced-multiline TextInput that grows with its content between minHeight and maxHeight (measured explicit height on iOS/web, native min/max bounds on Android) and scrolls once maxHeight is set.",
+    "usedIn": [
+      "src/screens/wallet/EnterDetailsStep.tsx",
+      "src/components/send/MultiRecipientEditor.tsx",
+      "src/components/contacts/ContactsManager.tsx",
+      "src/components/ui/BugReportModal.tsx"
+    ],
+    "note": "Props are TextInputProps & {minHeight, maxHeight}, so placeholder/editable/etc. pass through. The generator manifest names this component C/Primitives/Input for the same file."
+  },
+  {
+    "component": "C/Primitives/ExternalLink",
+    "codeRef": "src/components/external-link.tsx",
+    "props": ["href"],
+    "desc": "Renders an expo-router Link with target=\"_blank\" that, on non-web platforms, prevents default and opens the href in the in-app browser instead.",
+    "usedIn": [
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "The design gallery is its ONLY importer — every other `ExternalLink` occurrence in src/ is the lucide-react-native icon of the same name, not this component."
+  },
+  {
+    "component": "C/Primitives/RecipientName",
+    "codeRef": "src/components/contacts/RecipientName.tsx",
+    "props": ["address", "storedName", "style"],
+    "desc": "Renders a single text node with a recipient's display name, preferring a saved contact name, then the resolved live identity, then storedName, then the shortened address.",
+    "usedIn": [
+      "src/components/ui/TransactionDetailSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/RecipientTrust",
+    "codeRef": "src/components/contacts/RecipientTrust.tsx",
+    "props": ["address", "identity", "compact", "prominent", "nameOnly"],
+    "desc": "Renders a recipient's trust signal (green BadgeCheck for a starred saved contact, accent UserRound otherwise) beside the resolved name, as a pill (compact), a large name row or bare name (prominent / nameOnly), or an inline line with the identity source on the right; renders nothing when no name resolves.",
+    "usedIn": [
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/screens/wallet/EnterDetailsStep.tsx",
+      "src/components/signing/ContractBar.tsx",
+      "src/components/ui/TransactionReceipt.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/RecipientTypeBadge",
+    "codeRef": "src/components/contacts/RecipientTypeBadge.tsx",
+    "props": ["address", "identity", "isContract", "size"],
+    "desc": "Renders a small trailing identity glyph for an address: green BadgeCheck (saved contact), the Vela logo (passkey/Vela user), a blue Globe (name-service name), or HelpCircle paired with FileText/Wallet for an unknown contract/EOA.",
+    "usedIn": [
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/screens/wallet/EnterDetailsStep.tsx",
+      "src/components/send/MultiRecipientEditor.tsx",
+      "src/components/ui/TransactionDetailSheet.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/RpcTroubleBanner",
+    "codeRef": "src/components/ui/RpcTroubleBanner.tsx#RpcTroubleBanner",
+    "props": ["chainIds", "onFix"],
+    "desc": "Renders an amber AlertTriangle banner naming the chains whose RPC failed (one name, or a count when several) with one tappable ChainLogo + \"Fix\" chip per chain; returns null when no chainId maps to a known network.",
+    "usedIn": [
+      "src/screens/wallet/HomeScreen.tsx",
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "Same file also exports RpcFixForm and RpcFixModal (mapped in the manifest as C/Sheets/RpcFixForm)."
+  },
+  {
+    "component": "C/Primitives/SectionLabel",
+    "codeRef": "src/components/ui/SectionLabel.tsx",
+    "props": ["children", "style"],
+    "desc": "Renders an uppercase, letter-spaced, muted (fg.subtle) heading text used to group de-boxed content sections.",
+    "usedIn": [
+      "src/screens/settings/SettingsScreen.tsx",
+      "src/screens/wallet/ReceiveScreen.tsx",
+      "src/screens/wallet/EnterDetailsStep.tsx",
+      "src/components/contacts/ContactsManager.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/TransactionReceipt",
+    "codeRef": "src/components/ui/TransactionReceipt.tsx#TransactionReceipt",
+    "props": ["status", "transfers", "batchKind", "amount", "symbol", "chainId", "txHash", "onSaveContact"],
+    "desc": "Renders the full-screen bank-style send receipt: a submitted/confirmed/failed status stamp (self-converging by polling userOpHash), the amount or a per-line batch breakdown, from/to identity rows, network, time, tx hash and share / save-to-contacts actions.",
+    "usedIn": [
+      "src/screens/wallet/SendScreen.tsx",
+      "src/screens/dev/ReceiptHarnessScreen.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/TxStatusBadge",
+    "codeRef": "src/components/ui/TxStatusBadge.tsx",
+    "props": ["status"],
+    "desc": "Renders an icon plus localized label tinted per status: Clock/warning for pending, CheckCircle2/success for confirmed, XCircle/error for failed.",
+    "usedIn": [
+      "src/components/ui/TransactionDetailSheet.tsx",
+      "src/components/ui/ConnectionEventDetailSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Primitives/VelaButton",
+    "codeRef": "src/components/ui/VelaButton.tsx",
+    "props": ["title", "variant", "disabled", "loading", "compact", "style"],
+    "desc": "Renders a spring-pressed pill button — filled ink (primary), filled accent (accent), or transparent with a 1.5px strong border (secondary) — dimmed while disabled and showing an ActivityIndicator in place of the title while loading.",
+    "usedIn": [
+      "src/screens/wallet/SendScreen.tsx",
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/screens/settings/SettingsScreen.tsx",
+      "src/components/signing/SigningSheet.tsx"
+    ],
+    "note": "The prop type declares only primary | secondary | accent; the manifest's fourth \"destructive\" variant is a caller-supplied style override (error.base background), not a code variant."
+  },
+  {
+    "component": "C/Primitives/VelaCard",
+    "codeRef": "src/components/ui/VelaCard.tsx",
+    "props": ["children", "style", "elevated"],
+    "desc": "Renders a rounded bg.raised container with a 1px hairline border and small shadow, swapping to a transparent border and medium shadow when `elevated`.",
+    "usedIn": [
+      "src/screens/settings/SettingsScreen.tsx",
+      "src/screens/wallet/ConnectionsView.tsx",
+      "src/components/ui/AddTokenPanel.tsx",
+      "src/screens/wallet/PayScreen.tsx"
+    ]
+  },
+  {
+    "component": "C/Rows/ActivityRow",
+    "codeRef": "src/components/ui/ActivityRow.tsx",
+    "props": ["direction", "amount", "masked", "fiat", "time", "chain", "isNew", "onPress"],
+    "desc": "Renders one activity-feed entry: a direction-arrow avatar with a small chain badge, then title + amount, counterparty subtitle + fiat, and an optional time line, with a press spring, a once-only staggered entrance and a brief glow when isNew.",
+    "usedIn": [
+      "src/screens/wallet/HomeScreen.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Rows/ConfirmAssets",
+    "codeRef": "src/components/send/ConfirmAssets.tsx",
+    "props": ["rows", "countLabel", "totalLabel"],
+    "desc": "Renders the send-confirm asset cluster: a single chip (TokenLogo + \"SYMBOL · network\") for one asset, or a collapsed count/total chip that expands into a per-token list for several; returns null with no rows.",
+    "usedIn": [
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Rows/DetailRow",
+    "codeRef": "src/components/ui/DetailRow.tsx#DetailRow",
+    "props": ["label", "value", "custom", "mono", "onCopy", "onOpen", "copied", "actionHint"],
+    "desc": "Renders a label ↔ value row, optionally monospaced, with a copy affordance that toggles Copy ↔ Check or an open-in-explorer affordance, where `custom` replaces the value cell entirely.",
+    "usedIn": [
+      "src/components/ui/TransactionDetailSheet.tsx",
+      "src/components/ui/ConnectionEventDetailSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "Same file also exports the shared Divider (manifest: C/Rows/Divider)."
+  },
+  {
+    "component": "C/Rows/FeeTokenSelector",
+    "codeRef": "src/components/ui/FeeTokenSelector.tsx",
+    "props": ["options", "selected", "feeAmountFor", "busy"],
+    "desc": "Renders one open (de-boxed) row per fee asset — token logo, this transaction's cost in that coin, and the held balance — marking the selected row with an accent check, showing coins that cannot cover the fee as unselectable, and while `busy` spinning the tapped row while the rest dim and block taps.",
+    "usedIn": [
+      "src/components/ui/GasFeeCard.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Rows/GasFeeCard",
+    "codeRef": "src/components/ui/GasFeeCard.tsx",
+    "props": ["feeEstimate", "estimating", "nativeSymbol", "nativeUsdPrice", "gasFeeToken", "chainId", "onFeeTokenChange", "onBusyChange"],
+    "desc": "Renders the estimated-fee row (\"Est. Fee ~x SYM ≈ $y\" plus a refresh affordance) that expands into a FeeTokenSelector of native + whitelisted stables, re-estimating the real tx or batch when the fee asset changes.",
+    "usedIn": [
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Rows/MultiRecipientEditor",
+    "codeRef": "src/components/send/MultiRecipientEditor.tsx",
+    "props": ["recipients", "tokenSymbol", "decimals", "priceUsd", "balance", "maxRecipients", "onPickContact", "onImport"],
+    "desc": "Renders the split-send (one token → many people) editor: one uniform row per recipient (avatar, auto-growing address field, amount field, remove control hidden at a single row), add-recipient and import affordances, and a total with an over-balance state computed in base units.",
+    "usedIn": [
+      "src/screens/wallet/EnterDetailsStep.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Rows/TokenRow",
+    "codeRef": "src/components/ui/TokenRow.tsx",
+    "props": ["symbol", "chainLabel", "chain", "balance", "masked", "usdValue", "selected", "contractAddress"],
+    "desc": "Renders one token list row — chain-badged TokenLogo, symbol plus chain label and an optional tap-to-copy contract address, balance (replaced by fixed-size dots when masked) and fiat value — with a leading checkbox whenever `selected` is defined and a press spring.",
+    "usedIn": [
+      "src/components/ui/HoldingsList.tsx",
+      "src/components/ui/TokenSelector.tsx",
+      "src/components/ui/BalanceDetailSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Rows/TokenSelector",
+    "codeRef": "src/components/ui/TokenSelector.tsx",
+    "props": ["tokens", "loading", "hideTotals", "defaultCategory", "multiSelect", "initialChainId"],
+    "desc": "Renders the pick-a-token list: search field, category chips (all / stable / gas / other), a NetworkFilterButton, an optional count + USD total row, the TokenRow list and an add-token affordance; with `multiSelect` the rows gain checkboxes plus a select-all control and a sticky confirm bar.",
+    "usedIn": [
+      "src/screens/wallet/SendScreen.tsx",
+      "src/components/ReceiveRequestControls.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Sheets/GroupEditor",
+    "codeRef": "src/components/contacts/GroupEditor.tsx",
+    "props": ["editing", "onBack", "onSaved"],
+    "desc": "Renders the create/edit contact-group view: a back header with a delete action when `editing`, a group-name input, a searchable saved-contacts list whose rows check-toggle membership, and a save button.",
+    "usedIn": [
+      "src/components/contacts/ContactsManager.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/AdvancedPanel",
+    "codeRef": "src/components/signing/AdvancedPanel.tsx",
+    "props": ["method", "params", "clearSign", "simResult", "heroFlows"],
+    "desc": "Renders the collapsed \"技术细节\" expert drawer as one grey card: every involved address tagged wallet vs contract with copy/explorer actions, the decoded function signature, the simulated net balance changes, and the raw calldata.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/ApprovalView",
+    "codeRef": "src/components/signing/views/ApprovalView.tsx",
+    "props": ["approval", "meta", "choice", "chainId", "walletAddress", "clearSign", "requestId"],
+    "desc": "Renders the ERC-20/NFT approval surface: a colored intent eyebrow, a plain-language SummaryLine, the EditableApproveCard spending-cap control, a resulting-total row for increaseAllowance once the on-chain allowance resolves, and risk WarningBanners.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/BalanceChangePreview",
+    "codeRef": "src/components/signing/BalanceChangePreview.tsx#BalanceChangePreview",
+    "props": ["result", "chainId", "selfTransfer", "heroFlows", "hideReassurance"],
+    "desc": "Renders a transaction-simulation summary from one AssetSimResult: a loud \"expected to fail\" card, the wallet's net asset changes (received green, sent in ink, unverified tokens shown with direction but no amount), or a quiet success reassurance that collapses to a check when every change is corroborated by the hero flows.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/screens/wallet/ConfirmStep.tsx",
+      "src/components/ui/ConnectionEventDetailSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/BatchCallsView",
+    "codeRef": "src/components/signing/views/BatchCallsView.tsx",
+    "props": ["items", "choices", "onChoiceChange", "metaByToken", "editable", "requestId"],
+    "desc": "Renders an EIP-5792 wallet_sendCalls batch as a per-leg breakdown, each leg showing its decoded intent or an EditableApproveCard when it grants an allowance, plus a WarningBanner while any leg still grants broad/unbounded access.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/BlindTransactionView",
+    "codeRef": "src/components/signing/views/BlindTransactionView.tsx",
+    "props": ["tx", "chainId", "simConfident", "nativeUsdPrice"],
+    "desc": "Renders an undecoded eth_sendTransaction: intent eyebrow, a native-value TokenCard hero with its fiat magnitude when the tx carries value, the counterparty ContractBar, the calldata size, and a WarningBanner that reads as a calm \"contract interaction\" note when simConfident.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/BlindTypedDataView",
+    "codeRef": "src/components/signing/views/BlindTypedDataView.tsx",
+    "props": ["params"],
+    "desc": "Renders an undecoded EIP-712 payload as a field list (primaryType row plus one row per top-level struct key with long hex mid-truncated), the domain's verifying contract as a ContractBar, and a caution WarningBanner.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/ClearSignView",
+    "codeRef": "src/components/signing/views/ClearSignView.tsx",
+    "props": ["cs", "simConfident", "walletAddress"],
+    "desc": "Renders the descriptor-decoded signing surface: intent eyebrow, then a swap layout (pay TokenCard → FlowArrow → receive TokenCard), a single send hero, or a pure-inflow hero, each with a plain-language SummaryLine, recipient/spender ContractBars, remaining fields as GenericFieldRows and risk WarningBanners.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/ContractBar",
+    "codeRef": "src/components/signing/ContractBar.tsx",
+    "props": ["label", "name", "address", "verified", "warning", "identity", "compact", "inflow"],
+    "desc": "Renders the counterparty row: identicon + wallet chip for identity 'auto' resolved as an EOA, a neutral glyph + contract chip for 'contract', or no identity chip for 'asset' — with the resolved name, a verified marker, a first-time-address note (worded for inflow) and a single quiet line in compact mode.",
+    "usedIn": [
+      "src/components/signing/views/ClearSignView.tsx",
+      "src/components/signing/views/BlindTransactionView.tsx",
+      "src/components/signing/views/BlindTypedDataView.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/DAppBanner",
+    "codeRef": "src/components/signing/DAppBanner.tsx#DAppBanner",
+    "props": ["name", "domain", "icon", "chainId"],
+    "desc": "Renders the \"who's asking\" header of a signing sheet: the dApp's own favicon (or a letter monogram when the image fails), its name and domain, and the target chain's ChainLogo plus name.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/EditableApproveCard",
+    "codeRef": "src/components/signing/EditableApproveCard.tsx#EditableApproveCard",
+    "props": ["approval", "symbol", "decimals", "decimalsVerified", "spenderLabel", "usdPrice", "balanceRaw", "choice"],
+    "desc": "Renders the spending-cap editor for an approval — requested / balance / custom / revoke modes with a locale-formatted amount input and fiat line, or a grant-vs-revoke choice for a boolean setApprovalForAll — with no unlimited preset.",
+    "usedIn": [
+      "src/components/signing/views/ApprovalView.tsx",
+      "src/components/signing/views/BatchCallsView.tsx",
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "The exported wrapper dispatches to file-private BooleanGrantCard / AmountCard."
+  },
+  {
+    "component": "C/Signing/EthSignDangerView",
+    "codeRef": "src/components/signing/views/EthSignDangerView.tsx",
+    "props": ["dataHex"],
+    "desc": "Renders the eth_sign blind-hash surface: a red intent eyebrow, a ShieldAlert danger card with the explanation and the opaque hash, and a danger-severity WarningBanner.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/FlowArrow",
+    "codeRef": "src/components/signing/TokenCard.tsx#FlowArrow",
+    "props": ["danger"],
+    "desc": "Renders a small circled ArrowDown connector between two signing amount cards, tinted danger red when `danger`.",
+    "usedIn": [
+      "src/components/signing/views/ClearSignView.tsx",
+      "src/app/design-gallery.tsx"
+    ],
+    "note": "AMBIGUOUS NAME: a second, unrelated FlowArrow exists at src/components/send/FlowArrow.tsx (the Send-confirm hairline shaft + MoveDown connector, used by ConfirmStep and TransactionReceipt). The generator manifest maps that one as C/Rows/FlowArrowSend, so C/Signing/FlowArrow is the signing/TokenCard.tsx export."
+  },
+  {
+    "component": "C/Signing/GenericFieldRow",
+    "codeRef": "src/components/signing/WarningBanner.tsx#GenericFieldRow",
+    "props": ["field", "field.warning", "field.expired"],
+    "desc": "Renders one decoded label/value row from a ClearSignField, tinting the value red when field.warning and prefixing an amber \"Expired\" tag when field.expired.",
+    "usedIn": [
+      "src/components/signing/views/ClearSignView.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/IntentHeader",
+    "codeRef": "src/components/signing/IntentHeader.tsx",
+    "props": ["intent", "color", "variant", "colorEyebrow"],
+    "desc": "Renders the signing action word either as a large headline (variant 'hero') or as a small uppercase kicker (variant 'eyebrow'), tinted with `color` only when colorEyebrow.",
+    "usedIn": [
+      "src/components/signing/views/ClearSignView.tsx",
+      "src/components/signing/views/ApprovalView.tsx",
+      "src/components/signing/views/MessageSignView.tsx",
+      "src/components/signing/views/BlindTransactionView.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/MessageSignView",
+    "codeRef": "src/components/signing/views/MessageSignView.tsx",
+    "props": ["hexMsg", "requestOrigin"],
+    "desc": "Renders a personal_sign request: the Unicode-decoded message (flagged when the hex is non-printable), and for a SIWE payload the parsed statement plus a domain-binding check against requestOrigin with the matching WarningBanner.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/PermitSignView",
+    "codeRef": "src/components/signing/views/PermitSignView.tsx",
+    "props": ["approval", "meta", "clearSign"],
+    "desc": "Renders an off-chain permit (Permit2 / ERC-2612 / DAI) verbatim: intent eyebrow colored for unbounded or revoke, a SummaryLine, a token card with the permitted amount tinted error.soft plus an AlertTriangle when unbounded, and a caution WarningBanner when the deadline has passed — no cap editor.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/SigningAccountRow",
+    "codeRef": "src/components/signing/DAppBanner.tsx#SigningAccountRow",
+    "props": ["accountName", "accountAddress"],
+    "desc": "Renders the \"signing account\" row at the bottom of a signing sheet — label, ContactAvatar, account name and a chevron that toggles a selectable full-address line; returns null without accountName.",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/SummaryLine",
+    "codeRef": "src/components/signing/SummaryLine.tsx#SummaryLine",
+    "props": ["text", "tone", "emphasize"],
+    "desc": "Renders the one-sentence plain-language summary under a signing hero, warmed for tone 'caution'/'danger', with each `emphasize` substring re-rendered in semibold; returns null without text.",
+    "usedIn": [
+      "src/components/signing/views/ClearSignView.tsx",
+      "src/components/signing/views/ApprovalView.tsx",
+      "src/components/signing/views/BlindTransactionView.tsx",
+      "src/components/signing/views/PermitSignView.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/TokenCard",
+    "codeRef": "src/components/signing/TokenCard.tsx#TokenCard",
+    "props": ["field", "variant", "hideSign", "hero", "heroLabel"],
+    "desc": "Renders a signing amount card from a ClearSignField — token logo, signed amount and fiat sub-line — on an open row for variant send/receive and on a tinted card for caution/danger, or logo-less and left-aligned as the hero amount (with the label kept only when heroLabel).",
+    "usedIn": [
+      "src/components/signing/views/ClearSignView.tsx",
+      "src/components/signing/views/BlindTransactionView.tsx",
+      "src/app/design-gallery.tsx"
+    ]
+  },
+  {
+    "component": "C/Signing/WarningBanner",
+    "codeRef": "src/components/signing/WarningBanner.tsx#WarningBanner",
+    "props": ["severity", "text"],
+    "desc": "Renders an AlertTriangle plus message banner, filled and tinted per severity ('caution' amber, 'danger' red).",
+    "usedIn": [
+      "src/components/signing/SigningSheet.tsx",
+      "src/components/signing/views/ClearSignView.tsx",
+      "src/components/signing/views/ApprovalView.tsx",
+      "src/components/signing/views/MessageSignView.tsx"
+    ]
+  }
+]

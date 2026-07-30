@@ -13,10 +13,16 @@ const lib = storage.lib;
 const out = { components: 0, families: 0, duplicateNames: [], defaultAxes: [], copyValues: [],
   variantErrors: [], singletons: 0 };
 
+// IDENTITY = path + name. A LibraryComponent's `name` holds only the LEAF; the group prefix lives
+// in `path` (verified 2026-07-30). Grouping by `name` alone reported `C/Primitives/SectionLabel` and
+// `DRAFT/Primitives/SectionLabel` as a duplicate pair — two components in different groups that
+// merely share a leaf. DRAFT/* is non-canon (see 76-drafts-quarantine) and is counted separately.
+const idOf = (c) => lib.norm(((c.path ? c.path + ' / ' : '') + (c.name || '')));
 const byName = new Map();
 for (const c of penpot.library.local.components) {
   out.components++;
-  const key = lib.norm(c.name || '');
+  const key = idOf(c);
+  if (key.startsWith('DRAFT')) { out.drafts = (out.drafts || 0) + 1; continue; }
   if (!byName.has(key)) byName.set(key, []);
   byName.get(key).push(c);
 }

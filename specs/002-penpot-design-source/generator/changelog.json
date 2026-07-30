@@ -1,17 +1,29 @@
 {
-  "$comment": "Committed history for page 11. Newest entry FIRST. One entry per regeneration that changed what a reader sees; `rev` is the git revision the file reflected afterwards. Add an entry here — never by typing on the canvas, which the next regeneration would wipe.",
+  "$comment": "Committed history for page 11. Newest entry FIRST. One entry per regeneration that changed what a reader sees; `rev` is the git revision the file reflected afterwards. Add an entry here \u2014 never by typing on the canvas, which the next regeneration would wipe.",
   "entries": [
+    {
+      "date": "2026-07-30",
+      "rev": "a4bffaa+",
+      "headline": "SC-007 passes; the design language is shown; reuse is indexed",
+      "changes": [
+        "Overlay triggers authored from the inventory; the 24 remaining signing boards declared as ONE scenario set rather than 24 invented edges",
+        "Graph audit: 89 boards, 87 reachable, 2 recorded exclusions, 0 unreachable \u2014 PASS",
+        "Principles 07 (open heroes) and 08 (section labels) added as do/don't specimens; 09 and 10 are pointed at their real homes because neither has a still form",
+        "Reuse index on 09: every component ordered by how many surfaces import it, plus the reverse view of what each surface is built from",
+        "Audit 96 was passing against a session-CACHED layout while boards sat at old positions; both audits now re-fetch their manifest every run"
+      ]
+    },
     {
       "date": "2026-07-30",
       "rev": "af54c2f",
       "headline": "Screens become journeys; the wiring becomes visible",
       "changes": [
-        "Board positions on 05–07 derive from generator/journeys.json — walls survive a regeneration instead of collapsing to a grid",
+        "Board positions on 05\u201307 derive from generator/journeys.json \u2014 walls survive a regeneration instead of collapsing to a grid",
         "62 committed region maps: flat DOM piles grouped into header / hero / content / list / actions / dock (backdrop / sheet for overlays)",
         "77-walls draws a band header per journey and a labelled arrow per step, from the same edges.json the machine wiring uses",
         "74 wires 37 pointer interactions (was zero); 5 cross-page edges degrade to vela.edge because Penpot cannot link across pages",
         "Send journey completed: receipt states boarded from the dev harness, plus the S/send/sign proxy",
-        "S/home/activity-empty and S/send/confirm stamped vela.debt=RECAPTURE — no committed dump exists for them"
+        "S/home/activity-empty and S/send/confirm stamped vela.debt=RECAPTURE \u2014 no committed dump exists for them"
       ]
     },
     {
@@ -31,10 +43,10 @@
       "rev": "1760f34",
       "headline": "Tokens leave the file; the IA map stops lying",
       "changes": [
-        "docs/design-tokens.json — 147 tokens in the Tokens-Studio/DTCG dialect, verified against the live sets both ways",
+        "docs/design-tokens.json \u2014 147 tokens in the Tokens-Studio/DTCG dialect, verified against the live sets both ways",
         "Mode demo proves set activation really repaints; both palettes shown side by side for humans",
         "IA route nodes carry vela.target and all 13 resolve; two dangling board names and a wrong anchor fixed",
-        "IA connectors rerouted through corridors with real arrowheads — no line crosses a card, no label is struck through",
+        "IA connectors rerouted through corridors with real arrowheads \u2014 no line crosses a card, no label is struck through",
         "74 verifies an interaction's read-back: a cross-page navigate is accepted with an EMPTY destination, so silence was not success"
       ]
     },

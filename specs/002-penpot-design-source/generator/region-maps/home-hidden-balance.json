@@ -3,15 +3,9 @@
  "board": "S/home/hidden-balance",
  "frame": {
   "w": 390,
-  "h": 806
+  "h": 844
  },
  "regions": [
-  {
-   "name": "hero",
-   "paths": [
-    "0.0.0.0.0"
-   ]
-  },
   {
    "name": "content",
    "paths": [
@@ -28,6 +22,84 @@
    "name": "content-3",
    "paths": [
     "0.2"
+   ]
+  },
+  {
+   "name": "content-4",
+   "paths": [
+    "0.3"
+   ]
+  },
+  {
+   "name": "content-5",
+   "paths": [
+    "0.4"
+   ]
+  },
+  {
+   "name": "content-6",
+   "paths": [
+    "0.5"
+   ]
+  },
+  {
+   "name": "content-7",
+   "paths": [
+    "0.6"
+   ]
+  },
+  {
+   "name": "content-8",
+   "paths": [
+    "0.7"
+   ]
+  },
+  {
+   "name": "content-9",
+   "paths": [
+    "0.8"
+   ]
+  },
+  {
+   "name": "content-10",
+   "paths": [
+    "0.9"
+   ]
+  },
+  {
+   "name": "content-11",
+   "paths": [
+    "0.10"
+   ]
+  },
+  {
+   "name": "content-12",
+   "paths": [
+    "0.11"
+   ]
+  },
+  {
+   "name": "content-13",
+   "paths": [
+    "0.12"
+   ]
+  },
+  {
+   "name": "content-14",
+   "paths": [
+    "0.13"
+   ]
+  },
+  {
+   "name": "content-15",
+   "paths": [
+    "0.14"
+   ]
+  },
+  {
+   "name": "portal-1",
+   "paths": [
+    "1"
    ]
   }
  ]

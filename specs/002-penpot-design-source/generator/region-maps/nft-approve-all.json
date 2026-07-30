@@ -3,7 +3,7 @@
  "board": "O/signing-sheet/nft-approve-all",
  "frame": {
   "w": 390,
-  "h": 806
+  "h": 844
  },
  "regions": [
   {
@@ -13,9 +13,57 @@
    ]
   },
   {
-   "name": "sheet",
+   "name": "backdrop",
    "paths": [
     "0.1"
+   ]
+  },
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.2"
+   ]
+  },
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.3"
+   ]
+  },
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.4"
+   ]
+  },
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.5"
+   ]
+  },
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.6"
+   ]
+  },
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.7"
+   ]
+  },
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.8"
+   ]
+  },
+  {
+   "name": "portal-1",
+   "paths": [
+    "1"
    ]
   }
  ]

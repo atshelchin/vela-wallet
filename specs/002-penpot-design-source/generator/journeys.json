@@ -21,7 +21,7 @@
           "steps": ["S/send/select-token", "S/send/details", "S/send/confirm", "S/send/sign", "S/send/receipt-submitted"],
           "states": {
             "S/send/select-token": ["S/send/select-token-dark", "S/send/locked-network-not-supported", "S/send/locked-unknown-token"],
-            "S/send/details": ["S/send/details-split"],
+            "S/send/details": ["S/send/details-filled", "S/send/details-split"],
             "S/send/receipt-submitted": ["S/send/receipt-confirmed", "S/send/receipt-failed"]
           }
         },

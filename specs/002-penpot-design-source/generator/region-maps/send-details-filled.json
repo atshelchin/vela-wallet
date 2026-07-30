@@ -1,63 +1,69 @@
 {
- "slug": "permit2-approve-unlimited",
- "board": "O/signing-sheet/permit2-approve-unlimited",
+ "slug": "send-details-filled",
+ "board": "S/send/details-filled",
  "frame": {
   "w": 390,
   "h": 844
  },
  "regions": [
   {
-   "name": "backdrop",
+   "name": "content",
    "paths": [
     "0.0"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-2",
    "paths": [
     "0.1"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-3",
    "paths": [
     "0.2"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-4",
    "paths": [
     "0.3"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-5",
    "paths": [
     "0.4"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-6",
    "paths": [
     "0.5"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-7",
    "paths": [
     "0.6"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-8",
    "paths": [
     "0.7"
    ]
   },
   {
-   "name": "backdrop",
+   "name": "content-9",
    "paths": [
     "0.8"
+   ]
+  },
+  {
+   "name": "content-10",
+   "paths": [
+    "0.9"
    ]
   },
   {

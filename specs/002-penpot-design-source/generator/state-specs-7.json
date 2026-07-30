@@ -27,7 +27,7 @@
           { "act": "wait", "ms": 1500 },
           { "act": "type", "placeholder": "0", "value": "0.1" },
           { "act": "wait", "ms": 800 },
-          { "act": "type", "placeholder": "0x... address", "value": "0x709979CB5b2b0dFEc5F1E1c1E82ff37Ee4F0d8b" },
+          { "act": "type", "placeholder": "0x... address", "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
           { "act": "wait", "ms": 2000 }
         ]
       },

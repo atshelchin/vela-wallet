@@ -1,6 +1,6 @@
 {
- "slug": "erc-20-transfer",
- "board": "O/signing-sheet/erc-20-transfer",
+ "slug": "deploy-contract",
+ "board": "O/signing-sheet/deploy-contract",
  "frame": {
   "w": 390,
   "h": 806

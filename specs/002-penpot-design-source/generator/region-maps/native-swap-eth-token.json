@@ -1,6 +1,6 @@
 {
- "slug": "erc-20-transfer",
- "board": "O/signing-sheet/erc-20-transfer",
+ "slug": "native-swap-eth-token",
+ "board": "O/signing-sheet/native-swap-eth-token",
  "frame": {
   "w": 390,
   "h": 806

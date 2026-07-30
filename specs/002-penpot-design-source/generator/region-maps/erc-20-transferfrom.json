@@ -1,6 +1,6 @@
 {
- "slug": "erc-20-transfer",
- "board": "O/signing-sheet/erc-20-transfer",
+ "slug": "erc-20-transferfrom",
+ "board": "O/signing-sheet/erc-20-transferfrom",
  "frame": {
   "w": 390,
   "h": 806

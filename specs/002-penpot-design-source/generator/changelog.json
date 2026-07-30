@@ -1,0 +1,53 @@
+{
+  "$comment": "Committed history for page 11. Newest entry FIRST. One entry per regeneration that changed what a reader sees; `rev` is the git revision the file reflected afterwards. Add an entry here — never by typing on the canvas, which the next regeneration would wipe.",
+  "entries": [
+    {
+      "date": "2026-07-30",
+      "rev": "af54c2f",
+      "headline": "Screens become journeys; the wiring becomes visible",
+      "changes": [
+        "Board positions on 05–07 derive from generator/journeys.json — walls survive a regeneration instead of collapsing to a grid",
+        "62 committed region maps: flat DOM piles grouped into header / hero / content / list / actions / dock (backdrop / sheet for overlays)",
+        "77-walls draws a band header per journey and a labelled arrow per step, from the same edges.json the machine wiring uses",
+        "74 wires 37 pointer interactions (was zero); 5 cross-page edges degrade to vela.edge because Penpot cannot link across pages",
+        "Send journey completed: receipt states boarded from the dev harness, plus the S/send/sign proxy",
+        "S/home/activity-empty and S/send/confirm stamped vela.debt=RECAPTURE — no committed dump exists for them"
+      ]
+    },
+    {
+      "date": "2026-07-30",
+      "rev": "6752858",
+      "headline": "The component page answers \"what do I reuse?\"",
+      "changes": [
+        "Six category sections; every family gets a docs block: tier, axes, description, USE WHEN, DON'T, code path, reuse sites",
+        "53/53 implementation paths resolved from the source tree and path-validated; 20 Tier-1 rules authored",
+        "Same strings stamped as vela.codeRef / vela.usage / vela.dont for machine readers",
+        "Nine pre-pivot drafts renamed out of C/ into DRAFT/*, quarantined in a labelled band, indexed on 12 Archive",
+        "Audit 97 corrected: component identity is path+name, not name (which holds only the leaf)"
+      ]
+    },
+    {
+      "date": "2026-07-30",
+      "rev": "1760f34",
+      "headline": "Tokens leave the file; the IA map stops lying",
+      "changes": [
+        "docs/design-tokens.json — 147 tokens in the Tokens-Studio/DTCG dialect, verified against the live sets both ways",
+        "Mode demo proves set activation really repaints; both palettes shown side by side for humans",
+        "IA route nodes carry vela.target and all 13 resolve; two dangling board names and a wrong anchor fixed",
+        "IA connectors rerouted through corridors with real arrowheads — no line crosses a card, no label is struck through",
+        "74 verifies an interaction's read-back: a cross-page navigate is accepted with an EMPTY destination, so silence was not success"
+      ]
+    },
+    {
+      "date": "2026-07-30",
+      "rev": "fe76f42",
+      "headline": "Two-layer pipeline adopted (RESTRUCTURE-2026-07-30)",
+      "changes": [
+        "Semantic layer (regions, swaps, interactions, wall positions) lives in committed repo data and is re-applied after every rebuild",
+        "Guard audits 96 (semantic floor) and 97 (library) run as the mandatory tail of every regeneration",
+        "Pages 11 Changelog and 12 Archive added; tasks.md checkboxes reconciled against a full file audit",
+        "spec.md gains SC-008 (human gate), SC-009, SC-010, SC-011 and the two-layer FR-008/SC-005"
+      ]
+    }
+  ]
+}

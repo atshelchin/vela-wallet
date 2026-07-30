@@ -23,10 +23,16 @@ const DUMPS = resolve(HERE, '../dom-dumps');
 const OUT = resolve(HERE, 'region-maps');
 if (!existsSync(OUT)) mkdirSync(OUT, { recursive: true });
 
+// `signing` and `signing-fix` hold the 25-scenario signing matrix. They were missing from this list
+// at first, which left every signing board flat — the file's highest-stakes surface, and the one a
+// reader is most likely to open. They are overlay captures (backdrop + sheet), so they take the
+// overlay treatment.
 const SETS = [
   { dir: 'screens', index: '_index.json' },
   { dir: 'screens-dark', index: '_index.json' },
   { dir: 'overlays', index: '_index.json' },
+  { dir: 'signing', index: '_index.json', overlay: true },
+  { dir: 'signing-fix', index: '_index.json', overlay: true },
 ];
 
 const kidsOf = (n) => (n.children || []).flat(Infinity).filter(Boolean);
@@ -132,7 +138,7 @@ for (const set of SETS) {
     const kids = kidsOf(branch.node);
     if (!kids.length) { summary.noBranch.push(entry.slug); continue; }
 
-    if (set.dir === 'overlays') {
+    if (set.dir === 'overlays' || set.overlay) {
       regions.push(...overlayRegions(branch, frameH));
     } else {
       const named = kids.map((c, i) => ({ c, i, name: classify(c, i, frameH, kids) }));

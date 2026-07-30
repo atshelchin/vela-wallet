@@ -243,7 +243,9 @@ const withOpacity = (shape, eff) => {
 // so it published as a plain white rectangle indistinguishable from `default`.
 const parseShadow = (css) => {
   const s = String(css || '');
-  const m = s.match(/rgba?\(([^)]+)\)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px(?:\s+(-?[\d.]+)px)?/);
+  // CSS omits the unit on a zero: the app's card shadow serialises as "rgba(26,26,24,0.04) 0 1px 3px",
+  // so a pattern demanding px on every length matched nothing and all 18 shadows were still dropped.
+  const m = s.match(/rgba?\(([^)]+)\)\s+(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?\s+(-?[\d.]+)(?:px)?(?:\s+(-?[\d.]+)(?:px)?)?/);
   if (!m) return null;
   const p = m[1].split(',').map((x) => parseFloat(x.trim()));
   const hex2 = '#' + p.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('').toUpperCase();

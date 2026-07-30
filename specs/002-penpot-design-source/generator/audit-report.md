@@ -173,3 +173,40 @@ is the empty state; the three `O/app-alert/*` boards are 1512px desktop dialogs 
 `state-specs-5.json` (58 states across 7 groups, merged and validated from six recon agents) is
 staged and unrun, with `state-specs-5-NOTES.md` recording what it captures, what it deliberately
 excludes, and what remains unreachable.
+
+### 2026-07-30 · component-library verification, and the converter bugs behind it
+
+Six agents checked all 189 component variants against their gallery cells and the components' own
+source. **60 defects survived re-checking** (7 rejected — a `masked` variant SHOULD have no figures,
+a `fallback` logo SHOULD have no artwork). The full ranked list with per-claim evidence is
+`generator/component-defects.md`. Every one of these had built with zero errors.
+
+Fixed here — all three are converter or plan bugs, so one edit corrects many boards:
+
+1. **Inherited opacity.** The browser composites a subtree at its ancestor's opacity; this converter
+   flattens the tree into board siblings, so `opacity: 0.45` reached only the shape that declared
+   it. VelaButton's three disabled variants drew a solid-white label over a 45% fill — ~1.3:1, and
+   otherwise byte-identical to their enabled twins. A dimmed WRAPPER that paints nothing produced no
+   shape at all, so FeeTokenSelector's `busy` lost its dim entirely and was a pixel copy of
+   `default`. Now: 6 dimmed shapes on a disabled VelaButton vs 3 elsewhere; 18–24 on the fee rows.
+2. **Shadows.** `shadow` was named in `paints()` but never written. 18 cells carried one and lost it;
+   VelaCard's `elevated` has no border, so it published as a plain white rectangle. Two attempts were
+   needed: the first regex demanded `px` on every length, and CSS drops the unit on a zero
+   (`rgba(26,26,24,0.04) 0 1px 3px`). VelaCard now carries a shadow on both variants.
+3. **Legacy families.** `manifest.json` excludes ThemedText / ThemedView / Collapsible as
+   Expo-template leftovers on the legacy palette — outside their own files the app references them
+   only from the design gallery — but the plan builder harvested them anyway. 12 of 189 variants
+   were publishing off-palette surfaces and system-font specimens as Vela components. **53 families,
+   177 variants.**
+
+A fourth bug found while verifying the third: `72` never copied `shadows` out of `70`'s result, so
+the metric read 0 through a whole rebuild and made a working fix look inert. A stat that cannot go
+up is worse than no stat.
+
+Still open from `component-defects.md`, none of them converter-level: the `C2` inline-fragment
+branch (ClearSignView / ApprovalView / PermitSignView summaries overprint their bold inline child
+and get truncated — 7 variants); the `E1` class (react-native-web renders TextInput as `<input>`,
+whose `value`/`placeholder` are attributes the extractor never reads, so seven boards show empty
+fields); and the `G1`/`G2` class (gallery-source props and recaptures: TransactionReceipt `failed`
+needs a txHash, TokenSelector `multiselect` needs a chain filter, AdvancedPanel needs expanding,
+TokenRow needs its logo URLs).

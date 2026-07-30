@@ -25,7 +25,7 @@ const PAGE = '03 Components';
 const PARK = { x: -20000, y: -20000 };
 const stats = { component: plan.component, variants: 0, shapes: 0, icons: 0, iconMissing: 0,
   images: 0, imageMissing: 0, colorBound: 0, colorLiteral: 0, reflowStuck: 0, removedPrior: 0,
-  rawHex: {}, perVariant: [] };
+  shadows: 0, dimmed: 0, rawHex: {}, perVariant: [] };
 
 await lib.open(PAGE);
 
@@ -63,6 +63,9 @@ for (const cell of plan.cells) {
   stats.icons += r.icons || 0; stats.iconMissing += r.iconMissing || 0;
   stats.images += r.images || 0; stats.imageMissing += r.imageMissing || 0;
   stats.colorBound += r.colorBound || 0; stats.colorLiteral += r.colorLiteral || 0;
+  // forward every converter stat that matters: `shadows` read 0 for a whole rebuild only because it
+  // was never copied out of 70's result, which made a real fix look like it had not applied
+  stats.shadows += r.shadows || 0;
   stats.reflowStuck += (r.reflowStuck || []).length;
   for (const h of (r.rawHex || [])) {
     const [hx, n] = String(h).split('×');

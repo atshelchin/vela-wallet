@@ -1,0 +1,22 @@
+{
+ "slug": "transactiondetailsheet-single",
+ "board": "O/transaction-detail/single-confirmed",
+ "frame": {
+  "w": 390,
+  "h": 806
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0.0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "0.1"
+   ]
+  }
+ ]
+}

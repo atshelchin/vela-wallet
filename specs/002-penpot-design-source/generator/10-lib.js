@@ -164,9 +164,20 @@ lib.upsertRect = (parent, name, spec) => {
 // Screen boards MUST compose from instances, not redrawn copies (FR-005, US4-AS2).
 // Returns null when the family is missing so a chunk can fall back to a placeholder and
 // report the gap instead of dying mid-board.
+// PENPOT RULE 6: a LibraryComponent's `name` is only the LEAF; the group prefix lives in `path`
+// (verified 2026-07-30). Matching the full slash-name against `.name` therefore NEVER matched, and
+// this helper silently returned null for every family — which is why nothing in the file was ever
+// composed from instances. Identity is path + name.
+lib.componentId = (c) => lib.norm((c.path ? c.path + ' / ' : '') + (c.name || ''));
 lib.instance = (familyName, props, parent, x, y) => {
   const n = lib.norm(familyName);
-  const candidates = penpot.library.local.components.filter(c => c.name === n);
+  let candidates = penpot.library.local.components.filter(c => lib.componentId(c) === n);
+  if (!candidates.length) {
+    // tolerate a caller passing just the leaf ('VelaButton'), but never a DRAFT twin
+    const leaf = n.split(' / ').pop();
+    candidates = penpot.library.local.components.filter(c =>
+      lib.norm(c.name || '') === leaf && !lib.componentId(c).startsWith('DRAFT'));
+  }
   if (!candidates.length) return null;
   let comp = candidates[0];
   if (props && candidates.length > 1) {

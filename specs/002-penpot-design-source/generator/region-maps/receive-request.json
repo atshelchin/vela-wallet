@@ -1,0 +1,40 @@
+{
+ "slug": "receive-request",
+ "board": "S/receive/request",
+ "frame": {
+  "w": 390,
+  "h": 806
+ },
+ "regions": [
+  {
+   "name": "hero",
+   "paths": [
+    "0.0.0.0.0.2.0.0"
+   ]
+  },
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "list",
+   "paths": [
+    "0.0.0.0.0.1"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.0.2"
+   ]
+  },
+  {
+   "name": "footer",
+   "paths": [
+    "0.0.0.0.0.3"
+   ]
+  }
+ ]
+}

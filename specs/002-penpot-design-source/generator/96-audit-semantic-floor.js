@@ -45,10 +45,18 @@ for (const pageName of CANON) {
     const bn = lib.norm(b.name || '');
     if (!bn.startsWith('S / ') && !bn.startsWith('O / ')) continue;
     out.boards++;
-    // rule 1 — the layer tree reads
+    // rule 1 — the layer tree reads. The test is NOT "zero loose shapes": a region map groups the
+    // screen-root branch, while shapes drawn from a portal root or from wrapper nodes above that
+    // branch legitimately stay at the top level. What makes a tree unreadable is having no regions
+    // at all, or a pile of DOM-path leaves next to them. So: at least one region, and no more than
+    // LOOSE_MAX strays — with both numbers reported, so the bar is auditable rather than asserted.
+    const LOOSE_MAX = 6;
     const loose = (b.children || []).filter((c) => !okPrefix(lib.norm(c.name || '')));
-    if (loose.length) out.flat.push(bn + ' (' + loose.length + ' loose top-level shapes)');
-    out.regionCounts[bn] = (b.children || []).filter((c) => lib.norm(c.name || '').startsWith('region / ')).length;
+    const regionCount = (b.children || []).filter((c) => lib.norm(c.name || '').startsWith('region / ')).length;
+    out.regionCounts[bn] = regionCount;
+    if (!regionCount || loose.length > LOOSE_MAX) {
+      out.flat.push(bn + ' (' + regionCount + ' regions, ' + loose.length + ' loose top-level shapes)');
+    }
     // rule 2 — walls are reproducible from the manifest
     const exp = (expectedPos[pageName] || {})[bn];
     if (exp) {

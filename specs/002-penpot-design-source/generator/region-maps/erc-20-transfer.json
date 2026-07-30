@@ -1,0 +1,10 @@
+{
+ "slug": "erc-20-transfer",
+ "board": "S/send/sign",
+ "$note": "hand-authored: the signing captures are overlays (backdrop + sheet) and live in a dump set gen-region-maps does not walk. Same shape as the generated overlay maps.",
+ "frame": { "w": 390, "h": 806 },
+ "regions": [
+  { "name": "backdrop", "paths": ["0.0"] },
+  { "name": "sheet", "paths": ["0.1"] }
+ ]
+}

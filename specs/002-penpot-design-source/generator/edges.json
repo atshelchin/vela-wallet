@@ -26,7 +26,6 @@
     { "from": "S/send/confirm", "label": "Confirm", "to": "S/send/sign", "kind": "nav",
       "$comment": "S/send/sign is the journey-step proxy board (RESTRUCTURE §5, founder decision 3); until W2 builds it, 74 reports it as missingTarget — expected." },
 
-    { "from": "S/send/sign", "label": "Reject", "to": "S/send/confirm", "kind": "nav" },
 
     { "from": "S/receive/safety-gate", "label": "I Understand", "to": "S/receive/address", "kind": "nav" },
     { "from": "S/receive/address", "label": "Request", "to": "S/receive/request", "kind": "nav" },
@@ -38,10 +37,11 @@
     { "from": "S/settings/default", "label": "About", "to": "S/about/default", "kind": "nav" },
     { "from": "S/settings/default", "label": "Contacts", "to": "O/contacts-manager/default", "kind": "overlay" },
     { "from": "S/settings/default", "label": "Currency", "to": "O/currency/default", "kind": "overlay" },
-    { "from": "S/settings/default", "label": "Safari Extension", "to": "S/safari-extension/default", "kind": "nav" },
+    { "from": "S/settings/default", "label": "Send feedback", "to": "S/about/default", "kind": "nav",
+      "$comment": "the Safari-Extension row is below the fold in this capture; the reachable rows on the default board are the ones above it" },
 
     { "from": "S/onboarding/welcome", "label": "Create Wallet", "to": "S/onboarding/create", "kind": "nav" },
-    { "from": "S/connect/disconnected", "label": "Connections", "to": "S/home/connections", "kind": "nav" },
+    { "from": "S/connect/disconnected", "label": "Scan QR Code", "to": "S/connect/connecting-verify", "kind": "nav" },
     { "from": "S/token-detail/default", "label": "Send", "to": "S/send/select-token", "kind": "nav" },
     { "from": "S/token-detail/default", "label": "Receive", "to": "S/receive/safety-gate", "kind": "nav" },
 
@@ -54,6 +54,10 @@
     { "from": "S/onboarding/create-form-ready", "label": "Account Name", "to": "S/onboarding/create", "kind": "nav" }
   ],
   "nonPointer": [
+    { "from": "S/send/sign", "condition": "tap the sheet's close ✕ → back to confirm (the reject control is an icon, so there is no text handle to wire)", "to": "S/send/confirm" },
+    { "from": "S/connect/disconnected", "condition": "a dApp session is established → it appears in Home › Connections", "to": "S/home/connections" },
+    { "from": "S/settings/default", "condition": "scroll past Localization → Safari Extension and the developer rows", "to": "S/settings/scrolled" },
+    { "from": "S/settings/scrolled", "condition": "tap Safari Extension", "to": "S/safari-extension/default" },
     { "from": "S/onboarding/create", "condition": "passkey ceremony resolves → wallet created", "to": "S/home/activity" },
     { "from": "S/send/sign", "condition": "slide to confirm → signed and submitted", "to": "S/send/receipt-submitted" },
     { "from": "S/send/confirm", "condition": "user operation lands on chain", "to": "O/transaction-detail/single-confirmed" },

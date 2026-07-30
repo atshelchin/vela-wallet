@@ -1,6 +1,7 @@
 {
   "$comment": "Journey-wall manifest (RESTRUCTURE-2026-07-30 §5/§7). Board (x,y) on screen pages is DERIVED from this file by 73-screens-from-states.js — walls are a generated output, never a hand arrangement, so regeneration reproduces them (FR-008). Wall kinds: 'flow' = steps left-to-right in journey order; 'hub' = hub board first column, spokes to its right. states[board] stack BELOW that board (dark twins, empty/error/locked states). Steps may name boards that do not exist yet (S/send/sign, receipts) — 73 skips absent boards but reserves their column, so adding the board later lands it in place. Boards on a page but in no wall fall into an auto 'misc' band after the last wall (legacy grid).",
-  "layout": { "colW": 450, "rowH": 950, "bandGap": 250, "originX": 40, "headerH": 120 },
+  "$layout_note": "colW leaves a 170px gap between 390px boards — the visible edge layer (77-walls) puts a labelled arrow in that gap, and a trigger like 'slide to confirm → receipt' needs ~130px. At the old 450 the label had nowhere to go but on top of the next screen.",
+  "layout": { "colW": 560, "rowH": 950, "bandGap": 250, "originX": 40, "headerH": 160 },
   "pages": {
     "05 Screens · Wallet": {
       "walls": [
@@ -10,7 +11,7 @@
           "hub": "S/home/activity",
           "spokes": ["S/home/assets", "S/home/connections"],
           "states": {
-            "S/home/activity": ["S/home/activity-empty", "S/home/hidden-balance"],
+            "S/home/activity": ["S/home/activity-empty", "S/home/hidden-balance", "S/home/rate-limited", "S/home/rpc-trouble"],
             "S/home/assets": ["S/home/assets-dark"]
           }
         },
@@ -95,7 +96,7 @@
           "hub": "S/settings/default",
           "spokes": ["S/about/default"],
           "states": {
-            "S/settings/default": ["S/settings/advanced-expanded", "S/settings/default-dark"]
+            "S/settings/default": ["S/settings/advanced-expanded", "S/settings/scrolled", "S/settings/default-dark"]
           }
         }
       ]

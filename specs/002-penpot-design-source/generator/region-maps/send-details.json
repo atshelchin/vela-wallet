@@ -1,0 +1,28 @@
+{
+ "slug": "send-details",
+ "board": "S/send/details",
+ "frame": {
+  "w": 390,
+  "h": 806
+ },
+ "regions": [
+  {
+   "name": "hero",
+   "paths": [
+    "0.0.0.0.1.0.0"
+   ]
+  },
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.1"
+   ]
+  }
+ ]
+}

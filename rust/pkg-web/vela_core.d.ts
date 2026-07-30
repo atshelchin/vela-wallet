@@ -1,5 +1,19 @@
 /* tslint:disable */
 /* eslint-disable */
+/**
+ * Flattened `IdenticonParams` — the same shape `getIdenticonsParams` returns in
+ * the JS library, so migrating call sites stay recognisable.
+ */
+export interface IdenticonParams {
+    main: string;
+    background: string;
+    accent: string;
+    top: string;
+    sides: string;
+    face: string;
+    bottom: string;
+}
+
 export interface AbiValue {
     kind: string;
     name: string;
@@ -76,6 +90,32 @@ export function functionSelector(signature: string): Uint8Array;
 
 export function hashTypedData(typed_data_json: string): Uint8Array;
 
+/**
+ * Stock output as a `data:image/svg+xml;base64,…` URI.
+ */
+export function identiconDataUri(seed: string): string;
+
+export function identiconMakeHash(seed: string): string;
+
+/**
+ * Case- and length-normalises a seed. Every platform must call this rather than
+ * lowercasing locally — that is how the platforms drift apart.
+ */
+export function identiconNormalizeSeed(seed: string): string;
+
+export function identiconParams(seed: string): IdenticonParams;
+
+/**
+ * The library's stock hexagonal output.
+ */
+export function identiconSvg(seed: string): string;
+
+/**
+ * **The wallet's identicon.** Circular variant, no SVG ids — several instances can
+ * share one DOM without their clip paths colliding.
+ */
+export function identiconSvgCircular(seed: string): string;
+
 export function keccak256(data: Uint8Array): Uint8Array;
 
 export function matchSelector(sig: string, calldata: Uint8Array): boolean;
@@ -129,6 +169,12 @@ export interface InitOutput {
     readonly fromHex: (a: number, b: number) => [number, number, number, number];
     readonly functionSelector: (a: number, b: number) => [number, number, number, number];
     readonly hashTypedData: (a: number, b: number) => [number, number, number, number];
+    readonly identiconDataUri: (a: number, b: number) => [number, number, number, number];
+    readonly identiconMakeHash: (a: number, b: number) => [number, number];
+    readonly identiconNormalizeSeed: (a: number, b: number) => [number, number];
+    readonly identiconParams: (a: number, b: number) => [number, number, number];
+    readonly identiconSvg: (a: number, b: number) => [number, number, number, number];
+    readonly identiconSvgCircular: (a: number, b: number) => [number, number, number, number];
     readonly keccak256: (a: number, b: number) => [number, number];
     readonly matchSelector: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];

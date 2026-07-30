@@ -99,6 +99,7 @@ func errorCode(_ error: CoreError) -> String {
     case .AbiDecode: return "AbiDecode"
     case .Eip712Parse: return "Eip712Parse"
     case .Eip712NonCanonicalDomain: return "Eip712NonCanonicalDomain"
+    case .InvalidIdenticonSeed: return "InvalidIdenticonSeed"
     case .Internal: return "Internal"
     }
 }
@@ -109,7 +110,7 @@ func errorMessage(_ error: CoreError) -> String {
          .InvalidAddress(let m), .InvalidSignature(let m), .InvalidCbor(let m),
          .InvalidCoseKey(let m), .InvalidClientData(let m), .InvalidPublicKey(let m),
          .AbiParse(let m), .AbiDecode(let m), .Eip712Parse(let m),
-         .Eip712NonCanonicalDomain(let m), .Internal(let m):
+         .Eip712NonCanonicalDomain(let m), .InvalidIdenticonSeed(let m), .Internal(let m):
         return m
     }
 }
@@ -226,8 +227,42 @@ func runCase(_ fn: String, _ input: [String: Any]) throws -> Any? {
         guard let key else { return NSNull() }
         return "04" + String(hex(key.x).dropFirst(2)) + String(hex(key.y).dropFirst(2))
 
+    // identicon (specs/003-rust-identicon). Params expectations carry section
+    // INDICES; `sectionIndex` resolves the returned artwork back to one using the
+    // table pinned by the corpus's own `section-table` group, so nothing here is
+    // circular — both ends are anchored to the identicons-esm oracle.
+    case "make_hash":
+        return identiconMakeHash(seed: try str(input, "seed"))
+    case "identicon_svg":
+        return try identiconSvg(seed: try str(input, "seed"))
+    case "identicon_svg_circular":
+        return try identiconSvgCircular(seed: try str(input, "seed"))
+    case "identicon_data_uri":
+        return try identiconDataUri(seed: try str(input, "seed"))
+    case "normalize_seed":
+        return identiconNormalizeSeed(seed: try str(input, "seed"))
+    case "identicon_params":
+        let p = try identiconParams(seed: try str(input, "seed"))
+        return [
+            "main": p.main,
+            "background": p.background,
+            "accent": p.accent,
+            "face": sectionIndex("face", p.face),
+            "top": sectionIndex("top", p.top),
+            "sides": sectionIndex("sides", p.sides),
+            "bottom": sectionIndex("bottom", p.bottom),
+        ] as [String: Any]
+
     default: throw NoDispatch(fn: fn)
     }
+}
+
+/// Artwork -> 1-based index, built from the corpus's own `section-table` cases so
+/// the compact index form used by every params expectation can be checked here too.
+var fragmentIndex: [String: Int] = [:]
+
+func sectionIndex(_ section: String, _ svg: String) -> Any {
+    fragmentIndex["\(section):\(svg)"] ?? NSNull()
 }
 
 // ---------------------------------------------------------------------------
@@ -251,25 +286,79 @@ if vectorFiles.isEmpty {
 /// exact set is what stops a vector file lost to a bad merge or a partial checkout
 /// from making this harness report "green" over a corpus that silently shrank —
 /// the precise false confidence this feature exists to prevent.
-let REQUIRED_SUITES = ["abi", "eip712", "primitives", "safe", "webauthn"]
+let REQUIRED_SUITES = [
+    "abi", "eip712", "identicon", "identicon-bulk", "primitives", "safe", "webauthn",
+]
+
+/// Functions that exist in vela-core but are deliberately NOT on any binding surface
+/// (specs/003-rust-identicon contracts/identicon-api.md): a test-only parity device,
+/// plus helpers no Vela platform calls. Skipping is counted and reported — an
+/// unreported skip is how a corpus quietly stops covering things.
+let CORE_ONLY_FNS: Set<String> = [
+    "identicon_params_js_compat", "section_svg", "create_identicon",
+    "nimiq_is_valid_address", "constants",
+]
 
 var total = 0
+var skipped = 0
 var failures: [String] = []
 var seenSuites: [String] = []
+
+// Build the artwork index before dispatching anything that needs it.
+if vectorFiles.contains("identicon.json"),
+   let raw = try? Data(contentsOf: URL(fileURLWithPath: "\(vectorsPath)/identicon.json")),
+   let doc = try? JSONSerialization.jsonObject(with: raw) as? [String: Any],
+   let cases = doc["cases"] as? [[String: Any]] {
+    for c in cases {
+        guard let name = c["name"] as? String,
+              name.hasPrefix("section-table/"),
+              let expect = c["expect"] as? [String: Any],
+              let value = expect["value"] as? String else { continue }
+        let tail = name.dropFirst("section-table/".count)
+        guard let sep = tail.lastIndex(of: "_"), let idx = Int(tail[tail.index(after: sep)...]) else { continue }
+        fragmentIndex["\(tail[..<sep]):\(value)"] = idx
+    }
+    if fragmentIndex.count != 84 {
+        FileHandle.standardError.write(
+            "smoke-swift: expected 84 section-table cases, found \(fragmentIndex.count)\n".data(using: .utf8)!
+        )
+        exit(1)
+    }
+}
 
 for name in vectorFiles {
     let raw = try Data(contentsOf: URL(fileURLWithPath: "\(vectorsPath)/\(name)"))
     guard let suite = try JSONSerialization.jsonObject(with: raw) as? [String: Any],
-          let suiteName = suite["suite"] as? String,
-          let cases = suite["cases"] as? [[String: Any]] else {
+          let suiteName = suite["suite"] as? String else {
         failures.append("\(name) — bad schema")
         continue
     }
     seenSuites.append(suiteName)
+
+    // The bulk identicon suite uses a compact `pairs` schema and its own runner.
+    if let pairs = suite["pairs"] as? [[String]] {
+        for pair in pairs where pair.count == 2 {
+            total += 1
+            let got = identiconMakeHash(seed: pair[0])
+            if got != pair[1], failures.count < 10 {
+                failures.append("\(suiteName)::makeHash — expected \(pair[1]), got \(got)")
+            }
+        }
+        continue
+    }
+
+    guard let cases = suite["cases"] as? [[String: Any]] else {
+        failures.append("\(name) — bad schema (no cases and no pairs)")
+        continue
+    }
     for c in cases {
-        total += 1
         let caseName = c["name"] as? String ?? "?"
         let fn = c["fn"] as? String ?? "?"
+        if CORE_ONLY_FNS.contains(fn) {
+            skipped += 1
+            continue
+        }
+        total += 1
         let input = c["input"] as? [String: Any] ?? [:]
         let expect = c["expect"] as? [String: Any] ?? [:]
         let label = "\(suiteName)::\(caseName) [\(fn)]"
@@ -335,7 +424,10 @@ if !failures.isEmpty {
     FileHandle.standardError.write(out.data(using: .utf8)!)
     exit(1)
 }
-print("smoke-swift: \(total) conformance cases green through the Swift bindings")
+print(
+    "smoke-swift: \(total) conformance cases green through the Swift bindings "
+        + "(\(skipped) skipped — core-only functions with no binding surface)"
+)
 
 // The recursive AbiValue must survive the boundary with its nesting intact —
 // uniffi 0.32's cycle detection is what makes this type expressible at all.

@@ -42,6 +42,8 @@ pub enum CoreError {
     #[error("{0}")]
     Eip712NonCanonicalDomain(String),
     #[error("{0}")]
+    InvalidIdenticonSeed(String),
+    #[error("{0}")]
     Internal(String),
 }
 
@@ -63,6 +65,7 @@ impl From<vela_core::CoreError> for CoreError {
             E::AbiDecode(_) => CoreError::AbiDecode(msg),
             E::Eip712Parse(_) => CoreError::Eip712Parse(msg),
             E::Eip712NonCanonicalDomain(_) => CoreError::Eip712NonCanonicalDomain(msg),
+            E::InvalidIdenticonSeed(_) => CoreError::InvalidIdenticonSeed(msg),
             E::Internal(_) => CoreError::Internal(msg),
         }
     }
@@ -340,4 +343,71 @@ pub fn recover_public_key_from_assertions(
 ) -> Result<Option<P256PublicKey>, CoreError> {
     let result = vela_core::webauthn::recover_public_key_from_assertions(&a.into(), &b.into())?;
     Ok(result.map(Into::into))
+}
+
+// ---------------------------------------------------------------------------
+// identicon (spec 003-rust-identicon, contracts/identicon-api.md)
+// ---------------------------------------------------------------------------
+
+/// Flattened `IdenticonParams` — colours plus the four artwork fragments, matching
+/// the shape the JS library returns so migrating call sites stay recognisable.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct IdenticonParams {
+    pub main: String,
+    pub background: String,
+    pub accent: String,
+    pub top: String,
+    pub sides: String,
+    pub face: String,
+    pub bottom: String,
+}
+
+impl From<vela_core::identicon::IdenticonParams> for IdenticonParams {
+    fn from(p: vela_core::identicon::IdenticonParams) -> Self {
+        IdenticonParams {
+            main: p.colors.main.to_owned(),
+            background: p.colors.background.to_owned(),
+            accent: p.colors.accent.to_owned(),
+            top: p.sections.top.to_owned(),
+            sides: p.sections.sides.to_owned(),
+            face: p.sections.face.to_owned(),
+            bottom: p.sections.bottom.to_owned(),
+        }
+    }
+}
+
+/// **The wallet's identicon.** Circular variant, no SVG ids — safe to render many
+/// instances into one document.
+#[uniffi::export]
+pub fn identicon_svg_circular(seed: String) -> Result<String, CoreError> {
+    Ok(vela_core::identicon::identicon_svg_circular(&seed)?)
+}
+
+/// The library's stock hexagonal output.
+#[uniffi::export]
+pub fn identicon_svg(seed: String) -> Result<String, CoreError> {
+    Ok(vela_core::identicon::identicon_svg(&seed)?)
+}
+
+/// Stock output as a `data:image/svg+xml;base64,…` URI.
+#[uniffi::export]
+pub fn identicon_data_uri(seed: String) -> Result<String, CoreError> {
+    Ok(vela_core::identicon::identicon_data_uri(&seed)?)
+}
+
+#[uniffi::export]
+pub fn identicon_params(seed: String) -> Result<IdenticonParams, CoreError> {
+    Ok(vela_core::identicon::identicon_params(&seed)?.into())
+}
+
+#[uniffi::export]
+pub fn identicon_make_hash(seed: String) -> String {
+    vela_core::identicon::make_hash(&seed).as_str().to_owned()
+}
+
+/// Case- and length-normalises a seed. Every platform must call this rather than
+/// lowercasing locally — that is how the platforms drift apart.
+#[uniffi::export]
+pub fn identicon_normalize_seed(seed: String) -> String {
+    vela_core::identicon::normalize_seed(&seed).into_owned()
 }

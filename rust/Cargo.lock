@@ -2205,6 +2205,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ryu-js"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04d056b875a9d2e6cb9a61d127afee9ac5999b9f87bcb32079d1318e505be714"
+
+[[package]]
 name = "schemars"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2954,6 +2960,7 @@ dependencies = [
  "hex-literal",
  "p256",
  "proptest",
+ "ryu-js",
  "serde",
  "serde_json",
  "sha2 0.11.0",

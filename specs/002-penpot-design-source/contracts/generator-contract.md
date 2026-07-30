@@ -31,6 +31,19 @@ Audience: the implementing agent (this feature's implement phase) and anyone re-
 - Components page: main instances on 100px grid inside per-group section boards.
 - Doc boards: 800w auto-height, flex column, 24px padding.
 
+## Capturing an overlay: scope the dump to the overlay root
+
+An overlay is opened from some host screen, so a `document.body` dump carries that host into the
+board. `extract-dom-layout.js` takes `{ root }` for exactly this reason, and every overlay capture
+MUST pass it.
+
+Finding the root: the overlay container is the **parent of the backdrop** — the only element painted
+`rgba(0,0,0,0.35)` (`color.fixed.backdrop`) — and it holds exactly two children, the backdrop and
+the sheet. Do NOT look for "a body child containing a 390px frame": the host screen is itself inside
+the 390px phone frame, so that heuristic returns the whole app. A recapture that got this wrong
+dropped all 25 signing boards from 2 regions to 1, each with ~30 loose shapes, and put the harness's
+scenario list inside every sheet.
+
 ## Verifying visually (exporter caveat)
 
 `export_shape` renders in a headless browser inside the exporter container, and the first render of

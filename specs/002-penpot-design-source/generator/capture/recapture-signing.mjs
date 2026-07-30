@@ -29,7 +29,19 @@ for (const e of index) {
   }, e.note);
   if (hit === 'MISS') { bad.push(e.slug + ': row not found (' + e.note + ')'); continue; }
   await p.waitForTimeout(3200);
-  const dump = await p.evaluate(async () => { await window.preloadAssets(); return window.extractLayout(); });
+  // Scope the dump to the OVERLAY, not the page. The scenarios open on top of the harness's own
+  // scenario list, and a document.body dump carries that list into the board — which is how a
+  // recapture quietly dropped every signing board from 2 regions to 1 with 30 loose shapes.
+  // The container is found by its BACKDROP: the only element painted rgba(0,0,0,0.35), whose parent
+  // holds exactly the backdrop and the sheet. Looking for "a body child containing a 390px div"
+  // does not work — the harness screen is itself inside the 390px phone frame.
+  const dump = await p.evaluate(async () => {
+    await window.preloadAssets();
+    const backdrop = [...document.querySelectorAll('div')]
+      .find((d) => /rgba\(0, 0, 0, 0\.3/.test(getComputedStyle(d).backgroundColor));
+    const root = backdrop && backdrop.parentElement;
+    return window.extractLayout(root ? { root } : undefined);
+  });
   const runs = JSON.stringify(dump).match(/"textRuns"/g);
   if (dump && dump.tree && dump.tree.length) {
     writeFileSync(resolve(OUT, e.slug + '.json'), JSON.stringify(dump));

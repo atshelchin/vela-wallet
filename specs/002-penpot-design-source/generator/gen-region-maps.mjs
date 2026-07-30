@@ -132,13 +132,33 @@ for (const set of SETS) {
     const roots = (dump.tree || []).flat(Infinity).filter(Boolean);
     if (!roots.length) continue;
 
-    // one screen per dump: the first root is the screen; extra roots (portals) get their own region
     const regions = [];
+    const isOverlay = set.dir === 'overlays' || set.overlay;
+
+    // A dump SCOPED to the overlay root (see capture/recapture-signing.mjs) has the backdrop and the
+    // sheet as its own top-level roots — there is nothing to descend into, and descending lands on
+    // the backdrop, which has no children. That path has to be taken BEFORE the branchless guard
+    // below, or every scoped overlay capture is skipped as unmappable (it was: signing went to 0).
+    if (isOverlay && roots.length >= 2 && !kidsOf(roots[0]).length) {
+      roots.forEach((r, i) => {
+        const h = r.h || 0, y = r.y || 0;
+        const name = (h >= frameH * 0.85 && y <= 4 && !kidsOf(r).length) ? 'backdrop'
+          : (roots.length === 2 ? 'sheet' : 'sheet-' + i);
+        regions.push({ name, paths: [String(i)] });
+      });
+      for (const r of regions) summary.regionNames[r.name] = (summary.regionNames[r.name] || 0) + 1;
+      writeFileSync(resolve(OUT, entry.slug + '.json'),
+        JSON.stringify({ slug: entry.slug, board: entry.board, frame: dump.frame, regions }, null, 1) + '\n');
+      summary.written++; summary.perSet[set.dir]++;
+      continue;
+    }
+
+    // one screen per dump: the first root is the screen; extra roots (portals) get their own region
     const branch = descendToBranch(roots[0], '0');
     const kids = kidsOf(branch.node);
     if (!kids.length) { summary.noBranch.push(entry.slug); continue; }
 
-    if (set.dir === 'overlays' || set.overlay) {
+    if (isOverlay) {
       regions.push(...overlayRegions(branch, frameH));
     } else {
       const named = kids.map((c, i) => ({ c, i, name: classify(c, i, frameH, kids) }));

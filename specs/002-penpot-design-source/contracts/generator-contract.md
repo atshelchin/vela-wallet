@@ -88,17 +88,29 @@ All three re-derive from committed data, all are idempotent, and `73b` is verifi
 
 ⑬ **`fetch` a dump with a cache-buster or you will rebuild the old one.** A recapture deployed mid-session is served from the browser cache on the next build, and the run reports success for every board. Five Home boards were rebuilt from their pre-recapture dumps this way — wrong frame height, region paths that no longer matched, and 75 unmatched shapes swept into the backdrop group.
 
-## Audits (chunks 90–97)
+## Audits
+
+Every row names a chunk that EXISTS and TERMINATES. Both qualifiers are load-bearing: on 2026-07-31
+this table listed `91`, `94` and `95` as though they were checks, and none of the three had ever been
+written, while `92` had been written and had never once finished a run. A gate that does not exist
+and a gate that does not terminate look identical in a status table — neither ever reports a failure —
+which is how SC-002, SC-003 and SC-006 went unmeasured for the whole project.
 
 | Chunk | Enforces | Spec target |
 |---|---|---|
-| `90-audit-idempotency` | name-set + shape-count + geometry hash stable across re-run | SC-005 |
-| `91-audit-token-parity` | Penpot tokens ≡ `theme.ts` (both directions, per theme) | SC-001 |
-| `92-audit-coverage` | every manifest cell → board exists / recorded exclusion | SC-003 |
-| `93-audit-graph` | BFS from `S/home/default` reaches all boards (minus `entry:` list); zero interactive elements without interaction/`edge:`/terminal mark | SC-007 |
-| `94-audit-lookup` | random sample of matrix names resolvable first-try | SC-006 |
-| `95-audit-visual` | export_shape PNG of sampled boards for human/agent comparison against live web app screenshots | SC-002 spot-check |
+| `26-tokens-dtcg-check` | Penpot token sets ≡ `docs/design-tokens.json`, both directions | SC-001 (replaces the never-written `91`) |
+| `90-audit-idempotency` | name-set + shape-count + geometry hash stable across a full ordered re-run | SC-005 |
+| `92-audit-coverage` | every planned cell → board / drift / recorded exclusion, with stale-plan drift separated from genuine absence | SC-003 |
+| `93-audit-graph` | BFS from the declared flow entries reaches every board (minus recorded exclusions); no interactive element without an interaction, an `edge:` mark or a terminal annotation | SC-007 |
+| `94-audit-lookup` | every manifest name resolves to exactly ONE asset — reports `conventionPass` (no collisions) apart from strict pass, because an unresolved name is an absent asset, i.e. `92`'s account | SC-006 |
+| `95-audit-visual` | families exist (DRAFT reported apart), declared axes match the code's, sampled variants are non-empty and token-bound; states plainly that geometry-vs-code is NOT machine-checkable and belongs to the SC-004 agent gate | SC-002 (checkable half) |
 | `96-audit-semantic-floor` | every canon `S/*`, `O/*` board: top-level children are `region/*` groups; Tier-1 elements are instances with overrides; positions match the journey manifest | SC-010 |
 | `97-audit-library` | no two distinct variant containers or standalone components share a name; axes are semantic; broken/detached instance count = 0 | SC-009 |
+| `audit-boards-distinct.mjs` | no two canon boards are the same picture — fingerprint lifted from `capture-states.js` so harness, driver and audit cannot disagree about what "the same" means | added 2026-07-31 |
+| `audit-dump-distinctness.mjs` | the diagnostic behind that gate: which signals (text / geometry / colour / opacity / assets) two dumps match on | — |
+
+**Cost is a correctness property here.** `92` and `93` both originally resolved each cell with its own
+global search, and neither finished; both now walk the pages ONCE into an index and answer every
+question from it. Any new audit does the same.
 
 Audit output goes to the chunk return value AND `generator/audit-report.md` (repo, committed).

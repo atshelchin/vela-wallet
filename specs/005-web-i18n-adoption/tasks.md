@@ -9,26 +9,40 @@ references them rather than restating shapes.
 
 ---
 
-## Phase 0 — Engine defects (P0, gating)
+## Phase 0 — Engine defects (P0, gating) — **DONE** (`dfde5d5`)
 
-Both are confirmed against the shipped `rust/pkg-web` artefact. They gate everything: the
+Both were confirmed against the shipped `rust/pkg-web` artefact. They gated everything: the
 seam's error path cannot be tested while a rejected option permanently poisons the engine.
 
-- **T001** Add a failing Rust/wasm test reproducing the borrow poison: call `t()` with an
-  option that fails serde decoding (`{ordinal: undefined}`), then assert `changeLanguage`
-  still works. Commit it red.
-- **T002** Fix FR-023 in `rust/crates/vela-core-wasm/src/lib.rs`. Argument decoding must not
-  run inside the borrow, or must release it on failure — decode `TOptions` from a
-  `JsValue` **inside** the function body and return `Err` rather than letting tsify throw
-  during argument conversion. T001 goes green.
-- **T003** [P] Add a failing test for FR-024: `{n: NaN}` / `{n: Infinity}` must render
-  `"NaN…"` / `"Infinity…"`, matching i18next.
-- **T004** Fix FR-024 so flattened `vars` carry non-finite numbers. `serde_json::Value`
-  cannot hold them; mirror the untagged-`f64`-first device 004 used for `CountValue`.
-- **T005** Re-cut `rust/pkg-web` and commit the artefact **with** `build-info.json`; CI's
-  `build-web.mjs --check` fails if they drift.
-- **T006** Extend the committed corpus with non-finite **var** cases (the `count` cases
-  already exist). Per FR-022, `count: undefined` and BigInt count do **not** go here.
+- [x] **T001** Failing check reproducing the borrow poison. Landed in
+  `rust/scripts/verify-web.mjs`, not in `cargo test` — the defect lives in the wasm-bindgen
+  glue and is unreachable from pure Rust, and that script exists precisely to cover "the
+  wasm-bindgen boundary and its JS type conversions".
+- [x] **T002** FR-023 fixed: `t` / `tFirst` / `exists` take a raw `JsValue` and decode
+  inside the body, so a bad option returns `Err` through the normal path and the borrow
+  guard drops. TS parameter widens to `any` — no loss, the `TOptions` type was already
+  unusable (D5).
+- [x] **T003** Failing check for FR-024 (`{v: NaN}` / `±Infinity`), same file.
+- [x] **T004** FR-024 fixed: `VarValue` (untagged, `f64` first) for `vars`, and `ReplaceArg`
+  so the same holds through `replace` — which the seam's N3 rule depends on.
+- [x] **T005** `rust/pkg-web` re-cut and committed with `build-info.json`. 654,943 bytes.
+- [x] **T006** ~~Extend the committed corpus with non-finite var cases.~~ **Wrong as
+  written** — the corpus encodes these as `{"__t":"nan"}` and decodes the tag Rust-side, so
+  a vector cannot cross the raw boundary a live caller crosses. That is the same reason
+  FR-022 keeps the `count: undefined` cases out. Both classes belong outside the corpus
+  loop, which is where they now are.
+
+**Also fixed here: three CI gates 004 left red**, found by running CI's exact commands
+rather than the ones used locally.
+
+- [x] `cargo test --workspace` was red — vela-core's default features are empty, so 1,516 of
+  3,554 conformance cases failed with `I18nCatalogUnavailable`. `ci.yml` now passes
+  `--features vela-core/i18n-all`.
+- [x] `cargo fmt --all --check` was red across 34 files; the 004 code had never been through
+  rustfmt (local toolchain matches CI's pinned 1.97.1, so not a version artefact).
+- [x] Fixing that exposed a gate **conflict**: `cargo fmt` and `gen:i18n` fought over 17
+  generated files, so whichever ran second was red. `gen-i18n.mjs` now runs rustfmt on the
+  Rust it emits — the only arrangement where both gates pass. Verified idempotent.
 
 ## Phase 1 — Catalog store
 

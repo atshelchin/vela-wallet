@@ -87,11 +87,19 @@
      "kind": "hub",
      "hub": "S/token-detail/default",
      "spokes": [
-      "S/add-token/erc20"
+      "S/add-token/erc20",
+      "S/add-token/native"
      ],
      "states": {
       "S/add-token/erc20": [
-       "S/add-token/native"
+       "S/add-token/erc20-resolving",
+       "S/add-token/erc20-resolved",
+       "S/add-token/erc20-error"
+      ],
+      "S/add-token/native": [
+       "S/add-token/network-checking",
+       "S/add-token/network-compatible",
+       "S/add-token/network-incompatible"
       ]
      }
     },

@@ -1,0 +1,34 @@
+{
+ "slug": "add-token-erc20-resolved",
+ "board": "S/add-token/erc20-resolved",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "hero",
+   "paths": [
+    "0.0.0.0.0.1.0.0"
+   ]
+  },
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.0.1"
+   ]
+  },
+  {
+   "name": "portal-1",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

@@ -426,10 +426,7 @@
    "page": "08 Overlays",
    "boardBase": "O/add-token-sheet",
    "states": [
-    "default",
-    "resolving",
-    "resolved",
-    "error"
+    "default"
    ],
    "sourceRef": "src/components/ui/AddTokenSheet.tsx",
    "invRef": "07 §5.4 / §12"
@@ -2101,6 +2098,18 @@
   {
    "surface": "O/rpc-fix-form/error",
    "reason": "There is no in-form error state. All three failure paths call showAlert and leave the form untouched: unreachable (RpcTroubleBanner.tsx:128), wrong-chain (:132) and save failure (:150). showAlert renders AppAlert on web, which is already boarded — O/app-alert/single-action (plus /two-actions and /destructive). The planned cell is modelling an alert as a form state."
+  },
+  {
+   "surface": "O/add-token-sheet/resolving",
+   "reason": "AddTokenSheet.tsx is a stateless wrapper — 66 lines, zero useState: <AppModal> + a close header + <AddTokenPanel>. Every state it can show is a state of the panel, and the panel is boarded as the six S/add-token/* boards. Boarding these again would put one picture in the file under two names."
+  },
+  {
+   "surface": "O/add-token-sheet/resolved",
+   "reason": "AddTokenSheet.tsx is a stateless wrapper — 66 lines, zero useState: <AppModal> + a close header + <AddTokenPanel>. Every state it can show is a state of the panel, and the panel is boarded as the six S/add-token/* boards. Boarding these again would put one picture in the file under two names."
+  },
+  {
+   "surface": "O/add-token-sheet/error",
+   "reason": "AddTokenSheet.tsx is a stateless wrapper — 66 lines, zero useState: <AppModal> + a close header + <AddTokenPanel>. Every state it can show is a state of the panel, and the panel is boarded as the six S/add-token/* boards. Boarding these again would put one picture in the file under two names."
   }
  ],
  "entries": [

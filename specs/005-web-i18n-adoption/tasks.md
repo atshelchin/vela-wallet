@@ -70,17 +70,17 @@ rather than the ones used locally.
 - [x] **T023** Re-export everything `src/i18n/index.ts` exports, so the platform split is a
   drop-in. Assert export parity in a test.
 
-## Phase 3 — Differential harness
+## Phase 3 — Differential harness — **DONE** (`fb1d2e1`)
 
-- **T030** (FR-015, FR-016) Create `src/i18n/diff-harness.ts` mirroring the *shape* of
+- [x] **T030** (FR-015, FR-016) Create `src/i18n/diff-harness.ts` mirroring the *shape* of
   `src/services/vela-core/diff-harness.ts` but **inverting its return contract**: 001 returns
   the core's result because the core was adopted; here the engine is on trial, so the oracle
   renders (FR-016).
-- **T031** (FR-017) The three-mode control surface and `harnessReport()` per contract §5.
-- **T032** (FR-015) The `Divergence` record and its tagged option encoding (contract §4), plus the
+- [x] **T031** (FR-017) The three-mode control surface and `harnessReport()` per contract §5.
+- [x] **T032** (FR-015) The `Divergence` record and its tagged option encoding (contract §4), plus the
   paste-ready dumper source line — a finding cannot be hand-added to the corpus, because CI
   regenerates and diffs it.
-- **T033** Poison detection that is **not** switch-scoped (R11): record the throw where it
+- [x] **T033** Poison detection that is **not** switch-scoped (R11): record the throw where it
   happens; attempt recovery at the next engine call.
 
 ## Phase 4 — Verification — **DONE** (`e165214`), except T045 CI wiring
@@ -99,8 +99,8 @@ rather than the ones used locally.
   jest — not in the corpus.
 - [x] **T044** [P] (FR-004) Assert `seamExists` actually calls the engine (a counter). It has no
   behavioural provenance, so an output assertion cannot detect its absence.
-- [ ] **T045** Wire the CI step. No new job and no jest config change is needed — the tests run
-  in the existing `jest --ci`.
+- [x] **T045** No CI change needed, verified: the new suites match `testMatch` and run inside the
+  existing `jest --ci` step. FR-019 is satisfied without a new job.
 - [x] **T046** SC-005: verify a deliberate break turns CI red, and record which step catches it.
 
 ## Phase 5 — Integration
@@ -118,7 +118,7 @@ rather than the ones used locally.
 
 ## Phase 6 — Proving
 
-- **T060** Exhaustive sweep mode: every key × every language through both engines in one
+- [x] **T060** Exhaustive sweep mode: every key × every language through both engines in one
   pass. State explicitly what this adds over `scripts/verify-i18n-parity.mjs` rather than
   duplicating it — the new part is *through the seam, with the options the app really passes*.
 - **T061** Manual sweep of all 15 languages across every screen (SC-007), which is also the

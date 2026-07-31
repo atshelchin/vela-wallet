@@ -1,0 +1,122 @@
+/**
+ * i18n — WEB entry point. Translation resolution runs on the Rust engine
+ * (spec 005-web-i18n-adoption).
+ *
+ * The adoption is two property assignments, and the pre-override functions are
+ * kept as a live oracle. That oracle is the point of the whole feature: web
+ * already renders correctly (it has full `Intl.PluralRules`), so this changes
+ * nothing a user can see. What it buys is the engine resolving real keys, with
+ * real options, at real call sites, with genuine i18next one call away for
+ * comparison — evidence no offline corpus can produce, and the thing that
+ * licenses the native rollout where the plural defect actually bites.
+ *
+ * Loading is synchronous, matching `src/services/vela-core/index.web.ts`: the
+ * wasm module is base64-embedded and `initSync`'d at import, and the `en`
+ * catalog comes from the bundle rather than the network. It has to be —
+ * `src/services/activity.ts` calls `i18n.t()` outside React with no async gate,
+ * so there is no point at which an await could be introduced.
+ */
+import i18n, { setBeforeLanguageChange, type AppLanguage } from './shared';
+import { en } from './resources';
+import { createCatalogStore, type CatalogEngine } from './catalog-store';
+import { createSeam, type SeamEngine } from './seam';
+import { GIT_COMMIT } from '@/constants/build-info';
+
+// `initSync` is the NAMED export; the default export is the async loader, whose
+// module path this build deliberately removed.
+import { initSync, I18n as WasmI18n } from '../../rust/pkg-web/vela_core.js';
+import { WASM_BASE64 } from '../../rust/pkg-web/vela_core_bg.base64.js';
+
+export * from './shared';
+export { default } from './shared';
+
+// ---------------------------------------------------------------------------
+// Engine
+// ---------------------------------------------------------------------------
+
+function decodeBase64(b64: string): Uint8Array {
+  const bin = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+initSync({ module: decodeBase64(WASM_BASE64) });
+
+/**
+ * `en` bytes for the constructor.
+ *
+ * Taken from the ALREADY-BUNDLED `en` export rather than importing
+ * `public/i18n/en.json` a second time: FR-018 keeps `resources` in the web
+ * bundle for the whole proving period, so this costs no additional bytes.
+ * Re-serialising is exact — `Catalog::from_json` interns every path against the
+ * shared table and rebuilds the blob in sorted path order, so JSON key order
+ * cannot affect resolution at all.
+ *
+ * Retained (not dropped after construction) because rebuilding the engine is the
+ * only recovery from a poisoned instance, and that recovery must be synchronous.
+ */
+const EN_BYTES: Uint8Array = new TextEncoder().encode(JSON.stringify(en));
+
+const engine = new WasmI18n(EN_BYTES);
+
+// ---------------------------------------------------------------------------
+// Catalog lifecycle
+// ---------------------------------------------------------------------------
+
+const catalogs = createCatalogStore({
+  engine: engine as unknown as CatalogEngine,
+  buildId: GIT_COMMIT,
+});
+
+// The web contract for a language switch: make the catalog resident FIRST, and
+// report the language actually in effect. `changeLanguage` does no I/O, so the
+// reverse order yields a healthy-looking language state and English text.
+setBeforeLanguageChange(async (lng: AppLanguage) => {
+  const effective = await catalogs.setLanguage(lng);
+  return effective as AppLanguage;
+});
+
+// ---------------------------------------------------------------------------
+// The seam
+// ---------------------------------------------------------------------------
+
+// Captured BEFORE the overwrite, and only meaningful because `init()` has
+// already run in `./shared` — a pre-init capture would bind a function with no
+// resources behind it, which fails silently rather than loudly.
+if (!i18n.isInitialized) {
+  throw new Error('i18n: the web seam was installed before i18next finished init');
+}
+
+const oracleT = i18n.t.bind(i18n);
+const oracleExists = i18n.exists.bind(i18n);
+
+const seam = createSeam({
+  engine: engine as unknown as SeamEngine,
+  oracleT: oracleT as unknown as (key: unknown, opts?: unknown) => unknown,
+  oracleExists: oracleExists as unknown as (key: unknown, opts?: unknown) => boolean,
+  overloadHandler: i18n.options.overloadTranslationOptionHandler as unknown as (
+    args: unknown[],
+  ) => Record<string, unknown> | undefined,
+});
+
+// The two assignments. `t` is reached by react-i18next through `getFixedT`'s live
+// `this.t(...)` lookup and by all 20 direct singleton sites; `exists` is a
+// separate own property and is not reached through `t` (FR-004).
+i18n.t = seam.t as typeof i18n.t;
+i18n.exists = seam.exists as typeof i18n.exists;
+
+// ---------------------------------------------------------------------------
+// Diagnostics (web-only, additive — see the export-parity test)
+// ---------------------------------------------------------------------------
+
+/** Which implementation is serving translations in this bundle. */
+export const I18N_BACKEND: 'rust-wasm' | 'js-i18next' = 'rust-wasm';
+
+/** Dev diagnostics over the engine's residency accounting. */
+export const i18nDiagnostics = {
+  engineLanguage: () => catalogs.engineLanguage(),
+  residentLocales: () => catalogs.residentLocales(),
+  residentBytes: () => catalogs.residentBytes(),
+  cachedLocales: () => catalogs.cachedLocales(),
+};

@@ -85,7 +85,10 @@ pub struct FiatOptions {
 
 impl Default for FiatOptions {
     fn default() -> Self {
-        Self { preset: NumberPreset::CommaDot, drop_minor_units_above: Some(100_000.0) }
+        Self {
+            preset: NumberPreset::CommaDot,
+            drop_minor_units_above: Some(100_000.0),
+        }
     }
 }
 
@@ -96,7 +99,11 @@ impl Default for FiatOptions {
 /// `zł`, `kr` and every code with no glyph at all. `Rp 1.235` in `id` is the
 /// visible case: `id` is otherwise a no-space locale.
 fn needs_currency_spacing(symbol: &str, before: bool) -> bool {
-    let adjacent = if before { symbol.chars().next_back() } else { symbol.chars().next() };
+    let adjacent = if before {
+        symbol.chars().next_back()
+    } else {
+        symbol.chars().next()
+    };
     adjacent.is_some_and(char::is_alphabetic)
 }
 
@@ -110,13 +117,19 @@ pub fn format_fiat(
     opts: FiatOptions,
 ) -> String {
     let mut digits = currency_fraction_digits(code);
-    if opts.drop_minor_units_above.is_some_and(|t| value.abs() >= t) {
+    if opts
+        .drop_minor_units_above
+        .is_some_and(|t| value.abs() >= t)
+    {
         digits = 0;
     }
     let number = format_number(
         value,
         opts.preset,
-        FractionDigits { min: digits, max: digits },
+        FractionDigits {
+            min: digits,
+            max: digits,
+        },
     );
 
     match placement(locale) {
@@ -138,7 +151,10 @@ mod tests {
 
     fn opts() -> FiatOptions {
         // Disable the product threshold so these assert the CLDR rule alone.
-        FiatOptions { preset: NumberPreset::CommaDot, drop_minor_units_above: None }
+        FiatOptions {
+            preset: NumberPreset::CommaDot,
+            drop_minor_units_above: None,
+        }
     }
 
     #[test]
@@ -151,12 +167,22 @@ mod tests {
     #[test]
     fn all_thirty_zero_decimal_codes_are_covered() {
         // The 15 the app already got right...
-        for c in ["JPY", "KRW", "ISK", "VND", "CLP", "PYG", "RWF", "UGX", "XOF", "XAF", "XPF", "GNF", "VUV"] {
+        for c in [
+            "JPY", "KRW", "ISK", "VND", "CLP", "PYG", "RWF", "UGX", "XOF", "XAF", "XPF", "GNF",
+            "VUV",
+        ] {
             assert_eq!(currency_fraction_digits(c), 0, "{c}");
         }
         // ...and the 15 it did not. These are the defect FR-020 closes.
-        for c in ["LBP", "PKR", "MMK", "LAK", "COP", "ALL", "AFN", "IRR", "IQD", "SYP", "YER", "SOS", "BIF", "MGA", "SLL"] {
-            assert_eq!(currency_fraction_digits(c), 0, "{c} — app rendered this with 2");
+        for c in [
+            "LBP", "PKR", "MMK", "LAK", "COP", "ALL", "AFN", "IRR", "IQD", "SYP", "YER", "SOS",
+            "BIF", "MGA", "SLL",
+        ] {
+            assert_eq!(
+                currency_fraction_digits(c),
+                0,
+                "{c} — app rendered this with 2"
+            );
         }
         // IDR and HUF: the app treats them as zero-decimal, and CLDR agrees.
         assert_eq!(currency_fraction_digits("IDR"), 0);
@@ -176,33 +202,59 @@ mod tests {
         // Was `د.ك1234.50` — wrong digit count AND no separator. The catalog's KWD
         // symbol `د.ك` ends in an Arabic LETTER, so currencySpacing applies and ICU
         // renders the NBSP too (`en`+KWD gives `"KWD 1,234.500"` with U+00A0).
-        assert_eq!(format_fiat(1234.5, "KWD", "د.ك", "en", opts()), "د.ك\u{00A0}1,234.500");
+        assert_eq!(
+            format_fiat(1234.5, "KWD", "د.ك", "en", opts()),
+            "د.ك\u{00A0}1,234.500"
+        );
         // A three-decimal code with an alphabetic display code behaves identically.
-        assert_eq!(format_fiat(1234.5, "BHD", "BHD", "en", opts()), "BHD\u{00A0}1,234.500");
+        assert_eq!(
+            format_fiat(1234.5, "BHD", "BHD", "en", opts()),
+            "BHD\u{00A0}1,234.500"
+        );
     }
 
     #[test]
     fn symbol_placement_matches_cldr_per_locale() {
         // symbol-after + NBSP
         for l in ["vi", "fr", "de", "ru", "it"] {
-            assert_eq!(format_fiat(1234.5, "EUR", "€", l, opts()), "1,234.50\u{00A0}€", "{l}");
+            assert_eq!(
+                format_fiat(1234.5, "EUR", "€", l, opts()),
+                "1,234.50\u{00A0}€",
+                "{l}"
+            );
         }
         // pt-BR is the one before-with-space locale.
-        assert_eq!(format_fiat(1234.5, "BRL", "R$", "pt-BR", opts()), "R$\u{00A0}1,234.50");
+        assert_eq!(
+            format_fiat(1234.5, "BRL", "R$", "pt-BR", opts()),
+            "R$\u{00A0}1,234.50"
+        );
         // es-MX is BEFORE-TIGHT — measured with its own currency it is `$1,234.50`.
         // The spec's first draft listed it as symbol-after; that was wrong.
-        assert_eq!(format_fiat(1234.5, "MXN", "$", "es-MX", opts()), "$1,234.50");
+        assert_eq!(
+            format_fiat(1234.5, "MXN", "$", "es-MX", opts()),
+            "$1,234.50"
+        );
         for l in ["en", "zh", "zh-TW", "zh-HK", "ja", "ko", "tr"] {
-            assert_eq!(format_fiat(1234.5, "USD", "$", l, opts()), "$1,234.50", "{l}");
+            assert_eq!(
+                format_fiat(1234.5, "USD", "$", l, opts()),
+                "$1,234.50",
+                "{l}"
+            );
         }
     }
 
     #[test]
     fn currency_spacing_applies_to_alphabetic_symbols() {
         // `id` is a no-space locale, but `Rp` ends alphabetic, so CLDR inserts NBSP.
-        assert_eq!(format_fiat(1234.5, "IDR", "Rp", "id", opts()), "Rp\u{00A0}1,235");
+        assert_eq!(
+            format_fiat(1234.5, "IDR", "Rp", "id", opts()),
+            "Rp\u{00A0}1,235"
+        );
         // A code with no glyph behaves the same way in every no-space locale.
-        assert_eq!(format_fiat(1234.5, "CHF", "CHF", "en", opts()), "CHF\u{00A0}1,234.50");
+        assert_eq!(
+            format_fiat(1234.5, "CHF", "CHF", "en", opts()),
+            "CHF\u{00A0}1,234.50"
+        );
         // A glyph symbol does not get the space.
         assert_eq!(format_fiat(1234.5, "USD", "$", "en", opts()), "$1,234.50");
     }
@@ -212,11 +264,29 @@ mod tests {
         // `fr` uses U+202F in CLDR and `ru` uses U+00A0; neither is emitted, because
         // the user picked the preset. This is FR-020's explicit carve-out.
         assert_eq!(
-            format_fiat(1234.5, "EUR", "€", "fr", FiatOptions { preset: NumberPreset::SpaceComma, drop_minor_units_above: None }),
+            format_fiat(
+                1234.5,
+                "EUR",
+                "€",
+                "fr",
+                FiatOptions {
+                    preset: NumberPreset::SpaceComma,
+                    drop_minor_units_above: None
+                }
+            ),
             "1 234,50\u{00A0}€"
         );
         assert_eq!(
-            format_fiat(1234.5, "EUR", "€", "de", FiatOptions { preset: NumberPreset::DotComma, drop_minor_units_above: None }),
+            format_fiat(
+                1234.5,
+                "EUR",
+                "€",
+                "de",
+                FiatOptions {
+                    preset: NumberPreset::DotComma,
+                    drop_minor_units_above: None
+                }
+            ),
             "1.234,50\u{00A0}€"
         );
     }

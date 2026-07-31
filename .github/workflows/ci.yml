@@ -140,8 +140,13 @@ jobs:
         run: cargo fmt --all --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # `--features vela-core/i18n-all` is REQUIRED, not a nicety. vela-core's
+      # default feature set is empty, so the compiled-in catalogs are absent and
+      # 1,516 of the 3,554 conformance cases fail with `I18nCatalogUnavailable`.
+      # A bare `cargo test --workspace` is red — spec 004 was verified locally
+      # with the features on and this step was not updated to match.
       - name: Tests (conformance corpus + proptests)
-        run: cargo test --workspace
+        run: cargo test --workspace --features vela-core/i18n-all
       - name: Wasm build (getrandom canary)
         run: cargo build --target wasm32-unknown-unknown -p vela-core-wasm
       - name: Install wasm-pack

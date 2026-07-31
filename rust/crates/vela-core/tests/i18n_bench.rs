@@ -84,7 +84,10 @@ fn i18n_bench() {
         ..Options::default()
     };
     let two_vars = [("name", Var::Str("Alice")), ("id", Var::Num(137.0))];
-    let interp_opts = Options { vars: &two_vars, ..Options::default() };
+    let interp_opts = Options {
+        vars: &two_vars,
+        ..Options::default()
+    };
 
     // Warm up: first touch pages in the catalog and the path table.
     for _ in 0..1_000 {
@@ -137,8 +140,16 @@ fn i18n_bench() {
     const SCREEN_KEYS: u32 = 500;
     let start = Instant::now();
     for i in 0..SCREEN_KEYS {
-        let key = if i % 3 == 0 { "send.recipientCount" } else { "common.cancel" };
-        let opts = if i % 3 == 0 { &plural_opts } else { &interp_opts };
+        let key = if i % 3 == 0 {
+            "send.recipientCount"
+        } else {
+            "common.cancel"
+        };
+        let opts = if i % 3 == 0 {
+            &plural_opts
+        } else {
+            &interp_opts
+        };
         std::hint::black_box(engine.t(key, opts).ok());
     }
     let screen_ms = start.elapsed().as_secs_f64() * 1e3;
@@ -148,16 +159,29 @@ fn i18n_bench() {
     let mut merged = serde_json::Map::new();
     let mut absorb = |p: std::path::PathBuf| {
         if let Ok(t) = std::fs::read_to_string(&p) {
-            if let Ok(serde_json::Value::Object(m)) = serde_json::from_str::<serde_json::Value>(&t) {
+            if let Ok(serde_json::Value::Object(m)) = serde_json::from_str::<serde_json::Value>(&t)
+            {
                 merged.extend(m);
             }
         }
     };
     absorb(repo.join("ja.json"));
     for ns in [
-        "home", "send", "receive", "assets", "addToken", "tokenDetail", "history",
-        "onboarding", "connect", "about", "clearSigning", "componentsTx",
-        "componentsUi", "settingsModals", "contacts",
+        "home",
+        "send",
+        "receive",
+        "assets",
+        "addToken",
+        "tokenDetail",
+        "history",
+        "onboarding",
+        "connect",
+        "about",
+        "clearSigning",
+        "componentsTx",
+        "componentsUi",
+        "settingsModals",
+        "contacts",
     ] {
         absorb(repo.join("ja").join(format!("{ns}.json")));
     }
@@ -171,7 +195,10 @@ fn i18n_bench() {
     println!("t() with plural           : {plural_us:.3} us/call");
     println!("t() with 2 interpolations : {interp_us:.3} us/call");
     println!("500-key screen            : {screen_ms:.3} ms");
-    println!("Catalog::from_json (ja)   : {load_ms:.3} ms  ({} bytes)", bytes.len());
+    println!(
+        "Catalog::from_json (ja)   : {load_ms:.3} ms  ({} bytes)",
+        bytes.len()
+    );
 
     // -- budgets ------------------------------------------------------------
     //
@@ -199,8 +226,14 @@ fn i18n_bench() {
     if cfg!(debug_assertions) {
         println!("(debug build — SC-007 latency budgets asserted in release only)");
     } else {
-        assert!(plain_us < 1.0, "SC-007: plain t() took {plain_us:.3} us, budget is 1.0");
-        assert!(plural_us < 1.0, "SC-007: plural t() took {plural_us:.3} us, budget is 1.0");
+        assert!(
+            plain_us < 1.0,
+            "SC-007: plain t() took {plain_us:.3} us, budget is 1.0"
+        );
+        assert!(
+            plural_us < 1.0,
+            "SC-007: plural t() took {plural_us:.3} us, budget is 1.0"
+        );
         assert!(
             interp_us < 1.0,
             "SC-007: interpolated t() took {interp_us:.3} us, budget is 1.0"

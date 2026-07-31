@@ -345,6 +345,80 @@ if (seenSuites.sort().join(',') !== REQUIRED_SUITES.join(',')) {
   );
   process.exit(1);
 }
+
+// ---------------------------------------------------------------------------
+// Boundary regressions the corpus STRUCTURALLY cannot express
+//
+// The corpus encodes values JSON cannot carry with `{"__t":…}` tags, and the
+// Rust-side decoder turns those tags back into real values. That is what makes
+// it replayable — and it is exactly why a corpus case cannot reach the code path
+// a live JS caller takes. Each check below is a defect that was FOUND on the
+// live boundary and could not have been caught by adding a vector.
+// ---------------------------------------------------------------------------
+
+const boundary = [];
+
+// spec 005 FR-023 — a rejected option must not leave the engine unusable.
+//
+// `i18n_t` takes `&self`; `changeLanguage`/`loadCatalog` take `&mut self`.
+// wasm-bindgen takes the borrow BEFORE argument conversion, so if decoding the
+// options throws out of Rust the guard never drops and every `&mut self` method
+// is dead for the lifetime of the object. The user-visible form is the worst
+// available: the UI pins to the boot language while `i18n.language` moves.
+{
+  const e = new wasm.I18n(assets.en);
+  e.loadCatalog('ja', assets.ja);
+  e.changeLanguage('ja');
+  try {
+    // `ordinal` is a typed `bool`; `undefined` decodes as a unit value.
+    e.t('common.cancel', { ordinal: undefined });
+  } catch {
+    /* rejecting the option is fine — poisoning the engine is not */
+  }
+  try {
+    e.changeLanguage('ja');
+  } catch (err) {
+    boundary.push(
+      `FR-023: a rejected option poisoned the engine — changeLanguage now throws "${err?.message ?? err}"`,
+    );
+  }
+  try {
+    e.loadCatalog('ja', assets.ja);
+  } catch (err) {
+    boundary.push(
+      `FR-023: a rejected option poisoned the engine — loadCatalog now throws "${err?.message ?? err}"`,
+    );
+  }
+}
+
+// spec 005 FR-024 — non-finite interpolation variables must render as i18next
+// renders them. 004 fixed this for `count` (untagged `CountValue`, f64 first);
+// the flattened `vars` map still went through `serde_json::Value`, which has no
+// syntax for NaN/Infinity. Reachable today: src/services/activity.ts:116 passes
+// `{ n: Math.round(diff / 60) }` into `"{{n}}m"`.
+{
+  const e = new wasm.I18n(assets.en);
+  for (const [value, want] of [
+    [Number.NaN, 'NaN'],
+    [Number.POSITIVE_INFINITY, 'Infinity'],
+    [Number.NEGATIVE_INFINITY, '-Infinity'],
+  ]) {
+    let got;
+    try {
+      got = wasm.i18nInterpolate('[{{v}}]', { v: value });
+    } catch (err) {
+      got = `THREW ${err?.message ?? err}`;
+    }
+    if (got !== `[${want}]`) {
+      boundary.push(`FR-024: interpolating {{v}} with ${want} gave ${JSON.stringify(got)}, want "[${want}]"`);
+    }
+  }
+}
+
+if (boundary.length) {
+  failures.push(...boundary);
+}
+
 if (failures.length) {
   console.error(`verify-web: ${failures.length} of ${total} cases FAILED:\n${failures.join('\n')}`);
   process.exit(1);
@@ -353,3 +427,4 @@ console.log(
   `verify-web: ${total} conformance cases green through the shipped web artifact` +
     ` (${skipped} skipped — core-only functions with no binding surface: ${[...CORE_ONLY_FNS].join(', ')})`,
 );
+console.log(`verify-web: ${2 + 3} boundary regressions green (FR-023 borrow safety, FR-024 non-finite vars)`);

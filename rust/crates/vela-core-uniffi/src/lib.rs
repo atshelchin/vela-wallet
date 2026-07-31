@@ -524,7 +524,9 @@ impl I18n {
     pub fn new(fallback_json: Vec<u8>) -> Result<Self, CoreError> {
         let en = vela_core::i18n::Catalog::from_json("en", &fallback_json)?;
         let engine = vela_core::i18n::I18n::new(en)?;
-        Ok(Self { inner: std::sync::RwLock::new(engine) })
+        Ok(Self {
+            inner: std::sync::RwLock::new(engine),
+        })
     }
 
     /// Build an engine pinned to the LEGACY plural rule — i18next's `dummyRule`,
@@ -534,9 +536,11 @@ impl I18n {
     #[uniffi::constructor]
     pub fn new_with_legacy_plurals(fallback_json: Vec<u8>) -> Result<Self, CoreError> {
         let en = vela_core::i18n::Catalog::from_json("en", &fallback_json)?;
-        let engine = vela_core::i18n::I18n::new(en)?
-            .with_plural_mode(vela_core::i18n::PluralMode::Legacy);
-        Ok(Self { inner: std::sync::RwLock::new(engine) })
+        let engine =
+            vela_core::i18n::I18n::new(en)?.with_plural_mode(vela_core::i18n::PluralMode::Legacy);
+        Ok(Self {
+            inner: std::sync::RwLock::new(engine),
+        })
     }
 
     /// First key that resolves wins; all-missing returns the **last** key.
@@ -545,7 +549,11 @@ impl I18n {
         let mut scratch = vela_core::i18n::Scratch::default();
         let borrowed = owned.as_options(&mut scratch);
         let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
-        Ok(self.inner.read().map_err(lock_err)?.t_first(&refs, &borrowed)?)
+        Ok(self
+            .inner
+            .read()
+            .map_err(lock_err)?
+            .t_first(&refs, &borrowed)?)
     }
 
     /// Resolve `key`. Returns the key itself when nothing matches — i18next's
@@ -585,7 +593,12 @@ impl I18n {
     /// Release `lang` if it is the active catalog. Releasing `en` is not
     /// expressible — it is a field, not a slot.
     pub fn release_catalog(&self, lang: String) -> Result<bool, CoreError> {
-        Ok(self.inner.write().map_err(lock_err)?.release_catalog(&lang).is_some())
+        Ok(self
+            .inner
+            .write()
+            .map_err(lock_err)?
+            .release_catalog(&lang)
+            .is_some())
     }
 
     pub fn resident_locales(&self) -> Result<Vec<String>, CoreError> {
@@ -610,7 +623,13 @@ impl I18n {
 
     /// Text direction of the active language, `"ltr"` or `"rtl"`.
     pub fn dir(&self) -> Result<String, CoreError> {
-        Ok(self.inner.read().map_err(lock_err)?.dir().as_str().to_owned())
+        Ok(self
+            .inner
+            .read()
+            .map_err(lock_err)?
+            .dir()
+            .as_str()
+            .to_owned())
     }
 }
 

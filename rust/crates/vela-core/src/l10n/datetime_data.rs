@@ -10,25 +10,123 @@
 
 /// `(locale, am, pm, period_before_hour, [Sun..Sat])`.
 pub(crate) static DATETIME: [(&str, &str, &str, bool, [&str; 7]); 15] = [
-    ("en", "AM", "PM", false, ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]),
-    ("zh", "上午", "下午", true, ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]),
-    ("zh-TW", "上午", "下午", true, ["週日", "週一", "週二", "週三", "週四", "週五", "週六"]),
-    ("zh-HK", "上午", "下午", true, ["週日", "週一", "週二", "週三", "週四", "週五", "週六"]),
-    ("ja", "午前", "午後", true, ["日", "月", "火", "水", "木", "金", "土"]),
-    ("ko", "AM", "PM", true, ["일", "월", "화", "수", "목", "금", "토"]),
-    ("vi", "SA", "CH", false, ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"]),
-    ("id", "AM", "PM", false, ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]),
-    ("tr", "ÖÖ", "ÖS", true, ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"]),
-    ("es-MX", "a.m.", "p.m.", false, ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]),
-    ("pt-BR", "AM", "PM", false, ["dom.", "seg.", "ter.", "qua.", "qui.", "sex.", "sáb."]),
-    ("fr", "AM", "PM", false, ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."]),
-    ("de", "AM", "PM", false, ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"]),
-    ("ru", "AM", "PM", false, ["вс", "пн", "вт", "ср", "чт", "пт", "сб"]),
-    ("it", "AM", "PM", false, ["dom", "lun", "mar", "mer", "gio", "ven", "sab"]),
+    (
+        "en",
+        "AM",
+        "PM",
+        false,
+        ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+    ),
+    (
+        "zh",
+        "上午",
+        "下午",
+        true,
+        ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
+    ),
+    (
+        "zh-TW",
+        "上午",
+        "下午",
+        true,
+        ["週日", "週一", "週二", "週三", "週四", "週五", "週六"],
+    ),
+    (
+        "zh-HK",
+        "上午",
+        "下午",
+        true,
+        ["週日", "週一", "週二", "週三", "週四", "週五", "週六"],
+    ),
+    (
+        "ja",
+        "午前",
+        "午後",
+        true,
+        ["日", "月", "火", "水", "木", "金", "土"],
+    ),
+    (
+        "ko",
+        "AM",
+        "PM",
+        true,
+        ["일", "월", "화", "수", "목", "금", "토"],
+    ),
+    (
+        "vi",
+        "SA",
+        "CH",
+        false,
+        ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"],
+    ),
+    (
+        "id",
+        "AM",
+        "PM",
+        false,
+        ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"],
+    ),
+    (
+        "tr",
+        "ÖÖ",
+        "ÖS",
+        true,
+        ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"],
+    ),
+    (
+        "es-MX",
+        "a.m.",
+        "p.m.",
+        false,
+        ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"],
+    ),
+    (
+        "pt-BR",
+        "AM",
+        "PM",
+        false,
+        ["dom.", "seg.", "ter.", "qua.", "qui.", "sex.", "sáb."],
+    ),
+    (
+        "fr",
+        "AM",
+        "PM",
+        false,
+        ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."],
+    ),
+    (
+        "de",
+        "AM",
+        "PM",
+        false,
+        ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
+    ),
+    (
+        "ru",
+        "AM",
+        "PM",
+        false,
+        ["вс", "пн", "вт", "ср", "чт", "пт", "сб"],
+    ),
+    (
+        "it",
+        "AM",
+        "PM",
+        false,
+        ["dom", "lun", "mar", "mer", "gio", "ven", "sab"],
+    ),
 ];
 
 /// Row for `locale`, falling back to `en` — the same fallback the resolver uses.
-pub(crate) fn row(locale: &str) -> &'static (&'static str, &'static str, &'static str, bool, [&'static str; 7]) {
+pub(crate) fn row(
+    locale: &str,
+) -> &'static (
+    &'static str,
+    &'static str,
+    &'static str,
+    bool,
+    [&'static str; 7],
+) {
     let primary = locale.split(['-', '_']).next().unwrap_or(locale);
     DATETIME
         .iter()

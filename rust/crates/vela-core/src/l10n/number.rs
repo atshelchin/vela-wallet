@@ -31,7 +31,11 @@ fn to_fixed(abs: f64, digits: usize) -> String {
     if !scaled.is_finite() || scaled >= 9_007_199_254_740_992.0 {
         return format!("{abs:.digits$}");
     }
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::allow_attributes)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::allow_attributes
+    )]
     let n = scaled.round() as u64;
     if digits == 0 {
         return n.to_string();
@@ -75,11 +79,18 @@ impl NumberPreset {
     #[must_use]
     pub fn separators(self) -> Separators {
         match self {
-            NumberPreset::CommaDot | NumberPreset::Indian => {
-                Separators { group: ",", decimal: "." }
-            }
-            NumberPreset::DotComma => Separators { group: ".", decimal: "," },
-            NumberPreset::SpaceComma => Separators { group: " ", decimal: "," },
+            NumberPreset::CommaDot | NumberPreset::Indian => Separators {
+                group: ",",
+                decimal: ".",
+            },
+            NumberPreset::DotComma => Separators {
+                group: ".",
+                decimal: ",",
+            },
+            NumberPreset::SpaceComma => Separators {
+                group: " ",
+                decimal: ",",
+            },
         }
     }
 
@@ -87,7 +98,10 @@ impl NumberPreset {
     /// no grouping — thousands separators must not jump around while typing.
     #[must_use]
     pub fn input_separators(self) -> Separators {
-        Separators { group: "", decimal: self.separators().decimal }
+        Separators {
+            group: "",
+            decimal: self.separators().decimal,
+        }
     }
 
     const fn indian(self) -> bool {

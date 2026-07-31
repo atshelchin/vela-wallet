@@ -76,7 +76,10 @@ fn switching_language_does_not_accumulate_catalogs() {
         Err(e) => unreachable!("de must be compiled in: {e}"),
     };
     engine.change_language("de");
-    assert!(displaced.is_some(), "loading a second locale must displace the first");
+    assert!(
+        displaced.is_some(),
+        "loading a second locale must displace the first"
+    );
     assert_eq!(
         displaced.as_ref().map(Catalog::lang),
         Some("ja"),
@@ -89,7 +92,10 @@ fn switching_language_does_not_accumulate_catalogs() {
     println!("  de + en          {after_de:>9} bytes");
 
     assert_eq!(engine.resident_locales(), vec!["de", "en"]);
-    assert!(!engine.is_resident("ja"), "ja must be gone, not merely inactive");
+    assert!(
+        !engine.is_resident("ja"),
+        "ja must be gone, not merely inactive"
+    );
     // The point of SC-005: switching is a REPLACEMENT, never an accumulation.
     assert!(
         after_de <= SC005_BUDGET,
@@ -124,7 +130,10 @@ fn the_pinned_fallback_cannot_be_released() {
     assert!(engine.is_resident("en"));
 
     engine.release_catalog("fr");
-    assert!(engine.is_resident("en"), "en survives releasing the active locale");
+    assert!(
+        engine.is_resident("en"),
+        "en survives releasing the active locale"
+    );
 }
 
 #[test]
@@ -139,7 +148,11 @@ fn residency_is_bounded_at_two_under_any_sequence() {
         }
         engine.change_language(lng);
         let resident = engine.resident_locales();
-        assert!(resident.len() <= 2, "{lng}: {} catalogs resident", resident.len());
+        assert!(
+            resident.len() <= 2,
+            "{lng}: {} catalogs resident",
+            resident.len()
+        );
         assert!(resident.contains(&"en"), "{lng}: en is not resident");
         assert!(
             engine.resident_bytes() <= SC005_BUDGET.max(140_000),
@@ -166,9 +179,21 @@ fn runtime_json_catalogs_fit_the_same_budget() {
             merged.extend(m);
         }
         for ns in [
-            "home", "send", "receive", "assets", "addToken", "tokenDetail", "history",
-            "onboarding", "connect", "about", "clearSigning", "componentsTx",
-            "componentsUi", "settingsModals", "contacts",
+            "home",
+            "send",
+            "receive",
+            "assets",
+            "addToken",
+            "tokenDetail",
+            "history",
+            "onboarding",
+            "connect",
+            "about",
+            "clearSigning",
+            "componentsTx",
+            "componentsUi",
+            "settingsModals",
+            "contacts",
         ] {
             let raw = std::fs::read_to_string(repo.join(lng).join(format!("{ns}.json")))
                 .unwrap_or_else(|e| unreachable!("corpus must be readable: {e}"));
@@ -207,5 +232,9 @@ fn runtime_json_catalogs_fit_the_same_budget() {
     // pass every byte assertion above.
     let opts = vela_core::i18n::Options::default();
     let got = engine.t("common.cancel", &opts);
-    assert_eq!(got.as_deref(), Ok("キャンセル"), "runtime catalog must resolve");
+    assert_eq!(
+        got.as_deref(),
+        Ok("キャンセル"),
+        "runtime catalog must resolve"
+    );
 }

@@ -9,8 +9,8 @@
 
 use vela_core::i18n::{Catalog, I18n, Options};
 use vela_core::l10n::{
-    format_compact, format_date, format_date_time, format_fiat, format_number,
-    format_time, format_token_amount, group_digits, parse_locale_number, Civil, DatePreset, FiatOptions,
+    format_compact, format_date, format_date_time, format_fiat, format_number, format_time,
+    format_token_amount, group_digits, parse_locale_number, Civil, DatePreset, FiatOptions,
     FractionDigits, NumberPreset, TimePreset,
 };
 
@@ -41,19 +41,32 @@ fn number_preset_samples_match_the_settings_picker() {
 fn space_comma_uses_plain_ascii_space_not_nbsp() {
     // CLDR would use U+202F for `fr` and U+00A0 for `ru`. The preset deliberately
     // does neither: the user chose "space", not a locale.
-    let got = format_number(1_234_567.89, NumberPreset::SpaceComma, FractionDigits { min: 2, max: 2 });
+    let got = format_number(
+        1_234_567.89,
+        NumberPreset::SpaceComma,
+        FractionDigits { min: 2, max: 2 },
+    );
     assert!(got.contains('\u{0020}'), "must be U+0020");
-    assert!(!got.contains('\u{00A0}') && !got.contains('\u{202F}'), "no NBSP, no narrow NBSP");
+    assert!(
+        !got.contains('\u{00A0}') && !got.contains('\u{202F}'),
+        "no NBSP, no narrow NBSP"
+    );
 }
 
 #[test]
 fn indian_grouping_is_last_three_then_twos() {
-    assert_eq!(group_digits("12345678", NumberPreset::Indian), "1,23,45,678");
+    assert_eq!(
+        group_digits("12345678", NumberPreset::Indian),
+        "1,23,45,678"
+    );
     assert_eq!(group_digits("1234567", NumberPreset::Indian), "12,34,567");
     assert_eq!(group_digits("1000", NumberPreset::Indian), "1,000");
     assert_eq!(group_digits("999", NumberPreset::Indian), "999");
     // Western grouping, for contrast.
-    assert_eq!(group_digits("12345678", NumberPreset::CommaDot), "12,345,678");
+    assert_eq!(
+        group_digits("12345678", NumberPreset::CommaDot),
+        "12,345,678"
+    );
     assert_eq!(group_digits("1000", NumberPreset::DotComma), "1.000");
 }
 
@@ -70,12 +83,27 @@ fn group_digits_never_routes_through_a_float() {
 #[test]
 fn trailing_zeros_trim_down_to_min_and_no_further() {
     let p = NumberPreset::CommaDot;
-    assert_eq!(format_number(1.5, p, FractionDigits { min: 0, max: 4 }), "1.5");
-    assert_eq!(format_number(1.5, p, FractionDigits { min: 2, max: 4 }), "1.50");
-    assert_eq!(format_number(2.0, p, FractionDigits { min: 0, max: 2 }), "2");
-    assert_eq!(format_number(2.0, p, FractionDigits { min: 2, max: 2 }), "2.00");
+    assert_eq!(
+        format_number(1.5, p, FractionDigits { min: 0, max: 4 }),
+        "1.5"
+    );
+    assert_eq!(
+        format_number(1.5, p, FractionDigits { min: 2, max: 4 }),
+        "1.50"
+    );
+    assert_eq!(
+        format_number(2.0, p, FractionDigits { min: 0, max: 2 }),
+        "2"
+    );
+    assert_eq!(
+        format_number(2.0, p, FractionDigits { min: 2, max: 2 }),
+        "2.00"
+    );
     // min is CLAMPED to max, not rejected (`locale-format.ts:174`).
-    assert_eq!(format_number(1.239, p, FractionDigits { min: 6, max: 2 }), "1.24");
+    assert_eq!(
+        format_number(1.239, p, FractionDigits { min: 6, max: 2 }),
+        "1.24"
+    );
 }
 
 #[test]
@@ -83,17 +111,32 @@ fn ties_round_away_from_zero_like_js_tofixed() {
     // Rust's own `{:.N}` rounds ties to EVEN and would give "1,234" / "0" / "2".
     // JS `toFixed` rounds ties away from zero, and the app's output is JS's.
     let p = NumberPreset::CommaDot;
-    assert_eq!(format_number(1234.5, p, FractionDigits { min: 0, max: 0 }), "1,235");
-    assert_eq!(format_number(0.5, p, FractionDigits { min: 0, max: 0 }), "1");
-    assert_eq!(format_number(2.5, p, FractionDigits { min: 0, max: 0 }), "3");
-    assert_eq!(format_number(-1234.5, p, FractionDigits { min: 0, max: 0 }), "-1,235");
+    assert_eq!(
+        format_number(1234.5, p, FractionDigits { min: 0, max: 0 }),
+        "1,235"
+    );
+    assert_eq!(
+        format_number(0.5, p, FractionDigits { min: 0, max: 0 }),
+        "1"
+    );
+    assert_eq!(
+        format_number(2.5, p, FractionDigits { min: 0, max: 0 }),
+        "3"
+    );
+    assert_eq!(
+        format_number(-1234.5, p, FractionDigits { min: 0, max: 0 }),
+        "-1,235"
+    );
 }
 
 #[test]
 fn non_finite_values_render_zero_not_nan() {
     for p in P.map(|x| x.0) {
         assert_eq!(format_number(f64::NAN, p, FractionDigits::default()), "0");
-        assert_eq!(format_number(f64::INFINITY, p, FractionDigits::default()), "0");
+        assert_eq!(
+            format_number(f64::INFINITY, p, FractionDigits::default()),
+            "0"
+        );
         assert_eq!(format_compact(f64::NAN, p), "0");
         assert_eq!(format_token_amount(f64::NAN, p, false), "0");
     }
@@ -126,19 +169,46 @@ fn token_ladder_and_its_dust_rule() {
 
 #[test]
 fn parse_locale_number_normalises_back_to_canonical() {
-    assert_eq!(parse_locale_number("1,234.56", NumberPreset::CommaDot), "1234.56");
-    assert_eq!(parse_locale_number("1.234,56", NumberPreset::DotComma), "1234.56");
-    assert_eq!(parse_locale_number("1 234,56", NumberPreset::SpaceComma), "1234.56");
-    assert_eq!(parse_locale_number("1,23,45,678.9", NumberPreset::Indian), "12345678.9");
+    assert_eq!(
+        parse_locale_number("1,234.56", NumberPreset::CommaDot),
+        "1234.56"
+    );
+    assert_eq!(
+        parse_locale_number("1.234,56", NumberPreset::DotComma),
+        "1234.56"
+    );
+    assert_eq!(
+        parse_locale_number("1 234,56", NumberPreset::SpaceComma),
+        "1234.56"
+    );
+    assert_eq!(
+        parse_locale_number("1,23,45,678.9", NumberPreset::Indian),
+        "12345678.9"
+    );
     // A foreign keyboard's plain form still parses under comma_dot.
-    assert_eq!(parse_locale_number("1234.56", NumberPreset::CommaDot), "1234.56");
+    assert_eq!(
+        parse_locale_number("1234.56", NumberPreset::CommaDot),
+        "1234.56"
+    );
     // Arabic-Indic and Extended Arabic-Indic digits map to ASCII.
-    assert_eq!(parse_locale_number("١٢٣٤,٥٦", NumberPreset::SpaceComma), "1234.56");
-    assert_eq!(parse_locale_number("۱۲۳۴,۵۶", NumberPreset::SpaceComma), "1234.56");
+    assert_eq!(
+        parse_locale_number("١٢٣٤,٥٦", NumberPreset::SpaceComma),
+        "1234.56"
+    );
+    assert_eq!(
+        parse_locale_number("۱۲۳۴,۵۶", NumberPreset::SpaceComma),
+        "1234.56"
+    );
     // Space grouping strips EVERY whitespace kind, so an NBSP or U+202F pasted
     // from another app parses too.
-    assert_eq!(parse_locale_number("1\u{00A0}234,56", NumberPreset::SpaceComma), "1234.56");
-    assert_eq!(parse_locale_number("1\u{202F}234,56", NumberPreset::SpaceComma), "1234.56");
+    assert_eq!(
+        parse_locale_number("1\u{00A0}234,56", NumberPreset::SpaceComma),
+        "1234.56"
+    );
+    assert_eq!(
+        parse_locale_number("1\u{202F}234,56", NumberPreset::SpaceComma),
+        "1234.56"
+    );
 }
 
 #[test]
@@ -180,9 +250,18 @@ fn matches_the_apps_own_locale_format_test_suite() {
     assert_eq!(format_number(1_234_567.89, dc, f2), "1.234.567,89");
     assert_eq!(format_number(1_234_567.89, sc, f2), "1 234 567,89");
     assert_eq!(format_number(1_234_567.89, ind, f2), "12,34,567.89");
-    assert_eq!(format_number(1.0, cd, FractionDigits { min: 0, max: 2 }), "1");
-    assert_eq!(format_number(1.5, cd, FractionDigits { min: 0, max: 2 }), "1.5");
-    assert_eq!(format_number(2_460_539.4, cd, FractionDigits { min: 0, max: 0 }), "2,460,539");
+    assert_eq!(
+        format_number(1.0, cd, FractionDigits { min: 0, max: 2 }),
+        "1"
+    );
+    assert_eq!(
+        format_number(1.5, cd, FractionDigits { min: 0, max: 2 }),
+        "1.5"
+    );
+    assert_eq!(
+        format_number(2_460_539.4, cd, FractionDigits { min: 0, max: 0 }),
+        "2,460,539"
+    );
     assert_eq!(format_number(-1234.5, cd, f2), "-1,234.50");
 
     // -- separators ---------------------------------------------------------
@@ -191,7 +270,11 @@ fn matches_the_apps_own_locale_format_test_suite() {
     assert_eq!(dc.separators().group, ".");
     assert_eq!(dc.separators().decimal, ",");
     for p in [cd, dc, sc, ind] {
-        assert_eq!(p.input_separators().group, "", "input grouping must be empty");
+        assert_eq!(
+            p.input_separators().group,
+            "",
+            "input grouping must be empty"
+        );
         assert_eq!(p.input_separators().decimal, p.separators().decimal);
     }
 
@@ -229,7 +312,10 @@ fn matches_the_apps_own_locale_format_test_suite() {
     assert_eq!(format_token_amount(12_345_678.9, cd, true), "12.3M");
     assert_eq!(format_token_amount(999_999.0, cd, true), "999,999.00");
     assert_eq!(format_token_amount(0.5, cd, true), "0.5");
-    assert_eq!(format_token_amount(12_345_678.9, cd, false), "12,345,678.90");
+    assert_eq!(
+        format_token_amount(12_345_678.9, cd, false),
+        "12,345,678.90"
+    );
 
     // -- dates & times ------------------------------------------------------
     let d = Civil::from_unix_millis(1_781_358_300_000, 0); // 2026-06-13 13:45
@@ -255,27 +341,46 @@ fn matches_the_apps_own_locale_format_test_suite() {
 
 #[test]
 fn the_21_wrong_decimal_codes_are_corrected() {
-    let o = FiatOptions { preset: NumberPreset::CommaDot, drop_minor_units_above: None };
+    let o = FiatOptions {
+        preset: NumberPreset::CommaDot,
+        drop_minor_units_above: None,
+    };
     // 6 codes CLDR gives 3 digits; the app rendered all of them with 2.
     for c in ["KWD", "BHD", "OMR", "JOD", "TND", "LYD"] {
         assert!(format_fiat(1.0, c, "X", "en", o).ends_with("1.000"), "{c}");
     }
     // 15 codes CLDR gives 0 digits; the app rendered all of them with 2.
-    for c in ["LBP", "PKR", "MMK", "LAK", "COP", "ALL", "AFN", "IRR", "IQD", "SYP", "YER", "SOS", "BIF", "MGA", "SLL"] {
+    for c in [
+        "LBP", "PKR", "MMK", "LAK", "COP", "ALL", "AFN", "IRR", "IQD", "SYP", "YER", "SOS", "BIF",
+        "MGA", "SLL",
+    ] {
         let got = format_fiat(1234.0, c, "X", "en", o);
-        assert!(!got.contains('.'), "{c}: expected no minor units, got {got}");
+        assert!(
+            !got.contains('.'),
+            "{c}: expected no minor units, got {got}"
+        );
     }
 }
 
 #[test]
 fn the_7_wrong_placement_locales_are_corrected() {
-    let o = FiatOptions { preset: NumberPreset::CommaDot, drop_minor_units_above: None };
+    let o = FiatOptions {
+        preset: NumberPreset::CommaDot,
+        drop_minor_units_above: None,
+    };
     // 5 symbol-after locales.
     for l in ["vi", "ru", "fr", "it", "de"] {
-        assert_eq!(format_fiat(1234.5, "EUR", "€", l, o), "1,234.50\u{00A0}€", "{l}");
+        assert_eq!(
+            format_fiat(1234.5, "EUR", "€", l, o),
+            "1,234.50\u{00A0}€",
+            "{l}"
+        );
     }
     // pt-BR: symbol-before, with the NBSP.
-    assert_eq!(format_fiat(1234.5, "BRL", "R$", "pt-BR", o), "R$\u{00A0}1,234.50");
+    assert_eq!(
+        format_fiat(1234.5, "BRL", "R$", "pt-BR", o),
+        "R$\u{00A0}1,234.50"
+    );
     // id: no-space locale, but `Rp` is alphabetic so currencySpacing applies.
     assert_eq!(format_fiat(1234.0, "IDR", "Rp", "id", o), "Rp\u{00A0}1,234");
     // es-MX is NOT in the wrong set — measured with its own currency it is correct.
@@ -305,16 +410,35 @@ fn relative_time_uses_translated_labels_and_the_compiled_weekday_table() {
     let now_s = now_ms / 1000;
     let d = DatePreset::MdySlash;
 
-    assert_eq!(e.format_relative_time(now_s, now_ms, 0, d).as_deref(), Ok("now"));
-    assert_eq!(e.format_relative_time(now_s - 120, now_ms, 0, d).as_deref(), Ok("2m"));
-    assert_eq!(e.format_relative_time(now_s - 7200, now_ms, 0, d).as_deref(), Ok("2h"));
-    assert_eq!(e.format_relative_time(now_s - 10800, now_ms, 0, d).as_deref(), Ok("3h"));
+    assert_eq!(
+        e.format_relative_time(now_s, now_ms, 0, d).as_deref(),
+        Ok("now")
+    );
+    assert_eq!(
+        e.format_relative_time(now_s - 120, now_ms, 0, d).as_deref(),
+        Ok("2m")
+    );
+    assert_eq!(
+        e.format_relative_time(now_s - 7200, now_ms, 0, d)
+            .as_deref(),
+        Ok("2h")
+    );
+    assert_eq!(
+        e.format_relative_time(now_s - 10800, now_ms, 0, d)
+            .as_deref(),
+        Ok("3h")
+    );
     // Within a week: the short weekday, from the generated table rather than
     // `toLocaleDateString` — the last host-Intl call on this path.
-    assert_eq!(e.format_relative_time(now_s - 3 * 86_400, now_ms, 0, d).as_deref(), Ok("Wed"));
+    assert_eq!(
+        e.format_relative_time(now_s - 3 * 86_400, now_ms, 0, d)
+            .as_deref(),
+        Ok("Wed")
+    );
     // Beyond a week: the date preset.
     assert_eq!(
-        e.format_relative_time(now_s - 30 * 86_400, now_ms, 0, d).as_deref(),
+        e.format_relative_time(now_s - 30 * 86_400, now_ms, 0, d)
+            .as_deref(),
         Ok("05/14/2026")
     );
 }
@@ -325,11 +449,22 @@ fn relative_time_is_localised() {
     let now_s = now_ms / 1000;
     let d = DatePreset::MdySlash;
     let ja = engine("ja");
-    assert_eq!(ja.format_relative_time(now_s, now_ms, 0, d).as_deref(), Ok("たった今"));
+    assert_eq!(
+        ja.format_relative_time(now_s, now_ms, 0, d).as_deref(),
+        Ok("たった今")
+    );
     // The weekday comes from the compiled table, not the host.
-    assert_eq!(ja.format_relative_time(now_s - 3 * 86_400, now_ms, 0, d).as_deref(), Ok("水"));
+    assert_eq!(
+        ja.format_relative_time(now_s - 3 * 86_400, now_ms, 0, d)
+            .as_deref(),
+        Ok("水")
+    );
     let ru = engine("ru");
-    assert_eq!(ru.format_relative_time(now_s - 3 * 86_400, now_ms, 0, d).as_deref(), Ok("ср"));
+    assert_eq!(
+        ru.format_relative_time(now_s - 3 * 86_400, now_ms, 0, d)
+            .as_deref(),
+        Ok("ср")
+    );
 }
 
 #[test]
@@ -342,16 +477,25 @@ fn day_label_compares_civil_days_not_elapsed_hours() {
     assert_eq!(e.day_label(today_s, now_ms, 0, d).as_deref(), Ok("Today"));
     // 2026-06-12 23:00 — only 1.5 hours earlier, but a DIFFERENT civil day. An
     // elapsed-milliseconds comparison would call this "Today".
-    assert_eq!(e.day_label(today_s - 5_400, now_ms, 0, d).as_deref(), Ok("Yesterday"));
+    assert_eq!(
+        e.day_label(today_s - 5_400, now_ms, 0, d).as_deref(),
+        Ok("Yesterday")
+    );
     // Older than that falls through to the date preset.
-    assert_eq!(e.day_label(today_s - 5 * 86_400, now_ms, 0, d).as_deref(), Ok("06/08/2026"));
+    assert_eq!(
+        e.day_label(today_s - 5 * 86_400, now_ms, 0, d).as_deref(),
+        Ok("06/08/2026")
+    );
 }
 
 #[test]
 fn bidi_isolation_is_off_by_default_and_wraps_only_when_asked() {
     let e = engine("en");
     let vars = [("addr", vela_core::i18n::Var::Str("Alice"))];
-    let opts = Options { vars: &vars, ..Options::default() };
+    let opts = Options {
+        vars: &vars,
+        ..Options::default()
+    };
     // Default: byte-identical to i18next, no isolate marks anywhere.
     let got = e.t("activity.toAddr", &opts).unwrap_or_default();
     assert_eq!(got, "to Alice");

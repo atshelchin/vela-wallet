@@ -131,7 +131,9 @@ pub fn interpolate(template: &str, opts: &Options<'_>) -> Result<String, CoreErr
     while replaces < MAX_REPLACES {
         let Some(start) = rest.find("{{") else { break };
         let after = &rest[start + 2..];
-        let Some(end_rel) = after.find("}}") else { break };
+        let Some(end_rel) = after.find("}}") else {
+            break;
+        };
         let raw = &after[..end_rel];
 
         // The unescape form `{{- v}}` is matched FIRST upstream (`:1195-1201`).

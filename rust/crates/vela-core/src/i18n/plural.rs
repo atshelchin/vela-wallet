@@ -140,7 +140,11 @@ fn operands(count: f64) -> Option<Operands> {
     // overflow. Take the integer directly; v is 0 by construction.
     if a >= 4_503_599_627_370_496.0 {
         return Some(Operands {
-            i: if a >= u64::MAX as f64 { u64::MAX } else { a as u64 },
+            i: if a >= u64::MAX as f64 {
+                u64::MAX
+            } else {
+                a as u64
+            },
             v: 0,
         });
     }

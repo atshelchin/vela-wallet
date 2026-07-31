@@ -17,7 +17,7 @@ pub mod resolve;
 
 pub use catalog::{Catalog, Lookup};
 pub use plural::{
-    plural_category, plural_category_legacy, plural_categories, plural_suffix,
+    plural_categories, plural_category, plural_category_legacy, plural_suffix,
     plural_suffix_legacy, plural_suffixes, plural_suffixes_legacy,
 };
 pub use plural::{Category, PluralMode};
@@ -171,7 +171,10 @@ impl OwnedOptions {
     /// Borrow as [`Options`]. The returned value borrows `self` and the scratch
     /// buffers, which must outlive it.
     pub fn as_options<'a>(&'a self, scratch: &'a mut Scratch<'a>) -> Options<'a> {
-        let Scratch { vars: scratch, variants } = scratch;
+        let Scratch {
+            vars: scratch,
+            variants,
+        } = scratch;
         scratch.clear();
         variants.clear();
         for (k, v) in &self.default_value_variants {
@@ -363,7 +366,6 @@ impl I18n {
         self.plural_mode
     }
 
-
     // -- L10n helpers that need a translated label ---------------------------
 
     /// Compact relative time — `"now"`, `"2m"`, `"3h"`, `"Sat"`, `"06/13/2026"`.
@@ -411,7 +413,10 @@ impl I18n {
         let mut buf = ryu_js::Buffer::new();
         let rendered = buf.format(n);
         let vars = [("n", Var::Str(rendered))];
-        let opts = Options { vars: &vars, ..Options::default() };
+        let opts = Options {
+            vars: &vars,
+            ..Options::default()
+        };
         self.t(key, &opts)
     }
 
@@ -490,7 +495,11 @@ impl I18n {
     /// inherits the **per-call** semantics, so a `FixedT` pinned to `zh_TW`
     /// resolves English. That is i18next's behaviour, not a bug in the port.
     #[must_use]
-    pub fn get_fixed_t<'a>(&'a self, lng: Option<&'a str>, key_prefix: Option<&'a str>) -> FixedT<'a> {
+    pub fn get_fixed_t<'a>(
+        &'a self,
+        lng: Option<&'a str>,
+        key_prefix: Option<&'a str>,
+    ) -> FixedT<'a> {
         FixedT {
             engine: self,
             lng,
@@ -774,4 +783,3 @@ impl FixedT<'_> {
 pub fn interpolate(template: &str, opts: &Options<'_>) -> Result<String, CoreError> {
     interpolate::interpolate(template, opts)
 }
-

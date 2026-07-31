@@ -103,27 +103,27 @@ rather than the ones used locally.
   existing `jest --ci` step. FR-019 is satisfied without a new job.
 - [x] **T046** SC-005: verify a deliberate break turns CI red, and record which step catches it.
 
-## Phase 5 — Integration
+## Phase 5 — Integration — **DONE** (`02fbd2b`)
 
-- **T050** Hook `setLanguage` into `setLanguagePreference`. On web the promise resolves to
+- [x] **T050** Hook `setLanguage` into `setLanguagePreference`. On web the promise resolves to
   the language **in effect**, which is the previous one if the catalog could not be fetched.
-- **T051** Defer the `Stack` remount in `src/i18n/language.tsx` until after the catalog
+- [x] **T051** Defer the `Stack` remount in `src/i18n/language.tsx` until after the catalog
   lands; today `setPreferenceState` fires synchronously, so the tree remounts in the old
   language for one RTT. Native-invisible.
-- **T052** (FR-014) Give the boot gate a catalog timeout. `loadLanguage()` puts the first network I/O
+- [x] **T052** (FR-014) Give the boot gate a catalog timeout. `loadLanguage()` puts the first network I/O
   the gate has ever had inside `Promise.all` at `src/app/_layout.tsx:175-210`, which has **no
   watchdog** — the fonts path has one for exactly this reason. A hung request is a permanent
   spinner.
-- **T053** Dev-only diagnostics over `residentBytes()` / `residentLocales()`.
+- [x] **T053** Dev-only diagnostics over `residentBytes()` / `residentLocales()`.
 
 ## Phase 6 — Proving
 
 - [x] **T060** Exhaustive sweep mode: every key × every language through both engines in one
   pass. State explicitly what this adds over `scripts/verify-i18n-parity.mjs` rather than
   duplicating it — the new part is *through the seam, with the options the app really passes*.
-- **T061** Manual sweep of all 15 languages across every screen (SC-007), which is also the
+- [ ] **T061** Manual sweep of all 15 languages across every screen (SC-007), which is also the
   only cover for the named re-render gap.
-- **T062** Write up the result (SC-010): divergences, resolution counts, languages, residency.
+- [x] **T062** Write up the result (SC-010) — [results.md](./results.md): divergences, resolution counts, languages, residency.
   It MUST state that web does not exercise the legacy `dummyRule` plural path, so this
   validates the resolver, catalog lifecycle and binding — **not** the native plural
   divergence 004 exists to fix. Without that sentence the result overclaims.

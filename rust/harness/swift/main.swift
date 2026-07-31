@@ -100,6 +100,11 @@ func errorCode(_ error: CoreError) -> String {
     case .Eip712Parse: return "Eip712Parse"
     case .Eip712NonCanonicalDomain: return "Eip712NonCanonicalDomain"
     case .InvalidIdenticonSeed: return "InvalidIdenticonSeed"
+    case .I18nEmptyKeyList: return "I18nEmptyKeyList"
+    case .I18nInvalidCount: return "I18nInvalidCount"
+    case .I18nUnsupportedOption: return "I18nUnsupportedOption"
+    case .I18nCatalogUnavailable: return "I18nCatalogUnavailable"
+    case .I18nCatalogParse: return "I18nCatalogParse"
     case .Internal: return "Internal"
     }
 }
@@ -110,7 +115,10 @@ func errorMessage(_ error: CoreError) -> String {
          .InvalidAddress(let m), .InvalidSignature(let m), .InvalidCbor(let m),
          .InvalidCoseKey(let m), .InvalidClientData(let m), .InvalidPublicKey(let m),
          .AbiParse(let m), .AbiDecode(let m), .Eip712Parse(let m),
-         .Eip712NonCanonicalDomain(let m), .InvalidIdenticonSeed(let m), .Internal(let m):
+         .Eip712NonCanonicalDomain(let m), .InvalidIdenticonSeed(let m),
+         .I18nEmptyKeyList(let m), .I18nInvalidCount(let m),
+         .I18nUnsupportedOption(let m), .I18nCatalogUnavailable(let m),
+         .I18nCatalogParse(let m), .Internal(let m):
         return m
     }
 }
@@ -253,8 +261,178 @@ func runCase(_ fn: String, _ input: [String: Any]) throws -> Any? {
             "bottom": sectionIndex("bottom", p.bottom),
         ] as [String: Any]
 
+    // --- i18n (spec 004-rust-i18n) ---
+    //
+    // Catalogs arrive as JSON bytes, the same on-demand route the web build uses.
+    // That means this surface exercises `Values::Owned` while the Rust suite
+    // exercises `Values::Static`, so a divergence between the two representations
+    // shows up here rather than in production.
+    case "i18n_t":
+        return try i18nEngine(lng: input["lng"] as? String ?? "en")
+            .t(key: anyKey(input, "key"), opts: i18nOpts(input["opts"]))
+    case "i18n_t_keys":
+        let keys = (input["keys"] as? [Any] ?? []).map { anyString($0) }
+        return try i18nEngine(lng: input["lng"] as? String ?? "en")
+            .tFirst(keys: keys, opts: i18nOpts(input["opts"]))
+    case "i18n_t_lng_option":
+        // The per-call `lng` path: the ACTIVE language stays `en` while resolution
+        // runs against the tag in the options. Two different upstream functions.
+        let target = canonicalTag((input["opts"] as? [String: Any])?["lng"] as? String ?? "en")
+        return try i18nEngine(lng: target, active: "en")
+            .t(key: anyKey(input, "key"), opts: i18nOpts(input["opts"]))
+    case "i18n_t_legacy_plural":
+        return try i18nEngine(lng: input["lng"] as? String ?? "en", legacyPlurals: true)
+            .t(key: anyKey(input, "key"), opts: i18nOpts(input["opts"]))
+    case "i18n_interpolate":
+        return try i18nInterpolate(template: try str(input, "template"), opts: i18nOpts(input["opts"]))
+    case "i18n_plural_suffix":
+        return i18nPluralSuffix(locale: try str(input, "lng"), count: i18nCount(input))
+    case "i18n_plural_suffixes":
+        return i18nPluralSuffixes(locale: try str(input, "lng"))
+    case "i18n_plural_suffix_legacy":
+        return i18nPluralSuffixLegacy(count: i18nCount(input))
+    case "i18n_plural_suffixes_legacy":
+        return i18nPluralSuffixesLegacy()
+    case "i18n_resolve_language", "i18n_change_language":
+        let st = try i18nEngine(lng: "en").changeLanguage(lng: try str(input, "requested"))
+        return [
+            "language": st.language,
+            // Unwrap: boxing an Optional into `Any` compares as `Optional("zh")`.
+            "resolved_language": st.resolvedLanguage.map { $0 as Any } ?? NSNull(),
+            "languages": st.languages,
+        ] as [String: Any]
     default: throw NoDispatch(fn: fn)
     }
+}
+
+// ---------------------------------------------------------------------------
+// i18n helpers
+// ---------------------------------------------------------------------------
+
+/// i18next only canonicalises tags containing `-`, so `zh-tw` becomes `zh-TW`
+/// while a bare `ZH` does not. The asset map is keyed by the canonical form.
+func canonicalTag(_ t: String) -> String {
+    guard t.contains("-") else { return t }
+    return t.split(separator: "-").enumerated().map { i, p -> String in
+        if i == 0 { return p.lowercased() }
+        if p.count == 4 { return p.prefix(1).uppercased() + p.dropFirst().lowercased() }
+        if p.count == 2 { return p.uppercased() }
+        return p.lowercased()
+    }.joined(separator: "-")
+}
+
+var i18nSkippedCases: [String] = []
+let i18nLocales = ["en", "zh", "zh-TW", "zh-HK", "ja", "ko", "vi", "id", "tr",
+                   "es-MX", "pt-BR", "fr", "de", "ru", "it"]
+// COMPUTED, not a stored global: Swift initialises top-level bindings in source
+// order, and `vectorsPath` is declared further down. A stored `let` here read it
+// before its initialiser had run — which is undefined behaviour, and crashed the
+// harness with SIGSEGV rather than anything diagnosable.
+var i18nAssetDir: String { "\(vectorsPath)/../../../../../public/i18n" }
+var i18nAssets: [String: Data] = [:]
+
+func i18nAsset(_ lng: String) -> Data? {
+    if let cached = i18nAssets[lng] { return cached }
+    guard let d = try? Data(contentsOf: URL(fileURLWithPath: "\(i18nAssetDir)/\(lng).json")) else {
+        return nil
+    }
+    i18nAssets[lng] = d
+    return d
+}
+
+func i18nEngine(lng: String, active: String? = nil, legacyPlurals: Bool = false) throws -> I18n {
+    guard let en = i18nAsset("en") else { throw NoDispatch(fn: "i18n:no en asset") }
+    let engine = legacyPlurals ? try I18n.newWithLegacyPlurals(fallbackJson: en)
+                               : try I18n(fallbackJson: en)
+    let tag = canonicalTag(lng)
+    if tag != "en", let bytes = i18nAsset(tag) {
+        try engine.loadCatalog(lang: tag, json: bytes)
+    }
+    _ = try engine.changeLanguage(lng: active ?? tag)
+    return engine
+}
+
+/// i18next `String()`-coerces a non-string key, so a numeric or null key is a
+/// legitimate lookup rather than a malformed vector.
+func anyString(_ v: Any?) -> String {
+    switch v {
+    case let s as String: return s
+    case nil, is NSNull: return "null"
+    case let n as NSNumber:
+        // `JSONSerialization` boxes booleans as `NSNumber`, so `stringValue`
+        // renders them "0"/"1". JS renders "false"/"true", and the corpus expects
+        // JS. `CFBooleanGetTypeID` is the only reliable way to tell them apart.
+        if CFGetTypeID(n) == CFBooleanGetTypeID() {
+            return n.boolValue ? "true" : "false"
+        }
+        return n.stringValue
+    default: return String(describing: v!)
+    }
+}
+
+func i18nCount(_ input: [String: Any]) -> Double {
+    (input["count"] as? NSNumber)?.doubleValue ?? Double.nan
+}
+
+func anyKey(_ input: [String: Any], _ key: String) -> String {
+    anyString(input[key])
+}
+
+/// Option keys the uniffi record deliberately does NOT model.
+///
+/// The FFI surface carries what a native app actually passes — `count`, `context`,
+/// `defaultValue`, `lng`, `ordinal` and interpolation variables. The rest are
+/// corpus probes of i18next's edge behaviour (`returnObjects`, `joinArrays`,
+/// separator overrides, a string or BigInt `count`, host-only values that
+/// stringify through JS semantics). Modelling them would widen a wallet's FFI
+/// contract to serve a test.
+///
+/// Cases carrying one are SKIPPED — counted and printed, never silent, because an
+/// unreported skip is how a corpus quietly stops covering things.
+let i18nUnmodelledOptions: Set<String> = [
+    "returnObjects", "returnDetails", "joinArrays", "keySeparator", "nsSeparator",
+    "ns", "replace",
+]
+
+func i18nExpressible(_ raw: Any?) -> Bool {
+    guard let o = raw as? [String: Any] else { return true }
+    for (k, v) in o {
+        if i18nUnmodelledOptions.contains(k) { return false }
+        if k.hasPrefix("defaultValue_") { return false }
+        // A tagged encoding for a value JSON cannot carry.
+        if let tagged = v as? [String: Any], tagged["__t"] != nil { return false }
+        // A string or object `count` is a shape the typed record cannot express.
+        if k == "count", !(v is NSNumber) { return false }
+        if k == "defaultValue", !(v is String) { return false }
+        // A nested object variable feeds `{{a.b}}`, which needs dotted flattening.
+        if v is [String: Any] { return false }
+        if v is [Any] { return false }
+    }
+    return true
+}
+
+func i18nOpts(_ raw: Any?) -> TOptions {
+    guard let o = raw as? [String: Any] else {
+        return TOptions(count: nil, context: nil, defaultValue: nil, lng: nil, ordinal: false, vars: [])
+    }
+    var count: Double?
+    var context: String?
+    var defaultValue: String?
+    var lng: String?
+    var ordinal = false
+    var vars: [TVar] = []
+    for (k, v) in o {
+        switch k {
+        case "count": if let n = v as? NSNumber { count = n.doubleValue }
+        case "context": context = anyString(v)
+        case "defaultValue": if let s = v as? String { defaultValue = s }
+        case "lng": lng = v as? String
+        case "ordinal": ordinal = (v as? Bool) ?? false
+        default: vars.append(TVar(name: k, value: v is NSNull ? nil : anyString(v)))
+        }
+    }
+    return TOptions(count: count, context: context, defaultValue: defaultValue,
+                    lng: lng, ordinal: ordinal, vars: vars)
 }
 
 /// Artwork -> 1-based index, built from the corpus's own `section-table` cases so
@@ -287,7 +465,10 @@ if vectorFiles.isEmpty {
 /// from making this harness report "green" over a corpus that silently shrank —
 /// the precise false confidence this feature exists to prevent.
 let REQUIRED_SUITES = [
-    "abi", "eip712", "identicon", "identicon-bulk", "primitives", "safe", "webauthn",
+    "abi", "eip712",
+    // `i18n-*` sorts before `identicon`: '1' is 0x31, 'd' is 0x64.
+    "i18n-behaviour", "i18n-exhaustive", "i18n-plural", "i18n-plural-legacy",
+    "identicon", "identicon-bulk", "primitives", "safe", "webauthn",
 ]
 
 /// Functions that exist in vela-core but are deliberately NOT on any binding surface
@@ -347,6 +528,37 @@ for name in vectorFiles {
         continue
     }
 
+    // The exhaustive i18n suite is COLUMNAR: {locales, keys, values}. Without this
+    // branch it hits the `cases` guard below and reports a schema failure — which
+    // is exactly what happened the moment the vectors landed, and is the intended
+    // order of events: a new schema must break the harness rather than pass through
+    // it silently.
+    if let locales = suite["locales"] as? [String],
+       let keys = suite["keys"] as? [String],
+       let values = suite["values"] as? [String: [String]] {
+        if locales.count != 15 {
+            failures.append("\(suiteName): locale set shrank to \(locales.count)")
+        }
+        for lng in locales {
+            guard let column = values[lng], column.count == keys.count else {
+                failures.append("\(suiteName): column \(lng) is not key-aligned")
+                continue
+            }
+            guard let engine = try? i18nEngine(lng: lng) else {
+                failures.append("\(suiteName): no engine for \(lng)")
+                continue
+            }
+            for (k, key) in keys.enumerated() {
+                total += 1
+                let got = (try? engine.t(key: key, opts: i18nOpts(nil))) ?? "<err>"
+                if got != column[k], failures.count < 20 {
+                    failures.append("\(suiteName)::\(lng)::\(key) — expected \(column[k]), got \(got)")
+                }
+            }
+        }
+        continue
+    }
+
     guard let cases = suite["cases"] as? [[String: Any]] else {
         failures.append("\(name) — bad schema (no cases and no pairs)")
         continue
@@ -356,6 +568,11 @@ for name in vectorFiles {
         let fn = c["fn"] as? String ?? "?"
         if CORE_ONLY_FNS.contains(fn) {
             skipped += 1
+            continue
+        }
+        if fn.hasPrefix("i18n_"), !i18nExpressible(c["input"].flatMap { ($0 as? [String: Any])?["opts"] }) {
+            skipped += 1
+            i18nSkippedCases.append(caseName)
             continue
         }
         total += 1
@@ -426,8 +643,17 @@ if !failures.isEmpty {
 }
 print(
     "smoke-swift: \(total) conformance cases green through the Swift bindings "
-        + "(\(skipped) skipped — core-only functions with no binding surface)"
+        + "(\(skipped) skipped: \(skipped - i18nSkippedCases.count) core-only functions "
+        + "with no binding surface, \(i18nSkippedCases.count) i18n cases carrying an "
+        + "option the FFI record does not model)"
 )
+// Naming them is the point: an unreported skip is how a corpus quietly stops
+// covering things. These are corpus probes of i18next's edge behaviour
+// (returnObjects, joinArrays, separator overrides, string/BigInt counts,
+// host-only values), not surface a native app calls.
+if !i18nSkippedCases.isEmpty {
+    print("smoke-swift:   i18n skips — " + i18nSkippedCases.sorted().joined(separator: ", "))
+}
 
 // The recursive AbiValue must survive the boundary with its nesting intact —
 // uniffi 0.32's cycle detection is what makes this type expressible at all.

@@ -8,6 +8,42 @@ description = "Vela Wallet shared computation core: pure, correctness-critical p
 [lib]
 crate-type = ["lib"]
 
+# Per-locale translation catalogs (spec 004-rust-i18n, FR-014).
+#
+# The DEFAULT is deliberately ZERO locales: the engine plus the shared path table
+# only. Measured — engine alone is +4,849 wasm bytes, but all 15 catalogs compiled
+# in come to 1,315,023, which is 315,023 OVER the MAX_WASM_BYTES = 1_000_000 gate
+# at rust/scripts/build-web.mjs:42. Web therefore fetches per-locale JSON at
+# runtime (Catalog::from_json), which is both smaller over the wire (176,852
+# brotli'd bytes for all 15, against +235,476 for the best in-wasm variant) and the
+# only shape that actually loads on demand.
+#
+# `i18n-all` exists for the conformance suite, which must have every locale
+# resident to replay the 17,115-case exhaustive corpus. NEVER enable it for a
+# wasm32-unknown-unknown build.
+[features]
+default = []
+i18n-en = []
+i18n-zh = []
+i18n-zh-tw = []
+i18n-zh-hk = []
+i18n-ja = []
+i18n-ko = []
+i18n-vi = []
+i18n-id = []
+i18n-tr = []
+i18n-ru = []
+i18n-es-mx = []
+i18n-pt-br = []
+i18n-fr = []
+i18n-de = []
+i18n-it = []
+i18n-all = [
+  "i18n-en", "i18n-zh", "i18n-zh-tw", "i18n-zh-hk", "i18n-ja", "i18n-ko",
+  "i18n-vi", "i18n-id", "i18n-tr", "i18n-ru", "i18n-es-mx", "i18n-pt-br",
+  "i18n-fr", "i18n-de", "i18n-it",
+]
+
 [dependencies]
 alloy-primitives = { workspace = true }
 alloy-dyn-abi = { workspace = true }

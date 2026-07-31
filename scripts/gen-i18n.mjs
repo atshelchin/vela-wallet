@@ -1,0 +1,476 @@
+#!/usr/bin/env node
+/**
+ * Generates the compiled-in i18n tables in `rust/crates/vela-core/src/` from the
+ * translation corpus (spec 004-rust-i18n, FR-010 / research D2).
+ *
+ * Source   <-  rust/crates/vela-core/i18n/locales/   240 files, THE source of truth
+ * Stage 1  ->  rust/.../src/i18n/paths.rs             the SHARED path table, paid once
+ * Stage 2  ->  rust/.../src/i18n_catalogs/<lng>.rs    one value blob per locale
+ * Stage 3  ->  src/i18n/resources.ts                  what the React Native app imports
+ * Stage 4  ->  public/i18n/<lng>.json                  the runtime on-demand asset
+ * Stage 5  ->  rust/.../src/l10n/datetime_data.rs      day periods + weekday names
+ *
+ * Why the split: the 1,141 dotted paths repeated per locale cost 460,471 bytes;
+ * interned once they cost 31,198 — a 14.8x collapse, and the only reason `ja`+`en`
+ * fits SC-005's 135,345-byte residency budget at a measured 126,352.
+ *
+ * Usage:  node scripts/gen-i18n.mjs
+ * Then:   git diff --stat rust/crates/vela-core/src/i18n/paths.rs \
+ *                        rust/crates/vela-core/src/i18n_catalogs
+ *         (expected: no change)
+ *
+ * A silently partial table is the worst possible outcome — it would compile, pass
+ * most tests, and render the wrong string for a subset of keys. So every structural
+ * assumption is asserted before a single byte is written.
+ */
+
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+// THE single source of truth for translation content (FR-010). This inverts the
+// repository's usual codegen direction — the crate has always been the destination
+// — and the inversion is the point: edit a string here and every platform artefact
+// below regenerates from it.
+const LOCALES_DIR = join(REPO_ROOT, 'rust/crates/vela-core/i18n/locales');
+const PATHS_FILE = join(REPO_ROOT, 'rust/crates/vela-core/src/i18n/paths.rs');
+const CATALOG_DIR = join(REPO_ROOT, 'rust/crates/vela-core/src/i18n_catalogs');
+const RESOURCES_FILE = join(REPO_ROOT, 'src/i18n/resources.ts');
+// Expo copies `public/*` to the export root, so these are fetchable at
+// `/i18n/<lng>.json`. NOT `assets/` — that is Metro's bundler-resolved tree under
+// content-hashed filenames, which nothing can fetch at a stable URL.
+// `public/zbar.wasm` is the working precedent (research.md D9).
+const ASSET_DIR = join(REPO_ROOT, 'public/i18n');
+const DATETIME_FILE = join(REPO_ROOT, 'rust/crates/vela-core/src/l10n/datetime_data.rs');
+
+// Locale order and namespace spread order mirror src/i18n/resources.ts exactly, so
+// a later namespace overwriting an earlier key behaves identically here.
+const LOCALES = ['en', 'zh', 'zh-TW', 'zh-HK', 'ja', 'ko', 'vi', 'id', 'tr', 'es-MX', 'pt-BR', 'fr', 'de', 'ru', 'it'];
+const NAMESPACE_FILES = [
+  'home', 'send', 'receive', 'assets', 'addToken', 'tokenDetail', 'history',
+  'onboarding', 'connect', 'about', 'clearSigning', 'componentsTx',
+  'componentsUi', 'settingsModals', 'contacts',
+];
+
+/** `es-MX` -> `es-mx`, matching the cargo feature name. */
+const featureOf = (lng) => `i18n-${lng.toLowerCase()}`;
+/** `es-MX` -> `es_mx`, matching the Rust module name. */
+const modOf = (lng) => lng.toLowerCase().replace(/-/g, '_');
+
+function fail(message) {
+  console.error(`gen-i18n: ${message}`);
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Load — never trim, never normalise
+// ---------------------------------------------------------------------------
+//
+// 39 values are sentence fragments whose leading/trailing whitespace is
+// concatenated at render time, and zh/zh-TW/zh-HK deliberately OMIT that
+// whitespace, so no uniform rule applies. All 240 files are already NFC, so
+// re-normalising is a no-op that can only ever become a spurious diff.
+
+const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
+
+function buildLocale(lng) {
+  let out = { ...readJson(join(LOCALES_DIR, `${lng}.json`)) };
+  for (const ns of NAMESPACE_FILES) out = { ...out, ...readJson(join(LOCALES_DIR, lng, `${ns}.json`)) };
+  return out;
+}
+
+const bundles = {};
+for (const lng of LOCALES) bundles[lng] = buildLocale(lng);
+
+// ---------------------------------------------------------------------------
+// Stage 1 — the shared path table
+// ---------------------------------------------------------------------------
+
+/** Collect every leaf path and every branch (object) path. */
+function walk(obj, prefix, leaves, branches) {
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    const p = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      branches.add(p);
+      walk(v, p, leaves, branches);
+    } else {
+      if (typeof v !== 'string') fail(`non-string leaf at ${p} (${typeof v}) — the corpus is meant to be all strings`);
+      leaves.add(p);
+    }
+  }
+}
+
+const leafSet = new Set();
+const branchSet = new Set();
+for (const lng of LOCALES) walk(bundles[lng], '', leafSet, branchSet);
+
+// A path that is a leaf in one locale and a branch in another would make the
+// branch bitmap ambiguous, and `t()` would return a translation in one language
+// and the object diagnostic in another.
+const both = [...leafSet].filter((p) => branchSet.has(p));
+if (both.length) fail(`${both.length} paths are BOTH leaf and branch: ${both.slice(0, 5).join(', ')}`);
+
+// The branch structure must be identical across locales, or the shared table
+// cannot be shared. Verified rather than assumed.
+for (const lng of LOCALES) {
+  const l = new Set(), b = new Set();
+  walk(bundles[lng], '', l, b);
+  const missing = [...branchSet].filter((p) => !b.has(p));
+  const extra = [...b].filter((p) => !branchSet.has(p));
+  if (missing.length || extra.length) {
+    fail(`locale ${lng} branch set differs from the union (missing ${missing.length}, extra ${extra.length})`);
+  }
+}
+
+const PATHS = [...new Set([...leafSet, ...branchSet])].sort();
+const IS_BRANCH = PATHS.map((p) => (branchSet.has(p) ? 1 : 0));
+
+for (let i = 1; i < PATHS.length; i++) {
+  if (PATHS[i] <= PATHS[i - 1]) fail(`path table is not strictly sorted at ${i}: ${PATHS[i - 1]} >= ${PATHS[i]}`);
+}
+if (PATHS.length !== 1205) fail(`expected 1205 paths (1141 leaf + 64 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1141) fail(`expected 1141 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 64) fail(`expected 64 branch paths, got ${branchSet.size}`);
+
+/** Pack a bit-per-path bitmap, LSB first within each byte. */
+function packBits(bits) {
+  const out = new Uint8Array(Math.ceil(bits.length / 8));
+  bits.forEach((b, i) => { if (b) out[i >> 3] |= 1 << (i & 7); });
+  return out;
+}
+
+const branchBitmap = packBits(IS_BRANCH);
+
+/** Rust string literal — escape only what Rust requires. */
+function rustStr(s) {
+  return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')}"`;
+}
+
+function byteArray(bytes, perLine = 16) {
+  const lines = [];
+  for (let i = 0; i < bytes.length; i += perLine) {
+    lines.push('    ' + [...bytes.slice(i, i + perLine)].map((b) => `0x${b.toString(16).padStart(2, '0')}`).join(', ') + ',');
+  }
+  return lines.join('\n');
+}
+
+const GENERATED_BY = 'GENERATED by scripts/gen-i18n.mjs — do not edit by hand.';
+
+mkdirSync(dirname(PATHS_FILE), { recursive: true });
+writeFileSync(PATHS_FILE, `//! ${GENERATED_BY}
+//!
+//! The SHARED key-path table: every dotted path in the corpus, sorted, interned
+//! once for all ${LOCALES.length} locales. Regenerate with \`node scripts/gen-i18n.mjs\`.
+//!
+//! ${PATHS.length} paths = ${leafSet.size} leaf + ${branchSet.size} branch. Repeated per locale these key bytes
+//! would cost ${[...leafSet].reduce((n, p) => n + p.length, 0) * LOCALES.length} bytes; interned once they cost ${PATHS.reduce((n, p) => n + p.length, 0)}.
+
+/// Every path in the corpus, strictly sorted. Lookup is a binary search here, then
+/// an O(1) index into the active locale's value table.
+pub(crate) static PATHS: [&str; ${PATHS.length}] = [
+${PATHS.map((p) => `    ${rustStr(p)},`).join('\n')}
+];
+
+/// Bit *i* is set when \`PATHS[i]\` is an object node rather than a translation.
+/// A branch is a distinct lookup outcome, not a miss: \`t("home")\` must return the
+/// byte-exact diagnostic \`key 'home (en)' returned an object instead of string.\`,
+/// which a flat map could never distinguish from an absent key.
+pub(crate) static IS_BRANCH: [u8; ${branchBitmap.length}] = [
+${byteArray(branchBitmap)}
+];
+
+/// Number of entries in [\`PATHS\`]. Value tables carry \`N_PATHS + 1\` offsets.
+pub(crate) const N_PATHS: usize = ${PATHS.length};
+
+/// Index of \`path\` in [\`PATHS\`], or \`None\`.
+pub(crate) fn path_id(path: &str) -> Option<usize> {
+    PATHS.binary_search(&path).ok()
+}
+
+/// Whether \`PATHS[id]\` is an object node.
+pub(crate) fn is_branch(id: usize) -> bool {
+    IS_BRANCH[id >> 3] & (1 << (id & 7)) != 0
+}
+`);
+
+// ---------------------------------------------------------------------------
+// Stage 2 — one value table per locale
+// ---------------------------------------------------------------------------
+
+const pathIndex = new Map(PATHS.map((p, i) => [p, i]));
+
+function flatten(obj, prefix, out) {
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    const p = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flatten(v, p, out);
+    else out.set(p, v);
+  }
+  return out;
+}
+
+mkdirSync(CATALOG_DIR, { recursive: true });
+const stats = [];
+
+for (const lng of LOCALES) {
+  const flat = flatten(bundles[lng], '', new Map());
+
+  // Build the blob in PATHS order so the offset array is dense and monotonic.
+  let blob = '';
+  const offsets = [0];
+  const present = new Array(PATHS.length).fill(0);
+  for (let i = 0; i < PATHS.length; i++) {
+    const v = flat.get(PATHS[i]);
+    if (v !== undefined) {
+      blob += v;
+      present[i] = 1;
+    }
+    offsets.push(Buffer.byteLength(blob, 'utf8'));
+  }
+
+  const blobBytes = Buffer.byteLength(blob, 'utf8');
+  // u16 offsets, not u32: u32 puts 64-bit ja+en at 135,992 — 647 bytes OVER the
+  // SC-005 budget — while u16 lands it at 131,168 on every pointer width. Fail
+  // loudly rather than truncate; a wrapped offset would slice a value in half.
+  if (blobBytes >= 65_536) {
+    fail(`${lng}: value blob is ${blobBytes} bytes, which does not fit u16 offsets. ` +
+         `Widen Offset to u32 in catalog.rs AND re-check the SC-005 residency budget.`);
+  }
+  if (offsets.length !== PATHS.length + 1) fail(`${lng}: expected ${PATHS.length + 1} offsets, got ${offsets.length}`);
+
+  const presentBitmap = packBits(present);
+  const leafCount = present.reduce((a, b) => a + b, 0);
+  stats.push({ lng, leafCount, blobBytes, tableBytes: blobBytes + offsets.length * 2 + presentBitmap.length });
+
+  writeFileSync(join(CATALOG_DIR, `${modOf(lng)}.rs`), `//! ${GENERATED_BY}
+//!
+//! Compiled-in value table for \`${lng}\` — ${leafCount} translations, ${blobBytes} blob bytes.
+//! Gated by the \`${featureOf(lng)}\` cargo feature; the DEFAULT feature set is zero
+//! locales, because all 15 compiled in measured 1,315,023 wasm bytes against the
+//! 1,000,000 ceiling at rust/scripts/build-web.mjs:42.
+
+/// Every translation for this locale, concatenated in \`PATHS\` order.
+pub(super) static BLOB: &str = ${rustStr(blob)};
+
+/// \`BLOB[OFFSETS[i]..OFFSETS[i + 1]]\` is the value for \`PATHS[i]\`, when present.
+/// \`u16\` is deliberate — see the residency budget note in catalog.rs.
+pub(super) static OFFSETS: [u16; ${offsets.length}] = [
+${(() => { const l = []; for (let i = 0; i < offsets.length; i += 16) l.push('    ' + offsets.slice(i, i + 16).join(', ') + ','); return l.join('\n'); })()}
+];
+
+/// Bit *i* is set when this locale defines \`PATHS[i]\`. Distinguishes "absent, fall
+/// through to en" from "present and empty", which are different renderings.
+pub(super) static PRESENT: [u8; ${presentBitmap.length}] = [
+${byteArray(presentBitmap)}
+];
+`);
+}
+
+// The module file, gating each locale behind its feature.
+writeFileSync(join(CATALOG_DIR, 'mod.rs'), `//! ${GENERATED_BY}
+//!
+//! One compiled-in value table per locale, each behind its own cargo feature so a
+//! build carries only the languages it ships (FR-014). Locales not compiled in are
+//! still reachable at runtime through \`Catalog::from_json\` (FR-015), which is the
+//! route the web build uses for all of them.
+
+${LOCALES.map((l) => `#[cfg(feature = "${featureOf(l)}")]\npub(crate) mod ${modOf(l)};`).join('\n')}
+
+/// The compiled-in table for \`lang\`, if its feature is enabled.
+///
+/// Returns \`(blob, offsets, present)\`.
+pub(crate) fn embedded(lang: &str) -> Option<(&'static str, &'static [u16], &'static [u8])> {
+    match lang {
+${LOCALES.map((l) => `        #[cfg(feature = "${featureOf(l)}")]\n        "${l}" => Some((${modOf(l)}::BLOB, &${modOf(l)}::OFFSETS, &${modOf(l)}::PRESENT)),`).join('\n')}
+        _ => None,
+    }
+}
+`);
+
+// ---------------------------------------------------------------------------
+// Stage 3 — the TypeScript resources the React Native app imports (FR-011)
+// ---------------------------------------------------------------------------
+//
+// Emitted as 240 imports plus per-locale spreads, exactly the shape the
+// hand-maintained file had. Inlining the strings instead would be a much larger
+// file and would change how Metro bundles them; the ONLY thing this generator
+// changes is who maintains the list.
+//
+// `en` MUST stay a NAMED export: src/i18n/i18next.d.ts does
+// `import type { en } from './resources'` to derive the typed key union, so
+// dropping it breaks `npm run typecheck` for all 1,029 call sites at once.
+
+/** `es-MX` -> `esMX`, the identifier prefix used for that locale's imports. */
+const identOf = (lng) => {
+  const [lang, region] = lng.split('-');
+  return region ? lang + region.toUpperCase() : lang;
+};
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** POSIX-style relative import specifier from src/i18n/ to the corpus. */
+function importPath(...segments) {
+  const spec = relative(dirname(RESOURCES_FILE), join(LOCALES_DIR, ...segments)).split('\\').join('/');
+  return spec.startsWith('.') ? spec : `./${spec}`;
+}
+
+const importLines = [];
+const localeBlocks = [];
+for (const lng of LOCALES) {
+  const id = identOf(lng);
+  importLines.push(`import ${id}Core from '${importPath(`${lng}.json`)}';`);
+  for (const ns of NAMESPACE_FILES) {
+    importLines.push(`import ${id}${cap(ns)} from '${importPath(lng, `${ns}.json`)}';`);
+  }
+  // `en` is exported by name; the rest stay module-local, as before.
+  const decl = lng === 'en' ? 'export const en' : `const ${id}`;
+  localeBlocks.push(
+    `${decl} = {\n` +
+      `  ...${id}Core,\n` +
+      NAMESPACE_FILES.map((ns) => `  ...${id}${cap(ns)},`).join('\n') +
+      `\n};`,
+  );
+}
+
+writeFileSync(RESOURCES_FILE, `/**
+ * ${GENERATED_BY}
+ *
+ * Per-language resource aggregator. Each language merges its core file
+ * (common/language/settings) + every per-namespace file into one flat
+ * \`translation\` object, in the order below — a later namespace overwriting an
+ * earlier key behaves exactly as it always has.
+ *
+ * The corpus itself lives in the Rust crate (\`${relative(REPO_ROOT, LOCALES_DIR).split('\\').join('/')}\`),
+ * which is the single source of truth for every platform: edit a string there and
+ * regenerate, and the TypeScript resources, the compiled-in Rust catalogs and the
+ * conformance corpus all move together.
+ *
+ * \`en\` is exported BY NAME because src/i18n/i18next.d.ts derives the typed key
+ * union from it (\`import type { en } from './resources'\`).
+ *
+ * To add a language: add it to LOCALES in scripts/gen-i18n.mjs and re-run
+ * \`npm run gen:i18n\`.
+ */
+${importLines.join('\n')}
+
+${localeBlocks.join('\n\n')}
+
+export const resources = {
+${LOCALES.map((l) => `  ${JSON.stringify(l)}: { translation: ${identOf(l)} },`).join('\n')}
+};
+`);
+
+// ---------------------------------------------------------------------------
+// Stage 4 — one merged JSON document per locale, for on-demand loading (FR-014)
+// ---------------------------------------------------------------------------
+//
+// This is what `Catalog::from_json` consumes and what the web route fetches. It
+// exists because compiling catalogs into the wasm is measurably the wrong trade:
+// all 15 came to 1,315,023 bytes against a 1,000,000 ceiling, and even ONE locale
+// costs more over the wire compiled in (+31,862 brotli'd) than fetched as plain
+// JSON (15,353). Fetching also delivers the actual requirement — a Japanese user
+// downloads `ja`, not a 15-locale blob.
+//
+// Emitted with the same `JSON.stringify(doc, null, 1)` convention as the vector
+// corpus, so a diff is reviewable rather than a single reflowed line.
+
+mkdirSync(ASSET_DIR, { recursive: true });
+const assetStats = [];
+for (const lng of LOCALES) {
+  const file = join(ASSET_DIR, `${lng}.json`);
+  writeFileSync(file, `${JSON.stringify(bundles[lng], null, 1)}\n`);
+  assetStats.push({ lng, bytes: Buffer.byteLength(readFileSync(file)) });
+}
+
+// A stale asset is a wrong translation shipped to production, so prove the merge
+// round-trips before anyone trusts it: every asset must reparse to exactly the
+// bundle it came from.
+for (const lng of LOCALES) {
+  const back = readJson(join(ASSET_DIR, `${lng}.json`));
+  if (JSON.stringify(back) !== JSON.stringify(bundles[lng])) {
+    fail(`${lng}: emitted asset does not round-trip back to the merged bundle`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stage 5 — day-period and weekday tables (FR-021)
+// ---------------------------------------------------------------------------
+//
+// Extracted from the generating machine's ICU rather than transcribed by hand.
+// Only 518 bytes of strings, but the house rule from feature 003's FR-009 applies
+// regardless: mechanically generated data can be re-derived and diffed, whereas a
+// hand-typed Turkish "Çar" or Vietnamese "Thứ 4" is a silent wrong-day bug nobody
+// reviews. Requires a full-ICU node — asserted, not assumed.
+
+if (!process.versions.icu || Intl.DateTimeFormat.supportedLocalesOf(['ru']).length !== 1) {
+  fail('this Node lacks full ICU — the day-period and weekday tables would be wrong');
+}
+
+const dtRows = LOCALES.map((lng) => {
+  const hourFmt = new Intl.DateTimeFormat(lng, { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
+  const partsPm = hourFmt.formatToParts(new Date(Date.UTC(2026, 5, 13, 21, 5)));
+  const partsAm = hourFmt.formatToParts(new Date(Date.UTC(2026, 5, 13, 9, 5)));
+  const pm = partsPm.find((p) => p.type === 'dayPeriod')?.value ?? 'PM';
+  const am = partsAm.find((p) => p.type === 'dayPeriod')?.value ?? 'AM';
+  // Position matters: zh/zh-TW/zh-HK/ja/ko/tr write the marker BEFORE the hour,
+  // which today's hardcoded English `AM`/`PM` suffix gets wrong for six locales.
+  const di = partsPm.findIndex((p) => p.type === 'dayPeriod');
+  const hi = partsPm.findIndex((p) => p.type === 'hour');
+  const periodFirst = di >= 0 && hi >= 0 && di < hi;
+
+  const wkFmt = new Intl.DateTimeFormat(lng, { weekday: 'short', timeZone: 'UTC' });
+  // 2026-06-07 is a Sunday, so index 0 is Sunday — matching `Date.getDay()`.
+  const weekdays = Array.from({ length: 7 }, (_, i) => wkFmt.format(new Date(Date.UTC(2026, 5, 7 + i))));
+  return { lng, am, pm, periodFirst, weekdays };
+});
+
+writeFileSync(DATETIME_FILE, `//! ${GENERATED_BY}
+//!
+//! Day-period markers and short weekday names for the ${LOCALES.length} shipped locales,
+//! extracted from ICU ${process.versions.icu}. Regenerate with \`node scripts/gen-i18n.mjs\`.
+//!
+//! This closes the last two host-\`Intl\` dependencies on the formatting path: the
+//! hardcoded English \`AM\`/\`PM\` in \`locale-format.ts\` (wrong in WORDING for 8 locales
+//! and in POSITION for 6) and \`activity.ts\`'s \`toLocaleDateString\` weekday lookup,
+//! which is unreliable on Hermes for exactly the reason the plural rules were.
+
+/// \`(locale, am, pm, period_before_hour, [Sun..Sat])\`.
+pub(crate) static DATETIME: [(&str, &str, &str, bool, [&str; 7]); ${dtRows.length}] = [
+${dtRows.map((r) => `    (${rustStr(r.lng)}, ${rustStr(r.am)}, ${rustStr(r.pm)}, ${r.periodFirst}, [${r.weekdays.map(rustStr).join(', ')}]),`).join('\n')}
+];
+
+/// Row for \`locale\`, falling back to \`en\` — the same fallback the resolver uses.
+pub(crate) fn row(locale: &str) -> &'static (&'static str, &'static str, &'static str, bool, [&'static str; 7]) {
+    let primary = locale.split(['-', '_']).next().unwrap_or(locale);
+    DATETIME
+        .iter()
+        .find(|r| r.0 == locale)
+        .or_else(|| DATETIME.iter().find(|r| r.0 == primary))
+        .unwrap_or(&DATETIME[0])
+}
+`);
+
+// ---------------------------------------------------------------------------
+// Report
+// ---------------------------------------------------------------------------
+
+const keyBlobBytes = PATHS.reduce((n, p) => n + p.length, 0);
+console.log(`paths.rs   : ${PATHS.length} paths (${leafSet.size} leaf + ${branchSet.size} branch), key blob ${keyBlobBytes} bytes, branch bitmap ${branchBitmap.length} bytes`);
+for (const s of stats) {
+  console.log(`  ${s.lng.padEnd(6)} ${String(s.leafCount).padStart(5)} values  blob ${String(s.blobBytes).padStart(6)}  table ${String(s.tableBytes).padStart(6)} bytes`);
+}
+const en = stats.find((s) => s.lng === 'en');
+const ja = stats.find((s) => s.lng === 'ja');
+const shared = keyBlobBytes + branchBitmap.length + PATHS.length * 8; // +ptr array (wasm32)
+console.log(`\nSC-005 check — ja + en resident, shared table included:`);
+console.log(`  shared ${shared} + ja ${ja.tableBytes} + en ${en.tableBytes} = ${shared + ja.tableBytes + en.tableBytes} bytes (budget 135,345 for the per-locale halves)`);
+console.log(`  per-locale halves only: ${ja.tableBytes + en.tableBytes} bytes`);
+console.log(`resources.ts: ${importLines.length} imports across ${LOCALES.length} locales -> ${relative(REPO_ROOT, RESOURCES_FILE)}`);
+const assetTotal = assetStats.reduce((n, a) => n + a.bytes, 0);
+const assetEn = assetStats.find((a) => a.lng === 'en').bytes;
+const assetJa = assetStats.find((a) => a.lng === 'ja').bytes;
+console.log(`assets     : ${LOCALES.length} files, ${assetTotal} bytes total -> ${relative(REPO_ROOT, ASSET_DIR)}/`);
+console.log(`  on-demand: a ja reader fetches ${assetJa} + ${assetEn} = ${assetJa + assetEn} bytes, not ${assetTotal}`);
+const dtBytes = dtRows.reduce((n, r) => n + Buffer.byteLength(r.am) + Buffer.byteLength(r.pm) + r.weekdays.reduce((m, w) => m + Buffer.byteLength(w), 0), 0);
+console.log(`datetime   : ${dtRows.length} locales, ${dtBytes} bytes of strings (ICU ${process.versions.icu}) -> ${relative(REPO_ROOT, DATETIME_FILE)}`);

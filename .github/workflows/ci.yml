@@ -68,10 +68,39 @@ jobs:
           node scripts/gen-identicon-features.mjs
           git diff --exit-code -- rust/crates/vela-core/src/identicon_features.rs \
             || { echo "::error::The identicon artwork no longer matches identicons-esm. Every existing account's avatar would change. Treat as a release blocker, not a chore: review the diff and confirm the dependency bump was intended."; exit 1; }
+      # The i18n corpus lives in the crate and is THE source of truth (spec
+      # 004-rust-i18n FR-010). Every downstream artefact — the shared Rust path
+      # table, the fifteen compiled-in catalogs, and the TypeScript resources the
+      # React Native app imports — is generated from it. Regenerating and requiring
+      # a zero diff is what stops the three drifting apart: an edit committed to the
+      # corpus without regenerating would leave the app rendering the old string
+      # while the Rust suite rendered the new one, and both would be green.
+      - name: i18n artefacts match the corpus
+        run: |
+          node scripts/gen-i18n.mjs
+          git diff --exit-code -- rust/crates/vela-core/src/i18n/paths.rs \
+                                  rust/crates/vela-core/src/i18n_catalogs \
+                                  rust/crates/vela-core/src/l10n/datetime_data.rs \
+                                  src/i18n/resources.ts \
+                                  public/i18n \
+            || { echo "::error::The generated i18n artefacts no longer match rust/crates/vela-core/i18n/locales. Run 'npm run gen:i18n' and commit the result TOGETHER WITH the corpus change — a corpus edit and its regenerated artefacts belong in one commit."; exit 1; }
+      # Reports the six known corpus defects (FR-018) and fails only on NEW ones.
+      # It fixes nothing on purpose: silently "improving" a translated string during
+      # an engine port makes every parity claim unverifiable.
+      - name: i18n corpus defect register
+        run: node scripts/lint-i18n-corpus.mjs
       # Byte-parity between the Rust core and the JS library the app still ships on
       # native — over every address literal in the repo plus 200k random seeds.
       - name: Identicon parity (Rust core vs the shipped JS library)
         run: node scripts/verify-identicon-parity.mjs
+      # Byte-parity between the Rust i18n engine and the i18next the app still
+      # ships — the full 17,115 (locale, key) cross-product plus 50,000 fuzzed
+      # option bundles. The fuzz is the point: the committed corpus proves the port
+      # matches on inputs someone thought of, and this pass has already caught one
+      # it did not (a non-finite `count` losing its value crossing the wasm
+      # boundary, because JSON has no syntax for Infinity).
+      - name: i18n parity (Rust core vs the shipped JS library)
+        run: node scripts/verify-i18n-parity.mjs
       - name: Web production build
         run: npm run build:web
 

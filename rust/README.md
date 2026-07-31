@@ -49,7 +49,12 @@ workspace `Cargo.toml`; the reasoning behind each is in
 | Lint | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` |
 | Regenerate conformance vectors | `npm run dump:vectors` (repo root) |
 | Regenerate the identicon artwork table | `npm run gen:identicon-features` |
+| Regenerate the i18n tables + TS resources | `npm run gen:i18n` |
+| Report the i18n corpus defect register | `npm run lint:i18n` |
+| i18n residency (SC-005) | `cargo test -p vela-core --features i18n-all --test i18n_residency -- --nocapture` |
+| i18n budget (SC-007) | `cargo test -p vela-core --features i18n-all --release --test i18n_bench -- --nocapture` |
 | Identicon parity vs the shipped JS library | `npm run verify:identicon` |
+| i18n parity vs the shipped JS library | `npm run verify:i18n` |
 | Build the web artifact | `npm run build:wasm` |
 | Verify the shipped web artifact | `npm run verify:wasm` |
 | Kotlin bindings conformance | `rust/scripts/smoke-kotlin.sh` |
@@ -114,3 +119,31 @@ because the old output was garbage. **An un-enumerated behavior change is a bug.
 Bindings are checksum-coupled to the uniffi version: Kotlin, Swift and any
 consumer must regenerate together, or calls fail at runtime. Bump the workspace
 pin, regenerate, and run both smoke harnesses before committing.
+
+
+## i18n / L10n
+
+`vela_core::i18n` reproduces `i18next@26.3.1` byte-for-byte; `vela_core::l10n`
+reproduces `src/services/locale-format.ts` and corrects the currency layer it never
+handled. Spec: `specs/004-rust-i18n/`.
+
+**The corpus under `rust/crates/vela-core/i18n/locales/` is the only hand-edited
+file set.** Everything downstream is generated and CI fails on drift:
+
+| Generated | From |
+|---|---|
+| `src/i18n/paths.rs` | the shared 1,205-path table |
+| `src/i18n_catalogs/*.rs` | one compiled-in value blob per locale |
+| `src/l10n/datetime_data.rs` | day periods + weekday names, from ICU |
+| `public/i18n/<lng>.json` | the runtime on-demand asset the web route fetches |
+| `../../src/i18n/resources.ts` | what the React Native app imports |
+| `tests/vectors/i18n-*.json` | 18,975 conformance cases, from the real JS package |
+
+Edit a string, run `npm run gen:i18n`, and commit the regeneration **with** the
+corpus change — a corpus edit without it leaves the app rendering the old string
+while the Rust suite renders the new one, and both would be green.
+
+Locales are per-locale cargo features and the default set is **zero**: all 15
+compiled in measure 1,315,023 wasm bytes against a 1,000,000 ceiling, and even one
+costs more over the wire compiled in than fetched as JSON. Web fetches
+`/i18n/<lng>.json` on demand; desktop and native may compile in what they ship.

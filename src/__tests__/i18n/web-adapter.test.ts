@@ -311,6 +311,30 @@ describe('web i18n adapter', () => {
     }
   }, 60_000);
 
+  it('installs a console handle that can answer "is this really the engine?"', () => {
+    // The tool a human uses to verify adoption in a browser. It has to report the
+    // COMPARISON COUNT, because that is the only signal that distinguishes "the
+    // engine is running" from "the engine is absent and the oracle is covering
+    // for it" — rendered text cannot, under FR-016.
+    web.installI18nConsole();
+    const g = globalThis as unknown as { vela?: Record<string, () => unknown> };
+    expect(typeof g.vela?.i18n).toBe('function');
+    expect(typeof g.vela?.i18nMode).toBe('function');
+    expect(typeof g.vela?.i18nSweep).toBe('function');
+
+    const diag = web.i18nDiagnostics;
+    const previous = diag.harnessReport().mode;
+    (g.vela as unknown as { i18nMode: (m: string) => void }).i18nMode('every');
+    (g.vela as unknown as { i18nReset: () => void }).i18nReset();
+    try {
+      i18n.t('common.cancel');
+      const report = (g.vela as unknown as { i18n: () => { compared: number } }).i18n();
+      expect(report.compared).toBe(1);
+    } finally {
+      diag.setHarnessMode(previous);
+    }
+  });
+
   it('exposes the same surface as the native module, plus web-only diagnostics', async () => {
     const native = await import('@/i18n');
     const extra = Object.keys(web).filter((k) => !(k in native));

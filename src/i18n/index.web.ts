@@ -28,7 +28,23 @@ import { GIT_COMMIT } from '@/constants/build-info';
 import { initSync, I18n as WasmI18n } from '../../rust/pkg-web/vela_core.js';
 import { WASM_BASE64 } from '../../rust/pkg-web/vela_core_bg.base64.js';
 
-export * from './shared';
+// `installI18nConsole` is re-declared below with the real implementation, so it
+// is excluded here rather than shadowed — an ambiguous re-export would resolve
+// to the native no-op on web.
+export {
+  SUPPORTED_LANGUAGES,
+  FALLBACK_LANGUAGE,
+  LANGUAGE_NATIVE_NAMES,
+  getLanguagePreference,
+  detectSystemLanguage,
+  resolveLanguage,
+  loadLanguage,
+  setLanguagePreference,
+  setBeforeLanguageChange,
+} from './shared';
+// Re-exported under their own names — aliasing any of these would break every
+// web consumer that imports them by name, and only on web.
+export type { AppLanguage, LanguagePreference, BeforeLanguageChange } from './shared';
 export { default } from './shared';
 
 // ---------------------------------------------------------------------------
@@ -138,6 +154,62 @@ export const i18nDiagnostics = {
   /** Every key x the active language, through both engines, in one pass (T060). */
   sweep: () => sweepActiveLanguage(),
 };
+
+/**
+ * `vela.i18n*` in the browser console — how you answer "is this actually the
+ * Rust engine?" without reading the bundle.
+ *
+ * It exists because the obvious checks do not work. Rendered text proves
+ * nothing: under FR-016 the seam returns the ORACLE's result, so a correct
+ * screen looks identical whether the engine is running or absent entirely. The
+ * network tab is better — a `/i18n/<lng>.json?v=…` request only happens on this
+ * path — but it proves the catalog store ran, not that `t()` routes through the
+ * engine. Only the comparison counter proves that.
+ */
+export function installI18nConsole(): void {
+  const g = globalThis as unknown as { vela?: Record<string, unknown> };
+  g.vela = Object.assign(g.vela ?? {}, {
+    i18n() {
+      const r = harness.report();
+      console.log(
+        [
+          `[vela] i18n backend      : ${I18N_BACKEND}`,
+          `       engine language   : ${catalogs.engineLanguage()}`,
+          `       resident locales  : ${catalogs.residentLocales().join(', ')}`,
+          `       resident bytes    : ${catalogs.residentBytes()}`,
+          `       JS catalog cache  : ${catalogs.cachedLocales().join(', ') || '(none)'}`,
+          `       harness mode      : ${r.mode}`,
+          `       comparisons       : ${r.compared}   (0 here means t() is NOT routing through the seam)`,
+          `       inputs agreed     : ${r.agreed}`,
+          `       divergences       : ${r.divergences.length}`,
+          `       engine poisoned   : ${r.poisoned}`,
+        ].join('\n'),
+      );
+      return r;
+    },
+    /** `vela.i18nMode('every')` to compare on every call. */
+    i18nMode(mode: HarnessMode) {
+      harness.setMode(mode);
+      console.log(`[vela] i18n harness mode -> ${mode}`);
+      return mode;
+    },
+    /** Resolve every key at the active language through both engines. */
+    i18nSweep() {
+      const before = Date.now();
+      const r = sweepActiveLanguage();
+      console.log(
+        `[vela] swept ${r.compared} keys @${catalogs.engineLanguage()} in ${Date.now() - before}ms — ` +
+          `${r.divergences.length} divergence(s)`,
+      );
+      if (r.divergences.length) console.table(r.divergences);
+      return r;
+    },
+    i18nReset() {
+      harness.reset();
+      return 'reset';
+    },
+  });
+}
 
 /**
  * Resolve every key in the corpus through the seam at the current language.

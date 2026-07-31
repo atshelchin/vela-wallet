@@ -3,7 +3,7 @@
  "entries": [
   {
    "date": "2026-07-31",
-   "rev": "pending",
+   "rev": "79c5930",
    "headline": "Three Home boards were the same picture — the tab clicks had been hitting an invisible copy of the screen",
    "changes": [
     "The founder opened the file and said the screens looked like they were overlapping. They were not overlapping: S/home/activity, S/home/assets and S/home/connections were three copies of one picture, and at a glance that reads as duplication.",

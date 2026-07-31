@@ -44,30 +44,30 @@ rather than the ones used locally.
   generated files, so whichever ran second was red. `gen-i18n.mjs` now runs rustfmt on the
   Rust it emits — the only arrangement where both gates pass. Verified idempotent.
 
-## Phase 1 — Catalog store
+## Phase 1 — Catalog store — **DONE** (`02cc14c`)
 
-- **T010** (FR-009, FR-010, FR-011, FR-012, FR-013) Create `src/i18n/catalog-store.ts` (plain `.ts`) per contract §3: URL with the
+- [x] **T010** (FR-009, FR-010, FR-011, FR-012, FR-013) Create `src/i18n/catalog-store.ts` (plain `.ts`) per contract §3: URL with the
   `gitCommit` buster, `response.ok` before `arrayBuffer()`, LRU capped at 2 non-`en`
   entries, the four-step ordering, the generation guard, `engineLanguage` written on all
   four paths.
-- **T011** [P] `src/__tests__/i18n/web-catalog-store.test.ts` — cold load fetches once;
+- [x] **T011** [P] `src/__tests__/i18n/web-catalog-store.test.ts` — cold load fetches once;
   `ja→ru→ja` is correct with one fetch each; a 404 HTML body throws an actionable error, not
   a parser message; a late fetch cannot evict the visible locale; residency is `[active,'en']`
   or `['en']`.
-- **T012** [P] Mock `@/constants/build-info` per file — `expo-constants` throws under jest.
+- [x] **T012** [P] Mock `@/constants/build-info` per file — `expo-constants` throws under jest.
 
-## Phase 2 — Seam
+## Phase 2 — Seam — **DONE** (`e165214`)
 
-- **T020** (FR-001, FR-002, FR-004) Create `src/i18n/seam.ts`: `seamT` with the six ordered steps and `seamExists`,
+- [x] **T020** (FR-001, FR-002, FR-004) Create `src/i18n/seam.ts`: `seamT` with the six ordered steps and `seamExists`,
   per contract §1. Returns `string`.
-- **T021** (FR-005, FR-006, FR-007) The options normaliser, rules N1–N5 per contract §2, including the `count`
+- [x] **T021** (FR-005, FR-006, FR-007) The options normaliser, rules N1–N5 per contract §2, including the `count`
   strip-plus-`replace` pairing and the pre-call rejection of values that cannot cross the
   boundary.
-- **T022** (FR-003, FR-008, FR-014, FR-018) Create `src/i18n/index.web.ts`: `initSync`, build `en` bytes from the bundled
+- [x] **T022** (FR-003, FR-008, FR-014, FR-018) Create `src/i18n/index.web.ts`: `initSync`, build `en` bytes from the bundled
   `en` export via `TextEncoder` (~0.99 ms, eager — `src/services/activity.ts` calls the
   singleton outside React), construct the engine, assert `i18n.isInitialized`, capture the
   oracle, install the seam. **Retain the `en` bytes** (R4) for poison recovery.
-- **T023** Re-export everything `src/i18n/index.ts` exports, so the platform split is a
+- [x] **T023** Re-export everything `src/i18n/index.ts` exports, so the platform split is a
   drop-in. Assert export parity in a test.
 
 ## Phase 3 — Differential harness
@@ -83,25 +83,25 @@ rather than the ones used locally.
 - **T033** Poison detection that is **not** switch-scoped (R11): record the throw where it
   happens; attempt recovery at the next engine call.
 
-## Phase 4 — Verification
+## Phase 4 — Verification — **DONE** (`e165214`), except T045 CI wiring
 
-- **T040** (FR-019, FR-016) `src/__tests__/i18n/web-adapter.test.ts` — the differential replay. Imports the
+- [x] **T040** (FR-019, FR-016) `src/__tests__/i18n/web-adapter.test.ts` — the differential replay. Imports the
   web module **by explicit path** (a bare `@/i18n` resolves the native file). Compares
   **`rust` vs `oracle`**, never the seam's return value (contract §6). Makes each locale
   resident before comparing it. 15 × 1,129; measured ~197 ms.
-- **T041** [P] (FR-020) The contract test: drive a real `useTranslation()` through
+- [ ] **T041** [P] (FR-020) The contract test (deferred to Phase 3 with the harness): drive a real `useTranslation()` through
   `renderToStaticMarkup` (no new dependency; `React.createElement` keeps `testMatch` at
   `*.test.ts`). Assert the instance surface, and assert that forcing `ready = false` throws
   fast instead of suspending. Note a `delete inst.getFixedT` negative test proves nothing —
   own properties shadow the prototype.
-- **T042** [P] (FR-021) Assert `SUPPORTED_LANGUAGES` equals Rust's `SUPPORTED` **sorted**.
-- **T043** [P] (FR-022) `count: undefined` and BigInt count across the real wasm boundary, in
+- [x] **T042** [P] (FR-021) Assert `SUPPORTED_LANGUAGES` equals Rust's `SUPPORTED` **sorted**.
+- [x] **T043** [P] (FR-022) `count: undefined` and BigInt count across the real wasm boundary, in
   jest — not in the corpus.
-- **T044** [P] (FR-004) Assert `seamExists` actually calls the engine (a counter). It has no
+- [x] **T044** [P] (FR-004) Assert `seamExists` actually calls the engine (a counter). It has no
   behavioural provenance, so an output assertion cannot detect its absence.
-- **T045** Wire the CI step. No new job and no jest config change is needed — the tests run
+- [ ] **T045** Wire the CI step. No new job and no jest config change is needed — the tests run
   in the existing `jest --ci`.
-- **T046** SC-005: verify a deliberate break turns CI red, and record which step catches it.
+- [x] **T046** SC-005: verify a deliberate break turns CI red, and record which step catches it.
 
 ## Phase 5 — Integration
 

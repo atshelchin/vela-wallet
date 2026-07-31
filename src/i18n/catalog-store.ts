@@ -48,6 +48,15 @@ export interface CatalogStoreDeps {
   timeoutMs?: number;
   /** The always-resident fallback. Never fetched, never evicted. */
   fallback?: string;
+  /**
+   * Called when a switch could not be completed.
+   *
+   * Required by US3 scenario 3: a failed switch must be SURFACED, not swallowed.
+   * `setLanguage` resolves (rather than rejects) so callers keep rendering, which
+   * means a `.catch()` on the caller's side can never fire — without this hook an
+   * offline switch is indistinguishable from a successful one.
+   */
+  onFailure?: (lng: string, cause: unknown) => void;
 }
 
 /** How many NON-fallback catalogs to keep in JS. */
@@ -85,7 +94,7 @@ export class CatalogFetchError extends Error {
 }
 
 export function createCatalogStore(deps: CatalogStoreDeps): CatalogStore {
-  const { engine, buildId, fetchImpl, timeoutMs = DEFAULT_TIMEOUT_MS, fallback = 'en' } = deps;
+  const { engine, buildId, fetchImpl, timeoutMs = DEFAULT_TIMEOUT_MS, fallback = 'en', onFailure } = deps;
 
   // Resolved per call, NOT captured at construction. The store is built at module
   // import, so capturing `globalThis.fetch` then would freeze whatever existed at
@@ -213,11 +222,18 @@ export function createCatalogStore(deps: CatalogStoreDeps): CatalogStore {
     let bytes: Uint8Array;
     try {
       bytes = await catalogBytes(lng);
-    } catch {
-      // Soft failure: the UI keeps rendering the language it already had.
-      // Reporting is the caller's job — swallowing it here would make an
-      // offline switch look successful.
+    } catch (cause) {
+      // A newer switch may have SUCCEEDED while this one was failing. Rolling back
+      // to `previous` — captured before the await — would then clobber the mirror
+      // with a two-generations-stale tag: the engine renders the newer language
+      // while `engineLanguage()` claims the older one, and because `setLanguage`
+      // early-returns on `lng === engineLang`, switching back to that older
+      // language becomes a PERMANENT silent no-op.
+      //
+      // The failure path needs the same generation guard as the success path.
+      if (mine !== generation) return engineLang;
       engineLang = previous;
+      onFailure?.(lng, cause);
       return previous;
     }
 
@@ -227,11 +243,28 @@ export function createCatalogStore(deps: CatalogStoreDeps): CatalogStore {
     // This guard is the only defence; the engine reports nothing.
     if (mine !== generation) return engineLang;
 
-    // Order is load-bearing (FR-010): `changeLanguage` performs no I/O, so
-    // calling it before `loadCatalog` yields a healthy-looking LanguageState and
-    // English text.
-    engine.loadCatalog(lng, bytes);
-    engine.changeLanguage(lng);
+    try {
+      // Order is load-bearing (FR-010): `changeLanguage` performs no I/O, so
+      // calling it before `loadCatalog` yields a healthy-looking LanguageState and
+      // English text.
+      //
+      // Inside the try because a 200 response carrying garbage parses in RUST, not
+      // in `fetch` — `loadCatalog` is where `I18nCatalogParse` is raised. Leaving
+      // it uncaught turned a soft failure into a rejected promise, and on the boot
+      // path a rejection takes down the whole `_layout.tsx` gate.
+      engine.loadCatalog(lng, bytes);
+      engine.changeLanguage(lng);
+    } catch (cause) {
+      // The bytes are bad, so they must not stay cached — otherwise every later
+      // attempt replays them from memory and the language can never recover, even
+      // after the server is fixed.
+      cache.delete(lng);
+      if (mine !== generation) return engineLang;
+      engineLang = previous;
+      onFailure?.(lng, cause);
+      return previous;
+    }
+
     engineLang = lng;
     return lng;
   }

@@ -53,6 +53,47 @@ export class UnreadableOptionsError extends Error {
   }
 }
 
+/** How deep to force-read. The engine flattens one level for `{{a.b}}`; four is slack. */
+const CLONE_DEPTH = 4;
+
+/**
+ * Read every value the wasm boundary will read, HERE, where a throw is catchable.
+ *
+ * A shallow spread is not enough, and that gap was live: serde walks the options
+ * tree in full, so a getter one level down (`{ outer: { get boom() { throw } } }`)
+ * fires inside Rust, escapes the wasm call without unwinding, and leaks the borrow
+ * guard — `changeLanguage` and `loadCatalog` are then dead for the page lifetime.
+ * Measured: i18next does NOT trip that getter at all, because it only looks up the
+ * names a template actually mentions. Delegating on a throw is the parity-
+ * preserving answer, but only if we discover the throw first.
+ *
+ * Non-plain values (Date, TypedArray, class instances) pass through by reference:
+ * cloning them would change what the engine sees, and the engine already rejects
+ * the ones it cannot represent.
+ */
+function safeClone(value: unknown, depth = 0): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  if (depth >= CLONE_DEPTH) return value;
+
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    for (let i = 0; i < value.length; i++) out.push(safeClone(value[i], depth + 1));
+    return out;
+  }
+
+  // Only plain objects are walked — which is exactly what an options bag is.
+  const proto = Object.getPrototypeOf(value) as unknown;
+  if (proto !== Object.prototype && proto !== null) return value;
+
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>)) {
+    // The read that can throw. Deliberately not wrapped per-key: a hostile getter
+    // means the whole bag is untrustworthy.
+    out[key] = safeClone((value as Record<string, unknown>)[key], depth + 1);
+  }
+  return out;
+}
+
 /**
  * Copy and normalise a caller's options into something safe to hand across the
  * wasm boundary.
@@ -77,7 +118,7 @@ export function normaliseOptions(raw: unknown): AdapterTOptions | undefined {
 
   let copy: Record<string, unknown>;
   try {
-    copy = { ...(raw as Record<string, unknown>) };
+    copy = safeClone(raw) as Record<string, unknown>;
   } catch (cause) {
     throw new UnreadableOptionsError(cause);
   }
@@ -100,11 +141,24 @@ export function normaliseOptions(raw: unknown): AdapterTOptions | undefined {
   //
   // Routing the interpolation source through `replace` with an explicit `null`
   // reproduces both halves — no plural suffix, and `{{count}}` renders empty.
-  // A caller-supplied object `replace` is left alone: i18next would use theirs as
-  // the source too, and `{{count}}` would then legitimately go unresolved.
+  //
+  // MEASURED, and it corrects what this comment used to claim: a caller-supplied
+  // object `replace` does NOT make `{{count}}` go unresolved. i18next still renders
+  // it empty — `t('X={{count}}', {count: undefined, replace:{v:9}})` gives `"X="`,
+  // not `"X={{count}}"`. So the injection has to happen on that branch too, or the
+  // engine leaves a placeholder on screen where i18next leaves nothing.
   if ('count' in copy && copy.count === undefined) {
     delete copy.count;
-    if (typeof copy.replace !== 'object' || copy.replace === null) {
+    const existing = copy.replace;
+    if (Array.isArray(existing)) {
+      // An array `replace` diverges a second way (i18next leaves OTHER placeholders
+      // unresolved too) and no call site produces one. Refuse it so the seam
+      // delegates to the oracle rather than guessing.
+      throw new UnreadableOptionsError('array `replace` is not supported by the engine');
+    }
+    if (typeof existing === 'object' && existing !== null) {
+      copy.replace = { ...(existing as Record<string, unknown>), count: null };
+    } else {
       const source: Record<string, unknown> = { ...copy, count: null };
       delete source.replace;
       copy.replace = source;
@@ -179,7 +233,13 @@ export function createSeam(deps: SeamDeps): Seam {
     // 2 — the `t(key, 'a default')` overload. Applied via i18next's own handler
     // so the rule cannot drift from the library's.
     let rawOpts: unknown = second;
-    if (second !== undefined && (typeof second !== 'object' || second === null)) {
+    // i18next's own predicate is `typeof options !== 'object'` — and `typeof null`
+    // IS `'object'`, so a null second argument is an options bag, not a string
+    // default. Adding `|| second === null` here (as this line used to) routed null
+    // into `overloadTranslationOptionHandler`, which does `ret = args[1]` and then
+    // assigns onto it: an uncaught TypeError out of the seam, where i18next returns
+    // normally. Measured: `t('k', null, {v:3})` is a clean call upstream.
+    if (second !== undefined && typeof second !== 'object') {
       rawOpts = overloadHandler ? overloadHandler([key, second, third]) : { defaultValue: String(second) };
     }
 

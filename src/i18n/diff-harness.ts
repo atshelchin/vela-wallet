@@ -211,17 +211,30 @@ export function encodeOptions(opts: AdapterTOptions | undefined): string {
   return `{${entries.join(',')}}`;
 }
 
-/** The tags the dumper uses for values JSON cannot carry. */
+/**
+ * The tags the dumper uses for values JSON cannot carry.
+ *
+ * **Type-prefixed, because this string doubles as the `first-seen` cache key.**
+ * `fingerprint` stringifies scalars (`String(value)`), so `{count:1}` and
+ * `{count:'1'}` collapse to the same text — and those two genuinely differ to the
+ * engine, which pluralises on a number and not on a string. A collision would
+ * retire an input the engines had never actually compared, which is the one
+ * failure a first-seen cache must not have.
+ */
 function tag(v: unknown): string {
   if (typeof v === 'number') {
     if (Number.isNaN(v)) return '{"__t":"nan"}';
     if (v === Number.POSITIVE_INFINITY) return '{"__t":"infinity"}';
     if (v === Number.NEGATIVE_INFINITY) return '{"__t":"infinity","sign":-1}';
+    return `n:${fingerprint(v)}`;
   }
   if (v === undefined) return '{"__t":"undefined"}';
+  if (v === null) return 'null:';
   if (typeof v === 'bigint') return `{"__t":"bigint","v":"${v}"}`;
   if (typeof v === 'function') return '{"__t":"fn"}';
-  return fingerprint(v);
+  if (typeof v === 'string') return `s:${JSON.stringify(v)}`;
+  if (typeof v === 'boolean') return `b:${v}`;
+  return `o:${fingerprint(v)}`;
 }
 
 /**

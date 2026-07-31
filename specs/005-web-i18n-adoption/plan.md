@@ -141,8 +141,11 @@ switch, failure-rollback, poison-recovery), and is the only JS mirror of engine 
 poison recovery needs them synchronously. Retention costs ~51 KB and is the price of
 recovery. `en` is never released (`releaseCatalog('en')` returns false anyway).
 
-**R5 — Residency is `[active, 'en']`, and `['en']` only when active *is* `en`.** The
-assertion must accept both, or it fails the moment the user selects English.
+**R5 — Residency is `[active, 'en']`, and `['en']` only when active *is* `en` — and the
+second case requires an explicit `releaseCatalog`.** Measured during implementation:
+`changeLanguage('en')` does NOT free the outgoing catalog, so `fr → en` leaves `['en','fr']`.
+The assertion must accept both shapes, and the store must release on the fallback branch or
+SC-003 is merely bounded rather than true.
 
 **R6 — One divergence record shape**, defined in [contracts/web-i18n-seam.md](./contracts/web-i18n-seam.md),
 with options encoded by the same tagging `scripts/dump-vectors/i18n.dump.mjs` uses, so a

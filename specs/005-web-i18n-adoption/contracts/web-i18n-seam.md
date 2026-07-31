@@ -126,8 +126,16 @@ export function residentLocales(): string[];                       // diagnostic
   it just answers in English.
 - **`engineLanguage` is written on all four paths**: boot, switch, failure-rollback and
   poison-recovery. It is the only JS mirror of engine state (R3).
-- **Residency** is `[active, 'en']`, or `['en']` when active *is* `en`. Assertions MUST accept
-  both (R5).
+- **Residency** is `[active, 'en']`, or `['en']` when active *is* `en` — but the second case
+  is **not free**. Measured: `changeLanguage('en')` does *not* release the outgoing catalog,
+  so after `fr → en` the engine still reports `['en','fr']`. The store therefore calls
+  `releaseCatalog(previous)` on the fallback branch; without it SC-003's "exactly the active
+  one and `en`" is merely *bounded*, not true. Coming back costs a `loadCatalog` from the JS
+  cache, not a refetch.
+- **A timeout must make the promise settle, not merely abort the request.** These are
+  different jobs: the abort signal cancels the fetch, the race guarantees resolution. Only
+  the second protects the boot gate — a `fetch` that ignores its signal would hang
+  `Promise.all` in `_layout.tsx` forever, which renders as a permanent spinner with no error.
 
 ---
 

@@ -186,13 +186,24 @@ describe('seam: option normalisation', () => {
 
 describe('harness: the first-seen cache key must be injective', () => {
   it('does not collapse a numeric and a string option value', () => {
-    // MUTATION THIS CATCHES: encoding scalars through bare `fingerprint`, which is
-    // String(value). {count:1} and {count:'1'} would then share a cache entry —
-    // and they differ to the engine, which pluralises on a number but not on a
-    // string. The collision retires an input the engines never compared.
     expect(encodeOptions({ count: 1 })).not.toBe(encodeOptions({ count: '1' }));
     expect(encodeOptions({ v: true })).not.toBe(encodeOptions({ v: 'true' }));
     expect(encodeOptions({ v: null })).not.toBe(encodeOptions({ v: 'null' }));
+  });
+
+  it('carries a type marker on EVERY scalar, not just enough to avoid one collision', () => {
+    // MUTATION THIS CATCHES: dropping any SINGLE type prefix.
+    //
+    // The pairwise test above is not sufficient, and a mutation run proved it:
+    // removing only the number prefix still leaves `s:"1"` on the string side, so
+    // the pair stays distinct and the assertion passes while the encoding has
+    // silently become one step from collapsing. Pinning the exact shape is the
+    // only form that fails on a single regression — and pinning it is justified
+    // here because injectivity, not readability, is this string's job.
+    expect(encodeOptions({ v: 1 })).toBe('{v:n:1}');
+    expect(encodeOptions({ v: '1' })).toBe('{v:s:"1"}');
+    expect(encodeOptions({ v: true })).toBe('{v:b:true}');
+    expect(encodeOptions({ v: null })).toBe('{v:null:}');
   });
 
   it('compares both variants rather than retiring one', () => {

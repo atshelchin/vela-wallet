@@ -40,8 +40,14 @@ export function useLanguagePreference() {
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<LanguagePreference>(getLanguagePreference());
+  // What is ACTUALLY rendering, which on web can differ from what the preference
+  // resolves to: a catalog that cannot be fetched leaves the previous language in
+  // effect. Deriving `resolved` from the preference alone made the app claim a
+  // language it was not rendering — and that value drives the Stack remount key,
+  // the Safari-extension cache write, and the locale on filed bug reports.
+  const [effective, setEffective] = useState<AppLanguage | undefined>(undefined);
   const systemLanguage = detectSystemLanguage();
-  const resolved = resolveLanguage(preference);
+  const resolved = effective ?? resolveLanguage(preference);
 
   const setPreference = useCallback((pref: LanguagePreference) => {
     // Update module cache + i18next + persist (fires the react-i18next re-render).
@@ -54,14 +60,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     // catalog was resident — a full remount still rendering the old language,
     // followed by a second render once it arrived. Native is unaffected in
     // practice: its resources are bundled, so the promise settles in a microtask.
-    void setLanguagePreference(pref)
-      .catch(() => undefined)
-      .finally(() => {
-        // Set regardless of outcome: the preference is already persisted, so the
-        // picker must reflect what the user chose even if the catalog could not
-        // be fetched and the UI is still rendering the previous language.
+    void setLanguagePreference(pref).then(
+      (inEffect) => {
+        // The picker shows what the user CHOSE (already persisted); `effective`
+        // shows what is actually RENDERING. On web those diverge when a catalog
+        // cannot be fetched, and conflating them made the app claim a language it
+        // was not displaying.
         setPreferenceState(pref);
-      });
+        setEffective(inEffect);
+      },
+      () => setPreferenceState(pref),
+    );
   }, []);
 
   const value = useMemo(

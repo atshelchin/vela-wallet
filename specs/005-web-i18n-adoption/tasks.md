@@ -60,7 +60,7 @@ rather than the ones used locally.
 
 - [x] **T020** (FR-001, FR-002, FR-004) Create `src/i18n/seam.ts`: `seamT` with the six ordered steps and `seamExists`,
   per contract §1. Returns `string`.
-- [x] **T021** (FR-005, FR-006, FR-007) The options normaliser, rules N1–N5 per contract §2, including the `count`
+- [~] **T021** (FR-005, FR-006; **FR-007 NOT DONE**) The options normaliser, rules N1–N5 per contract §2, including the `count`
   strip-plus-`replace` pairing and the pre-call rejection of values that cannot cross the
   boundary.
 - [x] **T022** (FR-003, FR-008, FR-014, FR-018) Create `src/i18n/index.web.ts`: `initSync`, build `en` bytes from the bundled
@@ -101,7 +101,9 @@ rather than the ones used locally.
   behavioural provenance, so an output assertion cannot detect its absence.
 - [x] **T045** No CI change needed, verified: the new suites match `testMatch` and run inside the
   existing `jest --ci` step. FR-019 is satisfied without a new job.
-- [x] **T046** SC-005: verify a deliberate break turns CI red, and record which step catches it.
+- [x] **T046** SC-005 — verified by an 8-mutation check (8 caught, 0 escaped). The FIRST
+  attempt at this task used a single break and wrongly concluded PASS; four of six breaks
+  the review tried left the suite green. See results.md.
 
 ## Phase 5 — Integration — **DONE** (`02fbd2b`)
 

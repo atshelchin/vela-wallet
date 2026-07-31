@@ -2982,6 +2982,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde-wasm-bindgen",
+ "serde_json",
  "tsify",
  "vela-core",
  "wasm-bindgen",

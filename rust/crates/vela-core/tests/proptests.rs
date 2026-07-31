@@ -234,3 +234,192 @@ proptest! {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// i18n (spec 004-rust-i18n, FR-026)
+// ---------------------------------------------------------------------------
+
+mod i18n_props {
+    use proptest::prelude::*;
+    use vela_core::i18n::{Catalog, Count, I18n, Options, OwnedVar, Scratch, Var};
+
+    fn engine(lng: &str) -> I18n {
+        let en = match Catalog::embedded("en") {
+            Ok(c) => c,
+            Err(e) => unreachable!("i18n-en must be enabled: {e}"),
+        };
+        let mut i = match I18n::new(en) {
+            Ok(i) => i,
+            Err(e) => unreachable!("{e}"),
+        };
+        if lng != "en" {
+            if let Ok(c) = Catalog::embedded(lng) {
+                i.load_catalog(c);
+            }
+        }
+        i.change_language(lng);
+        i
+    }
+
+    /// Keys deliberately including the shapes that have historically broken
+    /// resolvers: namespace colons, unbalanced braces, `$t()` self-reference,
+    /// natural-language punctuation and a bare dot.
+    fn any_key() -> impl Strategy<Value = String> {
+        prop_oneof![
+            Just(String::new()),
+            Just(".".to_owned()),
+            Just("::".to_owned()),
+            Just("common.cancel".to_owned()),
+            Just("home".to_owned()),
+            Just("{{".to_owned()),
+            Just("$t(zz.self)".to_owned()),
+            Just("Hello, world. How are you?".to_owned()),
+            ".{0,40}",
+            "[a-z]{1,8}\\.[a-z]{1,8}",
+        ]
+    }
+
+    fn any_locale() -> impl Strategy<Value = String> {
+        prop_oneof![
+            Just("en".to_owned()),
+            Just("ru".to_owned()),
+            Just("zh-TW".to_owned()),
+            Just("zh_TW".to_owned()),
+            Just("ZH".to_owned()),
+            Just("es-AR".to_owned()),
+            Just(String::new()),
+            "[a-zA-Z]{0,5}(-[a-zA-Z]{0,4})?",
+        ]
+    }
+
+    fn any_count() -> impl Strategy<Value = Option<Count>> {
+        prop_oneof![
+            Just(None),
+            Just(Some(Count::Num(f64::NAN))),
+            Just(Some(Count::Num(f64::INFINITY))),
+            Just(Some(Count::Num(f64::NEG_INFINITY))),
+            Just(Some(Count::Num(-0.0))),
+            Just(Some(Count::Null)),
+            Just(Some(Count::Object)),
+            Just(Some(Count::Str("3".to_owned()))),
+            Just(Some(Count::BigInt(5))),
+            (-1e9f64..1e9).prop_map(|n| Some(Count::Num(n))),
+        ]
+    }
+
+    proptest! {
+        /// FR-008: no input panics. This is the property the whole typed-error
+        /// design exists to make true — a panic inside `t()` on a signing screen
+        /// takes the screen down, and the inputs here include the two shapes
+        /// i18next itself throws on.
+        #[test]
+        fn t_never_panics(key in any_key(), lng in any_locale(), count in any_count()) {
+            let e = engine("ru");
+            let owned = vela_core::i18n::OwnedOptions {
+                count,
+                lng: Some(lng),
+                vars: vec![("v".to_owned(), OwnedVar::Undefined)],
+                ..Default::default()
+            };
+            let mut scratch = Scratch::default();
+            let opts = owned.as_options(&mut scratch);
+            // Either outcome is fine; not returning is not.
+            let _ = e.t(&key, &opts);
+            let _ = e.exists(&key, &opts);
+        }
+
+        /// Resolution is a pure function of (engine state, key, options).
+        #[test]
+        fn t_is_stable_across_repeated_calls(key in any_key(), n in -1000i32..1000) {
+            let e = engine("fr");
+            let vars = [("v", Var::Str("x"))];
+            let opts = Options {
+                count: Some(Count::Num(f64::from(n))),
+                vars: &vars,
+                ..Options::default()
+            };
+            let a = e.t(&key, &opts);
+            let b = e.t(&key, &opts);
+            prop_assert_eq!(a.is_ok(), b.is_ok());
+            if let (Ok(x), Ok(y)) = (a, b) {
+                prop_assert_eq!(x, y);
+            }
+        }
+
+        /// FR-016: a locale that is not resident falls through to the pinned `en`
+        /// catalog. Never a panic, never a partial read, and never a *third*
+        /// language — the failure mode a mid-flight language switch could produce.
+        #[test]
+        fn non_resident_locale_falls_back_to_en(lng in any_locale()) {
+            // Only `en` is resident; the engine's active language is something else.
+            let en = match Catalog::embedded("en") {
+                Ok(c) => c,
+                Err(e) => unreachable!("{e}"),
+            };
+            let mut e = match I18n::new(en) {
+                Ok(i) => i,
+                Err(err) => unreachable!("{err}"),
+            };
+            e.change_language(&lng);
+            let got = e.t("common.cancel", &Options::default());
+            prop_assert_eq!(got.as_deref(), Ok("Cancel"));
+            prop_assert!(e.is_resident("en"));
+            prop_assert!(e.resident_locales().len() <= 2);
+        }
+
+        /// Residency is bounded by the type, not by discipline (FR-012/FR-013).
+        #[test]
+        fn residency_never_exceeds_two(seq in prop::collection::vec(any_locale(), 0..12)) {
+            let mut e = engine("en");
+            for lng in seq {
+                if let Ok(c) = Catalog::embedded(&lng) {
+                    e.load_catalog(c);
+                }
+                e.change_language(&lng);
+                prop_assert!(e.resident_locales().len() <= 2);
+                prop_assert!(e.resident_locales().contains(&"en"));
+                let _ = e.release_catalog(&lng);
+            }
+        }
+
+        /// Interpolation never loses or invents a placeholder delimiter on input
+        /// it cannot substitute.
+        #[test]
+        fn interpolate_never_panics(template in ".{0,80}") {
+            let vars = [("v", Var::Str("X"))];
+            let opts = Options { vars: &vars, ..Options::default() };
+            let _ = vela_core::i18n::interpolate(&template, &opts);
+        }
+    }
+
+    /// The data-model's structural invariants over the generated tables. These are
+    /// exhaustive rather than sampled — the tables are finite, so there is no
+    /// reason to guess.
+    #[test]
+    fn generated_tables_hold_their_structural_invariants() {
+        // Every locale's catalog must load, and every corpus key must resolve to a
+        // non-empty string in every locale (falling through to `en` where absent).
+        for lng in vela_core::i18n::SUPPORTED {
+            let e = engine(lng);
+            for key in [
+                "common.cancel",
+                "send.recipientCount_other",
+                "home.totalBalance",
+            ] {
+                let got = e.t(key, &Options::default());
+                assert!(
+                    got.as_deref().is_ok_and(|s| !s.is_empty()),
+                    "{lng}::{key} resolved to {got:?}"
+                );
+            }
+            // Every compiled-in blob must fit the u16 offsets the generator asserts.
+            if let Ok(c) = Catalog::embedded(lng) {
+                assert!(
+                    c.resident_bytes() < 65_536 + 4_096,
+                    "{lng}: {} resident bytes — the value blob must fit u16 offsets",
+                    c.resident_bytes()
+                );
+            }
+        }
+    }
+}

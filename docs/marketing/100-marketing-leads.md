@@ -205,7 +205,7 @@
 
 **44. clear-signing 三层信息架构，按风险配色。** L1 意图（大字+配色）/ L2 实质（金额、地址卡片）/ L3 细节（默认折叠的 raw calldata）；安全=绿、警告=琥珀、危险=红（`docs/clear-signing-design.md`）。→ "先读懂'要做什么'，再看金额"——可做成精美对比图，视觉冲击强。
 
-**45. 15 种语言，含粤语（zh-HK）区别于书面中文。** 目录 `src/i18n/locales/`：en, zh, zh-TW, zh-HK, ja, ko, vi, id, tr, es-MX, pt-BR, fr, de, it, ru；区域变体用地道词汇（es 用墨西哥 `tú/billetera`）。→ 国际化 SEO + 多市场触达；"母语级而非机翻"是质量信号。
+**45. 15 种语言，含粤语（zh-HK）区别于书面中文。** 目录 `rust/crates/vela-core/i18n/locales/`：en, zh, zh-TW, zh-HK, ja, ko, vi, id, tr, es-MX, pt-BR, fr, de, it, ru；区域变体用地道词汇（es 用墨西哥 `tú/billetera`）。→ 国际化 SEO + 多市场触达；"母语级而非机翻"是质量信号。
 
 **46. 入账实时检测 + 触觉提醒。** transfer-monitor 发现到账并持久化，付款类活动是首页一等公民（`activity.ts`、README "Deposit detection"）。→ "钱到账，手机轻轻一震"——做成体验亮点短视频，情绪价值高。
 

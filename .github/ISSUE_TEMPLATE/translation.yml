@@ -125,9 +125,13 @@ body:
         ---
         ### 🛠️ Want to fix it yourself? (optional)
 
-        Translations are plain JSON files — no build step needed:
-        - **Shared strings** → `src/i18n/locales/<lang>.json`
-        - **Per-screen strings** → `src/i18n/locales/<lang>/<screen>.json`
+        Translations are plain JSON files, under `rust/crates/vela-core/i18n/locales/`:
+        - **Shared strings** → `rust/crates/vela-core/i18n/locales/<lang>.json`
+        - **Per-screen strings** → `rust/crates/vela-core/i18n/locales/<lang>/<screen>.json`
 
-        Find the English value under `src/i18n/locales/en…`, copy the **key** next to it,
-        then edit that same key in **your language's** file and open a PR. Thank you! ❤️
+        Find the English value under `rust/crates/vela-core/i18n/locales/en…`, copy the
+        **key** next to it, then edit that same key in **your language's** file.
+
+        One build step: run **`npm run gen:i18n`** and include its output in the same PR.
+        The corpus is the source of truth for every platform, so a few files are generated
+        from it — CI will fail if they get out of sync. Thank you! ❤️

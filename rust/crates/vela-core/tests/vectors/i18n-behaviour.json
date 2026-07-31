@@ -1,0 +1,3038 @@
+{
+ "suite": "i18n-behaviour",
+ "source": "scripts/dump-vectors/i18n.dump.mjs (i18next@26.3.1 + src/i18n resources)",
+ "cases": [
+  {
+   "name": "count/-1",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": -1
+    }
+   },
+   "expect": {
+    "value": "-1 recipient"
+   }
+  },
+  {
+   "name": "count/ru/-1",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": -1
+    }
+   },
+   "expect": {
+    "value": "-1 получатель"
+   }
+  },
+  {
+   "name": "count/0",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 0
+    }
+   },
+   "expect": {
+    "value": "0 recipients"
+   }
+  },
+  {
+   "name": "count/ru/0",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 0
+    }
+   },
+   "expect": {
+    "value": "0 получателей"
+   }
+  },
+  {
+   "name": "count/1",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1
+    }
+   },
+   "expect": {
+    "value": "1 recipient"
+   }
+  },
+  {
+   "name": "count/ru/1",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1
+    }
+   },
+   "expect": {
+    "value": "1 получатель"
+   }
+  },
+  {
+   "name": "count/1.5",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1.5
+    }
+   },
+   "expect": {
+    "value": "1.5 recipients"
+   }
+  },
+  {
+   "name": "count/ru/1.5",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1.5
+    }
+   },
+   "expect": {
+    "value": "1.5 получателей"
+   }
+  },
+  {
+   "name": "count/2",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 2
+    }
+   },
+   "expect": {
+    "value": "2 recipients"
+   }
+  },
+  {
+   "name": "count/ru/2",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 2
+    }
+   },
+   "expect": {
+    "value": "2 получателя"
+   }
+  },
+  {
+   "name": "count/5",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 5
+    }
+   },
+   "expect": {
+    "value": "5 recipients"
+   }
+  },
+  {
+   "name": "count/ru/5",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 5
+    }
+   },
+   "expect": {
+    "value": "5 получателей"
+   }
+  },
+  {
+   "name": "count/21",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 21
+    }
+   },
+   "expect": {
+    "value": "21 recipients"
+   }
+  },
+  {
+   "name": "count/ru/21",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 21
+    }
+   },
+   "expect": {
+    "value": "21 получатель"
+   }
+  },
+  {
+   "name": "count/101",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 101
+    }
+   },
+   "expect": {
+    "value": "101 recipients"
+   }
+  },
+  {
+   "name": "count/ru/101",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 101
+    }
+   },
+   "expect": {
+    "value": "101 получатель"
+   }
+  },
+  {
+   "name": "count/1000000",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1000000
+    }
+   },
+   "expect": {
+    "value": "1000000 recipients"
+   }
+  },
+  {
+   "name": "count/ru/1000000",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1000000
+    }
+   },
+   "expect": {
+    "value": "1000000 получателей"
+   }
+  },
+  {
+   "name": "count/NaN",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": {
+      "__t": "nan"
+     }
+    }
+   },
+   "expect": {
+    "value": "NaN recipients"
+   }
+  },
+  {
+   "name": "count/ru/NaN",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": {
+      "__t": "nan"
+     }
+    }
+   },
+   "expect": {
+    "value": "NaN получателей"
+   }
+  },
+  {
+   "name": "count/\"3\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": "3"
+    }
+   },
+   "expect": {
+    "value": "send.recipientCount"
+   }
+  },
+  {
+   "name": "count/ru/\"3\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": "3"
+    }
+   },
+   "expect": {
+    "value": "send.recipientCount"
+   }
+  },
+  {
+   "name": "ordinal/en/1",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "1 recipient"
+   }
+  },
+  {
+   "name": "ordinal/ru/1",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 1,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "1 получателей"
+   }
+  },
+  {
+   "name": "ordinal/en/2",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 2,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "send.recipientCount"
+   }
+  },
+  {
+   "name": "ordinal/ru/2",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 2,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "2 получателей"
+   }
+  },
+  {
+   "name": "ordinal/en/3",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 3,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "send.recipientCount"
+   }
+  },
+  {
+   "name": "ordinal/ru/3",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 3,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "3 получателей"
+   }
+  },
+  {
+   "name": "ordinal/en/4",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 4,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "4 recipients"
+   }
+  },
+  {
+   "name": "ordinal/ru/4",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 4,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "4 получателей"
+   }
+  },
+  {
+   "name": "ordinal/en/11",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 11,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "11 recipients"
+   }
+  },
+  {
+   "name": "ordinal/ru/11",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 11,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "11 получателей"
+   }
+  },
+  {
+   "name": "ordinal/en/21",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 21,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "21 recipient"
+   }
+  },
+  {
+   "name": "ordinal/ru/21",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 21,
+     "ordinal": true
+    }
+   },
+   "expect": {
+    "value": "21 получателей"
+   }
+  },
+  {
+   "name": "count/null",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": null
+    }
+   },
+   "expect": {
+    "value": " recipients"
+   }
+  },
+  {
+   "name": "count/own-undefined",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": {
+      "__t": "undefined"
+     }
+    }
+   },
+   "expect": {
+    "value": "send.recipientCount"
+   }
+  },
+  {
+   "name": "count/negative-zero",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": 0
+    }
+   },
+   "expect": {
+    "value": "0 recipients"
+   }
+  },
+  {
+   "name": "count/infinity",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": {
+      "__t": "infinity",
+      "sign": 1
+     }
+    }
+   },
+   "expect": {
+    "value": "Infinity recipients"
+   }
+  },
+  {
+   "name": "count/neg-infinity",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": {
+      "__t": "infinity",
+      "sign": -1
+     }
+    }
+   },
+   "expect": {
+    "value": "-Infinity recipients"
+   }
+  },
+  {
+   "name": "count/object",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": {
+      "a": 1
+     }
+    }
+   },
+   "expect": {
+    "value": "[object Object] recipients"
+   }
+  },
+  {
+   "name": "count/bigint",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "count": {
+      "__t": "bigint",
+      "v": "5"
+     }
+    }
+   },
+   "expect": {
+    "error": "I18nInvalidCount"
+   },
+   "divergence": {
+    "ts_behavior": "Intl.PluralRules.select(5n) throws TypeError \"Cannot convert a BigInt value to a number\" — a bigint token amount passed as `count` crashes the render",
+    "reason": "FR-004: an unconvertible count must be a typed error, never an uncaught TypeError in a component"
+   }
+  },
+  {
+   "name": "lng/bogus-code",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "lng": "!!!"
+    }
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "lng/null",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "lng": null
+    }
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "context/present-but-unused",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "context": "male"
+    }
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "context/empty-string",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "context": ""
+    }
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "context/null",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "context": null
+    }
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "context/number",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "context": 7
+    }
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "context/with-count",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send.recipientCount",
+    "opts": {
+     "context": "x",
+     "count": 2
+    }
+   },
+   "expect": {
+    "value": "2 recipients"
+   }
+  },
+  {
+   "name": "context/synthetic-hit",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.ctx",
+    "opts": {
+     "context": "male",
+     "defaultValue": "BASE",
+     "defaultValue_male": "MALE"
+    }
+   },
+   "expect": {
+    "value": "BASE"
+   }
+  },
+  {
+   "name": "default/plain",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": "D"
+    }
+   },
+   "expect": {
+    "value": "D"
+   }
+  },
+  {
+   "name": "default/null",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": null
+    }
+   },
+   "expect": {
+    "value": "zz.missing"
+   }
+  },
+  {
+   "name": "default/empty-string",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": ""
+    }
+   },
+   "expect": {
+    "value": ""
+   }
+  },
+  {
+   "name": "default/undefined-own-property",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": {
+      "__t": "undefined"
+     }
+    }
+   },
+   "expect": {
+    "value": "zz.missing"
+   }
+  },
+  {
+   "name": "default/number",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": 42
+    }
+   },
+   "expect": {
+    "value": "42"
+   },
+   "divergence": {
+    "ts_behavior": "returns the raw NUMBER 42 — t() is not string-typed at runtime",
+    "reason": "the Rust signature returns String; the caller receives \"42\""
+   }
+  },
+  {
+   "name": "default/bool",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": true
+    }
+   },
+   "expect": {
+    "value": "true"
+   },
+   "divergence": {
+    "ts_behavior": "returns the raw BOOLEAN true",
+    "reason": "same as default/number — Rust returns String"
+   }
+  },
+  {
+   "name": "default/object",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": {
+      "a": 1
+     }
+    }
+   },
+   "expect": {
+    "value": "key 'zz.missing (en)' returned an object instead of string."
+   }
+  },
+  {
+   "name": "default/array",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": [
+      "a",
+      "b"
+     ]
+    }
+   },
+   "expect": {
+    "value": "key 'zz.missing (en)' returned an object instead of string."
+   }
+  },
+  {
+   "name": "default/other-only",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "count": 2,
+     "defaultValue_other": "{{count}} O"
+    }
+   },
+   "expect": {
+    "value": "2 O"
+   }
+  },
+  {
+   "name": "default/other-and-base",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "count": 1,
+     "defaultValue": "ONE",
+     "defaultValue_other": "OTHER"
+    }
+   },
+   "expect": {
+    "value": "ONE"
+   }
+  },
+  {
+   "name": "default/other-ru-many",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ru",
+    "key": "zz.missing",
+    "opts": {
+     "count": 5,
+     "defaultValue": "B",
+     "defaultValue_one": "ONE",
+     "defaultValue_few": "FEW",
+     "defaultValue_many": "MANY",
+     "defaultValue_other": "OTHER"
+    }
+   },
+   "expect": {
+    "value": "MANY"
+   }
+  },
+  {
+   "name": "default/zero-suffix",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "count": 0,
+     "defaultValue": "B",
+     "defaultValue_zero": "ZERO",
+     "defaultValue_other": "OTHER"
+    }
+   },
+   "expect": {
+    "value": "ZERO"
+   }
+  },
+  {
+   "name": "default/interpolated",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": "D {{a}}",
+     "a": "A"
+    }
+   },
+   "expect": {
+    "value": "D A"
+   }
+  },
+  {
+   "name": "default/absent-on-missing-key",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing"
+   },
+   "expect": {
+    "value": "zz.missing"
+   }
+  },
+  {
+   "name": "interp/absent",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]"
+    }
+   },
+   "expect": {
+    "value": "V=[{{v}}]"
+   }
+  },
+  {
+   "name": "interp/own-undefined",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "__t": "undefined"
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[]"
+   }
+  },
+  {
+   "name": "interp/null",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": null
+    }
+   },
+   "expect": {
+    "value": "V=[]"
+   }
+  },
+  {
+   "name": "interp/zero",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": 0
+    }
+   },
+   "expect": {
+    "value": "V=[0]"
+   }
+  },
+  {
+   "name": "interp/false",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": false
+    }
+   },
+   "expect": {
+    "value": "V=[false]"
+   }
+  },
+  {
+   "name": "interp/true",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": true
+    }
+   },
+   "expect": {
+    "value": "V=[true]"
+   }
+  },
+  {
+   "name": "interp/nan",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "__t": "nan"
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[NaN]"
+   }
+  },
+  {
+   "name": "interp/infinity",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "__t": "infinity",
+      "sign": 1
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[Infinity]"
+   }
+  },
+  {
+   "name": "interp/neg-infinity",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "__t": "infinity",
+      "sign": -1
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[-Infinity]"
+   }
+  },
+  {
+   "name": "interp/number",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": 1234.5
+    }
+   },
+   "expect": {
+    "value": "V=[1234.5]"
+   }
+  },
+  {
+   "name": "interp/big-number",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": 1e+21
+    }
+   },
+   "expect": {
+    "value": "V=[1e+21]"
+   }
+  },
+  {
+   "name": "interp/neg-zero",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": 0
+    }
+   },
+   "expect": {
+    "value": "V=[0]"
+   }
+  },
+  {
+   "name": "interp/bigint",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "__t": "bigint",
+      "v": "123456789012345678901234567890"
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[123456789012345678901234567890]"
+   }
+  },
+  {
+   "name": "interp/empty-string",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": ""
+    }
+   },
+   "expect": {
+    "value": "V=[]"
+   }
+  },
+  {
+   "name": "interp/string-with-braces",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": "{{v}}"
+    }
+   },
+   "expect": {
+    "value": "V=[{{v}}]"
+   }
+  },
+  {
+   "name": "interp/object",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "a": 1
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[[object Object]]"
+   }
+  },
+  {
+   "name": "interp/array",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": [
+      1,
+      2,
+      3
+     ]
+    }
+   },
+   "expect": {
+    "value": "V=[1,2,3]"
+   }
+  },
+  {
+   "name": "interp/nested-array",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": [
+      [
+       1
+      ],
+      [
+       2
+      ]
+     ]
+    }
+   },
+   "expect": {
+    "value": "V=[1,2]"
+   }
+  },
+  {
+   "name": "interp/date",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "__t": "date",
+      "iso": "1970-01-01T00:00:00.000Z"
+     }
+    }
+   },
+   "expect": {
+    "error": "I18nUnsupportedOption"
+   },
+   "divergence": {
+    "ts_behavior": "Date.prototype.toString() — \"Thu Jan 01 1970 00:00:00 GMT+0000 (Coordinated Universal Time)\"; reads the ambient TZ, hence the TZ=UTC guard at the top of this dumper",
+    "reason": "the Rust interpolation-value enum has no Date variant; callers must pre-format dates through services/locale-format.ts, which is what the app already does"
+   }
+  },
+  {
+   "name": "interp/function",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "__t": "fn",
+      "src": "() => 'from-fn'"
+     }
+    }
+   },
+   "expect": {
+    "error": "I18nUnsupportedOption"
+   },
+   "divergence": {
+    "ts_behavior": "Function.prototype.toString() splices the callback SOURCE TEXT into the UI string",
+    "reason": "unrepresentable in Rust and a latent source-leak in TS; the port rejects callable values"
+   }
+  },
+  {
+   "name": "interp/symbol-free-object-with-toString",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.interp",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": {
+      "toString": {
+       "__t": "fn",
+       "src": "() => 'CUSTOM'"
+      }
+     }
+    }
+   },
+   "expect": {
+    "error": "I18nUnsupportedOption"
+   },
+   "divergence": {
+    "ts_behavior": "honours a user-supplied toString() on the replacement object",
+    "reason": "Rust has no dynamic toString dispatch on a JSON value"
+   }
+  },
+  {
+   "name": "interp/dotted-path",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "V={{a.b.c}}",
+     "a": {
+      "b": {
+       "c": "DEEP"
+      }
+     }
+    }
+   },
+   "expect": {
+    "value": "V=DEEP"
+   }
+  },
+  {
+   "name": "interp/dotted-path-missing",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "V={{a.b.z}}",
+     "a": {
+      "b": {
+       "c": "DEEP"
+      }
+     }
+    }
+   },
+   "expect": {
+    "value": "V={{a.b.z}}"
+   }
+  },
+  {
+   "name": "interp/replace-object",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "replace": {
+      "v": "R"
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[R]"
+   }
+  },
+  {
+   "name": "interp/replace-shadows-top-level",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": "TOP",
+     "replace": {
+      "v": "R"
+     }
+    }
+   },
+   "expect": {
+    "value": "V=[R]"
+   }
+  },
+  {
+   "name": "interp/unescape",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "U=[{{- v}}]",
+     "v": "<b>&amp;</b>"
+    }
+   },
+   "expect": {
+    "value": "U=[<b>&amp;</b>]"
+   }
+  },
+  {
+   "name": "interp/unescape-no-space",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "U=[{{-v}}]",
+     "v": "<b>&</b>"
+    }
+   },
+   "expect": {
+    "value": "U=[<b>&</b>]"
+   }
+  },
+  {
+   "name": "interp/escaped-default-off",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "V=[{{v}}]",
+     "v": "<b>&</b>"
+    }
+   },
+   "expect": {
+    "value": "V=[<b>&</b>]"
+   }
+  },
+  {
+   "name": "braces/open-only",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a {{v",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a {{v"
+   }
+  },
+  {
+   "name": "braces/close-only",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a v}}",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a v}}"
+   }
+  },
+  {
+   "name": "braces/triple-open",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a {{{v}} b",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a {{{v}} b"
+   }
+  },
+  {
+   "name": "braces/triple-close",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a {{v}}} b",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a V} b"
+   }
+  },
+  {
+   "name": "braces/nested-braces",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a {{ {{v}} }} b",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a {{ {{v}} }} b"
+   }
+  },
+  {
+   "name": "braces/space-padded",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a {{ v }} b",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a V b"
+   }
+  },
+  {
+   "name": "braces/empty-var",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a {{}} b",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a {{}} b"
+   }
+  },
+  {
+   "name": "braces/dash-only",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.i",
+    "opts": {
+     "defaultValue": "a {{-}} b",
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a {{-}} b"
+   }
+  },
+  {
+   "name": "nest/simple",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.n",
+    "opts": {
+     "defaultValue": "A $t(common.cancel) B"
+    }
+   },
+   "expect": {
+    "value": "A Cancel B"
+   }
+  },
+  {
+   "name": "nest/missing-target",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.n",
+    "opts": {
+     "defaultValue": "A $t(zz.nope) B"
+    }
+   },
+   "expect": {
+    "value": "A zz.nope B"
+   }
+  },
+  {
+   "name": "nest/self-reference",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.self",
+    "opts": {
+     "defaultValue": "S $t(zz.self) E"
+    }
+   },
+   "expect": {
+    "value": "S zz.self E"
+   }
+  },
+  {
+   "name": "nest/with-options",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.n",
+    "opts": {
+     "defaultValue": "A $t(send.recipientCount, {\"count\": 5}) B"
+    }
+   },
+   "expect": {
+    "value": "A 5 recipients B"
+   }
+  },
+  {
+   "name": "nest/with-interp-passthrough",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.n",
+    "opts": {
+     "defaultValue": "A $t(zz.inner) B",
+     "inner": "x"
+    }
+   },
+   "expect": {
+    "value": "A zz.inner B"
+   }
+  },
+  {
+   "name": "nest/double",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.n",
+    "opts": {
+     "defaultValue": "$t(common.cancel) $t(common.error)"
+    }
+   },
+   "expect": {
+    "value": "Cancel Error"
+   }
+  },
+  {
+   "name": "nest/malformed",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.n",
+    "opts": {
+     "defaultValue": "A $t(common.cancel B"
+    }
+   },
+   "expect": {
+    "value": "A $t(common.cancel B"
+   }
+  },
+  {
+   "name": "nest/cross-locale",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "zh",
+    "key": "zz.n",
+    "opts": {
+     "defaultValue": "A $t(common.cancel) B"
+    }
+   },
+   "expect": {
+    "value": "A 取消 B"
+   }
+  },
+  {
+   "name": "keys/first-hit",
+   "fn": "i18n_t_keys",
+   "input": {
+    "lng": "en",
+    "keys": [
+     "zz.nope",
+     "common.cancel"
+    ]
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "keys/all-missing",
+   "fn": "i18n_t_keys",
+   "input": {
+    "lng": "en",
+    "keys": [
+     "zz.a",
+     "zz.b"
+    ]
+   },
+   "expect": {
+    "value": "zz.b"
+   }
+  },
+  {
+   "name": "keys/single",
+   "fn": "i18n_t_keys",
+   "input": {
+    "lng": "en",
+    "keys": [
+     "common.cancel"
+    ]
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "keys/empty-list",
+   "fn": "i18n_t_keys",
+   "input": {
+    "lng": "en",
+    "keys": []
+   },
+   "expect": {
+    "error": "I18nEmptyKeyList"
+   },
+   "divergence": {
+    "ts_behavior": "i18next dereferences keys[keys.length-1] without a length check and throws a raw TypeError (\"Cannot read properties of undefined (reading 'includes')\")",
+    "reason": "a typed Rust API returns a CoreError; an uncaught TypeError inside a render would blank the screen"
+   }
+  },
+  {
+   "name": "branch/object-node",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common"
+   },
+   "expect": {
+    "value": "key 'common (en)' returned an object instead of string."
+   }
+  },
+  {
+   "name": "branch/root-namespace",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "send"
+   },
+   "expect": {
+    "value": "key 'send (en)' returned an object instead of string."
+   }
+  },
+  {
+   "name": "branch/object-joinArrays",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common",
+    "opts": {
+     "joinArrays": "|"
+    }
+   },
+   "expect": {
+    "value": "key 'common (en)' returned an object instead of string."
+   }
+  },
+  {
+   "name": "branch/object-returnObjects",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common",
+    "opts": {
+     "returnObjects": true
+    }
+   },
+   "expect": {
+    "error": "I18nUnsupportedOption"
+   },
+   "divergence": {
+    "ts_behavior": "returns a JS object: {\"cancel\":\"Cancel\",\"system\":\"System\",\"automatic\":\"Automatic\",\"error\":\"Error\",\"somethingWrong\":\"Something went wrong\",\"tr",
+    "reason": "the Rust t() returns String; object-returning options are deliberately not ported"
+   }
+  },
+  {
+   "name": "leaf/returnDetails",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "returnDetails": true
+    }
+   },
+   "expect": {
+    "error": "I18nUnsupportedOption"
+   },
+   "divergence": {
+    "ts_behavior": "returns a JS object: {\"res\":\"Cancel\",\"usedKey\":\"common.cancel\",\"exactUsedKey\":\"common.cancel\",\"usedLng\":\"en\",\"usedNS\":\"translation\",\"usedPara",
+    "reason": "the Rust t() returns String; object-returning options are deliberately not ported"
+   }
+  },
+  {
+   "name": "default/array-joinArrays",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "zz.missing",
+    "opts": {
+     "defaultValue": [
+      "a",
+      "b"
+     ],
+     "joinArrays": "-"
+    }
+   },
+   "expect": {
+    "error": "I18nUnsupportedOption"
+   },
+   "divergence": {
+    "ts_behavior": "returns a JS object: [\"a\",\"b\"]",
+    "reason": "the Rust t() returns String; object-returning options are deliberately not ported"
+   }
+  },
+  {
+   "name": "key/number",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": 123
+   },
+   "expect": {
+    "value": "123"
+   }
+  },
+  {
+   "name": "key/null-literal-in-list",
+   "fn": "i18n_t_keys",
+   "input": {
+    "lng": "en",
+    "keys": [
+     null
+    ]
+   },
+   "expect": {
+    "value": "null"
+   }
+  },
+  {
+   "name": "ns/explicit-prefix",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "translation:common.cancel"
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "ns/bogus-prefix",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "bogus:common.cancel"
+   },
+   "expect": {
+    "value": "common.cancel"
+   }
+  },
+  {
+   "name": "ns/empty-prefix",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": ":common.cancel"
+   },
+   "expect": {
+    "value": "common.cancel"
+   }
+  },
+  {
+   "name": "ns/double-colon",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "translation::common.cancel"
+   },
+   "expect": {
+    "value": ".common.cancel"
+   }
+  },
+  {
+   "name": "ns/option-ns",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "ns": "translation"
+    }
+   },
+   "expect": {
+    "value": "Cancel"
+   }
+  },
+  {
+   "name": "ns/option-bogus-ns",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "ns": "bogus"
+    }
+   },
+   "expect": {
+    "value": "common.cancel"
+   }
+  },
+  {
+   "name": "natural/\"Hello, world. How are you?\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "Hello, world. How are you?"
+   },
+   "expect": {
+    "value": "Hello, world. How are you?"
+   }
+  },
+  {
+   "name": "natural/\"Send\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "Send"
+   },
+   "expect": {
+    "value": "Send"
+   }
+  },
+  {
+   "name": "natural/\"a.b.c.d.e\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "a.b.c.d.e"
+   },
+   "expect": {
+    "value": "a.b.c.d.e"
+   }
+  },
+  {
+   "name": "natural/\"Price: $1.00\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "Price: $1.00"
+   },
+   "expect": {
+    "value": "Price: $1.00"
+   }
+  },
+  {
+   "name": "natural/\"trailing.dot.\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "trailing.dot."
+   },
+   "expect": {
+    "value": "trailing.dot."
+   }
+  },
+  {
+   "name": "natural/\".leading.dot\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": ".leading.dot"
+   },
+   "expect": {
+    "value": ".leading.dot"
+   }
+  },
+  {
+   "name": "natural/\"\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": ""
+   },
+   "expect": {
+    "value": ""
+   }
+  },
+  {
+   "name": "natural/\"   \"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "   "
+   },
+   "expect": {
+    "value": "   "
+   }
+  },
+  {
+   "name": "natural/\"emoji 🚀 key\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "emoji 🚀 key"
+   },
+   "expect": {
+    "value": "emoji 🚀 key"
+   }
+  },
+  {
+   "name": "natural/\"key\\nwith\\nnewlines\"",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "key\nwith\nnewlines"
+   },
+   "expect": {
+    "value": "key\nwith\nnewlines"
+   }
+  },
+  {
+   "name": "sep/keySeparator-false",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "common.cancel",
+    "opts": {
+     "keySeparator": false
+    }
+   },
+   "expect": {
+    "value": "common.cancel"
+   }
+  },
+  {
+   "name": "sep/nsSeparator-false",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "bogus:common.cancel",
+    "opts": {
+     "nsSeparator": false
+    }
+   },
+   "expect": {
+    "value": "bogus:common.cancel"
+   }
+  },
+  {
+   "name": "fallback/ja-misses/componentsTx.receipt.confirmingDelayed",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ja",
+    "key": "componentsTx.receipt.confirmingDelayed"
+   },
+   "expect": {
+    "value": "Still confirming"
+   }
+  },
+  {
+   "name": "fallback/ja-misses/componentsTx.receipt.confirmingPoll",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ja",
+    "key": "componentsTx.receipt.confirmingPoll"
+   },
+   "expect": {
+    "value": "Checking on-chain status every {{seconds}} seconds"
+   }
+  },
+  {
+   "name": "fallback/ja-misses/componentsTx.receipt.confirmingProgress",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ja",
+    "key": "componentsTx.receipt.confirmingProgress"
+   },
+   "expect": {
+    "value": "Estimated confirmation progress"
+   }
+  },
+  {
+   "name": "fallback/ja-misses/send.alertAccountUnavailableBody",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ja",
+    "key": "send.alertAccountUnavailableBody"
+   },
+   "expect": {
+    "value": "Could not load the account key required to prepare this transaction. Please try again."
+   }
+  },
+  {
+   "name": "fallback/ja-misses/send.alertEstimateFailedBody",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ja",
+    "key": "send.alertEstimateFailedBody"
+   },
+   "expect": {
+    "value": "Could not build a valid transaction estimate. Please try again."
+   }
+  },
+  {
+   "name": "fallback/ja-misses/send.alertEstimateFailedTitle",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "ja",
+    "key": "send.alertEstimateFailedTitle"
+   },
+   "expect": {
+    "value": "Could not prepare transaction"
+   }
+  },
+  {
+   "name": "fallback/en-misses/contacts.groupMembers_few",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "contacts.groupMembers_few"
+   },
+   "expect": {
+    "value": "contacts.groupMembers_few"
+   }
+  },
+  {
+   "name": "fallback/en-misses/contacts.groupMembers_many",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "contacts.groupMembers_many"
+   },
+   "expect": {
+    "value": "contacts.groupMembers_many"
+   }
+  },
+  {
+   "name": "fallback/en-misses/contacts.groupMembers_one",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "contacts.groupMembers_one"
+   },
+   "expect": {
+    "value": "contacts.groupMembers_one"
+   }
+  },
+  {
+   "name": "fallback/en-misses/contacts.groupMembers_other",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "contacts.groupMembers_other"
+   },
+   "expect": {
+    "value": "contacts.groupMembers_other"
+   }
+  },
+  {
+   "name": "fallback/en-misses/contacts.sends_few",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "contacts.sends_few"
+   },
+   "expect": {
+    "value": "contacts.sends_few"
+   }
+  },
+  {
+   "name": "fallback/en-misses/contacts.sends_many",
+   "fn": "i18n_t",
+   "input": {
+    "lng": "en",
+    "key": "contacts.sends_many"
+   },
+   "expect": {
+    "value": "contacts.sends_many"
+   }
+  },
+  {
+   "name": "interpolate/plain",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "V=[{{v}}]",
+    "opts": {
+     "v": "X"
+    }
+   },
+   "expect": {
+    "value": "V=[X]"
+   }
+  },
+  {
+   "name": "interpolate/missing",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "V=[{{v}}]",
+    "opts": {}
+   },
+   "expect": {
+    "value": "V=[{{v}}]"
+   }
+  },
+  {
+   "name": "interpolate/unescape",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "V=[{{- v}}]",
+    "opts": {
+     "v": "<b>&</b>"
+    }
+   },
+   "expect": {
+    "value": "V=[<b>&</b>]"
+   }
+  },
+  {
+   "name": "interpolate/two-vars",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "{{a}}/{{b}}",
+    "opts": {
+     "a": "1",
+     "b": "2"
+    }
+   },
+   "expect": {
+    "value": "1/2"
+   }
+  },
+  {
+   "name": "interpolate/repeat-var",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "{{a}}{{a}}",
+    "opts": {
+     "a": "z"
+    }
+   },
+   "expect": {
+    "value": "zz"
+   }
+  },
+  {
+   "name": "interpolate/dotted",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "{{a.b}}",
+    "opts": {
+     "a": {
+      "b": "D"
+     }
+    }
+   },
+   "expect": {
+    "value": "D"
+   }
+  },
+  {
+   "name": "interpolate/self-referential-value",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "{{a}}",
+    "opts": {
+     "a": "{{a}}"
+    }
+   },
+   "expect": {
+    "value": "{{a}}"
+   }
+  },
+  {
+   "name": "interpolate/unbalanced-open",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "a {{v",
+    "opts": {
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a {{v"
+   }
+  },
+  {
+   "name": "interpolate/unbalanced-close",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "a v}} b",
+    "opts": {
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": "a v}} b"
+   }
+  },
+  {
+   "name": "interpolate/empty-template",
+   "fn": "i18n_interpolate",
+   "input": {
+    "lng": "en",
+    "template": "",
+    "opts": {
+     "v": "V"
+    }
+   },
+   "expect": {
+    "value": ""
+   }
+  },
+  {
+   "name": "resolve-init/en",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "en"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/en",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "en"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/en",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "en"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/EN",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "EN"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/EN",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "EN"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/EN",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "EN"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/de",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "de"
+   },
+   "expect": {
+    "language": "de",
+    "resolved_language": "de",
+    "languages": [
+     "de",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/de",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "de"
+    }
+   },
+   "expect": {
+    "value": "Sprache"
+   }
+  },
+  {
+   "name": "resolve-change/de",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "de"
+   },
+   "expect": {
+    "language": "de",
+    "resolved_language": "de",
+    "languages": [
+     "de",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/DE",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "DE"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/DE",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "DE"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/DE",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "DE"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/De",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "De"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/De",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "De"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/De",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "De"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/zh",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "zh"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/zh",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "zh"
+    }
+   },
+   "expect": {
+    "value": "语言"
+   }
+  },
+  {
+   "name": "resolve-change/zh",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "zh"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/ZH",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "ZH"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/ZH",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "ZH"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/ZH",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "ZH"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/Zh",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "Zh"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/Zh",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "Zh"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/Zh",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "Zh"
+   },
+   "expect": {
+    "language": "en",
+    "resolved_language": "en",
+    "languages": [
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/zh-TW",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "zh-TW"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/zh-TW",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "zh-TW"
+    }
+   },
+   "expect": {
+    "value": "語言"
+   }
+  },
+  {
+   "name": "resolve-change/zh-TW",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "zh-TW"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/zh-tw",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "zh-tw"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/zh-tw",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "zh-tw"
+    }
+   },
+   "expect": {
+    "value": "語言"
+   }
+  },
+  {
+   "name": "resolve-change/zh-tw",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "zh-tw"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/ZH-TW",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "ZH-TW"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/ZH-TW",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "ZH-TW"
+    }
+   },
+   "expect": {
+    "value": "語言"
+   }
+  },
+  {
+   "name": "resolve-change/ZH-TW",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "ZH-TW"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/ZH-tw",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "ZH-tw"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/ZH-tw",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "ZH-tw"
+    }
+   },
+   "expect": {
+    "value": "語言"
+   }
+  },
+  {
+   "name": "resolve-change/ZH-tw",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "ZH-tw"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/zH-Tw",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "zH-Tw"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/zH-Tw",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "zH-Tw"
+    }
+   },
+   "expect": {
+    "value": "語言"
+   }
+  },
+  {
+   "name": "resolve-change/zH-Tw",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "zH-Tw"
+   },
+   "expect": {
+    "language": "zh-TW",
+    "resolved_language": "zh-TW",
+    "languages": [
+     "zh-TW",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/zh_TW",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "zh_TW"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/zh_TW",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "zh_TW"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/zh_TW",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "zh_TW"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/zh-Hant",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "zh-Hant"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/zh-Hant",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "zh-Hant"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/zh-Hant",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "zh-Hant"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/es-AR",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "es-AR"
+   },
+   "expect": {
+    "language": "es-MX",
+    "resolved_language": "es-MX",
+    "languages": [
+     "es-MX",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/es-AR",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "es-AR"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/es-AR",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "es-AR"
+   },
+   "expect": {
+    "language": "es-MX",
+    "resolved_language": "es-MX",
+    "languages": [
+     "es-MX",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-init/zh-Hant-TW",
+   "fn": "i18n_resolve_language",
+   "input": {
+    "requested": "zh-Hant-TW"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  },
+  {
+   "name": "resolve-per-call/zh-Hant-TW",
+   "fn": "i18n_t_lng_option",
+   "input": {
+    "key": "language.title",
+    "opts": {
+     "lng": "zh-Hant-TW"
+    }
+   },
+   "expect": {
+    "value": "Language"
+   }
+  },
+  {
+   "name": "resolve-change/zh-Hant-TW",
+   "fn": "i18n_change_language",
+   "input": {
+    "requested": "zh-Hant-TW"
+   },
+   "expect": {
+    "language": "zh",
+    "resolved_language": "zh",
+    "languages": [
+     "zh",
+     "en"
+    ]
+   }
+  }
+ ]
+}

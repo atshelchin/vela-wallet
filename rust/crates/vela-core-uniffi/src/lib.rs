@@ -44,6 +44,16 @@ pub enum CoreError {
     #[error("{0}")]
     InvalidIdenticonSeed(String),
     #[error("{0}")]
+    I18nEmptyKeyList(String),
+    #[error("{0}")]
+    I18nInvalidCount(String),
+    #[error("{0}")]
+    I18nUnsupportedOption(String),
+    #[error("{0}")]
+    I18nCatalogUnavailable(String),
+    #[error("{0}")]
+    I18nCatalogParse(String),
+    #[error("{0}")]
     Internal(String),
 }
 
@@ -66,6 +76,11 @@ impl From<vela_core::CoreError> for CoreError {
             E::Eip712Parse(_) => CoreError::Eip712Parse(msg),
             E::Eip712NonCanonicalDomain(_) => CoreError::Eip712NonCanonicalDomain(msg),
             E::InvalidIdenticonSeed(_) => CoreError::InvalidIdenticonSeed(msg),
+            E::I18nEmptyKeyList(_) => CoreError::I18nEmptyKeyList(msg),
+            E::I18nInvalidCount(_) => CoreError::I18nInvalidCount(msg),
+            E::I18nUnsupportedOption(_) => CoreError::I18nUnsupportedOption(msg),
+            E::I18nCatalogUnavailable(_) => CoreError::I18nCatalogUnavailable(msg),
+            E::I18nCatalogParse(_) => CoreError::I18nCatalogParse(msg),
             E::Internal(_) => CoreError::Internal(msg),
         }
     }
@@ -410,4 +425,246 @@ pub fn identicon_make_hash(seed: String) -> String {
 #[uniffi::export]
 pub fn identicon_normalize_seed(seed: String) -> String {
     vela_core::identicon::normalize_seed(&seed).into_owned()
+}
+
+// ---------------------------------------------------------------------------
+// i18n (spec 004-rust-i18n, contracts/i18n-api.md §1.3 / §2.3)
+// ---------------------------------------------------------------------------
+//
+// ONE record per call, ONE crossing per call. The measured FFI cost is 0.605 us
+// per string-returning round trip, so a chatty per-option API — one crossing to
+// set `count`, another for each variable — would cost roughly 12.7 ms for a
+// 500-key screen, two orders of magnitude past SC-007's 0.5 ms budget. The record
+// is the whole reason this surface looks like a struct rather than a builder.
+
+/// Per-call translation options, mirroring the i18next object literal.
+#[derive(Debug, Clone, Default, uniffi::Record)]
+pub struct TOptions {
+    /// Plural selector. `None` means no plural handling at all — which is also
+    /// what a *string* count means upstream, so a caller that has a string should
+    /// leave this unset rather than parsing it.
+    pub count: Option<f64>,
+    pub context: Option<String>,
+    pub default_value: Option<String>,
+    /// Per-call language override. **Not** the same code path as
+    /// `change_language`: `zh_TW` resolves to `zh` through the latter and falls
+    /// through to English here. That asymmetry is upstream's, and it is pinned by
+    /// the conformance corpus.
+    pub lng: Option<String>,
+    pub ordinal: bool,
+    /// Interpolation variables, already stringified by the caller.
+    pub vars: Vec<TVar>,
+}
+
+/// One interpolation variable.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct TVar {
+    pub name: String,
+    /// `None` renders as the empty string — matching an own property whose value
+    /// is `undefined`. Omitting the entry entirely is different: the placeholder
+    /// stays on screen as the literal `{{name}}`.
+    pub value: Option<String>,
+}
+
+impl TOptions {
+    fn to_owned_options(&self) -> vela_core::i18n::OwnedOptions {
+        vela_core::i18n::OwnedOptions {
+            count: self.count.map(vela_core::i18n::Count::Num),
+            context: self.context.clone(),
+            default_value: self.default_value.clone(),
+            lng: self.lng.clone(),
+            ordinal: self.ordinal,
+            vars: self
+                .vars
+                .iter()
+                .map(|v| {
+                    let value = match &v.value {
+                        Some(s) => vela_core::i18n::OwnedVar::Str(s.clone()),
+                        None => vela_core::i18n::OwnedVar::Undefined,
+                    };
+                    (v.name.clone(), value)
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+}
+
+/// The resolve state after a language change.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct LanguageState {
+    pub language: String,
+    pub resolved_language: Option<String>,
+    pub languages: Vec<String>,
+}
+
+/// A translation engine.
+///
+/// Wraps `RwLock` because `#[uniffi::export]` methods take `&self` while
+/// `change_language` and `load_catalog` need `&mut`. Lock poisoning maps to
+/// `CoreError::Internal` — never `unwrap()` a `LockResult`, which the crate lint
+/// would reject anyway.
+#[derive(uniffi::Object)]
+pub struct I18n {
+    inner: std::sync::RwLock<vela_core::i18n::I18n>,
+}
+
+fn lock_err<T>(_: T) -> CoreError {
+    CoreError::Internal("i18n engine lock poisoned".to_owned())
+}
+
+#[uniffi::export]
+impl I18n {
+    /// Build an engine from the `en` fallback catalog, supplied as JSON bytes.
+    ///
+    /// JSON rather than a compiled-in catalog because that is the on-demand route
+    /// (FR-015): a build carries the engine, and each locale arrives when the user
+    /// picks it.
+    #[uniffi::constructor]
+    pub fn new(fallback_json: Vec<u8>) -> Result<Self, CoreError> {
+        let en = vela_core::i18n::Catalog::from_json("en", &fallback_json)?;
+        let engine = vela_core::i18n::I18n::new(en)?;
+        Ok(Self {
+            inner: std::sync::RwLock::new(engine),
+        })
+    }
+
+    /// Build an engine pinned to the LEGACY plural rule — i18next's `dummyRule`,
+    /// which is what a host without `Intl.PluralRules` silently falls back to.
+    /// Exposed so the conformance corpus can replay MODE B here too; production
+    /// code should never call it.
+    #[uniffi::constructor]
+    pub fn new_with_legacy_plurals(fallback_json: Vec<u8>) -> Result<Self, CoreError> {
+        let en = vela_core::i18n::Catalog::from_json("en", &fallback_json)?;
+        let engine =
+            vela_core::i18n::I18n::new(en)?.with_plural_mode(vela_core::i18n::PluralMode::Legacy);
+        Ok(Self {
+            inner: std::sync::RwLock::new(engine),
+        })
+    }
+
+    /// First key that resolves wins; all-missing returns the **last** key.
+    pub fn t_first(&self, keys: Vec<String>, opts: TOptions) -> Result<String, CoreError> {
+        let owned = opts.to_owned_options();
+        let mut scratch = vela_core::i18n::Scratch::default();
+        let borrowed = owned.as_options(&mut scratch);
+        let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
+        Ok(self
+            .inner
+            .read()
+            .map_err(lock_err)?
+            .t_first(&refs, &borrowed)?)
+    }
+
+    /// Resolve `key`. Returns the key itself when nothing matches — i18next's
+    /// behaviour, and not an error.
+    pub fn t(&self, key: String, opts: TOptions) -> Result<String, CoreError> {
+        let owned = opts.to_owned_options();
+        let mut scratch = vela_core::i18n::Scratch::default();
+        let borrowed = owned.as_options(&mut scratch);
+        Ok(self.inner.read().map_err(lock_err)?.t(&key, &borrowed)?)
+    }
+
+    /// Whether `key` resolves to anything. A branch node counts as present.
+    pub fn exists(&self, key: String, opts: TOptions) -> Result<bool, CoreError> {
+        let owned = opts.to_owned_options();
+        let mut scratch = vela_core::i18n::Scratch::default();
+        let borrowed = owned.as_options(&mut scratch);
+        Ok(self.inner.read().map_err(lock_err)?.exists(&key, &borrowed))
+    }
+
+    /// Set the active language. Does **not** load a catalog — the core has no I/O.
+    pub fn change_language(&self, lng: String) -> Result<LanguageState, CoreError> {
+        let s = self.inner.write().map_err(lock_err)?.change_language(&lng);
+        Ok(LanguageState {
+            language: s.language,
+            resolved_language: s.resolved_language,
+            languages: s.languages,
+        })
+    }
+
+    /// Make `lang`'s catalog the active one, replacing whatever was active.
+    pub fn load_catalog(&self, lang: String, json: Vec<u8>) -> Result<(), CoreError> {
+        let catalog = vela_core::i18n::Catalog::from_json(&lang, &json)?;
+        self.inner.write().map_err(lock_err)?.load_catalog(catalog);
+        Ok(())
+    }
+
+    /// Release `lang` if it is the active catalog. Releasing `en` is not
+    /// expressible — it is a field, not a slot.
+    pub fn release_catalog(&self, lang: String) -> Result<bool, CoreError> {
+        Ok(self
+            .inner
+            .write()
+            .map_err(lock_err)?
+            .release_catalog(&lang)
+            .is_some())
+    }
+
+    pub fn resident_locales(&self) -> Result<Vec<String>, CoreError> {
+        Ok(self
+            .inner
+            .read()
+            .map_err(lock_err)?
+            .resident_locales()
+            .into_iter()
+            .map(str::to_owned)
+            .collect())
+    }
+
+    pub fn resident_bytes(&self) -> Result<u64, CoreError> {
+        #[allow(clippy::cast_possible_truncation, clippy::allow_attributes)]
+        Ok(self.inner.read().map_err(lock_err)?.resident_bytes() as u64)
+    }
+
+    pub fn language(&self) -> Result<String, CoreError> {
+        Ok(self.inner.read().map_err(lock_err)?.language().to_owned())
+    }
+
+    /// Text direction of the active language, `"ltr"` or `"rtl"`.
+    pub fn dir(&self) -> Result<String, CoreError> {
+        Ok(self
+            .inner
+            .read()
+            .map_err(lock_err)?
+            .dir()
+            .as_str()
+            .to_owned())
+    }
+}
+
+// -- plural rules, exposed standalone so a platform can check a category --------
+
+/// Interpolate a template in isolation, without a key lookup.
+#[uniffi::export]
+pub fn i18n_interpolate(template: String, opts: TOptions) -> Result<String, CoreError> {
+    let owned = opts.to_owned_options();
+    let mut scratch = vela_core::i18n::Scratch::default();
+    let borrowed = owned.as_options(&mut scratch);
+    Ok(vela_core::i18n::interpolate(&template, &borrowed)?)
+}
+
+#[uniffi::export]
+pub fn i18n_plural_suffix(locale: String, count: f64) -> String {
+    vela_core::i18n::plural_suffix(&locale, count)
+}
+
+#[uniffi::export]
+pub fn i18n_plural_suffixes(locale: String) -> Vec<String> {
+    vela_core::i18n::plural_suffixes(&locale)
+}
+
+#[uniffi::export]
+pub fn i18n_plural_suffix_legacy(count: f64) -> String {
+    vela_core::i18n::plural_suffix_legacy(count)
+}
+
+#[uniffi::export]
+pub fn i18n_plural_suffixes_legacy() -> Vec<String> {
+    vela_core::i18n::plural_suffixes_legacy()
+}
+
+#[uniffi::export]
+pub fn i18n_text_direction(lng: String) -> String {
+    vela_core::l10n::text_direction(&lng).as_str().to_owned()
 }

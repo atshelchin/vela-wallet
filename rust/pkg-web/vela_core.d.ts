@@ -1,6 +1,36 @@
 /* tslint:disable */
 /* eslint-disable */
 /**
+ * A `count` as it arrives from JS.
+ *
+ * `serde_json::Value` cannot hold `Infinity` or `NaN` — JSON has no syntax for
+ * them, so `serde_wasm_bindgen` turns both into `null`. That silently rendered
+ * `{{count}}` as the empty string where i18next renders `\"Infinity\"`. The
+ * committed corpus never caught it, because it encodes those values with a
+ * `{\"__t\":\"infinity\"}` tag and so never exercises the raw-number path a real
+ * caller takes. `scripts/verify-i18n-parity.mjs`\'s fuzz pass did.
+ *
+ * Untagged, with `f64` FIRST: a JS number deserialises straight into `f64`,
+ * non-finite values included, before the `Value` arm can flatten it.
+ */
+export type CountValue = number | string | Value;
+
+/**
+ * An interpolation variable as it arrives from JS.
+ *
+ * Same defect as `CountValue`, same device — and it took a second sighting to
+ * notice the fix had been applied to `count` alone. Every OTHER variable still
+ * went through `serde_json::Value`, so `t(\'time.minutesShort\', { n: NaN })`
+ * rendered `\"分前\"` where i18next renders `\"NaN分前\"`. That one is reachable in
+ * production: `src/services/activity.ts:116` passes `{ n: Math.round(diff / 60) }`.
+ *
+ * The corpus cannot catch this class at all — it encodes non-finite values as
+ * `{\"__t\":\"nan\"}` and decodes the tag back on the Rust side, so a vector never
+ * crosses the raw-number boundary a live caller crosses (spec 005 FR-024).
+ */
+export type VarValue = number | Value;
+
+/**
  * Flattened `IdenticonParams` — the same shape `getIdenticonsParams` returns in
  * the JS library, so migrating call sites stay recognisable.
  */
@@ -13,6 +43,83 @@ export interface IdenticonParams {
     face: string;
     bottom: string;
 }
+
+/**
+ * Per-call translation options, shaped so a TS caller writes the i18next object
+ * literal verbatim — `{ count: 3, name: \'Alice\' }`. The reserved names are typed;
+ * everything else falls into `vars` through `#[serde(flatten)]`.
+ */
+export interface TOptions extends Map<string, VarValue> {
+    /**
+     * Untyped: i18next accepts a number, a string (which silently DISABLES plural
+     * handling), `null`, an object, or a BigInt (which makes it throw). Typing
+     * this as `f64` would reject inputs the oracle accepts.
+     *
+     * Double `Option` because `Option<Value>` collapses an explicit JSON `null`
+     * into `None`, which would make `count: null` indistinguishable from an absent
+     * count — and upstream those differ: `null` still pluralises (`Number(null)`
+     * is 0), while absent does not.
+     */
+    count?: CountValue | undefined | undefined;
+    /**
+     * Untyped for the same reason — a numeric context is coerced, not rejected.
+     */
+    context?: Value | undefined;
+    /**
+     * Untyped because i18next accepts a string, a number, a boolean, an object
+     * or an array here, and the last two are non-strings this engine rejects
+     * rather than approximates.
+     */
+    defaultValue?: Value | undefined;
+    /**
+     * Per-call language override. **Not** `changeLanguage`: `zh_TW` resolves to
+     * `zh` there and falls through to English here.
+     */
+    lng?: string | undefined;
+    ordinal?: boolean;
+    /**
+     * Per-call namespace override. Anything but `translation` misses.
+     */
+    ns?: string | undefined;
+    /**
+     * `keySeparator: false` — look the key up as ONE literal property.
+     */
+    keySeparator?: Value | undefined;
+    /**
+     * `nsSeparator: false` — a `:` in the key is not a namespace separator.
+     */
+    nsSeparator?: Value | undefined;
+    /**
+     * When present and an object, `replace` REPLACES the options as the
+     * interpolation source (`i18next.js:1180`) — a top-level `v` is shadowed
+     * rather than merged.
+     */
+    replace?: ReplaceArg | undefined;
+    /**
+     * Options i18next answers with a NON-string. A Rust `t()` is string-typed by
+     * construction, so these are typed errors, not silent coercions.
+     */
+    returnObjects?: boolean | undefined;
+    returnDetails?: boolean | undefined;
+    joinArrays?: Value | undefined;
+}
+
+/**
+ * The resolve state after a language change.
+ */
+export interface LanguageState {
+    language: string;
+    resolvedLanguage: string | undefined;
+    languages: string[];
+}
+
+/**
+ * `replace`, which when it is an object REPLACES the options as the
+ * interpolation source (`i18next.js:1180`). Typed as a map of [`VarValue`] so a
+ * non-finite value survives that route too — the 005 adapter deliberately routes
+ * through `replace` when normalising an own-but-undefined `count`.
+ */
+export type ReplaceArg = Map<string, VarValue> | Value;
 
 export interface AbiValue {
     kind: string;
@@ -54,6 +161,48 @@ export interface SafeAddressInfo {
 }
 
 
+/**
+ * A translation engine.
+ */
+export class I18n {
+    free(): void;
+    [Symbol.dispose](): void;
+    changeLanguage(lng: string): LanguageState;
+    dir(): string;
+    exists(key: string, opts?: any | null): boolean;
+    language(): string;
+    /**
+     * Make `lang`'s catalog active — the on-demand load.
+     */
+    loadCatalog(lang: string, json: Uint8Array): void;
+    /**
+     * Build from the `en` fallback catalog, supplied as the bytes of
+     * `/i18n/en.json`.
+     */
+    constructor(fallback_json: Uint8Array);
+    /**
+     * Build an engine pinned to the LEGACY plural rule — i18next's `dummyRule`,
+     * which is what a host without `Intl.PluralRules` silently falls back to.
+     * Exposed so the conformance corpus can replay MODE B here too; production
+     * code should never call it.
+     */
+    static newWithLegacyPlurals(fallback_json: Uint8Array): I18n;
+    /**
+     * Release `lang` if it is the active catalog. `en` is never releasable.
+     */
+    releaseCatalog(lang: string): boolean;
+    residentBytes(): number;
+    residentLocales(): string[];
+    /**
+     * Resolve `key`. Returns the key itself when nothing matches.
+     */
+    t(key: string, opts?: any | null): string;
+    /**
+     * First key that resolves wins; all-missing returns the **last** key.
+     */
+    tFirst(keys: string[], opts?: any | null): string;
+}
+
 export function abiEncodeAddress(address_hex: string): Uint8Array;
 
 export function abiEncodeBytes32(data: Uint8Array): Uint8Array;
@@ -89,6 +238,21 @@ export function fromHex(s: string): Uint8Array;
 export function functionSelector(signature: string): Uint8Array;
 
 export function hashTypedData(typed_data_json: string): Uint8Array;
+
+/**
+ * Interpolate a template in isolation, without a key lookup.
+ */
+export function i18nInterpolate(template: string, opts?: TOptions | null): string;
+
+export function i18nPluralSuffix(locale: string, count: number): string;
+
+export function i18nPluralSuffixLegacy(count: number): string;
+
+export function i18nPluralSuffixes(locale: string): string[];
+
+export function i18nPluralSuffixesLegacy(): string[];
+
+export function i18nTextDirection(lng: string): string;
 
 /**
  * Stock output as a `data:image/svg+xml;base64,…` URI.
@@ -151,6 +315,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_i18n_free: (a: number, b: number) => void;
     readonly abiEncodeAddress: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeBytes32: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeUint256: (a: number, b: number) => [number, number, number, number];
@@ -169,6 +334,24 @@ export interface InitOutput {
     readonly fromHex: (a: number, b: number) => [number, number, number, number];
     readonly functionSelector: (a: number, b: number) => [number, number, number, number];
     readonly hashTypedData: (a: number, b: number) => [number, number, number, number];
+    readonly i18nInterpolate: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly i18nPluralSuffix: (a: number, b: number, c: number) => [number, number];
+    readonly i18nPluralSuffixLegacy: (a: number) => [number, number];
+    readonly i18nPluralSuffixes: (a: number, b: number) => [number, number];
+    readonly i18nPluralSuffixesLegacy: () => [number, number];
+    readonly i18nTextDirection: (a: number, b: number) => [number, number];
+    readonly i18n_changeLanguage: (a: number, b: number, c: number) => any;
+    readonly i18n_dir: (a: number) => [number, number];
+    readonly i18n_exists: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly i18n_language: (a: number) => [number, number];
+    readonly i18n_loadCatalog: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+    readonly i18n_new: (a: number, b: number) => [number, number, number];
+    readonly i18n_newWithLegacyPlurals: (a: number, b: number) => [number, number, number];
+    readonly i18n_releaseCatalog: (a: number, b: number, c: number) => number;
+    readonly i18n_residentBytes: (a: number) => number;
+    readonly i18n_residentLocales: (a: number) => [number, number];
+    readonly i18n_t: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly i18n_tFirst: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly identiconDataUri: (a: number, b: number) => [number, number, number, number];
     readonly identiconMakeHash: (a: number, b: number) => [number, number];
     readonly identiconNormalizeSeed: (a: number, b: number) => [number, number];
@@ -188,9 +371,12 @@ export interface InitOutput {
     readonly webauthnSigningHash: (a: number, b: number, c: number, d: number) => [number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
+    readonly __wbindgen_exn_store: (a: number) => void;
+    readonly __externref_table_alloc: () => number;
     readonly __wbindgen_externrefs: WebAssembly.Table;
     readonly __externref_table_dealloc: (a: number) => void;
     readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+    readonly __externref_drop_slice: (a: number, b: number) => void;
     readonly __wbindgen_start: () => void;
 }
 

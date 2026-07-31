@@ -380,3 +380,538 @@ pub fn identicon_make_hash(seed: &str) -> String {
 pub fn identicon_normalize_seed(seed: &str) -> String {
     vela_core::identicon::normalize_seed(seed).into_owned()
 }
+
+// ---------------------------------------------------------------------------
+// i18n (spec 004-rust-i18n, contracts/i18n-api.md §1.3 / §2.3)
+// ---------------------------------------------------------------------------
+//
+// ENGINE ONLY — no catalogs are compiled in (T047). All 15 measured 1,315,023
+// wasm bytes against a 1,000,000 ceiling, and even one locale costs more over the
+// wire compiled in (+31,862 brotli'd) than fetched as plain JSON (15,353). The web
+// route fetches `/i18n/<lng>.json` and hands the bytes to `loadCatalog`.
+//
+// No lock, unlike the uniffi shell: `wasm_bindgen` exports `&mut self` directly and
+// the module is single-threaded.
+
+/// Per-call translation options, shaped so a TS caller writes the i18next object
+/// literal verbatim — `{ count: 3, name: 'Alice' }`. The reserved names are typed;
+/// everything else falls into `vars` through `#[serde(flatten)]`.
+#[derive(Serialize, Deserialize, Tsify, Default)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct TOptions {
+    /// Untyped: i18next accepts a number, a string (which silently DISABLES plural
+    /// handling), `null`, an object, or a BigInt (which makes it throw). Typing
+    /// this as `f64` would reject inputs the oracle accepts.
+    ///
+    /// Double `Option` because `Option<Value>` collapses an explicit JSON `null`
+    /// into `None`, which would make `count: null` indistinguishable from an absent
+    /// count — and upstream those differ: `null` still pluralises (`Number(null)`
+    /// is 0), while absent does not.
+    #[serde(default, deserialize_with = "deserialize_present")]
+    pub count: Option<Option<CountValue>>,
+    /// Untyped for the same reason — a numeric context is coerced, not rejected.
+    #[serde(default)]
+    pub context: Option<serde_json::Value>,
+    /// Untyped because i18next accepts a string, a number, a boolean, an object
+    /// or an array here, and the last two are non-strings this engine rejects
+    /// rather than approximates.
+    #[serde(default, rename = "defaultValue")]
+    pub default_value: Option<serde_json::Value>,
+    /// Per-call language override. **Not** `changeLanguage`: `zh_TW` resolves to
+    /// `zh` there and falls through to English here.
+    #[serde(default)]
+    pub lng: Option<String>,
+    #[serde(default)]
+    pub ordinal: bool,
+    /// Per-call namespace override. Anything but `translation` misses.
+    #[serde(default)]
+    pub ns: Option<String>,
+    /// `keySeparator: false` — look the key up as ONE literal property.
+    #[serde(default, rename = "keySeparator")]
+    pub key_separator: Option<serde_json::Value>,
+    /// `nsSeparator: false` — a `:` in the key is not a namespace separator.
+    #[serde(default, rename = "nsSeparator")]
+    pub ns_separator: Option<serde_json::Value>,
+    /// When present and an object, `replace` REPLACES the options as the
+    /// interpolation source (`i18next.js:1180`) — a top-level `v` is shadowed
+    /// rather than merged.
+    #[serde(default)]
+    pub replace: Option<ReplaceArg>,
+    /// Options i18next answers with a NON-string. A Rust `t()` is string-typed by
+    /// construction, so these are typed errors, not silent coercions.
+    #[serde(default, rename = "returnObjects")]
+    pub return_objects: Option<bool>,
+    #[serde(default, rename = "returnDetails")]
+    pub return_details: Option<bool>,
+    #[serde(default, rename = "joinArrays")]
+    pub join_arrays: Option<serde_json::Value>,
+    /// Every other key becomes an interpolation variable, so the call site does not
+    /// have to know which names are reserved.
+    #[serde(flatten)]
+    pub vars: std::collections::BTreeMap<String, VarValue>,
+}
+
+impl TOptions {
+    fn to_owned_options(&self) -> vela_core::i18n::OwnedOptions {
+        use vela_core::i18n::{Count, OwnedVar};
+        vela_core::i18n::OwnedOptions {
+            count: self.count.as_ref().and_then(|present| match present {
+                None => Some(Count::Null),
+                Some(CountValue::Num(n)) => Some(Count::Num(*n)),
+                // A STRING count silently disables plural resolution upstream.
+                Some(CountValue::Str(s)) => Some(Count::Str(s.clone())),
+                Some(CountValue::Other(v)) => match v {
+                    serde_json::Value::Number(n) => {
+                        Some(Count::Num(n.as_f64().unwrap_or(f64::NAN)))
+                    }
+                    serde_json::Value::String(s) => Some(Count::Str(s.clone())),
+                    serde_json::Value::Null => Some(Count::Null),
+                    serde_json::Value::Bool(b) => Some(Count::Num(if *b { 1.0 } else { 0.0 })),
+                    serde_json::Value::Object(o) => {
+                        match o.get("__t").and_then(serde_json::Value::as_str) {
+                            Some("nan") => Some(Count::Num(f64::NAN)),
+                            Some("infinity") => Some(Count::Num(
+                                if o.get("sign").and_then(serde_json::Value::as_i64) == Some(-1) {
+                                    f64::NEG_INFINITY
+                                } else {
+                                    f64::INFINITY
+                                },
+                            )),
+                            Some("bigint") => Some(Count::BigInt(
+                                o.get("v")
+                                    .and_then(serde_json::Value::as_str)
+                                    .and_then(|s| s.parse().ok())
+                                    .unwrap_or(0),
+                            )),
+                            // An own property that is `undefined` is NOT a count at all.
+                            Some("undefined") => None,
+                            _ => Some(Count::Object),
+                        }
+                    }
+                    serde_json::Value::Array(_) => Some(Count::Object),
+                },
+            }),
+            context: self.context.as_ref().map(|v| match v {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            }),
+            default_value: match &self.default_value {
+                Some(serde_json::Value::String(s)) => Some(s.clone()),
+                Some(serde_json::Value::Number(n)) => Some(n.to_string()),
+                Some(serde_json::Value::Bool(b)) => Some(b.to_string()),
+                _ => None,
+            },
+            // An object or array default is a non-string, so `t()` answers with the
+            // branch diagnostic — EXCEPT a tagged `undefined`, which is an absent
+            // default and makes the key echo instead.
+            default_value_object: match &self.default_value {
+                Some(serde_json::Value::Object(o)) => {
+                    o.get("__t").and_then(serde_json::Value::as_str) != Some("undefined")
+                }
+                Some(serde_json::Value::Array(_)) => self.join_arrays.is_none(),
+                _ => false,
+            },
+            unsupported: {
+                let mut u = Vec::new();
+                if self.return_objects == Some(true) {
+                    u.push("returnObjects".to_owned());
+                }
+                if self.return_details == Some(true) {
+                    u.push("returnDetails".to_owned());
+                }
+                if self.join_arrays.is_some()
+                    && matches!(self.default_value, Some(serde_json::Value::Array(_)))
+                {
+                    u.push("joinArrays".to_owned());
+                }
+                // A value carrying its own `toString` stringifies through host
+                // semantics Rust cannot reach.
+                if self.vars.values().any(|v| host_only(&v.as_json())) {
+                    u.push("hostOnlyValue".to_owned());
+                }
+                u
+            },
+            lng: self.lng.clone(),
+            ordinal: self.ordinal,
+            ns: self.ns.clone(),
+            key_separator_off: self
+                .key_separator
+                .as_ref()
+                .is_some_and(|v| v == &serde_json::Value::Bool(false)),
+            ns_separator_off: self
+                .ns_separator
+                .as_ref()
+                .is_some_and(|v| v == &serde_json::Value::Bool(false)),
+            vars: match self.replace.as_ref() {
+                // An object `replace` REPLACES the options as the interpolation
+                // source; anything else leaves the flattened vars in place.
+                Some(ReplaceArg::Map(m)) => m,
+                _ => &self.vars,
+            }
+            .iter()
+            .flat_map(|(k, v)| {
+                // A non-finite number has no `serde_json::Value` form, so it is
+                // matched BEFORE dropping to the JSON view (spec 005 FR-024).
+                let json = v.as_json();
+                let var = match v {
+                    VarValue::Num(n) => OwnedVar::Num(*n),
+                    // JS string-coercion semantics, so `{{v}}` renders what the
+                    // template literal would have.
+                    VarValue::Other(j) => match j {
+                        serde_json::Value::Null => OwnedVar::Null,
+                        serde_json::Value::Bool(b) => OwnedVar::Bool(*b),
+                        serde_json::Value::Number(n) => {
+                            OwnedVar::Num(n.as_f64().unwrap_or(f64::NAN))
+                        }
+                        serde_json::Value::String(s) => OwnedVar::Str(s.clone()),
+                        // `Array.prototype.join(",")` flattens nested arrays:
+                        // `[[1],[2]]` is `"1,2"`, not `"[1],[2]"`.
+                        serde_json::Value::Array(_) => OwnedVar::Array(js_join(j)),
+                        // The tagged encodings for values JSON cannot carry.
+                        serde_json::Value::Object(o) => {
+                            match o.get("__t").and_then(serde_json::Value::as_str) {
+                                Some("undefined") => OwnedVar::Undefined,
+                                Some("nan") => OwnedVar::Num(f64::NAN),
+                                Some("infinity") => OwnedVar::Num(
+                                    if o.get("sign").and_then(serde_json::Value::as_i64) == Some(-1)
+                                    {
+                                        f64::NEG_INFINITY
+                                    } else {
+                                        f64::INFINITY
+                                    },
+                                ),
+                                Some("bigint") => OwnedVar::Str(
+                                    o.get("v")
+                                        .and_then(serde_json::Value::as_str)
+                                        .unwrap_or_default()
+                                        .to_owned(),
+                                ),
+                                _ => OwnedVar::Object,
+                            }
+                        }
+                    },
+                };
+                // A nested object is BOTH `[object Object]` under its own name
+                // and a source of dotted names, so `{{a.b.c}}` resolves.
+                let mut out = vec![(k.clone(), var)];
+                flatten_dotted(k, json.as_ref(), &mut out);
+                out
+            })
+            .filter(|(k, _)| !k.starts_with("defaultValue_"))
+            .collect(),
+            default_value_variants: self
+                .vars
+                .iter()
+                .filter_map(|(k, v)| {
+                    // `defaultValue_one`, `defaultValue_many`, … arrive through the
+                    // flattened map because only the bare `defaultValue` is typed.
+                    let cat = k.strip_prefix("defaultValue_")?;
+                    // Only a string is a usable variant; a non-finite number has no
+                    // JSON form and is not one, so `as_json`'s null stand-in is fine.
+                    let text = match v {
+                        VarValue::Other(serde_json::Value::String(s)) => s.clone(),
+                        _ => String::new(),
+                    };
+                    Some((cat.to_owned(), text))
+                })
+                .collect(),
+        }
+    }
+}
+
+/// A `count` as it arrives from JS.
+///
+/// `serde_json::Value` cannot hold `Infinity` or `NaN` — JSON has no syntax for
+/// them, so `serde_wasm_bindgen` turns both into `null`. That silently rendered
+/// `{{count}}` as the empty string where i18next renders `"Infinity"`. The
+/// committed corpus never caught it, because it encodes those values with a
+/// `{"__t":"infinity"}` tag and so never exercises the raw-number path a real
+/// caller takes. `scripts/verify-i18n-parity.mjs`'s fuzz pass did.
+///
+/// Untagged, with `f64` FIRST: a JS number deserialises straight into `f64`,
+/// non-finite values included, before the `Value` arm can flatten it.
+#[derive(Serialize, Deserialize, Tsify)]
+#[serde(untagged)]
+pub enum CountValue {
+    Num(f64),
+    Str(String),
+    Other(serde_json::Value),
+}
+
+/// An interpolation variable as it arrives from JS.
+///
+/// Same defect as `CountValue`, same device — and it took a second sighting to
+/// notice the fix had been applied to `count` alone. Every OTHER variable still
+/// went through `serde_json::Value`, so `t('time.minutesShort', { n: NaN })`
+/// rendered `"分前"` where i18next renders `"NaN分前"`. That one is reachable in
+/// production: `src/services/activity.ts:116` passes `{ n: Math.round(diff / 60) }`.
+///
+/// The corpus cannot catch this class at all — it encodes non-finite values as
+/// `{"__t":"nan"}` and decodes the tag back on the Rust side, so a vector never
+/// crosses the raw-number boundary a live caller crosses (spec 005 FR-024).
+#[derive(Serialize, Deserialize, Tsify)]
+#[serde(untagged)]
+pub enum VarValue {
+    /// FIRST, so a non-finite JS number lands here rather than flattening to null.
+    Num(f64),
+    Other(serde_json::Value),
+}
+
+/// `replace`, which when it is an object REPLACES the options as the
+/// interpolation source (`i18next.js:1180`). Typed as a map of [`VarValue`] so a
+/// non-finite value survives that route too — the 005 adapter deliberately routes
+/// through `replace` when normalising an own-but-undefined `count`.
+#[derive(Serialize, Deserialize, Tsify)]
+#[serde(untagged)]
+pub enum ReplaceArg {
+    Map(std::collections::BTreeMap<String, VarValue>),
+    /// i18next ignores a non-object `replace`.
+    Other(serde_json::Value),
+}
+
+impl VarValue {
+    fn as_json(&self) -> std::borrow::Cow<'_, serde_json::Value> {
+        match self {
+            VarValue::Num(n) => serde_json::Number::from_f64(*n).map_or_else(
+                // Non-finite has no JSON form; the caller only uses this for
+                // dotted-path flattening and `defaultValue_*`, neither of which a
+                // non-finite number participates in.
+                || std::borrow::Cow::Owned(serde_json::Value::Null),
+                |n| std::borrow::Cow::Owned(serde_json::Value::Number(n)),
+            ),
+            VarValue::Other(v) => std::borrow::Cow::Borrowed(v),
+        }
+    }
+}
+
+/// Deserialise a present field into `Some(_)`, so an explicit JSON `null` is
+/// distinguishable from an absent key.
+fn deserialize_present<'de, D>(d: D) -> Result<Option<Option<CountValue>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde::Deserialize::deserialize(d).map(Some)
+}
+
+/// `Array.prototype.join(",")` semantics, flattening nested arrays.
+fn js_join(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::Array(a) => a.iter().map(js_join).collect::<Vec<_>>().join(","),
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::String(s) => s.clone(),
+        other => other.to_string(),
+    }
+}
+
+/// Whether a value stringifies through host semantics with no Rust analogue — a
+/// Decode per-call options from a raw `JsValue`.
+///
+/// Deliberately **not** `opts: Option<TOptions>` in the signature, which would be
+/// the obvious spelling. wasm-bindgen takes the `&self` borrow *before* it
+/// converts the remaining arguments, and tsify's failure path throws out of Rust
+/// without unwinding — so a single rejected option leaked the borrow guard and
+/// left every `&mut self` method (`changeLanguage`, `loadCatalog`) permanently
+/// dead with `recursive use of an object detected`. `t()` kept working, which is
+/// what made it so hard to see: the UI pinned to the boot language while
+/// `i18n.language` moved (spec 005 FR-023).
+///
+/// Decoding here returns `Err` through the normal path, so the guard drops.
+///
+/// The TS parameter widens from `TOptions | null` to `any` as a result. That is
+/// no loss: tsify emits `TOptions` as `interface TOptions extends Map<string, Value>`
+/// because of the flattened `vars`, which rejects every real object literal at
+/// compile time — the type was a lie, and callers cast at their own boundary.
+fn parse_options(opts: Option<&JsValue>) -> Result<TOptions, JsValue> {
+    let Some(opts) = opts.filter(|v| !v.is_undefined() && !v.is_null()) else {
+        return Ok(TOptions::default());
+    };
+    serde_wasm_bindgen::from_value(opts.clone()).map_err(|e| {
+        // Classified as unsupported rather than a new variant: an option the
+        // decoder cannot represent is one this engine does not support, and the
+        // code is already in the corpus's error vocabulary.
+        err(vela_core::CoreError::I18nUnsupportedOption(e.to_string()))
+    })
+}
+
+/// JS `Date`, a callable, or an object carrying its own `toString`. The dumper
+/// tags these, and the check is recursive because the tag can sit one level down.
+fn host_only(v: &serde_json::Value) -> bool {
+    match v {
+        serde_json::Value::Object(o) => {
+            matches!(
+                o.get("__t").and_then(serde_json::Value::as_str),
+                Some("date" | "fn")
+            ) || o.values().any(host_only)
+        }
+        _ => false,
+    }
+}
+
+/// Expand a nested option object into dotted variable names.
+fn flatten_dotted(
+    prefix: &str,
+    v: &serde_json::Value,
+    out: &mut Vec<(String, vela_core::i18n::OwnedVar)>,
+) {
+    use vela_core::i18n::OwnedVar;
+    if let serde_json::Value::Object(map) = v {
+        for (k, inner) in map {
+            let name = format!("{prefix}.{k}");
+            let var = match inner {
+                serde_json::Value::String(s) => OwnedVar::Str(s.clone()),
+                serde_json::Value::Number(n) => OwnedVar::Num(n.as_f64().unwrap_or(f64::NAN)),
+                serde_json::Value::Bool(b) => OwnedVar::Bool(*b),
+                serde_json::Value::Null => OwnedVar::Null,
+                _ => OwnedVar::Object,
+            };
+            out.push((name.clone(), var));
+            flatten_dotted(&name, inner, out);
+        }
+    }
+}
+
+/// The resolve state after a language change.
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub struct LanguageState {
+    pub language: String,
+    #[serde(rename = "resolvedLanguage")]
+    pub resolved_language: Option<String>,
+    pub languages: Vec<String>,
+}
+
+/// A translation engine.
+#[wasm_bindgen]
+pub struct I18n {
+    inner: vela_core::i18n::I18n,
+}
+
+#[wasm_bindgen]
+impl I18n {
+    /// Build from the `en` fallback catalog, supplied as the bytes of
+    /// `/i18n/en.json`.
+    #[wasm_bindgen(constructor)]
+    pub fn new(fallback_json: &[u8]) -> Result<I18n, JsValue> {
+        let en = vela_core::i18n::Catalog::from_json("en", fallback_json).map_err(err)?;
+        let engine = vela_core::i18n::I18n::new(en).map_err(err)?;
+        Ok(I18n { inner: engine })
+    }
+
+    /// Build an engine pinned to the LEGACY plural rule — i18next's `dummyRule`,
+    /// which is what a host without `Intl.PluralRules` silently falls back to.
+    /// Exposed so the conformance corpus can replay MODE B here too; production
+    /// code should never call it.
+    #[wasm_bindgen(js_name = newWithLegacyPlurals)]
+    pub fn new_with_legacy_plurals(fallback_json: &[u8]) -> Result<I18n, JsValue> {
+        let en = vela_core::i18n::Catalog::from_json("en", fallback_json).map_err(err)?;
+        let engine = vela_core::i18n::I18n::new(en)
+            .map_err(err)?
+            .with_plural_mode(vela_core::i18n::PluralMode::Legacy);
+        Ok(I18n { inner: engine })
+    }
+
+    /// First key that resolves wins; all-missing returns the **last** key.
+    #[wasm_bindgen(js_name = tFirst)]
+    pub fn t_first(&self, keys: Vec<String>, opts: Option<JsValue>) -> Result<String, JsValue> {
+        let owned = parse_options(opts.as_ref())?.to_owned_options();
+        let mut scratch = vela_core::i18n::Scratch::default();
+        let borrowed = owned.as_options(&mut scratch);
+        let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
+        self.inner.t_first(&refs, &borrowed).map_err(err)
+    }
+
+    /// Resolve `key`. Returns the key itself when nothing matches.
+    pub fn t(&self, key: &str, opts: Option<JsValue>) -> Result<String, JsValue> {
+        let owned = parse_options(opts.as_ref())?.to_owned_options();
+        let mut scratch = vela_core::i18n::Scratch::default();
+        let borrowed = owned.as_options(&mut scratch);
+        self.inner.t(key, &borrowed).map_err(err)
+    }
+
+    pub fn exists(&self, key: &str, opts: Option<JsValue>) -> Result<bool, JsValue> {
+        let owned = parse_options(opts.as_ref())?.to_owned_options();
+        let mut scratch = vela_core::i18n::Scratch::default();
+        let borrowed = owned.as_options(&mut scratch);
+        Ok(self.inner.exists(key, &borrowed))
+    }
+
+    #[wasm_bindgen(js_name = changeLanguage)]
+    pub fn change_language(&mut self, lng: &str) -> LanguageState {
+        let s = self.inner.change_language(lng);
+        LanguageState {
+            language: s.language,
+            resolved_language: s.resolved_language,
+            languages: s.languages,
+        }
+    }
+
+    /// Make `lang`'s catalog active — the on-demand load.
+    #[wasm_bindgen(js_name = loadCatalog)]
+    pub fn load_catalog(&mut self, lang: &str, json: &[u8]) -> Result<(), JsValue> {
+        let catalog = vela_core::i18n::Catalog::from_json(lang, json).map_err(err)?;
+        self.inner.load_catalog(catalog);
+        Ok(())
+    }
+
+    /// Release `lang` if it is the active catalog. `en` is never releasable.
+    #[wasm_bindgen(js_name = releaseCatalog)]
+    pub fn release_catalog(&mut self, lang: &str) -> bool {
+        self.inner.release_catalog(lang).is_some()
+    }
+
+    #[wasm_bindgen(js_name = residentLocales)]
+    pub fn resident_locales(&self) -> Vec<String> {
+        self.inner
+            .resident_locales()
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[wasm_bindgen(js_name = residentBytes)]
+    pub fn resident_bytes(&self) -> usize {
+        self.inner.resident_bytes()
+    }
+
+    pub fn language(&self) -> String {
+        self.inner.language().to_owned()
+    }
+
+    pub fn dir(&self) -> String {
+        self.inner.dir().as_str().to_owned()
+    }
+}
+
+/// Interpolate a template in isolation, without a key lookup.
+#[wasm_bindgen(js_name = i18nInterpolate)]
+pub fn i18n_interpolate(template: &str, opts: Option<TOptions>) -> Result<String, JsValue> {
+    let owned = opts.unwrap_or_default().to_owned_options();
+    let mut scratch = vela_core::i18n::Scratch::default();
+    let borrowed = owned.as_options(&mut scratch);
+    vela_core::i18n::interpolate(template, &borrowed).map_err(err)
+}
+
+#[wasm_bindgen(js_name = i18nPluralSuffix)]
+pub fn i18n_plural_suffix(locale: &str, count: f64) -> String {
+    vela_core::i18n::plural_suffix(locale, count)
+}
+
+#[wasm_bindgen(js_name = i18nPluralSuffixes)]
+pub fn i18n_plural_suffixes(locale: &str) -> Vec<String> {
+    vela_core::i18n::plural_suffixes(locale)
+}
+
+#[wasm_bindgen(js_name = i18nPluralSuffixLegacy)]
+pub fn i18n_plural_suffix_legacy(count: f64) -> String {
+    vela_core::i18n::plural_suffix_legacy(count)
+}
+
+#[wasm_bindgen(js_name = i18nPluralSuffixesLegacy)]
+pub fn i18n_plural_suffixes_legacy() -> Vec<String> {
+    vela_core::i18n::plural_suffixes_legacy()
+}
+
+#[wasm_bindgen(js_name = i18nTextDirection)]
+pub fn i18n_text_direction(lng: &str) -> String {
+    vela_core::l10n::text_direction(lng).as_str().to_owned()
+}

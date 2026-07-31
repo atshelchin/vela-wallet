@@ -143,8 +143,13 @@ pub fn interpolate(template: &str, opts: &Options<'_>) -> Result<String, CoreErr
         out.push_str(&rest[..start]);
         if !render_into(&mut out, opts, name) {
             // ABSENT (`skipOnVariables: true`, `:1711`) — the placeholder stays on
-            // screen. That is a rendering bug at eleven live call sites, but it is
-            // current behaviour and the corpus pins it.
+            // screen rather than rendering empty. This is i18next's behaviour, not a
+            // choice, and the corpus pins it.
+            //
+            // It is latent rather than live: of the 107 literal-key call sites whose
+            // key declares a `{{var}}`, ZERO fail to supply every variable it needs
+            // (re-derived 2026-07-31). It would surface at a dynamic-key site, which
+            // cannot be checked statically — hence keeping the fidelity.
             out.push_str(&rest[start..start + 2 + end_rel + 2]);
         }
         rest = &rest[start + 2 + end_rel + 2..];

@@ -142,7 +142,8 @@
      "steps": [
       "S/onboarding/welcome",
       "S/onboarding/create",
-      "S/onboarding/create-ceremony"
+      "S/onboarding/create-ceremony",
+      "S/onboarding/create-success"
      ],
      "states": {
       "S/onboarding/create": [

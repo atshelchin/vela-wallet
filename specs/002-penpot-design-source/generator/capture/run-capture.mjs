@@ -131,12 +131,31 @@ const dumpOne = async (slug, board, pageName, note) => {
 //                   boot splash that networkidle has already scrolled past).
 //   virtualAuthenticator  attach a CDP virtual authenticator so a passkey ceremony completes headlessly.
 let routeRules = [];
+const routeSlots = {};                 // named request bodies remembered by `echo`, replayed by `replay`
 const applyGroupOptions = async (group) => {
   for (const r of routeRules) { try { await page.unroute(r); } catch (e) {} }
   routeRules = [];
+  for (const k of Object.keys(routeSlots)) delete routeSlots[k];
   for (const r of (group.routes || [])) {
     routeRules.push(r.match);
     await page.route(r.match, (route) => {
+      // `echo` remembers what the client just POSTed and answers with it; `replay` answers a later
+      // read with the same record. A local write-then-read pair is how a create ceremony reaches its
+      // success screen without a single byte leaving the machine — a static stub cannot do it,
+      // because the client verifies that the record it reads back is the one it wrote.
+      if (r.action === 'echo') {
+        let body = {};
+        try { body = JSON.parse(route.request().postData() || '{}'); } catch (e) {}
+        routeSlots[r.slot || 'default'] = body;
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ ...body, createdAt: Date.now() }) });
+      }
+      if (r.action === 'replay') {
+        const body = routeSlots[r.slot || 'default'];
+        if (!body) return route.fulfill({ status: 404, contentType: 'text/plain', body: 'not found' });
+        return route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ ...body, createdAt: Date.now() }) });
+      }
       if (r.action === 'fulfil') return route.fulfill({ status: r.status || 200, contentType: 'application/json', body: r.body || '{}' });
       return route.abort();
     });

@@ -88,5 +88,75 @@
     ]
    }
   ]
+ },
+ {
+  "$comment": "The success terminus. /api/create is ECHOED back and /api/query REPLAYS the same record, so the client walks its real success path — including the verify step that checks the record it reads back is the one it wrote — while nothing leaves the machine and no on-chain commit-reveal is triggered.",
+  "url": "/onboarding?mode=create",
+  "settle": 4500,
+  "routes": [
+   {
+    "match": "**/api/create",
+    "action": "echo",
+    "slot": "record"
+   },
+   {
+    "match": "**/api/query*",
+    "action": "replay",
+    "slot": "record"
+   }
+  ],
+  "states": [
+   {
+    "slug": "onboarding-create-success",
+    "board": "S/onboarding/create-success",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "the terminus of onboarding: success medallion, the address in a copyable box, the reassurance that the passkey is verified and the key is synced, and Enter Wallet. Shares no composition with any other board in the file.",
+    "expect": [
+     "Wallet Created",
+     "Enter Wallet"
+    ],
+    "forbid": [
+     "Sync failed"
+    ],
+    "differsFrom": [
+     "onboarding-create-ceremony"
+    ],
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "Enter a name",
+      "value": "Design Capture"
+     },
+     {
+      "act": "click",
+      "text": "This is a self-custodial wallet"
+     },
+     {
+      "act": "click",
+      "text": "If you lose your device"
+     },
+     {
+      "act": "click",
+      "text": "If your iCloud or Google account is compromised"
+     },
+     {
+      "act": "click",
+      "text": "I agree to the"
+     },
+     {
+      "act": "wait",
+      "ms": 600
+     },
+     {
+      "act": "click",
+      "text": "Create Wallet"
+     },
+     {
+      "act": "wait",
+      "ms": 6000
+     }
+    ]
+   }
+  ]
  }
 ]

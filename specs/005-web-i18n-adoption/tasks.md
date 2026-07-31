@@ -89,7 +89,7 @@ rather than the ones used locally.
   web module **by explicit path** (a bare `@/i18n` resolves the native file). Compares
   **`rust` vs `oracle`**, never the seam's return value (contract §6). Makes each locale
   resident before comparing it. 15 × 1,129; measured ~197 ms.
-- [ ] **T041** [P] (FR-020) The contract test (deferred to Phase 3 with the harness): drive a real `useTranslation()` through
+- [x] **T041** [P] (FR-020) The contract test — `web-react-binding.test.ts`: drives a real `useTranslation()` through
   `renderToStaticMarkup` (no new dependency; `React.createElement` keeps `testMatch` at
   `*.test.ts`). Assert the instance surface, and assert that forcing `ready = false` throws
   fast instead of suspending. Note a `delete inst.getFixedT` negative test proves nothing —

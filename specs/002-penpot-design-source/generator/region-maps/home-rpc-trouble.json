@@ -3,37 +3,31 @@
  "board": "S/home/rpc-trouble",
  "frame": {
   "w": 390,
-  "h": 806
+  "h": 844
  },
  "regions": [
   {
    "name": "hero",
    "paths": [
-    "0.0.0.0.1.0.0"
-   ]
-  },
-  {
-   "name": "header",
-   "paths": [
-    "0.0.0.0.0"
+    "0.0.0.0.0.0.0"
    ]
   },
   {
    "name": "content",
    "paths": [
-    "0.0.0.0.1"
+    "0.0.0.0.0.0"
    ]
   },
   {
    "name": "dock",
    "paths": [
-    "0.0.0.0.2"
+    "0.0.0.0.0.1"
    ]
   },
   {
-   "name": "surface",
+   "name": "portal-1",
    "paths": [
-    "0"
+    "1"
    ]
   }
  ]

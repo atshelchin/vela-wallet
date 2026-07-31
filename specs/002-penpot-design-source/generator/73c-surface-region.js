@@ -25,21 +25,34 @@ const page = storage.wallPage;
 if (!page) throw new Error('set storage.wallPage first');
 
 await lib.open(page);
-const out = { chunk: '73c-surface-region:' + page, grouped: [], alreadyDone: 0, nothingToGroup: [], failed: [] };
+const out = { chunk: '73c-surface-region:' + page, grouped: [], alreadyDone: 0, reordered: 0, nothingToGroup: [], failed: [] };
 const boards = penpot.currentPage.findShapes().filter((s) => s.type === 'board' && /^[SO] \/ /.test(s.name));
 
 for (const b of boards) {
   try {
     const kids = b.children;
-    if (kids.some((c) => lib.norm(c.name) === 'region/surface')) { out.alreadyDone++; continue; }
+    // Match the stored name directly. lib.norm() did not match here, so the guard never fired and
+    // this branch was silently unreachable — which also meant a board that already had a surface
+    // group never got its z-order checked.
+    const existing = kids.find((c) => /^region \/ surface$/.test(c.name));
+    if (existing) {
+      // idempotent, and it repairs the case that matters: a board built straight from the map gets
+      // its surface group LAST, i.e. on top, and exports as a blank rectangle.
+      if (existing.parentIndex !== 0) { existing.setParentIndex(0); out.reordered++; }
+      out.alreadyDone++; continue;
+    }
     // leftovers are the raw transcribed shapes still sitting beside the named region groups
     const loose = kids.filter((c) => /^r \/ /.test(c.name));
     if (!loose.length) { out.nothingToGroup.push(b.name); continue; }
     const g = penpot.group(loose);
     if (!g) { out.failed.push(b.name + ': group() returned null'); continue; }
     g.name = 'region / surface';
-    // the backdrop belongs behind everything it wraps
-    if (typeof g.sendToBack === 'function') g.sendToBack();
+    // The backdrop belongs behind everything it wraps, and index 0 IS the back — a shape's z-order
+    // is its parentIndex. Getting here took three wrong answers: sendToBack() and bringToFront()
+    // exist on the shape, are accepted, and do nothing; `parentIndex` is a getter and assigning to
+    // it throws; penpot.ungroup() restores children in REVERSE order, so it cannot be used to
+    // re-lay them either. setParentIndex() is the one that moves the shape.
+    g.setParentIndex(0);
     out.grouped.push(b.name + ' (' + loose.length + ')');
   } catch (e) {
     out.failed.push(b.name + ': ' + String((e && e.message) || e));

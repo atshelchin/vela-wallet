@@ -1,0 +1,77 @@
+[
+  {
+    "$comment": "Authored 2026-07-31 to re-shoot the four Home boards that were captured as copies of one another. Two causes, both now fixed in the harness: (1) react-navigation keeps the previous route MOUNTED under display:none and it comes FIRST in document order, so byText resolved every tab click to a 0x0 ghost — clickable() now matches only rendered elements; (2) an injected RPC fault is invisible until Home is forced past fetchTokens' 5-minute cache, which only a pull-to-refresh does — hence the new `pull` act.",
+    "$order": "home-activity is re-shot FIRST so the tab boards have a live sibling to be asserted against, and the two fault boards come LAST because a fault survives until the group ends.",
+    "url": "/parallel",
+    "settle": 9000,
+    "states": [
+      {
+        "slug": "home-activity",
+        "board": "S/home/activity",
+        "page": "05 Screens · Wallet",
+        "note": "the wallet hub: balance, the three tabs, and the Activity tab's empty history — the fixture wallet has no transactions, so this IS the empty state (a populated list is not capturable today)",
+        "expect": ["No activity yet"],
+        "steps": [{ "act": "wait", "ms": 1500 }]
+      },
+      {
+        "slug": "home-assets",
+        "board": "S/home/assets",
+        "page": "05 Screens · Wallet",
+        "note": "the Assets tab, populated from the fixture Safe's real balances",
+        "expect": ["Add"],
+        "forbid": ["No activity yet"],
+        "differsFrom": ["home-activity"],
+        "steps": [
+          { "act": "click", "text": "Assets" },
+          { "act": "wait", "ms": 4500 }
+        ]
+      },
+      {
+        "slug": "home-connections",
+        "board": "S/home/connections",
+        "page": "05 Screens · Wallet",
+        "note": "the Connections tab — one dApp session at a time, by design",
+        "forbid": ["No activity yet"],
+        "differsFrom": ["home-activity", "home-assets"],
+        "steps": [
+          { "act": "click", "text": "Connections" },
+          { "act": "wait", "ms": 2500 }
+        ]
+      },
+      {
+        "slug": "home-rate-limited",
+        "board": "S/home/rate-limited",
+        "page": "05 Screens · Wallet",
+        "note": "every chain rate-limited: the balance is served from cache and NO banner appears — looking normal is the designed behaviour for a transient fault, not a missing state",
+        "expect": ["Total balance"],
+        "forbid": ["RPC unavailable"],
+        "differsFrom": ["home-activity", "home-assets", "home-connections"],
+        "steps": [
+          { "act": "click", "text": "Assets" },
+          { "act": "wait", "ms": 2000 },
+          { "act": "vela", "fn": "rateLimitRpc", "args": ["all"] },
+          { "act": "wait", "ms": 1500 },
+          { "act": "pull", "ms": 1500 },
+          { "act": "wait", "ms": 2500 }
+        ]
+      },
+      {
+        "slug": "home-rpc-trouble",
+        "board": "S/home/rpc-trouble",
+        "page": "05 Screens · Wallet",
+        "$why": "the fault is injected at RUNTIME and then pulled through, not armed before boot: arming it first destroys the cached balance and the board comes out reading $0.00, which is the opposite of what this state is supposed to show.",
+        "note": "every chain's RPC failing: the last-known balance stays on screen above a warning card listing each unreachable network with a Fix action",
+        "expect": ["RPC unavailable", "Fix"],
+        "differsFrom": ["home-activity", "home-assets", "home-connections", "home-rate-limited"],
+        "steps": [
+          { "act": "vela", "fn": "clear" },
+          { "act": "wait", "ms": 1500 },
+          { "act": "vela", "fn": "failRpc", "args": ["all"] },
+          { "act": "wait", "ms": 1500 },
+          { "act": "pull", "ms": 1500 },
+          { "act": "wait", "ms": 2500 }
+        ]
+      }
+    ]
+  }
+]

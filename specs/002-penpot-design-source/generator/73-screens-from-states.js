@@ -55,7 +55,13 @@ let miscI = 0;
 for (let i = 0; i < mine.length; i++) {
   const e = mine[i];
   try {
-    storage.domDump = await (await fetch('/plugins/mcp/' + (storage.screenDir || 'screens') + '/' + e.slug + '.json')).json();
+    // cache-bust: without it the browser serves the dump it fetched EARLIER IN THIS SESSION, so a
+    // recapture deployed mid-session rebuilds from the stale copy — silently. That produced five
+    // Home boards built from the pre-recapture dumps while every log line said they had been
+    // rebuilt: wrong frame height, region paths that no longer matched (the committed map is
+    // generated from the NEW dump), and 75 unmatched shapes swept into the backdrop group.
+    storage.domDump = await (await fetch('/plugins/mcp/' + (storage.screenDir || 'screens') + '/' + e.slug +
+      '.json?v=' + Date.now(), { cache: 'reload' })).json();
     // a freshly captured dump carries its raster bytes inline; upload them before drawing or every
     // logo becomes a red placeholder (pruned dumps skip this — they have no inline dataUri)
     const inline = await storage.runChunk('71b-upload-inline-assets.js');

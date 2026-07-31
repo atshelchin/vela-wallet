@@ -75,9 +75,18 @@ A full `73` pass redraws every board from its DOM dump. That is the right tool w
 | Chunk | Applies | When |
 |---|---|---|
 | `73b-reposition` | board `x`/`y` from `journeys.json` | a wall gained or lost a step/state — every band below it shifts by one row |
-| `73c-surface-region` | folds leftover `r / …` wrappers into `region / surface` | after any `70`/`73` build on a page (also emitted by the maps, so a full regen produces it directly) |
+| `73c-surface-region` | folds leftover `r / …` wrappers into `region / surface`, at index 0 | after any `70`/`73` build on a page |
+| `73d-restack` | each region's children back into DOM (painting) order | after `73c` — grouping does not reliably preserve z-order |
 
-Both re-derive from committed data, both are idempotent, and both are verified by `96` — which recomputes expected positions from the same manifest, so a formula that drifts from `73`'s shows up as a position mismatch rather than passing quietly.
+All three re-derive from committed data, all are idempotent, and `73b` is verified by `96` — which recomputes expected positions from the same manifest, so a formula that drifts from `73`'s shows up as a position mismatch rather than passing quietly.
+
+### Platform rules 11–13 (verified 2026-07-31)
+
+⑪ **z-order is `parentIndex`, index 0 is the BACK.** `sendToBack()` / `bringToFront()` / `sendBackward()` / `bringForward()` all exist on every shape, are accepted, and do nothing. `parentIndex` is a getter — assigning to it throws. `setParentIndex(i)` is the only one that moves a shape. `penpot.ungroup()` restores children in REVERSE order, so it cannot be used to re-lay them either.
+
+⑫ **Grouping does not reliably preserve z-order.** `penpot.group()` returned one board's region with its children exactly inverted — deepest leaves at the back, painted parents in front — so a card covered its own twelve rows and the board exported as an empty rectangle with every text shape present, correctly positioned and invisible. Shape counts and text counts pass that board with full marks; only an export or `73d` catches it.
+
+⑬ **`fetch` a dump with a cache-buster or you will rebuild the old one.** A recapture deployed mid-session is served from the browser cache on the next build, and the run reports success for every board. Five Home boards were rebuilt from their pre-recapture dumps this way — wrong frame height, region paths that no longer matched, and 75 unmatched shapes swept into the backdrop group.
 
 ## Audits (chunks 90–97)
 

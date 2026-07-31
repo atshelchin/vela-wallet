@@ -3,6 +3,22 @@
  "entries": [
   {
    "date": "2026-07-31",
+   "rev": "pending",
+   "headline": "Three Home boards were the same picture — the tab clicks had been hitting an invisible copy of the screen",
+   "changes": [
+    "The founder opened the file and said the screens looked like they were overlapping. They were not overlapping: S/home/activity, S/home/assets and S/home/connections were three copies of one picture, and at a glance that reads as duplication.",
+    "ROOT CAUSE. react-navigation keeps the route you came from MOUNTED under `display:none`, and on /parallel that ghost copy of Home comes FIRST in document order. `el.innerText` on a display:none node falls back to textContent, so the harness's byText('Assets') matched the ghost's tab; the click flipped an invisible screen, and dispatchEvent swallows the error the ghost raises, so the step reported success and the Activity tab was written to disk three times. clickable() now matches only rendered elements.",
+    "EVERY STATE NOW CARRIES A POST-CONDITION IT CANNOT FAKE. A dump is fingerprinted on everything that paints, and no two states in a run may produce the same picture — with no authoring at all. `expect`/`forbid` alone would not have caught this: home-assets contains the word \"Assets\" while showing the Activity tab. The fingerprint hashes only fields that survive prune-states.py, or every comparison against a board already on disk would silently pass.",
+    "audit-boards-distinct.mjs is the standing gate: 91 dumps, 91 distinct pictures. It lifts the fingerprint out of capture-states.js rather than reimplementing it, so the harness, the driver and the audit can never disagree about what \"the same picture\" means.",
+    "S/home/rpc-trouble was nearly retired as unreachable — an investigation concluded the banner never renders under any injected fault. It does: an RPC fault is invisible until Home is forced past fetchTokens' 5-minute cache, which only a pull-to-refresh does. The new `pull` act captures it with the cached balance intact ($3.26 above a 12-network warning card), which is the state the board was commissioned for — arming the fault before boot instead yields $0.00.",
+    "S/home/rate-limited recaptured too, and it deliberately looks like a normal screen: a transient fault serves the cached balance and shows NO banner. That is the design rule, and the board exists to state it.",
+    "S/onboarding/create-form-ready re-shot: its dump predated svg capture, so the four acknowledgement ticks were invisible and the board depicted an impossible state — unchecked boxes above an enabled CTA.",
+    "THREE SILENT NO-OPS FOUND IN THE PIPELINE ITSELF. 73 fetched dumps without a cache-buster, so a recapture deployed mid-session rebuilt from the stale copy while every log line said it had been rebuilt. `sendToBack()` / `bringToFront()` are accepted and do nothing, `parentIndex` is read-only, and `penpot.ungroup()` restores children in REVERSE order — `setParentIndex()` is the only working z-order API, and 73d-restack now derives each region's painting order from the DOM paths in the shape names.",
+    "That z-order bug is worth naming: S/home/rpc-trouble rendered as an empty beige rectangle with all forty text shapes present, correctly positioned, and stacked behind the card that should have contained them. A shape-count or text-count check passes that board with full marks."
+   ]
+  },
+  {
+   "date": "2026-07-31",
    "rev": "78a7c7e",
    "headline": "Test-environment chrome scrubbed, a duplicate board retired, the last recapture debt cleared",
    "changes": [

@@ -689,7 +689,15 @@ if (spec.regionMap && spec.regionMap.length) {
     if (!members.length) { stats.regionUnmatched.push(reg.name + ' @ ' + (reg.paths || []).join(',')); continue; }
     try {
       const g = penpot.group(members);
-      if (g) { g.name = 'region/' + reg.name; stats.regions++; }
+      if (g) {
+        g.name = 'region/' + reg.name;
+        stats.regions++;
+        // `surface` is the wrapper chain that paints the screen background, and the map has to offer
+        // it LAST or its path prefix would swallow every other region. Last-grouped is also
+        // TOP-most, so without this the backdrop covers the whole board and it exports blank —
+        // which is exactly what five freshly rebuilt Home boards did.
+        if (reg.name === 'surface' && typeof g.sendToBack === 'function') g.sendToBack();
+      }
     } catch (e) { stats.regionUnmatched.push(reg.name + ': ' + (e && e.message)); }
   }
 }

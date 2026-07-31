@@ -206,14 +206,15 @@ for (const set of SETS) {
     }
     for (let r = 1; r < roots.length; r++) regions.push({ name: 'portal-' + r, paths: [String(r)] });
 
-    // LAST, and only for screens: a catch-all for the wrapper chain above the layout (expo-router /
-    // safe-area boxes that paint the screen background). 70 groups regions in the order given and a
-    // grouped shape stops being a candidate, so by the time this one is offered the named regions
-    // have taken their shapes and only the wrappers are left. Offered any earlier, its path prefix
-    // would swallow the whole screen. Without it every board's layer tree opens with three or four
-    // `r / 0.0.0`-style shapes standing next to the named regions — see 73c, which applies the same
-    // grouping to boards that are already drawn.
-    if (!isOverlay) regions.push({ name: 'surface', paths: ['0'] });
+    // `surface` — the wrapper chain that paints the screen background — is NOT emitted here, and
+    // that is deliberate. Emitting it made 70 create the group LAST, and in Penpot a shape's
+    // z-order is its parentIndex: index 0 is the BACK, the last index is the FRONT. A backdrop
+    // created last therefore covers the entire board, which is how five freshly rebuilt Home boards
+    // came to export as blank rectangles. There is no way to correct it afterwards either —
+    // sendToBack()/bringToFront() are accepted and do nothing, parentIndex is read-only, and
+    // penpot.ungroup() restores children in REVERSE order. The grouping is applied by
+    // 73c-surface-region.js instead, whose penpot.group() lands the new group at its first member's
+    // index — the wrappers are drawn first, so it lands at the back by construction.
 
     for (const r of regions) summary.regionNames[r.name] = (summary.regionNames[r.name] || 0) + 1;
     writeFileSync(resolve(OUT, entry.slug + '.json'),

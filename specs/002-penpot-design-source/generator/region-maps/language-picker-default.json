@@ -1,0 +1,22 @@
+{
+ "slug": "language-picker-default",
+ "board": "O/language-picker/default",
+ "frame": {
+  "w": 390,
+  "h": 1017
+ },
+ "regions": [
+  {
+   "name": "sheet",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

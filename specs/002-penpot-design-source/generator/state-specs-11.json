@@ -1,0 +1,561 @@
+[
+ {
+  "$comment": "Authored 2026-07-31. Fifteen Settings overlay boards from the CLOSURE 'load-bearing / genuinely absent' list: O/language-picker, O/format-picker, O/network-editor, O/endpoint-editor, O/rpc-providers, O/add-network. Recipes for most of these already sat in state-specs-5.json's /settings group and had NEVER produced a board; they carried no expect/forbid/differsFrom at all, so a run that reached the wrong screen could not have said so. Every state below was proven by running this file verbatim (slugs prefixed `_probe-`, --dir _probe-settings-overlays): 15 ok, 0 failed, twice, 15/15 distinct fingerprints.",
+  "$order": "The /parallel group is FIRST and captures nothing — it only arms parallel space for the /settings group that follows in the same browser. Without it /settings renders the empty real wallet ('No Wallet', no Developer section) and every board would disagree with settings-root / settings-advanced, which were themselves shot in parallel space. The /settings group is CUMULATIVE and its order is significant: the three Advanced sub-flows all depend on the ADVANCED collapsible being opened exactly once, by network-editor-collapsed.",
+  "$dismissal": "Sub-flows are separated by a synthetic Escape (AppModal's web dialog contract, use-web-dialog.ts:85-88), not by the goto /wallet -> goto /settings remount the older recipes used. Escape is ~4 s/state cheaper and leaves the ADVANCED section expanded, which is what lets one `click Advanced` serve four modals. Verified: after each Escape the previous modal's strings are gone from document.body.innerText, and every state's `forbid` list names a string from the sub-flow before it so a modal that failed to dismiss fails the state instead of being drawn into the next board.",
+  "url": "/parallel",
+  "settle": 12000,
+  "states": []
+ },
+ {
+  "url": "/settings",
+  "settle": 5000,
+  "states": [
+   {
+    "slug": "language-picker-default",
+    "board": "O/language-picker/default",
+    "page": "08 Overlays",
+    "note": "Settings > APPEARANCE > row 'Language' (SettingsScreen.tsx:1471-1473) opens LanguagePickerModal (:951-1005): title + subtitle, 'Follow System' first carrying the resolved device language as its note (:958), then all 15 SUPPORTED_LANGUAGES by endonym (:960), hairline-separated de-boxed rows with an accent Check on the current preference (:989), and the 'Suggest a fix on GitHub' contribute footer (:994-1000). This is the natural i18n stress board — the capture contains 简体中文 / 繁體中文（台灣）/ 繁體中文（香港）/ 日本語 / 한국어 / Tiếng Việt / Русский / Português (Brasil) in one column. No row is tapped: onSelect -> setLangPref persists (i18n/language.tsx). TARGETING: byText('Language') resolves to the settings row, whose innerText is 'Language\\nEnglish · System'. Note the picker's own 'Follow System' row is NOT reachable by byText — the ThemePicker's 'Follow System' button sits earlier in the document and wins; nothing here needs it.",
+    "expect": [
+     "Choose the language used throughout the app.",
+     "简体中文",
+     "繁體中文（香港）",
+     "Tiếng Việt",
+     "Português (Brasil)",
+     "Suggest a fix on GitHub"
+    ],
+    "forbid": [
+     "How amounts are grouped",
+     "Order of day",
+     "CHAIN DATA INDEX"
+    ],
+    "differsFrom": [
+     "settings-root"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "Language"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "format-picker-number",
+    "board": "O/format-picker/number",
+    "page": "08 Overlays",
+    "note": "Settings > LOCALIZATION > row 'Number format' (SettingsScreen.tsx:1505-1507) opens FormatPickerModal (:523-562, instance :1514-1517) with the five numberFormatOptions rows (locale-format.ts:290-297) — the SAME de-boxed selection list the language picker uses, which is why this board and language-picker-default are asserted against each other. Each row is a live example of 1234567.89 under that preset, plus a 'System' / 'Indian' note. Rows are NOT tapped: onSelect -> applyLocale -> saveLocalePrefs (:544, :1393-1397). GOTCHA: the space_comma example groups with U+00A0 (NBSP), not U+0020 — an `expect` containing a plain space fails; that is why it is asserted with expectRe /1\\s234\\s567,89/ instead.",
+    "expect": [
+     "How amounts are grouped and the decimal mark shown.",
+     "1.234.567,89",
+     "12,34,567.89",
+     "Indian"
+    ],
+    "expectRe": [
+     "1\\s234\\s567,89"
+    ],
+    "forbid": [
+     "Order of day",
+     "12-hour or 24-hour clock",
+     "Suggest a fix on GitHub"
+    ],
+    "differsFrom": [
+     "settings-root",
+     "language-picker-default"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 900
+     },
+     {
+      "act": "click",
+      "text": "Number format"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "format-picker-date",
+    "board": "O/format-picker/date",
+    "page": "08 Overlays",
+    "note": "Same picker, six dateFormatOptions rows (locale-format.ts:299-302) from the 'Date format' row (:1508-1510, instance :1518-1521): auto / ymd_slash / mdy_slash / dmy_slash / dmy_dot / iso, each an example of the same sample date 2026-06-13. Not tapped. The mdy_slash example '06/13/2026' is ALSO the settings row's subtitle behind the modal, so it is useless as an assertion — the discriminating strings are the ymd/dot/iso examples and the subtitle line.",
+    "expect": [
+     "Order of day / month / year and the separator.",
+     "2026/06/13",
+     "13.06.2026",
+     "2026-06-13"
+    ],
+    "forbid": [
+     "How amounts are grouped",
+     "12-hour or 24-hour clock",
+     "Suggest a fix on GitHub"
+    ],
+    "differsFrom": [
+     "format-picker-number"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 900
+     },
+     {
+      "act": "click",
+      "text": "Date format"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "format-picker-time",
+    "board": "O/format-picker/time",
+    "page": "08 Overlays",
+    "note": "Same picker, three timeFormatOptions rows (locale-format.ts:304-311) from the 'Time format' row (:1511-1513, instance :1522-1525): auto / 24-hour / 12-hour with their notes — the shortest instance of the de-boxed selection list, and the one that shows the pattern with no scroll. Not tapped.",
+    "expect": [
+     "12-hour or 24-hour clock.",
+     "13:45",
+     "24-hour",
+     "12-hour"
+    ],
+    "forbid": [
+     "How amounts are grouped",
+     "Order of day",
+     "Suggest a fix on GitHub"
+    ],
+    "differsFrom": [
+     "format-picker-date",
+     "format-picker-number"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 900
+     },
+     {
+      "act": "click",
+      "text": "Time format"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "network-editor-collapsed",
+    "board": "O/network-editor/collapsed",
+    "page": "08 Overlays",
+    "note": "Opens the ADVANCED collapsible (:1531-1535) — the ONLY place in this group that does, every later Advanced sub-flow relies on it staying open — then Settings > ADVANCED > row 'Networks' (:1538-1540) opens NetworkEditorModal (:275-328): modal title 'Networks' + X, then one collapsed NetworkConfigCard per network from getAllNetworks() (:284, :318-323) — ChainLogo + displayName + 'Chain {id}' + chevron (:227-239). Captured: all 12 built-in networks, Ethereum(1) through World Chain(480). Read-only: saveNetworkConfig only runs from a field blur (:254 -> :288) and no field is focused. TARGETING: byText('Networks') matches the row 'Networks\\nRPC, Explorer & Bundler URLs' on its startsWith branch; the 'Add Network' row starts with 'add network\\n' and cannot collide. `forbid: RPC URL` is the collapsed/expanded discriminator — note that forbidding 'EXPLORER' instead would FALSE-FAIL, because the row subtitle 'RPC, Explorer & Bundler URLs' is on screen behind the modal.",
+    "expect": [
+     "Chain 42161",
+     "Chain 4217",
+     "World Chain",
+     "Avalanche"
+    ],
+    "forbid": [
+     "RPC URL",
+     "12-hour or 24-hour clock"
+    ],
+    "differsFrom": [
+     "settings-advanced"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 900
+     },
+     {
+      "act": "click",
+      "text": "Advanced"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     },
+     {
+      "act": "click",
+      "text": "Networks"
+     },
+     {
+      "act": "wait",
+      "ms": 2200
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "network-editor-card-expanded",
+    "board": "O/network-editor/card-expanded",
+    "page": "08 Overlays",
+    "note": "The first card (Ethereum, chain 1) expanded by tapping its header (:227 setExpanded) -> full-width divider + 'RPC URL' and 'EXPLORER' fields, each with a live HealthBadge (:240-259; checkEndpointHealth :95-151; badge :153-176), re-run on [expanded,rpcURL,explorerURL] (:214-223). Both probes are read-only (an eth_chainId POST and a no-cors explorer GET). Observed: RPC ~200ms green, EXPLORER 'Offline' — etherscan.io is not reachable from the capture browser, so this board honestly carries one ok badge and one error badge, which is what the manifest's drift note wanted drawn inside it. The two TextInputs persist on blur only (:254) and are never focused. The health outcome is asserted as a PATTERN (ms-or-offline), never as a specific latency.",
+    "expect": [
+     "RPC URL",
+     "Chain 42161"
+    ],
+    "expectRe": [
+     "\\d+\\s*ms|offline"
+    ],
+    "forbid": [
+     "12-hour or 24-hour clock"
+    ],
+    "differsFrom": [
+     "network-editor-collapsed"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "Ethereum"
+     },
+     {
+      "act": "wait",
+      "ms": 3200
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "endpoint-editor-default",
+    "board": "O/endpoint-editor/default",
+    "page": "08 Overlays",
+    "note": "Settings > ADVANCED > row 'Service Endpoints' (:1548-1550) opens EndpointEditorModal (:432-516): header with ExternalLink + RefreshCw + X (:474-482), the two-line description (:485), four VelaCards — CHAIN DATA INDEX / PASSKEY INDEX / VELA RELAY / FIAT RATES (:462-467) — each with hint, ServiceHealthBadge (:412-430) and an AutoGrowTextInput showing the saved URL (:496-506), then 'Reset to Defaults' (:509). All four probes fire automatically on open (:441-451) — three GET /api/health plus one GET of the fiat rates URL, all read-only. Nothing is typed and nothing is saved (handleSave is blur-only, :453-460). The expectRe /\\d+\\s*ms/ is what proves the probes RESOLVED rather than the board being four spinners.",
+    "expect": [
+     "These services power your wallet.",
+     "CHAIN DATA INDEX",
+     "PASSKEY INDEX",
+     "VELA RELAY",
+     "FIAT RATES",
+     "Reset to Defaults"
+    ],
+    "expectRe": [
+     "\\d+\\s*ms"
+    ],
+    "forbid": [
+     "HTTPS required",
+     "No rates returned",
+     "RPC URL"
+    ],
+    "differsFrom": [
+     "settings-advanced",
+     "network-editor-collapsed"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 1000
+     },
+     {
+      "act": "click",
+      "text": "Service Endpoints"
+     },
+     {
+      "act": "wait",
+      "ms": 6000
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "endpoint-editor-health-error-states",
+    "board": "O/endpoint-editor/health-error-states",
+    "page": "08 Overlays",
+    "note": "All FOUR ServiceHealthBadge outcomes in one board, which is exactly what the manifest's drift note asks for ('5 states collapsed onto 2 boards'): CHAIN DATA INDEX = not_https 'HTTPS required' (an http:// URL, checkServiceEndpointHealth :352-355), PASSKEY INDEX = unreachable 'Offline' (a .invalid host, :405-409), VELA RELAY = ok '237ms' (left at its default, so the healthy badge sits beside the broken ones for contrast), FIAT RATES = invalid_response 'No rates returned' (a reachable https URL that returns valid JSON with no `rates`, :370-373). HOW IT IS DRIVEN: onChangeText writes `endpoints` state immediately (:500) but handleSave is blur-only and the harness never focuses an input, so NOTHING is persisted — the typed URLs die with the modal. The re-probe is forced by the header RefreshCw (:478), which bumps refreshCount, the health effect's only other dependency (:451). FRAGILE STEP: that button carries no text and no aria-label, so it can only be reached positionally — clickNth n=24 is the RefreshCw when this modal is open over a /settings screen with ADVANCED expanded (0-22 = the screen, 23/24/25 = ExternalLink/RefreshCw/X, 26 = Reset to Defaults). If a row is ever added to Settings the index shifts; the `expect` list is the guard — hitting 23 opens a browser tab and never refreshes (badges stay in ms), hitting 25 closes the modal, and either way the three error strings are absent and the state fails without writing. NOTE FOR THE BOARD: the three placeholder URLs are visibly fake by design; they are what an error state looks like, not real configuration.",
+    "expect": [
+     "HTTPS required",
+     "Offline",
+     "No rates returned",
+     "Reset to Defaults"
+    ],
+    "expectRe": [
+     "\\d+\\s*ms"
+    ],
+    "differsFrom": [
+     "endpoint-editor-default"
+    ],
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "ethereum-data",
+      "value": "http://vela-design-capture.example/data",
+      "ms": 250
+     },
+     {
+      "act": "type",
+      "placeholder": "p256-index-rs",
+      "value": "https://vela-design-capture-nonexistent.invalid",
+      "ms": 250
+     },
+     {
+      "act": "type",
+      "placeholder": "vela-currency",
+      "value": "https://ethereum-data.awesometools.dev/api/health",
+      "ms": 400
+     },
+     {
+      "act": "clickNth",
+      "n": 24,
+      "ms": 600
+     },
+     {
+      "act": "wait",
+      "ms": 12000
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "rpc-providers-idle",
+    "board": "O/rpc-providers/idle",
+    "page": "08 Overlays",
+    "note": "Settings > ADVANCED > row 'RPC Providers' (:1541-1544) opens RpcProvidersModal (RpcProvidersModal.tsx:41-219): the priority description (:125-129) then three provider cards in PROVIDER_ORDER — Alchemy, dRPC, Ankr — each with a 'Not set' status (:227-229), an empty masked key input (:147-157) and a quiet 'Get a key' external link (:168-177); no Test button and no results while hasKey is false. PRECONDITION: no provider key may be stored — a saved key auto-probes on open (:85-96) and this board would then depict testing/results instead; `forbid` names both of those boards' strings so a dirty profile fails loudly. GOTCHA: do NOT forbid the bare word 'Test' anywhere in this group — the parallel-space badge renders 'mock passkey · test' and every such assertion false-fails.",
+    "expect": [
+     "Alchemy",
+     "dRPC",
+     "Ankr",
+     "Not set",
+     "Get a key",
+     "Priority: per-network RPC"
+    ],
+    "forbid": [
+     "Check key",
+     "Supports ",
+     "CHAIN DATA INDEX"
+    ],
+    "differsFrom": [
+     "settings-advanced",
+     "endpoint-editor-default"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 1000
+     },
+     {
+      "act": "click",
+      "text": "RPC Providers"
+     },
+     {
+      "act": "wait",
+      "ms": 2200
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "rpc-providers-testing",
+    "board": "O/rpc-providers/testing",
+    "page": "08 Overlays",
+    "note": "An obviously-fake key typed into the Alchemy field (:147-157 — onChangeText only; onKeyBlur at :104-109 is what persists and the field is never focused, so nothing is saved) then 'Test' (:179): the Alchemy card's status becomes an ActivityIndicator (:230-232) and the results list stays hidden until status==='done' (:185). The key itself never reaches the dump — secureTextEntry renders dots, and the string is absent from the captured JSON. RACE: runTest fires one probeRpcChainId per supported network in parallel (:72-80) and they 401 fast, so the window is short; measured 'done' by t+9s and still 'testing' at t+150ms. If it ever resolves early the forbid list catches it and nothing is written, rather than a duplicate of rpc-providers-results being published. byText('Test') is safe here: the exact-match branch finds the real button, not the parallel badge's trailing 'test'.",
+    "settle": 150,
+    "expect": [
+     "Alchemy",
+     "dRPC",
+     "Ankr",
+     "Get a key",
+     "Test"
+    ],
+    "forbid": [
+     "Check key",
+     "Supports "
+    ],
+    "differsFrom": [
+     "rpc-providers-idle"
+    ],
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "API key",
+      "value": "vela-design-capture-invalid-key",
+      "ms": 300
+     },
+     {
+      "act": "click",
+      "text": "Test",
+      "ms": 120
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "rpc-providers-results",
+    "board": "O/rpc-providers/results",
+    "page": "08 Overlays",
+    "note": "status 'done' with an invalid key: the warning statusPill 'Check key' (:233-241) plus the collapsible summary row 'Supports 0 of 12 networks' with a ChevronDown (:187-198), while dRPC and Ankr stay 'Not set' — so one board carries the configured-and-failing card next to two untouched ones. The expanded per-network ChainLogo + LatencyBadge list (:199-209, :245-264) is not a manifest state, so the summary stays collapsed. Asserted on 'Supports 0 of' rather than the full sentence: the network count is data, not design.",
+    "expect": [
+     "Check key",
+     "Supports 0 of",
+     "Alchemy",
+     "Not set"
+    ],
+    "forbid": [
+     "CHAIN DATA INDEX"
+    ],
+    "differsFrom": [
+     "rpc-providers-testing",
+     "rpc-providers-idle"
+    ],
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 9000
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "add-network-searching",
+    "board": "O/add-network/searching",
+    "page": "08 Overlays",
+    "note": "Settings > ADVANCED > row 'Add Network' (:1545-1547) opens AddNetworkModal (:570-853). Board depicts the SEARCH phase: the query in the autoFocus field (:689-698) with the suggestions card below it (:702-720) — chain name + 'Chain {id} · {symbol}' + chevron per row, from searchChains. Query 'celo' returns 5 rows (Celo Mainnet 42220, three Celo testnets, Excelon). The transient 'Searching…' spinner row (:722-727) lives only inside the awaited searchChains call and cannot be pinned by the harness, so it is not what this board shows. GOTCHA: do NOT forbid 'Alchemy' to prove the previous modal closed — 'Alchemy, dRPC, Ankr keys' is the RPC Providers ROW SUBTITLE and is on screen behind every board in this sub-flow; 'Not set' is the safe discriminator.",
+    "expect": [
+     "Search by network name, token symbol, or Chain ID.",
+     "Celo Mainnet",
+     "Chain 42220 · CELO",
+     "Celo Alfajores Testnet"
+    ],
+    "forbid": [
+     "Checking compatibility",
+     "Compatibility Check",
+     "Chain ID:",
+     "Not set"
+    ],
+    "differsFrom": [
+     "settings-advanced"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 1000
+     },
+     {
+      "act": "click",
+      "text": "Add Network"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     },
+     {
+      "act": "type",
+      "placeholder": "e.g. Gnosis",
+      "value": "celo",
+      "ms": 2600
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "add-network-checking-compatibility",
+    "board": "O/add-network/checking-compatibility",
+    "page": "08 Overlays",
+    "note": "The Celo Mainnet suggestion tapped -> handleSelect (:610-647) sets loading and renders the 'Checking compatibility...' spinner row (:729-734) while fetchChainInfo then checkNetworkCompatibility run (an eth_chainId latency race across the chain's public RPCs, then the per-contract eth_getCode sweep and the P256 eth_call — all read-only). TIMING, measured: the spinner is up from t+0; chainInfo lands ~t+400ms and paints the name / 'Chain ID:' / 'Native:' cards; compatResult lands ~t+2.5s and retires the spinner. This board is extracted at ~t+1.3s, i.e. inside the ~2 s window where the chain is identified but the check is still running — the widest deterministic window this state has. An earlier shot (t+350ms) was tried and was a coin-flip on whether chainInfo had landed. byText('42220') falls to the loose `includes` branch and resolves the 'Celo Mainnet\\nChain 42220 · CELO' row.",
+    "settle": 500,
+    "expect": [
+     "Checking compatibility",
+     "Chain ID: 42220",
+     "Native: CELO"
+    ],
+    "forbid": [
+     "Compatibility Check",
+     "Best RPC",
+     "P256 Precompile",
+     "Celo Alfajores"
+    ],
+    "differsFrom": [
+     "add-network-searching"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "42220",
+      "ms": 800
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "add-network-result",
+    "board": "O/add-network/result",
+    "page": "08 Overlays",
+    "note": "The resolved check: chain-info card (name / 'Chain ID:' / 'Native:', :739-746), 'Custom RPC (optional)' card (:749-770), best-RPC card with the success check and latency (:773-781), and the per-contract Compatibility Check list led by 'P256 Precompile (RIP-7212)' then the 11 contracts (:784-810). FINDING — this contradicts the stale note in state-specs-5: Celo Mainnet now comes back FULLY COMPATIBLE, so the board carries the accent 'Add Network' CTA (:830) and NOT the 'incompatible hint + Open Chain Setup Tool + Re-check' block (:832-848). That incompatible variant is therefore NOT depicted anywhere in the file; it needs either a second board or an explicit exclusion. The CTA must never be pressed — handleAdd -> saveCustomNetwork (:668) would write a custom network into the capture profile and change every later network board.",
+    "expect": [
+     "Chain ID: 42220",
+     "Native: CELO",
+     "Custom RPC (optional)",
+     "Compatibility Check",
+     "P256 Precompile (RIP-7212)",
+     "EntryPoint v0.7"
+    ],
+    "expectRe": [
+     "best rpc: \\d+\\s*ms"
+    ],
+    "forbid": [
+     "Checking compatibility"
+    ],
+    "differsFrom": [
+     "add-network-checking-compatibility"
+    ],
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 14000
+     }
+    ],
+    "scope": "overlay"
+   },
+   {
+    "slug": "add-network-error",
+    "board": "O/add-network/error",
+    "page": "08 Overlays",
+    "note": "Query '100' then the Gnosis suggestion tapped: handleSelect finds chain 100 in DEFAULT_NETWORKS and short-circuits before any fetch, setting the error line rendered at :736 (set at :620-626). Board = description + search field holding '100' + the red error text, everything else cleared by handleQueryChange (:590-607) — which is also what makes this state safe to run straight after add-network-result without reopening the modal. FINDING: 'This network is already added' is a hardcoded English string, not i18n — same for 'Chain {id} not found' (:630) and 'No RPC endpoint available for this network' (:642).",
+    "expect": [
+     "This network is already added",
+     "Search by network name"
+    ],
+    "forbid": [
+     "Compatibility Check",
+     "Chain ID:",
+     "Checking compatibility",
+     "Custom RPC"
+    ],
+    "differsFrom": [
+     "add-network-result",
+     "add-network-searching"
+    ],
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "e.g. Gnosis",
+      "value": "100",
+      "ms": 2600
+     },
+     {
+      "act": "click",
+      "text": "Gnosis",
+      "ms": 1600
+     }
+    ],
+    "scope": "overlay"
+   }
+  ]
+ }
+]

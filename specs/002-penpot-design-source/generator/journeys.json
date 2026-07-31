@@ -165,6 +165,161 @@
      }
     }
    ]
+  },
+  "08 Overlays": {
+   "$comment": "Overlays are grouped by BUSINESS MODULE, not alphabetically: a reader looking for 'what does the app show when a dApp asks to sign' should find the whole signing family together, split by what is being signed. The 25 signing scenarios are five walls (transfers / approvals / messages / defi / danger) rather than one 25-column row.",
+   "walls": [
+    {
+     "journey": "system · modal shells",
+     "steps": [
+      "O/app-modal/page-sheet",
+      "O/app-alert/single-action"
+     ],
+     "states": {
+      "O/app-modal/page-sheet": [
+       "O/app-modal/fit"
+      ],
+      "O/app-alert/single-action": [
+       "O/app-alert/two-actions",
+       "O/app-alert/destructive"
+      ]
+     }
+    },
+    {
+     "journey": "home · balance & account",
+     "steps": [
+      "O/account-switcher/default",
+      "O/balance-detail/degraded-chains",
+      "O/identicon-viewer/default",
+      "O/network-filter/default",
+      "O/rpc-fix/default"
+     ]
+    },
+    {
+     "journey": "send · recipients & batch",
+     "steps": [
+      "O/contact-picker/default",
+      "O/contacts-manager/default",
+      "O/batch-import/default"
+     ]
+    },
+    {
+     "journey": "token · add",
+     "steps": [
+      "O/add-token-sheet/default"
+     ]
+    },
+    {
+     "journey": "settings · preferences",
+     "steps": [
+      "O/currency/default",
+      "O/language-picker/default",
+      "O/format-picker/number"
+     ],
+     "states": {
+      "O/format-picker/number": [
+       "O/format-picker/date",
+       "O/format-picker/time"
+      ]
+     }
+    },
+    {
+     "journey": "settings · networks",
+     "steps": [
+      "O/add-network/searching",
+      "O/network-editor/collapsed",
+      "O/endpoint-editor/default",
+      "O/rpc-providers/idle"
+     ],
+     "states": {
+      "O/add-network/searching": [
+       "O/add-network/checking-compatibility",
+       "O/add-network/result",
+       "O/add-network/error"
+      ],
+      "O/network-editor/collapsed": [
+       "O/network-editor/card-expanded"
+      ],
+      "O/endpoint-editor/default": [
+       "O/endpoint-editor/health-error-states"
+      ],
+      "O/rpc-providers/idle": [
+       "O/rpc-providers/testing",
+       "O/rpc-providers/results"
+      ]
+     }
+    },
+    {
+     "journey": "dapp · sessions & receipts",
+     "steps": [
+      "O/connection-event/sign-message",
+      "O/browser-history/default",
+      "O/transaction-detail/single-confirmed",
+      "O/treasury-bootstrap/bootstrap-needed"
+     ],
+     "states": {
+      "O/transaction-detail/single-confirmed": [
+       "O/transaction-detail/batch-split"
+      ]
+     }
+    },
+    {
+     "journey": "signing · transfers",
+     "steps": [
+      "O/signing-sheet/eth-transfer",
+      "O/signing-sheet/erc-20-transfer",
+      "O/signing-sheet/erc-20-transferfrom",
+      "O/signing-sheet/nft-transfer",
+      "O/signing-sheet/large-eth-send"
+     ]
+    },
+    {
+     "journey": "signing · approvals",
+     "steps": [
+      "O/signing-sheet/erc-20-approve-unlimited",
+      "O/signing-sheet/erc-20-limited-approve",
+      "O/signing-sheet/increaseallowance",
+      "O/signing-sheet/nft-approve-all",
+      "O/signing-sheet/permit2-approve-unlimited",
+      "O/signing-sheet/eip-712-permit2"
+     ]
+    },
+    {
+     "journey": "signing · messages",
+     "steps": [
+      "O/signing-sheet/personal-sign",
+      "O/signing-sheet/hex-message-sign",
+      "O/signing-sheet/eth-sign-raw-hash",
+      "O/signing-sheet/siwe-domain-mismatch",
+      "O/signing-sheet/eip-712-unknown"
+     ]
+    },
+    {
+     "journey": "signing · defi",
+     "steps": [
+      "O/signing-sheet/1inch-swap",
+      "O/signing-sheet/native-swap-eth-token",
+      "O/signing-sheet/vault-deposit",
+      "O/signing-sheet/vault-withdraw",
+      "O/signing-sheet/expired-swap-deadline",
+      "O/signing-sheet/eip-5792-batch"
+     ]
+    },
+    {
+     "journey": "signing · danger",
+     "steps": [
+      "O/signing-sheet/scam-drain",
+      "O/signing-sheet/blind-transaction",
+      "O/signing-sheet/deploy-contract"
+     ]
+    },
+    {
+     "journey": "system · feedback",
+     "steps": [
+      "O/bug-report/default"
+     ]
+    }
+   ]
   }
  }
 }

@@ -197,6 +197,26 @@ if (arg('spec')) {
   }
 }
 
+// MERGE THE INDEX. The driver used to print these entries and leave the merging to whoever was
+// watching, which meant a capture could succeed and still be invisible: the dump sits on disk, no
+// index entry points at it, and every downstream step (region maps, 73, the audits) skips it in
+// silence. That happened twice. A dump this run verified is a dump this run registers.
+if (out.captured.length) {
+  const idxPath = resolve(OUTDIR, '_index.json');
+  const prev = existsSync(idxPath) ? JSON.parse(readFileSync(idxPath, 'utf8')) : [];
+  const bySlug = new Map(prev.map((e) => [e.slug, e]));
+  let added = 0, updated = 0;
+  for (const c of out.captured) {
+    const { fp, ...entry } = c;                      // the fingerprint is run state, not manifest data
+    if (bySlug.has(entry.slug)) { Object.assign(bySlug.get(entry.slug), entry); updated++; }
+    else { bySlug.set(entry.slug, entry); added++; }
+  }
+  const merged = prev.filter((e) => bySlug.has(e.slug));
+  for (const [slug, e] of bySlug) if (!merged.includes(e)) merged.push(e);
+  writeFileSync(idxPath, JSON.stringify(merged, null, 1) + '\n');
+  out.index = { file: idxPath, added, updated, total: merged.length };
+}
+
 // merge the asset registry the extractor collected across every state in this run
 const assets = await page.evaluate(() => {
   const map = window.__ASSETMAP || {};
@@ -208,7 +228,7 @@ out.assetCount = Object.keys(assets).length;
 writeFileSync(resolve(OUTDIR, '_run-assets.json'), JSON.stringify(assets));
 
 await browser.close();
-console.log(JSON.stringify({ captured: out.captured, failed: out.failed, stale: out.stale, assets: out.assetCount }, null, 1));
+console.log(JSON.stringify({ captured: out.captured.map((c) => c.slug), index: out.index, failed: out.failed, stale: out.stale, assets: out.assetCount }, null, 1));
 
 // Fail loudly and last, so the reason is the final thing on screen. A capture pass whose broken
 // states scroll past in a JSON blob is a capture pass whose broken states ship.

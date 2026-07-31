@@ -254,6 +254,42 @@
    "label": "Account Name",
    "to": "S/onboarding/create",
    "kind": "nav"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Language",
+   "to": "O/language-picker/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Number format",
+   "to": "O/format-picker/number",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/advanced-expanded",
+   "label": "Networks",
+   "to": "O/network-editor/collapsed",
+   "kind": "overlay"
+  },
+  {
+   "from": "O/network-editor/card-expanded",
+   "label": "RPC URL",
+   "to": "O/endpoint-editor/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/advanced-expanded",
+   "label": "RPC Providers",
+   "to": "O/rpc-providers/idle",
+   "kind": "overlay"
+  },
+  {
+   "from": "O/network-editor/collapsed",
+   "label": "Ethereum",
+   "to": "O/add-network/searching",
+   "kind": "overlay"
   }
  ],
  "nonPointer": [
@@ -502,6 +538,51 @@
    "from": "S/settings/default",
    "condition": "Appearance set to Dark in Settings",
    "to": "S/settings/default-dark"
+  },
+  {
+   "from": "O/format-picker/number",
+   "condition": "the Date row is chosen",
+   "to": "O/format-picker/date"
+  },
+  {
+   "from": "O/format-picker/number",
+   "condition": "the Time row is chosen",
+   "to": "O/format-picker/time"
+  },
+  {
+   "from": "O/network-editor/collapsed",
+   "condition": "a network card is expanded",
+   "to": "O/network-editor/card-expanded"
+  },
+  {
+   "from": "O/endpoint-editor/default",
+   "condition": "the endpoint fails its health check",
+   "to": "O/endpoint-editor/health-error-states"
+  },
+  {
+   "from": "O/rpc-providers/idle",
+   "condition": "Test is pressed",
+   "to": "O/rpc-providers/testing"
+  },
+  {
+   "from": "O/rpc-providers/testing",
+   "condition": "the provider answers",
+   "to": "O/rpc-providers/results"
+  },
+  {
+   "from": "O/add-network/searching",
+   "condition": "a chain is picked",
+   "to": "O/add-network/checking-compatibility"
+  },
+  {
+   "from": "O/add-network/checking-compatibility",
+   "condition": "the chain is compatible",
+   "to": "O/add-network/result"
+  },
+  {
+   "from": "O/add-network/checking-compatibility",
+   "condition": "the chain is already added",
+   "to": "O/add-network/error"
   }
  ],
  "$scenarioSets_note": "A scenario set is ONE surface depicted under many inputs. The signing sheet is the app's clearest case: SigningRequestModal hosts a single SigningSheet, and the 25 boards are request KINDS of it, not 25 destinations. Wiring 24 fake edges between them would misdescribe the product; declaring the set says what is true — reach the surface once, and every scenario is a rendering of it. The graph audit counts set members as reached when the canonical board is.",

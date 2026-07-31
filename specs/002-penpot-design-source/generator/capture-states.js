@@ -110,6 +110,14 @@ async function captureStates(group, baseline) {
   // one-group rerun is checked against the boards it is not recapturing.
   const seen = Object.assign({}, baseline || {});
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // the element that holds exactly [backdrop, sheet] — see the `scope` note at the capture below
+  const overlayRoot = () => {
+    const backdrop = [...document.querySelectorAll('div')]
+      .find((d) => /rgba\(0, 0, 0, 0\.[23]/.test(getComputedStyle(d).backgroundColor));
+    const root = backdrop && backdrop.parentElement;
+    if (!root) throw new Error("scope 'overlay' found no backdrop — is the sheet actually open?");
+    return root;
+  };
 
   const fire = (el) => {
     for (const t of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
@@ -348,7 +356,14 @@ async function captureStates(group, baseline) {
       await sleep(st.settle || 700);
       assertState(st);
       await window.preloadAssets();
-      const dump = window.extractLayout();
+      // `scope: 'overlay'` dumps ONLY the modal, not the screen behind it. The extractor has always
+      // supported opts.root; the spec path never passed it, so every overlay captured through a spec
+      // carried its whole host screen. That is not cosmetic: gen-region-maps expects an overlay dump
+      // to have the backdrop and the sheet as its two roots, and an unscoped one silently collapses
+      // to a single region — 21 signing boards did exactly that. The anchor is the backdrop's PARENT
+      // (a child of body that contains a 390px frame is no good: the host screen is itself inside
+      // the phone frame, so that test returns the whole app).
+      const dump = window.extractLayout(st.scope === 'overlay' ? { root: overlayRoot() } : undefined);
       // BEFORE the dump is handed back, never after: the driver writes whatever it is given, and a
       // dump that reaches disk is indistinguishable from a correct one.
       const fp = assertDistinct(st, dump);

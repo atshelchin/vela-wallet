@@ -1,0 +1,22 @@
+{
+ "slug": "add-network-result",
+ "board": "O/add-network/result",
+ "frame": {
+  "w": 390,
+  "h": 1103
+ },
+ "regions": [
+  {
+   "name": "sheet",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

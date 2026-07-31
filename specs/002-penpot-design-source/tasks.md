@@ -1,5 +1,18 @@
 # Tasks: Penpot Design Source of Truth
 
+> **Checkbox state below is the original plan's bookkeeping, and it is NOT the authority on what is
+> left.** Read [CLOSURE-2026-07-31.md](CLOSURE-2026-07-31.md) for that. A ticked box here means the
+> task's generator chunk ran; it does NOT mean the success criterion it serves passes. Three of the
+> eleven criteria turned out to have no working gate at all — `94-audit-lookup.js` and
+> `95-audit-visual.js` had never been written, and `92-audit-coverage.js` had never once finished a
+> run — so for a long stretch nothing in this file could have reported their failure.
+>
+> Many task lines below name generator chunks that were renamed or replaced by the pivot
+> (PIVOT-2026-07-29) and the restructure (RESTRUCTURE-2026-07-30 §10). Where a line's chunk no longer
+> exists, the work was done under a different name; the Phase 9 status log at the bottom is the
+> reliable record.
+
+
 **Input**: Design documents from `/specs/002-penpot-design-source/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md — all present
@@ -57,6 +70,10 @@
 
 ## Phase 4: User Story 2 — Component library with variants and states (P2)
 
+> **Superseded by W1** (RESTRUCTURE §10). These chunks ran; their families were then merged into 53 semantic
+> families (audit 97 passes). What is still OPEN is not these tasks but their criterion: 25 planned families are
+> absent from the library and 27 have variant axes that do not match the code — see CLOSURE-2026-07-31.md.
+
 **Goal**: Every reusable component as a Penpot library component, variants × states, token-bound.
 
 **Independent Test**: pick any inventoried component → matching `C/<Group>/<Name>` exists with the code's states; styling bound to tokens (SC-002 spot-check zero deviations).
@@ -83,6 +100,10 @@
 **Checkpoint**: US3 shippable — an agent knows what exists and how it connects.
 
 ## Phase 6: User Story 4 — Every screen & overlay, every state, wired (P4)
+
+> **Superseded by W2/W3b** (RESTRUCTURE §10). These chunks ran and were then replaced by DOM-transcribed boards
+> positioned from the journey manifest (audit 96 passes, SC-007 passes). What is still OPEN is their criterion:
+> coverage is 69 of 313 planned cells — see CLOSURE-2026-07-31.md for the three-way split of the rest.
 
 **Goal**: ~190 state boards composed from library instances, connected into the traversable graph.
 
@@ -115,21 +136,21 @@
 ## Phase 8: Polish & cross-cutting
 
 - [x] T035 [P] Write + run `generator/46-start-here.js` (stale ref was 70-start-here.js): `00 Start Here` boards — in-file copy of [contracts/consumption-contract.md](contracts/consumption-contract.md) (entry protocol, naming grammar, interpretation rules, stability guarantees)
-- [x] T036 [P] Write + run `generator/71-patterns.js`: `09 Patterns` boards — motion params (springs 15/150/0.8 & 20/120/1, durations 150/250/400, press scales, sheet timings 220/180/200), haptics, a11y floor, platform divergence, i18n resilience + text-scale rules, rate-limit/offline UX patterns
-- [x] T037 [P] Write + run `generator/72-dev-space.js`: `10 Dev & Parallel Space` boards (dev screens, parallel badge env, fault-injection UX) marked excluded-from-gate
+- [x] T036 [P] Write + run `generator/47-patterns.js` (stale ref was 71-patterns.js): `09 Patterns` boards — motion params (springs 15/150/0.8 & 20/120/1, durations 150/250/400, press scales, sheet timings 220/180/200), haptics, a11y floor, platform divergence, i18n resilience + text-scale rules, rate-limit/offline UX patterns
+- [x] T037 [P] Write + run the dev-space boards (stale ref was 72-dev-space.js; page 10 is built by the 60-64 screen chunks + 49-cover-identity): `10 Dev & Parallel Space` boards (dev screens, parallel badge env, fault-injection UX) marked excluded-from-gate
 - [ ] T038 Update `specs/002-penpot-design-source/quickstart.md` §5 re-sync procedure with any operational learnings; final commit of generator/, audits, coverage, gate log on branch `002-penpot-design-source`
 
 ## Phase 9: Restructure (RESTRUCTURE-2026-07-30)
 
 **Purpose**: Execute the adopted restructure workstreams per [RESTRUCTURE-2026-07-30.md](RESTRUCTURE-2026-07-30.md) §7–§8; order W0 → W3a → W1 → W2 → W3b → W4 → W5.
 
-- [ ] T039 [W0] Two-layer pipeline changes per RESTRUCTURE §7 (`edges.json`, region-maps, journey manifest with derived board positions, 70/72/73 changes, swap re-detection, `vela.role` capture) + extended 12-smoke asserts — note: override + instance-internal-interaction smoke already PASSED 2026-07-30 (live session)
-- [ ] T040 [W3a] Cheap connectivity: mode-toggle demo, IA-map navigate links, flow definitions, DTCG export to `docs/design-tokens.json`
-- [ ] T041 [W1] Semantic component library: plan-driven family merges with semantic axes, sticker-sheet blocks + usage + code-ref, coverage regenerated against new names + old→new rename ledger
-- [ ] T042 [W2] Journey walls: journey manifest authored, boards repositioned by pipeline, region-group + Tier-1 instance-swap every canon board to the semantic floor, proxy boards + stubs per §5 rules
-- [ ] T043 [W3b] Full wiring: per-element interactions from `edges.json` onto post-swap shapes, visible `e/` edge layer, T031 iterated until SC-007 passes
-- [ ] T044 [W4] Human layer: cover + identity board, page headers, illustrated design language, recipe + reuse index, changelog + archive pages, hygiene
-- [ ] T045 [W5] Contract & gate: §10 doc deltas, re-run all audits (incl. 96/97), US5 gate + SC-008 human gate
+- [x] T039 [W0] Two-layer pipeline changes per RESTRUCTURE §7 (`edges.json`, region-maps, journey manifest with derived board positions, 70/72/73 changes, swap re-detection, `vela.role` capture) + extended 12-smoke asserts — note: override + instance-internal-interaction smoke already PASSED 2026-07-30 (live session)
+- [x] T040 [W3a] Cheap connectivity: mode-toggle demo, IA-map navigate links, flow definitions, DTCG export to `docs/design-tokens.json`
+- [x] T041 [W1] Semantic component library: plan-driven family merges with semantic axes, sticker-sheet blocks + usage + code-ref, coverage regenerated against new names + old→new rename ledger
+- [x] T042 [W2] Journey walls: journey manifest authored, boards repositioned by pipeline, region-group + Tier-1 instance-swap every canon board to the semantic floor, proxy boards + stubs per §5 rules
+- [x] T043 [W3b] Full wiring: per-element interactions from `edges.json` onto post-swap shapes, visible `e/` edge layer, T031 iterated until SC-007 passes
+- [x] T044 [W4] Human layer: cover + identity board, page headers, illustrated design language, recipe + reuse index, changelog + archive pages, hygiene
+- [~] T045 [W5] Contract & gate: §10 doc deltas, re-run all audits (incl. 96/97), US5 gate + SC-008 human gate — **partially done**: 96/93/97/26 pass and a new standing gate (`audit-boards-distinct`, 91/91 distinct pictures) was added 2026-07-31. Still open: SC-002 and SC-003 (their gates existed only from 2026-07-31 and both FAIL — see CLOSURE-2026-07-31.md), the SC-004 agent gate re-run, SC-005 (baseline invalidated by ~15 rebuilds), and the SC-008 human gate.
 
 ## Dependencies & execution order
 

@@ -1,0 +1,225 @@
+[
+ {
+  "$comment": "Module batch 3 (home) — the five S/home cells with no board. GROUP ORDER IS LOAD-BEARING: /wallet runs FIRST because /parallel arms a PERSISTED flag, and the two cold-wallet boards are the only ones that need a browser that has never seen it. --group /parallel alone is safe; --group /wallet alone is safe only because the driver always launches a fresh profile.",
+  "url": "/wallet",
+  "gotoWait": "load",
+  "$why-gotoWait": "MEASURED. The driver's default waitUntil is 'networkidle' and run-capture hard-codes timeout:60000, and a goto timeout is not a failed state — it is an uncaught TimeoutError that kills the driver mid-file, so the run neither captures nor reports. Three consecutive whole-file runs of the un-pinned recipe died exactly that way, twice on /parallel AFTER /wallet had already passed. Paired measurement in one navigation: on /parallel, networkidle lands 8.1-10.2 s AFTER load (load 36.0/7.4/44.8/8.6 s → idle 44.1/15.8/54.9/18.4 s), because the app itself keeps polling; that extra 10 s is what pushes it over the 60 s cliff. 'load' is the earlier and strictly cheaper milestone and the screen is always painted inside the settle. HONEST CAVEAT: this does not make the navigation bulletproof — under back-to-back cold-browser runs Metro sometimes takes >60 s just to serve the bundle, and I saw 'load' and even 'commit' time out once each. If a run dies on goto, let the dev server breathe and rerun; nothing was written.",
+  "settle": 14000,
+  "states": [
+   {
+    "slug": "home-balance-loading",
+    "board": "S/home/balance-loading",
+    "page": "05 Screens · Wallet",
+    "note": "the hero before any balance is known: BalanceSkeleton (HomeScreen.tsx:104-105, gated by balanceUnknown at useHomeController.ts:188) in place of the figure — the app's answer to 'not known yet', which a rebuilder would otherwise draw as a fake $0.00",
+    "$why": "forbidRe is the load-bearing assertion: every other Home board shows either a resolved figure or the six privacy dots, so 'no $ figure anywhere' is a post-condition none of them satisfies. Confirmed in my dump: a 208x46 #F5F3EF radius-8 bar at (24,109) with a 96x46 #FFFFFF shimmer inside it, exactly where the amount goes. expect 'No activity yet' + forbid 'Deposit your first asset' pin the ACTIVITY tab, which is the only thing separating this picture from home-assets-empty — the same wallet, one tab over.",
+    "$mechanism": "This profile has no wallet at all, so `address` is undefined, loadData never runs and balanceUnknown stays true indefinitely. I sampled the cold /wallet screen at 2/4/6/9/12/15/20/30/45/65 s in two fresh browsers: the skeleton was still on screen at 65 s and no digit ever appeared. So this is a stable resting picture, not a race — and it is the same picture a real first load shows; only the header identity differs (monogram 'W' / name 'Wallet').",
+    "expect": [
+     "Total balance",
+     "No activity yet"
+    ],
+    "forbid": [
+     "Deposit your first asset"
+    ],
+    "forbidRe": [
+     "\\$\\s*[0-9]"
+    ],
+    "differsFrom": [
+     "home-activity"
+    ],
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 1500
+     }
+    ]
+   },
+   {
+    "slug": "home-assets-empty",
+    "board": "S/home/assets-empty",
+    "page": "05 Screens · Wallet",
+    "note": "HoldingsList's empty-wallet card (HoldingsList.tsx:144-153) — accent ArrowDown medallion over 'Deposit your first asset', the whole card a Pressable routing to /receive. NOT the filtered-empty branch (:141-143), which is a bare 'No matching tokens' line.",
+    "$why": "differsFrom home-balance-loading is the one that matters: a silently-missed 'Assets' click (the react-navigation ghost bug) reproduces exactly the state captured immediately before this one. forbid 'No activity yet' catches the same failure from the text side, forbid 'No matching tokens' separates the empty-WALLET card from the empty-FILTER line the note warns about, and forbidRe catches the empty card being drawn over a funded holdings list.",
+    "$note-on-differsFrom": "S/home/assets is deliberately NOT a differsFrom target: run-capture's findDump walks dom-dumps/ in directory order and resolves the slug 'home-assets' to dom-dumps/pruned/home-assets.json (an older generation) before it reaches dom-dumps/screens — I confirmed all three copies exist — so the check would silently compare against the wrong picture. `expect` covers that confusion instead: the populated board cannot contain 'Deposit your first asset'.",
+    "expect": [
+     "Deposit your first asset",
+     "Tap here to see your address"
+    ],
+    "forbid": [
+     "No activity yet",
+     "No matching tokens"
+    ],
+    "forbidRe": [
+     "\\$\\s*[0-9]"
+    ],
+    "differsFrom": [
+     "home-balance-loading"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "Assets"
+     },
+     {
+      "act": "wait",
+      "ms": 3000
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/parallel",
+  "gotoWait": "load",
+  "$order": "default → refreshing → estimate-notice. The fault board is LAST because an injected fault survives to the end of the group (capture-states.js clears it there), and because home-refreshing needs an unfaulted at-rest sibling — home-default — to be asserted against.",
+  "settle": 13000,
+  "states": [
+   {
+    "slug": "home-default",
+    "board": "S/home/default",
+    "page": "05 Screens · Wallet",
+    "note": "the POPULATED activity feed — day header plus one ActivityRow (direction, counterparty alias, +amount, fiat subline). The only board anywhere in the file that shows an ActivityRow in context.",
+    "$why": "The fixture Safe has no transaction history and no vela.* command seeds one, so the feed is reached through useHomeController's own dev seam (:238-257), which is a bare global rather than a vela.* member — hence the `call` act. The receipt TOAST covers the row for 2.8 s (:233), so the dwell is 3.5 s and `forbid: USDC received` proves it has cleared: that string exists only in the toast (home.toastReceived = '{{amount}} {{token}} received'), never in the row, whose innerText reads 'Received' then '+12.5 USDC' on separate lines. Every expect string here is absent from the at-rest /parallel Home I measured ('… All | No activity yet | …'), so none of them is satisfied by the screen this state starts from.",
+    "$why-the-tab-bounce": "THE SIMULATED ROW HAS A 10-SECOND LIFETIME AND THE CLOCK IS NOT YOURS. useHomeController.ts:381-384 runs loadData() on a LIVE_POLL_MS = 10 s interval while the Activity tab is open (:47), and loadData's first step calls commitActivity(items) unconditionally (:275) with the PERSISTED feed — which does not contain the simulated item. That effect's deps are [tab, loadData], so leaving Activity CLEARS the interval and returning re-arms a fresh one. The capture then lands ~4.2 s into a fresh 10 s window instead of at an inherited phase. Do not remove the bounce, and do not lengthen the dwell past ~7 s.",
+    "expect": [
+     "Today",
+     "Received",
+     "+12.5 USDC",
+     "from 0xSIMULATED",
+     "$12.50"
+    ],
+    "forbid": [
+     "USDC received",
+     "No activity yet"
+    ],
+    "differsFrom": [
+     "home-activity"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "Assets",
+      "ms": 1200
+     },
+     {
+      "act": "click",
+      "text": "Activity",
+      "ms": 400
+     },
+     {
+      "act": "call",
+      "fn": "velaSimulateReceipt",
+      "args": [
+       12.5,
+       "USDC"
+      ],
+      "ms": 300
+     },
+     {
+      "act": "wait",
+      "ms": 3200
+     }
+    ]
+   },
+   {
+    "slug": "home-refreshing",
+    "board": "S/home/refreshing",
+    "page": "05 Screens · Wallet",
+    "note": "VelaRefresh held open while loadData runs: the branded arc indicator spinning over the 'Updated now' freshness caption, the whole feed translated 72 px (VelaRefresh REST = TRIGGER = 72) down the screen",
+    "$why": "The post-conditions assert the REFRESH RAN, because that is the only consequence of the pull that reaches innerText. loadData's first act is commitActivity() with the persisted feed, which wipes the simulated row this group's previous state put on screen — so 'No activity yet' present AND '+12.5 USDC' / 'Today' absent is exactly the difference between a pull that engaged and a pull the component swallowed (VelaRefresh only fires when the touch starts at the top, passes TRIGGER=72 and busy is false — every failure mode leaves home-default's picture untouched). differsFrom home-default is the second half of the same check at picture level.",
+    "$why-not-expect-Updated": "DO NOT assert 'Updated'. I measured document.body.innerText on the at-rest /parallel Home and it already reads 'Parallel One | 0xD40086...de130b | Updated now | TOTAL BALANCE · USD | $3.27 | …'. The freshness caption lives in VelaRefresh's band, which is always mounted and merely animated to opacity 0 (VelaRefresh.tsx:269-272); assertState reads innerText, which includes opacity-0 text, so expect:['Updated'] passes on EVERY Home board and asserts nothing. (The DUMP does drop it — extract-dom-layout.js:134 discards opacity:'0' — which is why the string looks state-specific if you only read the dumps.)",
+    "$residual-risk": "STATED PLAINLY BECAUSE IT CANNOT BE ASSERTED AWAY: an AT-REST /parallel Home with an already-empty feed satisfies every post-condition on this state (I checked the measured innerText against them). What text CAN see is the difference from the picture this state actually starts from — home-default with the simulated row — and differsFrom covers it at picture level. The band being EXTENDED rather than snapped back is bought mechanically instead: slowRpc(5000) is per-RPC-call latency, so `refreshing` stays true for the whole multi-chain load (timed: the band is held 19.3 s if left alone, 6.0-8.1 s once the fault is cleared) while the capture lands ~2.2 s after touchend, and VelaRefresh springs pull to REST and holds it there (VelaRefresh.tsx:126-131). Verified band-open at capture time in 3 of 3 instrumented runs, and on every dump: 'Total balance · USD' moves y=80 → y=152, the tab row 205 → 277, the 'Updated now' caption is exposed at y=120, and a 62x62 indicator holding a 42x42 arc SVG appears at (164,64) — a node no sibling has at all.",
+    "expect": [
+     "No activity yet"
+    ],
+    "forbid": [
+     "+12.5 USDC",
+     "Today"
+    ],
+    "expectRe": [
+     "\\$\\s*[0-9]"
+    ],
+    "differsFrom": [
+     "home-default",
+     "home-activity"
+    ],
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "slowRpc",
+      "args": [
+       5000
+      ]
+     },
+     {
+      "act": "pull",
+      "ms": 1300
+     }
+    ]
+   },
+   {
+    "slug": "home-estimate-notice",
+    "board": "S/home/estimate-notice",
+    "page": "05 Screens · Wallet",
+    "note": "the hero's approximation row — amber AlertTriangle, the sentence, ChevronRight into BalanceDetailSheet (HomeScreen.tsx:110-129) — sitting over the SURVIVING cached total with NO RpcTroubleBanner. The banner suppression is the point (HomeScreen.tsx:133-139).",
+    "$why": "nullPrice(56) leaves the fixture's BNB held but unpriced → hasUnpriced → balancePartial (useHomeController.ts:181), while failedChainIds stays empty → no banner, and displayTotal falls back to max(live, cached) so the $3.2x survives. Do NOT use rateLimitRpc('all') here: state-specs-5.json's recipe does, and it writes $0.00 over the cached total with neither notice nor banner.",
+    "$why-the-20s-tails": "MEASURED, and the reason the 16 s/12 s version of this recipe fails about one run in five. noticeAllowed flips only after three silent force-retries (1.5 s + 4 s + 8 s, useHomeController.ts:54, :352-366) EXHAUST — and the delays are not the whole cost, because each retry is a full 12-chain refetch. I timed the notice from the pull three times in the exact sequence this group runs: +18.8 s, +20.8 s, +27.9 s (and +11.9 s / +13.0 s when the ladder was entered cold, which is where the old 16 s figure came from). 16 s + pull + 12 s ≈ 29.7 s of budget against a 27.9 s observation is a coin flip, and I reproduced the failure: 'home-estimate-notice: expected on screen but absent'. 20 s + pull + 20 s ≈ 41.5 s is ~50 % over the worst measurement. The second pull is free insurance, not a second clock: once the budget hits zero every later partial result re-sets noticeAllowed true (:363-365).",
+    "$why-forbid-0.00": "expectRe alone does NOT rule that failure out — '$0.00' matches /\\$\\s*[0-9]/ perfectly. forbid '$0.00' is what actually asserts the cached total SURVIVED, which is half of what this board is for.",
+    "$why-the-drain": "the previous state armed slowRpc, and VelaRefresh REFUSES a new pull while its own refresh is in flight (`if (busy.value …) return`, VelaRefresh.tsx:167). Clearing the fault does not cancel the sleeps already started, so this state waits the slow refresh out before pulling — otherwise the pull is silently swallowed and the fault never reaches a fetch. Measured from the vela.clear() in three consecutive runs: the band stayed busy 6.0 s / 6.5 s / 8.1 s, so 14 s is ~70 % headroom. (Left to run its full course with no clear, the same refresh holds for 19.3 s — that is what the drain is protecting against.)",
+    "expect": [
+     "Some tokens couldn't be priced."
+    ],
+    "forbid": [
+     "RPC unavailable",
+     "Some balances are still updating",
+     "$0.00"
+    ],
+    "expectRe": [
+     "\\$\\s*[0-9]"
+    ],
+    "differsFrom": [
+     "home-default",
+     "home-activity",
+     "home-rate-limited",
+     "home-rpc-trouble"
+    ],
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "clear"
+     },
+     {
+      "act": "wait",
+      "ms": 14000
+     },
+     {
+      "act": "vela",
+      "fn": "nullPrice",
+      "args": [
+       56
+      ]
+     },
+     {
+      "act": "wait",
+      "ms": 500
+     },
+     {
+      "act": "pull",
+      "ms": 1500
+     },
+     {
+      "act": "wait",
+      "ms": 20000
+     },
+     {
+      "act": "pull",
+      "ms": 1500
+     },
+     {
+      "act": "wait",
+      "ms": 20000
+     }
+    ]
+   }
+  ]
+ }
+]

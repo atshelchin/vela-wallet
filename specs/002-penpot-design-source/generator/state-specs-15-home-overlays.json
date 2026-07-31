@@ -1,0 +1,255 @@
+[
+ {
+  "$comment": "Reviewed and corrected 2026-07-31 by a second agent, who re-ran the recipe from a clean browser (Playwright launches an ephemeral profile, so the persisted /parallel flag and hide-balance preference cannot leak in from an earlier run) and then tried to break it. Result: 5 ok / 0 failed, and three of the five dumps fingerprinted BYTE-IDENTICAL to the first author's independent shoot. Changes from the recipe as submitted: (1) group settle 12000 -> 15000, after a cold start where the app had ZERO clickable elements at +12s; (2) 'pathUSD' added to network-filter-searching's expect, which turns the group's load-bearing precondition (Home is on the ASSETS tab) from an assumption into a post-condition; (3) the notes below are rewritten around what was measured in this review, including one claim of the original that is FALSE (see fix-form-swap's $assert: the swap and a standalone RpcFixModal for chain 1 are the same picture, so `differsFrom: rpcfixmodal` does not prove the route — the forbid list does).",
+  "$verified": "node generator/capture/run-capture.mjs --spec <this file> --dir _probe-verify-B (then -C, then -D) -> '/parallel -> 5 ok, 0 failed', exit 0, three times from three clean browsers; every dump 2 roots (backdrop 390x844 at 0,0 + sheet), zero fingerprint collisions against each other or against the four committed siblings. Negative runs (below) exit 1 with nothing written.",
+  "$order": "ONE cumulative group, and the order is load-bearing three times over — all three re-tested in this review rather than taken on trust. (1) `Assets` is tapped first and never left. On the ACTIVITY tab the degraded state never surfaces at all: measured with vela.failRpc(1) + pull on Activity, neither the hero notice nor the RPC banner appeared once in 69 s of 2 s sampling; on Assets the same fault surfaces and then HOLDS (the unpriced notice was still up at t+61 s). (The original note explained this as the Activity poll wiping failedChainIds at ~+14 s; the wipe timing did not reproduce, the tab requirement did.) (2) balance-detail-tokens-only must precede balance-detail-fix-form-swap because it is what exhausts the partial-retry budget (useHomeController.ts:349-366). PROVED by a negative run: the identical failRpc(1) + pull + 16 s wait, run FIRST in a fresh browser, failed with `no element for click 'Some balances are still updating.'` — the notice had not arrived. Run in this order it arrives at t+2 s. (3) rpc-fix-saving continues from fix-form-swap with nothing re-opened, so the two boards are guaranteed to differ only by the save control.",
+  "$safety": "Nothing is persisted and nothing is written to any network the app talks to. The RPC URL typed into the fix form is 192.0.2.1 (RFC 5737 TEST-NET-1, a documentation address that black-holes TCP); probeRpcChainId's own 8 s AbortController ends the attempt and its null result takes the `unreachable` branch (RpcTroubleBanner.tsx:126-129), which calls showAlert and RETURNS before saveNetworkConfig — verified in source and in a run: at +9 s the alert 'Couldn't reach that RPC. Check the URL and try again.' appears and no chain-1 override is stored. No network-filter row is tapped (that would apply the filter), no hide-balance toggle, no avatar-style change, no contact written. Injected faults are cleared by the harness at group end.",
+  "$negatives": "Three sabotage runs, each of which the driver rejected with exit 1 and wrote nothing — this is the evidence that the post-conditions discriminate rather than decorate. (a) network-filter-searching with the `type` step removed (search revealed, query empty): FAILED 'forbidden but present on screen: \"All Networks\"'. (b) the rpc-fix-saving steps with the Save & Retry click removed: FAILED 'forbidden but present on screen: \"Save & Retry\"'. (c) the same state captured LATE, 9 s after the click (i.e. after probeRpcChainId's abort): FAILED on the same forbid, because the label comes back the moment `saving` flips false.",
+  "url": "/parallel",
+  "settle": 15000,
+  "states": [
+   {
+    "slug": "network-filter-searching",
+    "board": "O/network-filter/searching",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "note": "The Select Chain sheet with its search REVEALED and filtering. The header's right control is a 34x34 toggle that swaps Search for X and mounts an autofocused TextInput above the list (NetworkFilterSheet.tsx:117-133); typing then filters on displayName + iconLabel (:98-102) and withdraws the 'All Networks / Show every chain' row entirely (:137). The boarded O/network-filter/default shows only the bare Search glyph, with no hint that the row is there to be revealed, and this reveal-on-toggle box is drawn nowhere else: the one other boarded sheet search (O/currency/default) is permanently visible and styled differently (bg.sunken pill, radius.full, against this one's bg.raised + 1px #ECEBE4 border + radius 12). Captured on Home's Assets tab, query 'base', so the list is exactly one row and the sheet collapses to 224px tall (dump: backdrop 390x844 at 0,0 + sheet 390x224 at y 620). WHAT THE DUMP CANNOT CARRY: the query string itself. extract-dom-layout reads text nodes, and an <input>'s value and placeholder are DOM properties, not text — the input arrives as a bare 350x47 box (bg #FFFFFF, radius 12, 1px #ECEBE4). Verified in the live DOM at capture time that the field really does hold 'base' (input.value === 'base', placeholder 'Search chains'), so the board must be captioned with the query; whoever rebuilds it will otherwise draw an empty box.",
+    "expect": [
+     "Select Chain",
+     "Base",
+     "pathUSD"
+    ],
+    "forbid": [
+     "All Networks",
+     "Show every chain"
+    ],
+    "$assert": "'Select Chain' is the sheet title and appears nowhere else on Home — the trigger chip that opens it reads 'All' and carries 'Select Chain' only in its aria-label, which is not innerText — so it proves the sheet is open. 'Show every chain' is the All-Networks row's subtitle, present in the boarded default; forbidding it proves the query actually filtered (negative run (a): with the query left empty this state fails on exactly that string). 'Base' can only be the filtered row: the fixture wallet holds no Base asset. 'pathUSD' is the addition of this review — assertState reads the WHOLE body, host screen included, and pathUSD/Tempo is a holdings row that exists only on the Assets tab (the Activity tab behind an unfiltered capture reads 'No activity yet'), so this expect is what stops the group silently starting from the wrong tab, which is the one precondition every later state depends on.",
+    "differsFrom": [
+     "networkfiltersheet"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "Assets",
+      "ms": 3500
+     },
+     {
+      "act": "click",
+      "label": "^Select Chain",
+      "ms": 1600
+     },
+     {
+      "act": "click",
+      "label": "^Search chains$",
+      "ms": 900
+     },
+     {
+      "act": "type",
+      "placeholder": "Search chains",
+      "value": "base",
+      "ms": 1100
+     }
+    ]
+   },
+   {
+    "slug": "identicon-viewer-copied",
+    "board": "O/identicon-viewer/copied",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "settle": 150,
+    "note": "The copy confirmation in the identicon viewer, opened from Home's account avatar (HomeScreen.tsx:190-192 — WalletAvatar enlargeable, an identicon by default). This is NOT the generic 'flip the icon and the label' copy feedback: the control RESIZES. Measured across the two dumps — the copy row is 350x54 (bg #F5F3EF, radius 12) holding the 42-character mono address at 16px #6E6B62 in the boarded default, and 100.89x37 holding the single word 'Copied' at 16px/600 #2D8E5F (success.base) here, the mono face dropped for inter.semibold (IdenticonViewerSheet.tsx:85 + :129 addrCopied). It is a centred, content-hugging pill (:121-125), so losing the address shrinks the control to the width of the word. That is the only copy-feedback instance in the app where the control changes size, and it is what a rebuilder would get wrong from a generic pattern note.",
+    "expect": [
+     "A visual fingerprint of this address"
+    ],
+    "expectRe": [
+     "(^|\\n)copied(\\n|$)"
+    ],
+    "forbid": [
+     "Select Chain",
+     "Switch Account"
+    ],
+    "$assert": "The confirmation must be asserted as a REGEX, not the string 'Copied': assertState lowercases the page text and the design gallery carries a cell captioned 'DetailRow · onCopy state=copied', so `expect: [\"Copied\"]` would pass on a screen where nothing was copied. '(^|\\n)copied(\\n|$)' demands 'Copied' as a whole line, which only the collapsed pill produces. `forbid: Select Chain` proves the previous sheet's Escape landed — two stacked backdrops would make scope 'overlay' anchor on the wrong one. `forbid: Switch Account` guards the real hazard of the step: the avatar sits INSIDE Home's account Pressable (HomeScreen.tsx:184-196) and relies on the enlarge handler stopping propagation, so a mis-fire opens the account switcher instead. The 2 s window (useCopyFeedback(2000), IdenticonViewerSheet.tsx:39) is why the copy click is ms 250 and settle 150.",
+    "differsFrom": [
+     "identiconviewersheet"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 1100
+     },
+     {
+      "act": "click",
+      "label": "View identicon",
+      "ms": 1600
+     },
+     {
+      "act": "click",
+      "label": "^Copy address$",
+      "ms": 250
+     }
+    ]
+   },
+   {
+    "slug": "balance-detail-tokens-only",
+    "board": "O/balance-detail/tokens-only",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "note": "The balance-detail sheet with ONLY the unpriced-tokens section — the half of BalanceDetailSheet (:148-170) that the boarded degraded-chains board buries under a networks list. Every price nulled and no chain failing, so the hero's warning is the honest-about-permanence wording ('Some tokens couldn't be priced.', chosen at HomeScreen.tsx:127 by failedChainIds.length > 0 ? balanceStale : balanceUnpriced) rather than 'still updating', and the sheet is section label + note + one TokenRow per held token with 'No price' where the fiat value goes. Reached with the real fixture holdings: pathUSD/Tempo, XDAI/Gnosis, BNB/BNB Chain. KNOWN NON-DETERMINISM, re-confirmed in this review: with every price nulled the list sorts on a fiat value that is 0 for all three, so the ROW ORDER differs between runs (three orders seen across four shoots: pathUSD/BNB/XDAI twice, pathUSD/XDAI/BNB once, BNB/XDAI/pathUSD once) and the dump fingerprint differs with it. The rows themselves do not change. Never give this slug a `sameAs`, and do not expect a re-shoot to match an earlier one.",
+    "expect": [
+     "Balance details",
+     "Tokens without a price",
+     "These balances are correct",
+     "No price"
+    ],
+    "forbid": [
+     "Networks still updating",
+     "RPC unavailable",
+     "Retry now",
+     "Fix RPC",
+     "A visual fingerprint of this address"
+    ],
+    "$assert": "The forbid list is the whole point: this board's identity is the ABSENCE of the networks section, which is exactly what separates it from O/balance-detail/degraded-chains — 'Networks still updating' (the section label), 'RPC unavailable' (the failed-row status) and 'Retry now' (the section's footer action) are all strings that board has and this one must not. A rate-limited chain cannot sneak past them: rate-limited chains are a subset of failedChainIds, so any networks section at all paints the forbidden label. If a real chain genuinely fails during a run, this state fails loudly instead of shipping a two-section board under a one-section name. 'A visual fingerprint' proves the previous sheet's Escape landed. 'These balances are correct' is the unpriced note and exists only inside this sheet — the host Assets list behind it shows the same three tokens with a BLANK fiat column, not 'No price'.",
+    "$why": "45 s of wait is not padding, and it is not a round number picked for comfort. The notice is gated behind three silent force-refetches at 1500/4000/8000 ms (useHomeController.ts:53-54, 349-366), each a full 12-chain fetch. Measured arrival after the pull across three runs of this review: +20 s, +25 s, +28 s. The original author recorded a 22 s wait passing once and failing on the next run, which matches. 45 s leaves ~17 s of headroom over the slowest observed arrival.",
+    "differsFrom": [
+     "balancedetailsheet"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 1100
+     },
+     {
+      "act": "vela",
+      "fn": "nullPrice",
+      "args": [
+       "all"
+      ],
+      "ms": 1200
+     },
+     {
+      "act": "pull",
+      "ms": 2000
+     },
+     {
+      "act": "wait",
+      "ms": 45000
+     },
+     {
+      "act": "click",
+      "text": "Some tokens couldn't be priced.",
+      "ms": 1500
+     }
+    ]
+   },
+   {
+    "slug": "balance-detail-fix-form-swap",
+    "board": "O/balance-detail/fix-form-swap",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "note": "The deliberate no-second-modal design: tapping a failed chain's 'Fix' replaces the balance-detail sheet's BODY with the RPC-fix form in place (BalanceDetailSheet.tsx:64-66, 83-88) rather than presenting a sibling modal, because on iOS a present-during-dismiss from the same view controller is dropped by UIKit. The board is the swapped sheet: 'Fix RPC' + X, the Ethereum row with 'Chain ID: 1', the amber Wifi warning, the RPC URL field, the accent Save & Retry control (342x45, radius 12, #E8572A, shadow.sm, and NOT a VelaButton — no role, no accessibilityRole is passed at RpcTroubleBanner.tsx:192-196), the four provider chips and the report link. Nothing else in the file shows a sheet whose whole body has been substituted.",
+    "expect": [
+     "Fix RPC",
+     "Ethereum",
+     "All RPC endpoints for this network are failing",
+     "RPC URL",
+     "Save & Retry",
+     "Where to get a reliable RPC"
+    ],
+    "expectRe": [
+     "chain id: 1\\b"
+    ],
+    "forbid": [
+     "Balance details",
+     "Tokens without a price",
+     "Networks still updating",
+     "Retry now",
+     "No price"
+    ],
+    "$assert": "CORRECTION TO THE FIRST AUTHOR, and the most important line in this file. The submitted recipe leant on `differsFrom: rpcfixmodal` as proof that this board is the in-place swap. It is not, and I measured why: I captured a standalone RpcFixModal for chain 1 (reached by clicking the RPC banner's own chip with no sheet open) and it fingerprints f1a8fcf11d71472b-34 — the SAME PICTURE, to the node, as this state's dump. The swap and a second modal are pixel-identical; differsFrom rpcfixmodal only proves this is not GNOSIS (the boarded default is chain 100). What actually guarantees the route is the forbid list, and the guarantee is a chain: (i) the notice click cannot silently miss — 'Some balances are still updating.' matches exactly one clickable — so the sheet is open when 'Fix' is tapped; (ii) the sheet cannot self-close mid-step, because nullPrice from the previous state keeps unpricedTokens non-empty and BalanceDetailSheet.tsx:77-79 only auto-closes when both sections are empty; (iii) `click text 'Fix'` resolves to the sheet's own Fix (a <button role=button> whose innerText is exactly 'Fix') and NOT to the banner chip behind the backdrop, which is also in clickable() — it is a div with tabindex whose innerText is 'Ethereum\\nFix', so byText's exact pass excludes it and the loose fallback never runs while the sheet's Fix exists; and (iv) if that fallback ever DID run, the banner chip opens the standalone modal ON TOP of a still-open balance-detail sheet, whose title stays in body.innerText — so `forbid: 'Balance details'` fails the state rather than shipping the wrong picture. Also: the four other forbids are strings the sheet showed one step earlier, so a Fix tap that found nothing fails instead of re-recording the previous board. 'Chain ID: 1' has to be a regex with a word boundary — assertState does a substring test, so the plain string would also pass on 'Chain ID: 100' and 'Chain ID: 137'. Note that `expect: 'Ethereum'` is NOT load-bearing here: the RPC banner on the host screen behind the sheet carries that word too.",
+    "$why": "failRpc(1) rather than 'all': one named chain gives the sheet exactly one Fix control, and failedChainIds is ordered by getAllNetworksSync so Ethereum is first regardless. Only 16 s of wait is needed because the partial-retry budget was already spent by the previous state — measured arrival of the notice here: +2 s. Run without that predecessor the same 16 s is NOT enough and the state fails at the click (see $order (2)).",
+    "differsFrom": [
+     "balancedetailsheet",
+     "rpcfixmodal",
+     "balance-detail-tokens-only"
+    ],
+    "steps": [
+     {
+      "act": "key",
+      "key": "Escape",
+      "ms": 1100
+     },
+     {
+      "act": "vela",
+      "fn": "failRpc",
+      "args": [
+       1
+      ],
+      "ms": 1200
+     },
+     {
+      "act": "pull",
+      "ms": 2000
+     },
+     {
+      "act": "wait",
+      "ms": 16000
+     },
+     {
+      "act": "click",
+      "text": "Some balances are still updating.",
+      "ms": 1500
+     },
+     {
+      "act": "click",
+      "text": "Fix",
+      "ms": 1600
+     }
+    ]
+   },
+   {
+    "slug": "rpc-fix-saving",
+    "board": "O/rpc-fix/saving",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "settle": 400,
+    "note": "The save in flight, while probeRpcChainId validates the pasted endpoint. NOT the app's standard busy treatment and not a VelaButton: measured in this run's own dump, the control is a 342x40 #E8572A div at opacity 0.5 (styles.fixBtnDisabled), radius 12, shadow.sm, holding a ~16px ActivityIndicator and NO label — against VelaButton primary's 350x55, radius 16, #1A1A18, role='button', opacity 0.45 when disabled. It is also 5px shorter than the same control at rest (342x45 with the 'Save & Retry' label), which is why the sheet measures 390x587 at y 257 here and 390x592 at y 252 one step earlier. Captured in the balance-detail host rather than in RpcFixModal because RpcFixForm is ONE component with two hosts, both rendering it inside the same AppModal — and this review confirmed the two hosts are pixel-identical (see the previous state's $assert), so the host makes no difference to the picture. SECOND KNOWN NON-DETERMINISM: the ActivityIndicator is mid-animation when the dump is taken, so the spinner's own node count and size vary run to run (17.57px in one shoot, 16.56px in another) while every other node is identical. This slug therefore never re-shoots to the same fingerprint; that is the spinner, not a changed board.",
+    "expect": [
+     "Fix RPC",
+     "Ethereum",
+     "RPC URL",
+     "Where to get a reliable RPC",
+     "Still not working? Report it"
+    ],
+    "expectRe": [
+     "chain id: 1\\b"
+    ],
+    "forbid": [
+     "Save & Retry",
+     "Couldn't reach that RPC",
+     "Balance details"
+    ],
+    "$assert": "`forbid: 'Save & Retry'` IS this board: the label is the only thing the state removes, so a capture taken before the tap or after the probe resolved fails. Both were tested — negative run (b), no click: FAILED on that string; negative run (c), captured 9 s after the click: FAILED on the same string, because the label returns the instant `saving` flips false. 'Couldn't reach that RPC' is a real substring of assets.rpcFixUnreachable ('Couldn't reach that RPC. Check the URL and try again.'), the alert that lands when the 8 s abort fires, so forbidding it proves the dump was taken inside the in-flight window. differsFrom balance-detail-fix-form-swap is the strongest check available anywhere in this file: same form, same chain, same host, one step apart, so the only thing that can make the fingerprints differ is the swapped control.",
+    "$why": "192.0.2.1 is RFC 5737 TEST-NET-1 — routed nowhere and never answered, so the connect attempt hangs and `saving` stays true until probeRpcChainId's own 8 s AbortController ends it. Measured this run by sampling every 1.5 s: 'Save & Retry' absent at +2/+3/+5/+6/+8 s and back at +9 s together with the alert and a SECOND backdrop. The dump is taken at ~1.7 s (type 800 + click 1300 + settle 400), i.e. with ~6 s of margin. Must stay LAST in the group: from +9 s the alert draws that second backdrop over the sheet and scope 'overlay' would anchor on the wrong one.",
+    "differsFrom": [
+     "rpcfixmodal",
+     "balance-detail-fix-form-swap"
+    ],
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "rpc.example.com",
+      "value": "https://192.0.2.1:8545",
+      "ms": 800
+     },
+     {
+      "act": "click",
+      "text": "Save & Retry",
+      "ms": 1300
+     }
+    ]
+   }
+  ]
+ }
+]

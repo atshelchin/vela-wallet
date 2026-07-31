@@ -1,0 +1,172 @@
+[
+ {
+  "$comment": "O/account-switcher/* — the three states the boarded default (the gallery instance, dom-dumps/overlays/accountswitchermodal.json) cannot show. All three are scope:'overlay': AccountSwitcherModal is an AppModal, so an unscoped dump carries its whole host screen and gen-region-maps collapses the board to one region. Verified: all three dumps come back with 2 roots (backdrop + sheet).",
+  "$order": "ORDER IS LOAD-BEARING, and it is NOT the order it looks like it should be. (1) The loading group must run FIRST, on a cold in-page token cache: refreshAllBalances (useHomeController.ts:454-467) resolves Parallel Two/Three in under 1.6 s once anything has fetched them, so the spinner beat only exists on the very first open of a fresh page. (2) The masked group must run SECOND, not last — it is the only group that lets refreshAllBalances RUN TO COMPLETION, and completing is what writes Parallel Two/Three into the persisted balance cache (setAccountBalance, useHomeController.ts:461). (3) create-actions runs LAST and consumes that cache: SettingsScreen passes no `balances` prop (SettingsScreen.tsx:1598-1604), so its switcher self-loads from the persisted cache alone (getAccountBalances is a pure cache read, balance-cache.ts:62-72) and shows exactly what earlier groups put there. Because the masked group persists hide-balance (use-balance-privacy), the create-actions state UN-MASKS first, on Home, before crossing to /settings — which is also why this spec leaves the browser clean (privacy off, cache warm) instead of poisoned.",
+  "$measured": "Why gotoWait 'load' + settle 14000 rather than the default networkidle: /parallel keeps 11 chain RPCs in flight after the load event, so on this app networkidle arrives ~46 s after navigation starts (measured) while `load` arrives at ~16 s. run-capture.mjs caps page.goto at 60 s and a goto timeout is an UNCAUGHT exception that aborts the whole spec — not a per-state failure — so on a busy dev server the networkidle form loses every remaining board in the file. It did, four times, while this recipe was being reviewed. settle 14000 gives the first balance sweep its time back, and every state below fails loudly if it did not get enough (an unsettled Home makes displayTotal 0, which trips forbid '$0.00').",
+  "url": "/parallel",
+  "gotoWait": "load",
+  "settle": 14000,
+  "states": [
+   {
+    "slug": "accountswitcher-loading",
+    "board": "O/account-switcher/loading",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "note": "The switcher mid-refresh: an ActivityIndicator beside the header total, the active account already painted from cache, and the two accounts that have never been fetched holding a row spinner where their figure will go. openSwitcher paints from the balance cache and then fires refreshAllBalances (useHomeController.ts:470-479), which is RPC-bound; the injected latency is what holds this beat open long enough to photograph. VERIFIED IN THE DUMP, not inferred: the capture carries exactly three <svg viewBox='0 0 32 32'> ActivityIndicator nodes — one in the header at ~x=318,y=392 and one on each unresolved row at ~(352,551) and ~(352,616) — while the active row keeps its 18x18 accent Check at (356,489). Sibling captures of the same sheet carry none.",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 2500
+     },
+     {
+      "act": "vela",
+      "fn": "slowRpc",
+      "args": [
+       20000
+      ]
+     },
+     {
+      "act": "click",
+      "label": "Switch account",
+      "ms": 1600
+     }
+    ],
+    "expect": [
+     "Switch Account",
+     "Create New Account",
+     "Sign In with Existing",
+     "0x031d...772b",
+     "0x58cd...1d3d"
+    ],
+    "expectRe": [
+     "3 accounts · \\$\\d",
+     "0xD400\\.\\.\\.130b\\s*\\$\\d"
+    ],
+    "forbid": [
+     "$0.00"
+    ],
+    "forbidRe": [
+     "0x031d\\.\\.\\.772b\\s*\\$",
+     "0x58cd\\.\\.\\.1d3d\\s*\\$"
+    ],
+    "differsFrom": [
+     "accountswitchermodal"
+    ],
+    "$why": "The sibling this is silently confused with is the SETTLED switcher — same host, same title, same rows, same buttons, differing only by three spinners that carry no text at all. Two controls were captured to size the risk. WITHOUT the fault and with the identical 1600 ms dwell the sheet comes back fully settled ('3 accounts · $4.32 | Parallel One $3.27 | Parallel Two $1.04 | Parallel Three $0.00', zero spinners); with vela.failRpc('all') instead it comes back zeroed ('… $0.00 | … $0.00', zero spinners). So the discriminators are the two forbidRe — no NON-ACTIVE account may have resolved a figure, matched per fixture address so the assertion survives the balance re-sort that settling causes — plus forbid '$0.00'. Every one of those controls trips them. ADDED IN REVIEW: `expect` now also names the two non-active addresses, because a forbidRe anchored on an address string is a SILENT no-op the day shortAddress() changes format — the negative check would simply stop matching anything and pass. The positive expect turns that into a loud failure. expectRe '0xD400…130b\\s*\\$\\d' likewise pins the other half of the picture, that the ACTIVE row did paint its cached figure (it cannot match the host screen behind: Home's header renders the long form 0xD40086...de130b). The click is the header account Pressable (HomeScreen.tsx:184-188), matched on aria-label 'Account {name}. Switch account' because the button's own text is the account NAME, which is also the name of every row inside the sheet it opens.",
+    "$residual": "Spinner presence is the one thing no post-condition can assert — assertState reads document.body.innerText and an ActivityIndicator contributes no text. It is made unreachable-by-construction instead: switcherLoading can only be false at capture time if all three fetchTokens have settled, and under +20 000 ms of injected per-call latency (rpc-pool.ts:725) none of the two uncached accounts can. Both ways of settling early were probed above and both are caught by text."
+   }
+  ]
+ },
+ {
+  "url": "/parallel",
+  "gotoWait": "load",
+  "settle": 14000,
+  "states": [
+   {
+    "slug": "accountswitcher-privacy-masked",
+    "board": "O/account-switcher/privacy-masked",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "note": "The switcher under balance privacy: the sheet lists exactly the numbers the masked hero conceals, so it masks from the same store — the header total AND every row figure come back as '••••' (AccountSwitcherModal.tsx:73-74, 129). Nothing else about the sheet changes, which is the point of the board.",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 2500
+     },
+     {
+      "act": "click",
+      "label": "Switch account",
+      "ms": 22000
+     },
+     {
+      "act": "click",
+      "label": "^[$€£¥]",
+      "ms": 900
+     }
+    ],
+    "expect": [
+     "3 accounts · ••••",
+     "Switch Account",
+     "Create New Account",
+     "Sign In with Existing"
+    ],
+    "expectRe": [
+     "0xD400\\.\\.\\.130b\\s*••••",
+     "0x031d\\.\\.\\.772b\\s*••••",
+     "0x58cd\\.\\.\\.1d3d\\s*••••"
+    ],
+    "forbidRe": [
+     "\\$\\s?\\d"
+    ],
+    "differsFrom": [
+     "accountswitcher-loading",
+     "accountswitchermodal"
+    ],
+    "$why": "A masked header over unmasked rows is the failure this state exists to rule out, and it is invisible to any assertion on the header alone — so the three expectRe pin '••••' to each fixture address individually (per-address, not positional, because the rows are balance-sorted and re-sort as figures land). forbidRe '\\$\\s?\\d' then says no figure survived anywhere on the page, host screen included, which is what proves the toggle fired rather than the click landing on a neighbour. The hero is matched on aria-label '^[$€£¥]' because its only label is the amount it shows (HomeScreen.tsx:87-92) — a positional clickNth is index-fragile between /wallet and /parallel.",
+    "$order": "THE MASK IS APPLIED AFTER THE FIGURES LAND, NOT BEFORE — this is the correction that removes the race. Masking first and then opening the sheet makes the board depend on three live RPC round-trips completing inside the open dwell; a row that has not resolved yet has no figure to mask, and that is a real observed failure, not a hypothetical. Opening first and masking second inverts it: the 22 000 ms dwell is longer than wallet-api's own per-chain timeout (~18 s measured end-to-end), so every account has a figure by then whether its chains answered or timed out to $0.00, and the mask is a synchronous re-render of a sheet that is already complete. fire() dispatches straight at the element, so the hero behind the backdrop is clickable with the sheet open (verified: the sheet stays open — the dump still has 2 roots — and re-renders masked).",
+    "$sideEffect": "This is also the group that warms the persisted balance cache for all three accounts, which the create-actions group below depends on. That dependency is not a hope: the three per-row expectRe here cannot pass unless refreshAllBalances wrote all three entries, because bals and setAccountBalance are written together (useHomeController.ts:461-462)."
+   }
+  ]
+ },
+ {
+  "url": "/parallel",
+  "gotoWait": "load",
+  "settle": 14000,
+  "states": [
+   {
+    "slug": "accountswitcher-create-actions",
+    "board": "O/account-switcher/create-actions",
+    "page": "08 Overlays",
+    "scope": "overlay",
+    "note": "The switcher as Settings hosts it: 'Accounts' with a 'Total $4.33' subtitle instead of Home's 'Switch Account / 3 accounts · $3.29', and the create/import pair — Create New Account (primary) + Sign In with Existing (secondary) — closing the sheet (AccountSwitcherModal.tsx:138-143). Every row carries its figure, which is what Settings shows any wallet that has been used: SettingsScreen passes no `balances`, so the modal self-loads from the persisted cache the group above filled.",
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 3000
+     },
+     {
+      "act": "click",
+      "label": "^Show balance",
+      "ms": 1200
+     },
+     {
+      "act": "goto",
+      "url": "/settings",
+      "ms": 4000
+     },
+     {
+      "act": "click",
+      "label": "^Parallel One",
+      "ms": 1800
+     }
+    ],
+    "expect": [
+     "Accounts",
+     "Create New Account",
+     "Sign In with Existing",
+     "0x031d...772b",
+     "0x58cd...1d3d"
+    ],
+    "expectRe": [
+     "total \\$\\d",
+     "0xD400\\.\\.\\.130b\\s*\\$\\d",
+     "0x031d\\.\\.\\.772b\\s*\\$\\d",
+     "0x58cd\\.\\.\\.1d3d\\s*\\$\\d"
+    ],
+    "forbid": [
+     "Switch Account",
+     "3 accounts ·",
+     "••••"
+    ],
+    "differsFrom": [
+     "accountswitcher-loading",
+     "accountswitcher-privacy-masked",
+     "accountswitchermodal"
+    ],
+    "$why": "The confusion this must survive is 'the same sheet, opened from Home' — identical row list, identical two buttons, differing only in its header. So the header is asserted from both sides: expectRe 'total \\$\\d' is the Settings-host subtitle (settingsModals.account.total, 'Total {{amount}}') and cannot match Home's hero, which reads 'Total balance · USD' with the number on the next line; forbid 'Switch Account' / '3 accounts ·' are Home's title and subtitle (home.switchAccountTitle / home.switcherAccountCount) and neither string renders anywhere on /settings. The account row is clicked by aria-label, which SettingsRow composes as `${title}, ${subtitle}` = 'Parallel One, 0xD400...130b'; anchoring with ^ keeps it off the identically-named rows inside the sheet it opens.",
+    "$order": "The first two steps exist because the group above persists hide-balance, and there is no un-mask control anywhere in Settings — the toggle lives on Home's hero (HomeScreen.tsx:87-92). So this state lands on Home (the persisted parallel flag makes /parallel the same fixture wallet), clicks the hero while its label is still 'Show balance', and only then crosses to /settings with the in-app `goto` act. The un-mask is self-checking: forbid '••••' plus expectRe 'total \\$\\d' both fail if it did not happen. Probed by deleting the step — the run failed with 'forbidden but present on screen: \"••••\"', nothing written.",
+    "$fixed": "REVIEW FINDING. The row figures used to be unasserted and were NOT deterministic: with create-actions captured before anything had resolved Parallel Two/Three, the sheet normally shows two blank rows — but I captured the same recipe with both rows reading '$0.00' as well, and every post-condition passed on both pictures. A board that silently alternates between two pictures is the defect this file exists to prevent, so the dependency is now inverted: the group above guarantees a warm cache, and the four expectRe pin the header total AND all three row figures. Three consecutive runs now produce the identical picture."
+   }
+  ]
+ }
+]

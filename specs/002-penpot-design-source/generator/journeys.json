@@ -14,8 +14,9 @@
     {
      "journey": "home",
      "kind": "hub",
-     "hub": "S/home/activity",
+     "hub": "S/home/default",
      "spokes": [
+      "S/home/activity",
       "S/home/assets",
       "S/home/connections"
      ],
@@ -26,7 +27,18 @@
        "S/home/rpc-trouble"
       ],
       "S/home/assets": [
-       "S/home/assets-dark"
+       "S/home/assets-dark",
+       "S/home/assets-empty"
+      ],
+      "S/home/default": [
+       "S/home/refreshing",
+       "S/home/estimate-notice",
+       "S/home/balance-loading"
+      ],
+      "S/home/connections": [
+       "S/home/connections-connecting",
+       "S/home/connections-error",
+       "S/home/connections-connected"
       ]
      }
     },
@@ -137,6 +149,13 @@
   "07 Screens · Settings & Onboarding": {
    "walls": [
     {
+     "journey": "boot",
+     "kind": "flow",
+     "steps": [
+      "S/index/loading"
+     ]
+    },
+    {
      "journey": "onboarding",
      "kind": "flow",
      "steps": [
@@ -147,10 +166,14 @@
      ],
      "states": {
       "S/onboarding/create": [
-       "S/onboarding/create-form-ready"
+       "S/onboarding/create-form-ready",
+       "S/onboarding/create-resume"
       ],
       "S/onboarding/create-ceremony": [
        "S/onboarding/sync-failure"
+      ],
+      "S/onboarding/welcome": [
+       "S/onboarding/welcome-signin-loading"
       ]
      }
     },
@@ -198,7 +221,27 @@
       "O/identicon-viewer/default",
       "O/network-filter/default",
       "O/rpc-fix/default"
-     ]
+     ],
+     "states": {
+      "O/account-switcher/default": [
+       "O/account-switcher/loading",
+       "O/account-switcher/privacy-masked",
+       "O/account-switcher/create-actions"
+      ],
+      "O/balance-detail/degraded-chains": [
+       "O/balance-detail/tokens-only",
+       "O/balance-detail/fix-form-swap"
+      ],
+      "O/identicon-viewer/default": [
+       "O/identicon-viewer/copied"
+      ],
+      "O/network-filter/default": [
+       "O/network-filter/searching"
+      ],
+      "O/rpc-fix/default": [
+       "O/rpc-fix/saving"
+      ]
+     }
     },
     {
      "journey": "send · recipients & batch",

@@ -599,6 +599,96 @@
    "from": "S/onboarding/create-ceremony",
    "condition": "the public key reaches the index",
    "to": "S/onboarding/create-success"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "the wallet has no value transfers yet",
+   "to": "S/home/activity"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "the feed is pulled down to refresh",
+   "to": "S/home/refreshing"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "a chain's price feed is unavailable — the total is an approximation",
+   "to": "S/home/estimate-notice"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "balances have not resolved yet",
+   "to": "S/home/balance-loading"
+  },
+  {
+   "from": "S/home/assets",
+   "condition": "the wallet holds nothing on any chain",
+   "to": "S/home/assets-empty"
+  },
+  {
+   "from": "S/home/connections",
+   "condition": "a pairing link is submitted",
+   "to": "S/home/connections-connecting"
+  },
+  {
+   "from": "S/home/connections-connecting",
+   "condition": "the code is confirmed",
+   "to": "S/home/connections-connected"
+  },
+  {
+   "from": "S/home/connections-connecting",
+   "condition": "pairing fails or is cancelled",
+   "to": "S/home/connections-error"
+  },
+  {
+   "from": "S/onboarding/welcome",
+   "condition": "Sign in is pressed and the passkey call is outstanding",
+   "to": "S/onboarding/welcome-signin-loading"
+  },
+  {
+   "from": "S/onboarding/create",
+   "condition": "registration succeeded but the next signature was cancelled",
+   "to": "S/onboarding/create-resume"
+  },
+  {
+   "from": "O/account-switcher/default",
+   "condition": "the accounts are still loading",
+   "to": "O/account-switcher/loading"
+  },
+  {
+   "from": "O/account-switcher/default",
+   "condition": "balance privacy is on",
+   "to": "O/account-switcher/privacy-masked"
+  },
+  {
+   "from": "O/account-switcher/default",
+   "condition": "the create / import actions are revealed",
+   "to": "O/account-switcher/create-actions"
+  },
+  {
+   "from": "O/balance-detail/degraded-chains",
+   "condition": "the breakdown is by token rather than by network",
+   "to": "O/balance-detail/tokens-only"
+  },
+  {
+   "from": "O/balance-detail/degraded-chains",
+   "condition": "a chain's Fix action swaps the row for the endpoint form",
+   "to": "O/balance-detail/fix-form-swap"
+  },
+  {
+   "from": "O/identicon-viewer/default",
+   "condition": "the address is copied",
+   "to": "O/identicon-viewer/copied"
+  },
+  {
+   "from": "O/network-filter/default",
+   "condition": "a search term is typed",
+   "to": "O/network-filter/searching"
+  },
+  {
+   "from": "O/rpc-fix/default",
+   "condition": "the endpoint is being saved",
+   "to": "O/rpc-fix/saving"
   }
  ],
  "$scenarioSets_note": "A scenario set is ONE surface depicted under many inputs. The signing sheet is the app's clearest case: SigningRequestModal hosts a single SigningSheet, and the 25 boards are request KINDS of it, not 25 destinations. Wiring 24 fake edges between them would misdescribe the product; declaring the set says what is true — reach the surface once, and every scenario is a rendering of it. The graph audit counts set members as reached when the canonical board is.",
@@ -650,7 +740,8 @@
  "entries": [
   "S/web-request/unavailable",
   "S/web-request/error",
-  "S/pay/default"
+  "S/pay/default",
+  "S/index/loading"
  ],
  "flows": [
   {
@@ -666,7 +757,7 @@
   {
    "name": "home",
    "page": "05 Screens · Wallet",
-   "entry": "S/home/activity"
+   "entry": "S/home/default"
   },
   {
    "name": "onboarding",

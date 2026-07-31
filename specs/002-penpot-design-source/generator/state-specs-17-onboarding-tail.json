@@ -1,0 +1,223 @@
+[
+ {
+  "$comment": "S/index/loading — the boot splash, taken from the SERVED document. `/` is statically rendered as index.tsx's isLoading branch (one ActivityIndicator size=large color=accent.base centred on bg.base, :9-15) and global.css is inlined in that document, so its `@media (width >= 500px)` rule already gives #root the 390x844 frame, radius 20 and shadow before a byte of JS runs — verified with curl: the body is <div id=\"root\">…<div role=\"progressbar\">…<circle style=\"stroke:#E8572A\"> on .r-backgroundColor-1aj5ce6 (#FAFAF8). Aborting index.bundle means hydration never arrives to Redirect it away; gotoWait 'commit' returns as soon as the document does. This group stays on 127.0.0.1 like the rest of the file — no passkey is involved.",
+  "url": "/",
+  "settle": 1500,
+  "gotoWait": "commit",
+  "routes": [
+   {
+    "match": "**tj.appsdata.org/**",
+    "action": "abort",
+    "$why": "the served document loads a third-party analytics script (tj.appsdata.org/api/script.js) which then POSTs /api/track. Two reasons to cut it: a capture run must not write events into a production analytics account, and its pending POST is one of the two things that stop Playwright's `networkidle` from ever arriving on this app."
+   },
+   {
+    "match": "**/index.bundle*",
+    "action": "abort",
+    "$why": "not cosmetic and not optional. MEASURED without it: text lands at ~6.1s after commit, so a 1500ms settle passes today by ~4.5s of luck on a warm Metro cache and would flip to Welcome on a fast one. With it the document is still textless after 14.6s. It also makes the board independent of persisted storage: no hydration means no stored-account read, so this state cannot be perturbed by a wallet (or a parallel-space flag) left in the profile."
+   }
+  ],
+  "states": [
+   {
+    "slug": "index-loading",
+    "board": "S/index/loading",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "The boot splash: one accent ActivityIndicator centred on bg.base while the stored-account read is outstanding (src/app/index.tsx:9-15), before the redirect to /(tabs)/wallet or /onboarding. It carries no copy at all — that is the state, not an omission.",
+    "steps": [
+     {
+      "act": "call",
+      "fn": "eval",
+      "ms": 200,
+      "args": [
+       "(function(){var c=document.querySelector('[role=\"progressbar\"] circle');if(!c)throw new Error('splash guard: no spinner circle in the document');var st=c.getAttribute('style')||'';if(!/E8572A/i.test(st))throw new Error('splash guard: spinner is not accent.base — '+st);var r=document.getElementById('root').getBoundingClientRect();if(Math.round(r.width)!==390||Math.round(r.height)!==844)throw new Error('splash guard: frame is '+Math.round(r.width)+'x'+Math.round(r.height)+', not 390x844');var canvas=[].slice.call(document.querySelectorAll('#root div')).some(function(d){var b=d.getBoundingClientRect();return getComputedStyle(d).backgroundColor==='rgb(250, 250, 248)'&&b.width>380&&b.height>800;});if(!canvas)throw new Error('splash guard: no full-frame bg.base canvas');})()"
+      ]
+     }
+    ],
+    "forbidRe": [
+     "\\S"
+    ],
+    "differsFrom": [
+     "onboarding-welcome"
+    ],
+    "$why": "expect[] is worthless on a screen that says nothing, so the positive guard is the `call eval` step: it throws unless the document holds a role=progressbar whose circle is stroked #E8572A, inside a 390x844 #root, on a full-frame #FAFAF8 canvas. A step that throws fails the state and writes nothing, so it is a post-condition in every way that matters. MEASURED as load-bearing: a mutant that deletes the progressbar before the guard fails with 'splash guard: no spinner circle in the document' (exit 1, nothing written) while forbidRe, differsFrom and the automatic theme check all still pass — i.e. without it an empty light rectangle would ship as the splash. It asserts against the DOM, not the dump, on purpose: extract-dom-layout.js:257-264 prunes a non-painting wrapper whose single child is the same box within 1px, and the indicator's rotation makes the svg oscillate 20.7↔23.8px, so the dump's `role: progressbar` node is present or absent depending on the animation phase (measured: absent in 1 of 4 splash dumps). forbidRe \\S is the negative half: this is the only screen in the app with NO text, and every other one — even ones that look blank — carries the always-present offscreen harness line 'status: idle rid:(none)' (ExtensionSignController.tsx:168), measured present on /onboarding. differsFrom onboarding-welcome names the screen this becomes once hydration lands."
+   }
+  ]
+ },
+ {
+  "$comment": "S/onboarding/welcome-signin-loading — the sign-in button while the WebAuthn call is outstanding. The ceremony is held open by stubbing navigator.credentials.get to a promise that never settles, which is exactly the real state: the OS passkey sheet is up and the app is awaiting it. Everything above that boundary is the app's own code (OnboardingScreen.tsx:88-99 → Passkey.authenticate → webAuthenticate, loginLoading true, WelcomeScreen.tsx:304-314 swapping the label for an ActivityIndicator). MEASURED still open at 15s. No virtual authenticator and no `base` override are needed BECAUSE the stub sits in front of WebAuthn — which is also why this group can stay on 127.0.0.1, and why only ONE group in this file adds an authenticator (Chrome refuses a second internal one).",
+  "url": "/onboarding",
+  "settle": 4000,
+  "gotoWait": "domcontentloaded",
+  "routes": [
+   {
+    "match": "**tj.appsdata.org/**",
+    "action": "abort",
+    "$why": "the served document loads a third-party analytics script (tj.appsdata.org/api/script.js) which then POSTs /api/track. Two reasons to cut it: a capture run must not write events into a production analytics account, and its pending POST is one of the two things that stop Playwright's `networkidle` from ever arriving on this app."
+   },
+   {
+    "match": "**/api/health*",
+    "action": "fulfil",
+    "status": 200,
+    "body": "{\"service\":\"webauthn-p256-publickey-index\",\"status\":\"ok\"}",
+    "$why": "OnboardingScreen.tsx:64-84 probes the passkey index on mount and, after 3 failures (~24s), force-opens the settings sheet over the screen. Fulfilling it locally keeps the run offline AND keeps that sheet shut."
+   },
+   {
+    "match": "**/api/create",
+    "action": "abort",
+    "$why": "belt and braces: nothing in this recipe should ever reach uploadPublicKey, but if a future change let it through, this is what stops a real index write (and its on-chain commit-reveal) from a capture run."
+   },
+   {
+    "match": "**/api/query*",
+    "action": "abort",
+    "$why": "same reason, for the read side."
+   }
+  ],
+  "states": [
+   {
+    "slug": "onboarding-welcome-signin-loading",
+    "board": "S/onboarding/welcome-signin-loading",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "The brand screen with the passkey ceremony in flight: the second button's label is replaced by a 50%-white ActivityIndicator and the button is disabled (WelcomeScreen.tsx:304-314). Nothing else moves — the logo, the tagline and the accent Create Wallet CTA are untouched, so the whole delta from S/onboarding/welcome is that one label.",
+    "steps": [
+     {
+      "act": "call",
+      "fn": "eval",
+      "ms": 200,
+      "args": [
+       "(function(){navigator.credentials.get=function(){return new Promise(function(){});};if(navigator.credentials.get.toString().indexOf('new Promise')<0)throw new Error('signin: could not stub navigator.credentials.get');})()"
+      ]
+     },
+     {
+      "act": "click",
+      "text": "I already have a wallet",
+      "ms": 1500
+     },
+     {
+      "act": "call",
+      "fn": "eval",
+      "ms": 200,
+      "args": [
+       "(function(){var f=[].slice.call(document.querySelectorAll('div')).find(function(d){var r=d.getBoundingClientRect();return Math.abs(r.width-390)<=2&&r.height>600;});if(!f)throw new Error('signin guard: no 390px phone frame');var top=f.getBoundingClientRect().top;var spin=[].slice.call(f.querySelectorAll('[role=\"progressbar\"]')).filter(function(p){var r=p.getBoundingClientRect();return r.width>0&&r.height>0&&r.top>top+500;});if(!spin.length)throw new Error('signin guard: no ActivityIndicator in the button row — the ceremony is not in flight');})()"
+      ]
+     }
+    ],
+    "expect": [
+     "Create Wallet",
+     "Simple as a tap."
+    ],
+    "forbid": [
+     "I already have a wallet",
+     "Sign In Failed",
+     "Passkey Index",
+     "Parallel Space"
+    ],
+    "differsFrom": [
+     "onboarding-welcome"
+    ],
+    "$why": "forbid 'I already have a wallet' is the load-bearing guard and it is exact: the label this state removes is the sibling board's only distinguishing string, so a capture taken a beat too late fails rather than shipping S/onboarding/welcome twice. expect only keeps it on the welcome screen; MEASURED, it does NOT discriminate on its own — the boarded onboarding-welcome dump satisfies both strings. The second `call eval` is the positive half: it throws unless a rendered ActivityIndicator exists in the lower third of the phone frame. MEASURED as load-bearing — the same recipe with the stub step removed fails with 'signin guard: no spinner in the button row' (exit 1, nothing written), because the real headless get() rejects in <700ms and the label comes straight back. 'Sign In Failed' and 'Passkey Index' catch the two ways this screen degrades instead (the in-app alert, and the auto-opened settings sheet); 'Parallel Space' catches a profile that has been in the parallel space, whose fixed-key signer bypasses the stub entirely. No `dark: true`, even though this is the fixed-dark #1A1A18 brand screen: react-navigation's own card (#F2F2F2) is the same 390x844 box and wins rootBg()'s largest-area tie, so the harness reads the screen as light — same as the already-boarded S/onboarding/welcome."
+   }
+  ]
+ },
+ {
+  "$comment": "S/onboarding/create-resume — pendingReg. The passkey REGISTRATION is real: a CDP virtual authenticator mints a discoverable ES256 credential (verified: WebAuthn.getCredentials → 1 credential, isResidentCredential true, rpId 'localhost'), and only the verification signature that follows is refused — NotAllowedError, which normalizeWebError maps to PasskeyErrorCode.CANCELLED (modules/passkey/index.ts:404-412), which is the one branch that KEEPS pendingReg (CreateWalletScreen.tsx:127 sets it, :227-230 keeps it). `base` MUST be localhost: getRelyingPartyId() hands WebAuthn window.location.hostname verbatim (:40-44) and an IP literal is not a legal rpId, so at 127.0.0.1 registration dies before there is anything to resume. Nothing is written anywhere: /api/create and /api/query are aborted, and the run leaves localStorage empty (verified) because savePendingUpload sits AFTER the signature that never lands. Runs LAST on purpose: it is the only group that adds an authenticator, and the credential it registers must not be able to answer the sign-in group above.",
+  "url": "/onboarding?mode=create",
+  "base": "http://localhost:8083",
+  "settle": 4000,
+  "gotoWait": "domcontentloaded",
+  "virtualAuthenticator": true,
+  "routes": [
+   {
+    "match": "**tj.appsdata.org/**",
+    "action": "abort",
+    "$why": "the served document loads a third-party analytics script (tj.appsdata.org/api/script.js) which then POSTs /api/track. Two reasons to cut it: a capture run must not write events into a production analytics account, and its pending POST is one of the two things that stop Playwright's `networkidle` from ever arriving on this app."
+   },
+   {
+    "match": "**/api/health*",
+    "action": "fulfil",
+    "status": 200,
+    "body": "{\"service\":\"webauthn-p256-publickey-index\",\"status\":\"ok\"}",
+    "$why": "OnboardingScreen.tsx:64-84 probes the passkey index on mount and, after 3 failures (~24s), force-opens the settings sheet over the screen. Fulfilling it locally keeps the run offline AND keeps that sheet shut."
+   },
+   {
+    "match": "**/api/create",
+    "action": "abort",
+    "$why": "belt and braces: nothing in this recipe should ever reach uploadPublicKey, but if a future change let it through, this is what stops a real index write (and its on-chain commit-reveal) from a capture run."
+   },
+   {
+    "match": "**/api/query*",
+    "action": "abort",
+    "$why": "same reason, for the read side."
+   }
+  ],
+  "states": [
+   {
+    "slug": "onboarding-create-resume",
+    "board": "S/onboarding/create-resume",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "A passkey that registered but has not yet proven it can sign: the verification signature was cancelled, so the form comes back with a live status row 'Verification was cancelled. Please try again.', the CTA relabelled 'Finish Verification' (the name field is locked while pendingReg stands), and the escape hatch under it — the stuck hint plus 'Start over with a new passkey' (CreateWalletScreen.tsx:427-444). Resuming re-signs only; it never mints a second passkey.",
+    "steps": [
+     {
+      "act": "call",
+      "fn": "eval",
+      "ms": 200,
+      "args": [
+       "(function(){navigator.credentials.get=function(){return Promise.reject(new DOMException('The operation either timed out or was not allowed.','NotAllowedError'));};if(navigator.credentials.get.toString().indexOf('NotAllowedError')<0)throw new Error('resume: could not stub navigator.credentials.get');})()"
+      ]
+     },
+     {
+      "act": "type",
+      "placeholder": "Enter a name",
+      "value": "Design Capture"
+     },
+     {
+      "act": "click",
+      "text": "This is a self-custodial wallet"
+     },
+     {
+      "act": "click",
+      "text": "If you lose your device"
+     },
+     {
+      "act": "click",
+      "text": "If your iCloud or Google account is compromised"
+     },
+     {
+      "act": "click",
+      "text": "I agree to the"
+     },
+     {
+      "act": "wait",
+      "ms": 600
+     },
+     {
+      "act": "click",
+      "text": "Create Wallet"
+     },
+     {
+      "act": "wait",
+      "ms": 2500
+     }
+    ],
+    "expect": [
+     "Verification was cancelled",
+     "Finish Verification",
+     "Start over with a new passkey"
+    ],
+    "forbid": [
+     "Wallet Created",
+     "Sync failed",
+     "Setup was cancelled",
+     "Verifying identity",
+     "Syncing public key",
+     "Device Not Compatible",
+     "Parallel Space"
+    ],
+    "differsFrom": [
+     "onboarding-create-form-ready",
+     "onboarding-create-ceremony",
+     "onboarding-create"
+    ],
+    "$why": "Every expect[] string belongs to the resume branch alone and to no sibling — MEASURED against the dumps on disk for onboarding-create, onboarding-create-form-ready, onboarding-create-ceremony, onboarding-sync-failure and onboarding-create-success: none of the three appears in any of them. The forbid[] list names every state the same steps produce when the mechanism is wrong, each one MEASURED: 'Sync failed' is what the identical recipe gives with the stub step removed (the signature succeeds and only the upload is blocked) and also what a parallel-space profile gives (its fixed-key signer never refuses); 'Setup was cancelled' is what dropping virtualAuthenticator gives (registration itself refused — measured, exit 1); 'Verifying identity'/'Syncing public key' catch a capture taken mid-ceremony; 'Device Not Compatible' catches an assertion that returned but failed the Safe-compat check, which CLEARS pendingReg. differsFrom names the two forms this is one status row away from, plus the blank form they are one tick away from."
+   }
+  ]
+ }
+]

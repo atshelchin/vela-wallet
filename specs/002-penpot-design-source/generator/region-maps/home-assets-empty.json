@@ -1,0 +1,34 @@
+{
+ "slug": "home-assets-empty",
+ "board": "S/home/assets-empty",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "hero",
+   "paths": [
+    "0.0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "dock",
+   "paths": [
+    "0.0.0.0.1"
+   ]
+  },
+  {
+   "name": "portal-1",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

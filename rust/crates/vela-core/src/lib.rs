@@ -27,13 +27,13 @@ pub mod webauthn;
 
 pub use abi::AbiValue;
 pub use error::CoreError;
+pub use i18n::{
+    canonical_tag, plural_category, plural_suffix, plural_suffixes, resolve_language, Catalog,
+    Category, Count, Dir, I18n, LanguageState, Lookup, Options, OwnedOptions, OwnedVar, PluralMode,
+    Scratch, Var,
+};
 pub use identicon::{
     identicon_data_uri, identicon_params, identicon_svg, identicon_svg_circular, make_hash,
     normalize_seed, Colors, IdenticonHash, IdenticonParams, Section, Sections,
-};
-pub use i18n::{
-    canonical_tag, plural_category, plural_suffix, plural_suffixes, resolve_language, Catalog,
-    Category, Count, Dir, I18n, LanguageState, Lookup, Options, OwnedOptions, OwnedVar,
-    PluralMode, Scratch, Var,
 };
 pub use types::{ClientDataKind, P256PublicKey, SafeAddressInfo, WebAuthnAssertion};

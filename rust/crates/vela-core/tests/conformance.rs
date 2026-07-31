@@ -461,14 +461,11 @@ fn run_case(case: &Case) -> Result<(), String> {
             let owned = i18n_opts(input.get("opts"))?;
             let mut scratch = i18n::Scratch::default();
             let opts = owned.as_options(&mut scratch);
-            check_string(
-                expect,
-                {
-                    let lng = in_str(input, "lng").unwrap_or_else(|_| "en".to_owned());
-                    i18n_engine(&lng, &lng, i18n::PluralMode::Cldr)
-                        .and_then(|e| e.t_first(&refs, &opts))
-                },
-            )
+            check_string(expect, {
+                let lng = in_str(input, "lng").unwrap_or_else(|_| "en".to_owned());
+                i18n_engine(&lng, &lng, i18n::PluralMode::Cldr)
+                    .and_then(|e| e.t_first(&refs, &opts))
+            })
         }
         // Per-call `{lng}` is a DIFFERENT code path in i18next from
         // init/changeLanguage — proved by the corpus: `zh_TW`, `zh-Hant`,
@@ -495,8 +492,7 @@ fn run_case(case: &Case) -> Result<(), String> {
             };
             check_string(
                 expect,
-                i18n_engine(&resident, "en", i18n::PluralMode::Cldr)
-                    .and_then(|e| e.t(&key, &opts)),
+                i18n_engine(&resident, "en", i18n::PluralMode::Cldr).and_then(|e| e.t(&key, &opts)),
             )
         }
         "i18n_interpolate" => {
@@ -519,10 +515,9 @@ fn run_case(case: &Case) -> Result<(), String> {
             expect,
             Ok(json_strings(i18n::plural_suffixes(&in_str(input, "lng")?))),
         ),
-        "i18n_plural_suffix_legacy" => check_string(
-            expect,
-            Ok(i18n::plural_suffix_legacy(in_count_f64(input)?)),
-        ),
+        "i18n_plural_suffix_legacy" => {
+            check_string(expect, Ok(i18n::plural_suffix_legacy(in_count_f64(input)?)))
+        }
         "i18n_plural_suffixes_legacy" => {
             check_with(expect, Ok(json_strings(i18n::plural_suffixes_legacy())))
         }
@@ -649,15 +644,18 @@ fn i18n_var(v: &Value) -> i18n::OwnedVar {
         Value::Object(o) => match o.get("__t").and_then(Value::as_str) {
             Some("undefined") => i18n::OwnedVar::Undefined,
             Some("nan") => i18n::OwnedVar::Num(f64::NAN),
-            Some("infinity") => i18n::OwnedVar::Num(
-                if o.get("sign").and_then(Value::as_i64).unwrap_or(1) < 0 {
+            Some("infinity") => {
+                i18n::OwnedVar::Num(if o.get("sign").and_then(Value::as_i64).unwrap_or(1) < 0 {
                     f64::NEG_INFINITY
                 } else {
                     f64::INFINITY
-                },
-            ),
+                })
+            }
             Some("bigint") => i18n::OwnedVar::Str(
-                o.get("v").and_then(Value::as_str).unwrap_or_default().to_owned(),
+                o.get("v")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
             ),
             _ => i18n::OwnedVar::Object,
         },
@@ -716,7 +714,9 @@ fn i18n_opts(opts: Option<&Value>) -> Result<i18n::OwnedOptions, String> {
                     Value::Object(o) if o.get("__t").and_then(Value::as_str) == Some("nan") => {
                         i18n::Count::Num(f64::NAN)
                     }
-                    Value::Object(o) if o.get("__t").and_then(Value::as_str) == Some("infinity") => {
+                    Value::Object(o)
+                        if o.get("__t").and_then(Value::as_str) == Some("infinity") =>
+                    {
                         i18n::Count::Num(
                             if o.get("sign").and_then(Value::as_i64).unwrap_or(1) < 0 {
                                 f64::NEG_INFINITY
@@ -728,7 +728,9 @@ fn i18n_opts(opts: Option<&Value>) -> Result<i18n::OwnedOptions, String> {
                     // An own property that is `undefined` is NOT a count at all:
                     // `count !== undefined` is false, so no plural candidate is
                     // built and the key echoes.
-                    Value::Object(o) if o.get("__t").and_then(Value::as_str) == Some("undefined") => {
+                    Value::Object(o)
+                        if o.get("__t").and_then(Value::as_str) == Some("undefined") =>
+                    {
                         out.count = None;
                         continue;
                     }
@@ -1123,9 +1125,21 @@ fn i18n_exhaustive_corpus_via_runtime_json() {
         };
         absorb(corpus.join(format!("{lng}.json")));
         for ns in [
-            "home", "send", "receive", "assets", "addToken", "tokenDetail", "history",
-            "onboarding", "connect", "about", "clearSigning", "componentsTx",
-            "componentsUi", "settingsModals", "contacts",
+            "home",
+            "send",
+            "receive",
+            "assets",
+            "addToken",
+            "tokenDetail",
+            "history",
+            "onboarding",
+            "connect",
+            "about",
+            "clearSigning",
+            "componentsTx",
+            "componentsUi",
+            "settingsModals",
+            "contacts",
         ] {
             absorb(corpus.join(lng).join(format!("{ns}.json")));
         }
@@ -1141,13 +1155,14 @@ fn i18n_exhaustive_corpus_via_runtime_json() {
             Some(c) => c,
             None => panic!("no value column for `{lng}`"),
         };
-        let mut engine = match i18n::I18n::new(match i18n::Catalog::from_json("en", &merged("en")) {
-            Ok(c) => c,
-            Err(e) => panic!("en must parse: {e}"),
-        }) {
-            Ok(e) => e,
-            Err(e) => panic!("engine must construct: {e}"),
-        };
+        let mut engine =
+            match i18n::I18n::new(match i18n::Catalog::from_json("en", &merged("en")) {
+                Ok(c) => c,
+                Err(e) => panic!("en must parse: {e}"),
+            }) {
+                Ok(e) => e,
+                Err(e) => panic!("engine must construct: {e}"),
+            };
         if lng != "en" {
             match i18n::Catalog::from_json(lng, &merged(lng)) {
                 Ok(c) => {
@@ -1165,7 +1180,10 @@ fn i18n_exhaustive_corpus_via_runtime_json() {
             if !matches!(&got, Ok(s) if s == &column[i]) {
                 failed += 1;
                 if failures.len() < 20 {
-                    failures.push(format!("{lng}::{key}: expected {:?}, got {got:?}", column[i]));
+                    failures.push(format!(
+                        "{lng}::{key}: expected {:?}, got {got:?}",
+                        column[i]
+                    ));
                 }
             }
         }

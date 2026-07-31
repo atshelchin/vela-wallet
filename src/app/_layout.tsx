@@ -23,6 +23,7 @@ import { IdenticonViewerProvider } from '@/components/ui/IdenticonViewerProvider
 import { retryPendingUploads } from '@/services/public-key-upload';
 import { installFaultConsole } from '@/services/dev/fault-injection';
 import { installMetricsConsole } from '@/services/metrics';
+import { installI18nConsole } from '@/i18n';
 import { installParallelConsole, applyParallelSpaceOnBoot } from '@/services/dev/parallel-space';
 // Increment 2 Safari spike — App Group echo probe (DEV-only, no UI).
 import { runAppGroupEcho } from '@/services/dev/app-group-echo';
@@ -171,7 +172,7 @@ export default function RootLayout() {
   }, [fontError]);
 
   useEffect(() => {
-    if (__DEV__) { installFaultConsole(); installMetricsConsole(); installParallelConsole(); void runAppGroupEcho(); }
+    if (__DEV__) { installFaultConsole(); installMetricsConsole(); installParallelConsole(); installI18nConsole(); void runAppGroupEcho(); }
     Promise.all([
       // Parallel space: re-arm the fixed-key signer before the wallet mounts so a
       // reload inside the test environment stays in it (and keeps the badge on).

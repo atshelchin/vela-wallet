@@ -25,6 +25,7 @@
  */
 
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -450,6 +451,35 @@ pub(crate) fn row(locale: &str) -> &'static (&'static str, &'static str, &'stati
         .unwrap_or(&DATETIME[0])
 }
 `);
+
+// ---------------------------------------------------------------------------
+// Canonical formatting
+//
+// The generated Rust must come out exactly as `cargo fmt` would leave it, or the
+// two CI gates contradict each other: `cargo fmt --all --check` demands one
+// shape, and `gen:i18n` + `git diff --exit-code` demands the other, so whichever
+// runs second is red and neither is fixable without breaking the other. Emitting
+// canonical output here is the only arrangement where both can pass.
+// ---------------------------------------------------------------------------
+
+const RUST_OUTPUTS = [
+  PATHS_FILE,
+  DATETIME_FILE,
+  join(CATALOG_DIR, 'mod.rs'),
+  ...LOCALES.map((lng) => join(CATALOG_DIR, `${modOf(lng)}.rs`)),
+];
+
+try {
+  execFileSync('rustfmt', ['--edition', '2021', ...RUST_OUTPUTS], { stdio: 'pipe' });
+} catch (e) {
+  console.error(
+    'gen-i18n: rustfmt failed on the generated Rust. It is required, not optional —\n' +
+      'without it `cargo fmt --all --check` and the generated-artefact diff gate\n' +
+      'disagree and CI cannot be green.\n' +
+      String(e.stderr ?? e),
+  );
+  process.exit(1);
+}
 
 // ---------------------------------------------------------------------------
 // Report

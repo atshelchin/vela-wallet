@@ -125,8 +125,9 @@ fn set_bit(bitmap: &mut [u8], i: usize) {
 impl Catalog {
     /// The compiled-in catalog for `lang`, if its cargo feature is enabled.
     pub fn embedded(lang: &str) -> Result<Self, CoreError> {
-        let tag = LangTag::new(lang)
-            .ok_or_else(|| CoreError::I18nCatalogUnavailable(format!("language tag too long: {lang}")))?;
+        let tag = LangTag::new(lang).ok_or_else(|| {
+            CoreError::I18nCatalogUnavailable(format!("language tag too long: {lang}"))
+        })?;
         let (blob, offsets, present) = crate::i18n_catalogs::embedded(lang).ok_or_else(|| {
             CoreError::I18nCatalogUnavailable(format!(
                 "no compiled-in catalog for `{lang}` — enable the `i18n-{}` cargo \
@@ -277,7 +278,10 @@ impl Catalog {
                     + o.offsets.len() * 4
                     + o.present.len()
                     + o.branches.len()
-                    + o.extra.iter().map(|(k, v)| k.len() + v.len()).sum::<usize>()
+                    + o.extra
+                        .iter()
+                        .map(|(k, v)| k.len() + v.len())
+                        .sum::<usize>()
                     + o.extra_branches.iter().map(String::len).sum::<usize>()
             }
         }
@@ -324,11 +328,17 @@ impl Catalog {
                     return Lookup::Missing;
                 }
                 // Paths the shared table never saw.
-                if o.extra_branches.binary_search_by(|p| p.as_str().cmp(path)).is_ok() {
+                if o.extra_branches
+                    .binary_search_by(|p| p.as_str().cmp(path))
+                    .is_ok()
+                {
                     return Lookup::Branch;
                 }
                 match o.extra.binary_search_by(|(k, _)| k.as_str().cmp(path)) {
-                    Ok(i) => o.extra.get(i).map_or(Lookup::Missing, |(_, v)| Lookup::Value(v)),
+                    Ok(i) => o
+                        .extra
+                        .get(i)
+                        .map_or(Lookup::Missing, |(_, v)| Lookup::Value(v)),
                     Err(_) => Lookup::Missing,
                 }
             }

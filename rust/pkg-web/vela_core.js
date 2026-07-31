@@ -47,14 +47,17 @@ export class I18n {
     }
     /**
      * @param {string} key
-     * @param {TOptions | null} [opts]
+     * @param {any | null} [opts]
      * @returns {boolean}
      */
     exists(key, opts) {
         const ptr0 = passStringToWasm0(key, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.i18n_exists(this.__wbg_ptr, ptr0, len0, isLikeNone(opts) ? 0 : addToExternrefTable0(opts));
-        return ret !== 0;
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] !== 0;
     }
     /**
      * @returns {string}
@@ -149,7 +152,7 @@ export class I18n {
     /**
      * Resolve `key`. Returns the key itself when nothing matches.
      * @param {string} key
-     * @param {TOptions | null} [opts]
+     * @param {any | null} [opts]
      * @returns {string}
      */
     t(key, opts) {
@@ -175,7 +178,7 @@ export class I18n {
     /**
      * First key that resolves wins; all-missing returns the **last** key.
      * @param {string[]} keys
-     * @param {TOptions | null} [opts]
+     * @param {any | null} [opts]
      * @returns {string}
      */
     tFirst(keys, opts) {
@@ -1042,9 +1045,17 @@ function __wbg_get_imports() {
             const ret = typeof(arg0) === 'function';
             return ret;
         },
+        __wbg___wbindgen_is_null_ea9085d691f535d3: function(arg0) {
+            const ret = arg0 === null;
+            return ret;
+        },
         __wbg___wbindgen_is_object_a27215656b807791: function(arg0) {
             const val = arg0;
             const ret = typeof(val) === 'object' && val !== null;
+            return ret;
+        },
+        __wbg___wbindgen_is_undefined_c05833b95a3cf397: function(arg0) {
+            const ret = arg0 === undefined;
             return ret;
         },
         __wbg___wbindgen_jsval_eq_e659fcf7b0e32763: function(arg0, arg1) {

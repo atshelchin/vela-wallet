@@ -72,10 +72,18 @@ impl Civil {
 
         let (year, month, day) = civil_from_days(days);
         // 1970-01-01 was a Thursday (4).
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::allow_attributes)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::allow_attributes
+        )]
         let weekday = (days + 4).rem_euclid(7) as u32;
 
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::allow_attributes)]
+        #[allow(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            clippy::allow_attributes
+        )]
         Self {
             year,
             month,
@@ -121,7 +129,11 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let mp = (5 * doy + 2) / 153;
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::allow_attributes)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::allow_attributes
+    )]
     (if m <= 2 { y + 1 } else { y }, m as u32, d as u32)
 }
 
@@ -150,7 +162,11 @@ pub fn format_date(civil: &Civil, preset: DatePreset) -> String {
             pad2(&mut out, civil.day);
         }
         DatePreset::DmySlash | DatePreset::DmyDot => {
-            let sep = if matches!(preset, DatePreset::DmyDot) { '.' } else { '/' };
+            let sep = if matches!(preset, DatePreset::DmyDot) {
+                '.'
+            } else {
+                '/'
+            };
             pad2(&mut out, civil.day);
             out.push(sep);
             pad2(&mut out, civil.month);
@@ -187,7 +203,11 @@ pub fn format_time(civil: &Civil, preset: TimePreset, locale: &str) -> String {
             let row = datetime_data::row(locale);
             let marker = if civil.hour < 12 { row.1 } else { row.2 };
             let period_first = row.3;
-            let h12 = if civil.hour % 12 == 0 { 12 } else { civil.hour % 12 };
+            let h12 = if civil.hour % 12 == 0 {
+                12
+            } else {
+                civil.hour % 12
+            };
             if period_first {
                 out.push_str(marker);
                 out.push(' ');
@@ -206,7 +226,11 @@ pub fn format_time(civil: &Civil, preset: TimePreset, locale: &str) -> String {
 /// `"<date>, <time>"` — a comma then exactly one U+0020.
 #[must_use]
 pub fn format_date_time(civil: &Civil, date: DatePreset, time: TimePreset, locale: &str) -> String {
-    format!("{}, {}", format_date(civil, date), format_time(civil, time, locale))
+    format!(
+        "{}, {}",
+        format_date(civil, date),
+        format_time(civil, time, locale)
+    )
 }
 
 /// The short weekday name for `civil` in `locale`. Index 0 is Sunday.

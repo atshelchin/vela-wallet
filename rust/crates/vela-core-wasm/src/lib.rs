@@ -436,7 +436,7 @@ pub struct TOptions {
     /// interpolation source (`i18next.js:1180`) — a top-level `v` is shadowed
     /// rather than merged.
     #[serde(default)]
-    pub replace: Option<serde_json::Value>,
+    pub replace: Option<ReplaceArg>,
     /// Options i18next answers with a NON-string. A Rust `t()` is string-typed by
     /// construction, so these are typed errors, not silent coercions.
     #[serde(default, rename = "returnObjects")]
@@ -448,7 +448,7 @@ pub struct TOptions {
     /// Every other key becomes an interpolation variable, so the call site does not
     /// have to know which names are reserved.
     #[serde(flatten)]
-    pub vars: std::collections::BTreeMap<String, serde_json::Value>,
+    pub vars: std::collections::BTreeMap<String, VarValue>,
 }
 
 impl TOptions {
@@ -461,30 +461,34 @@ impl TOptions {
                 // A STRING count silently disables plural resolution upstream.
                 Some(CountValue::Str(s)) => Some(Count::Str(s.clone())),
                 Some(CountValue::Other(v)) => match v {
-                serde_json::Value::Number(n) => Some(Count::Num(n.as_f64().unwrap_or(f64::NAN))),
-                serde_json::Value::String(s) => Some(Count::Str(s.clone())),
-                serde_json::Value::Null => Some(Count::Null),
-                serde_json::Value::Bool(b) => Some(Count::Num(if *b { 1.0 } else { 0.0 })),
-                serde_json::Value::Object(o) => match o.get("__t").and_then(serde_json::Value::as_str) {
-                    Some("nan") => Some(Count::Num(f64::NAN)),
-                    Some("infinity") => Some(Count::Num(
-                        if o.get("sign").and_then(serde_json::Value::as_i64) == Some(-1) {
-                            f64::NEG_INFINITY
-                        } else {
-                            f64::INFINITY
-                        },
-                    )),
-                    Some("bigint") => Some(Count::BigInt(
-                        o.get("v")
-                            .and_then(serde_json::Value::as_str)
-                            .and_then(|s| s.parse().ok())
-                            .unwrap_or(0),
-                    )),
-                    // An own property that is `undefined` is NOT a count at all.
-                    Some("undefined") => None,
-                    _ => Some(Count::Object),
-                },
-                serde_json::Value::Array(_) => Some(Count::Object),
+                    serde_json::Value::Number(n) => {
+                        Some(Count::Num(n.as_f64().unwrap_or(f64::NAN)))
+                    }
+                    serde_json::Value::String(s) => Some(Count::Str(s.clone())),
+                    serde_json::Value::Null => Some(Count::Null),
+                    serde_json::Value::Bool(b) => Some(Count::Num(if *b { 1.0 } else { 0.0 })),
+                    serde_json::Value::Object(o) => {
+                        match o.get("__t").and_then(serde_json::Value::as_str) {
+                            Some("nan") => Some(Count::Num(f64::NAN)),
+                            Some("infinity") => Some(Count::Num(
+                                if o.get("sign").and_then(serde_json::Value::as_i64) == Some(-1) {
+                                    f64::NEG_INFINITY
+                                } else {
+                                    f64::INFINITY
+                                },
+                            )),
+                            Some("bigint") => Some(Count::BigInt(
+                                o.get("v")
+                                    .and_then(serde_json::Value::as_str)
+                                    .and_then(|s| s.parse().ok())
+                                    .unwrap_or(0),
+                            )),
+                            // An own property that is `undefined` is NOT a count at all.
+                            Some("undefined") => None,
+                            _ => Some(Count::Object),
+                        }
+                    }
+                    serde_json::Value::Array(_) => Some(Count::Object),
                 },
             }),
             context: self.context.as_ref().map(|v| match v {
@@ -522,7 +526,7 @@ impl TOptions {
                 }
                 // A value carrying its own `toString` stringifies through host
                 // semantics Rust cannot reach.
-                if self.vars.values().any(host_only) {
+                if self.vars.values().any(|v| host_only(&v.as_json())) {
                     u.push("hostOnlyValue".to_owned());
                 }
                 u
@@ -530,18 +534,30 @@ impl TOptions {
             lng: self.lng.clone(),
             ordinal: self.ordinal,
             ns: self.ns.clone(),
-            key_separator_off: self.key_separator.as_ref().is_some_and(|v| v == &serde_json::Value::Bool(false)),
-            ns_separator_off: self.ns_separator.as_ref().is_some_and(|v| v == &serde_json::Value::Bool(false)),
-            vars: self
-                .replace
+            key_separator_off: self
+                .key_separator
                 .as_ref()
-                .and_then(|r| r.as_object())
-                .map_or_else(|| self.vars.clone(), |r| r.clone().into_iter().collect())
-                .iter()
-                .flat_map(|(k, v)| {
+                .is_some_and(|v| v == &serde_json::Value::Bool(false)),
+            ns_separator_off: self
+                .ns_separator
+                .as_ref()
+                .is_some_and(|v| v == &serde_json::Value::Bool(false)),
+            vars: match self.replace.as_ref() {
+                // An object `replace` REPLACES the options as the interpolation
+                // source; anything else leaves the flattened vars in place.
+                Some(ReplaceArg::Map(m)) => m,
+                _ => &self.vars,
+            }
+            .iter()
+            .flat_map(|(k, v)| {
+                // A non-finite number has no `serde_json::Value` form, so it is
+                // matched BEFORE dropping to the JSON view (spec 005 FR-024).
+                let json = v.as_json();
+                let var = match v {
+                    VarValue::Num(n) => OwnedVar::Num(*n),
                     // JS string-coercion semantics, so `{{v}}` renders what the
                     // template literal would have.
-                    let var = match v {
+                    VarValue::Other(j) => match j {
                         serde_json::Value::Null => OwnedVar::Null,
                         serde_json::Value::Bool(b) => OwnedVar::Bool(*b),
                         serde_json::Value::Number(n) => {
@@ -550,7 +566,7 @@ impl TOptions {
                         serde_json::Value::String(s) => OwnedVar::Str(s.clone()),
                         // `Array.prototype.join(",")` flattens nested arrays:
                         // `[[1],[2]]` is `"1,2"`, not `"[1],[2]"`.
-                        serde_json::Value::Array(_) => OwnedVar::Array(js_join(v)),
+                        serde_json::Value::Array(_) => OwnedVar::Array(js_join(j)),
                         // The tagged encodings for values JSON cannot carry.
                         serde_json::Value::Object(o) => {
                             match o.get("__t").and_then(serde_json::Value::as_str) {
@@ -573,15 +589,16 @@ impl TOptions {
                                 _ => OwnedVar::Object,
                             }
                         }
-                    };
-                    // A nested object is BOTH `[object Object]` under its own name
-                    // and a source of dotted names, so `{{a.b.c}}` resolves.
-                    let mut out = vec![(k.clone(), var)];
-                    flatten_dotted(k, v, &mut out);
-                    out
-                })
-                .filter(|(k, _)| !k.starts_with("defaultValue_"))
-                .collect(),
+                    },
+                };
+                // A nested object is BOTH `[object Object]` under its own name
+                // and a source of dotted names, so `{{a.b.c}}` resolves.
+                let mut out = vec![(k.clone(), var)];
+                flatten_dotted(k, json.as_ref(), &mut out);
+                out
+            })
+            .filter(|(k, _)| !k.starts_with("defaultValue_"))
+            .collect(),
             default_value_variants: self
                 .vars
                 .iter()
@@ -589,7 +606,13 @@ impl TOptions {
                     // `defaultValue_one`, `defaultValue_many`, … arrive through the
                     // flattened map because only the bare `defaultValue` is typed.
                     let cat = k.strip_prefix("defaultValue_")?;
-                    Some((cat.to_owned(), v.as_str().unwrap_or_default().to_owned()))
+                    // Only a string is a usable variant; a non-finite number has no
+                    // JSON form and is not one, so `as_json`'s null stand-in is fine.
+                    let text = match v {
+                        VarValue::Other(serde_json::Value::String(s)) => s.clone(),
+                        _ => String::new(),
+                    };
+                    Some((cat.to_owned(), text))
                 })
                 .collect(),
         }
@@ -615,6 +638,52 @@ pub enum CountValue {
     Other(serde_json::Value),
 }
 
+/// An interpolation variable as it arrives from JS.
+///
+/// Same defect as `CountValue`, same device — and it took a second sighting to
+/// notice the fix had been applied to `count` alone. Every OTHER variable still
+/// went through `serde_json::Value`, so `t('time.minutesShort', { n: NaN })`
+/// rendered `"分前"` where i18next renders `"NaN分前"`. That one is reachable in
+/// production: `src/services/activity.ts:116` passes `{ n: Math.round(diff / 60) }`.
+///
+/// The corpus cannot catch this class at all — it encodes non-finite values as
+/// `{"__t":"nan"}` and decodes the tag back on the Rust side, so a vector never
+/// crosses the raw-number boundary a live caller crosses (spec 005 FR-024).
+#[derive(Serialize, Deserialize, Tsify)]
+#[serde(untagged)]
+pub enum VarValue {
+    /// FIRST, so a non-finite JS number lands here rather than flattening to null.
+    Num(f64),
+    Other(serde_json::Value),
+}
+
+/// `replace`, which when it is an object REPLACES the options as the
+/// interpolation source (`i18next.js:1180`). Typed as a map of [`VarValue`] so a
+/// non-finite value survives that route too — the 005 adapter deliberately routes
+/// through `replace` when normalising an own-but-undefined `count`.
+#[derive(Serialize, Deserialize, Tsify)]
+#[serde(untagged)]
+pub enum ReplaceArg {
+    Map(std::collections::BTreeMap<String, VarValue>),
+    /// i18next ignores a non-object `replace`.
+    Other(serde_json::Value),
+}
+
+impl VarValue {
+    fn as_json(&self) -> std::borrow::Cow<'_, serde_json::Value> {
+        match self {
+            VarValue::Num(n) => serde_json::Number::from_f64(*n).map_or_else(
+                // Non-finite has no JSON form; the caller only uses this for
+                // dotted-path flattening and `defaultValue_*`, neither of which a
+                // non-finite number participates in.
+                || std::borrow::Cow::Owned(serde_json::Value::Null),
+                |n| std::borrow::Cow::Owned(serde_json::Value::Number(n)),
+            ),
+            VarValue::Other(v) => std::borrow::Cow::Borrowed(v),
+        }
+    }
+}
+
 /// Deserialise a present field into `Some(_)`, so an explicit JSON `null` is
 /// distinguishable from an absent key.
 fn deserialize_present<'de, D>(d: D) -> Result<Option<Option<CountValue>>, D::Error>
@@ -635,6 +704,35 @@ fn js_join(v: &serde_json::Value) -> String {
 }
 
 /// Whether a value stringifies through host semantics with no Rust analogue — a
+/// Decode per-call options from a raw `JsValue`.
+///
+/// Deliberately **not** `opts: Option<TOptions>` in the signature, which would be
+/// the obvious spelling. wasm-bindgen takes the `&self` borrow *before* it
+/// converts the remaining arguments, and tsify's failure path throws out of Rust
+/// without unwinding — so a single rejected option leaked the borrow guard and
+/// left every `&mut self` method (`changeLanguage`, `loadCatalog`) permanently
+/// dead with `recursive use of an object detected`. `t()` kept working, which is
+/// what made it so hard to see: the UI pinned to the boot language while
+/// `i18n.language` moved (spec 005 FR-023).
+///
+/// Decoding here returns `Err` through the normal path, so the guard drops.
+///
+/// The TS parameter widens from `TOptions | null` to `any` as a result. That is
+/// no loss: tsify emits `TOptions` as `interface TOptions extends Map<string, Value>`
+/// because of the flattened `vars`, which rejects every real object literal at
+/// compile time — the type was a lie, and callers cast at their own boundary.
+fn parse_options(opts: Option<&JsValue>) -> Result<TOptions, JsValue> {
+    let Some(opts) = opts.filter(|v| !v.is_undefined() && !v.is_null()) else {
+        return Ok(TOptions::default());
+    };
+    serde_wasm_bindgen::from_value(opts.clone()).map_err(|e| {
+        // Classified as unsupported rather than a new variant: an option the
+        // decoder cannot represent is one this engine does not support, and the
+        // code is already in the corpus's error vocabulary.
+        err(vela_core::CoreError::I18nUnsupportedOption(e.to_string()))
+    })
+}
+
 /// JS `Date`, a callable, or an object carrying its own `toString`. The dumper
 /// tags these, and the check is recursive because the tag can sit one level down.
 fn host_only(v: &serde_json::Value) -> bool {
@@ -714,8 +812,8 @@ impl I18n {
 
     /// First key that resolves wins; all-missing returns the **last** key.
     #[wasm_bindgen(js_name = tFirst)]
-    pub fn t_first(&self, keys: Vec<String>, opts: Option<TOptions>) -> Result<String, JsValue> {
-        let owned = opts.unwrap_or_default().to_owned_options();
+    pub fn t_first(&self, keys: Vec<String>, opts: Option<JsValue>) -> Result<String, JsValue> {
+        let owned = parse_options(opts.as_ref())?.to_owned_options();
         let mut scratch = vela_core::i18n::Scratch::default();
         let borrowed = owned.as_options(&mut scratch);
         let refs: Vec<&str> = keys.iter().map(String::as_str).collect();
@@ -723,18 +821,18 @@ impl I18n {
     }
 
     /// Resolve `key`. Returns the key itself when nothing matches.
-    pub fn t(&self, key: &str, opts: Option<TOptions>) -> Result<String, JsValue> {
-        let owned = opts.unwrap_or_default().to_owned_options();
+    pub fn t(&self, key: &str, opts: Option<JsValue>) -> Result<String, JsValue> {
+        let owned = parse_options(opts.as_ref())?.to_owned_options();
         let mut scratch = vela_core::i18n::Scratch::default();
         let borrowed = owned.as_options(&mut scratch);
         self.inner.t(key, &borrowed).map_err(err)
     }
 
-    pub fn exists(&self, key: &str, opts: Option<TOptions>) -> bool {
-        let owned = opts.unwrap_or_default().to_owned_options();
+    pub fn exists(&self, key: &str, opts: Option<JsValue>) -> Result<bool, JsValue> {
+        let owned = parse_options(opts.as_ref())?.to_owned_options();
         let mut scratch = vela_core::i18n::Scratch::default();
         let borrowed = owned.as_options(&mut scratch);
-        self.inner.exists(key, &borrowed)
+        Ok(self.inner.exists(key, &borrowed))
     }
 
     #[wasm_bindgen(js_name = changeLanguage)]
@@ -763,7 +861,11 @@ impl I18n {
 
     #[wasm_bindgen(js_name = residentLocales)]
     pub fn resident_locales(&self) -> Vec<String> {
-        self.inner.resident_locales().into_iter().map(str::to_owned).collect()
+        self.inner
+            .resident_locales()
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
     }
 
     #[wasm_bindgen(js_name = residentBytes)]

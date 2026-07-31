@@ -32,7 +32,10 @@ fn i18n_memory_is_flat_across_unbounded_distinct_keys() {
     let before = engine.resident_bytes();
     for i in 0..1_000_000u32 {
         let key = format!("zz.no.such.key.{i}");
-        let opts = Options { count: Some(Count::Num(f64::from(i % 100))), ..Options::default() };
+        let opts = Options {
+            count: Some(Count::Num(f64::from(i % 100))),
+            ..Options::default()
+        };
         std::hint::black_box(engine.t(&key, &opts).ok());
     }
     let after = engine.resident_bytes();

@@ -401,7 +401,11 @@ mod i18n_props {
         // non-empty string in every locale (falling through to `en` where absent).
         for lng in vela_core::i18n::SUPPORTED {
             let e = engine(lng);
-            for key in ["common.cancel", "send.recipientCount_other", "home.totalBalance"] {
+            for key in [
+                "common.cancel",
+                "send.recipientCount_other",
+                "home.totalBalance",
+            ] {
                 let got = e.t(key, &Options::default());
                 assert!(
                     got.as_deref().is_ok_and(|s| !s.is_empty()),

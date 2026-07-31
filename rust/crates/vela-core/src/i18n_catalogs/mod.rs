@@ -5,36 +5,36 @@
 //! still reachable at runtime through `Catalog::from_json` (FR-015), which is the
 //! route the web build uses for all of them.
 
+#[cfg(feature = "i18n-de")]
+pub(crate) mod de;
 #[cfg(feature = "i18n-en")]
 pub(crate) mod en;
-#[cfg(feature = "i18n-zh")]
-pub(crate) mod zh;
-#[cfg(feature = "i18n-zh-tw")]
-pub(crate) mod zh_tw;
-#[cfg(feature = "i18n-zh-hk")]
-pub(crate) mod zh_hk;
+#[cfg(feature = "i18n-es-mx")]
+pub(crate) mod es_mx;
+#[cfg(feature = "i18n-fr")]
+pub(crate) mod fr;
+#[cfg(feature = "i18n-id")]
+pub(crate) mod id;
+#[cfg(feature = "i18n-it")]
+pub(crate) mod it;
 #[cfg(feature = "i18n-ja")]
 pub(crate) mod ja;
 #[cfg(feature = "i18n-ko")]
 pub(crate) mod ko;
-#[cfg(feature = "i18n-vi")]
-pub(crate) mod vi;
-#[cfg(feature = "i18n-id")]
-pub(crate) mod id;
-#[cfg(feature = "i18n-tr")]
-pub(crate) mod tr;
-#[cfg(feature = "i18n-es-mx")]
-pub(crate) mod es_mx;
 #[cfg(feature = "i18n-pt-br")]
 pub(crate) mod pt_br;
-#[cfg(feature = "i18n-fr")]
-pub(crate) mod fr;
-#[cfg(feature = "i18n-de")]
-pub(crate) mod de;
 #[cfg(feature = "i18n-ru")]
 pub(crate) mod ru;
-#[cfg(feature = "i18n-it")]
-pub(crate) mod it;
+#[cfg(feature = "i18n-tr")]
+pub(crate) mod tr;
+#[cfg(feature = "i18n-vi")]
+pub(crate) mod vi;
+#[cfg(feature = "i18n-zh")]
+pub(crate) mod zh;
+#[cfg(feature = "i18n-zh-hk")]
+pub(crate) mod zh_hk;
+#[cfg(feature = "i18n-zh-tw")]
+pub(crate) mod zh_tw;
 
 /// The compiled-in table for `lang`, if its feature is enabled.
 ///

@@ -16,6 +16,21 @@
 export type CountValue = number | string | Value;
 
 /**
+ * An interpolation variable as it arrives from JS.
+ *
+ * Same defect as `CountValue`, same device — and it took a second sighting to
+ * notice the fix had been applied to `count` alone. Every OTHER variable still
+ * went through `serde_json::Value`, so `t(\'time.minutesShort\', { n: NaN })`
+ * rendered `\"分前\"` where i18next renders `\"NaN分前\"`. That one is reachable in
+ * production: `src/services/activity.ts:116` passes `{ n: Math.round(diff / 60) }`.
+ *
+ * The corpus cannot catch this class at all — it encodes non-finite values as
+ * `{\"__t\":\"nan\"}` and decodes the tag back on the Rust side, so a vector never
+ * crosses the raw-number boundary a live caller crosses (spec 005 FR-024).
+ */
+export type VarValue = number | Value;
+
+/**
  * Flattened `IdenticonParams` — the same shape `getIdenticonsParams` returns in
  * the JS library, so migrating call sites stay recognisable.
  */
@@ -34,7 +49,7 @@ export interface IdenticonParams {
  * literal verbatim — `{ count: 3, name: \'Alice\' }`. The reserved names are typed;
  * everything else falls into `vars` through `#[serde(flatten)]`.
  */
-export interface TOptions extends Map<string, Value> {
+export interface TOptions extends Map<string, VarValue> {
     /**
      * Untyped: i18next accepts a number, a string (which silently DISABLES plural
      * handling), `null`, an object, or a BigInt (which makes it throw). Typing
@@ -79,7 +94,7 @@ export interface TOptions extends Map<string, Value> {
      * interpolation source (`i18next.js:1180`) — a top-level `v` is shadowed
      * rather than merged.
      */
-    replace?: Value | undefined;
+    replace?: ReplaceArg | undefined;
     /**
      * Options i18next answers with a NON-string. A Rust `t()` is string-typed by
      * construction, so these are typed errors, not silent coercions.
@@ -97,6 +112,14 @@ export interface LanguageState {
     resolvedLanguage: string | undefined;
     languages: string[];
 }
+
+/**
+ * `replace`, which when it is an object REPLACES the options as the
+ * interpolation source (`i18next.js:1180`). Typed as a map of [`VarValue`] so a
+ * non-finite value survives that route too — the 005 adapter deliberately routes
+ * through `replace` when normalising an own-but-undefined `count`.
+ */
+export type ReplaceArg = Map<string, VarValue> | Value;
 
 export interface AbiValue {
     kind: string;
@@ -146,7 +169,7 @@ export class I18n {
     [Symbol.dispose](): void;
     changeLanguage(lng: string): LanguageState;
     dir(): string;
-    exists(key: string, opts?: TOptions | null): boolean;
+    exists(key: string, opts?: any | null): boolean;
     language(): string;
     /**
      * Make `lang`'s catalog active — the on-demand load.
@@ -173,11 +196,11 @@ export class I18n {
     /**
      * Resolve `key`. Returns the key itself when nothing matches.
      */
-    t(key: string, opts?: TOptions | null): string;
+    t(key: string, opts?: any | null): string;
     /**
      * First key that resolves wins; all-missing returns the **last** key.
      */
-    tFirst(keys: string[], opts?: TOptions | null): string;
+    tFirst(keys: string[], opts?: any | null): string;
 }
 
 export function abiEncodeAddress(address_hex: string): Uint8Array;
@@ -319,7 +342,7 @@ export interface InitOutput {
     readonly i18nTextDirection: (a: number, b: number) => [number, number];
     readonly i18n_changeLanguage: (a: number, b: number, c: number) => any;
     readonly i18n_dir: (a: number) => [number, number];
-    readonly i18n_exists: (a: number, b: number, c: number, d: number) => number;
+    readonly i18n_exists: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly i18n_language: (a: number) => [number, number];
     readonly i18n_loadCatalog: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly i18n_new: (a: number, b: number) => [number, number, number];

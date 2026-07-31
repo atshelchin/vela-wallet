@@ -367,7 +367,10 @@ pub(crate) fn candidates_for<'a>(
     scratch.clear();
     let mut ranges = [(0usize, 0usize); 6];
     let mut len = 0usize;
-    let push = |scratch: &mut String, parts: &[&str], ranges: &mut [(usize, usize); 6], len: &mut usize| {
+    let push = |scratch: &mut String,
+                parts: &[&str],
+                ranges: &mut [(usize, usize); 6],
+                len: &mut usize| {
         if *len >= 6 {
             return;
         }
@@ -410,7 +413,11 @@ pub(crate) fn candidates_for<'a>(
         }
     }
 
-    Candidates { buf: scratch.as_str(), ranges, len }
+    Candidates {
+        buf: scratch.as_str(),
+        ranges,
+        len,
+    }
 }
 
 /// CLDR **ordinal** categories./// CLDR **ordinal** categories. Only four of the fifteen shipped locales have a
@@ -422,8 +429,16 @@ fn ordinal_category(locale: &str, count: f64) -> super::plural::Category {
         return Category::Other;
     }
     let n = count.abs();
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::allow_attributes)]
-    let i = if n >= u64::MAX as f64 { u64::MAX } else { n as u64 };
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::allow_attributes
+    )]
+    let i = if n >= u64::MAX as f64 {
+        u64::MAX
+    } else {
+        n as u64
+    };
     match primary {
         // en: one: n % 10 = 1 and n % 100 != 11
         //     two: n % 10 = 2 and n % 100 != 12

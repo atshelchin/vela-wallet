@@ -116,8 +116,43 @@ const dumpOne = async (slug, board, pageName, note) => {
   return res;
 };
 
-const goto = async (path, settle) => {
-  await page.goto(BASE + path, { waitUntil: 'networkidle', timeout: 60000 });
+// ── driver-level options a spec GROUP may declare ──────────────────────────────────────────────
+// Some states are only reachable through things the in-page harness cannot do: a network route that
+// fails, a WebAuthn authenticator, or a screenshot taken before hydration. Those used to require a
+// hand-written one-off script per state — which is the "a person at a console" problem this driver
+// exists to remove — so they are declarable on the group instead, and stay committed with the recipe.
+//
+//   base            override the origin. Passkey flows MUST use http://localhost:8083, not the
+//                   127.0.0.1 the rest of the captures use: getRelyingPartyId() returns
+//                   window.location.hostname and WebAuthn refuses an IP literal as an rpId.
+//   routes[]        { match, action: 'abort' | 'fulfil', status?, body? } — e.g. abort **\/api/create
+//                   to reach the sync-failure branch without touching production.
+//   gotoWait        override waitUntil ('commit' captures before hydration — the only way to see a
+//                   boot splash that networkidle has already scrolled past).
+//   virtualAuthenticator  attach a CDP virtual authenticator so a passkey ceremony completes headlessly.
+let routeRules = [];
+const applyGroupOptions = async (group) => {
+  for (const r of routeRules) { try { await page.unroute(r); } catch (e) {} }
+  routeRules = [];
+  for (const r of (group.routes || [])) {
+    routeRules.push(r.match);
+    await page.route(r.match, (route) => {
+      if (r.action === 'fulfil') return route.fulfill({ status: r.status || 200, contentType: 'application/json', body: r.body || '{}' });
+      return route.abort();
+    });
+  }
+  if (group.virtualAuthenticator) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    await cdp.send('WebAuthn.addVirtualAuthenticator', { options: {
+      protocol: 'ctap2', transport: 'internal', hasResidentKey: true,
+      hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } });
+  }
+};
+
+const goto = async (path, settle, group) => {
+  const base = (group && group.base) || BASE;
+  await page.goto(base + path, { waitUntil: (group && group.gotoWait) || 'networkidle', timeout: 60000 });
   await page.waitForTimeout(settle || 4000);
   await install();
 };
@@ -128,7 +163,8 @@ if (arg('spec')) {
   const only = arg('group');
   for (const group of groups) {
     if (only && group.url !== only) continue;
-    await goto(group.url, group.settle);
+    await applyGroupOptions(group);
+    await goto(group.url, group.settle, group);
     // Seed the group's baseline: everything captured so far this run, plus the on-disk fingerprint
     // of every board a state in this group names in `differsFrom`. Resolving those here rather than
     // in the page is what makes `--group` and a single-state recapture as safe as a full sweep.

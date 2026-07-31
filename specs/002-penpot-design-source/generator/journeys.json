@@ -141,11 +141,15 @@
      "kind": "flow",
      "steps": [
       "S/onboarding/welcome",
-      "S/onboarding/create"
+      "S/onboarding/create",
+      "S/onboarding/create-ceremony"
      ],
      "states": {
       "S/onboarding/create": [
        "S/onboarding/create-form-ready"
+      ],
+      "S/onboarding/create-ceremony": [
+       "S/onboarding/sync-failure"
       ]
      }
     },

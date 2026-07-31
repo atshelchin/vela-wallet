@@ -33,6 +33,22 @@ pub enum CoreError {
     Eip712Parse(String),
     #[error("EIP-712 domain type is not the canonical EIP712Domain: {0}")]
     Eip712NonCanonicalDomain(String),
+    #[error("identicon seed is unrenderable: {0}")]
+    InvalidIdenticonSeed(String),
+    // i18n (spec 004-rust-i18n, data-model.md "CoreError extension"). Every variant
+    // carries a String so the FFI contract stays uniform — `t([])` has no detail of
+    // its own, so it carries caller context instead of becoming the enum's first
+    // payload-free variant.
+    #[error("t() called with an empty key list: {0}")]
+    I18nEmptyKeyList(String),
+    #[error("i18n count is not a finite number: {0}")]
+    I18nInvalidCount(String),
+    #[error("i18n option is not supported by this engine: {0}")]
+    I18nUnsupportedOption(String),
+    #[error("i18n catalog is not available for locale: {0}")]
+    I18nCatalogUnavailable(String),
+    #[error("i18n catalog JSON is malformed: {0}")]
+    I18nCatalogParse(String),
     #[error("internal invariant violated: {0}")]
     Internal(String),
 }
@@ -55,6 +71,12 @@ impl CoreError {
             CoreError::AbiDecode(_) => "AbiDecode",
             CoreError::Eip712Parse(_) => "Eip712Parse",
             CoreError::Eip712NonCanonicalDomain(_) => "Eip712NonCanonicalDomain",
+            CoreError::InvalidIdenticonSeed(_) => "InvalidIdenticonSeed",
+            CoreError::I18nEmptyKeyList(_) => "I18nEmptyKeyList",
+            CoreError::I18nInvalidCount(_) => "I18nInvalidCount",
+            CoreError::I18nUnsupportedOption(_) => "I18nUnsupportedOption",
+            CoreError::I18nCatalogUnavailable(_) => "I18nCatalogUnavailable",
+            CoreError::I18nCatalogParse(_) => "I18nCatalogParse",
             CoreError::Internal(_) => "Internal",
         }
     }

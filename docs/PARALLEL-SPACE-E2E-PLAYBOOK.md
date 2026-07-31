@@ -14,7 +14,7 @@ The parallel space is the **real app with only the passkey faked** (a fixed keys
 ## 1. Golden rules (do not violate)
 
 1. **Test the REAL screens, pixel-for-pixel.** Never build a mock UI. Reach screens through their real routes; the only entry that's parallel-specific is `/parallel` (which arms the mode and redirects into the real app).
-2. **Select by what's on screen** — exact **English text**, **placeholder**, or an **existing** `testID`. Do **not** invent production testIDs (keeps prod pixel-identical). Grep the anchor in `src/i18n/locales/en/*.json` to get the exact string.
+2. **Select by what's on screen** — exact **English text**, **placeholder**, or an **existing** `testID`. Do **not** invent production testIDs (keeps prod pixel-identical). Grep the anchor in `rust/crates/vela-core/i18n/locales/en/*.json` to get the exact string.
 3. **Never spend funds.** Drive up to the confirm/sign step and **Reject**, or stay read-only. Completing a send/approve hits the real bundler. (For a genuine on-chain test, see §6.)
 4. **Assert from the controllable side.** For dApp-connection flows, fire from the test dApp and assert the round-trip response there; for in-app flows, assert the rendered screen state.
 5. **Must run on a DEV build** (`__DEV__` true). In production the passkey override + badge are compile-time no-ops. Point Playwright at a dev server with `E2E_BASE_URL`.
@@ -36,7 +36,7 @@ The parallel space is the **real app with only the passkey faked** (a fixed keys
 1. **Find the real route + entry.** How does a user reach it from Home? (e.g. Send button, Settings gear, a tab, a token row.) The parallel space lands you on the real Home via `/parallel`.
 2. **Collect stable anchors.** Read the screen; for each button/label/placeholder you'll target, grep the exact English string:
    ```
-   python3 -c "import json;d=json.load(open('src/i18n/locales/en/<ns>.json'));print(...)"
+   python3 -c "import json;d=json.load(open('rust/crates/vela-core/i18n/locales/en/<ns>.json'));print(...)"
    ```
    Prefer text/placeholder. Existing `testID`s: only `parallel-space-badge`, `receipt-card`, and the test-dApp `dapp-*` ids exist repo-wide.
 3. **Write `e2e/parallel-<flow>.spec.ts`** (skeleton in §5).

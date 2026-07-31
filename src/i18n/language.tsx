@@ -47,9 +47,21 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     // Update module cache + i18next + persist (fires the react-i18next re-render).
     // Swallow rejections so a changeLanguage failure never becomes unhandled
     // (the write already happened inside setLanguagePreference).
-    setLanguagePreference(pref).catch(() => {});
-    // Re-render this provider → `resolved` changes → Stack key remounts the tree.
-    setPreferenceState(pref);
+    //
+    // The state update is DEFERRED until that settles, and on web that matters:
+    // `resolved` feeds the Stack `key` in _layout.tsx, so setting it
+    // synchronously remounted the entire tree one round-trip BEFORE the new
+    // catalog was resident — a full remount still rendering the old language,
+    // followed by a second render once it arrived. Native is unaffected in
+    // practice: its resources are bundled, so the promise settles in a microtask.
+    void setLanguagePreference(pref)
+      .catch(() => undefined)
+      .finally(() => {
+        // Set regardless of outcome: the preference is already persisted, so the
+        // picker must reflect what the user chose even if the catalog could not
+        // be fetched and the UI is still rendering the previous language.
+        setPreferenceState(pref);
+      });
   }, []);
 
   const value = useMemo(

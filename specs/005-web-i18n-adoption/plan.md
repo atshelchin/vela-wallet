@@ -86,9 +86,12 @@ features 001/003/004 established:
   fixes it forces are defect repairs to an existing module, tested in the crate.
 - **Test-first**: PASS — the two defects above are reproduced by committed failing checks
   before they are fixed, and the differential test is written before the seam is installed.
-- **Simplicity**: PASS — the seam is two property assignments. No new dependency, no jest
-  config change, no new CI job, no render library. Every heavier alternative (i18nFormat
-  module, bypass Provider, `.test.tsx` + testing-library) was measured and rejected.
+- **Simplicity**: PASS — the seam is two property assignments. No jest config change, no new
+  CI job, no render library. Every heavier alternative (i18nFormat module, bypass Provider,
+  `.test.tsx` + testing-library) was measured and rejected. **One dependency was added**, and
+  the earlier "no new dependency" claim was too strong: `@types/react-dom` (types only, no
+  runtime) is needed to import `react-dom/server`, whose runtime package was already a direct
+  dependency at 19.2.0.
 - **No hand-rolled primitives**: PASS — the adapter hand-rolls nothing; it delegates to the
   engine and to i18next.
 - **Reversibility**: PASS, and load-bearing here. The whole adoption is two assignments

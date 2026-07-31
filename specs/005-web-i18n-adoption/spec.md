@@ -282,23 +282,45 @@ obligation rather than running code.
 - **FR-015**: A differential harness MUST resolve through both engines and record
   every divergence with key, options, language and both outputs.
 - **FR-016**: When the engines disagree, or the Rust engine throws, the **oracle's**
-  result MUST be what renders.
+  result MUST be what renders. The harness MUST nonetheless expose the **Rust** result,
+  and every differential assertion MUST compare `rust` against `oracle` directly. A test
+  asserting on the seam's *return value* is structurally incapable of failing — the seam
+  returns the oracle by construction — and MUST NOT be written.
 - **FR-017**: The harness MUST be switchable, default-off in production builds, and
   MUST cost nothing measurable when off.
 - **FR-018**: While proving, `resources` MUST remain in the web bundle. It is what
   makes the oracle real.
 
+**Engine defects that block adoption** *(confirmed against the shipped artefact)*
+
+- **FR-023**: A rejected option MUST NOT leave the engine unusable. Today a failed
+  option decode inside `t()` permanently poisons it: `changeLanguage` and `loadCatalog`
+  throw `recursive use of an object detected` forever, because wasm-bindgen takes the
+  borrow before argument conversion and tsify's failure path throws without unwinding.
+  The user-visible form is the UI pinning to the boot language while `i18n.language`
+  moves.
+- **FR-024**: Non-finite interpolation variables MUST render as i18next renders them.
+  Today `{n: NaN}` gives `"NaN分前"` on i18next and `"分前"` on the engine (same for
+  ±Infinity): 004 made `count` non-finite-safe, but the flattened `vars` map still routes
+  through `serde_json::Value`, which cannot hold NaN or Infinity. Reachable from
+  `src/services/activity.ts:116`.
+
 **Verification**
 
 - **FR-019**: CI MUST execute the web i18n module — construct it, resolve through it,
-  compare against i18next. A green `jest` MUST NOT be treated as evidence the web path
-  works, because no jest runner resolves `.web.ts`.
+  compare against i18next. A green `jest` MUST NOT be treated as evidence on its own; a
+  *bare* `@/i18n` specifier resolves the native file, so the test MUST import the web
+  module by explicit path.
 - **FR-020**: The full instance surface `useTranslation` touches MUST have a contract
   test. A missing member does not error; it suspends forever.
 - **FR-021**: `SUPPORTED_LANGUAGES` in TypeScript and `SUPPORTED` in Rust MUST be
-  asserted equal. They are a coupled pair with no compile-time link.
-- **FR-022**: `count: undefined` and `BigInt` count MUST be added as regression
-  vectors, and the adapter MUST normalise the former.
+  asserted equal as **sorted** collections. They are a coupled pair with no compile-time
+  link, and are set-equal but order-different today.
+- **FR-022**: `count: undefined` and `BigInt` count MUST be covered as regression cases
+  that cross the real wasm boundary, and the adapter MUST normalise the former. They MUST
+  NOT be added to the committed corpus: its `{"__t":"undefined"}` encoding decodes to
+  `count = None` on the Rust side, so such a vector would pass while the live boundary
+  diverges.
 
 ---
 

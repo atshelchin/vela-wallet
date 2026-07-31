@@ -25,7 +25,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:live": "jest --testPathIgnorePatterns '/node_modules/' --testPathPatterns '\\.live\\.test\\.ts$'"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

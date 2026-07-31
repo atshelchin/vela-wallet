@@ -5,6 +5,15 @@ module.exports = {
   roots: ['<rootDir>/src'],
   setupFiles: ['<rootDir>/jest.setup.js'],
   testMatch: ['**/__tests__/**/*.test.ts'],
+  // `*.live.test.ts` queries real RPCs and real name registries, so it asserts on data
+  // OTHER PEOPLE control and on networks that may not be reachable from a CI runner. It
+  // fails for reasons that have nothing to do with this repo — a chain's public RPC being
+  // down, a rate limit, or the owner of a test address registering a new name. One of those
+  // happened: `second.g` resolved locally and came back `alternativename.base.eth` in CI,
+  // because Gravity (chain 1625) was unreachable there and the resolver fell through to the
+  // next service in its priority list. Excluded from the default run; `npm run test:live`
+  // runs them on purpose. The LOGIC those files used to cover is now covered hermetically.
+  testPathIgnorePatterns: ['/node_modules/', '\\.live\\.test\\.ts$'],
   reporters: [
     'default',
     '<rootDir>/scripts/jest-skipped-reporter.js',

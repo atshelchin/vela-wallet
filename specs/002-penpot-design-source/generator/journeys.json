@@ -1,0 +1,381 @@
+{
+ "$comment": "Journey-wall manifest (RESTRUCTURE-2026-07-30 §5/§7). Board (x,y) on screen pages is DERIVED from this file by 73-screens-from-states.js — walls are a generated output, never a hand arrangement, so regeneration reproduces them (FR-008). Wall kinds: 'flow' = steps left-to-right in journey order; 'hub' = hub board first column, spokes to its right. states[board] stack BELOW that board (dark twins, empty/error/locked states). Steps may name boards that do not exist yet (S/send/sign, receipts) — 73 skips absent boards but reserves their column, so adding the board later lands it in place. Boards on a page but in no wall fall into an auto 'misc' band after the last wall (legacy grid).",
+ "$layout_note": "colW leaves a 170px gap between 390px boards — the visible edge layer (77-walls) puts a labelled arrow in that gap, and a trigger like 'slide to confirm → receipt' needs ~130px. At the old 450 the label had nowhere to go but on top of the next screen.",
+ "layout": {
+  "colW": 560,
+  "rowH": 950,
+  "bandGap": 250,
+  "originX": 40,
+  "headerH": 160
+ },
+ "pages": {
+  "05 Screens · Wallet": {
+   "walls": [
+    {
+     "journey": "home",
+     "kind": "hub",
+     "hub": "S/home/default",
+     "spokes": [
+      "S/home/activity",
+      "S/home/assets",
+      "S/home/connections"
+     ],
+     "states": {
+      "S/home/activity": [
+       "S/home/hidden-balance",
+       "S/home/rate-limited",
+       "S/home/rpc-trouble"
+      ],
+      "S/home/assets": [
+       "S/home/assets-dark",
+       "S/home/assets-empty"
+      ],
+      "S/home/default": [
+       "S/home/refreshing",
+       "S/home/estimate-notice",
+       "S/home/balance-loading"
+      ],
+      "S/home/connections": [
+       "S/home/connections-connecting",
+       "S/home/connections-error",
+       "S/home/connections-connected"
+      ]
+     }
+    },
+    {
+     "journey": "send",
+     "kind": "flow",
+     "steps": [
+      "S/send/select-token",
+      "S/send/details",
+      "S/send/confirm",
+      "S/send/sign",
+      "S/send/receipt-submitted"
+     ],
+     "states": {
+      "S/send/select-token": [
+       "S/send/select-token-dark",
+       "S/send/locked-network-not-supported",
+       "S/send/locked-unknown-token"
+      ],
+      "S/send/details": [
+       "S/send/details-filled",
+       "S/send/details-split"
+      ],
+      "S/send/receipt-submitted": [
+       "S/send/receipt-confirmed",
+       "S/send/receipt-failed"
+      ]
+     }
+    },
+    {
+     "journey": "receive",
+     "kind": "flow",
+     "steps": [
+      "S/receive/safety-gate",
+      "S/receive/address",
+      "S/receive/request"
+     ],
+     "states": {
+      "S/receive/address": [
+       "S/receive/copied"
+      ]
+     }
+    },
+    {
+     "journey": "tokens",
+     "kind": "hub",
+     "hub": "S/token-detail/default",
+     "spokes": [
+      "S/add-token/erc20",
+      "S/add-token/native"
+     ],
+     "states": {
+      "S/add-token/erc20": [
+       "S/add-token/erc20-resolving",
+       "S/add-token/erc20-resolved",
+       "S/add-token/erc20-error"
+      ],
+      "S/add-token/native": [
+       "S/add-token/network-checking",
+       "S/add-token/network-compatible",
+       "S/add-token/network-incompatible"
+      ]
+     }
+    },
+    {
+     "journey": "pay",
+     "kind": "flow",
+     "steps": [
+      "S/pay/default"
+     ],
+     "states": {
+      "S/pay/default": [
+       "S/pay/invalid-link"
+      ]
+     }
+    }
+   ]
+  },
+  "06 Screens · Browser & Connect": {
+   "walls": [
+    {
+     "journey": "connect",
+     "kind": "flow",
+     "steps": [
+      "S/connect/disconnected",
+      "S/connect/connecting-verify"
+     ],
+     "states": {
+      "S/connect/disconnected": [
+       "S/connect/error"
+      ]
+     }
+    },
+    {
+     "journey": "browse",
+     "kind": "hub",
+     "hub": "S/browser/unsupported-on-web",
+     "spokes": [
+      "S/safari-extension/default"
+     ],
+     "states": {}
+    },
+    {
+     "journey": "web-request",
+     "kind": "hub",
+     "hub": "S/web-request/unavailable",
+     "spokes": [],
+     "states": {
+      "S/web-request/unavailable": [
+       "S/web-request/error"
+      ]
+     }
+    }
+   ]
+  },
+  "07 Screens · Settings & Onboarding": {
+   "walls": [
+    {
+     "journey": "boot",
+     "kind": "flow",
+     "steps": [
+      "S/index/loading"
+     ]
+    },
+    {
+     "journey": "onboarding",
+     "kind": "flow",
+     "steps": [
+      "S/onboarding/welcome",
+      "S/onboarding/create",
+      "S/onboarding/create-ceremony",
+      "S/onboarding/create-success"
+     ],
+     "states": {
+      "S/onboarding/create": [
+       "S/onboarding/create-form-ready",
+       "S/onboarding/create-resume"
+      ],
+      "S/onboarding/create-ceremony": [
+       "S/onboarding/sync-failure"
+      ],
+      "S/onboarding/welcome": [
+       "S/onboarding/welcome-signin-loading"
+      ]
+     }
+    },
+    {
+     "journey": "settings",
+     "kind": "hub",
+     "hub": "S/settings/default",
+     "spokes": [
+      "S/about/default"
+     ],
+     "states": {
+      "S/settings/default": [
+       "S/settings/advanced-expanded",
+       "S/settings/scrolled",
+       "S/settings/default-dark"
+      ]
+     }
+    }
+   ]
+  },
+  "08 Overlays": {
+   "$comment": "Overlays are grouped by BUSINESS MODULE, not alphabetically: a reader looking for 'what does the app show when a dApp asks to sign' should find the whole signing family together, split by what is being signed. The 25 signing scenarios are five walls (transfers / approvals / messages / defi / danger) rather than one 25-column row.",
+   "walls": [
+    {
+     "journey": "system · modal shells",
+     "steps": [
+      "O/app-modal/page-sheet",
+      "O/app-alert/single-action"
+     ],
+     "states": {
+      "O/app-modal/page-sheet": [
+       "O/app-modal/fit"
+      ],
+      "O/app-alert/single-action": [
+       "O/app-alert/two-actions",
+       "O/app-alert/destructive"
+      ]
+     }
+    },
+    {
+     "journey": "home · balance & account",
+     "steps": [
+      "O/account-switcher/default",
+      "O/balance-detail/degraded-chains",
+      "O/identicon-viewer/default",
+      "O/network-filter/default",
+      "O/rpc-fix/default"
+     ],
+     "states": {
+      "O/account-switcher/default": [
+       "O/account-switcher/loading",
+       "O/account-switcher/privacy-masked",
+       "O/account-switcher/create-actions"
+      ],
+      "O/balance-detail/degraded-chains": [
+       "O/balance-detail/tokens-only",
+       "O/balance-detail/fix-form-swap"
+      ],
+      "O/identicon-viewer/default": [
+       "O/identicon-viewer/copied"
+      ],
+      "O/network-filter/default": [
+       "O/network-filter/searching"
+      ],
+      "O/rpc-fix/default": [
+       "O/rpc-fix/saving"
+      ]
+     }
+    },
+    {
+     "journey": "send · recipients & batch",
+     "steps": [
+      "O/contact-picker/default",
+      "O/contacts-manager/default",
+      "O/batch-import/default"
+     ]
+    },
+    {
+     "journey": "token · add",
+     "steps": [
+      "O/add-token-sheet/default"
+     ]
+    },
+    {
+     "journey": "settings · preferences",
+     "steps": [
+      "O/currency/default",
+      "O/language-picker/default",
+      "O/format-picker/number"
+     ],
+     "states": {
+      "O/format-picker/number": [
+       "O/format-picker/date",
+       "O/format-picker/time"
+      ]
+     }
+    },
+    {
+     "journey": "settings · networks",
+     "steps": [
+      "O/add-network/searching",
+      "O/network-editor/collapsed",
+      "O/endpoint-editor/default",
+      "O/rpc-providers/idle"
+     ],
+     "states": {
+      "O/add-network/searching": [
+       "O/add-network/checking-compatibility",
+       "O/add-network/result",
+       "O/add-network/error"
+      ],
+      "O/network-editor/collapsed": [
+       "O/network-editor/card-expanded"
+      ],
+      "O/endpoint-editor/default": [
+       "O/endpoint-editor/health-error-states"
+      ],
+      "O/rpc-providers/idle": [
+       "O/rpc-providers/testing",
+       "O/rpc-providers/results"
+      ]
+     }
+    },
+    {
+     "journey": "dapp · sessions & receipts",
+     "steps": [
+      "O/connection-event/sign-message",
+      "O/browser-history/default",
+      "O/transaction-detail/single-confirmed",
+      "O/treasury-bootstrap/bootstrap-needed"
+     ],
+     "states": {
+      "O/transaction-detail/single-confirmed": [
+       "O/transaction-detail/batch-split"
+      ]
+     }
+    },
+    {
+     "journey": "signing · transfers",
+     "steps": [
+      "O/signing-sheet/eth-transfer",
+      "O/signing-sheet/erc-20-transfer",
+      "O/signing-sheet/erc-20-transferfrom",
+      "O/signing-sheet/nft-transfer",
+      "O/signing-sheet/large-eth-send"
+     ]
+    },
+    {
+     "journey": "signing · approvals",
+     "steps": [
+      "O/signing-sheet/erc-20-approve-unlimited",
+      "O/signing-sheet/erc-20-limited-approve",
+      "O/signing-sheet/increaseallowance",
+      "O/signing-sheet/nft-approve-all",
+      "O/signing-sheet/permit2-approve-unlimited",
+      "O/signing-sheet/eip-712-permit2"
+     ]
+    },
+    {
+     "journey": "signing · messages",
+     "steps": [
+      "O/signing-sheet/personal-sign",
+      "O/signing-sheet/hex-message-sign",
+      "O/signing-sheet/eth-sign-raw-hash",
+      "O/signing-sheet/siwe-domain-mismatch",
+      "O/signing-sheet/eip-712-unknown"
+     ]
+    },
+    {
+     "journey": "signing · defi",
+     "steps": [
+      "O/signing-sheet/1inch-swap",
+      "O/signing-sheet/native-swap-eth-token",
+      "O/signing-sheet/vault-deposit",
+      "O/signing-sheet/vault-withdraw",
+      "O/signing-sheet/expired-swap-deadline",
+      "O/signing-sheet/eip-5792-batch"
+     ]
+    },
+    {
+     "journey": "signing · danger",
+     "steps": [
+      "O/signing-sheet/scam-drain",
+      "O/signing-sheet/blind-transaction",
+      "O/signing-sheet/deploy-contract"
+     ]
+    },
+    {
+     "journey": "system · feedback",
+     "steps": [
+      "O/bug-report/default"
+     ]
+    }
+   ]
+  }
+ }
+}

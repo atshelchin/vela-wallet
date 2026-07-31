@@ -35,6 +35,10 @@ import {
 } from '@/services/hex';
 import { sha256 as legacySha256 } from '@/services/sha256';
 import {
+  identiconSvgCircular as legacyIdenticonSvgCircular,
+  normalizeIdenticonSeed as legacyNormalizeIdenticonSeed,
+} from '@/services/identicon';
+import {
   parseSignature as legacyParseSignature,
   canonicalize as legacyCanonicalize,
   computeSelector as legacyComputeSelector,
@@ -124,3 +128,10 @@ export const extractPublicKey = legacyExtractPublicKey;
 export const derSignatureToRaw = legacyDerSignatureToRaw;
 export const verifySafeWebAuthn = legacyVerifySafeWebAuthn;
 export const recoverPublicKeyFromAssertions = legacyRecoverPublicKeyFromAssertions;
+
+// --- identicon --------------------------------------------------------------
+// specs/003-rust-identicon. On native (Hermes, no wasm) the JS library still runs;
+// `index.web.ts` serves the same two functions from the Rust core, and
+// `scripts/verify-identicon-parity.mjs` proves the two are byte-identical.
+export const identiconSvgCircular = legacyIdenticonSvgCircular;
+export const normalizeIdenticonSeed = legacyNormalizeIdenticonSeed;

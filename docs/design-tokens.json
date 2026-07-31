@@ -1,0 +1,716 @@
+{
+  "$description": "Vela Wallet design tokens, exported from the Penpot design source of truth (file \"Vela Wallet — Design Source of Truth\"). Tokens-Studio/DTCG dialect: one top-level key per token set, $type/$value per token. Modes are SET ACTIVATION, not theme objects: activate core + exactly one of color-light / color-dark. Regenerate with generator/export-tokens-dtcg.mjs; verify against the live file with generator/26-tokens-dtcg-check.js.",
+  "core": {
+    "space": {
+      "0": {
+        "$type": "spacing",
+        "$value": "0"
+      },
+      "xs": {
+        "$type": "spacing",
+        "$value": "2"
+      },
+      "sm": {
+        "$type": "spacing",
+        "$value": "4"
+      },
+      "md": {
+        "$type": "spacing",
+        "$value": "8"
+      },
+      "lg": {
+        "$type": "spacing",
+        "$value": "12"
+      },
+      "xl": {
+        "$type": "spacing",
+        "$value": "16"
+      },
+      "2xl": {
+        "$type": "spacing",
+        "$value": "20"
+      },
+      "3xl": {
+        "$type": "spacing",
+        "$value": "24"
+      },
+      "4xl": {
+        "$type": "spacing",
+        "$value": "32"
+      },
+      "5xl": {
+        "$type": "spacing",
+        "$value": "48"
+      }
+    },
+    "layout": {
+      "screenPaddingX": {
+        "$type": "spacing",
+        "$value": "24"
+      },
+      "maxContentWidth": {
+        "$type": "sizing",
+        "$value": "800"
+      },
+      "dockBarHeight": {
+        "$type": "sizing",
+        "$value": "86"
+      },
+      "scanFabSize": {
+        "$type": "sizing",
+        "$value": "56"
+      },
+      "frameW": {
+        "$type": "sizing",
+        "$value": "390"
+      },
+      "frameH": {
+        "$type": "sizing",
+        "$value": "844"
+      }
+    },
+    "radius": {
+      "none": {
+        "$type": "borderRadius",
+        "$value": "0"
+      },
+      "sm": {
+        "$type": "borderRadius",
+        "$value": "4"
+      },
+      "md": {
+        "$type": "borderRadius",
+        "$value": "8"
+      },
+      "lg": {
+        "$type": "borderRadius",
+        "$value": "12"
+      },
+      "xl": {
+        "$type": "borderRadius",
+        "$value": "16"
+      },
+      "2xl": {
+        "$type": "borderRadius",
+        "$value": "20"
+      },
+      "full": {
+        "$type": "borderRadius",
+        "$value": "9999"
+      }
+    },
+    "border": {
+      "hairline": {
+        "$type": "borderWidth",
+        "$value": "1"
+      },
+      "emphasis": {
+        "$type": "borderWidth",
+        "$value": "1.5"
+      }
+    },
+    "text": {
+      "xs": {
+        "$type": "fontSizes",
+        "$value": "10"
+      },
+      "sm": {
+        "$type": "fontSizes",
+        "$value": "11"
+      },
+      "base": {
+        "$type": "fontSizes",
+        "$value": "13"
+      },
+      "lg": {
+        "$type": "fontSizes",
+        "$value": "15"
+      },
+      "xl": {
+        "$type": "fontSizes",
+        "$value": "17"
+      },
+      "2xl": {
+        "$type": "fontSizes",
+        "$value": "20"
+      },
+      "3xl": {
+        "$type": "fontSizes",
+        "$value": "26"
+      },
+      "4xl": {
+        "$type": "fontSizes",
+        "$value": "32"
+      },
+      "5xl": {
+        "$type": "fontSizes",
+        "$value": "40"
+      }
+    },
+    "weight": {
+      "regular": {
+        "$type": "fontWeights",
+        "$value": "400"
+      },
+      "medium": {
+        "$type": "fontWeights",
+        "$value": "500"
+      },
+      "semibold": {
+        "$type": "fontWeights",
+        "$value": "600"
+      },
+      "bold": {
+        "$type": "fontWeights",
+        "$value": "700"
+      }
+    },
+    "font": {
+      "sans": {
+        "$type": "fontFamilies",
+        "$value": [
+          "Plus Jakarta Sans"
+        ]
+      },
+      "display": {
+        "$type": "fontFamilies",
+        "$value": [
+          "Plus Jakarta Sans"
+        ]
+      },
+      "numeric": {
+        "$type": "fontFamilies",
+        "$value": [
+          "Plus Jakarta Sans"
+        ]
+      },
+      "mono": {
+        "$type": "fontFamilies",
+        "$value": [
+          "IBM Plex Mono"
+        ]
+      }
+    },
+    "letterSpacing": {
+      "sectionLabel": {
+        "$type": "letterSpacing",
+        "$value": "0.6"
+      }
+    },
+    "opacity": {
+      "disabled": {
+        "$type": "opacity",
+        "$value": "0.45"
+      },
+      "dim": {
+        "$type": "opacity",
+        "$value": "0.4"
+      },
+      "backdrop": {
+        "$type": "opacity",
+        "$value": "0.35"
+      }
+    },
+    "leading": {
+      "none": {
+        "$type": "number",
+        "$value": "1"
+      },
+      "tight": {
+        "$type": "number",
+        "$value": "1.2"
+      },
+      "normal": {
+        "$type": "number",
+        "$value": "1.4"
+      },
+      "relaxed": {
+        "$type": "number",
+        "$value": "1.6"
+      },
+      "amountHero": {
+        "$type": "number",
+        "$value": "1.12"
+      }
+    },
+    "motion": {
+      "duration": {
+        "fast": {
+          "$type": "number",
+          "$value": "150"
+        },
+        "normal": {
+          "$type": "number",
+          "$value": "250"
+        },
+        "slow": {
+          "$type": "number",
+          "$value": "400"
+        }
+      },
+      "sheet": {
+        "in": {
+          "$type": "number",
+          "$value": "220"
+        },
+        "out": {
+          "$type": "number",
+          "$value": "180"
+        },
+        "drag": {
+          "$type": "number",
+          "$value": "200"
+        }
+      },
+      "press": {
+        "button": {
+          "$type": "number",
+          "$value": "0.97"
+        },
+        "row": {
+          "$type": "number",
+          "$value": "0.98"
+        },
+        "fab": {
+          "$type": "number",
+          "$value": "0.92"
+        }
+      },
+      "spring": {
+        "damping": {
+          "$type": "number",
+          "$value": "15"
+        },
+        "stiffness": {
+          "$type": "number",
+          "$value": "150"
+        },
+        "mass": {
+          "$type": "number",
+          "$value": "0.8"
+        }
+      },
+      "springGentle": {
+        "damping": {
+          "$type": "number",
+          "$value": "20"
+        },
+        "stiffness": {
+          "$type": "number",
+          "$value": "120"
+        },
+        "mass": {
+          "$type": "number",
+          "$value": "1"
+        }
+      },
+      "entrance": {
+        "fade": {
+          "$type": "number",
+          "$value": "300"
+        },
+        "fadeUp": {
+          "$type": "number",
+          "$value": "400"
+        },
+        "stagger": {
+          "$type": "number",
+          "$value": "50"
+        }
+      }
+    },
+    "textScale": {
+      "min": {
+        "$type": "number",
+        "$value": "0.82"
+      },
+      "max": {
+        "$type": "number",
+        "$value": "1.35"
+      },
+      "webBoost": {
+        "$type": "number",
+        "$value": "1.2"
+      }
+    },
+    "amount": {
+      "tailScale": {
+        "$type": "number",
+        "$value": "0.56"
+      },
+      "symbolScale": {
+        "$type": "number",
+        "$value": "0.58"
+      },
+      "minScale": {
+        "$type": "number",
+        "$value": "0.6"
+      }
+    },
+    "icon": {
+      "stroke": {
+        "light": {
+          "$type": "number",
+          "$value": "1.5"
+        },
+        "base": {
+          "$type": "number",
+          "$value": "2"
+        },
+        "bold": {
+          "$type": "number",
+          "$value": "2.2"
+        },
+        "heavy": {
+          "$type": "number",
+          "$value": "3"
+        }
+      },
+      "xs": {
+        "$type": "sizing",
+        "$value": "12"
+      },
+      "sm": {
+        "$type": "sizing",
+        "$value": "14"
+      },
+      "base": {
+        "$type": "sizing",
+        "$value": "16"
+      },
+      "md": {
+        "$type": "sizing",
+        "$value": "18"
+      },
+      "lg": {
+        "$type": "sizing",
+        "$value": "20"
+      },
+      "xl": {
+        "$type": "sizing",
+        "$value": "26"
+      },
+      "2xl": {
+        "$type": "sizing",
+        "$value": "30"
+      },
+      "3xl": {
+        "$type": "sizing",
+        "$value": "36"
+      }
+    },
+    "size": {
+      "hitTarget": {
+        "$type": "sizing",
+        "$value": "44"
+      },
+      "hitSlop": {
+        "$type": "sizing",
+        "$value": "8"
+      },
+      "emptyStateCircle": {
+        "$type": "sizing",
+        "$value": "56"
+      }
+    },
+    "shadow": {
+      "sm": {
+        "$type": "shadow",
+        "$value": "0 1 3 0 rgba(26,26,24,0.04)"
+      },
+      "md": {
+        "$type": "shadow",
+        "$value": "0 2 8 0 rgba(26,26,24,0.06)"
+      },
+      "lg": {
+        "$type": "shadow",
+        "$value": "0 4 16 0 rgba(26,26,24,0.08)"
+      }
+    }
+  },
+  "color-light": {
+    "color": {
+      "fg": {
+        "base": {
+          "$type": "color",
+          "$value": "#1A1A18"
+        },
+        "muted": {
+          "$type": "color",
+          "$value": "#6E6B62"
+        },
+        "subtle": {
+          "$type": "color",
+          "$value": "#8C887E"
+        },
+        "inverse": {
+          "$type": "color",
+          "$value": "#FFFFFF"
+        }
+      },
+      "bg": {
+        "base": {
+          "$type": "color",
+          "$value": "#FAFAF8"
+        },
+        "raised": {
+          "$type": "color",
+          "$value": "#FFFFFF"
+        },
+        "sunken": {
+          "$type": "color",
+          "$value": "#F5F3EF"
+        }
+      },
+      "accent": {
+        "base": {
+          "$type": "color",
+          "$value": "#E8572A"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#FFF0EB"
+        }
+      },
+      "success": {
+        "base": {
+          "$type": "color",
+          "$value": "#2D8E5F"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#EDFAF2"
+        }
+      },
+      "warning": {
+        "base": {
+          "$type": "color",
+          "$value": "#92600A"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#FFF8F0"
+        },
+        "border": {
+          "$type": "color",
+          "$value": "#F0DCC8"
+        }
+      },
+      "error": {
+        "base": {
+          "$type": "color",
+          "$value": "#C62828"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#FEF2F2"
+        }
+      },
+      "info": {
+        "base": {
+          "$type": "color",
+          "$value": "#4267F4"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#EDF0FF"
+        }
+      },
+      "border": {
+        "base": {
+          "$type": "color",
+          "$value": "#ECEBE4"
+        },
+        "strong": {
+          "$type": "color",
+          "$value": "#D8D6CE"
+        }
+      },
+      "fixed": {
+        "shadowInk": {
+          "$type": "color",
+          "$value": "#1A1A18"
+        },
+        "backdrop": {
+          "$type": "color",
+          "$value": "rgba(0,0,0,0.35)"
+        },
+        "focusRingInner": {
+          "$type": "color",
+          "$value": "#FAFAF8"
+        },
+        "focusRingOuter": {
+          "$type": "color",
+          "$value": "#E8572A"
+        },
+        "desktopCanvas": {
+          "$type": "color",
+          "$value": "#E8E8E8"
+        },
+        "splashBg": {
+          "$type": "color",
+          "$value": "#1A1A18"
+        },
+        "androidAdaptiveIconBg": {
+          "$type": "color",
+          "$value": "#0A1929"
+        }
+      }
+    }
+  },
+  "color-dark": {
+    "color": {
+      "fg": {
+        "base": {
+          "$type": "color",
+          "$value": "#E8E6E1"
+        },
+        "muted": {
+          "$type": "color",
+          "$value": "#9A9790"
+        },
+        "subtle": {
+          "$type": "color",
+          "$value": "#85827A"
+        },
+        "inverse": {
+          "$type": "color",
+          "$value": "#1A1A18"
+        }
+      },
+      "bg": {
+        "base": {
+          "$type": "color",
+          "$value": "#141412"
+        },
+        "raised": {
+          "$type": "color",
+          "$value": "#1E1E1B"
+        },
+        "sunken": {
+          "$type": "color",
+          "$value": "#0F0F0D"
+        }
+      },
+      "accent": {
+        "base": {
+          "$type": "color",
+          "$value": "#E8572A"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#2C1A12"
+        }
+      },
+      "success": {
+        "base": {
+          "$type": "color",
+          "$value": "#3DA872"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#132A1E"
+        }
+      },
+      "warning": {
+        "base": {
+          "$type": "color",
+          "$value": "#D4A54A"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#2A2010"
+        },
+        "border": {
+          "$type": "color",
+          "$value": "#3D3020"
+        }
+      },
+      "error": {
+        "base": {
+          "$type": "color",
+          "$value": "#F87171"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#2D1515"
+        }
+      },
+      "info": {
+        "base": {
+          "$type": "color",
+          "$value": "#5A7CF6"
+        },
+        "soft": {
+          "$type": "color",
+          "$value": "#131B33"
+        }
+      },
+      "border": {
+        "base": {
+          "$type": "color",
+          "$value": "#2C2C28"
+        },
+        "strong": {
+          "$type": "color",
+          "$value": "#3E3E38"
+        }
+      },
+      "fixed": {
+        "shadowInk": {
+          "$type": "color",
+          "$value": "#1A1A18"
+        },
+        "backdrop": {
+          "$type": "color",
+          "$value": "rgba(0,0,0,0.35)"
+        },
+        "focusRingInner": {
+          "$type": "color",
+          "$value": "#141412"
+        },
+        "focusRingOuter": {
+          "$type": "color",
+          "$value": "#E8572A"
+        },
+        "desktopCanvas": {
+          "$type": "color",
+          "$value": "#E8E8E8"
+        },
+        "splashBg": {
+          "$type": "color",
+          "$value": "#1A1A18"
+        },
+        "androidAdaptiveIconBg": {
+          "$type": "color",
+          "$value": "#0A1929"
+        }
+      }
+    }
+  },
+  "$themes": [],
+  "$metadata": {
+    "tokenSetOrder": [
+      "core",
+      "color-light",
+      "color-dark"
+    ],
+    "modes": {
+      "light": {
+        "activeSets": [
+          "core",
+          "color-light"
+        ]
+      },
+      "dark": {
+        "activeSets": [
+          "core",
+          "color-dark"
+        ]
+      }
+    },
+    "note": "TokenTheme.addSet() is a no-op on the Penpot deployment this file was built on, so $themes is empty by design and modes are expressed as set activation (see $metadata.modes).",
+    "tokenCount": 147,
+    "exportedFrom": "Penpot 2.16.2 + mcp:2.16"
+  }
+}

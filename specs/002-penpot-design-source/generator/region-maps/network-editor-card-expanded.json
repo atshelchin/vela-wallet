@@ -1,0 +1,22 @@
+{
+ "slug": "network-editor-card-expanded",
+ "board": "O/network-editor/card-expanded",
+ "frame": {
+  "w": 390,
+  "h": 1351
+ },
+ "regions": [
+  {
+   "name": "sheet",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

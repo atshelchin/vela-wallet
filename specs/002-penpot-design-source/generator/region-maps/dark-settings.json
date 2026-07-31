@@ -1,0 +1,64 @@
+{
+ "slug": "dark-settings",
+ "board": "S/settings/default-dark",
+ "frame": {
+  "w": 390,
+  "h": 806
+ },
+ "regions": [
+  {
+   "name": "hero",
+   "paths": [
+    "0.0.0.0.0.0.2.0"
+   ]
+  },
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "copy",
+   "paths": [
+    "0.0.0.0.0.0.1"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.0.0.2"
+   ]
+  },
+  {
+   "name": "content-2",
+   "paths": [
+    "0.0.0.0.0.0.3"
+   ]
+  },
+  {
+   "name": "footer",
+   "paths": [
+    "0.0.0.0.0.0.4"
+   ]
+  },
+  {
+   "name": "footer-2",
+   "paths": [
+    "0.0.0.0.0.0.5"
+   ]
+  },
+  {
+   "name": "footer-3",
+   "paths": [
+    "0.0.0.0.0.0.6"
+   ]
+  },
+  {
+   "name": "dock",
+   "paths": [
+    "0.0.0.0.0.0.7"
+   ]
+  }
+ ]
+}

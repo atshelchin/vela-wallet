@@ -1,86 +1,136 @@
 /**
- * Integration tests for recipient identity resolution.
+ * Hermetic tests for recipient identity resolution.
  *
- * These tests query real RPCs and name service registries to verify
- * that reverse resolution works correctly for known addresses.
+ * The live counterpart (`recipient-identity.live.test.ts`) queries real RPCs and real
+ * name registries. It is excluded from the default jest run because it asserts on data
+ * other people control: on 2026-07-31 CI reported `second.g` coming back as
+ * `alternativename.base.eth`, not because anything in this repo changed but because
+ * Gravity (chain 1625) was unreachable from the runner and the resolver fell through to
+ * the next service in its priority list. A test that fails when a stranger registers a
+ * name is not a gate on our code.
  *
- * Run with: npx jest -- src/__tests__/services/recipient-identity.test.ts
+ * What IS our code — and what this file covers — is the resolution policy: the order
+ * services are consulted in, that one unreachable service cannot change the answer given
+ * by a higher-priority one, and that the cheap exits happen before any network call.
+ * `rpcCall` is mocked, so these run offline and in milliseconds.
  */
 
-// Mock react-native transitive dependencies
 jest.mock('react-native', () => ({}));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
-  default: {
-    getItem: jest.fn(() => Promise.resolve(null)),
-    setItem: jest.fn(() => Promise.resolve()),
-  },
+  default: { getItem: jest.fn(() => Promise.resolve(null)), setItem: jest.fn(() => Promise.resolve()) },
 }));
-// Mock the passkey index to avoid hitting that API
-jest.mock('@/services/public-key-index', () => ({
-  queryByWalletRef: jest.fn(() => Promise.resolve(null)),
-}));
+jest.mock('@/services/public-key-index', () => ({ queryByWalletRef: jest.fn(() => Promise.resolve(null)) }));
+jest.mock('@/services/rpc-adapter', () => ({ rpcCall: jest.fn() }));
 
 import { resolveRecipientIdentity } from '@/services/recipient-identity';
+import { rpcCall } from '@/services/rpc-adapter';
+import { queryByWalletRef } from '@/services/public-key-index';
 
-// These tests hit real RPCs — increase timeout
-jest.setTimeout(30_000);
+const mockRpc = rpcCall as jest.MockedFunction<typeof rpcCall>;
+const mockPasskey = queryByWalletRef as jest.MockedFunction<typeof queryByWalletRef>;
 
-describe('namehash', () => {
-  // We test namehash indirectly through the resolver calls.
-  // But let's also import and test it directly.
-  // namehash is not exported, so we verify via known reverse resolutions.
+const ADDR = '0x1C4e5b02e73b12f374744f6dc1c8469ec9EcD62E';
+const RESOLVER = '0x1111111111111111111111111111111111111111';
+
+/** a 32-byte word carrying an address, as `registry.resolver(node)` returns it */
+const word = (addr: string) => '0x' + '0'.repeat(24) + addr.slice(2).toLowerCase();
+
+/** ABI-encode a string the way `resolver.name(node)` returns it: offset, length, padded data */
+const abiString = (s: string) => {
+  const bytes = Buffer.from(s, 'utf8');
+  const len = bytes.length.toString(16).padStart(64, '0');
+  const data = bytes.toString('hex').padEnd(Math.ceil(bytes.length / 32) * 64, '0');
+  return '0x' + (32).toString(16).padStart(64, '0') + len + data;
+};
+
+/**
+ * Answer as if exactly the named chains have a reverse record. Every other chain behaves
+ * like an unreachable RPC — which is the CI failure mode this file exists to pin down.
+ */
+const rpcForChains = (names: Record<number, string>, unreachable: number[] = []) => {
+  mockRpc.mockImplementation(async (_method: string, params: any[], chainId: number) => {
+    if (unreachable.includes(chainId)) throw new Error('network unreachable');
+    const name = names[chainId];
+    if (!name) return { jsonrpc: '2.0', id: 1, result: '0x' };
+    const to = String(params[0].to).toLowerCase();
+    // reverseRegistrar.node(address) — Basenames only; any 32-byte word will do
+    if (to === '0x79ea96012eea67a83431f1701b3dff7e37f9e282') return { jsonrpc: '2.0', id: 1, result: '0x' + 'ab'.repeat(32) };
+    if (to === RESOLVER.toLowerCase()) return { jsonrpc: '2.0', id: 1, result: abiString(name) };
+    return { jsonrpc: '2.0', id: 1, result: word(RESOLVER) };
+  });
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  mockPasskey.mockResolvedValue(null as any);
 });
 
-describe('resolveRecipientIdentity', () => {
-  it('returns null for invalid address', async () => {
+describe('resolveRecipientIdentity — cheap exits', () => {
+  it('rejects a malformed address without any network call', async () => {
     expect(await resolveRecipientIdentity('not-an-address')).toBeNull();
     expect(await resolveRecipientIdentity('0x123')).toBeNull();
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  // .bnb: spaceid.bnb → 0xb5932a6B7d50A966AEC6C74C97385412Fb497540
-  it('resolves spaceid.bnb via .bnb registry', async () => {
-    const result = await resolveRecipientIdentity('0xb5932a6B7d50A966AEC6C74C97385412Fb497540');
-    expect(result).not.toBeNull();
-    expect(result!.name).toBe('spaceid.bnb');
-    expect(result!.source).toBe('.bnb');
+  it('rejects the zero address without any network call', async () => {
+    // it is a mint/burn counterparty in EIP-7708 events, not a recipient, and asking the
+    // passkey index about it would 404 on every native transfer the wallet displays
+    expect(await resolveRecipientIdentity('0x' + '0'.repeat(40))).toBeNull();
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockPasskey).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveRecipientIdentity — priority', () => {
+  it('prefers the passkey index over every name service', async () => {
+    mockPasskey.mockResolvedValue({ name: 'A Vela user' } as any);
+    rpcForChains({ 1: 'vitalik.eth' });
+    const r = await resolveRecipientIdentity(ADDR);
+    expect(r).toEqual({ name: 'A Vela user', source: 'passkey' });
+    expect(mockRpc).not.toHaveBeenCalled();
   });
 
-  // .arb: ape.arb → 0x5929B404b43e49a2EBBD6afDe45294598d4fdD29
-  it('resolves ape.arb via .arb registry (Arbitrum)', async () => {
-    const result = await resolveRecipientIdentity('0x5929B404b43e49a2EBBD6afDe45294598d4fdD29');
-    expect(result).not.toBeNull();
-    expect(result!.name).toBe('ape.arb');
-    expect(result!.source).toBe('.arb');
+  it('prefers .g over Basename when BOTH resolve', async () => {
+    // the exact ordering the CI failure turned on: .g sits above Basename in NAME_SERVICES,
+    // so an address carrying both names must display the .g one
+    rpcForChains({ 1625: 'second.g', 8453: 'alternativename.base.eth' });
+    const r = await resolveRecipientIdentity(ADDR);
+    expect(r).toEqual({ name: 'second.g', source: '.g' });
   });
 
-  // .g: second.g → 0x1C4e5b02e73b12f374744f6dc1c8469ec9EcD62E
-  it('resolves second.g via .g registry (Gravity)', async () => {
-    const result = await resolveRecipientIdentity('0x1C4e5b02e73b12f374744f6dc1c8469ec9EcD62E');
-    expect(result).not.toBeNull();
-    expect(result!.name).toBe('second.g');
-    expect(result!.source).toBe('.g');
+  it('prefers .bnb over everything below it', async () => {
+    rpcForChains({ 56: 'spaceid.bnb', 1625: 'second.g', 8453: 'x.base.eth', 1: 'x.eth' });
+    expect((await resolveRecipientIdentity(ADDR))!.source).toBe('.bnb');
+  });
+});
+
+describe('resolveRecipientIdentity — degradation', () => {
+  it('falls through to the next service when a higher-priority chain is unreachable', async () => {
+    // the CI failure, reproduced offline: Gravity down, Basename up
+    rpcForChains({ 1625: 'second.g', 8453: 'alternativename.base.eth' }, [1625]);
+    const r = await resolveRecipientIdentity(ADDR);
+    expect(r).toEqual({ name: 'alternativename.base.eth', source: 'Basename' });
   });
 
-  // Basename (ENSIP-19): sendora.base.eth → 0x3Fb9266232E90A8Ca088Fd292c7435b2ed62b831
-  it('resolves sendora.base.eth via Basename (ENSIP-19)', async () => {
-    const result = await resolveRecipientIdentity('0x3Fb9266232E90A8Ca088Fd292c7435b2ed62b831');
-    expect(result).not.toBeNull();
-    expect(result!.name).toBe('sendora.base.eth');
-    expect(result!.source).toBe('Basename');
+  it('does not let an unreachable chain change an answer a higher-priority service gave', async () => {
+    // .bnb answers; .g is down. The outage must be invisible in the result.
+    rpcForChains({ 56: 'spaceid.bnb', 8453: 'x.base.eth' }, [1625]);
+    expect((await resolveRecipientIdentity(ADDR))!.name).toBe('spaceid.bnb');
   });
 
-  // ENS: vitalik.eth → 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045
-  it('resolves vitalik.eth via ENS', async () => {
-    const result = await resolveRecipientIdentity('0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045');
-    expect(result).not.toBeNull();
-    expect(result!.name).toBe('vitalik.eth');
-    expect(result!.source).toBe('ENS');
+  it('returns null when no service has a record', async () => {
+    rpcForChains({});
+    expect(await resolveRecipientIdentity(ADDR)).toBeNull();
   });
 
-  // Address with no name set should return null
-  it('returns null for address with no reverse record', async () => {
-    const result = await resolveRecipientIdentity('0x0000000000000000000000000000000000000001');
-    expect(result).toBeNull();
+  it('returns null when every chain is unreachable', async () => {
+    rpcForChains({ 1: 'vitalik.eth' }, [1, 56, 42161, 1625, 8453]);
+    expect(await resolveRecipientIdentity(ADDR)).toBeNull();
+  });
+
+  it('ignores a registry that answers with the zero resolver', async () => {
+    mockRpc.mockResolvedValue({ jsonrpc: '2.0', id: 1, result: word('0x' + '0'.repeat(40)) } as any);
+    expect(await resolveRecipientIdentity(ADDR)).toBeNull();
   });
 });

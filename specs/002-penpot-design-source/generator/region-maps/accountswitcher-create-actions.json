@@ -1,0 +1,22 @@
+{
+ "slug": "accountswitcher-create-actions",
+ "board": "O/account-switcher/create-actions",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

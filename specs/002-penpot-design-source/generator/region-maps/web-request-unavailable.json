@@ -1,0 +1,46 @@
+{
+ "slug": "web-request-unavailable",
+ "board": "S/web-request/unavailable",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "copy",
+   "paths": [
+    "0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "band-1",
+   "paths": [
+    "0.0.0.0.1"
+   ]
+  },
+  {
+   "name": "copy-2",
+   "paths": [
+    "0.0.0.0.2"
+   ]
+  },
+  {
+   "name": "copy-3",
+   "paths": [
+    "0.0.0.0.3"
+   ]
+  },
+  {
+   "name": "actions",
+   "paths": [
+    "0.0.0.0.4"
+   ]
+  },
+  {
+   "name": "portal-1",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

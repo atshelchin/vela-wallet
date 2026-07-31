@@ -1,0 +1,225 @@
+[
+ {
+  "$comment": "Batch 4 — token. The six S/add-token states, from the reach steps an earlier agent verified against the running app. GROUP ORDER IS LOAD-BEARING: the ERC-20 lane runs before the native lane because `vela.clear()` in erc20-resolved wipes the faults, and the native lane needs none.",
+  "$why-no-sheet-states": "O/add-token-sheet/{resolving,resolved,error} are NOT boarded. AddTokenSheet.tsx is a stateless wrapper — 66 lines, zero useState: <AppModal> + a close header + <AddTokenPanel>. Every state it can show is a state of the panel, which the six boards below already depict. Boarding them again would put the same picture in the file under a second name, which is the defect this project has been fixing all day.",
+  "url": "/add-token",
+  "settle": 6000,
+  "states": [
+   {
+    "slug": "add-token-erc20-resolving",
+    "board": "S/add-token/erc20-resolving",
+    "page": "05 Screens · Wallet",
+    "note": "the address is being looked up across every chain: the field is frozen and the CTA carries a spinner while each network is tried in turn",
+    "expect": [
+     "Add Token"
+    ],
+    "forbid": [
+     "Could not find this token"
+    ],
+    "differsFrom": [
+     "add-token-erc20"
+    ],
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "slowRpc",
+      "args": [
+       4000
+      ]
+     },
+     {
+      "act": "type",
+      "placeholder": "0x...",
+      "value": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+     },
+     {
+      "act": "click",
+      "text": "Search Token"
+     },
+     {
+      "act": "wait",
+      "ms": 1500
+     }
+    ]
+   },
+   {
+    "slug": "add-token-erc20-resolved",
+    "board": "S/add-token/erc20-resolved",
+    "page": "05 Screens · Wallet",
+    "note": "the token resolved: its symbol, name, decimals and the chain it was found on, in a result card above the confirm action",
+    "$why-the-wait": "a dead chain burns three attempts of eight seconds each before the lookup settles, so this beat is ~42s after the fault is cleared. It is a wait, not a race.",
+    "expect": [
+     "Tether",
+     "USDT"
+    ],
+    "forbid": [
+     "Could not find this token"
+    ],
+    "differsFrom": [
+     "add-token-erc20-resolving"
+    ],
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "clear"
+     },
+     {
+      "act": "wait",
+      "ms": 44000
+     }
+    ]
+   },
+   {
+    "slug": "add-token-erc20-error",
+    "board": "S/add-token/erc20-error",
+    "page": "05 Screens · Wallet",
+    "note": "no chain knows this address — the panel raises the not-found alert over itself rather than clearing the field, so the address stays editable",
+    "expect": [
+     "Could not find this token"
+    ],
+    "differsFrom": [
+     "add-token-erc20-resolved"
+    ],
+    "steps": [
+     {
+      "act": "vela",
+      "fn": "failRpc",
+      "args": [
+       "all"
+      ]
+     },
+     {
+      "act": "type",
+      "placeholder": "0x...",
+      "value": "0x000000000000000000000000000000000000dEaD"
+     },
+     {
+      "act": "click",
+      "text": "Search Token"
+     },
+     {
+      "act": "wait",
+      "ms": 3000
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "url": "/add-token",
+  "settle": 6000,
+  "states": [
+   {
+    "slug": "add-token-network-checking",
+    "board": "S/add-token/network-checking",
+    "page": "05 Screens · Wallet",
+    "note": "a chain has been picked from the suggestions and its compatibility is being checked — the 4337 stack has to exist on it before the wallet can offer it",
+    "expect": [
+     "Native Token"
+    ],
+    "forbid": [
+     "Not compatible",
+     "Compatible"
+    ],
+    "differsFrom": [
+     "add-token-native"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "Native Token"
+     },
+     {
+      "act": "type",
+      "placeholder": "Name or chain ID",
+      "value": "42220"
+     },
+     {
+      "act": "wait",
+      "ms": 3500
+     },
+     {
+      "act": "click",
+      "text": "42220"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   },
+   {
+    "slug": "add-token-network-compatible",
+    "board": "S/add-token/network-compatible",
+    "page": "05 Screens · Wallet",
+    "note": "the chain carries the EntryPoint and the Safe factory: the wallet can be used there, and the panel says so before the user commits",
+    "expect": [
+     "Chain ID",
+     "42220"
+    ],
+    "forbid": [
+     "Not compatible",
+     "not supported"
+    ],
+    "differsFrom": [
+     "add-token-network-checking"
+    ],
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 24000
+     }
+    ],
+    "$why-weak-expect": "'Celo' is present at network-checking too, so it cannot discriminate. What separates the two is the verdict row appearing; differsFrom against the checking beat is the assertion that actually holds, and the forbid catches the incompatible branch landing here by mistake."
+   }
+  ]
+ },
+ {
+  "url": "/add-token",
+  "settle": 6000,
+  "states": [
+   {
+    "slug": "add-token-network-incompatible",
+    "board": "S/add-token/network-incompatible",
+    "page": "05 Screens · Wallet",
+    "$why-zksync": "zkSync 324, not Celo — Celo resolves COMPATIBLE. The incompatible branch needs a chain whose 4337 stack is genuinely absent.",
+    "note": "the chain has no 4337 stack, so the wallet cannot operate there — the panel refuses and explains, rather than adding a network that would fail at the first send",
+    "expect": [
+     "Fantom"
+    ],
+    "differsFrom": [
+     "add-token-network-compatible"
+    ],
+    "steps": [
+     {
+      "act": "click",
+      "text": "Native Token"
+     },
+     {
+      "act": "type",
+      "placeholder": "Name or chain ID",
+      "value": "250"
+     },
+     {
+      "act": "wait",
+      "ms": 4000
+     },
+     {
+      "act": "click",
+      "text": "250"
+     },
+     {
+      "act": "wait",
+      "ms": 26000
+     }
+    ],
+    "$why-own-group": "a fresh /add-token load. Inside the native group the panel has already consumed its tab: after a chain is picked there is no 'Native Token' control left to click, so the step found no element — loudly, which is the harness working.",
+    "forbid": [
+     "Compatible",
+     "Add Network"
+    ],
+    "$why-the-forbid": "the assertion that was missing. The earlier recipe used zkSync 324 on an agent's say-so and asserted only that the dump contained '324' and differed from its sibling — both true of the COMPATIBLE verdict, which is what zkSync returns today. The board would have claimed to show a chain the wallet cannot use while showing 'Compatible · Add Network'. Differing from a sibling is not the same as being right."
+   }
+  ]
+ }
+]

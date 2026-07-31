@@ -1,0 +1,86 @@
+[
+  {
+    "$comment": "Authored 2026-07-31. Re-shoots every board that was captured under /parallel while the test-environment badge was still being transcribed. The badge ('PARALLEL SPACE · mock passkey · test') is dev chrome the shipped app never renders, and it was drawn onto seven canon boards; extract-dom-layout.js now scrubs it by data-testid, so these captures are the first clean ones. It ALSO cost these screens their region structure — the badge is a second live child of the route root, so the wrapper-descent in gen-region-maps halted one level early and every one of them collapsed to a single 'content' region.",
+    "$order": "Groups run in ONE browser, in order, and both parallel-mode and hide-balance are PERSISTED preferences. So: /parallel first (it arms parallel mode for the /send group that follows), and home-hidden-balance dead last — toggling it any earlier masks the balance on every capture taken after it.",
+    "url": "/parallel",
+    "settle": 9000,
+    "states": [
+      {
+        "slug": "home-activity",
+        "board": "S/home/activity",
+        "page": "05 Screens · Wallet",
+        "note": "the wallet hub: balance, the three tabs, and the Activity tab's empty history — the fixture wallet has no transactions, so this IS the empty state (see the changelog entry for 2026-07-31; a populated list is not capturable today)",
+        "steps": [{ "act": "wait", "ms": 1500 }]
+      },
+      {
+        "slug": "home-assets",
+        "board": "S/home/assets",
+        "page": "05 Screens · Wallet",
+        "note": "the Assets tab, populated from the fixture Safe's real balances",
+        "steps": [
+          { "act": "click", "text": "Assets" },
+          { "act": "wait", "ms": 4500 }
+        ]
+      },
+      {
+        "slug": "home-connections",
+        "board": "S/home/connections",
+        "page": "05 Screens · Wallet",
+        "note": "the Connections tab — one dApp session at a time, by design",
+        "steps": [
+          { "act": "click", "text": "Connections" },
+          { "act": "wait", "ms": 2500 }
+        ]
+      }
+    ]
+  },
+  {
+    "url": "/send",
+    "settle": 6000,
+    "states": [
+      {
+        "slug": "send-details-filled",
+        "board": "S/send/details-filled",
+        "page": "05 Screens · Wallet",
+        "note": "a VALID details step — amount and recipient both filled, Continue enabled",
+        "steps": [
+          { "act": "click", "text": "XDAI" },
+          { "act": "wait", "ms": 1500 },
+          { "act": "type", "placeholder": "0", "value": "0.1" },
+          { "act": "wait", "ms": 800 },
+          { "act": "type", "placeholder": "0x... address", "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
+          { "act": "wait", "ms": 2000 }
+        ]
+      },
+      {
+        "slug": "send-confirm",
+        "board": "S/send/confirm",
+        "page": "05 Screens · Wallet",
+        "note": "the confirm step: from/to rows, chain chip, estimated network fee and the slide-to-confirm control",
+        "steps": [
+          { "act": "click", "text": "Continue" },
+          { "act": "wait", "ms": 6000 }
+        ]
+      }
+    ]
+  },
+  {
+    "url": "/parallel",
+    "settle": 8000,
+    "states": [
+      {
+        "slug": "home-hidden-balance",
+        "board": "S/home/hidden-balance",
+        "page": "05 Screens · Wallet",
+        "note": "tap the balance to mask it — a persisted preference, which is why this is the last capture of the run",
+        "$why": "matched on aria-label, not position: the hero carries no text of its own and its clickable INDEX differs between /wallet and /parallel, which is how this board was once recaptured with the balance still showing.",
+        "steps": [
+          { "act": "click", "text": "Activity" },
+          { "act": "wait", "ms": 1200 },
+          { "act": "click", "label": "^[$\u20ac\u00a3\u00a5]" },
+          { "act": "wait", "ms": 1800 }
+        ]
+      }
+    ]
+  }
+]

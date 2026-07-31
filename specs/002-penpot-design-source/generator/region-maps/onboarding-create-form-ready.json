@@ -1,0 +1,28 @@
+{
+ "slug": "onboarding-create-form-ready",
+ "board": "S/onboarding/create-form-ready",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.0.1"
+   ]
+  },
+  {
+   "name": "portal-1",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

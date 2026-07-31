@@ -1,0 +1,22 @@
+{
+ "slug": "eip-712-unknown",
+ "board": "O/signing-sheet/eip-712-unknown",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+{
+ "slug": "permit2-approve-unlimited",
+ "board": "O/signing-sheet/permit2-approve-unlimited",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

@@ -15,6 +15,11 @@
 pub mod abi;
 pub mod eip712;
 pub mod error;
+pub mod i18n;
+mod i18n_catalogs;
+pub mod identicon;
+mod identicon_features;
+pub mod l10n;
 pub mod primitives;
 pub mod safe;
 pub mod types;
@@ -22,4 +27,13 @@ pub mod webauthn;
 
 pub use abi::AbiValue;
 pub use error::CoreError;
+pub use i18n::{
+    canonical_tag, plural_category, plural_suffix, plural_suffixes, resolve_language, Catalog,
+    Category, Count, Dir, I18n, LanguageState, Lookup, Options, OwnedOptions, OwnedVar, PluralMode,
+    Scratch, Var,
+};
+pub use identicon::{
+    identicon_data_uri, identicon_params, identicon_svg, identicon_svg_circular, make_hash,
+    normalize_seed, Colors, IdenticonHash, IdenticonParams, Section, Sections,
+};
 pub use types::{ClientDataKind, P256PublicKey, SafeAddressInfo, WebAuthnAssertion};

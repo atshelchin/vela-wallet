@@ -1,0 +1,178 @@
+[
+ {
+  "$comment": "Home · Connections lifecycle, part 1 — the two states that need no peer at all. Both render INLINE on Home (never /connect): the pairing gate and the failure branch sit inside the Connections tab under the balance hero, which is the whole reason these boards exist next to S/connect/*. The relay in this group's URI is `relay.invalid` and is never contacted — prepareJoin is memory-only (walletpair-protocol.ts:675-690) and the failure branch never gets as far as a socket.",
+  "$order": "CUMULATIVE and load-bearing. 'Scan Again' opens the QR scanner, it does NOT return the panel to disconnected — once the error state is on screen the paste row is gone and nothing further can be paired in this group. connecting first, error last.",
+  "url": "/parallel",
+  "settle": 9000,
+  "states": [
+   {
+    "slug": "home-connections-connecting",
+    "board": "S/home/connections-connecting",
+    "page": "05 Screens · Wallet",
+    "note": "The pairing gate INSIDE Home (ConnectionsView.tsx:159-161 -> ConnectionFlowStates.tsx:28-79): 4-digit verification code, dApp identity row, Confirm/Cancel — framed by the balance hero, the tab bar and the dock. clickNth 8 is the unlabelled ArrowRight submit (ConnectionsView.tsx:193-199): measured on this screen the rendered clickable list is 13 long and IDENTICAL before and after typing, and #8 is its only entry with no text, no aria-label, exactly one svg, box 739,497,56,56 at 1280x950. The index is fragile by nature but cannot produce a WRONG board — a miss leaves the paste row on screen and `expect` fails the state. The URI is fabricated but schema-valid, so 0100 is a pure hash of the URI's own fields (computeDappPairingCode) and appears on no other screen.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Connections"
+     },
+     {
+      "act": "wait",
+      "ms": 2000
+     },
+     {
+      "act": "type",
+      "placeholder": "walletpair link or web address",
+      "value": "walletpair:?ch=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef&pubkey=jCYIRGVbVzh1AXEPb9mfbAQ23zWxwBrWCCTyE1AmCV0&relay=wss%3A%2F%2Frelay.invalid%2Fws&name=Demo%20dApp&url=https%3A%2F%2Fdemo.invalid&icon=https%3A%2F%2Fdemo.invalid%2Ficon.png"
+     },
+     {
+      "act": "clickNth",
+      "n": 8,
+      "ms": 2500
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ],
+    "expect": [
+     "Verify Connection",
+     "Confirm this code matches what the dApp displays:",
+     "Demo dApp",
+     "End-to-end encrypted",
+     "Activity",
+     "Assets",
+     "Total balance"
+    ],
+    "expectRe": [
+     "0\\s*1\\s*0\\s*0"
+    ],
+    "forbid": [
+     "No active connection",
+     "Connection Failed",
+     "Waiting for dApp to accept",
+     "Only one active connection"
+    ],
+    "differsFrom": [
+     "home-connections",
+     "connect-connecting-verify"
+    ]
+   },
+   {
+    "slug": "home-connections-error",
+    "board": "S/home/connections-error",
+    "page": "05 Screens · Wallet",
+    "note": "The same inline panel after a failed pairing (ConnectionFlowStates.tsx:101-127): error medallion, 'Connection Failed', the parse-error sentence and 'Scan Again', still framed by hero and dock. Cancel returns the provider to 'disconnected' (dapp-connection.tsx:558-568 cancelFingerprint) so the paste row is back and #8 is the arrow again; 'walletpair:?ch=zz' throws inside parsePairingUri (walletpair-protocol.ts:246) and connectToWalletPair catches it into status 'error' carrying that exact message. forbid 'Retry' pins this to the WalletPair branch: the remote-inject variant of the same card renders a second Retry button (ConnectionFlowStates.tsx:118-125).",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Cancel"
+     },
+     {
+      "act": "wait",
+      "ms": 1000
+     },
+     {
+      "act": "type",
+      "placeholder": "walletpair link or web address",
+      "value": "walletpair:?ch=zz"
+     },
+     {
+      "act": "clickNth",
+      "n": 8,
+      "ms": 2500
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ],
+    "expect": [
+     "Connection Failed",
+     "pairing URI must contain all six fields exactly once",
+     "Scan Again",
+     "Activity",
+     "Assets",
+     "Total balance"
+    ],
+    "forbid": [
+     "Verify Connection",
+     "End-to-end encrypted",
+     "No active connection",
+     "Only one active connection",
+     "Retry"
+    ],
+    "differsFrom": [
+     "home-connections-connecting",
+     "connect-error",
+     "home-connections"
+    ]
+   }
+  ]
+ },
+ {
+  "$comment": "Home · Connections lifecycle, part 2 — the live session. NO driver change and NO local peer process: the wallet reaches 'connected' the moment the relay echoes ITS OWN join back — parseChannelJoined matches on joined.pubkey === wallet.pubkey (walletpair-protocol.ts:806-812) — so the dApp side never has to exist. Pointing the URI's `relay` at the public WalletPair relay is therefore sufficient. Cross-checked with a raw `ws` client: joining wss://relay.walletpair.org/v1?ch=..&pubkey=.. answers {\"type\":\"channel_joined\", ...} echoing the joiner's own fields.",
+  "$order": "MUST BE THE LAST GROUP in whatever spec file it lands in, and the last group of any driver invocation that also captures Home. A successful join persists a snapshot in localStorage ('vela.walletpairSession'); the provider restores and reconnects it on the next mount (dapp-connection.tsx:988-1013), so a later /parallel group opens on the live-session card. Proved: running this group first makes home-connections-connecting fail with 'no input for {act:type,...}' — the paste row is not there. A fresh page.goto is also what puts THIS group back at 'disconnected' after part 1 left the panel in its error branch.",
+  "$requires": "Network reachability of relay.walletpair.org. If it is down the state fails its post-conditions and nothing is written (driver exits non-zero) — it cannot degrade into a wrong board.",
+  "url": "/parallel",
+  "settle": 9000,
+  "states": [
+   {
+    "slug": "home-connections-connected",
+    "board": "S/home/connections-connected",
+    "page": "05 Screens · Wallet",
+    "note": "The live-session card (ConnectionsView.tsx:230-256): elevated VelaCard with the 'D' monogram, name and URL, the status dot + 'Active', the one-connection line and Disconnect, the Connections tab carrying a '1' badge, and CONNECTION ACTIVITY · 0 below. Confirm runs the real confirmJoin; the relay's channel_joined frame flips the session to phase 'connected' (walletpair-protocol.ts:814-822) and the transport emits 'connected' (walletpair-transport.ts:505-511). Measured stable for >124 s — no flicker, no self-heal, no drop. forbid 'Couldn't reconnect' + expectRe '\\nactive\\n' are what separate this board from S/home/connections-reconnecting, whose card is the same layout with the pill and note swapped.",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Connections"
+     },
+     {
+      "act": "wait",
+      "ms": 2000
+     },
+     {
+      "act": "type",
+      "placeholder": "walletpair link or web address",
+      "value": "walletpair:?ch=9f2c1d7e4b0a63d85e17c4a90b2f6d38e5c71a04b9d2e836f0a5c7b1d4e69328&pubkey=jCYIRGVbVzh1AXEPb9mfbAQ23zWxwBrWCCTyE1AmCV0&relay=wss%3A%2F%2Frelay.walletpair.org%2Fv1&name=Demo%20dApp&url=https%3A%2F%2Fdemo.invalid&icon=https%3A%2F%2Fdemo.invalid%2Ficon.png"
+     },
+     {
+      "act": "clickNth",
+      "n": 8,
+      "ms": 2500
+     },
+     {
+      "act": "click",
+      "text": "Confirm"
+     },
+     {
+      "act": "wait",
+      "ms": 8000
+     }
+    ],
+    "expect": [
+     "Demo dApp",
+     "https://demo.invalid",
+     "Only one active connection at a time",
+     "Disconnect",
+     "Connection activity · 0",
+     "No requests yet on this connection."
+    ],
+    "expectRe": [
+     "\\nactive\\n"
+    ],
+    "forbid": [
+     "Reconnect now",
+     "Reconnecting",
+     "No active connection",
+     "Verify Connection",
+     "Waiting for dApp to accept",
+     "Couldn't reconnect"
+    ],
+    "differsFrom": [
+     "home-connections"
+    ],
+    "$fix": "the challenger left a negative control in the delivered spec — a differsFrom naming a slug that cannot exist, which proves the check fires but makes the recipe permanently unrunnable. Pointed at the real sibling instead; the six expect[] strings already discriminate this state."
+   }
+  ]
+ }
+]

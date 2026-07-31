@@ -1,0 +1,803 @@
+{
+ "$comment": "Single source of truth for the UI graph (RESTRUCTURE-2026-07-30 §7). Consumed by 74-interactions.js (machine wiring: interactions + vela.edge plugin data) and by the journey-wall edge layer (visible e/ connectors). Edit HERE, never in a chunk. kind: nav = navigate-to, overlay = open-overlay (same-page only per platform rule; cross-page falls back to vela.edge).",
+ "edges": [
+  {
+   "from": "S/home/activity",
+   "label": "Send",
+   "to": "S/send/select-token",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/activity",
+   "label": "Receive",
+   "to": "S/receive/safety-gate",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/activity",
+   "label": "Assets",
+   "to": "S/home/assets",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/activity",
+   "label": "Connections",
+   "to": "S/home/connections",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/activity",
+   "label": "All",
+   "to": "O/network-filter/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/home/assets",
+   "label": "Activity",
+   "to": "S/home/activity",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/assets",
+   "label": "Connections",
+   "to": "S/home/connections",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/assets",
+   "label": "Add",
+   "to": "S/add-token/erc20",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/assets",
+   "label": "Send",
+   "to": "S/send/select-token",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/assets",
+   "label": "Receive",
+   "to": "S/receive/safety-gate",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/connections",
+   "label": "Activity",
+   "to": "S/home/activity",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/connections",
+   "label": "Assets",
+   "to": "S/home/assets",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/hidden-balance",
+   "label": "Assets",
+   "to": "S/home/assets",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/rate-limited",
+   "label": "Activity",
+   "to": "S/home/activity",
+   "kind": "nav"
+  },
+  {
+   "from": "S/home/rpc-trouble",
+   "label": "Activity",
+   "to": "S/home/activity",
+   "kind": "nav"
+  },
+  {
+   "from": "S/send/select-token",
+   "label": "XDAI",
+   "to": "S/send/details",
+   "kind": "nav"
+  },
+  {
+   "from": "S/send/select-token",
+   "label": "Add Token",
+   "to": "S/add-token/erc20",
+   "kind": "nav"
+  },
+  {
+   "from": "S/send/details",
+   "label": "Continue",
+   "to": "S/send/confirm",
+   "kind": "nav"
+  },
+  {
+   "from": "S/send/details",
+   "label": "Add recipient",
+   "to": "S/send/details-split",
+   "kind": "nav"
+  },
+  {
+   "from": "S/send/details",
+   "label": "Import list",
+   "to": "O/batch-import/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/send/details-split",
+   "label": "Import list",
+   "to": "O/batch-import/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/send/confirm",
+   "label": "Confirm",
+   "to": "S/send/sign",
+   "kind": "nav",
+   "$comment": "S/send/sign is the journey-step proxy board (RESTRUCTURE §5, founder decision 3); until W2 builds it, 74 reports it as missingTarget — expected."
+  },
+  {
+   "from": "S/receive/safety-gate",
+   "label": "I Understand",
+   "to": "S/receive/address",
+   "kind": "nav"
+  },
+  {
+   "from": "S/receive/address",
+   "label": "Request",
+   "to": "S/receive/request",
+   "kind": "nav"
+  },
+  {
+   "from": "S/receive/request",
+   "label": "Address",
+   "to": "S/receive/address",
+   "kind": "nav"
+  },
+  {
+   "from": "S/add-token/erc20",
+   "label": "Native Token",
+   "to": "S/add-token/native",
+   "kind": "nav"
+  },
+  {
+   "from": "S/add-token/native",
+   "label": "ERC-20 Token",
+   "to": "S/add-token/erc20",
+   "kind": "nav"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "About",
+   "to": "S/about/default",
+   "kind": "nav"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Contacts",
+   "to": "O/contacts-manager/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Currency",
+   "to": "O/currency/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Send feedback",
+   "to": "S/about/default",
+   "kind": "nav",
+   "$comment": "the Safari-Extension row is below the fold in this capture; the reachable rows on the default board are the ones above it"
+  },
+  {
+   "from": "S/onboarding/welcome",
+   "label": "Create Wallet",
+   "to": "S/onboarding/create",
+   "kind": "nav"
+  },
+  {
+   "from": "S/connect/disconnected",
+   "label": "Scan QR Code",
+   "to": "S/connect/connecting-verify",
+   "kind": "nav"
+  },
+  {
+   "from": "S/token-detail/default",
+   "label": "Send",
+   "to": "S/send/select-token",
+   "kind": "nav"
+  },
+  {
+   "from": "S/token-detail/default",
+   "label": "Receive",
+   "to": "S/receive/safety-gate",
+   "kind": "nav"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Advanced",
+   "to": "S/settings/advanced-expanded",
+   "kind": "nav"
+  },
+  {
+   "from": "S/settings/advanced-expanded",
+   "label": "About",
+   "to": "S/about/default",
+   "kind": "nav"
+  },
+  {
+   "from": "S/connect/connecting-verify",
+   "label": "Cancel",
+   "to": "S/connect/disconnected",
+   "kind": "nav"
+  },
+  {
+   "from": "S/connect/error",
+   "label": "Scan Again",
+   "to": "S/connect/disconnected",
+   "kind": "nav"
+  },
+  {
+   "from": "S/send/locked-network-not-supported",
+   "label": "Cancel",
+   "to": "S/home/activity",
+   "kind": "nav"
+  },
+  {
+   "from": "S/send/locked-unknown-token",
+   "label": "Cancel",
+   "to": "S/home/activity",
+   "kind": "nav"
+  },
+  {
+   "from": "S/onboarding/create-form-ready",
+   "label": "Account Name",
+   "to": "S/onboarding/create",
+   "kind": "nav"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Language",
+   "to": "O/language-picker/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/default",
+   "label": "Number format",
+   "to": "O/format-picker/number",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/advanced-expanded",
+   "label": "Networks",
+   "to": "O/network-editor/collapsed",
+   "kind": "overlay"
+  },
+  {
+   "from": "O/network-editor/card-expanded",
+   "label": "RPC URL",
+   "to": "O/endpoint-editor/default",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/settings/advanced-expanded",
+   "label": "RPC Providers",
+   "to": "O/rpc-providers/idle",
+   "kind": "overlay"
+  },
+  {
+   "from": "O/network-editor/collapsed",
+   "label": "Ethereum",
+   "to": "O/add-network/searching",
+   "kind": "overlay"
+  },
+  {
+   "from": "S/onboarding/create-form-ready",
+   "label": "Create Wallet",
+   "to": "S/onboarding/create-ceremony",
+   "kind": "navigate"
+  }
+ ],
+ "nonPointer": [
+  {
+   "from": "S/send/details",
+   "condition": "amount and recipient entered → Continue enables",
+   "to": "S/send/details-filled"
+  },
+  {
+   "from": "S/send/details-filled",
+   "condition": "the recipient is not a valid address → Invalid Address, Continue stays disabled",
+   "to": "S/send/details"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "tap a batch (split / sweep) row in Activity",
+   "to": "O/transaction-detail/batch-split"
+  },
+  {
+   "from": "S/home/connections",
+   "condition": "tap a Connections record that captured its original request",
+   "to": "O/connection-event/sign-message"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "tap the hero's \"total is an estimate\" warning line",
+   "to": "O/balance-detail/degraded-chains"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "tap any enlargeable avatar",
+   "to": "O/identicon-viewer/default"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "tap the account avatar",
+   "to": "O/account-switcher/default"
+  },
+  {
+   "from": "S/home/connections",
+   "condition": "tap the clock icon (Recent)",
+   "to": "O/browser-history/default"
+  },
+  {
+   "from": "S/settings/default",
+   "condition": "tap the Send feedback row",
+   "to": "O/bug-report/default"
+  },
+  {
+   "from": "S/home/assets",
+   "condition": "tap Add token",
+   "to": "O/add-token-sheet/default"
+  },
+  {
+   "from": "S/send/confirm",
+   "condition": "the bundler treasury reports bootstrapNeeded on this network (relayer float below floor)",
+   "to": "O/treasury-bootstrap/bootstrap-needed"
+  },
+  {
+   "from": "S/home/rpc-trouble",
+   "condition": "tap the RPC-trouble banner's fix action",
+   "to": "O/rpc-fix/default"
+  },
+  {
+   "from": "S/send/details",
+   "condition": "tap the recipient field",
+   "to": "O/contact-picker/default"
+  },
+  {
+   "from": "S/settings/default",
+   "condition": "confirm an irreversible settings action — AppAlert is shared, this is one depiction of it",
+   "to": "O/app-alert/destructive"
+  },
+  {
+   "from": "S/send/details",
+   "condition": "an action needs a two-way confirmation — shared AppAlert surface",
+   "to": "O/app-alert/two-actions"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "an outcome needs acknowledging — shared AppAlert surface",
+   "to": "O/app-alert/single-action"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "tap the gear",
+   "to": "S/settings/default",
+   "$comment": "This block was added 2026-07-30 after audit 93 found 64 of 89 boards unreachable. Most were not wiring bugs but MISSING FACTS: the IA diagram knew about tap-the-gear and tap-a-token-row, this file did not. Anything crossing a page can only ever be a vela.edge, since Penpot drops cross-page destinations."
+  },
+  {
+   "from": "S/home/assets",
+   "condition": "tap a token row",
+   "to": "S/token-detail/default"
+  },
+  {
+   "from": "S/home/connections",
+   "condition": "tap Connect a dApp",
+   "to": "S/connect/disconnected"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "open a velawallet:// pay link",
+   "to": "S/pay/default"
+  },
+  {
+   "from": "S/pay/default",
+   "condition": "tap Open in Vela",
+   "to": "S/send/details"
+  },
+  {
+   "from": "S/receive/address",
+   "condition": "tap the address → copied confirmation",
+   "to": "S/receive/copied"
+  },
+  {
+   "from": "S/send/select-token",
+   "condition": "the recipient's chain is not supported",
+   "to": "S/send/locked-network-not-supported"
+  },
+  {
+   "from": "S/send/select-token",
+   "condition": "the token is unknown to this wallet",
+   "to": "S/send/locked-unknown-token"
+  },
+  {
+   "from": "S/settings/scrolled",
+   "condition": "tap Safari Extension",
+   "to": "S/safari-extension/default"
+  },
+  {
+   "from": "S/safari-extension/default",
+   "condition": "the extension hands a request to the app",
+   "to": "S/browser/unsupported-on-web"
+  },
+  {
+   "from": "S/send/sign",
+   "condition": "tap the sheet's close ✕ → back to confirm (the reject control is an icon, so there is no text handle to wire)",
+   "to": "S/send/confirm"
+  },
+  {
+   "from": "S/connect/disconnected",
+   "condition": "a dApp session is established → it appears in Home › Connections",
+   "to": "S/home/connections"
+  },
+  {
+   "from": "S/settings/default",
+   "condition": "scroll past Localization → Safari Extension and the developer rows",
+   "to": "S/settings/scrolled"
+  },
+  {
+   "from": "S/settings/scrolled",
+   "condition": "tap Safari Extension",
+   "to": "S/safari-extension/default"
+  },
+  {
+   "from": "S/onboarding/create",
+   "condition": "passkey ceremony resolves → wallet created",
+   "to": "S/home/activity"
+  },
+  {
+   "from": "S/send/sign",
+   "condition": "slide to confirm → signed and submitted",
+   "to": "S/send/receipt-submitted"
+  },
+  {
+   "from": "S/send/confirm",
+   "condition": "user operation lands on chain",
+   "to": "O/transaction-detail/single-confirmed"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "every chain returns 429 → cached balance kept, no RPC banner",
+   "to": "S/home/rate-limited"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "RPC hard-fails on every chain",
+   "to": "S/home/rpc-trouble"
+  },
+  {
+   "from": "S/home/activity",
+   "condition": "tap the balance hero → all figures masked",
+   "to": "S/home/hidden-balance"
+  },
+  {
+   "from": "S/pay/default",
+   "condition": "link is missing a recipient or an unknown chain",
+   "to": "S/pay/invalid-link"
+  },
+  {
+   "from": "S/connect/disconnected",
+   "condition": "paste a pairing URI → local fingerprint gate, no peer needed",
+   "to": "S/connect/connecting-verify"
+  },
+  {
+   "from": "S/connect/disconnected",
+   "condition": "paste a malformed pairing URI",
+   "to": "S/connect/error"
+  },
+  {
+   "from": "S/connect/connecting-verify",
+   "condition": "tap Confirm → waits on the relay (no board: the wait does not hold in the web build)",
+   "to": "—"
+  },
+  {
+   "from": "S/onboarding/create",
+   "condition": "fill the name and tick every acknowledgment",
+   "to": "S/onboarding/create-form-ready"
+  },
+  {
+   "from": "S/onboarding/create-form-ready",
+   "condition": "passkey ceremony (not boarded: it mints a credential and writes an account)",
+   "to": "—"
+  },
+  {
+   "from": "S/send/receipt-submitted",
+   "condition": "the user operation is included in a block",
+   "to": "S/send/receipt-confirmed"
+  },
+  {
+   "from": "S/send/receipt-submitted",
+   "condition": "the user operation reverts",
+   "to": "S/send/receipt-failed"
+  },
+  {
+   "from": "S/web-request/unavailable",
+   "condition": "no dApp handshake on this popup",
+   "to": "—"
+  },
+  {
+   "from": "S/browser/unsupported-on-web",
+   "condition": "iOS or Android → the real in-app browser (no board: needs a device capture)",
+   "to": "—"
+  },
+  {
+   "from": "S/home/assets",
+   "condition": "Appearance set to Dark in Settings",
+   "to": "S/home/assets-dark"
+  },
+  {
+   "from": "S/send/select-token",
+   "condition": "Appearance set to Dark in Settings",
+   "to": "S/send/select-token-dark"
+  },
+  {
+   "from": "S/settings/default",
+   "condition": "Appearance set to Dark in Settings",
+   "to": "S/settings/default-dark"
+  },
+  {
+   "from": "O/format-picker/number",
+   "condition": "the Date row is chosen",
+   "to": "O/format-picker/date"
+  },
+  {
+   "from": "O/format-picker/number",
+   "condition": "the Time row is chosen",
+   "to": "O/format-picker/time"
+  },
+  {
+   "from": "O/network-editor/collapsed",
+   "condition": "a network card is expanded",
+   "to": "O/network-editor/card-expanded"
+  },
+  {
+   "from": "O/endpoint-editor/default",
+   "condition": "the endpoint fails its health check",
+   "to": "O/endpoint-editor/health-error-states"
+  },
+  {
+   "from": "O/rpc-providers/idle",
+   "condition": "Test is pressed",
+   "to": "O/rpc-providers/testing"
+  },
+  {
+   "from": "O/rpc-providers/testing",
+   "condition": "the provider answers",
+   "to": "O/rpc-providers/results"
+  },
+  {
+   "from": "O/add-network/searching",
+   "condition": "a chain is picked",
+   "to": "O/add-network/checking-compatibility"
+  },
+  {
+   "from": "O/add-network/checking-compatibility",
+   "condition": "the chain is compatible",
+   "to": "O/add-network/result"
+  },
+  {
+   "from": "O/add-network/checking-compatibility",
+   "condition": "the chain is already added",
+   "to": "O/add-network/error"
+  },
+  {
+   "from": "S/onboarding/create-ceremony",
+   "condition": "the wallet is created but its public key never reaches the index",
+   "to": "S/onboarding/sync-failure"
+  },
+  {
+   "from": "S/onboarding/create-ceremony",
+   "condition": "the public key reaches the index",
+   "to": "S/onboarding/create-success"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "the wallet has no value transfers yet",
+   "to": "S/home/activity"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "the feed is pulled down to refresh",
+   "to": "S/home/refreshing"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "a chain's price feed is unavailable — the total is an approximation",
+   "to": "S/home/estimate-notice"
+  },
+  {
+   "from": "S/home/default",
+   "condition": "balances have not resolved yet",
+   "to": "S/home/balance-loading"
+  },
+  {
+   "from": "S/home/assets",
+   "condition": "the wallet holds nothing on any chain",
+   "to": "S/home/assets-empty"
+  },
+  {
+   "from": "S/home/connections",
+   "condition": "a pairing link is submitted",
+   "to": "S/home/connections-connecting"
+  },
+  {
+   "from": "S/home/connections-connecting",
+   "condition": "the code is confirmed",
+   "to": "S/home/connections-connected"
+  },
+  {
+   "from": "S/home/connections-connecting",
+   "condition": "pairing fails or is cancelled",
+   "to": "S/home/connections-error"
+  },
+  {
+   "from": "S/onboarding/welcome",
+   "condition": "Sign in is pressed and the passkey call is outstanding",
+   "to": "S/onboarding/welcome-signin-loading"
+  },
+  {
+   "from": "S/onboarding/create",
+   "condition": "registration succeeded but the next signature was cancelled",
+   "to": "S/onboarding/create-resume"
+  },
+  {
+   "from": "O/account-switcher/default",
+   "condition": "the accounts are still loading",
+   "to": "O/account-switcher/loading"
+  },
+  {
+   "from": "O/account-switcher/default",
+   "condition": "balance privacy is on",
+   "to": "O/account-switcher/privacy-masked"
+  },
+  {
+   "from": "O/account-switcher/default",
+   "condition": "the create / import actions are revealed",
+   "to": "O/account-switcher/create-actions"
+  },
+  {
+   "from": "O/balance-detail/degraded-chains",
+   "condition": "the breakdown is by token rather than by network",
+   "to": "O/balance-detail/tokens-only"
+  },
+  {
+   "from": "O/balance-detail/degraded-chains",
+   "condition": "a chain's Fix action swaps the row for the endpoint form",
+   "to": "O/balance-detail/fix-form-swap"
+  },
+  {
+   "from": "O/identicon-viewer/default",
+   "condition": "the address is copied",
+   "to": "O/identicon-viewer/copied"
+  },
+  {
+   "from": "O/network-filter/default",
+   "condition": "a search term is typed",
+   "to": "O/network-filter/searching"
+  },
+  {
+   "from": "O/rpc-fix/default",
+   "condition": "the endpoint is being saved",
+   "to": "O/rpc-fix/saving"
+  },
+  {
+   "from": "S/add-token/erc20",
+   "condition": "an address is submitted",
+   "to": "S/add-token/erc20-resolving"
+  },
+  {
+   "from": "S/add-token/erc20-resolving",
+   "condition": "a chain knows the address",
+   "to": "S/add-token/erc20-resolved"
+  },
+  {
+   "from": "S/add-token/erc20-resolving",
+   "condition": "no chain knows the address",
+   "to": "S/add-token/erc20-error"
+  },
+  {
+   "from": "S/add-token/native",
+   "condition": "a chain is picked from the suggestions",
+   "to": "S/add-token/network-checking"
+  },
+  {
+   "from": "S/add-token/network-checking",
+   "condition": "the 4337 stack is present",
+   "to": "S/add-token/network-compatible"
+  },
+  {
+   "from": "S/add-token/network-checking",
+   "condition": "contracts the wallet needs are missing",
+   "to": "S/add-token/network-incompatible"
+  }
+ ],
+ "$scenarioSets_note": "A scenario set is ONE surface depicted under many inputs. The signing sheet is the app's clearest case: SigningRequestModal hosts a single SigningSheet, and the 25 boards are request KINDS of it, not 25 destinations. Wiring 24 fake edges between them would misdescribe the product; declaring the set says what is true — reach the surface once, and every scenario is a rendering of it. The graph audit counts set members as reached when the canonical board is.",
+ "scenarioSets": [
+  {
+   "surface": "O/signing-sheet",
+   "canonical": "O/signing-sheet/erc-20-transfer",
+   "enteredBy": "any incoming dApp request (WalletPair session, in-app browser provider request, Safari-extension hand-off) or the Send confirm step; the request payload chooses the scenario",
+   "boards": [
+    "O/signing-sheet/blind-transaction",
+    "O/signing-sheet/erc-20-approve-unlimited",
+    "O/signing-sheet/eth-transfer",
+    "O/signing-sheet/personal-sign",
+    "O/signing-sheet/eip-712-permit2",
+    "O/signing-sheet/permit2-approve-unlimited",
+    "O/signing-sheet/eip-712-unknown",
+    "O/signing-sheet/1inch-swap",
+    "O/signing-sheet/nft-transfer",
+    "O/signing-sheet/nft-approve-all",
+    "O/signing-sheet/vault-deposit",
+    "O/signing-sheet/vault-withdraw",
+    "O/signing-sheet/erc-20-transferfrom",
+    "O/signing-sheet/hex-message-sign",
+    "O/signing-sheet/large-eth-send",
+    "O/signing-sheet/erc-20-limited-approve",
+    "O/signing-sheet/eth-sign-raw-hash",
+    "O/signing-sheet/siwe-domain-mismatch",
+    "O/signing-sheet/increaseallowance",
+    "O/signing-sheet/eip-5792-batch",
+    "O/signing-sheet/expired-swap-deadline",
+    "O/signing-sheet/scam-drain",
+    "O/signing-sheet/deploy-contract",
+    "O/signing-sheet/native-swap-eth-token"
+   ]
+  }
+ ],
+ "$exclusions_note": "Boards that are documentation of a container rather than a surface a user can reach. Recorded so the graph audit reports them as excluded, never as orphans — the same discipline the coverage matrix uses.",
+ "exclusions": [
+  {
+   "board": "O/app-modal/page-sheet",
+   "reason": "depiction of the AppModal container itself (iOS/Android page-sheet presentation), not a surface with its own trigger — see 03 Components · Sheets"
+  },
+  {
+   "board": "O/app-modal/fit",
+   "reason": "depiction of the AppModal `fit` presentation; the only real fit sheet in the app is the connect-consent sheet, which is boarded on 06"
+  }
+ ],
+ "$entries_note": "Boards a user arrives at from OUTSIDE the app — a dApp popup, a deep link. They have no in-app predecessor, so the graph audit seeds from them instead of reporting them as orphans.",
+ "entries": [
+  "S/web-request/unavailable",
+  "S/web-request/error",
+  "S/pay/default",
+  "S/index/loading"
+ ],
+ "flows": [
+  {
+   "name": "send",
+   "page": "05 Screens · Wallet",
+   "entry": "S/send/select-token"
+  },
+  {
+   "name": "receive",
+   "page": "05 Screens · Wallet",
+   "entry": "S/receive/safety-gate"
+  },
+  {
+   "name": "home",
+   "page": "05 Screens · Wallet",
+   "entry": "S/home/default"
+  },
+  {
+   "name": "onboarding",
+   "page": "07 Screens · Settings & Onboarding",
+   "entry": "S/onboarding/welcome"
+  },
+  {
+   "name": "connect",
+   "page": "06 Screens · Browser & Connect",
+   "entry": "S/connect/disconnected"
+  }
+ ]
+}

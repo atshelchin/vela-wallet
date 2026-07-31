@@ -13,7 +13,7 @@ const SIGN_HANDOFF_KEYS = [
   'returnHint', 'oneTapTitle', 'oneTapHint', 'done',
 ] as const;
 
-// The app's full supported locale set (mirrors src/i18n/locales/*).
+// The app's full supported locale set (mirrors rust/crates/vela-core/i18n/locales/*).
 const LOCALES = [
   'en', 'zh', 'zh-TW', 'zh-HK', 'ja', 'ko', 'de', 'fr', 'it', 'ru', 'tr', 'vi', 'id', 'es-MX', 'pt-BR',
 ];

@@ -7,7 +7,7 @@
 // browser language, then English. No ICU — only `{name}` placeholder interpolation
 // (mirrors the app's i18n: interpolation only, no plurals/select).
 //
-// Locales match the app's 15 (src/i18n/locales). Keep wording consistent with the
+// Locales match the app's 15 (rust/crates/vela-core/i18n/locales). Keep wording consistent with the
 // app's own translations for shared terms (Connect / Cancel / Disconnect / Account /
 // Network / Open Vela …).
 

@@ -1,0 +1,23 @@
+[
+ {
+  "url": "/settings",
+  "settle": 3000,
+  "states": [
+   {
+    "slug": "settings-advanced",
+    "board": "S/settings/advanced-expanded",
+    "page": "07 Screens · Settings & Onboarding",
+    "steps": [
+     {
+      "act": "click",
+      "text": "Advanced"
+     },
+     {
+      "act": "wait",
+      "ms": 1200
+     }
+    ]
+   }
+  ]
+ }
+]

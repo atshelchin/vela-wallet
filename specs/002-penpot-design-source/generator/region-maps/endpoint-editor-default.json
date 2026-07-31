@@ -1,0 +1,22 @@
+{
+ "slug": "endpoint-editor-default",
+ "board": "O/endpoint-editor/default",
+ "frame": {
+  "w": 390,
+  "h": 939
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

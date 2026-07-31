@@ -9,8 +9,33 @@ description = "wasm-bindgen shell over vela-core for the web app (metro/Expo web
 crate-type = ["cdylib"]
 
 [dependencies]
+# ZERO locale features, deliberately and permanently (spec 004-rust-i18n, D3).
+#
+# The i18n ENGINE is nearly free here — measured +4,849 wasm bytes. CATALOGS are
+# the entire cost, and compiling them in fails the build:
+#
+#   engine only            535,629
+#   engine + en            612,586   (+81,806 for one locale)
+#   engine + en,ru         683,660   (+48,566 marginal per locale after the 2nd)
+#   engine + all 15      1,315,023   <- 315,023 OVER MAX_WASM_BYTES = 1_000_000
+#                                       (rust/scripts/build-web.mjs:42, hard throw)
+#
+# At 48,566/locale at most 8 fit, leaving less headroom than the engine occupies —
+# not a budget. And embedding LOSES over the wire even for a single locale: `en`
+# compiled in costs +31,862 brotli'd bytes against 15,353 as plain JSON, because
+# base64-wrapping defeats compression on exactly the data type that compresses best.
+#
+# The web route therefore fetches `public/i18n/<lng>.json` on demand and hands it to
+# `Catalog::from_json`. That is also the only shape that delivers the actual
+# requirement: a Japanese reader downloads ja + en, not all fifteen.
+# No feature list at all: vela-core's own `default = []` is already zero locales,
+# and re-stating `default-features = false` here only earns a cargo warning
+# (workspace deps must declare it at the workspace level to be overridable).
 vela-core = { workspace = true }
 wasm-bindgen = { workspace = true }
 tsify = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 serde = { workspace = true }
+# The i18n TOptions DTO uses `#[serde(flatten)]` into a JSON map so a TS caller can
+# write the i18next object literal verbatim; unknown keys become interpolation vars.
+serde_json = { workspace = true }

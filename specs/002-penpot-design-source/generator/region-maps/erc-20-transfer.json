@@ -1,0 +1,22 @@
+{
+ "slug": "erc-20-transfer",
+ "board": "O/signing-sheet/erc-20-transfer",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

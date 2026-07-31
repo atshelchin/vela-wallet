@@ -40,16 +40,37 @@ export function useLanguagePreference() {
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<LanguagePreference>(getLanguagePreference());
+  // What is ACTUALLY rendering, which on web can differ from what the preference
+  // resolves to: a catalog that cannot be fetched leaves the previous language in
+  // effect. Deriving `resolved` from the preference alone made the app claim a
+  // language it was not rendering — and that value drives the Stack remount key,
+  // the Safari-extension cache write, and the locale on filed bug reports.
+  const [effective, setEffective] = useState<AppLanguage | undefined>(undefined);
   const systemLanguage = detectSystemLanguage();
-  const resolved = resolveLanguage(preference);
+  const resolved = effective ?? resolveLanguage(preference);
 
   const setPreference = useCallback((pref: LanguagePreference) => {
     // Update module cache + i18next + persist (fires the react-i18next re-render).
     // Swallow rejections so a changeLanguage failure never becomes unhandled
     // (the write already happened inside setLanguagePreference).
-    setLanguagePreference(pref).catch(() => {});
-    // Re-render this provider → `resolved` changes → Stack key remounts the tree.
-    setPreferenceState(pref);
+    //
+    // The state update is DEFERRED until that settles, and on web that matters:
+    // `resolved` feeds the Stack `key` in _layout.tsx, so setting it
+    // synchronously remounted the entire tree one round-trip BEFORE the new
+    // catalog was resident — a full remount still rendering the old language,
+    // followed by a second render once it arrived. Native is unaffected in
+    // practice: its resources are bundled, so the promise settles in a microtask.
+    void setLanguagePreference(pref).then(
+      (inEffect) => {
+        // The picker shows what the user CHOSE (already persisted); `effective`
+        // shows what is actually RENDERING. On web those diverge when a catalog
+        // cannot be fetched, and conflating them made the app claim a language it
+        // was not displaying.
+        setPreferenceState(pref);
+        setEffective(inEffect);
+      },
+      () => setPreferenceState(pref),
+    );
   }, []);
 
   const value = useMemo(

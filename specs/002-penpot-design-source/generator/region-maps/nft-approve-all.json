@@ -1,0 +1,22 @@
+{
+ "slug": "nft-approve-all",
+ "board": "O/signing-sheet/nft-approve-all",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

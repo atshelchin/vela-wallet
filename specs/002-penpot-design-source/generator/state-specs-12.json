@@ -1,0 +1,162 @@
+[
+ {
+  "$comment": "Batch 2 — onboarding. The create ceremony and its sync-failure branch. Both were proven by generator/capture/_probe-onboarding.mjs; this is that probe expressed declaratively, which is the whole point of the driver-level group options (`routes`) landing with this batch: a state that needs a failing network route used to require a hand-written script, i.e. a person at a console.",
+  "$safety": "`routes` ABORTS every call to the public key index. The ceremony therefore completes locally and NOTHING is written to production — the probe run logged 3 blocked /api/create attempts and zero successes. The parallel-space priming group before it installs the fixed fixture signer, so no device authenticator dialog is raised either.",
+  "url": "/parallel",
+  "settle": 9000,
+  "states": []
+ },
+ {
+  "url": "/onboarding?mode=create",
+  "settle": 4500,
+  "routes": [
+   {
+    "match": "**/api/create",
+    "action": "abort"
+   }
+  ],
+  "states": [
+   {
+    "slug": "onboarding-create-ceremony",
+    "board": "S/onboarding/create-ceremony",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "the ceremony in flight: the form is frozen behind a live status row and the CTA is in its loading state. The passkey stages flash past under the fixture signer; what holds this beat open is the public-key upload retrying (CreateWalletScreen.tsx:84-99).",
+    "expect": [
+     "Create Wallet"
+    ],
+    "forbid": [
+     "Wallet Created",
+     "Sync failed"
+    ],
+    "differsFrom": [
+     "onboarding-create-form-ready"
+    ],
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "Enter a name",
+      "value": "Design Capture"
+     },
+     {
+      "act": "click",
+      "text": "This is a self-custodial wallet"
+     },
+     {
+      "act": "click",
+      "text": "If you lose your device"
+     },
+     {
+      "act": "click",
+      "text": "If your iCloud or Google account is compromised"
+     },
+     {
+      "act": "click",
+      "text": "I agree to the"
+     },
+     {
+      "act": "wait",
+      "ms": 600
+     },
+     {
+      "act": "click",
+      "text": "Create Wallet"
+     },
+     {
+      "act": "wait",
+      "ms": 900
+     }
+    ],
+    "$why": "no nth: with the ghost-route filter in clickable() there is exactly ONE rendered Create Wallet button. The probe this recipe came from took the LAST match, which was written before that filter existed."
+   },
+   {
+    "slug": "onboarding-sync-failure",
+    "board": "S/onboarding/sync-failure",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "the wallet exists but its public key never reached the index: AlertTriangle medallion, the consequence spelled out (no sign-in on another device), Open Settings / Report this error / a quiet technical-details disclosure, and Retry Upload. The header changes too — 'Cross-Device Sync' replaces 'Create Wallet'.",
+    "expect": [
+     "Sync failed",
+     "Retry Upload"
+    ],
+    "differsFrom": [
+     "onboarding-create-ceremony"
+    ],
+    "steps": [
+     {
+      "act": "wait",
+      "ms": 10000
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "$comment": "The success terminus. /api/create is ECHOED back and /api/query REPLAYS the same record, so the client walks its real success path — including the verify step that checks the record it reads back is the one it wrote — while nothing leaves the machine and no on-chain commit-reveal is triggered.",
+  "url": "/onboarding?mode=create",
+  "settle": 4500,
+  "routes": [
+   {
+    "match": "**/api/create",
+    "action": "echo",
+    "slot": "record"
+   },
+   {
+    "match": "**/api/query*",
+    "action": "replay",
+    "slot": "record"
+   }
+  ],
+  "states": [
+   {
+    "slug": "onboarding-create-success",
+    "board": "S/onboarding/create-success",
+    "page": "07 Screens · Settings & Onboarding",
+    "note": "the terminus of onboarding: success medallion, the address in a copyable box, the reassurance that the passkey is verified and the key is synced, and Enter Wallet. Shares no composition with any other board in the file.",
+    "expect": [
+     "Wallet Created",
+     "Enter Wallet"
+    ],
+    "forbid": [
+     "Sync failed"
+    ],
+    "differsFrom": [
+     "onboarding-create-ceremony"
+    ],
+    "steps": [
+     {
+      "act": "type",
+      "placeholder": "Enter a name",
+      "value": "Design Capture"
+     },
+     {
+      "act": "click",
+      "text": "This is a self-custodial wallet"
+     },
+     {
+      "act": "click",
+      "text": "If you lose your device"
+     },
+     {
+      "act": "click",
+      "text": "If your iCloud or Google account is compromised"
+     },
+     {
+      "act": "click",
+      "text": "I agree to the"
+     },
+     {
+      "act": "wait",
+      "ms": 600
+     },
+     {
+      "act": "click",
+      "text": "Create Wallet"
+     },
+     {
+      "act": "wait",
+      "ms": 6000
+     }
+    ]
+   }
+  ]
+ }
+]

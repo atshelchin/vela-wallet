@@ -1,0 +1,46 @@
+[
+  {
+    "$comment": "Authored 2026-07-31 to close the last no-dump boards the acceptance gate found. S/send/confirm and S/home/activity-empty were first-generation pixels with no committed steps, so nothing could regenerate them; these are the steps that reach them. Captured against /parallel — the real wallet is empty, and a send flow needs a balance.",
+    "url": "/parallel",
+    "settle": 9000,
+    "states": [
+      {
+        "slug": "home-activity-empty",
+        "board": "S/home/activity-empty",
+        "page": "05 Screens · Wallet",
+        "note": "the fixture wallet has no transaction history, so the default Activity tab IS the empty state",
+        "steps": [{ "act": "wait", "ms": 1500 }]
+      }
+    ]
+  },
+  {
+    "url": "/send",
+    "settle": 6000,
+    "states": [
+      {
+        "slug": "send-details-filled",
+        "board": "S/send/details-filled",
+        "page": "05 Screens · Wallet",
+        "note": "a VALID details step — the previously captured board was blank, with Continue disabled, so the file had no depiction of the state the journey's own edge is labelled with (amount + recipient valid)",
+        "steps": [
+          { "act": "click", "text": "XDAI" },
+          { "act": "wait", "ms": 1500 },
+          { "act": "type", "placeholder": "0", "value": "0.1" },
+          { "act": "wait", "ms": 800 },
+          { "act": "type", "placeholder": "0x... address", "value": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
+          { "act": "wait", "ms": 2000 }
+        ]
+      },
+      {
+        "slug": "send-confirm",
+        "board": "S/send/confirm",
+        "page": "05 Screens · Wallet",
+        "note": "the confirm step: from/to rows, chain chip, estimated network fee and the slide-to-confirm control",
+        "steps": [
+          { "act": "click", "text": "Continue" },
+          { "act": "wait", "ms": 6000 }
+        ]
+      }
+    ]
+  }
+]

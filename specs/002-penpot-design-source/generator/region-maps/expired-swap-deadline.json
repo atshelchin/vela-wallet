@@ -1,0 +1,22 @@
+{
+ "slug": "expired-swap-deadline",
+ "board": "O/signing-sheet/expired-swap-deadline",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

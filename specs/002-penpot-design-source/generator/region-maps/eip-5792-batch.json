@@ -1,0 +1,22 @@
+{
+ "slug": "eip-5792-batch",
+ "board": "O/signing-sheet/eip-5792-batch",
+ "frame": {
+  "w": 390,
+  "h": 844
+ },
+ "regions": [
+  {
+   "name": "backdrop",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

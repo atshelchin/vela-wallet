@@ -1,0 +1,9 @@
+{
+ "slug": "browser-default",
+ "board": "S/browser/unsupported-on-web",
+ "$note": "hand-authored: this capture is a single wrapper chain ending in one 15px line of text (the web build's 'in-app browser is native-only' message), so gen-region-maps finds no branch to name. One region covering the chain is the honest description.",
+ "frame": { "w": 390, "h": 806 },
+ "regions": [
+  { "name": "message", "paths": ["0"] }
+ ]
+}

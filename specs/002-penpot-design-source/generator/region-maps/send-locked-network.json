@@ -1,0 +1,22 @@
+{
+ "slug": "send-locked-network",
+ "board": "S/send/locked-network-not-supported",
+ "frame": {
+  "w": 390,
+  "h": 806
+ },
+ "regions": [
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.1"
+   ]
+  }
+ ]
+}

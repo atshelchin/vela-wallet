@@ -1,0 +1,22 @@
+{
+ "slug": "onboarding-create",
+ "board": "S/onboarding/create",
+ "frame": {
+  "w": 390,
+  "h": 806
+ },
+ "regions": [
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.1"
+   ]
+  }
+ ]
+}

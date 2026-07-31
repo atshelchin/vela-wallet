@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1280, height: 950 }, deviceScaleFactor: 1, hasTouch: true });
+page.on('pageerror', (e) => console.error('PAGE ERROR:', String(e).slice(0, 160)));
+await page.goto('http://127.0.0.1:8083/parallel', { waitUntil: 'domcontentloaded' });
+await page.waitForTimeout(7000);
+const dump = await page.evaluate(() => Object.keys(localStorage).sort().map(k => k + ' = ' + String(localStorage.getItem(k)).slice(0, 70)));
+console.log('URL now:', page.url());
+console.log(dump.join('\n'));
+await browser.close();

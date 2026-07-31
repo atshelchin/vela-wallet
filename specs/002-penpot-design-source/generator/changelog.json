@@ -1,0 +1,108 @@
+{
+ "$comment": "Committed history for page 11. Newest entry FIRST. One entry per regeneration that changed what a reader sees; `rev` is the git revision the file reflected afterwards. Add an entry here — never by typing on the canvas, which the next regeneration would wipe.",
+ "entries": [
+  {
+   "date": "2026-07-31",
+   "rev": "79c5930",
+   "headline": "Three Home boards were the same picture — the tab clicks had been hitting an invisible copy of the screen",
+   "changes": [
+    "The founder opened the file and said the screens looked like they were overlapping. They were not overlapping: S/home/activity, S/home/assets and S/home/connections were three copies of one picture, and at a glance that reads as duplication.",
+    "ROOT CAUSE. react-navigation keeps the route you came from MOUNTED under `display:none`, and on /parallel that ghost copy of Home comes FIRST in document order. `el.innerText` on a display:none node falls back to textContent, so the harness's byText('Assets') matched the ghost's tab; the click flipped an invisible screen, and dispatchEvent swallows the error the ghost raises, so the step reported success and the Activity tab was written to disk three times. clickable() now matches only rendered elements.",
+    "EVERY STATE NOW CARRIES A POST-CONDITION IT CANNOT FAKE. A dump is fingerprinted on everything that paints, and no two states in a run may produce the same picture — with no authoring at all. `expect`/`forbid` alone would not have caught this: home-assets contains the word \"Assets\" while showing the Activity tab. The fingerprint hashes only fields that survive prune-states.py, or every comparison against a board already on disk would silently pass.",
+    "audit-boards-distinct.mjs is the standing gate: 91 dumps, 91 distinct pictures. It lifts the fingerprint out of capture-states.js rather than reimplementing it, so the harness, the driver and the audit can never disagree about what \"the same picture\" means.",
+    "S/home/rpc-trouble was nearly retired as unreachable — an investigation concluded the banner never renders under any injected fault. It does: an RPC fault is invisible until Home is forced past fetchTokens' 5-minute cache, which only a pull-to-refresh does. The new `pull` act captures it with the cached balance intact ($3.26 above a 12-network warning card), which is the state the board was commissioned for — arming the fault before boot instead yields $0.00.",
+    "S/home/rate-limited recaptured too, and it deliberately looks like a normal screen: a transient fault serves the cached balance and shows NO banner. That is the design rule, and the board exists to state it.",
+    "S/onboarding/create-form-ready re-shot: its dump predated svg capture, so the four acknowledgement ticks were invisible and the board depicted an impossible state — unchecked boxes above an enabled CTA.",
+    "THREE SILENT NO-OPS FOUND IN THE PIPELINE ITSELF. 73 fetched dumps without a cache-buster, so a recapture deployed mid-session rebuilt from the stale copy while every log line said it had been rebuilt. `sendToBack()` / `bringToFront()` are accepted and do nothing, `parentIndex` is read-only, and `penpot.ungroup()` restores children in REVERSE order — `setParentIndex()` is the only working z-order API, and 73d-restack now derives each region's painting order from the DOM paths in the shape names.",
+    "That z-order bug is worth naming: S/home/rpc-trouble rendered as an empty beige rectangle with all forty text shapes present, correctly positioned, and stacked behind the card that should have contained them. A shape-count or text-count check passes that board with full marks."
+   ]
+  },
+  {
+   "date": "2026-07-31",
+   "rev": "78a7c7e",
+   "headline": "Test-environment chrome scrubbed, a duplicate board retired, the last recapture debt cleared",
+   "changes": [
+    "The 'PARALLEL SPACE · mock passkey · test' badge had been transcribed onto seven canon boards. It is dev chrome the shipped app never renders; extract-dom-layout.js now drops it by data-testid, at the one choke point every capture path shares, and all seven were re-shot clean.",
+    "That badge had a second, invisible cost: as a live sibling of the route root it stopped the wrapper-descent in gen-region-maps one level early, so every screen captured under /parallel collapsed to a single 'content' region. With it gone those screens recover their real header / hero / list structure.",
+    "expo-router keeps every screen in the stack mounted, so a route root can carry a run of full-frame siblings that paint nothing. They were each being handed a 'content' region — a four-text error screen came out with eight regions, seven of which claimed nothing. A node that paints nothing is no longer a region.",
+    "S/web-request/unavailable captured from the running app — the last board still carrying vela.debt=RECAPTURE. Recapture debt is now zero.",
+    "S/home/activity-empty RETIRED: the fixture wallet has no transaction history, so it and S/home/activity were pixel-for-pixel the same screen, differing only by a price tick ($3.28 vs $3.29). The hub board carries the empty state and says so.",
+    "GAP, stated rather than faked: a POPULATED Activity list cannot be captured today — no fixture carries transaction history and no dev command seeds one. The design source shows the empty state because that is the only state the app can actually be driven into.",
+    "capture-states.js can click by aria-label regex. The balance hero has no matchable text and its positional index differs between /wallet and /parallel — which is exactly how a 'hidden balance' recapture came back with the balance still visible."
+   ]
+  },
+  {
+   "date": "2026-07-31",
+   "rev": "feaf7d8",
+   "headline": "Captured from the running app: Home unmasked, the send confirm step, the whole signing matrix",
+   "changes": [
+    "capture/run-capture.mjs drives the app with Playwright — a recapture is one command instead of a person at a console",
+    "Home recaptured with the balance VISIBLE and the Assets tab populated; hide-balance turned out to be a persisted preference that had masked every later capture",
+    "S/send/confirm, S/send/details-filled and S/home/activity-empty captured — the boards that had no committed dump at all",
+    "The unlimited-approval sentence is whole again: one text at the paragraph box with the spans restored as styled character ranges. \"ALL\" is back",
+    "Overlay captures are scoped to the overlay root (found by its backdrop), so a sheet no longer carries its host screen into the board",
+    "reconnect-penpot.mjs restores the plugin session headlessly when the browser tab holding it dies"
+   ]
+  },
+  {
+   "date": "2026-07-30",
+   "rev": "a4bffaa+",
+   "headline": "SC-007 passes; the design language is shown; reuse is indexed",
+   "changes": [
+    "Overlay triggers authored from the inventory; the 24 remaining signing boards declared as ONE scenario set rather than 24 invented edges",
+    "Graph audit: 89 boards, 87 reachable, 2 recorded exclusions, 0 unreachable — PASS",
+    "Principles 07 (open heroes) and 08 (section labels) added as do/don't specimens; 09 and 10 are pointed at their real homes because neither has a still form",
+    "Reuse index on 09: every component ordered by how many surfaces import it, plus the reverse view of what each surface is built from",
+    "Audit 96 was passing against a session-CACHED layout while boards sat at old positions; both audits now re-fetch their manifest every run"
+   ]
+  },
+  {
+   "date": "2026-07-30",
+   "rev": "af54c2f",
+   "headline": "Screens become journeys; the wiring becomes visible",
+   "changes": [
+    "Board positions on 05–07 derive from generator/journeys.json — walls survive a regeneration instead of collapsing to a grid",
+    "62 committed region maps: flat DOM piles grouped into header / hero / content / list / actions / dock (backdrop / sheet for overlays)",
+    "77-walls draws a band header per journey and a labelled arrow per step, from the same edges.json the machine wiring uses",
+    "74 wires 37 pointer interactions (was zero); 5 cross-page edges degrade to vela.edge because Penpot cannot link across pages",
+    "Send journey completed: receipt states boarded from the dev harness, plus the S/send/sign proxy",
+    "S/home/activity-empty and S/send/confirm stamped vela.debt=RECAPTURE — no committed dump exists for them"
+   ]
+  },
+  {
+   "date": "2026-07-30",
+   "rev": "6752858",
+   "headline": "The component page answers \"what do I reuse?\"",
+   "changes": [
+    "Six category sections; every family gets a docs block: tier, axes, description, USE WHEN, DON'T, code path, reuse sites",
+    "53/53 implementation paths resolved from the source tree and path-validated; 20 Tier-1 rules authored",
+    "Same strings stamped as vela.codeRef / vela.usage / vela.dont for machine readers",
+    "Nine pre-pivot drafts renamed out of C/ into DRAFT/*, quarantined in a labelled band, indexed on 12 Archive",
+    "Audit 97 corrected: component identity is path+name, not name (which holds only the leaf)"
+   ]
+  },
+  {
+   "date": "2026-07-30",
+   "rev": "1760f34",
+   "headline": "Tokens leave the file; the IA map stops lying",
+   "changes": [
+    "docs/design-tokens.json — 147 tokens in the Tokens-Studio/DTCG dialect, verified against the live sets both ways",
+    "Mode demo proves set activation really repaints; both palettes shown side by side for humans",
+    "IA route nodes carry vela.target and all 13 resolve; two dangling board names and a wrong anchor fixed",
+    "IA connectors rerouted through corridors with real arrowheads — no line crosses a card, no label is struck through",
+    "74 verifies an interaction's read-back: a cross-page navigate is accepted with an EMPTY destination, so silence was not success"
+   ]
+  },
+  {
+   "date": "2026-07-30",
+   "rev": "fe76f42",
+   "headline": "Two-layer pipeline adopted (RESTRUCTURE-2026-07-30)",
+   "changes": [
+    "Semantic layer (regions, swaps, interactions, wall positions) lives in committed repo data and is re-applied after every rebuild",
+    "Guard audits 96 (semantic floor) and 97 (library) run as the mandatory tail of every regeneration",
+    "Pages 11 Changelog and 12 Archive added; tasks.md checkboxes reconciled against a full file audit",
+    "spec.md gains SC-008 (human gate), SC-009, SC-010, SC-011 and the two-layer FR-008/SC-005"
+   ]
+  }
+ ]
+}

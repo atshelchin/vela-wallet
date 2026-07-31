@@ -1,0 +1,46 @@
+{
+ "slug": "safari-extension",
+ "board": "S/safari-extension/default",
+ "frame": {
+  "w": 390,
+  "h": 806
+ },
+ "regions": [
+  {
+   "name": "hero",
+   "paths": [
+    "0.0.0.0.0.2.0"
+   ]
+  },
+  {
+   "name": "header",
+   "paths": [
+    "0.0.0.0.0.0"
+   ]
+  },
+  {
+   "name": "copy",
+   "paths": [
+    "0.0.0.0.0.1"
+   ]
+  },
+  {
+   "name": "content",
+   "paths": [
+    "0.0.0.0.0.2"
+   ]
+  },
+  {
+   "name": "copy-2",
+   "paths": [
+    "0.0.0.0.0.3"
+   ]
+  },
+  {
+   "name": "copy-3",
+   "paths": [
+    "0.0.0.0.0.4"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1494 @@
+{
+ "$comment": "Generated 2026-07-31 from a 15-agent reconciliation of manifest.json against the running app, with every EXCLUDE independently challenged. `final` is the challenged verdict where one exists, otherwise the original. 38 of 63 proposed exclusions were OVERTURNED — the reviewers proved the state reachable by running it — which is why the challenge pass exists: an exclusion is the one verdict nobody revisits.",
+ "cells": [
+  {
+   "planned": "O/account-switcher/active-row",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "A row treatment inside the loaded board, not a sheet state: AccountSwitcherModal.tsx:124 (nameActive) + :131 (trailing Check). Verified in the board already on disk — 'Parallel One' is drawn in accent #E8572A while 'Parallel Two'/'Parallel Three' are #1A1A18 (dom-dumps/overlays/accountswitchermodal.json).",
+   "challenge": "UPHELD. Verified in the board's own dump, dom-dumps/overlays/accountswitchermodal.json: 'Parallel One' renders at color #E8572A while 'Parallel Three' and 'Parallel Two' render #1A1A18, and there is an 18x18 svg node at x=356,y=615 sitting on the Parallel One row — i.e. both halves of the treatment (AccountSwitcherModal.tsx:124 nameActive + :131 trailing Check) are already on the boarded picture. A row treatment visible inside a board is not a second board."
+  },
+  {
+   "planned": "O/account-switcher/browser-footer",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The `footer` prop has exactly one call site in the app: src/app/browser.tsx:532-553 (disconnect + close-page rows). That route is native-only — isWalletWebViewSupported is false on web, which is why the file's own browser board is S/browser/unsupported-on-web. Unreachable from the build the pipeline captures.",
+   "challenge": "UPHELD. Verified in source: the `footer` prop has one call site (src/app/browser.tsx:531-553, disconnect + close-page rows) and browser.tsx returns the refusal screen at :364 (`if (!isWalletWebViewSupported) return <Fallback>`) long before the AccountSwitcherModal at :531 is ever mounted; modules/webview/index.tsx:31 defines isWalletWebViewSupported = Platform.OS === 'ios' || 'android'. Consistent with the whole S/browser family being collapsed to S/browser/unsupported-on-web."
+  },
+  {
+   "planned": "O/account-switcher/create-actions",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31: dom-dumps/_probe/_probe-as-create-actions.json — 'Accounts | Total $3.27 | … | Create New Account | Sign In with Existing' (AccountSwitcherModal.tsx:138-143). This is the variant every real host renders, which the boarded default lacks.",
+   "reach": "/settings (settle 7000) → click aria-label /^Parallel One/ (the Account SettingsRow, SettingsScreen.tsx:1444-1446) → the switcher opens with showCreateActions."
+  },
+  {
+   "planned": "O/account-switcher/loaded",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The existing board IS the loaded list (3 fixture accounts + per-row balances, dom-dumps/overlays/accountswitchermodal.json). Two defects to record while renaming: (1) only Parallel One carries a figure, so it is a half-loaded capture; (2) the gallery instance omits showCreateActions (design-gallery.tsx:1535-1540) while BOTH real hosts pass it (HomeScreen.tsx:396-403, SettingsScreen.tsx:1598-1604) — the board depicts a configuration no shipped screen renders.",
+   "rename_to": "O/account-switcher/default"
+  },
+  {
+   "planned": "O/account-switcher/loading",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31: dom-dumps/_probe/_probe-as-loading.json shows 'Switch Account | 3 accounts · $0.00 | Parallel One … $0.00 | Parallel Three (no figure) | Parallel Two (no figure)' — header spinner + rows still resolving, a different picture from the loaded board.",
+   "reach": "/parallel (settle 9000) → vela.slowRpc(8000) → click aria-label /Switch account/ (the header account Pressable, HomeScreen.tsx:184-189) → settle ~900ms. openSwitcher paints from the balance cache then fires refreshAllBalances (useHomeController.ts:454-479), which is RPC-bound, so the latency fault holds the state open."
+  },
+  {
+   "planned": "O/account-switcher/privacy-masked",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31: dom-dumps/_probe/_probe-as-masked.json — every figure masked, including the header subtitle ('3 accounts · ••••') and all three rows (AccountSwitcherModal.tsx:73-74).",
+   "reach": "/parallel → click aria-label /^[$€£¥]/ (the balance hero; the same recipe S/home/hidden-balance uses in state-specs-8.json) → click aria-label /Switch account/. Persists vela.balanceHidden (use-balance-privacy.ts), so it must run LAST in its group, exactly as state-specs-5-NOTES §1 discloses."
+  },
+  {
+   "planned": "O/add-token-sheet/error",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Same as resolving: the 'Could not find this token on any network' path is AddTokenPanel.tsx:180-182 raising an AppAlert over the panel — the alert is boarded as O/app-alert/single-action and the panel state belongs to S/add-token (probe dump _probe-addtoken-erc20-error.json exists).",
+   "challenge": "OVERTURNED — captured live 2026-07-31. Typing an address that is not a token anywhere and pressing Search produced 'Not Found | Could not find this token on any network. | OK' as an AppAlert layered over the sheet (dump: scratchpad/probe-addtokensheet-error.json; the alert nodes sit at x=45 w=300 directly above the still-visible 'Add Token' head). Reachable, and the stated owner (S/add-token/erc20-error) is not a board. Weakest of the three — the alert component itself is boarded as O/app-alert/single-action — but what is NOT recorded anywhere is the design decision that a failed lookup surfac"
+  },
+  {
+   "planned": "O/add-token-sheet/form",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The existing board is the form: 'Add Token | ERC-20 Token | Native Token | Token Address | Search Token' (dom-dumps/overlays/addtokensheet.json). State-name drift only; the base name already matches.",
+   "rename_to": "O/add-token-sheet/default"
+  },
+  {
+   "planned": "O/add-token-sheet/resolved",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Same as resolving: the resolved result card is AddTokenPanel.tsx:417-456, owned by the S/add-token family (planned as S/add-token/erc20-resolved; probe dump _probe-addtoken-erc20-resolved.json already exists). AddTokenSheet adds no state of its own.",
+   "challenge": "OVERTURNED — captured live 2026-07-31. Body text read 'Add Token | ERC-20 Token | Native Token | TOKEN ADDRESS | Search Token | Name | USD Coin | Symbol | USDC | Decimals | 18 | Network | BNB Chain | Add to Wallet'; dump written to scratchpad/probe-addtokensheet-resolved.json. 'Add to Wallet' was never pressed, so nothing persisted. The exclusion's coverage claim ('planned as S/add-token/erc20-resolved') points at a cell that is NOT a board (edges.json). Also, 'the same panel on two boards' is only approximately true: in the sheet the panel measures TOKEN ADDRESS at x=20 w=350 and the Name lab"
+  },
+  {
+   "planned": "O/add-token-sheet/resolving",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "AddTokenSheet.tsx is a stateless wrapper — 66 lines, zero useState: it is <AppModal> + a close header + <AddTokenPanel> (:26-38). Every state it can show belongs to AddTokenPanel and is planned in the S/add-token family (S/add-token/erc20-resolving in manifest.json, and a sibling agent has already probed it — dom-dumps/_probe/_probe-addtoken-erc20-resolving.json). Boarding it twice puts the same panel on two boards; the sheet's own contribution is the chrome in O/add-token-sheet/default.",
+   "challenge": "OVERTURNED. Two defects in the reason. (1) The claimed coverage does not exist: edges.json's 90-board inventory contains only `S/add-token/erc20` and `S/add-token/native` — there is no S/add-token/erc20-resolving board, and audit-report.md states state-specs-5.json (which stages that recipe) is 'staged and unrun'. Excluding the O/ cell while the S/ cell is unbuilt leaves the design file with no depiction of the in-flight lookup anywhere. (2) The state is reachable in the sheet — I drove the sheet's whole lookup live (see resolved/error below). Correction for whoever writes the recipe: state-sp"
+  },
+  {
+   "planned": "O/app-alert/destructive",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "O/app-alert/destructive exists (dom-dumps/overlays/appalert-destructive.json, 'Remove this account?' with the error.base button, AppAlert.tsx:93/196)."
+  },
+  {
+   "planned": "O/app-alert/native-placeholder",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "There is no Vela-drawn artwork to board. On native AppAlert renders nothing — the styled card is gated on `Platform.OS === 'web' && alert.visible` (AppAlert.tsx:85) — and platform.ts:46-49 hands the call to react-native's Alert.alert, i.e. the OS dialog. A board here would be a drawing of an Apple/Google system dialog, which the design source does not own (manifest's own drift note says the same).",
+   "challenge": "UPHELD. Verified in source: AppAlert.tsx:85 gates the entire styled card on `Platform.OS === 'web' && alert.visible`, so on native the component paints nothing; services/platform.ts hands the call to react-native's `Alert.alert(title, message, buttons)` (the `else` branch after the web `window.alert` fallback). A board here would be a drawing of an Apple/Google system dialog — artwork the design source does not own and cannot derive from any capture."
+  },
+  {
+   "planned": "O/app-alert/one-button",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Same cell: the board was captured from gallery launcher #gallery-open-appalert-single (showAlert('Transaction submitted', …) with the default [{text:'OK'}] button list, AppAlert.tsx:49).",
+   "rename_to": "O/app-alert/single-action"
+  },
+  {
+   "planned": "O/app-alert/two-button",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Same cell: #gallery-open-appalert-two — cancel + primary ('Replace this RPC?'), the isPrimary branch at AppAlert.tsx:95.",
+   "rename_to": "O/app-alert/two-actions"
+  },
+  {
+   "planned": "O/app-modal/android-dragged",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "A mid-gesture frame: the sheet's translateY is an Animated.Value advanced only by a live PanResponder drag (AppModal.tsx:114-146, threshold DISMISS_DY=90 at :38). No prop, dev seam or harness act sets it, and the branch is native-only anyway.",
+   "challenge": "UPHELD, unchanged. Verified in source: pan is an Animated.Value advanced only by PanResponder.onPanResponderMove (AppModal.tsx:121-127), claimed on move only (onStartShouldSetPanResponder: () => false, :119), threshold DISMISS_DY=90 (:38). No prop, no dev seam (fault-injection.ts exposes only rpc/price/funding/gas faults), no harness act produces a mid-gesture frame, and the branch is native-only anyway."
+  },
+  {
+   "planned": "O/app-modal/android-rest",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Native-only branch (AppModal.tsx:58-59 → AndroidSheet at :98-168). Same reason as ios-pagesheet: unreachable from the web build, and its resting picture is the same sheet already boarded as O/app-modal/page-sheet plus the Android drag handle.",
+   "challenge": "UPHELD on reachability, reason must be corrected. Native-only (AppModal.tsx:58-59 → AndroidSheet :98-168), unreachable from 127.0.0.1:8083, no device attached. But 'its resting picture is the same sheet already boarded as O/app-modal/page-sheet plus the Android drag handle' is false against the source: AndroidSheet renders `<Modal presentationStyle=\"pageSheet\">` over `styles.nativeRoot {flex:1, backgroundColor: color.bg.base}` and `styles.sheetInner {flex:1}` — full-bleed, NO backdrop, NO top corner radius, NO 92% max-height. The boarded picture (web) has all three. Record it as 'not capturabl"
+  },
+  {
+   "planned": "O/app-modal/fit",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "O/app-modal/fit exists (dom-dumps/overlays/appmodal-fit.json). CAVEAT worth recording on the board: web ignores the prop — AppModal.tsx:52 returns WebModal before the `if (fit)` branch at :55, so this board is the web sheet showing the fit demo's copy, not the native FitSheet (AppModal.tsx:176-250). The two boards differ only by 3px of height and the demo text."
+  },
+  {
+   "planned": "O/app-modal/ios-pagesheet",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Native-only branch (AppModal.tsx:65-91, reached only when Platform.OS !== 'web' && !fit). The whole capture pipeline drives the web build at 127.0.0.1:8083, which never executes it; the visible delta is UIKit chrome (system dim + card inset), which would have to be hand-drawn from a device screenshot, not captured. The mode itself (page-sheet vs fit) is boarded.",
+   "challenge": "UPHELD on reachability, but the recorded reason must be rewritten — its second clause is false. AppModal.tsx:52-53 returns WebModal for web BEFORE the `fit` check at :55, so the web build can never render either native branch; no Android device is attached (`adb devices` → empty list) and no iOS simulator is booted (`xcrun simctl list devices booted` → no devices), and the pipeline boards DOM dumps, not screenshots. But 'The mode itself (page-sheet vs fit) is boarded' is wrong: I diffed dom-dumps/overlays/appmodal-default.json against appmodal-fit.json and they are the SAME picture — backdrop "
+  },
+  {
+   "planned": "O/app-modal/web-backdrop",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Not a separate state. WebModal renders backdrop and sheet in one tree (AppModal.tsx:332-341) and the backdrop is at its full rgba(0,0,0,0.35) whenever `show` is true — which the boarded O/app-modal/page-sheet already shows (dump node {x:0,y:0,w:390,h:806,bg:'#000000@35%'}). The only other value is the 0-opacity frame of the 300ms fade.",
+   "challenge": "UPHELD. Verified in source and in the dump on disk. WebModal renders backdrop and sheet in one createPortal tree (AppModal.tsx:331-341) and the backdrop is `show ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0)'` (:338) — binary, no third value. dom-dumps/overlays/appmodal-default.json already carries the node {x:0,y:0,w:390,h:806,bg:'#000000@35%'} as the second node of the tree. A separate board would be a duplicate or a 0-opacity frame of the 300ms transition."
+  },
+  {
+   "planned": "O/app-modal/web-rest",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "AppModal.tsx:52-54 returns <WebModal> for EVERY web render, so the board already in the file (dom-dumps/overlays/appmodal-default.json, url #gallery-open-appmodal-default) IS the web rest state: backdrop #000000@35% + bottom card radius 20 at y=590. Same cell, different name.",
+   "rename_to": "O/app-modal/page-sheet"
+  },
+  {
+   "planned": "O/balance-detail-sheet/both",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The existing board IS the both-sections state: the gallery instance passes failedChainIds=[1,56], rateLimitedChainIds=[56], unpricedTokens=[tokUnpriced] (design-gallery.tsx:1502-1511), and the dump contains 'Networks still updating … Ethereum RPC unavailable Fix … BNB Chain Rate-limited · retrying automatically … Tokens without a price … ARB Arbitrum 52 No price'.",
+   "rename_to": "O/balance-detail/degraded-chains"
+  },
+  {
+   "planned": "O/balance-detail-sheet/empty",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Unreachable as a resting state by construction: BalanceDetailSheet.tsx:77-79 calls onClose() whenever it is visible with no failed chains and no unpriced tokens, so home.balanceDetailEmpty ('Everything's up to date.') exists in i18n but can only flash for the frame before the effect runs.",
+   "challenge": "UPHELD. Verified in source: BalanceDetailSheet.tsx:77-79 is an unconditional effect — `if (visible && fixChainId === null && !hasNetworks && !hasTokens) onClose()` — and every host wires onClose to a real dismiss (design-gallery.tsx:1503 `onClose={close}`). The `home.balanceDetailEmpty` text at :100-102 can therefore only paint for the frame before the effect runs. Not a resting state."
+  },
+  {
+   "planned": "O/balance-detail-sheet/fix-form-swap",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31: the sheet body was replaced in place by the RPC-fix form — 'Fix RPC | Ethereum | Chain ID: 1 | All RPC endpoints for this network are failing… | RPC URL | Save & Retry | Where to get a reliable RPC | Alchemy QuickNode dRPC Chainlist'. This is the deliberate no-second-modal design (BalanceDetailSheet.tsx:64-66,83-88) and nothing else in the file shows it.",
+   "reach": "/design-gallery → click id gallery-open-balancedetailsheet → wait 1000 → click text 'Fix' (only genuinely-failed chains offer it, BalanceDetailSheet.tsx:131-135)."
+  },
+  {
+   "planned": "O/balance-detail-sheet/networks-only",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Covered by O/balance-detail/degraded-chains, which already carries the whole networks vocabulary (Ethereum 'RPC unavailable' + Fix, BNB Chain 'Rate-limited · retrying automatically', 'Retry now'). A networks-ONLY variant would need either a second gallery fixture (a src/app/design-gallery.tsx edit this pass may not make) or a live all-chain failure on Home — and that path does not exist: VERIFIED 2026-07-31, vela.failRpc('all') + pull shows the RpcTroubleBanner for ~3s and then collapses to $0.00 with NO tappable notice at all (the invisible-RPC-failure bug in CLOSURE §'Also open'); vela.failRpc(1) surfaces nothing whatsoever.",
+   "challenge": "UPHELD — I reproduced the experiment independently and it is worse than reported. On /wallet with vela.failRpc('all'): the state-specs-5 recipe (Assets→Activity tabs + 22s) left Home at '$3.28 / Updated now' with no notice; adding the harness `pull` act collapsed the hero to '$0.00' and at t+2/6/12/20s NOTHING appeared — no 'still updating', no 'Fix', no RpcTroubleBanner at all (the exclusion says the banner shows for ~3s; in my run it never rendered). vela.rateLimitRpc('all') + goto /receive + back + pull also surfaced nothing. So the live path does not exist. BUT rewrite the reason to lead w"
+  },
+  {
+   "planned": "O/balance-detail-sheet/rate-limited-row",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "A row treatment inside that same board, not a sheet state: BalanceDetailSheet.tsx:125-135 labels rate-limited chains 'Rate-limited · retrying automatically' in fg.muted and withholds the Fix action. Both variants are already visible side by side in O/balance-detail/degraded-chains (BNB Chain rate-limited, Ethereum failed with Fix).",
+   "challenge": "UPHELD. Verified in source and in the boarded dump. BalanceDetailSheet.tsx:125-135 renders 'Rate-limited · retrying automatically' in the muted style and withholds the Fix pressable for rate-limited chains; dom-dumps/overlays/balancedetailsheet.json shows both treatments side by side on one picture — 'Ethereum'/'RPC unavailable'(#92600A) with 'Fix'(#E8572A) at y=472-498, and 'BNB Chain'/'Rate-limited · retrying automatically'(#6E6B62) with no Fix at y=539-564. A row treatment already visible in a board is not a second board."
+  },
+  {
+   "planned": "O/balance-detail-sheet/tokens-only",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31 by direct probe: the hero notice appeared at ~+18s and the tap opened 'Balance details | TOKENS WITHOUT A PRICE | These balances are correct — there's just no price feed right now… | XDAI Gnosis 0.996 No price | pathUSD …' — the unpriced section alone, with no networks section (BalanceDetailSheet.tsx:148-170).",
+   "reach": "/parallel → vela.nullPrice('all') → pull → wait ≥18s (the notice is gated behind 3 silent retries at 1500/4000/8000ms, useHomeController.ts:53-54,349-366) → click text \"Some tokens couldn't be priced\" (HomeScreen.tsx:112-128)."
+  },
+  {
+   "planned": "O/batch-import-sheet/nested-currency-picker",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-bi-nested-currency.json): the full currency list renders over the batch sheet — modal-over-modal, the scoped picker titled 'Priced in' rather than 'Display currency' (BatchImportSheet.tsx:409-418, issue #80). Nothing else in the file shows two stacked sheets.",
+   "reach": "same sheet, cumulative: click text 'Priced in' (BatchImportSheet.tsx:269-281) → wait 1600."
+  },
+  {
+   "planned": "O/batch-import-sheet/parsed-preview",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31 (dom-dumps/_probe/_probe-bi-preview.json): per-recipient rows '0x111111…111111 | $ 500 | 500 USDC', '0x222222…222222 | $ 300 | 300 USDC' and the footer '2 recipients | 800 USDC | ≈ $ 800 USD | Import 2 recipients' (BatchImportSheet.tsx:329-404).",
+   "reach": "/design-gallery → click id gallery-open-batchimportsheet → wait 1800 (the USD rate must land, BatchImportSheet.tsx:93-104) → type placeholder '0xabc' with two '<address>, <amount>' lines → wait 1200."
+  },
+  {
+   "planned": "O/batch-import-sheet/paste",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The existing board is the empty paste state ('Import recipients | In USD | In USDC | Import file | Get template | Rate | Priced in USD | 1 USDC = …', dom-dumps/overlays/batchimportsheet.json). Base + state drift only.",
+   "rename_to": "O/batch-import/default"
+  },
+  {
+   "planned": "O/batch-import-sheet/rate-editing",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-bi-rate.json): the 'Auto' reset chip appears and every row reconverts at the typed rate ('$ 500 → 69.4444 USDC'), i.e. the displayed string IS the applied rate (BatchImportSheet.tsx:114,306-316).",
+   "reach": "same sheet, cumulative: type into input index 23 (the rate field — its placeholder '0' is shared with gallery cells, so it must be targeted positionally; index 22 is the paste textarea) with e.g. '7.2'."
+  },
+  {
+   "planned": "O/batch-import-sheet/row-errors",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-bi-errors.json): 'Duplicate — skipped', an em-dash instead of an amount, '2 rows skipped (invalid or duplicate).' and the CTA falling back to 'Import 1 recipient' (BatchImportSheet.tsx:123-141,332-377).",
+   "reach": "same sheet, cumulative: retype the paste field with a duplicate address and one invalid line."
+  },
+  {
+   "planned": "O/browser-history-sheet/clear-all-alert",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Doubly blocked: the 'Clear all' control only renders when entries.length > 0 (BrowserHistorySheet.tsx:76-85), which the web build can never reach (see populated); and the alert itself is a plain AppAlert with a cancel + destructive pair (:60-69), already boarded as O/app-alert/destructive.",
+   "challenge": "OVERTURNED, though this is the lowest-value of the twelve. The reason is 'doubly blocked' and the load-bearing half is false: I reached it live — clicking 'Clear all' on the populated sheet produced 'Clear history? | This removes all recently-opened dApps. | Cancel | Clear all' (dump: scratchpad/probe-browser-history-clear-alert.json). The gate at BrowserHistorySheet.tsx:76-85 opens as soon as entries exist, which the seeded profile provides. The SURVIVING half is the second one: the alert is a plain AppAlert cancel+destructive pair, already boarded as O/app-alert/destructive with different co"
+  },
+  {
+   "planned": "O/browser-history-sheet/empty",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The board on disk IS the empty state — 'Recent dApps | No recent dApps yet' (dom-dumps/overlays/browserhistorysheet.json), BrowserHistorySheet.tsx:88-89.",
+   "rename_to": "O/browser-history/default"
+  },
+  {
+   "planned": "O/browser-history-sheet/populated",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "No web path can create history. The store is written by exactly one call site — recordBrowserVisit in src/app/browser.tsx:325 — and that route is native-only (the web build renders the refusal screen boarded as S/browser/unsupported-on-web). Both hosts of the sheet (design-gallery.tsx:1512, ConnectionsView.tsx:215) therefore always read an empty list.",
+   "challenge": "OVERTURNED — captured live 2026-07-31. 'No web path can create history' is true of the RECORDING path and irrelevant to the CAPTURE path: browser-history.ts persists to AsyncStorage key 'vela.browserHistory' (:9, read at :40, written at :50), and on web AsyncStorage is raw-key localStorage (verified: after /parallel the profile holds 'vela.contacts', 'vela.accounts', 'vela.balanceCache' as plain keys). Seeding that key is the project's OWN sanctioned mechanism — parallel-space.ts:56-64 seeds its fixture contact exactly this way, and state-specs-5-NOTES §3 proposes 'seed a second capture profil"
+  },
+  {
+   "planned": "O/bug-report/compose",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The board on disk is the compose state — 'Report a problem | Tell us what went wrong. | + Add steps to reproduce | Send report | What will be sent | Prefer GitHub? Open the issue form →' (dom-dumps/overlays/bugreportmodal.json).",
+   "rename_to": "O/bug-report/default"
+  },
+  {
+   "planned": "O/bug-report/compose-preview",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-bug-preview.json passed expect ['App version','Platform']): the preview box renders buildReportPreview() — the exact scrubbed payload, which is the trust argument of this whole surface (bug-report.ts:89-101).",
+   "reach": "same sheet, cumulative: click text 'What will be sent' (BugReportModal.tsx:156-168)."
+  },
+  {
+   "planned": "O/bug-report/compose-steps",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31 (dom-dumps/_probe/_probe-bug-steps.json): the disclosure row is gone and the second AutoGrowTextInput (minHeight 96, autoFocus) has taken its place (:123-133).",
+   "reach": "/design-gallery → click id gallery-open-bugreportmodal → click text '+ Add steps to reproduce' (BugReportModal.tsx:135-143)."
+  },
+  {
+   "planned": "O/bug-report/fallback",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Only reachable when that same live POST fails (BugReportModal.tsx:89-100, result.fallbackUrl set by bug-report.ts:143-150). vela.* injects no network fault, so the only in-app route is to attempt the real submission and hope it errors. Same one-line driver unblock as `sending`.",
+   "challenge": "OVERTURNED — captured live 2026-07-31. 'vela.* injects no network fault' is true and beside the point: the driver, not the app, is where a network fault belongs. route.abort() sent submitBugReport down its catch branch (bug-report.ts:151-153 → fallbackUrl) and produced 'Open on GitHub instead | We couldn't submit automatically, but we've prefilled a GitHub form with the details. | Open GitHub form | Cancel' (dump: scratchpad/probe-bug-report-fallback.json). This is the one bug-report state a real user is most likely to see (the backend is a single endpoint), and it is the only board that would"
+  },
+  {
+   "planned": "O/bug-report/sending",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Reaching it performs the real submission: handleSend → submitBugReport POSTs to https://getvela.app/api/bug-report (bug-report.ts:26,115-134), whose server-side token opens or +1s a PUBLIC GitHub issue. There is no mock or dev seam (fault-injection.ts exposes only RPC/price/funding/gas faults) and no offline act in the harness, so the only way to see the spinner is to file a real report. UNBLOCK, if wanted later: one line in capture/run-capture.mjs — page.route('**/getvela.app/api/bug-report', r => r.abort()) — reaches sending and fallback with zero side effects.",
+   "challenge": "OVERTURNED — captured live 2026-07-31 with ZERO network egress. The reason's premise ('the only way to see the spinner is to file a real report') is false, and the reasoner wrote the unblock themselves and then excluded the cell anyway. I added six lines of page.route to a scratch copy of the driver and every bug-report state fell out; the run printed 'POSTs intercepted (never sent): 2' — no request ever left the browser, so no GitHub issue exists. Captured 'Sending…' with the button in its loading state (dump: scratchpad/probe-bug-report-sending.json). This is not a device limitation or a cod"
+  },
+  {
+   "planned": "O/bug-report/success-deduped",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Same as success-new: `deduped` is set by the server when the fingerprint (bug-report.ts:81-88) matches an open issue, i.e. it needs two real submissions of the same failure. Differs from success-new by one sentence of copy (successBodyDeduped).",
+   "challenge": "OVERTURNED — captured live 2026-07-31. 'It needs two real submissions of the same failure' is wrong about where the flag lives: the client never computes it, it renders whatever `deduped` the response carries (BugReportModal.tsx:70-73). One mocked response with deduped:true produced 'Thanks — reported! | Added to an existing report (#87). Thanks for the extra signal! | View report | Done' (dump: scratchpad/probe-bug-report-success-deduped.json). Lowest priority of the four (it differs from success-new by one sentence), but it costs one extra route mode once the mock exists."
+  },
+  {
+   "planned": "O/bug-report/success-new",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Same as sending, and worse: this screen only exists after the backend has actually created issue #N (bug-report.ts:136-139 → BugReportModal.tsx:70-85). Capturing it means filing a real public issue on the Vela repo.",
+   "challenge": "OVERTURNED — captured live 2026-07-31, no issue filed. 'Capturing it means filing a real public issue' is false: submitBugReport reads only `{url, number, deduped}` off the response (bug-report.ts:136-139), so a fulfilled route mock produces the genuine screen from the genuine code path. Observed: 'Thanks — reported! | Logged as issue #128. You can follow it any time. | View report | Done' (dump: scratchpad/probe-bug-report-success-new.json). This is the terminal state of a whole journey — a rebuilder given only O/bug-report/default has no idea what happens after Send."
+  },
+  {
+   "planned": "O/connection-event-detail-sheet/connect",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Structurally a different sheet, not a different icon. kind==='connect' (ConnectionEventDetailSheet.tsx:40) removes the entire signed-content section — the `kind !== 'connect'` gate at line 135 drops the SectionLabel AND the mono code block AND its copy button — and also drops the off-chain note (line 94: offChain is message|typed only) and the right-aligned amount (line 85: tx only). What is left is an identity hero (Link2 in a 44px accent.soft circle) over a bare metadata trail. No boarded picture shows this sheet without its middle.",
+   "reach": "design-gallery: clone the txSignature fixture (design-gallery.tsx:198) with type:'connect' and no signedContent, and add a launcher beside gallery-open-connectioneventdetailsheet — the same route that produced the boarded sign-message board."
+  },
+  {
+   "planned": "O/connection-event-detail-sheet/content-missing",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "A data-absence variant of the boarded sign-message board with no structural change: when tx.signedContent is falsy the mono contentBlock is replaced by a single text.base fg.subtle line (ConnectionEventDetailSheet.tsx:150, styles.contentMissing at :212). Nothing else moves. This sheet is itself the legacy fallback (records WITH a captured request go to SigningReplaySheet), so content-missing is the fallback of a fallback — one line of muted text, best recorded as a note on the sign-message board.",
+   "challenge": "UPHELD. Verified at ConnectionEventDetailSheet.tsx:149-151: when tx.signedContent is falsy the mono contentBlock is replaced by one line of text.base fg.subtle (styles.contentMissing, :212) and nothing else moves — no row is hidden, the metadata trail is unchanged. And this sheet is itself the legacy fallback: HomeScreen.tsx:384-393 routes every record WITH a captured signedRequest to SigningReplaySheet and only records without one here, so content-missing is the fallback of a fallback. Record it as a note on the sign-message board."
+  },
+  {
+   "planned": "O/connection-event-detail-sheet/message",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Base drift plus a name change for the same picture. The board is this cell: 'Signature | app.uniswap.org | Off-chain signature — nothing was sent on-chain. | Message | app.uniswap.org wants you to sign in with your Ethereum account. | Transaction Details | App | Date | Status | Operation | Chain | From', built from the txSignature fixture (type:'sign_message').",
+   "rename_to": "O/connection-event/sign-message"
+  },
+  {
+   "planned": "O/connection-event-detail-sheet/tx",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "The richest variant and the only one that is more than the sign-message board: kind==='tx' adds a right-aligned amount in the hero (line 85), suppresses the off-chain note, and renders the PERSISTED BalanceChangePreview from tx.assetChanges (line 130) — the 'what moved, as approved' block — plus on-chain metadata rows the signature variant hides (To, value, hash + explorer, line 173). It is also an edge target the file already draws and cannot resolve: the note on S/home/connections (60-screens-home-c.js:167) reads 'row tap -> … else O/connection-event-detail-sheet/tx'.",
+   "reach": "design-gallery: a LocalTransaction fixture with type:'send', a dappOrigin, a txHash and a serialized assetChanges payload (the gallery already carries asset-change fixtures at design-gallery.tsx:229-244 for the BalanceChangePreview cells), plus a launcher next to gallery-open-connectioneventdetailsheet."
+  },
+  {
+   "planned": "O/connection-event-detail-sheet/typed",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Structurally identical to the boarded sign-message board: same hero, same off-chain note (both are in the `offChain` set, line 94), same SectionLabel + mono code block + floating copy button, same metadata trail. The deltas are the hero glyph (FileText vs PenLine, line 86), the section label ('Typed data' vs 'Message', line 87-91) and JSON instead of prose inside the block — a payload swap, not a layout. The typed-vs-plain distinction is already boarded where it changes the design, in the signing family (O/signing-sheet/eip-712-unknown vs /personal-sign).",
+   "challenge": "UPHELD, deltas enumerated from source. Against the boarded O/connection-event/sign-message, `typed` changes: the hero glyph (FileText vs PenLine, ConnectionEventDetailSheet.tsx:86), the section label (contentTypedData vs contentMessage, :87-91), and the title string — which feeds three places at once (head title :101, hero title :112, Operation row :164). Structure is identical: both kinds are in the `offChain` set (:94) so both show the off-chain note, both render SectionLabel + mono contentBlock + floating copy button, and the block is height-capped at maxHeight 220 with an internal scroll ("
+  },
+  {
+   "planned": "O/contact-picker/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "O/contact-picker/default exists and matches the planned cell exactly — 'Choose recipient | Scan address | CONTACTS | Alice Chen | 0x123456…345678 | · 3 sends' (dom-dumps/overlays/contactpicker.json). No drift at all in this one."
+  },
+  {
+   "planned": "O/contact-picker/empty",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-cp-empty.json): 'No matches for “zzzz”' (ContactPicker.tsx:170-186). Record on the board that this is the no-results branch; the never-had-contacts variant (emptyPicker + hint + 'Add contact') needs an empty address book and is already listed UNREACHABLE in state-specs-5-NOTES §3.",
+   "reach": "same sheet, cumulative: type index 22 with 'zzzz'."
+  },
+  {
+   "planned": "O/contact-picker/groups",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Two independent blocks. (1) The section is gated on the onSelectGroup prop, whose only call site in the whole app is SendScreen.tsx:228 — the gallery instance (design-gallery.tsx:1517-1524) never passes it, so showGroups is false there by construction (ContactPicker.tsx:91). (2) It also needs a saved group with members, and the capture profile has none — the parallel fixture seeds one contact and no groups (parallel-space.ts:48-64; verified live: the ContactsManager's GROUPS section renders zero rows). Creating one persists to the address book, which state-specs-5-NOTES §2 forbids.",
+   "challenge": "OVERTURNED — captured live 2026-07-31. Block (1) is true of the gallery and false of the app: onSelectGroup's call site IS SendScreen.tsx:228, and Send is a fully web-reachable route the pipeline already captures (S/send/* boards exist). Block (2) is a policy citation, not a fact — and the policy no longer applies: run-capture.mjs launches `chromium.launch()` + `browser.newPage()`, an EPHEMERAL profile. I verified it: at launch localStorage held 'vela.contactGroups' = null and the address book was empty until /parallel seeded Alice Chen on boot. state-specs-5-NOTES §2 was written for the chrom"
+  },
+  {
+   "planned": "O/contact-picker/searching",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-cp-searching.json): 'Choose recipient | Contacts | Alice Chen | 0x123456…345678' — the Scan row is withdrawn while a query is present (ContactPicker.tsx:127) and the ✕ clear control appears (:118-122).",
+   "reach": "/design-gallery → click id gallery-open-contactpicker → wait 1200 → type input index 22 (positional: the placeholder 'Search name or address' is shared with the inline GroupEditor cell at design-gallery.tsx:1409; the gallery renders exactly 22 inline inputs, measured 2026-07-31) with 'ali'."
+  },
+  {
+   "planned": "O/contact-picker/typed-address",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-cp-typed.json): 'Choose recipient | Use this address | 0xd8da6b…a96045 | Save' (ContactPicker.tsx:145-166, gated on isAddress at :76-77).",
+   "reach": "same sheet, cumulative: type index 22 with a valid unknown address (0xd8dA6BF2…96045). The 'Save' affordance must be rendered only, never tapped — ContactPicker.tsx:159 writes the address book."
+  },
+  {
+   "planned": "O/contacts-manager/favorites",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The [All | Favorites] segment renders only when favorites.length > 0 (ContactsManager.tsx:74). The capture profile's address book is the parallel fixture's single non-favourite contact (parallel-space.ts:49-53) — VERIFIED live: opening the manager shows no segment at all (probe _probe-cm-open passed forbid ['Favorites']). The only in-app way to create one is the star toggle, which persists (:115-119 → services/contacts.toggleFavorite), a write state-specs-5-NOTES §2 rules out.",
+   "challenge": "OVERTURNED — captured live 2026-07-31. The gate is real (ContactsManager.tsx:74, showSegment requires favorites.length > 0) but 'the only in-app way is the star toggle, which persists — a write state-specs-5-NOTES §2 rules out' fails twice: the write lands in a throwaway Playwright profile (verified, see contact-picker/groups), and it is a REVERSIBLE boolean toggle on an existing contact — the same shape as the one persisted write §1 of that very document already accepts and discloses (the balance-privacy tap). I fired the star, watched '[All 1 | Favorites 1]' appear (localStorage went to `\"fa"
+  },
+  {
+   "planned": "O/contacts-manager/form-add",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31 by live DOM read: 'New contact | NAME | ADDRESS | Save' — the ContactForm add mode with its 64px avatar and empty fields (ContactsManager.tsx:399-448).",
+   "reach": "/design-gallery → click id gallery-open-contactsmanager → wait 1400 → click aria-label /Add contact/ (ContactsManager.tsx:169-172). Never tap Save (:441 writes the address book)."
+  },
+  {
+   "planned": "O/contacts-manager/form-edit",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Not drivable by the capture harness. The only entry is pressing a contact row, and ContactRow's Pressable does not respond to the harness's synthetic MouseEvent sequence — VERIFIED 2026-07-31 with three strategies (harness click on the row, Enter on the focused row, focus()+Enter): the sheet stayed on the list every time. The same is true of ContactPicker's rows, so this is not an accessibilityRole issue that a different selector fixes. Its deltas over the boardable form-add are small and recordable in a note: title 'Edit contact', pre-filled name, a non-editable muted address field, and the destructive Delete row (ContactsManager.tsx:405,426-447).",
+   "challenge": "OVERTURNED — the central factual claim is wrong and I disproved it three times. 'ContactRow's Pressable does not respond to the harness's synthetic MouseEvent sequence — VERIFIED with three strategies' is false. react-native-web's Pressable sets focusable by default, so the row renders as `<DIV role=null tabindex=\"0\">` — it IS in the harness's clickable() set ([role=button],button,[tabindex]), byText('Alice Chen') finds it, and capture-states.js's fire() sequence activates onPress. Running exactly the staged state-specs-5 recipe (a single {act:'click',text:'Alice Chen'}) opened the form: 'Edit"
+  },
+  {
+   "planned": "O/contacts-manager/group-editor",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Covered by the library: the group view renders <GroupEditor> verbatim with no chrome of its own (ContactsManager.tsx:285-290), and GroupEditor is already a planned+built component family — C/Sheets/GroupEditor (plan-components.py:48) from cell gallery-groupeditor-new (dom-dumps/cells/gallery-groupeditor-new.json). Confirmed identical live: clicking 'New group' in the manager yields 'New group | Group name | Members | 0 | Alice Chen | Save', i.e. the cell's own content inside the sheet.",
+   "challenge": "UPHELD. Verified in source, in the file, and live. ContactsManager.tsx:285-290 renders `<GroupEditor editing onBack onSaved/>` with no chrome of its own; GroupEditor is a built family — plan-components.py:48 maps 'groupeditor' → C/Sheets/GroupEditor and component-defects.md:46 audits its `editing=null` variant, so it is in the file. The cell dump dom-dumps/cells/gallery-groupeditor-new.json (350x515) carries the whole picture: 'New group' / 'Group name' / 'Members' / count 0 / 'Alice Chen' + address / 'Save'. Live, the manager's group view rendered exactly that content. The only delta is the 3"
+  },
+  {
+   "planned": "O/contacts-manager/list",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "The board on disk is the list view — 'Contacts | GROUPS | New group | Alice Chen | 0x123456…345678 | Import | Export' (dom-dumps/overlays/contactsmanager.json). Base name matches; only the state segment drifted.",
+   "rename_to": "O/contacts-manager/default"
+  },
+  {
+   "planned": "O/contacts-manager/list-searching",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED 2026-07-31 by live DOM read: the sheet content became exactly 'Alice Chen | 0x123456…345678' — title row, groups section and the import/export footer all withdrawn (ContactsManager.tsx:143-160,206,269).",
+   "reach": "/design-gallery → click id gallery-open-contactsmanager → wait 1400 → click aria-label /Search name or address/ (the header icon does carry a label, ContactsManager.tsx:165-168 — no Enter-key trick needed, contrary to state-specs-5-NOTES) → type input index 22 with 'ali'. Assert on ['Alice Chen'] only: document.body.innerText includes the whole 35k-px gallery page behind the sheet, so forbids like 'Import' or 'Groups' fire falsely."
+  },
+  {
+   "planned": "O/currency-sheet/default",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "Pure base drift — the board on disk is the resting picker ('Display currency' + the full ~160-row list with USD checked), dom-dumps/overlays/currencysheet.json from #gallery-open-currencysheet.",
+   "rename_to": "O/currency/default"
+  },
+  {
+   "planned": "O/currency-sheet/empty",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-currency-empty.json): 'Display currency | No currency matches \"zzz\".' in fg.subtle, no rows (CurrencySheet.tsx:101-102).",
+   "reach": "same sheet, cumulative: retype the search field with 'zzz'."
+  },
+  {
+   "planned": "O/currency-sheet/searching",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlays A — 11 modal/sheet families: app-modal, app-alert, ",
+   "why": "VERIFIED (dom-dumps/_probe/_probe-currency-searching.json): the list narrowed to the dollar family (US/Hong Kong/Australian/Canadian/Singapore/New Zealand Dollar) with the clear-✕ shown and the open-scroll suppressed (CurrencySheet.tsx:64-68,87-91,43-46).",
+   "reach": "/design-gallery → click id gallery-open-currencysheet → wait 1200 → type placeholder 'Search currency' with 'dollar' (this placeholder is unique app-wide, so it is safe to match by placeholder)."
+  },
+  {
+   "planned": "O/identicon-viewer/copied",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Same call as treasury-bootstrap/copied: this is the shared copy-feedback micro-state (07 §9.4), here swapping Copy 15 subtle + mono address for Check 15 success + semibold 'Copied' for 2s. It is the identical two-element swap on the sixth surface that uses it, not a state of the identicon sheet. It belongs to one pattern entry — which, as noted in the summary, the file currently owes (zero dumps contain 'Copied').",
+   "challenge": "OVERTURNED: 'the identical two-element swap' is not what the app does. I measured the row before and after the tap: it collapses from 350×52 to 101×37, because copyRow is a centered, content-hugging pill (styles.copyRow, maxWidth '100%') and the 42-character mono address is REPLACED by the word 'Copied' (rgb(45,142,95), 16px, weight 600, with the mono face dropped for inter.semibold — addrCopied, line 129). That is the only copy-feedback instance in the app where the control resizes, and it is exactly what a rebuilder would get wrong from a generic 'flip the icon and the label' note. It also c"
+  },
+  {
+   "planned": "O/identicon-viewer/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Exact base and state match: the file has O/identicon-viewer/default, dumping the full sheet — 'Identicon | Main account | A visual fingerprint of this address — the same address always draws the same pattern… | 0x14fB1f3d2b7c9a1E5f4c0a8B2d6E9f0a1D1eA5c0'."
+  },
+  {
+   "planned": "O/network-filter-sheet/default",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Pure base drift (network-filter-sheet → network-filter). The board is the default sheet: 'Select Chain | All Networks | Show every chain | Ethereum | BNB Chain | Gnosis … | Base | Arbitrum | Tempo'.",
+   "rename_to": "O/network-filter/default"
+  },
+  {
+   "planned": "O/network-filter-sheet/searching",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "The header's right control toggles Search⇄X and REVEALS a TextInput row above the list (NetworkFilterSheet.tsx:117-125), which then filters the rows. The boarded default shows a bare Search glyph with no hint of what it does. This toggle-to-reveal pattern is drawn nowhere: the only boarded sheet search is O/currency/default, whose CurrencySheet search box is permanently visible and styled differently (bg.sunken pill, radius.full, vs this one's bg.raised + 1px border + radius.lg).",
+   "reach": "/design-gallery → 'NetworkFilterSheet · selectedChainId=100' launcher (gallery-open-networkfiltersheet), then tap the 34×34 search toggle at the top-right of the sheet header and type. No code change needed — this is the same launcher the boarded default came from."
+  },
+  {
+   "planned": "O/network-filter-sheet/trigger-all",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Not a state of the sheet — it is the NetworkFilterButton trigger chip, and the file already models it as its own family: C/Controls/NetworkFilterButton, variant selected=null, captioned 'All, stacked logos'. It is also drawn in situ: the S/home/activity dump contains the 'All' chip, and 61-screens-send-a.js slots the family into S/send/select-token. An overlay board is a full 390×806 sheet picture; a 119×36 chip is not one.",
+   "challenge": "UPHELD. This is not a state of the sheet: it is NetworkFilterButton (NetworkFilterSheet.tsx:35-71), boarded as its own cell-built family C/Controls/NetworkFilterButton variant selected=null, caption 'NetworkFilterButton · selected=null (All, stacked logos)' (dom-dumps/cells/_plan.json). It is also drawn in situ — I extracted S/home/activity's text geometry and the 'All' chip is there at x=314, y=204, beside the Activity/Assets/Connections tabs — and 61-screens-send-a.js:92 slots the same family into S/send/select-token. An overlay board is a 390×806 sheet picture; this control is ~119×36."
+  },
+  {
+   "planned": "O/network-filter-sheet/trigger-selected",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Same reason, same family: C/Controls/NetworkFilterButton variant selected=Gnosis, captioned 'clear control' — the chain-logo + name + separate ✕ form. The variant axis (null | Gnosis) is exactly the trigger-all/trigger-selected pair, built once.",
+   "challenge": "UPHELD, same family, other end of the same axis: C/Controls/NetworkFilterButton variant selected=Gnosis, caption '(clear control)' — the chain-logo + name + separate ✕ form, which the source builds as sibling Pressables (NetworkFilterSheet.tsx:64-68, deliberately not nested buttons). The variant pair null|Gnosis IS the trigger-all/trigger-selected pair, built once. Worth a chip on the family: the selected chip renders no ChevronDown (line 62), the All chip does."
+  },
+  {
+   "planned": "O/network-filter-sheet/with-subtitles",
+   "final": "ALREADY_BOARDED",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "The boarded default IS the with-subtitles state. Its dump carries a caller-supplied subtitle on the row that has one: 'Gnosis | $1.00 · 4 events' (subtitleForChain, NetworkFilterSheet.tsx:84/158). A second board would be the same picture.",
+   "challenge": "UPHELD and stronger than stated: the boarded picture IS this state and no other configuration is reachable. dom-dumps/overlays/_index.json maps networkfiltersheet → O/network-filter/default, whose dump reads 'Select Chain | All Networks | Show every chain | Ethereum | BNB Chain | Gnosis | $1.00 · 4 events | Base | Arbitrum | Tempo' — one subtitled row and five unsubtitled ones in a single picture (subtitleForChain, NetworkFilterSheet.tsx:158,171). All three call sites pass subtitleForChain — HomeScreen.tsx:322, TokenSelector.tsx:247, design-gallery.tsx:1496 — so a sheet with no subtitle functi"
+  },
+  {
+   "planned": "O/rpc-fix-form/empty",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Base drift (rpc-fix-form → rpc-fix) plus a state-name change for the same picture: the boarded dump has the URL field empty — 'Fix RPC | Gnosis | Chain ID: 100 | All RPC endpoints for this network are failing… | RPC URL | Save & Retry | Where to get a reliable RPC | Alchemy | QuickNode | dRPC | Chainlist | Still not working? Report it'.",
+   "rename_to": "O/rpc-fix/default"
+  },
+  {
+   "planned": "O/rpc-fix-form/error",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "There is no in-form error state. All three failure paths call showAlert and leave the form untouched: unreachable (RpcTroubleBanner.tsx:128), wrong-chain (:132) and save failure (:150). showAlert renders AppAlert on web, which is already boarded — O/app-alert/single-action (plus /two-actions and /destructive). The planned cell is modelling an alert as a form state.",
+   "challenge": "UPHELD, traced end to end. All three failure paths call showAlert with (title, message) and no buttons — unreachable RpcTroubleBanner.tsx:128, wrong-chain :132, save failure :150 — and the form is left untouched. showAlert on web routes to AppAlert (services/platform.ts:24-31, getGlobalShowAlert), and a no-buttons alert is the single-action form already boarded as O/app-alert/single-action (plus /two-actions, /destructive). The planned cell models an alert as a form state. One thing the boarded alert does not show: it appears stacked ON TOP of the fix modal, while the app-alert boards were cap"
+  },
+  {
+   "planned": "O/rpc-fix-form/prefilled",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "There is no visual delta beyond the input's own text. The seed only differs when a saved override already exists for that chain (RpcTroubleBanner.tsx:113-116 deliberately seeds the SAVED override, never the failing default), and the save button does not change appearance: `style={[styles.fixBtn, saving && styles.fixBtnDisabled]}` (line 193) binds the dim to `saving`, not to emptiness, so the enabled/disabled distinction between empty and prefilled is invisible.",
+   "challenge": "UPHELD, and I measured it live rather than reading it: with the form empty the save control is opacity 1, radius 12px, 342×45, bg rgb(232,87,42), aria-disabled=true, tabindex=-1, pointer-events:none; after typing https://rpc.gnosischain.com every one of those style values is identical and only aria-disabled/tabindex/pointer-events/cursor flip. So the empty→prefilled delta is the input's own text and nothing else. Two things must be recorded on O/rpc-fix/default instead: (1) the CTA is disabled with ZERO visual signal, breaking the file's own convention (VelaButton disabled measured at opacity "
+  },
+  {
+   "planned": "O/rpc-fix-form/saving",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "A one-element swap on a control already boarded at rest: the save button's label is replaced by a 16px inverse ActivityIndicator and the button takes styles.fixBtnDisabled (RpcTroubleBanner.tsx:193-198). That is the app's standard busy treatment, boarded as C/Primitives/VelaButton state=loading (12 variants across variant×size×state) — 'loading = ActivityIndicator in label color; disabled = opacity 0.45'.",
+   "challenge": "OVERTURNED: 'the app's standard busy treatment, boarded as C/Primitives/VelaButton state=loading' is false, and the manifest already says so. Measured live in the gallery: the save control is a DIV with role=null (no accessibilityRole is passed at RpcTroubleBanner.tsx:192-196), 342×45, radius 12px, bg accent rgb(232,87,42), shadow.sm — while VelaButton primary measures 350×55, radius 16px, bg rgb(26,26,24), role='button', and dims to opacity 0.45 when disabled versus this control's styles.fixBtnDisabled opacity 0.5. manifest.json's own drift note for this very surface reads 'raw #C07A0A amber "
+  },
+  {
+   "planned": "O/signing-sheet/approval-chosen",
+   "final": "RENAME",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "EditableApproveCard.tsx:85 `useState(requestedFinite ? 'requested' : 'custom')` means a FINITE approve request opens already-chosen, so the two finite boards are the chosen state: O/signing-sheet/erc-20-limited-approve and /increaseallowance both dump '500 USDC | Requested | Custom | Revoke | Uniswap Universal Router can spend up to 500 USDC.' with an enabled 'Approve' footer — the capSummary branch (EditableApproveCard.tsx:195) that only renders when choice is non-null. Also boarded as component cell C/Signing/EditableApproveCard state=finite.",
+   "rename_to": "O/signing-sheet/erc-20-limited-approve",
+   "challenge": "UPHELD. Verified in source and dumps: EditableApproveCard.tsx:85 `useState(requestedFinite ? 'requested' : 'custom')` means a finite request opens already-chosen, and both finite boards dump '500 USDC | Requested | Custom | Revoke | Uniswap Universal Router can spend up to 500 USDC.' (increaseallowance the same at 100 USDC) with an enabled 'Approve' footer at knob x=30 — the capSummary branch (line 195) that only renders when choice is non-null. The typed-a-cap variant is additionally boarded as C/Signing/EditableApproveCard state=capped."
+  },
+  {
+   "planned": "O/signing-sheet/approval-revoke",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Nothing in the file shows it, and the one artifact that claims to is wrong. C/Signing/EditableApproveCard has a variant captioned 'choice=revoke' (gallery-editableapprovecard-revoke), but AmountCard destructures Props WITHOUT `choice` (EditableApproveCard.tsx:64-66) — the card is uncontrolled, so the gallery's `choice={{type:'revoke'}}` is a no-op and the cell renders the requested-500-USDC state instead. Its dump is 'USDC | Spending cap | 500 USDC | Requested | Custom | Revoke | …can spend up to 500 USDC.' — the finite cell, not a revoke. (Same bug makes state=capped byte-identical to state=unlimited.) I drove the real state live: 'Spending cap | Revoke (0) | … | 1inch Router (V6) will no longer be able to spend this token.' with the footer flipping Approve→Revoke and the Revoke chip going success-green (chipActiveSafe). That green-revoke treatment — the destination the whole never-unlimited mandate steers users to — is drawn nowhere.",
+   "reach": "/parallel, then /clear-signing-test → 'ERC-20 Approve (Unlimited)' → tap the 'Revoke' preset chip in the cap card. Verified working end-to-end in this session; no code change needed."
+  },
+  {
+   "planned": "O/signing-sheet/approval-unchosen",
+   "final": "RENAME",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Both flavours are boarded. Amount approvals: O/signing-sheet/erc-20-approve-unlimited — its dump reads 'Spending cap | Custom | Revoke | Set a finite amount to continue.' with no confirm label, which is exactly choice===null (EditableApproveCard.tsx:85 seeds mode='custom' with an empty field for an unbounded request, so choice is null and confirm is disabled). Boolean grants: O/signing-sheet/nft-approve-all — 'Revoke access | Grant access to all | Choose Revoke or Grant to continue.' (BooleanGrantCard selected===null).",
+   "rename_to": "O/signing-sheet/erc-20-approve-unlimited",
+   "challenge": "UPHELD on the card, with a defect to fix. Both flavours are boarded: dom-dumps/signing/erc-20-approve-unlimited.json reads 'USDC | Spending cap | Custom | Revoke | Set a finite amount to continue.' with no Requested chip (EditableApproveCard.tsx:85 seeds mode='custom' for an unbounded request → choice null), and nft-approve-all.json reads 'All NFTs | Revoke access | Grant access to all | Choose Revoke or Grant to continue.' (BooleanGrantCard selected===null, line 217). BUT the two boards disagree about the footer they share: nft-approve-all shows the disabled slide at knob x=29 with the label "
+  },
+  {
+   "planned": "O/signing-sheet/batch-needs-choice",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Boarded as component variant C/Signing/BatchCallsView `editable` — its fixture batchItems[0] is approvalUnlimited (design-gallery.tsx:301), so the cell dump literally reads '1 | Approve | USDC | Spending cap | Custom | Revoke | Set a finite amount to continue. | 2 | Swap | … | Unlimited — this contract can spend all your tokens': the inline batchEditLeg cap editor plus the red anyUncapped WarningBanner, i.e. the whole needs-choice body. The sheet frame around it is boarded at O/signing-sheet/eip-5792-batch.",
+   "challenge": "UPHELD, both halves checked. The needs-choice BODY is boarded verbatim as C/Signing/BatchCallsView editable: 'Batch | 2 transactions, signed together | 1 | Approve | USDC | Spending cap | Custom | Revoke | Set a finite amount to continue. | 2 | Swap | 1,000 USDC | … | Unlimited — this contract can spend all your tokens' — i.e. the inline batchEditLeg editor (BatchCallsView.tsx:98-118) plus the anyUncapped danger banner (:144). The FRAME is boarded at O/signing-sheet/eip-5792-batch, which — worth recording — is actually the planned `batch-ready` picture (its dump shows a bounded 'Spending cap ·"
+  },
+  {
+   "planned": "O/signing-sheet/batch-ready",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Same state under the file's name. The boarded dump shows both legs settled — '1 | Approve | Spending cap · 500 USDC | Uniswap Universal Router | 2 | Send | 100 USDC | 0xA0b869…' — with an enabled 'Confirm' footer, because the fixture's approve leg is bounded so legNeedsChoice() is false (BatchCallsView.tsx:40).",
+   "rename_to": "O/signing-sheet/eip-5792-batch"
+  },
+  {
+   "planned": "O/signing-sheet/blind-tx",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Same state, and the name is the same two words. Dump: 'Mint | Interacting with 0x4e1dc6… | Contract | Decoded from the function signature — not a verified descriptor.' — BlindTransactionView (SigningSheet.tsx:478). O/signing-sheet/deploy-contract and /scam-drain board its other two branches, matching the built family C/Signing/BlindTransactionView (blind, calm, nativesend).",
+   "rename_to": "O/signing-sheet/blind-transaction"
+  },
+  {
+   "planned": "O/signing-sheet/blind-typed",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Same state. Dump shows BlindTypedDataView's honest-raw rows — 'Type | CustomOrder | maker | 0xaF5e8917… | amount | … | This typed data could not be decoded with a known descriptor.' (SigningSheet.tsx:475).",
+   "rename_to": "O/signing-sheet/eip-712-unknown"
+  },
+  {
+   "planned": "O/signing-sheet/clear-signed",
+   "final": "RENAME",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Covered by 11 boarded scenarios that all render ClearSignView with a resolved descriptor: O/signing-sheet/{erc-20-transfer, eth-transfer, erc-20-transferfrom, 1inch-swap, native-swap-eth-token, nft-transfer, vault-deposit, vault-withdraw, large-eth-send, expired-swap-deadline, deploy-contract}. edges.json:511 already names O/signing-sheet/erc-20-transfer the canonical member of the surface. 'clear-signed' is not one picture — it is the phase those 11 boards ARE.",
+   "rename_to": "O/signing-sheet/erc-20-transfer",
+   "challenge": "UPHELD, but as a rename not an exclusion — the picture is in the file 25 times, so recording it as 'excluded' would state the file lacks something it has. edges.json scenarioSets already declares O/signing-sheet/erc-20-transfer canonical for the surface with 24 sibling boards. I read the dumps: 1inch-swap ('Swap | −1,000 | USDC | Pay | ≈ $1,000.00 | +0.3 | WETH | Min received'), deploy-contract ('Deploy contract | You're deploying a new contract. No assets leave your wallet.'), large-eth-send and expired-swap-deadline ('Deadline | 11/15/2023 | Expired ·') are all resolved-descriptor ClearSignV"
+  },
+  {
+   "planned": "O/signing-sheet/error",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "The only signing state whose FOOTER is not a slide: signError swaps SlideToConfirmButton for a secondary VelaButton 'Dismiss' (SigningSheet.tsx:715) and adds styles.errorCard (error.soft, AlertTriangle 16, text.sm error.base). A rebuilder reading all 25 scenario boards would conclude the footer is always a slide-to-confirm and would never build the dismiss path. Verified: no dump anywhere contains 'Dismiss'.",
+   "reach": "Same design-gallery launcher, with signError='…' passed to <SigningSheet>. Unreachable from /clear-signing-test (signError is hardcoded null)."
+  },
+  {
+   "planned": "O/signing-sheet/eth-sign-danger",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Same state. Dump: 'Blind signature | eth_sign — raw hash | This signs an opaque hash… | 0x9c22ff5f… | Unverifiable request — most legitimate apps never use eth_sign.' — EthSignDangerView, reached only via SigningSheet.tsx:467.",
+   "rename_to": "O/signing-sheet/eth-sign-raw-hash"
+  },
+  {
+   "planned": "O/signing-sheet/gas-estimate-failed",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "The state adds exactly three elements and all three are boarded component variants carrying this state's own copy: C/Rows/GasFeeCard state=failed ('Network fee | Tap to retry', captioned 'estimation failed'), C/Signing/WarningBanner severity=caution — whose text IS the gasEstimateFailed string, cited to 07 §3.2.7 in chunk 33-c — and C/Controls/SlideToConfirmButton state=disabled (confirmDisabled includes gasEstimateFailed, SigningSheet.tsx:578). Nothing else on the sheet changes. Caveat recorded in the summary: no signing board shows a fee row at all, which is a capture defect, not a missing planned state.",
+   "challenge": "OVERTURNED on all three cited coverages. (a) 'Nothing else on the sheet changes' hides the real problem: I scanned all 25 signing dumps programmatically — ZERO contain a fee row of any kind. The 25 boards were captured outside the parallel space, where ClearSigningTestScreen.tsx:145 passes `activeAccount ?? {name:'Wallet'}` — an account with no address — so SigningSheet.tsx:649 never mounts GasFeeCard. The state's own copy says 'Tap the fee above to retry', pointing at an element the design source never depicts in place. (b) The WarningBanner claim is false: the file's WarningBanner family is "
+  },
+  {
+   "planned": "O/signing-sheet/loading",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "SigningSheet.tsx:441 renders styles.fallback (centred, paddingVertical space['5xl'], text.lg fg.muted 'Loading…') INSTEAD of any body view while resolveTransaction/resolveTypedData is in flight — the code comment says it exists to prevent a blind→clear flash. Zero of the 25 scenario boards show it, and C/Signing/BodyView (5 built variants: eth-transfer, erc20-transfer, erc20-approve, typed-data, personal-sign) has no loading variant. Commit ffcce3a proves it is real and long-lived: three boards accidentally captured it at 1.8s and had to be recaptured.",
+   "reach": "/parallel (arms the wallet), then /clear-signing-test → tap 'Blind Transaction' / 'Scam drain' / 'EIP-712 Unknown' (the three that fetch a descriptor) and dump BEFORE the sheet stops saying Loading — ffcce3a's recapture polls for the opposite condition, so invert its predicate. Verified live: at t+120ms the sheet is not yet mounted, at t+520ms 1inch-swap has already resolved, so poll rather than sleep."
+  },
+  {
+   "planned": "O/signing-sheet/permit",
+   "final": "RENAME",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Both permit branches are boarded. O/signing-sheet/eip-712-permit2 (bounded: 'You're signing a permit — can later spend up to 1,000 USDC…') and O/signing-sheet/permit2-approve-unlimited (unbounded/danger: 'can spend ALL your USDC, and it can't be capped here… To limit spending, use an on-chain Approve instead'). PermitSignView is also boarded as a component family with the same two variants (C/Signing/PermitSignView: finite, unlimited).",
+   "rename_to": "O/signing-sheet/eip-712-permit2",
+   "challenge": "UPHELD, quotes verified verbatim. eip-712-permit2.json: 'Approve | You're signing a permit — can later spend up to on your behalf. | Uniswap Universal Router | 1,000 USDC | Spending permit (signature)'; permit2-approve-unlimited.json carries the danger branch 'can spend ALL your , and it can't be capped here… To limit spending, use an on-chain Approve instead'. PermitSignView is also a cell-built family with exactly those two variants (dom-dumps/cells/_plan.json)."
+  },
+  {
+   "planned": "O/signing-sheet/personal-sign",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Exact name match: the file has O/signing-sheet/personal-sign, dumping the decoded OpenSea SIWE-style message in the MessageSignView bubble. O/signing-sheet/hex-message-sign boards the same view's non-printable branch."
+  },
+  {
+   "planned": "O/signing-sheet/replay-in-flight",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Purely additive from two other cells and nothing else: it is the read-only frame of replay-settled with the history note suppressed (`readOnly && !pendingOpHash`, SigningSheet.tsx:614) and the pendingCard of submitted-pending shown instead (SigningSheet.tsx:688 renders it when `isSigning || readOnly`). Both halves are boarded once those two cells are drawn; a third board would only re-photograph the seam.",
+   "challenge": "OVERTURNED — the exclusion cites coverage that does not exist. There is no O/signing-sheet/replay-* board anywhere: dom-dumps/overlays/_index.json lists all 21 overlay boards (none is a replay), and edges.json scenarioSets lists the 25 signing boards (none is a replay). The reason itself concedes it ('Both halves are boarded ONCE those two cells are drawn'). Worse, manifest.json:1979 already writes off the entire SigningReplaySheet surface on the grounds that it is 'boarded as O/signing-sheet/replay-settled and /replay-in-flight' — so excluding this cell leaves a real, user-reachable surface j"
+  },
+  {
+   "planned": "O/signing-sheet/replay-settled",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "readOnly=true is a different sheet, not a different badge: it adds the history-note row (bg.sunken, Pen 15, 'A past signature — exactly what you approved.', SigningSheet.tsx:614) and REMOVES the GasFeeCard, the SigningAccountRow and the slide footer, replacing the footer with a secondary 'Close'. Verified absent: grep for 'past signature' across all dom-dumps returns zero hits. It is also the target of an edge the file already draws — 60-screens-home-c.js:167 says 'row tap -> O/signing-sheet replay when the record captured its request'.",
+   "reach": "Design-gallery launcher rendering SigningReplaySheet (src/components/ui/SigningReplaySheet.tsx) with a stored LocalTransaction that has signedRequest + assetChanges — or, in the app, sign a dApp request in the parallel space and tap the resulting Connections row. I checked the parallel Connections panel live: it is empty ('No activity yet'), so a fixture is the practical route."
+  },
+  {
+   "planned": "O/signing-sheet/signing",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "isSigning=true changes only the footer control: the label becomes 'Signing…' (SigningSheet.tsx:491) and SlideToConfirmButton takes loading — boarded as C/Controls/SlideToConfirmButton state=loading, captioned 'knob parked at end'. The body is untouched, so this would be a 26th copy of an existing scenario board differing by one component instance state.",
+   "challenge": "OVERTURNED: the cited board does not show what the reason says. gallery-slidetoconfirm-loading.json is captioned 'state=loading (knob parked at end)' but its captured geometry is knob at x=5 — the START — with the label 'Sending…' fully visible at x=132. The caption contradicts its own pixels, because in a 350-wide gallery cell the park effect (SlideToConfirmButton.tsx:150-152) fires before onLayout sets maxX. In the real sheet the knob IS at the end (x=311, measured twice today: the canonical erc-20-approve-unlimited board and my live gas-failed capture) and at that position labelStyle opacit"
+  },
+  {
+   "planned": "O/signing-sheet/sim-fail",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "The loud BalanceChangePreview states are boarded twice over. As component variants: C/Signing/BalanceChangePreview state=revert ('Expected to fail: ERC20: transfer amount exceeds balance — you'd still pay gas.') and state=underfunded — 8 variants in all. In situ inside the sheet: O/signing-sheet/scam-drain shows the preview in its exact position between the body view and 技术细节 ('Balance changes | − 5,000 USDT | − 1.5 WETH'). I also reproduced the live revert card in the sheet ('This transaction is expected to fail — you'd still pay gas.') to confirm the placement matches.",
+   "challenge": "OVERTURNED. (1) The cited in-situ board is the wrong state: scam-drain's own dump proves it is a simConfident=TRUE board — its best-effort banner reads the CALM variant 'Decoded from the function signature (not a verified descriptor). The preview below shows the actual effect.' and the card it shows is 'Balance changes | − 5,000 USDT | − 1.5 WETH', not a revert. (2) A failed sim is NOT 'one card added': simConfident feeds the body view — ClearSignView.tsx:56 (`heroCaution = (bestEffort||partial||unverified) && !simConfident` → the hero amount flips send→caution) and :211 (the banner text itsel"
+  },
+  {
+   "planned": "O/signing-sheet/siwe-mismatch",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Same state, longer name. Dump: 'Sign in | Site | app.uniswap.org | Statement | Sign in to Uniswap | This sign-in is for app.uniswap.org but the request came from pancakeswap.finance. Likely a phishing attempt — reject it.' — the checkSiweDomainBinding()==='mismatch' branch.",
+   "rename_to": "O/signing-sheet/siwe-domain-mismatch"
+  },
+  {
+   "planned": "O/signing-sheet/submitted-pending",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "pendingOpHash adds styles.pendingCard — info.soft background, radius.lg, info.base ActivityIndicator + mono 'Submitted · 0x1234567890…abcdef' (SigningSheet.tsx:688) — which exists in no board and no component family. Verified: grep for 'waiting for confirmation' across every dom-dump returns zero hits; the only 'Submitted' hits are the four receipt-harness boards, which draw C/Primitives/TransactionReceipt, a different component on a different surface.",
+   "reach": "Add a design-gallery launcher rendering <SigningSheet request={…} isSigning pendingOpHash='0x…' /> next to the existing gallery-open-* overlay launchers (design-gallery.tsx:1425-1442) — that is how every other boarded overlay in this file was produced. The clear-signing harness cannot reach it: MockSigningModal hardcodes isSigning={false} pendingOpHash={null} (ClearSigningTestScreen.tsx:147-149)."
+  },
+  {
+   "planned": "O/transaction-detail-sheet/batch-breakdown",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Base + state drift for the same picture: the boarded dump is the per-recipient breakdown ('To | 3 recipients | Breakdown | Alice … Bob … Samuel | - 10 USDC each'), which is what 'batch-breakdown' names.",
+   "rename_to": "O/transaction-detail/batch-split"
+  },
+  {
+   "planned": "O/transaction-detail-sheet/confirmed",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Base drift only (plan says transaction-detail-sheet, file says transaction-detail). The board is this cell: 'Sent | - 0.0038 BNB | ≈ $2.33 | Samuel | … | Status | Succeeded | From | To | Operation | Chain | Hash'.",
+   "rename_to": "O/transaction-detail/single-confirmed"
+  },
+  {
+   "planned": "O/transaction-detail-sheet/failed",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Identical to single-confirmed except the status row's badge (XCircle/error.base 'Failed' instead of CheckCircle2/success.base 'Succeeded') — the sheet surfaces no revert reason and hides no rows (TransactionDetailSheet.tsx:312-329 has no failure branch). The badge is boarded as C/Primitives/TxStatusBadge status=failed, and the failure copy a user actually reads ('The transfer reverted on-chain — your funds were not sent…') is boarded at S/dev/receipt-failed.",
+   "challenge": "UPHELD, verified in source. Lines 312-329 (single) and 233-250 (batch) have no failure branch at all: no revert reason is surfaced and no row is hidden, so failed differs from single-confirmed only by TxStatusBadge status=failed ('Failed', boarded) instead of confirmed ('Succeeded', boarded). The failure copy a user actually reads is boarded at S/dev/receipt-failed: 'The transfer reverted on-chain — your funds were not sent. A network fee may still have been charged. Open the explorer below for the reason, or go back and try again.' (Correction to the reason as written: those boards live on pa"
+  },
+  {
+   "planned": "O/transaction-detail-sheet/pending",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "The sheet's only structural delta is one row's badge — Row(labelStatus, custom=<TxStatusBadge status/>) at TransactionDetailSheet.tsx:237/316 — and that axis is boarded as its own family: C/Primitives/TxStatusBadge has all three variants built from cells (gallery-txstatusbadge-pending/confirmed/failed). The secondary delta is that a pending tx has no txHash so the Hash row and the hero explorer chevron are hidden, and row-omission-when-data-absent is already demonstrated by a boarded picture: O/transaction-detail/batch-split drops the 'To' row entirely. The pending narrative the user actually reads is boarded at S/dev/receipt-submitted.",
+   "challenge": "UPHELD, citations checked. The only structural deltas are TxStatusBadge status=pending (boarded as its own cell family, gallery-txstatusbadge-pending) plus two omissions driven by an absent txHash — the Hash row (TransactionDetailSheet.tsx:328) and the hero explorer chevron (:288) — and row-omission-when-data-absent is demonstrated by a real boarded picture: O/transaction-detail/batch-split's dump has Date | Status | From | Operation | Chain | Hash and NO 'To' row, matching the `!isSplit && batch.to` guard at :239. S/dev/receipt-submitted exists and carries the pending narrative ('Sent! Confir"
+  },
+  {
+   "planned": "O/treasury-bootstrap/copied",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Not a state of this sheet — it is the app-wide copy-feedback micro-state (inventory 07 §9.4, hooks/use-copy-feedback.ts): the Copy glyph becomes a success Check and the button label flips to 'Copied' for 1.5s (TreasuryBootstrapSheet.tsx:74/115/130), identically on Receive, the tx-detail from/to rows, the connection-event content block, the identicon sheet and here. Modelling it per-surface duplicates one two-element swap six-plus times; it belongs to a single pattern entry. Flagged in the summary: that pattern entry is currently owed — no dump in the whole file contains the string 'Copied' — but these two cells are not where it should be paid.",
+   "challenge": "UPHELD on the pixels — I measured it live in the gallery: the primary CTA keeps its exact geometry (350×55, radius 16px, bg rgb(26,26,24)) and only its LABEL changes to 'Copied' (white, 18px, weight 600), plus the address card's Copy→Check (TreasuryBootstrapSheet.tsx:115-117/130). That is the shared use-copy-feedback pattern, not a state of this sheet. BUT the exclusion is only payable if the pattern entry exists, and today it does NOT: 47-patterns.js builds '09 Patterns' with exactly three boards (Motion, Accessibility floor, Degraded states) and no copy-feedback entry, while manifest.json's "
+  },
+  {
+   "planned": "O/treasury-bootstrap/default",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "State-name drift only; the base matches. The board is the default sheet: 'Start this network's relayer | Gnosis · #100 | Suggested top-up | ~0.098 xDAI | Treasury · bundler operator | 0x2f5a1B… | Non-refundable… | Copy address to fund | I've funded · Retry'.",
+   "rename_to": "O/treasury-bootstrap/bootstrap-needed"
+  },
+  {
+   "planned": "O/treasury-bootstrap/no-retry",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "Overlay families: O/signing-sheet (20), O/transaction-detail",
+   "why": "Unreachable in the shipped app. The variant exists only when `onRetry` is undefined (TreasuryBootstrapSheet.tsx:134 → secondary button reads 'Close' instead of 'I've funded · Retry'), and the component has exactly two call sites in the repo — src/screens/wallet/SendScreen.tsx:207 and src/app/design-gallery.tsx:1515 — both of which pass onRetry. No code path reaches it.",
+   "challenge": "UPHELD — genuinely unreachable, verified by grep over the whole repo (not just src): TreasuryBootstrapSheet is imported at exactly two places, src/screens/wallet/SendScreen.tsx:207 and src/app/design-gallery.tsx:1515, and both pass onRetry (SendScreen's is a real handler that re-enters handleContinue/handleConfirm). The 'Close' variant at TreasuryBootstrapSheet.tsx:141-148 has no live call site."
+  },
+  {
+   "planned": "S/about/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: about → S/about/default (AboutScreen.tsx; dump carries the whole technical-details block)."
+  },
+  {
+   "planned": "S/add-token/erc20-error",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "AddTokenPanel.tsx:180-182 (found.length===0 → showAlert) rendered by the in-frame web AppAlert portal, so it captures inside the 390px frame as a screen state, not a separate overlay.",
+   "reach": "/add-token → vela.failRpc('all') → type 0x000000000000000000000000000000000000dEaD → click 'Search Token' → wait 2500ms. VERIFIED as _probe-addtoken-erc20-error; frame text ends '… | Not Found | Could not find this token on any network. | OK'."
+  },
+  {
+   "planned": "S/add-token/erc20-form",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Pure name drift. The plan's 'erc20-form' IS the resting ERC-20 tab: the board's dump reads 'Add Token | ERC-20 Token | Native Token | Token Address | Search Token' (AddTokenPanel.tsx:386-414, tab==='erc20').",
+   "rename_to": "S/add-token/erc20"
+  },
+  {
+   "planned": "S/add-token/erc20-resolved",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "AddTokenPanel.tsx:417-456 renders one VelaCard per chain where fetchErc20Meta answered; USDT resolves on Ethereum only. Do NOT press 'Add to Wallet' — saveCustomToken persists (AddTokenPanel.tsx:187-218).",
+   "reach": "Continue the erc20-resolving state: vela.clear() then wait ~42s (a dead chain burns 3 attempts × 8s). VERIFIED as _probe-addtoken-erc20-resolved; frame text: 'Name | Tether USD | Symbol | USDT | Decimals | 6 | Network | Ethereum | Add to Wallet'. Passed expect 'Add to Wallet' + forbid 'Searching all networks' + differsFrom the resolving board."
+  },
+  {
+   "planned": "S/add-token/erc20-resolving",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "AddTokenPanel.tsx:407-414 passes title={loading ? t('addToken.searchingNetworks') : …} to VelaButton, but VelaButton.tsx:66-69 renders ONLY <ActivityIndicator> when loading and never the title — so 'Searching all networks...' is dead copy that no user ever sees (translated in every locale). The captured frame is exactly the form with the CTA label replaced by a spinner.",
+   "reach": "/add-token → vela.slowRpc(4000) → type 0xdAC17F958D2ee523a2206206994597C13D831ec7 into the '0x...' field → click 'Search Token' → wait 1500ms. VERIFIED: captured as _probe-addtoken-erc20-resolving, distinct from the same form untouched (_probe-addtoken-typed). POST-CONDITION MUST BE `forbid: [\"Search Token\"]`, NOT `expect: [\"Searching all networks\"]` — the state-specs-5 recipe's expect can never pass (see why)."
+  },
+  {
+   "planned": "S/add-token/network-checking",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "handleNetSelect (AddTokenPanel.tsx:114-138) sets netChainInfo BEFORE awaiting checkNetworkCompatibility, so the chain-info card is already painted while :313 shows the 'Checking compatibility...' line. The window is real network time (network-checker.ts probes the candidate chain's own RPCs), not slowRpc-able.",
+   "reach": "/add-token → click 'Native Token' → type '42220' into 'Name or chain ID' → wait 3000 → click the '42220' suggestion → wait ~1200ms. VERIFIED as _probe-addtoken-network-checking; frame text: '… Name | Celo Mainnet | Chain ID | 42220 | … | RPC URL | Checking compatibility...'."
+  },
+  {
+   "planned": "S/add-token/network-compatible",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "AddTokenPanel.tsx:359-382 renders the success VelaCard (Check + t('addToken.compatible') + the Add Network CTA) when netCompat.compatible. Do NOT press 'Add Network' — saveCustomNetwork persists.",
+   "reach": "Same as network-checking, then wait ~22s. VERIFIED twice: Celo 42220 (_probe-addtoken-network-incompatible, misnamed by my probe spec) and Scroll 534352 (_probe-addtoken-incompat-534352) both settle on '… | Compatible | Add Network'."
+  },
+  {
+   "planned": "S/add-token/network-incompatible",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "compatible = allDeployed && p256Available (network-checker.ts:93) over the 11 REQUIRED_CONTRACTS at :20-32; the checklist card is AddTokenPanel.tsx:314-356. The state-specs-5.json recipe is STALE — it picked Celo, which now passes the check (verified: Celo returns 'Compatible | Add Network').",
+   "reach": "USE zkSync 324, NOT Celo 42220. /add-token → click 'Native Token' → type '324' → wait 4000 → click the '324' suggestion → wait ~24s. VERIFIED as _probe-addtoken-incompat-324: 'Compatibility Check | Deterministic Deployment Proxy | Safe Singleton Factory | Multicall3 | EntryPoint v0.7 | Safe L2 | Safe Proxy Factory | Safe 4337 Module | Safe Module Setup | WebAuthn Signer | Fallback Handler | MultiSend | P256 Precompile (RIP-7212) | Deploy missing contracts ↗'."
+  },
+  {
+   "planned": "S/add-token/network-search",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Pure name drift. The board's dump reads 'Add Token | ERC-20 Token | Native Token | Search Network' — the resting Network tab with its empty search field (AddTokenPanel.tsx:225-245; the tab label is t('addToken.tabNative') = 'Native Token', which is why the file named it /native).",
+   "rename_to": "S/add-token/native"
+  },
+  {
+   "planned": "S/browser/connected",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Same web short-circuit, plus it needs a granted origin: connectedAddr is set only by approveConsent or refreshGrant, both fed by onProviderRequest, which is a native WalletWebView event (browser.tsx:188-227). The green-dot account pill at browser.tsx:468-482 therefore cannot render on web. The equivalent trust moment on web is the /web-request consent card, which this proposal keeps as S/web-request/consent.",
+   "challenge": "'The equivalent trust moment on web is the /web-request consent card' is a feature-level substitution, not pixel coverage — the /web-request consent is a full-window 390-wide card with a two-logo identity row, a green ShieldCheck origin pill and Connect/Cancel buttons (web-request.tsx:300-313); this board is a 7px dot on a pill in a bottom bar. They share a concept and no geometry. Honest caveat for whoever applies this: the delta versus S/browser/default is genuinely small (the dot, plus connectedAddr in the pill text at :477-479), so folding it into the default board as a variant would be de"
+  },
+  {
+   "planned": "S/browser/default",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Not observable in a web capture. src/modules/webview/index.tsx:31 sets isWalletWebViewSupported = Platform.OS==='ios'||'android' -> false on web, and src/app/browser.tsx:364-366 returns the Fallback BEFORE every other branch. RAN: /browser?url=https%3A%2F%2Fapp.uniswap.org at 127.0.0.1:8083 -> 'The in-app browser is only available on iOS and Android.' — the top bar (favicon/lock + host + title), the WalletWebView and the bottom bar (back · reload · account pill · open-in-system) never mount. The one thing web CAN render is boarded as S/browser/unsupported-on-web.",
+   "challenge": "The web facts are right and the conclusion does not follow. isWalletWebViewSupported = Platform.OS==='ios'||'android' (src/modules/webview/index.tsx:31) and browser.tsx:364-366 returns first — I re-ran it myself against 127.0.0.1:8083 on four URL variants (…app.uniswap.org, no url, javascript:alert(1), http://example.com) and every one printed 'The in-app browser is only available on iOS and Android.' But 'the web harness cannot see it' is a property of the tool, not of the app, and this project has already ruled on it THREE times in the other direction: (1) PIVOT-2026-07-29 line 68 (native-on"
+  },
+  {
+   "planned": "S/browser/insecure-origin",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Same web short-circuit, plus it is a function of the loaded page's scheme: the TriangleAlert branch at browser.tsx:386-387 fires when (nav?.url ?? initialUrl) does not start with https://, and nav only ever comes from the native view. Nothing on web can put an http:// page behind the chrome.",
+   "challenge": "'Nothing on web can put an http:// page behind the chrome' is true and irrelevant — I confirmed it (my /browser?url=http%3A%2F%2Fexample.com run returned the same one-line fallback, so even the http case never reaches the security indicator on web) — but on native this is a single URL away. This is also the wallet's only visual signal that a page is unencrypted, and the file's own security posture depends on it (browser.tsx header comment §5: 'signing is blocked on insecure public http origins'). Excluding it removes the picture of the app's http warning from the design source entirely."
+  },
+  {
+   "planned": "S/browser/loading",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Same web short-circuit as S/browser/default, plus this state is a property of a native page load: nav.loading comes from the native onNavigationChange event and renders the 2px accent bar at browser.tsx:404. With no native view there is no NavigationChangeEvent to set it. RAN: all three /browser URL variants produced the identical single-line fallback, no loading bar.",
+   "challenge": "The stated reason is 'a property of a native page load … with no native view there is no NavigationChangeEvent'. That is a restatement of 'web cannot render it', not an unreachability argument: on the platform the surface exists for, onNavigationChange fires on every single load (src/modules/webview/index.tsx:44-56 declares the event; browser.tsx:313-330 consumes it). Nothing here is awkward, let alone impossible. The 2px accent strip is the app's only page-load progress affordance and appears in no other board."
+  },
+  {
+   "planned": "S/browser/no-url",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Unreachable on web for a stronger reason than the rest: the !initialUrl guard (browser.tsx:367-369) sits AFTER the isWalletWebViewSupported guard (:364-366), so the no-url copy can never win on web even when the param is absent or invalid. RAN all three: /browser?url=https://app.uniswap.org, /browser (no url) and /browser?url=javascript%3Aalert(1) each rendered the byte-identical 'The in-app browser is only available on iOS and Android.'",
+   "challenge": "UPHELD, but the stated reason must be replaced or it will mislead the next reader. 'Unreachable' is wrong: on native isWalletWebViewSupported is true, so the !initialUrl guard (browser.tsx:367-369) is exactly what a malformed velawallet://browser deep link hits — the guard order only hides it on web. The correct ground is the project's own 'no two boards are one picture' rule: no-url and unsupported are the SAME component with a different sentence — `<Fallback>` at browser.tsx:559-566 is a SafeAreaView + styles.center + one styles.dim Text, and the only difference is 'No URL to open.' versus '"
+  },
+  {
+   "planned": "S/browser/no-wallet",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Same web short-circuit (browser.tsx:434-441 sits after the guard at :364). The identical wallet-absent copy IS boardable on the sibling route: RAN a fresh browser profile at /connect -> 'Create a wallet first' (connect.list.noWallet, the same i18n key browser.tsx:439 uses), proposed here as S/connect/no-wallet.",
+   "challenge": "'Covered by S/connect/no-wallet, the same i18n key' fails the same-pixels test. Same string, different picture: browser.tsx:438 renders a Plug icon size 26 strokeWidth 2 centred BETWEEN the mounted top bar (favicon/lock + host + title) and the bottom bar (back · reload · account pill · open-in-system); ConnectScreen.tsx:91-100 renders a Shield icon size 32 inside a bare ScreenContainer with no chrome at all. Different glyph, different size, different surrounding layout. Also worth flagging: S/connect/no-wallet is not in the file either — dom-dumps/screens/_index.json holds only S/connect/{disc"
+  },
+  {
+   "planned": "S/browser/preparing-wallet",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Same web short-circuit. The 'Preparing…' spinner at browser.tsx:429-433 is the else-branch of `ready`, reached only after the unsupported guard has already returned — so on web control never arrives there regardless of state.isLoading. Unreachable by construction, not merely unbuilt.",
+   "challenge": "'Unreachable by construction, not merely unbuilt' is the strongest claim in the set and it is false. It is unreachable ON WEB by construction — control never passes :364 — but the branch is the normal cold-start path on iOS/Android, which is the only platform the route ships on. Weakest of the seven on value (a spinner and one line), so if the orchestrator wants to trim, this is the candidate; but it must be trimmed as 'low-information state', not as 'unreachable', and it costs nothing extra once the device pass is running."
+  },
+  {
+   "planned": "S/browser/unsupported",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Same cell, name already corrected in the file and in state-specs.json:203. dom-dumps/screens/browser-default.json is one line: 'The in-app browser is only available on iOS and Android.' The rename is recorded in generator/audit-report.md:105 ('Under its old name it told a rebuild agent the browser looks like a one-line apology') and region-maps/browser-default.json already carries board S/browser/unsupported-on-web.",
+   "rename_to": "S/browser/unsupported-on-web"
+  },
+  {
+   "planned": "S/clear-signing-test/default",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Pure base drift. _index.json: clear-signing-index → S/dev/clear-signing-index on page '10 Dev & Parallel Space' — the same route (src/app/clear-signing-test.tsx → ClearSigningTestScreen.tsx), filed under the S/dev/* family the restructure gave every dev surface.",
+   "rename_to": "S/dev/clear-signing-index"
+  },
+  {
+   "planned": "S/connect/connected",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running it: relay on :8799, /connect showed 'Connected | Vela Test dApp (localhost:8799) | Parallel One (0xD400...130b) | Ethereum | Signing requests from dApps will appear automatically. | Disconnect', stable across +1.5s/+3s/+5s. This refutes generator/audit-report.md:127 ('connect/{connected, reconnecting} need a live relay peer') — the repo ships that peer at e2e/support/relay.js. It is the ConnectScreen.tsx:196-263 connected block: status dot, dApp identity row, account row, chain row, hint, Disconnect — none of it visible on any boarded screen.",
+   "reach": "Start the repo's own local relay — `node e2e/support/relay.js 8788` (or startRelay({port}) in-process, as e2e/parallel-dapp.spec.ts does) — POST /session/new to get connectUrl. Then: goto /parallel (arms the fixture wallet), goto /connect, type the connectUrl into the 'walletpair link or web address' field, fire clickable #2, wait 3s. Post-conditions: expect 'Connected|Vela Test dApp|Disconnect'; forbid 'Scan QR Code'. Driver note: the connectUrl is generated per run, so run-capture.mjs needs either a --type-value flag or a generated spec; navigation after connecting must not use waitUntil:'networkidle' (the relay's SSE stream never idles — that is what timed out in my probe)."
+  },
+  {
+   "planned": "S/connect/connecting-verify",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Board S/connect/connecting-verify exists (region-maps + dom-dumps/screens/connect-connecting-verify.json). RAN the state-specs-4 recipe today: pasting the fabricated walletpair URI and firing clickable #2 produced 'Verify Connection | Confirm this code matches what the dApp displays: | 0 1 0 0 | Demo dApp | End-to-end encrypted | Confirm | Cancel' — the fingerprint gate at ConnectionFlowStates.tsx:28-80, matching the dump."
+  },
+  {
+   "planned": "S/connect/connecting-waiting",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running both paths: each rendered 'Waiting for dApp to accept... | Go back to the dApp and approve the connection. | Cancel' — the Radio-medallion branch at ConnectionFlowStates.tsx:81-100 (status 'connecting' with pendingFingerprint cleared). It is the only screen carrying that medallion + copy and is not inferable from any boarded state.",
+   "reach": "Chain it onto the existing connect-connecting-verify state in the SAME group (cumulative steps): after the fingerprint card renders, click text 'Confirm' and capture within ~4s. VERIFIED window: +800ms and +3.8s both show the waiting card; by +13.8s the provider has fallen back to disconnected. Alternative single-step recipe, also verified: type 'https://relay.invalid/s/abc123?n=deadbeef&k=cafebabe' into the 'walletpair link or web address' field, fire clickable #2, capture between +600ms and +2.1s (it becomes the error card by +6.1s). Post-conditions: expect 'Waiting for dApp'; forbid 'Connection Failed'; differsFrom connect-error|connect-disconnected."
+  },
+  {
+   "planned": "S/connect/disconnected",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Board S/connect/disconnected exists (region-maps/connect-disconnected.json, dom-dumps/screens/connect-disconnected.json, 3 regions). RAN /connect today: 'Connect | CONNECT TO DAPPS | Get a pairing URI | From a WalletPair dApp or the browser extension | Verify the 4-digit code | Make sure it matches on both sides | Done | Requests appear here automatically | Scan QR Code | or | Connect a dApp, or open any website' — matches the dump exactly, so the board is not stale."
+  },
+  {
+   "planned": "S/connect/error",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Board S/connect/error exists (region-maps + dom-dumps/screens/connect-error.json). RAN the malformed-URI recipe today: 'Connection Failed | pairing URI must contain all six fields exactly once | Scan Again' — ConnectionFlowStates.tsx:103-127, matching the dump."
+  },
+  {
+   "planned": "S/connect/no-wallet",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running it: fresh Playwright context -> http://127.0.0.1:8083/connect -> body text 'Create a wallet first' and the URL stays /connect (no redirect). This is the !state.hasWallet guard at ConnectScreen.tsx:92-101 — Shield icon + one line, no ScrollView content. Distinct from every boarded connect state.",
+   "reach": "Run in a browser profile that has NEVER visited /parallel and never onboarded (run-capture.mjs already launches a fresh context per invocation, so this must be its own run or the FIRST state of a run), then goto /connect and settle 5s. Post-conditions: expect 'Create a wallet first'; forbid 'Scan QR Code'; differsFrom connect-disconnected."
+  },
+  {
+   "planned": "S/connect/reconnecting",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "No transport this environment can run produces status 'reconnecting'. Only WalletPairTransport emits the 'reconnecting' event (walletpair-transport.ts:259/468/532); RemoteInjectTransport — the one the repo's local relay speaks — emits only connected/disconnected/request/error (dapp-transport.ts:122/143/156/217/222/229/232). The manual reconnect() at dapp-connection.tsx:591 is the only other producer, and its sole UI caller is ConnectionsView.tsx:249 <ReconnectButton>, which renders ONLY when status is already 'reconnecting' — circular. VERIFIED empirically: connected via the local relay, then stopped the relay; at +2s/+4s/+6s/+8s the screen was back to the disconnected layout, never 'Reconnecting…'. Reaching it needs a live WalletPair wss relay peer that accepts a join and then drops, which this repo does not ship. The delta a rebuilder needs is small and belongs in the S/connect/connected board's notes: same layout, connectedDot swapped for reconnectingDot (warning, opacity 0.7) and the title swapped to connect.list.reconnecting (ConnectScreen.tsx:200-203).",
+   "challenge": "OVERTURNED on evidence. Three defects. (1) The empirical test tested the wrong transport: 'connected via the local relay, then stopped the relay' drives RemoteInjectTransport, which the same paragraph correctly says never emits 'reconnecting' — it exercised the one transport that cannot produce the state and concluded the state does not exist. (2) 'Needs a live WalletPair wss relay peer … which this repo does not ship' — validateRelayUrl accepts BOTH schemes (walletpair-protocol.ts:210-213, requireAbsoluteUrl(value, ['ws:','wss:'])), so no TLS is needed, and the relay's entire obligation to dr"
+  },
+  {
+   "planned": "S/home/activity-empty",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The board already in the file IS the empty feed. Its committed dump (dom-dumps/screens/home-activity.json) contains exactly 'No activity yet' + 'Incoming payments will appear here in real time.' — the ListEmptyComponent from HomeScreen.tsx:162-172 — because the /parallel fixture Safe has no transaction history (state-specs-7.json's own note says the same). The planned cell and the existing board are one picture; only the name differs.",
+   "rename_to": "S/home/activity"
+  },
+  {
+   "planned": "S/home/assets",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "S/home/assets exists with a committed dump listing BNB / BNB Chain / 0.0038 / $2.24, XDAI / Gnosis / 0.996 / $1.00 and pathUSD / Tempo / 0.0225 / $0.02 under the Assets header with its Add action."
+  },
+  {
+   "planned": "S/home/assets-empty",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "HoldingsList's empty-wallet card (HoldingsList.tsx:144-153) is a completely different content region from the holdings list in S/home/assets: a centred accent ArrowDown medallion over 'Deposit your first asset' / 'Tap here to see your address and receive tokens', the whole card a Pressable routing to /receive. It is also NOT the same as the filtered-empty branch (line 141-143), which is a bare 'No matching tokens' line.",
+   "reach": "Cold-load http://127.0.0.1:8083/wallet in a browser that has NEVER visited /parallel (the parallel flag persists), settle ~13 s, click 'Assets'. Verified: 'W | Wallet | TOTAL BALANCE · USD | Activity Assets Connections | All | ASSETS | Add | Deposit your first asset | Tap here to see your address and receive tokens | Receive | Send'."
+  },
+  {
+   "planned": "S/home/balance-loading",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "BalanceSkeleton (HomeScreen.tsx:104-105, gated by balanceUnknown in useHomeController.ts:188) replaces the hero number with a placeholder bar. I measured it in the live DOM: a 208x46 rounded rect filled rgb(245,243,239) where the amount goes, under the 'Total balance · USD' label, with no digits anywhere on the screen. That placeholder appears in no other board — every existing Home board shows a resolved figure or the six privacy dots — and it is the app's answer to 'the balance is not known yet', which a rebuilder would otherwise render as a fake $0.00.",
+   "reach": "Cold-load http://127.0.0.1:8083/wallet in a browser that has never visited /parallel: the real wallet has no cached total (localStorage vela.balanceCache held only the parallel address), so balanceUnknown stays true until the first multi-chain fetch settles. Verified still rendering the skeleton at 12–13 s in two separate runs. Capture on the default Activity tab so the content region differs from S/home/assets-empty, which is the same wallet's Assets tab."
+  },
+  {
+   "planned": "S/home/connections-connected",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The live-session card is a third distinct picture: an elevated VelaCard with the dApp monogram, name and URL, a status dot + 'Active', the 'Only one active connection at a time' line and a Disconnect action, the Connections tab label carrying a '1' badge, and a 'CONNECTION ACTIVITY · N' section below (ConnectionsView.tsx:229+). audit-report.md listed this as needing 'a live relay peer' — that peer exists in this repo and I ran it.",
+   "reach": "In-process: require('e2e/support/relay.js').startRelay({ port: 8791 }) -> relay.newSession() -> paste session.connectUrl into Home's Connections field and hit the unlabelled ArrowRight (the wallet flips to connected on the relay's first SSE 'ready', so the dApp page need not even be opened). Verified: 'Activity Assets Connections 1 | All | V | Vela Test dApp | http://localhost:8791 | Active | Only one active connection at a time | Disconnect | CONNECTION ACTIVITY · 0 | No requests yet on this connection.' Same path the repo's own e2e/parallel-dapp.spec.ts uses."
+  },
+  {
+   "planned": "S/home/connections-connecting",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The pairing gate renders INLINE inside Home's Connections tab, under the balance hero (ConnectionsView.tsx:159-161 -> ConnectionFlowStates): a 4-digit verification code card, the dApp identity row and Confirm/Cancel. Nothing like it is in the file — S/connect/connecting-verify is the standalone /connect route, a different screen shell with no balance hero, no tab bar and no dock.",
+   "reach": "goto /parallel, settle, click 'Connections', type the schema-valid fabricated pairing URI (walletpair:?ch=0123456789abcdef…&pubkey=jCYIRGVbVzh1AXEPb9mfbAQ23zWxwBrWCCTyE1AmCV0&relay=wss%3A%2F%2Frelay.invalid%2Fws&name=Demo%20dApp&url=…) into the field placeholdered 'walletpair link or web address', then click the single unlabelled one-svg button to its right (the ArrowRight submit; box 739,497,56,56 at 1280x950 — match on 'no text AND no aria-label AND exactly one svg', not on index). Verified at +4 s: 'Verify Connection | Confirm this code matches what the dApp displays: | 0 1 0 0 | Demo dApp | End-to-end encrypted | Confirm | Cancel' framed by the hero above and 'Receive | Send' below. prepareJoin is memory-only — no relay, no storage."
+  },
+  {
+   "planned": "S/home/connections-empty",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The boarded S/home/connections IS the disconnected/empty panel — its dump reads 'No active connection | Scan, or enter a link / URL', the status==='disconnected' branch at ConnectionsView.tsx:163-225. generator/audit-report.md already records the same call: 'Removed S/home/connections-empty and S/send/enter-details — the same states as S/home/connections and S/send/details, captured twice under two naming generations.'",
+   "rename_to": "S/home/connections"
+  },
+  {
+   "planned": "S/home/connections-error",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The same inline panel after a failed pairing, and a different picture from connecting: error medallion, 'Connection Failed', the parse-error text and a 'Scan Again' action, still framed by the balance hero and the dock.",
+   "reach": "Continue from the connecting recipe: click 'Cancel' (returns the provider to disconnected), then type the malformed URI 'walletpair:?ch=zz' into the same field and hit the same unlabelled submit. Verified at +4 s: 'Connection Failed | pairing URI must contain all six fields exactly once | Scan Again'."
+  },
+  {
+   "planned": "S/home/connections-reconnecting",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Unreachable with any dApp peer this repo can run, and not a distinct screen even if it were. 'reconnecting' is emitted only by WalletPairTransport (walletpair-transport.ts:259, :468, :532), the WebSocket pairing transport. The only local peer available, e2e/support/relay.js, speaks the RemoteInject SSE protocol, which has no reconnect path: I connected the fixture wallet to it and then called relay.stop(); the panel went straight from the live 'Vela Test dApp / Active' card to 'No active connection | Scan, or enter a link / URL' within 4 s and stayed there through +24 s, never showing 'Reconnecting'. Visually the state is the S/home/connections-connected card with its status dot recoloured and its label swapped ('Reconnecting' for 'Active') — ConnectionsView.tsx:229-245 — i.e. a variant of a card that is already boarded, not a new layout.",
+   "challenge": "OVERTURNED — both limbs of the reason are false. (a) 'Unreachable with any dApp peer this repo can run': the repo ships a WalletPair v1 dApp peer, /Volumes/data/production/vela-wallet/e2e/safari/wp_peer.mjs (deps `ws` + `@noble/*` are installed), plus /Volumes/data/production/vela-wallet/e2e/safari/wp_proxy.mjs, a relay proxy written for exactly this kind of mid-session drop. The reasoner tested only e2e/support/relay.js (RemoteInject SSE) and generalised. I paired the web build at 127.0.0.1:8083 with wp_peer against the live relay (wss://relay.walletpair.org/v1 answers — my raw handshake got "
+  },
+  {
+   "planned": "S/home/default",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Home's default landing is the Activity tab with a POPULATED value-transfer feed — day header plus one ActivityRow per item (direction, counterparty alias, +amount, fiat subline, chain chip), HomeScreen.tsx:215-262 with the date-first grouping in useHomeController.ts:550-563. The file has no such board: S/home/activity is the empty feed (its dump reads 'No activity yet | Incoming payments will appear here in real time.') because the /parallel fixture wallet has no history. Boarding this is the only way ActivityRow-in-context and the masked/fiat sublines appear anywhere in the design source.",
+   "reach": "goto /parallel, settle ~12 s, then in-page window.velaSimulateReceipt(12.5, 'USDC') and wait >=3.5 s so the receipt toast (2.8 s, useHomeController.ts:233) has cleared. Verified at +4.4 s: 'Parallel One | 0xD40086...de130b | Updated now | TOTAL BALANCE · USD | $3.27 | Activity Assets Connections | All | Today | Received | +12.5 USDC | from 0xSIMULATED…test | $12.50 | Receive Send'. At +1.2 s the same run also shows the toast row '12.5 USDC received' (that is O/receipt-toast, a different planned cell). Harness note: this global is not under window.vela, so capture-states.js needs one more act to drive it."
+  },
+  {
+   "planned": "S/home/estimate-notice",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The hero's tappable approximation row — amber AlertTriangle, the sentence, and a ChevronRight into BalanceDetailSheet (HomeScreen.tsx:110-129) — sitting over the CACHED total with NO RpcTroubleBanner. That is a third picture, distinct from both existing fault boards: S/home/rate-limited's dump has neither notice nor banner, and S/home/rpc-trouble's has the notice AND a 12-row 'RPC unavailable / Fix' card. The banner suppression here is precisely the behaviour the code comment at HomeScreen.tsx:133-139 exists to protect.",
+   "reach": "goto /parallel, settle ~12 s, window.vela.nullPrice(56), then the harness `pull` act (forceRefresh — a plain re-focus is served from the 5-minute token cache and changes nothing), then wait ~21 s so the three silent force-retries (1.5 s + 4 s + 8 s, useHomeController.ts:53-54 and :352-366) exhaust and noticeAllowed flips. Verified: '$3.27 | Some tokens couldn't be priced.' with no banner. WARNING: state-specs-5.json's recipe for this state does NOT work — the rateLimitRpc('all') variant wrote $0.00 over the cached total with neither notice nor banner."
+  },
+  {
+   "planned": "S/home/hidden-balance",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "S/home/hidden-balance exists; its dump shows the hero label with no figure and no fiat sublines anywhere ('Total balance · USD | Activity | Assets | Connections | All | No activity yet …'), i.e. the six-dot mask with the EyeOff glyph and the feed masked with it."
+  },
+  {
+   "planned": "S/home/rate-limited",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "S/home/rate-limited exists with an assertion-guarded recipe in state-specs-9.json (expect 'Total balance', forbid 'RPC unavailable', differsFrom home-activity/assets/connections); its dump shows the cached $3.26 and no banner."
+  },
+  {
+   "planned": "S/home/refreshing",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "VelaRefresh's branded pull state is a bespoke component with no still form anywhere in the file. I measured it: at rest the arc indicator is 17x17 at y=15 inside the phone frame; mid-pull it becomes 41x41 at y=84 and the entire feed translates ~80 px down (the 13x13 content glyph moves 209->290, the 28x28 moves 315->397), revealing the 'Updated now' freshness caption beneath it. It snaps back by ~1.5 s.",
+   "reach": "goto /parallel, settle, then the harness's own `pull` act with a short dwell (ms: 300–600; its default 1200 lands after the snap-back). Verified expanded at +120 ms, +300 ms and +700 ms and back at rest by +1500 ms. Arm window.vela.slowRpc(5000) first to hold loadData open and make the window comfortable."
+  },
+  {
+   "planned": "S/home/rpc-trouble",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "S/home/rpc-trouble exists; its dump carries 'Some balances are still updating.' plus '12 networks RPC unavailable' and a Fix row per chain, over the surviving cached total."
+  },
+  {
+   "planned": "S/index/loading",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Nothing to transcribe, and the harness cannot hold it. src/app/index.tsx is 21 lines: while state.isLoading it renders ONE <ActivityIndicator size=\"large\" color={accent.base}/> centred on bg.base (:9-15) and then Redirects to /(tabs)/wallet or /onboarding. VERIFIED unreachable: a capture at the smallest settle the driver allows (`--url / --settle 1`) came back with url='/onboarding' and the Welcome screen already painted — the AsyncStorage account read finishes before Playwright's networkidle resolves. Boarding it would add an empty rectangle plus a spinner that the token page already defines.",
+   "challenge": "\"VERIFIED unreachable\" was verified with an instrument that cannot see it: run-capture's goto uses `waitUntil: 'networkidle'`, so `--url / --settle 1` cannot observe anything before hydration. Two measurements refute it. (1) The state is in the DOCUMENT: `curl -s http://127.0.0.1:8083/` returns `<div id=\"root\">…<div role=\"progressbar\">…<circle … style=\"stroke:#E8572A\">` on `.r-backgroundColor-1aj5ce6{background-color:rgba(250,250,248,1.00)}` — accent spinner on bg.base, server-rendered. Stalling the bundle (`page.route('**/index.bundle*')`) holds it indefinitely: after 6 s the page still showe"
+  },
+  {
+   "planned": "S/onboarding/create-ceremony",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "CreateWalletScreen.tsx:418-423 renders the Loader+status row; the passkey stages (:125 'Setting up secure identity...', :158 'Verifying identity...', :175, :183) flash under the fixture mock, but tryUpload's 3 attempts (:84-99) hold the identical row open with statusSyncingKey. One board, one status string — record which stage it depicts in the board note.",
+   "reach": "generator/capture/_probe-onboarding.mjs (left in place): parallel space first (installs the fixed-key signer, so no device dialog), then /onboarding?mode=create, fill name + tick all four acks, press Create Wallet, capture at ~900ms. Playwright aborts **/api/create so nothing reaches production. VERIFIED as _probe-onb-ceremony — the form with the live status row 'Syncing public key...' and the CTA in its loading state."
+  },
+  {
+   "planned": "S/onboarding/create-form",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Pure name drift. _index.json: onboarding-create → S/onboarding/create is the blank create form (name empty, four acknowledgments unticked, CTA disabled — CreateWalletScreen.tsx:362-447). The file additionally carries S/onboarding/create-form-ready, the filled+ticked variant the plan never named.",
+   "rename_to": "S/onboarding/create"
+  },
+  {
+   "planned": "S/onboarding/create-resume",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Needs a human at a real authenticator. pendingReg is set only when registration SUCCEEDS and the very next verification signature is then CANCELLED (CreateWalletScreen.tsx:127 + :227-230, PasskeyErrorCode.CANCELLED); it renders as create-form with the CTA relabelled 'Finish Verification' plus a stuck-hint and a 'Start over' link (:427-444). The parallel-space fixed-key signer never cancels — buildMockAssertion always resolves (parallel-space.ts:141-146) — and a headless browser cannot register at all: verified, navigator.credentials answers 'This is an invalid domain' before any registration exists, so there is nothing to resume. Reachable only by device capture.",
+   "challenge": "\"Needs a human at a real authenticator... a headless browser cannot register at all\" is wrong — again because the test was run at 127.0.0.1. At http://localhost:8083 (rpId 'localhost', modules/passkey/index.ts:41-44) headless Chromium registered a real discoverable ES256 credential against a CDP virtual authenticator (WebAuthn.getCredentials reported 'credentials on authenticator: 1'), and the verification signature that follows (CreateWalletScreen.tsx:160 `Passkey.sign`) was then refused → NotAllowedError → normalizeWebError maps it to PasskeyErrorCode.CANCELLED (modules/passkey/index.ts:410-"
+  },
+  {
+   "planned": "S/onboarding/create-success",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "CreateWalletScreen.tsx:292-326 (success medallion, address box with copy affordance, verifyHint) + :460-465 (Enter Wallet CTA). This is the terminus of the onboarding journey and shares no composition with any board in the file. NOTE: without the stub this needs a live POST to p256-index-rs.getvela.app, which writes an index record and spends the operator's gas — never capture it unstubbed.",
+   "reach": "generator/capture/_probe-onboarding-success.mjs (left in place): identical to the ceremony probe, but Playwright FULFILS /api/create and /api/query locally with the record the client just sent, so the app walks its real success path (including uploadPublicKey's verify step) while nothing leaves the machine and no on-chain commit-reveal is triggered. VERIFIED as _probe-onb-create-success, frame text: 'Wallet Created | Your wallet is ready! | Your address works on all 12 supported networks. | 0xD400866e00B055B20752a826CD5C89b811de130b | Your passkey is verified and your key is synced — you're all set. | Enter Wallet'."
+  },
+  {
+   "planned": "S/onboarding/sync-failure",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "CreateWalletScreen.tsx:327-361 (uploadFailed branch: AlertTriangle medallion, Open Settings, Report this error, the quiet technical-details disclosure) + :466-471 (Retry Upload). Distinct header too — headerSyncFailed 'Cross-Device Sync' replaces 'Create Wallet'.",
+   "reach": "generator/capture/_probe-onboarding.mjs, second shot: same ceremony with **/api/create ABORTED; after 3 attempts (~9s, backoff 1s+2s) the screen flips. VERIFIED as _probe-onb-sync-failure: 'Cross-Device Sync | Sync failed | Wallet created, but your public key wasn't synced to the server. You won't be able to sign in on other devices until this is resolved. | Check your network, or configure a custom endpoint below. | Open Settings | Report this error | Technical details | Retry Upload'. Zero production writes — the console logged 3 blocked /api/create calls."
+  },
+  {
+   "planned": "S/onboarding/welcome",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: onboarding-welcome → S/onboarding/welcome (WelcomeScreen.tsx, the fixed-dark #1A1A18 brand screen)."
+  },
+  {
+   "planned": "S/onboarding/welcome-signin-loading",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Cannot be held open, and carries no geometry of its own. The whole delta from S/onboarding/welcome is the second button's label swapping for an ActivityIndicator (WelcomeScreen.tsx:307-313); loginLoading is true only for the duration of the WebAuthn call. VERIFIED both ways: in the real space a headless click resolves before the next frame — _probe-onb-signin came back with 'I already have a wallet' still on the button plus the alert 'Sign In Failed / This is an invalid domain.' (OnboardingScreen.tsx:88-99 → navigator.credentials.get rejects instantly); in the parallel space Passkey.authenticate is the synchronous fixture mock (parallel-space.ts:143-145) so it completes and navigates away in the same tick. Neither path leaves a state to photograph.",
+   "challenge": "Both halves of the reason fail. (a) \"Cannot be held open\": I held it indefinitely. The 'verified' evidence — navigator.credentials answering 'This is an invalid domain' — is an artifact of the capture URL, not the browser: getRelyingPartyId() (modules/passkey/index.ts:33-53) returns `window.location.hostname` verbatim for localhost AND for IPs, and an IP literal is not a legal WebAuthn RP ID. The same dev server answers 200 on http://localhost:8083 (curl verified), where rpId becomes 'localhost' — legal, secure context, and registration/assertion work in headless Chromium via CDP. (b) \"Carries"
+  },
+  {
+   "planned": "S/parallel/connect/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "EXCLUDE",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Covered by S/connect/*. src/app/parallel/connect.tsx is a one-line re-export — `import ConnectScreen from '@/screens/connect/ConnectScreen'; export default ConnectScreen;` — so the pixels are literally the boards S/connect/disconnected, /connecting-verify and /error that the file already has. The only addition is the PARALLEL SPACE badge, and that badge renders OUTSIDE the 390px capture frame: verified on two dumps taken in parallel mode (_probe-arm-parallel, _probe-settings-developer), whose page body text contains 'PARALLEL SPACE | mock passkey · test' while the extracted frame tree does not. A board here would be a byte-identical copy of an existing one.",
+   "challenge": "The verdict is right and the evidence given for it is wrong in a way that hides a real defect. Claim: 'that badge renders OUTSIDE the 390px capture frame: verified on two dumps'. Those two dumps (_probe/_probe-arm-parallel.json, _probe-refute6/_probe-settings-root-after-parallel.json) simply had `__VELA_PARALLEL__` false at capture time — the badge polls the global and returns null when off (ParallelSpaceBadge.tsx:22-35). Where it DOES render it is INSIDE the frame: the canonical board dump connect-disconnected.json carries ('PARALLEL SPACE', x=97, y=11) and the violet pill (bg '#7C3AED', 256x"
+  },
+  {
+   "planned": "S/parallel/loading",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Same composition as S/index/loading and equally unholdable. src/app/parallel/index.tsx renders one <ActivityIndicator size=\"small\" color={accent.base}/> centred on bg.base until the fixture account appears, then Redirects to /(tabs)/wallet (:16-29). VERIFIED: `--url /parallel --settle 1` dumped url='/wallet' with Home fully painted ('Parallel One | 0xD40086...de130b | Total balance · USD | 3 $ .27 …'), and the same route at settle 8000 gives Home too. Everything after the redirect IS the real app — the parallel space's only visual signature is the badge, which is modelled as the component C/Media/ParallelSpaceBadge (manifest components, src/components/dev/ParallelSpaceBadge.tsx), not as a screen.",
+   "challenge": "Conclusion upheld, stated reason replaced. 'Equally unholdable' is false — it is holdable exactly like `/`, and `curl -s http://127.0.0.1:8083/parallel` returns a document BYTE-IDENTICAL to `curl -s http://127.0.0.1:8083/` (same `<div role=\"progressbar\">`, same `r-height-z80fyv{height:20px}` spinner, same `rgba(250,250,248,1.00)` ground) — because what actually paints at cold start on both routes is the root layout's gate (_layout.tsx:223-228), not src/app/parallel/index.tsx:26. The correct reason to exclude is duplication, and it is machine-enforced: capture-states.js `assertDistinct` refuses"
+  },
+  {
+   "planned": "S/pay/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: pay-request → S/pay/default (PayScreen.tsx:98-138, the valid-link card)."
+  },
+  {
+   "planned": "S/pay/invalid-link",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: pay-invalid → S/pay/invalid-link (PayScreen.tsx:87-96, the !valid early return)."
+  },
+  {
+   "planned": "S/pay/other-wallet-address",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "PayScreen.tsx:143-157 SegmentedToggle qrMode='address' swaps the QR payload to the plain address and :159-163 removes the openApp button — the fallback for wallets with no EIP-681 support.",
+   "reach": "Continue from other-wallet-request: click 'Address' → wait 1500ms. VERIFIED as _probe-pay-other-address (passed forbid 'Open in wallet app' + differsFrom the request board); the scan hint changes to 'Any wallet can scan — pick the network, token & amount yourself'."
+  },
+  {
+   "planned": "S/pay/other-wallet-request",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "PayScreen.tsx:135-137 toggles showOther; :140-163 renders the second VelaCard with the EIP-681 QR, scanHint and the 'Open in wallet app' button (qrMode==='eip681').",
+   "reach": "/pay?to=0x7099797f0e6e40d43D8b78ac3F0ac89b0F4F0d8b&chain=100&amount=1&sym=XDAI&dec=18 → click 'Pay with another wallet' → wait 1500ms. VERIFIED as _probe-pay-other-request (passed expect 'Pay with another wallet' + 'Open in wallet app'); frame adds '| Request | Address | Scan with an EIP-681 wallet | Open in wallet app | Or enter these details by hand: | Recipient/Network/Token/Amount'. Consider adding &net=Gnosis so the header reads the network name instead of 'Chain 100'."
+  },
+  {
+   "planned": "S/receipt-harness/default",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Pure base drift. _index.json: receipt-harness → S/dev/receipt-harness (src/app/receipt-harness.tsx → ReceiptHarnessScreen.tsx). The file also carries S/dev/receipt-{submitted,confirmed,failed}, the three harness-driven TransactionReceipt states the plan never named under this base.",
+   "rename_to": "S/dev/receipt-harness"
+  },
+  {
+   "planned": "S/receive/address",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "dom-dumps/screens/_index.json maps slug receive-address → board S/receive/address (ReceiveScreen.tsx mode='address')."
+  },
+  {
+   "planned": "S/receive/copied",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: receive-copied → S/receive/copied (ReceiveScreen.tsx:302-316 copied branch of the copy button)."
+  },
+  {
+   "planned": "S/receive/deposit-detected",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Unreachable without a real inbound on-chain transfer. The state is computed only by DIFFING two live fetchTokens results while the screen is open (ReceiveScreen.tsx:99-143, 3s polling for 1 min then 60s to 5 min); it renders only when some token's balance INCREASED vs the baseline taken on mount. No dev seam can fabricate that: window.vela exposes failRpc / rateLimitRpc / slowRpc / flakyRpc / nullPrice / forceFunding / zeroGasQuote / velaCoreDiff (fault-injection.ts:158-173) and every one of them can only make the diff smaller. The one receipt seam in the codebase, globalThis.velaSimulateReceipt, drives Home's ReceiptToast (useHomeController.ts:236-240), not this list — grep shows ReceiveScreen.tsx has no globalThis/window hook at all. Capturing it would mean actually sending funds to the fixture Safe.",
+   "challenge": "The exclusion's core claim — \"No dev seam can fabricate that... every one of them can only make the diff smaller\" — is false, and I proved it by capture, not by reading. The diff in ReceiveScreen.tsx:104-135 is `prevMap.get(tokenId(tk)) ?? 0` against the CURRENT list, and its only guard is shrinkage (`if (tokens.length < previousTokens.current.length) return`, :107). A chain that is DOWN when the baseline is taken and RECOVERS afterwards therefore reads as an increase: fetchAllChainTokens catches a dead chain per-chain (`queryChainAssets(...).catch(() => [] as APIToken[])`, wallet-api.ts:195) "
+  },
+  {
+   "planned": "S/receive/request",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: receive-request → S/receive/request (ReceiveScreen.tsx:261-268 SegmentedToggle mode='request' + ReceiveRequestControls)."
+  },
+  {
+   "planned": "S/safari-extension/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Board S/safari-extension/default exists (region-maps/safari-extension.json, 6 regions). RAN /safari-extension today at 1280 width: 'Safari Extension | Use Vela in Safari | Almost any dApp can connect to Vela right in Safari — only signing hops to Vela for a quick Face ID. | ENABLE IT ONCE | 1..4 steps | One-tap signing | … | Open getvela.app in Safari | That's where the \"Aa\" menu is.' — frame 390x844, matching the dump. The route renders fully on web even though its entry point is iOS-only, so the single planned state is complete."
+  },
+  {
+   "planned": "S/send/confirm",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "S/send/confirm exists; dump: 'Confirm | Parallel One | 0xD40086...de130b | − 0.1000 XDAI | ≈ $0.10 | vitalik.eth | 0xd8dA6B...A96045 | + 0.1000 XDAI | ≈ $0.10 | XDAI · Gnosis | Network fee | ~< 0.0001 XDAI | Confirm & Send'."
+  },
+  {
+   "planned": "S/send/confirm/error",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "txStatus === 'error' (ConfirmStep.tsx:399-414) shows a red AlertCircle plus the calm localized failure sentence and a 'Try Again' action where the slide was. Distinct from confirm/submitting (spinner, no action) and from S/send/confirm (slide). It is the only board that would show the project's own rule that a money-flow failure never surfaces a raw RPC exception (useSendController.ts:1076-1082).",
+   "reach": "Same setup as confirm/submitting but arm window.vela.failRpc('all') ONLY (no latency), then fire the slide. The send dies at the first RPC call, before any bundler contact. Verified at +1.2 s and stable through +18 s: '… | Network fee | ~< 0.0001 XDAI | The transaction couldn't be submitted. Your funds are safe — please try again. | Try Again'."
+  },
+  {
+   "planned": "S/send/confirm/fee-blocker",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "When the confirm-time re-quote prices the fee in the SAME asset being sent and leaves no room, the slide-to-confirm is REPLACED by a solid 'Edit amount' VelaButton above a red AlertCircle block naming the exact shortfall (ConfirmStep.tsx:322-355, sameAssetFeeIssue in useSendController.ts:567-595). Losing the commit control is the biggest structural difference any confirm state has from S/send/confirm, and the file has no board where the primary CTA is a recovery rather than a commit.",
+   "reach": "Deterministic, no fault injection: goto /parallel, /send, click 'XDAI', click 'Max' (fills balance − reserve, e.g. 0.99598986886368144), read that value and increment its last digit (0.99598986886368147) — still under the balance so it passes the details gate, but no longer covering the fee — then recipient 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045, Continue. Verified: 'Confirm | … | Network fee | ~< 0.0001 XDAI | Not enough XDAI to cover this transfer | Sending 0.9960 + network fee 0.00001000 requires 0.9960 XDAI, but you have 0.9960. | You can send up to 0.9960 XDAI. | Edit amount' — and 'Confirm & Send' is gone from the button list."
+  },
+  {
+   "planned": "S/send/confirm/split",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "ConfirmStep.tsx:228-275 replaces the single To party with a labelled, fixed-height, internally-scrolling recipient list — index number, avatar, trust marker, short address and a per-line +amount for each row — under the same From party and FlowArrow. A different picture from S/send/confirm, and the only place the file would show the batch review a payroll/split send commits to.",
+   "reach": "goto /parallel, /send, click 'XDAI', amount 0.01, recipient 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045, click 'Add recipient', fill the second row's address and amount, then Continue (allow ~15 s for the estimate). Verified: 'Confirm | Parallel One | 0xD40086...de130b | −0.02000 XDAI | ≈ $0.02 | 2 RECIPIENTS | 1 | vitalik.eth | 0xd8dA6B...A96045 | +0.01000 XDAI | ≈ $0.01 | 2 | 0x111111...111111 | +0.01000 XDAI | ≈ $0.01 | XDAI · Gnosis | Network fee | ~< 0.0001 XDAI | Confirm & Send'."
+  },
+  {
+   "planned": "S/send/confirm/submitting",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The in-flight confirm (ConfirmStep.tsx:368-398) removes the slide entirely and puts a spinner plus status line in its place, with a cancel X that appears after 3 s (TxCancelButton). It is the send flow's own progress surface and is NOT the same UI as the boarded S/send/sign proxy, which is the dApp SigningSheet composited over the confirm capture. audit-report.md excluded it as 'would broadcast a real transaction' — that is no longer true; see the reach.",
+   "reach": "Nothing can be broadcast: rpc-pool.ts:725-730 applies the injected latency BEFORE the injected failure, so arming both holds the state open and guarantees the RPC leg never succeeds. Recipe: /parallel -> /send -> 'XDAI' -> amount 0.001 -> recipient 0xd8dA6BF…045 -> Continue -> then window.vela.slowRpc(20000) and window.vela.failRpc('all') -> fire the commit through SlideToConfirmButton's documented web keyboard path (focus the element whose aria-label is 'Confirm & Send' and dispatch keydown Enter — SlideToConfirmButton.tsx:115-128). Verified held at +1.5 s, +3.5 s and +7.5 s: '… | Network fee | ~< 0.0001 XDAI | Submitting to network...' with no CTA anywhere on screen."
+  },
+  {
+   "planned": "S/send/confirm/sweep",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "ConfirmStep.tsx:171-227 keeps the From->To flow but swaps the single-asset identity pill for a ConfirmAssets cluster carrying a count label and a fiat total, one row per asset, with the 'gas reserved' annotation on trimmed lines. Distinct from both S/send/confirm and confirm/split, and it is the review surface of a shipped feature the file does not contain.",
+   "reach": "Same precondition as S/send/details/sweep — two non-zero balances on ONE chain in the /parallel fixture Safe (today it is one asset per chain). Then continue from the sweep amount step: enter a recipient and press Continue. Do not board it from the ?preselectedMulti= cross-chain shortcut; that route produces wrong per-row amounts because both natives collapse onto a single spec."
+  },
+  {
+   "planned": "S/send/details",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "S/send/details exists; dump: 'Send XDAI | XDAI | Gnosis | 0.996 | $1.00 | Amount | Max | $0.00 | Recipient | Add recipient | Import list | Continue' — the resting amount form."
+  },
+  {
+   "planned": "S/send/details/error-insufficient",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The amount warning (computed in useSendController.ts:319-391, rendered at EnterDetailsStep.tsx:193-195) puts a red sentence directly under the amount hero. That is a different picture from S/send/details (no warning) and S/send/details-filled (valid amount plus resolved recipient identity), and it is the only place the file would show the amount hero's error treatment.",
+   "reach": "goto /parallel, /send, click 'XDAI', type 5000 into the amount field (placeholder '0'; the balance is 0.996). Verified: 'Send XDAI | XDAI | Gnosis | 0.996 | $1.00 | AMOUNT | XDAI | $4,999.05 | You do not have enough XDAI in this account | RECIPIENT | Add recipient | Import list | Continue'. Pressing Continue additionally raises the 'Insufficient Balance' AppAlert, which is a separate overlay cell."
+  },
+  {
+   "planned": "S/send/details/estimating",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Covered by the component library, and otherwise a near-duplicate of a board that already exists. I drove it (window.vela.slowRpc(20000) then Continue) and read the DOM: the ONLY change from S/send/details-filled is that the CTA loses its 'Continue' text for a spinner — aria-label 'Preparing...', aria-disabled='true' — while handleContinue awaits estimateTransactionFee plus the treasury probe (useSendController.ts:714-780). Every other pixel is identical. That single change is exactly the C/Primitives/VelaButton variant axis state=loading, which is already built, so a screen board would add a second copy of details-filled and no new information.",
+   "challenge": "OVERTURNED — the pixel claim is accurate, the inference is not, and it contradicts the file's own precedent. I verified the pixel claim myself with a full rendered-tree diff (visibility-filtered, so no react-navigation ghost): the ONLY delta between details-filled and estimating is the CTA — `BUTTON 469,607 342x55 opacity 1 aria-label='Continue'` becomes `BUTTON 469,607 342x52 opacity 0.45 aria-label='Preparing...' aria-disabled='true'` with a 28x28 ActivityIndicator svg in place of the text (VelaButton.tsx:66-70 + styles.disabled opacity 0.45). EnterDetailsStep.tsx renders no fee/gas element,"
+  },
+  {
+   "planned": "S/send/details/split",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Pure slash-vs-dash. The board exists with a committed dump ('Send XDAI | … | Recipient 1 | XDAI | Recipient 2 | XDAI | Add recipient | Import list | 2 recipients | 0 XDAI | Continue') and I re-drove the state to confirm the recipe still lands: clicking 'Add recipient' on the details step swaps the amount and recipient heroes for MultiRecipientEditor.",
+   "rename_to": "S/send/details-split"
+  },
+  {
+   "planned": "S/send/details/sweep",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "multiSelectMode renders a different amount step (EnterDetailsStep.tsx:286-365): the token hero AND the amount hero are gone, replaced by an 'N tokens · <chain>' summary with a fiat total and one row per asset (logo, symbol, 'chain · gas reserved' when the line is trimmed for the fee, amount, fiat), then the recipient field. Nothing in the file shows it, and it is the entry to a shipped feature.",
+   "reach": "PRECONDITION: the /parallel fixture Safe must hold two non-zero balances on ONE chain. Today it holds exactly one asset per chain (BNB/BNB Chain, XDAI/Gnosis, pathUSD/Tempo — verified in the picker), so a second same-chain asset has to be funded first (vela.parallel.addresses() prints the addresses to fund). Then: /send -> chain chip -> pick that chain -> tick both rows -> the confirm CTA ('Send 2 tokens on <chain>'). The LAYOUT is already drivable today through the param entry the code documents (useSendController.ts:259-283): /send?preselectedMulti=bnb-mainnet_native_BNB,gnosis-mainnet_native_XDAI gave me 'Send tokens | 2 tokens · BNB Chain | $2.20 | BNB | BNB Chain · gas reserved | 0.0037 | $2.20 | XDAI | Gnosis · gas reserved | 0.0037 | $0.00 | RECIPIENT | Continue'. Do NOT board that shortcut: two different-chain natives collapse onto one spec, so the per-row amounts and the chain header are wrong. Use it only to rehearse the recipe."
+  },
+  {
+   "planned": "S/send/locked/network-not-supported",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Slash-vs-dash only. The board exists with a committed dump (dom-dumps/screens/send-locked-network.json, indexed note 'an EIP-681 link on a chain Vela does not carry') and a passing recipe in the state-specs set.",
+   "rename_to": "S/send/locked-network-not-supported"
+  },
+  {
+   "planned": "S/send/locked/resolving",
+   "final": "KEEP",
+   "proposed": "EXCLUDE",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "The entire state is the nav bar plus one centred ActivityIndicator and nothing else — SendScreen.tsx:142-143, the `locked && resolvingLock && !selectedToken` branch. It carries no layout, copy or hierarchy a rebuilder cannot read off the component list, and the harness cannot hold it open: its only latency lever (window.vela.slowRpc) can be armed only after a page has loaded, i.e. after that page's fetchTokens has already started. I drove it with the fault armed on the previous route and then navigated to /send?locked=1&prefilledChainId=100&prefilledRecipient=0xd8dA6BF…045&prefilledAmountBase=…; the screen painted the resolved locked amount form directly at +3 s and +7 s ('Send XDAI | … | AMOUNT | XDAI | RECIPIENT | vitalik.eth | Continue'), never the spinner.",
+   "challenge": "OVERTURNED — the load-bearing claim ('the harness cannot hold it open') is wrong, and the reason it is wrong is a wrong model of the app. The reasoner wrote 'its only latency lever (window.vela.slowRpc) can be armed only after a page has loaded, i.e. after that page's fetchTokens has already started', and reported the form painting instantly at +3s/+7s. The actual cause of their instant paint is the 5-minute in-memory token cache: /Volumes/data/production/vela-wallet/src/services/wallet-api.ts:88-100, `TOKEN_CACHE_TTL_MS = 5 * 60 * 1000`, keyed on the address — an SPA pushState from Home hits "
+  },
+  {
+   "planned": "S/send/locked/unknown-token",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Slash-vs-dash only. The board exists with a committed dump (dom-dumps/screens/send-locked-token.json, indexed note 'a link naming a token that is not a contract on that chain').",
+   "rename_to": "S/send/locked-unknown-token"
+  },
+  {
+   "planned": "S/send/receipt/confirmed",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Slash-vs-dash only; same proxy mechanism as receipt-submitted (79-send-tail.js RECEIPTS table row ['receipt-confirmed','S/send/receipt-confirmed',1]).",
+   "rename_to": "S/send/receipt-confirmed"
+  },
+  {
+   "planned": "S/send/receipt/failed",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Slash-vs-dash only; same proxy mechanism (79-send-tail.js row ['receipt-failed','S/send/receipt-failed',2]). The harness renders the real TransactionReceipt with status='failed', which is exactly what receiptFailed produces in the live flow (useSendController.ts:1042-1049).",
+   "rename_to": "S/send/receipt-failed"
+  },
+  {
+   "planned": "S/send/receipt/submitted",
+   "final": "RENAME",
+   "proposed": "RENAME",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "Slash-vs-dash only. The board exists on page 05 as a journey-step proxy built by generator/79-send-tail.js from the /receipt-harness capture (indexed in dom-dumps/screens/_index.json as S/dev/receipt-submitted, and stamped vela.source=/receipt-harness#receipt-submitted with a JOURNEY-STEP PROXY note).",
+   "rename_to": "S/send/receipt-submitted"
+  },
+  {
+   "planned": "S/send/select-token",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "S/send/select-token exists; dump: 'Select Token | All Stablecoins Gas Other | All | 3 tokens | $3.19 | BNB … | XDAI … | pathUSD … | Add Token'."
+  },
+  {
+   "planned": "S/send/select-token/empty",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "TokenSelector's emptyContainer (TokenSelector.tsx:207-211) replaces the whole list AND the '3 tokens / $3.27' summary row with one centred line plus the Add Token action — a different content region from S/send/select-token. The component carries two copies in that one layout (noMatchingTokens when a filter/search is active, noTokensWithBalance otherwise).",
+   "reach": "goto /parallel, then /send, type 'zzzzzz' into the field placeholdered 'Search tokens...'. Verified: 'Select Token | All Stablecoins Gas Other | All | No matching tokens | Add Token'. Note for whoever captures it: only this copy variant is capturable — the wallet-empty copy needs a wallet whose scan settles with zero holdings, and the real (non-parallel) wallet's /send never leaves 'Loading tokens...' (watched for 90 s)."
+  },
+  {
+   "planned": "S/send/select-token/sweep",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/home (15 planned) + S/send (20 planned) — 05 Screens · Wal",
+   "why": "There is no longer a Split/Sweep mode toggle — useSendController.ts:1117-1119 says so outright ('Multi-select is built-in now: filter to a specific network and the picker shows checkboxes … No mode toggle'), which is why state-specs.json's send-split-mode and send-sweep-mode states FAILED in dom-dumps/states/batch-a.json. The real state is the picker with sweepActive true (TokenSelector.tsx:111, :183-195): a master checkbox row 'Select all valuable', per-row checkboxes, the chain chip showing the chosen network plus a 'Clear network filter' affordance, and a bottom confirm CTA once anything is ticked. A different picture from the all-networks single-select list already boarded.",
+   "reach": "goto /parallel, then /send, click the button whose aria-label starts 'Select Chain', pick a chain in the sheet (e.g. aria-label 'Gnosis'). Verified: 'Select Token | All Stablecoins Gas Other | Gnosis | Select all valuable | 1 tokens | $1.00 | XDAI | Gnosis | 0.996 | $1.00 | Add Token', with buttons 'Select all valuable' and 'Clear network filter' present that do not exist at rest."
+  },
+  {
+   "planned": "S/settings/advanced-expanded",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: settings-advanced → S/settings/advanced-expanded; its dump adds Networks / RPC Providers / Add Network / Service Endpoints (SettingsScreen.tsx:1532-1553)."
+  },
+  {
+   "planned": "S/settings/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: settings-root → S/settings/default (two slugs map to it: settings-root and theme-reset-light)."
+  },
+  {
+   "planned": "S/settings/developer-unlocked",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "Not a duplicate of S/settings/default: the existing boards already show the collapsed DEVELOPER header (all three settings dumps contain 'Developer' because they were captured in the parallel space), but never its rows. SettingsScreen.tsx:1556-1571 gates the section on devUnlocked and :1558 collapses it behind showDevOptions. This is also the only in-app route to page 10's two dev screens, i.e. a real graph edge.",
+   "reach": "Same browser context, /parallel FIRST (enterParallelSpace writes dev_unlocked='1', parallel-space.ts multiSet), then /settings → click 'Developer' → wait 1500ms. VERIFIED as _probe-settings-developer: '… | Advanced | Developer | Treasury | View treasury address & balances | Clear Signing Test | ERC-7730 signing UI preview | About …', and it passed differsFrom BOTH settings-root and settings-advanced. Real-space alternative: /about → tap the logo 6× within 3s (AboutScreen.tsx:22-30). A run that never touches /parallel has NO Developer section at all — my first attempt failed with 'no element for {click Developer}'."
+  },
+  {
+   "planned": "S/token-detail/default",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/receive · S/token-detail · S/add-token · S/pay · S/setting",
+   "why": "_index.json: token-detail → S/token-detail/default; dump text is the real params-driven screen (BNB · 0.0038 · ≈ $2.18 · Send/Receive · Name/Price/Transactions rows)."
+  },
+  {
+   "planned": "S/web-request/consent",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running it: 'Vela Wallet | Probe dApp | Connect with Vela | 127.0.0.1:8083 | Account | Parallel One | 0xD400866e00B055B20752a826CD5C89b811de130b | This site can view your wallet address and request signatures. Every signature still requires your approval. | Connect | Cancel'. web-request.tsx:300-313. This is the whole web-SDK trust moment — the identity row (Vela logo · Link2 mark · dApp logo/monogram), the green ShieldCheck origin pill and the account box — and none of it appears on any boarded screen.",
+   "reach": "Opener/popup handshake with the parallel wallet armed (goto /parallel first, then the opener page), INIT with {method:'eth_requestAccounts',params:[],chainId:100} and no prior grant for the origin. Post-conditions: expect 'Connect with Vela'; forbid 'Network not supported'."
+  },
+  {
+   "planned": "S/web-request/done",
+   "final": "EXCLUDE",
+   "proposed": "EXCLUDE",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Covered by S/web-request/waiting: both are the SAME JSX branch (web-request.tsx:334-341, the final else) and differ only in the interpolated title string — 'Done' vs 'Connecting securely…' — with identical brand block, identical ActivityIndicator and the identical note 'You can close this window after it finishes.' This is exactly the precedent already applied in this project when S/web-request/unavailable was removed ('web-request.tsx sets phase=error for both its messages. One board, two copy variants', generator/audit-report.md:157-159). It is also a ~250ms picture: respond() sets phase 'done' then closePopupSoon() closes the window 250ms later (web-request.tsx:52-55, :82-84). VERIFIED: after clicking Connect the popup read 'Vela Wallet | Done | You can close this window after it finishes.' at +120ms and was CLOSED by +320ms. Record the title variant as a note on the waiting board.",
+   "challenge": "UPHELD — this is the one reason that survives the source. web-request.tsx:334-341 is a single else branch: velaBrand, ActivityIndicator size small color.accent.base, one title, one note. 'done' and 'waiting' take identical values for every element except the title string ('Done' vs 'Connecting securely…'); the note only changes for 'processing' (:339), and `identity` (the two-logo dApp row) is used solely by the consent / unsupported-chain / onboarding branches, never here. Same pixels, one word — the exact precedent recorded at audit-report.md:157-159 for S/web-request/unavailable, and consis"
+  },
+  {
+   "planned": "S/web-request/error",
+   "final": "ALREADY_BOARDED",
+   "proposed": "ALREADY_BOARDED",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "Board S/web-request/error exists (region-maps/web-request-error-no-session.json, dom-dumps/screens/web-request-error-no-session.json). RAN /web-request with no session param today: 'Vela Wallet | Request unavailable | Invalid Vela request session. | Close' — matches the dump. NOTE FOR THE ORCHESTRATOR, not a decision on a planned cell: the file ALSO carries S/web-request/unavailable (region-maps/web-request-unavailable.json), which the manifest does not plan and which is the same picture — same route, same phase, same four strings, same layout; the two dumps differ only in frame height (806 vs 844, two capture generations) and dump verbosity. audit-boards-distinct passed them because its fingerprint includes geometry that the height change moved. audit-report.md:157 already recorded deleting that board once; it is back. Recommend removing S/web-request/unavailable and folding its copy variants into the error board's notes — phase 'error' has at least five triggers under one layout: 'Invalid Vela request session.', 'Open this page from a dApp using the Vela SDK.' (VERIFIED by loading /web-request?session=abc123 in a tab with no opener), 4100 'Connect Vela Wallet to this site first', 4100 'The requested account is no longer authorized', and 4001 'Vela request was closed'."
+  },
+  {
+   "planned": "S/web-request/onboarding",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running it: 'Vela Wallet | Probe dApp | Set up Vela to continue | Create or recover your wallet. Your connection request from Probe dApp will continue automatically. | vela | Your keys, your coins. | Simple as a tap. | Create Wallet | I already have a wallet'. This is web-request.tsx:282-295 — the dApp-identity context header stacked ABOVE an embedded OnboardingScreen. It is genuinely distinct from S/onboarding/welcome: the header is the only place in the app that says a dApp request will resume after wallet creation.",
+   "reach": "Same opener/popup handshake as 'waiting', but in a context with NO wallet (never visited /parallel, never onboarded) and DO send VELA_WEB_INIT with request {id,method:'eth_requestAccounts',params:[],chainId:100}. Post-conditions: expect 'Set up Vela to continue'; forbid 'Connect with Vela'."
+  },
+  {
+   "planned": "S/web-request/processing",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running it: 'Vela Wallet | Confirm in Vela | Review the request in the Vela confirmation sheet. | … | 127.0.0.1:8083 | Gnosis | SIGN MESSAGE | Hello from a probe | Technical details | Signing account | Parallel One | Sign' — stable across +6s/+2.5s/+4s. web-request.tsx:195-208 + :334-341. Unlike 'done' this is NOT a title swap: the note text differs too, and the SigningRequestModal is stacked over the popup shell, which is the only picture in the file of how a web-SDK signature is confirmed.",
+   "reach": "Two popups in ONE context: (1) handshake eth_requestAccounts and click 'Connect' so the origin holds a grant; (2) second popup, INIT with {method:'personal_sign', params:[msgHex, fixtureAddr], chainId:100, address: fixtureAddr}. Post-conditions: expect 'Confirm in Vela|Review the request in the Vela confirmation sheet'."
+  },
+  {
+   "planned": "S/web-request/unsupported-chain",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running it: 'Vela Wallet | Probe dApp | Network not supported | Probe dApp requested Chain ID 999999. Vela cannot safely process this request. | Networks available in Vela | Ethereum (1) · BNB Chain (56) · Polygon (137) · Arbitrum (42161) · Optimism (10) · Base (8453) · Avalanche (43114) · Gnosis (100) · Unichain (130) · Tempo (4217) · Monad (143) · World Chain (480) | Close'. web-request.tsx:314-325. Load-bearing: this is the only surface anywhere in the design source that renders the full supported-network list, and it is the app's only chain-refusal card.",
+   "reach": "Same handshake as 'consent' but INIT with chainId: 999999. Post-conditions: expect 'Network not supported'; expectRe 'Chain ID 999999'."
+  },
+  {
+   "planned": "S/web-request/waiting",
+   "final": "KEEP",
+   "proposed": "KEEP",
+   "group": "S/browser (8) · S/connect (7) · S/web-request (7) · S/safari",
+   "why": "VERIFIED by running it: popup showed 'Vela Wallet | Connecting securely… | You can close this window after it finishes.' at +1.5s and +3s and stays there indefinitely (the announce interval at web-request.tsx:105-109 just keeps re-posting READY). isAllowedWebDAppOrigin (web-popup-transport.ts:75-83) accepts http on 127.0.0.1, so no external dApp is needed. Frame check: the 390px phone frame does NOT exist at popup width 440 but DOES at 1280 ('FRAME 390x844'), so capture is feasible after a setViewportSize.",
+   "reach": "Open an opener page on the same (allowed) origin — any 127.0.0.1:8083 route — then window.open('/web-request?session=<id>') and never send VELA_WEB_INIT. Resize the popup to 1280 wide before capture. Post-conditions: expect 'Connecting securely'; forbid 'Connect with Vela'."
+  }
+ ]
+}

@@ -1,0 +1,22 @@
+{
+ "slug": "network-editor-collapsed",
+ "board": "O/network-editor/collapsed",
+ "frame": {
+  "w": 390,
+  "h": 1154
+ },
+ "regions": [
+  {
+   "name": "sheet",
+   "paths": [
+    "0"
+   ]
+  },
+  {
+   "name": "sheet",
+   "paths": [
+    "1"
+   ]
+  }
+ ]
+}

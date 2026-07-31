@@ -84,21 +84,32 @@ describe('web i18n adapter', () => {
   });
 
   it('actually ROUTES i18n.t through the engine — provable despite FR-016', () => {
-    // This is the hard one. Under FR-016 the seam returns the oracle whenever the
-    // two disagree, so for every key where they agree — which is all of them —
-    // the rendered string is identical whether or not the seam is installed.
-    // Output comparison therefore cannot detect a seam that was never wired up.
+    // This is the hard one, and my first attempt at it was wrong.
     //
-    // There is exactly one observable difference, and it is the divergence
-    // research D6 predicted: i18next has all 15 locales BUNDLED, while the engine
-    // holds `en` plus at most one other. So a per-call `lng` for a locale that is
-    // not resident renders English on the engine and the real translation on
-    // i18next. FR-006 forwards `lng` rather than stripping it precisely so this
-    // stays visible.
-    expect(oracle.t('common.cancel', { lng: 'fr' })).toBe('Annuler');
-    expect(i18n.t('common.cancel', { lng: 'fr' })).toBe('Cancel');
+    // Under FR-016 the seam returns the ORACLE's result. For every key where the
+    // engines agree — which is all of them — the rendered string is identical
+    // whether or not the seam is installed, so no output assertion can detect a
+    // seam that was never wired up. I first probed the one behavioural
+    // difference (the engine holds `en` plus one locale, i18next has all 15
+    // bundled, so a per-call `lng` diverges). That worked only while dispatch was
+    // rust-first; installing the harness made the seam return the oracle for that
+    // case too, and the probe started passing for the wrong reason.
+    //
+    // The robust proof is the harness's own counter: if `i18n.t` routes through
+    // the seam, comparisons happen. If it does not, the count stays at zero.
+    const diag = web.i18nDiagnostics;
+    const previous = diag.harnessReport().mode;
+    diag.setHarnessMode('every');
+    diag.resetHarness();
+    try {
+      i18n.t('common.cancel');
+      i18n.t('send.recipientCount', { count: 2 });
+      expect(diag.harnessReport().compared).toBe(2);
+    } finally {
+      diag.setHarnessMode(previous);
+    }
 
-    // And the ordinary path still renders correctly.
+    // The rendered value is still correct either way.
     expect(i18n.t('common.cancel')).toBe('Cancel');
   });
 
@@ -260,6 +271,45 @@ describe('web i18n adapter', () => {
     // (…tr, ru, es-MX… vs …tr, es-MX, …, ru, it); asserting order fails on day one.
     expect([...rust].sort()).toEqual([...SUPPORTED_LANGUAGES].sort());
   });
+
+  it('sweeps every key in every language THROUGH THE SEAM with zero divergences', async () => {
+    // The proving-ground assertion. `scripts/verify-i18n-parity.mjs` already
+    // replays 67,115 comparisons offline and proves the ENGINE; this proves the
+    // ADOPTION — it runs through the installed seam in the assembled module, so
+    // it exercises the normaliser, the catalog the store actually made resident,
+    // the `lng` react-i18next stamps on hook traffic, and the harness itself.
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const lng = /\/i18n\/([^.]+)\.json/.exec(String(input))?.[1] ?? '';
+      return new Response(readFileSync(join(REPO, 'public/i18n', `${lng}.json`)), { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const { setLanguagePreference } = web;
+      const diag = web.i18nDiagnostics;
+      diag.resetHarness();
+
+      let totalCompared = 0;
+      const allDivergences: unknown[] = [];
+
+      for (const lng of LOCALES) {
+        const effective = await setLanguagePreference(lng);
+        expect(effective).toBe(lng); // the switch must actually have happened
+
+        diag.resetHarness();
+        const report = diag.sweep();
+        totalCompared += report.compared;
+        allDivergences.push(...report.divergences);
+      }
+
+      expect(allDivergences).toEqual([]);
+      expect(totalCompared).toBe(LOCALES.length * KEYS.length);
+      expect(diag.residentLocales().sort()).toEqual(['en', 'it'].sort()); // last locale + en
+    } finally {
+      globalThis.fetch = realFetch;
+      await web.setLanguagePreference('en');
+    }
+  }, 60_000);
 
   it('exposes the same surface as the native module, plus web-only diagnostics', async () => {
     const native = await import('@/i18n');

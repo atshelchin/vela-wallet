@@ -85,13 +85,12 @@ export class CatalogFetchError extends Error {
 }
 
 export function createCatalogStore(deps: CatalogStoreDeps): CatalogStore {
-  const {
-    engine,
-    buildId,
-    fetchImpl = globalThis.fetch,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-    fallback = 'en',
-  } = deps;
+  const { engine, buildId, fetchImpl, timeoutMs = DEFAULT_TIMEOUT_MS, fallback = 'en' } = deps;
+
+  // Resolved per call, NOT captured at construction. The store is built at module
+  // import, so capturing `globalThis.fetch` then would freeze whatever existed at
+  // that instant — invisible to a later polyfill, and untestable.
+  const resolveFetch = () => fetchImpl ?? globalThis.fetch;
 
   // Insertion-ordered, so the first key is the least recently used.
   const cache = new Map<string, Uint8Array>();
@@ -119,7 +118,8 @@ export function createCatalogStore(deps: CatalogStoreDeps): CatalogStore {
   }
 
   async function fetchCatalog(lng: string): Promise<Uint8Array> {
-    if (!fetchImpl) {
+    const doFetch = resolveFetch();
+    if (!doFetch) {
       throw new CatalogFetchError(lng, 'no fetch implementation available');
     }
     const url = `/i18n/${lng}.json?v=${encodeURIComponent(buildId)}`;
@@ -136,11 +136,14 @@ export function createCatalogStore(deps: CatalogStoreDeps): CatalogStore {
         controller.abort();
         reject(new CatalogFetchError(lng, `catalog ${lng} timed out after ${timeoutMs}ms`));
       }, timeoutMs);
+      // A pending catalog timeout must never be a reason for the process to stay
+      // alive. Node-only; browsers return a number with no `unref`.
+      (timer as unknown as { unref?: () => void }).unref?.();
     });
 
     let res: Response;
     try {
-      res = await Promise.race([fetchImpl(url, { signal: controller.signal }), timeout]);
+      res = await Promise.race([doFetch(url, { signal: controller.signal }), timeout]);
     } catch (cause) {
       if (cause instanceof CatalogFetchError) throw cause;
       throw new CatalogFetchError(lng, `catalog request failed: ${String(cause)}`);

@@ -20,6 +20,7 @@ import i18n, { setBeforeLanguageChange, type AppLanguage } from './shared';
 import { en } from './resources';
 import { createCatalogStore, type CatalogEngine } from './catalog-store';
 import { createSeam, type SeamEngine } from './seam';
+import { createDiffHarness, type HarnessMode, type HarnessReport } from './diff-harness';
 import { GIT_COMMIT } from '@/constants/build-info';
 
 // `initSync` is the NAMED export; the default export is the async loader, whose
@@ -91,6 +92,16 @@ if (!i18n.isInitialized) {
 const oracleT = i18n.t.bind(i18n);
 const oracleExists = i18n.exists.bind(i18n);
 
+// The harness sits INSIDE the seam's dispatch step and receives already-normalised
+// arguments. Default `first-seen` in development: an input is compared until the
+// two engines agree once, then trusted — which keeps the rare dynamic-key and
+// error-path calls under comparison indefinitely, since those are exactly the ones
+// the offline replay never sees. Sampling was rejected for the opposite reason.
+const harness = createDiffHarness({
+  language: () => catalogs.engineLanguage(),
+  mode: __DEV__ ? 'first-seen' : 'off',
+});
+
 const seam = createSeam({
   engine: engine as unknown as SeamEngine,
   oracleT: oracleT as unknown as (key: unknown, opts?: unknown) => unknown,
@@ -98,6 +109,7 @@ const seam = createSeam({
   overloadHandler: i18n.options.overloadTranslationOptionHandler as unknown as (
     args: unknown[],
   ) => Record<string, unknown> | undefined,
+  dispatch: harness.dispatch,
 });
 
 // The two assignments. `t` is reached by react-i18next through `getFixedT`'s live
@@ -113,10 +125,50 @@ i18n.exists = seam.exists as typeof i18n.exists;
 /** Which implementation is serving translations in this bundle. */
 export const I18N_BACKEND: 'rust-wasm' | 'js-i18next' = 'rust-wasm';
 
-/** Dev diagnostics over the engine's residency accounting. */
+/** Dev diagnostics over the engine's residency accounting and the harness. */
 export const i18nDiagnostics = {
   engineLanguage: () => catalogs.engineLanguage(),
   residentLocales: () => catalogs.residentLocales(),
   residentBytes: () => catalogs.residentBytes(),
   cachedLocales: () => catalogs.cachedLocales(),
+  /** `'off' | 'first-seen' | 'every'`. Tests MUST set this rather than inherit it. */
+  setHarnessMode: (mode: HarnessMode) => harness.setMode(mode),
+  harnessReport: () => harness.report(),
+  resetHarness: () => harness.reset(),
+  /** Every key x the active language, through both engines, in one pass (T060). */
+  sweep: () => sweepActiveLanguage(),
 };
+
+/**
+ * Resolve every key in the corpus through the seam at the current language.
+ *
+ * What this adds over `scripts/verify-i18n-parity.mjs`, which already replays
+ * 17,115 exhaustive plus 50,000 fuzzed comparisons offline: this one runs
+ * **through the installed seam, in the running app**, so it exercises the
+ * normaliser, the `lng` react-i18next stamps on every hook call, the catalog the
+ * store actually made resident, and the harness itself. The offline script proves
+ * the engine; this proves the adoption.
+ */
+function sweepActiveLanguage(): HarnessReport {
+  const keys: string[] = [];
+  (function walk(o: unknown, prefix: string) {
+    for (const [k, v] of Object.entries(o as Record<string, unknown>)) {
+      const p = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === 'object' && !Array.isArray(v)) walk(v, p);
+      else keys.push(p);
+    }
+  })(en, '');
+
+  const previous = harness.getMode();
+  harness.setMode('every');
+  // The typed-key union cannot see that these keys came from the corpus itself —
+  // they are enumerated from `en`, which is the same object the union derives
+  // from, so every one of them is valid by construction.
+  const t = i18n.t as unknown as (key: string) => string;
+  try {
+    for (const key of keys) t(key);
+  } finally {
+    harness.setMode(previous);
+  }
+  return harness.report();
+}

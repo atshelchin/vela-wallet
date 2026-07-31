@@ -159,6 +159,17 @@ async function captureStates(group, baseline) {
       window.vela[s.fn].apply(window.vela, s.args || []);
       return sleep(s.ms || 300);
     }
+    if (s.act === 'call') {
+      // A NAMED global, with JSON arguments — not arbitrary code. Some dev seams sit outside the
+      // window.vela namespace: useHomeController exposes window.velaSimulateReceipt, and it is the
+      // only way to put a real ActivityRow on Home, because the fixture wallet has no history and
+      // no vela.* command seeds one. Without this the file's own Home board is the EMPTY feed and
+      // an ActivityRow appears in context nowhere at all.
+      const fn = window[s.fn];
+      if (typeof fn !== 'function') throw new Error('no global function window.' + s.fn);
+      await fn.apply(window, s.args || []);
+      return sleep(s.ms || 600);
+    }
     if (s.act === 'clickNth') {
       // Positional, for controls whose label is the very thing a state changes: tapping the balance
       // hero masks it, so after the first tap there is no "$3.19" left to match on.

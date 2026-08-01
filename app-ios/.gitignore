@@ -24,3 +24,6 @@ Carthage/Build/
 *.mobileprovision
 *.p12
 *.cer
+
+# VelaCoreKit binary artifacts — built by rust/scripts/build-ios-xcframework.sh
+VelaCoreKit/Artifacts/

@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "Tus llaves, tus monedas.\nTan fácil como un toque.",
       "createWallet": "Crear billetera",
-      "alreadyHaveWallet": "Ya tengo una billetera"
+      "alreadyHaveWallet": "Ya tengo una billetera",
+      "desktopTagline": "Tus llaves, tus activos",
+      "featureNoMnemonicTitle": "Sin frase semilla",
+      "featureNoMnemonicBody": "Crea e inicia sesión con una passkey en tu dispositivo — sin 12 palabras que anotar y resguardar.",
+      "featureOneAddressTitle": "Una dirección, 12+ redes",
+      "featureOneAddressBody": "La misma dirección funciona en todas las redes compatibles, y puedes agregar las tuyas.",
+      "featureOpenSourceTitle": "Código abierto y autohospedable",
+      "featureOpenSourceBody": "La app y los servicios de backend son de código abierto — puedes desplegar una infraestructura completamente tuya.",
+      "featureKeyCustodyTitle": "Llaves en tu gestor de contraseñas",
+      "featureKeyCustodyBody": "Tus passkeys quedan guardadas en Contraseñas de Apple o en el Administrador de contraseñas de Google — Vela nunca las toca.",
+      "featureSafeContractTitle": "Contratos Safe v1.4.1",
+      "featureSafeContractBody": "Las cuentas se basan en contratos Safe auditados, no en una implementación propia.",
+      "featureStablecoinGasTitle": "Paga el gas con monedas estables",
+      "featureStablecoinGasBody": "La mayoría de las redes permiten pagar las comisiones con monedas estables — no necesitas conseguir antes la moneda nativa."
     },
     "settings": {
       "title": "Ajustes",

@@ -454,7 +454,20 @@
   "welcome": {
    "tagline": "您的金鑰，您的幣。\n輕輕一點就搞定。",
    "createWallet": "建立錢包",
-   "alreadyHaveWallet": "我已經有錢包了"
+   "alreadyHaveWallet": "我已經有錢包了",
+   "desktopTagline": "您的金鑰，您的資產",
+   "featureNoMnemonicTitle": "不用助記詞",
+   "featureNoMnemonicBody": "用裝置上的通行密鑰建立與登入，沒有 12 個單字要抄寫和保管。",
+   "featureOneAddressTitle": "一個地址，12+ 網路",
+   "featureOneAddressBody": "同一個地址在所有支援的網路上都通用，也可以自行新增網路。",
+   "featureOpenSourceTitle": "全部開源，可自行架設",
+   "featureOpenSourceBody": "App 與後端服務都開源，您可以架設完全屬於自己的一套。",
+   "featureKeyCustodyTitle": "私鑰在您的密碼管理工具裡",
+   "featureKeyCustodyBody": "通行密鑰由 Apple 密碼或 Google 密碼管理工具保管，Vela 永遠無法存取。",
+   "featureSafeContractTitle": "合約採用 Safe v1.4.1",
+   "featureSafeContractBody": "帳戶基於經過審計的 Safe 合約，而非自行開發的實作。",
+   "featureStablecoinGasTitle": "用穩定幣付 gas",
+   "featureStablecoinGasBody": "多數網路支援用穩定幣支付手續費，不必先準備原生幣。"
   },
   "settings": {
    "title": "設定",

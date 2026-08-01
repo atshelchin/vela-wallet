@@ -461,7 +461,20 @@
   "welcome": {
    "tagline": "您的密钥，您的资产。\n轻触即可完成。",
    "createWallet": "创建钱包",
-   "alreadyHaveWallet": "我已有钱包"
+   "alreadyHaveWallet": "我已有钱包",
+   "desktopTagline": "您的密钥，您的资产",
+   "featureNoMnemonicTitle": "不用助记词",
+   "featureNoMnemonicBody": "用设备上的通行密钥创建和登录，没有 12 个单词要抄写和保管。",
+   "featureOneAddressTitle": "一个地址，12+ 网络",
+   "featureOneAddressBody": "同一个地址在所有支持的网络通用，也可以自己添加网络。",
+   "featureOpenSourceTitle": "全部开源，可自建",
+   "featureOpenSourceBody": "App 与后端服务都开源，你可以部署完全属于自己的一套。",
+   "featureKeyCustodyTitle": "私钥在你的密码本里",
+   "featureKeyCustodyBody": "通行密钥由 Apple 密码或 Google 密码管理器保管，Vela 接触不到。",
+   "featureSafeContractTitle": "合约用 Safe v1.4.1",
+   "featureSafeContractBody": "账户基于经过审计的 Safe 合约，不是自研实现。",
+   "featureStablecoinGasTitle": "用稳定币付 gas",
+   "featureStablecoinGasBody": "多数网络支持用稳定币支付手续费，不用先备一份原生币。"
   },
   "settings": {
    "title": "设置",

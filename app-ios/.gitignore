@@ -11,8 +11,9 @@ build/
 *.dSYM.zip
 *.dSYM
 
-# Swift Package Manager — local resolution state
+# Swift Package Manager — local resolution state + build output
 .swiftpm/
+.build/
 Packages/
 *.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 
@@ -24,3 +25,6 @@ Carthage/Build/
 *.mobileprovision
 *.p12
 *.cer
+
+# VelaCoreKit binary artifacts — built by rust/scripts/build-ios-xcframework.sh
+VelaCoreKit/Artifacts/

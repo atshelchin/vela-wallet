@@ -457,7 +457,20 @@
   "welcome": {
    "tagline": "Vos clés, vos cryptos.\nSimple comme un geste.",
    "createWallet": "Créer un portefeuille",
-   "alreadyHaveWallet": "J'ai déjà un portefeuille"
+   "alreadyHaveWallet": "J'ai déjà un portefeuille",
+   "desktopTagline": "Vos clés, vos actifs",
+   "featureNoMnemonicTitle": "Sans phrase de récupération",
+   "featureNoMnemonicBody": "Créez votre portefeuille et connectez-vous avec une clé d'accès sur votre appareil — aucune phrase de 12 mots à noter et à protéger.",
+   "featureOneAddressTitle": "Une adresse, 12+ réseaux",
+   "featureOneAddressBody": "La même adresse fonctionne sur tous les réseaux pris en charge, et vous pouvez ajouter les vôtres.",
+   "featureOpenSourceTitle": "Open source, auto-hébergeable",
+   "featureOpenSourceBody": "L'application et les services backend sont open source — vous pouvez déployer une infrastructure entièrement à vous.",
+   "featureKeyCustodyTitle": "Vos clés dans votre gestionnaire de mots de passe",
+   "featureKeyCustodyBody": "Les clés d'accès sont conservées par le Trousseau iCloud ou le Gestionnaire de mots de passe Google — Vela n'y a jamais accès.",
+   "featureSafeContractTitle": "Contrats Safe v1.4.1",
+   "featureSafeContractBody": "Les comptes reposent sur des contrats Safe audités, et non sur une implémentation maison.",
+   "featureStablecoinGasTitle": "Payez le gas en stablecoins",
+   "featureStablecoinGasBody": "La plupart des réseaux permettent de payer les frais en stablecoins — inutile de détenir d'abord la pièce native."
   },
   "welcomeWeb": {
    "meta": {

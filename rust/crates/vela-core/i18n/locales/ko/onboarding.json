@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "내 키, 내 코인.\n탭 한 번이면 충분해요.",
       "createWallet": "지갑 만들기",
-      "alreadyHaveWallet": "이미 지갑이 있어요"
+      "alreadyHaveWallet": "이미 지갑이 있어요",
+      "desktopTagline": "내 키, 내 자산",
+      "featureNoMnemonicTitle": "시드 문구 없음",
+      "featureNoMnemonicBody": "기기의 패스키로 지갑을 만들고 로그인하므로, 12개 단어를 적어 두고 보관할 필요가 없습니다.",
+      "featureOneAddressTitle": "하나의 주소, 12+ 네트워크",
+      "featureOneAddressBody": "같은 주소는 지원되는 모든 네트워크에서 작동하며, 원하는 네트워크를 직접 추가할 수도 있습니다.",
+      "featureOpenSourceTitle": "오픈소스, 셀프 호스팅 가능",
+      "featureOpenSourceBody": "앱과 백엔드 서비스가 모두 오픈소스라서, 온전히 나만의 스택을 직접 운영할 수 있습니다.",
+      "featureKeyCustodyTitle": "개인 키는 비밀번호 관리자에",
+      "featureKeyCustodyBody": "패스키는 iCloud 키체인 또는 Google 비밀번호 관리자가 보관하며, Vela는 절대 접근할 수 없습니다.",
+      "featureSafeContractTitle": "컨트랙트는 Safe v1.4.1",
+      "featureSafeContractBody": "계정은 자체 구현이 아니라 감사를 거친 Safe 컨트랙트를 기반으로 합니다.",
+      "featureStablecoinGasTitle": "가스비는 스테이블코인으로",
+      "featureStablecoinGasBody": "대부분의 네트워크에서 수수료를 스테이블코인으로 낼 수 있어, 네이티브 코인을 미리 준비해 둘 필요가 없습니다."
     },
     "welcomeWeb": {
       "meta": {

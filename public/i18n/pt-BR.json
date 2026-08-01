@@ -457,7 +457,20 @@
   "welcome": {
    "tagline": "Suas chaves, suas moedas.\nSimples como um toque.",
    "createWallet": "Criar carteira",
-   "alreadyHaveWallet": "Já tenho uma carteira"
+   "alreadyHaveWallet": "Já tenho uma carteira",
+   "desktopTagline": "Suas chaves, seus ativos",
+   "featureNoMnemonicTitle": "Sem frase de recuperação",
+   "featureNoMnemonicBody": "Crie e entre com uma passkey no seu dispositivo — sem 12 palavras para anotar e guardar.",
+   "featureOneAddressTitle": "Um endereço, 12+ redes",
+   "featureOneAddressBody": "O mesmo endereço funciona em todas as redes compatíveis, e você pode adicionar suas próprias redes.",
+   "featureOpenSourceTitle": "Código aberto, auto-hospedável",
+   "featureOpenSourceBody": "O app e os serviços de backend são de código aberto — você pode rodar uma infraestrutura totalmente sua.",
+   "featureKeyCustodyTitle": "As chaves ficam no seu gerenciador de senhas",
+   "featureKeyCustodyBody": "As passkeys são guardadas pelo Chaveiro do iCloud ou pelo Gerenciador de Senhas do Google — a Vela nunca tem acesso a elas.",
+   "featureSafeContractTitle": "Contratos Safe v1.4.1",
+   "featureSafeContractBody": "As contas são construídas sobre contratos Safe auditados, não sobre uma implementação própria.",
+   "featureStablecoinGasTitle": "Pague o gas com stablecoins",
+   "featureStablecoinGasBody": "A maioria das redes permite pagar as taxas com stablecoins — sem precisar ter a moeda nativa antes."
   },
   "welcomeWeb": {
    "meta": {

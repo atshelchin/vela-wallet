@@ -461,7 +461,20 @@
   "welcome": {
    "tagline": "Your keys, your coins.\nSimple as a tap.",
    "createWallet": "Create Wallet",
-   "alreadyHaveWallet": "I already have a wallet"
+   "alreadyHaveWallet": "I already have a wallet",
+   "desktopTagline": "Your keys, your assets",
+   "featureNoMnemonicTitle": "No seed phrase",
+   "featureNoMnemonicBody": "Create and sign in with a passkey on your device — no 12 words to copy down and guard.",
+   "featureOneAddressTitle": "One address, 12+ networks",
+   "featureOneAddressBody": "The same address works on every supported network, and you can add your own.",
+   "featureOpenSourceTitle": "Open source, self-hostable",
+   "featureOpenSourceBody": "The app and backend services are open source — you can run a stack that is entirely your own.",
+   "featureKeyCustodyTitle": "Keys live in your password manager",
+   "featureKeyCustodyBody": "Passkeys are kept by Apple Passwords or Google Password Manager — Vela never touches them.",
+   "featureSafeContractTitle": "Safe v1.4.1 contracts",
+   "featureSafeContractBody": "Accounts are built on audited Safe contracts, not a custom implementation.",
+   "featureStablecoinGasTitle": "Pay gas in stablecoins",
+   "featureStablecoinGasBody": "Most networks let you pay fees in stablecoins — no need to hold the native coin first."
   },
   "welcomeWeb": {
    "meta": {

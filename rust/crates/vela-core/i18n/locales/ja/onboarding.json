@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "鍵もコインも、あなたのもの。\nタップするだけのかんたんさ。",
       "createWallet": "ウォレットを作成",
-      "alreadyHaveWallet": "すでにウォレットを持っています"
+      "alreadyHaveWallet": "すでにウォレットを持っています",
+      "desktopTagline": "あなたの鍵、あなたの資産",
+      "featureNoMnemonicTitle": "リカバリーフレーズ不要",
+      "featureNoMnemonicBody": "端末のパスキーで作成・サインインでき、12 個の単語を書き写して保管する必要はありません。",
+      "featureOneAddressTitle": "ひとつのアドレス、12+ ネットワーク",
+      "featureOneAddressBody": "同じアドレスを対応するすべてのネットワークで利用でき、自分でネットワークを追加することもできます。",
+      "featureOpenSourceTitle": "オープンソース、セルフホスト可能",
+      "featureOpenSourceBody": "アプリもバックエンドサービスもオープンソースで、完全に自分だけの一式を運用できます。",
+      "featureKeyCustodyTitle": "秘密鍵はパスワードマネージャーに",
+      "featureKeyCustodyBody": "パスキーは iCloud キーチェーンまたは Google パスワード マネージャーが保管し、Vela がアクセスすることは一切ありません。",
+      "featureSafeContractTitle": "コントラクトは Safe v1.4.1",
+      "featureSafeContractBody": "アカウントは監査済みの Safe コントラクトの上に構築されており、独自実装ではありません。",
+      "featureStablecoinGasTitle": "ガス代はステーブルコインで",
+      "featureStablecoinGasBody": "ほとんどのネットワークで手数料をステーブルコインで支払えるので、先にネイティブコインを用意しておく必要はありません。"
     },
     "welcomeWeb": {
       "meta": {

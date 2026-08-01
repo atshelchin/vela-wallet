@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "Kunci Anda, koin Anda.\nSemudah satu ketukan.",
       "createWallet": "Buat Dompet",
-      "alreadyHaveWallet": "Saya sudah punya dompet"
+      "alreadyHaveWallet": "Saya sudah punya dompet",
+      "desktopTagline": "Kunci Anda, aset Anda",
+      "featureNoMnemonicTitle": "Tanpa seed phrase",
+      "featureNoMnemonicBody": "Buat dan masuk dengan passkey di perangkat Anda — tanpa 12 kata yang harus dicatat dan dijaga.",
+      "featureOneAddressTitle": "Satu alamat, 12+ jaringan",
+      "featureOneAddressBody": "Alamat yang sama berlaku di semua jaringan yang didukung, dan Anda dapat menambahkan jaringan sendiri.",
+      "featureOpenSourceTitle": "Open source, bisa di-host sendiri",
+      "featureOpenSourceBody": "Aplikasi dan layanan backend-nya sama-sama open source — Anda dapat menjalankan stack yang sepenuhnya milik Anda sendiri.",
+      "featureKeyCustodyTitle": "Kunci ada di pengelola kata sandi Anda",
+      "featureKeyCustodyBody": "Passkey disimpan oleh Apple Passwords atau Google Password Manager — Vela tidak pernah dapat mengaksesnya.",
+      "featureSafeContractTitle": "Kontrak Safe v1.4.1",
+      "featureSafeContractBody": "Akun dibangun di atas kontrak Safe yang telah diaudit, bukan implementasi buatan sendiri.",
+      "featureStablecoinGasTitle": "Bayar gas dengan stablecoin",
+      "featureStablecoinGasBody": "Sebagian besar jaringan memungkinkan Anda membayar biaya dengan stablecoin — tidak perlu menyiapkan koin native lebih dulu."
     },
     "welcomeWeb": {
       "meta": {

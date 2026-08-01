@@ -102,7 +102,11 @@ fun WelcomeScreen(
                     enter = fadeIn(tween(VelaMotion.entranceFade)),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Spacer(modifier = Modifier.height(region * 0.28f))
+                        // Whitespace fractions sit below the mock's rhythm on purpose:
+                        // the pager is pinned to the TALLEST card, so the card zone
+                        // needs the extra room to clear the pinned CTA stack on
+                        // compact/large-font devices.
+                        Spacer(modifier = Modifier.height(region * 0.20f))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.combinedClickable(
@@ -135,7 +139,7 @@ fun WelcomeScreen(
                             fontSize = VelaTextSize.xl,
                             textAlign = TextAlign.Center,
                         )
-                        Spacer(modifier = Modifier.height(region * 0.22f))
+                        Spacer(modifier = Modifier.height(region * 0.12f))
                     }
                 }
                 AnimatedVisibility(
@@ -148,6 +152,10 @@ fun WelcomeScreen(
                             state = pagerState,
                             pageSpacing = VelaSpacing.lg,
                             verticalAlignment = Alignment.Top,
+                            // Keep all six pages composed so the pager's height is the
+                            // TALLEST card ("row height = tallest, wrap not clip"):
+                            // the dots row below never shifts while swiping.
+                            beyondViewportPageCount = WelcomeCards.size - 1,
                             modifier = Modifier.fillMaxWidth(),
                         ) { page ->
                             WelcomeFeatureCard(card = WelcomeCards[page])

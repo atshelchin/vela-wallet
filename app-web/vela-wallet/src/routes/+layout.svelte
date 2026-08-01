@@ -1,8 +1,15 @@
 <script lang="ts">
-	import type { Pathname } from '$app/types';
-	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
-	import { locales, localizeHref } from '$lib/paraglide/runtime';
+	import '@fontsource/plus-jakarta-sans/400.css';
+	import '@fontsource/plus-jakarta-sans/500.css';
+	import '@fontsource/plus-jakarta-sans/600.css';
+	import '@fontsource/plus-jakarta-sans/700.css';
+	import '@fontsource/noto-sans-sc/400.css';
+	import '@fontsource/noto-sans-sc/500.css';
+	import '@fontsource/noto-sans-sc/700.css';
+	import '@fontsource/ibm-plex-mono/400.css';
+	import '@fontsource/ibm-plex-mono/500.css';
+	import '$lib/tokens/tokens.css';
+	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 
 	let { children } = $props();
@@ -10,9 +17,3 @@
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 {@render children()}
-
-<div style="display:none">
-	{#each locales as locale (locale)}
-		<a href={resolve(localizeHref(page.url.pathname, { locale }) as Pathname)}>{locale}</a>
-	{/each}
-</div>

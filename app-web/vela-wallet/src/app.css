@@ -1,0 +1,31 @@
+/* Global base — every visual value comes from the token layer. */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	min-height: 100dvh;
+	background: var(--color-bg-base);
+	color: var(--color-fg-base);
+	font-family: var(--font-ui);
+	font-size: var(--text-lg);
+	line-height: var(--leading-normal);
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+a {
+	color: inherit;
+}
+
+:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 var(--space-xs) var(--color-fixed-focusRingInner),
+		0 0 0 var(--space-sm) var(--color-fixed-focusRingOuter);
+	border-radius: var(--radius-sm);
+}

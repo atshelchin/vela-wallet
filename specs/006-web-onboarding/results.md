@@ -28,10 +28,11 @@ page. Four pieces:
    composition only.
 4. **Welcome page** — mobile `<1280px` (centered brand, single-card carousel +
    6-dot pager, bottom CTA stack) and desktop `≥1280px` (brand + tagline +
-   2×3 grid left; raised action pane right with divider + quiet passkey-index
-   link — founder confirmed 2026-08-01 this block stays in the action pane in
-   both modes). Placeholder destinations: `create`, `import`,
-   `settings/passkey-index`.
+   2×3 grid left; raised action pane right). Brand mark + wordmark share one
+   row on both layouts. The passkey-index link and its divider were REMOVED
+   per founder direction (2026-08-01, superseding the earlier keep); the
+   corpus string `onboarding.welcomeWeb.passkeyIndexLink` is retained for the
+   future settings screen. Placeholder destinations: `create`, `import`.
 
 File map: `app-web/vela-wallet/{scripts/gen-tokens.mjs, src/lib/{tokens,i18n,ui},
 src/routes/{+server.ts, [locale]/**}, src/{app.html,app.css,hooks.server.ts},
@@ -71,7 +72,7 @@ strings against the corpus catalogs.
 Mode: core + color-dark (base) / color-light (media/attribute override)
 Surface: color.bg.base (page, left pane) / color.bg.raised (cards, action pane)
 Text: fg.base (wordmark, card titles) / fg.muted (tagline, descriptions,
-      secondary CTA, quiet link) / fg.subtle (card numbers 01–06)
+      secondary CTA) / fg.subtle (card numbers 01–06)
 Layout: layout.screenPaddingX / space.2xl card padding / space.3xl section
         gaps / space.5xl desktop pane padding / radius.xl cards / radius.full CTAs
 Action: color.accent.base + --color-onAccent (primary CTA only) /
@@ -91,8 +92,8 @@ breakpoint.desktop, color.onAccent, opacity.hover
   `in→id`; unsupported→`/en`; unknown segment 404; JS-disabled content intact;
   `_worker.js` contains no `WASM_BASE64`.
 - Layout: no horizontal overflow at 320/375/768/1279/1280/1440/1920; 1279
-  mobile vs 1280 desktop structure; carousel pager; CTA + quiet-link
-  navigation round-trips.
+  mobile vs 1280 desktop structure; carousel pager; CTA navigation
+  round-trips; brand mark + wordmark single-row check.
 - Modes: computed body colors equal the token values in both schemes, both
   directions; WCAG AA contrast computed from token values for every used pair
   in both modes (thresholds per pair documented in `contrast.test.ts`).
@@ -108,12 +109,34 @@ breakpoint.desktop, color.onAccent, opacity.hover
 
 | Item | Status |
 |---|---|
-| Divider + passkey-index link shown in both modes and on mobile (absent from D1L/W1 mocks) | **Founder-approved 2026-08-01** ("这部分东西不需要移出它") — stays in the action pane |
+| Divider + passkey-index link | **Removed per founder 2026-08-01** ("删除 设置通行密钥索引服务", superseding the earlier keep); corpus key retained for the settings screen |
 | Primary/secondary CTA = pill (`radius.full`) in both modes; D1L light mock shows a smaller-radius rect | Deviation for consistency; flag if the light mock is authoritative |
 | `font.mono` = IBM Plex Mono (export) though design-system.md prose says JetBrains Mono | Export wins per the doc's own authority rule; doc prose should be corrected |
-| CTA label white-on-orange ≈ 3.6:1 — passes AA large-text (3:1), not normal-text (4.5:1) | Same treatment as the RN app; documented in contrast.test.ts; raise only if strict-AA-normal is wanted |
+| CTA label white-on-orange ≈ 3.6:1 — **fails strict AA normal-text (4.5:1)**, and at 17px/600 it does not qualify for the large-text 3:1 relaxation | Same treatment as the RN app; options: darken accent for the CTA / enlarge+embolden label / accept — **founder decision pending** (contrast.test.ts holds a 3:1 regression floor meanwhile) |
 | `SITE_ORIGIN = https://app.getvela.app` (hreflang/canonical absolute URLs) | **PROVISIONAL** — production domain is a founder decision; one constant in `src/lib/site.ts` |
 | 13 non-en/zh locale translations of `welcomeWeb.*` are best-effort | Needs the standing human-review sweep (same as project i18n history) |
 | Non-canonical-case locale URLs (`/ZH`) 404 rather than redirect | Prerender-only routes have no runtime matcher; acceptable, documented |
 | Root `npm run typecheck` + `web-react-binding.test.ts` fail on **HEAD** too (missing `@types/react-dom` in current node_modules) | Pre-existing, unrelated to this feature; left untouched |
 | `[locale]/+layout.svelte` omitted (planned in T014) | Root layout suffices; a locale layout adds a file with no behavior today |
+| Noto Sans SC serves as the sole CJK webfont, so ja/zh-TW/zh-HK render SC-variant glyphs | Follows design-system.md ("no other CJK display font"); per-locale Noto JP/TC would need a design-system amendment — founder decision |
+
+## Adversarial review round (post-delivery, 2026-08-01)
+
+A 17-agent review workflow (3 dimensions, refute-style verification) confirmed
+11 findings; all actionable ones are FIXED in the follow-up commit:
+
+- `/` redirect now preserves the query string (utm/ref attribution) + e2e.
+- The wasm-free-Worker guard now greps the `wrangler deploy --dry-run` bundle
+  (the artifact that actually ships) instead of the 4KB adapter shim.
+- Carousel dots: 24px hit targets (content-box + hit-slop padding, WCAG 2.5.8)
+  and inactive dots moved to `fg.subtle` (≥3:1 non-text contrast, gated).
+- Focus ring uses a transparent outline so forced-colors/High-Contrast mode
+  repaints it (was invisible there).
+- Corpus terminology: de "Verträge"→"Contracts" (app-wide term), tr product
+  names kept untranslated per locale convention, zh-HK "單字"→"英文字".
+- CTA-contrast claim corrected from "passes AA large-text" to a documented
+  sub-AA exception (see deviations).
+
+Refuted (no change): vi product-name wording (faithful to deliberately
+different source copy), `reuseExistingServer` risk (suite not in CI), duplicate
+`--font-mono` emission (cascade-harmless, intended value wins).

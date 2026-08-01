@@ -7,10 +7,13 @@ import { negotiate } from '$lib/i18n/locales';
  */
 export function GET({ request }: { request: Request }): Response {
 	const locale = negotiate(request.headers.get('accept-language'));
+	// Preserve the query string — root-domain campaign links carry attribution
+	// params (utm_*, ref) that must survive the locale hop.
+	const { search } = new URL(request.url);
 	return new Response(null, {
 		status: 307,
 		headers: {
-			location: `/${locale}`,
+			location: `/${locale}${search}`,
 			vary: 'Accept-Language',
 			'cache-control': 'private, no-store'
 		}

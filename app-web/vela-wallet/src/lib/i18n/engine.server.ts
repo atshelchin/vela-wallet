@@ -66,7 +66,6 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
 		tagline: t(locale, 'onboarding.welcomeWeb.tagline'),
 		createWallet: t(locale, 'onboarding.welcome.createWallet'),
 		alreadyHaveWallet: t(locale, 'onboarding.welcome.alreadyHaveWallet'),
-		passkeyIndexLink: t(locale, 'onboarding.welcomeWeb.passkeyIndexLink'),
 		features: FEATURE_SLUGS.map((slug, i) => ({
 			number: String(i + 1).padStart(2, '0'),
 			title: t(locale, `onboarding.welcomeWeb.features.${slug}.title`),

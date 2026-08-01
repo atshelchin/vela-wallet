@@ -466,7 +466,7 @@
    "features": {
     "noSeedPhrase": {
      "title": "毋須助記詞",
-     "description": "以裝置上的通行密鑰建立及登入，不必抄寫和保管 12 個單字。"
+     "description": "以裝置上的通行密鑰建立及登入，不必抄寫和保管 12 個英文字。"
     },
     "oneAddress": {
      "title": "一個地址，12+ 個網絡",

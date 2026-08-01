@@ -5,12 +5,16 @@
  * Thresholds per pair are the WCAG 2.x AA minima for how the page actually
  * uses the pair:
  *  - 4.5:1 for normal-size body/label text
- *  - 3:1  for large-scale text and for the CTA label (17px semibold on the
- *    accent pill — the documented deviation carried in the delivery report;
- *    the RN app ships the same white-on-orange treatment)
- *  - 3:1  for fg.subtle, used only for the card index ('01'), whose meaning
- *    is duplicated by card order and the pager — decorative-adjacent, but we
- *    still hold it to the UI-component minimum rather than exempting it.
+ *  - 3:1  for non-text UI (pager dots) and for fg.subtle, used only for the
+ *    card index ('01'), whose meaning is duplicated by card order and the
+ *    pager — decorative-adjacent, but held to the UI-component minimum.
+ *  - CTA label: **documented sub-AA exception.** White on accent is ~3.6:1;
+ *    at 17px/600 the label does NOT qualify as WCAG large-scale text
+ *    (≥24px regular or ≥18.66px bold), so strict SC 1.4.3 wants 4.5:1. The
+ *    RN app ships the same brand treatment; options (darken accent for CTA /
+ *    enlarge+embolden label / accept) are a founder decision recorded in the
+ *    delivery report. The 3:1 floor here only guards against regressing
+ *    below even the large-text minimum.
  */
 import { describe, expect, it } from 'vitest';
 import { COLORS, ON_ACCENT } from './tokens';
@@ -43,6 +47,7 @@ const PAIRS: Array<[string, string, number, string]> = [
 	['color.fg.muted', 'color.bg.base', 4.5, 'tagline + quiet link on page background'],
 	['color.fg.muted', 'color.bg.raised', 4.5, 'card descriptions + secondary CTA label'],
 	['color.fg.subtle', 'color.bg.raised', 3, 'card index number (see header note)'],
+	['color.fg.subtle', 'color.bg.base', 3, 'inactive pager dots (non-text UI)'],
 	['color.accent.base', 'color.bg.base', 3, 'active pager dot against page background']
 ];
 
@@ -55,7 +60,7 @@ describe('WCAG AA over the exact token values, both modes', () => {
 			});
 		}
 
-		it(`${mode}: CTA label on accent ≥ 3 (large-scale label, documented)`, () => {
+		it(`${mode}: CTA label on accent ≥ 3 (documented sub-AA exception, see header)`, () => {
 			expect(ratio(ON_ACCENT, table['color.accent.base'])).toBeGreaterThanOrEqual(3);
 		});
 	}

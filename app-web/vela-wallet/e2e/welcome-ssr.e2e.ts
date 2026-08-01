@@ -4,7 +4,9 @@
  * negotiate Accept-Language into a 307. Expectations come from the generated
  * corpus catalogs, so this is a differential against the translation source.
  */
-import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
@@ -85,6 +87,15 @@ test('/ negotiates Accept-Language into a 307 with Vary', async ({ request }) =>
 	expect(response.headers()['vary']).toBe('Accept-Language');
 });
 
+test('/ preserves the query string across the locale redirect', async ({ request }) => {
+	const response = await request.get('/?utm_source=twitter&ref=launch', {
+		headers: { 'accept-language': 'ja' },
+		maxRedirects: 0
+	});
+	expect(response.status()).toBe(307);
+	expect(response.headers()['location']).toBe('/ja?utm_source=twitter&ref=launch');
+});
+
 test('/ maps regional and legacy tags through the RN table', async ({ request }) => {
 	for (const [header, target] of [
 		['zh-CN', '/zh'],
@@ -131,7 +142,22 @@ test.describe('with JavaScript disabled', () => {
 	});
 });
 
-test('built worker contains no wasm (engine is build-time only)', () => {
-	const worker = readFileSync(join(APP_ROOT, '.svelte-kit', 'cloudflare', '_worker.js'), 'utf8');
-	expect(worker.includes('WASM_BASE64')).toBe(false);
+test('the DEPLOY bundle contains no wasm (engine is build-time only)', () => {
+	/* .svelte-kit/cloudflare/_worker.js is only a ~4KB adapter shim — grepping
+	   it proves nothing. `wrangler deploy --dry-run` produces the bundle that
+	   actually ships (hooks + the / endpoint + everything manifest-reachable);
+	   if anything ever imports engine.server.ts from runtime code, the wasm
+	   base64 lands HERE and this test goes red. */
+	test.setTimeout(120_000);
+	const outdir = mkdtempSync(join(tmpdir(), 'vela-worker-dry-run-'));
+	execSync(`pnpm exec wrangler deploy --dry-run --outdir ${JSON.stringify(outdir)}`, {
+		cwd: APP_ROOT,
+		stdio: 'pipe'
+	});
+	const bundles = readdirSync(outdir).filter((name) => name.endsWith('.js'));
+	expect(bundles.length).toBeGreaterThan(0);
+	for (const name of bundles) {
+		const bundle = readFileSync(join(outdir, name), 'utf8');
+		expect(bundle.includes('WASM_BASE64'), name).toBe(false);
+	}
 });

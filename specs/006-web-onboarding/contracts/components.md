@@ -35,9 +35,10 @@ props: { number: string;   // '01'…'06'
          title: string; description: string }
 ```
 - Surface `--color-bg-raised`, radius `--radius-xl`, padding `--space-2xl`,
-  number in `--color-fg-subtle` + `--text-sm`, title `--text-lg`/`--weight-semibold`
-  `--color-fg-base`, description `--text-base` `--color-fg-muted`,
-  `--leading-relaxed`. No shadow (mocks show flat cards; borders/bg define structure).
+  number in `--color-fg-subtle` + `--text-base`/`--weight-medium`, title
+  `--text-xl`/`--weight-semibold` `--color-fg-base`, description `--text-lg`
+  `--color-fg-muted`, `--leading-relaxed`. No shadow (mocks show flat cards;
+  borders/bg define structure).
 
 ## `BrandMark.svelte`
 
@@ -68,11 +69,11 @@ props: { items: T[]; children: Snippet<[T, number]> }  // slide renderer
 ## Welcome page composition (routes/[locale]/+page.svelte)
 
 - `< 1280px`: column — BrandMark+wordmark centered, tagline, Carousel(6 ×
-  FeatureCard), pager, CTA stack (primary, secondary), passkey-index quiet link.
+  FeatureCard), pager, CTA stack (primary, secondary). Brand mark and wordmark share one row (founder, 2026-08-01).
 - `≥ 1280px`: two panes — left `--color-bg-base` (brand row, tagline, 3×2 grid
   of FeatureCard at `--space-2xl` gap); right pane `--color-bg-raised` (the
   mocks' right pane is the raised surface: white in D1L, `#1E1E1B`-ish in D1),
   hairline `--color-border-base` divider, vertically centered action stack
-  (primary, secondary, divider, passkey-index link, all max-width constrained).
+  (primary, secondary, max-width constrained; the divider + passkey-index link were removed per founder direction, 2026-08-01).
 - Wordmark: styled text (`--font-ui`, `--weight-bold`), not an image, so it
   localizes/scales; mocks show "Vela Wallet" latin in all locales.

@@ -31,18 +31,20 @@ export interface WelcomeMessages {
 	tagline: string;
 	createWallet: string;
 	alreadyHaveWallet: string;
-	passkeyIndexLink: string;
 	features: FeatureCardMessages[];
 }
 
-/** Every corpus key the Welcome page consumes (tests iterate this). */
+/**
+ * Every corpus key the Welcome page consumes (tests iterate this).
+ * `onboarding.welcomeWeb.passkeyIndexLink` stays in the corpus for the future
+ * settings screen but left the page per founder direction (2026-08-01).
+ */
 export const WELCOME_KEYS = [
 	'onboarding.welcomeWeb.meta.title',
 	'onboarding.welcomeWeb.meta.description',
 	'onboarding.welcomeWeb.tagline',
 	'onboarding.welcome.createWallet',
 	'onboarding.welcome.alreadyHaveWallet',
-	'onboarding.welcomeWeb.passkeyIndexLink',
 	...FEATURE_SLUGS.flatMap((slug) => [
 		`onboarding.welcomeWeb.features.${slug}.title`,
 		`onboarding.welcomeWeb.features.${slug}.description`

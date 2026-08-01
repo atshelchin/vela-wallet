@@ -34,7 +34,6 @@ test('1280px renders the desktop layout: 2×3 grid + action pane, no carousel', 
 	await expect(page.locator('.grid article')).toHaveCount(6);
 	await expect(page.locator('.slides')).toBeHidden();
 	await expect(page.locator('.actions')).toBeVisible();
-	await expect(page.locator('.quiet')).toBeVisible();
 });
 
 test('resizing across the boundary keeps the page intact', async ({ page }) => {
@@ -54,7 +53,7 @@ test('mobile pager dots advance the carousel', async ({ page }) => {
 	await expect(dots.nth(3)).toHaveAttribute('aria-current', 'true');
 });
 
-test('both CTAs and the quiet link navigate to their destinations', async ({ page }) => {
+test('both CTAs navigate to their destinations', async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto('/en');
 	await page.getByRole('link', { name: 'Create Wallet' }).click();
@@ -64,7 +63,16 @@ test('both CTAs and the quiet link navigate to their destinations', async ({ pag
 	await expect(page).toHaveURL('/en');
 	await page.getByRole('link', { name: 'I already have a wallet' }).click();
 	await expect(page).toHaveURL('/en/import');
-	await page.goBack();
-	await page.getByRole('link', { name: 'Set up passkey index service' }).click();
-	await expect(page).toHaveURL('/en/settings/passkey-index');
+});
+
+test('mobile brand mark and wordmark share one row', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/en');
+	const mark = page.locator('.brand svg');
+	const wordmark = page.locator('.wordmark');
+	const markBox = (await mark.boundingBox())!;
+	const wordBox = (await wordmark.boundingBox())!;
+	const markMid = markBox.y + markBox.height / 2;
+	expect(markMid).toBeGreaterThan(wordBox.y);
+	expect(markMid).toBeLessThan(wordBox.y + wordBox.height);
 });

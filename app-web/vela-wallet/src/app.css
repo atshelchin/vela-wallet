@@ -23,7 +23,10 @@ a {
 }
 
 :focus-visible {
-	outline: none;
+	/* Transparent outline (not `none`): forced-colors mode repaints it, so
+	   keyboard focus stays visible in Windows High Contrast where the
+	   box-shadow ring is stripped. */
+	outline: var(--space-xs) solid transparent;
 	box-shadow:
 		0 0 0 var(--space-xs) var(--color-fixed-focusRingInner),
 		0 0 0 var(--space-sm) var(--color-fixed-focusRingOuter);

@@ -478,7 +478,7 @@
     },
     "keysInPasswordManager": {
      "title": "Özel anahtar, parola yöneticinizde",
-     "description": "Geçiş anahtarınızı Apple Parolalar veya Google Parola Yöneticisi saklar; Vela erişemez."
+     "description": "Geçiş anahtarınızı Apple Passwords veya Google Password Manager saklar; Vela erişemez."
     },
     "safeContracts": {
      "title": "Sözleşmeler: Safe v1.4.1",

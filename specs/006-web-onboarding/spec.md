@@ -12,7 +12,7 @@
 
 ### User Story 1 - First-time visitor lands on the Welcome page (Priority: P1)
 
-A person who has never used Vela Wallet opens the web app's root URL. They immediately see the Vela brand (sailboat mark + wordmark), the product tagline, six short feature statements explaining why this wallet is different (no seed phrase, one address across 12+ networks, fully open source, keys live in the device password manager, audited Safe contracts, stablecoin gas), and two clear actions: a primary "Create Wallet" and a secondary "I already have a wallet". A quiet link lets advanced users configure the passkey index service.
+A person who has never used Vela Wallet opens the web app's root URL. They immediately see the Vela brand (sailboat mark + wordmark), the product tagline, six short feature statements explaining why this wallet is different (no seed phrase, one address across 12+ networks, fully open source, keys live in the device password manager, audited Safe contracts, stablecoin gas), and two clear actions: a primary "Create Wallet" and a secondary "I already have a wallet". (An earlier draft included a quiet passkey-index-service link; the founder removed it from this page on 2026-08-01.)
 
 **Why this priority**: This is the first page of the web rewrite and the entry point of every future journey. Without it there is nothing to ship or evaluate.
 
@@ -20,7 +20,7 @@ A person who has never used Vela Wallet opens the web app's root URL. They immed
 
 **Acceptance Scenarios**:
 
-1. **Given** a viewport ≥ 1280px wide, **When** the page loads, **Then** the desktop layout renders: left region with brand mark, wordmark, tagline and a 2×3 grid of numbered feature cards; right action column with primary "Create Wallet", secondary "I already have a wallet", and the quiet passkey-index link.
+1. **Given** a viewport ≥ 1280px wide, **When** the page loads, **Then** the desktop layout renders: left region with brand mark, wordmark, tagline and a 2×3 grid of numbered feature cards; right action column with primary "Create Wallet" and secondary "I already have a wallet".
 2. **Given** a viewport < 1280px wide, **When** the page loads, **Then** the mobile layout renders: centered brand mark, wordmark and tagline; a single feature card with a 6-dot pager that the user can swipe/advance through all six features; and a bottom-anchored stack of the two action buttons.
 3. **Given** any viewport between 320px and 1920px wide, **When** the page renders, **Then** no horizontal overflow, clipped content, or unreachable controls appear.
 4. **Given** the Welcome page, **When** the user activates "Create Wallet" or "I already have a wallet", **Then** the app navigates to a defined destination route (placeholder pages are acceptable in this feature; the flows themselves are out of scope).
@@ -38,7 +38,7 @@ A visitor whose device prefers dark mode sees the dark Welcome design; a visitor
 **Acceptance Scenarios**:
 
 1. **Given** a system preference of dark (or light), **When** the page loads, **Then** all surfaces, text, borders and actions use the corresponding mode's semantic token values, matching the respective reference design.
-2. **Given** either mode, **When** contrast of body text and control labels against their surfaces is measured, **Then** it meets WCAG AA (≥ 4.5:1 for normal text, ≥ 3:1 for large text and UI boundaries).
+2. **Given** either mode, **When** contrast of body text and control labels against their surfaces is measured, **Then** it meets WCAG AA (≥ 4.5:1 for normal text, ≥ 3:1 for large text and UI boundaries) — with one recorded exception: the primary-CTA label on the brand accent (~3.6:1, the brand treatment the RN app also ships), carried in the delivery report as a pending founder decision.
 3. **Given** the implemented page and base components, **When** the code is audited, **Then** color, spacing, radius, typography, shadow and motion values are defined once in the token layer and referenced semantically everywhere else (the orange accent appears only on the primary value-moving action).
 
 ---
@@ -73,7 +73,7 @@ A visitor whose browser requests one of the wallet's 15 supported languages rece
 ### Functional Requirements
 
 - **FR-001**: The web app MUST expose a root Welcome page implementing the reference designs `design/onboarding/` (W1 mobile dark, W1L mobile light, D1 desktop dark, D1L desktop light), with the desktop layout at viewport width ≥ 1280px and the mobile layout below 1280px.
-- **FR-002**: The Welcome page MUST present: the in-app brand mark and "Vela Wallet" wordmark, the tagline, six numbered feature statements (01–06 as in the designs), a primary "Create Wallet" action, a secondary "I already have a wallet" action, and a quiet "set up passkey index service" link.
+- **FR-002**: The Welcome page MUST present: the in-app brand mark and "Vela Wallet" wordmark, the tagline, six numbered feature statements (01–06 as in the designs), a primary "Create Wallet" action, and a secondary "I already have a wallet" action. (The passkey-index-service link was removed per founder direction, 2026-08-01.)
 - **FR-003**: The mobile layout MUST present the six features as a single-card carousel with a six-dot pager and swipe/advance interaction; the desktop layout MUST present them as a 2-row × 3-column card grid.
 - **FR-004**: All visual values used by the page and its components (color, typography, spacing, radius, sizing, shadow, opacity, motion) MUST be sourced from a single design-token layer whose values derive from the Penpot DTCG export, with `design-system.md` as the governing intent document; no literal visual values in page/component code.
 - **FR-005**: The app MUST support light and dark modes driven by the visitor's system preference, defaulting to dark when no preference exists, and MUST keep both modes at WCAG AA contrast.
@@ -109,8 +109,7 @@ A visitor whose browser requests one of the wallet's 15 supported languages rece
 
 - The existing SvelteKit scaffold under `app-web/vela-wallet` (already committed) is the starting point; this feature builds inside it rather than re-scaffolding.
 - The six feature-card statements and the desktop tagline "您的密钥，您的资产" seen in the designs are new copy not fully present in the existing corpus; new keys will be added to the corpus's onboarding namespace in all 15 locales following existing conventions. English and Chinese are authored carefully; other locales receive best-effort translations flagged for later human review (consistent with the project's i18n history).
-- Reference designs disagree on small details across modes (primary button corner radius pill vs rounded-rect; the passkey-index link and divider appear only in the dark desktop mock). Default resolution: one consistent button shape from the token radius scale, and the passkey-index link present in both modes; both decisions listed as deviations in the delivery report for founder review.
-- The "set up passkey index service" link navigates to a placeholder settings destination; the settings screen itself is out of scope.
+- Reference designs disagree on small details across modes (primary button corner radius pill vs rounded-rect). Default resolution: one consistent button shape from the token radius scale, listed as a deviation in the delivery report for founder review. The passkey-index link seen in the dark desktop mock was removed entirely per founder direction (2026-08-01); its corpus string is kept for the future settings screen.
 - The mobile carousel advances by user swipe/tap only (no auto-play), matching the product's calm-UX stance; pager dots reflect position.
 - Deployment target remains the scaffold's existing hosting setup; production deployment is out of scope for this feature.
 - Text-scale support (six user levels) is a token-layer concern; the Welcome page must not break at larger scales, but the user-facing text-scale setting UI is out of scope.

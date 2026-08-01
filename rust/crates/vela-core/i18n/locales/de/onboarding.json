@@ -8,7 +8,7 @@
     "welcomeWeb": {
       "meta": {
         "title": "Vela Wallet — die Passkey-Wallet",
-        "description": "Eine Passkey-Wallet ohne Seed-Phrase: eine Adresse für über 12 Netzwerke, auditierte Safe-v1.4.1-Verträge, Gas in Stablecoins zahlbar, komplett Open Source und selbst hostbar."
+        "description": "Eine Passkey-Wallet ohne Seed-Phrase: eine Adresse für über 12 Netzwerke, auditierte Safe-v1.4.1-Contracts, Gas in Stablecoins zahlbar, komplett Open Source und selbst hostbar."
       },
       "tagline": "Ihre Schlüssel, Ihre Vermögenswerte",
       "passkeyIndexLink": "Passkey-Indexdienst einrichten",
@@ -30,8 +30,8 @@
           "description": "Ihren Passkey verwahrt Apple Passwörter oder der Google Passwortmanager — Vela kommt nicht daran."
         },
         "safeContracts": {
-          "title": "Verträge: Safe v1.4.1",
-          "description": "Konten basieren auf auditierten Safe-Verträgen, nicht auf einer Eigenentwicklung."
+          "title": "Contracts: Safe v1.4.1",
+          "description": "Konten basieren auf auditierten Safe-Contracts, nicht auf einer Eigenentwicklung."
         },
         "stablecoinGas": {
           "title": "Gas mit Stablecoins zahlen",

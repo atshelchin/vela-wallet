@@ -18,7 +18,6 @@ describe('welcome messages resolve through the vela-core engine', () => {
 			expect(messages.tagline.length).toBeGreaterThan(0);
 			expect(messages.createWallet.length).toBeGreaterThan(0);
 			expect(messages.alreadyHaveWallet.length).toBeGreaterThan(0);
-			expect(messages.passkeyIndexLink.length).toBeGreaterThan(0);
 			expect(messages.features).toHaveLength(FEATURE_SLUGS.length);
 			for (const feature of messages.features) {
 				expect(feature.title.length).toBeGreaterThan(0);

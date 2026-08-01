@@ -95,13 +95,18 @@
 		gap: var(--space-md);
 	}
 
+	/* The visible dot stays space-md sized, but the tap target grows to the
+	   WCAG 2.5.8 minimum (24×24): content-box sizing + hit-slop padding +
+	   content-clipped background keep the visual identical to the mock. */
 	.dot {
+		box-sizing: content-box;
 		width: var(--space-md);
 		height: var(--space-md);
-		padding: 0;
+		padding: var(--size-hitSlop);
 		border: none;
 		border-radius: var(--radius-full);
-		background: var(--color-border-strong);
+		background: var(--color-fg-subtle);
+		background-clip: content-box;
 		cursor: pointer;
 		transition:
 			width var(--motion-duration-fast) ease,
@@ -111,5 +116,6 @@
 	.dot.active {
 		width: var(--space-3xl);
 		background: var(--color-accent-base);
+		background-clip: content-box;
 	}
 </style>

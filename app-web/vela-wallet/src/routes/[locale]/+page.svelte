@@ -57,10 +57,6 @@
 			<Button variant="secondary" href={resolve('/[locale]/import', { locale })}>
 				{m.alreadyHaveWallet}
 			</Button>
-			<hr class="divider" />
-			<a class="quiet" href={resolve('/[locale]/settings/passkey-index', { locale })}>
-				{m.passkeyIndexLink}
-			</a>
 		</div>
 	</aside>
 </main>
@@ -87,9 +83,9 @@
 
 	.brand {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
-		gap: var(--space-2xl);
+		justify-content: center;
+		gap: var(--space-xl);
 		margin-top: auto;
 	}
 
@@ -127,26 +123,6 @@
 		width: 100%;
 	}
 
-	.divider {
-		display: none;
-		width: 100%;
-		border: none;
-		border-top: var(--border-hairline) solid var(--color-border-base);
-		margin: var(--space-2xl) 0;
-	}
-
-	.quiet {
-		align-self: center;
-		margin-top: var(--space-md);
-		font-size: var(--text-lg);
-		color: var(--color-fg-muted);
-		text-decoration: none;
-	}
-
-	.quiet:hover {
-		opacity: var(--opacity-hover);
-	}
-
 	/* ------------------------------------------------------------- */
 	/* Desktop (>= 1280px): content pane + raised action pane right. */
 	/* ------------------------------------------------------------- */
@@ -165,9 +141,7 @@
 		}
 
 		.brand {
-			flex-direction: row;
 			justify-content: flex-start;
-			gap: var(--space-xl);
 			margin-top: 0;
 		}
 
@@ -203,15 +177,6 @@
 
 		.stack {
 			max-width: var(--layout-frameW);
-		}
-
-		.divider {
-			display: block;
-		}
-
-		.quiet {
-			align-self: flex-start;
-			margin-top: 0;
 		}
 	}
 </style>

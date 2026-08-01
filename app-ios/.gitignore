@@ -11,8 +11,9 @@ build/
 *.dSYM.zip
 *.dSYM
 
-# Swift Package Manager — local resolution state
+# Swift Package Manager — local resolution state + build output
 .swiftpm/
+.build/
 Packages/
 *.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 

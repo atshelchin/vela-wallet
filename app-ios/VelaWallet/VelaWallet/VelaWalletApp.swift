@@ -7,9 +7,11 @@ import SwiftUI
 
 @main
 struct VelaWalletApp: App {
+    private let loc = Loc()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView(loc: loc)
         }
     }
 }

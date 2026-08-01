@@ -456,6 +456,40 @@
    "createWallet": "지갑 만들기",
    "alreadyHaveWallet": "이미 지갑이 있어요"
   },
+  "welcomeWeb": {
+   "meta": {
+    "title": "Vela Wallet — 패스키 지갑",
+    "description": "시드 문구가 필요 없는 패스키 지갑. 주소 하나로 12개 이상의 네트워크를 쓰고, 감사를 거친 Safe v1.4.1 컨트랙트 기반에 스테이블코인으로 가스비를 낼 수 있어요. 전부 오픈소스라 직접 운영할 수도 있어요."
+   },
+   "tagline": "당신의 키, 당신의 자산",
+   "passkeyIndexLink": "패스키 인덱스 서비스 설정",
+   "features": {
+    "noSeedPhrase": {
+     "title": "시드 문구 없음",
+     "description": "기기의 패스키로 만들고 로그인해요. 적어서 보관해야 할 12개의 단어가 없어요."
+    },
+    "oneAddress": {
+     "title": "주소 하나, 12+ 네트워크",
+     "description": "같은 주소를 지원되는 모든 네트워크에서 쓸 수 있고, 네트워크를 직접 추가할 수도 있어요."
+    },
+    "openSource": {
+     "title": "전부 오픈소스, 직접 운영 가능",
+     "description": "앱과 백엔드 서비스가 모두 오픈소스라 완전히 나만의 스택을 배포할 수 있어요."
+    },
+    "keysInPasswordManager": {
+     "title": "개인 키는 내 비밀번호 관리자에",
+     "description": "패스키는 Apple 암호나 Google 비밀번호 관리자가 보관하고, Vela는 접근할 수 없어요."
+    },
+    "safeContracts": {
+     "title": "컨트랙트는 Safe v1.4.1",
+     "description": "계정은 감사를 거친 Safe 컨트랙트를 기반으로 해요. 자체 구현이 아니에요."
+    },
+    "stablecoinGas": {
+     "title": "가스비는 스테이블코인으로",
+     "description": "대부분의 네트워크에서 스테이블코인으로 수수료를 낼 수 있어요. 네이티브 코인을 미리 준비할 필요가 없어요."
+    }
+   }
+  },
   "settings": {
    "title": "설정",
    "sectionAppearance": "테마",

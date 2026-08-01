@@ -5,6 +5,40 @@
       "createWallet": "创建钱包",
       "alreadyHaveWallet": "我已有钱包"
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — 通行密钥钱包",
+        "description": "无助记词的通行密钥钱包：一个地址通用 12+ 网络，基于经过审计的 Safe v1.4.1 合约，支持稳定币付 gas，全部开源可自建。"
+      },
+      "tagline": "您的密钥，您的资产",
+      "passkeyIndexLink": "设置通行密钥索引服务",
+      "features": {
+        "noSeedPhrase": {
+          "title": "不用助记词",
+          "description": "用设备上的通行密钥创建和登录，没有 12 个单词要抄写和保管。"
+        },
+        "oneAddress": {
+          "title": "一个地址，12+ 网络",
+          "description": "同一个地址在所有支持的网络通用，也可以自己添加网络。"
+        },
+        "openSource": {
+          "title": "全部开源，可自建",
+          "description": "App 与后端服务都开源，你可以部署完全属于自己的一套。"
+        },
+        "keysInPasswordManager": {
+          "title": "私钥在你的密码本里",
+          "description": "通行密钥由 Apple 密码或 Google 密码管理器保管，Vela 接触不到。"
+        },
+        "safeContracts": {
+          "title": "合约用 Safe v1.4.1",
+          "description": "账户基于经过审计的 Safe 合约，不是自研实现。"
+        },
+        "stablecoinGas": {
+          "title": "用稳定币付 gas",
+          "description": "多数网络支持用稳定币支付手续费，不用先备一份原生币。"
+        }
+      }
+    },
     "settings": {
       "title": "设置",
       "sectionAppearance": "外观",

@@ -5,6 +5,40 @@
       "createWallet": "Create Wallet",
       "alreadyHaveWallet": "I already have a wallet"
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — the passkey wallet",
+        "description": "A passkey wallet with no seed phrase: one address across 12+ networks, audited Safe v1.4.1 contracts, stablecoin gas, fully open source and self-hostable."
+      },
+      "tagline": "Your keys, your assets",
+      "passkeyIndexLink": "Set up passkey index service",
+      "features": {
+        "noSeedPhrase": {
+          "title": "No seed phrase",
+          "description": "Create and sign in with your device's passkey — no 12 words to write down and guard."
+        },
+        "oneAddress": {
+          "title": "One address, 12+ networks",
+          "description": "The same address works on every supported network, and you can add your own."
+        },
+        "openSource": {
+          "title": "Fully open source, self-hostable",
+          "description": "The app and its backend services are open source — you can run a stack that's entirely yours."
+        },
+        "keysInPasswordManager": {
+          "title": "Keys live in your password manager",
+          "description": "Your passkey is kept by Apple Passwords or Google Password Manager — Vela can't touch it."
+        },
+        "safeContracts": {
+          "title": "Contracts: Safe v1.4.1",
+          "description": "Accounts are built on audited Safe contracts, not a homegrown implementation."
+        },
+        "stablecoinGas": {
+          "title": "Pay gas in stablecoins",
+          "description": "Most networks accept stablecoins for fees — no need to stock up on a native coin first."
+        }
+      }
+    },
     "settings": {
       "title": "Settings",
       "sectionAppearance": "APPEARANCE",

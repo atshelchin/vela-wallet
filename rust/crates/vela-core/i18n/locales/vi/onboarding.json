@@ -5,6 +5,40 @@
       "createWallet": "Tạo ví",
       "alreadyHaveWallet": "Tôi đã có ví"
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — ví passkey",
+        "description": "Ví passkey không cần cụm từ khôi phục: một địa chỉ dùng trên hơn 12 mạng, dựa trên hợp đồng Safe v1.4.1 đã được kiểm toán, trả gas bằng stablecoin, mã nguồn mở hoàn toàn và có thể tự vận hành."
+      },
+      "tagline": "Khóa của bạn, tài sản của bạn",
+      "passkeyIndexLink": "Thiết lập dịch vụ chỉ mục passkey",
+      "features": {
+        "noSeedPhrase": {
+          "title": "Không cần cụm từ khôi phục",
+          "description": "Tạo và đăng nhập bằng passkey trên thiết bị — không có 12 từ phải chép lại và cất giữ."
+        },
+        "oneAddress": {
+          "title": "Một địa chỉ, hơn 12 mạng",
+          "description": "Cùng một địa chỉ dùng được trên mọi mạng được hỗ trợ, và bạn có thể tự thêm mạng."
+        },
+        "openSource": {
+          "title": "Mã nguồn mở hoàn toàn, tự vận hành được",
+          "description": "Ứng dụng và dịch vụ backend đều là mã nguồn mở — bạn có thể triển khai một bộ hoàn toàn của riêng mình."
+        },
+        "keysInPasswordManager": {
+          "title": "Khóa riêng nằm trong trình quản lý mật khẩu của bạn",
+          "description": "Passkey do Mật khẩu Apple hoặc Trình quản lý mật khẩu Google cất giữ, Vela không chạm tới được."
+        },
+        "safeContracts": {
+          "title": "Hợp đồng dùng Safe v1.4.1",
+          "description": "Tài khoản dựa trên hợp đồng Safe đã được kiểm toán, không phải bản tự viết."
+        },
+        "stablecoinGas": {
+          "title": "Trả gas bằng stablecoin",
+          "description": "Phần lớn mạng cho phép trả phí bằng stablecoin — không cần chuẩn bị sẵn coin gốc."
+        }
+      }
+    },
     "settings": {
       "title": "Cài đặt",
       "sectionAppearance": "GIAO DIỆN",

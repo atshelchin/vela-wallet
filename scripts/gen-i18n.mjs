@@ -131,9 +131,9 @@ const IS_BRANCH = PATHS.map((p) => (branchSet.has(p) ? 1 : 0));
 for (let i = 1; i < PATHS.length; i++) {
   if (PATHS[i] <= PATHS[i - 1]) fail(`path table is not strictly sorted at ${i}: ${PATHS[i - 1]} >= ${PATHS[i]}`);
 }
-if (PATHS.length !== 1205) fail(`expected 1205 paths (1141 leaf + 64 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1141) fail(`expected 1141 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 64) fail(`expected 64 branch paths, got ${branchSet.size}`);
+if (PATHS.length !== 1230) fail(`expected 1230 paths (1157 leaf + 73 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1157) fail(`expected 1157 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 73) fail(`expected 73 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

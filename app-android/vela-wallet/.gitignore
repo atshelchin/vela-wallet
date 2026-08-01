@@ -15,3 +15,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# spec 008: cross-compiled natives are build artifacts (rust/scripts/build-android.sh)
+app/src/main/jniLibs/

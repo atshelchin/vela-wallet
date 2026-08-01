@@ -1,91 +1,101 @@
 package app.getvela.wallet
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.tooling.preview.PreviewScreenSizes
-import app.getvela.wallet.ui.theme.VelaWalletTheme
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import app.getvela.wallet.core.data.ThemePreference
+import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.designsystem.theme.isDarkEffective
+import app.getvela.wallet.core.i18n.LocalVelaStrings
+import app.getvela.wallet.core.i18n.VelaStrings
+import app.getvela.wallet.navigation.VelaNavHost
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val container = (application as VelaWalletApplication).container
+        container.applySystemLocale()
+
+        // Null until the persisted preference is actually read — the splash stays up,
+        // so the first frame can never render the wrong palette (data-model MainUiState).
+        val themePreferenceState: StateFlow<ThemePreference?> = container.themeRepository
+            .themePreference
+            .map { preference -> preference as ThemePreference? }
+            .stateIn(lifecycleScope, SharingStarted.Eagerly, null)
+
+        splash.setKeepOnScreenCondition {
+            !container.i18nRuntime.state.value.ready || themePreferenceState.value == null
+        }
+
         setContent {
-            VelaWalletTheme {
-                VelaWalletApp()
-            }
-        }
-    }
-}
+            val i18nState by container.i18nRuntime.state.collectAsStateWithLifecycle()
+            val themePreference by themePreferenceState.collectAsStateWithLifecycle()
 
-@PreviewScreenSizes
-@Composable
-fun VelaWalletApp() {
-    var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
+            val preference = themePreference
+            if (!i18nState.ready || preference == null) return@setContent
 
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            AppDestinations.entries.forEach {
-                item(
-                    icon = {
-                        Icon(
-                            painterResource(it.icon),
-                            contentDescription = it.label
-                        )
-                    },
-                    label = { Text(it.label) },
-                    selected = it == currentDestination,
-                    onClick = { currentDestination = it }
+            val darkTheme = preference.isDarkEffective()
+
+            // enableEdgeToEdge's defaults key bar-icon appearance off the SYSTEM uiMode
+            // only; the FR-006 override must re-style the bars for the EFFECTIVE theme.
+            DisposableEffect(darkTheme) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { darkTheme },
+                    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { darkTheme },
                 )
+                onDispose {}
+            }
+
+            // New provider identity per resolved language: every t() reader recomposes,
+            // but no state (nav back stack, pager page) is discarded — unlike key().
+            val strings = remember(i18nState.language) {
+                LanguageSnapshot(container.i18nRuntime)
+            }
+            // Engine dir() drives layout direction so a future RTL locale cannot
+            // silently render LTR (spec edge case).
+            val layoutDirection =
+                if (i18nState.direction == "rtl") LayoutDirection.Rtl else LayoutDirection.Ltr
+
+            VelaTheme(darkTheme = darkTheme) {
+                CompositionLocalProvider(
+                    LocalVelaStrings provides strings,
+                    LocalLayoutDirection provides layoutDirection,
+                ) {
+                    VelaNavHost(
+                        darkTheme = darkTheme,
+                        themePreference = preference,
+                        onThemeSelected = { selected ->
+                            lifecycleScope.launch {
+                                container.themeRepository.setThemePreference(selected)
+                            }
+                        },
+                    )
+                }
             }
         }
-    ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Greeting(
-                name = "Android",
-                modifier = Modifier.padding(innerPadding)
-            )
-        }
     }
 }
 
-enum class AppDestinations(
-    val label: String,
-    val icon: Int,
-) {
-    HOME("Home", R.drawable.ic_home),
-    FAVORITES("Favorites", R.drawable.ic_favorite),
-    PROFILE("Profile", R.drawable.ic_account_box),
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    VelaWalletTheme {
-        Greeting("Android")
-    }
-}
+/** Identity-per-language wrapper; delegates every lookup to the live runtime. */
+private class LanguageSnapshot(delegate: VelaStrings) : VelaStrings by delegate

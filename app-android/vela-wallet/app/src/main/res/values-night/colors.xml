@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- color.bg.base (dark) — see docs/design-tokens.json. -->
+    <color name="vela_window_bg">#141412</color>
+</resources>

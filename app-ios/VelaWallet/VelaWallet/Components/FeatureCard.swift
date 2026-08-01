@@ -41,7 +41,7 @@ struct FeatureCard: View {
 }
 
 #Preview("FeatureCard") {
-    VStack(spacing: 16) {
+    VStack(spacing: Tokens.Space.s16) {
         FeatureCard(content: .init(
             id: 0,
             title: "No seed phrase",
@@ -49,5 +49,5 @@ struct FeatureCard: View {
         ))
         .themed(.light)
     }
-    .padding(24)
+    .padding(Tokens.Space.s24)
 }

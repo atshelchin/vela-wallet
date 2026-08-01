@@ -4,7 +4,8 @@
 
 **Created**: 2026-08-01
 
-**Status**: Draft → implementation on this branch
+**Status**: Implemented on this branch — all SC gates verified (see
+checklists/requirements.md)
 
 **Input**: User description: "Create a new development branch and rewrite the
 VelaWallet iOS client in `app-ios/VelaWallet` using SwiftUI. First release

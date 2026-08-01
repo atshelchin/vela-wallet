@@ -7,8 +7,10 @@ repo root unless noted.
 
 - macOS with Xcode 26.3+ (`xcodebuild -version`) and an iOS simulator runtime
   (iPhone 17 Pro / iOS 26.2 used below; any iOS 17+ iPhone works).
-- Rust stable with the iOS targets:
-  `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
+- Rust with the iOS targets added to the repo-pinned toolchain
+  (`rust-toolchain.toml` pins 1.97.1, so the default-toolchain targets are
+  invisible to it):
+  `rustup target add aarch64-apple-ios aarch64-apple-ios-sim --toolchain 1.97.1`
 - Node ≥ 20 (repo-wide requirement) and repo `npm install` already done
   (fonts are sourced from `node_modules/@expo-google-fonts/plus-jakarta-sans`).
 
@@ -49,10 +51,9 @@ fallback + zh load + key-echo smoke, and the SC-005 contrast computation.
 
 ```sh
 xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
-xcodebuild … build   # or Xcode ⌘R
-xcrun simctl launch --terminate-running-process \
-  --setenv VELA_THEME=dark --setenv VELA_LANG=zh \
-  booted app.getvela.VelaWallet
+xcodebuild … build   # or Xcode ⌘R, then simctl install
+SIMCTL_CHILD_VELA_THEME=dark SIMCTL_CHILD_VELA_LANG=zh \
+  xcrun simctl launch --terminate-running-process booted app.getvela.VelaWallet
 xcrun simctl io booted screenshot /tmp/w1-dark-zh.png
 ```
 

@@ -61,21 +61,21 @@ enum Interaction {
 }
 
 #Preview("Buttons") {
-    VStack(spacing: 16) {
+    VStack(spacing: Tokens.Space.s16) {
         VelaButton(title: "Create Wallet", kind: .primary) {}
         VelaButton(title: "I already have a wallet", kind: .secondary) {}
         VelaButton(title: "Disabled", kind: .primary, enabled: false) {}
     }
-    .padding(24)
+    .padding(Tokens.Space.s24)
     .themed(.light)
 }
 
 #Preview("Buttons dark") {
-    VStack(spacing: 16) {
+    VStack(spacing: Tokens.Space.s16) {
         VelaButton(title: "创建钱包", kind: .primary) {}
         VelaButton(title: "我已有钱包", kind: .secondary) {}
     }
-    .padding(24)
+    .padding(Tokens.Space.s24)
     .background(Tokens.dark.bgBase.color)
     .themed(.dark)
 }

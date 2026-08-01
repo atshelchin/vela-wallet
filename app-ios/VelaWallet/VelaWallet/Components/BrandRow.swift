@@ -24,7 +24,7 @@ struct BrandRow: View {
 }
 
 #Preview("BrandRow", traits: .sizeThatFitsLayout) {
-    VStack(spacing: 24) {
+    VStack(spacing: Tokens.Space.s24) {
         BrandRow().themed(.light)
         BrandRow().padding().background(Color.black).themed(.dark)
     }

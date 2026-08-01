@@ -2,40 +2,51 @@
 //  VelaWalletUITests.swift
 //  VelaWalletUITests
 //
-//  Created by shelchin on 2026/7/29.
+//  One thin end-to-end smoke (D10): welcome renders, carousel pages by
+//  swipe and by dot, both CTAs navigate to their placeholders and back.
+//  State logic is unit-tested; this only proves the wiring on-device.
 //
 
 import XCTest
 
 final class VelaWalletUITests: XCTestCase {
-
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
-    }
-
-    @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testWelcomeSmoke() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["VELA_LANG"] = "en"
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-    }
+        // 1. Welcome renders: brand, first card, both CTAs.
+        XCTAssertTrue(app.staticTexts["Vela Wallet"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No seed phrase"].waitForExistence(timeout: 5))
+        let create = app.buttons["Create Wallet"]
+        let imported = app.buttons["I already have a wallet"]
+        XCTAssertTrue(create.exists)
+        XCTAssertTrue(imported.exists)
 
-    @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
-        }
+        // 2. Swipe advances the carousel (target the card itself — the
+        //    window center sits in the flexible spacer above the TabView).
+        app.staticTexts["No seed phrase"].swipeLeft()
+        XCTAssertTrue(app.staticTexts["One address, 12+ networks"].waitForExistence(timeout: 5))
+
+        // 3. Tapping the last dot jumps to card 06.
+        let lastDot = app.buttons["6/6"]
+        XCTAssertTrue(lastDot.waitForExistence(timeout: 5))
+        lastDot.tap()
+        XCTAssertTrue(app.staticTexts["Pay gas in stablecoins"].waitForExistence(timeout: 5))
+
+        // 4. Create Wallet → placeholder, then back to Welcome.
+        create.tap()
+        XCTAssertTrue(app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Pay gas in stablecoins"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(create.waitForExistence(timeout: 5))
+
+        // 5. Import CTA → placeholder.
+        imported.tap()
+        XCTAssertTrue(app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5))
     }
 }

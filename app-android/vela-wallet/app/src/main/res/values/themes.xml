@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Splash: fixed ink #1A1A18 in BOTH modes (color.fixed.splashBg, spec FR-006). -->
+    <style name="Theme.VelaWallet" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/vela_splash_bg</item>
+        <item name="postSplashScreenTheme">@style/Theme.VelaWallet.Main</item>
+    </style>
 
-    <style name="Theme.VelaWallet" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Day/night window chrome; all content theming is Compose-side (VelaTheme). -->
+    <style name="Theme.VelaWallet.Main" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/vela_window_bg</item>
+    </style>
 </resources>

@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">VelaWallet</string>
+    <!-- Launcher label: brand proper noun, rendered verbatim (spec FR-003). -->
+    <string name="app_name" translatable="false">Vela Wallet</string>
 </resources>

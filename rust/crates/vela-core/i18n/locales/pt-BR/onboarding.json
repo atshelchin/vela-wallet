@@ -18,6 +18,40 @@
       "featureStablecoinGasTitle": "Pague o gas com stablecoins",
       "featureStablecoinGasBody": "A maioria das redes permite pagar as taxas com stablecoins — sem precisar ter a moeda nativa antes."
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — a carteira com passkey",
+        "description": "Uma carteira com passkey e sem frase de recuperação: um único endereço em mais de 12 redes, contratos Safe v1.4.1 auditados, gas pago com stablecoins, tudo open source e auto-hospedável."
+      },
+      "tagline": "Suas chaves, seus ativos",
+      "passkeyIndexLink": "Configurar o serviço de índice de passkeys",
+      "features": {
+        "noSeedPhrase": {
+          "title": "Sem frase de recuperação",
+          "description": "Crie e entre com a passkey do seu dispositivo — sem 12 palavras para anotar e guardar."
+        },
+        "oneAddress": {
+          "title": "Um endereço, mais de 12 redes",
+          "description": "O mesmo endereço funciona em todas as redes suportadas, e você pode adicionar as suas."
+        },
+        "openSource": {
+          "title": "Tudo open source, auto-hospedável",
+          "description": "O app e os serviços de backend são open source — você pode rodar um conjunto totalmente seu."
+        },
+        "keysInPasswordManager": {
+          "title": "A chave privada fica no seu gerenciador de senhas",
+          "description": "Sua passkey é guardada pelas Senhas da Apple ou pelo Gerenciador de Senhas do Google — a Vela não consegue tocá-la."
+        },
+        "safeContracts": {
+          "title": "Contratos Safe v1.4.1",
+          "description": "As contas são construídas sobre contratos Safe auditados, não uma implementação própria."
+        },
+        "stablecoinGas": {
+          "title": "Pague o gas com stablecoins",
+          "description": "A maioria das redes aceita stablecoins para as taxas — sem precisar ter a moeda nativa antes."
+        }
+      }
+    },
     "settings": {
       "title": "Configurações",
       "sectionAppearance": "APARÊNCIA",

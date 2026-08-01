@@ -131,10 +131,11 @@ const IS_BRANCH = PATHS.map((p) => (branchSet.has(p) ? 1 : 0));
 for (let i = 1; i < PATHS.length; i++) {
   if (PATHS[i] <= PATHS[i - 1]) fail(`path table is not strictly sorted at ${i}: ${PATHS[i - 1]} >= ${PATHS[i]}`);
 }
-// 1218 = 1205 (spec 004 baseline) + 13 desktop-onboarding keys (spec 007).
-if (PATHS.length !== 1218) fail(`expected 1218 paths (1154 leaf + 64 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1154) fail(`expected 1154 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 64) fail(`expected 64 branch paths, got ${branchSet.size}`);
+// 1243 = 1205 (spec 004 baseline) + 13 desktop-onboarding leaves (spec 007)
+// + 25 welcomeWeb paths (spec 006: 16 leaves, 9 branches).
+if (PATHS.length !== 1243) fail(`expected 1243 paths (1170 leaf + 73 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1170) fail(`expected 1170 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 73) fail(`expected 73 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

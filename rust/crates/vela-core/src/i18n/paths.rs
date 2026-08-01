@@ -3,12 +3,12 @@
 //! The SHARED key-path table: every dotted path in the corpus, sorted, interned
 //! once for all 15 locales. Regenerate with `node scripts/gen-i18n.mjs`.
 //!
-//! 1218 paths = 1154 leaf + 64 branch. Repeated per locale these key bytes
-//! would cost 475905 bytes; interned once they cost 32702.
+//! 1243 paths = 1170 leaf + 73 branch. Repeated per locale these key bytes
+//! would cost 487530 bytes; interned once they cost 33819.
 
 /// Every path in the corpus, strictly sorted. Lookup is a binary search here, then
 /// an O(1) index into the active locale's value table.
-pub(crate) static PATHS: [&str; 1218] = [
+pub(crate) static PATHS: [&str; 1243] = [
     "about",
     "about.footer",
     "about.linkGitHub",
@@ -864,6 +864,31 @@ pub(crate) static PATHS: [&str; 1218] = [
     "onboarding.welcome.featureStablecoinGasBody",
     "onboarding.welcome.featureStablecoinGasTitle",
     "onboarding.welcome.tagline",
+    "onboarding.welcomeWeb",
+    "onboarding.welcomeWeb.features",
+    "onboarding.welcomeWeb.features.keysInPasswordManager",
+    "onboarding.welcomeWeb.features.keysInPasswordManager.description",
+    "onboarding.welcomeWeb.features.keysInPasswordManager.title",
+    "onboarding.welcomeWeb.features.noSeedPhrase",
+    "onboarding.welcomeWeb.features.noSeedPhrase.description",
+    "onboarding.welcomeWeb.features.noSeedPhrase.title",
+    "onboarding.welcomeWeb.features.oneAddress",
+    "onboarding.welcomeWeb.features.oneAddress.description",
+    "onboarding.welcomeWeb.features.oneAddress.title",
+    "onboarding.welcomeWeb.features.openSource",
+    "onboarding.welcomeWeb.features.openSource.description",
+    "onboarding.welcomeWeb.features.openSource.title",
+    "onboarding.welcomeWeb.features.safeContracts",
+    "onboarding.welcomeWeb.features.safeContracts.description",
+    "onboarding.welcomeWeb.features.safeContracts.title",
+    "onboarding.welcomeWeb.features.stablecoinGas",
+    "onboarding.welcomeWeb.features.stablecoinGas.description",
+    "onboarding.welcomeWeb.features.stablecoinGas.title",
+    "onboarding.welcomeWeb.meta",
+    "onboarding.welcomeWeb.meta.description",
+    "onboarding.welcomeWeb.meta.title",
+    "onboarding.welcomeWeb.passkeyIndexLink",
+    "onboarding.welcomeWeb.tagline",
     "receive",
     "receive.a11yBack",
     "receive.a11yCopyAddress",
@@ -1233,21 +1258,21 @@ pub(crate) static PATHS: [&str; 1218] = [
 /// A branch is a distinct lookup outcome, not a miss: `t("home")` must return the
 /// byte-exact diagnostic `key 'home (en)' returned an object instead of string.`,
 /// which a flat map could never distinguish from an absent key.
-pub(crate) static IS_BRANCH: [u8; 153] = [
+pub(crate) static IS_BRANCH: [u8; 156] = [
     0x01, 0x00, 0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00,
     0x84, 0x08, 0x00, 0x00, 0x00, 0x08, 0x00, 0x10, 0x08, 0x04, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x01, 0x18,
     0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x20, 0x10, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x30,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x40, 0x00, 0x80, 0x00, 0x08, 0x00, 0x20, 0x00,
-    0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x10, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0xa6, 0x00, 0x41, 0x48, 0x08, 0x10, 0x04, 0x0c, 0x01, 0x00, 0x20,
-    0x00, 0x22, 0x80, 0x00, 0x02, 0x01, 0x04, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x40, 0x00, 0x80, 0x93, 0x24, 0x09, 0x01, 0x10,
+    0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80,
+    0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4c, 0x01, 0x82, 0x90, 0x10, 0x20, 0x08, 0x18,
+    0x02, 0x00, 0x40, 0x00, 0x44, 0x00, 0x01, 0x04, 0x02, 0x08, 0x02, 0x00,
 ];
 
 /// Number of entries in [`PATHS`]. Value tables carry `N_PATHS + 1` offsets.
-pub(crate) const N_PATHS: usize = 1218;
+pub(crate) const N_PATHS: usize = 1243;
 
 /// Index of `path` in [`PATHS`], or `None`.
 pub(crate) fn path_id(path: &str) -> Option<usize> {

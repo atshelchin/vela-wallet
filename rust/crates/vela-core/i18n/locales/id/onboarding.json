@@ -18,6 +18,40 @@
       "featureStablecoinGasTitle": "Bayar gas dengan stablecoin",
       "featureStablecoinGasBody": "Sebagian besar jaringan memungkinkan Anda membayar biaya dengan stablecoin — tidak perlu menyiapkan koin native lebih dulu."
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — dompet passkey",
+        "description": "Dompet passkey tanpa frasa pemulihan: satu alamat untuk 12+ jaringan, dibangun di atas kontrak Safe v1.4.1 yang telah diaudit, gas bisa dibayar dengan stablecoin, sepenuhnya open source dan bisa di-hosting sendiri."
+      },
+      "tagline": "Kunci Anda, aset Anda",
+      "passkeyIndexLink": "Siapkan layanan indeks passkey",
+      "features": {
+        "noSeedPhrase": {
+          "title": "Tanpa frasa pemulihan",
+          "description": "Buat dan masuk dengan passkey di perangkat Anda — tidak ada 12 kata yang harus dicatat dan dijaga."
+        },
+        "oneAddress": {
+          "title": "Satu alamat, 12+ jaringan",
+          "description": "Alamat yang sama berlaku di semua jaringan yang didukung, dan Anda bisa menambah jaringan sendiri."
+        },
+        "openSource": {
+          "title": "Sepenuhnya open source, bisa di-hosting sendiri",
+          "description": "Aplikasi dan layanan backend-nya open source — Anda bisa menjalankan satu set yang sepenuhnya milik Anda."
+        },
+        "keysInPasswordManager": {
+          "title": "Kunci privat ada di pengelola kata sandi Anda",
+          "description": "Passkey disimpan oleh Kata Sandi Apple atau Google Password Manager — Vela tidak bisa menyentuhnya."
+        },
+        "safeContracts": {
+          "title": "Kontrak memakai Safe v1.4.1",
+          "description": "Akun dibangun di atas kontrak Safe yang telah diaudit, bukan implementasi buatan sendiri."
+        },
+        "stablecoinGas": {
+          "title": "Bayar gas dengan stablecoin",
+          "description": "Sebagian besar jaringan menerima stablecoin untuk biaya — tidak perlu menyiapkan koin native dulu."
+        }
+      }
+    },
     "settings": {
       "title": "Pengaturan",
       "sectionAppearance": "TAMPILAN",

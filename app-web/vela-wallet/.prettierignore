@@ -7,3 +7,8 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Generated artifacts (drift-gated or wrangler-owned)
+src/lib/tokens/tokens.css
+src/lib/tokens/tokens.ts
+worker-configuration.d.ts

@@ -18,6 +18,40 @@
       "featureStablecoinGasTitle": "Paga el gas con monedas estables",
       "featureStablecoinGasBody": "La mayoría de las redes permiten pagar las comisiones con monedas estables — no necesitas conseguir antes la moneda nativa."
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — la billetera con passkey",
+        "description": "Una billetera con passkey y sin frase de recuperación: una sola dirección para más de 12 redes, contratos Safe v1.4.1 auditados, gas pagadero con stablecoins, todo de código abierto y autoalojable."
+      },
+      "tagline": "Tus llaves, tus activos",
+      "passkeyIndexLink": "Configurar el servicio de índice de passkeys",
+      "features": {
+        "noSeedPhrase": {
+          "title": "Sin frase de recuperación",
+          "description": "Crea e inicia sesión con la passkey de tu dispositivo — no hay 12 palabras que copiar y resguardar."
+        },
+        "oneAddress": {
+          "title": "Una dirección, más de 12 redes",
+          "description": "La misma dirección funciona en todas las redes compatibles, y puedes agregar las tuyas."
+        },
+        "openSource": {
+          "title": "Todo de código abierto, autoalojable",
+          "description": "La app y sus servicios de backend son de código abierto — puedes desplegar un conjunto totalmente tuyo."
+        },
+        "keysInPasswordManager": {
+          "title": "La llave privada vive en tu gestor de contraseñas",
+          "description": "Tu passkey la guarda Contraseñas de Apple o el Administrador de contraseñas de Google — Vela no puede tocarla."
+        },
+        "safeContracts": {
+          "title": "Contratos Safe v1.4.1",
+          "description": "Las cuentas se basan en contratos Safe auditados, no en una implementación propia."
+        },
+        "stablecoinGas": {
+          "title": "Paga el gas con stablecoins",
+          "description": "La mayoría de las redes acepta stablecoins para las comisiones — no necesitas tener antes la moneda nativa."
+        }
+      }
+    },
     "settings": {
       "title": "Ajustes",
       "sectionAppearance": "APARIENCIA",

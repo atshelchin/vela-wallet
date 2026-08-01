@@ -18,6 +18,40 @@
       "featureStablecoinGasTitle": "Paga il gas in stablecoin",
       "featureStablecoinGasBody": "La maggior parte delle reti ti permette di pagare le commissioni in stablecoin — non serve prima avere il token nativo."
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — il wallet con passkey",
+        "description": "Un wallet con passkey e senza frase di recupero: un solo indirizzo su oltre 12 reti, contratti Safe v1.4.1 sottoposti ad audit, gas pagabile in stablecoin, tutto open source e auto-ospitabile."
+      },
+      "tagline": "Le tue chiavi, i tuoi asset",
+      "passkeyIndexLink": "Configura il servizio indice passkey",
+      "features": {
+        "noSeedPhrase": {
+          "title": "Niente frase di recupero",
+          "description": "Crea il wallet e accedi con la passkey del tuo dispositivo — nessuna lista di 12 parole da trascrivere e custodire."
+        },
+        "oneAddress": {
+          "title": "Un indirizzo, oltre 12 reti",
+          "description": "Lo stesso indirizzo funziona su tutte le reti supportate, e puoi aggiungerne di tue."
+        },
+        "openSource": {
+          "title": "Tutto open source, auto-ospitabile",
+          "description": "L'app e i servizi backend sono open source — puoi far girare uno stack interamente tuo."
+        },
+        "keysInPasswordManager": {
+          "title": "La chiave privata vive nel tuo gestore di password",
+          "description": "La tua passkey è custodita da Password di Apple o da Gestore delle password di Google — Vela non può toccarla."
+        },
+        "safeContracts": {
+          "title": "Contratti Safe v1.4.1",
+          "description": "Gli account si basano su contratti Safe sottoposti ad audit, non su un'implementazione fatta in casa."
+        },
+        "stablecoinGas": {
+          "title": "Paga il gas in stablecoin",
+          "description": "La maggior parte delle reti accetta stablecoin per le commissioni — senza dover prima procurarti la moneta nativa."
+        }
+      }
+    },
     "settings": {
       "title": "Impostazioni",
       "sectionAppearance": "ASPETTO",

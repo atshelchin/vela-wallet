@@ -18,6 +18,40 @@
       "featureStablecoinGasTitle": "用穩定幣付 gas",
       "featureStablecoinGasBody": "大多數網絡支援以穩定幣支付手續費，不用先持有原生代幣。"
     },
+    "welcomeWeb": {
+      "meta": {
+        "title": "Vela Wallet — 通行密鑰錢包",
+        "description": "免助記詞的通行密鑰錢包：一個地址通行 12+ 個網絡，基於經審計的 Safe v1.4.1 合約，可用穩定幣支付 gas，全面開源、可自行架設。"
+      },
+      "tagline": "你的密鑰，你的資產",
+      "passkeyIndexLink": "設定通行密鑰索引服務",
+      "features": {
+        "noSeedPhrase": {
+          "title": "毋須助記詞",
+          "description": "以裝置上的通行密鑰建立及登入，不必抄寫和保管 12 個英文字。"
+        },
+        "oneAddress": {
+          "title": "一個地址，12+ 個網絡",
+          "description": "同一個地址可在所有支援的網絡使用，亦可自行新增網絡。"
+        },
+        "openSource": {
+          "title": "全面開源，可自行架設",
+          "description": "App 與後端服務均開源，你可以部署完全屬於自己的一套。"
+        },
+        "keysInPasswordManager": {
+          "title": "私鑰在你的密碼管理工具裡",
+          "description": "通行密鑰由 Apple 密碼或 Google 密碼管理工具保管，Vela 無法接觸。"
+        },
+        "safeContracts": {
+          "title": "合約採用 Safe v1.4.1",
+          "description": "帳戶基於經審計的 Safe 合約，並非自行研發的實作。"
+        },
+        "stablecoinGas": {
+          "title": "可用穩定幣支付 gas",
+          "description": "大多數網絡支援以穩定幣支付手續費，毋須預先準備原生幣。"
+        }
+      }
+    },
     "settings": {
       "title": "設定",
       "sectionAppearance": "外觀",

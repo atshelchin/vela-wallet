@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "Anahtarlarınız, paranız.\nTek dokunuş kadar basit.",
       "createWallet": "Cüzdan Oluştur",
-      "alreadyHaveWallet": "Zaten bir cüzdanım var"
+      "alreadyHaveWallet": "Zaten bir cüzdanım var",
+      "desktopTagline": "Anahtarlarınız, varlıklarınız",
+      "featureNoMnemonicTitle": "Kurtarma ifadesi gerekmez",
+      "featureNoMnemonicBody": "Cihazınızdaki geçiş anahtarıyla cüzdan oluşturup giriş yapın — yazıp saklamanız gereken 12 kelime yok.",
+      "featureOneAddressTitle": "Tek adres, 12+ ağ",
+      "featureOneAddressBody": "Aynı adres desteklenen tüm ağlarda çalışır; kendi ağlarınızı da ekleyebilirsiniz.",
+      "featureOpenSourceTitle": "Açık kaynak, kendiniz barındırın",
+      "featureOpenSourceBody": "Uygulama ve arka uç servisleri açık kaynak — tamamen size ait bir kurulum çalıştırabilirsiniz.",
+      "featureKeyCustodyTitle": "Anahtarlar parola yöneticinizde",
+      "featureKeyCustodyBody": "Geçiş anahtarlarınız Apple Passwords veya Google Password Manager tarafından saklanır — Vela onlara asla erişemez.",
+      "featureSafeContractTitle": "Safe v1.4.1 sözleşmeleri",
+      "featureSafeContractBody": "Hesaplar, özel yazılmış bir çözüm değil, denetimden geçmiş Safe sözleşmeleri üzerine kuruludur.",
+      "featureStablecoinGasTitle": "Gas'ı stablecoin ile ödeyin",
+      "featureStablecoinGasBody": "Çoğu ağ, ücretleri stablecoin ile ödemenize izin verir — önceden yerel coin edinmeniz gerekmez."
     },
     "settings": {
       "title": "Ayarlar",

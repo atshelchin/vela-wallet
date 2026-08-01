@@ -74,17 +74,17 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 16,833 leaves across 15 locales', () => {
+  it('carries the whole corpus — 17,028 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
-    // 16,833 = the original 16,817 plus the 16 CLDR `many` forms FR-017 added to
-    // fr/it/es-MX/pt-BR. Without those, MODE A selects `many`, misses, and falls
-    // through to English — turning 16 correct localised strings into English at
-    // large counts. The number moving is the point; it should only ever move
-    // deliberately.
+    // 17,028 = 16,817 original, plus the 16 CLDR `many` forms FR-017 added to
+    // fr/it/es-MX/pt-BR (without them MODE A selects `many`, misses, and falls
+    // through to English at large counts), plus the 195 desktop-onboarding
+    // strings spec 007 added (13 `onboarding.welcome.*` keys × 15 locales).
+    // The number moving is the point; it should only ever move deliberately.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(16_833);
+    expect(total).toBe(17_028);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

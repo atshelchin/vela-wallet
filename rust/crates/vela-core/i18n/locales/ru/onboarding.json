@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "Ваши ключи — ваши монеты.\nПросто, как одно касание.",
       "createWallet": "Создать кошелёк",
-      "alreadyHaveWallet": "У меня уже есть кошелёк"
+      "alreadyHaveWallet": "У меня уже есть кошелёк",
+      "desktopTagline": "Ваши ключи — ваши активы",
+      "featureNoMnemonicTitle": "Без seed-фразы",
+      "featureNoMnemonicBody": "Создавайте кошелёк и входите с помощью passkey на устройстве — никаких 12 слов, которые нужно записывать и хранить.",
+      "featureOneAddressTitle": "Один адрес, 12+ сетей",
+      "featureOneAddressBody": "Один и тот же адрес работает во всех поддерживаемых сетях, а свои сети вы можете добавить сами.",
+      "featureOpenSourceTitle": "Открытый код, свой хостинг",
+      "featureOpenSourceBody": "Исходный код приложения и бэкенд-сервисов открыт — вы можете развернуть полностью собственный стек.",
+      "featureKeyCustodyTitle": "Ключи в вашем менеджере паролей",
+      "featureKeyCustodyBody": "Passkey хранятся в Связке ключей iCloud или Менеджере паролей Google — Vela никогда не имеет к ним доступа.",
+      "featureSafeContractTitle": "Контракты Safe v1.4.1",
+      "featureSafeContractBody": "Аккаунты построены на прошедших аудит контрактах Safe, а не на собственной реализации.",
+      "featureStablecoinGasTitle": "Оплата газа стейблкоинами",
+      "featureStablecoinGasBody": "В большинстве сетей комиссию можно платить стейблкоинами — не нужно сначала запасаться нативной монетой."
     },
     "settings": {
       "title": "Настройки",

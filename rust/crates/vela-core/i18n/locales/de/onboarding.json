@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "Ihre Schlüssel, Ihre Coins.\nEin Tippen genügt.",
       "createWallet": "Wallet erstellen",
-      "alreadyHaveWallet": "Ich habe bereits eine Wallet"
+      "alreadyHaveWallet": "Ich habe bereits eine Wallet",
+      "desktopTagline": "Ihre Schlüssel, Ihr Vermögen",
+      "featureNoMnemonicTitle": "Keine Seed-Phrase",
+      "featureNoMnemonicBody": "Erstellen Sie Ihre Wallet und melden Sie sich per Passkey auf Ihrem Gerät an — keine 12 Wörter, die Sie abschreiben und verwahren müssen.",
+      "featureOneAddressTitle": "Eine Adresse, 12+ Netzwerke",
+      "featureOneAddressBody": "Dieselbe Adresse funktioniert auf allen unterstützten Netzwerken, und Sie können eigene hinzufügen.",
+      "featureOpenSourceTitle": "Open Source, selbst hostbar",
+      "featureOpenSourceBody": "App und Backend-Dienste sind Open Source — Sie können einen komplett eigenen Stack betreiben.",
+      "featureKeyCustodyTitle": "Schlüssel in Ihrem Passwortmanager",
+      "featureKeyCustodyBody": "Passkeys werden vom iCloud-Schlüsselbund oder dem Google Passwortmanager verwahrt — Vela hat niemals Zugriff darauf.",
+      "featureSafeContractTitle": "Smart Contracts: Safe v1.4.1",
+      "featureSafeContractBody": "Konten basieren auf auditierten Safe-Contracts, nicht auf einer Eigenentwicklung.",
+      "featureStablecoinGasTitle": "Gas mit Stablecoins zahlen",
+      "featureStablecoinGasBody": "Auf den meisten Netzwerken können Sie die Gebühren mit Stablecoins zahlen — Sie müssen nicht erst den nativen Coin besitzen."
     },
     "settings": {
       "title": "Einstellungen",

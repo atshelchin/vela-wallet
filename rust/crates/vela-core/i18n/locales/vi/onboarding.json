@@ -3,7 +3,20 @@
     "welcome": {
       "tagline": "Khóa của bạn, coin của bạn.\nChỉ với một chạm.",
       "createWallet": "Tạo ví",
-      "alreadyHaveWallet": "Tôi đã có ví"
+      "alreadyHaveWallet": "Tôi đã có ví",
+      "desktopTagline": "Khóa của bạn, tài sản của bạn",
+      "featureNoMnemonicTitle": "Không cần cụm từ khôi phục",
+      "featureNoMnemonicBody": "Tạo ví và đăng nhập bằng passkey trên thiết bị của bạn — không có 12 từ phải chép lại và cất giữ.",
+      "featureOneAddressTitle": "Một địa chỉ, 12+ mạng",
+      "featureOneAddressBody": "Cùng một địa chỉ hoạt động trên mọi mạng được hỗ trợ, và bạn cũng có thể tự thêm mạng riêng.",
+      "featureOpenSourceTitle": "Mã nguồn mở, tự triển khai được",
+      "featureOpenSourceBody": "Ứng dụng và các dịch vụ backend đều là mã nguồn mở — bạn có thể vận hành một hệ thống hoàn toàn của riêng mình.",
+      "featureKeyCustodyTitle": "Khóa nằm trong trình quản lý mật khẩu của bạn",
+      "featureKeyCustodyBody": "Passkey do Apple Passwords hoặc Google Password Manager quản lý — Vela không bao giờ truy cập được.",
+      "featureSafeContractTitle": "Hợp đồng Safe v1.4.1",
+      "featureSafeContractBody": "Tài khoản được xây dựng trên các hợp đồng Safe đã qua kiểm toán, không phải bản tự phát triển.",
+      "featureStablecoinGasTitle": "Trả gas bằng stablecoin",
+      "featureStablecoinGasBody": "Hầu hết các mạng cho phép trả phí bằng stablecoin — không cần có sẵn coin gốc trước."
     },
     "settings": {
       "title": "Cài đặt",

@@ -28,7 +28,7 @@ and regenerates `app-ios/VelaCoreKit/Sources/VelaCore/vela_core_uniffi.swift`
 
 ```sh
 node app-ios/scripts/gen-tokens.mjs --check      # token drift
-node app-ios/scripts/sync-catalogs.mjs --check   # catalog drift
+node app-ios/scripts/gen-catalog-filelists.mjs --check   # catalog declaration drift (spec 010)
 node app-ios/scripts/audit-literals.mjs          # no visual literals outside DesignSystem/
 ```
 

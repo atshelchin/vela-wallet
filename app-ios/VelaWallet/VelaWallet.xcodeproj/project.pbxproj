@@ -120,6 +120,7 @@
 				23ED5E323019A42200EA9C55 /* Sources */,
 				23ED5E333019A42200EA9C55 /* Frameworks */,
 				23ED5E343019A42200EA9C55 /* Resources */,
+				AAC0DE00000000000000B001 /* Bundle locale catalogs */,
 			);
 			buildRules = (
 			);
@@ -228,6 +229,28 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AAC0DE00000000000000B001 /* Bundle locale catalogs */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"$(SRCROOT)/../scripts/catalogs-input.xcfilelist",
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../public/i18n",
+			);
+			name = "Bundle locale catalogs";
+			outputFileListPaths = (
+				"$(SRCROOT)/../scripts/catalogs-output.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/../scripts/bundle-catalogs.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		23ED5E343019A42200EA9C55 /* Resources */ = {

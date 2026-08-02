@@ -76,7 +76,10 @@ feature input, one authoritative implementation per capability (FR-009).
 app-ios/
 ├── scripts/
 │   ├── gen-tokens.mjs            # docs/design-tokens.json → Tokens.swift (+ --check)   D1
-│   └── sync-catalogs.mjs         # public/i18n/*.json → bundled catalogs (+ --check)    D3
+│   ├── gen-catalog-filelists.mjs # declares public/i18n → bundle copy (+ --check)  D3/010
+│   ├── catalogs-input.xcfilelist  # 15 declared build-phase reads                       010
+│   ├── catalogs-output.xcfilelist # 15 declared build-phase writes                      010
+│   └── bundle-catalogs.sh        # build phase: public/i18n/*.json → VelaWallet.app     010
 ├── VelaCoreKit/                  # local Swift package wrapping the uniffi surface      D2
 │   ├── Package.swift             # binaryTarget VelaCoreFFI.xcframework + VelaCore target
 │   ├── Sources/VelaCore/         # generated vela_core_uniffi.swift (committed)

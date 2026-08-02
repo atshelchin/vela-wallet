@@ -71,7 +71,7 @@ Relaunch resets everything (`currentPage = 0`), nothing persisted.
 
 | Resource | Count | Source of truth | Sync gate |
 |---|---|---|---|
-| `Localization/Catalogs/<lng>.json` | 15 | `public/i18n/*.json` (gen-i18n.mjs) | `sync-catalogs.mjs --check` |
+| `<lng>.json` at the app-bundle root | 15 | `public/i18n/*.json` (gen-i18n.mjs) | `gen-catalog-filelists.mjs --check` |
 | `DesignSystem/Tokens.swift` | 1 | `docs/design-tokens.json` | `gen-tokens.mjs --check` |
 | `DesignSystem/Fonts/*.ttf` | 4 | `@expo-google-fonts/plus-jakarta-sans` | copied once + OFL license |
 | `VelaCoreKit/Sources/VelaCore/*.swift` | 1 | `vela-core-uniffi` crate | rebuild script; regen = no diff |

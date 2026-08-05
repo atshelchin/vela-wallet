@@ -27,9 +27,7 @@ use crux_core::{command::AbortHandle, render::render, App, Command};
 use serde::{Deserialize, Serialize};
 
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
-use super::{
-    address_from_public_key_hex, Account, Assertion, FailureKind, PromptKind,
-};
+use super::{address_from_public_key_hex, Account, Assertion, FailureKind, PromptKind};
 use crate::primitives;
 use crate::webauthn;
 
@@ -279,7 +277,13 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         }
 
         // -- resolution: index -------------------------------------------------
-        (Stage::QueryingIndex, ShellResult::IndexRecord { public_key_hex, name }) => {
+        (
+            Stage::QueryingIndex,
+            ShellResult::IndexRecord {
+                public_key_hex,
+                name,
+            },
+        ) => {
             let Some(assertion) = model.assertion.clone() else {
                 return Command::done();
             };
@@ -348,7 +352,12 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 },
             )
         }
-        (Stage::Recovering, ShellResult::ProofSigned { assertion: second, .. }) => {
+        (
+            Stage::Recovering,
+            ShellResult::ProofSigned {
+                assertion: second, ..
+            },
+        ) => {
             let Some(first) = model.assertion.clone() else {
                 return Command::done();
             };

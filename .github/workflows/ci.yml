@@ -157,6 +157,14 @@ jobs:
       - name: Conformance corpus through the shipped web artifact
         working-directory: .
         run: node rust/scripts/verify-web.mjs
+      # The onboarding Core<->Shell boundary is JSON, so nothing but this gate
+      # keeps ~40 wire variants honest between Rust and TypeScript. A drifted
+      # variant fails at RUNTIME, in a branch the e2e suites do not reach
+      # (incompatible provider, non-discoverable credential) — see
+      # specs/011-crux-onboarding-state/research.md D8.
+      - name: Onboarding wire types are current (src/services/onboarding-core/generated)
+        working-directory: .
+        run: node rust/scripts/gen-onboarding-types.mjs --check
       - name: Swift bindings generate (compiled here, exercised in rust-macos)
         run: |
           cargo build --release -p vela-core-uniffi

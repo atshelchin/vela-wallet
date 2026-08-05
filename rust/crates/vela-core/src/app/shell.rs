@@ -66,7 +66,9 @@ pub enum ShellOperation {
     /// Is a passkey authenticator available at all?
     CheckPasskeySupport,
     /// `navigator.credentials.create()` — mint a passkey for this name.
-    RegisterPasskey { name: String },
+    RegisterPasskey {
+        name: String,
+    },
     /// `navigator.credentials.get()` against a known credential.
     SignProof {
         credential_id: String,
@@ -76,9 +78,15 @@ pub enum ShellOperation {
     AuthenticatePasskey,
     /// Read every locally stored account.
     LoadAccounts,
-    SaveAccount { account: Account },
-    SavePendingUpload { record: PendingUpload },
-    RemovePendingUpload { credential_id: String },
+    SaveAccount {
+        account: Account,
+    },
+    SavePendingUpload {
+        record: PendingUpload,
+    },
+    RemovePendingUpload {
+        credential_id: String,
+    },
     /// Publish a public key to the index server.
     IndexCreateRecord {
         credential_id: String,
@@ -86,9 +94,13 @@ pub enum ShellOperation {
         name: String,
     },
     /// Look a credential up in the index server.
-    IndexQueryRecord { credential_id: String },
+    IndexQueryRecord {
+        credential_id: String,
+    },
     /// Has the index server's on-chain reveal landed for this wallet yet?
-    IndexQueryByWalletRef { address: String },
+    IndexQueryByWalletRef {
+        address: String,
+    },
     /// One health probe of the index server.
     ProbeIndexHealth,
     /// Wait, without the core owning a clock. Used for retry backoff.
@@ -96,7 +108,9 @@ pub enum ShellOperation {
     /// `u32`, not `u64`: the wire is JSON and `JSON.parse` yields a `number`, so
     /// a 64-bit type would generate a TypeScript `bigint` the shell never
     /// actually receives.
-    Wait { ms: u32 },
+    Wait {
+        ms: u32,
+    },
     /// Ask (or tell) the user something. `confirmable` selects a two-button
     /// dialog whose answer is a business decision.
     Prompt {
@@ -104,7 +118,9 @@ pub enum ShellOperation {
         confirmable: bool,
     },
     /// Hand the wallet to the app and leave onboarding.
-    CompleteOnboarding { mode: CompletionMode },
+    CompleteOnboarding {
+        mode: CompletionMode,
+    },
 }
 
 impl Operation for ShellOperation {

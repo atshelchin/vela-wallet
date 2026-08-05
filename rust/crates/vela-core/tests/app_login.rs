@@ -94,7 +94,11 @@ fn a_probe_that_succeeds_leaves_the_endpoint_alone() {
 fn a_locally_known_credential_opens_the_wallet_without_the_index() {
     let mut sut = authenticated();
     let accounts = vec![
-        support::account("other", "Other", "0x1111111111111111111111111111111111111111"),
+        support::account(
+            "other",
+            "Other",
+            "0x1111111111111111111111111111111111111111",
+        ),
         support::account(CRED, "Ann", "0x2222222222222222222222222222222222222222"),
     ];
 
@@ -102,10 +106,11 @@ fn a_locally_known_credential_opens_the_wallet_without_the_index() {
 
     match next.as_slice() {
         [ShellOperation::CompleteOnboarding {
-            mode: CompletionMode::SetWallet {
-                accounts,
-                active_index,
-            },
+            mode:
+                CompletionMode::SetWallet {
+                    accounts,
+                    active_index,
+                },
         }] => {
             assert_eq!(*active_index, 1, "the matching account is the active one");
             assert_eq!(accounts.len(), 2, "the whole list is restored");

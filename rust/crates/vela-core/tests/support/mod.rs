@@ -162,7 +162,11 @@ pub fn attestation_object_hex() -> String {
 /// The uncompressed public key that attestation and the assertion pair share.
 pub fn expected_public_key_hex() -> String {
     let case = case("extractPublicKey/real-key");
-    format!("04{}{}", hex(&case["expect"]["x"]), hex(&case["expect"]["y"]))
+    format!(
+        "04{}{}",
+        hex(&case["expect"]["x"]),
+        hex(&case["expect"]["y"])
+    )
 }
 
 pub fn registration(credential_id: &str) -> Registration {

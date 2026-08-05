@@ -222,7 +222,10 @@ fn is_uuid_v4_shape(candidate: &str) -> bool {
         let Some(part) = parts.next() else {
             return false;
         };
-        if part.len() != len || !part.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        if part.len() != len
+            || !part
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
         {
             return false;
         }

@@ -15,11 +15,7 @@
 //! hold, nothing is written and the address is never shown, so an unusable
 //! wallet can never be funded.
 
-use crux_core::{
-    command::AbortHandle,
-    render::render,
-    App, Command,
-};
+use crux_core::{command::AbortHandle, render::render, App, Command};
 use serde::{Deserialize, Serialize};
 
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
@@ -47,8 +43,12 @@ const MAX_UPLOAD_TRIES: u8 = 3;
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "CreateWalletEvent"))]
 pub enum Event {
     Start,
-    NameChanged { name: String },
-    AckToggled { index: usize },
+    NameChanged {
+        name: String,
+    },
+    AckToggled {
+        index: usize,
+    },
     /// The primary button: "Create Wallet", or "Finish verification" when a
     /// draft is waiting.
     Submit,
@@ -62,7 +62,10 @@ pub enum Event {
     /// captured by the core when the request is made, which is what makes a
     /// late result from an abandoned attempt identifiable.
     #[serde(skip)]
-    ShellCompleted { attempt: u64, result: ShellResult },
+    ShellCompleted {
+        attempt: u64,
+        result: ShellResult,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -489,11 +492,9 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
 
         // -- pending record --------------------------------------------------
         (Stage::SavingPending, ShellResult::PendingUploadSaved) => begin_upload(model),
-        (Stage::SavingPending, ShellResult::StorageFailed { message }) => fail_to_form(
-            model,
-            PromptKind::CreateFailed { detail: message },
-            None,
-        ),
+        (Stage::SavingPending, ShellResult::StorageFailed { message }) => {
+            fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
+        }
 
         // -- index sync ------------------------------------------------------
         (Stage::Syncing(SyncStep::Creating), ShellResult::IndexCreated) => {
@@ -517,7 +518,10 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 model.sync.create_error = None;
                 check_wallet_ref(model)
             } else {
-                retry_or_fail(model, "Server verification failed: public key mismatch".to_owned())
+                retry_or_fail(
+                    model,
+                    "Server verification failed: public key mismatch".to_owned(),
+                )
             }
         }
         (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexMissing) => {
@@ -590,11 +594,9 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             model.status = None;
             render()
         }
-        (Stage::Saving, ShellResult::StorageFailed { message }) => fail_to_form(
-            model,
-            PromptKind::CreateFailed { detail: message },
-            None,
-        ),
+        (Stage::Saving, ShellResult::StorageFailed { message }) => {
+            fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
+        }
 
         // -- handover ---------------------------------------------------------
         (Stage::Completing, ShellResult::OnboardingCompleted) => Command::done(),

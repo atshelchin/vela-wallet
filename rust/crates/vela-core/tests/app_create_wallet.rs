@@ -174,7 +174,11 @@ fn non_discoverable_credential_aborts_without_persisting() {
         ),
         "the user is told to use a different provider, and nothing else happens"
     );
-    assert_eq!(sut.view().submit_label, SubmitLabel::Create, "no draft kept");
+    assert_eq!(
+        sut.view().submit_label,
+        SubmitLabel::Create,
+        "no draft kept"
+    );
 }
 
 /// FR-009 — an incompatible provider is terminal, not resumable: retrying the
@@ -283,7 +287,10 @@ fn a_missing_record_retries_rather_than_saving() {
     sut.resolve(ShellResult::IndexCreated);
     let next = sut.resolve(ShellResult::IndexMissing);
 
-    assert!(matches!(next.as_slice(), [ShellOperation::Wait { ms: 1000 }]));
+    assert!(matches!(
+        next.as_slice(),
+        [ShellOperation::Wait { ms: 1000 }]
+    ));
 }
 
 /// FR-011 — three attempts, with the same 1s/2s backoff as today.
@@ -308,11 +315,18 @@ fn upload_retries_exactly_three_times_with_increasing_waits() {
         }
     }
 
-    assert_eq!(waits, vec![1000, 2000], "1s then 2s, then no fourth attempt");
+    assert_eq!(
+        waits,
+        vec![1000, 2000],
+        "1s then 2s, then no fourth attempt"
+    );
     let view = sut.view();
     assert_eq!(view.stage, CreateStage::SyncFailed);
     assert_eq!(view.sync_error_detail.as_deref(), Some("offline"));
-    assert!(!view.can_go_back, "the back arrow is hidden while sync-failed");
+    assert!(
+        !view.can_go_back,
+        "the back arrow is hidden while sync-failed"
+    );
 }
 
 /// FR-013 — retry resumes at the upload. Re-registering would mint a second
@@ -388,7 +402,10 @@ fn an_unresolved_wallet_reference_keeps_the_pending_entry_and_still_completes() 
             .any(|op| matches!(op, ShellOperation::RemovePendingUpload { .. })),
         "the pending entry must survive so a later launch retries the reveal"
     );
-    assert!(next.iter().any(is_save_account), "and the wallet still opens");
+    assert!(
+        next.iter().any(is_save_account),
+        "and the wallet still opens"
+    );
 }
 
 /// The wallet-reference check is best-effort: a failing index must not block a
@@ -445,7 +462,10 @@ fn late_upload_result_after_start_over_is_ignored() {
     // The upload that was in flight when the user gave up now comes back.
     let next = sut.resolve(ShellResult::IndexCreated);
 
-    assert!(next.is_empty(), "the abandoned run may not request anything");
+    assert!(
+        next.is_empty(),
+        "the abandoned run may not request anything"
+    );
     let view = sut.view();
     assert_eq!(view.stage, CreateStage::Form);
     assert_eq!(view.submit_label, SubmitLabel::Create);

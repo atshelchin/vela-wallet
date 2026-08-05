@@ -13,23 +13,37 @@ struct WelcomeScreen: View {
     @Bindable var model: WelcomeModel
 
     var body: some View {
+        // Android's structure, ported: a flexible hero region whose two big gaps
+        // are FRACTIONS OF ITS OWN HEIGHT, plus a CTA block pinned at the bottom.
+        // The previous version used two fixed `Spacer(minLength: 32)`, which is
+        // why the screen read as cramped next to Android on the same content.
         VStack(spacing: 0) {
-            Spacer(minLength: Tokens.Space.s32)
+            GeometryReader { proxy in
+                let region = proxy.size.height
+                VStack(spacing: 0) {
+                    Spacer().frame(height: region * WelcomeGeometry.heroTopFraction)
 
-            BrandRow()
+                    BrandRow()
 
-            Text(model.content.tagline)
-                .typeRole(Typography.tagline)
-                .foregroundStyle(theme.fgMuted)
-                .multilineTextAlignment(.center)
-                .padding(.top, WelcomeGeometry.brandTaglineGap)
+                    Text(model.content.tagline)
+                        .typeRole(Typography.tagline)
+                        .foregroundStyle(theme.fgMuted)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, WelcomeGeometry.brandTaglineGap)
 
-            Spacer(minLength: Tokens.Space.s32)
+                    Spacer().frame(height: region * WelcomeGeometry.taglineCarouselFraction)
 
-            carousel
+                    carousel
 
-            PagerDots(count: model.content.cards.count, current: $model.currentPage)
-                .padding(.top, WelcomeGeometry.cardDotsGap)
+                    PagerDots(count: model.content.cards.count, current: $model.currentPage)
+                        .padding(.top, WelcomeGeometry.cardDotsGap)
+
+                    // Absorbs whatever the fractions did not spend, so the hero
+                    // never fights the pinned CTAs for space.
+                    Spacer(minLength: 0)
+                }
+                .frame(width: proxy.size.width)
+            }
 
             VStack(spacing: WelcomeGeometry.ctaGap) {
                 VelaButton(title: model.content.createWallet, kind: .primary) {

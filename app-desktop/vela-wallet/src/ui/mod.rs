@@ -3,8 +3,10 @@
 
 mod button;
 mod card;
+mod launch_animation;
 mod logo;
 
-pub use button::{vela_button, ButtonVariant};
+pub use button::{ButtonVariant, vela_button};
 pub use card::feature_card;
+pub use launch_animation::LaunchAnimation;
 pub use logo::vela_mark;

@@ -55,6 +55,8 @@ android {
             // Static File (not Provider): AGP 9 disallows Providers here; the task
             // dependency is carried by the merge*Assets wiring below.
             assets.srcDir(projectDir.resolve("build/generated/velaI18n"))
+            // Launch animations, same arrangement (spec 012).
+            assets.srcDir(projectDir.resolve("build/generated/velaAnimations"))
         }
     }
 
@@ -89,6 +91,29 @@ val cargoNdkBuild = tasks.register<Exec>("cargoNdkBuild") {
     workingDir = velaRepoRoot
     commandLine("bash", velaRepoRoot.resolve("rust/scripts/build-android.sh").absolutePath)
     enabled = !velaSkipRustBuild
+
+    // WITHOUT these, an Exec task declares no outputs and therefore can NEVER be
+    // UP-TO-DATE: Gradle re-runs the full three-ABI Rust release cross-compile on
+    // every single build. Measured at ~6 minutes on an M-series Mac. Command-line
+    // builds hid it because they pass -PvelaSkipRustBuild; Android Studio does
+    // not, so the IDE paid it every time.
+    //
+    // cargo's own incremental check is fast but it never gets to run — Gradle
+    // spawns the process first. Declaring the real inputs and outputs lets
+    // Gradle skip the spawn entirely when nothing in the Rust tree moved.
+    inputs.files(
+        velaRepoRoot.resolve("rust/Cargo.toml"),
+        velaRepoRoot.resolve("rust/Cargo.lock"),
+    ).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(velaRepoRoot.resolve("rust/crates"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .withPropertyName("velaRustSources")
+    inputs.file(velaRepoRoot.resolve("rust/scripts/build-android.sh"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    // The script writes here (see rust/scripts/build-android.sh).
+    outputs.dir(projectDir.resolve("src/main/jniLibs"))
+        .withPropertyName("velaJniLibs")
+    outputs.cacheIf { true }
 }
 
 val syncVelaI18nAssets = tasks.register<Sync>("syncVelaI18nAssets") {
@@ -99,6 +124,30 @@ val syncVelaI18nAssets = tasks.register<Sync>("syncVelaI18nAssets") {
     into(layout.buildDirectory.dir("generated/velaI18n/i18n"))
 }
 
+// Launch animations (spec 012 FR-001/FR-002): design/onboarding/launch is THE
+// source of truth and no app keeps a copy. Only the `core` framings ship — the
+// `full` pair exists to pin the apps' box ratio and is never loaded (research D0/D3).
+//
+// The include pattern is a GLOB, not a list, so adding a second animation needs
+// no edit here (FR-004).
+val syncVelaAnimationAssets = tasks.register<Sync>("syncVelaAnimationAssets") {
+    description = "Copies launch animations (design/onboarding/launch) into build assets (spec 012)."
+    from(velaRepoRoot.resolve("design/onboarding/launch")) {
+        include("*-core-*.json")
+    }
+    into(layout.buildDirectory.dir("generated/velaAnimations/animations"))
+    // A build that silently produced an animation-less app would be worse than a
+    // failed one (FR-003).
+    doLast {
+        val produced = destinationDir.listFiles { f -> f.name.endsWith(".json") }?.size ?: 0
+        check(produced >= 4) {
+            "expected at least 4 launch animation assets, found $produced in $destinationDir — " +
+                "is design/onboarding/launch present and named " +
+                "vela-wallet-launch-{phone|desktop}-core-{dark|light}.json?"
+        }
+    }
+}
+
 val rustHostLib = tasks.register<Exec>("rustHostLib") {
     description = "Builds the host-platform vela-core-uniffi dylib for JVM unit tests (research D14)."
     workingDir = velaRepoRoot.resolve("rust")
@@ -107,10 +156,10 @@ val rustHostLib = tasks.register<Exec>("rustHostLib") {
 }
 
 tasks.named("preBuild") {
-    dependsOn(cargoNdkBuild, syncVelaI18nAssets)
+    dependsOn(cargoNdkBuild, syncVelaI18nAssets, syncVelaAnimationAssets)
 }
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
-    dependsOn(syncVelaI18nAssets)
+    dependsOn(syncVelaI18nAssets, syncVelaAnimationAssets)
 }
 tasks.withType<Test>().configureEach {
     dependsOn(rustHostLib)
@@ -130,6 +179,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.lottie.compose)
     // Used directly (StateFlow, launch) — do not rely on lifecycle's transitive edge.
     implementation(libs.kotlinx.coroutines.android)
     // JNA: Android needs the aar (bundled libjnidispatch.so per ABI); JVM tests use the plain jar.

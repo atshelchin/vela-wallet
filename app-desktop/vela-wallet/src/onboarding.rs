@@ -4,14 +4,14 @@
 
 use crate::loc::Loc;
 use crate::theme::{
-    self, Theme, ThemeMode, BRAND_INDENT, BRAND_TOP, CARD_GAP_X, CARD_GAP_Y, CONTENT_INSET,
-    CONTENT_INSET_RIGHT, GAP_BRAND_TAGLINE, GAP_BUTTONS, GAP_LOGO_WORDMARK, GAP_TAGLINE_GRID,
-    LOGO_SIZE, PANEL_INSET, PANEL_W,
+    self, BRAND_INDENT, BRAND_TOP, CARD_GAP_X, CARD_GAP_Y, CONTENT_INSET, CONTENT_INSET_RIGHT,
+    GAP_BRAND_TAGLINE, GAP_BUTTONS, GAP_LOGO_WORDMARK, GAP_TAGLINE_GRID, LOGO_SIZE, PANEL_INSET,
+    PANEL_W, Theme, ThemeMode,
 };
-use crate::ui::{feature_card, vela_button, vela_mark, ButtonVariant};
+use crate::ui::{ButtonVariant, LaunchAnimation, feature_card, vela_button, vela_mark};
 use gpui::{
-    div, px, Context, Div, FontWeight, IntoElement, ParentElement, Render, SharedString, Styled,
-    Window,
+    Context, Div, FontWeight, InteractiveElement as _, IntoElement, MouseButton, ParentElement,
+    Render, SharedString, Styled, Window, div, px,
 };
 
 /// What the user chose on this screen. One sink (FR-010): later features attach
@@ -35,12 +35,18 @@ const FEATURES: [(&str, &str); 6] = [
 pub struct OnboardingPage {
     mode: ThemeMode,
     loc: Loc,
+    /// The launch animation, for this cold start only (spec 012). `None` once
+    /// it has finished — there is no path back, which is FR-008.
+    launch: Option<LaunchAnimation>,
 }
 
 impl OnboardingPage {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let loc = Loc::from_env();
-        eprintln!("[vela-wallet] onboarding: locale resolved to `{}`", loc.language());
+        eprintln!(
+            "[vela-wallet] onboarding: locale resolved to `{}`",
+            loc.language()
+        );
 
         // Restyle when the OS appearance flips, unless VELA_THEME pins it.
         let page = cx.weak_entity();
@@ -59,8 +65,14 @@ impl OnboardingPage {
             })
             .detach();
 
+        let mode = ThemeMode::detect(window);
         Self {
-            mode: ThemeMode::detect(window),
+            launch: if theme::launch_disabled() {
+                None
+            } else {
+                Some(LaunchAnimation::new(mode, cx))
+            },
+            mode,
             loc,
         }
     }
@@ -178,14 +190,62 @@ impl OnboardingPage {
 }
 
 impl Render for OnboardingPage {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(self.mode);
-        div()
+
+        // The page is composed on EVERY frame, including while the launch
+        // animation covers it (spec FR-013a). The overlay is opaque until the
+        // dissolve, so none of this is visible early — but it means the hand-off
+        // has nothing left to build at exactly the wrong moment.
+        //
+        // NOTE the background is NOT on this div: it sits on the root below, so
+        // it stays opaque while the content fades in. Putting it here would fade
+        // the backdrop too and the dissolve would wash out through to the bare
+        // window instead of cross-dissolving over a continuous colour.
+        let page = div()
             .size_full()
             .flex()
-            .bg(theme.bg_base)
             .text_color(theme.fg_base)
             .child(self.left_column(&theme))
-            .child(self.action_panel(&theme, cx))
+            .child(self.action_panel(&theme, cx));
+
+        let viewport_w = f32::from(window.viewport_size().width);
+        let overlay = self
+            .launch
+            .as_mut()
+            .and_then(|launch| launch.render(viewport_w, window, cx));
+
+        // Welcome fades IN as the launch lockup fades OUT — a cross-dissolve,
+        // not a reveal. 1.0 once the animation is gone.
+        let page_opacity = self.launch.as_ref().map_or(1., |l| l.page_opacity());
+
+        let root = div()
+            .size_full()
+            .relative()
+            // The one continuous surface. Both the launch screen and Welcome sit
+            // on this exact colour, which is what lets them cross-dissolve
+            // without a washed-out middle.
+            .bg(theme.bg_base)
+            .child(page.opacity(page_opacity));
+
+        match overlay {
+            None => {
+                // Terminal: drop the animation so a later re-render cannot
+                // resurrect it (FR-008 — once per cold start, never again).
+                self.launch = None;
+                root
+            }
+            // Any pointer input ends playback immediately (FR-016). The overlay
+            // is on top, so it receives the event before the page.
+            Some(overlay) => root.child(overlay.on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    if let Some(launch) = this.launch.as_mut() {
+                        launch.skip();
+                    }
+                    cx.notify();
+                }),
+            )),
+        }
     }
 }

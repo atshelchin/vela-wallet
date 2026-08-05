@@ -2,6 +2,10 @@
 <resources>
     <!-- Window-level colors only; Compose tokens live in core/designsystem/tokens.
          Values mirror docs/design-tokens.json (drift-tested). -->
-    <color name="vela_splash_bg">#1A1A18</color>
+    <!-- Splash, LIGHT appearance. Was #1A1A18 in both modes (spec 007 FR-006);
+         spec 012 FR-022 makes it follow appearance so light-mode users no longer
+         get an ink splash followed by a light app. values-night carries the dark
+         value. -->
+    <color name="vela_splash_bg">#FAFAF8</color>
     <color name="vela_window_bg">#FAFAF8</color>
 </resources>

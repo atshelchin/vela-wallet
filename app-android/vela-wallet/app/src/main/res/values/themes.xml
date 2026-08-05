@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Splash: fixed ink #1A1A18 in BOTH modes (color.fixed.splashBg, spec FR-006). -->
+    <!-- Splash background follows appearance (spec 012 FR-022); values/ carries
+         the light value, values-night/ the dark one. -->
     <style name="Theme.VelaWallet" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/vela_splash_bg</item>
         <item name="postSplashScreenTheme">@style/Theme.VelaWallet.Main</item>

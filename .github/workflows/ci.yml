@@ -89,6 +89,22 @@ jobs:
       # an engine port makes every parity claim unverifiable.
       - name: i18n corpus defect register
         run: node scripts/lint-i18n-corpus.mjs
+      # Four apps render these animations with THREE different engines (spec
+      # 012). They agree on the core of the Lottie format and diverge, silently
+      # and differently from each other, at its edges — so the assets are pinned
+      # to the subset where they agree, plus the cross-file invariants that only
+      # exist because one animation ships in four framings.
+      #
+      # The self-test is not optional decoration. This linter is one naive
+      # `x`-key search away from rejecting every legal file in the repo (the
+      # bezier ease handles look exactly like expressions), and one filter away
+      # from letting a broken crop hide the ratio drift it caused. Both were
+      # real, both were caught by fixtures, and the fixtures are what keep them
+      # caught.
+      - name: Launch animation assets are legal
+        run: |
+          node scripts/lint-lottie-assets.mjs --self-test
+          node scripts/lint-lottie-assets.mjs
       # Byte-parity between the Rust core and the JS library the app still ships on
       # native — over every address literal in the repo plus 200k random seeds.
       - name: Identicon parity (Rust core vs the shipped JS library)

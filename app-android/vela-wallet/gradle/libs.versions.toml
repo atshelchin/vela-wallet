@@ -14,6 +14,7 @@ splashscreen = "1.0.1"
 jna = "5.14.0"
 kotlinxCoroutines = "1.10.2"
 orgJson = "20240303"
+lottie = "6.7.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -38,6 +39,11 @@ androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscree
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
+# Airbnb's Lottie for Compose (spec 012). Maven Central, pure Kotlin/Java, no
+# native library — so it adds nothing to the ABI payload the uniffi .so already
+# constrains. dotLottie was measured and rejected: not on Maven Central at all
+# (its README's coordinate 404s), JitPack only. See research D2.
+lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

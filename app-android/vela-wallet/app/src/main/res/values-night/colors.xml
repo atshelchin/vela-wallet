@@ -2,4 +2,12 @@
 <resources>
     <!-- color.bg.base (dark) — see docs/design-tokens.json. -->
     <color name="vela_window_bg">#141412</color>
+    <!-- Splash follows appearance (spec 012 FR-022). This can only track the OS
+         uiMode: the system paints the splash window before MainActivity can read
+         the stored ThemePreference. When the two agree — the overwhelmingly
+         common case, since the default preference is Auto — the hand-off to the
+         launch animation shows no background flash (SC-008). When the user has
+         overridden the theme in-app to the opposite of their OS, FR-023's
+         crossfade is what keeps the change reading as deliberate. -->
+    <color name="vela_splash_bg">#141412</color>
 </resources>

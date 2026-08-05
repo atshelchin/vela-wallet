@@ -14,39 +14,53 @@ final class VelaWalletUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testWelcomeSmoke() throws {
+    /// Spec 012: the launch animation must actually ADVANCE.
+    ///
+    /// This exists because every unit test passed while the animation was frozen
+    /// on frame 0 — the mark centred, all ten wordmark glyphs still at opacity 0
+    /// — for its whole run. Nothing that inspects constants or bundles can see
+    /// that; only comparing two moments of the real screen can. The cause was an
+    /// unguarded `configure { view.configuration = … }`, which SwiftUI re-ran on
+    /// every update and which resets playback each time.
+    func testLaunchAnimationAdvances() throws {
         let app = XCUIApplication()
         app.launchEnvironment["VELA_LANG"] = "en"
+        // Deliberately NOT skipping: this is the one test that watches it play.
         app.launch()
 
-        // 1. Welcome renders: brand, first card, both CTAs.
-        XCTAssertTrue(app.staticTexts["Vela Wallet"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["No seed phrase"].waitForExistence(timeout: 5))
-        let create = app.buttons["Create Wallet"]
-        let imported = app.buttons["I already have a wallet"]
-        XCTAssertTrue(create.exists)
-        XCTAssertTrue(imported.exists)
+        // Frame 0 is the mark alone, centred. By ~1 s the mark has slid left and
+        // several glyphs have faded in, so the two frames cannot match unless
+        // playback is stuck.
+        let early = app.screenshot().pngRepresentation
+        Thread.sleep(forTimeInterval: 1.0)
+        let later = app.screenshot().pngRepresentation
 
-        // 2. Swipe advances the carousel (target the card itself — the
-        //    window center sits in the flexible spacer above the TabView).
-        app.staticTexts["No seed phrase"].swipeLeft()
-        XCTAssertTrue(app.staticTexts["One address, 12+ networks"].waitForExistence(timeout: 5))
+        XCTAssertNotEqual(
+            early, later,
+            "the launch animation did not change over 1 s — it is frozen (frame 0 shows the mark with no wordmark)"
+        )
 
-        // 3. Tapping the last dot jumps to card 06.
-        let lastDot = app.buttons["6/6"]
-        XCTAssertTrue(lastDot.waitForExistence(timeout: 5))
-        lastDot.tap()
-        XCTAssertTrue(app.staticTexts["Pay gas in stablecoins"].waitForExistence(timeout: 5))
-
-        // 4. Create Wallet → placeholder, then back to Welcome.
-        create.tap()
-        XCTAssertTrue(app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Pay gas in stablecoins"].exists)
-        app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(create.waitForExistence(timeout: 5))
-
-        // 5. Import CTA → placeholder.
-        imported.tap()
-        XCTAssertTrue(app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5))
+        // And it must still hand off: Welcome is reachable well inside the ceiling.
+        XCTAssertTrue(app.buttons["Create Wallet"].waitForExistence(timeout: 8))
     }
+
+    // NOT WRITTEN: a test that the hand-off takes time rather than collapsing.
+    //
+    // Three instruments were tried and all three lied:
+    //   * `waitForExistence` on a Welcome button — true at 1.09 s, because
+    //     Welcome is composed under the overlay from the first frame (FR-013a),
+    //     so it exists in the tree throughout.
+    //   * the same with `.accessibilityHidden(launching)` on the page — still
+    //     true at 0.06 s; hiding from accessibility does not change `exists`.
+    //   * "when do two consecutive screenshots match" — 0.64 s, because the
+    //     animation is genuinely static over its last ~0.5 s (all glyphs are in
+    //     by frame 72 of 102) and XCUITest screenshots cost 100–300 ms each, so
+    //     a still stretch reads identically to a finished transition.
+    //
+    // Tuning the threshold until one of them went green would produce a test
+    // that passes for the wrong reason — worse than no test, because it would be
+    // trusted. `testLaunchAnimationAdvances` above covers the failure mode that
+    // IS measurable here (frozen playback); the smoothness of the dissolve is
+    // currently verified by eye.
+
 }

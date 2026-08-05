@@ -7,6 +7,42 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 
 		<meta name="color-scheme" content="dark light" />
+		<script>
+			/*
+			 * Spec 012: decide BEFORE first paint whether the launch animation plays,
+			 * and if so hide the page in the same frame the document appears.
+			 *
+			 * This must be an inline, render-blocking script. Deciding in `onMount`
+			 * means the prerendered page paints first and is only then covered, so the
+			 * user sees Welcome → animation → Welcome. The founder asked for the order
+			 * to be right; this is the only place it can be guaranteed.
+			 *
+			 * The replay rule is duplicated from `$lib/launch/constants.ts` — it cannot
+			 * be imported here, since the whole point is running before any module
+			 * loads. `constants.test.ts` reads this file and asserts the two agree: a
+			 * divergence would hide the page for an animation the component then
+			 * declines to play, i.e. a blank screen.
+			 *
+			 * VELA_LAUNCH_REPLAY_AFTER_MS = 604800000  (7 days)
+			 */
+			try {
+				var due = true;
+				var raw = localStorage.getItem('vela.launch.played');
+				if (raw !== null) {
+					var last = Number(raw);
+					due = !isFinite(last) || Date.now() - last >= 604800000;
+				}
+				if (due && location.search.indexOf('skipLaunch') === -1) {
+					document.documentElement.dataset.launch = 'playing';
+				}
+			} catch (e) {
+				/* Blocked storage: play it. A decoration must never be the reason a
+				   wallet page fails. */
+				if (location.search.indexOf('skipLaunch') === -1) {
+					document.documentElement.dataset.launch = 'playing';
+				}
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 

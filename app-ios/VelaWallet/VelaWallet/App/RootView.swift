@@ -16,9 +16,17 @@ final class Router {
 
 struct RootView: View {
     @Environment(\.colorScheme) private var systemScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let loc: Loc
     @State private var router: Router
     @State private var model: WelcomeModel
+
+    // Spec 012. `true` only for the first construction in this process — a
+    // cold start (FR-008); SwiftUI never rebuilds `RootView`'s State on a
+    // navigation, so there is no path back once it flips.
+    @State private var launching = !LaunchAnimation.isDisabled
+    /// Welcome content fades IN as the launch lockup fades OUT (FR-012).
+    @State private var pageOpacity: Double = LaunchAnimation.isDisabled ? 1 : 0
 
     init(loc: Loc) {
         self.loc = loc
@@ -38,7 +46,61 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var router = router
-        NavigationStack(path: $router.path) {
+        // One continuous surface. Both the launch screen and Welcome sit on this
+        // exact colour, which is what lets them cross-dissolve without a
+        // washed-out middle where both layers are half-transparent (FR-012).
+        ZStack {
+            themedBackground
+
+            content(router: $router.path)
+                // Composed from the first frame, hidden by the opaque overlay,
+                // so the hand-off has nothing left to build (FR-013a).
+                .opacity(pageOpacity)
+                // Opacity alone does NOT remove it from the accessibility tree:
+                // during the animation VoiceOver would happily read out a
+                // Welcome screen the user cannot see, and XCUITest could find
+                // its buttons. Both are the same defect (FR-013/FR-021).
+                .accessibilityHidden(launching)
+
+            if launching {
+                LaunchAnimationView(
+                    appearance: scheme == .dark ? .dark : .light,
+                    formFactor: LaunchAnimation.formFactor(for: screenSize),
+                    reduceMotion: reduceMotion,
+                    onDissolveStart: {
+                        // The other half of the cross-dissolve: same curve, same
+                        // duration, started in the same instant as the overlay's
+                        // fade-out (FR-012).
+                        withAnimation(.easeInOut(duration: LaunchAnimation.exitCrossfade)) {
+                            pageOpacity = 1
+                        }
+                    },
+                    onFinished: {
+                        pageOpacity = 1
+                        launching = false
+                    }
+                )
+            }
+        }
+        .themed(scheme)
+        .preferredColorScheme(ThemeOverride.launchScheme)
+    }
+
+    private var themedBackground: some View {
+        Theme(scheme: scheme).bgBase.ignoresSafeArea()
+    }
+
+    private var screenSize: CGSize {
+        #if canImport(UIKit)
+        UIScreen.main.bounds.size
+        #else
+        CGSize(width: 390, height: 844)
+        #endif
+    }
+
+    @ViewBuilder
+    private func content(router path: Binding<[AppRoute]>) -> some View {
+        NavigationStack(path: path) {
             WelcomeScreen(model: model)
                 .navigationDestination(for: AppRoute.self) { route in
                     switch route {
@@ -49,8 +111,6 @@ struct RootView: View {
                     }
                 }
         }
-        .themed(scheme)
-        .preferredColorScheme(ThemeOverride.launchScheme)
     }
 }
 

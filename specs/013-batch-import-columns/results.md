@@ -80,8 +80,9 @@ underpriced transaction would wedge its lane's nonce.
 
 **Hold instead of reject.** A shortfall that survives repricing goes to the
 durable delayed inbox (5s → 5min backoff, Iggy offset advances so nothing queues
-behind it) and executes itself when fees settle. After 12 attempts (≈30 min,
-inside the 1-hour status-record TTL) it is rejected with a distinct reason.
+behind it) and executes itself when fees settle. After 12 attempts (~35 min of
+waiting, inside the 1-hour status-record TTL so the wallet can still read the
+outcome) it is rejected with a distinct reason.
 Rejections no price can cure — malformed calldata, unproven transfer logs,
 unsupported asset — are still immediate.
 

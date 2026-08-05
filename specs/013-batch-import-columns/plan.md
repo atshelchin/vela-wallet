@@ -167,8 +167,9 @@ A shortfall that survives repricing is a market condition, not a defect. The
 operation moves to the existing durable delayed inbox — the same mechanism a
 future account nonce uses — which retries with 5s → 5min backoff and lets the
 Iggy offset advance so nothing queues behind it. `defer_user_operation` returns
-the attempt count; past `settlement_hold_max_attempts` (12 ≈ 30 min, inside the
-1-hour status-record TTL) the operation is rejected with a distinct reason.
+the attempt count; past `settlement_hold_max_attempts` (12 attempts spend
+~35 min — 5+10+20+40+80+160s then 300s each — inside the 1-hour status-record
+TTL) the operation is rejected with a distinct reason.
 Rejections that no price can cure are never held.
 
 ### Make the wait visible

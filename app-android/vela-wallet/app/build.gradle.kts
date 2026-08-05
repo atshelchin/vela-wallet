@@ -89,6 +89,29 @@ val cargoNdkBuild = tasks.register<Exec>("cargoNdkBuild") {
     workingDir = velaRepoRoot
     commandLine("bash", velaRepoRoot.resolve("rust/scripts/build-android.sh").absolutePath)
     enabled = !velaSkipRustBuild
+
+    // WITHOUT these, an Exec task declares no outputs and therefore can NEVER be
+    // UP-TO-DATE: Gradle re-runs the full three-ABI Rust release cross-compile on
+    // every single build. Measured at ~6 minutes on an M-series Mac. Command-line
+    // builds hid it because they pass -PvelaSkipRustBuild; Android Studio does
+    // not, so the IDE paid it every time.
+    //
+    // cargo's own incremental check is fast but it never gets to run — Gradle
+    // spawns the process first. Declaring the real inputs and outputs lets
+    // Gradle skip the spawn entirely when nothing in the Rust tree moved.
+    inputs.files(
+        velaRepoRoot.resolve("rust/Cargo.toml"),
+        velaRepoRoot.resolve("rust/Cargo.lock"),
+    ).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.dir(velaRepoRoot.resolve("rust/crates"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .withPropertyName("velaRustSources")
+    inputs.file(velaRepoRoot.resolve("rust/scripts/build-android.sh"))
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    // The script writes here (see rust/scripts/build-android.sh).
+    outputs.dir(projectDir.resolve("src/main/jniLibs"))
+        .withPropertyName("velaJniLibs")
+    outputs.cacheIf { true }
 }
 
 val syncVelaI18nAssets = tasks.register<Sync>("syncVelaI18nAssets") {

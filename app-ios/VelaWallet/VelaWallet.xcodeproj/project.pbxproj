@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2352DB8B3023327400130124 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = AAC0DE00000000000000C002 /* Lottie */; };
 		AAC0DE00000000000000A003 /* VelaCore in Frameworks */ = {isa = PBXBuildFile; productRef = AAC0DE00000000000000A002 /* VelaCore */; };
 /* End PBXBuildFile section */
 
@@ -69,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2352DB8B3023327400130124 /* Lottie in Frameworks */,
 				AAC0DE00000000000000A003 /* VelaCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -121,6 +123,7 @@
 				23ED5E333019A42200EA9C55 /* Frameworks */,
 				23ED5E343019A42200EA9C55 /* Resources */,
 				AAC0DE00000000000000B001 /* Bundle locale catalogs */,
+				AAC0DE00000000000000C003 /* Bundle launch animations */,
 			);
 			buildRules = (
 			);
@@ -132,6 +135,7 @@
 			name = VelaWallet;
 			packageProductDependencies = (
 				AAC0DE00000000000000A002 /* VelaCore */,
+				AAC0DE00000000000000C002 /* Lottie */,
 			);
 			productName = VelaWallet;
 			productReference = 23ED5E363019A42200EA9C55 /* VelaWallet.app */;
@@ -217,6 +221,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				AAC0DE00000000000000A001 /* XCLocalSwiftPackageReference "../VelaCoreKit" */,
+				AAC0DE00000000000000C001 /* XCRemoteSwiftPackageReference "lottie-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 23ED5E373019A42200EA9C55 /* Products */;
@@ -229,28 +234,6 @@
 			);
 		};
 /* End PBXProject section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		AAC0DE00000000000000B001 /* Bundle locale catalogs */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"$(SRCROOT)/../scripts/catalogs-input.xcfilelist",
-			);
-			inputPaths = (
-				"$(SRCROOT)/../../public/i18n",
-			);
-			name = "Bundle locale catalogs";
-			outputFileListPaths = (
-				"$(SRCROOT)/../scripts/catalogs-output.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/bash;
-			shellScript = "\"$SRCROOT/../scripts/bundle-catalogs.sh\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		23ED5E343019A42200EA9C55 /* Resources */ = {
@@ -275,6 +258,51 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		AAC0DE00000000000000B001 /* Bundle locale catalogs */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"$(SRCROOT)/../scripts/catalogs-input.xcfilelist",
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../public/i18n",
+			);
+			name = "Bundle locale catalogs";
+			outputFileListPaths = (
+				"$(SRCROOT)/../scripts/catalogs-output.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/../scripts/bundle-catalogs.sh\"\n";
+		};
+		AAC0DE00000000000000C003 /* Bundle launch animations */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"$(SRCROOT)/../scripts/animations-input.xcfilelist",
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../design/onboarding/launch",
+			);
+			name = "Bundle launch animations";
+			outputFileListPaths = (
+				"$(SRCROOT)/../scripts/animations-output.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/../scripts/bundle-animations.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		23ED5E323019A42200EA9C55 /* Sources */ = {
@@ -589,20 +617,6 @@
 		};
 /* End XCBuildConfiguration section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		AAC0DE00000000000000A001 /* XCLocalSwiftPackageReference "../VelaCoreKit" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../VelaCoreKit;
-		};
-/* End XCLocalSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		AAC0DE00000000000000A002 /* VelaCore */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = VelaCore;
-		};
-/* End XCSwiftPackageProductDependency section */
-
 /* Begin XCConfigurationList section */
 		23ED5E313019A42200EA9C55 /* Build configuration list for PBXProject "VelaWallet" */ = {
 			isa = XCConfigurationList;
@@ -641,6 +655,36 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AAC0DE00000000000000A001 /* XCLocalSwiftPackageReference "../VelaCoreKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../VelaCoreKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AAC0DE00000000000000C001 /* XCRemoteSwiftPackageReference "lottie-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/airbnb/lottie-ios";
+			requirement = {
+				kind = exactVersion;
+				version = 4.6.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AAC0DE00000000000000A002 /* VelaCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = VelaCore;
+		};
+		AAC0DE00000000000000C002 /* Lottie */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AAC0DE00000000000000C001 /* XCRemoteSwiftPackageReference "lottie-ios" */;
+			productName = Lottie;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 23ED5E2E3019A42200EA9C55 /* Project object */;
 }

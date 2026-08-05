@@ -94,6 +94,82 @@ describe('parseRecipientTableText — errors', () => {
   });
 });
 
+describe('parseRecipientTableText — issue #137: digit-bearing names', () => {
+  test('digit-only name among plain names takes its amount from the amount column', () => {
+    const { rows, errors } = parseRecipientTableText(`Alice,${A},0.01\n123123,${B},0.01`);
+    expect(errors).toHaveLength(0);
+    expect(rows).toEqual([
+      { line: 1, name: 'Alice', address: A, rawAmount: '0.01' },
+      { line: 2, name: '123123', address: B, rawAmount: '0.01' },
+    ]);
+  });
+
+  test('a single ambiguous row resolves by position: amount after the address', () => {
+    const { rows } = parseRecipientTableText(`123123,${A},0.01`);
+    expect(rows).toEqual([{ line: 1, name: '123123', address: A, rawAmount: '0.01' }]);
+  });
+
+  test('letters glued to digits are a name, never an amount (Alice123)', () => {
+    const { rows } = parseRecipientTableText(`Alice123,${A},5000`);
+    expect(rows[0]).toMatchObject({ name: 'Alice123', address: A, rawAmount: '5000' });
+  });
+
+  test('CJK-with-digits name (团队2024)', () => {
+    const { rows } = parseRecipientTableText(`团队2024,${A},300`);
+    expect(rows[0]).toMatchObject({ name: '团队2024', address: A, rawAmount: '300' });
+  });
+
+  test('a leading row-number column never becomes the amount', () => {
+    const { rows } = parseRecipientTableText(`1,Alice,${A},5000\n2,Bob,${B},5000`);
+    expect(rows.map((r) => [r.name, r.rawAmount])).toEqual([['Alice', '5000'], ['Bob', '5000']]);
+  });
+
+  test('digits inside a text cell are not an amount: such a row errors as no-amount', () => {
+    const { rows, errors } = parseRecipientTableText(`Alice123,${A}`);
+    expect(rows).toHaveLength(0);
+    expect(errors.map((e) => e.reason)).toEqual(['no-amount']);
+  });
+});
+
+describe('parseRecipientTableText — a recognized header pins column roles', () => {
+  test('English template header with digit-only names (employee IDs)', () => {
+    const { rows, errors } = parseRecipientTableText(`name,address,amount\n1001,${A},5000\n1002,${B},5000`);
+    expect(errors).toHaveLength(0);
+    expect(rows).toEqual([
+      { line: 1, name: '1001', address: A, rawAmount: '5000' },
+      { line: 2, name: '1002', address: B, rawAmount: '5000' },
+    ]);
+  });
+
+  test('Chinese header 姓名,地址,金额', () => {
+    const { rows } = parseRecipientTableText(`姓名,地址,金额\n1001,${A},5000`);
+    expect(rows).toEqual([{ line: 1, name: '1001', address: A, rawAmount: '5000' }]);
+  });
+
+  test('a headered row whose labelled amount cell does not parse is a no-amount error', () => {
+    const { rows, errors } = parseRecipientTableText(`name,address,amount\nAlice,${A},abc\n123123,${B},5`);
+    expect(rows).toEqual([{ line: 2, name: '123123', address: B, rawAmount: '5' }]);
+    expect(errors).toEqual([{ line: 1, raw: `Alice , ${A} , abc`, reason: 'no-amount' }]);
+  });
+});
+
+describe('parseRecipientTableText — permissive amounts keep working', () => {
+  test('currency suffix (5000 USDT) with no other numeric cell', () => {
+    const { rows } = parseRecipientTableText(`${A},5000 USDT`);
+    expect(rows[0].rawAmount).toBe('5000');
+  });
+
+  test('currency code prefix (USD 5000)', () => {
+    const { rows } = parseRecipientTableText(`${A},USD 5000`);
+    expect(rows[0].rawAmount).toBe('5000');
+  });
+
+  test('mixed-order paste still resolves per row', () => {
+    const { rows } = parseRecipientTableText(`5000,${A}\n${B},3000`);
+    expect(rows.map((r) => [r.address, r.rawAmount])).toEqual([[A, '5000'], [B, '3000']]);
+  });
+});
+
 describe('parseRecipientTable — dispatch', () => {
   test('string input routes to the text parser', async () => {
     const { rows } = await parseRecipientTable(`${A},5000`);

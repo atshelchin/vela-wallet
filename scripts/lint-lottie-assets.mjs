@@ -32,6 +32,8 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DESIGN_DIR = join(REPO_ROOT, 'design');
 const FIXTURE_DIR = join(REPO_ROOT, 'scripts/__fixtures__/lottie');
 const CROSSFILE_DIR = join(REPO_ROOT, 'scripts/__fixtures__/lottie-crossfile');
+/** Repo-relative, for the stray-copy guard's exemption. */
+const FIXTURE_ROOT = 'scripts/__fixtures__/';
 const CONTRACT = 'specs/012-launch-animation-lottie/contracts/portable-subset.md';
 
 /**
@@ -510,7 +512,9 @@ function strayCopies(files) {
   }
   return tracked
     .split('\n')
-    .filter((p) => p && names.has(basename(p)) && !p.startsWith('design/'))
+    .filter(
+      (p) => p && names.has(basename(p)) && !p.startsWith('design/') && !p.startsWith(FIXTURE_ROOT),
+    )
     .sort();
 }
 

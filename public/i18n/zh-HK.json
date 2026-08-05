@@ -252,6 +252,8 @@
   "multiSendNoFundsAfterGas": "扣除 gas 儲備後餘額不足。",
   "gasReserved": "已留 gas",
   "txErrorGeneric": "交易無法提交。你的資金安全無虞 — 請再試一次。",
+  "txHeldFees": "網絡費用高於你確認嘅金額。交易正在等待,費用回落後會自動發送。",
+  "txRejectedFees": "網絡費用長時間高於你確認嘅金額,今次冇發送。請按現時費用重新發起。",
   "gasTier": {
    "slow": "慢速",
    "standard": "標準",

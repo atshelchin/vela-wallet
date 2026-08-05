@@ -252,6 +252,8 @@
   "multiSendNoFundsAfterGas": "가스 예약 후 잔액이 부족합니다.",
   "gasReserved": "가스 예약됨",
   "txErrorGeneric": "거래를 제출하지 못했습니다. 자산은 안전합니다 — 다시 시도하세요.",
+  "txHeldFees": "네트워크 수수료가 승인한 금액을 초과했습니다. 수수료가 내려가면 자동으로 전송됩니다.",
+  "txRejectedFees": "네트워크 수수료가 승인 금액을 계속 초과하여 전송되지 않았습니다. 현재 수수료로 다시 보내세요.",
   "gasTier": {
    "slow": "느림",
    "standard": "표준",

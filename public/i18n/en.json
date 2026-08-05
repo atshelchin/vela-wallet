@@ -236,6 +236,8 @@
   "txErrorBundlerFund": "Bundler account needs more gas. Please fund it in Settings.",
   "txErrorPublicKey": "Public key not found for this account",
   "txErrorGeneric": "The transaction couldn't be submitted. Your funds are safe — please try again.",
+  "txHeldFees": "Network fees rose above the amount you approved. Your transaction is waiting and will be sent automatically once fees settle.",
+  "txRejectedFees": "Network fees stayed above the amount you approved, so nothing was sent. Send again to use the current fee.",
   "gasTier": {
    "slow": "Slow",
    "standard": "Standard",

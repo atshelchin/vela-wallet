@@ -8,7 +8,13 @@
 
 import { ENTRY_POINT, MULTI_SEND, SAFE_4337_MODULE, SAFE_PROXY_FACTORY, SAFE_SINGLETON, WEBAUTHN_SIGNER, abiEncodeAddress, abiEncodeBytes32, abiEncodeUint256, abiEncodeUint256Hex, calculateSaltNonce, concatBytes, derSignatureToRaw, encodeMultiSendTx, encodeSetupData, fromHex, functionSelector, keccak256, parsePublicKey, stripHexPrefix, toHex } from '@/services/vela-core';
 import { rpcCall } from './rpc-adapter';
-import { requestUserOpReceipt, USER_OP_RECEIPT_POLL_INTERVAL_MS } from './tx-reconciler';
+import {
+  isFeeHold,
+  pollUserOpStatus,
+  requestUserOpReceipt,
+  USER_OP_RECEIPT_POLL_INTERVAL_MS,
+  type UserOpStatus,
+} from './tx-reconciler';
 import { gasQuoteShouldZero } from './dev/fault-injection';
 import {
   fetchBundlerAccountInfo,
@@ -2172,6 +2178,36 @@ async function submitUserOp(
   throw new Error('Bundler unavailable after retries');
 }
 
+/**
+ * The relay refused this op before it ever reached a block. Distinct from a timeout:
+ * nothing was spent, nothing will land, and re-sending is the correct next step.
+ */
+export class UserOpRejectedError extends Error {
+  constructor(
+    message: string,
+    /** The relay's own diagnostic, for logs — not for display. */
+    readonly detail?: string,
+  ) {
+    super(message);
+    this.name = 'UserOpRejectedError';
+  }
+}
+
+/**
+ * The relay is holding this op because network fees moved above the reimbursement the
+ * user signed. It is still queued and sends itself when fees settle, so this is a
+ * *waiting* outcome — the transaction must stay pending, never be marked failed.
+ */
+export class UserOpFeeHoldError extends Error {
+  constructor(message: string, readonly detail?: string) {
+    super(message);
+    this.name = 'UserOpFeeHoldError';
+  }
+}
+
+/** How often to ask the relay for a lifecycle status while no receipt exists. */
+const USER_OP_STATUS_POLL_INTERVAL_MS = 12_000;
+
 export async function waitForReceipt(
   userOpHash: string,
   chainId: number,
@@ -2179,6 +2215,10 @@ export async function waitForReceipt(
   signal?: AbortSignal,
 ): Promise<string> {
   const start = Date.now();
+  // Give the relay one poll interval before asking what it is doing — a receipt that
+  // is simply not ready yet is by far the common case, and it needs no second call.
+  let lastStatusAt = start;
+  let lastStatus: UserOpStatus | null = null;
 
   // Track whether we ever got a clean "not ready yet" answer vs. only ever hit
   // RPC/bundler errors. The distinction drives the final message: "submitted but
@@ -2226,12 +2266,44 @@ export async function waitForReceipt(
       rpcFailures++;
     }
 
+    // No receipt yet. Ask the relay what it is doing with the op — a null receipt
+    // alone cannot distinguish "landing shortly" from "refused ten seconds ago",
+    // and waiting out the full timeout on a refusal reports a dead op as pending.
+    if (Date.now() - lastStatusAt >= USER_OP_STATUS_POLL_INTERVAL_MS) {
+      lastStatusAt = Date.now();
+      const status = await pollUserOpStatus(userOpHash, chainId);
+      if (status) {
+        lastStatus = status;
+        if (status.status === 'rejected') {
+          console.warn('[UserOp] Relay REJECTED the operation', {
+            userOpHash: `${userOpHash.slice(0, 10)}…`, chainId, stage: status.stage, detail: status.detail,
+          });
+          throw new UserOpRejectedError(
+            'The relay refused this transaction, so nothing was sent.',
+            status.detail,
+          );
+        }
+      }
+    }
+
     // Receipt production is asynchronous; a fixed cadence is friendlier to the bundler and
     // matches the submitted-receipt countdown. The shared poller also coalesces any UI poll.
     await sleep(USER_OP_RECEIPT_POLL_INTERVAL_MS);
   }
 
   const shortOp = `${userOpHash.slice(0, 10)}…`;
+  // A held op did not fail to confirm — it has not been broadcast yet, on purpose,
+  // and the relay retries it by itself. Report that instead of a timeout, so the
+  // caller keeps the transaction pending rather than marking it failed.
+  if (isFeeHold(lastStatus)) {
+    console.log('[UserOp] Held by the relay until network fees settle', {
+      userOpHash: shortOp, chainId, detail: lastStatus?.detail,
+    });
+    throw new UserOpFeeHoldError(
+      `Transaction ${shortOp} is queued until network fees settle.`,
+      lastStatus?.detail,
+    );
+  }
   if (!sawCleanResponse && rpcFailures > 0) {
     // We never reached the bundler — the op's fate is genuinely unknown, not a
     // confirmed pending. Mark it as such so the caller can reconcile/retry later.

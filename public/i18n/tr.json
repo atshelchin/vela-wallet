@@ -252,6 +252,8 @@
   "multiSendNoFundsAfterGas": "Gas rezervinden sonra bakiye yetersiz.",
   "gasReserved": "Gas ayrıldı",
   "txErrorGeneric": "İşlem gönderilemedi. Fonlarınız güvende — lütfen tekrar deneyin.",
+  "txHeldFees": "Ağ ücretleri onayladığınız tutarın üzerine çıktı. İşleminiz bekliyor ve ücretler düştüğünde otomatik gönderilecek.",
+  "txRejectedFees": "Ağ ücretleri onayladığınız tutarın üzerinde kaldığı için gönderim yapılmadı. Güncel ücretle tekrar gönderin.",
   "gasTier": {
    "slow": "Yavaş",
    "standard": "Standart",

@@ -67,6 +67,8 @@
       "tokenBody": "Kami tidak dapat mengenali token dalam permintaan pembayaran ini di jaringan ini."
     },
     "txErrorGeneric": "Transaksi tidak dapat dikirim. Dana Anda aman — silakan coba lagi.",
+    "txHeldFees": "Biaya jaringan melebihi jumlah yang Anda setujui. Transaksi menunggu dan akan dikirim otomatis saat biaya turun.",
+    "txRejectedFees": "Biaya jaringan tetap di atas jumlah yang Anda setujui, jadi tidak ada yang dikirim. Kirim lagi dengan biaya saat ini.",
     "gasTier": {
       "slow": "Lambat",
       "standard": "Standar",

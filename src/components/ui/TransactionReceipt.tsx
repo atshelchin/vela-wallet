@@ -86,6 +86,12 @@ interface Props {
    * Defaults to confirmed/submitted derived from whether a txHash is present.
    */
   status?: 'submitted' | 'confirmed' | 'failed';
+  /**
+   * Why the op is not moving, when the relay told us. `fee-hold` = parked until
+   * network fees fit the signed reimbursement (still on its way); `fee-rejected` =
+   * the wait ran out and nothing was sent. Anything else keeps the generic wording.
+   */
+  holdReason?: 'fee-hold' | 'fee-rejected';
   onDone: () => void;
   /** Offer a "Save to contacts" action (omitted when the recipient is already saved). */
   onSaveContact?: () => void;
@@ -547,7 +553,7 @@ function TopGradient({ tint }: { tint: string }) {
 export function TransactionReceipt(props: Props) {
   const {
     from, fromName, chainId, txHash, userOpHash, rate, currencyCode, currencySymbol,
-    timestamp, recipientIdentity, onDone, onSaveContact, transfers, batchKind, status,
+    timestamp, recipientIdentity, onDone, onSaveContact, transfers, batchKind, status, holdReason,
   } = props;
   const { batch, amount, symbol, logoUrls, usdValue, to, toName } = normalizeReceipt(props);
   const { t } = useTranslation();
@@ -839,11 +845,21 @@ export function TransactionReceipt(props: Props) {
         {/* ── Settlement detail: QR when confirmed, an actionable hint while pending / on failure ── */}
         {failed ? (
           <View style={styles.stateBox}>
-            <Text style={[styles.stateHint, { color: color.error.base }]}>{t('componentsTx.receipt.failedHint')}</Text>
+            <Text style={[styles.stateHint, { color: color.error.base }]}>
+              {holdReason === 'fee-rejected'
+                ? t('send.txRejectedFees')
+                : t('componentsTx.receipt.failedHint')}
+            </Text>
           </View>
         ) : pending ? (
           <View style={styles.stateBox}>
-            <Text style={styles.stateHint}>{t('componentsTx.receipt.confirmingHint')}</Text>
+            {/* A fee hold is not a slow confirmation — the op has not been broadcast
+                yet, on purpose. Say that, instead of counting down to nothing. */}
+            <Text style={styles.stateHint}>
+              {holdReason === 'fee-hold'
+                ? t('send.txHeldFees')
+                : t('componentsTx.receipt.confirmingHint')}
+            </Text>
             <View style={styles.confirmationProgress}>
               <View style={styles.confirmationProgressHeader}>
                 <Text style={styles.confirmationProgressLabel}>

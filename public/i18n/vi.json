@@ -252,6 +252,8 @@
   "multiSendNoFundsAfterGas": "Không đủ để trả gas sau khi dự trữ.",
   "gasReserved": "đã giữ gas",
   "txErrorGeneric": "Không thể gửi giao dịch. Tiền của bạn vẫn an toàn — vui lòng thử lại.",
+  "txHeldFees": "Phí mạng đã vượt quá số tiền bạn duyệt. Giao dịch đang chờ và sẽ tự động gửi khi phí giảm.",
+  "txRejectedFees": "Phí mạng vẫn cao hơn số tiền bạn duyệt nên chưa gửi. Hãy gửi lại theo mức phí hiện tại.",
   "gasTier": {
    "slow": "Chậm",
    "standard": "Tiêu chuẩn",

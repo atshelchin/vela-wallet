@@ -253,6 +253,8 @@
   "multiSendNoFundsAfterGas": "Solde insuffisant après la réserve de gas.",
   "gasReserved": "gas réservé",
   "txErrorGeneric": "Impossible de soumettre la transaction. Vos fonds sont en sécurité — veuillez réessayer.",
+  "txHeldFees": "Les frais de réseau ont dépassé le montant que vous avez approuvé. Votre transaction attend et sera envoyée automatiquement dès que les frais baisseront.",
+  "txRejectedFees": "Les frais de réseau sont restés supérieurs au montant approuvé : rien n'a été envoyé. Renvoyez avec les frais actuels.",
   "gasTier": {
    "slow": "Lent",
    "standard": "Standard",

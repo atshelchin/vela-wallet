@@ -64,6 +64,8 @@
     "txErrorBundlerFund": "Bundler 账户 Gas 不足，请在设置中充值。",
     "txErrorPublicKey": "未找到该账户的公钥",
     "txErrorGeneric": "交易未能提交。您的资金安全无虞——请重试。",
+    "txHeldFees": "网络费用高于你确认的金额。交易正在等待,费用回落后会自动发送。",
+    "txRejectedFees": "网络费用长时间高于你确认的金额,本次没有发送。请按当前费用重新发起。",
     "gasTier": {
       "slow": "慢速",
       "standard": "标准",

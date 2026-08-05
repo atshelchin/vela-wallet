@@ -57,6 +57,8 @@
     "txErrorBundlerFund": "Das Bundler-Konto benötigt mehr Gas. Bitte füllen Sie es in den Einstellungen auf.",
     "txErrorPublicKey": "Kein öffentlicher Schlüssel für dieses Konto gefunden",
     "txErrorGeneric": "Die Transaktion konnte nicht übermittelt werden. Ihr Guthaben ist sicher — bitte versuchen Sie es erneut.",
+    "txHeldFees": "Die Netzwerkgebühren liegen über dem von dir freigegebenen Betrag. Deine Transaktion wartet und wird automatisch gesendet, sobald die Gebühren sinken.",
+    "txRejectedFees": "Die Netzwerkgebühren blieben über dem freigegebenen Betrag, es wurde nichts gesendet. Sende erneut mit der aktuellen Gebühr.",
     "gasTier": {
       "slow": "Langsam",
       "standard": "Standard",

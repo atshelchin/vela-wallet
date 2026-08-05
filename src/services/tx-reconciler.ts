@@ -58,6 +58,62 @@ export interface UserOpReceiptPoll {
   reachedBundler: boolean;
 }
 
+/**
+ * The relay's view of an op that has no receipt yet. A null receipt is ambiguous —
+ * it means "not landed", which covers both "any second now" and "refused, and it is
+ * never landing". Only this endpoint separates them.
+ */
+export type UserOpLifecycle =
+  | 'not_found'
+  | 'queued'
+  | 'not_submitted'
+  | 'submitted'
+  | 'rejected'
+  | 'included'
+  | 'failed';
+
+export interface UserOpStatus {
+  status: UserOpLifecycle;
+  /** Executor stage that last touched the op, e.g. `in_band_settlement_hold`. */
+  stage?: string;
+  /** Human-readable diagnostic from that stage. */
+  detail?: string;
+}
+
+/** The executor stage that parks an op until network fees fit its signed reimbursement. */
+export const FEE_HOLD_STAGE = 'in_band_settlement_hold';
+
+/** Is this status a deliberate wait for cheaper gas rather than a stall or a failure? */
+export function isFeeHold(status: UserOpStatus | null): boolean {
+  return status?.status === 'queued' && status.stage === FEE_HOLD_STAGE;
+}
+
+/**
+ * Ask the relay what became of an op. Never throws: an unreachable or older relay
+ * (the method is a Vela extension) simply yields null, and callers fall back to
+ * receipt-only behaviour.
+ */
+export async function pollUserOpStatus(
+  userOpHash: string,
+  chainId: number,
+): Promise<UserOpStatus | null> {
+  if (!userOpHash) return null;
+  try {
+    const res = await rpcCall('eth_getUserOperationStatus', [userOpHash], chainId);
+    if (res.error || !res.result || typeof res.result !== 'object') return null;
+    const result = res.result as Record<string, unknown>;
+    const status = typeof result.status === 'string' ? (result.status as UserOpLifecycle) : null;
+    if (!status) return null;
+    return {
+      status,
+      stage: typeof result.last_executor_stage === 'string' ? result.last_executor_stage : undefined,
+      detail: typeof result.last_executor_error === 'string' ? result.last_executor_error : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 interface ReceiptPollCacheEntry {
   completedAt?: number;
   outcome?: UserOpReceiptPoll;

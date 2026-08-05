@@ -82,6 +82,8 @@
     "multiSendNoFundsAfterGas": "Saldo insufficiente per il gas dopo la riserva.",
     "gasReserved": "gas riservato",
     "txErrorGeneric": "Impossibile inviare la transazione. I tuoi fondi sono al sicuro — riprova.",
+    "txHeldFees": "Le commissioni di rete hanno superato l'importo che hai approvato. La transazione è in attesa e verrà inviata automaticamente quando le commissioni scenderanno.",
+    "txRejectedFees": "Le commissioni di rete sono rimaste sopra l'importo approvato, quindi non è stato inviato nulla. Invia di nuovo con la commissione attuale.",
     "gasTier": {
       "slow": "Lento",
       "standard": "Standard",

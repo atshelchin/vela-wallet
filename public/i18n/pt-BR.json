@@ -253,6 +253,8 @@
   "multiSendNoFundsAfterGas": "Saldo insuficiente para o gas após a reserva.",
   "gasReserved": "gas reservado",
   "txErrorGeneric": "Não foi possível enviar a transação. Seus fundos estão seguros — tente de novo.",
+  "txHeldFees": "As taxas de rede ficaram acima do valor que você aprovou. Sua transação está aguardando e será enviada automaticamente quando as taxas caírem.",
+  "txRejectedFees": "As taxas de rede continuaram acima do valor que você aprovou, então nada foi enviado. Envie novamente com a taxa atual.",
   "gasTier": {
    "slow": "Lento",
    "standard": "Padrão",

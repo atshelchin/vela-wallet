@@ -26,6 +26,8 @@ import {
   sendBatchCalls,
   sendERC20,
   sendNative,
+  UserOpFeeHoldError,
+  UserOpRejectedError,
   type TransactionFeeEstimate,
 } from '@/services/safe-transaction';
 import { findAccountByCredentialId, saveTransactions, updateTransactions } from '@/services/storage';
@@ -144,6 +146,11 @@ export function useSendController() {
   // Set when the background on-chain poll reports a definitive failure, so the
   // receipt shows a clear "Failed" stamp instead of staying "Submitted" forever.
   const [receiptFailed, setReceiptFailed] = useState(false);
+  // The relay parked the op because network fees moved above the reimbursement the
+  // user signed. Not a failure: it stays queued and sends itself when fees settle.
+  const [feeHeld, setFeeHeld] = useState(false);
+  // The hold ran out of patience and the relay gave the op back. Nothing was sent.
+  const [feeRejected, setFeeRejected] = useState(false);
   const [inputInUsd, setInputInUsd] = useState(false);
   // Speed tiers are gone — every estimate/submit runs at 'fast'. What the user
   // CAN choose (when the relay publishes alternatives) is the fee ASSET: null = native,
@@ -881,6 +888,8 @@ export function useSendController() {
     setUserOpHash(null);
     setTxError(null);
     setReceiptFailed(false);
+    setFeeHeld(false);
+    setFeeRejected(false);
     try {
       const chainId = tokenChainId(selectedToken);
 
@@ -1040,10 +1049,22 @@ export function useSendController() {
           await updateTransactions(recordIds, { txHash: hash, status: 'confirmed' }).catch(() => {});
         })
         .catch(async (err) => {
-          // Definitive failure (op dropped / reverted) vs. a slow/unreachable poll.
-          // Only the former is a real failure; the latter stays pending (reconciled later).
-          if (!/dropped from the network|reverted|failed/i.test(err?.message ?? '')) return;
-          if (mountedRef.current) setReceiptFailed(true);
+          // The relay is holding the op until network fees fit what the user signed.
+          // It is still queued and sends itself, so the record stays pending — only
+          // the wording changes, from "confirming" to "waiting for fees".
+          if (err instanceof UserOpFeeHoldError) {
+            if (mountedRef.current) setFeeHeld(true);
+            return;
+          }
+          // Definitive failure (relay refusal / op dropped / reverted) vs. a slow or
+          // unreachable poll. Only the former is a real failure; the latter stays
+          // pending (reconciled later).
+          const rejected = err instanceof UserOpRejectedError;
+          if (!rejected && !/dropped from the network|reverted|failed/i.test(err?.message ?? '')) return;
+          if (mountedRef.current) {
+            setReceiptFailed(true);
+            if (rejected) setFeeRejected(true);
+          }
           await pendingWrites;
           await updateTransactions(recordIds, { status: 'failed' }).catch(() => {});
         });
@@ -1201,6 +1222,8 @@ export function useSendController() {
     setReceiptKind,
     receiptFailed,
     setReceiptFailed,
+    feeHeld,
+    feeRejected,
     inputInUsd,
     setInputInUsd,
     gasFeeToken,

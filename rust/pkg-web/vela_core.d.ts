@@ -162,6 +162,18 @@ export interface SafeAddressInfo {
 
 
 /**
+ * Creating a wallet: register → prove signing → derive → sync → save.
+ */
+export class CreateWalletCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
  * A translation engine.
  */
 export class I18n {
@@ -201,6 +213,18 @@ export class I18n {
      * First key that resolves wins; all-missing returns the **last** key.
      */
     tFirst(keys: string[], opts?: any | null): string;
+}
+
+/**
+ * Signing in with an existing passkey, including on-device recovery.
+ */
+export class LoginCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
 }
 
 export function abiEncodeAddress(address_hex: string): Uint8Array;
@@ -315,7 +339,9 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_createwalletcore_free: (a: number, b: number) => void;
     readonly __wbg_i18n_free: (a: number, b: number) => void;
+    readonly __wbg_logincore_free: (a: number, b: number) => void;
     readonly abiEncodeAddress: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeBytes32: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeUint256: (a: number, b: number) => [number, number, number, number];
@@ -325,6 +351,10 @@ export interface InitOutput {
     readonly computeSelector: (a: number, b: number) => [number, number, number, number];
     readonly computeSplitterAddress: (a: number, b: number) => [number, number, number, number];
     readonly create2Address: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
+    readonly createwalletcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly createwalletcore_new: () => number;
+    readonly createwalletcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly createwalletcore_view: (a: number) => [number, number, number, number];
     readonly decodeCalldata: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly derSignatureToRawLowS: (a: number, b: number) => [number, number, number, number];
     readonly encodeSplitterDeployCall: (a: number, b: number) => [number, number, number, number];
@@ -359,6 +389,10 @@ export interface InitOutput {
     readonly identiconSvg: (a: number, b: number) => [number, number, number, number];
     readonly identiconSvgCircular: (a: number, b: number) => [number, number, number, number];
     readonly keccak256: (a: number, b: number) => [number, number];
+    readonly logincore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly logincore_new: () => number;
+    readonly logincore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly logincore_view: (a: number) => [number, number, number, number];
     readonly matchSelector: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];
     readonly recoverPublicKeyFromAssertions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];

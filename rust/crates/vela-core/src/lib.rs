@@ -13,6 +13,11 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 pub mod abi;
+/// Portable onboarding state machines. Feature-gated (`--features crux`) so the
+/// uniffi bindings — and therefore the iOS/Android binaries — never link the
+/// state-machine framework. See `specs/011-crux-onboarding-state/`.
+#[cfg(feature = "crux")]
+pub mod app;
 pub mod eip712;
 pub mod error;
 pub mod i18n;

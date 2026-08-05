@@ -23,6 +23,24 @@ crate-type = ["lib"]
 # wasm32-unknown-unknown build.
 [features]
 default = []
+
+# Portable onboarding state machines (spec 011-crux-onboarding-state).
+#
+# DEFAULT OFF, and that is the whole point: with the feature off `crux_core` is
+# not in the dependency graph at all, so `vela-core-uniffi` — and therefore the
+# iOS static library and the Android .so — cannot change. Only
+# `vela-core-wasm` turns it on, because web is the only runtime that can execute
+# it (Hermes has no WebAssembly).
+#
+# Verify, do not assume:
+#   cargo tree -p vela-core-uniffi | grep -c crux   # must be 0
+#   cargo tree -p vela-core-wasm   | grep -c crux   # must be > 0
+crux = ["dep:crux_core"]
+
+# TypeScript mirrors of the wire types, emitted by
+# `src/bin/generate_onboarding_bindings.rs`. Build-time only.
+bindings = ["dep:ts-rs", "crux"]
+
 i18n-en = []
 i18n-zh = []
 i18n-zh-tw = []
@@ -59,6 +77,13 @@ ryu-js = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+crux_core = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true }
+
+[[bin]]
+name = "generate_onboarding_bindings"
+path = "src/bin/generate_onboarding_bindings.rs"
+required-features = ["bindings"]
 
 [dev-dependencies]
 proptest = { workspace = true }

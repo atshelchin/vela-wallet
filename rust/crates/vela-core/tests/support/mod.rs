@@ -1,0 +1,231 @@
+//! Test driver for the onboarding machines.
+//!
+//! Drives a `Core` exactly the way the wasm bridge does — dispatch an event,
+//! collect the shell operations it asked for, resolve them one at a time — so
+//! the tests exercise the real correlation plumbing rather than a simulation of
+//! it. No browser, no authenticator, no network, no clock.
+//!
+//! Fixtures are the **real** conformance vectors: a genuine attestation object
+//! and a genuine pair of assertions from the same credential, so key
+//! extraction, address derivation and two-signature recovery all run for real.
+
+#![cfg(feature = "crux")]
+#![allow(dead_code)] // each test file uses a different subset
+
+use std::collections::VecDeque;
+
+use crux_core::{App, Core, Request};
+use serde_json::Value;
+
+use vela_core::app::shell::{Effect, ShellOperation, ShellResult};
+use vela_core::app::{Account, Assertion, Registration};
+
+// ---------------------------------------------------------------------------
+// Driver
+// ---------------------------------------------------------------------------
+
+pub struct Driver<A>
+where
+    A: App<Effect = Effect> + Default,
+    A::Model: Default,
+{
+    app: Core<A>,
+    pending: VecDeque<Request<ShellOperation>>,
+}
+
+impl<A> Driver<A>
+where
+    A: App<Effect = Effect> + Default,
+    A::Model: Default,
+{
+    pub fn new() -> Self {
+        Self {
+            app: Core::new(),
+            pending: VecDeque::new(),
+        }
+    }
+
+    /// Send an event; returns the operations the core asked for, in order.
+    pub fn dispatch(&mut self, event: A::Event) -> Vec<ShellOperation> {
+        let effects = self.app.process_event(event);
+        self.collect(effects)
+    }
+
+    /// Answer the oldest outstanding operation.
+    ///
+    /// Panics if nothing is outstanding — a test that resolves into thin air is
+    /// asserting something that never happened.
+    pub fn resolve(&mut self, result: ShellResult) -> Vec<ShellOperation> {
+        let mut request = self
+            .pending
+            .pop_front()
+            .expect("no outstanding shell operation to resolve");
+        match self.app.resolve(&mut request, result) {
+            Ok(effects) => self.collect(effects),
+            // An aborted command's late result: expected, and a no-op.
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// Answer the oldest outstanding operation matching `predicate`, leaving the
+    /// others outstanding. Used where two effects are legitimately in flight
+    /// (the background index heal running alongside completion).
+    pub fn resolve_matching(
+        &mut self,
+        predicate: impl Fn(&ShellOperation) -> bool,
+        result: ShellResult,
+    ) -> Vec<ShellOperation> {
+        let index = self
+            .pending
+            .iter()
+            .position(|request| predicate(&request.operation))
+            .expect("no outstanding shell operation matches");
+        let mut request = self
+            .pending
+            .remove(index)
+            .expect("index came from position()");
+        match self.app.resolve(&mut request, result) {
+            Ok(effects) => self.collect(effects),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    pub fn view(&self) -> A::ViewModel {
+        self.app.view()
+    }
+
+    /// Operations still awaiting an answer.
+    pub fn outstanding(&self) -> Vec<ShellOperation> {
+        self.pending
+            .iter()
+            .map(|request| request.operation.clone())
+            .collect()
+    }
+
+    fn collect(&mut self, effects: Vec<Effect>) -> Vec<ShellOperation> {
+        let mut operations = Vec::new();
+        for effect in effects {
+            match effect {
+                Effect::Render(_) => {}
+                Effect::Shell(request) => {
+                    operations.push(request.operation.clone());
+                    self.pending.push_back(request);
+                }
+            }
+        }
+        operations
+    }
+}
+
+impl<A> Default for Driver<A>
+where
+    A: App<Effect = Effect> + Default,
+    A::Model: Default,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Fixtures — real bytes from the conformance corpus
+// ---------------------------------------------------------------------------
+
+const VECTORS: &str = include_str!("../vectors/webauthn.json");
+
+fn case(name: &str) -> Value {
+    let root: Value = serde_json::from_str(VECTORS).expect("webauthn vectors parse");
+    root["cases"]
+        .as_array()
+        .expect("cases array")
+        .iter()
+        .find(|case| case["name"] == name)
+        .unwrap_or_else(|| panic!("vector case {name} not found"))
+        .clone()
+}
+
+fn hex(value: &Value) -> String {
+    value
+        .as_str()
+        .expect("hex string")
+        .trim_start_matches("0x")
+        .to_owned()
+}
+
+/// A real CTAP2 attestation object whose key is the same identity the assertion
+/// pair below signs with — so a test can register, verify and recover
+/// consistently.
+pub fn attestation_object_hex() -> String {
+    hex(&case("extractPublicKey/real-key")["input"]["attestation_object"])
+}
+
+/// The uncompressed public key that attestation and the assertion pair share.
+pub fn expected_public_key_hex() -> String {
+    let case = case("extractPublicKey/real-key");
+    format!(
+        "04{}{}",
+        hex(&case["expect"]["x"]),
+        hex(&case["expect"]["y"])
+    )
+}
+
+pub fn registration(credential_id: &str) -> Registration {
+    Registration {
+        credential_id: credential_id.to_owned(),
+        attestation_object_hex: attestation_object_hex(),
+        client_data_json_hex: hex_of(r#"{"type":"webauthn.create","challenge":"Y2hhbGxlbmdl"}"#),
+    }
+}
+
+/// Two genuine assertions from one credential over different challenges — the
+/// exact input two-signature recovery needs.
+pub fn assertion_pair(credential_id: &str) -> (Assertion, Assertion) {
+    let pair = case("recoverPublicKey/pair-0");
+    (
+        assertion_from(&pair["input"]["a"], credential_id),
+        assertion_from(&pair["input"]["b"], credential_id),
+    )
+}
+
+/// One genuine, Safe-compatible assertion.
+pub fn assertion(credential_id: &str) -> Assertion {
+    assertion_pair(credential_id).0
+}
+
+/// An assertion whose clientDataJSON field order the Safe verifier rejects —
+/// the "incompatible provider" case, byte-shaped exactly like the real thing.
+pub fn incompatible_assertion(credential_id: &str) -> Assertion {
+    let mut assertion = assertion(credential_id);
+    assertion.client_data_json_hex =
+        hex_of(r#"{"challenge":"Y2hhbGxlbmdl","type":"webauthn.get"}"#);
+    assertion
+}
+
+fn assertion_from(value: &Value, credential_id: &str) -> Assertion {
+    Assertion {
+        credential_id: credential_id.to_owned(),
+        signature_der_hex: hex(&value["signature_der"]),
+        authenticator_data_hex: hex(&value["authenticator_data"]),
+        client_data_json_hex: hex(&value["client_data_json"]),
+        user_id_hex: Some(hex_of(&format!(
+            "Ann\0{}",
+            "0f8fad5b-d9cb-469f-a165-70867728950e"
+        ))),
+    }
+}
+
+pub fn hex_of(text: &str) -> String {
+    text.as_bytes().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+pub fn account(id: &str, name: &str, address: &str) -> Account {
+    Account {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        address: address.to_owned(),
+        public_key_hex: expected_public_key_hex(),
+        created_at_iso: "2026-08-05T00:00:00.000Z".to_owned(),
+    }
+}
+
+pub const NOW: &str = "2026-08-05T12:00:00.000Z";

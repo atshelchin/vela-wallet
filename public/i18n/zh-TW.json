@@ -229,6 +229,8 @@
   "txErrorBundlerFund": "Bundler 帳戶需要更多 Gas。請在設定中補充資金。",
   "txErrorPublicKey": "找不到此帳戶的公鑰",
   "txErrorGeneric": "交易無法送出。你的資金安全無虞——請再試一次。",
+  "txHeldFees": "網路費用高於你確認的金額。交易正在等待,費用回落後會自動發送。",
+  "txRejectedFees": "網路費用長時間高於你確認的金額,本次沒有發送。請按目前費用重新發起。",
   "gasTier": {
    "slow": "慢速",
    "standard": "標準",

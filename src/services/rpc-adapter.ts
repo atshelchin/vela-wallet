@@ -20,6 +20,10 @@ const BUNDLER_METHODS = new Set([
   'eth_estimateUserOperationGas',
   'eth_getUserOperationReceipt',
   'eth_getUserOperationByHash',
+  // A receipt only exists once an op lands. Before that it is the only thing that
+  // separates "still going" from "the relay refused it" — without this the wallet
+  // polls a null receipt until timeout and reports a rejected op as pending.
+  'eth_getUserOperationStatus',
   'pimlico_getUserOperationGasPrice',
 ]);
 

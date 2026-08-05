@@ -55,6 +55,8 @@ export default function SendScreen() {
     receiptTransfers,
     receiptKind,
     receiptFailed,
+    feeHeld,
+    feeRejected,
     inputInUsd,
     treasuryBootstrap,
     setTreasuryBootstrap,
@@ -162,6 +164,7 @@ export default function SendScreen() {
           transfers={receiptTransfers ?? undefined}
           batchKind={receiptKind ?? undefined}
           status={receiptFailed ? 'failed' : (txHash ? 'confirmed' : 'submitted')}
+          holdReason={feeRejected ? 'fee-rejected' : feeHeld ? 'fee-hold' : undefined}
           onDone={() => router.back()}
           onSaveContact={receiptKind === 'split' ? undefined : () => saveContact({ address: recipient, name: recipientIdentity?.name, resolvedName: recipientIdentity?.name })}
         />

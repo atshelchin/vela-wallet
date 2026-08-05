@@ -83,10 +83,12 @@ it('carries the whole corpus — 17,268 leaves across 15 locales', () => {
     // through to English at large counts), plus the 195 desktop-onboarding
     // strings spec 007 added (13 `onboarding.welcome.*` keys × 15 locales),
     // plus the 240 web-onboarding strings spec 006 added (16
-    // `onboarding.welcomeWeb.*` keys × 15 locales). The number moving is the
-    // point; it should only ever move deliberately.
+    // `onboarding.welcomeWeb.*` keys × 15 locales), plus the 30 in-band fee-hold
+    // strings spec 013 added (`send.txHeldFees` + `send.txRejectedFees` × 15
+    // locales). The number moving is the point; it should only ever move
+    // deliberately.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(17_268);
+    expect(total).toBe(17_298);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

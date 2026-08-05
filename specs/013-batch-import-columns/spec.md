@@ -34,7 +34,77 @@ all parse, pasted or uploaded, with currency symbols and thousands separators
 tolerated), and existing sheets that parse correctly today must keep parsing
 identically.
 
+## Why (part 2) — the payroll still did not reach the chain
+
+Fixing the parser made the preview correct, and the corrected batch was then
+refused by the relay:
+
+```
+in-band settlement rejected UserOperation
+paid=4603572816058075872 required=4643859330530512244 shortfall=40286514472436372
+```
+
+**0.87% short.** Not a bug in the amounts — a mismatch in how the two sides
+price gas. The wallet funds `totalGas × networkFeePerGas × 3`; the relay
+requires `allocated_gas × (2 × base_fee + tip) × 1.4`. Two unrelated formulas
+over two different gas bases, quoted seconds apart, with nothing coupling them:
+whether a send succeeds depends on where base fee, tip and the gas buffer happen
+to sit at that instant. The markup multiplies both sides, so it provides no
+tolerance at all.
+
+The `2 ×` in the relay's cap is the key: it is *inclusion headroom*, not cost. A
+transaction only ever pays `base_fee + tip`. So the relay was refusing a payment
+that comfortably covered its real cost, because that payment did not also fund a
+cap the chain was never going to charge.
+
+And the refusal was invisible. The wallet polls only
+`eth_getUserOperationReceipt`, which stays `null` for a locally-rejected op
+forever, so the send screen showed "Sent! Confirming on-chain…" indefinitely and
+the stored transaction stayed `pending`. The operator learned the payroll had
+failed by reading Redis.
+
 ## User Scenarios & Testing *(mandatory)*
+
+### User Story 0 - A payroll survives ordinary gas volatility (Priority: P1)
+
+A payroll operator confirms a batch. Between the confirm screen and execution
+the market moves, and what they signed no longer funds the relay's quoted fee
+cap. The transaction still goes through — priced at what they approved — and if
+the market is genuinely above their budget it waits and sends itself when fees
+settle, rather than being thrown away.
+
+**Why this priority**: without it, the corrected batch from US1 still does not
+pay anyone.
+
+**Independent Test**: reproduce the shortfall (a signed reimbursement 0.87%
+below the quoted requirement) and assert the operation is executed at the
+repriced fee rather than rejected.
+
+**Acceptance Scenarios**:
+
+1. **Given** a reimbursement that falls short at the quoted `2 × base_fee + tip`
+   cap but still funds a cap above the inclusion floor, **When** the executor
+   settles the bundle, **Then** the outer transaction is signed at the
+   affordable cap and the operation executes — with the relay's markup intact
+   against the fee the chain actually charges.
+2. **Given** a bundle where several payers underpay by different amounts,
+   **When** it is repriced, **Then** the cap is the one the *weakest* payer can
+   fund, so no operation cross-subsidizes another.
+3. **Given** a reimbursement too small to fund an includable fee, **When** the
+   executor settles, **Then** the operation is held — not rejected — and retried
+   with backoff as the market moves.
+4. **Given** an operation held past its waiting budget, **When** the budget is
+   spent, **Then** it is rejected with a reason that says fees stayed too high
+   and nothing was sent.
+5. **Given** a rejection that no price can cure (malformed calldata, wrong
+   recipient, unsupported asset), **When** it is evaluated, **Then** it is
+   rejected immediately, never held.
+6. **Given** an operation the relay has rejected, **When** the wallet polls,
+   **Then** it reports the failure promptly instead of showing "confirming"
+   until it times out; **and given** a held operation, **Then** it says the
+   transaction is waiting for fees and keeps it pending.
+
+---
 
 ### User Story 1 - A digit-bearing name never steals the amount (Priority: P1)
 
@@ -161,6 +231,28 @@ unmodified.
 - **FR-007**: Text (pasted / CSV / TSV / TXT) and Excel inputs MUST share the
   same row-interpretation logic, so a fix applies to both automatically.
 
+#### In-band settlement (US0)
+
+- **FR-008**: When a signed reimbursement does not fund the quoted outer fee
+  cap, the relay MUST reprice the outer transaction down to the cap that
+  reimbursement does fund, rather than refuse it — provided the repriced cap
+  still clears an inclusion floor expressed as a multiple of the base fee.
+- **FR-009**: Repricing MUST preserve the settlement markup against the fee the
+  chain actually charges, and MUST use the weakest payer's affordable cap so no
+  operation subsidizes another.
+- **FR-010**: A shortfall that survives repricing MUST be held and retried with
+  backoff, not rejected. A held operation MUST NOT block other operations queued
+  behind it.
+- **FR-011**: A hold MUST expire after a bounded waiting budget, after which the
+  operation is rejected with a distinct, actionable reason.
+- **FR-012**: Rejections that no price can cure (malformed calldata, unproven
+  transfer logs, unsupported asset) MUST remain immediate rejections.
+- **FR-013**: The wallet MUST distinguish, before any receipt exists, an
+  operation that was rejected from one that is held from one that is simply not
+  landed yet, and MUST reflect each in what the user sees: a failure, a wait, or
+  ordinary confirmation. A relay without the status method MUST behave exactly
+  as before.
+
 ### Key Entities
 
 - **Parsed row**: one payee — source line number, optional display name,
@@ -183,6 +275,13 @@ unmodified.
   names, CJK-digit names, single-row ambiguity, header pinning (EN + zh), the
   leading row-number column, and the currency-suffix amount — all passing.
 - **SC-004**: The batch-send E2E flow (paste path) passes unchanged.
+- **SC-005**: The exact shortfall from the rejected payroll (paid
+  4603572816058075872 vs required 4643859330530512244) executes instead of being
+  refused, and the repriced cap is provably above both the inclusion floor and
+  `base_fee + tip`.
+- **SC-006**: A rejected operation surfaces in the wallet within one status-poll
+  interval instead of after the 120-second receipt timeout, and a held operation
+  never renders as a failure.
 
 ## Assumptions
 

@@ -136,6 +136,73 @@ becomes the sole amount source for every row (unparseable → `no-amount`);
 name column is excluded from candidates and preferred for the name field.
 Unrecognized headers change nothing.
 
+## Design — in-band settlement (US0)
+
+Lives in the relay, `/Volumes/data/production/vela-relay` (separate repository).
+
+### Reprice, don't refuse
+
+The executor quotes `max_fee = 2 × base_fee + tip` and requires
+`markup × allocated_gas × max_fee`. The `2 ×` buys inclusion headroom; the chain
+only ever charges `base_fee + tip`. So a payment that falls short at the quoted
+cap is renegotiated instead of refused:
+
+```
+ratio      = min over payers of (paid / required)        # asset-agnostic, in bps
+affordable = quoted_cap × ratio
+floor      = base_fee × settlement_inclusion_floor_bps / 10_000 + tip
+```
+
+`affordable ≥ floor` → re-evaluate the whole bundle at `affordable`, sign at
+that cap. The markup is preserved exactly: the payment covers
+`markup × gas × affordable`, and the chain can never charge more than
+`affordable`. The floor exists because the outbox broadcasts exact bytes and has
+no fee-bump path — an underpriced transaction would wedge its lane's nonce, so
+1.5× base fee (three blocks of maximum EIP-1559 growth) is the limit of what is
+safe to sign.
+
+### Hold, don't reject
+
+A shortfall that survives repricing is a market condition, not a defect. The
+operation moves to the existing durable delayed inbox — the same mechanism a
+future account nonce uses — which retries with 5s → 5min backoff and lets the
+Iggy offset advance so nothing queues behind it. `defer_user_operation` returns
+the attempt count; past `settlement_hold_max_attempts` (12 ≈ 30 min, inside the
+1-hour status-record TTL) the operation is rejected with a distinct reason.
+Rejections that no price can cure are never held.
+
+### Make the wait visible
+
+`eth_getUserOperationStatus` already exists on the relay and the wallet never
+called it, so a locally-rejected op read as "still confirming" forever. The
+wallet now polls it alongside the receipt (12s cadence, first check deferred one
+interval) and distinguishes three outcomes: rejected → fail now with the reason;
+queued at stage `in_band_settlement_hold` → a waiting state that keeps the
+transaction pending; anything else → unchanged. A relay that does not implement
+the method returns an error and the wallet behaves exactly as before.
+
+### Files
+
+```text
+vela-relay/src/
+├── utils/config.rs                     # settlement_inclusion_floor_bps,
+│                                       #   settlement_hold_max_attempts
+├── worker/executor/settlement.rs       # is_shortfall, paid_ratio_bps,
+│                                       #   affordable_fee_per_gas,
+│                                       #   inclusion_floor_fee_per_gas
+└── worker/executor/engine.rs           # settle_at_affordable_fee,
+                                        #   hold_for_affordable_market,
+                                        #   base_fee in TransactionContext
+
+vela-wallet/src/
+├── services/rpc-adapter.ts             # route eth_getUserOperationStatus
+├── services/tx-reconciler.ts           # pollUserOpStatus, isFeeHold
+├── services/safe-transaction.ts        # UserOpRejectedError, UserOpFeeHoldError
+├── screens/wallet/useSendController.ts # feeHeld / feeRejected outcomes
+├── screens/wallet/SendScreen.tsx       # holdReason wiring
+└── components/ui/TransactionReceipt.tsx# held / rejected copy
+```
+
 ## Complexity Tracking
 
 No constitution violations; table intentionally empty.

@@ -239,6 +239,8 @@
    "tokenBody": "No se pudo reconocer el token de esta solicitud de pago en esta red."
   },
   "txErrorGeneric": "No se pudo enviar la transacción. Tus fondos están a salvo — inténtalo de nuevo.",
+  "txHeldFees": "Las comisiones de red superaron el monto que aprobaste. Tu transacción está en espera y se enviará automáticamente cuando bajen.",
+  "txRejectedFees": "Las comisiones de red siguieron por encima del monto que aprobaste, así que no se envió nada. Vuelve a enviar con la comisión actual.",
   "gasTier": {
    "slow": "Lento",
    "standard": "Estándar",

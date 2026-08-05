@@ -32,3 +32,14 @@ a {
 		0 0 0 var(--space-sm) var(--color-fixed-focusRingOuter);
 	border-radius: var(--radius-sm);
 }
+
+/*
+ * Spec 012: the page is hidden from the very first frame when the launch
+ * animation is going to play, so the sequence is animation → Welcome and never
+ * Welcome → animation → Welcome. The inline script in app.html sets the
+ * attribute before paint; the Svelte layer takes over the opacity once the
+ * cross-dissolve starts.
+ */
+html[data-launch='playing'] [data-launch-page] {
+	opacity: 0;
+}

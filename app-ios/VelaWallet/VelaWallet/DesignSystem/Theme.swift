@@ -57,24 +57,41 @@ enum WelcomeGeometry {
     static let markSize: CGFloat = 37
     /// Gap between mark and wordmark (mock ≈ 22 px @2x → space grid 12).
     static let markWordmarkGap: CGFloat = Tokens.Space.s12
-    /// Brand row → tagline gap (mock ≈ 47 pt → space.s48).
-    static let brandTaglineGap: CGFloat = Tokens.Space.s48
+    /// Brand row → tagline gap. Was s48; matched to Android's `xl4` (32) —
+    /// the founder's reference for how this screen should feel.
+    static let brandTaglineGap: CGFloat = Tokens.Space.s32
     /// Feature-card inner padding (mock ≈ 19 pt → space.s20).
     static let cardPadding: CGFloat = Tokens.Space.s20
     /// Card numeral → title gap / title → body gap (space.s8).
     static let cardInnerGap: CGFloat = Tokens.Space.s8
-    /// Card → pager dots gap (mock ≈ 14 pt → space.s12).
-    static let cardDotsGap: CGFloat = Tokens.Space.s12
-    /// Dots → primary CTA gap (mock ≈ 24 pt → space.s24).
-    static let dotsCtaGap: CGFloat = Tokens.Space.s24
-    /// Primary → secondary CTA gap (mock ≈ 12 pt → space.s12).
-    static let ctaGap: CGFloat = Tokens.Space.s12
+    /// Card → pager dots gap. Was s12; Android uses `md` (8).
+    static let cardDotsGap: CGFloat = Tokens.Space.s8
+    /// Dots → primary CTA gap. Was s24; Android uses `lg` (12).
+    static let dotsCtaGap: CGFloat = Tokens.Space.s12
+    /// Primary → secondary CTA gap. Was s12; Android uses `xl` (16).
+    static let ctaGap: CGFloat = Tokens.Space.s16
     /// Pager dot diameter (mock 12 px @2x).
     static let dotSize: CGFloat = 6
     /// Active dot pill width (mock ≈ 28 px @2x).
     static let dotActiveWidth: CGFloat = 14
-    /// Gap between dot centers is uniform; edge-to-edge dot gap (mock ≈ 12 px @2x → 6 pt… use space grid 8 for touch comfort).
-    static let dotGap: CGFloat = Tokens.Space.s8
+    /// Edge-to-edge dot gap. Was 8 pt "for touch comfort" — but touch comfort is
+    /// the ROW's job (see `dotRowHeight` and PagerDots), not the gap's, and
+    /// inflating it made the dots read as six scattered specks rather than one
+    /// indicator. Matched to Android's 4 dp, which the founder called out as the
+    /// one that looks right.
+    static let dotGap: CGFloat = Tokens.Space.s4
+    /// The pager row is the tap target: one 44 pt band, taps mapped to the
+    /// nearest dot by x. Keeps the dots at their true pitch.
+    static let dotRowHeight: CGFloat = 44
+    /// The two big vertical gaps are FRACTIONS OF THE HERO REGION, not fixed
+    /// points — this is the thing that makes Android's version breathe on every
+    /// screen size while a fixed `Spacer(minLength: 32)` left iOS cramped on a
+    /// tall phone and loose on a short one. Ported verbatim from
+    /// `WelcomeScreen.kt` (`region * 0.20f`, `region * 0.12f`), where `region`
+    /// is the height left over after the pinned CTA block.
+    static let heroTopFraction: CGFloat = 0.20
+    static let taglineCarouselFraction: CGFloat = 0.12
+
     /// Minimum height of the card band (mock card ≈ 134 pt, zh 2-line copy);
     /// the band grows to the tallest card of the active locale.
     static let cardBandMinHeight: CGFloat = 134

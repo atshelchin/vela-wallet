@@ -1,0 +1,774 @@
+//! Machine A — creating a wallet.
+//!
+//! ```text
+//! Form ─submit─► CheckingSupport ─► Registering ─► Verifying ─► SavingPending
+//!   ▲                                                               │
+//!   │ cancel-at-verify KEEPS the draft (resume, never re-register)   ▼
+//!   └──────────────────────────────────────── Syncing{try≤3} ─► Saving ─► Created
+//! ```
+//!
+//! The ordering is the product. A wallet becomes real only after **two**
+//! independent proofs: the passkey produced a valid signature (a provider can
+//! report `create()` success and still have stored nothing — issue #1), and the
+//! index server confirms it holds the matching public key (a locally-saved but
+//! unsynced wallet is usable here and unrecoverable everywhere else). Until both
+//! hold, nothing is written and the address is never shown, so an unusable
+//! wallet can never be funded.
+
+use crux_core::{
+    command::AbortHandle,
+    render::render,
+    App, Command,
+};
+use serde::{Deserialize, Serialize};
+
+use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
+use super::{
+    address_from_public_key_hex, name_fits_user_handle, public_key_hex_from_attestation, Account,
+    FailureKind, PendingUpload, PromptKind, StatusKey,
+};
+
+#[cfg(feature = "bindings")]
+use ts_rs::TS;
+
+/// The acknowledgment checklist. Four rows, all required — the gate is a
+/// business rule, not a UI decoration.
+pub const ACK_COUNT: usize = 4;
+
+/// Attempts allowed per upload run, matching today's `maxAttempts = 3`.
+const MAX_UPLOAD_TRIES: u8 = 3;
+
+// ---------------------------------------------------------------------------
+// Events
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "CreateWalletEvent"))]
+pub enum Event {
+    Start,
+    NameChanged { name: String },
+    AckToggled { index: usize },
+    /// The primary button: "Create Wallet", or "Finish verification" when a
+    /// draft is waiting.
+    Submit,
+    /// Abandon an unprovable passkey and mint a fresh one.
+    StartOver,
+    /// Re-run the index upload after it exhausted its retries.
+    RetryUpload,
+    EnterWallet,
+    GoBack,
+    /// Internal: an effect resolved. Never sent by a shell — `attempt` is
+    /// captured by the core when the request is made, which is what makes a
+    /// late result from an abandoned attempt identifiable.
+    #[serde(skip)]
+    ShellCompleted { attempt: u64, result: ShellResult },
+}
+
+// ---------------------------------------------------------------------------
+// Model
+// ---------------------------------------------------------------------------
+
+/// A registered passkey that has not yet proven it can sign. Its whole reason
+/// for existing is that a cancelled verification must resume from the
+/// *signature*, never mint a second passkey.
+#[derive(Clone, Debug, Default)]
+pub struct Draft {
+    pub credential_id: String,
+    pub attestation_object_hex: String,
+    pub name: String,
+    pub registered_at_iso: String,
+}
+
+/// Derived from the draft, not yet persisted anywhere.
+#[derive(Clone, Debug, Default)]
+pub struct Prepared {
+    pub credential_id: String,
+    pub name: String,
+    pub public_key_hex: String,
+    pub address: String,
+    pub created_at_iso: String,
+}
+
+impl Prepared {
+    fn account(&self) -> Account {
+        Account {
+            id: self.credential_id.clone(),
+            name: self.name.clone(),
+            address: self.address.clone(),
+            public_key_hex: self.public_key_hex.clone(),
+            created_at_iso: self.created_at_iso.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct SyncState {
+    /// 1-based attempt number of the run in flight; 0 when idle.
+    pub tries: u8,
+    /// Why the last attempt failed — shown behind the technical-details
+    /// disclosure and carried into the bug report.
+    pub last_error: Option<String>,
+    /// A failed `create` is not yet a failure: the query below decides. Kept so
+    /// the original cause is what surfaces if confirmation also fails.
+    pub create_error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SyncStep {
+    #[default]
+    Creating,
+    Confirming,
+    CheckingWalletRef,
+    RemovingPending,
+    Waiting,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum Stage {
+    #[default]
+    Form,
+    CheckingSupport,
+    Registering,
+    Verifying,
+    SavingPending,
+    Syncing(SyncStep),
+    Saving,
+    SyncFailed,
+    Created,
+    Completing,
+}
+
+impl Stage {
+    /// Is an operation in flight? Everything that is not a resting place.
+    fn is_busy(&self) -> bool {
+        !matches!(self, Stage::Form | Stage::SyncFailed | Stage::Created)
+    }
+}
+
+#[derive(Default)]
+pub struct Model {
+    name: String,
+    acks: [bool; ACK_COUNT],
+    draft: Option<Draft>,
+    prepared: Option<Prepared>,
+    sync: SyncState,
+    stage: Stage,
+    status: Option<StatusKey>,
+    /// Bumped on every user-initiated start. A result carrying a different
+    /// attempt belongs to an abandoned run and is dropped.
+    attempt: u64,
+    abort: Option<AbortHandle>,
+}
+
+// ---------------------------------------------------------------------------
+// ViewModel
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub enum CreateStage {
+    /// The form panel — also what shows while work is in flight, with `busy`
+    /// driving the button spinner. Matches today's screen exactly.
+    Form,
+    SyncFailed,
+    Created,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub enum SubmitLabel {
+    Create,
+    FinishVerify,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct CreateView {
+    pub stage: CreateStage,
+    pub name: String,
+    pub name_editable: bool,
+    pub name_too_long: bool,
+    pub acks: Vec<bool>,
+    pub can_submit: bool,
+    pub submit_label: SubmitLabel,
+    pub busy: bool,
+    pub status: Option<StatusKey>,
+    pub show_start_over: bool,
+    /// Present only once the wallet is real. Showing an address earlier would
+    /// invite funding a wallet that may never be reachable.
+    pub address: Option<String>,
+    pub sync_error_detail: Option<String>,
+    pub can_go_back: bool,
+}
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+
+#[derive(Default)]
+pub struct CreateWallet;
+
+impl App for CreateWallet {
+    type Event = Event;
+    type Model = Model;
+    type ViewModel = CreateView;
+    type Effect = Effect;
+
+    fn update(&self, event: Event, model: &mut Model) -> Command<Effect, Event> {
+        match event {
+            Event::Start => render(),
+            Event::NameChanged { name } => {
+                if model.stage.is_busy() || model.draft.is_some() {
+                    return Command::done(); // the input is not editable then
+                }
+                model.name = name;
+                render()
+            }
+            Event::AckToggled { index } => {
+                if model.stage.is_busy() || index >= ACK_COUNT {
+                    return Command::done();
+                }
+                model.acks[index] = !model.acks[index];
+                render()
+            }
+            Event::Submit => submit(model),
+            Event::StartOver => start_over(model),
+            Event::RetryUpload => retry_upload(model),
+            Event::EnterWallet => enter_wallet(model),
+            Event::GoBack => {
+                model.status = None;
+                render()
+            }
+            Event::ShellCompleted { attempt, result } => {
+                if attempt != model.attempt {
+                    // A result from an abandoned run. Dropping it is the whole
+                    // reason `attempt` exists: without it, a late upload result
+                    // could resurrect a draft the user already abandoned.
+                    return Command::done();
+                }
+                accept(model, result)
+            }
+        }
+    }
+
+    fn view(&self, model: &Model) -> CreateView {
+        let trimmed = model.name.trim();
+        let name_too_long = !name_fits_user_handle(trimmed);
+        let busy = model.stage.is_busy();
+        let has_draft = model.draft.is_some();
+
+        let stage = match model.stage {
+            Stage::SyncFailed => CreateStage::SyncFailed,
+            Stage::Created | Stage::Completing => CreateStage::Created,
+            _ => CreateStage::Form,
+        };
+
+        CreateView {
+            stage,
+            name: model.name.clone(),
+            name_editable: !busy && !has_draft,
+            name_too_long,
+            acks: model.acks.to_vec(),
+            can_submit: !busy
+                && model.acks.iter().all(|checked| *checked)
+                && (has_draft || (!trimmed.is_empty() && !name_too_long)),
+            submit_label: if has_draft {
+                SubmitLabel::FinishVerify
+            } else {
+                SubmitLabel::Create
+            },
+            busy,
+            status: model.status,
+            show_start_over: has_draft && !busy,
+            address: match stage {
+                CreateStage::Created => model.prepared.as_ref().map(|p| p.address.clone()),
+                _ => None,
+            },
+            sync_error_detail: match stage {
+                CreateStage::SyncFailed => model.sync.last_error.clone(),
+                _ => None,
+            },
+            can_go_back: model.stage != Stage::SyncFailed,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// User-initiated transitions
+// ---------------------------------------------------------------------------
+
+fn submit(model: &mut Model) -> Command<Effect, Event> {
+    // Only from the form. `Created` and `SyncFailed` are also "not busy", and a
+    // draft outlives a successful creation — so without this guard a stray
+    // submit after the wallet exists would start a *second* ceremony for a
+    // wallet that is already done. No screen offers that button today; the
+    // machine simply must not depend on that staying true.
+    if model.stage != Stage::Form || !model.acks.iter().all(|checked| *checked) {
+        return Command::done();
+    }
+
+    if let Some(draft) = model.draft.clone() {
+        // Resume: the passkey already exists, only its signature is missing.
+        model.attempt += 1;
+        model.stage = Stage::Verifying;
+        model.status = Some(StatusKey::VerifyingIdentity);
+        return request(
+            model,
+            ShellOperation::SignProof {
+                credential_id: draft.credential_id,
+                purpose: ProofPurpose::Verify,
+            },
+        );
+    }
+
+    let trimmed = model.name.trim();
+    if trimmed.is_empty() || !name_fits_user_handle(trimmed) {
+        return Command::done();
+    }
+
+    model.attempt += 1;
+    model.stage = Stage::CheckingSupport;
+    model.status = None;
+    request(model, ShellOperation::CheckPasskeySupport)
+}
+
+fn start_over(model: &mut Model) -> Command<Effect, Event> {
+    // Abandon the unprovable passkey. Nothing about it was persisted (no
+    // account, and the pending upload only exists after a proven signature), so
+    // this is a clean reset; the orphaned authenticator entry is inert.
+    model.attempt += 1;
+    if let Some(handle) = model.abort.take() {
+        handle.abort();
+    }
+    model.draft = None;
+    model.prepared = None;
+    model.sync = SyncState::default();
+    model.stage = Stage::Form;
+    model.status = None;
+    render()
+}
+
+fn retry_upload(model: &mut Model) -> Command<Effect, Event> {
+    if model.stage != Stage::SyncFailed {
+        return Command::done();
+    }
+    let Some(prepared) = model.prepared.clone() else {
+        return Command::done();
+    };
+    // Resumes at the upload — never at registration. The passkey is already
+    // proven; re-registering would mint a second one for the same wallet.
+    model.attempt += 1;
+    model.sync = SyncState {
+        tries: 1,
+        ..SyncState::default()
+    };
+    model.stage = Stage::Syncing(SyncStep::Creating);
+    model.status = Some(StatusKey::SyncingKey);
+    request(
+        model,
+        ShellOperation::IndexCreateRecord {
+            credential_id: prepared.credential_id,
+            public_key_hex: prepared.public_key_hex,
+            name: prepared.name,
+        },
+    )
+}
+
+fn enter_wallet(model: &mut Model) -> Command<Effect, Event> {
+    if model.stage != Stage::Created {
+        return Command::done();
+    }
+    let Some(prepared) = model.prepared.clone() else {
+        return Command::done();
+    };
+    // Signing was proven during creation and the key is synced — entering is
+    // now a state transition, not another ceremony.
+    model.attempt += 1;
+    model.stage = Stage::Completing;
+    request(
+        model,
+        ShellOperation::CompleteOnboarding {
+            mode: CompletionMode::AddAccount {
+                account: prepared.account(),
+            },
+        },
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Shell results
+// ---------------------------------------------------------------------------
+
+fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
+    match (&model.stage, result) {
+        // -- support probe ---------------------------------------------------
+        (Stage::CheckingSupport, ShellResult::PasskeySupport { supported }) => {
+            if supported {
+                model.stage = Stage::Registering;
+                model.status = Some(StatusKey::SettingUpIdentity);
+                let name = model.name.trim().to_owned();
+                request(model, ShellOperation::RegisterPasskey { name })
+            } else {
+                fail_to_form(model, PromptKind::NotSupportedCreate, None)
+            }
+        }
+
+        // -- registration ----------------------------------------------------
+        (
+            Stage::Registering,
+            ShellResult::PasskeyRegistered {
+                registration,
+                now_iso,
+            },
+        ) => {
+            model.draft = Some(Draft {
+                credential_id: registration.credential_id.clone(),
+                attestation_object_hex: registration.attestation_object_hex,
+                name: model.name.trim().to_owned(),
+                registered_at_iso: now_iso,
+            });
+            model.stage = Stage::Verifying;
+            model.status = Some(StatusKey::VerifyingIdentity);
+            request(
+                model,
+                ShellOperation::SignProof {
+                    credential_id: registration.credential_id,
+                    purpose: ProofPurpose::Verify,
+                },
+            )
+        }
+        (Stage::Registering, ShellResult::PasskeyFailed { kind, message }) => match kind {
+            FailureKind::Cancelled => {
+                model.stage = Stage::Form;
+                model.status = Some(StatusKey::SetupCancelled);
+                render()
+            }
+            // The authenticator made a device-local credential: it would sign
+            // fine here but never appear at sign-in or sync for recovery. Stop
+            // now — nothing has been persisted (issue #1).
+            FailureKind::NotDiscoverable => fail_to_form(model, PromptKind::NotDiscoverable, None),
+            FailureKind::NotSupported => fail_to_form(model, PromptKind::NotSupportedCreate, None),
+            FailureKind::Other => fail_to_form(
+                model,
+                PromptKind::CreateFailed {
+                    detail: message.unwrap_or_default(),
+                },
+                None,
+            ),
+        },
+
+        // -- proof of signing ------------------------------------------------
+        (Stage::Verifying, ShellResult::ProofSigned { assertion, now_iso }) => {
+            if !assertion.is_safe_compatible() {
+                // Non-retryable: this provider's response format can never work
+                // with the Safe contracts, so the draft is discarded rather than
+                // left resumable.
+                model.draft = None;
+                return fail_to_form(model, PromptKind::IncompatibleCreate, None);
+            }
+            derive_and_persist_pending(model, now_iso)
+        }
+        (Stage::Verifying, ShellResult::PasskeyFailed { kind, message }) => match kind {
+            FailureKind::Cancelled => {
+                // Keep the draft: the next submit resumes at the signature.
+                model.stage = Stage::Form;
+                model.status = Some(StatusKey::VerifyCancelled);
+                render()
+            }
+            _ => fail_to_form(
+                model,
+                PromptKind::CreateFailed {
+                    detail: message.unwrap_or_default(),
+                },
+                None,
+            ),
+        },
+
+        // -- pending record --------------------------------------------------
+        (Stage::SavingPending, ShellResult::PendingUploadSaved) => begin_upload(model),
+        (Stage::SavingPending, ShellResult::StorageFailed { message }) => fail_to_form(
+            model,
+            PromptKind::CreateFailed { detail: message },
+            None,
+        ),
+
+        // -- index sync ------------------------------------------------------
+        (Stage::Syncing(SyncStep::Creating), ShellResult::IndexCreated) => {
+            model.sync.create_error = None;
+            confirm_upload(model)
+        }
+        (Stage::Syncing(SyncStep::Creating), ShellResult::IndexFailed { message, .. }) => {
+            // Not a failure yet. The stored record is the source of truth, and
+            // the write may have landed with its response lost — or the record
+            // may already exist from an earlier idempotent attempt.
+            model.sync.create_error = Some(message);
+            confirm_upload(model)
+        }
+        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexRecord { public_key_hex, .. }) => {
+            let expected = model
+                .prepared
+                .as_ref()
+                .map(|p| p.public_key_hex.clone())
+                .unwrap_or_default();
+            if public_key_hex.eq_ignore_ascii_case(&expected) {
+                model.sync.create_error = None;
+                check_wallet_ref(model)
+            } else {
+                retry_or_fail(model, "Server verification failed: public key mismatch".to_owned())
+            }
+        }
+        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexMissing) => {
+            let detail = model
+                .sync
+                .create_error
+                .clone()
+                .unwrap_or_else(|| "Public key not found on the index server".to_owned());
+            retry_or_fail(model, detail)
+        }
+        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexFailed { message, .. }) => {
+            let detail = model.sync.create_error.clone().unwrap_or(message);
+            retry_or_fail(model, detail)
+        }
+        (Stage::Syncing(SyncStep::Waiting), ShellResult::Waited) => {
+            model.sync.tries += 1;
+            model.sync.create_error = None;
+            let Some(prepared) = model.prepared.clone() else {
+                return Command::done();
+            };
+            model.stage = Stage::Syncing(SyncStep::Creating);
+            request(
+                model,
+                ShellOperation::IndexCreateRecord {
+                    credential_id: prepared.credential_id,
+                    public_key_hex: prepared.public_key_hex,
+                    name: prepared.name,
+                },
+            )
+        }
+
+        // -- wallet-reference reveal ----------------------------------------
+        //
+        // The credential record existing is NOT the signal that the key is
+        // usable for gas sponsorship: the bundler resolves it by wallet
+        // reference, which lands after the index's async on-chain commit-reveal
+        // — minutes later, and sometimes stuck. Clearing the pending entry on
+        // credential confirmation alone abandoned those registrations (issue
+        // #89). Never block onboarding on it either: the credential is
+        // confirmed and the wallet is fully usable.
+        (Stage::Syncing(SyncStep::CheckingWalletRef), ShellResult::WalletRef { resolved }) => {
+            if resolved {
+                let Some(prepared) = model.prepared.clone() else {
+                    return Command::done();
+                };
+                model.stage = Stage::Syncing(SyncStep::RemovingPending);
+                request(
+                    model,
+                    ShellOperation::RemovePendingUpload {
+                        credential_id: prepared.credential_id,
+                    },
+                )
+            } else {
+                save_account(model)
+            }
+        }
+        (Stage::Syncing(SyncStep::CheckingWalletRef), ShellResult::IndexFailed { .. }) => {
+            save_account(model)
+        }
+        (Stage::Syncing(SyncStep::RemovingPending), ShellResult::PendingUploadRemoved) => {
+            save_account(model)
+        }
+        (Stage::Syncing(SyncStep::RemovingPending), ShellResult::StorageFailed { .. }) => {
+            save_account(model)
+        }
+
+        // -- local persistence ----------------------------------------------
+        (Stage::Saving, ShellResult::AccountSaved) => {
+            model.stage = Stage::Created;
+            model.status = None;
+            render()
+        }
+        (Stage::Saving, ShellResult::StorageFailed { message }) => fail_to_form(
+            model,
+            PromptKind::CreateFailed { detail: message },
+            None,
+        ),
+
+        // -- handover ---------------------------------------------------------
+        (Stage::Completing, ShellResult::OnboardingCompleted) => Command::done(),
+
+        // A prompt was dismissed, or a result arrived for a stage that no longer
+        // expects it. Neither is an error, and neither may change state.
+        _ => Command::done(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Internal transitions
+// ---------------------------------------------------------------------------
+
+/// Extract the public key, derive the Safe address, and write the pending-sync
+/// record — all before a single byte of account state exists.
+fn derive_and_persist_pending(model: &mut Model, now_iso: String) -> Command<Effect, Event> {
+    let Some(draft) = model.draft.clone() else {
+        return Command::done();
+    };
+
+    model.status = Some(StatusKey::ExtractingKey);
+    let public_key_hex = match public_key_hex_from_attestation(&draft.attestation_object_hex) {
+        Ok(hex) => hex,
+        Err(error) => {
+            return fail_to_form(
+                model,
+                PromptKind::CreateFailed {
+                    detail: error.to_string(),
+                },
+                None,
+            )
+        }
+    };
+
+    model.status = Some(StatusKey::ComputingAddress);
+    let address = match address_from_public_key_hex(&public_key_hex) {
+        Ok(address) => address,
+        Err(error) => {
+            return fail_to_form(
+                model,
+                PromptKind::CreateFailed {
+                    detail: error.to_string(),
+                },
+                None,
+            )
+        }
+    };
+
+    model.prepared = Some(Prepared {
+        credential_id: draft.credential_id.clone(),
+        name: draft.name.clone(),
+        public_key_hex: public_key_hex.clone(),
+        address,
+        created_at_iso: now_iso.clone(),
+    });
+    model.stage = Stage::SavingPending;
+    request(
+        model,
+        ShellOperation::SavePendingUpload {
+            record: PendingUpload {
+                id: draft.credential_id,
+                name: draft.name,
+                public_key_hex,
+                attestation_object_hex: draft.attestation_object_hex,
+                created_at_iso: now_iso,
+            },
+        },
+    )
+}
+
+fn begin_upload(model: &mut Model) -> Command<Effect, Event> {
+    let Some(prepared) = model.prepared.clone() else {
+        return Command::done();
+    };
+    model.sync = SyncState {
+        tries: 1,
+        ..SyncState::default()
+    };
+    model.stage = Stage::Syncing(SyncStep::Creating);
+    model.status = Some(StatusKey::SyncingKey);
+    request(
+        model,
+        ShellOperation::IndexCreateRecord {
+            credential_id: prepared.credential_id,
+            public_key_hex: prepared.public_key_hex,
+            name: prepared.name,
+        },
+    )
+}
+
+fn confirm_upload(model: &mut Model) -> Command<Effect, Event> {
+    let Some(prepared) = model.prepared.clone() else {
+        return Command::done();
+    };
+    model.stage = Stage::Syncing(SyncStep::Confirming);
+    request(
+        model,
+        ShellOperation::IndexQueryRecord {
+            credential_id: prepared.credential_id,
+        },
+    )
+}
+
+fn check_wallet_ref(model: &mut Model) -> Command<Effect, Event> {
+    let Some(prepared) = model.prepared.clone() else {
+        return Command::done();
+    };
+    model.stage = Stage::Syncing(SyncStep::CheckingWalletRef);
+    request(
+        model,
+        ShellOperation::IndexQueryByWalletRef {
+            address: prepared.address,
+        },
+    )
+}
+
+/// Another attempt, or give up and offer the retry screen. The waits mirror
+/// today's `1000 * attempt`: 1s after the first failure, 2s after the second.
+fn retry_or_fail(model: &mut Model, detail: String) -> Command<Effect, Event> {
+    if model.sync.tries < MAX_UPLOAD_TRIES {
+        let ms = 1000 * u32::from(model.sync.tries);
+        model.stage = Stage::Syncing(SyncStep::Waiting);
+        request(model, ShellOperation::Wait { ms })
+    } else {
+        model.sync.last_error = Some(detail);
+        model.stage = Stage::SyncFailed;
+        model.status = None;
+        render()
+    }
+}
+
+/// The only place an account is ever written — reachable only once the index
+/// server has confirmed it holds the matching key.
+fn save_account(model: &mut Model) -> Command<Effect, Event> {
+    let Some(prepared) = model.prepared.clone() else {
+        return Command::done();
+    };
+    model.stage = Stage::Saving;
+    request(
+        model,
+        ShellOperation::SaveAccount {
+            account: prepared.account(),
+        },
+    )
+}
+
+/// Return to the form, optionally telling the user why. The draft is left
+/// exactly as the caller set it: cleared for terminal outcomes, kept for
+/// resumable ones.
+fn fail_to_form(
+    model: &mut Model,
+    prompt: PromptKind,
+    status: Option<StatusKey>,
+) -> Command<Effect, Event> {
+    model.stage = Stage::Form;
+    model.status = status;
+    let attempt = model.attempt;
+    Command::all([
+        Command::request_from_shell(ShellOperation::Prompt {
+            kind: prompt,
+            confirmable: false,
+        })
+        .then_send(move |result| Event::ShellCompleted { attempt, result }),
+        render(),
+    ])
+}
+
+/// Issue one operation, remembering how to abandon it. `attempt` is captured
+/// here, so the result can be matched against the run that asked for it.
+fn request(model: &mut Model, operation: ShellOperation) -> Command<Effect, Event> {
+    let attempt = model.attempt;
+    let command = Command::request_from_shell(operation)
+        .then_send(move |result| Event::ShellCompleted { attempt, result });
+    model.abort = Some(command.abort_handle());
+    Command::all([command, render()])
+}

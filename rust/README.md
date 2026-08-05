@@ -147,3 +147,37 @@ Locales are per-locale cargo features and the default set is **zero**: all 15
 compiled in measure 1,315,023 wasm bytes against a 1,000,000 ceiling, and even one
 costs more over the wire compiled in than fetched as JSON. Web fetches
 `/i18n/<lng>.json` on demand; desktop and native may compile in what they ship.
+
+
+## `vela-core/src/app/` — portable business state machines
+
+Everything else in `vela-core` is a *kernel*: a pure function the app calls
+(`compute_safe_address`, `identicon_svg`, `t`). The `app` module is different in
+kind — it holds **state machines** that own what a flow decides, built on
+[Crux](https://redbadger.github.io/crux/):
+
+```text
+Event ─► update(Model) ─► Model' + Command<Effect>
+                                      │
+ViewModel = view(Model')              └─► the shell performs I/O and answers
+```
+
+Two rules make it worth having, and both are enforceable:
+
+1. **The core declares effects; it never performs them.** No network, no
+   storage, no clock, no randomness. Wall-clock instants arrive as fields on the
+   results the shell returns. That is what makes every rule testable in
+   milliseconds with no browser (`npm run test:core`).
+2. **It is feature-gated and off by default.** `--features crux` is enabled only
+   by `vela-core-wasm`, because web is the one runtime that can execute it —
+   Hermes has no WebAssembly. The uniffi bindings, and therefore the iOS static
+   library and the Android `.so`, never link the framework:
+
+   ```bash
+   cargo tree -p vela-core-uniffi | grep -c crux   # must be 0
+   ```
+
+The TypeScript mirrors of the wire types are generated, committed and gated:
+`npm run gen:onboarding-types` (add `-- --check` for the drift gate).
+
+Design, contracts and the rule-to-test map: `specs/011-crux-onboarding-state/`.

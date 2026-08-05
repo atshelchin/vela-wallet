@@ -19,6 +19,8 @@
     "verify:i18n": "node scripts/verify-i18n-parity.mjs",
     "verify:identicon": "node scripts/verify-identicon-parity.mjs",
     "build:wasm": "node rust/scripts/build-web.mjs",
+    "gen:onboarding-types": "node rust/scripts/gen-onboarding-types.mjs",
+    "test:core": "cd rust && cargo test -p vela-core --features crux,i18n-all",
     "verify:wasm": "node rust/scripts/verify-web.mjs",
     "bench:legacy": "jest --ci --config scripts/dump-vectors/jest.config.js --testPathPatterns '\\.bench\\.test\\.ts$'",
     "bench:core": "node rust/scripts/bench-web.mjs",

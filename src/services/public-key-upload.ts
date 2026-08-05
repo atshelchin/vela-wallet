@@ -2,6 +2,18 @@
  * Uploads passkey public keys to the index server for cross-device recovery.
  *
  * Flow: createRecord → verify (no signature needed, server signs on-chain tx)
+ *
+ * SECOND IMPLEMENTATION WARNING (spec 011-crux-onboarding-state, D10).
+ * The decision table this file walks — a failed create forgiven when the query
+ * confirms the stored key, a key mismatch treated as failure, the pending entry
+ * cleared only once the wallet reference resolves (issue #89) — also lives in
+ * `rust/crates/vela-core/src/app/create_wallet.rs`, which is what drives web
+ * onboarding now. This file still runs on iOS/Android (Hermes has no
+ * WebAssembly) and on every platform for `retryPendingUploads()` at launch.
+ *
+ * Change the Rust table and this one together, or the platforms drift. The
+ * shared source of truth is the table in
+ * `specs/011-crux-onboarding-state/data-model.md`.
  */
 import { computeAddress, fromHex } from '@/services/vela-core';
 import * as PublicKeyIndex from './public-key-index';

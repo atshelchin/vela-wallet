@@ -79,8 +79,14 @@ async function fillCreateForm(page: Page, name: string): Promise<void> {
   await page.waitForLoadState('networkidle');
   await expect(page.locator('body')).toContainText('Create Wallet', { timeout: 40_000 });
   await page.getByPlaceholder('Enter a name for your account').fill(name);
+  // Click the checkbox itself, not the row's centre. The last row's text wraps
+  // around inline "Privacy Policy" / "Terms of Service" links, and a
+  // centre-of-box click can land on one of them — opening a tab instead of
+  // ticking the box, which left the Create button permanently disabled. Where
+  // the box actually is depends on font metrics and wrap width, so this was
+  // environment-dependent rather than reliably red.
   for (const frag of ACK_FRAGMENTS) {
-    await page.getByText(frag, { exact: false }).first().click();
+    await page.getByText(frag, { exact: false }).first().click({ position: { x: 6, y: 6 } });
   }
 }
 

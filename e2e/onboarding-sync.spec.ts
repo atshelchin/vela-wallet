@@ -60,8 +60,14 @@ test.describe('Onboarding — wallet is NOT persisted until the key syncs (US 1.
     // 4. Name + acknowledge all four checkboxes (the Create button is disabled
     //    until name is set and every box is checked).
     await page.getByPlaceholder('Enter a name for your account').fill('E2E Sync Test');
+    // Click the checkbox itself, not the row's centre. The last row's text wraps
+    // around inline "Privacy Policy" / "Terms of Service" links, and a
+    // centre-of-box click can land on one of them — opening a tab instead of
+    // ticking the box, which left the Create button permanently disabled. Where
+    // the box actually is depends on font metrics and wrap width, so this was
+    // environment-dependent rather than reliably red.
     for (const frag of ACK_FRAGMENTS) {
-      await page.getByText(frag, { exact: false }).first().click();
+      await page.getByText(frag, { exact: false }).first().click({ position: { x: 6, y: 6 } });
     }
 
     // 5. Create → passkey registers (virtual authenticator) → upload retries 3×

@@ -31,8 +31,15 @@ crate-type = ["cdylib"]
 # No feature list at all: vela-core's own `default = []` is already zero locales,
 # and re-stating `default-features = false` here only earns a cargo warning
 # (workspace deps must declare it at the workspace level to be overridable).
-vela-core = { workspace = true }
+#
+# `crux` IS enabled here, and only here (spec 011-crux-onboarding-state, D2).
+# Web is the one runtime that can execute the onboarding state machines —
+# Hermes has no WebAssembly — so `vela-core-uniffi` deliberately does not turn
+# it on and the iOS/Android binaries never link the framework:
+#   cargo tree -p vela-core-uniffi | grep -c crux   # must stay 0
+vela-core = { workspace = true, features = ["crux"] }
 wasm-bindgen = { workspace = true }
+crux_core = { workspace = true }
 tsify = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 serde = { workspace = true }

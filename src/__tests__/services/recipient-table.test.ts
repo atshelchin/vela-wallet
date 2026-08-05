@@ -153,20 +153,93 @@ describe('parseRecipientTableText — a recognized header pins column roles', ()
   });
 });
 
-describe('parseRecipientTableText — permissive amounts keep working', () => {
-  test('currency suffix (5000 USDT) with no other numeric cell', () => {
-    const { rows } = parseRecipientTableText(`${A},5000 USDT`);
-    expect(rows[0].rawAmount).toBe('5000');
-  });
-
-  test('currency code prefix (USD 5000)', () => {
-    const { rows } = parseRecipientTableText(`${A},USD 5000`);
-    expect(rows[0].rawAmount).toBe('5000');
+describe('parseRecipientTableText — currency-flanked amounts keep working', () => {
+  test.each([
+    ['5000 USDT', '5000'],
+    ['USD 5000', '5000'],
+    ['MATIC 5000', '5000'],
+    ['R$ 5000', '5000'],
+    ['US$ 5,000.50', '5000.50'],
+    ['5000元', '5000'],
+    ['5000usdt', '5000'],
+    ['¥ 300', '300'],
+  ])('%s → %s', (cell, expected) => {
+    const { rows, errors } = parseRecipientTableText(`${A};${cell}`);
+    expect(errors).toHaveLength(0);
+    expect(rows[0].rawAmount).toBe(expected);
   });
 
   test('mixed-order paste still resolves per row', () => {
     const { rows } = parseRecipientTableText(`5000,${A}\n${B},3000`);
     expect(rows.map((r) => [r.address, r.rawAmount])).toEqual([[A, '5000'], [B, '3000']]);
+  });
+});
+
+describe('parseRecipientTableText — table-level evidence stays scoped to a row shape', () => {
+  // Regression: a 2-column amount-first row used to vote for column 0, and that
+  // vote decided a 3-column template row whose column 0 is the NAME — silently
+  // re-creating issue #137 (paid 123123 instead of 0.01).
+  test('a 2-column amount-first row does not decide a 3-column row', () => {
+    const { rows } = parseRecipientTableText(`5000,${A}\n123123,${B},0.01`);
+    expect(rows).toEqual([
+      { line: 1, name: undefined, address: A, rawAmount: '5000' },
+      { line: 2, name: '123123', address: B, rawAmount: '0.01' },
+    ]);
+  });
+
+  test('a tie between shapes never resolves to the leftmost (name) column', () => {
+    const { rows } = parseRecipientTableText(`Alice,${A},5000\n3000,${B}\n123123,${C},0.01`);
+    expect(rows.map((r) => [r.name, r.rawAmount])).toEqual([
+      ['Alice', '5000'],
+      [undefined, '3000'],
+      ['123123', '0.01'],
+    ]);
+  });
+
+  test('a blank amount cell errors instead of paying the digit-only name', () => {
+    const { rows, errors } = parseRecipientTableText(`1001,${A},\n1002,${B},0.01\n1003,${C},0.01`);
+    expect(rows.map((r) => [r.name, r.rawAmount])).toEqual([['1002', '0.01'], ['1003', '0.01']]);
+    expect(errors).toEqual([{ line: 1, raw: `1001 , ${A} , `, reason: 'no-amount' }]);
+  });
+
+  test('a currency-suffixed amount is still found next to a digit-only name', () => {
+    const { rows } = parseRecipientTableText(`Alice,${A},5000 USDT\n123123,${B},0.01 USDT`);
+    expect(rows.map((r) => [r.name, r.rawAmount])).toEqual([['Alice', '5000'], ['123123', '0.01']]);
+  });
+
+  test('exotic name,amount,address order resolves from the table', () => {
+    const { rows } = parseRecipientTableText(`Alice,0.01,${A}\n123123,0.01,${B}`);
+    expect(rows.map((r) => [r.name, r.rawAmount])).toEqual([['Alice', '0.01'], ['123123', '0.01']]);
+  });
+});
+
+describe('parseRecipientTableText — cells that only look numeric are not amounts', () => {
+  test.each([
+    ['Team 2024', 'a capitalized word before digits'],
+    ['Bob 007', 'a name with a numeric suffix'],
+    ['3M', 'a single trailing letter is not a currency code'],
+    ['1e5', 'scientific notation used to pay 15'],
+    ['1.00E+05', 'Excel scientific rendering used to pay 1.0005'],
+    ['2026-08-05', 'a date used to pay 20,260,805'],
+    ['0x123', 'a truncated address used to pay 123'],
+    ['1,23', 'an ambiguous European decimal comma'],
+  ])('%s is rejected (%s)', (cell) => {
+    const { rows, errors } = parseRecipientTableText(`${cell};${A}`);
+    expect(rows).toHaveLength(0);
+    expect(errors.map((e) => e.reason)).toEqual(['no-amount']);
+  });
+});
+
+describe('parseRecipientTableText — header pinning edge cases', () => {
+  test('a ragged row that lacks the labelled column falls back to inference', () => {
+    const { rows, errors } = parseRecipientTableText(`name,address,amount\n${A},5000\n${B},3000`);
+    expect(errors).toHaveLength(0);
+    expect(rows.map((r) => r.rawAmount)).toEqual(['5000', '3000']);
+  });
+
+  test('a labelled address column beats an address pasted into the name column', () => {
+    const { rows } = parseRecipientTableText(`name,address,amount\n${B},${A},5000`);
+    expect(rows[0]).toMatchObject({ address: A, rawAmount: '5000' });
   });
 });
 

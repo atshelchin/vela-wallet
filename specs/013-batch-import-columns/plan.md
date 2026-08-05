@@ -92,28 +92,41 @@ text and Excel paths, so the change lands in exactly one file plus its tests.
 
 ## Design
 
-### Detection (per row, address cell excluded)
+*(Revised after the adversarial review reproduced #137 through the first
+design's table-wide voting — see research.md R2.)*
 
-| Tier | Rule | Accepts | Rejects |
-| --- | --- | --- | --- |
-| strict | no `\p{L}` letters anywhere, cleans to > 0 | `0.01`, `5,000.50`, `¥300` | `Alice123`, `团队2024`, `5000 USDT` |
-| permissive (only when strict set is empty) | cleans to > 0 and begins with the number — optional currency symbols, or ≤5-letter code + whitespace, before the first digit | `5000 USDT`, `USD 5000`, `¥ 300` | `Alice123` (word glued to digits) |
+### Detection — one rule, `isAmountCell`
+
+A cell reads as an amount only if it is a well-formed decimal (optional
+thousands grouping), optionally flanked by currency signs and/or **one** short
+currency token: a known code, an ALL-CAPS 2–5 letter ticker, a CJK currency
+word, or a ≤3-letter code glued to a sign.
+
+| Accepts | Rejects |
+| --- | --- |
+| `0.01`, `¥5,000.50`, `5 000`, `5000 USDT`, `USD 5000`, `MATIC 5000`, `R$ 5000`, `5000元` | `Alice123`, `团队2024`, `Team 2024`, `Bob 007`, `3M`, `1e5`, `1.00E+05`, `2026-08-05`, `0x123`, `1,23` |
 
 `cleanAmount()` keeps its exact current behavior but is invoked only on the
 *chosen* cell — it goes back to being a cleaner, not a detector.
 
-### Resolution (rows with > 1 candidate)
+### Resolution — the amount column is settled per row shape
 
-1. header-pinned amount column (synonyms in research.md R3)
-2. the column most often chosen by this table's unambiguous rows
-3. first candidate at an index greater than the address index
-4. first candidate (legacy order)
+Rows group by `(cell count, address index)`. Per shape:
 
-Implementation shape: `interpretRows()` becomes two passes — pass 1 finds each
-row's address + candidate set and resolves single-candidate rows (recording
-their chosen column); pass 2 resolves ambiguous rows using header info + the
-pass-1 tally. Output arrays keep source order and the existing line-numbering
-and error-reporting contract.
+1. header-labelled column, when the row actually has that column;
+2. else the column most used by rows whose amount sits after the address;
+3. else the column most used by rows with a single candidate.
+
+Every row then reads only that column, so a blank amount cell is a visible
+`no-amount` error rather than a name silently becoming a payment. Shapes with
+no evidence fall back to first-candidate-after-address, then first candidate.
+Evidence never crosses shapes — a 2-column `amount,address` row cannot speak
+for a 3-column `name,address,amount` row.
+
+Implementation shape: `interpretRows()` runs three passes — locate address +
+candidates (a header-labelled address column wins, so an address pasted into
+the name column cannot capture the payment); tally per shape; emit rows and
+errors in source order with the existing line-numbering contract.
 
 ### Header mapping
 

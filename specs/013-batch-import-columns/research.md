@@ -37,7 +37,53 @@ Two defects compound:
 Reproduction (issue #137): `123123,0xaF5e…,0.01` → amount `123123`, name
 `0.01`. Exactly the reported preview.
 
-## R2 — Decision: tiered candidate detection + table-level ambiguity resolution
+## R2 — Decision: shape-scoped amount column (revised after adversarial review)
+
+> **Revision note.** The first implementation used two detection tiers plus a
+> table-wide *vote* over single-candidate rows. A multi-agent adversarial review
+> reproduced issue #137 through it: votes were keyed by absolute column index
+> with no row-shape context, so a legal 2-column `amount,address` row voted for
+> column 0 and that vote decided a 3-column `name,address,amount` row whose
+> column 0 is the NAME (`5000,addr` + `123123,addr,0.01` → paid 123,123). Two
+> further variants — a tie resolving leftmost, and a row with a blank amount
+> cell voting for its own name — reached the same wrong outcome, and the
+> permissive tier accepted `Team 2024` / `Bob 007` as amounts. The design below
+> is the replacement; the rejected v1 is kept in the alternatives table.
+
+**Decision**: one strict definition of "reads as an amount", plus an amount
+**column settled per table shape** before any row is emitted.
+
+**Detection — `isAmountCell`:** a cell qualifies only if it matches a
+well-formed decimal (optional thousands grouping) optionally flanked by
+currency signs and/or one short currency token, where a token is a known code
+(`usdt`, `cny`, `matic`, …), an ALL-CAPS 2–5 letter ticker, a CJK currency word
+(`元`), or a ≤3-letter code glued to a sign (`R$`, `US$`). `cleanAmount` goes
+back to being only the value cleaner.
+
+Accepts: `0.01`, `¥5,000.50`, `5 000`, `5000 USDT`, `USD 5000`, `MATIC 5000`,
+`R$ 5000`, `5000元`. Rejects: `Alice123`, `团队2024`, `Team 2024`, `Bob 007`,
+`3M`, `1e5`, `1.00E+05`, `2026-08-05`, `0x123`, `1,23` — every one of which the
+old strip-everything detector turned into a payable number.
+
+**Resolution — per shape, not per table:** rows are grouped by
+`(cell count, address index)`. Within a shape the amount column is:
+
+1. the header-labelled column (when the row actually has that column), else
+2. the column most often used by rows whose amount sits **after** the address
+   (the template convention), else
+3. the column most often used by rows with exactly one candidate.
+
+Every row of that shape then reads its amount **only** from the settled column,
+so a blank amount cell becomes a visible `no-amount` error instead of silently
+promoting the name. Rows of a shape with no evidence fall back to first
+candidate after the address, then first candidate.
+
+**Why this shape**: evidence never crosses row geometries (the confirmed
+critical bug), the settled column makes missing amounts loud, and the exotic
+`name,amount,address` order still resolves from its own shape's unambiguous
+rows.
+
+## R2b — Superseded: tiered candidate detection + table-wide votes
 
 **Decision**: keep `cleanAmount` as the *value cleaner* it was designed to be,
 and introduce a separate *detection* step with two tiers, then resolve

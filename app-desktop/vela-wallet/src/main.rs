@@ -4,6 +4,7 @@ mod loc;
 mod onboarding;
 mod theme;
 mod ui;
+mod window_frame;
 
 use gpui::{
     point, px, size, App, AppContext as _, Bounds, TitlebarOptions, WindowBounds, WindowOptions,

@@ -5,7 +5,19 @@ edition = "2024"
 
 [dependencies]
 gpui = { git = "https://github.com/zed-industries/zed" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit"] }
+# `wayland` and `x11` are NOT optional extras. gpui_linux defaults to both, but
+# Zed's workspace pins it `default-features = false`, so a git dependency
+# inherits neither and every run dies in gpui_linux/src/linux.rs at
+# `unreachable!("At least one of the "wayland" or "x11" features must be
+# enabled")`. Both are on, as in Zed's own crates/zed/Cargo.toml: the choice is
+# made at runtime from WAYLAND_DISPLAY, so dropping x11 would leave an X session
+# with no backend. The features are inert on macOS and Windows, where
+# gpui_linux is not a dependency at all.
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
+    "font-kit",
+    "wayland",
+    "x11",
+] }
 # Desktop has no wasm size budget, so all 15 locale catalogs compile in and
 # language switch needs no I/O (spec 004 FR-014 leaves this choice per-platform).
 vela-core = { path = "../../rust/crates/vela-core", features = ["i18n-all"] }

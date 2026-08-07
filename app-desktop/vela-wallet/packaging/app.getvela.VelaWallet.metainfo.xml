@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream metadata. Required by Flathub; also what GNOME Software, KDE
+  Discover and `dnf`'s appstream metadata read to describe the app.
+
+  Validate any edit before committing; scripts/build-linux-packages.sh runs the
+  same check and refuses to package a file that fails it:
+
+      appstreamcli validate packaging/app.getvela.VelaWallet.metainfo.xml
+
+  Two fields need a real decision before a public release. See the desktop
+  README, "Before the first public release":
+    * project_license: the repository ships no LICENSE file, so the value here
+      is a placeholder.
+    * screenshots: the URLs must resolve publicly. Flathub fetches them.
+-->
+<component type="desktop-application">
+  <id>app.getvela.VelaWallet</id>
+
+  <name>Vela Wallet</name>
+  <summary>Self-custodial smart wallet for EVM networks</summary>
+
+  <developer id="app.getvela">
+    <name>Monday Labs</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
+
+  <description>
+    <p>
+      Vela Wallet is a self-custodial smart account wallet for EVM networks.
+      Accounts are Safe smart contracts with ERC-4337 account abstraction, and
+      transactions are signed with a passkey — there is no seed phrase and no
+      private key to store.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Passkey authentication instead of seed phrases or key files</li>
+      <li>Safe smart accounts with ERC-4337 account abstraction</li>
+      <li>Balances and USD prices across 12 EVM networks in one view</li>
+      <li>On-chain pricing from DEX quotes with a Chainlink oracle fallback</li>
+      <li>Pair with dApps over an encrypted relay to sign from the desktop</li>
+      <li>Fully self-hostable backend services</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">app.getvela.VelaWallet.desktop</launchable>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://getvela.app/screenshots/desktop-welcome-dark.png</image>
+      <caption>The welcome screen in dark appearance</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://getvela.app/screenshots/desktop-welcome-light.png</image>
+      <caption>The welcome screen in light appearance</caption>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://getvela.app</url>
+  <url type="bugtracker">https://github.com/mondaylabsltd/vela-wallet/issues</url>
+  <url type="vcs-browser">https://github.com/mondaylabsltd/vela-wallet</url>
+
+  <categories>
+    <category>Office</category>
+    <category>Finance</category>
+  </categories>
+
+  <content_rating type="oars-1.1"/>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#f5f3ef</color>
+    <color type="primary" scheme_preference="dark">#1e1e1b</color>
+  </branding>
+
+  <!-- The card grid does not reflow below the design size; src/main.rs sets the
+       same value as the window minimum. -->
+  <requires>
+    <display_length compare="ge">1280</display_length>
+  </requires>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <releases>
+    <release version="0.1.0" date="2026-08-07">
+      <description>
+        <p>First packaged desktop release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

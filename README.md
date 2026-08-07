@@ -90,6 +90,26 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
 - **DApp Connect**: BLE connection is not available on web. This is planned for a future release.
 - **Native APIs**: All platform-specific APIs (Alert, Clipboard, Haptics, AppState, Linking) are abstracted via `src/services/platform.ts`.
 
+### Desktop
+
+The desktop client is a **separate native application** — Rust on
+[gpui](https://github.com/zed-industries/zed), not React Native — in
+[app-desktop/vela-wallet](app-desktop/vela-wallet). It shares the `vela-core`
+crate and the design sources with the app above, but none of its TypeScript, so
+the table does not describe it.
+
+Installable packages are built from that directory, for x64 and ARM64:
+
+| Platform | Package | Command |
+| --- | --- | --- |
+| Windows 10/11 | Inno Setup installer | `./scripts/build-windows-installer.ps1` |
+| Fedora, RHEL, openSUSE | `.rpm` | `./scripts/build-linux-packages.sh --formats rpm` |
+| Debian, Ubuntu | `.deb` | `./scripts/build-linux-packages.sh --formats deb` |
+| Any Linux, sandboxed | Flatpak bundle | `./scripts/build-flatpak.sh` |
+
+Setup, system dependencies and release steps are in
+[app-desktop/vela-wallet/README.md](app-desktop/vela-wallet/README.md).
+
 ## Build for Web (Cloudflare Pages)
 
 1. Build the static web bundle

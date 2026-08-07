@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=Vela Wallet
+GenericName=Crypto Wallet
+Comment=Self-custodial smart wallet for EVM networks
+Exec=vela-wallet
+Icon=app.getvela.VelaWallet
+Terminal=false
+Categories=Office;Finance;
+Keywords=wallet;crypto;ethereum;evm;passkey;safe;erc4337;web3;
+StartupNotify=true
+# Matched against the Wayland xdg_toplevel app_id and the X11 WM_CLASS, both of
+# which gpui sets from `WindowOptions::app_id` in src/main.rs. Change one and
+# the shell falls back to a generic icon and the binary name in the dock.
+StartupWMClass=app.getvela.VelaWallet

@@ -1,0 +1,84 @@
+# RPM for Fedora / RHEL / openSUSE, built from an already-linked release
+# binary. Drive it through scripts/build-linux-packages.sh — that script stages
+# the tree, hands it over as Source0 and passes %%vela_version.
+#
+# This deliberately does NOT compile from source. `gpui` and `gpui_platform` are
+# git dependencies on the full zed-industries/zed repository, so a %%build that
+# ran cargo would need network access, which mock and Koji do not grant. The
+# Windows installer packages a prebuilt .exe for the same reason.
+
+%global appid app.getvela.VelaWallet
+
+# No -debuginfo subpackage: the binary is stripped before staging, and there is
+# no source tree here for a debug package to point at.
+%global debug_package %{nil}
+# The staged binary may target a different architecture than the host, whose
+# `strip` would refuse it. Stripping already happened in the build script.
+%global __strip /bin/true
+
+Name:           vela-wallet
+Version:        %{vela_version}
+Release:        1%{?dist}
+Summary:        Self-custodial smart wallet for EVM networks
+
+# TODO: the repository ships no LICENSE file. Replace with the real SPDX
+# identifier before publishing; keep it in step with <project_license> in
+# packaging/app.getvela.VelaWallet.metainfo.xml.
+License:        LicenseRef-proprietary
+URL:            https://getvela.app
+Source0:        %{name}-%{version}-stage.tar.gz
+
+# rpm's automatic dependency generator reads the ELF's NEEDED entries, which for
+# this binary covers only glibc, libstdc++, libxcb and libxkbcommon. Everything
+# below is loaded with dlopen() at runtime and is therefore invisible to it —
+# `strings` on the release binary is how the list was derived, and re-deriving it
+# after a gpui bump is the way to keep it honest:
+#
+#     strings -a target/release/vela-wallet |
+#       grep -oE 'lib[A-Za-z0-9_-]+\.so(\.[0-9]+)*' | sort -u
+#
+# Without these the package installs cleanly and then dies at startup with
+# "Library libwayland-client.so could not be loaded" or a blank window.
+Requires:       libwayland-client
+Requires:       libwayland-egl
+Requires:       libglvnd-egl
+Requires:       vulkan-loader
+Requires:       hicolor-icon-theme
+# gpui renders through Vulkan. The loader is required above; an ICD is a
+# separate package that no soname records. Recommends rather than Requires so an
+# NVIDIA or AMDVLK box is not forced to pull Mesa's driver in as well.
+Recommends:     mesa-vulkan-drivers
+# Fontconfig is parsed in pure Rust (fontdb + fontconfig_parser), so libfontconfig
+# is not a dependency — but the config and the fonts it points at still have to
+# exist, or text falls back to nothing.
+Requires:       fontconfig
+
+%description
+Vela Wallet is a self-custodial smart account wallet for EVM networks. Accounts
+are Safe smart contracts with ERC-4337 account abstraction, and transactions are
+signed with a passkey - there is no seed phrase and no private key to store.
+
+Balances and USD prices for 12 EVM networks appear in a single view, priced from
+on-chain DEX quotes with a Chainlink oracle fallback.
+
+%prep
+%setup -q -c -T
+tar -xzf %{SOURCE0}
+
+%build
+# Intentionally empty: Source0 is a staged filesystem tree, not source code.
+
+%install
+mkdir -p %{buildroot}
+cp -a usr %{buildroot}/
+
+%files
+%{_bindir}/vela-wallet
+%{_datadir}/applications/%{appid}.desktop
+%{_datadir}/icons/hicolor/*/apps/%{appid}.png
+%{_datadir}/icons/hicolor/scalable/apps/%{appid}.svg
+%{_datadir}/metainfo/%{appid}.metainfo.xml
+
+%changelog
+* Fri Aug 07 2026 Monday Labs <hello@getvela.app> - 0.1.0-1
+- First packaged desktop release.

@@ -17,6 +17,7 @@ below.
 - [Install the system dependencies](#install-the-system-dependencies)
 - [Windows 11 setup](#windows-11-setup)
 - [Build a Windows installer](#build-a-windows-installer)
+- [Build Linux packages](#build-linux-packages)
 - [Build & run](#build--run)
 - [What the first build does](#what-the-first-build-does)
 - [Environment pins](#environment-pins)
@@ -228,6 +229,231 @@ first — add `glib2-devel` before anything else.
 
 ---
 
+## Build Linux packages
+
+Distribute a package, not the raw `vela-wallet` binary — the package is what
+installs the icon, the menu entry and the AppStream metadata that make the app
+appear in GNOME Software, KDE Discover and the shell's own search.
+
+| Package | Distribute to | Command |
+|---|---|---|
+| `vela-wallet-<version>-1.fc<n>.<arch>.rpm` | Fedora, RHEL, openSUSE | `./scripts/build-linux-packages.sh --formats rpm` |
+| `vela-wallet_<version>_<arch>.deb` | Debian, Ubuntu, Mint, Pop!_OS | `./scripts/build-linux-packages.sh --formats deb` |
+| `app.getvela.VelaWallet-<arch>.flatpak` | Every distribution, sandboxed | `./scripts/build-flatpak.sh` |
+| `vela-wallet-<version>-linux-<arch>.tar.gz` | Manual installs, other distros | `./scripts/build-linux-packages.sh --formats tar` |
+
+### RPM and DEB
+
+```bash
+cd app-desktop/vela-wallet
+./scripts/build-linux-packages.sh              # builds release, emits rpm + deb
+```
+
+Output lands in `dist/linux/` with a `SHA256SUMS` file for publishing next to
+the downloads. `--skip-build` reuses an existing `target/release/vela-wallet`
+instead of recompiling; `--formats` selects a subset.
+
+Every package installs the same five things:
+
+```
+/usr/bin/vela-wallet
+/usr/share/applications/app.getvela.VelaWallet.desktop
+/usr/share/metainfo/app.getvela.VelaWallet.metainfo.xml
+/usr/share/icons/hicolor/{16,24,32,48,64,96,128,256,512}x*/apps/app.getvela.VelaWallet.png
+/usr/share/icons/hicolor/scalable/apps/app.getvela.VelaWallet.svg
+```
+
+There is nothing else to ship. The Lottie launch animations and all 15 locale
+catalogs are `include_bytes!`-compiled into the binary
+([launch_animation.rs:45-50](src/ui/launch_animation.rs#L45-L50)), so the
+package has no runtime data directory to get wrong.
+
+Neither package runs a maintainer script. `desktop-file-utils` and
+`hicolor-icon-theme` ship file triggers on `/usr/share/applications` and
+`/usr/share/icons/hicolor` in both ecosystems, so the menu database and the icon
+cache refresh themselves on install and removal.
+
+**The machine you build on sets the package's glibc floor.** A `.deb` linked on
+Fedora records `GLIBC_2.43` and will refuse to install on Debian stable, even
+though the packaging itself is fine. Build the `.deb` in a Debian container and
+the `.rpm` in a Fedora one — which is exactly what
+[the CI workflow](../../.github/workflows/desktop-linux-packages.yml) does:
+
+```bash
+podman run --rm -v "$PWD/../..":/src:Z -w /src/app-desktop/vela-wallet debian:12 \
+  bash -c 'apt-get update && apt-get install -y build-essential clang libclang-dev \
+    cmake pkg-config curl git file libwayland-dev libxkbcommon-x11-dev \
+    libx11-xcb-dev libfontconfig-dev libasound2-dev libssl-dev libzstd-dev &&
+    curl --proto "=https" -sSf https://sh.rustup.rs | sh -s -- -y &&
+    . "$HOME/.cargo/env" && ./scripts/build-linux-packages.sh --formats deb'
+```
+
+#### Runtime dependencies are not all in the ELF
+
+`rpm` and `dpkg` both derive dependencies from the binary's `NEEDED` entries,
+and for this binary that covers only glibc, `libstdc++`, `libxcb` and
+`libxkbcommon`. Four more libraries are opened with `dlopen()` at runtime and
+are invisible to both:
+
+```
+libwayland-client.so.0   libwayland-egl.so.1   libEGL.so.1   libvulkan.so.1
+```
+
+Miss one and the package installs cleanly, then dies at startup with `Library
+libwayland-client.so could not be loaded`. They are declared by hand in
+[packaging/vela-wallet.spec](packaging/vela-wallet.spec) and in
+`dlopen_sonames` in
+[scripts/build-linux-packages.sh](scripts/build-linux-packages.sh), and the
+build script warns if a declared name no longer appears in the binary. After a
+gpui bump, re-derive the list rather than trusting it:
+
+```bash
+strings -a target/release/vela-wallet | grep -oE 'lib[A-Za-z0-9_-]+\.so(\.[0-9]+)*' | sort -u
+```
+
+The `.deb` maps each soname to a Debian package through a table in the same
+script. An unmapped soname is a hard error, not a silent omission.
+
+### ARM64 packages
+
+The build script does **not** cross-compile: ThorVG's vendored C++ plus gpui's
+Wayland/X11/Vulkan link set make cross-building far more trouble than building
+natively. Three ways to get an `aarch64` package, all running the same script
+unchanged:
+
+1. **On an ARM64 machine** — nothing special, just run the script.
+2. **In an ARM64 container on an x86_64 host**, via qemu's binfmt handler.
+   Correct, and slow enough that it is a last resort — emulating the cold gpui
+   and ThorVG build costs hours, not minutes:
+   ```bash
+   sudo dnf install -y qemu-user-static     # once; registers the binfmt handler
+   podman run --rm -it --arch arm64 -v "$PWD/../..":/src:Z \
+     -w /src/app-desktop/vela-wallet fedora:latest
+   ```
+3. **On CI**, which is the intended path — the `ubuntu-24.04-arm` runners build
+   natively. `ubuntu-24.04-arm` is free for public repositories; on a private
+   repository it requires a paid plan, and the arm64 jobs will queue
+   indefinitely without one.
+
+If a release binary was produced elsewhere, wrap it without rebuilding:
+
+```bash
+./scripts/build-linux-packages.sh --arch aarch64 --binary /path/to/vela-wallet
+```
+
+The script refuses to package a binary whose real architecture disagrees with
+`--arch`, so a mislabelled package cannot reach a user.
+
+### Flatpak
+
+```bash
+./scripts/build-flatpak.sh --install     # build, export a bundle, install it
+flatpak run app.getvela.VelaWallet
+```
+
+Everything runs per-user; nothing needs root. The script installs
+`org.freedesktop.Platform//25.08` and the `rust-stable` SDK extension if they
+are missing, builds
+[packaging/flatpak/app.getvela.VelaWallet.yml](packaging/flatpak/app.getvela.VelaWallet.yml),
+and exports a single-file `.flatpak` bundle into `dist/flatpak/`.
+
+Two things to know:
+
+- **The manifest builds from the local git repository, not the working tree.**
+  A release bundle should correspond to a commit, so uncommitted changes under
+  `app-desktop/vela-wallet`, `rust` or `design` are an *error* rather than a
+  silently missing change. To build what is on disk right now:
+
+  ```bash
+  ./scripts/build-flatpak.sh --worktree
+  ```
+
+  That generates a throwaway manifest in `dist/flatpak/` whose source is a
+  `dir` pointing at the checkout, skipping `.git`, `node_modules`, `dist` and
+  the `target/` directories — without those skips flatpak-builder would copy
+  the multi-gigabyte build tree. It needs PyYAML (`python3-pyyaml`). Use it for
+  iteration, not for anything you hand to someone else.
+- **The sandbox holds no filesystem permission.** `finish-args` grants the DRI
+  device, the Wayland (or fallback X11) socket, IPC and network, and nothing
+  else. A wallet should not carry host filesystem access it never uses.
+
+The manifest prints `rustc --version` as its first build command, so a toolchain
+mismatch shows up as one line in the log rather than a wall of `edition2024`
+parse errors. On the `25.08` runtime the extension is **rustc 1.97.1**, exactly
+the version this crate pins.
+
+#### Name resolution fails when the builder is itself a Flatpak
+
+`flatpak run org.flatpak.Builder` puts flatpak-builder inside a sandbox, and the
+build it starts is a *second* sandbox nested in the first. That inner sandbox
+inherits the runtime's `/etc/resolv.conf`, which points at systemd-resolved's
+stub on `127.0.0.53`, without the NSS plumbing that makes the stub usable. The
+result is a build with working IP connectivity but no DNS, and cargo fails on
+its first git dependency:
+
+```
+warning: spurious network error: failed to resolve address for github.com
+error: failed to get `dotlottie-rs` as a dependency of package `vela-wallet`
+```
+
+Measured inside that sandbox: reaching GitHub by raw IP returns HTTP 301 and
+`127.0.0.53:53` accepts a TCP connection, but `getent hosts github.com` fails.
+So it is name resolution specifically, not connectivity, and `--share=network`
+is already set — it is not the missing piece.
+
+Two ways out, in increasing order of effort:
+
+1. **Use the distro flatpak-builder** rather than the flatpak'd one, so the
+   build sandbox is nested one level less deep:
+   ```bash
+   sudo dnf install flatpak-builder
+   ```
+   `scripts/build-flatpak.sh` prefers `org.flatpak.Builder` only when no
+   `flatpak-builder` binary is on `PATH`, so installing it is the whole fix.
+2. **Vendor the crates and build offline**, which removes the network from the
+   build entirely. This is required for Flathub regardless — see below — so it
+   is the fix that pays for itself.
+
+### Publishing to Flathub
+
+The manifest is Flathub-shaped already — the app id matches the `getvela.app`
+domain, and the AppStream metadata validates. Two changes are needed at
+submission, both marked in the manifest header:
+
+1. **A public source.** Replace the local `type: git, path:` source with a
+   public `url:` and `commit:`. Flathub builds from a public repository.
+2. **An offline build.** Flathub grants no network during a build, so
+   `build-args: [--share=network]` has to go and the crate set must be vendored:
+   ```bash
+   git clone https://github.com/flatpak/flatpak-builder-tools
+   python3 flatpak-builder-tools/cargo/flatpak-cargo-generator.py \
+     app-desktop/vela-wallet/Cargo.lock -o cargo-sources.json
+   ```
+   then add `cargo-sources.json` to the module's `sources` and build with
+   `--offline`. Note that `gpui` and `gpui_platform` are git dependencies on the
+   whole Zed repository, so the generated source list is large.
+
+### Before the first public release
+
+Three things are deliberately left as placeholders, because each is a decision
+rather than a detail:
+
+| What | Where | Why it is a placeholder |
+|---|---|---|
+| `LicenseRef-proprietary` | [vela-wallet.spec](packaging/vela-wallet.spec), [metainfo.xml](packaging/app.getvela.VelaWallet.metainfo.xml) | The repository ships no `LICENSE` file. Flathub requires a real SPDX identifier |
+| Screenshot URLs | [metainfo.xml](packaging/app.getvela.VelaWallet.metainfo.xml) | They point at `getvela.app/screenshots/…`, which must actually resolve — Flathub fetches them at build time |
+| Package signing | — | Both packages are unsigned. `rpm --addsign` and `debsigs` need a release key, the same open question as the Windows code-signing certificate |
+
+The icons are generated, not hand-drawn: `packaging/icons/` is rendered from
+`packaging/icons/scalable/app.getvela.VelaWallet.svg`, which carries the same
+geometry as the universal app mark iOS and Android ship. After editing the SVG:
+
+```bash
+./scripts/generate-linux-icons.sh    # re-renders every PNG size; commit the diff
+```
+
+---
+
 ## Build & run
 
 ```bash
@@ -317,3 +543,10 @@ cargo test -p vela-core --features i18n-all    # conformance corpus stays green
 | Build succeeds, window never appears, Vulkan error at startup | `vulkan-loader` is present but no ICD. Install `mesa-vulkan-drivers` (or your GPU vendor's driver) |
 | The build tries to reach the network on every rebuild | A `tvg-wg` / `tvg-gl` feature crept into the `dotlottie-rs` dependency. See [Cargo.toml:20-24](Cargo.toml#L20-L24) |
 | `edition2024` / unstable feature errors | Toolchain older than 1.97.1 |
+| Installed package shows a generic icon, or "vela-wallet" instead of "Vela Wallet", in the dock | The window's `app_id` no longer matches the `.desktop` file name. All five places are asserted by the `metadata` CI job; see [main.rs:36](src/main.rs#L36) |
+| The package installs, then exits at startup with `Library libwayland-client.so could not be loaded` | A `dlopen`'d dependency is missing from the package. See [Runtime dependencies are not all in the ELF](#runtime-dependencies-are-not-all-in-the-elf) |
+| `.deb` refuses to install: `libc6 (>= 2.4x) is not installable` | It was linked on a newer distribution than the target. Build it in a `debian:12` container |
+| `error: no Debian package is mapped for: <soname>` from the build script | A new shared-library dependency appeared. Find its owner with `apt-file search <soname>` and add a case to `deb_package_for_soname()` |
+| Flatpak build fails inside `cargo build` with `edition2024` errors | The `rust-stable` SDK extension is older than 1.97.1. Check the `rustc --version` line at the top of the build log |
+| Flatpak build fails with `failed to resolve address for github.com` | DNS does not work in a sandbox nested inside `org.flatpak.Builder`. See [Name resolution fails when the builder is itself a Flatpak](#name-resolution-fails-when-the-builder-is-itself-a-flatpak) |
+| App name appears in the GNOME app grid with no icon, but the dash icon is fine | The grid asks for 96px. If no `96x96` PNG exists the lookup falls through to `scalable/`, and an SVG whose `<svg>` tag sits past gdk-pixbuf's sniff window is not recognised as an image at all. Both are guarded by `scripts/generate-linux-icons.sh` |

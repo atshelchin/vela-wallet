@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="68" height="68" viewBox="0 0 68 68">
+  <!--
+    Vela Wallet application icon.
+
+    KEEP THE <svg> TAG ON THE SECOND LINE. gdk-pixbuf identifies SVG by sniffing
+    the first few hundred bytes of the file, so a documentation comment placed
+    ABOVE this tag pushes it out of the sniff window and the file stops being
+    recognised as an image at all - `Unrecognized image file format`. That
+    failure is close to invisible: GNOME's dash asks for 48px and 64px and gets
+    the exact-size PNGs, while the app grid asks for 96px, falls through to this
+    scalable file, and renders nothing.
+
+    Geometry and colours come verbatim from the design source,
+    design/onboarding/Vela App Screen Icon _ Universal - iPhone.svg - the same
+    universal mark iOS and Android ship. Only the Penpot export scaffolding
+    (per-shape wrapper groups, generated ids, a display:none backing rect and
+    CSS-in-style fills) has been removed, because ImageMagick's SVG renderer
+    ignores `style="fill: ..."` and would otherwise draw the whole icon black.
+
+    This file is both the scalable hicolor icon and the source every PNG size is
+    rendered from, so the two can never drift apart. Re-render after any edit:
+        ./scripts/generate-linux-icons.sh
+  -->
+  <!-- Tile -->
+  <rect x="1" y="1" width="66" height="66" rx="18" ry="18" fill="#f46d50"/>
+  <!-- Mainsail -->
+  <path d="M33,12C25,21,20,32,17,42L33,42L33,12Z" fill="#fff3ec"/>
+  <!-- Jib -->
+  <path d="M36,19C45,25,50,34,52,42L36,42L36,19Z" fill="#ffc6b0"/>
+  <!-- Hull -->
+  <path d="M13,46L55,46C52,52,47,55,40,55L28,55C21,55,16,52,13,46Z" fill="#5a4037"/>
+</svg>

@@ -23,6 +23,7 @@ matrix, and the Linux packages.
 - [What the first build does](#what-the-first-build-does)
 - [Environment pins](#environment-pins)
 - [Tests](#tests)
+- [Known gpui quirks](#known-gpui-quirks)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -623,6 +624,31 @@ If you touch the localization corpus, the round-trip runs from the repo root:
 node scripts/gen-i18n.mjs                      # regenerate catalogs + paths.rs
 cargo test -p vela-core --features i18n-all    # conformance corpus stays green
 ```
+
+---
+
+## Known gpui quirks
+
+Two upstream behaviours found while debugging second-display fullscreen
+(2026-08-07, zed pin `c97b7c0`). Deliberately documented here instead of
+reported upstream — re-verify both after any gpui bump.
+
+- **`PlatformDisplay::bounds()` discards the display origin on macOS.** Every
+  display reports origin `(0, 0)`, so `Bounds::centered(Some(display_id), …)`
+  always lands on the primary display no matter which id it is given. To place
+  a window on a secondary display, set the bounds origin yourself in global
+  top-left coordinates — the primary's top-left is `(0, 0)`, and a display
+  arranged above it has a negative `y`.
+- **A nil `NSApp.mainMenu` disables the fullscreen titlebar reveal on
+  secondary displays.** The hot-edge menu-bar/titlebar reveal never engages
+  for a fullscreen Space when the application has no main menu: pushing the
+  cursor against the top edge shows nothing, so a fullscreened window on a
+  second display has no titlebar, no traffic lights, and no pointer path back
+  out. The primary display masks the bug because macOS 26 keeps its menu bar
+  visible in fullscreen there. Zed always installs its own menus, which is why
+  upstream never trips over this — [main.rs](src/main.rs) sets ours (and F11 /
+  ⌃⌘F remain as keyboard exits either way; see
+  [onboarding.rs](src/onboarding.rs)).
 
 ---
 

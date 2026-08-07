@@ -5,9 +5,9 @@ UI framework). This crate is **standalone** — it is not a member of the
 `rust/` workspace, so all commands run from this directory.
 
 Linux has the largest system dependency set. macOS needs Xcode command-line
-tools; Windows needs MSVC build tools and LLVM's `libclang.dll`. The remaining
-sections detail the Linux packages, with the Windows bootstrap immediately
-below.
+tools; Windows needs MSVC build tools and LLVM's `libclang.dll`. Each platform
+has its own packaging section below: the Windows installer, the macOS `.dmg`
+matrix, and the Linux packages.
 
 ---
 
@@ -17,12 +17,13 @@ below.
 - [Install the system dependencies](#install-the-system-dependencies)
 - [Windows 11 setup](#windows-11-setup)
 - [Build a Windows installer](#build-a-windows-installer)
-- [Build a macOS app bundle](#build-a-macos-app-bundle)
+- [Build macOS packages](#build-macos-packages)
 - [Build Linux packages](#build-linux-packages)
 - [Build & run](#build--run)
 - [What the first build does](#what-the-first-build-does)
 - [Environment pins](#environment-pins)
 - [Tests](#tests)
+- [Known gpui quirks](#known-gpui-quirks)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -248,22 +249,55 @@ first — add `glib2-devel` before anything else.
 
 ---
 
-## Build a macOS app bundle
+## Build macOS packages
 
 macOS reads the Dock icon, the application name and the high-DPI opt-in from a
 bundle's `Contents/`, so the bare executable runs as a generic tool called
 `vela-wallet` and renders at 1x. There is no window-level API that fixes that
-from inside gpui — it has to be a bundle.
+from inside gpui — it has to be a bundle. The bundle ships inside a `.dmg`
+whose window holds the app and an `/Applications` shortcut — drag one onto the
+other and the install is done. That image is macOS's equivalent of the Windows
+Setup.exe and the Linux packages, and it is the artifact to distribute.
+
+| Package | Distribute to | Command |
+|---|---|---|
+| `VelaWallet-<version>-macos-arm64.dmg` | Apple silicon (M1 and later) | `./scripts/build-macos-app.sh --arch arm64` |
+| `VelaWallet-<version>-macos-x86_64.dmg` | Intel Macs | `./scripts/build-macos-app.sh --arch x86_64` |
+| `VelaWallet-<version>-macos-universal.dmg` | Any Mac — one download, both slices | `./scripts/build-macos-app.sh --arch universal` |
+
+With no `--arch` the script builds the host architecture. Every variant builds
+on either kind of Mac — the Apple SDK carries both architectures, so unlike the
+Linux packages no second machine is needed. The one per-architecture
+prerequisite is the Rust target; when rustup manages the toolchain, the script
+stops with the exact command before spending minutes in the build:
 
 ```bash
-./scripts/build-macos-app.sh          # -> dist/macos/Vela Wallet.app
-./scripts/build-macos-app.sh --zip    # also a .zip, packed with ditto
+rustup target add x86_64-apple-darwin     # Intel or universal, on Apple silicon
+rustup target add aarch64-apple-darwin    # Apple silicon or universal, on an Intel Mac
 ```
+
+`universal` compiles both targets and merges them with `lipo`, so one file runs
+natively everywhere at roughly the sum of the two download sizes — the usual
+trade-off against publishing two smaller, architecture-specific images. The
+script checks with `lipo -archs` that the packaged binary contains exactly the
+slices its filename claims, so a mislabelled `.dmg` cannot reach a user.
+
+Three flags compose with `--arch`: `--skip-build` reuses
+`target/<triple>/release/vela-wallet` instead of recompiling, `--zip` also
+emits a `ditto`-packed `.zip`, and `--no-dmg` stops after the bundle for quick
+local iteration. Bundles land in `dist/macos/<arch>/Vela Wallet.app`, and every
+`.dmg` and `.zip` gets a SHA-256 checksum printed for publishing next to the
+download.
 
 macOS only: `iconutil` turns the committed
 `packaging/icons/macos/AppIcon.iconset` into `AppIcon.icns`, and `codesign`
 applies an ad-hoc signature. The iconset itself is generated on any platform by
 `./scripts/generate-desktop-icons.sh`, so only the final assembly needs a Mac.
+On a release tag (`desktop-v*`),
+[the macOS CI workflow](../../.github/workflows/desktop-macos-packages.yml)
+builds all three images on one arm64 runner — `--arch universal` compiles both
+Rust targets, and the two follow-up invocations repackage with `--skip-build` —
+and attaches them to the same release the Linux packages land on.
 
 The bundle is **ad-hoc signed, not notarized**. That is deliberately not
 nothing: Apple silicon refuses to run a completely unsigned bundle, so ad-hoc
@@ -606,6 +640,31 @@ cargo test -p vela-core --features i18n-all    # conformance corpus stays green
 
 ---
 
+## Known gpui quirks
+
+Two upstream behaviours found while debugging second-display fullscreen
+(2026-08-07, zed pin `c97b7c0`). Deliberately documented here instead of
+reported upstream — re-verify both after any gpui bump.
+
+- **`PlatformDisplay::bounds()` discards the display origin on macOS.** Every
+  display reports origin `(0, 0)`, so `Bounds::centered(Some(display_id), …)`
+  always lands on the primary display no matter which id it is given. To place
+  a window on a secondary display, set the bounds origin yourself in global
+  top-left coordinates — the primary's top-left is `(0, 0)`, and a display
+  arranged above it has a negative `y`.
+- **A nil `NSApp.mainMenu` disables the fullscreen titlebar reveal on
+  secondary displays.** The hot-edge menu-bar/titlebar reveal never engages
+  for a fullscreen Space when the application has no main menu: pushing the
+  cursor against the top edge shows nothing, so a fullscreened window on a
+  second display has no titlebar, no traffic lights, and no pointer path back
+  out. The primary display masks the bug because macOS 26 keeps its menu bar
+  visible in fullscreen there. Zed always installs its own menus, which is why
+  upstream never trips over this — [main.rs](src/main.rs) sets ours (and F11 /
+  ⌃⌘F remain as keyboard exits either way; see
+  [onboarding.rs](src/onboarding.rs)).
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause |
@@ -617,7 +676,7 @@ cargo test -p vela-core --features i18n-all    # conformance corpus stays green
 | Build succeeds, window never appears, Vulkan error at startup | `vulkan-loader` is present but no ICD. Install `mesa-vulkan-drivers` (or your GPU vendor's driver) |
 | The build tries to reach the network on every rebuild | A `tvg-wg` / `tvg-gl` feature crept into the `dotlottie-rs` dependency. See [Cargo.toml:20-24](Cargo.toml#L20-L24) |
 | `edition2024` / unstable feature errors | Toolchain older than 1.97.1 |
-| Installed package shows a generic icon, or "vela-wallet" instead of "Vela Wallet", in the dock | The window's `app_id` no longer matches the `.desktop` file name. All five places are asserted by the `metadata` CI job; see [main.rs:36](src/main.rs#L36) |
+| Installed package shows a generic icon, or "vela-wallet" instead of "Vela Wallet", in the dock | The window's `app_id` no longer matches the `.desktop` file name. All six places — the five Linux ones plus the macOS `CFBundleIdentifier` — are asserted by the two packaging workflows' `metadata` jobs; see [main.rs:36](src/main.rs#L36) |
 | The package installs, then exits at startup with `Library libwayland-client.so could not be loaded` | A `dlopen`'d dependency is missing from the package. See [Runtime dependencies are not all in the ELF](#runtime-dependencies-are-not-all-in-the-elf) |
 | `.deb` refuses to install: `libc6 (>= 2.4x) is not installable` | It was linked on a newer distribution than the target. Build it in a `debian:12` container |
 | `error: no Debian package is mapped for: <soname>` from the build script | A new shared-library dependency appeared. Find its owner with `apt-file search <soname>` and add a case to `deb_package_for_soname()` |

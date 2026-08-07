@@ -404,14 +404,25 @@ impl Render for OnboardingPage {
             Some(tiling) => round_to_frame(root, tiling),
             None => root,
         };
+        // Fullscreen keeps a keyboard exit on every platform: F11 everywhere,
+        // plus the native ⌃⌘F chord on macOS. This matters most on a second
+        // display, where the titlebar reveal is the only pointer path back out
+        // and anything that breaks it (see main.rs on the main menu) would
+        // otherwise trap the window in fullscreen.
+        let root = root
+            .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(|_, event: &KeyDownEvent, window, _| {
+                let ks = &event.keystroke;
+                let macos_chord = cfg!(target_os = "macos")
+                    && ks.key == "f"
+                    && ks.modifiers.control
+                    && ks.modifiers.platform;
+                if ks.key == "f11" || macos_chord {
+                    window.toggle_fullscreen();
+                }
+            }));
         let root = if owns_titlebar {
-            root.track_focus(&self.focus_handle)
-                .on_key_down(cx.listener(|_, event: &KeyDownEvent, window, _| {
-                    if event.keystroke.key == "f11" {
-                        window.toggle_fullscreen();
-                    }
-                }))
-                .child(self.titlebar(window, cx))
+            root.child(self.titlebar(window, cx))
         } else {
             root
         };

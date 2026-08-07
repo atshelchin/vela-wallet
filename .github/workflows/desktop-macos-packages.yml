@@ -1,0 +1,137 @@
+# macOS packages for the GPUI desktop app: .dmg installers for Apple silicon,
+# Intel, and a universal binary that runs on both.
+#
+# One arm64 runner builds all three, unlike the Linux workflow's one-runner-
+# per-architecture matrix. The reasons that force native Linux builds do not
+# exist here: the Apple SDK is fat, clang cross-compiles either slice with
+# `-arch`, and none of gpui's macOS dependencies (Metal, AppKit,
+# security-framework) need a second machine. `--arch universal` compiles both
+# Rust targets, so the two follow-up invocations only repackage with
+# --skip-build.
+name: Desktop macOS packages
+
+on:
+  # Cutting a desktop release: `git tag desktop-v0.1.0 && git push --tags`.
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+  # Packaging metadata is cheap to check and easy to break, so it is checked on
+  # every PR that touches it. The package build itself is not - macOS runner
+  # minutes bill at 10x the Linux rate.
+  pull_request:
+    paths:
+      - 'app-desktop/vela-wallet/packaging/**'
+      - 'app-desktop/vela-wallet/scripts/**'
+      - '.github/workflows/desktop-macos-packages.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: Validate bundle metadata
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      # shellcheck over scripts/*.sh already runs in the Linux workflow's
+      # metadata job; these checks are the macOS-only complement.
+      - name: The Info.plist template must be valid once substituted
+        working-directory: app-desktop/vela-wallet
+        run: |
+          sed 's/@VERSION@/0.0.0/g' packaging/macos/Info.plist.in > "$RUNNER_TEMP/Info.plist"
+          plutil -lint "$RUNNER_TEMP/Info.plist"
+      - name: The bundle id must match the app id used everywhere else
+        # The Linux workflow asserts app.getvela.VelaWallet across five files;
+        # CFBundleIdentifier is the sixth place the same id must appear.
+        run: |
+          grep -q '<string>app.getvela.VelaWallet</string>' \
+            app-desktop/vela-wallet/packaging/macos/Info.plist.in
+      - name: The committed iconset must be complete
+        # iconutil fails on a missing size only at package time, on a Mac,
+        # after the release build - catch it here instead.
+        working-directory: app-desktop/vela-wallet/packaging/icons/macos
+        run: |
+          for f in 16x16 16x16@2x 32x32 32x32@2x 128x128 128x128@2x \
+                   256x256 256x256@2x 512x512 512x512@2x; do
+            test -f "AppIcon.iconset/icon_$f.png" \
+              || { echo "missing icon_$f.png"; exit 1; }
+          done
+          iconutil --convert icns AppIcon.iconset --output "$RUNNER_TEMP/AppIcon.icns"
+
+  dmg:
+    name: DMG (arm64 + x86_64 + universal)
+    if: github.event_name != 'pull_request'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app-desktop/vela-wallet
+          # gpui and gpui_platform are git dependencies on the whole Zed
+          # repository; without caching, every run re-clones it.
+          cache-all-crates: true
+      - name: Build both architectures once, package all three
+        working-directory: app-desktop/vela-wallet
+        run: |
+          ./scripts/build-macos-app.sh --arch universal
+          ./scripts/build-macos-app.sh --arch arm64 --skip-build
+          ./scripts/build-macos-app.sh --arch x86_64 --skip-build
+      - name: Every package must contain exactly the slices its name claims
+        working-directory: app-desktop/vela-wallet
+        run: |
+          set -e
+          for arch in arm64 x86_64 universal; do
+            bin="dist/macos/$arch/Vela Wallet.app/Contents/MacOS/vela-wallet"
+            got="$(lipo -archs "$bin" | tr ' ' '\n' | sort | xargs)"
+            [ "$arch" = universal ] && want="arm64 x86_64" || want="$arch"
+            [ "$got" = "$want" ] || { echo "$arch bundle contains [$got]"; exit 1; }
+            codesign --verify --strict "dist/macos/$arch/Vela Wallet.app"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmg
+          path: app-desktop/vela-wallet/dist/macos/*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Attach packages to the release
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    # metadata is a needs-edge, not just a sibling: its CFBundleIdentifier
+    # check is the only guard the build path does not re-enforce, and a red
+    # check on the tag commit must block the release, not decorate it.
+    needs: [metadata, dmg]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish checksums alongside the packages
+        working-directory: artifacts
+        run: |
+          # SHA256SUMS-macos, not SHA256SUMS: the Linux workflow uploads a file
+          # by that name to the same release, and whichever job runs second
+          # would --clobber the other's checksums.
+          # Via a temp file so the glob cannot pick up the file being written.
+          sha256sum ./* > "$RUNNER_TEMP/SHA256SUMS-macos"
+          mv "$RUNNER_TEMP/SHA256SUMS-macos" SHA256SUMS-macos
+          cat SHA256SUMS-macos
+      - name: Upload
+        # The Linux workflow races this job on the same tag; whichever runs
+        # second falls through to `gh release upload`.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Vela Wallet Desktop $GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag \
+            artifacts/* \
+          || gh release upload "$GITHUB_REF_NAME" artifacts/* \
+            --repo "$GITHUB_REPOSITORY" --clobber

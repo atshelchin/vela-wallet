@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('x64', 'arm64')]
+    [ValidateSet('x64', 'arm64', 'all')]
     [string]$Architecture = 'x64',
 
     [switch]$SkipBuild
@@ -8,6 +8,17 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($Architecture -eq 'all') {
+    foreach ($targetArchitecture in @('x64', 'arm64')) {
+        Write-Host "Building $targetArchitecture Windows installer..."
+        & $PSCommandPath -Architecture $targetArchitecture -SkipBuild:$SkipBuild
+        if ($LASTEXITCODE -ne 0) {
+            throw "Installer build for $targetArchitecture failed with exit code $LASTEXITCODE."
+        }
+    }
+    return
+}
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $manifestPath = Join-Path $projectRoot 'Cargo.toml'

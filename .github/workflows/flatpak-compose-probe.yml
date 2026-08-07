@@ -57,9 +57,12 @@ jobs:
           done
           find probe-root -type f | sort
       - name: Compose (as installed — expect x86_64 to fail)
+        # --prefix=/ because compose defaults to /usr and would read
+        # probe-root/files/usr/share/... — unit-read-error on everything.
         run: |
           set +e
           appstreamcli compose --verbose \
+            --prefix=/ \
             --origin=probe \
             --components=app.getvela.VelaWallet \
             --result-root=probe-out \
@@ -76,6 +79,7 @@ jobs:
           set +e
           rm -rf probe-out2
           appstreamcli compose --verbose \
+            --prefix=/ \
             --origin=probe \
             --components=app.getvela.VelaWallet \
             --result-root=probe-out2 \

@@ -47,16 +47,23 @@
 
   <launchable type="desktop-id">app.getvela.VelaWallet.desktop</launchable>
 
-  <screenshots>
-    <screenshot type="default">
-      <image>https://getvela.app/screenshots/desktop-welcome-dark.png</image>
-      <caption>The welcome screen in dark appearance</caption>
-    </screenshot>
-    <screenshot>
-      <image>https://getvela.app/screenshots/desktop-welcome-light.png</image>
-      <caption>The welcome screen in light appearance</caption>
-    </screenshot>
-  </screenshots>
+  <!--
+    No <screenshots> yet, deliberately: appstreamcli compose (appstream 1.0)
+    DOWNLOADS every screenshot while flatpak-builder finishes the app, and an
+    unfetchable URL fails the whole build - getvela.app served an HTML 404 for
+    the placeholder URLs and the x86_64 CI build died with `file-read-error`.
+    (The aarch64 build went green on the same dead URLs the same day; the two
+    failure paths of a dead URL differ, so a green compose is NOT evidence the
+    URLs work.) Restore this block with real, resolving URLs before any
+    Flathub submission - Flathub requires at least one screenshot:
+
+    <screenshots>
+      <screenshot type="default">
+        <image>https://getvela.app/screenshots/desktop-welcome-dark.png</image>
+        <caption>The welcome screen in dark appearance</caption>
+      </screenshot>
+    </screenshots>
+  -->
 
   <url type="homepage">https://getvela.app</url>
   <url type="bugtracker">https://github.com/mondaylabsltd/vela-wallet/issues</url>

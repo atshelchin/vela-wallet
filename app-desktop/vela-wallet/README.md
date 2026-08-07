@@ -531,7 +531,7 @@ rather than a detail:
 | What | Where | Why it is a placeholder |
 |---|---|---|
 | `LicenseRef-proprietary` | [vela-wallet.spec](packaging/vela-wallet.spec), [metainfo.xml](packaging/app.getvela.VelaWallet.metainfo.xml) | The repository ships no `LICENSE` file. Flathub requires a real SPDX identifier |
-| Screenshot URLs | [metainfo.xml](packaging/app.getvela.VelaWallet.metainfo.xml) | They point at `getvela.app/screenshots/…`, which must actually resolve — Flathub fetches them at build time |
+| Screenshots | [metainfo.xml](packaging/app.getvela.VelaWallet.metainfo.xml) | The `<screenshots>` block is commented out: `appstreamcli compose` downloads every screenshot during the Flatpak build, and the placeholder `getvela.app/screenshots/…` URLs 404'd — killing the x86_64 CI build with `file-read-error` (the aarch64 one went green on the same dead URLs; do not trust a green compose as proof the URLs work). Restore it with real, resolving URLs before a Flathub submission, which requires at least one screenshot |
 | Package signing | — | Both packages are unsigned. `rpm --addsign` and `debsigs` need a release key, the same open question as the Windows code-signing certificate |
 
 ### Icons

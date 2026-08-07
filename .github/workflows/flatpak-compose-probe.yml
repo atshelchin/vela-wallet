@@ -1,0 +1,83 @@
+# TEMPORARY DEBUG PROBE — delete after the flatpak compose failure is solved.
+#
+# Reproduces the `appstreamcli compose` file-read-error from the Flatpak
+# x86_64 job WITHOUT building the app: the compose inputs (.desktop,
+# metainfo, icons) are all committed, so composing them directly answers in
+# ~1 minute what a 15-minute build answers. Runs on both runner images to
+# capture the x64-fails / arm64-passes asymmetry, then installs
+# librsvg2-common and composes again to test the suspected fix in the same
+# run.
+name: Flatpak compose probe
+
+on:
+  pull_request:
+    paths: ['.github/workflows/flatpak-compose-probe.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exactly what the flatpak job installs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils
+      - name: Environment inventory
+        run: |
+          echo '=== relevant packages ==='
+          dpkg -l | grep -Ei 'librsvg|gdk-pixbuf|appstream' || true
+          echo '=== gdk-pixbuf SVG loader present? ==='
+          ls /usr/lib/*/gdk-pixbuf-2.0/2.10.0/loaders/ 2>/dev/null | grep -i svg \
+            && echo 'SVG loader: PRESENT' || echo 'SVG loader: ABSENT'
+          appstreamcli --version
+      - name: Assemble the compose prefix from committed files
+        run: |
+          set -e
+          p=probe-root/files
+          d=app-desktop/vela-wallet/packaging
+          install -Dm644 "$d/app.getvela.VelaWallet.desktop"      "$p/share/applications/app.getvela.VelaWallet.desktop"
+          install -Dm644 "$d/app.getvela.VelaWallet.metainfo.xml" "$p/share/metainfo/app.getvela.VelaWallet.metainfo.xml"
+          install -Dm644 "$d/icons/scalable/app.getvela.VelaWallet.svg" \
+            "$p/share/icons/hicolor/scalable/apps/app.getvela.VelaWallet.svg"
+          for s in 16 24 32 48 64 96 128 256 512; do
+            install -Dm644 "$d/icons/${s}x${s}/app.getvela.VelaWallet.png" \
+              "$p/share/icons/hicolor/${s}x${s}/apps/app.getvela.VelaWallet.png"
+          done
+          find probe-root -type f | sort
+      - name: Compose (as installed — expect x86_64 to fail)
+        run: |
+          set +e
+          appstreamcli compose --verbose \
+            --origin=probe \
+            --components=app.getvela.VelaWallet \
+            --result-root=probe-out \
+            probe-root/files
+          echo "compose exit: $?"
+          echo '=== issue reports ==='
+          find probe-out -type f 2>/dev/null | sort || true
+      - name: Install librsvg2-common and compose again (suspected fix)
+        run: |
+          sudo apt-get install -y --no-install-recommends librsvg2-common
+          echo '=== SVG loader after install ==='
+          ls /usr/lib/*/gdk-pixbuf-2.0/2.10.0/loaders/ 2>/dev/null | grep -i svg \
+            && echo 'SVG loader: PRESENT' || echo 'SVG loader: STILL ABSENT'
+          set +e
+          rm -rf probe-out2
+          appstreamcli compose --verbose \
+            --origin=probe \
+            --components=app.getvela.VelaWallet \
+            --result-root=probe-out2 \
+            probe-root/files
+          echo "compose exit after librsvg2-common: $?"

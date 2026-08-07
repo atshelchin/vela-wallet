@@ -440,8 +440,10 @@ flatpak run app.getvela.VelaWallet
 ```
 
 Everything runs per-user; nothing needs root. The script installs
-`org.freedesktop.Platform//25.08` and the `rust-stable` SDK extension if they
-are missing, builds
+`org.freedesktop.Platform//25.08` and the `rust-stable` and `llvm20` SDK
+extensions if they are missing — llvm20 because `dotlottie-rs` compiles
+ThorVG with a hardcoded `clang++` and runs `bindgen` (libclang), neither of
+which the base SDK provides — then builds
 [packaging/flatpak/app.getvela.VelaWallet.yml](packaging/flatpak/app.getvela.VelaWallet.yml),
 and exports a single-file `.flatpak` bundle into `dist/flatpak/`.
 
@@ -651,9 +653,9 @@ cargo test -p vela-core --features i18n-all    # conformance corpus stays green
 
 ## Known gpui quirks
 
-Two upstream behaviours found while debugging second-display fullscreen
-(2026-08-07, zed pin `c97b7c0`). Deliberately documented here instead of
-reported upstream — re-verify both after any gpui bump.
+Three upstream behaviours found while debugging second-display fullscreen and
+Dock reopen (2026-08-07, zed pin `c97b7c0`). Deliberately documented here
+instead of reported upstream — re-verify each after any gpui bump.
 
 - **`PlatformDisplay::bounds()` discards the display origin on macOS.** Every
   display reports origin `(0, 0)`, so `Bounds::centered(Some(display_id), …)`
@@ -671,6 +673,16 @@ reported upstream — re-verify both after any gpui bump.
   upstream never trips over this — [main.rs](src/main.rs) sets ours (and F11 /
   ⌃⌘F remain as keyboard exits either way; see
   [onboarding.rs](src/onboarding.rs)).
+- **`hasVisibleWindows` stays true after the last window closes, so gpui's
+  reopen callback never fires.** AppKit's TextInputUI panel (`TUINSWindow`)
+  remains `isVisible` in a gpui process on macOS 26, so when the Dock icon is
+  clicked with no real window left the system reports `hasVisibleWindows=YES`,
+  and gpui's `should_handle_reopen` gate drops the event before any
+  `on_reopen` callback runs. An app that keeps running after its window
+  closes is therefore stranded: the Dock icon activates nothing and can only
+  Quit. [main.rs](src/main.rs) sidesteps the state entirely with
+  `QuitMode::LastWindowClosed` — the same behaviour gpui already defaults to
+  on Windows and Linux.
 
 ---
 

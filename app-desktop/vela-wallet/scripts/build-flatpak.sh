@@ -73,7 +73,8 @@ note "runtime org.freedesktop.Platform//$runtime_version ($arch)"
 flatpak install --user --arch "$arch" --noninteractive flathub \
   "org.freedesktop.Platform//$runtime_version" \
   "org.freedesktop.Sdk//$runtime_version" \
-  "org.freedesktop.Sdk.Extension.rust-stable//$runtime_version"
+  "org.freedesktop.Sdk.Extension.rust-stable//$runtime_version" \
+  "org.freedesktop.Sdk.Extension.llvm20//$runtime_version"
 
 mkdir -p "$dist_dir"
 build_dir="$dist_dir/build-$arch"

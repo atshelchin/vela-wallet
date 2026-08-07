@@ -4,16 +4,18 @@
 
 use crate::loc::Loc;
 use crate::theme::{
-    self, BRAND_INDENT, BRAND_TOP, CARD_GAP_X, CARD_GAP_Y, CONTENT_INSET, CONTENT_INSET_RIGHT,
-    GAP_BRAND_TAGLINE, GAP_BUTTONS, GAP_LOGO_WORDMARK, GAP_TAGLINE_GRID, LOGO_SIZE, PANEL_INSET,
-    PANEL_W, Theme, ThemeMode,
+    self, Theme, ThemeMode, BRAND_INDENT, BRAND_TOP, CARD_GAP_X, CARD_GAP_Y, CONTENT_INSET,
+    CONTENT_INSET_RIGHT, GAP_BRAND_TAGLINE, GAP_BUTTONS, GAP_LOGO_WORDMARK, GAP_TAGLINE_GRID,
+    LOGO_SIZE, PANEL_INSET, PANEL_W,
 };
-use crate::ui::{ButtonVariant, LaunchAnimation, feature_card, vela_button, vela_mark};
-use crate::window_frame::{FRAME_ROUNDING, FRAME_SHADOW, frame_tiling, round_to_frame, window_frame};
+use crate::ui::{feature_card, vela_button, vela_mark, ButtonVariant, LaunchAnimation};
+use crate::window_frame::{
+    frame_tiling, round_to_frame, window_frame, FRAME_ROUNDING, FRAME_SHADOW,
+};
 use gpui::{
-    Context, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent,
-    MouseButton, ParentElement, Render, SharedString, Stateful, StatefulInteractiveElement as _,
-    Styled, Tiling, Window, div, px,
+    div, px, Context, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement,
+    KeyDownEvent, MouseButton, ParentElement, Render, SharedString, Stateful,
+    StatefulInteractiveElement as _, Styled, Tiling, Window, WindowControlArea,
 };
 
 /// What the user chose on this screen. One sink (FR-010): later features attach
@@ -179,9 +181,10 @@ impl OnboardingPage {
 
     // -- window chrome ------------------------------------------------------
 
-    /// The invisible titlebar. Rendered only under client-side decorations —
-    /// macOS never sees it; there AppKit's transparent titlebar already
-    /// drags, double-clicks and menus (`appears_transparent` in main.rs).
+    /// The draggable part of the custom titlebar. Linux client decorations use
+    /// its event handlers directly. On Windows it is registered as a native
+    /// caption hit-test area, which restores drag, double-click-to-maximize,
+    /// Snap Layouts, and the window menu despite the transparent titlebar.
     fn drag_strip(&self, cx: &mut Context<Self>) -> Stateful<Div> {
         div()
             .id("drag-strip")
@@ -190,6 +193,7 @@ impl OnboardingPage {
             .left_0()
             .w_full()
             .h(px(DRAG_STRIP_H))
+            .window_control_area(WindowControlArea::Drag)
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(|this, _, _, _| this.drag_pending = true),
@@ -214,6 +218,76 @@ impl OnboardingPage {
             .on_mouse_down(MouseButton::Right, |event, window, _| {
                 window.show_window_menu(event.position);
             })
+    }
+
+    /// Native-style controls for custom-decorated Linux and Windows windows.
+    /// The `WindowControlArea` bindings preserve Windows 11's maximize hover
+    /// affordance; click handlers provide the same behavior on Fedora.
+    fn window_controls(&self, window: &Window) -> Stateful<Div> {
+        let theme = Theme::of(self.mode);
+        let control = |id: &'static str, icon: &'static str, area: WindowControlArea| {
+            div()
+                .id(id)
+                .w(px(46.))
+                .h(px(34.))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .cursor_pointer()
+                .text_size(px(18.))
+                .text_color(theme.fg_base)
+                .window_control_area(area)
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(icon)
+        };
+
+        let minimize = control("window-minimize", "−", WindowControlArea::Min)
+            .hover(|el| el.bg(theme.bg_sunken))
+            .active(|el| el.bg(theme.border_card))
+            .on_click(|_, window, cx| {
+                cx.stop_propagation();
+                window.minimize_window();
+            });
+        let maximize_icon = if window.is_maximized() { "❐" } else { "□" };
+        let maximize = control("window-maximize", maximize_icon, WindowControlArea::Max)
+            .hover(|el| el.bg(theme.bg_sunken))
+            .active(|el| el.bg(theme.border_card))
+            .on_click(|_, window, cx| {
+                cx.stop_propagation();
+                window.zoom_window();
+            });
+        let close = control("window-close", "×", WindowControlArea::Close)
+            .text_size(px(22.))
+            .hover(|el| el.bg(theme.accent).text_color(theme.fg_inverse))
+            .active(|el| el.bg(theme.accent_active).text_color(theme.fg_inverse))
+            .on_click(|_, window, cx| {
+                cx.stop_propagation();
+                window.remove_window();
+            });
+
+        div()
+            .id("window-controls")
+            .absolute()
+            .top_0()
+            .right_0()
+            .w(px(138.))
+            .h(px(34.))
+            .flex()
+            .flex_row()
+            .children([minimize, maximize, close])
+    }
+
+    fn titlebar(&self, window: &Window, cx: &mut Context<Self>) -> Stateful<Div> {
+        div()
+            .id("custom-titlebar")
+            .absolute()
+            .top_0()
+            .left_0()
+            .w_full()
+            .h(px(DRAG_STRIP_H))
+            .child(self.drag_strip(cx))
+            .child(self.window_controls(window))
     }
 
     // -- right action panel -------------------------------------------------
@@ -321,20 +395,25 @@ impl Render for OnboardingPage {
             .bg(theme.bg_base)
             .child(page.opacity(page_opacity));
 
-        // Client-side decorations only (never macOS/Windows — `tiling` is
-        // `None` there): the bg above rounds flush with the frame, the drag
-        // strip stands in for the missing titlebar, and F11 covers fullscreen,
-        // which no compositor affordance reaches without a titlebar either.
+        // Client-side Linux decorations need their own titlebar. Windows also
+        // hides the system-drawn titlebar (`appears_transparent` in main.rs),
+        // so it needs the same otherwise-empty strip, registered above as the
+        // native caption hit-test area. macOS keeps its AppKit titlebar.
+        let owns_titlebar = tiling.is_some() || cfg!(target_os = "windows");
         let root = match tiling {
-            Some(tiling) => round_to_frame(root, tiling)
-                .track_focus(&self.focus_handle)
+            Some(tiling) => round_to_frame(root, tiling),
+            None => root,
+        };
+        let root = if owns_titlebar {
+            root.track_focus(&self.focus_handle)
                 .on_key_down(cx.listener(|_, event: &KeyDownEvent, window, _| {
                     if event.keystroke.key == "f11" {
                         window.toggle_fullscreen();
                     }
                 }))
-                .child(self.drag_strip(cx)),
-            None => root,
+                .child(self.titlebar(window, cx))
+        } else {
+            root
         };
 
         let root = match overlay {

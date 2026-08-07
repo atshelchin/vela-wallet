@@ -1,5 +1,10 @@
 //! Vela Wallet desktop entry — window management only (spec 007 FR-009).
 
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 mod loc;
 mod onboarding;
 mod theme;

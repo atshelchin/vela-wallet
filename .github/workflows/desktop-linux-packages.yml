@@ -183,15 +183,24 @@ jobs:
           # needs real history rather than a shallow clone.
           fetch-depth: 0
       - name: Install flatpak and the builder
-        # elfutils explicitly: flatpak-builder execs eu-strip ON THE HOST to
-        # split debuginfo, but Ubuntu only Recommends elfutils and
-        # --no-install-recommends drops it — the build then compiles for
-        # minutes and dies at packaging with "Failed to execute child process
-        # eu-strip". Fedora dev boxes never see this; their flatpak-builder
-        # pulls elfutils.
+        # Two HOST-side tools are named explicitly because nothing declares
+        # them and both failures land after minutes of compiling:
+        #
+        # - elfutils: flatpak-builder execs eu-strip on the host to split
+        #   debuginfo. Ubuntu only Recommends it and --no-install-recommends
+        #   drops it ("Failed to execute child process eu-strip").
+        # - librsvg2-common: appstreamcli compose rasterizes the scalable SVG
+        #   icon (for the 128x128@2 HiDPI variant) through the host's
+        #   gdk-pixbuf. The x64 ubuntu-24.04 image ships no SVG loader — the
+        #   arm64 image happens to — so composes died with `file-read-error`
+        #   on x86_64 only. Probed and fix-verified on both images (PR #150's
+        #   1-minute compose probe, 2026-08-07).
+        #
+        # Fedora dev boxes carry both, which is why local builds never failed.
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils
+          sudo apt-get install -y --no-install-recommends \
+            flatpak flatpak-builder elfutils librsvg2-common
           flatpak remote-add --user --if-not-exists flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
       - name: Build the bundle

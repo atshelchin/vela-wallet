@@ -27,6 +27,13 @@ fn main() {
                 // The card grid does not reflow below the design size (spec 007
                 // edge cases): the design size is the minimum.
                 window_min_size: Some(size(px(WINDOW_W), px(WINDOW_H))),
+                // Sets the Wayland `xdg_toplevel.app_id` and the X11 `WM_CLASS`.
+                // Both are how a desktop shell matches a running window to its
+                // installed `.desktop` file, so this string, the file name
+                // `packaging/app.getvela.VelaWallet.desktop` and the
+                // `StartupWMClass` inside it must stay identical — otherwise
+                // GNOME shows the app with a generic icon and the binary name.
+                app_id: Some("app.getvela.VelaWallet".into()),
                 titlebar: Some(TitlebarOptions {
                     title: Some("Vela Wallet".into()),
                     // Content owns the full canvas, as in the mocks; only the

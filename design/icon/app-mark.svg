@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="68" height="68" viewBox="0 0 68 68">
+  <!--
+    The mark WITHOUT its tile, on transparency - Android's adaptive-icon
+    foreground layer. The tile colour is supplied separately by the background
+    layer, which is what lets a launcher mask, and parallax, the two
+    independently. Same viewBox as app-icon.svg, so the mark keeps exactly the
+    position and scale the design gives it inside the tile; that places it
+    within Android's inner 66% safe zone without any extra inset.
+
+    Derived from [app-icon.svg] - edit that file, then re-run
+    scripts/gen-app-icons.sh.
+  -->
+  <path d="M33,12C25,21,20,32,17,42L33,42L33,12Z" fill="#fff3ec"/>
+  <path d="M36,19C45,25,50,34,52,42L36,42L36,19Z" fill="#ffc6b0"/>
+  <path d="M13,46L55,46C52,52,47,55,40,55L28,55C21,55,16,52,13,46Z" fill="#5a4037"/>
+</svg>

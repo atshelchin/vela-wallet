@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="68" height="68" viewBox="0 0 68 68">
+  <!--
+    Single-colour silhouette for Android's themed ("monochrome") icons, where
+    the launcher discards our colours and tints the shape with the user's
+    wallpaper palette. Only coverage and alpha survive, so every shape is one
+    flat white and the sails are deliberately NOT distinguished from each
+    other - at themed-icon sizes a tonal split reads as noise.
+  -->
+  <path d="M33,12C25,21,20,32,17,42L33,42L33,12Z" fill="#ffffff"/>
+  <path d="M36,19C45,25,50,34,52,42L36,42L36,19Z" fill="#ffffff"/>
+  <path d="M13,46L55,46C52,52,47,55,40,55L28,55C21,55,16,52,13,46Z" fill="#ffffff"/>
+</svg>

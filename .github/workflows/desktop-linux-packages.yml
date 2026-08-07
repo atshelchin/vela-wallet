@@ -1,0 +1,228 @@
+# Linux packages for the GPUI desktop app: .rpm, .deb and Flatpak, x86_64 and
+# aarch64.
+#
+# Why containers rather than plain runners: a package's glibc floor is set by
+# the machine that linked the binary, not by the packaging format. Building the
+# .deb inside debian:12 gives a glibc 2.36 baseline (Debian 12+, Ubuntu 24.04+);
+# building it on the runner's own Ubuntu image would silently raise that floor
+# and produce a package that refuses to install on Debian stable. The .rpm is
+# built in fedora:latest for the same reason.
+#
+# Why two runner labels rather than cross-compilation: ThorVG's vendored C++ and
+# gpui's Wayland/X11/Vulkan link set make cross-building far more trouble than
+# renting a native machine, so each architecture builds on its own.
+# NOTE: `ubuntu-24.04-arm` is free for public repositories; on a private
+# repository it needs a paid plan. If the arm64 jobs sit queued forever, that is
+# why.
+name: Desktop Linux packages
+
+on:
+  # Cutting a desktop release: `git tag desktop-v0.1.0 && git push --tags`.
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+    inputs:
+      flatpak:
+        description: 'Also build the Flatpak bundles (slow)'
+        type: boolean
+        default: false
+  # Packaging metadata is cheap to check and easy to break, so it is checked on
+  # every PR that touches it. The package builds themselves are not - they cost
+  # roughly half an hour per architecture.
+  pull_request:
+    paths:
+      - 'app-desktop/vela-wallet/packaging/**'
+      - 'app-desktop/vela-wallet/scripts/**'
+      - '.github/workflows/desktop-linux-packages.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: Validate packaging metadata
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            desktop-file-utils appstream shellcheck
+      - name: Validate the .desktop entry
+        run: |
+          desktop-file-validate \
+            app-desktop/vela-wallet/packaging/app.getvela.VelaWallet.desktop
+      - name: Validate the AppStream metainfo
+        run: |
+          appstreamcli validate --no-net \
+            app-desktop/vela-wallet/packaging/app.getvela.VelaWallet.metainfo.xml
+      - name: Check the packaging scripts
+        run: shellcheck app-desktop/vela-wallet/scripts/*.sh
+      - name: The app id must agree everywhere
+        # A mismatch between the window's app_id, the .desktop file name and
+        # StartupWMClass is invisible until a user sees a generic icon in their
+        # dock, so it is asserted here instead.
+        run: |
+          set -e
+          id=app.getvela.VelaWallet
+          grep -q "app_id: Some(\"$id\"" app-desktop/vela-wallet/src/main.rs
+          grep -q "^StartupWMClass=$id$" \
+            "app-desktop/vela-wallet/packaging/$id.desktop"
+          grep -q "<id>$id</id>" \
+            "app-desktop/vela-wallet/packaging/$id.metainfo.xml"
+          grep -q "^id: $id$" \
+            "app-desktop/vela-wallet/packaging/flatpak/$id.yml"
+          echo "app id is consistent across all five files"
+
+  rpm:
+    name: RPM (${{ matrix.arch }})
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    container: fedora:latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Install build and packaging dependencies
+        run: |
+          dnf install -y \
+            gcc-c++ clang cmake make pkgconf-pkg-config git-core file findutils \
+            wayland-devel libxkbcommon-x11-devel libxcb-devel \
+            fontconfig-devel freetype-devel alsa-lib-devel \
+            openssl-devel libzstd-devel \
+            rpm-build desktop-file-utils appstream
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app-desktop/vela-wallet
+          # gpui and gpui_platform are git dependencies on the whole Zed
+          # repository; without caching, every run re-clones it.
+          cache-all-crates: true
+      - name: Build the RPM
+        working-directory: app-desktop/vela-wallet
+        run: ./scripts/build-linux-packages.sh --formats rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-${{ matrix.arch }}
+          path: app-desktop/vela-wallet/dist/linux/*.rpm
+          if-no-files-found: error
+
+  deb:
+    name: DEB (${{ matrix.arch }})
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    container: debian:12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Install build and packaging dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential clang libclang-dev cmake pkg-config \
+            git ca-certificates curl file \
+            libwayland-dev libxkbcommon-x11-dev libx11-xcb-dev \
+            libfontconfig-dev libasound2-dev libssl-dev libzstd-dev \
+            desktop-file-utils appstream
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app-desktop/vela-wallet
+          cache-all-crates: true
+      - name: Build the DEB
+        working-directory: app-desktop/vela-wallet
+        run: ./scripts/build-linux-packages.sh --formats deb
+      - name: The package must satisfy dpkg itself
+        working-directory: app-desktop/vela-wallet
+        run: |
+          dpkg-deb -I dist/linux/*.deb
+          dpkg --unpack --force-depends dist/linux/*.deb
+          dpkg -V vela-wallet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: app-desktop/vela-wallet/dist/linux/*.deb
+          if-no-files-found: error
+
+  flatpak:
+    name: Flatpak (${{ matrix.arch }})
+    # Opt-in: this rebuilds the whole dependency tree inside the freedesktop SDK
+    # with no cargo cache, and it depends on the SDK's rust-stable extension
+    # being new enough for the crate's edition 2024. Turn it on for a release
+    # tag or with the workflow_dispatch input.
+    if: github.event_name == 'push' || inputs.flatpak
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The manifest builds from the local git repository, so the build
+          # needs real history rather than a shallow clone.
+          fetch-depth: 0
+      - name: Install flatpak and the builder
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub \
+            https://dl.flathub.org/repo/flathub.flatpakrepo
+      - name: Build the bundle
+        working-directory: app-desktop/vela-wallet
+        run: ./scripts/build-flatpak.sh --arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-${{ matrix.arch }}
+          path: app-desktop/vela-wallet/dist/flatpak/*.flatpak
+          if-no-files-found: error
+
+  release:
+    name: Attach packages to the release
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: [rpm, deb]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish checksums alongside the packages
+        working-directory: artifacts
+        run: |
+          # Via a temp file so the glob cannot pick up the file being written.
+          sha256sum ./* > "$RUNNER_TEMP/SHA256SUMS"
+          mv "$RUNNER_TEMP/SHA256SUMS" SHA256SUMS
+          cat SHA256SUMS
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Vela Wallet Desktop $GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag \
+            artifacts/* \
+          || gh release upload "$GITHUB_REF_NAME" artifacts/* \
+            --repo "$GITHUB_REPOSITORY" --clobber

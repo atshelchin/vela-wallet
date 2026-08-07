@@ -163,8 +163,10 @@ jobs:
     # Opt-in: this rebuilds the whole dependency tree inside the freedesktop SDK
     # with no cargo cache, and it depends on the SDK's rust-stable extension
     # being new enough for the crate's edition 2024. Turn it on for a release
-    # tag or with the workflow_dispatch input.
-    if: github.event_name == 'push' || inputs.flatpak
+    # tag or with the workflow_dispatch input. The ref check keeps it on for a
+    # workflow_dispatch pointed at a release tag: the release job needs the
+    # Flatpak bundles, so any path that can publish must also build them.
+    if: github.event_name == 'push' || startsWith(github.ref, 'refs/tags/desktop-v') || inputs.flatpak
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -198,7 +200,12 @@ jobs:
   release:
     name: Attach packages to the release
     if: startsWith(github.ref, 'refs/tags/desktop-v')
-    needs: [rpm, deb]
+    # flatpak is a needs-edge so the bundles cannot nondeterministically miss
+    # the release: without it, release starts once rpm+deb finish and only
+    # picks up whatever Flatpak artifacts happen to exist at that moment.
+    # metadata gates for the same reason as the macOS and Windows workflows —
+    # its five-place app-id assertion is not re-enforced by the build path.
+    needs: [metadata, rpm, deb, flatpak]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -1,0 +1,139 @@
+# Windows installers for the GPUI desktop app: Setup.exe for x64 and ARM64.
+#
+# This is the third leg of the desktop release triad — desktop-linux-packages
+# and desktop-macos-packages trigger on the same desktop-v* tag, and all three
+# attach their artifacts to the same GitHub release, so one tag ships every
+# platform.
+#
+# Both installers build on x64 runners: the packaging script drives Visual
+# Studio's x64-hosted ARM64 cross toolchain (vswhere → VsDevCmd -arch=arm64),
+# exactly as it does on a local x64 dev box. Everything the script probes for
+# is preinstalled on the windows-2025 image: VS 2022 with the ARM64 C++
+# component, LLVM's libclang for bindgen, and Inno Setup 6 — the script stops
+# with an actionable error if any of them ever disappears from the image.
+name: Desktop Windows packages
+
+on:
+  # Cutting a desktop release: `git tag desktop-v0.1.0 && git push --tags`.
+  push:
+    tags: ['desktop-v*']
+  workflow_dispatch:
+  # Packaging metadata is cheap to check and easy to break, so it is checked on
+  # every PR that touches it. The installer builds are not — Windows runner
+  # minutes bill at 2x the Linux rate, and the cold gpui build is long.
+  pull_request:
+    paths:
+      - 'app-desktop/vela-wallet/installer/**'
+      - 'app-desktop/vela-wallet/scripts/build-windows-installer.ps1'
+      - '.github/workflows/desktop-windows-packages.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: Validate installer packaging
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: The packaging script must parse
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD/app-desktop/vela-wallet/scripts/build-windows-installer.ps1",
+            [ref]$tokens, [ref]$errors)
+          if ($errors.Count) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+      - name: The Inno Setup script must accept every define the build passes
+        # ISCC is only invoked at package time, after the release build — a
+        # renamed or dropped /D macro would otherwise surface an hour in.
+        shell: pwsh
+        run: |
+          $iss = 'app-desktop/vela-wallet/installer/VelaWallet.iss'
+          if (-not (Test-Path -LiteralPath $iss)) { throw "missing $iss" }
+          foreach ($define in 'MyAppVersion', 'MyAppExe', 'MyVCRedist',
+                              'MyVCRedistName', 'MyArchitecture',
+                              'MyArchitecturesAllowed', 'MyOutputDir') {
+            if (-not (Select-String -Path $iss -Pattern $define -Quiet)) {
+              throw "VelaWallet.iss no longer references $define, but the build script passes /D$define"
+            }
+          }
+
+  installer:
+    name: Installer (${{ matrix.arch }})
+    if: github.event_name != 'pull_request'
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rust-targets: ''
+          - arch: arm64
+            rust-targets: aarch64-pc-windows-msvc
+    env:
+      # bindgen (dotlottie-rs) needs libclang; the runner image ships LLVM but
+      # not the variable.
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app-desktop/vela-wallet
+          # gpui and gpui_platform are git dependencies on the whole Zed
+          # repository; without caching, every run re-clones it.
+          cache-all-crates: true
+      - name: Build the installer
+        working-directory: app-desktop/vela-wallet
+        shell: pwsh
+        run: ./scripts/build-windows-installer.ps1 -Architecture ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ matrix.arch }}
+          path: app-desktop/vela-wallet/dist/windows/*.exe
+          if-no-files-found: error
+
+  release:
+    name: Attach packages to the release
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    # metadata is a needs-edge, not just a sibling: its .iss define check is
+    # the only guard the build path does not re-enforce before ISCC runs.
+    needs: [metadata, installer]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish checksums alongside the packages
+        working-directory: artifacts
+        run: |
+          # SHA256SUMS-windows, not SHA256SUMS: the Linux and macOS workflows
+          # upload their own checksum files to the same release, and whichever
+          # job runs last would --clobber the others'.
+          # Via a temp file so the glob cannot pick up the file being written.
+          sha256sum ./* > "$RUNNER_TEMP/SHA256SUMS-windows"
+          mv "$RUNNER_TEMP/SHA256SUMS-windows" SHA256SUMS-windows
+          cat SHA256SUMS-windows
+      - name: Upload
+        # The Linux and macOS workflows race this job on the same tag;
+        # whichever runs later falls through to `gh release upload`.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Vela Wallet Desktop $GITHUB_REF_NAME" \
+            --generate-notes \
+            --verify-tag \
+            artifacts/* \
+          || gh release upload "$GITHUB_REF_NAME" artifacts/* \
+            --repo "$GITHUB_REPOSITORY" --clobber

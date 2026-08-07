@@ -192,6 +192,15 @@ final install and window-behaviour check on a physical ARM64 Windows device or
 an ARM64 CI runner. The x64 package can run under Windows on ARM emulation, but
 it is not a substitute for distributing the native ARM64 package.
 
+On a release tag (`desktop-v*`),
+[the Windows CI workflow](../../.github/workflows/desktop-windows-packages.yml)
+builds both installers on x64 runners — ARM64 cross-compiles through the same
+VsDevCmd path the script uses locally — and attaches them to the same release
+as the macOS and Linux packages. One tag therefore ships every desktop
+platform: this pair of installers, the three macOS `.dmg` images, and the
+Linux RPM/DEB/Flatpak set, each workflow contributing its own
+`SHA256SUMS-*` file.
+
 Release builds use the Windows GUI subsystem, so users see no console window.
 Debug builds keep the console available for `cargo run` diagnostics.
 

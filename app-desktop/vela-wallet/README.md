@@ -161,10 +161,23 @@ ARM64 C++ tools are unavailable. `-SkipBuild` may be added when the matching
 release executable has already been built and only the installer needs
 repackaging.
 
+#### x64 and ARM64 installers (one command)
+
+After completing the ARM64 prerequisites above, build both Windows packages in
+one command:
+
+```powershell
+.\scripts\build-windows-installer.ps1 -Architecture all
+```
+
+The script builds x64 first and then ARM64. It stops at the first failure, so
+do not publish the pair unless both installer files were produced.
+
 | Package | Distribute to | Command |
 |---|---|---|
 | `VelaWallet-Setup-<version>-x64.exe` | Intel/AMD x64 Windows 10/11 | `./scripts/build-windows-installer.ps1` |
 | `VelaWallet-Setup-<version>-arm64.exe` | Native Windows on ARM64 | `./scripts/build-windows-installer.ps1 -Architecture arm64` |
+| Both packages | x64 and ARM64 Windows | `./scripts/build-windows-installer.ps1 -Architecture all` |
 
 The application icon is embedded into `vela-wallet.exe` by [build.rs](build.rs),
 and `SetupIconFile` gives `setup.exe` the same icon. See

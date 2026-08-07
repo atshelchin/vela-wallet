@@ -17,6 +17,7 @@ below.
 - [Install the system dependencies](#install-the-system-dependencies)
 - [Windows 11 setup](#windows-11-setup)
 - [Build a Windows installer](#build-a-windows-installer)
+- [Build a macOS app bundle](#build-a-macos-app-bundle)
 - [Build Linux packages](#build-linux-packages)
 - [Build & run](#build--run)
 - [What the first build does](#what-the-first-build-does)
@@ -165,6 +166,11 @@ repackaging.
 | `VelaWallet-Setup-<version>-x64.exe` | Intel/AMD x64 Windows 10/11 | `./scripts/build-windows-installer.ps1` |
 | `VelaWallet-Setup-<version>-arm64.exe` | Native Windows on ARM64 | `./scripts/build-windows-installer.ps1 -Architecture arm64` |
 
+The application icon is embedded into `vela-wallet.exe` by [build.rs](build.rs),
+and `SetupIconFile` gives `setup.exe` the same icon. See
+[Icons](#icons) — gpui looks the icon up by resource id, so this is not
+something Inno Setup can supply on the executable's behalf.
+
 Both installers print a SHA-256 checksum for publishing next to the download.
 The `dist/` directory and downloaded prerequisites are generated and ignored by
 Git. An ARM64 executable cannot run on an x64 Windows machine, so complete the
@@ -226,6 +232,32 @@ first — add `glib2-devel` before anything else.
 | `vulkan-loader` + a driver (`mesa-vulkan-drivers`) | gpui renders through Vulkan via blade. **Runtime**, not just build-time |
 | `alsa-lib-devel` | gpui's audio path. Carried over from Zed's own list rather than proven necessary for this crate — cheap to install, annoying to discover missing mid-build |
 | `openssl-devel`, `libzstd-devel` | Transitive Rust crates that prefer the system library over a vendored build |
+
+---
+
+## Build a macOS app bundle
+
+macOS reads the Dock icon, the application name and the high-DPI opt-in from a
+bundle's `Contents/`, so the bare executable runs as a generic tool called
+`vela-wallet` and renders at 1x. There is no window-level API that fixes that
+from inside gpui — it has to be a bundle.
+
+```bash
+./scripts/build-macos-app.sh          # -> dist/macos/Vela Wallet.app
+./scripts/build-macos-app.sh --zip    # also a .zip, packed with ditto
+```
+
+macOS only: `iconutil` turns the committed
+`packaging/icons/macos/AppIcon.iconset` into `AppIcon.icns`, and `codesign`
+applies an ad-hoc signature. The iconset itself is generated on any platform by
+`./scripts/generate-desktop-icons.sh`, so only the final assembly needs a Mac.
+
+The bundle is **ad-hoc signed, not notarized**. That is deliberately not
+nothing: Apple silicon refuses to run a completely unsigned bundle, so ad-hoc
+signing is the difference between "Gatekeeper warns on first launch" and "will
+not launch at all". Signing with a Developer ID certificate and notarizing
+remains open, alongside the Windows code-signing certificate and package
+signing — see [Before the first public release](#before-the-first-public-release).
 
 ---
 
@@ -444,13 +476,42 @@ rather than a detail:
 | Screenshot URLs | [metainfo.xml](packaging/app.getvela.VelaWallet.metainfo.xml) | They point at `getvela.app/screenshots/…`, which must actually resolve — Flathub fetches them at build time |
 | Package signing | — | Both packages are unsigned. `rpm --addsign` and `debsigs` need a release key, the same open question as the Windows code-signing certificate |
 
-The icons are generated, not hand-drawn: `packaging/icons/` is rendered from
-`packaging/icons/scalable/app.getvela.VelaWallet.svg`, which carries the same
-geometry as the universal app mark iOS and Android ship. After editing the SVG:
+### Icons
+
+Every icon in the repository — this app's, the Expo app's, both native
+projects', and the marketing site's — is rendered from one vector source,
+[design/icon/](../../design/icon/):
+
+| Source | Used for |
+|---|---|
+| `app-icon.svg` | The mark inside its tile. Every platform that draws the icon as-is |
+| `app-mark.svg` | The mark alone, transparent. Android's foreground layer, and anything that supplies its own background |
+| `app-mark-mono.svg` | Flat white silhouette. Android themed icons, iOS tinted appearance |
+
+Two scripts consume them, and both commit their output so that building a
+package needs no image tooling:
 
 ```bash
-./scripts/generate-linux-icons.sh    # re-renders every PNG size; commit the diff
+./scripts/generate-desktop-icons.sh          # Linux hicolor + .ico + .iconset
+../../scripts/gen-app-icons.sh               # Expo, app-ios, app-android, getvela.app
 ```
+
+Four platform rules are encoded in those scripts, and every one of them fails
+*quietly* — the icon simply looks wrong somewhere nobody tested:
+
+- **Windows takes the icon from the executable, not from a window API.** gpui
+  calls `LoadImageW(module, MAKEINTRESOURCE(1), IMAGE_ICON, …)` and the call
+  site is `load_icon().unwrap_or_default()`, so a miss is silent. [build.rs](build.rs)
+  embeds the `.ico` as **resource id 1** specifically.
+- **macOS needs a bundle**, and the artwork must carry its own rounded corners
+  and padding — Apple's grid puts the tile at 824 of 1024 units, which is the
+  `macos_inset` in the icon script.
+- **GNOME's app grid asks for 96px**, which is why `96x96` is in the size list.
+  Without it the lookup falls through to `scalable/`.
+- **gdk-pixbuf identifies an SVG by sniffing its first few hundred bytes.** The
+  canonical SVG keeps `<svg>` on line 2 for that reason; a comment above the tag
+  pushed it to byte 723 once, and the file stopped being recognised as an image
+  at all.
 
 ---
 
@@ -549,4 +610,4 @@ cargo test -p vela-core --features i18n-all    # conformance corpus stays green
 | `error: no Debian package is mapped for: <soname>` from the build script | A new shared-library dependency appeared. Find its owner with `apt-file search <soname>` and add a case to `deb_package_for_soname()` |
 | Flatpak build fails inside `cargo build` with `edition2024` errors | The `rust-stable` SDK extension is older than 1.97.1. Check the `rustc --version` line at the top of the build log |
 | Flatpak build fails with `failed to resolve address for github.com` | DNS does not work in a sandbox nested inside `org.flatpak.Builder`. See [Name resolution fails when the builder is itself a Flatpak](#name-resolution-fails-when-the-builder-is-itself-a-flatpak) |
-| App name appears in the GNOME app grid with no icon, but the dash icon is fine | The grid asks for 96px. If no `96x96` PNG exists the lookup falls through to `scalable/`, and an SVG whose `<svg>` tag sits past gdk-pixbuf's sniff window is not recognised as an image at all. Both are guarded by `scripts/generate-linux-icons.sh` |
+| App name appears in the GNOME app grid with no icon, but the dash icon is fine | The grid asks for 96px. If no `96x96` PNG exists the lookup falls through to `scalable/`, and an SVG whose `<svg>` tag sits past gdk-pixbuf's sniff window is not recognised as an image at all. Both are guarded by `scripts/generate-desktop-icons.sh` |

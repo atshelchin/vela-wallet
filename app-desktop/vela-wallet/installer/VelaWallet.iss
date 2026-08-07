@@ -39,6 +39,12 @@ DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 OutputDir={#MyOutputDir}
 OutputBaseFilename=VelaWallet-Setup-{#MyAppVersion}-{#MyArchitecture}
+; The icon for setup.exe itself. Relative to this .iss file. Without it the
+; installer ships with Inno Setup's stock icon, which is the first thing a user
+; sees of the product. The application's own icon is embedded into
+; vela-wallet.exe by build.rs, so the shortcuts and UninstallDisplayIcon below
+; pick it up from there.
+SetupIconFile=..\packaging\icons\app.getvela.VelaWallet.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern

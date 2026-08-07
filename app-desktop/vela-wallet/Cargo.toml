@@ -46,3 +46,12 @@ dotlottie-rs = { git = "https://github.com/LottieFiles/dotlottie-rs", tag = "v0.
 # The frame pump hands ThorVG's buffer to gpui as an `image::Frame`; this is the
 # same `image` version gpui itself re-exports through `RenderImage`.
 image = "0.25"
+
+# Embeds the application icon into vela-wallet.exe as resource id 1, which is
+# where gpui's LoadImageW looks for it. Declared unconditionally rather than
+# under [target.'cfg(windows)'.build-dependencies], because that section is
+# resolved against the HOST, so a Linux-hosted cross build to Windows would
+# skip it and silently produce an icon-less executable. build.rs gates on the
+# TARGET instead, and this crate is tiny and builds anywhere.
+[build-dependencies]
+winresource = "0.1"

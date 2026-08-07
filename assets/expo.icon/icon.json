@@ -1,21 +1,21 @@
 {
-  "fill" : {
-    "color" : "srgb:0.039216,0.098039,0.160784,1.000000"
+  "fill": {
+    "color": "srgb:0.956863,0.427451,0.313725,1.000000"
   },
-  "groups" : [
+  "groups": [
     {
-      "layers" : [
+      "layers": [
         {
-          "image-name" : "icon.png",
-          "name" : "icon"
+          "image-name": "icon.png",
+          "name": "icon"
         }
       ]
     }
   ],
-  "supported-platforms" : {
-    "circles" : [
+  "supported-platforms": {
+    "circles": [
       "watchOS"
     ],
-    "squares" : "shared"
+    "squares": "shared"
   }
 }

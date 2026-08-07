@@ -183,9 +183,15 @@ jobs:
           # needs real history rather than a shallow clone.
           fetch-depth: 0
       - name: Install flatpak and the builder
+        # elfutils explicitly: flatpak-builder execs eu-strip ON THE HOST to
+        # split debuginfo, but Ubuntu only Recommends elfutils and
+        # --no-install-recommends drops it — the build then compiles for
+        # minutes and dies at packaging with "Failed to execute child process
+        # eu-strip". Fedora dev boxes never see this; their flatpak-builder
+        # pulls elfutils.
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder
+          sudo apt-get install -y --no-install-recommends flatpak flatpak-builder elfutils
           flatpak remote-add --user --if-not-exists flathub \
             https://dl.flathub.org/repo/flathub.flatpakrepo
       - name: Build the bundle

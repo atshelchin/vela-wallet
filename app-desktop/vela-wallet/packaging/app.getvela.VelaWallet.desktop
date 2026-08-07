@@ -1,6 +1,9 @@
 [Desktop Entry]
 Type=Application
-Version=1.5
+# Spec version 1.0, not 1.5: Debian 12's desktop-file-validate (0.26) rejects
+# versions it postdates, and the .deb build validates inside a debian:12
+# container. The key only declares which spec the file follows.
+Version=1.0
 Name=Vela Wallet
 GenericName=Crypto Wallet
 Comment=Self-custodial smart wallet for EVM networks

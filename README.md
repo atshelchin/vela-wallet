@@ -90,6 +90,44 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
 - **DApp Connect**: BLE connection is not available on web. This is planned for a future release.
 - **Native APIs**: All platform-specific APIs (Alert, Clipboard, Haptics, AppState, Linking) are abstracted via `src/services/platform.ts`.
 
+### Desktop
+
+The desktop client is a **separate native application** — Rust on
+[gpui](https://github.com/zed-industries/zed), not React Native — in
+[app-desktop/vela-wallet](app-desktop/vela-wallet). It shares the `vela-core`
+crate and the design sources with the app above, but none of its TypeScript, so
+the table does not describe it.
+
+Installable packages are built from that directory, for x64 and ARM64:
+
+| Platform | Package | Command |
+| --- | --- | --- |
+| Windows 10/11 | Inno Setup installer | `./scripts/build-windows-installer.ps1` |
+| macOS 11+ | `.app` bundle | `./scripts/build-macos-app.sh` |
+| Fedora, RHEL, openSUSE | `.rpm` | `./scripts/build-linux-packages.sh --formats rpm` |
+| Debian, Ubuntu | `.deb` | `./scripts/build-linux-packages.sh --formats deb` |
+| Any Linux, sandboxed | Flatpak bundle | `./scripts/build-flatpak.sh` |
+
+Setup, system dependencies and release steps are in
+[app-desktop/vela-wallet/README.md](app-desktop/vela-wallet/README.md).
+
+### App icons
+
+Every icon in the repository — iOS, Android, both native projects, the desktop
+packages and this site's favicons — is rendered from one vector source,
+[design/icon/](design/icon/). Nothing is hand-exported, so the platforms cannot
+drift apart:
+
+```bash
+./scripts/gen-app-icons.sh                                   # Expo, app-ios, app-android, getvela.app
+app-desktop/vela-wallet/scripts/generate-desktop-icons.sh    # Linux hicolor, Windows .ico, macOS .iconset
+```
+
+Both scripts commit their output and encode the per-platform rules that
+otherwise fail silently — iOS rejecting alpha, Android's 66.7% safe zone,
+Windows resolving the icon by resource id. The details are in the desktop
+README under [Icons](app-desktop/vela-wallet/README.md#icons).
+
 ## Build for Web (Cloudflare Pages)
 
 1. Build the static web bundle

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for the macOS bundle. @VERSION@ is substituted by
+  scripts/build-macos-app.sh from the version in Cargo.toml.
+-->
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>              <string>Vela Wallet</string>
+    <key>CFBundleDisplayName</key>       <string>Vela Wallet</string>
+    <key>CFBundleIdentifier</key>        <string>app.getvela.VelaWallet</string>
+    <key>CFBundleExecutable</key>        <string>vela-wallet</string>
+    <!-- Names AppIcon.icns in Contents/Resources; the extension is omitted by
+         convention and Finder will not find the icon if it is included. -->
+    <key>CFBundleIconFile</key>          <string>AppIcon</string>
+    <key>CFBundlePackageType</key>       <string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>@VERSION@</string>
+    <key>CFBundleVersion</key>           <string>@VERSION@</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <!-- gpui renders through Metal and expects a real backing-scale factor;
+         without this the window is rendered at 1x and upscaled. -->
+    <key>NSHighResolutionCapable</key>   <true/>
+    <key>LSMinimumSystemVersion</key>    <string>11.0</string>
+    <key>LSApplicationCategoryType</key> <string>public.app-category.finance</string>
+    <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+</dict>
+</plist>

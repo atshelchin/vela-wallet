@@ -1,0 +1,95 @@
+# Flatpak manifest for the GPUI desktop application.
+#
+# Build it through scripts/build-flatpak.sh, which installs the runtime, runs
+# flatpak-builder and exports a single-file .flatpak bundle.
+#
+# This manifest builds for a LOCAL or self-hosted repository. Flathub needs two
+# changes, both described in the desktop README under "Publishing to Flathub":
+#
+#   1. The `sources` entry below reads the local git checkout. Flathub requires
+#      a public `url:` + `commit:` instead.
+#   2. `build-args: [--share=network]` lets cargo fetch its registry during the
+#      build. Flathub builds are offline, so the crate set has to be vendored
+#      into a generated cargo-sources.json first.
+#
+# Nothing else about the manifest differs between the two.
+id: app.getvela.VelaWallet
+runtime: org.freedesktop.Platform
+# 25.08, not the older 24.08, for one concrete reason: the crate is
+# `edition = "2024"` and needs rustc 1.97.1 or newer, and the rust-stable SDK
+# extension only tracks whatever its branch shipped with. The newer branch is
+# the one likely to satisfy that. It is also what org.flatpak.Builder itself
+# pulls in, so a local build reuses the SDK already on disk instead of
+# downloading a second one.
+runtime-version: '25.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: vela-wallet
+
+finish-args:
+  # gpui renders through Vulkan/EGL; without the DRI device the window never
+  # gets a surface.
+  - --device=dri
+  - --share=ipc
+  - --socket=wayland
+  # X11 only when the compositor offers no Wayland socket, which is what
+  # fallback-x11 means - it is not a second, always-open socket.
+  - --socket=fallback-x11
+  # The wallet talks to EVM RPC endpoints and a bundler.
+  - --share=network
+  # No --filesystem: the app writes nothing outside its own sandbox data dir,
+  # and a wallet is exactly the kind of program that should not hold host
+  # filesystem access it does not use.
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    # Keep cargo's registry inside the build dir so repeat builds reuse it and
+    # nothing leaks into the user's ~/.cargo.
+    CARGO_HOME: /run/build/vela-wallet/cargo
+
+modules:
+  - name: vela-wallet
+    buildsystem: simple
+    build-options:
+      # Local builds fetch crates.io during %build. Remove for Flathub - see
+      # the header.
+      build-args:
+        - --share=network
+    build-commands:
+      # Printed so a toolchain mismatch is obvious in the log rather than
+      # showing up as a wall of edition2024 parse errors. The crate needs
+      # rustc 1.97.1 or newer.
+      - rustc --version && cargo --version
+
+      - cd app-desktop/vela-wallet && cargo build --release --locked
+
+      - install -Dm755 app-desktop/vela-wallet/target/release/vela-wallet
+        /app/bin/vela-wallet
+
+      - install -Dm644
+        app-desktop/vela-wallet/packaging/app.getvela.VelaWallet.desktop
+        /app/share/applications/app.getvela.VelaWallet.desktop
+
+      - install -Dm644
+        app-desktop/vela-wallet/packaging/app.getvela.VelaWallet.metainfo.xml
+        /app/share/metainfo/app.getvela.VelaWallet.metainfo.xml
+
+      - install -Dm644
+        app-desktop/vela-wallet/packaging/icons/scalable/app.getvela.VelaWallet.svg
+        /app/share/icons/hicolor/scalable/apps/app.getvela.VelaWallet.svg
+
+      - for s in 16 24 32 48 64 96 128 256 512; do
+        install -Dm644
+        "app-desktop/vela-wallet/packaging/icons/${s}x${s}/app.getvela.VelaWallet.png"
+        "/app/share/icons/hicolor/${s}x${s}/apps/app.getvela.VelaWallet.png";
+        done
+
+    sources:
+      # Reads the local git repository, so the build gets exactly the committed
+      # tree - no node_modules, no target/, no uncommitted work. Commit before
+      # building, or the change will not be in the bundle.
+      - type: git
+        path: ../../../..
+        branch: HEAD

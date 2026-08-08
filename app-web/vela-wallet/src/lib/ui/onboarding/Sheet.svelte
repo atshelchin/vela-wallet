@@ -8,10 +8,17 @@
 	 *
 	 * Drag-to-dismiss: the panel follows a downward pointer drag 1:1 (native
 	 * sheet feel); release past 1/3 of the panel height OR a downward flick
-	 * closes, anything else springs back. While a drag is engaged the entry
-	 * keyframes are detached (their `both` fill would override the inline
-	 * transform) and the backdrop dims proportionally. Sheets whose content
-	 * scrolls keep native panning and dismiss via ×/Esc/backdrop only.
+	 * closes, anything else springs back. The backdrop dims proportionally.
+	 * Sheets whose content scrolls keep native panning and dismiss via
+	 * ×/Esc/backdrop only.
+	 *
+	 * Animation ownership: the ENTER keyframes carry no fill mode — their end
+	 * state equals the natural state, and a lingering fill would permanently
+	 * override the inline styles the drag writes. Once `animationend` fires
+	 * the cascade is free and drags may engage. The EXIT keyframes keep
+	 * `both` deliberately (they must hold the off-screen state until
+	 * unmount); a close requested while the panel is drag-displaced routes
+	 * through the inline slide-out instead, so the two drivers never fight.
 	 */
 	import type { Snippet } from 'svelte';
 
@@ -27,12 +34,14 @@
 
 	let closing = $state(false);
 	let panel = $state<HTMLElement | null>(null);
-	/** True once a drag has engaged this session: entry keyframes stay detached. */
-	let dragTouched = $state(false);
 	/** True only while the pointer is actively driving the panel. */
 	let dragging = $state(false);
-	/** Backdrop dim level while drag-driven (1 = fully dimmed). */
+	/** Backdrop dim level (1 = fully dimmed); inline, effective once entered. */
 	let backdropDim = $state(1);
+	/** Entry animation finished — the cascade is ours, drags may engage. */
+	let entered = false;
+	/** Set by the drag action: slides out from the current inline offset. */
+	let dragSlideOut: (() => boolean) | null = null;
 	let restoreFocus: HTMLElement | null = null;
 	let suppressClick = false;
 	let closed = false;
@@ -45,10 +54,10 @@
 
 	/** Play the exit animation, then fire onClose (bindable from the host). */
 	export function requestClose() {
+		// A drag-displaced panel closes from where it is; the keyframe path
+		// would snap it back to zero first.
+		if (dragSlideOut?.()) return;
 		closing = true;
-		// The keyframe path handles the panel; a drag-touched backdrop runs on
-		// inline opacity instead of keyframes, so fade it explicitly.
-		if (dragTouched) backdropDim = 0;
 	}
 
 	$effect(() => {
@@ -92,7 +101,12 @@
 	}
 
 	function onPanelAnimationEnd(event: AnimationEvent) {
-		if (closing && event.target === event.currentTarget) fireClose();
+		if (event.target !== event.currentTarget) return;
+		if (closing) {
+			fireClose();
+			return;
+		}
+		entered = true;
 	}
 
 	/** Swallow the synthetic click a finished drag would otherwise deliver. */
@@ -126,8 +140,53 @@
 		const ro = new ResizeObserver(applyTouchAction);
 		ro.observe(node);
 
+		function slideOut() {
+			if (reducedMotion()) {
+				fireClose();
+				return;
+			}
+			backdropDim = 0;
+			node.style.transition = 'transform var(--motion-sheet-out) ease-in';
+			void node.offsetHeight;
+			node.style.transform = 'translateY(105%)';
+			const done = (ev: TransitionEvent) => {
+				if (ev.target !== node) return;
+				node.removeEventListener('transitionend', done);
+				fireClose();
+			};
+			node.addEventListener('transitionend', done);
+			// Belt-and-braces: transitionend can be swallowed by unmounts.
+			window.setTimeout(fireClose, 400);
+		}
+
+		function abortGesture() {
+			if (engaged) {
+				try {
+					node.releasePointerCapture(pointerId);
+				} catch {
+					// pointer already gone
+				}
+			}
+			candidate = false;
+			engaged = false;
+			dragging = false;
+		}
+
+		// requestClose() delegates here whenever the panel sits away from its
+		// natural position (mid-drag or mid-settle), so the exit keyframes —
+		// which always start from zero — are never asked to lie.
+		dragSlideOut = () => {
+			const displaced =
+				engaged || (node.style.transform !== '' && node.style.transform !== 'translateY(0)');
+			if (!displaced) return false;
+			abortGesture();
+			suppressClick = true;
+			slideOut();
+			return true;
+		};
+
 		function onDown(event: PointerEvent) {
-			if (closing || engaged) return;
+			if (!entered || closing || engaged) return;
 			if (event.pointerType === 'mouse' && event.button !== 0) return;
 			if (scrollable() || node.scrollTop > 0) return;
 			candidate = true;
@@ -147,7 +206,6 @@
 			if (!engaged) {
 				if (dy <= SLOP) return;
 				engaged = true;
-				dragTouched = true;
 				dragging = true;
 				node.setPointerCapture(pointerId);
 				node.style.transition = 'none';
@@ -168,22 +226,7 @@
 			const dy = Math.max(0, lastY - startY);
 			const shouldClose = !cancelled && (dy > node.clientHeight / 3 || velocity > FLICK_VELOCITY);
 			if (shouldClose) {
-				if (reducedMotion()) {
-					fireClose();
-					return;
-				}
-				backdropDim = 0;
-				node.style.transition = 'transform var(--motion-sheet-out) ease-in';
-				void node.offsetHeight;
-				node.style.transform = 'translateY(105%)';
-				const done = (ev: TransitionEvent) => {
-					if (ev.target !== node) return;
-					node.removeEventListener('transitionend', done);
-					fireClose();
-				};
-				node.addEventListener('transitionend', done);
-				// Belt-and-braces: transitionend can be swallowed by unmounts.
-				window.setTimeout(fireClose, 400);
+				slideOut();
 			} else {
 				backdropDim = 1;
 				node.style.transition = 'transform var(--motion-sheet-in) ease-out';
@@ -207,6 +250,7 @@
 		node.addEventListener('pointercancel', onCancel);
 		return {
 			destroy() {
+				dragSlideOut = null;
 				ro.disconnect();
 				node.removeEventListener('pointerdown', onDown);
 				node.removeEventListener('pointermove', onMove);
@@ -226,11 +270,8 @@
 		tabindex="-1"
 		aria-hidden="true"
 		onclick={requestClose}
-		style:animation={dragTouched ? 'none' : undefined}
-		style:opacity={dragTouched ? backdropDim : undefined}
-		style:transition={dragTouched && !dragging
-			? 'opacity var(--motion-sheet-out) ease-in'
-			: undefined}
+		style:opacity={backdropDim}
+		style:transition={dragging ? 'none' : 'opacity var(--motion-sheet-in) ease-out'}
 	></button>
 	<div
 		class="panel"
@@ -242,7 +283,6 @@
 		use:dragToDismiss
 		onanimationend={onPanelAnimationEnd}
 		onclickcapture={onPanelClickCapture}
-		style:animation={dragTouched && !closing ? 'none' : undefined}
 	>
 		{@render children()}
 	</div>
@@ -258,13 +298,17 @@
 		justify-content: center;
 	}
 
+	/* Enter keyframes carry NO fill: their end state IS the natural state,
+	   and a forwards fill would permanently outrank the inline styles the
+	   drag interaction writes (animations beat inline styles in the
+	   cascade for as long as they apply). */
 	.backdrop {
 		position: absolute;
 		inset: 0;
 		border: none;
 		padding: 0;
 		background: var(--color-fixed-backdrop);
-		animation: backdrop-in var(--motion-sheet-in) ease-out both;
+		animation: backdrop-in var(--motion-sheet-in) ease-out;
 	}
 
 	.closing .backdrop {
@@ -280,7 +324,7 @@
 		background: var(--color-bg-raised);
 		border-start-start-radius: var(--radius-xl);
 		border-start-end-radius: var(--radius-xl);
-		animation: sheet-in var(--motion-sheet-in) ease-out both;
+		animation: sheet-in var(--motion-sheet-in) ease-out;
 	}
 
 	.closing .panel {

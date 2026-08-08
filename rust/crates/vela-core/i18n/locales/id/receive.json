@@ -66,6 +66,7 @@
       "anyAmount": "Berapa pun",
       "invalidTitle": "Tautan pembayaran tidak valid",
       "invalidBody": "Tautan ini tidak memiliki penerima atau jaringan yang valid. Minta yang baru kepada pengirim."
-    }
+    },
+    "addressLabel": "Alamat penerimaan Anda"
   }
 }

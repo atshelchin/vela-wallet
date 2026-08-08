@@ -14,6 +14,10 @@
     "txLabelSent": "Đã gửi {{symbol}}",
     "txSentSubtitle": "Đến {{toName}} · {{networkName}}",
     "txLabelReceived": "Đã nhận {{symbol}}",
-    "txReceivedSubtitle": "Từ {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "Từ {{fromName}} · {{networkName}}",
+    "labelSent": "Đã gửi",
+    "labelReceived": "Đã nhận",
+    "toName": "Đến {{name}}",
+    "fromName": "Từ {{name}}"
   }
 }

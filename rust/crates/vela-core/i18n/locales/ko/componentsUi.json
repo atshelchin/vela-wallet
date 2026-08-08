@@ -237,7 +237,8 @@
       "allNetworks": "모든 네트워크",
       "showEvery": "모든 체인 표시",
       "clearFilter": "네트워크 필터 지우기",
-      "toggleSearch": "체인 검색"
+      "toggleSearch": "체인 검색",
+      "pillAll": "모든 네트워크"
     },
     "bugReport": {
       "title": "문제 신고",
@@ -281,6 +282,22 @@
       "closeBtn": "닫기",
       "suggested": "권장 충전액",
       "retryBtn": "충전 완료 · 다시 시도"
+    },
+    "mainNav": {
+      "wallet": "지갑",
+      "contacts": "연락처",
+      "explore": "탐색",
+      "settings": "설정"
+    },
+    "dayGroup": {
+      "today": "오늘",
+      "yesterday": "어제"
+    },
+    "commandBar": {
+      "placeholder": "검색 또는 실행"
+    },
+    "qrPlaceholder": {
+      "caption": "데모 자리 표시자 · 스캔 불가"
     }
   }
 }

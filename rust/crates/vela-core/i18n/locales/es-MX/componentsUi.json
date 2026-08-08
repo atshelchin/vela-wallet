@@ -237,7 +237,8 @@
       "allNetworks": "Todas las redes",
       "showEvery": "Mostrar todas las cadenas",
       "clearFilter": "Quitar filtro de red",
-      "toggleSearch": "Buscar cadenas"
+      "toggleSearch": "Buscar cadenas",
+      "pillAll": "Todas las redes"
     },
     "bugReport": {
       "title": "Reportar un problema",
@@ -281,6 +282,22 @@
       "closeBtn": "Cerrar",
       "suggested": "Recarga sugerida",
       "retryBtn": "Ya financié · Reintentar"
+    },
+    "mainNav": {
+      "wallet": "Cartera",
+      "contacts": "Contactos",
+      "explore": "Explorar",
+      "settings": "Configuración"
+    },
+    "dayGroup": {
+      "today": "Hoy",
+      "yesterday": "Ayer"
+    },
+    "commandBar": {
+      "placeholder": "Buscar o ejecutar"
+    },
+    "qrPlaceholder": {
+      "caption": "Marcador de demostración · no escaneable"
     }
   }
 }

@@ -237,7 +237,8 @@
       "allNetworks": "Tutte le reti",
       "showEvery": "Mostra tutte le reti",
       "clearFilter": "Cancella il filtro di rete",
-      "toggleSearch": "Cerca reti"
+      "toggleSearch": "Cerca reti",
+      "pillAll": "Tutte le reti"
     },
     "bugReport": {
       "title": "Segnala un problema",
@@ -281,6 +282,22 @@
       "closeBtn": "Chiudi",
       "suggested": "Ricarica consigliata",
       "retryBtn": "Ho ricaricato · Riprova"
+    },
+    "mainNav": {
+      "wallet": "Portafoglio",
+      "contacts": "Contatti",
+      "explore": "Esplora",
+      "settings": "Impostazioni"
+    },
+    "dayGroup": {
+      "today": "Oggi",
+      "yesterday": "Ieri"
+    },
+    "commandBar": {
+      "placeholder": "Cerca o esegui"
+    },
+    "qrPlaceholder": {
+      "caption": "Segnaposto dimostrativo · non scansionabile"
     }
   }
 }

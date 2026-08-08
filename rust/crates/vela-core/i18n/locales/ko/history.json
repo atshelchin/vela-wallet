@@ -14,6 +14,10 @@
     "txLabelSent": "{{symbol}} 보냄",
     "txSentSubtitle": "받는 곳: {{toName}} · {{networkName}}",
     "txLabelReceived": "{{symbol}} 받음",
-    "txReceivedSubtitle": "보낸 곳: {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "보낸 곳: {{fromName}} · {{networkName}}",
+    "labelSent": "보냄",
+    "labelReceived": "받음",
+    "toName": "받는 곳: {{name}}",
+    "fromName": "보낸 곳: {{name}}"
   }
 }

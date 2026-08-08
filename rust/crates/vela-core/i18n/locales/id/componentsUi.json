@@ -237,7 +237,8 @@
       "allNetworks": "Semua Jaringan",
       "showEvery": "Tampilkan semua chain",
       "clearFilter": "Hapus filter jaringan",
-      "toggleSearch": "Cari chain"
+      "toggleSearch": "Cari chain",
+      "pillAll": "Semua jaringan"
     },
     "bugReport": {
       "title": "Laporkan masalah",
@@ -281,6 +282,22 @@
       "closeBtn": "Tutup",
       "suggested": "Saran top-up",
       "retryBtn": "Sudah saya isi · Coba lagi"
+    },
+    "mainNav": {
+      "wallet": "Dompet",
+      "contacts": "Kontak",
+      "explore": "Jelajahi",
+      "settings": "Setelan"
+    },
+    "dayGroup": {
+      "today": "Hari ini",
+      "yesterday": "Kemarin"
+    },
+    "commandBar": {
+      "placeholder": "Cari atau jalankan"
+    },
+    "qrPlaceholder": {
+      "caption": "Placeholder demo · tidak dapat dipindai"
     }
   }
 }

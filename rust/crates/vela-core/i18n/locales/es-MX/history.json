@@ -14,6 +14,10 @@
     "txLabelSent": "Enviaste {{symbol}}",
     "txSentSubtitle": "Para {{toName}} · {{networkName}}",
     "txLabelReceived": "Recibiste {{symbol}}",
-    "txReceivedSubtitle": "De {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "De {{fromName}} · {{networkName}}",
+    "labelSent": "Enviado",
+    "labelReceived": "Recibido",
+    "toName": "Para {{name}}",
+    "fromName": "De {{name}}"
   }
 }

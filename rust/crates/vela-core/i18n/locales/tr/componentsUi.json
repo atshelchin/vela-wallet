@@ -237,7 +237,8 @@
       "allNetworks": "Tüm Ağlar",
       "showEvery": "Tüm zincirleri göster",
       "clearFilter": "Ağ filtresini temizle",
-      "toggleSearch": "Zincirlerde ara"
+      "toggleSearch": "Zincirlerde ara",
+      "pillAll": "Tüm ağlar"
     },
     "bugReport": {
       "title": "Sorun bildir",
@@ -281,6 +282,22 @@
       "closeBtn": "Kapat",
       "suggested": "Önerilen ekleme",
       "retryBtn": "Fonladım · Tekrar dene"
+    },
+    "mainNav": {
+      "wallet": "Cüzdan",
+      "contacts": "Kişiler",
+      "explore": "Keşfet",
+      "settings": "Ayarlar"
+    },
+    "dayGroup": {
+      "today": "Bugün",
+      "yesterday": "Dün"
+    },
+    "commandBar": {
+      "placeholder": "Ara veya çalıştır"
+    },
+    "qrPlaceholder": {
+      "caption": "Demo yer tutucu · taranamaz"
     }
   }
 }

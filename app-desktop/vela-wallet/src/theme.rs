@@ -277,6 +277,10 @@ pub const RADIUS_CARD: f32 = 16.;
 /// (both mocks, review-verified to the pixel).
 pub const BTN_H_PRIMARY: f32 = 52.;
 pub const BTN_H_SECONDARY: f32 = 48.;
+// Buttons hug long labels: heights above are minimums, and a wrapped label
+// needs breathing room inside the capsule (spec 014 long-locale fix).
+pub const BTN_PAD_X: f32 = 24.;
+pub const BTN_PAD_Y: f32 = 10.;
 /// Vertical gap between the two CTAs (24/25 in the mocks, review-measured).
 pub const GAP_BUTTONS: f32 = 24.;
 

@@ -36,10 +36,15 @@ private struct VelaButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
+        // minHeight, not a fixed height: long-locale labels wrap centered and
+        // grow the capsule instead of being clipped (spec 014 long-label fix).
         return configuration.label
             .foregroundStyle(kind == .primary ? theme.onAccent : theme.fgBase)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Tokens.Space.s24)
+            .padding(.vertical, Tokens.Space.s8)
             .frame(maxWidth: .infinity)
-            .frame(height: Tokens.Control.lg)
+            .frame(minHeight: Tokens.Control.lg)
             .background {
                 switch kind {
                 case .primary:

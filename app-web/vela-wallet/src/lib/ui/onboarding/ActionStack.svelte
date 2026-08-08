@@ -49,8 +49,11 @@
 		align-items: center;
 		justify-content: center;
 		width: 100%;
-		height: var(--size-control-lg);
+		/* Minimum, not fixed: long-locale labels wrap and grow the row
+		   instead of overflowing it (spec 014 long-label fix). */
+		min-height: var(--size-control-lg);
 		padding-inline: var(--space-3xl);
+		padding-block: var(--space-md);
 		background: var(--color-bg-sunken);
 		border: var(--border-hairline) solid var(--color-border-base);
 		border-radius: var(--radius-full);
@@ -58,7 +61,8 @@
 		font-family: var(--font-ui);
 		font-size: var(--text-xl);
 		font-weight: var(--weight-semibold);
-		line-height: var(--leading-none);
+		line-height: var(--leading-tight);
+		text-align: center;
 		cursor: pointer;
 		user-select: none;
 		transition:

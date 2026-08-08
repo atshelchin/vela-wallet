@@ -122,6 +122,8 @@ internal fun ButtonLabel(text: String, color: androidx.compose.ui.graphics.Color
         textAlign = TextAlign.Center,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = VelaSpacing.xl),
+            // Vertical padding keeps wrapped long-locale labels off the pill
+            // edges; the surface's heightIn(min) grows with them (spec 014).
+            .padding(horizontal = VelaSpacing.xl, vertical = VelaSpacing.md),
     )
 }

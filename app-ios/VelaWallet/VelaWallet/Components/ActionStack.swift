@@ -58,10 +58,15 @@ private struct SecondaryRowStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
+        // minHeight, not a fixed height: long-locale labels wrap centered and
+        // grow the row instead of being clipped (spec 014 long-label fix).
         return configuration.label
             .foregroundStyle(theme.fgBase)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, Tokens.Space.s24)
+            .padding(.vertical, Tokens.Space.s8)
             .frame(maxWidth: .infinity)
-            .frame(height: FlowGeometry.actionRowHeight)
+            .frame(minHeight: FlowGeometry.actionRowHeight)
             .background {
                 RoundedRectangle(cornerRadius: Tokens.Radius.r16)
                     .fill(theme.bgSunken)

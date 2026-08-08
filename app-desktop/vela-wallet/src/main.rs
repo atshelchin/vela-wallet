@@ -5,10 +5,14 @@
     windows_subsystem = "windows"
 )]
 
+mod icons;
+mod identicon;
 mod loc;
 mod onboarding;
+mod raster;
 mod theme;
 mod ui;
+mod wallet;
 mod window_frame;
 
 use gpui::{
@@ -17,6 +21,27 @@ use gpui::{
 };
 use onboarding::OnboardingPage;
 use theme::{WINDOW_H, WINDOW_W};
+use wallet::page::WalletPage;
+
+/// Which root the window hosts. `VELA_PAGE=wallet|gallery` (spec 015
+/// research.md D4) — same env-pin family as `VELA_THEME`/`VELA_LANG`; the
+/// default remains the onboarding flow.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum RootPage {
+    Onboarding,
+    Wallet,
+    Gallery,
+}
+
+impl RootPage {
+    fn from_env() -> Self {
+        match std::env::var("VELA_PAGE").as_deref() {
+            Ok("wallet") => Self::Wallet,
+            Ok("gallery") => Self::Gallery,
+            _ => Self::Onboarding,
+        }
+    }
+}
 
 // TODO(i18n): menu labels are English-only until the corpus grows menu keys.
 actions!(vela, [Quit, HideApp, HideOthers, ShowAll, ToggleFullScreen]);
@@ -24,6 +49,27 @@ actions!(vela, [Quit, HideApp, HideOthers, ShowAll, ToggleFullScreen]);
 /// Open the (only) application window. Called at startup, and again from the
 /// reopen handler when the Dock icon is clicked after the window was closed.
 fn open_main_window(cx: &mut App) {
+    match RootPage::from_env() {
+        RootPage::Onboarding => {
+            open_window_with(cx, |window, cx| cx.new(|cx| OnboardingPage::new(window, cx)))
+        }
+        RootPage::Wallet => {
+            open_window_with(cx, |window, cx| {
+                cx.new(|cx| WalletPage::new(false, window, cx))
+            })
+        }
+        RootPage::Gallery => {
+            open_window_with(cx, |window, cx| {
+                cx.new(|cx| WalletPage::new(true, window, cx))
+            })
+        }
+    }
+}
+
+fn open_window_with<V: gpui::Render + 'static>(
+    cx: &mut App,
+    build: impl FnOnce(&mut gpui::Window, &mut App) -> gpui::Entity<V>,
+) {
     let bounds = Bounds::centered(None, size(px(WINDOW_W), px(WINDOW_H)), cx);
 
     cx.open_window(
@@ -48,7 +94,7 @@ fn open_main_window(cx: &mut App) {
             }),
             ..Default::default()
         },
-        |window, cx| cx.new(|cx| OnboardingPage::new(window, cx)),
+        build,
     )
     .expect("failed to open the main window");
 }

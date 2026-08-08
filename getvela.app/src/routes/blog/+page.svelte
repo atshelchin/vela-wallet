@@ -38,7 +38,7 @@
 	<header class="intro">
 		<h1>Blog</h1>
 		<p>Build notes, release notes, and the story of building Vela in public.</p>
-		<a class="rss" href="/blog/rss.xml">RSS feed</a>
+		<a class="rss" href="/blog/rss.xml" data-sveltekit-reload>RSS feed</a>
 	</header>
 
 	{#if data.posts.length === 0}

@@ -49,7 +49,9 @@
 				<a href="https://x.com/realvelawallet" target="_blank" rel="noopener">X / Twitter</a>
 				<a href="https://t.me/velawallet" target="_blank" rel="noopener">Telegram</a>
 				<a href="https://discord.gg/S6A8RyCk6" target="_blank" rel="noopener">Discord</a>
-				<a href={resolve('/blog/rss.xml')}>RSS</a>
+				<!-- rss.xml is a prerendered endpoint, invisible to the client router —
+				     without a full-page load the URL falls through to blog/[slug] and 404s. -->
+				<a href={resolve('/blog/rss.xml')} data-sveltekit-reload>RSS</a>
 			</div>
 			<div class="col">
 				<h3>Legal</h3>

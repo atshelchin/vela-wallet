@@ -26,6 +26,7 @@ import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
 import app.getvela.wallet.core.designsystem.tokens.VelaMotion
 import app.getvela.wallet.core.designsystem.tokens.VelaOnAccent
+import app.getvela.wallet.core.designsystem.tokens.VelaOpacity
 import app.getvela.wallet.core.designsystem.tokens.VelaRadius
 import app.getvela.wallet.core.designsystem.tokens.VelaSizing
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
@@ -34,14 +35,17 @@ import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 /**
  * Vela CTA buttons: pill shape (DV-002), 52dp control height, spring press-scale
  * (design-system interactive-feedback rule) on top of the Material ripple.
+ * Disabled (spec 014, mock A1) = the whole surface + label at
+ * [VelaOpacity.disabled] — dimmed accent, never a gray fill.
  */
 @Composable
 fun VelaPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
-    VelaButtonSurface(onClick = onClick, modifier = modifier) { pressModifier ->
+    VelaButtonSurface(onClick = onClick, modifier = modifier, enabled = enabled) { pressModifier ->
         Box(
             modifier = pressModifier.background(VelaTheme.colors.accentBase),
             contentAlignment = Alignment.Center,
@@ -56,8 +60,9 @@ fun VelaSecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
-    VelaButtonSurface(onClick = onClick, modifier = modifier) { pressModifier ->
+    VelaButtonSurface(onClick = onClick, modifier = modifier, enabled = enabled) { pressModifier ->
         Box(
             modifier = pressModifier.border(
                 width = VelaBorder.hairline,
@@ -72,10 +77,12 @@ fun VelaSecondaryButton(
     }
 }
 
+/** Shared press-feedback surface; internal so VelaActionStack rows reuse it. */
 @Composable
-private fun VelaButtonSurface(
+internal fun VelaButtonSurface(
     onClick: () -> Unit,
     modifier: Modifier,
+    enabled: Boolean = true,
     content: @Composable (Modifier) -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -91,19 +98,21 @@ private fun VelaButtonSurface(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                alpha = if (enabled) 1f else VelaOpacity.disabled
             }
             .heightIn(min = VelaSizing.controlLg)
             .clip(RoundedCornerShape(VelaRadius.full))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
+                enabled = enabled,
                 onClick = onClick,
             ),
     )
 }
 
 @Composable
-private fun ButtonLabel(text: String, color: androidx.compose.ui.graphics.Color) {
+internal fun ButtonLabel(text: String, color: androidx.compose.ui.graphics.Color) {
     Text(
         text = text,
         color = color,

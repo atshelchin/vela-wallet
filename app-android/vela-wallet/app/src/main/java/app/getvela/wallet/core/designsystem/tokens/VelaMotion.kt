@@ -20,6 +20,13 @@ object VelaMotion {
     const val pressScaleRow: Float = 0.98f
     const val pressScaleFab: Float = 0.92f
 
+    /**
+     * Spec 014: how long the address strip shows its transient "copied"
+     * confirmation before reverting (visual feedback only — not a retry timer;
+     * not in the DTCG export).
+     */
+    const val copiedFeedbackHold: Int = 1500
+
     // motion.spring / springGentle — RN Reanimated parameters (damping/stiffness/mass),
     // kept verbatim for the drift test. Compose springs below are the perceptual
     // translation (research D12): Reanimated and Compose units are not compatible.

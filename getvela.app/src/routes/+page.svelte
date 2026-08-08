@@ -511,66 +511,66 @@
 						<th></th>
 						<th>Vela</th>
 						<th>MetaMask</th>
-						<th>Rabby</th>
 						<th>Base Account</th>
-						<th>Clave</th>
 					</tr>
 				</thead>
 				<tbody>
-					<tr
-						><td>Where your signing key lives</td><td class="yes"
-							>Apple / Google Password Manager</td
-						><td class="warn">In the app</td><td class="warn">In the app</td><td class="yes"
-							>Apple / Google Password Manager</td
-						><td class="yes">Apple / Google Password Manager</td></tr
-					>
-					<tr
-						><td>Key ever exposed to the app?</td><td class="yes">No</td><td class="warn">Yes</td
-						><td class="warn">Yes</td><td class="yes">No</td><td class="yes">No</td></tr
-					>
-					<tr
-						><td>Fully open source (app + backend)</td><td class="yes">All of it</td><td
-							class="warn">Partial</td
-						><td class="warn">Partial</td><td class="warn">Contracts only</td><td class="warn"
-							>Contracts only</td
-						></tr
-					>
-					<tr
-						><td>Self-host the bundler &amp; our services</td><td class="yes">Yes</td><td class="no"
-							>No</td
-						><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr
-					>
-					<tr
-						><td>Your account is a standard, audited Safe</td><td class="yes">Safe v1.4.1</td><td
-							class="warn">EOA</td
-						><td class="warn">EOA</td><td class="no">Coinbase's own</td><td class="no"
-							>Clave's own</td
-						></tr
-					>
-					<tr
-						><td>Networks supported</td><td class="yes">12 built-in + custom</td><td class="yes"
-							>Any EVM</td
-						><td class="yes">Any EVM</td><td class="warn">Base-first, few</td><td class="warn"
-							>Base / Arbitrum</td
-						></tr
-					>
-					<tr
-						><td>Keeps working if the vendor disappears</td><td class="yes">Yes</td><td class="yes"
-							>Yes</td
-						><td class="yes">Yes</td><td class="warn">At risk</td><td class="warn">At risk</td></tr
-					>
-					<tr
-						><td>No NFT / DeFi / swap bloat</td><td class="yes">Minimal</td><td class="warn"
-							>Lots</td
-						><td class="warn">Lots</td><td class="warn">Lots</td><td class="warn">Lots</td></tr
-					>
-					<tr
-						><td>No seed phrase or recovery key</td><td class="yes">None</td><td class="no"
-							>Seed phrase</td
-						><td class="no">Seed phrase</td><td class="no">Recovery key</td><td class="warn"
-							>Email / social recovery</td
-						></tr
-					>
+					<tr>
+						<td>Where your signing key lives</td>
+						<td class="yes">Apple / Google Password Manager</td>
+						<td class="warn">In the app</td>
+						<td class="yes">Apple / Google Password Manager</td>
+					</tr>
+					<tr>
+						<td>Key ever exposed to the app?</td>
+						<td class="yes">No</td>
+						<td class="warn">Yes</td>
+						<td class="yes">No</td>
+					</tr>
+					<tr>
+						<td>Open source</td>
+						<td class="yes"
+							><a
+								href="https://github.com/orgs/mondaylabsltd/repositories"
+								target="_blank"
+								rel="noopener">All of it</a
+							></td
+						>
+						<td class="warn">Partial</td>
+						<td class="warn">Partial</td>
+					</tr>
+					<tr>
+						<td>Account contract</td>
+						<td class="yes"><a href="/docs/security-audits">Safe v1.4.1 — ecosystem standard</a></td
+						>
+						<td class="warn">EOA</td>
+						<td class="warn">Custom (audited)</td>
+					</tr>
+					<tr>
+						<td>Networks supported</td>
+						<td>12 built-in + custom</td>
+						<td class="yes">Any EVM</td>
+						<td class="warn">Base-first, few</td>
+					</tr>
+					<tr>
+						<td>Keeps working if the vendor disappears</td>
+						<td class="yes"
+							>Yes —
+							<a
+								href="https://github.com/mondaylabsltd/vela-wallet#self-deploy-service-endpoints"
+								target="_blank"
+								rel="noopener">self-hostable</a
+							></td
+						>
+						<td class="yes">Yes</td>
+						<td class="warn">Signing depends on vendor infra</td>
+					</tr>
+					<tr>
+						<td>What you must back up</td>
+						<td class="yes">Nothing — your passkey syncs automatically</td>
+						<td class="no">Seed phrase</td>
+						<td class="no">Recovery key</td>
+					</tr>
 				</tbody>
 			</table>
 		</div>
@@ -883,8 +883,8 @@
 						target="_blank"
 						rel="noopener">public</a
 					>
-					for review. Every contract we depend on, its audit report, and the known issues we track
-					are documented in
+					for review. Every contract we depend on, its audit report, and the known issues we track are
+					documented in
 					<a
 						href={resolve('/docs/security-audits')}
 						data-rybbit-event="audits_open"
@@ -1304,6 +1304,50 @@
 		margin: 0;
 	}
 
+	/* ── Text links ── */
+	/* Inline links keep the surrounding ink color — no accent highlight. The
+	   underline offset clears descenders (g, y) so the line stays unbroken. */
+	.why-content a,
+	.does-less-content a,
+	.pillar-content a,
+	.tech-details a,
+	.compare-table td a,
+	.bm-card a,
+	details a {
+		color: inherit;
+		text-decoration: underline;
+		text-underline-offset: 4px;
+		transition: color 0.15s;
+	}
+	.why-content a:hover,
+	.does-less-content a:hover,
+	.pillar-content a:hover,
+	.tech-details a:hover,
+	.compare-table td a:hover,
+	.bm-card a:hover,
+	details a:hover {
+		color: var(--accent);
+	}
+	/* External links get a trailing lucide external-link glyph, masked in
+	   currentColor so it follows the link color. */
+	.why-content a[target='_blank']::after,
+	.does-less-content a[target='_blank']::after,
+	.pillar-content a[target='_blank']::after,
+	.tech-details a[target='_blank']::after,
+	.compare-table td a[target='_blank']::after,
+	.bm-card a[target='_blank']::after,
+	details a[target='_blank']::after {
+		content: '';
+		display: inline-block;
+		width: 0.72em;
+		height: 0.72em;
+		margin-left: 0.28em;
+		vertical-align: -0.02em;
+		background: currentColor;
+		mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M15 3h6v6'/%3E%3Cpath d='M10 14 21 3'/%3E%3Cpath d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'/%3E%3C/svg%3E")
+			center / contain no-repeat;
+	}
+
 	/* ── Hero Visual ── */
 	.hero-visual {
 		display: flex;
@@ -1325,7 +1369,7 @@
 	.trust-tagline a {
 		color: var(--text);
 		text-decoration: underline;
-		text-underline-offset: 2px;
+		text-underline-offset: 4px;
 	}
 	.trust-tagline a:hover {
 		color: var(--accent);
@@ -1354,7 +1398,7 @@
 	.trust-chip a {
 		color: var(--text);
 		text-decoration: underline;
-		text-underline-offset: 2px;
+		text-underline-offset: 4px;
 	}
 	.trust-chip a:hover {
 		color: var(--accent);
@@ -1416,12 +1460,6 @@
 	.does-less-content p:last-child {
 		margin-bottom: 0;
 	}
-	.does-less-content a {
-		color: var(--accent);
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-
 	/* ── Why ── */
 	.why {
 		padding: 120px 0 60px;
@@ -1500,11 +1538,6 @@
 	.pillar-content p:last-of-type {
 		margin-bottom: 0;
 	}
-	.pillar-content a {
-		color: var(--accent);
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
 	/* ── Tech Details ── */
 	.tech-details {
 		max-width: 640px;
@@ -1543,12 +1576,6 @@
 		color: var(--text);
 		font-weight: 500;
 	}
-	.tech-details a {
-		color: var(--accent);
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-
 	/* ── Compare ── */
 	.compare h2,
 	.compare .section-desc {
@@ -1571,7 +1598,7 @@
 		width: 100%;
 		border-collapse: collapse;
 		font-size: 0.82rem;
-		min-width: 820px;
+		min-width: 640px;
 	}
 	.compare-table th,
 	.compare-table td {
@@ -1587,7 +1614,7 @@
 		vertical-align: bottom;
 	}
 	.compare-table thead th:first-child {
-		width: 22%;
+		width: 28%;
 	}
 	.compare-table tbody td:first-child {
 		color: var(--text-secondary);
@@ -1602,14 +1629,6 @@
 	.compare-table td.no {
 		color: var(--text-tertiary);
 	}
-	.compare-table th:nth-child(2),
-	.compare-table td:nth-child(2) {
-		background: var(--accent-soft);
-	}
-	.compare-table thead th:nth-child(2) {
-		color: var(--accent);
-	}
-
 	/* ── Business Model ── */
 	.business-model h2 {
 		text-align: center;
@@ -1662,11 +1681,6 @@
 	.bm-card p:last-child {
 		margin-bottom: 0;
 	}
-	.bm-card a {
-		color: var(--accent);
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
 	.bm-note {
 		text-align: center;
 		color: var(--text-tertiary);
@@ -1715,12 +1729,6 @@
 		line-height: 1.7;
 		font-size: 0.88rem;
 	}
-	details a {
-		color: var(--accent);
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-
 	/* ── Notify ── */
 	.notify {
 		text-align: center;

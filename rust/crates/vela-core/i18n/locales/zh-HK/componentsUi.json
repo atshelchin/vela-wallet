@@ -198,7 +198,8 @@
       "allNetworks": "所有網絡",
       "showEvery": "顯示每條區塊鏈",
       "clearFilter": "清除網絡篩選",
-      "toggleSearch": "搜尋區塊鏈"
+      "toggleSearch": "搜尋區塊鏈",
+      "pillAll": "全部網絡"
     },
     "signingApprove": {
       "spendingCap": "授權上限",
@@ -281,6 +282,22 @@
       "closeBtn": "關閉",
       "suggested": "建議注資額",
       "retryBtn": "我已注資 · 重試"
+    },
+    "mainNav": {
+      "wallet": "錢包",
+      "contacts": "聯絡人",
+      "explore": "探索",
+      "settings": "設定"
+    },
+    "dayGroup": {
+      "today": "今天",
+      "yesterday": "昨天"
+    },
+    "commandBar": {
+      "placeholder": "搜尋或執行"
+    },
+    "qrPlaceholder": {
+      "caption": "示範佔位圖案 · 無法掃描"
     }
   }
 }

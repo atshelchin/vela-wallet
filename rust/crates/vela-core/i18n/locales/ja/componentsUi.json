@@ -237,7 +237,8 @@
       "allNetworks": "すべてのネットワーク",
       "showEvery": "すべてのチェーンを表示",
       "clearFilter": "ネットワークフィルターをクリア",
-      "toggleSearch": "チェーンを検索"
+      "toggleSearch": "チェーンを検索",
+      "pillAll": "すべてのネットワーク"
     },
     "bugReport": {
       "title": "問題を報告",
@@ -281,6 +282,22 @@
       "closeBtn": "閉じる",
       "suggested": "推奨入金額",
       "retryBtn": "入金しました · 再試行"
+    },
+    "mainNav": {
+      "wallet": "ウォレット",
+      "contacts": "連絡先",
+      "explore": "探索",
+      "settings": "設定"
+    },
+    "dayGroup": {
+      "today": "今日",
+      "yesterday": "昨日"
+    },
+    "commandBar": {
+      "placeholder": "検索または実行"
+    },
+    "qrPlaceholder": {
+      "caption": "デモ用プレースホルダー · スキャン不可"
     }
   }
 }

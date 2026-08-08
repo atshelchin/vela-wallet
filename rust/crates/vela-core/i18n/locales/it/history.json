@@ -14,6 +14,10 @@
     "txLabelSent": "Inviato {{symbol}}",
     "txSentSubtitle": "A {{toName}} · {{networkName}}",
     "txLabelReceived": "Ricevuto {{symbol}}",
-    "txReceivedSubtitle": "Da {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "Da {{fromName}} · {{networkName}}",
+    "labelSent": "Inviato",
+    "labelReceived": "Ricevuto",
+    "toName": "A {{name}}",
+    "fromName": "Da {{name}}"
   }
 }

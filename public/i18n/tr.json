@@ -358,7 +358,8 @@
    "anyAmount": "Herhangi bir tutar",
    "invalidTitle": "Geçersiz ödeme bağlantısı",
    "invalidBody": "Bu bağlantıda geçerli bir alıcı veya ağ eksik. Gönderenden yeni bir bağlantı isteyin."
-  }
+  },
+  "addressLabel": "Alma adresiniz"
  },
  "assets": {
   "sectionTitle": "Varlıklar",
@@ -450,7 +451,11 @@
   "txLabelSent": "{{symbol}} Gönderildi",
   "txSentSubtitle": "Alıcı: {{toName}} · {{networkName}}",
   "txLabelReceived": "{{symbol}} Alındı",
-  "txReceivedSubtitle": "Gönderen: {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "Gönderen: {{fromName}} · {{networkName}}",
+  "labelSent": "Gönderildi",
+  "labelReceived": "Alındı",
+  "toName": "Alıcı: {{name}}",
+  "fromName": "Gönderen: {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1116,7 +1121,8 @@
    "allNetworks": "Tüm Ağlar",
    "showEvery": "Tüm zincirleri göster",
    "clearFilter": "Ağ filtresini temizle",
-   "toggleSearch": "Zincirlerde ara"
+   "toggleSearch": "Zincirlerde ara",
+   "pillAll": "Tüm ağlar"
   },
   "bugReport": {
    "title": "Sorun bildir",
@@ -1160,6 +1166,22 @@
    "closeBtn": "Kapat",
    "suggested": "Önerilen ekleme",
    "retryBtn": "Fonladım · Tekrar dene"
+  },
+  "mainNav": {
+   "wallet": "Cüzdan",
+   "contacts": "Kişiler",
+   "explore": "Keşfet",
+   "settings": "Ayarlar"
+  },
+  "dayGroup": {
+   "today": "Bugün",
+   "yesterday": "Dün"
+  },
+  "commandBar": {
+   "placeholder": "Ara veya çalıştır"
+  },
+  "qrPlaceholder": {
+   "caption": "Demo yer tutucu · taranamaz"
   }
  },
  "settingsModals": {

@@ -358,7 +358,8 @@
    "anyAmount": "Số lượng bất kỳ",
    "invalidTitle": "Liên kết thanh toán không hợp lệ",
    "invalidBody": "Liên kết này thiếu người nhận hoặc mạng hợp lệ. Hãy yêu cầu người gửi gửi liên kết mới."
-  }
+  },
+  "addressLabel": "Địa chỉ nhận của bạn"
  },
  "assets": {
   "sectionTitle": "Tài sản",
@@ -450,7 +451,11 @@
   "txLabelSent": "Đã gửi {{symbol}}",
   "txSentSubtitle": "Đến {{toName}} · {{networkName}}",
   "txLabelReceived": "Đã nhận {{symbol}}",
-  "txReceivedSubtitle": "Từ {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "Từ {{fromName}} · {{networkName}}",
+  "labelSent": "Đã gửi",
+  "labelReceived": "Đã nhận",
+  "toName": "Đến {{name}}",
+  "fromName": "Từ {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1116,7 +1121,8 @@
    "allNetworks": "Tất cả các mạng",
    "showEvery": "Hiển thị mọi chain",
    "clearFilter": "Xóa bộ lọc mạng",
-   "toggleSearch": "Tìm chain"
+   "toggleSearch": "Tìm chain",
+   "pillAll": "Tất cả mạng"
   },
   "bugReport": {
    "title": "Báo lỗi",
@@ -1160,6 +1166,22 @@
    "closeBtn": "Đóng",
    "suggested": "Mức nạp đề xuất",
    "retryBtn": "Tôi đã nạp · Thử lại"
+  },
+  "mainNav": {
+   "wallet": "Ví",
+   "contacts": "Danh bạ",
+   "explore": "Khám phá",
+   "settings": "Cài đặt"
+  },
+  "dayGroup": {
+   "today": "Hôm nay",
+   "yesterday": "Hôm qua"
+  },
+  "commandBar": {
+   "placeholder": "Tìm kiếm hoặc chạy lệnh"
+  },
+  "qrPlaceholder": {
+   "caption": "Hình giữ chỗ demo · không quét được"
   }
  },
  "settingsModals": {

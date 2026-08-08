@@ -66,6 +66,7 @@
       "anyAmount": "Beliebiger Betrag",
       "invalidTitle": "Ungültiger Zahlungslink",
       "invalidBody": "In diesem Link fehlt ein gültiger Empfänger oder ein gültiges Netzwerk. Bitten Sie den Absender um einen neuen."
-    }
+    },
+    "addressLabel": "Ihre Empfangsadresse"
   }
 }

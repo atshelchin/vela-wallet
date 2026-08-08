@@ -358,7 +358,8 @@
    "anyAmount": "Berapa pun",
    "invalidTitle": "Tautan pembayaran tidak valid",
    "invalidBody": "Tautan ini tidak memiliki penerima atau jaringan yang valid. Minta yang baru kepada pengirim."
-  }
+  },
+  "addressLabel": "Alamat penerimaan Anda"
  },
  "assets": {
   "sectionTitle": "Aset",
@@ -450,7 +451,11 @@
   "txLabelSent": "Terkirim {{symbol}}",
   "txSentSubtitle": "Ke {{toName}} · {{networkName}}",
   "txLabelReceived": "Diterima {{symbol}}",
-  "txReceivedSubtitle": "Dari {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "Dari {{fromName}} · {{networkName}}",
+  "labelSent": "Terkirim",
+  "labelReceived": "Diterima",
+  "toName": "Ke {{name}}",
+  "fromName": "Dari {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1116,7 +1121,8 @@
    "allNetworks": "Semua Jaringan",
    "showEvery": "Tampilkan semua chain",
    "clearFilter": "Hapus filter jaringan",
-   "toggleSearch": "Cari chain"
+   "toggleSearch": "Cari chain",
+   "pillAll": "Semua jaringan"
   },
   "bugReport": {
    "title": "Laporkan masalah",
@@ -1160,6 +1166,22 @@
    "closeBtn": "Tutup",
    "suggested": "Saran top-up",
    "retryBtn": "Sudah saya isi · Coba lagi"
+  },
+  "mainNav": {
+   "wallet": "Dompet",
+   "contacts": "Kontak",
+   "explore": "Jelajahi",
+   "settings": "Setelan"
+  },
+  "dayGroup": {
+   "today": "Hari ini",
+   "yesterday": "Kemarin"
+  },
+  "commandBar": {
+   "placeholder": "Cari atau jalankan"
+  },
+  "qrPlaceholder": {
+   "caption": "Placeholder demo · tidak dapat dipindai"
   }
  },
  "settingsModals": {

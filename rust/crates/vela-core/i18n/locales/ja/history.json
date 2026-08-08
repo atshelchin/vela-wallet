@@ -14,6 +14,10 @@
     "txLabelSent": "{{symbol}} を送金",
     "txSentSubtitle": "宛先: {{toName}} · {{networkName}}",
     "txLabelReceived": "{{symbol}} を受取",
-    "txReceivedSubtitle": "差出人: {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "差出人: {{fromName}} · {{networkName}}",
+    "labelSent": "送金",
+    "labelReceived": "受取",
+    "toName": "宛先: {{name}}",
+    "fromName": "差出人: {{name}}"
   }
 }

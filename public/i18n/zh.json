@@ -365,7 +365,8 @@
    "anyAmount": "任意金额",
    "invalidTitle": "无效的收款链接",
    "invalidBody": "此链接缺少有效的收款地址或网络，请向发送方索取新链接。"
-  }
+  },
+  "addressLabel": "你的收款地址"
  },
  "assets": {
   "sectionTitle": "资产",
@@ -457,7 +458,11 @@
   "txLabelSent": "已发送 {{symbol}}",
   "txSentSubtitle": "至 {{toName}} · {{networkName}}",
   "txLabelReceived": "已收到 {{symbol}}",
-  "txReceivedSubtitle": "来自 {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "来自 {{fromName}} · {{networkName}}",
+  "labelSent": "已发送",
+  "labelReceived": "已收到",
+  "toName": "至 {{name}}",
+  "fromName": "来自 {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1087,7 +1092,8 @@
    "allNetworks": "所有网络",
    "showEvery": "显示所有链",
    "clearFilter": "清除网络筛选",
-   "toggleSearch": "搜索链"
+   "toggleSearch": "搜索链",
+   "pillAll": "全部网络"
   },
   "signingApprove": {
    "spendingCap": "授权上限",
@@ -1170,6 +1176,22 @@
    "copied": "已复制",
    "retryBtn": "我已充值 · 重试交易",
    "closeBtn": "关闭"
+  },
+  "mainNav": {
+   "wallet": "钱包",
+   "contacts": "通讯录",
+   "explore": "探索",
+   "settings": "设置"
+  },
+  "dayGroup": {
+   "today": "今天",
+   "yesterday": "昨天"
+  },
+  "commandBar": {
+   "placeholder": "搜索或执行"
+  },
+  "qrPlaceholder": {
+   "caption": "演示占位图案 · 不可扫描"
   }
  },
  "settingsModals": {

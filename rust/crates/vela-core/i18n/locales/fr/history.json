@@ -14,6 +14,10 @@
     "txLabelSent": "{{symbol}} envoyés",
     "txSentSubtitle": "À {{toName}} · {{networkName}}",
     "txLabelReceived": "{{symbol}} reçus",
-    "txReceivedSubtitle": "De {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "De {{fromName}} · {{networkName}}",
+    "labelSent": "Envoyé",
+    "labelReceived": "Reçu",
+    "toName": "À {{name}}",
+    "fromName": "De {{name}}"
   }
 }

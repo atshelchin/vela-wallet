@@ -66,6 +66,7 @@
       "anyAmount": "Số lượng bất kỳ",
       "invalidTitle": "Liên kết thanh toán không hợp lệ",
       "invalidBody": "Liên kết này thiếu người nhận hoặc mạng hợp lệ. Hãy yêu cầu người gửi gửi liên kết mới."
-    }
+    },
+    "addressLabel": "Địa chỉ nhận của bạn"
   }
 }

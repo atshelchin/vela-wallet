@@ -20,7 +20,17 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
 ] }
 # Desktop has no wasm size budget, so all 15 locale catalogs compile in and
 # language switch needs no I/O (spec 004 FR-014 leaves this choice per-platform).
-vela-core = { path = "../../rust/crates/vela-core", features = ["i18n-all"] }
+vela-core = { path = "../../rust/crates/vela-core", features = [
+  "i18n-all",
+  # Identicon avatars as PNG bytes (spec 015 research.md D1): gpui's svg() is a
+  # monochrome-mask renderer with a null AssetSource at rev c97b7c0, so the
+  # desktop draws the same rasterization Android/iOS decode.
+  "identicon-raster",
+] }
+# Icon rasterization (spec 015 research.md D2): the 24×24 corpus SVGs are tinted
+# by string substitution and rasterized per (icon, color, size). Same crate the
+# vela-core feature already brings in — no new renderer.
+resvg = { version = "0.45", default-features = false }
 
 # Lottie playback for the launch animation (spec 012). Three things about this
 # line are load-bearing — see specs/012-launch-animation-lottie/research.md D2:

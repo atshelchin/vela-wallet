@@ -237,7 +237,8 @@
       "allNetworks": "Все сети",
       "showEvery": "Показать все сети",
       "clearFilter": "Сбросить фильтр сетей",
-      "toggleSearch": "Поиск сетей"
+      "toggleSearch": "Поиск сетей",
+      "pillAll": "Все сети"
     },
     "bugReport": {
       "title": "Сообщить о проблеме",
@@ -281,6 +282,22 @@
       "closeBtn": "Закрыть",
       "suggested": "Рекомендуемое пополнение",
       "retryBtn": "Пополнено · Повторить"
+    },
+    "mainNav": {
+      "wallet": "Кошелёк",
+      "contacts": "Контакты",
+      "explore": "Обзор",
+      "settings": "Настройки"
+    },
+    "dayGroup": {
+      "today": "Сегодня",
+      "yesterday": "Вчера"
+    },
+    "commandBar": {
+      "placeholder": "Найти или выполнить"
+    },
+    "qrPlaceholder": {
+      "caption": "Демонстрационный шаблон · не сканируется"
     }
   }
 }

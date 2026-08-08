@@ -66,6 +66,7 @@
       "anyAmount": "Tout montant",
       "invalidTitle": "Lien de paiement invalide",
       "invalidBody": "Ce lien ne contient pas de destinataire ou de réseau valide. Demandez-en un nouveau à l'expéditeur."
-    }
+    },
+    "addressLabel": "Votre adresse de réception"
   }
 }

@@ -358,7 +358,8 @@
    "anyAmount": "任意の金額",
    "invalidTitle": "無効な支払いリンク",
    "invalidBody": "このリンクには有効な受取人またはネットワークがありません。送金者に新しいリンクを依頼してください。"
-  }
+  },
+  "addressLabel": "受け取りアドレス"
  },
  "assets": {
   "sectionTitle": "資産",
@@ -450,7 +451,11 @@
   "txLabelSent": "{{symbol}} を送金",
   "txSentSubtitle": "宛先: {{toName}} · {{networkName}}",
   "txLabelReceived": "{{symbol}} を受取",
-  "txReceivedSubtitle": "差出人: {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "差出人: {{fromName}} · {{networkName}}",
+  "labelSent": "送金",
+  "labelReceived": "受取",
+  "toName": "宛先: {{name}}",
+  "fromName": "差出人: {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1116,7 +1121,8 @@
    "allNetworks": "すべてのネットワーク",
    "showEvery": "すべてのチェーンを表示",
    "clearFilter": "ネットワークフィルターをクリア",
-   "toggleSearch": "チェーンを検索"
+   "toggleSearch": "チェーンを検索",
+   "pillAll": "すべてのネットワーク"
   },
   "bugReport": {
    "title": "問題を報告",
@@ -1160,6 +1166,22 @@
    "closeBtn": "閉じる",
    "suggested": "推奨入金額",
    "retryBtn": "入金しました · 再試行"
+  },
+  "mainNav": {
+   "wallet": "ウォレット",
+   "contacts": "連絡先",
+   "explore": "探索",
+   "settings": "設定"
+  },
+  "dayGroup": {
+   "today": "今日",
+   "yesterday": "昨日"
+  },
+  "commandBar": {
+   "placeholder": "検索または実行"
+  },
+  "qrPlaceholder": {
+   "caption": "デモ用プレースホルダー · スキャン不可"
   }
  },
  "settingsModals": {

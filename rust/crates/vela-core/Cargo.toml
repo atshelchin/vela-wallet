@@ -37,6 +37,13 @@ default = []
 #   cargo tree -p vela-core-wasm   | grep -c crux   # must be > 0
 crux = ["dep:crux_core"]
 
+# PNG rasterization of the circular identicon (spec 015-wallet-home-ui,
+# research.md D1). DEFAULT OFF for the same reason as `crux`: with the feature
+# off, resvg is not in the dependency graph, so the wasm build cannot grow.
+# Enabled by vela-core-uniffi (Android/iOS decode the PNG natively) and by
+# app-desktop (decodes via the `image` crate into a gpui RenderImage).
+identicon-raster = ["dep:resvg"]
+
 # TypeScript mirrors of the wire types, emitted by
 # `src/bin/generate_onboarding_bindings.rs`. Build-time only.
 bindings = ["dep:ts-rs", "crux"]
@@ -79,6 +86,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 crux_core = { workspace = true, optional = true }
 ts-rs = { workspace = true, optional = true }
+resvg = { workspace = true, optional = true }
 
 [[bin]]
 name = "generate_onboarding_bindings"

@@ -358,7 +358,8 @@
    "anyAmount": "任意金額",
    "invalidTitle": "無效的付款連結",
    "invalidBody": "此連結缺少有效的收款人或網絡，請向發送方索取新連結。"
-  }
+  },
+  "addressLabel": "你的收款地址"
  },
  "assets": {
   "sectionTitle": "資產",
@@ -450,7 +451,11 @@
   "txLabelSent": "已發送 {{symbol}}",
   "txSentSubtitle": "至 {{toName}} · {{networkName}}",
   "txLabelReceived": "已接收 {{symbol}}",
-  "txReceivedSubtitle": "來自 {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "來自 {{fromName}} · {{networkName}}",
+  "labelSent": "已發送",
+  "labelReceived": "已接收",
+  "toName": "至 {{name}}",
+  "fromName": "來自 {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1077,7 +1082,8 @@
    "allNetworks": "所有網絡",
    "showEvery": "顯示每條區塊鏈",
    "clearFilter": "清除網絡篩選",
-   "toggleSearch": "搜尋區塊鏈"
+   "toggleSearch": "搜尋區塊鏈",
+   "pillAll": "全部網絡"
   },
   "signingApprove": {
    "spendingCap": "授權上限",
@@ -1160,6 +1166,22 @@
    "closeBtn": "關閉",
    "suggested": "建議注資額",
    "retryBtn": "我已注資 · 重試"
+  },
+  "mainNav": {
+   "wallet": "錢包",
+   "contacts": "聯絡人",
+   "explore": "探索",
+   "settings": "設定"
+  },
+  "dayGroup": {
+   "today": "今天",
+   "yesterday": "昨天"
+  },
+  "commandBar": {
+   "placeholder": "搜尋或執行"
+  },
+  "qrPlaceholder": {
+   "caption": "示範佔位圖案 · 無法掃描"
   }
  },
  "settingsModals": {

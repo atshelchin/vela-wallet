@@ -361,7 +361,8 @@
    "anyAmount": "Tout montant",
    "invalidTitle": "Lien de paiement invalide",
    "invalidBody": "Ce lien ne contient pas de destinataire ou de réseau valide. Demandez-en un nouveau à l'expéditeur."
-  }
+  },
+  "addressLabel": "Votre adresse de réception"
  },
  "assets": {
   "sectionTitle": "Actifs",
@@ -453,7 +454,11 @@
   "txLabelSent": "{{symbol}} envoyés",
   "txSentSubtitle": "À {{toName}} · {{networkName}}",
   "txLabelReceived": "{{symbol}} reçus",
-  "txReceivedSubtitle": "De {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "De {{fromName}} · {{networkName}}",
+  "labelSent": "Envoyé",
+  "labelReceived": "Reçu",
+  "toName": "À {{name}}",
+  "fromName": "De {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1119,7 +1124,8 @@
    "allNetworks": "Tous les réseaux",
    "showEvery": "Afficher toutes les chaînes",
    "clearFilter": "Effacer le filtre de réseau",
-   "toggleSearch": "Rechercher des chaînes"
+   "toggleSearch": "Rechercher des chaînes",
+   "pillAll": "Tous les réseaux"
   },
   "bugReport": {
    "title": "Signaler un problème",
@@ -1163,6 +1169,22 @@
    "closeBtn": "Fermer",
    "suggested": "Rechargement suggéré",
    "retryBtn": "J'ai approvisionné · Réessayer"
+  },
+  "mainNav": {
+   "wallet": "Portefeuille",
+   "contacts": "Contacts",
+   "explore": "Explorer",
+   "settings": "Réglages"
+  },
+  "dayGroup": {
+   "today": "Aujourd'hui",
+   "yesterday": "Hier"
+  },
+  "commandBar": {
+   "placeholder": "Rechercher ou exécuter"
+  },
+  "qrPlaceholder": {
+   "caption": "Aperçu de démonstration · non scannable"
   }
  },
  "settingsModals": {

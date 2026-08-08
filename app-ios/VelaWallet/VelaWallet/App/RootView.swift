@@ -100,18 +100,41 @@ struct RootView: View {
 
     @ViewBuilder
     private func content(router path: Binding<[AppRoute]>) -> some View {
-        NavigationStack(path: path) {
-            WelcomeScreen(model: model)
-                .navigationDestination(for: AppRoute.self) { route in
-                    switch route {
-                    case .createWalletPlaceholder:
-                        IntentPlaceholderScreen(title: loc.t("onboarding.welcome.createWallet"))
-                    case .importWalletPlaceholder:
-                        IntentPlaceholderScreen(title: loc.t("onboarding.welcome.alreadyHaveWallet"))
+        switch PageOverride.page {
+        case .wallet:
+            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc))
+        case .gallery:
+            GalleryScreen(loc: loc)
+        case nil:
+            NavigationStack(path: path) {
+                WelcomeScreen(model: model)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        switch route {
+                        case .createWalletPlaceholder:
+                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.createWallet"))
+                        case .importWalletPlaceholder:
+                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.alreadyHaveWallet"))
+                        }
                     }
-                }
+            }
         }
     }
+}
+
+/// `VELA_PAGE` launch override (spec 015 research D4) — same idiom as
+/// `VELA_THEME`/`VELA_LANG`: `wallet` mounts the fixture-driven home,
+/// `gallery` the preview gallery; unset keeps the Welcome flow. Never part
+/// of production navigation (FR-004).
+enum PageOverride {
+    enum Page { case wallet, gallery }
+
+    static let page: Page? = {
+        switch ProcessInfo.processInfo.environment["VELA_PAGE"] {
+        case "wallet": .wallet
+        case "gallery": .gallery
+        default: nil
+        }
+    }()
 }
 
 /// Resolves every welcome-screen string from the corpus — the key list is

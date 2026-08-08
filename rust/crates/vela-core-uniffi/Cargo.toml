@@ -14,6 +14,9 @@ name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 
 [dependencies]
-vela-core = { workspace = true }
+# identicon-raster: Android/iOS have no SVG renderer, so they consume the
+# identicon as PNG bytes rasterized by the same crate that generates the SVG
+# (spec 015-wallet-home-ui, research.md D1). The wasm crate must NOT mirror this.
+vela-core = { workspace = true, features = ["identicon-raster"] }
 uniffi = { workspace = true, features = ["cli"] }
 thiserror = { workspace = true }

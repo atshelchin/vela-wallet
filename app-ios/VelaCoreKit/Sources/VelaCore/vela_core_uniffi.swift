@@ -465,6 +465,22 @@ fileprivate final class UniffiHandleMap<T>: @unchecked Sendable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
+    typealias FfiType = UInt32
+    typealias SwiftType = UInt32
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt32 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     typealias FfiType = UInt64
     typealias SwiftType = UInt64
@@ -2125,6 +2141,34 @@ public func identiconParams(seed: String)throws  -> IdenticonParams  {
 })
 }
 /**
+ * The shared placeholder artwork as PNG bytes — what platforms show for an
+ * invalid or empty seed instead of crashing or rendering blank.
+ */
+public func identiconPlaceholderPng(sizePx: UInt32)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_identicon_placeholder_png(
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
+    )
+})
+}
+/**
+ * **The wallet's identicon as PNG bytes** (`size_px` × `size_px`), rasterized
+ * from the same circular SVG every platform shares (spec 015, research.md D1).
+ * Kotlin decodes with `BitmapFactory`, Swift with `UIImage(data:)`. Normalize
+ * the seed first, exactly as with the SVG entry points. `size_px` is capped at
+ * 1024.
+ */
+public func identiconPng(seed: String, sizePx: UInt32)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_identicon_png(
+        FfiConverterString.lower(seed),
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
+    )
+})
+}
+/**
  * The library's stock hexagonal output.
  */
 public func identiconSvg(seed: String)throws  -> String  {
@@ -2169,6 +2213,20 @@ public func parsePublicKey(hex: String)throws  -> P256PublicKey  {
         uniffiCallStatus in
     uniffi_vela_core_uniffi_fn_func_parse_public_key(
         FfiConverterString.lower(hex),uniffiCallStatus
+    )
+})
+}
+/**
+ * Rasterize app-authored SVG markup (the spec 015 lucide icon corpus) to a
+ * square PNG. For platforms without an SVG renderer; callers pass constant
+ * markup with the tint pre-substituted (or white, tinted as a template image).
+ */
+public func rasterizeSvgPng(svg: String, sizePx: UInt32)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_rasterize_svg_png(
+        FfiConverterString.lower(svg),
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
     )
 })
 }
@@ -2339,6 +2397,12 @@ private let initializationResult: InitializationResult = {
     if (uniffi_vela_core_uniffi_checksum_func_identicon_params() != 30719) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_vela_core_uniffi_checksum_func_identicon_placeholder_png() != 35197) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_identicon_png() != 54330) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_vela_core_uniffi_checksum_func_identicon_svg() != 35216) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2352,6 +2416,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_parse_public_key() != 62646) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_rasterize_svg_png() != 18592) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_recover_public_key_from_assertions() != 37092) {

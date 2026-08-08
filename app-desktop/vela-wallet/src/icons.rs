@@ -1,0 +1,180 @@
+//! Wallet icon corpus — the desktop port of
+//! `specs/015-wallet-home-ui/contracts/icons.json` (research.md D2, rev 2).
+//!
+//! Every glyph is lucide v1.11 (ISC): outline = verbatim stroke defs, nav
+//! solid = fills derived from the same geometry (evenodd holes; the users
+//! back-person arcs stay stroked). gpui's `svg()` renders monochrome masks
+//! through an AssetSource this app doesn't have, so icons are tinted by
+//! substituting the color into the SVG template, rasterized with resvg, and
+//! cached per (icon, solid, color, size).
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use gpui::{Hsla, RenderImage, Rgba};
+
+use crate::raster::{empty_render_image, render_image_from_pixmap};
+
+/// Rasterize at 2× the logical size for retina crispness.
+const RASTER_SCALE: u32 = 2;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Icon {
+    // nav (outline/solid pairs, fill style)
+    NavWallet,
+    NavContacts,
+    NavExplore,
+    NavSettings,
+    // utility (stroke style)
+    ArrowDownLeft,
+    ArrowUpRight,
+    ScanLine,
+    EyeOff,
+    Search,
+    X,
+    Copy,
+    ChevronRight,
+    ChevronDown,
+    Link2,
+    TriangleAlert,
+    RefreshCw,
+    Check,
+    Inbox,
+    WalletOutline,
+}
+
+/// Inner SVG markup per icon. `{c}` is substituted with the tint. Nav-solid
+/// bodies carry explicit per-element paint (mixed fill/stroke, evenodd holes)
+/// and are wrapped in a bare `<svg>`; everything else uses the stroke wrapper.
+fn body(icon: Icon, solid: bool) -> &'static str {
+    match icon {
+        Icon::NavWallet => {
+            if solid {
+                r##"<path fill="{c}" d="M18 3a1 1 0 0 1 1 1v3h1a1 1 0 0 1 1 1v3h-4a2 2 0 0 0 0 4h4v4a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h13z"/>"##
+            } else {
+                r##"<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>"##
+            }
+        }
+        Icon::NavContacts => {
+            if solid {
+                r##"<path fill="{c}" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2z"/><circle fill="{c}" cx="9" cy="7" r="4"/><path fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" d="M16 3.128a4 4 0 0 1 0 7.744"/><path fill="none" stroke="{c}" stroke-width="2" stroke-linecap="round" d="M22 21v-2a4 4 0 0 0-3-3.87"/>"##
+            } else {
+                r##"<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>"##
+            }
+        }
+        Icon::NavExplore => {
+            if solid {
+                r##"<path fill="{c}" fill-rule="evenodd" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM16.24 7.76l-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/>"##
+            } else {
+                r##"<circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"/>"##
+            }
+        }
+        Icon::NavSettings => {
+            if solid {
+                r##"<path fill="{c}" fill-rule="evenodd" d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>"##
+            } else {
+                r##"<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>"##
+            }
+        }
+        Icon::ArrowDownLeft => r##"<path d="M17 7 7 17"/><path d="M17 17H7V7"/>"##,
+        Icon::ArrowUpRight => r##"<path d="M7 7h10v10"/><path d="M7 17 17 7"/>"##,
+        Icon::ScanLine => {
+            r##"<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/>"##
+        }
+        Icon::EyeOff => {
+            r##"<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>"##
+        }
+        Icon::Search => r##"<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>"##,
+        Icon::X => r##"<path d="M18 6 6 18"/><path d="m6 6 12 12"/>"##,
+        Icon::Copy => {
+            r##"<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>"##
+        }
+        Icon::ChevronRight => r##"<path d="m9 18 6-6-6-6"/>"##,
+        Icon::ChevronDown => r##"<path d="m6 9 6 6 6-6"/>"##,
+        Icon::Link2 => {
+            r##"<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>"##
+        }
+        Icon::TriangleAlert => {
+            r##"<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>"##
+        }
+        Icon::RefreshCw => {
+            r##"<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>"##
+        }
+        Icon::Check => r##"<path d="M20 6 9 17l-5-5"/>"##,
+        Icon::Inbox => {
+            r##"<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>"##
+        }
+        Icon::WalletOutline => {
+            r##"<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>"##
+        }
+    }
+}
+
+fn is_nav(icon: Icon) -> bool {
+    matches!(
+        icon,
+        Icon::NavWallet | Icon::NavContacts | Icon::NavExplore | Icon::NavSettings
+    )
+}
+
+fn svg_document(icon: Icon, solid: bool, color_hex: &str) -> String {
+    let inner = body(icon, solid);
+    if is_nav(icon) && solid {
+        // Nav-solid bodies carry their own per-element paint via `{c}`.
+        let inner = inner.replace("{c}", color_hex);
+        format!(r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">{inner}</svg>"##)
+    } else {
+        format!(
+            r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="{color_hex}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{inner}</svg>"##
+        )
+    }
+}
+
+fn hex_of(color: Hsla) -> (String, u32) {
+    let rgba: Rgba = color.into();
+    let r = (rgba.r * 255.).round() as u32;
+    let g = (rgba.g * 255.).round() as u32;
+    let b = (rgba.b * 255.).round() as u32;
+    (format!("#{r:02x}{g:02x}{b:02x}"), (r << 16) | (g << 8) | b)
+}
+
+#[derive(Default)]
+pub struct IconCache {
+    map: HashMap<(Icon, bool, u32, u32), Arc<RenderImage>>,
+}
+
+impl IconCache {
+    /// Tinted icon image at `logical_px` — rasterized once per
+    /// (icon, style, color, size) and cached for the app's lifetime.
+    pub fn image(
+        &mut self,
+        icon: Icon,
+        solid: bool,
+        color: Hsla,
+        logical_px: u32,
+    ) -> Arc<RenderImage> {
+        let (hex, color_key) = hex_of(color);
+        let size = logical_px * RASTER_SCALE;
+        let key = (icon, solid, color_key, size);
+        if let Some(image) = self.map.get(&key) {
+            return Arc::clone(image);
+        }
+        let image =
+            rasterize(&svg_document(icon, solid, &hex), size).unwrap_or_else(empty_render_image);
+        self.map.insert(key, Arc::clone(&image));
+        image
+    }
+}
+
+fn rasterize(svg: &str, size: u32) -> Option<Arc<RenderImage>> {
+    let options = resvg::usvg::Options::default();
+    let tree = resvg::usvg::Tree::from_str(svg, &options).ok()?;
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(size, size)?;
+    let view = tree.size();
+    let transform = resvg::tiny_skia::Transform::from_scale(
+        size as f32 / view.width(),
+        size as f32 / view.height(),
+    );
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+    render_image_from_pixmap(&pixmap)
+}

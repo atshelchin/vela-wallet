@@ -30,6 +30,8 @@ struct Theme {
     var fgSubtle: Color { palette.fgSubtle.color }
     var accentBase: Color { palette.accentBase.color }
     var accentSoft: Color { palette.accentSoft.color }
+    var successBase: Color { palette.successBase.color }
+    var warningBase: Color { palette.warningBase.color }
     var borderBase: Color { palette.borderBase.color }
     var borderStrong: Color { palette.borderStrong.color }
     var onAccent: Color { palette.onAccent.color }

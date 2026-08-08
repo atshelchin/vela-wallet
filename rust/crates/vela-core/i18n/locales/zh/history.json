@@ -14,6 +14,10 @@
     "txLabelSent": "已发送 {{symbol}}",
     "txSentSubtitle": "至 {{toName}} · {{networkName}}",
     "txLabelReceived": "已收到 {{symbol}}",
-    "txReceivedSubtitle": "来自 {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "来自 {{fromName}} · {{networkName}}",
+    "labelSent": "已发送",
+    "labelReceived": "已收到",
+    "toName": "至 {{name}}",
+    "fromName": "来自 {{name}}"
   }
 }

@@ -49,6 +49,24 @@ object VelaSizing {
     val controlSm: Dp = 36.dp
     val controlMd: Dp = 44.dp
     val controlLg: Dp = 52.dp
+
+    // Spec 014 onboarding-flow geometry (mock-measured; not in the DTCG export —
+    // kept outside the drift test like sizing.control.* above).
+    /** Stepped/single progress bar thickness (A4–A8, B1). */
+    val progressBar: Dp = 4.dp
+
+    /** Elapsed-seconds ring diameter — fits 1- and 2-digit values (A4c/B1c). */
+    val elapsedRing: Dp = 40.dp
+
+    /** Elapsed-seconds ring stroke width. */
+    val elapsedRingStroke: Dp = 3.dp
+
+    /** Acknowledgment checkbox square (A1–A3). */
+    val checkboxBox: Dp = 20.dp
+
+    /** Flow sheet drag-handle bar (token-tinted custom handle, research D2). */
+    val sheetHandleWidth: Dp = 36.dp
+    val sheetHandleHeight: Dp = 4.dp
 }
 
 /** core.icon sizes. */

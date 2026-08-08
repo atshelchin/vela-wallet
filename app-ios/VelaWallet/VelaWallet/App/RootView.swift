@@ -9,9 +9,11 @@
 import SwiftUI
 
 /// Navigation state — future features push their real flows here (FR-010).
+/// `presentedFlow` is the spec-014 flow sheet (nil = Welcome only).
 @Observable
 final class Router {
     var path: [AppRoute] = []
+    var presentedFlow: WelcomeFlow?
 }
 
 struct RootView: View {
@@ -33,9 +35,12 @@ struct RootView: View {
         let router = Router()
         _router = State(initialValue: router)
         _model = State(initialValue: WelcomeModel(content: WelcomeContentBuilder.build(loc: loc)) { intent in
+            // Spec 014 (US2/D3): the intents present the flow sheet with the
+            // flow's initial state. The AppRoute placeholder cases remain for
+            // the future wiring feature, but nothing pushes them anymore.
             switch intent {
-            case .createWallet: router.path.append(.createWalletPlaceholder)
-            case .importWallet: router.path.append(.importWalletPlaceholder)
+            case .createWallet: router.presentedFlow = .create
+            case .importWallet: router.presentedFlow = .login
             }
         })
     }
@@ -45,14 +50,28 @@ struct RootView: View {
     }
 
     var body: some View {
+        // Spec 014: dev-only state gallery replaces the app when launched
+        // with VELA_GALLERY=1. Debug-only compile + env gate (FR-013).
+        #if DEBUG
+        if GalleryMode.isEnabled {
+            OnboardingGalleryScreen(loc: loc)
+        } else {
+            appBody
+        }
+        #else
+        appBody
+        #endif
+    }
+
+    private var appBody: some View {
         @Bindable var router = router
         // One continuous surface. Both the launch screen and Welcome sit on this
         // exact colour, which is what lets them cross-dissolve without a
         // washed-out middle where both layers are half-transparent (FR-012).
-        ZStack {
+        return ZStack {
             themedBackground
 
-            content(router: $router.path)
+            content(router: $router.path, flow: $router.presentedFlow)
                 // Composed from the first frame, hidden by the opaque overlay,
                 // so the hand-off has nothing left to build (FR-013a).
                 .opacity(pageOpacity)
@@ -99,11 +118,13 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private func content(router path: Binding<[AppRoute]>) -> some View {
+    private func content(router path: Binding<[AppRoute]>, flow: Binding<WelcomeFlow?>) -> some View {
         switch PageOverride.page {
         case .wallet:
             WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc))
         case .gallery:
+            // Spec 015's wallet-home gallery; the spec 014 onboarding-state
+            // gallery is OnboardingGalleryScreen behind VELA_GALLERY=1.
             GalleryScreen(loc: loc)
         case nil:
             NavigationStack(path: path) {
@@ -116,6 +137,14 @@ struct RootView: View {
                             IntentPlaceholderScreen(title: loc.t("onboarding.welcome.alreadyHaveWallet"))
                         }
                     }
+            }
+            // Spec 014 flow container (contract §3): FlowSheet supplies the
+            // content-height detent, drag indicator, and bgRaised presentation.
+            .sheet(item: flow) { presented in
+                WelcomeFlowHost(flow: presented, loc: loc)
+                    // Sheets are their own presentation root — re-apply the
+                    // active theme, mirroring the gallery's container contract.
+                    .themed(scheme)
             }
         }
     }

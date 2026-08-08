@@ -30,8 +30,6 @@ struct Theme {
     var fgSubtle: Color { palette.fgSubtle.color }
     var accentBase: Color { palette.accentBase.color }
     var accentSoft: Color { palette.accentSoft.color }
-    var successBase: Color { palette.successBase.color }
-    var warningBase: Color { palette.warningBase.color }
     var borderBase: Color { palette.borderBase.color }
     var borderStrong: Color { palette.borderStrong.color }
     var onAccent: Color { palette.onAccent.color }
@@ -39,6 +37,17 @@ struct Theme {
     /// Brand mark hull — themed per design-system.md brand rules
     /// (Warm Graphite in light UI, Dusk Ivory in dark UI); sails constant.
     var markHull: Color { scheme == .dark ? Brand.hullDark.color : Brand.hullLight.color }
+
+    // MARK: Status colors (spec 014 outcome badges / diagnostics)
+
+    var successBase: Color { palette.successBase.color }
+    var successSoft: Color { palette.successSoft.color }
+    var warningBase: Color { palette.warningBase.color }
+    var warningSoft: Color { palette.warningSoft.color }
+    var errorBase: Color { palette.errorBase.color }
+    var errorSoft: Color { palette.errorSoft.color }
+    var infoBase: Color { palette.infoBase.color }
+    var infoSoft: Color { palette.infoSoft.color }
 }
 
 /// Brand constants from design-system.md's brand section (mode-dependent by
@@ -97,6 +106,56 @@ enum WelcomeGeometry {
     /// Minimum height of the card band (mock card ≈ 134 pt, zh 2-line copy);
     /// the band grows to the tallest card of the active locale.
     static let cardBandMinHeight: CGFloat = 134
+}
+
+/// Onboarding-flow (create/login sheet) geometry the token set does not
+/// name, measured from `design/onboarding/create|login/*.png` at the
+/// 390×844 design frame (spec 014). Same design-system.md license as
+/// `WelcomeGeometry` — values live here, never inline in views.
+enum FlowGeometry {
+    /// Outcome status-badge circle (mock ≈ 112 px @2x).
+    static let badgeSize: CGFloat = 56
+    /// SF Symbol point size inside the badge circle.
+    static let badgeGlyphSize: CGFloat = 24
+    /// Elapsed-seconds ring outer size (mock ≈ 80 px @2x).
+    static let ringSize: CGFloat = 40
+    /// Ring stroke width.
+    static let ringLineWidth: CGFloat = 3
+    /// Frozen sweep fraction of the ring arc (mock shows an open arc;
+    /// no elapsed-time measurement is wired in this feature — FR-011).
+    static let ringSweep: CGFloat = 0.72
+    /// Arc start angle: 12 o'clock.
+    static let ringStartDegrees: CGFloat = -90
+    /// Progress bar height (stepped segments and the login single track).
+    static let barHeight: CGFloat = 4
+    /// Gap between step segments (space.s8).
+    static let barGap: CGFloat = Tokens.Space.s8
+    /// Login waiting bar fill fraction (mock ≈ 40%).
+    static let loginBarFill: CGFloat = 0.4
+    /// Acknowledgment checkbox square (mock ≈ 40 px @2x).
+    static let checkboxSize: CGFloat = 20
+    /// Check glyph point size inside the checkbox.
+    static let checkboxGlyphSize: CGFloat = 12
+    /// Small control glyphs: close ×, disclosure chevron, copy icon.
+    static let controlGlyphSize: CGFloat = 16
+    /// Account-name field height (sizing control.lg).
+    static let fieldHeight: CGFloat = Tokens.Control.lg
+    /// Secondary action-row height (matches the primary CTA control.lg).
+    static let actionRowHeight: CGFloat = Tokens.Control.lg
+    /// Vertical gap between stacked actions (mock ≈ 24 px @2x).
+    static let actionGap: CGFloat = Tokens.Space.s12
+}
+
+/// SF Symbols are sized through a font; this is the sanctioned wrapper for
+/// the flow glyphs so no view outside DesignSystem/ calls `Font.system`
+/// (audit-literals). Text NEVER uses these — text goes through Typography.
+enum GlyphFont {
+    /// Badge glyph (✓ / ! / × / clock) inside the 56 pt circle.
+    static let badge: Font = .system(size: FlowGeometry.badgeGlyphSize, weight: .semibold)
+    /// Close ×, disclosure chevron, address-copy icon.
+    static let control: Font = .system(size: FlowGeometry.controlGlyphSize, weight: .medium)
+    /// Ack checkbox check mark.
+    static let checkbox: Font = .system(size: FlowGeometry.checkboxGlyphSize, weight: .bold)
 }
 
 // MARK: - Environment plumbing

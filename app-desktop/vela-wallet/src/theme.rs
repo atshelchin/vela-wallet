@@ -64,11 +64,30 @@ pub struct Theme {
     pub logo_sail_a: Hsla,
     pub logo_sail_b: Hsla,
     pub logo_hull: Hsla,
-    // status colors (spec 015 wallet home; values from docs/design-tokens.json,
-    // the same export the mobile/web token layers mirror)
+    // status colors — EXACT docs/design-tokens.json values
+    // (`color-light`/`color-dark` → success/warning/error/info), so all four
+    // platforms render identical badge/hint colors. Spec 014 (onboarding
+    // flow) reads the `*_base`/`*_soft` set; spec 015 (wallet home) reads
+    // `success`/`warning`/`warning_border`. Values overlap by design —
+    // unifying the two vocabularies is a recorded follow-up, not a merge
+    // decision.
+    pub success_base: Hsla,
+    pub success_soft: Hsla,
+    pub warning_base: Hsla,
+    pub warning_soft: Hsla,
+    pub error_base: Hsla,
+    pub error_soft: Hsla,
+    pub info_base: Hsla,
+    pub info_soft: Hsla,
+    /// The flow patterns' "well" surface: input field, address strip, tech-
+    /// details code block, dark secondary action rows, neutral badge fill.
+    /// The dark mocks paint these DARKER than the raised panel (bg_sunken
+    /// steps the wrong way on the dark ladder), so it is its own token —
+    /// mock-sampled dark, `bg_sunken`-equivalent light.
+    pub bg_well: Hsla,
+    // spec 015 wallet-home aliases (same export values).
     pub success: Hsla,
     pub warning: Hsla,
-    pub warning_soft: Hsla,
     pub warning_border: Hsla,
 }
 
@@ -103,9 +122,17 @@ impl Theme {
             logo_sail_a: c(0xff6a45),
             logo_sail_b: c(0xffa98e),
             logo_hull: c(0x554b46),
+            success_base: c(0x2d8e5f),
+            success_soft: c(0xedfaf2),
+            warning_base: c(0x92600a),
+            warning_soft: c(0xfff8f0),
+            error_base: c(0xc62828),
+            error_soft: c(0xfef2f2),
+            info_base: c(0x4267f4),
+            info_soft: c(0xedf0ff),
+            bg_well: c(0xf5f3ef),
             success: c(0x2d8e5f),
             warning: c(0x92600a),
-            warning_soft: c(0xfff8f0),
             warning_border: c(0xf0dcc8),
         }
     }
@@ -129,9 +156,17 @@ impl Theme {
             logo_sail_a: c(0xff6a45),
             logo_sail_b: c(0xffa98e),
             logo_hull: c(0xded5ce),
+            success_base: c(0x3da872),
+            success_soft: c(0x132a1e),
+            warning_base: c(0xd4a54a),
+            warning_soft: c(0x2a2010),
+            error_base: c(0xf87171),
+            error_soft: c(0x2d1515),
+            info_base: c(0x5a7cf6),
+            info_soft: c(0x131b33),
+            bg_well: c(0x121210),
             success: c(0x3da872),
             warning: c(0xd4a54a),
-            warning_soft: c(0x2a2010),
             warning_border: c(0x3d3020),
         }
     }
@@ -321,8 +356,76 @@ pub const RADIUS_CARD: f32 = 16.;
 /// (both mocks, review-verified to the pixel).
 pub const BTN_H_PRIMARY: f32 = 52.;
 pub const BTN_H_SECONDARY: f32 = 48.;
+// Buttons hug long labels: heights above are minimums, and a wrapped label
+// needs breathing room inside the capsule (spec 014 long-locale fix).
+pub const BTN_PAD_X: f32 = 24.;
+pub const BTN_PAD_Y: f32 = 10.;
 /// Vertical gap between the two CTAs (24/25 in the mocks, review-measured).
 pub const GAP_BUTTONS: f32 = 24.;
+
+// ---------------------------------------------------------------------------
+// Onboarding create/login flow patterns (spec 014, design/onboarding mocks).
+// Geometry measured on the dark mocks at their ~1:1 panel width.
+// ---------------------------------------------------------------------------
+
+/// Outcome status badge: the circle behind the ✓/×/! glyph.
+pub const BADGE_CIRCLE: f32 = 56.;
+/// Elapsed-seconds ring (the `c` progress variants): outer size and stroke.
+pub const RING_SIZE: f32 = 40.;
+pub const RING_STROKE: f32 = 4.;
+/// Progress bars: segment height and the gap between the 5 create segments.
+pub const STEP_BAR_H: f32 = 5.;
+pub const STEP_BAR_GAP: f32 = 8.;
+/// The login waiting bar's filled share (single-bar mode, mock B1 ~40%).
+pub const LOGIN_BAR_FILL: f32 = 0.4;
+/// Name field / address strip well height, and the wells' corner radius.
+pub const INPUT_H: f32 = 52.;
+pub const RADIUS_FIELD: f32 = 12.;
+/// Acknowledgment checkbox square.
+pub const ACK_BOX: f32 = 20.;
+/// Flow rhythm gaps (mock-measured: 8 within a group, 16 between rows,
+/// 24 between pattern blocks).
+pub const FLOW_GAP_SM: f32 = 8.;
+pub const FLOW_GAP_MD: f32 = 16.;
+pub const FLOW_GAP_LG: f32 = 24.;
+/// Disabled control emphasis (mock A1's dimmed-accent CTA — never a gray fill).
+pub const OPACITY_DISABLED: f32 = 0.45;
+/// Hairline rules (scaffold and outcome dividers).
+pub const HAIRLINE: f32 = 1.;
+/// The scaffold's close × hit target.
+pub const FLOW_CLOSE_HIT: f32 = 32.;
+/// Small drawn glyphs: disclosure chevron box, copy icon box.
+pub const FLOW_ICON_SM: f32 = 12.;
+pub const FLOW_ICON_MD: f32 = 16.;
+/// Name-field caret width; also the stroke of the thin drawn glyphs.
+pub const FLOW_CARET_W: f32 = 1.5;
+/// Dev-only state gallery: fixture list column width.
+pub const GALLERY_SIDEBAR_W: f32 = 280.;
+
+/// Flow scaffold title (创建钱包 / 登录 row).
+pub fn text_flow_title() -> Pixels {
+    px(20.)
+}
+/// Progress/outcome headline.
+pub fn text_flow_headline() -> Pixels {
+    px(17.)
+}
+/// Form field label.
+pub fn text_flow_label() -> Pixels {
+    px(14.)
+}
+/// Step counter / helper captions.
+pub fn text_flow_caption() -> Pixels {
+    px(12.)
+}
+/// The glyph inside the status badge circle.
+pub fn text_badge_glyph() -> Pixels {
+    px(26.)
+}
+/// The number inside the elapsed ring (2-digit capable without resizing).
+pub fn text_ring() -> Pixels {
+    px(14.)
+}
 
 /// The mock wordmark's cap height is ~30.5 px, which for the system font is a
 /// ~42 px em size (review-verified; a 30 px em renders ~30% small).
@@ -393,6 +496,17 @@ mod tests {
                     t.accent_active,
                     3.0,
                 ),
+                // spec 014 flow states: status glyphs/headlines are ≥17 px
+                // semibold on the raised panel — large-glyph 3:1 floor.
+                ("error_base/bg_raised", t.error_base, t.bg_raised, 3.0),
+                ("success_base/bg_raised", t.success_base, t.bg_raised, 3.0),
+                ("warning_base/bg_raised", t.warning_base, t.bg_raised, 3.0),
+                ("info_base/bg_raised", t.info_base, t.bg_raised, 3.0),
+                // text sits directly on the flow wells (address strip, code
+                // block, action rows) — body floor for fg, large floor for the
+                // error-colored code line.
+                ("fg_base/bg_well", t.fg_base, t.bg_well, 4.5),
+                ("error_base/bg_well", t.error_base, t.bg_well, 3.0),
             ];
             for (pair, fg, bg, floor) in body {
                 let ratio = contrast(fg, bg);

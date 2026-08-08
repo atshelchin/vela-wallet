@@ -6,7 +6,7 @@
 //! `en` fallback, plus the resolved locale's catalog when that locale isn't `en`.
 
 use gpui::SharedString;
-use vela_core::i18n::{Catalog, I18n, Options};
+use vela_core::i18n::{Catalog, I18n, Options, Var};
 
 pub struct Loc {
     engine: I18n,
@@ -63,9 +63,40 @@ impl Loc {
             .into()
     }
 
+    /// `t` with numeric interpolation variables (`{{seconds}}`, `{{count}}`,
+    /// `{{current}}/{{total}}` — spec 014 flow copy). Numbers only and no
+    /// `count` plural option: interpolation stays a pure text substitution,
+    /// which is all the flow keys use.
+    pub fn t_vars(&self, key: &str, vars: &[(&str, f64)]) -> SharedString {
+        let vars: Vec<(&str, Var<'_>)> = vars.iter().map(|(k, v)| (*k, Var::Num(*v))).collect();
+        let opts = Options {
+            vars: &vars,
+            ..Options::default()
+        };
+        self.engine
+            .t(key, &opts)
+            .unwrap_or_else(|_| key.to_owned())
+            .into()
+    }
+
     /// The BCP-47 tag actually resolved (used only for logging).
     pub fn language(&self) -> &str {
         self.engine.language()
+    }
+
+    /// Test-only: a `Loc` pinned to `lng` regardless of the environment — the
+    /// fixture/catalog invariants in `onboarding_flow` need deterministic
+    /// strings on any machine.
+    #[cfg(test)]
+    pub(crate) fn pinned(lng: &str) -> Self {
+        let mut engine = I18n::embedded().expect("en catalog compiled in");
+        let state = engine.change_language(lng);
+        if let Some(resolved) = state.resolved_language.as_deref()
+            && resolved != "en"
+        {
+            engine.load_catalog(Catalog::embedded(resolved).expect("catalog compiled in"));
+        }
+        Self { engine }
     }
 }
 
@@ -101,6 +132,64 @@ mod tests {
         "onboarding.welcome.tagline",
     ];
 
+    /// The 48 NEW spec-014 flow keys (contracts/i18n-keys.md) plus the reused
+    /// root `common.cancel` (E1's secondary). The EXISTS onboarding keys the
+    /// flow reuses were pinned by their own specs; this sweep guards the ones
+    /// this feature introduced. Var-bearing keys (`{{seconds}}` …) resolve
+    /// with the placeholder left in place under default options — still a
+    /// non-echo, non-empty value, which is all this sweep asserts.
+    const FLOW_KEYS: [&str; 49] = [
+        "onboarding.common.headerShared",
+        "onboarding.common.stepCounter",
+        "onboarding.common.confirmInPrompt",
+        "onboarding.common.waitedSeconds",
+        "onboarding.common.networkTitle",
+        "onboarding.common.networkBody",
+        "onboarding.common.serverTitle",
+        "onboarding.common.serverBody",
+        "onboarding.common.timeoutTitle",
+        "onboarding.common.timeoutBody",
+        "onboarding.common.unknownTitle",
+        "onboarding.common.unknownBody",
+        "onboarding.common.cancelledSetupTitle",
+        "onboarding.common.cancelledSetupBody",
+        "onboarding.common.cancelledVerifyTitle",
+        "onboarding.common.cancelledVerifyBody",
+        "onboarding.common.unsupportedTitle",
+        "onboarding.common.unsupportedBody",
+        "onboarding.common.incompatibleTitle",
+        "onboarding.common.incompatibleBody",
+        "onboarding.common.notDiscoverableTitle",
+        "onboarding.common.notDiscoverableBody",
+        "onboarding.common.notFoundTitle",
+        "onboarding.common.notFoundBody",
+        "onboarding.common.back",
+        "onboarding.common.retry",
+        "onboarding.common.recreateWallet",
+        "onboarding.common.editIndexEndpoint",
+        "onboarding.common.reportError",
+        "onboarding.common.openBiometricSettings",
+        "onboarding.common.openCredentialManagerSettings",
+        "onboarding.common.verifyStuckTitle",
+        "onboarding.common.verifyStuckBody",
+        "onboarding.common.syncFailedBody",
+        "onboarding.common.copyAddress",
+        "onboarding.common.copied",
+        "onboarding.common.close",
+        "onboarding.login.header",
+        "onboarding.login.statusAwaitingPasskey",
+        "onboarding.login.statusAwaitingPasskeyHint",
+        "onboarding.login.statusCancelledTitle",
+        "onboarding.login.statusCancelledBody",
+        "onboarding.login.successTitle",
+        "onboarding.login.successMessage",
+        "onboarding.login.signInFailedBody",
+        "onboarding.login.retryLoginBtn",
+        "onboarding.login.createNewWalletBtn",
+        "onboarding.create.retryVerifyBtn",
+        "common.cancel",
+    ];
+
     fn engine_for(lng: &str) -> I18n {
         let mut engine = I18n::embedded().expect("en catalog compiled in");
         let state = engine.change_language(lng);
@@ -125,13 +214,52 @@ mod tests {
                 assert!(!value.is_empty(), "{lng}: `{key}` resolved empty");
                 if lng != "en" && !key.ends_with("SafeContractTitle") {
                     let en_value = en.t(key, &Options::default()).expect("t() is total");
-                    assert_ne!(
-                        value, en_value,
-                        "{lng}: `{key}` fell back to English"
-                    );
+                    assert_ne!(value, en_value, "{lng}: `{key}` fell back to English");
                 }
             }
         }
+    }
+
+    /// Spec 014's sweep: every flow key resolves in the visual-pass languages
+    /// (no echo, no empty), and non-en locales differ from en — verified at
+    /// authoring time that none of these 49 keys legitimately matches English
+    /// in zh/de/zh-TW/ru, so no per-key exclusions are needed.
+    #[test]
+    fn flow_keys_resolve_without_echo() {
+        let en = engine_for("en");
+        for lng in ["en", "zh", "de", "zh-TW", "ru"] {
+            let engine = engine_for(lng);
+            for key in FLOW_KEYS {
+                let value = engine.t(key, &Options::default()).expect("t() is total");
+                assert_ne!(value, key, "{lng}: `{key}` echoed the key");
+                assert!(!value.is_empty(), "{lng}: `{key}` resolved empty");
+                if lng != "en" {
+                    let en_value = en.t(key, &Options::default()).expect("t() is total");
+                    assert_ne!(value, en_value, "{lng}: `{key}` fell back to English");
+                }
+            }
+        }
+    }
+
+    /// The mock's zh flow copy is the source of record — pin representative
+    /// keys verbatim (contracts/i18n-keys.md zh column).
+    #[test]
+    fn zh_flow_copy_matches_the_mock_verbatim() {
+        let zh = engine_for("zh");
+        let opts = Options::default();
+        assert_eq!(
+            zh.t("onboarding.common.networkTitle", &opts).unwrap(),
+            "网络连接不稳定"
+        );
+        assert_eq!(
+            zh.t("onboarding.login.statusAwaitingPasskey", &opts)
+                .unwrap(),
+            "正在等待通行密钥"
+        );
+        assert_eq!(
+            zh.t("onboarding.common.headerShared", &opts).unwrap(),
+            "创建钱包 / 登录"
+        );
     }
 
     /// The mock's zh copy is the source of record — pin two representative keys.

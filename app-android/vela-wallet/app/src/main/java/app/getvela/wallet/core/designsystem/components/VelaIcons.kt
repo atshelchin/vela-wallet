@@ -286,4 +286,23 @@ object VelaIcons {
             "M8 12L16 12",
         )
     }
+
+    /** lucide clock — timeout badge glyph (spec 014 E3). */
+    val Clock: ImageVector by lazy {
+        strokeIcon(
+            "VelaClock",
+            "M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20",
+            "M12 6v6l4 2",
+        )
+    }
+
+    /** Bare exclamation — warning/neutral/info badge glyph (spec 014); the
+     *  no-Text-literals rule forbids rendering it as a "!" string. */
+    val Exclamation: ImageVector by lazy {
+        strokeIcon(
+            "VelaExclamation",
+            "M12 6v7",
+            "M12 17h.01",
+        )
+    }
 }

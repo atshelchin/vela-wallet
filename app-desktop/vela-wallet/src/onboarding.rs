@@ -2,7 +2,13 @@
 //! Colors come from `theme`, strings from `loc`, visuals from `ui`
 //! (spec 007 FR-009/FR-010).
 
+use std::rc::Rc;
+
 use crate::loc::Loc;
+use crate::onboarding_flow::{
+    ActionId, CreatePanelState, LoginPanelState, PanelEvent, PanelHost, PanelSink,
+    derive_can_submit, name_too_long, render_create_panel, render_login_panel,
+};
 use crate::theme::{
     self, Theme, ThemeMode, BRAND_INDENT, BRAND_TOP, CARD_GAP_X, CARD_GAP_Y, CONTENT_INSET,
     CONTENT_INSET_RIGHT, GAP_BRAND_TAGLINE, GAP_BUTTONS, GAP_LOGO_WORDMARK, GAP_TAGLINE_GRID,
@@ -24,6 +30,16 @@ use gpui::{
 pub enum Intent {
     CreateWallet,
     RecoverWallet,
+}
+
+/// The flow panel currently swapped into the action column (spec 014 FR-008).
+/// `None` renders the two-CTA stack. This is presentation state only: the
+/// Welcome host opens each flow at its initial fixture (create → empty form,
+/// login → waiting, per research D3) and never progresses it — the gallery is
+/// where every other state is inspectable.
+enum ActiveFlow {
+    Create(CreatePanelState),
+    Login(LoginPanelState),
 }
 
 /// The six feature cards, in mock order. Key leaves under `onboarding.welcome.`.
@@ -54,6 +70,14 @@ pub struct OnboardingPage {
     /// The launch animation, for this cold start only (spec 012). `None` once
     /// it has finished — there is no path back, which is FR-008.
     launch: Option<LaunchAnimation>,
+    /// Which flow panel occupies the action column, if any (spec 014 US2).
+    flow: Option<ActiveFlow>,
+    /// Focus handle for the create form's name field — host-owned so it
+    /// persists across frames (the panel renderers are stateless).
+    name_focus: FocusHandle,
+    /// Transient 已复制 feedback for the address strip. Unreachable while the
+    /// Welcome host only opens Form/Waiting, but `PanelHost` carries it.
+    copied: bool,
 }
 
 impl OnboardingPage {
@@ -98,13 +122,79 @@ impl OnboardingPage {
             loc,
             focus_handle,
             drag_pending: false,
+            flow: None,
+            name_focus: cx.focus_handle(),
+            copied: false,
         }
     }
 
-    fn on_intent(&mut self, intent: Intent) {
-        // This release records the choice; wallet creation/sign-in are later
-        // features (spec 007 Out of scope).
+    fn on_intent(&mut self, intent: Intent, cx: &mut Context<Self>) {
+        // The intent swaps the flow's initial state into the action column
+        // (spec 014 FR-008); real progression is the wiring feature's job.
         eprintln!("[vela-wallet] onboarding: intent {intent:?}");
+        self.flow = Some(match intent {
+            Intent::CreateWallet => ActiveFlow::Create(CreatePanelState::Form {
+                name: String::new(),
+                name_too_long: false,
+                acks: [false; 3],
+                can_submit: false,
+                busy: false,
+            }),
+            Intent::RecoverWallet => {
+                ActiveFlow::Login(LoginPanelState::Waiting { elapsed_secs: None })
+            }
+        });
+        self.copied = false;
+        cx.notify();
+    }
+
+    /// The Welcome host's panel sink (contract §2): close-shaped ActionIds
+    /// restore the CTA stack, local edits mutate the form in place, and every
+    /// other press is recorded — never business behaviour (FR-011).
+    fn on_panel_event(&mut self, event: PanelEvent, cx: &mut Context<Self>) {
+        match event {
+            PanelEvent::NameChanged(next) => {
+                if let Some(ActiveFlow::Create(CreatePanelState::Form {
+                    name,
+                    name_too_long: too_long,
+                    acks,
+                    can_submit,
+                    ..
+                })) = &mut self.flow
+                {
+                    *too_long = name_too_long(&next);
+                    *can_submit = derive_can_submit(&next, *too_long, acks);
+                    *name = next;
+                    cx.notify();
+                }
+            }
+            PanelEvent::AckToggled(ix) => {
+                if let Some(ActiveFlow::Create(CreatePanelState::Form {
+                    name,
+                    name_too_long: too_long,
+                    acks,
+                    can_submit,
+                    ..
+                })) = &mut self.flow
+                {
+                    if let Some(ack) = acks.get_mut(ix) {
+                        *ack = !*ack;
+                    }
+                    *can_submit = derive_can_submit(name, *too_long, acks);
+                    cx.notify();
+                }
+            }
+            PanelEvent::Action(
+                ActionId::Close | ActionId::Back | ActionId::Cancel | ActionId::NotNow,
+            ) => {
+                self.flow = None;
+                self.copied = false;
+                cx.notify();
+            }
+            PanelEvent::Action(id) => {
+                eprintln!("[vela-wallet] onboarding: action {id:?}");
+            }
+        }
     }
 
     fn t(&self, leaf: &str) -> SharedString {
@@ -292,7 +382,13 @@ impl OnboardingPage {
 
     // -- right action panel -------------------------------------------------
 
-    fn action_panel(&self, theme: &Theme, tiling: Option<Tiling>, cx: &mut Context<Self>) -> Div {
+    fn action_panel(
+        &self,
+        theme: &Theme,
+        tiling: Option<Tiling>,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Div {
         let panel = div()
             .w(px(PANEL_W))
             .h_full()
@@ -300,9 +396,10 @@ impl OnboardingPage {
             .bg(theme.bg_raised)
             .border_l_1()
             .border_color(theme.panel_edge)
-            .px(px(PANEL_INSET))
             // justify_center lands the two-CTA group within 1 px of the mock's
-            // position at the design height (group center 401 vs 400).
+            // position at the design height (group center 401 vs 400); the
+            // flow panel centers in the same column, so the swap stays in the
+            // band the CTAs occupied and the left column never moves (FR-008).
             .flex()
             .flex_col()
             .justify_center();
@@ -324,13 +421,36 @@ impl OnboardingPage {
             None => panel,
         };
 
+        // In-place swap (spec 014 FR-008): the same column renders either the
+        // two-CTA stack or the active flow panel. The scaffold carries its own
+        // PANEL_INSET, so only the CTA branch pads here.
+        if let Some(flow) = &self.flow {
+            let entity = cx.entity();
+            let sink: PanelSink = Rc::new(move |event, _window, cx| {
+                entity.update(cx, |this, cx| this.on_panel_event(event, cx));
+            });
+            let host = PanelHost {
+                theme,
+                loc: &self.loc,
+                name_focus: &self.name_focus,
+                copied: self.copied,
+                sink,
+            };
+            let flow_panel = match flow {
+                ActiveFlow::Create(state) => render_create_panel(state, &host, window),
+                ActiveFlow::Login(state) => render_login_panel(state, &host),
+            };
+            return panel.child(flow_panel);
+        }
+
         panel
+            .px(px(PANEL_INSET))
             .child(vela_button(
                 "create-wallet",
                 ButtonVariant::Primary,
                 self.t("createWallet"),
                 theme,
-                cx.listener(|this, _, _, _| this.on_intent(Intent::CreateWallet)),
+                cx.listener(|this, _, _, cx| this.on_intent(Intent::CreateWallet, cx)),
             ))
             .child(div().h(px(GAP_BUTTONS)))
             .child(vela_button(
@@ -338,7 +458,7 @@ impl OnboardingPage {
                 ButtonVariant::Secondary,
                 self.t("alreadyHaveWallet"),
                 theme,
-                cx.listener(|this, _, _, _| this.on_intent(Intent::RecoverWallet)),
+                cx.listener(|this, _, _, cx| this.on_intent(Intent::RecoverWallet, cx)),
             ))
     }
 }
@@ -362,7 +482,7 @@ impl Render for OnboardingPage {
             .flex()
             .text_color(theme.fg_base)
             .child(self.left_column(&theme))
-            .child(self.action_panel(&theme, tiling, cx));
+            .child(self.action_panel(&theme, tiling, window, cx));
 
         // The animation centres itself on the *content* width. Under client-
         // side decorations the viewport is wider than the window by the shadow

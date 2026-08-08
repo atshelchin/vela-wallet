@@ -5,19 +5,22 @@
     windows_subsystem = "windows"
 )]
 
+mod gallery;
 mod icons;
 mod identicon;
 mod loc;
 mod onboarding;
+mod onboarding_flow;
 mod raster;
 mod theme;
 mod ui;
 mod wallet;
 mod window_frame;
 
+use gallery::GalleryView;
 use gpui::{
-    actions, point, px, size, App, AppContext as _, Bounds, KeyBinding, Menu, MenuItem, QuitMode,
-    TitlebarOptions, WindowBounds, WindowOptions,
+    App, AppContext as _, Bounds, KeyBinding, Menu, MenuItem, QuitMode, TitlebarOptions,
+    WindowBounds, WindowOptions, actions, point, px, size,
 };
 use onboarding::OnboardingPage;
 use theme::{WINDOW_H, WINDOW_W};
@@ -49,6 +52,13 @@ actions!(vela, [Quit, HideApp, HideOthers, ShowAll, ToggleFullScreen]);
 /// Open the (only) application window. Called at startup, and again from the
 /// reopen handler when the Dock icon is clicked after the window was closed.
 fn open_main_window(cx: &mut App) {
+    // Two dev galleries coexist: `VELA_GALLERY=1` (spec 014) browses the
+    // onboarding-flow state fixtures; `VELA_PAGE=gallery` (spec 015) browses
+    // the wallet-home states. Unifying them is a recorded follow-up.
+    if gallery::gallery_enabled() {
+        open_window_with(cx, |window, cx| cx.new(|cx| GalleryView::new(window, cx)));
+        return;
+    }
     match RootPage::from_env() {
         RootPage::Onboarding => {
             open_window_with(cx, |window, cx| cx.new(|cx| OnboardingPage::new(window, cx)))

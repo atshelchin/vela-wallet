@@ -15,6 +15,8 @@ private enum FontName {
     static let medium = "PlusJakartaSans-Medium"
     static let semiBold = "PlusJakartaSans-SemiBold"
     static let bold = "PlusJakartaSans-Bold"
+    /// System monospaced face for data values (addresses, diagnostics).
+    static let mono = "Menlo-Regular"
 }
 
 /// A complete typography role: family/weight/size plus the Dynamic Type
@@ -44,6 +46,17 @@ enum Typography {
     static let label = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t13, relativeTo: .footnote, leading: Tokens.Leading.tight)
     /// Button label — text.t17, semibold, single-line.
     static let button = TypeRole(fontName: FontName.semiBold, size: Tokens.TextSize.t17, relativeTo: .body, leading: Tokens.Leading.none)
+    /// Flow secondary caption — text.t13, regular, reading leading (flow
+    /// helper lines, step counter, sub-captions — spec 014). Named apart from
+    /// the wallet `caption` role below, which is a different scale (t11).
+    static let flowCaption = TypeRole(fontName: FontName.regular, size: Tokens.TextSize.t13, relativeTo: .footnote, leading: Tokens.Leading.normal)
+    /// Form field label — text.t15, medium (spec 014 name field).
+    static let fieldLabel = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t15, relativeTo: .subheadline, leading: Tokens.Leading.tight)
+    /// Monospaced data — addresses (spec 014 address strip). Menlo is the
+    /// system mono face; data values, like CJK, fall outside Jakarta (DV-003).
+    static let mono = TypeRole(fontName: FontName.mono, size: Tokens.TextSize.t15, relativeTo: .subheadline, leading: Tokens.Leading.normal)
+    /// Small monospaced diagnostics — tech-details code/endpoint lines.
+    static let monoSmall = TypeRole(fontName: FontName.mono, size: Tokens.TextSize.t13, relativeTo: .footnote, leading: Tokens.Leading.normal)
 
     // MARK: Wallet roles (spec 015 — design/wallet mocks)
 

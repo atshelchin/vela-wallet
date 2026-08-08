@@ -15,7 +15,7 @@
 import { I18n as WasmI18n } from '../../../../../rust/pkg-web/vela_core.js';
 import './wasm-init.server';
 import { FALLBACK_LOCALE, type Locale } from './locales';
-import { FEATURE_SLUGS, type WelcomeMessages } from './messages';
+import { FEATURE_SLUGS, FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
 import type { WalletMessages } from '$lib/wallet/messages';
 
 /** Generated runtime catalogs (gen-i18n.mjs stage 4), one per locale. */
@@ -71,6 +71,17 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
 			description: t(locale, `onboarding.welcomeWeb.features.${slug}.description`)
 		}))
 	};
+}
+
+/**
+ * The serialized onboarding-flow copy (spec 014, T025): every key the
+ * create/login panels can resolve, as raw templates — `{{var}}` fills happen
+ * client-side from frozen presentation state. `t` throws on key echo, so a
+ * missing corpus key fails the prerender instead of shipping a dotted key.
+ */
+export function resolveFlowMessages(locale: Locale): FlowMessages {
+	activate(locale);
+	return Object.fromEntries(FLOW_KEYS.map((key) => [key, t(locale, key)])) as FlowMessages;
 }
 
 /** The serializable strings the wallet screens render (spec 015, research.md D3). */

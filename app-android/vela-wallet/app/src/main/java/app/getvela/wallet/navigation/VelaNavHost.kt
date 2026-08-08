@@ -16,6 +16,9 @@ import app.getvela.wallet.feature.onboarding.OnboardingIntent
 import app.getvela.wallet.feature.onboarding.ThemeSettingsSheet
 import app.getvela.wallet.feature.onboarding.WelcomeScreen
 import app.getvela.wallet.feature.onboarding.WelcomeViewModel
+import app.getvela.wallet.feature.onboarding.flow.CreatePanelState
+import app.getvela.wallet.feature.onboarding.flow.FlowSheet
+import app.getvela.wallet.feature.onboarding.flow.LoginPanelState
 import app.getvela.wallet.feature.onboarding.placeholder.CreatePlaceholderScreen
 import app.getvela.wallet.feature.onboarding.placeholder.ImportPlaceholderScreen
 import app.getvela.wallet.feature.wallet.WalletFixtures
@@ -52,17 +55,11 @@ fun VelaNavHost(
             val viewModel: WelcomeViewModel = viewModel()
             WelcomeScreen(
                 darkTheme = darkTheme,
-                onIntent = { intent ->
-                    viewModel.recordIntent(intent)
-                    // Route-check + singleTop = rapid double-tap pushes exactly once.
-                    if (navController.currentDestination?.route == VelaDestinations.WELCOME) {
-                        val route = when (intent) {
-                            OnboardingIntent.CreateWallet -> VelaDestinations.CREATE
-                            OnboardingIntent.RecoverWallet -> VelaDestinations.IMPORT
-                        }
-                        navController.navigate(route) { launchSingleTop = true }
-                    }
-                },
+                // Spec 014 US2: the CTAs open the flow bottom sheet over Welcome
+                // (visibility in the ViewModel, ThemeSettingsSheet pattern) instead
+                // of navigating to the old placeholder screens. Re-taps are
+                // idempotent — the sheet state is already set.
+                onIntent = viewModel::recordIntent,
                 onLongPressLogo = viewModel::showSettings,
             )
             if (viewModel.settingsSheetVisible) {
@@ -71,6 +68,22 @@ fun VelaNavHost(
                     onSelect = onThemeSelected,
                     onDismiss = viewModel::hideSettings,
                 )
+            }
+            // Initial states per contract §3: create → Form empty, login →
+            // Waiting(null). System dismissal and close × restore Welcome
+            // unchanged; all other action presses are no-op logs (FR-011).
+            when (viewModel.flowSheetIntent) {
+                OnboardingIntent.CreateWallet -> FlowSheet(
+                    state = CreatePanelState.Form(),
+                    onAction = viewModel::onFlowAction,
+                    onDismiss = viewModel::hideFlowSheet,
+                )
+                OnboardingIntent.RecoverWallet -> FlowSheet(
+                    state = LoginPanelState.Waiting(),
+                    onAction = viewModel::onFlowAction,
+                    onDismiss = viewModel::hideFlowSheet,
+                )
+                null -> Unit
             }
         }
         composable(VelaDestinations.CREATE) {

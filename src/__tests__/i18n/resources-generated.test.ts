@@ -74,11 +74,11 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-it('carries the whole corpus — 17,268 leaves across 15 locales', () => {
+it('carries the whole corpus — 18,228 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
-    // 17,268 = 16,817 original, plus the 16 CLDR `many` forms FR-017 added to
+    // 18,228 = 16,817 original, plus the 16 CLDR `many` forms FR-017 added to
     // fr/it/es-MX/pt-BR (without them MODE A selects `many`, misses, and falls
     // through to English at large counts), plus the 195 desktop-onboarding
     // strings spec 007 added (13 `onboarding.welcome.*` keys × 15 locales),
@@ -88,10 +88,12 @@ it('carries the whole corpus — 17,268 leaves across 15 locales', () => {
     // locales), plus the 210 wallet-home strings spec 015 added (14 keys ×
     // 15 locales: componentsUi mainNav/dayGroup/commandBar/qrPlaceholder,
     // networkFilter.pillAll, receive.addressLabel, history bare labels +
-    // name-only subtitles). The number moving is the point; it should only
-    // ever move deliberately.
+    // name-only subtitles), plus the 720 onboarding-flow strings spec 014
+    // added (48 keys × 15 locales: the `onboarding.common.*` branch, 10
+    // `onboarding.login.*` leaves, `onboarding.create.retryVerifyBtn`).
+    // The number moving is the point; it should only ever move deliberately.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(17_508);
+    expect(total).toBe(18_228);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

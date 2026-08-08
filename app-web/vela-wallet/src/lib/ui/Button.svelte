@@ -28,15 +28,19 @@
 		align-items: center;
 		justify-content: center;
 		width: 100%;
-		height: var(--size-control-lg);
+		/* Minimum, not fixed: long-locale labels wrap and grow the pill
+		   instead of overflowing it (spec 014 long-label fix). */
+		min-height: var(--size-control-lg);
 		min-width: var(--size-control-md);
 		padding-inline: var(--space-3xl);
+		padding-block: var(--space-md);
 		border: none;
 		border-radius: var(--radius-full);
 		font-family: var(--font-ui);
 		font-size: var(--text-xl);
 		font-weight: var(--weight-semibold);
-		line-height: var(--leading-none);
+		line-height: var(--leading-tight);
+		text-align: center;
 		text-decoration: none;
 		cursor: pointer;
 		user-select: none;

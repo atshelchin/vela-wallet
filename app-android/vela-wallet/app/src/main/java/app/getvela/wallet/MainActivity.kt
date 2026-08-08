@@ -31,6 +31,7 @@ import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.theme.isDarkEffective
 import app.getvela.wallet.core.i18n.LocalVelaStrings
 import app.getvela.wallet.core.i18n.VelaStrings
+import app.getvela.wallet.feature.onboarding.gallery.GalleryScreen
 import app.getvela.wallet.navigation.VelaDestinations
 import app.getvela.wallet.navigation.VelaNavHost
 import kotlinx.coroutines.flow.SharingStarted
@@ -61,6 +62,15 @@ class MainActivity : ComponentActivity() {
         Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
     /**
+     * Dev-only state gallery (spec 014 FR-013), same intent-extra house pattern
+     * as the launch-animation switch — release builds simply never receive it:
+     *
+     *   adb shell am start -n app.getvela.wallet/.MainActivity --ez vela.gallery true
+     */
+    private fun galleryRequested(): Boolean =
+        intent?.getBooleanExtra("vela.gallery", false) == true
+
+    /**
      * Launch-time start-route override (spec 015, research D4): keeps the
      * gallery/wallet reachable without touching production navigation.
      *
@@ -74,7 +84,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         // A fresh process, not a configuration change or a restored activity.
-        val coldStart = savedInstanceState == null && !launchAnimationDisabled()
+        // The gallery skips the launch animation for deterministic walkthroughs.
+        val coldStart = savedInstanceState == null && !launchAnimationDisabled() && !galleryRequested()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -139,33 +150,40 @@ class MainActivity : ComponentActivity() {
                     // sit on this exact colour, which is what lets them
                     // cross-dissolve without a washed-out middle (FR-012).
                     Box(modifier = Modifier.fillMaxSize().background(colors.bgBase)) {
-                        // Welcome is composed from the first frame, hidden by the
-                        // opaque overlay, so the hand-off has nothing left to
-                        // build (FR-013a).
-                        Box(modifier = Modifier.alpha(pageAlpha)) {
-                            VelaNavHost(
-                                darkTheme = darkTheme,
-                                themePreference = preference,
-                                onThemeSelected = { selected ->
-                                    lifecycleScope.launch {
-                                        container.themeRepository.setThemePreference(selected)
-                                    }
-                                },
-                                startDestination = startDestination(),
-                            )
-                        }
+                        if (galleryRequested()) {
+                            // Spec 014: dev-only state gallery replaces the NavHost;
+                            // it manages its own in-gallery theme toggle. Spec 015's
+                            // wallet/gallery routes ride the startDestination extra.
+                            GalleryScreen(initialDarkTheme = darkTheme)
+                        } else {
+                            // Welcome is composed from the first frame, hidden by the
+                            // opaque overlay, so the hand-off has nothing left to
+                            // build (FR-013a).
+                            Box(modifier = Modifier.alpha(pageAlpha)) {
+                                VelaNavHost(
+                                    darkTheme = darkTheme,
+                                    themePreference = preference,
+                                    onThemeSelected = { selected ->
+                                        lifecycleScope.launch {
+                                            container.themeRepository.setThemePreference(selected)
+                                        }
+                                    },
+                                    startDestination = startDestination(),
+                                )
+                            }
 
-                        if (launching) {
-                            VelaLaunchAnimation(
-                                darkTheme = darkTheme,
-                                reduceMotion = reduceMotion(),
-                                backgroundColor = colors.bgBase,
-                                onProgress = { pageAlpha = it },
-                                onFinished = {
-                                    pageAlpha = 1f
-                                    launching = false
-                                },
-                            )
+                            if (launching) {
+                                VelaLaunchAnimation(
+                                    darkTheme = darkTheme,
+                                    reduceMotion = reduceMotion(),
+                                    backgroundColor = colors.bgBase,
+                                    onProgress = { pageAlpha = it },
+                                    onFinished = {
+                                        pageAlpha = 1f
+                                        launching = false
+                                    },
+                                )
+                            }
                         }
                     }
                 }

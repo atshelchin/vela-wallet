@@ -1,7 +1,8 @@
 /**
  * Responsive gate (spec SC-003, FR-001/003): no horizontal overflow at any
- * checked width, the 1280px boundary switches layouts, and both CTAs reach
- * their destinations.
+ * checked width, the 1280px boundary switches layouts, and both CTAs open
+ * the correct flow container per form factor (spec 014 US2: in-place swap at
+ * ≥ 1280px, bottom sheet below — no navigation).
  */
 import { expect, test } from '@playwright/test';
 
@@ -15,7 +16,7 @@ for (const width of WIDTHS) {
 			() => document.documentElement.scrollWidth - document.documentElement.clientWidth
 		);
 		expect(overflow).toBe(0);
-		await expect(page.getByRole('link', { name: 'Create Wallet' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
 	});
 }
 
@@ -42,7 +43,7 @@ test('resizing across the boundary keeps the page intact', async ({ page }) => {
 	await expect(page.locator('.grid')).toBeVisible();
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect(page.locator('.slides')).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Create Wallet' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
 });
 
 test('mobile pager dots advance the carousel', async ({ page }) => {
@@ -53,16 +54,47 @@ test('mobile pager dots advance the carousel', async ({ page }) => {
 	await expect(dots.nth(3)).toHaveAttribute('aria-current', 'true');
 });
 
-test('both CTAs navigate to their destinations', async ({ page }) => {
+test('desktop CTAs swap the action pane in place — no navigation, hero stable', async ({
+	page
+}) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto('/en');
-	await page.getByRole('link', { name: 'Create Wallet' }).click();
-	await expect(page).toHaveURL('/en/create');
-	await expect(page.getByRole('heading', { name: 'Create Wallet' })).toBeVisible();
-	await page.getByRole('link', { name: '← Vela Wallet' }).click();
+	const brandBefore = (await page.locator('.brand').boundingBox())!;
+
+	await page.getByRole('button', { name: 'Create Wallet' }).click();
 	await expect(page).toHaveURL('/en');
-	await page.getByRole('link', { name: 'I already have a wallet' }).click();
-	await expect(page).toHaveURL('/en/import');
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await expect(
+		page.locator('.actions').getByRole('heading', { name: 'Create Wallet' })
+	).toBeVisible();
+
+	// FR-008: the hero column must not reflow when the column swaps.
+	const brandAfter = (await page.locator('.brand').boundingBox())!;
+	expect(brandAfter.x).toBe(brandBefore.x);
+	expect(brandAfter.y).toBe(brandBefore.y);
+	expect(brandAfter.width).toBe(brandBefore.width);
+
+	// Close × restores the CTA stack.
+	await page.getByRole('button', { name: 'Close' }).click();
+	await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
+
+	await page.getByRole('button', { name: 'I already have a wallet' }).click();
+	await expect(page).toHaveURL('/en');
+	await expect(page.locator('.actions').getByRole('heading', { name: 'Sign In' })).toBeVisible();
+	await page.getByRole('button', { name: 'Close' }).click();
+	await expect(page.getByRole('button', { name: 'I already have a wallet' })).toBeVisible();
+});
+
+test('mobile CTAs open the bottom sheet — no navigation', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/en');
+	await page.getByRole('button', { name: 'I already have a wallet' }).click();
+	const dialog = page.getByRole('dialog', { name: 'Sign In' });
+	await expect(dialog).toBeVisible();
+	await expect(page).toHaveURL('/en');
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
 });
 
 test('mobile brand mark and wordmark share one row', async ({ page }) => {

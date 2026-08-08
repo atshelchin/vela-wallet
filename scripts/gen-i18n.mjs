@@ -131,15 +131,17 @@ const IS_BRANCH = PATHS.map((p) => (branchSet.has(p) ? 1 : 0));
 for (let i = 1; i < PATHS.length; i++) {
   if (PATHS[i] <= PATHS[i - 1]) fail(`path table is not strictly sorted at ${i}: ${PATHS[i - 1]} >= ${PATHS[i]}`);
 }
-// 1263 = 1205 (spec 004 baseline) + 13 desktop-onboarding leaves (spec 007)
+// 1312 = 1205 (spec 004 baseline) + 13 desktop-onboarding leaves (spec 007)
 // + 25 welcomeWeb paths (spec 006: 16 leaves, 9 branches)
 // + 2 in-band fee-hold leaves (spec 013: send.txHeldFees, send.txRejectedFees)
+// + 49 onboarding-flow-UI paths (spec 014: onboarding.common branch + its 37
+//   leaves, +10 onboarding.login leaves, +1 onboarding.create leaf)
 // + 18 wallet-home paths (spec 015: 14 leaves, 4 branches — componentsUi
 //   mainNav/dayGroup/commandBar/qrPlaceholder, networkFilter.pillAll,
 //   receive.addressLabel, history bare labels + name-only subtitles).
-if (PATHS.length !== 1263) fail(`expected 1263 paths (1186 leaf + 77 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1186) fail(`expected 1186 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 77) fail(`expected 77 branch paths, got ${branchSet.size}`);
+if (PATHS.length !== 1312) fail(`expected 1312 paths (1234 leaf + 78 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1234) fail(`expected 1234 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 78) fail(`expected 78 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

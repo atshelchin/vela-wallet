@@ -5,15 +5,18 @@
     windows_subsystem = "windows"
 )]
 
+mod gallery;
 mod loc;
 mod onboarding;
+mod onboarding_flow;
 mod theme;
 mod ui;
 mod window_frame;
 
+use gallery::GalleryView;
 use gpui::{
-    actions, point, px, size, App, AppContext as _, Bounds, KeyBinding, Menu, MenuItem, QuitMode,
-    TitlebarOptions, WindowBounds, WindowOptions,
+    App, AppContext as _, Bounds, KeyBinding, Menu, MenuItem, QuitMode, TitlebarOptions,
+    WindowBounds, WindowOptions, actions, point, px, size,
 };
 use onboarding::OnboardingPage;
 use theme::{WINDOW_H, WINDOW_W};
@@ -26,31 +29,41 @@ actions!(vela, [Quit, HideApp, HideOthers, ShowAll, ToggleFullScreen]);
 fn open_main_window(cx: &mut App) {
     let bounds = Bounds::centered(None, size(px(WINDOW_W), px(WINDOW_H)), cx);
 
-    cx.open_window(
-        WindowOptions {
-            window_bounds: Some(WindowBounds::Windowed(bounds)),
-            // The card grid does not reflow below the design size (spec 007
-            // edge cases): the design size is the minimum.
-            window_min_size: Some(size(px(WINDOW_W), px(WINDOW_H))),
-            // Sets the Wayland `xdg_toplevel.app_id` and the X11 `WM_CLASS`.
-            // Both are how a desktop shell matches a running window to its
-            // installed `.desktop` file, so this string, the file name
-            // `packaging/app.getvela.VelaWallet.desktop` and the
-            // `StartupWMClass` inside it must stay identical — otherwise
-            // GNOME shows the app with a generic icon and the binary name.
-            app_id: Some("app.getvela.VelaWallet".into()),
-            titlebar: Some(TitlebarOptions {
-                title: Some("Vela Wallet".into()),
-                // Content owns the full canvas, as in the mocks; only the
-                // traffic lights remain, inset to the mock's position.
-                appears_transparent: true,
-                traffic_light_position: Some(point(px(20.), px(20.))),
-            }),
-            ..Default::default()
-        },
-        |window, cx| cx.new(|cx| OnboardingPage::new(window, cx)),
-    )
-    .expect("failed to open the main window");
+    let options = WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(bounds)),
+        // The card grid does not reflow below the design size (spec 007
+        // edge cases): the design size is the minimum.
+        window_min_size: Some(size(px(WINDOW_W), px(WINDOW_H))),
+        // Sets the Wayland `xdg_toplevel.app_id` and the X11 `WM_CLASS`.
+        // Both are how a desktop shell matches a running window to its
+        // installed `.desktop` file, so this string, the file name
+        // `packaging/app.getvela.VelaWallet.desktop` and the
+        // `StartupWMClass` inside it must stay identical — otherwise
+        // GNOME shows the app with a generic icon and the binary name.
+        app_id: Some("app.getvela.VelaWallet".into()),
+        titlebar: Some(TitlebarOptions {
+            title: Some("Vela Wallet".into()),
+            // Content owns the full canvas, as in the mocks; only the
+            // traffic lights remain, inset to the mock's position.
+            appears_transparent: true,
+            traffic_light_position: Some(point(px(20.), px(20.))),
+        }),
+        ..Default::default()
+    };
+
+    // Dev-only state gallery (spec 014 FR-013): `VELA_GALLERY=1` replaces the
+    // Welcome root with the fixture browser. Env-gated, never a release path.
+    if gallery::gallery_enabled() {
+        cx.open_window(options, |window, cx| {
+            cx.new(|cx| GalleryView::new(window, cx))
+        })
+        .expect("failed to open the main window");
+    } else {
+        cx.open_window(options, |window, cx| {
+            cx.new(|cx| OnboardingPage::new(window, cx))
+        })
+        .expect("failed to open the main window");
+    }
 }
 
 fn main() {

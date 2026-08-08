@@ -511,66 +511,66 @@
 						<th></th>
 						<th>Vela</th>
 						<th>MetaMask</th>
-						<th>Rabby</th>
 						<th>Base Account</th>
-						<th>Clave</th>
 					</tr>
 				</thead>
 				<tbody>
-					<tr
-						><td>Where your signing key lives</td><td class="yes"
-							>Apple / Google Password Manager</td
-						><td class="warn">In the app</td><td class="warn">In the app</td><td class="yes"
-							>Apple / Google Password Manager</td
-						><td class="yes">Apple / Google Password Manager</td></tr
-					>
-					<tr
-						><td>Key ever exposed to the app?</td><td class="yes">No</td><td class="warn">Yes</td
-						><td class="warn">Yes</td><td class="yes">No</td><td class="yes">No</td></tr
-					>
-					<tr
-						><td>Fully open source (app + backend)</td><td class="yes">All of it</td><td
-							class="warn">Partial</td
-						><td class="warn">Partial</td><td class="warn">Contracts only</td><td class="warn"
-							>Contracts only</td
-						></tr
-					>
-					<tr
-						><td>Self-host the bundler &amp; our services</td><td class="yes">Yes</td><td class="no"
-							>No</td
-						><td class="no">No</td><td class="no">No</td><td class="no">No</td></tr
-					>
-					<tr
-						><td>Your account is a standard, audited Safe</td><td class="yes">Safe v1.4.1</td><td
-							class="warn">EOA</td
-						><td class="warn">EOA</td><td class="no">Coinbase's own</td><td class="no"
-							>Clave's own</td
-						></tr
-					>
-					<tr
-						><td>Networks supported</td><td class="yes">12 built-in + custom</td><td class="yes"
-							>Any EVM</td
-						><td class="yes">Any EVM</td><td class="warn">Base-first, few</td><td class="warn"
-							>Base / Arbitrum</td
-						></tr
-					>
-					<tr
-						><td>Keeps working if the vendor disappears</td><td class="yes">Yes</td><td class="yes"
-							>Yes</td
-						><td class="yes">Yes</td><td class="warn">At risk</td><td class="warn">At risk</td></tr
-					>
-					<tr
-						><td>No NFT / DeFi / swap bloat</td><td class="yes">Minimal</td><td class="warn"
-							>Lots</td
-						><td class="warn">Lots</td><td class="warn">Lots</td><td class="warn">Lots</td></tr
-					>
-					<tr
-						><td>No seed phrase or recovery key</td><td class="yes">None</td><td class="no"
-							>Seed phrase</td
-						><td class="no">Seed phrase</td><td class="no">Recovery key</td><td class="warn"
-							>Email / social recovery</td
-						></tr
-					>
+					<tr>
+						<td>Where your signing key lives</td>
+						<td class="yes">Apple / Google Password Manager</td>
+						<td class="warn">In the app</td>
+						<td class="yes">Apple / Google Password Manager</td>
+					</tr>
+					<tr>
+						<td>Key ever exposed to the app?</td>
+						<td class="yes">No</td>
+						<td class="warn">Yes</td>
+						<td class="yes">No</td>
+					</tr>
+					<tr>
+						<td>Open source</td>
+						<td class="yes"
+							><a
+								href="https://github.com/orgs/mondaylabsltd/repositories"
+								target="_blank"
+								rel="noopener">All of it</a
+							></td
+						>
+						<td class="warn">Partial</td>
+						<td class="warn">Partial</td>
+					</tr>
+					<tr>
+						<td>Account contract</td>
+						<td class="yes"><a href="/docs/security-audits">Safe v1.4.1 — ecosystem standard</a></td
+						>
+						<td class="warn">EOA</td>
+						<td class="warn">Custom (audited)</td>
+					</tr>
+					<tr>
+						<td>Networks supported</td>
+						<td>12 built-in + custom</td>
+						<td class="yes">Any EVM</td>
+						<td class="warn">Base-first, few</td>
+					</tr>
+					<tr>
+						<td>Keeps working if the vendor disappears</td>
+						<td class="yes"
+							>Yes —
+							<a
+								href="https://github.com/mondaylabsltd/vela-wallet#self-deploy-service-endpoints"
+								target="_blank"
+								rel="noopener">self-hostable</a
+							></td
+						>
+						<td class="yes">Yes</td>
+						<td class="warn">Signing depends on vendor infra</td>
+					</tr>
+					<tr>
+						<td>What you must back up</td>
+						<td class="yes">Nothing — your passkey syncs automatically</td>
+						<td class="no">Seed phrase</td>
+						<td class="no">Recovery key</td>
+					</tr>
 				</tbody>
 			</table>
 		</div>
@@ -883,8 +883,8 @@
 						target="_blank"
 						rel="noopener">public</a
 					>
-					for review. Every contract we depend on, its audit report, and the known issues we track
-					are documented in
+					for review. Every contract we depend on, its audit report, and the known issues we track are
+					documented in
 					<a
 						href={resolve('/docs/security-audits')}
 						data-rybbit-event="audits_open"
@@ -1571,7 +1571,7 @@
 		width: 100%;
 		border-collapse: collapse;
 		font-size: 0.82rem;
-		min-width: 820px;
+		min-width: 640px;
 	}
 	.compare-table th,
 	.compare-table td {
@@ -1587,7 +1587,7 @@
 		vertical-align: bottom;
 	}
 	.compare-table thead th:first-child {
-		width: 22%;
+		width: 28%;
 	}
 	.compare-table tbody td:first-child {
 		color: var(--text-secondary);
@@ -1601,6 +1601,11 @@
 	}
 	.compare-table td.no {
 		color: var(--text-tertiary);
+	}
+	.compare-table td a {
+		color: var(--accent);
+		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 	.compare-table th:nth-child(2),
 	.compare-table td:nth-child(2) {

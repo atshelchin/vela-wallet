@@ -1,17 +1,80 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { MediaQuery } from 'svelte/reactivity';
 	import type { PageProps } from './$types';
 	import BrandMark from '$lib/ui/BrandMark.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Carousel from '$lib/ui/Carousel.svelte';
 	import FeatureCard from '$lib/ui/FeatureCard.svelte';
+	import CreatePanel from '$lib/ui/onboarding/CreatePanel.svelte';
+	import LoginPanel from '$lib/ui/onboarding/LoginPanel.svelte';
+	import Sheet from '$lib/ui/onboarding/Sheet.svelte';
+	import type {
+		ActionId,
+		CreatePanelState,
+		LoginPanelState,
+		StringResolver
+	} from '$lib/onboarding/states';
+	import { scaffoldTitleI18nKey } from '$lib/onboarding/outcomes';
+	import { fillTemplate } from '$lib/i18n/fill';
 	import { SUPPORTED_LOCALES, FALLBACK_LOCALE } from '$lib/i18n/locales';
+	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { SITE_ORIGIN } from '$lib/site';
 
 	let { data }: PageProps = $props();
 
 	const m = $derived(data.messages);
 	const locale = $derived(data.locale);
+
+	/* ------------------------------------------------------------------ */
+	/* Onboarding flow containers (spec 014 US2 / T025).                    */
+	/* ≥ 1280px: the flow panel swaps the .actions column content in place  */
+	/* (FR-008); below: the bottom sheet presentation (FR-009). The hero    */
+	/* column is untouched either way — the aside keeps its dimensions.     */
+	/* ------------------------------------------------------------------ */
+
+	type Flow = 'create' | 'login';
+
+	const desktop = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
+
+	let openFlow = $state<Flow | null>(null);
+	let sheet = $state<{ requestClose: () => void }>();
+
+	/** Initial states per contract §3: create → empty Form, login → Waiting(null). */
+	const CREATE_INITIAL: CreatePanelState = {
+		kind: 'form',
+		name: '',
+		nameTooLong: false,
+		acks: [false, false, false],
+		canSubmit: false,
+		busy: false
+	};
+	const LOGIN_INITIAL: LoginPanelState = { kind: 'waiting' };
+
+	/** Serialized flow copy from the layout load; frozen numbers filled here. */
+	const flowStrings: StringResolver = (key, params) => fillTemplate(data.flow[key] ?? key, params);
+
+	const sheetLabel = $derived(
+		openFlow === null
+			? ''
+			: flowStrings(
+					scaffoldTitleI18nKey(openFlow === 'create' ? CREATE_INITIAL : LOGIN_INITIAL, openFlow)
+				)
+	);
+
+	/**
+	 * Host action sink (contract §2): every ActionId is a no-op in this
+	 * feature (FR-011 — the wiring feature routes them later), except the
+	 * dismissal semantics, which close the container.
+	 */
+	function onFlowAction(id: ActionId) {
+		if (id === 'back' || id === 'cancel' || id === 'close' || id === 'not_now') closeFlow();
+	}
+
+	function closeFlow() {
+		// Sheet presentation: play the exit animation, then unmount via onClose.
+		if (sheet) sheet.requestClose();
+		else openFlow = null;
+	}
 </script>
 
 <svelte:head>
@@ -50,16 +113,41 @@
 	</section>
 
 	<aside class="actions">
-		<div class="stack">
-			<Button variant="primary" href={resolve('/[locale]/create', { locale })}>
-				{m.createWallet}
-			</Button>
-			<Button variant="secondary" href={resolve('/[locale]/import', { locale })}>
-				{m.alreadyHaveWallet}
-			</Button>
-		</div>
+		{#if openFlow !== null && desktop.current}
+			<div class="flowPanel">
+				{#if openFlow === 'create'}
+					<CreatePanel state={CREATE_INITIAL} strings={flowStrings} onAction={onFlowAction} />
+				{:else}
+					<LoginPanel state={LOGIN_INITIAL} strings={flowStrings} onAction={onFlowAction} />
+				{/if}
+			</div>
+		{:else}
+			<div class="stack">
+				<Button variant="primary" onclick={() => (openFlow = 'create')}>
+					{m.createWallet}
+				</Button>
+				<Button variant="secondary" onclick={() => (openFlow = 'login')}>
+					{m.alreadyHaveWallet}
+				</Button>
+			</div>
+		{/if}
 	</aside>
 </main>
+
+{#if openFlow !== null && !desktop.current}
+	<Sheet bind:this={sheet} label={sheetLabel} onClose={() => (openFlow = null)}>
+		{#if openFlow === 'create'}
+			<CreatePanel
+				state={CREATE_INITIAL}
+				strings={flowStrings}
+				onAction={onFlowAction}
+				showHandle
+			/>
+		{:else}
+			<LoginPanel state={LOGIN_INITIAL} strings={flowStrings} onAction={onFlowAction} showHandle />
+		{/if}
+	</Sheet>
+{/if}
 
 <style>
 	/* ------------------------------------------------------------------ */
@@ -121,6 +209,12 @@
 		flex-direction: column;
 		gap: var(--space-lg);
 		width: 100%;
+	}
+
+	/* In-place swap target: same column, same width envelope as the stack. */
+	.flowPanel {
+		width: 100%;
+		max-width: var(--layout-frameW);
 	}
 
 	/* ------------------------------------------------------------- */

@@ -12,10 +12,11 @@
  * base64-embedded and `initSync`'d at import; catalogs are statically imported
  * raw, so resolution is synchronous and immune to the working directory.
  */
-import { initSync, I18n as WasmI18n } from '../../../../../rust/pkg-web/vela_core.js';
-import { WASM_BASE64 } from '../../../../../rust/pkg-web/vela_core_bg.base64.js';
+import { I18n as WasmI18n } from '../../../../../rust/pkg-web/vela_core.js';
+import './wasm-init.server';
 import { FALLBACK_LOCALE, type Locale } from './locales';
 import { FEATURE_SLUGS, FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
+import type { WalletMessages } from '$lib/wallet/messages';
 
 /** Generated runtime catalogs (gen-i18n.mjs stage 4), one per locale. */
 const CATALOGS = import.meta.glob('../../../../../public/i18n/*.json', {
@@ -29,8 +30,6 @@ function catalogBytes(locale: string): Uint8Array {
 	if (!entry) throw new Error(`no generated catalog for locale "${locale}" in public/i18n/`);
 	return new TextEncoder().encode(entry[1]);
 }
-
-initSync({ module: Buffer.from(WASM_BASE64, 'base64') });
 
 const engine = new WasmI18n(catalogBytes(FALLBACK_LOCALE));
 
@@ -82,7 +81,85 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
  */
 export function resolveFlowMessages(locale: Locale): FlowMessages {
 	activate(locale);
-	return Object.fromEntries(FLOW_KEYS.map((key) => [key, t(locale, key)]));
+	return Object.fromEntries(FLOW_KEYS.map((key) => [key, t(locale, key)])) as FlowMessages;
+}
+
+/** The serializable strings the wallet screens render (spec 015, research.md D3). */
+export function resolveWalletMessages(locale: Locale): WalletMessages {
+	activate(locale);
+	const k = (key: string) => t(locale, key);
+	return {
+		nav: {
+			wallet: k('componentsUi.mainNav.wallet'),
+			contacts: k('componentsUi.mainNav.contacts'),
+			explore: k('componentsUi.mainNav.explore'),
+			settings: k('componentsUi.mainNav.settings')
+		},
+		balance: {
+			totalLabel: k('home.totalBalance'),
+			liveIndicator: k('home.liveIndicator'),
+			stale: k('home.balanceStale'),
+			unpriced: k('home.balanceUnpriced'),
+			noPrice: k('home.balanceDetailNoPrice'),
+			a11yHide: k('home.a11yHideBalance'),
+			a11yShow: k('home.a11yShowBalance')
+		},
+		actions: {
+			receive: k('componentsUi.dock.receive'),
+			send: k('componentsUi.dock.send'),
+			scan: k('componentsUi.dock.scan')
+		},
+		sections: {
+			activity: k('home.tabActivity'),
+			assets: k('assets.sectionTitle'),
+			all: k('history.filterAll'),
+			add: k('assets.addToken')
+		},
+		activity: {
+			sent: k('history.labelSent'),
+			received: k('history.labelReceived'),
+			dapp: k('history.txLabelDappTx'),
+			today: k('componentsUi.dayGroup.today'),
+			yesterday: k('componentsUi.dayGroup.yesterday'),
+			toName: k('history.toName'),
+			fromName: k('history.fromName'),
+			emptyTitle: k('home.emptyNoActivity'),
+			emptyCaption: k('home.emptySubtitle')
+		},
+		assets: { emptyTitle: k('assets.emptyTitle'), emptyCaption: k('assets.emptySubtext') },
+		networkFilter: {
+			pillAll: k('componentsUi.networkFilter.pillAll'),
+			sheetTitle: k('componentsUi.networkFilter.selectChain'),
+			allNetworks: k('componentsUi.networkFilter.allNetworks')
+		},
+		sidebar: {
+			networks: k('settingsModals.network.modalTitle'),
+			searchPlaceholder: k('componentsUi.commandBar.placeholder')
+		},
+		receive: {
+			title: k('receive.title'),
+			addressLabel: k('receive.addressLabel'),
+			copyAddress: k('componentsUi.identiconViewer.copyAddress'),
+			qrCaption: k('componentsUi.qrPlaceholder.caption'),
+			warningTitle: k('receive.warningTitle'),
+			warningReminder: k('receive.warningReminder'),
+			networksLine: k('receive.networksLine'),
+			networkDetail: k('receive.networkDetail')
+		},
+		assetDetail: {
+			send: k('tokenDetail.send'),
+			receive: k('tokenDetail.receive'),
+			labelName: k('tokenDetail.labelName'),
+			labelPrice: k('tokenDetail.labelPrice'),
+			priceValue: k('tokenDetail.priceValue'),
+			labelContract: k('tokenDetail.labelContract'),
+			labelDecimals: k('tokenDetail.labelDecimals'),
+			labelTransactions: k('tokenDetail.labelTransactions'),
+			viewOnExplorer: k('tokenDetail.viewOnExplorer'),
+			nativeToken: k('addToken.labelNativeToken')
+		},
+		close: k('componentsUi.identiconViewer.close')
+	};
 }
 
 /** Direct engine access for the differential test only. */

@@ -66,6 +66,7 @@
       "anyAmount": "Qualquer valor",
       "invalidTitle": "Link de pagamento inválido",
       "invalidBody": "Falta um destinatário ou uma rede válida neste link. Peça um novo ao remetente."
-    }
+    },
+    "addressLabel": "Seu endereço de recebimento"
   }
 }

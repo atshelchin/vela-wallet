@@ -364,7 +364,8 @@
    "anyAmount": "Любая сумма",
    "invalidTitle": "Неверная ссылка для оплаты",
    "invalidBody": "В этой ссылке отсутствует корректный получатель или сеть. Попросите отправителя прислать новую."
-  }
+  },
+  "addressLabel": "Ваш адрес для получения"
  },
  "assets": {
   "sectionTitle": "Активы",
@@ -456,7 +457,11 @@
   "txLabelSent": "Отправлено {{symbol}}",
   "txSentSubtitle": "на {{toName}} · {{networkName}}",
   "txLabelReceived": "Получено {{symbol}}",
-  "txReceivedSubtitle": "от {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "от {{fromName}} · {{networkName}}",
+  "labelSent": "Отправлено",
+  "labelReceived": "Получено",
+  "toName": "на {{name}}",
+  "fromName": "от {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1172,7 +1177,8 @@
    "allNetworks": "Все сети",
    "showEvery": "Показать все сети",
    "clearFilter": "Сбросить фильтр сетей",
-   "toggleSearch": "Поиск сетей"
+   "toggleSearch": "Поиск сетей",
+   "pillAll": "Все сети"
   },
   "bugReport": {
    "title": "Сообщить о проблеме",
@@ -1216,6 +1222,22 @@
    "closeBtn": "Закрыть",
    "suggested": "Рекомендуемое пополнение",
    "retryBtn": "Пополнено · Повторить"
+  },
+  "mainNav": {
+   "wallet": "Кошелёк",
+   "contacts": "Контакты",
+   "explore": "Обзор",
+   "settings": "Настройки"
+  },
+  "dayGroup": {
+   "today": "Сегодня",
+   "yesterday": "Вчера"
+  },
+  "commandBar": {
+   "placeholder": "Найти или выполнить"
+  },
+  "qrPlaceholder": {
+   "caption": "Демонстрационный шаблон · не сканируется"
   }
  },
  "settingsModals": {

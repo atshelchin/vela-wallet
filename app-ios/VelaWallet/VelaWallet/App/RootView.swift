@@ -54,7 +54,7 @@ struct RootView: View {
         // with VELA_GALLERY=1. Debug-only compile + env gate (FR-013).
         #if DEBUG
         if GalleryMode.isEnabled {
-            GalleryScreen(loc: loc)
+            OnboardingGalleryScreen(loc: loc)
         } else {
             appBody
         }
@@ -119,26 +119,51 @@ struct RootView: View {
 
     @ViewBuilder
     private func content(router path: Binding<[AppRoute]>, flow: Binding<WelcomeFlow?>) -> some View {
-        NavigationStack(path: path) {
-            WelcomeScreen(model: model)
-                .navigationDestination(for: AppRoute.self) { route in
-                    switch route {
-                    case .createWalletPlaceholder:
-                        IntentPlaceholderScreen(title: loc.t("onboarding.welcome.createWallet"))
-                    case .importWalletPlaceholder:
-                        IntentPlaceholderScreen(title: loc.t("onboarding.welcome.alreadyHaveWallet"))
+        switch PageOverride.page {
+        case .wallet:
+            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc))
+        case .gallery:
+            // Spec 015's wallet-home gallery; the spec 014 onboarding-state
+            // gallery is OnboardingGalleryScreen behind VELA_GALLERY=1.
+            GalleryScreen(loc: loc)
+        case nil:
+            NavigationStack(path: path) {
+                WelcomeScreen(model: model)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        switch route {
+                        case .createWalletPlaceholder:
+                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.createWallet"))
+                        case .importWalletPlaceholder:
+                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.alreadyHaveWallet"))
+                        }
                     }
-                }
-        }
-        // Spec 014 flow container (contract §3): FlowSheet supplies the
-        // content-height detent, drag indicator, and bgRaised presentation.
-        .sheet(item: flow) { presented in
-            WelcomeFlowHost(flow: presented, loc: loc)
-                // Sheets are their own presentation root — re-apply the
-                // active theme, mirroring the gallery's container contract.
-                .themed(scheme)
+            }
+            // Spec 014 flow container (contract §3): FlowSheet supplies the
+            // content-height detent, drag indicator, and bgRaised presentation.
+            .sheet(item: flow) { presented in
+                WelcomeFlowHost(flow: presented, loc: loc)
+                    // Sheets are their own presentation root — re-apply the
+                    // active theme, mirroring the gallery's container contract.
+                    .themed(scheme)
+            }
         }
     }
+}
+
+/// `VELA_PAGE` launch override (spec 015 research D4) — same idiom as
+/// `VELA_THEME`/`VELA_LANG`: `wallet` mounts the fixture-driven home,
+/// `gallery` the preview gallery; unset keeps the Welcome flow. Never part
+/// of production navigation (FR-004).
+enum PageOverride {
+    enum Page { case wallet, gallery }
+
+    static let page: Page? = {
+        switch ProcessInfo.processInfo.environment["VELA_PAGE"] {
+        case "wallet": .wallet
+        case "gallery": .gallery
+        default: nil
+        }
+    }()
 }
 
 /// Resolves every welcome-screen string from the corpus — the key list is

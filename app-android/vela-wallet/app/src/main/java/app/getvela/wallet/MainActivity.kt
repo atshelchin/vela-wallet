@@ -32,6 +32,7 @@ import app.getvela.wallet.core.designsystem.theme.isDarkEffective
 import app.getvela.wallet.core.i18n.LocalVelaStrings
 import app.getvela.wallet.core.i18n.VelaStrings
 import app.getvela.wallet.feature.onboarding.gallery.GalleryScreen
+import app.getvela.wallet.navigation.VelaDestinations
 import app.getvela.wallet.navigation.VelaNavHost
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +69,17 @@ class MainActivity : ComponentActivity() {
      */
     private fun galleryRequested(): Boolean =
         intent?.getBooleanExtra("vela.gallery", false) == true
+
+    /**
+     * Launch-time start-route override (spec 015, research D4): keeps the
+     * gallery/wallet reachable without touching production navigation.
+     *
+     *   adb shell am start -n app.getvela.wallet/.MainActivity --es vela.startDestination gallery
+     */
+    private fun startDestination(): String =
+        intent?.getStringExtra("vela.startDestination")
+            ?.takeIf { it in VelaDestinations.ALL }
+            ?: VelaDestinations.WELCOME
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
@@ -140,7 +152,8 @@ class MainActivity : ComponentActivity() {
                     Box(modifier = Modifier.fillMaxSize().background(colors.bgBase)) {
                         if (galleryRequested()) {
                             // Spec 014: dev-only state gallery replaces the NavHost;
-                            // it manages its own in-gallery theme toggle.
+                            // it manages its own in-gallery theme toggle. Spec 015's
+                            // wallet/gallery routes ride the startDestination extra.
                             GalleryScreen(initialDarkTheme = darkTheme)
                         } else {
                             // Welcome is composed from the first frame, hidden by the
@@ -155,6 +168,7 @@ class MainActivity : ComponentActivity() {
                                             container.themeRepository.setThemePreference(selected)
                                         }
                                     },
+                                    startDestination = startDestination(),
                                 )
                             }
 

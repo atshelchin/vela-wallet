@@ -66,6 +66,7 @@
       "anyAmount": "任意金额",
       "invalidTitle": "无效的收款链接",
       "invalidBody": "此链接缺少有效的收款地址或网络，请向发送方索取新链接。"
-    }
+    },
+    "addressLabel": "你的收款地址"
   }
 }

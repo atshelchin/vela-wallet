@@ -61,7 +61,7 @@ struct TechDetailsDisclosure: View {
                         .typeRole(Typography.monoSmall)
                         .foregroundStyle(theme.errorBase)
                     Text(details.context)
-                        .typeRole(Typography.caption)
+                        .typeRole(Typography.flowCaption)
                         .foregroundStyle(theme.fgMuted)
                     if let endpoint = details.endpoint {
                         Text(endpoint)

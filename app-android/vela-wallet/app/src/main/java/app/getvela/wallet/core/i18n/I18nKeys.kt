@@ -137,4 +137,55 @@ object I18nKeys {
     object Common {
         const val CANCEL = "common.cancel"
     }
+
+    /** Wallet home vocabulary (spec 015, research.md D3 key map — all pre-existing corpus keys). */
+    object Wallet {
+        // Main navigation (tab bar).
+        const val NAV_WALLET = "componentsUi.mainNav.wallet"
+        const val NAV_CONTACTS = "componentsUi.mainNav.contacts"
+        const val NAV_EXPLORE = "componentsUi.mainNav.explore"
+        const val NAV_SETTINGS = "componentsUi.mainNav.settings"
+
+        // Balance display.
+        const val TOTAL_BALANCE = "home.totalBalance"
+        const val LIVE_INDICATOR = "home.liveIndicator"
+        const val BALANCE_STALE = "home.balanceStale"
+        const val BALANCE_UNPRICED = "home.balanceUnpriced"
+        const val NO_PRICE = "home.balanceDetailNoPrice"
+        const val A11Y_HIDE_BALANCE = "home.a11yHideBalance"
+        const val A11Y_SHOW_BALANCE = "home.a11yShowBalance"
+
+        // Sections & empty states.
+        const val SECTION_ACTIVITY = "home.tabActivity"
+        const val EMPTY_NO_ACTIVITY = "home.emptyNoActivity"
+        const val EMPTY_ACTIVITY_SUBTITLE = "home.emptySubtitle"
+        const val SECTION_ASSETS = "assets.sectionTitle"
+        const val ASSETS_ADD = "assets.addToken"
+        const val ASSETS_EMPTY_TITLE = "assets.emptyTitle"
+        const val ASSETS_EMPTY_SUBTEXT = "assets.emptySubtext"
+
+        // Action dock.
+        const val ACTION_RECEIVE = "componentsUi.dock.receive"
+        const val ACTION_SEND = "componentsUi.dock.send"
+        const val ACTION_SCAN = "componentsUi.dock.scan"
+
+        // Activity rows (templates use {{name}} via t(key, vars)).
+        const val FILTER_ALL = "history.filterAll"
+        const val LABEL_SENT = "history.labelSent"
+        const val LABEL_RECEIVED = "history.labelReceived"
+        const val LABEL_DAPP_TX = "history.txLabelDappTx"
+        const val TO_NAME = "history.toName"
+        const val FROM_NAME = "history.fromName"
+        const val DAY_TODAY = "componentsUi.dayGroup.today"
+        const val DAY_YESTERDAY = "componentsUi.dayGroup.yesterday"
+
+        // Network filter (pill + chain-select sheet).
+        const val PILL_ALL = "componentsUi.networkFilter.pillAll"
+        const val SELECT_CHAIN = "componentsUi.networkFilter.selectChain"
+        const val ALL_NETWORKS = "componentsUi.networkFilter.allNetworks"
+
+        // Shared component captions.
+        const val QR_CAPTION = "componentsUi.qrPlaceholder.caption"
+        const val COPY_ADDRESS = "componentsUi.identiconViewer.copyAddress"
+    }
 }

@@ -29,7 +29,7 @@ struct AckRow: View {
         HStack(alignment: .top, spacing: Tokens.Space.s12) {
             checkbox
             Text(attributed)
-                .typeRole(Typography.caption)
+                .typeRole(Typography.flowCaption)
                 .foregroundStyle(theme.fgMuted)
                 .tint(theme.accentBase)
                 .environment(\.openURL, OpenURLAction { url in

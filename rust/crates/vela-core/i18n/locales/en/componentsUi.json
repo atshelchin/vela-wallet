@@ -221,7 +221,8 @@
       "allNetworks": "All Networks",
       "showEvery": "Show every chain",
       "clearFilter": "Clear network filter",
-      "toggleSearch": "Search chains"
+      "toggleSearch": "Search chains",
+      "pillAll": "All networks"
     },
     "signingApprove": {
       "spendingCap": "Spending cap",
@@ -281,6 +282,22 @@
       "copied": "Copied",
       "retryBtn": "I've funded · Retry",
       "closeBtn": "Close"
+    },
+    "mainNav": {
+      "wallet": "Wallet",
+      "contacts": "Contacts",
+      "explore": "Explore",
+      "settings": "Settings"
+    },
+    "dayGroup": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "commandBar": {
+      "placeholder": "Search or run"
+    },
+    "qrPlaceholder": {
+      "caption": "Demo placeholder · not scannable"
     }
   }
 }

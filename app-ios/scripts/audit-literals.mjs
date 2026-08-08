@@ -21,9 +21,13 @@ const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const appDir = join(root, "VelaWallet", "VelaWallet");
 const scanDirs = ["App", "Components", "Features", "Localization"].map((d) => join(appDir, d));
 
-const SANCTIONED = /(Tokens\.|WelcomeGeometry\.|Typography\.|Interaction\.|Brand\.)/;
+const SANCTIONED = /(Tokens\.|WelcomeGeometry\.|WalletGeometry\.|Typography\.|Interaction\.|Brand\.)/;
 const RULES = [
-  { name: "hex color literal", re: /0x[0-9A-Fa-f]{6,8}|"#[0-9A-Fa-f]{3,8}"/ },
+  // Swift hex colors are numeric literals (0xAARRGGBB) or "#RRGGBB" strings.
+  // Quoted 0x… tokens are wallet ADDRESSES (spec 015 fixtures, ported
+  // verbatim from data-model.md), so the 0x form skips string contents.
+  { name: "hex color literal", re: /0x[0-9A-Fa-f]{6,8}/, stripStrings: true },
+  { name: "hex color string", re: /"#[0-9A-Fa-f]{3,8}"/ },
   { name: "constructed Color", re: /Color\((red|hue|white|\.sRGB)/ },
   { name: "system font call", re: /\.font\(\.system|Font\.system\(|UIFont\(/ },
   {
@@ -51,7 +55,8 @@ for (const dir of scanDirs) {
     lines.forEach((line, i) => {
       const code = line.split("//")[0]; // ignore comments
       for (const rule of RULES) {
-        const m = code.match(rule.re);
+        const target = rule.stripStrings ? code.replace(/"(?:[^"\\]|\\.)*"/g, '""') : code;
+        const m = target.match(rule.re);
         if (!m) continue;
         if (rule.allowSanctionedLine && SANCTIONED.test(code)) continue;
         if (rule.allowZeroOne && /^\s*$/.test(code)) continue;

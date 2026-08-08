@@ -52,12 +52,12 @@ struct NameField: View {
 
             if tooLong {
                 Text(tooLongText)
-                    .typeRole(Typography.caption)
+                    .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.errorBase)
             }
 
             Text(helper)
-                .typeRole(Typography.caption)
+                .typeRole(Typography.flowCaption)
                 .foregroundStyle(theme.fgMuted)
         }
     }

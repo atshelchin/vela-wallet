@@ -358,7 +358,8 @@
    "anyAmount": "금액 자유",
    "invalidTitle": "잘못된 결제 링크",
    "invalidBody": "이 링크에는 올바른 받는 사람 또는 네트워크 정보가 없습니다. 보내는 사람에게 새 링크를 요청하세요."
-  }
+  },
+  "addressLabel": "받기 주소"
  },
  "assets": {
   "sectionTitle": "자산",
@@ -450,7 +451,11 @@
   "txLabelSent": "{{symbol}} 보냄",
   "txSentSubtitle": "받는 곳: {{toName}} · {{networkName}}",
   "txLabelReceived": "{{symbol}} 받음",
-  "txReceivedSubtitle": "보낸 곳: {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "보낸 곳: {{fromName}} · {{networkName}}",
+  "labelSent": "보냄",
+  "labelReceived": "받음",
+  "toName": "받는 곳: {{name}}",
+  "fromName": "보낸 곳: {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1166,7 +1171,8 @@
    "allNetworks": "모든 네트워크",
    "showEvery": "모든 체인 표시",
    "clearFilter": "네트워크 필터 지우기",
-   "toggleSearch": "체인 검색"
+   "toggleSearch": "체인 검색",
+   "pillAll": "모든 네트워크"
   },
   "bugReport": {
    "title": "문제 신고",
@@ -1210,6 +1216,22 @@
    "closeBtn": "닫기",
    "suggested": "권장 충전액",
    "retryBtn": "충전 완료 · 다시 시도"
+  },
+  "mainNav": {
+   "wallet": "지갑",
+   "contacts": "연락처",
+   "explore": "탐색",
+   "settings": "설정"
+  },
+  "dayGroup": {
+   "today": "오늘",
+   "yesterday": "어제"
+  },
+  "commandBar": {
+   "placeholder": "검색 또는 실행"
+  },
+  "qrPlaceholder": {
+   "caption": "데모 자리 표시자 · 스캔 불가"
   }
  },
  "settingsModals": {

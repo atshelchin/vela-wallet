@@ -365,7 +365,8 @@
    "anyAmount": "Any amount",
    "invalidTitle": "Invalid payment link",
    "invalidBody": "This link is missing a valid recipient or network. Ask the sender for a new one."
-  }
+  },
+  "addressLabel": "Your receive address"
  },
  "assets": {
   "sectionTitle": "Assets",
@@ -457,7 +458,11 @@
   "txLabelSent": "Sent {{symbol}}",
   "txSentSubtitle": "To {{toName}} · {{networkName}}",
   "txLabelReceived": "Received {{symbol}}",
-  "txReceivedSubtitle": "From {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "From {{fromName}} · {{networkName}}",
+  "labelSent": "Sent",
+  "labelReceived": "Received",
+  "toName": "To {{name}}",
+  "fromName": "From {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1160,7 +1165,8 @@
    "allNetworks": "All Networks",
    "showEvery": "Show every chain",
    "clearFilter": "Clear network filter",
-   "toggleSearch": "Search chains"
+   "toggleSearch": "Search chains",
+   "pillAll": "All networks"
   },
   "signingApprove": {
    "spendingCap": "Spending cap",
@@ -1220,6 +1226,22 @@
    "copied": "Copied",
    "retryBtn": "I've funded · Retry",
    "closeBtn": "Close"
+  },
+  "mainNav": {
+   "wallet": "Wallet",
+   "contacts": "Contacts",
+   "explore": "Explore",
+   "settings": "Settings"
+  },
+  "dayGroup": {
+   "today": "Today",
+   "yesterday": "Yesterday"
+  },
+  "commandBar": {
+   "placeholder": "Search or run"
+  },
+  "qrPlaceholder": {
+   "caption": "Demo placeholder · not scannable"
   }
  },
  "settingsModals": {

@@ -66,6 +66,7 @@
       "anyAmount": "Herhangi bir tutar",
       "invalidTitle": "Geçersiz ödeme bağlantısı",
       "invalidBody": "Bu bağlantıda geçerli bir alıcı veya ağ eksik. Gönderenden yeni bir bağlantı isteyin."
-    }
+    },
+    "addressLabel": "Alma adresiniz"
   }
 }

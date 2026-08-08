@@ -14,6 +14,10 @@
     "txLabelSent": "{{symbol}} Gönderildi",
     "txSentSubtitle": "Alıcı: {{toName}} · {{networkName}}",
     "txLabelReceived": "{{symbol}} Alındı",
-    "txReceivedSubtitle": "Gönderen: {{fromName}} · {{networkName}}"
+    "txReceivedSubtitle": "Gönderen: {{fromName}} · {{networkName}}",
+    "labelSent": "Gönderildi",
+    "labelReceived": "Alındı",
+    "toName": "Alıcı: {{name}}",
+    "fromName": "Gönderen: {{name}}"
   }
 }

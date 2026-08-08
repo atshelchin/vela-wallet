@@ -64,9 +64,13 @@ pub struct Theme {
     pub logo_sail_a: Hsla,
     pub logo_sail_b: Hsla,
     pub logo_hull: Hsla,
-    // status colors (spec 014 research D5) — EXACT docs/design-tokens.json
-    // values (`color-light`/`color-dark` → success/warning/error/info), so all
-    // four platforms render identical badge/hint colors.
+    // status colors — EXACT docs/design-tokens.json values
+    // (`color-light`/`color-dark` → success/warning/error/info), so all four
+    // platforms render identical badge/hint colors. Spec 014 (onboarding
+    // flow) reads the `*_base`/`*_soft` set; spec 015 (wallet home) reads
+    // `success`/`warning`/`warning_border`. Values overlap by design —
+    // unifying the two vocabularies is a recorded follow-up, not a merge
+    // decision.
     pub success_base: Hsla,
     pub success_soft: Hsla,
     pub warning_base: Hsla,
@@ -81,6 +85,10 @@ pub struct Theme {
     /// steps the wrong way on the dark ladder), so it is its own token —
     /// mock-sampled dark, `bg_sunken`-equivalent light.
     pub bg_well: Hsla,
+    // spec 015 wallet-home aliases (same export values).
+    pub success: Hsla,
+    pub warning: Hsla,
+    pub warning_border: Hsla,
 }
 
 fn c(hex: u32) -> Hsla {
@@ -123,6 +131,9 @@ impl Theme {
             info_base: c(0x4267f4),
             info_soft: c(0xedf0ff),
             bg_well: c(0xf5f3ef),
+            success: c(0x2d8e5f),
+            warning: c(0x92600a),
+            warning_border: c(0xf0dcc8),
         }
     }
 
@@ -154,6 +165,9 @@ impl Theme {
             info_base: c(0x5a7cf6),
             info_soft: c(0x131b33),
             bg_well: c(0x121210),
+            success: c(0x3da872),
+            warning: c(0xd4a54a),
+            warning_border: c(0x3d3020),
         }
     }
 }
@@ -188,6 +202,71 @@ pub const GAP_TAGLINE_GRID: f32 = 40.;
 pub const BRAND_INDENT: f32 = 14.;
 pub const LOGO_SIZE: f32 = 60.;
 pub const GAP_LOGO_WORDMARK: f32 = 34.;
+
+// ---------------------------------------------------------------------------
+// Wallet home (spec 015). Geometry measured on the D1–D3 mocks at their
+// 1280×800 logical size.
+// ---------------------------------------------------------------------------
+
+/// Fixed sidebar width (column 1).
+pub const SIDEBAR_W: f32 = 240.;
+/// Fixed third-column width (column 3 — the desktop bottom-sheet stand-in).
+pub const THIRD_PANEL_W: f32 = 400.;
+/// Inner padding of the sidebar.
+pub const SIDEBAR_PAD: f32 = 16.;
+/// Top padding of the sidebar header — clears the macOS traffic lights.
+pub const SIDEBAR_TOP: f32 = 36.;
+/// Content column padding.
+pub const WALLET_PAD_X: f32 = 24.;
+pub const WALLET_PAD_TOP: f32 = 28.;
+/// Row heights / avatar sizes.
+pub const WALLET_AVATAR: f32 = 40.;
+pub const WALLET_ROW_ICON: f32 = 40.;
+pub const WALLET_BADGE: f32 = 12.;
+pub const WALLET_NAV_ROW_H: f32 = 40.;
+pub const WALLET_CONTROL_H: f32 = 44.;
+
+/// Wallet type scale (mock-measured).
+pub fn text_balance_hero() -> Pixels {
+    px(40.)
+}
+pub fn text_balance_decimals() -> Pixels {
+    px(24.)
+}
+pub fn text_row_title() -> Pixels {
+    px(15.)
+}
+pub fn text_row_sub() -> Pixels {
+    px(13.)
+}
+pub fn text_section() -> Pixels {
+    px(17.)
+}
+pub fn text_label() -> Pixels {
+    px(11.)
+}
+pub fn text_amount() -> Pixels {
+    px(15.)
+}
+pub fn text_unit() -> Pixels {
+    px(11.)
+}
+pub fn text_panel_title() -> Pixels {
+    px(20.)
+}
+pub fn text_mono_address() -> Pixels {
+    px(13.)
+}
+
+/// Monospace family for addresses. Menlo ships on macOS; the DejaVu face is
+/// the broadly-present fallback on the Linux CI/dev images this app targets.
+pub fn font_mono() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "Menlo"
+    } else {
+        "DejaVu Sans Mono"
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Launch animation (spec 012). Every value here is shared verbatim with the

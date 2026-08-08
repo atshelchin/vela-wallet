@@ -1,0 +1,171 @@
+//! Wallet home (spec 015): fixture-driven three-column UI + gallery.
+//!
+//! `fixtures` is the canonical data (data-model.md, verbatim mock content),
+//! `components` the reusable visuals (theme + resolved strings in, `Div` out),
+//! `page` the one entity that owns state and interaction.
+
+pub mod components;
+pub mod fixtures;
+pub mod page;
+
+use gpui::SharedString;
+
+use crate::loc::Loc;
+
+/// `{{var}}` interpolation for the handful of templated wallet strings —
+/// corpus-linted templates with known vars, same as the web's `fill`
+/// (research.md D3), not a parallel i18n engine.
+pub fn fill(template: &str, name: &str, value: &str) -> String {
+    let needle = format!("{{{{{name}}}}}");
+    template.replace(&needle, value)
+}
+
+/// Every wallet string, resolved once per locale (research.md D3 key map).
+pub struct WalletStrings {
+    pub nav_wallet: SharedString,
+    pub nav_contacts: SharedString,
+    pub nav_explore: SharedString,
+    pub nav_settings: SharedString,
+    pub total_balance: SharedString,
+    pub live_indicator: SharedString,
+    pub balance_stale: SharedString,
+    pub balance_unpriced: SharedString,
+    pub no_price: SharedString,
+    pub action_receive: SharedString,
+    pub action_send: SharedString,
+    pub action_scan: SharedString,
+    pub section_activity: SharedString,
+    pub section_assets: SharedString,
+    pub action_all: SharedString,
+    pub action_add: SharedString,
+    pub label_sent: SharedString,
+    pub label_received: SharedString,
+    pub label_dapp: SharedString,
+    pub today: SharedString,
+    pub yesterday: SharedString,
+    /// Templates carrying `{{name}}`.
+    pub to_name: String,
+    pub from_name: String,
+    pub empty_activity_title: SharedString,
+    pub empty_activity_caption: SharedString,
+    pub empty_assets_title: SharedString,
+    pub empty_assets_caption: SharedString,
+    pub networks_title: SharedString,
+    pub all_networks: SharedString,
+    pub search_placeholder: SharedString,
+    pub receive_title: SharedString,
+    pub address_label: SharedString,
+    pub copy_address: SharedString,
+    pub qr_caption: SharedString,
+    pub warning_title: SharedString,
+    pub warning_reminder: SharedString,
+    /// Template carrying `{{count}}`.
+    pub networks_line: String,
+    /// Template carrying `{{name}}` and `{{id}}`.
+    pub network_detail: String,
+    pub detail_send: SharedString,
+    pub detail_receive: SharedString,
+    pub label_name: SharedString,
+    pub label_price: SharedString,
+    /// Template carrying `{{symbol}}` and `{{value}}`.
+    pub price_value: String,
+    pub label_contract: SharedString,
+    pub label_decimals: SharedString,
+    pub label_transactions: SharedString,
+    pub view_on_explorer: SharedString,
+    pub native_token: SharedString,
+}
+
+impl WalletStrings {
+    pub fn resolve(loc: &Loc) -> Self {
+        let s = |key: &str| loc.t(key);
+        let raw = |key: &str| loc.t(key).to_string();
+        Self {
+            nav_wallet: s("componentsUi.mainNav.wallet"),
+            nav_contacts: s("componentsUi.mainNav.contacts"),
+            nav_explore: s("componentsUi.mainNav.explore"),
+            nav_settings: s("componentsUi.mainNav.settings"),
+            total_balance: s("home.totalBalance"),
+            live_indicator: s("home.liveIndicator"),
+            balance_stale: s("home.balanceStale"),
+            balance_unpriced: s("home.balanceUnpriced"),
+            no_price: s("home.balanceDetailNoPrice"),
+            action_receive: s("componentsUi.dock.receive"),
+            action_send: s("componentsUi.dock.send"),
+            action_scan: s("componentsUi.dock.scan"),
+            section_activity: s("home.tabActivity"),
+            section_assets: s("assets.sectionTitle"),
+            action_all: s("history.filterAll"),
+            action_add: s("assets.addToken"),
+            label_sent: s("history.labelSent"),
+            label_received: s("history.labelReceived"),
+            label_dapp: s("history.txLabelDappTx"),
+            today: s("componentsUi.dayGroup.today"),
+            yesterday: s("componentsUi.dayGroup.yesterday"),
+            to_name: raw("history.toName"),
+            from_name: raw("history.fromName"),
+            empty_activity_title: s("home.emptyNoActivity"),
+            empty_activity_caption: s("home.emptySubtitle"),
+            empty_assets_title: s("assets.emptyTitle"),
+            empty_assets_caption: s("assets.emptySubtext"),
+            networks_title: s("settingsModals.network.modalTitle"),
+            all_networks: s("componentsUi.networkFilter.allNetworks"),
+            search_placeholder: s("componentsUi.commandBar.placeholder"),
+            receive_title: s("receive.title"),
+            address_label: s("receive.addressLabel"),
+            copy_address: s("componentsUi.identiconViewer.copyAddress"),
+            qr_caption: s("componentsUi.qrPlaceholder.caption"),
+            warning_title: s("receive.warningTitle"),
+            warning_reminder: s("receive.warningReminder"),
+            networks_line: raw("receive.networksLine"),
+            network_detail: raw("receive.networkDetail"),
+            detail_send: s("tokenDetail.send"),
+            detail_receive: s("tokenDetail.receive"),
+            label_name: s("tokenDetail.labelName"),
+            label_price: s("tokenDetail.labelPrice"),
+            price_value: raw("tokenDetail.priceValue"),
+            label_contract: s("tokenDetail.labelContract"),
+            label_decimals: s("tokenDetail.labelDecimals"),
+            label_transactions: s("tokenDetail.labelTransactions"),
+            view_on_explorer: s("tokenDetail.viewOnExplorer"),
+            native_token: s("addToken.labelNativeToken"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// SC-004 discipline from spec 007, applied to the wallet keys: none may
+    /// echo in the locales the visual pass uses.
+    #[test]
+    fn wallet_strings_resolve_without_echo() {
+        // Loc::from_env honours VELA_LANG; pin zh then en via the raw engine
+        // path used by loc::tests — simplest here is the env-independent check
+        // that the resolved strings differ from their keys.
+        let loc = Loc::from_env();
+        let s = WalletStrings::resolve(&loc);
+        for (value, key) in [
+            (s.nav_wallet.as_ref(), "componentsUi.mainNav.wallet"),
+            (s.total_balance.as_ref(), "home.totalBalance"),
+            (s.no_price.as_ref(), "home.balanceDetailNoPrice"),
+            (s.qr_caption.as_ref(), "componentsUi.qrPlaceholder.caption"),
+            (s.address_label.as_ref(), "receive.addressLabel"),
+            (s.label_transactions.as_ref(), "tokenDetail.labelTransactions"),
+        ] {
+            assert_ne!(value, key, "`{key}` echoed the key");
+        }
+        assert!(s.to_name.contains("{{name}}"), "toName must be a template");
+        assert!(
+            s.networks_line.contains("{{count}}"),
+            "networksLine must be a template"
+        );
+    }
+
+    #[test]
+    fn fill_replaces_named_vars() {
+        assert_eq!(fill("至 {{name}}", "name", "hold on"), "至 hold on");
+        assert_eq!(fill("{{a}} & {{b}}", "a", "x"), "x & {{b}}");
+    }
+}

@@ -358,7 +358,8 @@
    "anyAmount": "Beliebiger Betrag",
    "invalidTitle": "Ungültiger Zahlungslink",
    "invalidBody": "In diesem Link fehlt ein gültiger Empfänger oder ein gültiges Netzwerk. Bitten Sie den Absender um einen neuen."
-  }
+  },
+  "addressLabel": "Ihre Empfangsadresse"
  },
  "assets": {
   "sectionTitle": "Assets",
@@ -450,7 +451,11 @@
   "txLabelSent": "{{symbol}} gesendet",
   "txSentSubtitle": "An {{toName}} · {{networkName}}",
   "txLabelReceived": "{{symbol}} erhalten",
-  "txReceivedSubtitle": "Von {{fromName}} · {{networkName}}"
+  "txReceivedSubtitle": "Von {{fromName}} · {{networkName}}",
+  "labelSent": "Gesendet",
+  "labelReceived": "Erhalten",
+  "toName": "An {{name}}",
+  "fromName": "Von {{name}}"
  },
  "onboarding": {
   "welcome": {
@@ -1166,7 +1171,8 @@
    "allNetworks": "Alle Netzwerke",
    "showEvery": "Jede Chain anzeigen",
    "clearFilter": "Netzwerkfilter zurücksetzen",
-   "toggleSearch": "Chains suchen"
+   "toggleSearch": "Chains suchen",
+   "pillAll": "Alle Netzwerke"
   },
   "bugReport": {
    "title": "Problem melden",
@@ -1210,6 +1216,22 @@
    "closeBtn": "Schließen",
    "suggested": "Empfohlene Aufladung",
    "retryBtn": "Eingezahlt · Erneut versuchen"
+  },
+  "mainNav": {
+   "wallet": "Wallet",
+   "contacts": "Kontakte",
+   "explore": "Entdecken",
+   "settings": "Einstellungen"
+  },
+  "dayGroup": {
+   "today": "Heute",
+   "yesterday": "Gestern"
+  },
+  "commandBar": {
+   "placeholder": "Suchen oder ausführen"
+  },
+  "qrPlaceholder": {
+   "caption": "Demo-Platzhalter · nicht scannbar"
   }
  },
  "settingsModals": {

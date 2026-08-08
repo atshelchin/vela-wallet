@@ -66,6 +66,7 @@
       "anyAmount": "Any amount",
       "invalidTitle": "Invalid payment link",
       "invalidBody": "This link is missing a valid recipient or network. Ask the sender for a new one."
-    }
+    },
+    "addressLabel": "Your receive address"
   }
 }

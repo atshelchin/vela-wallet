@@ -115,7 +115,7 @@ struct ProgressBlock: View {
 
             if let stepCaption {
                 Text(stepCaption)
-                    .typeRole(Typography.caption)
+                    .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.fgSubtle)
                     .padding(.top, Tokens.Space.s12)
             }
@@ -181,7 +181,7 @@ struct OutcomeContent: View {
 
             if let footnoteKey = spec.footnoteKey {
                 Text(strings.t(footnoteKey))
-                    .typeRole(Typography.caption)
+                    .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.fgSubtle)
                     .multilineTextAlignment(.center)
                     .padding(.top, Tokens.Space.s16)

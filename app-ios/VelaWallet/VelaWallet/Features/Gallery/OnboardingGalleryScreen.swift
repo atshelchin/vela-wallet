@@ -20,7 +20,7 @@ enum GalleryMode {
     static let isEnabled = ProcessInfo.processInfo.environment["VELA_GALLERY"] == "1"
 }
 
-struct GalleryScreen: View {
+struct OnboardingGalleryScreen: View {
     let loc: Loc
     @State private var scheme: ColorScheme = ThemeOverride.launchScheme ?? .dark
     // VELA_GALLERY_FIXTURE=<code> preselects a fixture at launch so a
@@ -120,7 +120,7 @@ private struct GalleryFixtureSheet: View {
 }
 
 #Preview("Gallery") {
-    GalleryScreen(loc: Loc())
+    OnboardingGalleryScreen(loc: Loc())
 }
 
 #Preview("Gallery fixture sheet dark") {

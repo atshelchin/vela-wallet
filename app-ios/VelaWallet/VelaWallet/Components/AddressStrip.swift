@@ -35,7 +35,7 @@ struct AddressStrip: View {
                     .truncationMode(.tail)
                 if copied {
                     Text(copiedLabel)
-                        .typeRole(Typography.caption)
+                        .typeRole(Typography.flowCaption)
                         .foregroundStyle(theme.successBase)
                         .fixedSize()
                         .transition(.opacity)

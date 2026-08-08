@@ -25,8 +25,7 @@ struct WalletHeaderView: View {
                         .foregroundStyle(theme.fgBase)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Image(systemName: "chevron.down")
-                        .font(WalletIconFont.nameChevron)
+                    LucideIcon(.chevronDown, size: LucideIconSize.nameChevron)
                         .foregroundStyle(theme.fgMuted)
                 }
                 Text(verbatim: model.addressDisplay)

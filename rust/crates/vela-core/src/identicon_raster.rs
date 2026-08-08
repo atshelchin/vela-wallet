@@ -66,6 +66,16 @@ pub fn identicon_placeholder_png(size_px: u32) -> Result<Vec<u8>, CoreError> {
     rasterize(IDENTICON_PLACEHOLDER, size_px)
 }
 
+/// Rasterize an app-authored SVG document (the spec 015 icon corpus) to a
+/// square PNG. Exists for the platforms without an SVG renderer whose icons
+/// must match the lucide corpus exactly (research.md D2 revision): callers pass
+/// compile-time constant markup, tint by substituting the color before calling,
+/// and treat the output as a template image. Same size cap as the identicon
+/// path.
+pub fn rasterize_svg_png(svg: &str, size_px: u32) -> Result<Vec<u8>, CoreError> {
+    rasterize(svg, size_px)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

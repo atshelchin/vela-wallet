@@ -44,5 +44,5 @@ pub use identicon::{
     normalize_seed, Colors, IdenticonHash, IdenticonParams, Section, Sections,
 };
 #[cfg(feature = "identicon-raster")]
-pub use identicon_raster::{identicon_placeholder_png, identicon_png};
+pub use identicon_raster::{identicon_placeholder_png, identicon_png, rasterize_svg_png};
 pub use types::{ClientDataKind, P256PublicKey, SafeAddressInfo, WebAuthnAssertion};

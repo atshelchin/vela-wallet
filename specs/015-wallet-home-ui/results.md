@@ -42,8 +42,11 @@
 2. **H7x content** — the H7x mock scales *default* content; data-model
    (canonical) defines H7x = H7 extreme fixture at 1.35×, and all
    platforms follow data-model.
-3. **iOS icons are SF Symbols** (research.md D2): platform-idiomatic
-   solid/outline pairing instead of the shared corpus glyph geometry.
+3. **Icons are lucide on all four platforms** (research.md D2 rev 2,
+   after user review): first cut shipped Material nav glyphs +
+   SF Symbols on iOS; both replaced — unselected = lucide stroke
+   outline, selected = solid fills derived from lucide geometry, iOS
+   renders the shared corpus via vela-core `rasterizeSvgPng`.
 4. **Desktop dark sidebar** uses `bg_base` + divider (light uses
    `bg_sunken`): spec-007's dark `bg_sunken` (0x262622) is lighter than
    the canvas, which would invert the mock's hierarchy.
@@ -85,6 +88,16 @@
   now matches the pre-existing app (purple/teal skateboard figure).
   All four platforms' suites re-run green. Logged in the commander
   ledger as 读不清就补真 / S2.
+
+## Corrections after review (2)
+
+- **Nav icon style was wrong** (caught by the user on the web tab bar):
+  Material-outlined glyphs read as solid, and the direction was lucide
+  end-to-end. Corpus rewritten (research D2 rev 2), all four platforms
+  reworked; vela-core gained `rasterizeSvgPng` over uniffi so iOS draws
+  the identical corpus. Verified: web/desktop/android/iOS gates green;
+  web + iOS tab bars eyeballed against the H1 mock (thin outlines
+  unselected, solid accent selected).
 
 ## Gates summary
 

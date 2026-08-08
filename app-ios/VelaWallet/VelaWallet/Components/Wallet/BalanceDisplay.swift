@@ -45,8 +45,7 @@ struct BalanceDisplay: View {
                             .frame(width: WalletGeometry.hiddenDot, height: WalletGeometry.hiddenDot)
                     }
                 }
-                Image(systemName: "eye.slash")
-                    .font(WalletIconFont.eye)
+                LucideIcon(.eyeOff, size: LucideIconSize.eye)
                     .foregroundStyle(theme.fgMuted)
             }
             .frame(minHeight: WalletGeometry.skeletonBalanceHeight)
@@ -77,14 +76,12 @@ struct BalanceDisplay: View {
     private func statusRow(_ status: BalanceStatusModel) -> some View {
         let tint = status.kind == .warning ? theme.warningBase : theme.fgMuted
         return HStack(spacing: Tokens.Space.s8) {
-            Image(systemName: status.kind == .warning ? "exclamationmark.triangle" : "arrow.triangle.2.circlepath")
-                .font(WalletIconFont.statusIcon)
+            LucideIcon(status.kind == .warning ? .triangleAlert : .refreshCw, size: LucideIconSize.statusIcon)
                 .foregroundStyle(tint)
             Text(verbatim: status.text)
                 .typeRole(Typography.rowSub.scaled(textScale))
                 .foregroundStyle(tint)
-            Image(systemName: "chevron.right")
-                .font(WalletIconFont.smallChevron)
+            LucideIcon(.chevronRight, size: LucideIconSize.smallChevron)
                 .foregroundStyle(theme.fgSubtle)
         }
     }

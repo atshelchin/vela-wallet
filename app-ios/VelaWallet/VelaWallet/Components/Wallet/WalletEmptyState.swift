@@ -12,13 +12,12 @@ struct WalletEmptyState: View {
     @Environment(\.theme) private var theme
     @Environment(\.walletTextScale) private var textScale
 
-    let icon: String
+    let icon: LucideGlyph
     let model: SectionEmptyModel
 
     var body: some View {
         VStack(spacing: Tokens.Space.s8) {
-            Image(systemName: icon)
-                .font(WalletIconFont.empty)
+            LucideIcon(icon, size: LucideIconSize.empty)
                 .foregroundStyle(theme.fgSubtle)
                 .padding(.bottom, Tokens.Space.s4)
             Text(verbatim: model.title)
@@ -36,10 +35,10 @@ struct WalletEmptyState: View {
 
 #Preview("Empty states dark") {
     VStack(spacing: Tokens.Space.s24) {
-        WalletEmptyState(icon: "tray", model: SectionEmptyModel(
+        WalletEmptyState(icon: .inbox, model: SectionEmptyModel(
             title: "暂无交易记录", caption: "收款将实时显示在这里。"
         ))
-        WalletEmptyState(icon: WalletSymbols.walletOutline, model: SectionEmptyModel(
+        WalletEmptyState(icon: .walletUtility, model: SectionEmptyModel(
             title: "存入您的第一笔资产", caption: "点击此处查看地址并接收代币"
         ))
     }

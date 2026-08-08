@@ -2216,6 +2216,20 @@ public func parsePublicKey(hex: String)throws  -> P256PublicKey  {
     )
 })
 }
+/**
+ * Rasterize app-authored SVG markup (the spec 015 lucide icon corpus) to a
+ * square PNG. For platforms without an SVG renderer; callers pass constant
+ * markup with the tint pre-substituted (or white, tinted as a template image).
+ */
+public func rasterizeSvgPng(svg: String, sizePx: UInt32)throws  -> Data  {
+    return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_rasterize_svg_png(
+        FfiConverterString.lower(svg),
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
+    )
+})
+}
 public func recoverPublicKeyFromAssertions(a: WebAuthnAssertion, b: WebAuthnAssertion)throws  -> P256PublicKey?  {
     return try  FfiConverterOptionTypeP256PublicKey.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
         uniffiCallStatus in
@@ -2402,6 +2416,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_parse_public_key() != 62646) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_rasterize_svg_png() != 18592) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_recover_public_key_from_assertions() != 37092) {

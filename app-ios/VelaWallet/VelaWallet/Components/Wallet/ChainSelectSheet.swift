@@ -30,8 +30,7 @@ struct ChainSelectSheet: View {
                     .typeRole(Typography.title.scaled(textScale))
                     .foregroundStyle(theme.fgBase)
                 Spacer(minLength: Tokens.Space.s12)
-                Image(systemName: "magnifyingglass")
-                    .font(WalletIconFont.sheetSearch)
+                LucideIcon(.search, size: LucideIconSize.sheetSearch)
                     .foregroundStyle(theme.fgMuted)
             }
             .padding(.horizontal, Tokens.Layout.screenPaddingX)
@@ -56,8 +55,7 @@ struct ChainSelectSheet: View {
                 .lineLimit(1)
             Spacer(minLength: Tokens.Space.s12)
             if row.selected {
-                Image(systemName: "checkmark")
-                    .font(WalletIconFont.checkmark)
+                LucideIcon(.check, size: LucideIconSize.checkmark)
                     .foregroundStyle(theme.accentBase)
             }
             Text(verbatim: String(row.count))

@@ -25,6 +25,22 @@
 >
 	{#if icon.style === 'fill'}
 		{#each icon.paths as d (d)}<path {d} />{/each}
+	{:else if icon.style === 'mixed'}
+		{#each icon.elements as el, i (i)}
+			{@const fill = el.mode === 'fill' ? 'currentColor' : 'none'}
+			{@const stroke = el.mode === 'stroke' ? 'currentColor' : 'none'}
+			{#if el.tag === 'path'}
+				<path d={el.d} {fill} {stroke} fill-rule={el.fillRule} />
+			{:else if el.tag === 'circle'}
+				<circle cx={el.cx} cy={el.cy} r={el.r} {fill} {stroke} />
+			{:else if el.tag === 'rect'}
+				<rect width={el.width} height={el.height} x={el.x} y={el.y} rx={el.rx} {fill} {stroke} />
+			{:else if el.tag === 'line'}
+				<line x1={el.x1} x2={el.x2} y1={el.y1} y2={el.y2} {fill} {stroke} />
+			{:else}
+				<polyline points={el.points} {fill} {stroke} />
+			{/if}
+		{/each}
 	{:else}
 		{#each icon.elements as el, i (i)}
 			{#if el.tag === 'path'}

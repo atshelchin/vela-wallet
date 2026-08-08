@@ -22,8 +22,7 @@ struct NetworkFilterPill: View {
                 .typeRole(Typography.label.scaled(textScale))
                 .foregroundStyle(theme.fgBase)
                 .lineLimit(1)
-            Image(systemName: "chevron.down")
-                .font(WalletIconFont.smallChevron)
+            LucideIcon(.chevronDown, size: LucideIconSize.smallChevron)
                 .foregroundStyle(theme.fgMuted)
         }
         .padding(.horizontal, Tokens.Space.s12)

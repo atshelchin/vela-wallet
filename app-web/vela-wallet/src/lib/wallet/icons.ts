@@ -2,9 +2,10 @@
  * Wallet icon corpus — the web port of
  * `specs/015-wallet-home-ui/contracts/icons.json` (research.md D2).
  *
- * Utility glyphs: lucide v1.11.0 (ISC), stroke-based. Nav glyphs: Material
- * Symbols (Apache-2.0), fill-based, outline/solid pairs with shared metrics so
- * selection can swap style without the tab shifting. All 24×24, currentColor.
+ * All glyphs are lucide v1.11.0 (ISC), 24×24, currentColor. Nav outline =
+ * verbatim lucide stroke defs; nav solid = fills derived from the same
+ * geometry (closed subpaths filled, evenodd holes; the users back-person arcs
+ * stay stroked), so selection swaps style without the tab shifting.
  */
 
 export type IconElement =
@@ -14,66 +15,101 @@ export type IconElement =
 	| { tag: 'polyline'; points: string }
 	| { tag: 'line'; x1: string; x2: string; y1: string; y2: string };
 
+export type MixedElement = IconElement & { mode: 'fill' | 'stroke'; fillRule?: 'evenodd' };
+
 export type IconDef =
-	{ style: 'stroke'; elements: IconElement[] } | { style: 'fill'; paths: string[] };
+	| { style: 'stroke'; elements: IconElement[] }
+	| { style: 'fill'; paths: string[] }
+	| { style: 'mixed'; elements: MixedElement[] };
 
 export type NavIconId = 'wallet' | 'contacts' | 'explore' | 'settings';
 
 export const NAV_ICONS: Record<NavIconId, { outline: IconDef; solid: IconDef }> = {
 	wallet: {
 		outline: {
-			style: 'fill',
-			paths: [
-				'M21 7.28V5c0-1.1-.9-2-2-2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-2.28c.59-.35 1-.98 1-1.72V9c0-.74-.41-1.37-1-1.72zM20 9v6h-7V9h7zM5 19V5h14v2h-6c-1.1 0-2 .9-2 2v6c0 1.1.9 2 2 2h6v2H5z',
-				'M16 13.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5z'
+			style: 'stroke',
+			elements: [
+				{
+					tag: 'path',
+					d: 'M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1'
+				},
+				{ tag: 'path', d: 'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4' }
 			]
 		},
 		solid: {
-			style: 'fill',
-			paths: [
-				'M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z'
+			style: 'mixed',
+			elements: [
+				{
+					tag: 'path',
+					mode: 'fill',
+					d: 'M18 3a1 1 0 0 1 1 1v3h1a1 1 0 0 1 1 1v3h-4a2 2 0 0 0 0 4h4v4a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h13z'
+				}
 			]
 		}
 	},
 	contacts: {
 		outline: {
-			style: 'fill',
-			paths: [
-				'M16.5 12c1.38 0 2.49-1.12 2.49-2.5S17.88 7 16.5 7C15.12 7 14 8.12 14 9.5s1.12 2.5 2.5 2.5zM9 11c1.66 0 2.99-1.34 2.99-3S10.66 5 9 5C7.34 5 6 6.34 6 8s1.34 3 3 3zm7.5 3c-1.83 0-5.5.92-5.5 2.75V19h11v-2.25c0-1.83-3.67-2.75-5.5-2.75zM9 13c-2.33 0-7 1.17-7 3.5V19h7v-2.25c0-.85.33-2.34 2.37-3.47C10.5 13.1 9.66 13 9 13z'
+			style: 'stroke',
+			elements: [
+				{ tag: 'path', d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2' },
+				{ tag: 'path', d: 'M16 3.128a4 4 0 0 1 0 7.744' },
+				{ tag: 'path', d: 'M22 21v-2a4 4 0 0 0-3-3.87' },
+				{ tag: 'circle', cx: '9', cy: '7', r: '4' }
 			]
 		},
 		solid: {
-			style: 'fill',
-			paths: [
-				'M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z'
+			style: 'mixed',
+			elements: [
+				{ tag: 'path', mode: 'fill', d: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2z' },
+				{ tag: 'circle', mode: 'fill', cx: '9', cy: '7', r: '4' },
+				{ tag: 'path', mode: 'stroke', d: 'M16 3.128a4 4 0 0 1 0 7.744' },
+				{ tag: 'path', mode: 'stroke', d: 'M22 21v-2a4 4 0 0 0-3-3.87' }
 			]
 		}
 	},
 	explore: {
 		outline: {
-			style: 'fill',
-			paths: [
-				'M12 10.9c-.61 0-1.1.49-1.1 1.1s.49 1.1 1.1 1.1c.61 0 1.1-.49 1.1-1.1s-.49-1.1-1.1-1.1zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm2.19-12.19L6 18l3.81-8.19L18 6l-3.81 8.19z'
+			style: 'stroke',
+			elements: [
+				{ tag: 'circle', cx: '12', cy: '12', r: '10' },
+				{
+					tag: 'path',
+					d: 'm16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z'
+				}
 			]
 		},
 		solid: {
-			style: 'fill',
-			paths: [
-				'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm2.19 12.19L6 18l3.81-8.19L18 6l-3.81 8.19z'
+			style: 'mixed',
+			elements: [
+				{
+					tag: 'path',
+					mode: 'fill',
+					fillRule: 'evenodd',
+					d: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM16.24 7.76l-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z'
+				}
 			]
 		}
 	},
 	settings: {
 		outline: {
-			style: 'fill',
-			paths: [
-				'M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z'
+			style: 'stroke',
+			elements: [
+				{
+					tag: 'path',
+					d: 'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915'
+				},
+				{ tag: 'circle', cx: '12', cy: '12', r: '3' }
 			]
 		},
 		solid: {
-			style: 'fill',
-			paths: [
-				'M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z'
+			style: 'mixed',
+			elements: [
+				{
+					tag: 'path',
+					mode: 'fill',
+					fillRule: 'evenodd',
+					d: 'M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'
+				}
 			]
 		}
 	}

@@ -47,28 +47,30 @@ exyte/SVGView) — two new third-party deps, two more renderers to drift;
 generic `rasterizeSvg(svg, w, h)` over FFI — wider surface than the
 feature needs.
 
-## D2 — Icon set (solid selected / outline unselected)
+## D2 — Icon set (solid selected / outline unselected) — REV 2
 
-- **iOS**: SF Symbols (`wallet.bifold` / `person.2` / `safari` /
-  `gearshape` + `.fill` variants; `arrow.down.left`, `arrow.up.right`,
-  `qrcode.viewfinder`, `eye.slash`, `magnifyingglass`, `xmark`,
-  `doc.on.doc`, `chevron.right`, `exclamationmark.triangle`,
-  `arrow.clockwise`). Native idiom, built-in solid/outline pairing.
-  Recorded as a deliberate visual deviation from the mock's glyph set.
-- **Web / Android / Desktop**: one shared 24×24 path corpus, checked
-  into each platform following its existing pattern:
-  - web: a `NavIcon`/`Icon` Svelte component with inline `<svg>`;
-  - android: `ImageVector` built via
-    `androidx.compose.ui.graphics.vector.PathParser` from the same
-    `d` strings (extends the existing hand-built `VelaIcons` object);
-  - desktop: SVG template strings tinted by substituting
-    `currentColor`, rasterized with resvg, cached per (icon, color,
-    size), drawn as `RenderImage` (PathBuilder hand-porting rejected —
-    ~30 glyph paths).
-  - Outline glyphs come from Lucide (already the RN app's mandated set,
-    ISC-licensed, path data available in the repo's `node_modules`).
-    Solid nav glyphs (wallet/contacts/explore/settings) are filled
-    counterparts authored once in the icon corpus.
+Rev 2 (2026-08-08, user direction): **lucide everywhere, all four
+platforms.** The first cut used Material Symbols for the nav pairs and
+SF Symbols on iOS; Material's outlined style is chunky filled-outline
+and read as "solid" (user caught it on the web tab bar), and the mock's
+thin glyphs are lucide.
+
+- Unselected nav + all utility glyphs: verbatim lucide v1.11 stroke defs
+  (24×24, stroke 2, round caps/joins; ISC; extracted from the repo's
+  `node_modules`, never retyped from memory).
+- Selected nav (solid): fills derived from the same lucide geometry —
+  explore = disc + needle cutout (evenodd), settings = closed gear fill
+  + hole (evenodd), contacts = filled front body/head with the two
+  back-person arcs kept stroked, wallet = a slot-notched silhouette
+  anchored to lucide's coordinates (verified against the H1 mock in a
+  side-by-side render before shipping).
+- Per platform: web inline `<svg>` (a `mixed` IconDef renders
+  per-element fill/stroke); android `ImageVector` via PathParser
+  (per-path fill/stroke params, `PathFillType.EvenOdd`); desktop resvg
+  rasters of per-element-painted templates; **iOS renders the same
+  corpus through vela-core's `rasterizeSvgPng`** (template UIImage,
+  tinted by `.foregroundStyle`) — SF Symbols retired from the wallet
+  surfaces so the four platforms draw identical glyphs.
 
 ## D3 — i18n: reuse the existing corpus; add 13 keys
 

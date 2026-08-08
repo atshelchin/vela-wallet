@@ -78,7 +78,7 @@ struct WalletScreen: View {
                 }
             case .empty:
                 if let empty = section.empty {
-                    WalletEmptyState(icon: isActivity ? "tray" : WalletSymbols.walletOutline, model: empty)
+                    WalletEmptyState(icon: isActivity ? .inbox : .walletUtility, model: empty)
                 }
             case .loading:
                 let count = isActivity ? WalletGeometry.skeletonActivityRows : WalletGeometry.skeletonAssetRows

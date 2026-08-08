@@ -95,30 +95,10 @@ extension MonoTypeRole {
     }
 }
 
-/// SF Symbol sizing for wallet components — complete Font recipes so page
-/// code never calls `.font(.system…)` (the literal audit bans it there).
+/// The one SF Symbol still in use: the gallery's dev-only theme toggle.
+/// Wallet iconography renders through `LucideIcon` (research D2 rev);
+/// `LucideIconSize` carries the per-slot point sizes these recipes used to.
 enum WalletIconFont {
-    /// Action-card glyph (↙ ↗ viewfinder).
-    static let action = Font.system(size: 20, weight: .medium)
-    /// Activity-row direction glyph inside the 40 pt circle.
-    static let rowGlyph = Font.system(size: 15, weight: .semibold)
-    /// Disclosure chevron next to the wallet name.
-    static let nameChevron = Font.system(size: 12, weight: .semibold)
-    /// Small chevrons (pill, section action, status line).
-    static let smallChevron = Font.system(size: 11, weight: .semibold)
-    /// Balance status-line leading icon (⚠ / ↻).
-    static let statusIcon = Font.system(size: 13, weight: .medium)
-    /// Hidden-balance eye toggle.
-    static let eye = Font.system(size: 17, weight: .medium)
-    /// Tab-bar item icon.
-    static let tab = Font.system(size: 22, weight: .regular)
-    /// Empty-state outline icon.
-    static let empty = Font.system(size: 28, weight: .light)
-    /// Sheet title-row search icon.
-    static let sheetSearch = Font.system(size: 17, weight: .medium)
-    /// Chain-row active checkmark.
-    static let checkmark = Font.system(size: 15, weight: .semibold)
-    /// Gallery chrome (theme toggle).
     static let galleryControl = Font.system(size: 17, weight: .medium)
 }
 

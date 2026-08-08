@@ -25,8 +25,7 @@ struct WalletSectionHeader: View {
                 Text(verbatim: action)
                     .typeRole(Typography.label.scaled(textScale))
                     .foregroundStyle(theme.fgMuted)
-                Image(systemName: "chevron.right")
-                    .font(WalletIconFont.smallChevron)
+                LucideIcon(.chevronRight, size: LucideIconSize.smallChevron)
                     .foregroundStyle(theme.fgMuted)
             }
         }

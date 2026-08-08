@@ -17,16 +17,15 @@ struct ActionButtonRow: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s12) {
-            card(icon: "arrow.down.left", label: model.receive)
-            card(icon: "arrow.up.right", label: model.send)
-            card(icon: "qrcode.viewfinder", label: model.scan)
+            card(icon: .arrowDownLeft, label: model.receive)
+            card(icon: .arrowUpRight, label: model.send)
+            card(icon: .scanLine, label: model.scan)
         }
     }
 
-    private func card(icon: String, label: String) -> some View {
+    private func card(icon: LucideGlyph, label: String) -> some View {
         VStack(spacing: Tokens.Space.s8) {
-            Image(systemName: icon)
-                .font(WalletIconFont.action)
+            LucideIcon(icon, size: LucideIconSize.action)
                 .foregroundStyle(theme.fgBase)
             Text(verbatim: label)
                 .typeRole(Typography.actionLabel.scaled(textScale))

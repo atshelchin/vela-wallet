@@ -72,11 +72,11 @@ struct ActivityRowView: View {
             .foregroundStyle(theme.fgMuted)
     }
 
-    private var glyph: String {
+    private var glyph: LucideGlyph {
         switch model.kind {
-        case .sent: "arrow.up.right"
-        case .received: "arrow.down.left"
-        case .dapp: "link"
+        case .sent: .arrowUpRight
+        case .received: .arrowDownLeft
+        case .dapp: .link2
         }
     }
 
@@ -86,8 +86,7 @@ struct ActivityRowView: View {
                 .fill(theme.bgRaised)
                 .frame(width: WalletGeometry.rowIcon, height: WalletGeometry.rowIcon)
                 .overlay {
-                    Image(systemName: glyph)
-                        .font(WalletIconFont.rowGlyph)
+                    LucideIcon(glyph, size: LucideIconSize.rowGlyph)
                         .foregroundStyle(model.kind == .received ? theme.successBase : theme.fgBase)
                 }
             ChainBadgeDot(color: model.badgeColor)

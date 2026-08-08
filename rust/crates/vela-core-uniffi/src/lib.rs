@@ -444,6 +444,14 @@ pub fn identicon_placeholder_png(size_px: u32) -> Result<Vec<u8>, CoreError> {
     Ok(vela_core::identicon_raster::identicon_placeholder_png(size_px)?)
 }
 
+/// Rasterize app-authored SVG markup (the spec 015 lucide icon corpus) to a
+/// square PNG. For platforms without an SVG renderer; callers pass constant
+/// markup with the tint pre-substituted (or white, tinted as a template image).
+#[uniffi::export]
+pub fn rasterize_svg_png(svg: String, size_px: u32) -> Result<Vec<u8>, CoreError> {
+    Ok(vela_core::identicon_raster::rasterize_svg_png(&svg, size_px)?)
+}
+
 // ---------------------------------------------------------------------------
 // i18n (spec 004-rust-i18n, contracts/i18n-api.md §1.3 / §2.3)
 // ---------------------------------------------------------------------------

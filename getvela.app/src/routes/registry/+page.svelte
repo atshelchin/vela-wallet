@@ -176,7 +176,9 @@
 		<a class="back" href={resolve('/')}>← Home</a>
 		<h1>Wallet registry</h1>
 		<p class="lede">
-			Every Vela wallet registers its passkey public key on Gnosis the moment it's created. This
+			When a Vela wallet is created, its passkey public key is uploaded to a public index on
+			Gnosis — a cache, not a dependency: if the upload fails the wallet still works, and the
+			key can be re-derived on-device from two passkey signatures. This
 			page reads the
 			<a href={contractUrl} target="_blank" rel="noopener">index contract</a>
 			live from your browser — nothing here comes from Vela's servers. Don't trust us — verify.
@@ -364,7 +366,6 @@
 	}
 	h1 {
 		font-size: 2rem;
-		font-weight: 700;
 		letter-spacing: -0.02em;
 		margin-bottom: 12px;
 	}
@@ -401,8 +402,8 @@
 		background: var(--text-muted);
 	}
 	.live-dot.on {
-		background: #2d8e5f;
-		box-shadow: 0 0 7px rgba(45, 142, 95, 0.55);
+		background: var(--green);
+		box-shadow: 0 0 7px color-mix(in srgb, var(--green) 55%, transparent);
 		animation: pulse-dot 2s ease-in-out infinite;
 	}
 	@keyframes pulse-dot {
@@ -459,7 +460,7 @@
 	.seg button.active {
 		background: var(--bg-card);
 		color: var(--text);
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+		box-shadow: var(--shadow-sm);
 	}
 	.refresh {
 		display: inline-flex;
@@ -525,7 +526,7 @@
 		transition: background 0.12s ease;
 	}
 	.row-main:hover {
-		background: rgba(255, 255, 255, 0.02);
+		background: var(--bg-raised);
 	}
 	.ord {
 		font-size: 0.8rem;
@@ -600,6 +601,12 @@
 		font-family: var(--font-mono);
 		font-size: 0.82rem;
 	}
+	.detail dd code.mono {
+		color: var(--code-inline-text);
+		background: var(--code-inline-bg);
+		padding: 2px 6px;
+		border-radius: 5px;
+	}
 	.detail dd a.mono {
 		color: var(--link);
 	}
@@ -670,7 +677,7 @@
 	.card.error .retry {
 		margin-top: 14px;
 		background: var(--accent);
-		color: #fff;
+		color: var(--text-on-accent);
 		border: none;
 		padding: 9px 18px;
 		border-radius: var(--radius-sm);

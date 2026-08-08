@@ -83,8 +83,8 @@
 	}
 	.intro h1 {
 		font-size: 2.6rem;
-		font-weight: 700;
-		letter-spacing: -0.03em;
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 	.intro p {
 		margin-top: 10px;
@@ -115,12 +115,15 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		background: var(--bg-card);
+		box-shadow: var(--shadow-sm);
 		transition:
 			border-color 0.15s ease,
+			box-shadow 0.15s ease,
 			transform 0.15s ease;
 	}
 	.card:hover {
 		border-color: var(--border-strong);
+		box-shadow: var(--shadow-md);
 		transform: translateY(-2px);
 	}
 	.meta {
@@ -133,7 +136,7 @@
 	.card h2 {
 		margin: 10px 0 8px;
 		font-size: 1.4rem;
-		font-weight: 650;
+		font-weight: 600;
 		letter-spacing: -0.01em;
 		color: var(--text);
 	}

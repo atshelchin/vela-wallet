@@ -49,22 +49,22 @@
 	}
 
 	.tip {
-		border-left-color: #3fb950;
+		border-left-color: var(--status-tip);
 	}
 	.tip .title {
-		color: #3fb950;
+		color: var(--status-tip);
 	}
 	.info {
-		border-left-color: #58a6ff;
+		border-left-color: var(--status-info);
 	}
 	.info .title {
-		color: #58a6ff;
+		color: var(--status-info);
 	}
 	.warning {
-		border-left-color: #d29922;
+		border-left-color: var(--status-warn);
 	}
 	.warning .title {
-		color: #e3b341;
+		color: var(--status-warn-text);
 	}
 	.danger {
 		border-left-color: var(--accent);

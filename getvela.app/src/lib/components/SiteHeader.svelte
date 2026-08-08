@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let open = $state(false);
 
@@ -50,14 +51,17 @@
 			>
 		</nav>
 
-		<button
-			class="menu"
-			aria-label="Toggle menu"
-			aria-expanded={open}
-			onclick={() => (open = !open)}
-		>
-			<span></span><span></span><span></span>
-		</button>
+		<div class="actions">
+			<ThemeToggle />
+			<button
+				class="menu"
+				aria-label="Toggle menu"
+				aria-expanded={open}
+				onclick={() => (open = !open)}
+			>
+				<span></span><span></span><span></span>
+			</button>
+		</div>
 	</div>
 </header>
 
@@ -66,10 +70,15 @@
 		position: sticky;
 		top: 0;
 		z-index: 50;
-		background: rgba(15, 14, 12, 0.85);
+		background: var(--bg-header);
 		backdrop-filter: blur(12px);
 		-webkit-backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--border);
+	}
+	.actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
 	}
 	.bar {
 		max-width: var(--max-w);
@@ -112,7 +121,7 @@
 		padding: 8px 16px;
 		border-radius: var(--radius-sm);
 		background: var(--accent);
-		color: #fff;
+		color: var(--text-on-accent);
 		font-weight: 600;
 	}
 	.links a.cta:hover {
@@ -151,7 +160,9 @@
 			align-items: stretch;
 			gap: 0;
 			padding: 8px 24px 20px;
-			background: rgba(15, 14, 12, 0.98);
+			background: var(--bg-header-solid);
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
 			border-bottom: 1px solid var(--border);
 			display: none;
 		}

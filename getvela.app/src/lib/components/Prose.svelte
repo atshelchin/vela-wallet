@@ -1,46 +1,60 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
-	let { children }: { children: Snippet } = $props();
+	/**
+	 * `serif` switches the body copy to the reading serif — used for blog
+	 * articles, where people read long passages. Docs keep the sans default
+	 * for reference-style scanning; headings are serif in both.
+	 */
+	let { children, serif = false }: { children: Snippet; serif?: boolean } = $props();
 </script>
 
-<div class="prose">
+<div class="prose" class:serif>
 	{@render children()}
 </div>
 
 <style>
 	.prose {
 		color: var(--text);
-		font-size: 1.02rem;
+		font-size: 1.0625rem;
 		line-height: 1.75;
 		word-wrap: break-word;
 	}
+	.prose.serif {
+		font-family: var(--font-serif);
+		font-size: 1.125rem;
+		line-height: 1.8;
+	}
 
-	/* Headings */
+	/* Headings — warm serif display, generous breathing room above. */
 	.prose :global(h1) {
-		font-size: 2rem;
+		font-family: var(--font-serif);
+		font-size: 2.25rem;
 		line-height: 1.2;
-		font-weight: 700;
-		letter-spacing: -0.02em;
+		font-weight: 600;
+		letter-spacing: -0.015em;
 		margin: 0 0 0.6em;
 	}
 	.prose :global(h2) {
-		font-size: 1.5rem;
-		font-weight: 700;
+		font-family: var(--font-serif);
+		font-size: 1.55rem;
+		font-weight: 600;
 		letter-spacing: -0.01em;
-		margin: 2.2em 0 0.7em;
+		margin: 2.4em 0 0.7em;
 		padding-bottom: 0.3em;
 		border-bottom: 1px solid var(--border);
 	}
 	.prose :global(h3) {
-		font-size: 1.2rem;
-		font-weight: 650;
-		margin: 1.8em 0 0.5em;
+		font-family: var(--font-serif);
+		font-size: 1.25rem;
+		font-weight: 600;
+		margin: 1.9em 0 0.5em;
 	}
 	.prose :global(h4) {
-		font-size: 1.05rem;
+		font-family: var(--font-sans);
+		font-size: 1rem;
 		font-weight: 600;
-		margin: 1.5em 0 0.4em;
+		margin: 1.6em 0 0.4em;
 	}
 	.prose :global(h2:first-child),
 	.prose :global(h3:first-child) {
@@ -49,16 +63,18 @@
 
 	/* Text */
 	.prose :global(p) {
-		margin: 0 0 1.15em;
+		margin: 0 0 1.2em;
 	}
 	.prose :global(a) {
 		color: var(--link);
-		text-decoration: none;
-		border-bottom: 1px solid color-mix(in srgb, var(--link) 35%, transparent);
-		transition: border-color 0.15s ease;
+		text-decoration: underline;
+		text-decoration-color: color-mix(in srgb, var(--link) 35%, transparent);
+		text-decoration-thickness: 1px;
+		text-underline-offset: 3px;
+		transition: text-decoration-color 0.15s ease;
 	}
 	.prose :global(a:hover) {
-		border-bottom-color: var(--link);
+		text-decoration-color: var(--link);
 	}
 	.prose :global(strong) {
 		color: var(--text);
@@ -72,11 +88,11 @@
 	/* Lists */
 	.prose :global(ul),
 	.prose :global(ol) {
-		margin: 0 0 1.15em;
+		margin: 0 0 1.2em;
 		padding-left: 1.4em;
 	}
 	.prose :global(li) {
-		margin: 0.35em 0;
+		margin: 0.4em 0;
 	}
 	.prose :global(li::marker) {
 		color: var(--text-muted);
@@ -84,8 +100,8 @@
 
 	/* Quote */
 	.prose :global(blockquote) {
-		margin: 1.5em 0;
-		padding: 0.2em 1.1em;
+		margin: 1.6em 0;
+		padding: 0.2em 1.2em;
 		border-left: 3px solid var(--accent);
 		color: var(--text-secondary);
 		font-style: italic;
@@ -97,23 +113,24 @@
 	/* Inline code */
 	.prose :global(:not(pre) > code) {
 		font-family: var(--font-mono);
-		font-size: 0.86em;
-		background: var(--bg-raised);
+		font-size: 0.84em;
+		background: var(--code-inline-bg);
 		border: 1px solid var(--border);
 		border-radius: 5px;
 		padding: 0.12em 0.4em;
-		color: #f0b9a4;
+		color: var(--code-inline-text);
 	}
 
-	/* Code blocks (Shiki output) */
+	/* Code blocks (Shiki dual-theme output; colors resolve in tokens.css) */
 	.prose :global(pre) {
-		margin: 1.4em 0;
+		margin: 1.5em 0;
 		padding: 16px 18px;
 		border-radius: var(--radius);
 		border: 1px solid var(--border);
 		overflow-x: auto;
 		font-size: 0.86rem;
 		line-height: 1.6;
+		tab-size: 2;
 		-webkit-overflow-scrolling: touch;
 	}
 	.prose :global(pre code) {
@@ -139,12 +156,14 @@
 		margin: 1.4em 0;
 	}
 
-	/* Tables */
+	/* Tables — sans even inside serif articles: tabular data scans better. */
 	.prose :global(table) {
 		width: 100%;
 		border-collapse: collapse;
 		margin: 1.5em 0;
+		font-family: var(--font-sans);
 		font-size: 0.92rem;
+		line-height: 1.6;
 		display: block;
 		overflow-x: auto;
 	}
@@ -155,7 +174,7 @@
 		text-align: left;
 	}
 	.prose :global(th) {
-		background: var(--bg-raised);
+		background: var(--bg-sunken);
 		font-weight: 600;
 	}
 
@@ -170,7 +189,7 @@
 	.prose :global(kbd) {
 		font-family: var(--font-mono);
 		font-size: 0.8em;
-		background: var(--bg-raised);
+		background: var(--bg-sunken);
 		border: 1px solid var(--border-strong);
 		border-bottom-width: 2px;
 		border-radius: 5px;

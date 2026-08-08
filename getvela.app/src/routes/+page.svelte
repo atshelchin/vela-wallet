@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import HeroFaceKey from '$lib/components/HeroFaceKey.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { seoConfig } from '$lib/seo';
 
 	// Analytics helper
@@ -15,46 +17,7 @@
 		}
 	}
 
-	// Mockup animation: wallet → amount → confirm → faceid → done
-	type MockupStep = 'wallet' | 'amount' | 'confirm' | 'faceid' | 'done';
-	const stepTimings: [MockupStep, number][] = [
-		['wallet', 4500],
-		['amount', 3000],
-		['confirm', 3000],
-		['faceid', 2500],
-		['done', 2500]
-	];
-	let mockupStep: MockupStep = $state('wallet');
-	let sendTapped = $state(false);
-	let stepIndex = 0;
-	let amountText = $state('');
-
 	$effect(() => {
-		function typeAmount(full: string, i: number) {
-			if (i <= full.length) {
-				amountText = full.slice(0, i);
-				setTimeout(() => typeAmount(full, i + 1), 180);
-			}
-		}
-
-		function nextStep() {
-			stepIndex = (stepIndex + 1) % stepTimings.length;
-			const step = stepTimings[stepIndex][0];
-			mockupStep = step;
-			sendTapped = false;
-			if (step === 'wallet') {
-				setTimeout(() => {
-					sendTapped = true;
-				}, 3500);
-			}
-			if (step === 'amount') {
-				amountText = '';
-				setTimeout(() => typeAmount('0.05', 0), 400);
-			}
-			setTimeout(nextStep, stepTimings[stepIndex][1]);
-		}
-		const firstTimeout = setTimeout(nextStep, stepTimings[0][1]);
-
 		// Section visibility tracking
 		const seen: Record<string, boolean> = {};
 		const observer = new IntersectionObserver(
@@ -83,7 +46,6 @@
 		faqList?.addEventListener('toggle', onFaqToggle, true);
 
 		return () => {
-			clearTimeout(firstTimeout);
 			observer.disconnect();
 			faqList?.removeEventListener('toggle', onFaqToggle, true);
 		};
@@ -316,6 +278,7 @@
 				data-rybbit-prop-location="nav-signin">Sign in</a
 			>
 		</div>
+		<ThemeToggle />
 	</div>
 </nav>
 
@@ -348,353 +311,7 @@
 			</div>
 		</div>
 		<div class="hero-visual">
-			<div class="mockup-phone">
-				<div class="mockup-screen">
-					<!-- Status bar + notch (shared) -->
-					<div class="mockup-statusbar">
-						<span class="mockup-time">9:41</span>
-						<div class="mockup-notch"></div>
-						<div class="mockup-statusbar-icons">
-							<svg width="12" height="10" viewBox="0 0 16 12" fill="currentColor"
-								><rect x="0" y="8" width="3" height="4" rx="0.5" opacity="0.4" /><rect
-									x="4.5"
-									y="5"
-									width="3"
-									height="7"
-									rx="0.5"
-									opacity="0.6"
-								/><rect x="9" y="2" width="3" height="10" rx="0.5" opacity="0.8" /><rect
-									x="13.5"
-									y="0"
-									width="2.5"
-									height="12"
-									rx="0.5"
-									opacity="1"
-								/></svg
-							>
-							<svg width="18" height="10" viewBox="0 0 25 10" fill="currentColor"
-								><rect
-									x="0"
-									y="0"
-									width="21"
-									height="10"
-									rx="2"
-									stroke="currentColor"
-									stroke-width="1"
-									fill="none"
-									opacity="0.4"
-								/><rect x="22" y="2.5" width="2" height="5" rx="1" opacity="0.25" /><rect
-									x="1.5"
-									y="1.5"
-									width="14"
-									height="7"
-									rx="1"
-									opacity="0.6"
-								/></svg
-							>
-						</div>
-					</div>
-
-					<!-- Step 1: Wallet home -->
-					<div class="mockup-step" class:active={mockupStep === 'wallet'}>
-						<div class="mockup-account">
-							<span class="mockup-account-name">My Wallet</span>
-							<span class="mockup-account-addr">0x14fB…D1eA5c</span>
-						</div>
-						<div class="mockup-balance">$1,969<span class="mockup-cents">.53</span></div>
-						<div class="mockup-actions">
-							<div class="mockup-action">
-								<div class="mockup-action-circle active" class:tapping={sendTapped}>
-									<svg
-										width="18"
-										height="18"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2.5"
-										><path
-											d="M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										/></svg
-									>
-								</div>
-								<span>Send</span>
-							</div>
-							<div class="mockup-action">
-								<div class="mockup-action-circle">
-									<svg
-										width="18"
-										height="18"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2.5"
-										><path
-											d="M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										/></svg
-									>
-								</div>
-								<span>Receive</span>
-							</div>
-							<div class="mockup-action">
-								<div class="mockup-action-circle">
-									<svg
-										width="18"
-										height="18"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-										stroke-width="2.5"
-										><path
-											d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										/></svg
-									>
-								</div>
-								<span>History</span>
-							</div>
-						</div>
-						<div class="mockup-tokens">
-							<div class="mockup-token">
-								<img
-									class="mockup-token-icon"
-									src="https://icons.llamao.fi/icons/chains/rsz_binance.jpg"
-									alt="BNB"
-									width="32"
-									height="32"
-								/>
-								<div class="mockup-token-info">
-									<span class="mockup-token-name">BNB</span>
-									<span class="mockup-token-chain">BNB Chain</span>
-								</div>
-								<div class="mockup-token-value">
-									<span class="mockup-token-qty">1.1655</span>
-									<span class="mockup-token-usd">$768.43</span>
-								</div>
-							</div>
-							<div class="mockup-token">
-								<img
-									class="mockup-token-icon"
-									src="https://icons.llamao.fi/icons/chains/rsz_ethereum.jpg"
-									alt="ETH"
-									width="32"
-									height="32"
-								/>
-								<div class="mockup-token-info">
-									<span class="mockup-token-name">ETH</span>
-									<span class="mockup-token-chain">Ethereum</span>
-								</div>
-								<div class="mockup-token-value">
-									<span class="mockup-token-qty">0.1844</span>
-									<span class="mockup-token-usd">$422.68</span>
-								</div>
-							</div>
-							<div class="mockup-token">
-								<img
-									class="mockup-token-icon"
-									src="https://assets.coingecko.com/coins/images/325/small/Tether.png"
-									alt="USDT"
-									width="32"
-									height="32"
-								/>
-								<div class="mockup-token-info">
-									<span class="mockup-token-name">USDT</span>
-									<span class="mockup-token-chain">Polygon</span>
-								</div>
-								<div class="mockup-token-value">
-									<span class="mockup-token-qty">178.5160</span>
-									<span class="mockup-token-usd">$178.52</span>
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<!-- Step 3: Enter amount -->
-					<div class="mockup-step" class:active={mockupStep === 'amount'}>
-						<div class="mockup-step-header">Send ETH</div>
-						<div class="mockup-send-form">
-							<div class="mockup-token-select">
-								<img
-									class="mockup-token-icon"
-									src="https://icons.llamao.fi/icons/chains/rsz_ethereum.jpg"
-									alt="ETH"
-									width="24"
-									height="24"
-								/>
-								<span class="mockup-token-select-name">ETH</span>
-								<span class="mockup-token-select-chain">Ethereum</span>
-								<svg
-									class="mockup-chevron"
-									width="12"
-									height="12"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2.5"
-									><path
-										d="M19.5 8.25l-7.5 7.5-7.5-7.5"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									/></svg
-								>
-							</div>
-							<div class="mockup-amount-input">
-								<span class="mockup-amount-value"
-									>{amountText}<span class="mockup-cursor">&nbsp;</span></span
-								>
-								<span class="mockup-amount-unit">ETH</span>
-							</div>
-							<div class="mockup-amount-usd">≈ $114.50</div>
-							<div class="mockup-to-field">
-								<span class="mockup-to-label">To</span>
-								<span class="mockup-to-addr">0x7a3B…9f2E</span>
-							</div>
-						</div>
-						<div class="mockup-send-btn">Continue</div>
-					</div>
-
-					<!-- Step 4: Confirm transaction -->
-					<div class="mockup-step" class:active={mockupStep === 'confirm'}>
-						<div class="mockup-step-header">Confirm Transaction</div>
-						<div class="mockup-tx-card">
-							<div class="mockup-tx-row">
-								<span class="mockup-tx-label">Send</span>
-								<span class="mockup-tx-value">0.05 ETH</span>
-							</div>
-							<div class="mockup-tx-row">
-								<span class="mockup-tx-label">To</span>
-								<span class="mockup-tx-value mockup-tx-addr">0x7a3B…9f2E</span>
-							</div>
-							<div class="mockup-tx-row">
-								<span class="mockup-tx-label">Network</span>
-								<span class="mockup-tx-value">Ethereum</span>
-							</div>
-							<div class="mockup-tx-row last">
-								<span class="mockup-tx-label">Gas fee</span>
-								<span class="mockup-tx-value">~$0.42</span>
-							</div>
-						</div>
-						<div class="mockup-slide-track" class:sliding={mockupStep === 'confirm'}>
-							<div class="mockup-slide-thumb">
-								<svg
-									width="16"
-									height="16"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2.5"
-									><path
-										d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									/></svg
-								>
-							</div>
-							<span class="mockup-slide-text">Slide to confirm</span>
-						</div>
-					</div>
-
-					<!-- Step 5: Face ID signing -->
-					<div class="mockup-step" class:active={mockupStep === 'faceid'}>
-						<div class="mockup-faceid-screen">
-							<div class="mockup-faceid-icon">
-								<svg width="64" height="64" viewBox="0 0 96 96" fill="none">
-									<path
-										d="M28 8h-12a8 8 0 00-8 8v12"
-										stroke="currentColor"
-										stroke-width="4"
-										stroke-linecap="round"
-									/>
-									<path
-										d="M68 8h12a8 8 0 018 8v12"
-										stroke="currentColor"
-										stroke-width="4"
-										stroke-linecap="round"
-									/>
-									<path
-										d="M28 88h-12a8 8 0 01-8-8v-12"
-										stroke="currentColor"
-										stroke-width="4"
-										stroke-linecap="round"
-									/>
-									<path
-										d="M68 88h12a8 8 0 008-8v-12"
-										stroke="currentColor"
-										stroke-width="4"
-										stroke-linecap="round"
-									/>
-									<path
-										d="M36 36v10"
-										stroke="currentColor"
-										stroke-width="4"
-										stroke-linecap="round"
-									/>
-									<path
-										d="M60 36v10"
-										stroke="currentColor"
-										stroke-width="4"
-										stroke-linecap="round"
-									/>
-									<path
-										d="M48 44v10h-4"
-										stroke="currentColor"
-										stroke-width="3"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									/>
-									<path
-										d="M36 64c2 6 10 10 16 10s12-4 16-10"
-										stroke="currentColor"
-										stroke-width="3"
-										stroke-linecap="round"
-										fill="none"
-									/>
-								</svg>
-							</div>
-							<span class="mockup-faceid-label">Sign with Face ID</span>
-							<span class="mockup-faceid-sub">Confirm with passkey to send 0.05 ETH</span>
-						</div>
-					</div>
-
-					<!-- Step 6: Success -->
-					<div class="mockup-step" class:active={mockupStep === 'done'}>
-						<div class="mockup-done-screen">
-							<div class="mockup-done-check">
-								<svg
-									width="48"
-									height="48"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<path
-										d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-									/>
-								</svg>
-							</div>
-							<span class="mockup-done-title">Transaction Sent</span>
-							<span class="mockup-done-detail">0.05 ETH → 0x7a3B…9f2E</span>
-							<span class="mockup-done-time">Confirmed in 3s</span>
-						</div>
-					</div>
-
-					<!-- Progress dots -->
-					<div class="mockup-dots">
-						<span class="mockup-dot" class:active={mockupStep === 'wallet'}></span>
-						<span class="mockup-dot" class:active={mockupStep === 'amount'}></span>
-						<span class="mockup-dot" class:active={mockupStep === 'confirm'}></span>
-						<span class="mockup-dot" class:active={mockupStep === 'faceid'}></span>
-						<span class="mockup-dot" class:active={mockupStep === 'done'}></span>
-					</div>
-				</div>
-			</div>
+			<HeroFaceKey />
 		</div>
 	</div>
 	<div class="scroll-hint">
@@ -920,7 +537,7 @@
 						></tr
 					>
 					<tr
-						><td>Networks supported</td><td class="yes">Major EVM + custom</td><td class="yes"
+						><td>Networks supported</td><td class="yes">12 built-in + custom</td><td class="yes"
 							>Any EVM</td
 						><td class="yes">Any EVM</td><td class="warn">Base-first, few</td><td class="warn"
 							>Base / Arbitrum</td
@@ -1101,25 +718,26 @@
 					<h4>Web wallet</h4>
 					<div class="bm-price">Free</div>
 					<p>
-						Full-featured web wallet — free, open source, self-hostable. No install, no seed phrase
-						— just authenticate and go.
+						The web wallet is free, open source, and self-hostable. No install, no seed phrase —
+						just authenticate and go.
 					</p>
 				</div>
 				<div class="bm-card">
 					<h4>Mobile app</h4>
 					<div class="bm-price">Funds the project</div>
 					<p>
-						The mobile app is a paid download, priced by region — it's how a small, independent team
-						funds building Vela in the open. It's open source too, so you can always build it from
-						source and install it on your own phone for free.
+						The mobile app, when it ships, will be a paid download, priced by region — it's how a
+						small, independent team funds building Vela in the open. It's open source too, so you
+						can always build it from source and install it on your own phone for free.
 					</p>
 				</div>
 				<div class="bm-card">
 					<h4>Bundler gas fee</h4>
 					<div class="bm-price">Network gas + service fee</div>
 					<p>
-						Transactions go through an ERC-4337 bundler. You pay network gas plus a small service
-						fee. You can skip the fee entirely by running a compatible
+						Transactions go through an ERC-4337 bundler. You pay network gas plus a service fee —
+						currently about one to two times the network cost, depending on how the fee is
+						settled. You can skip the fee entirely by running a compatible
 						<a href="https://github.com/mondaylabsltd/vela-relay" target="_blank" rel="noopener"
 							>self-hosted bundler</a
 						>.
@@ -1145,8 +763,11 @@
 			<details>
 				<summary>What chains does Vela support?</summary>
 				<p>
-					Ethereum, BNB Chain, Polygon, Arbitrum, Optimism, Base, Avalanche, and Gnosis — plus any
-					custom EVM network you add yourself. Same wallet address across all chains.
+					Twelve chains are built in: Ethereum, BNB Chain, Polygon, Arbitrum, Optimism, Base,
+					Avalanche, Gnosis, Unichain, Monad, World Chain, and Tempo. You can add other EVM
+					networks yourself if the chain has the RIP-7212 P256 precompile and Vela's Safe +
+					ERC-4337 contracts deployed — Vela checks when you add one. Same wallet address across
+					all chains.
 				</p>
 			</details>
 			<details>
@@ -1175,8 +796,9 @@
 				<p>
 					Yes. Smart account transactions have extra overhead from on-chain signature verification
 					and the ERC-4337 EntryPoint. Expect roughly 1.5–3x the gas of a standard wallet transfer,
-					depending on the chain. That's the cost of passkey signing, no seed phrase, and one
-					address across all chains.
+					depending on the chain — plus the bundler service fee described under pricing, unless you
+					run your own bundler. That's the cost of passkey signing, no seed phrase, and one address
+					across all chains.
 				</p>
 			</details>
 			<!-- Security & recovery -->
@@ -1379,23 +1001,7 @@
 <SiteFooter />
 
 <style>
-	/* ── Palette ── */
-	:root {
-		--bg: #0f0e0c;
-		--bg-raised: #1a1918;
-		--bg-card: #1e1d1b;
-		--border: #2a2926;
-		--border-accent: rgba(232, 87, 42, 0.2);
-		--text: #e8e6e1;
-		--text-secondary: #9a9790;
-		--text-tertiary: #6b6963;
-		--accent: #e8572a;
-		--accent-soft: rgba(232, 87, 42, 0.1);
-		--green: #2d8e5f;
-		--green-soft: rgba(45, 142, 95, 0.1);
-		--radius: 14px;
-		--max-w: 1400px;
-	}
+	/* Palette comes entirely from the global tokens (src/lib/styles/tokens.css). */
 
 	/* ── Base ── */
 	.container {
@@ -1409,8 +1015,7 @@
 
 	h2 {
 		font-size: 2rem;
-		font-weight: 700;
-		letter-spacing: -0.025em;
+		letter-spacing: -0.02em;
 		margin-bottom: 12px;
 		line-height: 1.2;
 	}
@@ -1430,7 +1035,7 @@
 		left: 0;
 		right: 0;
 		z-index: 100;
-		background: rgba(15, 14, 12, 0.92);
+		background: var(--bg-header);
 		backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--border);
 	}
@@ -1441,7 +1046,7 @@
 		height: 52px;
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: 18px;
 	}
 	.logo {
 		display: flex;
@@ -1487,9 +1092,8 @@
 	}
 	h1 {
 		font-size: clamp(2.5rem, 5vw, 3.2rem);
-		font-weight: 700;
 		line-height: 1.1;
-		letter-spacing: -0.03em;
+		letter-spacing: -0.02em;
 		margin-bottom: 24px;
 	}
 	.subtitle {
@@ -1520,6 +1124,9 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
+		/* Pushes .nav-links + the theme toggle to the right edge; the toggle
+		   stays visible on mobile even when .nav-links is hidden. */
+		margin-right: auto;
 	}
 	.logo-tag {
 		display: inline-flex;
@@ -1547,7 +1154,7 @@
 		height: 5px;
 		border-radius: 50%;
 		background: var(--accent);
-		box-shadow: 0 0 6px rgba(232, 87, 42, 0.5);
+		box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 50%, transparent);
 		animation: pulse-dot 2s ease-in-out infinite;
 	}
 
@@ -1579,7 +1186,7 @@
 		height: 6px;
 		border-radius: 50%;
 		background: var(--green);
-		box-shadow: 0 0 6px rgba(45, 142, 95, 0.5);
+		box-shadow: 0 0 6px color-mix(in srgb, var(--green) 50%, transparent);
 		animation: pulse-dot 2s ease-in-out infinite;
 	}
 	.stat-number {
@@ -1630,11 +1237,11 @@
 	}
 	.btn-primary {
 		background: var(--accent);
-		color: #fff;
+		color: var(--text-on-accent);
 	}
 	.btn-primary:hover {
 		transform: translateY(-1px);
-		box-shadow: 0 4px 16px rgba(232, 87, 42, 0.3);
+		box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 30%, transparent);
 	}
 	.btn-cta-main {
 		padding: 14px 36px;
@@ -1660,6 +1267,7 @@
 		flex-direction: column;
 		align-items: center;
 		gap: 10px;
+		box-shadow: var(--shadow-sm);
 	}
 	.notify-card svg {
 		color: var(--accent);
@@ -1676,537 +1284,10 @@
 		margin: 0;
 	}
 
-	/* ── Phone Mockup ── */
+	/* ── Hero Visual ── */
 	.hero-visual {
-		max-height: 520px;
-		overflow: hidden;
-		-webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
-		mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
-	}
-	.mockup-phone {
-		width: 320px;
-		margin: 0 auto;
-		background: #1c1b19;
-		border-radius: 36px;
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		padding: 10px;
-		box-shadow:
-			0 0 0 1px rgba(255, 255, 255, 0.04) inset,
-			0 8px 24px rgba(0, 0, 0, 0.3),
-			0 32px 80px rgba(0, 0, 0, 0.5),
-			0 0 120px rgba(232, 87, 42, 0.06);
-	}
-	.mockup-screen {
-		background: var(--bg);
-		border-radius: 26px;
-		padding: 0 16px 0;
-		/* Status bar (row 1), animated step stack (row 2), dots (row 3).
-		   All steps share row 2, so the screen height is fixed at the tallest
-		   step and never changes as the animation cycles — no layout shift. */
-		display: grid;
-		grid-template-columns: 1fr;
-		overflow: hidden;
-	}
-	/* Status bar + Dynamic Island */
-	.mockup-statusbar {
-		grid-area: 1 / 1;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 8px 8px 6px;
-		font-size: 0.65rem;
-		font-weight: 600;
-		color: var(--text-tertiary);
-		position: relative;
-	}
-	.mockup-time {
-		width: 36px;
-		font-variant-numeric: tabular-nums;
-	}
-	.mockup-notch {
-		width: 48px;
-		height: 14px;
-		border-radius: 10px;
-		background: #000;
-		position: absolute;
-		top: 6px;
-		left: 50%;
-		transform: translateX(-50%);
-	}
-	.mockup-statusbar-icons {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		width: 36px;
-		justify-content: flex-end;
-		color: var(--text-tertiary);
-	}
-	/* ── Mockup Steps (animated flow) ── */
-	.mockup-step {
-		grid-area: 2 / 1;
-		display: flex;
-		flex-direction: column;
-		padding: 0 4px 16px;
-		opacity: 0;
-		visibility: hidden;
-	}
-	.mockup-step.active {
-		opacity: 1;
-		visibility: visible;
-		z-index: 1;
-		animation: step-fade 0.25s ease forwards;
-	}
-	@keyframes step-fade {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
-	}
-
-	/* Progress dots */
-	.mockup-dots {
-		grid-area: 3 / 1;
 		display: flex;
 		justify-content: center;
-		gap: 6px;
-		padding: 8px 0 4px;
-	}
-	.mockup-dot {
-		width: 5px;
-		height: 5px;
-		border-radius: 50%;
-		background: var(--border);
-		transition: all 0.3s ease;
-	}
-	.mockup-dot.active {
-		background: var(--accent);
-		width: 16px;
-		border-radius: 3px;
-	}
-
-	/* Step 2: Tap Send — pulse ring */
-	.mockup-action-circle.tapping {
-		box-shadow: 0 0 0 6px rgba(232, 87, 42, 0.35);
-		transform: scale(0.93);
-		transition: all 0.2s ease;
-	}
-
-	/* Step 1: Wallet home */
-	.mockup-account {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 1px;
-		margin-bottom: 16px;
-	}
-	.mockup-account-name {
-		font-size: 0.88rem;
-		font-weight: 600;
-		color: var(--text);
-	}
-	.mockup-account-addr {
-		font-size: 0.65rem;
-		color: var(--text-tertiary);
-		font-family: monospace;
-	}
-	.mockup-balance {
-		text-align: center;
-		font-size: 2.2rem;
-		font-weight: 700;
-		color: var(--text);
-		letter-spacing: -0.02em;
-		margin-bottom: 16px;
-		font-variant-numeric: tabular-nums;
-	}
-	.mockup-cents {
-		font-size: 1.3rem;
-		color: var(--text-secondary);
-	}
-	.mockup-actions {
-		display: flex;
-		justify-content: center;
-		gap: 28px;
-		margin-bottom: 18px;
-	}
-	.mockup-action {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 5px;
-	}
-	.mockup-action span {
-		font-size: 0.65rem;
-		color: var(--text-secondary);
-	}
-	.mockup-action-circle {
-		width: 42px;
-		height: 42px;
-		border-radius: 50%;
-		border: 1.5px solid var(--border);
-		background: transparent;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--text-secondary);
-	}
-	.mockup-action-circle.active {
-		background: var(--accent);
-		border-color: var(--accent);
-		color: #fff;
-	}
-	.mockup-tokens {
-		display: flex;
-		flex-direction: column;
-	}
-	.mockup-token {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 10px 0;
-		border-bottom: 1px solid var(--border);
-	}
-	.mockup-token:last-child {
-		border-bottom: none;
-	}
-	.mockup-token-icon {
-		width: 32px;
-		height: 32px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-	.mockup-token-info {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	.mockup-token-name {
-		font-size: 0.82rem;
-		font-weight: 600;
-		color: var(--text);
-	}
-	.mockup-token-chain {
-		font-size: 0.65rem;
-		color: var(--text-tertiary);
-	}
-	.mockup-token-value {
-		text-align: right;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	.mockup-token-qty {
-		font-size: 0.82rem;
-		font-weight: 600;
-		color: var(--text);
-		font-variant-numeric: tabular-nums;
-	}
-	.mockup-token-usd {
-		font-size: 0.65rem;
-		color: var(--text-tertiary);
-		font-variant-numeric: tabular-nums;
-	}
-
-	/* Step 3: Enter amount */
-	.mockup-send-form {
-		display: flex;
-		flex-direction: column;
-		gap: 16px;
-		margin-bottom: 20px;
-	}
-	.mockup-token-select {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 10px 14px;
-		border-radius: 12px;
-		background: var(--bg-raised);
-		border: 1px solid var(--border-accent);
-	}
-	.mockup-token-select-name {
-		font-size: 0.82rem;
-		font-weight: 600;
-		color: var(--text);
-	}
-	.mockup-token-select-chain {
-		font-size: 0.65rem;
-		color: var(--text-tertiary);
-		flex: 1;
-	}
-	.mockup-chevron {
-		color: var(--text-tertiary);
-	}
-	.mockup-amount-input {
-		display: flex;
-		align-items: baseline;
-		justify-content: center;
-		gap: 6px;
-		padding: 12px 0;
-	}
-	.mockup-amount-value {
-		font-size: 2rem;
-		font-weight: 700;
-		color: var(--text);
-		font-variant-numeric: tabular-nums;
-		min-height: 2.4rem;
-	}
-	.mockup-cursor {
-		border-right: 2px solid var(--accent);
-		margin-left: 1px;
-		animation: cursor-breathe 1.2s ease-in-out infinite;
-	}
-	@keyframes cursor-breathe {
-		0%,
-		100% {
-			opacity: 0.3;
-		}
-		50% {
-			opacity: 1;
-		}
-	}
-	.mockup-amount-unit {
-		font-size: 0.88rem;
-		color: var(--text-tertiary);
-		font-weight: 500;
-	}
-	.mockup-amount-usd {
-		text-align: center;
-		font-size: 0.75rem;
-		color: var(--text-tertiary);
-		margin-top: -10px;
-	}
-	.mockup-to-field {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 10px 14px;
-		border-radius: 12px;
-		background: var(--bg-raised);
-		border: 1px solid var(--border);
-	}
-	.mockup-to-label {
-		font-size: 0.75rem;
-		color: var(--text-tertiary);
-	}
-	.mockup-to-addr {
-		font-size: 0.75rem;
-		color: var(--text);
-		font-family: monospace;
-	}
-	.mockup-send-btn {
-		text-align: center;
-		padding: 12px;
-		border-radius: 12px;
-		background: var(--accent);
-		color: #fff;
-		font-size: 0.85rem;
-		font-weight: 600;
-	}
-
-	/* Step 4: Confirm tx */
-	.mockup-step-header {
-		font-size: 0.92rem;
-		font-weight: 600;
-		color: var(--text);
-		text-align: center;
-		margin-bottom: 20px;
-		margin-top: 8px;
-	}
-	.mockup-tx-card {
-		width: 100%;
-		background: var(--bg-raised);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 14px 16px;
-		margin-bottom: 24px;
-	}
-	.mockup-tx-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 9px 0;
-		border-bottom: 1px solid var(--border);
-	}
-	.mockup-tx-row.last {
-		border-bottom: none;
-	}
-	.mockup-tx-label {
-		font-size: 0.75rem;
-		color: var(--text-tertiary);
-	}
-	.mockup-tx-value {
-		font-size: 0.78rem;
-		font-weight: 600;
-		color: var(--text);
-	}
-	.mockup-tx-addr {
-		font-family: monospace;
-		font-size: 0.72rem;
-	}
-	.mockup-slide-track {
-		position: relative;
-		width: 100%;
-		height: 44px;
-		background: var(--bg-raised);
-		border: 1px solid var(--border);
-		border-radius: 22px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
-		transition:
-			background 0.3s ease,
-			border-color 0.3s ease;
-	}
-	.mockup-slide-thumb {
-		position: absolute;
-		left: 4px;
-		top: 4px;
-		width: 36px;
-		height: 36px;
-		border-radius: 50%;
-		background: var(--accent);
-		color: #fff;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-	/* Only animate when confirm step is active */
-	.mockup-slide-track.sliding .mockup-slide-thumb {
-		animation: slide-complete 2.2s ease-in-out forwards;
-	}
-	.mockup-slide-track.sliding {
-		animation: slide-track-done 2.2s ease-in-out forwards;
-	}
-	@keyframes slide-complete {
-		0% {
-			left: 4px;
-		}
-		70% {
-			left: calc(100% - 40px);
-		}
-		100% {
-			left: calc(100% - 40px);
-		}
-	}
-	@keyframes slide-track-done {
-		0%,
-		69% {
-			background: var(--bg-raised);
-			border-color: var(--border);
-		}
-		70%,
-		100% {
-			background: var(--green-soft);
-			border-color: rgba(45, 142, 95, 0.3);
-		}
-	}
-	.mockup-slide-text {
-		font-size: 0.72rem;
-		color: var(--text-tertiary);
-		font-weight: 500;
-		transition: opacity 0.3s;
-	}
-	.mockup-slide-track.sliding .mockup-slide-text {
-		animation: slide-text-fade 2.2s ease forwards;
-	}
-	@keyframes slide-text-fade {
-		0%,
-		60% {
-			opacity: 1;
-		}
-		70%,
-		100% {
-			opacity: 0;
-		}
-	}
-
-	/* Step 5: Face ID */
-	.mockup-faceid-screen {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 16px;
-		padding: 60px 0 40px;
-	}
-	.mockup-faceid-icon {
-		color: var(--accent);
-		animation: faceid-scan 2s ease forwards;
-	}
-	@keyframes faceid-scan {
-		0% {
-			opacity: 0.5;
-			transform: scale(0.9);
-		}
-		30% {
-			opacity: 1;
-			transform: scale(1);
-		}
-		60% {
-			opacity: 1;
-			transform: scale(1);
-			filter: brightness(1.3);
-		}
-		100% {
-			opacity: 1;
-			transform: scale(1);
-			filter: brightness(1);
-		}
-	}
-	.mockup-faceid-label {
-		font-size: 0.92rem;
-		font-weight: 600;
-		color: var(--text);
-	}
-	.mockup-faceid-sub {
-		font-size: 0.72rem;
-		color: var(--text-tertiary);
-		text-align: center;
-	}
-
-	/* Step 4: Success */
-	.mockup-done-screen {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 12px;
-		padding: 50px 0 40px;
-	}
-	.mockup-done-check {
-		color: var(--green);
-		animation: done-pop 0.5s ease-out;
-	}
-	@keyframes done-pop {
-		0% {
-			transform: scale(0.5);
-			opacity: 0;
-		}
-		70% {
-			transform: scale(1.15);
-		}
-		100% {
-			transform: scale(1);
-			opacity: 1;
-		}
-	}
-	.mockup-done-title {
-		font-size: 1rem;
-		font-weight: 700;
-		color: var(--text);
-	}
-	.mockup-done-detail {
-		font-size: 0.78rem;
-		color: var(--text-secondary);
-		font-family: monospace;
-	}
-	.mockup-done-time {
-		font-size: 0.72rem;
-		color: var(--green);
-		font-weight: 600;
 	}
 
 	/* ── Trust Strip ── */
@@ -2315,17 +1396,6 @@
 	.does-less-content p:last-child {
 		margin-bottom: 0;
 	}
-	.does-less-content .does-less-beat {
-		color: var(--text);
-		font-size: 1.15rem;
-		font-weight: 400;
-		line-height: 1.5;
-		margin: 20px 0;
-	}
-	.does-less-content em {
-		color: var(--text);
-		font-style: italic;
-	}
 	.does-less-content a {
 		color: var(--accent);
 		text-decoration: underline;
@@ -2377,6 +1447,7 @@
 		border: 1px solid var(--border);
 		border-left: 3px solid var(--accent);
 		border-radius: 0 var(--radius) var(--radius) 0;
+		box-shadow: var(--shadow-sm);
 	}
 	.pillar:last-child {
 		margin-bottom: 0;
@@ -2422,6 +1493,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		padding: 28px 28px;
+		box-shadow: var(--shadow-sm);
 	}
 	.tech-details h3 {
 		font-size: 0.82rem;
@@ -2548,6 +1620,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		padding: 24px 20px;
+		box-shadow: var(--shadow-sm);
 	}
 	.bm-card h4 {
 		font-size: 0.88rem;
@@ -2718,12 +1791,6 @@
 			font-size: 0.95rem;
 			margin-left: auto;
 			margin-right: auto;
-		}
-		.hero-visual {
-			max-height: 400px;
-		}
-		.mockup-phone {
-			width: min(400px, 85vw);
 		}
 		.trust-row {
 			justify-content: center;

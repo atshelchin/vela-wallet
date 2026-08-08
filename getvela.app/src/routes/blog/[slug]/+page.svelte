@@ -65,7 +65,7 @@
 			<p class="lede">{data.meta.description}</p>
 		</header>
 
-		<Prose>
+		<Prose serif>
 			<Content />
 		</Prose>
 	</article>
@@ -122,8 +122,8 @@
 		margin: 14px 0 12px;
 		font-size: 2.4rem;
 		line-height: 1.15;
-		font-weight: 700;
-		letter-spacing: -0.03em;
+		font-weight: 600;
+		letter-spacing: -0.02em;
 	}
 	.lede {
 		font-size: 1.15rem;

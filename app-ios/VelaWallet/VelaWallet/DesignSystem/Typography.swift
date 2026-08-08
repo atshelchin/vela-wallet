@@ -44,6 +44,82 @@ enum Typography {
     static let label = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t13, relativeTo: .footnote, leading: Tokens.Leading.tight)
     /// Button label — text.t17, semibold, single-line.
     static let button = TypeRole(fontName: FontName.semiBold, size: Tokens.TextSize.t17, relativeTo: .body, leading: Tokens.Leading.none)
+
+    // MARK: Wallet roles (spec 015 — design/wallet mocks)
+
+    /// Hero balance integer part — text.t40, bold, amount leading.
+    static let amountHero = TypeRole(fontName: FontName.bold, size: Tokens.TextSize.t40, relativeTo: .largeTitle, leading: Tokens.Leading.amountHero)
+    /// Hero balance decimals — de-emphasised trailing part, text.t26.
+    static let amountHeroDecimals = TypeRole(fontName: FontName.bold, size: Tokens.TextSize.t26, relativeTo: .title2, leading: Tokens.Leading.amountHero)
+    /// Row title (activity/asset primary line) — text.t17, semibold.
+    static let rowTitle = TypeRole(fontName: FontName.semiBold, size: Tokens.TextSize.t17, relativeTo: .body, leading: Tokens.Leading.tight)
+    /// Row trailing value (amount/balance) — text.t17, semibold.
+    static let rowValue = TypeRole(fontName: FontName.semiBold, size: Tokens.TextSize.t17, relativeTo: .body, leading: Tokens.Leading.tight)
+    /// Row subtitle / status line / day label — text.t13, regular.
+    static let rowSub = TypeRole(fontName: FontName.regular, size: Tokens.TextSize.t13, relativeTo: .footnote, leading: Tokens.Leading.tight)
+    /// Action-card label (收款/转账/扫码) and empty-state title — text.t15, medium.
+    static let actionLabel = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t15, relativeTo: .subheadline, leading: Tokens.Leading.tight)
+    /// Empty-state title — text.t15, semibold.
+    static let emptyTitle = TypeRole(fontName: FontName.semiBold, size: Tokens.TextSize.t15, relativeTo: .subheadline, leading: Tokens.Leading.tight)
+    /// Caption (QR caption, gallery chrome) — text.t11, medium.
+    static let caption = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t11, relativeTo: .caption, leading: Tokens.Leading.tight)
+    /// Token-icon 3-letter glyph — text.t11, semibold.
+    static let tokenGlyph = TypeRole(fontName: FontName.semiBold, size: Tokens.TextSize.t11, relativeTo: .caption, leading: Tokens.Leading.none)
+    /// Tab-bar item label — text.t10, medium, single-line.
+    static let tab = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t10, relativeTo: .caption2, leading: Tokens.Leading.none)
+
+    /// Middle-truncated address — system monospaced, text.t11.
+    static let monoAddress = MonoTypeRole(size: Tokens.TextSize.t11, weight: .regular, relativeTo: .caption)
+}
+
+/// A monospaced role (addresses, seeds). Uses the system mono face — the
+/// bundled Jakarta family has no mono cut; addresses are ASCII-only.
+struct MonoTypeRole {
+    let size: CGFloat
+    let weight: Font.Weight
+    let relativeTo: Font.TextStyle
+    var font: Font { .system(size: size, weight: weight, design: .monospaced) }
+}
+
+extension TypeRole {
+    /// FR-011 wallet text scale: the same role at a multiplied point size
+    /// (H7x = 1.35×). Line-height multiplier carries over unchanged.
+    func scaled(_ factor: CGFloat) -> TypeRole {
+        factor == 1 ? self : TypeRole(fontName: fontName, size: size * factor, relativeTo: relativeTo, leading: leading)
+    }
+}
+
+extension MonoTypeRole {
+    func scaled(_ factor: CGFloat) -> MonoTypeRole {
+        factor == 1 ? self : MonoTypeRole(size: size * factor, weight: weight, relativeTo: relativeTo)
+    }
+}
+
+/// SF Symbol sizing for wallet components — complete Font recipes so page
+/// code never calls `.font(.system…)` (the literal audit bans it there).
+enum WalletIconFont {
+    /// Action-card glyph (↙ ↗ viewfinder).
+    static let action = Font.system(size: 20, weight: .medium)
+    /// Activity-row direction glyph inside the 40 pt circle.
+    static let rowGlyph = Font.system(size: 15, weight: .semibold)
+    /// Disclosure chevron next to the wallet name.
+    static let nameChevron = Font.system(size: 12, weight: .semibold)
+    /// Small chevrons (pill, section action, status line).
+    static let smallChevron = Font.system(size: 11, weight: .semibold)
+    /// Balance status-line leading icon (⚠ / ↻).
+    static let statusIcon = Font.system(size: 13, weight: .medium)
+    /// Hidden-balance eye toggle.
+    static let eye = Font.system(size: 17, weight: .medium)
+    /// Tab-bar item icon.
+    static let tab = Font.system(size: 22, weight: .regular)
+    /// Empty-state outline icon.
+    static let empty = Font.system(size: 28, weight: .light)
+    /// Sheet title-row search icon.
+    static let sheetSearch = Font.system(size: 17, weight: .medium)
+    /// Chain-row active checkmark.
+    static let checkmark = Font.system(size: 15, weight: .semibold)
+    /// Gallery chrome (theme toggle).
+    static let galleryControl = Font.system(size: 17, weight: .medium)
 }
 
 extension Text {
@@ -51,5 +127,10 @@ extension Text {
     /// sanctioned way to style text outside DesignSystem/.
     func typeRole(_ role: TypeRole) -> some View {
         self.font(role.font).lineSpacing(role.lineSpacing)
+    }
+
+    /// Applies a monospaced role (addresses/seeds).
+    func monoRole(_ role: MonoTypeRole) -> some View {
+        self.font(role.font)
     }
 }

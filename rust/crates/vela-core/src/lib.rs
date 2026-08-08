@@ -24,6 +24,8 @@ pub mod i18n;
 mod i18n_catalogs;
 pub mod identicon;
 mod identicon_features;
+#[cfg(feature = "identicon-raster")]
+pub mod identicon_raster;
 pub mod l10n;
 pub mod primitives;
 pub mod safe;
@@ -41,4 +43,6 @@ pub use identicon::{
     identicon_data_uri, identicon_params, identicon_svg, identicon_svg_circular, make_hash,
     normalize_seed, Colors, IdenticonHash, IdenticonParams, Section, Sections,
 };
+#[cfg(feature = "identicon-raster")]
+pub use identicon_raster::{identicon_placeholder_png, identicon_png};
 pub use types::{ClientDataKind, P256PublicKey, SafeAddressInfo, WebAuthnAssertion};

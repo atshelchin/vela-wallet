@@ -427,6 +427,23 @@ pub fn identicon_normalize_seed(seed: String) -> String {
     vela_core::identicon::normalize_seed(&seed).into_owned()
 }
 
+/// **The wallet's identicon as PNG bytes** (`size_px` × `size_px`), rasterized
+/// from the same circular SVG every platform shares (spec 015, research.md D1).
+/// Kotlin decodes with `BitmapFactory`, Swift with `UIImage(data:)`. Normalize
+/// the seed first, exactly as with the SVG entry points. `size_px` is capped at
+/// 1024.
+#[uniffi::export]
+pub fn identicon_png(seed: String, size_px: u32) -> Result<Vec<u8>, CoreError> {
+    Ok(vela_core::identicon_raster::identicon_png(&seed, size_px)?)
+}
+
+/// The shared placeholder artwork as PNG bytes — what platforms show for an
+/// invalid or empty seed instead of crashing or rendering blank.
+#[uniffi::export]
+pub fn identicon_placeholder_png(size_px: u32) -> Result<Vec<u8>, CoreError> {
+    Ok(vela_core::identicon_raster::identicon_placeholder_png(size_px)?)
+}
+
 // ---------------------------------------------------------------------------
 // i18n (spec 004-rust-i18n, contracts/i18n-api.md §1.3 / §2.3)
 // ---------------------------------------------------------------------------

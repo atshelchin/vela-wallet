@@ -131,8 +131,9 @@ actions `tokenDetail.send` / `tokenDetail.receive`; facts — 名称 BNB ·
 
 ## QR placeholder pattern
 
-Deterministic 21×21 module grid: three 5×5 finder squares (top-left,
-top-right, bottom-left, standard QR geometry), remaining cells filled by
-a seeded PRNG — `xorshift32` seeded with `0x5EED` — identical output on
-every platform, so screenshots diff cleanly. Never encodes data; always
-paired with the caption key.
+Deterministic 21×21 module grid: three 7×7 finder squares (top-left,
+top-right, bottom-left — standard QR geometry, with the ring at offset 1
+left empty), remaining cells filled by a seeded PRNG — `xorshift32`
+seeded with `0x5EED` — identical output on every platform, so
+screenshots diff cleanly. Never encodes data; always paired with the
+caption key.

@@ -4,7 +4,8 @@
 
 **Created**: 2026-08-08
 
-**Status**: Draft
+**Status**: Implemented on this branch — see results.md for gates and
+recorded deviations
 
 **Input**: User description: "Implement the wallet home UI from
 `design/wallet/` on all four clients (`app-android/vela-wallet`,

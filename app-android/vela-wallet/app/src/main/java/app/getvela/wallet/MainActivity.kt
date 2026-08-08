@@ -31,6 +31,7 @@ import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.theme.isDarkEffective
 import app.getvela.wallet.core.i18n.LocalVelaStrings
 import app.getvela.wallet.core.i18n.VelaStrings
+import app.getvela.wallet.navigation.VelaDestinations
 import app.getvela.wallet.navigation.VelaNavHost
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -58,6 +59,17 @@ class MainActivity : ComponentActivity() {
      */
     private fun reduceMotion(): Boolean =
         Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+
+    /**
+     * Launch-time start-route override (spec 015, research D4): keeps the
+     * gallery/wallet reachable without touching production navigation.
+     *
+     *   adb shell am start -n app.getvela.wallet/.MainActivity --es vela.startDestination gallery
+     */
+    private fun startDestination(): String =
+        intent?.getStringExtra("vela.startDestination")
+            ?.takeIf { it in VelaDestinations.ALL }
+            ?: VelaDestinations.WELCOME
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
@@ -139,6 +151,7 @@ class MainActivity : ComponentActivity() {
                                         container.themeRepository.setThemePreference(selected)
                                     }
                                 },
+                                startDestination = startDestination(),
                             )
                         }
 

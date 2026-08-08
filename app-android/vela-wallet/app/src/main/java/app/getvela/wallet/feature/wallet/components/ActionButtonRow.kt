@@ -1,0 +1,98 @@
+package app.getvela.wallet.feature.wallet.components
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import app.getvela.wallet.core.designsystem.components.VelaCard
+import app.getvela.wallet.core.designsystem.components.VelaIcons
+import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
+import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
+import app.getvela.wallet.core.designsystem.tokens.VelaIconSize
+import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
+import app.getvela.wallet.feature.wallet.ActionsModel
+
+/**
+ * 收款 / 转账 / 扫码 dock (spec vocabulary #6): three equal raised cards,
+ * icon above label. Taps have no destination yet (spec assumption).
+ */
+@Composable
+fun ActionButtonRow(
+    actions: ActionsModel,
+    modifier: Modifier = Modifier,
+    onReceive: () -> Unit = {},
+    onSend: () -> Unit = {},
+    onScan: () -> Unit = {},
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(VelaSpacing.lg),
+    ) {
+        ActionCard(
+            icon = VelaIcons.ArrowDownLeft,
+            label = actions.receive,
+            onClick = onReceive,
+            modifier = Modifier.weight(1f),
+        )
+        ActionCard(
+            icon = VelaIcons.ArrowUpRight,
+            label = actions.send,
+            onClick = onSend,
+            modifier = Modifier.weight(1f),
+        )
+        ActionCard(
+            icon = VelaIcons.ScanLine,
+            label = actions.scan,
+            onClick = onScan,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun ActionCard(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = VelaTheme.colors
+    VelaCard(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .clickable(onClick = onClick)
+                .fillMaxWidth()
+                .padding(vertical = VelaSpacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = colors.fgBase,
+                modifier = Modifier.size(VelaIconSize.lg),
+            )
+            Spacer(modifier = Modifier.height(VelaSpacing.md))
+            Text(
+                text = label,
+                color = colors.fgBase,
+                fontFamily = VelaFontFamily,
+                fontWeight = VelaFontWeight.medium,
+                fontSize = VelaTextSize.base,
+                maxLines = 1,
+            )
+        }
+    }
+}

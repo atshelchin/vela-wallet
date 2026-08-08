@@ -20,6 +20,7 @@
 				<h3>Resources</h3>
 				<a href={resolve('/docs')}>Docs</a>
 				<a href={resolve('/docs/whitepaper')}>Whitepaper</a>
+				<a href={resolve('/docs/security-audits')}>Audits &amp; known issues</a>
 				<a href={resolve('/roadmap')}>Roadmap</a>
 				<a href={resolve('/blog')}>Blog</a>
 				<a href={resolve('/about')}>About</a>
@@ -40,10 +41,12 @@
 			</div>
 			<div class="col">
 				<h3>Community</h3>
-				<a href="https://github.com/mondaylabsltd/vela-wallet" target="_blank" rel="noopener">GitHub</a
+				<a href="https://github.com/mondaylabsltd/vela-wallet" target="_blank" rel="noopener"
+					>GitHub</a
 				>
 				<a href="https://x.com/realvelawallet" target="_blank" rel="noopener">X / Twitter</a>
 				<a href="https://t.me/velawallet" target="_blank" rel="noopener">Telegram</a>
+				<a href="https://discord.gg/S6A8RyCk6" target="_blank" rel="noopener">Discord</a>
 				<a href={resolve('/blog/rss.xml')}>RSS</a>
 			</div>
 			<div class="col">

@@ -35,7 +35,8 @@ export const sidebar: SidebarGroup[] = [
 		items: [
 			{ slug: 'passkeys', title: 'How passkeys work' },
 			{ slug: 'clear-signing', title: 'Clear signing' },
-			{ slug: 'recovery', title: 'Recovery & sign-in' }
+			{ slug: 'recovery', title: 'Recovery & sign-in' },
+			{ slug: 'security-audits', title: 'Audits & known issues' }
 		]
 	},
 	{

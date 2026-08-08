@@ -41,14 +41,12 @@ plus custom networks, holding native tokens and ERC-20s. Your address is the sam
 ## How much does it cost?
 
 The wallet is free and Vela has **no token**. You pay network **gas** out of
-your own wallet balance, plus a relayer fee, shown as a *network fee / relayer
-fee / total* split before you confirm; the price is quoted by the bundler. On
-most networks the relayer fee is set to **roughly the network fee itself** — so
-about **2× the on-chain cost**. On networks where the relayer supports settling
-gas by a direct transfer from your balance — including in stablecoins, where
-enabled — the total is **3× the network cost**, with a small minimum fee. On
-Tempo, which has no native coin, gas is paid in USD stablecoins at **2× the
-network cost** (minimum $0.01). Each network also needs a small,
+your own wallet balance, plus a relayer fee. The price is quoted by the bundler
+and shown as a _network fee / relayer fee / total_ split **before you sign** —
+the exact cost of every transaction is on the confirm screen, and the quoted
+amount is part of what you sign, so it can't change afterwards. Very cheap
+transactions may hit a small minimum fee. On Tempo, which has no native coin,
+gas is paid in USD stablecoins. Each network also needs a small,
 **non-refundable deposit to activate its gas relayer account** (Vela may sponsor
 this for new users); because that account can run down, you may have to top it
 up again later — it isn't strictly one-time.

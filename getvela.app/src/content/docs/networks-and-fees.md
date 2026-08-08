@@ -13,20 +13,20 @@ description: The 12 networks Vela supports, how account-abstraction gas fees wor
 
 Vela ships with **12 EVM networks** built in:
 
-| Network | Native fee token |
-| ------- | ---------------- |
-| Ethereum | ETH |
-| BNB Chain | BNB |
-| Polygon | POL |
-| Arbitrum | ETH |
-| Optimism | ETH |
-| Base | ETH |
-| Avalanche | AVAX |
-| Gnosis | xDAI |
-| Unichain | ETH |
-| Tempo | USD |
-| Monad | MON |
-| World Chain | ETH |
+| Network     | Native fee token |
+| ----------- | ---------------- |
+| Ethereum    | ETH              |
+| BNB Chain   | BNB              |
+| Polygon     | POL              |
+| Arbitrum    | ETH              |
+| Optimism    | ETH              |
+| Base        | ETH              |
+| Avalanche   | AVAX             |
+| Gnosis      | xDAI             |
+| Unichain    | ETH              |
+| Tempo       | USD              |
+| Monad       | MON              |
+| World Chain | ETH              |
 
 Your wallet has the **same address on all of them**, so there's one address to
 share everywhere.
@@ -54,16 +54,16 @@ on-chain and is reimbursed for the gas. A few things follow from that:
   offers one; you pick the fee asset on the confirm screen. Tempo has no native
   coin, so gas there is always settled in USD stablecoins. There's no ERC-4337
   **paymaster** sponsoring — or gating — each transaction. (Vela may sponsor the
-  one-time *gas-account activation* for new users; that's separate, and covered
+  one-time _gas-account activation_ for new users; that's separate, and covered
   below.)
 - The **bundler quotes the gas price** — it is the single source of truth, and the
   wallet displays that quote and signs exactly what it shows. There is no speed
   picker: every transaction is submitted at high priority.
-- The total charge is a **fixed multiple of the raw on-chain cost**: currently
-  **3× on standard networks** and **2× on Tempo**, with minimum charges of
-  0.00001 of the native coin, or $0.01 when paying in a stablecoin. One part
-  goes to the chain's validators; the rest pays the relayer that fronts the gas
-  and runs the infrastructure.
+- The total charge is the **network cost plus the relayer's service fee**, with
+  a small minimum charge on very cheap transactions. The bundler's quote is the
+  price — there is no separate fee schedule to consult. One part goes to the
+  chain's validators; the rest pays the relayer that fronts the gas and runs
+  the infrastructure.
 - The confirm screen shows the **estimated fee** in the fee asset and in your
   display currency before you sign. The quoted amount and its recipient are part
   of what you sign, so the relayer is paid exactly what was shown — a changed
@@ -72,7 +72,7 @@ on-chain and is reimbursed for the gas. A few things follow from that:
 ## Who runs the bundler — and who gets the fees
 
 Every network points at a bundler. By default that's **Vela's own bundler**, and
-you can replace the endpoint under *Settings → Advanced → Service Endpoints*.
+you can replace the endpoint under _Settings → Advanced → Service Endpoints_.
 One endpoint applies to every built-in network; a custom network keeps the
 bundler URL you gave it when you added it.
 

@@ -1,7 +1,7 @@
 /* eslint-disable import/no-named-as-default-member -- this file uses i18next's
    singleton-instance API on purpose: i18n.use(...).init(...) / i18n.changeLanguage(). */
 /**
- * i18n — UI language system. Ships 12 locales (see SUPPORTED_LANGUAGES).
+ * i18n — UI language system. Ships the locales listed in SUPPORTED_LANGUAGES.
  *
  * Mirrors the color-scheme.ts pattern: a synchronous module-level cache for the
  * user's preference ('auto' | a concrete locale), loaded once at startup, with a

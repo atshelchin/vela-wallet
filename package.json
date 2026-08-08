@@ -2,6 +2,7 @@
   "name": "vela-wallet",
   "main": "index.js",
   "version": "1.0.0",
+  "license": "MIT",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",

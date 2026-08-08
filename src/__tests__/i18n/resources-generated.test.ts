@@ -85,10 +85,13 @@ it('carries the whole corpus — 17,268 leaves across 15 locales', () => {
     // plus the 240 web-onboarding strings spec 006 added (16
     // `onboarding.welcomeWeb.*` keys × 15 locales), plus the 30 in-band fee-hold
     // strings spec 013 added (`send.txHeldFees` + `send.txRejectedFees` × 15
-    // locales). The number moving is the point; it should only ever move
-    // deliberately.
+    // locales), plus the 210 wallet-home strings spec 015 added (14 keys ×
+    // 15 locales: componentsUi mainNav/dayGroup/commandBar/qrPlaceholder,
+    // networkFilter.pillAll, receive.addressLabel, history bare labels +
+    // name-only subtitles). The number moving is the point; it should only
+    // ever move deliberately.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(17_298);
+    expect(total).toBe(17_508);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

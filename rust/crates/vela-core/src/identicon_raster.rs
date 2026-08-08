@@ -13,9 +13,7 @@
 //! entry point.
 
 use crate::error::CoreError;
-use crate::identicon::{
-    assemble_svg_circular, identicon_params, IDENTICON_PLACEHOLDER,
-};
+use crate::identicon::{assemble_svg_circular, identicon_params, IDENTICON_PLACEHOLDER};
 
 /// Upper bound on the requested edge length. 1024 px covers a 256 pt avatar at
 /// 4× density; anything larger is a caller bug, not a use case, and the bound
@@ -36,7 +34,9 @@ fn rasterize(svg: &str, size_px: u32) -> Result<Vec<u8>, CoreError> {
         .map_err(|e| CoreError::Internal(format!("identicon raster: svg parse: {e}")))?;
 
     let mut pixmap = resvg::tiny_skia::Pixmap::new(size_px, size_px).ok_or_else(|| {
-        CoreError::Internal(format!("identicon raster: pixmap alloc failed at {size_px} px"))
+        CoreError::Internal(format!(
+            "identicon raster: pixmap alloc failed at {size_px} px"
+        ))
     })?;
 
     let size = tree.size();
@@ -84,16 +84,21 @@ mod tests {
     const SEED: &str = "0xd8da6bf26964af9d7eed9e03e53415d37aa96045";
 
     /// Width and height from the IHDR chunk, which always follows the magic.
+    /// Out-of-range reads yield 0, which no assertion below accepts.
     fn ihdr_dimensions(png: &[u8]) -> (u32, u32) {
-        let w = u32::from_be_bytes(png[16..20].try_into().expect("IHDR width"));
-        let h = u32::from_be_bytes(png[20..24].try_into().expect("IHDR height"));
-        (w, h)
+        let word = |at: usize| -> u32 {
+            png.get(at..at + 4)
+                .and_then(|bytes| <[u8; 4]>::try_from(bytes).ok())
+                .map_or(0, u32::from_be_bytes)
+        };
+        (word(16), word(20))
     }
 
     #[test]
     fn renders_a_png_at_the_requested_size() {
         for size in [1_u32, 40, 160, IDENTICON_RASTER_MAX_PX] {
-            let png = identicon_png(SEED, size).expect("valid seed must rasterize");
+            let png = identicon_png(SEED, size).unwrap_or_default();
+            assert!(png.len() > 24, "no PNG produced at {size} px");
             assert_eq!(png[..8], PNG_MAGIC, "not a PNG at {size} px");
             assert_eq!(ihdr_dimensions(&png), (size, size));
         }
@@ -101,8 +106,9 @@ mod tests {
 
     #[test]
     fn output_is_deterministic() {
-        let a = identicon_png(SEED, 80).expect("rasterize");
-        let b = identicon_png(SEED, 80).expect("rasterize");
+        let a = identicon_png(SEED, 80).unwrap_or_default();
+        let b = identicon_png(SEED, 80).unwrap_or_default();
+        assert!(!a.is_empty(), "rasterization must succeed for a valid seed");
         assert_eq!(a, b, "same seed and size must produce identical bytes");
     }
 
@@ -120,7 +126,8 @@ mod tests {
 
     #[test]
     fn placeholder_rasterizes() {
-        let png = identicon_placeholder_png(64).expect("placeholder must rasterize");
+        let png = identicon_placeholder_png(64).unwrap_or_default();
+        assert!(png.len() > 24, "placeholder must rasterize");
         assert_eq!(png[..8], PNG_MAGIC);
         assert_eq!(ihdr_dimensions(&png), (64, 64));
     }

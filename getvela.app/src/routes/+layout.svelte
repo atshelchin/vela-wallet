@@ -12,7 +12,7 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link
-		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400&display=swap"
 		rel="stylesheet"
 	/>
 	<script
@@ -32,11 +32,19 @@
 	}
 
 	:global(body) {
-		font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-		background: #0F0E0C;
-		color: #E8E6E1;
+		font-family: var(--font-sans);
+		background: var(--bg);
+		color: var(--text);
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
+	}
+
+	/* Display headings read in a warm serif; smaller UI headings stay sans.
+	   Components can opt out with an explicit font-family. */
+	:global(h1),
+	:global(h2) {
+		font-family: var(--font-serif);
+		font-weight: 600;
 	}
 
 	:global(a) {

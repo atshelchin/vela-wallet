@@ -6,10 +6,11 @@ import rehypeSlug from 'rehype-slug';
 
 // Build-time syntax highlighter. Shiki runs only during the build (Node), and
 // emits self-contained, inline-styled HTML — so highlighted code ships zero JS
-// to the client. The dark theme is chosen to sit naturally on the site palette.
-const SHIKI_THEME = 'vesper';
+// to the client. Both themes are emitted per token and resolved with CSS
+// `light-dark()` (see tokens.css), so code blocks follow the site theme.
+const SHIKI_THEMES = { light: 'github-light', dark: 'vesper' };
 const highlighter = await createHighlighter({
-	themes: [SHIKI_THEME],
+	themes: Object.values(SHIKI_THEMES),
 	langs: [
 		'text',
 		'bash',
@@ -41,7 +42,7 @@ const mdsvexOptions = {
 			const known = highlighter.getLoadedLanguages();
 			const safeLang = known.includes(lang) ? lang : 'text';
 			const html = escapeSvelte(
-				highlighter.codeToHtml(code, { lang: safeLang, theme: SHIKI_THEME })
+				highlighter.codeToHtml(code, { lang: safeLang, themes: SHIKI_THEMES, defaultColor: false })
 			);
 			return `{@html \`${html}\`}`;
 		}

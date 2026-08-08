@@ -1,6 +1,6 @@
 ---
 title: Create your wallet
-description: Create a self-custodial Vela wallet in under a minute with a passkey — no seed phrase. Your wallet is a Safe smart account with the same address on every network.
+description: Create a self-custodial Vela wallet in about a minute with a passkey — no seed phrase. Your wallet is a Safe smart account with the same address on every network.
 ---
 
 <script>
@@ -53,8 +53,9 @@ wallet contract exists**. The contract deploys itself — paid from its own bala
 - The **private key** is held by your OS passkey provider (iCloud Keychain or
   Google Password Manager), stored end-to-end encrypted and synced across your
   devices — no app, including Vela, ever sees it.
-- The **public key and your chosen name** are published to Vela's Passkey Index
-  (a contract on Gnosis Chain) so your account can be found again on a new device.
+- The **public key and your chosen name** are published to Vela's Passkey Index,
+  which also writes the key to a publicly readable record on Gnosis Chain, so
+  your account can be found again on a new device.
   See [recovery & sign-in](/docs/recovery).
 
 ## Next steps

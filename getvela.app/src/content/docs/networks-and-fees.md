@@ -49,54 +49,60 @@ Vela uses **ERC-4337 account abstraction**, so a transaction isn't broadcast by
 you directly — it's a **UserOperation** handed to a **bundler**, which submits it
 on-chain and is reimbursed for the gas. A few things follow from that:
 
-- **Gas is paid from your own wallet's balance** in the network's native token
-  (ETH, BNB, xDAI…). There's no ERC-4337 **paymaster** sponsoring — or gating —
-  each transaction. (Vela may sponsor the one-time *gas-account activation* for
-  new users; that's separate, and covered below.)
+- **Gas is paid from your own wallet's balance** — in the network's native token
+  (ETH, BNB, xDAI…) by default, or in a supported stablecoin where the relay
+  offers one; you pick the fee asset on the confirm screen. Tempo has no native
+  coin, so gas there is always settled in USD stablecoins. There's no ERC-4337
+  **paymaster** sponsoring — or gating — each transaction. (Vela may sponsor the
+  one-time *gas-account activation* for new users; that's separate, and covered
+  below.)
 - The **bundler quotes the gas price** — it is the single source of truth, and the
-  wallet uses that quote rather than marking the price up on its own. You can pick a
-  speed tier (Slow / Standard / Fast); the tier changes how fast your transaction is
-  included, not the fee policy.
-- Vela's **relayer fee is set to roughly the network fee itself** — so you pay about
-  **twice the raw on-chain cost**: one part to the chain's validators, one to the
-  relayer that runs the infrastructure.
-- The confirm screen **breaks the fee down honestly**: the on-chain *network fee*,
-  the *Vela relayer fee*, and what *you pay* in total — plus the gas limit and the
-  amount in your display currency. As a safety check, the wallet **refuses any quote
-  above ~3× the network rate**, so a misbehaving or third-party bundler can't
-  overcharge you.
+  wallet displays that quote and signs exactly what it shows. There is no speed
+  picker: every transaction is submitted at high priority.
+- The total charge is a **fixed multiple of the raw on-chain cost**: currently
+  **3× on standard networks** and **2× on Tempo**, with minimum charges of
+  0.00001 of the native coin, or $0.01 when paying in a stablecoin. One part
+  goes to the chain's validators; the rest pays the relayer that fronts the gas
+  and runs the infrastructure.
+- The confirm screen shows the **estimated fee** in the fee asset and in your
+  display currency before you sign. The quoted amount and its recipient are part
+  of what you sign, so the relayer is paid exactly what was shown — a changed
+  number would invalidate your signature.
 
 ## Who runs the bundler — and who gets the fees
 
-Every network points at a bundler. By default that's **Vela's own bundler**, but
-you can point any network at a third-party ERC-4337 bundler — **Pimlico**,
-**Alchemy**, or your own self-hosted one — under *Settings → Networks → (network)
-→ BUNDLER*. (Vela's backend is open source, so you can run the whole bundler
-service yourself too.)
+Every network points at a bundler. By default that's **Vela's own bundler**, and
+you can replace the endpoint under *Settings → Advanced → Service Endpoints*.
+One endpoint applies to every built-in network; a custom network keeps the
+bundler URL you gave it when you added it.
 
-Whoever operates the bundler for a network **collects that network's fees** — both
-the relayer markup on every transaction and, for Vela's bundler, the gas-account
-activation deposit. So the choice decides where your fees go:
+An honest caveat about compatibility: the app quotes fees through a
+Vela-specific RPC method (`vela_getInBandGasQuote`), and the send flow fails
+without it. So the endpoint you point at must run
+[vela-relay](https://github.com/mondaylabsltd/vela-relay) — Vela's instance or
+one you host yourself. A generic ERC-4337 bundler such as **Pimlico** or
+**Alchemy** doesn't implement that method, so it won't work end to end in the
+current release.
 
-- **Stay on Vela's bundler** → activation deposit and relayer markup fund Vela's
-  service.
-- **Point a network at Pimlico / Alchemy / your own** → you transact under *their*
-  pricing and pay *them* directly (typically via your own API key in the bundler
-  URL). Vela takes no cut on networks you route elsewhere.
+Whoever operates the bundler for a network **collects that network's fees** —
+the relayer markup on every transaction and the gas-account activation deposit.
+Run your own vela-relay and those fees fund your infrastructure instead of
+Vela's; Vela takes no cut on traffic you route elsewhere.
 
-<Callout type="warning" title="Only Vela's bundler uses a gas account">
-The **gas-account activation** step is specific to Vela's bundler — it funds a
-dedicated relayer account for your wallet on each network. **Third-party bundlers
-(Pimlico, Alchemy) don't use it**: they meter and bill gas their own way, so on a
-network routed to them you never see the activation screen.
+<Callout type="warning" title="The gas account is part of the vela-relay protocol">
+The **gas-account activation** step funds a dedicated relayer account for your
+wallet on each network. If you point the endpoint at a self-hosted vela-relay,
+the deposit funds your own relay's account, not Vela's.
 </Callout>
 
 ### Activating the gas account (Vela Relay)
 
 On Vela's bundler, your first transaction on each network **activates a dedicated
-gas account**. The app offers **Free Activation** — *sponsored by Vela for new
-users* — and falls back to **Self Activate**, where you send a small amount of the
-native token to the gas-account address shown in the app.
+gas account**. The app first asks the bundler's treasury to fund it for you —
+this happens silently inside the send flow, and a sponsored wallet never sees a
+funding screen. Only when sponsorship is declined does the app show a top-up
+request: you send a small amount of the native token to the gas-account address
+it displays, and it tells you why sponsorship wasn't available.
 
 **You pay the activation fee yourself** whenever free sponsorship isn't offered —
 namely when:
@@ -114,9 +120,10 @@ and tops itself up from gas refunds over time, though it can still run down and
 need **re-activating** later. The relayer address can also change on a service
 upgrade, which needs a fresh activation.
 
-Because the fee is always paid in the **native** token, you need a small native
-balance to send anything — including to move an ERC-20. If a send is blocked for
-gas, it means you hold the token but not enough native token to cover the fee.
+The fee comes out of your balance in the **fee asset** you picked — the native
+token by default. If a send is blocked for gas, it means your balance in that
+fee asset can't cover the fee; where the relay offers stablecoin gas, switching
+the fee asset on the confirm screen can unblock it.
 
 When you send the **maximum** amount of a native token, Vela automatically
 reserves enough for gas so the transaction doesn't fail.

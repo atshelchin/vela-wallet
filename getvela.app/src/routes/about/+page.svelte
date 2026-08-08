@@ -133,7 +133,7 @@
 	}
 	h2 {
 		font-size: 1.7rem;
-		font-weight: 700;
+		font-weight: 600;
 		letter-spacing: -0.02em;
 		margin-bottom: 20px;
 	}
@@ -152,8 +152,8 @@
 	.hero h1 {
 		font-size: 2.8rem;
 		line-height: 1.1;
-		font-weight: 700;
-		letter-spacing: -0.03em;
+		font-weight: 600;
+		letter-spacing: -0.02em;
 		max-width: 16ch;
 	}
 	.lede {
@@ -209,8 +209,16 @@
 		place-items: center;
 		font-size: 1.6rem;
 		font-weight: 700;
-		color: #fff;
-		background: linear-gradient(135deg, var(--accent), #b8431f);
+		color: var(--text-on-accent);
+		/* Always darken toward the bottom-right — --accent-hover flips lighter in
+		   dark mode, which would invert the gradient. */
+		background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 78%, black));
+	}
+	img.avatar {
+		/* Defines the photo's edge on both the white card (light) and the
+		   raised card (dark); token border + shadow hold up in both themes. */
+		border: 1px solid var(--border);
+		box-shadow: var(--shadow-sm);
 	}
 	.member-body h3 {
 		font-size: 1.15rem;

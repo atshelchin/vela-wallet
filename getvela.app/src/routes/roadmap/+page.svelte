@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
+	import SiteHeader from '$lib/components/SiteHeader.svelte';
 
 	type Status = 'now' | 'next' | 'later';
 	const upcoming: { status: Status; label: string; title: string; body: string }[] = [
@@ -26,7 +26,7 @@
 			status: 'next',
 			label: 'Next',
 			title: 'Sync across all your devices',
-			body: 'Your accounts and networks already follow you. Next: your language, currency and formatting, plus one-tap restore of your whole setup on a new device — and a saved address book so you stop re-pasting addresses.'
+			body: 'On iOS and Android your accounts and networks already follow you through your platform’s backup; on the web they stay in the browser. Next: your language, currency and formatting, plus one-tap restore of your whole setup on a new device — and a saved address book so you stop re-pasting addresses.'
 		},
 		{
 			status: 'later',
@@ -40,7 +40,7 @@
 		{
 			date: 'Jun 2026',
 			title: 'Localization & everyday polish',
-			body: '13-language support with instant switching (Russian and Italian added), local currency and locale-aware formatting, a dynamic amount display, branded pull-to-refresh, pending-until-confirmed sends, and one-tap in-app feedback.'
+			body: 'Multi-language support with instant switching (Russian and Italian added; 15 languages today), local currency and locale-aware formatting, a dynamic amount display, branded pull-to-refresh, pending-until-confirmed sends, and one-tap in-app feedback.'
 		},
 		{
 			date: 'Jun 13, 2026',
@@ -70,7 +70,7 @@
 		{
 			date: 'Apr 22, 2026',
 			title: 'Vela is born',
-			body: 'The wallet launches on iOS, Android and Web — Safe smart accounts (ERC-4337), passkey sign-in, and no seed phrase, from day one.'
+			body: 'The wallet launches on the web, from a single codebase that also builds for iOS and Android — Safe smart accounts (ERC-4337), passkey sign-in, and no seed phrase, from day one.'
 		}
 	];
 </script>
@@ -83,14 +83,7 @@
 	/>
 </svelte:head>
 
-<nav>
-	<div class="nav-inner">
-		<a href={resolve('/')} class="logo">
-			<img src="/vela-logo.png" alt="Vela Wallet" width="36" height="36" />
-			<span>Vela Wallet</span>
-		</a>
-	</div>
-</nav>
+<SiteHeader />
 
 <main class="container">
 	<h1>Roadmap</h1>
@@ -128,57 +121,15 @@
 <SiteFooter />
 
 <style>
-	:root {
-		--bg: #0f0e0c;
-		--bg-raised: #1a1918;
-		--bg-card: #1e1d1b;
-		--border: #2a2926;
-		--text: #e8e6e1;
-		--text-secondary: #9a9790;
-		--text-tertiary: #6b6862;
-		--accent: #e8572a;
-		--green: #2d8e5f;
-		--max-w: 1400px;
-	}
-
-	nav {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		z-index: 100;
-		background: rgba(15, 14, 12, 0.92);
-		backdrop-filter: blur(16px);
-		border-bottom: 1px solid var(--border);
-	}
-	.nav-inner {
-		max-width: var(--max-w);
-		margin: 0 auto;
-		padding: 0 24px;
-		height: 64px;
-		display: flex;
-		align-items: center;
-	}
-	.logo {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		font-weight: 600;
-		font-size: 1.1rem;
-	}
-	.logo img {
-		border-radius: 8px;
-	}
-
+	/* The sticky SiteHeader occupies its own flow space, so no fixed-nav offset. */
 	main.container {
-		max-width: 720px;
+		max-width: var(--max-w-prose);
 		margin: 0 auto;
-		padding: 120px 24px 72px;
+		padding: 48px 24px 72px;
 	}
 
 	h1 {
 		font-size: 2rem;
-		font-weight: 700;
 		margin-bottom: 12px;
 		letter-spacing: -0.02em;
 	}
@@ -250,7 +201,7 @@
 	.node.now::before {
 		background: var(--accent);
 		border-color: var(--accent);
-		box-shadow: 0 0 0 4px rgba(232, 87, 42, 0.15);
+		box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent);
 		animation: pulse 2s ease-in-out infinite;
 	}
 	.node.next::before {
@@ -264,10 +215,10 @@
 	@keyframes pulse {
 		0%,
 		100% {
-			box-shadow: 0 0 0 4px rgba(232, 87, 42, 0.15);
+			box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 15%, transparent);
 		}
 		50% {
-			box-shadow: 0 0 0 7px rgba(232, 87, 42, 0.05);
+			box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 5%, transparent);
 		}
 	}
 
@@ -296,8 +247,8 @@
 	}
 	.badge.now {
 		color: var(--accent);
-		border-color: rgba(232, 87, 42, 0.4);
-		background: rgba(232, 87, 42, 0.08);
+		border-color: var(--border-accent);
+		background: var(--accent-soft);
 	}
 	.badge.next {
 		color: var(--text-secondary);

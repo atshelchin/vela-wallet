@@ -49,7 +49,7 @@ no seed phrase, no custody, and no transaction you can't read before you sign it
 1. **Self-custody, no exceptions.** Keys are generated on your device and held by
    your OS passkey provider, end-to-end encrypted. Vela's servers only ever see
    public data.
-2. **Verify, don't trust.** The entire stack — app and all three backend
+2. **Verify, don't trust.** The entire stack — app and all four backend
    services — is open source under the MIT license.
 3. **No blind signing.** Transactions are decoded into human-readable intent
    wherever a descriptor exists; unknown calls are flagged, not hidden.
@@ -103,28 +103,34 @@ biometric verification every time — there is no long-lived session key. See
 4. **Encode** the assertion as an **EIP-1271** contract signature.
 5. **Relay** the signed operation to the bundler, which submits it to the
    EntryPoint.
-6. **Verify on-chain** — the Safe verifies the P-256 signature on-chain (using the
-   RIP-7212 precompile where the chain provides it) before executing.
+6. **Verify on-chain** — the Safe verifies the P-256 signature on-chain via the
+   RIP-7212 precompile before executing. The precompile is a hard requirement:
+   there is no fallback verifier, and Vela refuses to enable a network that
+   lacks it.
 
 The bundler receives an **already-signed** operation. It cannot change the
 recipient, amount, or any other field without invalidating the signature.
 
 ### Bundler and gas model
 
-- Gas is paid **from your own wallet's balance** in the network's native token.
-  There is **no paymaster** and no third party sponsoring — or gating — your
+- Gas is paid **from your own wallet's balance** — in the network's native token
+  by default, or in a supported stablecoin where the relay offers one. Tempo,
+  which has no native coin, always settles gas in USD stablecoins. There is
+  **no paymaster** and no third party sponsoring — or gating — your
   transactions.
 - The **bundler is the single source of truth for the gas price.** It quotes the
-  price from live chain conditions; the wallet uses that quote and never marks it
-  up on its own.
-- Vela's relayer fee is deliberately simple and stated plainly: it is set to
-  **roughly the network fee itself**. In other words you pay about **twice the raw
-  on-chain cost** — one part to the chain's validators, one part to the relayer
-  that runs the infrastructure and keeps your gas account funded. It is a single
-  configurable number, defined here and applied in one place.
-- The wallet **shows the split before you confirm** — the on-chain network fee and
-  Vela's relayer fee, side by side — so you always see exactly what the relayer
-  charges. No hidden markup.
+  price from live chain conditions; the wallet displays that quote and signs
+  exactly what it shows.
+- Vela's relayer charge is deliberately simple and stated plainly: a **fixed
+  multiple of the raw on-chain cost** — currently **3× on standard networks**
+  and **2× on Tempo** — with minimum charges of 0.00001 of the native coin, or
+  $0.01 when paying in a stablecoin. One part goes to the chain's validators;
+  the rest pays the relayer that runs the infrastructure and keeps your gas
+  account funded.
+- The wallet **shows the estimated fee before you confirm** — in the fee asset
+  and your display currency — and the quoted amount and recipient are part of
+  what you sign, so the relayer is paid exactly what was shown. No hidden
+  markup.
 - Each Safe has a **dedicated relayer account** (gas account) per chain, activated
   by a **non-refundable** deposit. It can run down over time, so it may need
   **re-activating again later** — it isn't strictly a one-time deposit.
@@ -147,7 +153,9 @@ blind-sign warning rather than pretending to understand the call.
 
 Vela supports 12 EVM networks — Ethereum, BNB Chain, Polygon, Arbitrum, Optimism,
 Base, Avalanche, Gnosis, Unichain, Tempo, Monad, and World Chain — plus custom
-networks via configurable RPC endpoints.
+networks. A custom network can only be added if it already hosts the contracts
+Vela relies on (the EntryPoint, the Safe contracts, the WebAuthn signer) and the
+RIP-7212 P-256 precompile; Vela checks before enabling it.
 
 ## Security model
 
@@ -218,9 +226,9 @@ cookieless, self-hosted analytics. See the [privacy policy](/privacy).
 
 ## Verifiability and open source
 
-Everything is **MIT-licensed and open source** — the app and all three backend
-services (chain data, passkey index, bundler), which you can **self-host**
-(Settings → Advanced → Service Endpoints). Read the code at
+Everything is **MIT-licensed and open source** — the app and all four backend
+services (chain data, passkey index, bundler, currency rates), which you can
+**self-host** (Settings → Advanced → Service Endpoints). Read the code at
 [github.com/mondaylabsltd/vela-wallet](https://github.com/mondaylabsltd/vela-wallet).
 
 ## No token

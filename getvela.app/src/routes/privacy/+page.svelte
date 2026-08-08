@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
+	import SiteHeader from '$lib/components/SiteHeader.svelte';
 </script>
 
 <svelte:head>
@@ -8,14 +8,7 @@
 	<meta name="description" content="Vela Wallet Privacy Policy" />
 </svelte:head>
 
-<nav>
-	<div class="nav-inner">
-		<a href={resolve('/')} class="logo">
-			<img src="/vela-logo.png" alt="Vela Wallet" width="36" height="36" />
-			<span>Vela Wallet</span>
-		</a>
-	</div>
-</nav>
+<SiteHeader />
 
 <main class="container">
 	<h1>Privacy Policy</h1>
@@ -158,55 +151,16 @@
 <SiteFooter />
 
 <style>
-	:root {
-		--bg: #0f0e0c;
-		--bg-card: #1e1d1b;
-		--border: #2a2926;
-		--text: #e8e6e1;
-		--text-secondary: #9a9790;
-		--accent: #e8572a;
-		--max-w: 1400px;
-	}
-
-	nav {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		z-index: 100;
-		background: rgba(15, 14, 12, 0.92);
-		backdrop-filter: blur(16px);
-		border-bottom: 1px solid var(--border);
-	}
-	.nav-inner {
-		/* max-width: 1080px; */
-		max-width: var(--max-w);
-		margin: 0 auto;
-		padding: 0 24px;
-		height: 64px;
-		display: flex;
-		align-items: center;
-	}
-	.logo {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		font-weight: 600;
-		font-size: 1.1rem;
-	}
-	.logo img {
-		border-radius: 8px;
-	}
-
+	/* Long-form reading page: cap the measure at prose width. The sticky
+	   SiteHeader occupies its own flow space, so no fixed-nav offset needed. */
 	main.container {
-		max-width: var(--max-w);
+		max-width: var(--max-w-prose);
 		margin: 0 auto;
-		padding: 120px 24px 80px;
+		padding: 48px 24px 80px;
 	}
 
 	h1 {
 		font-size: 2rem;
-		font-weight: 700;
 		margin-bottom: 8px;
 		letter-spacing: -0.02em;
 	}
@@ -221,7 +175,6 @@
 	}
 	h2 {
 		font-size: 1.25rem;
-		font-weight: 600;
 		margin-bottom: 12px;
 		text-align: left;
 	}
@@ -262,11 +215,6 @@
 		height: 6px;
 		border-radius: 50%;
 		background: var(--accent);
-	}
-
-	a {
-		/* color: var(--accent); */
-		/* text-decoration: underline; */
 	}
 
 	@media (max-width: 768px) {

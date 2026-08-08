@@ -58,7 +58,7 @@ funds accordingly. That gap is exactly why "alpha" is the honest label.
 
 ## The best thing you can do: don't trust me — verify
 
-Vela is fully open source — the app and all three backend services, under the MIT
+Vela is fully open source — the app and the backend services, under the MIT
 license. With early software, that isn't a footnote, it's the whole point. Read
 the code. Run the services on your own infrastructure. Try to break it and tell
 me how. The bug reports and pull requests early users send genuinely decide what

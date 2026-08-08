@@ -24,22 +24,26 @@ understand the security model behind it.
 - **12 networks, one address.** Ethereum, BNB Chain, Polygon, Arbitrum, Optimism,
   Base, Avalanche, Gnosis, Unichain, Tempo, Monad, and World Chain — plus custom
   networks — all at the same address.
-- **No blind signing.** Transactions are decoded into human-readable intent
-  (ERC-7730); unknown calls are flagged, not hidden.
+- **Readable signing.** Transactions are decoded into human-readable intent
+  (ERC-7730) where a descriptor exists; otherwise Vela falls back to best-effort
+  decoding and shows a warning. Calls it can't decode are flagged, not hidden.
 - **Open source.** The wallet and all its services are
   [public on GitHub](https://github.com/mondaylabsltd/vela-wallet) so anyone can
   audit exactly what they do.
+- **Alpha software.** Vela works and holds real funds, but it hasn't had years
+  of production hardening. Start with small amounts. The
+  [alpha post](/blog/vela-is-in-alpha) explains what that means.
 
 ## Who it's for
 
 Vela is built for people who want real self-custody without the footgun of seed
 phrase management — and for people who've been burned by it before. If you can
-unlock your phone, you can use Vela safely.
+unlock your phone, you can use Vela.
 
 ## Where to go next
 
 - [Install Vela](/docs/install) — it runs in your browser, no download needed.
-- [Create your wallet](/docs/create-wallet) — your first wallet in under a minute.
+- [Create your wallet](/docs/create-wallet) — your first wallet in about a minute.
 - [How passkeys work](/docs/passkeys) — the security model, explained plainly.
 - [Whitepaper](/docs/whitepaper) — the full architecture and trust model.
 

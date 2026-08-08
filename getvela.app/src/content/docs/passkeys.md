@@ -16,8 +16,8 @@ Vela, can read it — and used only with your face or fingerprint.
 ## What a passkey actually is
 
 A passkey is a public/private key pair created by your device. The **private
-key** is held by your OS passkey provider — iCloud Keychain on Apple, Google
-Password Manager on Android — stored end-to-end encrypted, so no app can read or
+key** is held by your OS passkey provider — typically iCloud Keychain on Apple,
+Google Password Manager on Android — stored end-to-end encrypted, so no app can read or
 copy it. Apps don't get the key; they get to *ask your device to sign something*
 after you authenticate.
 

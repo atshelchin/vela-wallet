@@ -9,7 +9,7 @@ tags: [building-in-public, story]
 This is the first post on the Vela blog, so it's worth saying plainly what this
 space is for.
 
-Vela is a self-custodial wallet for ETH and ERC-20 tokens. You sign with a
+Vela is a self-custodial wallet for Ethereum and other EVM chains. You sign with a
 passkey — your face or your fingerprint — and there is no seed phrase to write
 down, lose, or have phished out of you. That single decision shaped almost every
 other part of the product, and the stories behind those decisions are what this

@@ -55,7 +55,8 @@ Before you sign, Vela decodes the transaction using **ERC-7730** descriptors and
 shows the **intent** (Send, Approve, Swap…), the **amounts and addresses**, and a
 risk indication — not opaque hex. When it can't fully decode a call, it shows an
 explicit **blind-sign warning** instead of pretending to understand it. An
-unlimited token approval, for example, is flagged.
+unlimited token approval is not just flagged — Vela rewrites it to a finite
+amount and refuses to submit an approval that would still be unlimited.
 
 ## Before you hit send
 

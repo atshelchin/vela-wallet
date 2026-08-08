@@ -37,7 +37,9 @@
 				<a href="https://webauthnp256-publickey-index.biubiu.tools/" target="_blank" rel="noopener"
 					>Passkey Index</a
 				>
-				<a href="https://frankfurter.dev/" target="_blank" rel="noopener">Fiat Rates</a>
+				<a href="https://github.com/mondaylabsltd/vela-currency" target="_blank" rel="noopener"
+					>Vela Currency</a
+				>
 			</div>
 			<div class="col">
 				<h3>Community</h3>

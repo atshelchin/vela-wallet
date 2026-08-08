@@ -32,10 +32,16 @@ To sign in on a new device:
 3. Authenticate with your passkey. Your platform provides the synced passkey; the
    index provides the matching account. Your wallet is back.
 
+The index is a cache, not a single point of failure. If it's ever unreachable
+and your account isn't in local storage, Vela can rebuild your public key
+on-device from two passkey signatures and re-derive your wallet address from it —
+no server involved.
+
 <Callout type="info" title="Why split it this way">
 The public key in the on-chain index lets anyone (including a fresh install) find
 your account. The private key, synced by your trusted platform keychain, is what
-actually authorizes transactions. Neither half alone can move your funds.
+actually authorizes transactions. Everything in the index is public data; nothing
+in it can move your funds — only signatures from your passkey can.
 </Callout>
 
 ## The honest limits

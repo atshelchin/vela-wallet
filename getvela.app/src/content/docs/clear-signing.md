@@ -1,6 +1,6 @@
 ---
 title: Clear signing
-description: Vela decodes transactions into plain language before you approve them — intent, amounts, addresses, and risk — instead of opaque hex. No blind signing.
+description: Vela decodes transactions into plain language before you approve them — intent, amounts, addresses, and risk — instead of opaque hex. When it can't decode a call, it warns you instead of pretending.
 ---
 
 <script>
@@ -49,16 +49,21 @@ Every decoded transaction gets a risk level so the dangerous patterns stand out:
 - **Danger** for the genuinely risky, like an **unlimited token approval**.
 - Lower risk for routine actions like staking or depositing.
 
-<Callout type="warning" title="Unlimited approvals are flagged">
+<Callout type="warning" title="Unlimited approvals are blocked">
 An "approve" that grants an unlimited allowance is one of the most common ways
-funds get drained later. Vela marks these explicitly so you can choose a specific
-amount instead.
+funds get drained later. Vela does more than mark these: it rewrites the request
+to a finite amount you choose, and a final check before submission refuses to
+send any approval that would still be unlimited. That guard reads the raw
+calldata directly, so it works even when no descriptor exists for the contract.
 </Callout>
 
 ## When Vela can't decode a call
 
-Honesty matters more than a clean screen. If no descriptor matches — or Vela can
-only decode part of a transaction — it does **not** pretend to understand it.
+Honesty matters more than a clean screen. When no ERC-7730 descriptor exists but
+the function appears in a public selector database, Vela decodes the call
+generically and labels it **best effort** — decoded, but not verified — under a
+caution banner. If even that fails, or Vela can only decode part of a
+transaction, it does **not** pretend to understand it.
 
 <Callout type="danger" title="Explicit blind-sign warning">
 If a call can't be decoded, Vela shows a clear blind-sign warning instead of a

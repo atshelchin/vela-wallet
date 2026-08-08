@@ -2,7 +2,7 @@
 
 A self-custodial smart wallet for EVM networks, built with React Native and Expo.
 
-Vela Wallet uses ERC-4337 account abstraction with WebAuthn (passkey) authentication — no seed phrases, no private keys to manage.`npm run build:web`
+Vela Wallet uses ERC-4337 account abstraction with WebAuthn (passkey) authentication — no seed phrases, no private keys to manage.
 
 Runs on **iOS**, **Android**, and **Web** from a single codebase.
 
@@ -16,8 +16,8 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
 - **Deposit detection** — Real-time balance monitoring with haptic notification when incoming transfers land.
 - **DApp Connect** — Pair with compatible dApps over WalletPair's encrypted WebSocket relay to sign transactions from Vela.
 - **HTTPS Web Wallet** — dApps can integrate `@vela-wallet/sdk` and open `wallet.getvela.app` for account consent and passkey signing, without a native app or extension.
-- **Cross-device recovery** — Cloud-synced passkey backup via iCloud (iOS) or Google BlockStore (Android).
-- **Fully self-hostable** — All three backend services (chain data, passkey index, bundler) are open source and can be self-deployed.
+- **Cross-device recovery** — Passkeys sync through the platform provider (iCloud Keychain on iOS, Google Password Manager on Android). Wallet metadata backs up via iCloud Key-Value Store (iOS) and Android Auto Backup.
+- **Fully self-hostable** — All four backend services (chain data, passkey index, bundler, currency rates) are published on GitHub and can be self-deployed.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
 │  ┌──────────┐ ┌──────────┐ ┌─────────────┐ │
 │  │ Passkey  │ │ CloudSync│ │ BLE Connect │ │
 │  │ WebAuthn │ │ iCloud / │ │ DApp Pairing│ │
-│  │ P-256    │ │ BlockStore│ │             │ │
+│  │ P-256    │ │ AutoBackup│ │             │ │
 │  └──────────┘ └──────────┘ └─────────────┘ │
 ├─────────────────────────────────────────────┤
 │  Services                                   │
@@ -75,7 +75,7 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
 | Feature            | iOS                      | Android                     | Web                         |
 | -------------------- | -------------------------- | ----------------------------- | ----------------------------- |
 | Passkey (WebAuthn) | Native (ASAuthorization) | Native (Credential Manager) | `navigator.credentials` API |
-| Cloud Sync         | iCloud Key-Value Store   | Google Play BlockStore      | IndexedDB (local only)      |
+| Cloud Sync         | iCloud Key-Value Store   | SharedPreferences + Auto Backup | IndexedDB (local only)      |
 | QR Scanner         | expo-camera              | expo-camera                 | `getUserMedia` + jsQR       |
 | Haptic Feedback    | expo-haptics             | expo-haptics                | No-op                       |
 | Clipboard          | expo-clipboard           | expo-clipboard              | `navigator.clipboard`       |
@@ -164,7 +164,7 @@ Configure custom endpoints in **Settings > Advanced > Service Endpoints**.
 | **Chain Data Index**     | Network info, token data, chain logos             | [atshelchin/ethereum-data](https://github.com/atshelchin/ethereum-data)                                                         |
 | **Passkey Index**        | Public key storage for cross-device recovery      | [atshelchin/webauthnp256-publickey-index.biubiu.tools](https://github.com/atshelchin/webauthnp256-publickey-index.biubiu.tools) |
 | **Bundler Service**      | ERC-4337 transaction bundler                      | [mondaylabsltd/vela-relay](https://github.com/mondaylabsltd/vela-relay)                                                           |
-| **Exchange-Rate Source** | USD-based fiat rates that drive the currency list | [mondaylabsltd/vela-currency](https://github.com/mondaylabsltd/vela-currency) (self-hosted [Frankfurter](https://frankfurter.dev), FOSS)              |
+| **Exchange-Rate Source** | USD-based fiat rates that drive the currency list | [mondaylabsltd/vela-currency](https://github.com/mondaylabsltd/vela-currency) (Frankfurter-compatible, ECB daily rates)              |
 
 The first three are Vela services that each expose a `/api/health` endpoint. The wallet validates three checks before accepting a custom endpoint for them:
 
@@ -172,7 +172,7 @@ The first three are Vela services that each expose a `/api/health` endpoint. The
 2. **Reachable** — server responds within 10 seconds
 3. **Valid response** — `/api/health` returns the correct `service` identifier and `status: "ok"`
 
-The **Exchange-Rate Source** is any USD-based FX API — the default is Vela's self-hosted Frankfurter instance, `https://vela-currency.getvela.app/v2/rates?base=USD` ([mondaylabsltd/vela-currency](https://github.com/mondaylabsltd/vela-currency)). It's validated by returning a parseable USD-based rate set (not `/api/health`). Frankfurter is open source and self-hostable with Docker — see [frankfurter.dev](https://frankfurter.dev). Pin the base to USD (`?base=USD`), or every conversion is silently wrong. For the response shapes Vela accepts, the Chainlink fallback, and a porting guide, see [docs/fiat-price.md](docs/fiat-price.md).
+The **Exchange-Rate Source** is any USD-based FX API — the default is `https://vela-currency.getvela.app/v2/rates?base=USD`, served by [mondaylabsltd/vela-currency](https://github.com/mondaylabsltd/vela-currency), Vela's small Frankfurter-compatible service (ECB daily reference rates, dual-runtime Deno / Cloudflare Workers). It's validated by returning a parseable USD-based rate set (not `/api/health`). A self-hosted [Frankfurter](https://frankfurter.dev) instance works as a drop-in alternative. Pin the base to USD (`?base=USD`), or every conversion is silently wrong. For the response shapes Vela accepts, the Chainlink fallback, and a porting guide, see [docs/fiat-price.md](docs/fiat-price.md).
 
 ## Gas & Fee Model
 
@@ -180,12 +180,12 @@ Vela Wallet uses ERC-4337 account abstraction, so transactions are relayed by a 
 
 ### How Gas Fees Work
 
-Each transaction incurs a gas fee that is deducted from **your Safe wallet's native token balance** (ETH, BNB, etc.). The fee consists of:
+Each transaction incurs a gas fee deducted from **your Safe wallet** — in the network's native token by default, or in a supported stablecoin where the bundler offers ERC-20 settlement (Tempo has no native coin, so gas there is always settled in USD stablecoins). The fee consists of:
 
 - **On-chain gas cost** — The actual cost to execute the transaction on the blockchain.
-- **Relayer service fee** — A ~60% markup over the on-chain gas price (`maxFeePerGas = gasPrice × 1.6`). This covers the bundler's operating costs.
+- **Relayer service fee** — The total charge is a fixed multiple of the raw on-chain cost: currently **3× on standard networks** (`INBAND_MARKUP`, `src/services/safe-transaction.ts`) and **2× on Tempo** (`TEMPO_FEE_MARGIN`, `src/services/tempo.ts`), with minimums of 0.00001 native units or $0.01 in stablecoins. The margin pays the relayer that fronts the gas and runs the infrastructure.
 
-The total estimated fee is shown on the confirmation screen with a full breakdown: on-chain gas price, UserOp gas price, gas limit, fee in native tokens, and fee in USD.
+The confirmation screen shows a single quoted total in the fee asset and in USD. The quoted amount and its recipient are part of the signed payload, so the relayer is paid exactly what was shown.
 
 ### Gas Relayer Account
 

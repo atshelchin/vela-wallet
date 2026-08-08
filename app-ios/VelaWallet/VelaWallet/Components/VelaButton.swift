@@ -58,6 +58,9 @@ private struct VelaButtonStyle: ButtonStyle {
 /// addition is the same move).
 enum Interaction {
     static let pressedOpacity: Double = 0.8
+    /// How long the address strip's 已复制 confirmation stays visible
+    /// (spec 014 — copy feedback is the one sanctioned timed visual).
+    static let copiedFeedbackSeconds: Double = 1.5
 }
 
 #Preview("Buttons") {

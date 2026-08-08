@@ -121,12 +121,10 @@ recipient, amount, or any other field without invalidating the signature.
 - The **bundler is the single source of truth for the gas price.** It quotes the
   price from live chain conditions; the wallet displays that quote and signs
   exactly what it shows.
-- Vela's relayer charge is deliberately simple and stated plainly: a **fixed
-  multiple of the raw on-chain cost** — currently **3× on standard networks**
-  and **2× on Tempo** — with minimum charges of 0.00001 of the native coin, or
-  $0.01 when paying in a stablecoin. One part goes to the chain's validators;
-  the rest pays the relayer that runs the infrastructure and keeps your gas
-  account funded.
+- Vela's relayer charge is deliberately simple: the total is the **network cost
+  plus the relayer's service fee**, with a small minimum charge on very cheap
+  transactions. One part goes to the chain's validators; the rest pays the
+  relayer that runs the infrastructure and keeps your gas account funded.
 - The wallet **shows the estimated fee before you confirm** — in the fee asset
   and your display currency — and the quoted amount and recipient are part of
   what you sign, so the relayer is paid exactly what was shown. No hidden

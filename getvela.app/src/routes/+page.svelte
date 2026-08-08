@@ -339,7 +339,12 @@
 				href="https://github.com/mondaylabsltd/vela-wallet"
 				target="_blank"
 				rel="noopener">GitHub</a
-			>, every wallet is on-chain, every claim is checkable.
+			>, every wallet is on-chain, and
+			<a
+				href={resolve('/docs/security-audits')}
+				data-rybbit-event="audits_open"
+				data-rybbit-prop-location="trust-tagline">every audit and known issue is documented</a
+			>.
 		</p>
 		<div class="trust-row">
 			<div class="trust-chip">
@@ -378,7 +383,13 @@
 					href="https://github.com/safe-fndn/safe-smart-account/tree/release/v1.4.1"
 					target="_blank"
 					rel="noopener">Safe v1.4.1</a
-				> — audited, unmodified
+				>
+				—
+				<a
+					href={resolve('/docs/security-audits')}
+					data-rybbit-event="audits_open"
+					data-rybbit-prop-location="trust-chip">audited, unmodified</a
+				>
 			</div>
 			{#if !countFailed}
 				<div class="trust-chip">
@@ -736,8 +747,8 @@
 					<div class="bm-price">Network gas + service fee</div>
 					<p>
 						Transactions go through an ERC-4337 bundler. You pay network gas plus a service fee —
-						currently about one to two times the network cost, depending on how the fee is
-						settled. You can skip the fee entirely by running a compatible
+						the exact amount is quoted and shown to you before you sign, so you always know the
+						total up front. You can skip the fee entirely by running a compatible
 						<a href="https://github.com/mondaylabsltd/vela-relay" target="_blank" rel="noopener"
 							>self-hosted bundler</a
 						>.
@@ -764,10 +775,9 @@
 				<summary>What chains does Vela support?</summary>
 				<p>
 					Twelve chains are built in: Ethereum, BNB Chain, Polygon, Arbitrum, Optimism, Base,
-					Avalanche, Gnosis, Unichain, Monad, World Chain, and Tempo. You can add other EVM
-					networks yourself if the chain has the RIP-7212 P256 precompile and Vela's Safe +
-					ERC-4337 contracts deployed — Vela checks when you add one. Same wallet address across
-					all chains.
+					Avalanche, Gnosis, Unichain, Monad, World Chain, and Tempo. You can add other EVM networks
+					yourself if the chain has the RIP-7212 P256 precompile and Vela's Safe + ERC-4337
+					contracts deployed — Vela checks when you add one. Same wallet address across all chains.
 				</p>
 			</details>
 			<details>
@@ -797,8 +807,8 @@
 					Yes. Smart account transactions have extra overhead from on-chain signature verification
 					and the ERC-4337 EntryPoint. Expect roughly 1.5–3x the gas of a standard wallet transfer,
 					depending on the chain — plus the bundler service fee described under pricing, unless you
-					run your own bundler. That's the cost of passkey signing, no seed phrase, and one address
-					across all chains.
+					run your own bundler. Either way, the exact total is shown before you sign. That's the
+					cost of passkey signing, no seed phrase, and one address across all chains.
 				</p>
 			</details>
 			<!-- Security & recovery -->
@@ -872,7 +882,14 @@
 						href="https://github.com/mondaylabsltd/vela-wallet"
 						target="_blank"
 						rel="noopener">public</a
-					> for review.
+					>
+					for review. Every contract we depend on, its audit report, and the known issues we track
+					are documented in
+					<a
+						href={resolve('/docs/security-audits')}
+						data-rybbit-event="audits_open"
+						data-rybbit-prop-location="faq">Audits &amp; known issues</a
+					>.
 				</p>
 			</details>
 		</div>
@@ -947,7 +964,10 @@
 					/></svg
 				>
 				<h4>Battle-tested</h4>
-				<p>Your account is an audited, unmodified Safe v1.4.1.</p>
+				<p>
+					Your account is an <a href={resolve('/docs/security-audits')}>audited</a>, unmodified Safe
+					v1.4.1.
+				</p>
 			</li>
 			<li class="notify-card">
 				<svg

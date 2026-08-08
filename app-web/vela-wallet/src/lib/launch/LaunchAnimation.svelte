@@ -95,7 +95,11 @@
 		window.addEventListener('keydown', skip);
 
 		// FR-014: nothing on screen within the budget → abandon, silently.
-		timers.push(setTimeout(() => { if (!presented) finishOnce(); }, FIRST_FRAME_BUDGET_MS));
+		timers.push(
+			setTimeout(() => {
+				if (!presented) finishOnce();
+			}, FIRST_FRAME_BUDGET_MS)
+		);
 
 		(async () => {
 			try {
@@ -159,12 +163,7 @@
 	(FR-013). `aria-hidden` + `inert`: decoration, and it must not trap focus or
 	be announced (FR-021).
 -->
-<div
-	class="overlay"
-	style:opacity={1 - dissolve}
-	aria-hidden="true"
-	inert
->
+<div class="overlay" style:opacity={1 - dissolve} aria-hidden="true" inert>
 	<div class="box" bind:this={host} style:width="{box.w}px" style:height="{box.h}px"></div>
 </div>
 

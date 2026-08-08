@@ -8,7 +8,7 @@ use super::{WalletStrings, fill};
 
 pub const WALLET_NAME: &str = "大表哥";
 pub const ADDRESS_DISPLAY: &str = "0x14fB1f…D1eA5c";
-pub const ADDRESS_FULL: &str = "0x14fB1f3a9C8e2D5b7A0f4E6c1B8d3A9e2FD1eA5c";
+pub const ADDRESS_FULL: &str = "0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c";
 pub const NETWORK_COUNT: u32 = 8;
 
 /// Identicon-board seeds (US3): the cross-platform eyeball parity set.

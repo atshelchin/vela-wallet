@@ -74,6 +74,18 @@
     algorithm all platforms ported); data-model.md's "5×5" wording was
     imprecise.
 
+## Corrections after review
+
+- **Fixture wallet address was fabricated** (caught by the user via
+  identicon mismatch): the D2 mock's address was transcribed wrong and
+  "repaired" into a format-valid but invented value, which silently
+  changed the identicon — the exact failure mode the avatar exists to
+  surface. Fixed to the real `0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c`
+  across data-model.md and all four fixture ports; the rendered avatar
+  now matches the pre-existing app (purple/teal skateboard figure).
+  All four platforms' suites re-run green. Logged in the commander
+  ledger as 读不清就补真 / S2.
+
 ## Gates summary
 
 | Gate | Result |

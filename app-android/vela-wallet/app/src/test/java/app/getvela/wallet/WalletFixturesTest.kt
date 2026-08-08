@@ -35,7 +35,7 @@ class WalletFixturesTest {
 
         assertEquals("大表哥", model.header.name)
         assertEquals("0x14fB1f…D1eA5c", model.header.addressDisplay)
-        assertEquals("0x14fB1f3a9C8e2D5b7A0f4E6c1B8d3A9e2FD1eA5c", model.header.identiconSeed)
+        assertEquals("0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c", model.header.identiconSeed)
         assertEquals("全部网络", (model.pill as NetworkPillModel.All).label)
 
         assertEquals("总余额", model.balance.label)

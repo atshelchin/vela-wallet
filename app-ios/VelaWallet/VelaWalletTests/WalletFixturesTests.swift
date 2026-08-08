@@ -28,7 +28,7 @@ struct WalletFixturesTests {
         #expect(WalletFixtures.identity.name == "大表哥")
         #expect(WalletFixtures.identity.longName == "这是一个非常长")
         #expect(WalletFixtures.identity.addressDisplay == "0x14fB1f…D1eA5c")
-        #expect(WalletFixtures.identity.addressFull == "0x14fB1f3a9C8e2D5b7A0f4E6c1B8d3A9e2FD1eA5c")
+        #expect(WalletFixtures.identity.addressFull == "0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c")
     }
 
     @Test func h1DefaultState() {

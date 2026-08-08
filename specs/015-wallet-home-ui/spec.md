@@ -219,7 +219,7 @@ the same seeds; the artwork must be visibly identical pairwise.
 
 **Acceptance Scenarios**:
 
-1. **Given** the fixture address `0x14fB1f3a9C8e2D5b7A0f4E6c1B8d3A9e2F5D1eA5c`
+1. **Given** the fixture address `0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c`
    (header fixture), **then** the header avatar is its identicon — not a
    letter — on all four platforms, and matches across platforms.
 2. **Given** an invalid/empty seed, **then** the shared placeholder

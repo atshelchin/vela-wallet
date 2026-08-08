@@ -43,7 +43,7 @@ ScreenState (desktop) = D1 | D2 | D3
 ## Identity
 
 - **default**: name 大表哥 · addressDisplay `0x14fB1f…D1eA5c` ·
-  addressFull `0x14fB1f3a9C8e2D5b7A0f4E6c1B8d3A9e2FD1eA5c` (also the
+  addressFull `0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c` (also the
   identicon seed, normalized by vela-core)
 - **long** (H7): name 这是一个非常长 — same addresses
 - Identicon board seeds (US3): the default address,

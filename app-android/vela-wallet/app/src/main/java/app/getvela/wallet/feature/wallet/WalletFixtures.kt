@@ -34,7 +34,7 @@ object WalletFixtures {
     const val NAME = "大表哥"
     const val LONG_NAME = "这是一个非常长"
     const val ADDRESS_DISPLAY = "0x14fB1f…D1eA5c"
-    const val ADDRESS_FULL = "0x14fB1f3a9C8e2D5b7A0f4E6c1B8d3A9e2FD1eA5c"
+    const val ADDRESS_FULL = "0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c"
 
     /** Identicon-board seeds (US3): cross-platform eyeball parity set. */
     val IDENTICON_BOARD_SEEDS: List<String> = listOf(

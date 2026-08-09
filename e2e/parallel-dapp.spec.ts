@@ -9,13 +9,23 @@
  *
  * Hermetic: outbound RPC/bundler calls are stubbed (stubWalletNetwork), so nothing hangs
  * and no xDAI is spent. The opt-in real-Gnosis submission lives in parallel-onchain.spec.ts.
+ *
+ * Interaction drift since this spec was written (same pre-existing class as
+ * 233c062 / 226846f — the spec never followed deliberate product changes):
+ *   - 16282b0 unified the signing-sheet footer to ONE SlideToConfirmButton and
+ *     REMOVED the Reject button. Approving is the deliberate slide (on web the
+ *     track is a focusable role=button that commits on Enter — the a11y
+ *     substitute, see SlideToConfirmButton.tsx); rejecting is dismissing the
+ *     sheet (Escape → AppModal onClose → rejectRequest → 4001), i.e. rejectSheet.
+ *   - 9f628aa (issue #85) put the Connections card's Disconnect behind a confirm
+ *     dialog; the destructive action inside it is what drops the session.
  */
 import { test, expect, type Page } from '@playwright/test';
 import { startRelay } from './support/relay';
 import {
   RELAY_PORT, FIXTURE, type Relay,
   stubWalletNetwork, openWalletConnect, connectWallet, openTestDapp,
-  request, requestInstant, clickSheetButton,
+  request, requestInstant, clickSheetButton, sheetConfirmTrack, rejectSheet,
 } from './support/parallel';
 
 let relay: Relay;
@@ -67,9 +77,12 @@ test.describe('parallel-space · dApp connection', () => {
     const msgHex =
       '0x' + Buffer.from('Hello from the Vela test dApp - sign to prove control.').toString('hex');
     const resp = await request(dapp, 'personal_sign', [msgHex, FIXTURE.one], async () => {
-      await expect(wallet.getByText('Sign Message')).toBeVisible({ timeout: 15_000 });
-      await expect(wallet.getByText(/Hello from the Vela test dApp/)).toBeVisible();
-      await clickSheetButton(wallet, 'Sign');
+      await expect(wallet.getByText('Sign Message').filter({ visible: true }).first())
+        .toBeVisible({ timeout: 15_000 });
+      await expect(wallet.getByText(/Hello from the Vela test dApp/).filter({ visible: true }).first())
+        .toBeVisible();
+      // Approve via the slide track (16282b0), not a tap button.
+      await sheetConfirmTrack(wallet).press('Enter');
     });
     expect(resp.error).toBeUndefined();
     expect(typeof resp.result).toBe('string');
@@ -79,8 +92,9 @@ test.describe('parallel-space · dApp connection', () => {
   test('rejecting personal_sign returns 4001 to the dApp', async () => {
     const msgHex = '0x' + Buffer.from('reject me').toString('hex');
     const resp = await request(dapp, 'personal_sign', [msgHex, FIXTURE.one], async () => {
-      await expect(wallet.getByText('Sign Message')).toBeVisible({ timeout: 15_000 });
-      await clickSheetButton(wallet, 'Reject');
+      await expect(wallet.getByText('Sign Message').filter({ visible: true }).first())
+        .toBeVisible({ timeout: 15_000 });
+      await rejectSheet(wallet); // dismissal IS the reject path since 16282b0
     });
     expect(resp.result).toBeUndefined();
     expect(resp.error?.code).toBe(4001);
@@ -92,7 +106,8 @@ test.describe('parallel-space · dApp connection', () => {
       primaryType: 'Mail', domain: { name: 'Vela Test dApp', chainId: 100 }, message: { contents: 'gm' },
     });
     const resp = await request(dapp, 'eth_signTypedData_v4', [FIXTURE.one, typed], async () => {
-      await clickSheetButton(wallet, 'Sign');
+      await expect(sheetConfirmTrack(wallet)).toBeVisible({ timeout: 20_000 });
+      await sheetConfirmTrack(wallet).press('Enter'); // slide track (16282b0)
     });
     expect(resp.error).toBeUndefined();
     expect(resp.result as string).toMatch(/^0x[0-9a-fA-F]{200,}$/);
@@ -105,8 +120,9 @@ test.describe('parallel-space · dApp connection', () => {
       async () => {
         // The never-unlimited mandate: an unbounded approve surfaces the editable
         // spending-cap control (a deliberate slide-to-confirm, not a one-tap button).
-        await expect(wallet.getByText('Spending cap')).toBeVisible({ timeout: 15_000 });
-        await clickSheetButton(wallet, 'Reject');
+        await expect(wallet.getByText('Spending cap').filter({ visible: true }).first())
+          .toBeVisible({ timeout: 15_000 });
+        await rejectSheet(wallet);
       });
     expect(resp.error?.code).toBe(4001);
   });
@@ -128,14 +144,20 @@ test.describe('parallel-space · dApp connection', () => {
     const resp = await request(dapp, 'eth_sendTransaction',
       [{ from: FIXTURE.one, to: FIXTURE.two, value: '0x5af3107a4000' }],
       async () => {
-        await expect(wallet.getByText(/Est\. Fee|Simulation|Fee/i).first()).toBeVisible({ timeout: 20_000 });
-        await clickSheetButton(wallet, 'Reject');
+        await expect(wallet.getByText(/Est\. Fee|Simulation|Fee/i).filter({ visible: true }).first())
+          .toBeVisible({ timeout: 20_000 });
+        await rejectSheet(wallet);
       });
     expect(resp.error?.code).toBe(4001);
   });
 
   test('disconnecting drops the session on both sides', async () => {
+    // Confirm-gated since 9f628aa (issue #85): the card's Disconnect only opens an
+    // AppAlert — which on web is in-DOM (portal above the modals), not a browser
+    // dialog — and the destructive action in it is what tears the session down.
     await clickSheetButton(wallet, 'Disconnect');
+    await expect(wallet.getByText('Disconnect this site?')).toBeVisible({ timeout: 10_000 });
+    await wallet.getByRole('button', { name: 'Disconnect', exact: true }).last().click();
     await expect(dapp.getByTestId('dapp-wallet-status')).toHaveText(/disconnected/i, { timeout: 15_000 });
   });
 });

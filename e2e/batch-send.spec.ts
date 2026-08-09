@@ -68,14 +68,22 @@ test.describe('Send — payroll batch import (fiat → token)', () => {
     await expect(page.getByTestId('batch-paste')).toBeVisible({ timeout: 15_000 });
 
     // Read amounts as fiat. The currency picker is the SAME searchable sheet as
-    // the home balance (proves the list is consistent + the nested sheet works).
+    // the home balance (proves the list is consistent + the nested sheet works),
+    // but since 542e9a1 (issue #80) it is opened with a SCOPED title — the
+    // per-batch "Priced in" — precisely so it stops masquerading as the app-wide
+    // "Display currency" setting. Its search field is the sheet-open marker
+    // ("Priced in" on its own also matches the importer row label behind it).
     await page.getByTestId('batch-unit-fiat').click();
     await page.getByTestId('batch-currency').click();
-    await expect(page.getByText('Display currency')).toBeVisible({ timeout: 10_000 });
-    await page.getByPlaceholder('Search currency').fill('CNY');
+    const currencySearch = page.getByPlaceholder('Search currency');
+    await expect(currencySearch).toBeVisible({ timeout: 10_000 });
+    // Stronger than the pre-#80 assertion: this picker must NOT present itself as
+    // the global display-currency setting.
+    await expect(page.getByText('Display currency')).toHaveCount(0);
+    await currencySearch.fill('CNY');
     await page.getByText('Chinese Yuan').click();
     // The picker closes on selection, back to the importer priced in CNY.
-    await expect(page.getByText('Display currency')).toBeHidden({ timeout: 10_000 });
+    await expect(currencySearch).toBeHidden({ timeout: 10_000 });
     await expect(page.getByTestId('batch-currency')).toContainText('CNY');
     // Pin a custom rate: 1 BNB = 7.1 CNY.
     await page.getByTestId('batch-rate').fill('7.1');

@@ -29,8 +29,14 @@ test.describe('parallel-space · Home', () => {
     await stubWalletNetwork(page);
     await enterParallel(page);
 
-    await page.getByText('Connections', { exact: true }).click({ force: true });
-    await expect(page.getByText('No active connection')).toBeVisible({ timeout: 10_000 });
-    await page.getByText('Activity', { exact: true }).click({ force: true });
+    // `.filter({ visible: true }).first()` on every Home-screen selector, for the
+    // same reason as enterParallel/openWalletConnect in support/parallel.ts (see
+    // 233c062): on web react-navigation keeps the inactive stack screen mounted
+    // (display:none) ahead of the active one in DOM order, so a bare selector for
+    // a Home string is a strict-mode violation against the hidden duplicate.
+    await page.getByText('Connections', { exact: true }).filter({ visible: true }).first().click({ force: true });
+    await expect(page.getByText('No active connection').filter({ visible: true }).first())
+      .toBeVisible({ timeout: 10_000 });
+    await page.getByText('Activity', { exact: true }).filter({ visible: true }).first().click({ force: true });
   });
 });

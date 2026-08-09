@@ -114,6 +114,31 @@ function dispatch(event: Parameters<ContactsSession['dispatch']>[0]) {
   ensureSession().dispatch(event);
 }
 
+/**
+ * Save a contact from OUTSIDE the React tree — the receipt's "save contact".
+ *
+ * `SendScreen.tsx:169` was the last writer on this key that still went through
+ * the TypeScript service, which made the contacts core one of two authors of the
+ * same store (integration-plan, carried-forward gaps). It is the same `save`
+ * event `useContactsBook().save` dispatches; having it as a plain function is
+ * only so the send controller can call it from a callback rather than a hook.
+ */
+export function saveContactThroughCore(input: SaveContactInput): void {
+  dispatch({
+    type: 'save',
+    input: {
+      address: input.address,
+      name: input.name ?? null,
+      note: input.note ?? null,
+      favorite: input.favorite ?? null,
+      kind: input.kind ?? null,
+      resolved_name: input.resolvedName ?? null,
+      resolved_source: input.resolvedSource ?? null,
+    },
+    now_ms: Date.now(),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Wire → the shapes the components render
 // ---------------------------------------------------------------------------

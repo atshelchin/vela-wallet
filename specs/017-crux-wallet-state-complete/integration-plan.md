@@ -68,12 +68,12 @@ Waves of parallel agents, gates between waves, e2e after each:
 
 ## Carried-forward gaps (raised by integration agents, owned by later waves)
 
-- **`SendScreen.tsx:169` still writes contacts through the TypeScript service
-  on web** (the receipt's "save contact" action). The contacts core owns every
-  other writer; this one is safe today only because each contacts panel
-  re-reads on open and the executor clears the TS cache after every write.
-  **G12 must route it through the core** — until then it is the last
-  split-brain writer on that key.
+- ~~**`SendScreen.tsx:169` still writes contacts through the TypeScript service
+  on web**~~ — closed by G12. The receipt's "save contact" is now
+  `SendController.saveReceiptContact()`: native keeps `saveContact()`, web
+  dispatches the contacts core's own `save` through
+  `saveContactThroughCore()` (`use-contacts-book.web.ts`). The contacts core is
+  the single writer on that key on web.
 - **`RecipientTrust` has no chain context**, so the contacts core cannot
   resolve identities from it. The component gained an optional `chainId` prop
   that nobody passes yet (zero new RPC, zero e2e change); the surfaces that
@@ -108,6 +108,31 @@ Waves of parallel agents, gates between waves, e2e after each:
   step 1b ran it. **When `tx_tracker` lands**: delete `reconcileFeedPending` and
   have that machine call `notifyFeedReconciled` after its own reconcile settles.
   The core side needs no change, and nothing else in the app calls the seam.
+  **G12 added the second seam**: `setSendTrackerSink()` in
+  `send-executor.web.ts` receives `SendOperation::TrackSubmitted` (emitted only
+  after `RecordsPersisted`, invariant ⑥) with the op hash, its record ids, the
+  chain and the live `SubmitResult`. Unlike the `sign_request` seam this one has
+  a real fallback rather than a faked source: with no sink installed the
+  executor runs the very `result.waitForTxHash()` chain that
+  `useSendController.ts:1045-1070` ran, at the same point in the sequence.
+  Installing a sink replaces it wholesale.
+
+- **Two send behaviours differ from the TypeScript controller on web, both
+  deliberate** (G12). (1) The core's `ToggleAllMultiTokens` selects every
+  valuable token on the filtered CHAIN, while `TokenSelector` hands
+  `onToggleAll` its own search/category-filtered list; sweeping tokens the user
+  cannot see is a fund-safety regression, so the shell reproduces
+  `use-token-multi-select.ts` by toggling each visible row through the core's
+  per-token event, and the aggregate event is unused on web. (2) A scanned
+  EIP-681 request re-locks in place (the core's `ScanResolved` re-runs `Open`
+  itself) instead of `router.replace`, so the address bar keeps the URL the
+  screen was opened with and a hard refresh loses the lock.
+
+- **`makeRecipientId()` now mints `rcpt_s{n}`.** The `send` core seeds split
+  rows from its own deterministic `rcpt_{n}` counter, which the shell module
+  cannot see; two independent counters over one namespace collide into a
+  duplicate React key and a contact picker that fills two rows at once. Ids are
+  opaque at every read site, so the prefix is free.
 - **The Home chain-chip filter is applied in the shell, not through
   `activity_feed`'s `ChainFilterChanged`.** The core's filtered projection is
   reproduced exactly by dropping non-matching items and eliding the headers that
@@ -148,4 +173,5 @@ Waves of parallel agents, gates between waves, e2e after each:
 | I2 (G6–G8) | typecheck, lint 0, jest 1583, full e2e | ✅ 69 passed, 0 failed |
 | I3 (G9 session) | typecheck, lint 0, jest 1597, build:web static-renders 25 routes, full e2e | in progress |
 | I4 (G10 balance_dashboard + activity_feed) | typecheck, lint 0, jest 1623, build:web static-renders 25 routes | ✅ (e2e pending — dev server held) |
-| I5 | per-wave, above | pending |
+| I5a (G11 sign_request + dapp_session + dapp_permissions) | per-wave, above | ✅ |
+| I5b (G12 send) | cargo 990/990, typecheck, lint 0, jest 1655 (+19 real-core send tests), verify:wasm, build:web static-renders 25 routes | ✅ (e2e pending — dev server held) |

@@ -14,7 +14,6 @@ import { styles } from './SendScreen.styles';
 import { shortAddr } from './send-utils';
 import { chainName, nativeSymbol, tokenBadgeNetwork } from '@/models/network';
 import { formatBalance, isNativeToken, tokenBalanceDouble, tokenChainId, tokenId, tokenLogoURLs, type APIToken } from '@/models/types';
-import * as Passkey from '@/modules/passkey';
 import { sumSplitBaseUnits } from '@/services/batch-send';
 import { fromBaseUnits } from '@/services/eip681';
 import { resolveTokenAmount } from '@/services/fiat-convert';
@@ -22,7 +21,7 @@ import { AlertCircle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { SendController } from './useSendController';
+import type { SendController } from './send-controller-types';
 
 /** X button that appears after 3 seconds — gives biometric time to pop up before showing cancel. */
 function TxCancelButton({ onCancel }: { onCancel: () => void }) {
@@ -54,23 +53,14 @@ export function ConfirmStep({ c }: { c: SendController }) {
     recipients,
     multiSelectMode,
     sending,
-    setSending,
     feeEstimate,
-    setFeeEstimate,
     estimatingGas,
-    sendLock,
-    sendCancelledRef,
-    mountedRef,
     txStatus,
-    setTxStatus,
     txError,
-    setTxError,
     inputInUsd,
     gasFeeToken,
-    setGasFeeToken,
     feeBusy,
-    setFeeBusy,
-    prefetchedAccount,
+    publicKeyHex,
     recipientIdentity,
     recipientRisk,
     sim,
@@ -79,6 +69,11 @@ export function ConfirmStep({ c }: { c: SendController }) {
     sameAssetFeeIssue,
     handleEditAmount,
     handleConfirm,
+    cancelSigning,
+    retryAfterError,
+    onFeeTokenChange,
+    onFeeUpdate,
+    onFeeBusyChange,
   } = c;
 
     if (!selectedToken) return null;
@@ -308,11 +303,11 @@ export function ConfirmStep({ c }: { c: SendController }) {
               nativeUsdPrice={nativePrice}
               safeAddress={activeAccount.address}
               chainId={tokenChainId(selectedToken)}
-              publicKeyHex={prefetchedAccount.current?.publicKeyHex}
+              publicKeyHex={publicKeyHex}
               gasFeeToken={gasFeeToken}
-              onFeeTokenChange={setGasFeeToken}
-              onFeeUpdate={(fee) => { if (mountedRef.current) setFeeEstimate(fee); }}
-              onBusyChange={setFeeBusy}
+              onFeeTokenChange={onFeeTokenChange}
+              onFeeUpdate={onFeeUpdate}
+              onBusyChange={onFeeBusyChange}
             />
           )}
 
@@ -378,21 +373,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
                      t('send.txSubmitting')}
                   </Text>
                   {(txStatus === 'preparing' || txStatus === 'signing') && (
-                    <TxCancelButton onCancel={() => {
-                      // Signal the in-flight executeTransaction too: during the
-                      // Phase-2 grant await there is no passkey prompt to abort
-                      // yet — without the ref, the flow would resurrect a
-                      // passkey prompt (or a funding sheet) AFTER this cancel.
-                      sendCancelledRef.current = true;
-                      // Release the re-entry lock so a retry starts (instead of
-                      // silently no-op'ing until the cancelled promise settles);
-                      // cancel() also invalidates that promise's stale finally so
-                      // it won't clear the retry's lock (issue #91).
-                      sendLock.cancel();
-                      Passkey.cancelSign();
-                      setTxStatus('idle');
-                      setSending(false);
-                    }} />
+                    <TxCancelButton onCancel={cancelSigning} />
                   )}
                 </View>
               )}
@@ -406,7 +387,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
                 <View style={styles.txStatusActions}>
                   <Pressable
                     style={styles.txRetryBtn}
-                    onPress={() => { setTxStatus('idle'); setTxError(null); }}
+                    onPress={retryAfterError}
                   >
                     <Text style={styles.txRetryBtnText}>{t('send.txRetryBtn')}</Text>
                   </Pressable>

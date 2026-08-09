@@ -36,10 +36,17 @@ const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
 
 // Monotonic, collision-free ids for recipient rows (host seeds the first row
 // with this too). No Date.now/random needed — a process counter is enough.
+//
+// The `s` marks the SHELL as the minter. On web the `send` core seeds rows from
+// its own `rcpt_{n}` counter (a deterministic port of this one) which this
+// module cannot see, and two independent counters sharing one namespace would
+// eventually hand two rows the same id — a duplicate React key, and a contact
+// picker that fills both of them. Ids are opaque everywhere they are read (React
+// keys and `pickerTarget` equality), so the prefix is free.
 let _seq = 0;
 export function makeRecipientId(): string {
   _seq += 1;
-  return `rcpt_${_seq}`;
+  return `rcpt_s${_seq}`;
 }
 
 /** Clamp free text to a valid token amount (digits + a single dot, capped decimals). */

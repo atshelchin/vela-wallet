@@ -12,7 +12,9 @@ import * as Passkey from '@/modules/passkey';
 import { addCustomNetworkByChainId } from '@/services/add-network';
 import { buildMultiTokenCalls, buildSplitCalls, maxNativeSendable, reserveFeeToken, reserveNativeGas, sumSplitBaseUnits, toMultiTokenSpecs } from '@/services/batch-send';
 import { probeTreasury, parseBundlerUnderfunded, type TreasuryStatus } from '@/services/bundler-service';
-import { fromBaseUnits, toBaseUnits } from '@/services/eip681';
+import { saveContact } from '@/services/contacts';
+import { ZERO_DECIMAL_CODES } from '@/services/currency';
+import { fromBaseUnits, parseEIP681, toBaseUnits } from '@/services/eip681';
 import { resolveTokenAmount } from '@/services/fiat-convert';
 import { useLocalePrefs } from '@/services/locale-format';
 import { hapticError, hapticSuccess, showAlert } from '@/services/platform';
@@ -38,6 +40,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TextInput } from 'react-native';
+import type { ExtendsSendController } from './send-controller-types';
 
 type Step = 'select-token' | 'enter-details' | 'confirm';
 type TxStatus = 'idle' | 'preparing' | 'signing' | 'submitting' | 'confirming' | 'confirmed' | 'error';
@@ -1135,6 +1138,141 @@ export function useSendController() {
     }
   };
 
+  // ── Intents the views used to spell out inline ───────────────────────────
+  // Every one of these is the exact statement list that lived in SendScreen /
+  // EnterDetailsStep / ConfirmStep, moved here unchanged so both platforms name
+  // an intent instead of writing this controller's state from outside (spec 017
+  // G12; native behaviour is byte-identical).
+
+  /** The ⇄ conversion toggle (was EnterDetailsStep.tsx:165-176). */
+  const toggleFiatInput = () => {
+    if (!selectedToken) return;
+    const fiatPrice = (selectedToken.priceUsd ?? 0) * dc.rate;
+    const fiatDecimals = ZERO_DECIMAL_CODES.has(dc.code) ? 0 : 2;
+    const val = parseFloat(amount || '0');
+    if (val > 0 && fiatPrice > 0) {
+      if (inputInUsd) {
+        setAmount((val / fiatPrice).toFixed(selectedToken.decimals).replace(/\.?0+$/, ''));
+      } else {
+        setAmount((val * fiatPrice).toFixed(fiatDecimals));
+      }
+    }
+    setInputInUsd(!inputInUsd);
+  };
+
+  /** Tapping the token hero — back to the picker, KEEPING the recipient. */
+  const changeToken = () => {
+    setStep('select-token');
+    setSelectedToken(null);
+    setAmount('');
+    setInputInUsd(false);
+    setSplitMode(false);
+    setRecipients([]);
+  };
+
+  const openScanner = () => setShowScanner(true);
+  const closeScanner = () => setShowScanner(false);
+  const openContactPicker = (target: string | null) => {
+    setPickerTarget(target);
+    setShowContactPicker(true);
+  };
+  const closeContactPicker = () => setShowContactPicker(false);
+  const openBatchImport = () => setShowBatchImport(true);
+  const closeBatchImport = () => setShowBatchImport(false);
+
+  /** A raw scan payload (was SendScreen.tsx:181-203). */
+  const handleScan = (data: string) => {
+    setShowScanner(false);
+    const req = parseEIP681(data);
+    // Per-row scan in split mode — just take the address; a full-request
+    // re-lock would blow away the other recipients.
+    if (pickerTarget) {
+      applyPickedAddress(req?.recipient ?? data);
+      return;
+    }
+    // A full EIP-681 request re-opens Send locked; otherwise just take the address.
+    if (req && req.chainId != null) {
+      const p: Record<string, string> = {
+        prefilledRecipient: req.recipient,
+        prefilledChainId: String(req.chainId),
+        locked: '1',
+      };
+      if (req.tokenAddress) p.prefilledTokenAddress = req.tokenAddress;
+      if (req.amountBaseUnits != null) p.prefilledAmountBase = req.amountBaseUnits.toString();
+      router.replace({ pathname: '/send', params: p });
+      return;
+    }
+    setRecipient(req?.recipient ?? data);
+  };
+
+  /** The confirm screen's ✕ during preparing/signing (was ConfirmStep.tsx:381-395). */
+  const cancelSigning = () => {
+    // Signal the in-flight executeTransaction too: during the Phase-2 grant
+    // await there is no passkey prompt to abort yet — without the ref, the flow
+    // would resurrect a passkey prompt (or a funding sheet) AFTER this cancel.
+    sendCancelledRef.current = true;
+    // Release the re-entry lock so a retry starts (instead of silently
+    // no-op'ing until the cancelled promise settles); cancel() also invalidates
+    // that promise's stale finally so it won't clear the retry's lock (#91).
+    sendLock.cancel();
+    Passkey.cancelSign();
+    setTxStatus('idle');
+    setSending(false);
+  };
+
+  const retryAfterError = () => {
+    setTxStatus('idle');
+    setTxError(null);
+  };
+
+  const onFeeTokenChange = (token: string | null) => setGasFeeToken(token);
+  const onFeeUpdate = (fee: TransactionFeeEstimate) => {
+    if (mountedRef.current) setFeeEstimate(fee);
+  };
+  const onFeeBusyChange = (busy: boolean) => setFeeBusy(busy);
+
+  const dismissTreasurySheet = () => setTreasuryBootstrap(null);
+  /** After funding the relayer, return through the step-appropriate flow. */
+  const retryAfterBootstrap = () => {
+    setTreasuryBootstrap(null);
+    // This sheet can now open from the amount screen. After funding the relayer,
+    // return through the normal pre-confirm flow rather than submitting directly
+    // from enter-details.
+    if (step === 'enter-details') {
+      void handleContinue();
+    } else {
+      void handleConfirm();
+    }
+  };
+
+  const handleDone = () => router.back();
+  const saveReceiptContact = () => {
+    void saveContact({
+      address: recipient,
+      name: recipientIdentity?.name,
+      resolvedName: recipientIdentity?.name,
+    });
+  };
+
+  /** The Continue button's gate (was EnterDetailsStep.tsx:372, negated). */
+  const canContinue = !(
+    (splitMode
+      ? !recipientsAreValid(recipients)
+      : multiSelectMode
+        ? !isValidAddress(recipient) || pickedTokens.length === 0
+        : !recipient || !amount) ||
+    estimatingGas ||
+    (locked && !!amountWarning)
+  );
+
+  // The receipt's scalar amount + fiat line (was SendScreen.tsx:152/158).
+  const receiptAmount = selectedToken
+    ? resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate)
+    : '';
+  const receiptUsdValue = selectedToken
+    ? parseFloat(receiptAmount) * (selectedToken.priceUsd ?? 0)
+    : 0;
+
   // Step 1: Select Token — delegated to the shared TokenSelector.
   // Multi-select is built-in now: filter to a specific network and the picker
   // shows checkboxes (one token = amount-send, two+ = multiSelect). No mode toggle.
@@ -1267,7 +1405,37 @@ export function useSendController() {
     executeTransaction,
     handleBack,
     tokenMultiSelect,
+    // The shared controller contract (spec 017 G12) — see the block above.
+    prefilledRecipient: params.prefilledRecipient,
+    multiSelectChainId: multiSelect.chainId,
+    publicKeyHex: prefetchedAccount.current?.publicKeyHex,
+    canContinue,
+    receiptAmount,
+    receiptUsdValue,
+    toggleFiatInput,
+    changeToken,
+    openScanner,
+    closeScanner,
+    handleScan,
+    openContactPicker,
+    closeContactPicker,
+    openBatchImport,
+    closeBatchImport,
+    cancelSigning,
+    retryAfterError,
+    onFeeTokenChange,
+    onFeeUpdate,
+    onFeeBusyChange,
+    dismissTreasurySheet,
+    retryAfterBootstrap,
+    handleDone,
+    saveReceiptContact,
   };
 }
 
-export type SendController = ReturnType<typeof useSendController>;
+/**
+ * The native controller's own return type, constrained to the shared contract:
+ * dropping a field the screens read now fails THIS file's build instead of
+ * silently handing `undefined` to a step component (spec 017 G12).
+ */
+export type SendController = ExtendsSendController<ReturnType<typeof useSendController>>;

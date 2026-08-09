@@ -57,6 +57,9 @@ use vela_core::app::receive_watch::{
     Event as ReceiveWatchEvent, ReceiveWatchOperation, ReceiveWatchShellResult, ReceiveWatchView,
 };
 use vela_core::app::rpc_pool::{Event as RpcEvent, RpcOperation, RpcPoolView, RpcShellResult};
+use vela_core::app::send::{
+    Event as SendEvent, SendOperation, SendShellResult, SendView,
+};
 use vela_core::app::session::{
     Event as SessionEvent, SessionOperation, SessionShellResult, SessionView,
 };
@@ -166,6 +169,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     DsessOperation::export_all(&config)?;
     DsessShellResult::export_all(&config)?;
     DsessView::export_all(&config)?;
+    SendEvent::export_all(&config)?;
+    SendOperation::export_all(&config)?;
+    SendShellResult::export_all(&config)?;
+    SendView::export_all(&config)?;
 
     println!("wallet-state bindings written to {}", out_dir.display());
     Ok(())

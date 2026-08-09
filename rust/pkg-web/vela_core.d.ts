@@ -438,6 +438,20 @@ export class RpcPoolCore {
 }
 
 /**
+ * r" The whole Send flow: three modes, the step machine, EIP-681 locked
+ * r" requests, Max/fiat math, the treasury pre-check and the sign→submit
+ * r" lifecycle behind a single-flight re-entry lock.
+ */
+export class SendCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
  * r" The wallet session truth source: accounts, active index, boot restore.
  */
 export class SessionCore {
@@ -618,6 +632,7 @@ export interface InitOutput {
     readonly __wbg_paymentrequestcore_free: (a: number, b: number) => void;
     readonly __wbg_receivewatchcore_free: (a: number, b: number) => void;
     readonly __wbg_rpcpoolcore_free: (a: number, b: number) => void;
+    readonly __wbg_sendcore_free: (a: number, b: number) => void;
     readonly __wbg_sessioncore_free: (a: number, b: number) => void;
     readonly __wbg_signrequestcore_free: (a: number, b: number) => void;
     readonly __wbg_tokentrustcore_free: (a: number, b: number) => void;
@@ -745,6 +760,10 @@ export interface InitOutput {
     readonly rpcpoolcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly rpcpoolcore_view: (a: number) => [number, number, number, number];
     readonly safeProxyRuntimeCode: () => [number, number, number, number];
+    readonly sendcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly sendcore_new: () => number;
+    readonly sendcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly sendcore_view: (a: number) => [number, number, number, number];
     readonly sessioncore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly sessioncore_new: () => number;
     readonly sessioncore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];

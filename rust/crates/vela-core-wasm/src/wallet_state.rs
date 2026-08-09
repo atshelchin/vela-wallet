@@ -109,6 +109,14 @@ bridge_class!(
 );
 
 bridge_class!(
+    /// The whole Send flow: three modes, the step machine, EIP-681 locked
+    /// requests, Max/fiat math, the treasury pre-check and the sign→submit
+    /// lifecycle behind a single-flight re-entry lock.
+    SendCore,
+    vela_core::app::send::Send
+);
+
+bridge_class!(
     /// The activity feed: dedupe, batch folding, tombstones, celebrations.
     ActivityFeedCore,
     vela_core::app::activity_feed::ActivityFeed

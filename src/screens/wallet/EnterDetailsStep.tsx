@@ -1,7 +1,7 @@
 import { ContactAvatar } from '@/components/contacts/ContactAvatar';
 import { RecipientTrust } from '@/components/contacts/RecipientTrust';
 import { RecipientTypeBadge } from '@/components/contacts/RecipientTypeBadge';
-import { MultiRecipientEditor, recipientsAreValid } from '@/components/send/MultiRecipientEditor';
+import { MultiRecipientEditor } from '@/components/send/MultiRecipientEditor';
 import { TokenLogo } from '@/components/TokenLogo';
 import { AmountText } from '@/components/ui/AmountText';
 import { AutoGrowTextInput } from '@/components/ui/AutoGrowTextInput';
@@ -21,41 +21,38 @@ import { ArrowUpDown, BookUser, Check, Copy, FileUp, Plus, ScanLine } from 'luci
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { SendController } from './useSendController';
+import type { SendController } from './send-controller-types';
 
 export function EnterDetailsStep({ c }: { c: SendController }) {
   const {
     t,
-    params,
+    prefilledRecipient,
     locked,
     amountLocked,
     dc,
     formatUsd,
-    setStep,
     selectedToken,
-    setSelectedToken,
+    changeToken,
     recipient,
     setRecipient,
     amount,
     setAmount,
     splitMode,
-    setSplitMode,
     recipients,
-    setRecipients,
-    setPickerTarget,
     multiSelectMode,
-    setShowScanner,
+    openScanner,
     copiedContract,
     setCopiedContract,
     estimatingGas,
     inputInUsd,
-    setInputInUsd,
-    setShowContactPicker,
-    setShowBatchImport,
+    toggleFiatInput,
+    openContactPicker,
+    openBatchImport,
     amountWarning,
     recipientIdentity,
     recipientRisk,
     amountInputRef,
+    canContinue,
     enterSplitMode,
     handleRecipientsChange,
     pickedTokens,
@@ -81,7 +78,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               Multi-select hides it. */}
           {!multiSelectMode && (
           <View style={styles.heroBlock}>
-            <Pressable style={styles.heroRow} disabled={locked} onPress={() => { setStep('select-token'); setSelectedToken(null); setAmount(''); setInputInUsd(false); setSplitMode(false); setRecipients([]); }}>
+            <Pressable style={styles.heroRow} disabled={locked} onPress={changeToken}>
               <TokenLogo symbol={selectedToken.symbol} logoUrls={logos} chain={tokenBadgeNetwork(selectedToken)} size={44} />
               <View style={styles.heroIdentity}>
                 <Text style={styles.heroSymbol}>{selectedToken.symbol}</Text>
@@ -163,17 +160,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
             {/* Conversion toggle row — below the input, like ↕ 0.0113 ETH */}
             {selectedToken.priceUsd != null && selectedToken.priceUsd > 0 ? (
               <Pressable
-                onPress={() => {
-                  const val = parseFloat(amount || '0');
-                  if (val > 0 && fiatPrice > 0) {
-                    if (inputInUsd) {
-                      setAmount((val / fiatPrice).toFixed(selectedToken.decimals).replace(/\.?0+$/, ''));
-                    } else {
-                      setAmount((val * fiatPrice).toFixed(fiatDecimals));
-                    }
-                  }
-                  setInputInUsd(!inputInUsd);
-                }}
+                onPress={toggleFiatInput}
                 hitSlop={8}
                 style={styles.conversionRow}
               >
@@ -209,15 +196,15 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               onChangeText={(t) => setRecipient(t)}
               autoCapitalize="none"
               autoCorrect={false}
-              editable={!params.prefilledRecipient}
+              editable={!prefilledRecipient}
               blurOnSubmit
               returnKeyType="done"
             />
-            {!params.prefilledRecipient && (
+            {!prefilledRecipient && (
               <View style={styles.inputIcons}>
                 {/* Scan in-flow (one tap) — plain icon, no container. */}
                 <Pressable
-                  onPress={() => setShowScanner(true)}
+                  onPress={openScanner}
                   hitSlop={8}
                   style={styles.addrActionBtn}
                   accessibilityRole="button"
@@ -227,7 +214,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
                 </Pressable>
                 {/* Address book / recent recipients. */}
                 <Pressable
-                  onPress={() => { setPickerTarget(null); setShowContactPicker(true); }}
+                  onPress={() => openContactPicker(null)}
                   hitSlop={8}
                   style={styles.addrActionBtn}
                   accessibilityRole="button"
@@ -253,13 +240,13 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
 
           {/* Send this token to several people at once → split mode, or import a
               payroll table (fiat → token) in one go. */}
-          {!locked && !params.prefilledRecipient && (
+          {!locked && !prefilledRecipient && (
             <View style={styles.splitEntryRow}>
               <Pressable onPress={enterSplitMode} style={styles.addRecipientEntry}>
                 <Plus size={16} color={color.accent.base} strokeWidth={2.5} />
                 <Text style={styles.addRecipientEntryText}>{t('send.addRecipient', { defaultValue: 'Add recipient' })}</Text>
               </Pressable>
-              <Pressable onPress={() => setShowBatchImport(true)} style={styles.addRecipientEntry} testID="send-batch-import">
+              <Pressable onPress={openBatchImport} style={styles.addRecipientEntry} testID="send-batch-import">
                 <FileUp size={16} color={color.accent.base} strokeWidth={2.5} />
                 <Text style={styles.addRecipientEntryText}>{t('send.batchImport', { defaultValue: 'Import list' })}</Text>
               </Pressable>
@@ -276,8 +263,8 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               priceUsd={selectedToken.priceUsd}
               balance={selectedToken.balance}
               formatUsd={formatUsd}
-              onPickContact={(id) => { setPickerTarget(id); setShowContactPicker(true); }}
-              onImport={() => setShowBatchImport(true)}
+              onPickContact={(id) => openContactPicker(id)}
+              onImport={openBatchImport}
               maxRecipients={BATCH_MAX_RECIPIENTS}
             />
           )}
@@ -347,7 +334,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
                 returnKeyType="done"
               />
               <View style={styles.inputIcons}>
-                <Pressable onPress={() => { setPickerTarget(null); setShowContactPicker(true); }} hitSlop={8} style={styles.addrActionBtn}>
+                <Pressable onPress={() => openContactPicker(null)} hitSlop={8} style={styles.addrActionBtn}>
                   <BookUser size={22} color={color.fg.muted} strokeWidth={2} />
                 </Pressable>
               </View>
@@ -369,7 +356,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
             onPress={handleContinue}
             loading={estimatingGas}
             style={styles.continueBtn}
-            disabled={(splitMode ? !recipientsAreValid(recipients) : multiSelectMode ? (!isValidAddress(recipient) || pickedTokens.length === 0) : (!recipient || !amount)) || estimatingGas || (locked && !!amountWarning)}
+            disabled={!canContinue}
           />
         </Animated.View>
       </ScrollView>

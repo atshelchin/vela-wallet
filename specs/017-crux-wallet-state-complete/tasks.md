@@ -23,13 +23,13 @@ description: "Task list for 017-crux-wallet-state-complete"
 
 ## Phase A: Kernels (core + tests, machine-parallel)
 
-- [ ] T110 `fee_policy` core + rule tests (jest vectors carried over)
-- [ ] T111 `approval_guard` core + rule tests
-- [ ] T112 `clear_signing` core + rule tests (siwe/decode canon C1)
-- [ ] T113 `tx_tracker` core + rule tests (typed terminality C2)
-- [ ] T114 `contacts` core + rule tests
-- [ ] T115 `batch_import` core + rule tests (recipient-table fixtures)
-- [ ] T116 Wire wave-A into bindings bin + `gen-core-types` registry +
+- [X] T110 `fee_policy` core + rule tests (jest vectors carried over)
+- [X] T111 `approval_guard` core + rule tests
+- [X] T112 `clear_signing` core + rule tests (siwe/decode canon C1)
+- [X] T113 `tx_tracker` core + rule tests (typed terminality C2)
+- [X] T114 `contacts` core + rule tests
+- [X] T115 `batch_import` core + rule tests (recipient-table fixtures)
+- [X] T116 Wire wave-A into bindings bin + `gen-core-types` registry +
   `bridge_class!`; rebuild wasm; record size; all FR-205 gates; commit
 
 ## Phase B: Money surfaces

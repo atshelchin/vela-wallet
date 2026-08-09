@@ -162,6 +162,54 @@ export interface SafeAddressInfo {
 
 
 /**
+ * r" Never-unlimited approval guard and allowance editor.
+ */
+export class ApprovalGuardCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Payroll batch import: table interpretation, fiat conversion, caps.
+ */
+export class BatchImportCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Clear-signing resolution pipeline and message risk verdicts.
+ */
+export class ClearSigningCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The address book: manual + history-derived merge, tombstones, groups.
+ */
+export class ContactsCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
  * r" Creating a wallet: register → prove signing → derive → sync → save.
  */
 export class CreateWalletCore {
@@ -178,6 +226,19 @@ export class CreateWalletCore {
  * r" user-choice-wins.
  */
 export class DisplayCurrencyCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Fee quoting + reserve math (spec 017 wave A): tier pricing, in-band
+ * r" quotes, sign-what-was-displayed guards.
+ */
+export class FeePolicyCore {
     free(): void;
     [Symbol.dispose](): void;
     dispatch(event_json: string): string;
@@ -258,6 +319,18 @@ export class PaymentRequestCore {
  * r" diff, false-positive guards.
  */
 export class ReceiveWatchCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Post-submit transaction lifecycle / reconciliation.
+ */
+export class TxTrackerCore {
     free(): void;
     [Symbol.dispose](): void;
     dispatch(event_json: string): string;
@@ -378,20 +451,42 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_approvalguardcore_free: (a: number, b: number) => void;
+    readonly __wbg_batchimportcore_free: (a: number, b: number) => void;
+    readonly __wbg_clearsigningcore_free: (a: number, b: number) => void;
+    readonly __wbg_contactscore_free: (a: number, b: number) => void;
     readonly __wbg_createwalletcore_free: (a: number, b: number) => void;
     readonly __wbg_displaycurrencycore_free: (a: number, b: number) => void;
+    readonly __wbg_feepolicycore_free: (a: number, b: number) => void;
     readonly __wbg_i18n_free: (a: number, b: number) => void;
     readonly __wbg_logincore_free: (a: number, b: number) => void;
     readonly __wbg_paymentrequestcore_free: (a: number, b: number) => void;
     readonly __wbg_receivewatchcore_free: (a: number, b: number) => void;
+    readonly __wbg_txtrackercore_free: (a: number, b: number) => void;
     readonly abiEncodeAddress: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeBytes32: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeUint256: (a: number, b: number) => [number, number, number, number];
+    readonly approvalguardcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly approvalguardcore_new: () => number;
+    readonly approvalguardcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly approvalguardcore_view: (a: number) => [number, number, number, number];
+    readonly batchimportcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly batchimportcore_new: () => number;
+    readonly batchimportcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly batchimportcore_view: (a: number) => [number, number, number, number];
     readonly canonicalizeSignature: (a: number, b: number) => [number, number, number, number];
     readonly checksumAddress: (a: number, b: number) => [number, number, number, number];
+    readonly clearsigningcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly clearsigningcore_new: () => number;
+    readonly clearsigningcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly clearsigningcore_view: (a: number) => [number, number, number, number];
     readonly computeSafeAddress: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly computeSelector: (a: number, b: number) => [number, number, number, number];
     readonly computeSplitterAddress: (a: number, b: number) => [number, number, number, number];
+    readonly contactscore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly contactscore_new: () => number;
+    readonly contactscore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly contactscore_view: (a: number) => [number, number, number, number];
     readonly create2Address: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly createwalletcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly createwalletcore_new: () => number;
@@ -406,6 +501,10 @@ export interface InitOutput {
     readonly encodeSplitterDeployCall: (a: number, b: number) => [number, number, number, number];
     readonly encodeType: (a: number, b: number) => [number, number, number, number];
     readonly extractAttestationPublicKey: (a: number, b: number) => [number, number, number];
+    readonly feepolicycore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly feepolicycore_new: () => number;
+    readonly feepolicycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly feepolicycore_view: (a: number) => [number, number, number, number];
     readonly fromBase64Url: (a: number, b: number) => [number, number, number, number];
     readonly fromHex: (a: number, b: number) => [number, number, number, number];
     readonly functionSelector: (a: number, b: number) => [number, number, number, number];
@@ -455,6 +554,10 @@ export interface InitOutput {
     readonly toBase64Url: (a: number, b: number) => [number, number];
     readonly toHex: (a: number, b: number, c: number) => [number, number];
     readonly toQuantity: (a: number, b: number) => [number, number, number, number];
+    readonly txtrackercore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly txtrackercore_new: () => number;
+    readonly txtrackercore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly txtrackercore_view: (a: number) => [number, number, number, number];
     readonly validateClientData: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly webauthnSigningHash: (a: number, b: number, c: number, d: number) => [number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;

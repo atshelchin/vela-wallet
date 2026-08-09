@@ -11,15 +11,31 @@
 use std::{env, error::Error, fs, path::PathBuf};
 
 use ts_rs::{Config, TS};
+use vela_core::app::approval_guard::{
+    Event as GuardEvent, GuardOperation, GuardShellResult, GuardView,
+};
+use vela_core::app::batch_import::{
+    BatchOperation, BatchShellResult, BatchView, Event as BatchImportEvent,
+};
+use vela_core::app::clear_signing::{
+    ClearOperation, ClearShellResult, ClearSigningView, Event as ClearSigningEvent,
+};
+use vela_core::app::contacts::{
+    ContactOperation, ContactShellResult, ContactsView, Event as ContactEvent,
+};
 use vela_core::app::display_currency::{
     CurrencyOperation, CurrencyShellResult, CurrencyView, Event as CurrencyEvent,
 };
+use vela_core::app::fee_policy::{Event as FeeEvent, FeeOperation, FeeShellResult, FeeView};
 use vela_core::app::payment_request::{
     Event as PaymentRequestEvent, PaymentRequestOperation, PaymentRequestShellResult,
     PaymentRequestView,
 };
 use vela_core::app::receive_watch::{
     Event as ReceiveWatchEvent, ReceiveWatchOperation, ReceiveWatchShellResult, ReceiveWatchView,
+};
+use vela_core::app::tx_tracker::{
+    Event as TrackEvent, TrackOperation, TrackShellResult, TrackView,
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -45,6 +61,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     PaymentRequestOperation::export_all(&config)?;
     PaymentRequestShellResult::export_all(&config)?;
     PaymentRequestView::export_all(&config)?;
+    FeeEvent::export_all(&config)?;
+    FeeOperation::export_all(&config)?;
+    FeeShellResult::export_all(&config)?;
+    FeeView::export_all(&config)?;
+    GuardEvent::export_all(&config)?;
+    GuardOperation::export_all(&config)?;
+    GuardShellResult::export_all(&config)?;
+    GuardView::export_all(&config)?;
+    ClearSigningEvent::export_all(&config)?;
+    ClearOperation::export_all(&config)?;
+    ClearShellResult::export_all(&config)?;
+    ClearSigningView::export_all(&config)?;
+    TrackEvent::export_all(&config)?;
+    TrackOperation::export_all(&config)?;
+    TrackShellResult::export_all(&config)?;
+    TrackView::export_all(&config)?;
+    ContactEvent::export_all(&config)?;
+    ContactOperation::export_all(&config)?;
+    ContactShellResult::export_all(&config)?;
+    ContactsView::export_all(&config)?;
+    BatchImportEvent::export_all(&config)?;
+    BatchOperation::export_all(&config)?;
+    BatchShellResult::export_all(&config)?;
+    BatchView::export_all(&config)?;
 
     println!("wallet-state bindings written to {}", out_dir.display());
     Ok(())

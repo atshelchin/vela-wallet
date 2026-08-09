@@ -1,6 +1,378 @@
 /* @ts-self-types="./vela_core.d.ts" */
 
 /**
+ * r" Never-unlimited approval guard and allowance editor.
+ */
+export class ApprovalGuardCore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ApprovalGuardCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_approvalguardcore_free(ptr, 0);
+    }
+    /**
+     * @param {string} event_json
+     * @returns {string}
+     */
+    dispatch(event_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(event_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.approvalguardcore_dispatch(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.approvalguardcore_new();
+        this.__wbg_ptr = ret;
+        ApprovalGuardCoreFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {bigint} effect_id
+     * @param {string} result_json
+     * @returns {string}
+     */
+    resolve_effect(effect_id, result_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(result_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.approvalguardcore_resolve_effect(this.__wbg_ptr, effect_id, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    view() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.approvalguardcore_view(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) ApprovalGuardCore.prototype[Symbol.dispose] = ApprovalGuardCore.prototype.free;
+
+/**
+ * r" Payroll batch import: table interpretation, fiat conversion, caps.
+ */
+export class BatchImportCore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        BatchImportCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_batchimportcore_free(ptr, 0);
+    }
+    /**
+     * @param {string} event_json
+     * @returns {string}
+     */
+    dispatch(event_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(event_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.batchimportcore_dispatch(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.batchimportcore_new();
+        this.__wbg_ptr = ret;
+        BatchImportCoreFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {bigint} effect_id
+     * @param {string} result_json
+     * @returns {string}
+     */
+    resolve_effect(effect_id, result_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(result_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.batchimportcore_resolve_effect(this.__wbg_ptr, effect_id, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    view() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.batchimportcore_view(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) BatchImportCore.prototype[Symbol.dispose] = BatchImportCore.prototype.free;
+
+/**
+ * r" Clear-signing resolution pipeline and message risk verdicts.
+ */
+export class ClearSigningCore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ClearSigningCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_clearsigningcore_free(ptr, 0);
+    }
+    /**
+     * @param {string} event_json
+     * @returns {string}
+     */
+    dispatch(event_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(event_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.clearsigningcore_dispatch(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.clearsigningcore_new();
+        this.__wbg_ptr = ret;
+        ClearSigningCoreFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {bigint} effect_id
+     * @param {string} result_json
+     * @returns {string}
+     */
+    resolve_effect(effect_id, result_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(result_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.clearsigningcore_resolve_effect(this.__wbg_ptr, effect_id, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    view() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.clearsigningcore_view(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) ClearSigningCore.prototype[Symbol.dispose] = ClearSigningCore.prototype.free;
+
+/**
+ * r" The address book: manual + history-derived merge, tombstones, groups.
+ */
+export class ContactsCore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        ContactsCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_contactscore_free(ptr, 0);
+    }
+    /**
+     * @param {string} event_json
+     * @returns {string}
+     */
+    dispatch(event_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(event_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.contactscore_dispatch(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.contactscore_new();
+        this.__wbg_ptr = ret;
+        ContactsCoreFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {bigint} effect_id
+     * @param {string} result_json
+     * @returns {string}
+     */
+    resolve_effect(effect_id, result_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(result_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.contactscore_resolve_effect(this.__wbg_ptr, effect_id, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    view() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.contactscore_view(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) ContactsCore.prototype[Symbol.dispose] = ContactsCore.prototype.free;
+
+/**
  * r" Creating a wallet: register → prove signing → derive → sync → save.
  */
 export class CreateWalletCore {
@@ -186,6 +558,100 @@ export class DisplayCurrencyCore {
     }
 }
 if (Symbol.dispose) DisplayCurrencyCore.prototype[Symbol.dispose] = DisplayCurrencyCore.prototype.free;
+
+/**
+ * r" Fee quoting + reserve math (spec 017 wave A): tier pricing, in-band
+ * r" quotes, sign-what-was-displayed guards.
+ */
+export class FeePolicyCore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        FeePolicyCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_feepolicycore_free(ptr, 0);
+    }
+    /**
+     * @param {string} event_json
+     * @returns {string}
+     */
+    dispatch(event_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(event_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.feepolicycore_dispatch(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.feepolicycore_new();
+        this.__wbg_ptr = ret;
+        FeePolicyCoreFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {bigint} effect_id
+     * @param {string} result_json
+     * @returns {string}
+     */
+    resolve_effect(effect_id, result_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(result_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.feepolicycore_resolve_effect(this.__wbg_ptr, effect_id, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    view() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.feepolicycore_view(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) FeePolicyCore.prototype[Symbol.dispose] = FeePolicyCore.prototype.free;
 
 /**
  * A translation engine.
@@ -671,6 +1137,99 @@ export class ReceiveWatchCore {
     }
 }
 if (Symbol.dispose) ReceiveWatchCore.prototype[Symbol.dispose] = ReceiveWatchCore.prototype.free;
+
+/**
+ * r" Post-submit transaction lifecycle / reconciliation.
+ */
+export class TxTrackerCore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TxTrackerCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_txtrackercore_free(ptr, 0);
+    }
+    /**
+     * @param {string} event_json
+     * @returns {string}
+     */
+    dispatch(event_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(event_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.txtrackercore_dispatch(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.txtrackercore_new();
+        this.__wbg_ptr = ret;
+        TxTrackerCoreFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {bigint} effect_id
+     * @param {string} result_json
+     * @returns {string}
+     */
+    resolve_effect(effect_id, result_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(result_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.txtrackercore_resolve_effect(this.__wbg_ptr, effect_id, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    view() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.txtrackercore_view(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) TxTrackerCore.prototype[Symbol.dispose] = TxTrackerCore.prototype.free;
 
 /**
  * @param {string} address_hex
@@ -1689,12 +2248,27 @@ function __wbg_get_imports() {
     };
 }
 
+const ApprovalGuardCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_approvalguardcore_free(ptr, 1));
+const BatchImportCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_batchimportcore_free(ptr, 1));
+const ClearSigningCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_clearsigningcore_free(ptr, 1));
+const ContactsCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_contactscore_free(ptr, 1));
 const CreateWalletCoreFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_createwalletcore_free(ptr, 1));
 const DisplayCurrencyCoreFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_displaycurrencycore_free(ptr, 1));
+const FeePolicyCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_feepolicycore_free(ptr, 1));
 const I18nFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_i18n_free(ptr, 1));
@@ -1707,6 +2281,9 @@ const PaymentRequestCoreFinalization = (typeof FinalizationRegistry === 'undefin
 const ReceiveWatchCoreFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_receivewatchcore_free(ptr, 1));
+const TxTrackerCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_txtrackercore_free(ptr, 1));
 
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();

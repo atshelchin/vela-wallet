@@ -26,3 +26,40 @@ bridge_class!(
     PaymentRequestCore,
     vela_core::app::payment_request::PaymentRequest
 );
+
+bridge_class!(
+    /// Fee quoting + reserve math (spec 017 wave A): tier pricing, in-band
+    /// quotes, sign-what-was-displayed guards.
+    FeePolicyCore,
+    vela_core::app::fee_policy::FeePolicy
+);
+
+bridge_class!(
+    /// Never-unlimited approval guard and allowance editor.
+    ApprovalGuardCore,
+    vela_core::app::approval_guard::ApprovalGuard
+);
+
+bridge_class!(
+    /// Clear-signing resolution pipeline and message risk verdicts.
+    ClearSigningCore,
+    vela_core::app::clear_signing::ClearSigning
+);
+
+bridge_class!(
+    /// Post-submit transaction lifecycle / reconciliation.
+    TxTrackerCore,
+    vela_core::app::tx_tracker::TxTracker
+);
+
+bridge_class!(
+    /// The address book: manual + history-derived merge, tombstones, groups.
+    ContactsCore,
+    vela_core::app::contacts::Contacts
+);
+
+bridge_class!(
+    /// Payroll batch import: table interpretation, fiat conversion, caps.
+    BatchImportCore,
+    vela_core::app::batch_import::BatchImport
+);

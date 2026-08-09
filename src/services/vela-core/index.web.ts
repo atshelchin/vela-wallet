@@ -126,7 +126,39 @@ function failLoud(e: unknown): never {
   );
 }
 
-const plantedBytes = (globalThis as { __VELA_WASM_BYTES__?: Uint8Array }).__VELA_WASM_BYTES__;
+/**
+ * The module bytes, for a Node runtime evaluating this web bundle.
+ *
+ * Two such runtimes exist and both are load-bearing: jest (which plants the
+ * bytes in `jest.setup.js`) and Expo's static-render pass, which executes the
+ * web bundle in Node — with `output: "static"` that happens on every dev-server
+ * request and during `expo export`. The render pass plants nothing, so we read
+ * the asset ourselves.
+ *
+ * `process.getBuiltinModule` rather than `require('node:fs')`: metro resolves
+ * static requires at build time and would fail the browser bundle on a Node
+ * builtin. This is a runtime lookup that simply does not exist in a browser.
+ */
+function nodeWasmBytes(): Uint8Array | undefined {
+  const planted = (globalThis as { __VELA_WASM_BYTES__?: Uint8Array }).__VELA_WASM_BYTES__;
+  if (planted) return planted;
+
+  const proc = (globalThis as { process?: { getBuiltinModule?: (id: string) => unknown; cwd?: () => string } })
+    .process;
+  const getBuiltin = proc?.getBuiltinModule;
+  if (typeof getBuiltin !== 'function' || typeof proc?.cwd !== 'function') return undefined;
+  try {
+    const fs = getBuiltin('node:fs') as { readFileSync(p: string): Uint8Array };
+    const path = getBuiltin('node:path') as { join(...parts: string[]): string };
+    return fs.readFileSync(path.join(proc.cwd(), 'public', WASM_URL.replace(/^\//, '')));
+  } catch {
+    // Falls through to the loud failure below — a Node runtime that cannot
+    // read the asset must not proceed with an uninitialized core.
+    return undefined;
+  }
+}
+
+const plantedBytes = typeof document === 'undefined' ? nodeWasmBytes() : undefined;
 
 let initialized = false;
 
@@ -159,11 +191,14 @@ export const coreReady: Promise<void> = (() => {
     return Promise.resolve();
   }
   if (typeof document === 'undefined') {
-    // Node without planted bytes: nothing can fetch a relative URL here, and a
-    // silent pending promise would surface as mysterious downstream errors.
-    return Promise.reject(
+    // Node, and `nodeWasmBytes()` found nothing: no relative URL can be
+    // fetched here, and a silently unready core would surface later as a
+    // wasm-bindgen null-pointer panic far from the cause.
+    failLoud(
       new Error(
-        'vela-core: no wasm bytes planted. Node consumers (jest, verify, static export) must set globalThis.__VELA_WASM_BYTES__ before importing @/services/vela-core.',
+        `could not read public${WASM_URL} from ${String(
+          (globalThis as { process?: { cwd?: () => string } }).process?.cwd?.() ?? 'the working directory',
+        )}. Run \`npm run build:wasm\`, or plant the bytes on globalThis.__VELA_WASM_BYTES__.`,
       ),
     );
   }

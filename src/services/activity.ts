@@ -17,7 +17,11 @@ import { chainName, nativeSymbol } from '@/models/network';
 import { shortAddress } from '@/models/wallet-state';
 import { tokenChainId, tokenLogoURLsByAddress, nativeLogoURLs, type APIToken } from '@/models/types';
 import { fetchTokens } from '@/services/wallet-api';
-import { fetchIncomingTransfers, type IncomingTransfer } from '@/services/transfer-monitor';
+// `incoming-transfers` is the platform seam (spec 017, G7): native re-exports
+// the TypeScript monitor unchanged, web answers from the `token_trust` core.
+// The type stays the monitor's — both sides speak it.
+import { fetchIncomingTransfers } from '@/services/incoming-transfers';
+import type { IncomingTransfer } from '@/services/transfer-monitor';
 import { resolveTokenMetadata } from '@/services/token-metadata';
 import { formatTokenAmount, formatDate } from '@/services/locale-format';
 import i18n from '@/i18n';

@@ -16,7 +16,10 @@ import { ContactsCore } from '../../../rust/pkg-web/vela_core.js';
 import { createJsonWasmShell } from '@/services/crux/json-wasm-shell';
 import type { EffectLoop } from '@/services/crux/effect-loop';
 
-import { contactOperationFailure, executeContactOperation } from './contacts-executor.web';
+import {
+  contactOperationFailure,
+  executeContactOperation,
+} from '@/services/wallet-state-core/contacts-executor.web';
 import type { ContactEvent } from './generated/ContactEvent';
 import type { ContactShellResult } from './generated/ContactShellResult';
 import type { ContactsView } from './generated/ContactsView';

@@ -43,7 +43,16 @@ export interface ChainSearchResult {
 // Fetch single chain info by ID
 // ---------------------------------------------------------------------------
 
-export async function fetchChainInfo(chainId: number): Promise<ChainInfo | null> {
+/**
+ * The unparsed `/chains/eip155-{id}.json` body, or null on any failure.
+ *
+ * Split out of {@link fetchChainInfo} (which is still its only native caller, and
+ * still behaves identically: a `null` body used to reach `parseChainData` and
+ * throw into the same `catch`) so the `network_admin` core can be handed the raw
+ * document and apply the parsing rules itself — the defaults, the HTTPS filter
+ * and the key-placeholder rejection are core rules there, not shell ones.
+ */
+export async function fetchRawChainData(chainId: number): Promise<any | null> {
   try {
     const res = await fetchWithTimeout(
       `${getEthereumDataURL()}/chains/eip155-${chainId}.json`,
@@ -51,12 +60,16 @@ export async function fetchChainInfo(chainId: number): Promise<ChainInfo | null>
       { timeoutMs: NET_TIMEOUTS.ethereumData },
     );
     if (!res.ok) return null;
-
-    const data = await res.json();
-    return parseChainData(data, chainId);
+    return await res.json();
   } catch {
     return null;
   }
+}
+
+export async function fetchChainInfo(chainId: number): Promise<ChainInfo | null> {
+  const data = await fetchRawChainData(chainId);
+  if (data === null || data === undefined) return null;
+  return parseChainData(data, chainId);
 }
 
 function parseChainData(data: any, chainId: number): ChainInfo {
@@ -85,7 +98,13 @@ let _searchCache: ChainSearchResult[] | null = null;
 let _searchCacheTime = 0;
 const SEARCH_CACHE_TTL = 30 * 60 * 1000; // 30 min
 
-async function loadSearchIndex(): Promise<ChainSearchResult[]> {
+/**
+ * The cached chain index. Exported so the `network_admin` core's executor can
+ * reuse the same 30-minute cache (and the same stale-on-failure fallback) that
+ * `searchChains` uses — the ranking itself is a core rule there, so the shell
+ * only supplies the rows.
+ */
+export async function loadSearchIndex(): Promise<ChainSearchResult[]> {
   const now = Date.now();
   if (_searchCache && now - _searchCacheTime < SEARCH_CACHE_TTL) {
     return _searchCache;

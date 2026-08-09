@@ -22,21 +22,17 @@
  */
 import { toQuantity } from '@/services/vela-core';
 import { poolRpcCall } from '@/services/rpc-pool';
-import { nativeSymbol } from '@/models/network';
-import { resolveTokenMetadata, type TokenMetadata } from '@/services/token-metadata';
-import { fetchChainTokens } from '@/services/chain-tokens';
-import { knownToken } from '@/services/tokens';
-import { getCachedHeldTokens } from '@/services/wallet-api';
-import { parseRevertReason, simValueParam, type AssetDelta, type SimCall } from '@/services/sim-assets';
+// The asymmetric-trust judgment is a platform seam (spec 017, G7): native uses
+// the TypeScript rule this file used to hold inline, web decides it in the
+// `token_trust` core. Same signature, same conservative fallbacks.
+import { enrichDeltas } from '@/services/sim-trust';
+import { parseRevertReason, simValueParam, type SimCall } from '@/services/sim-assets';
 import { rpcSimulate } from '@/services/sim-engine-rpc';
 import { tevmSimulate } from '@/services/sim-engine-tevm';
 
 // Re-exported so existing import sites (and tests) keep their path.
 export { parseRevertReason } from '@/services/sim-assets';
 export type { SimCall, AssetDelta, AssetKind } from '@/services/sim-assets';
-
-/** Native coins use 18 decimals on every Vela-supported chain. */
-const NATIVE_DECIMALS = 18;
 
 export interface SimResult {
   /** true = expected to succeed, false = expected to revert. */
@@ -213,74 +209,4 @@ async function nativeUnderfunded(from: string, changes: AssetChange[], chainId: 
   } catch {
     return false;
   }
-}
-
-/**
- * Per-chain set of token addresses we trust enough to render a *received*
- * amount with confidence:
- *   - the chain's canonical stablecoins + wrapped native (ethereum-data
- *     registry, cached), and
- *   - tokens the user already holds on this chain (read from the token cache).
- * The curated `knownToken` list is consulted separately at decision time.
- * Best-effort — an empty set (registry cold, no holdings) means every received
- * token falls back to unverified, which is the safe direction.
- */
-async function trustedReceiveSet(from: string, chainId: number): Promise<Set<string>> {
-  const set = new Set<string>();
-  try {
-    const data = await fetchChainTokens(chainId);
-    for (const s of data?.stables ?? []) {
-      if (s?.contract) set.add(s.contract.toLowerCase());
-    }
-    if (data?.wrappedNativeToken) set.add(data.wrappedNativeToken.toLowerCase());
-  } catch {
-    /* registry unreachable → rely on holdings + knownToken only */
-  }
-  for (const addr of getCachedHeldTokens(from, chainId)) set.add(addr);
-  return set;
-}
-
-/**
- * Attach display metadata to raw deltas. Native uses the chain's symbol; ERC-20
- * symbol/decimals are resolved on-chain (batched, cached). Best-effort: a lookup
- * failure never throws.
- *
- * Trust, not just availability: simulation logs are unauthenticated, so a
- * hostile contract can emit a fake `Transfer(_, you, big)` from its own address
- * and even answer `symbol()`/`decimals()` to spoof a gain (a green
- * "+1,000,000 USDC" you never received). An *outflow* can't be understated this
- * way — the real token emits its own log — so sent amounts render whenever
- * metadata resolved. A *received* amount is only rendered with confidence when
- * the token is in the chain's trusted set; otherwise it falls back to the
- * `unverified` treatment (direction + caution, no attacker-controlled amount).
- */
-async function enrichDeltas(deltas: AssetDelta[], chainId: number, from: string): Promise<AssetChange[]> {
-  const erc20Addrs = deltas
-    .filter((d) => d.kind === 'erc20' && d.token)
-    .map((d) => d.token as string);
-
-  let meta = new Map<string, TokenMetadata>();
-  let trusted = new Set<string>();
-  if (erc20Addrs.length > 0) {
-    const hasReceive = deltas.some((d) => d.kind === 'erc20' && d.delta > 0n);
-    [meta, trusted] = await Promise.all([
-      resolveTokenMetadata(chainId, erc20Addrs).catch(() => new Map<string, TokenMetadata>()),
-      hasReceive ? trustedReceiveSet(from, chainId) : Promise.resolve(new Set<string>()),
-    ]);
-  }
-
-  return deltas.map((d): AssetChange => {
-    if (d.kind === 'native') {
-      return { kind: 'native', delta: d.delta, symbol: nativeSymbol(chainId), decimals: NATIVE_DECIMALS };
-    }
-    const m = d.token ? meta.get(d.token) : undefined;
-    const received = d.delta > 0n;
-    // A received token is trustworthy if it's a curated known token, a chain
-    // stable/wrapped, or one the user already holds.
-    const isTrusted = !!d.token && (trusted.has(d.token) || !!knownToken(d.token));
-    const trustworthy = !!m && (!received || isTrusted);
-    return trustworthy
-      ? { kind: 'erc20', token: d.token, delta: d.delta, symbol: m!.symbol, decimals: m!.decimals }
-      : { kind: 'erc20', token: d.token, delta: d.delta, unverified: true };
-  });
 }

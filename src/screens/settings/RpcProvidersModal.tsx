@@ -13,106 +13,44 @@ import { ChainLogo } from '@/components/ChainLogo';
 import { AppModal } from '@/components/ui/AppModal';
 import { VelaCard } from '@/components/ui/VelaCard';
 import { color, font, inter, radius, space, text, useStyles } from '@/constants/theme';
+import type { ProviderNetResult, ProviderTestView } from '@/hooks/network-admin-controller-types';
+import { useRpcProviders } from '@/hooks/use-network-admin';
 import { chainMeta } from '@/models/chains';
 import { openBrowser } from '@/services/platform';
-import {
-  buildProviderRpcUrl,
-  PROVIDER_ORDER,
-  PROVIDERS,
-  providerChainIds,
-  type ProviderId,
-  type RpcProviderKeys,
-} from '@/services/rpc-providers';
-import { invalidateAllPools, probeRpcChainId } from '@/services/rpc-pool';
-import { getRpcProviderKeys, loadRpcProviders, saveRpcProviders } from '@/services/storage';
+import { PROVIDER_ORDER, PROVIDERS, type ProviderId } from '@/services/rpc-providers';
 import { ChevronDown, ChevronUp, ExternalLink, Eye, EyeOff, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-const PROBE_TIMEOUT_MS = 6000;
 /** Latency thresholds for the per-network badge colour. */
 const FAST_MS = 300;
 const OK_MS = 800;
 
-type NetResult = { chainId: number; name: string; logoLabel: string; logoColor: string; logoBg: string; ok: boolean; latencyMs: number };
-type TestState = { status: 'testing' | 'done'; results: NetResult[] };
+type TestState = ProviderTestView;
 
 export function RpcProvidersModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const s = useStyles(styleFactory);
 
-  // Draft key per provider — controlled inputs, seeded from the saved cache.
-  const [draft, setDraft] = useState<RpcProviderKeys>({});
+  // Key drafts, the per-chain capability probe and the clear-key-removes-provider
+  // rule all live in the controller now — `use-network-admin.ts` on native, the
+  // `network_admin` core on web. Reveal/expand are pure UI and stay here.
+  const providers = useRpcProviders();
+  const { keys: draft, tests } = providers;
   const [reveal, setReveal] = useState<Partial<Record<ProviderId, boolean>>>({});
   const [expanded, setExpanded] = useState<Partial<Record<ProviderId, boolean>>>({});
-  const [tests, setTests] = useState<Partial<Record<ProviderId, TestState>>>({});
+  const open = providers.open;
 
-  const runTest = useCallback(async (id: ProviderId, rawKey: string) => {
-    const key = rawKey.trim();
-    if (!key) {
-      setTests(prev => ({ ...prev, [id]: undefined }));
-      return;
-    }
-    const chainIds = providerChainIds(id);
-    const base: NetResult[] = chainIds.map(cid => {
-      const meta = chainMeta(cid);
-      return {
-        chainId: cid,
-        name: meta?.displayName ?? `Chain ${cid}`,
-        logoLabel: meta?.iconLabel ?? '?',
-        logoColor: meta?.iconColor ?? color.fg.muted,
-        logoBg: meta?.iconBg ?? color.bg.sunken,
-        ok: false,
-        latencyMs: 0,
-      };
-    });
-    setTests(prev => ({ ...prev, [id]: { status: 'testing', results: base } }));
-
-    const results = await Promise.all(
-      base.map(async (r) => {
-        const url = buildProviderRpcUrl(id, r.chainId, key);
-        if (!url) return { ...r, ok: false, latencyMs: 0 };
-        const t0 = Date.now();
-        const reported = await probeRpcChainId(url, PROBE_TIMEOUT_MS);
-        return { ...r, ok: reported === r.chainId, latencyMs: Date.now() - t0 };
-      }),
-    );
-    setTests(prev => ({ ...prev, [id]: { status: 'done', results } }));
-  }, []);
-
-  // Seed drafts and auto-test configured providers whenever the sheet opens.
   useEffect(() => {
     if (!visible) return;
-    loadRpcProviders().then(() => {
-      const saved = getRpcProviderKeys();
-      setDraft({ ...saved });
-      setTests({});
-      setExpanded({});
-      for (const id of PROVIDER_ORDER) {
-        if (saved[id]) runTest(id, saved[id]!);
-      }
-    });
-  }, [visible, runTest]);
+    setExpanded({});
+    open();
+  }, [visible, open]);
 
-  // Persist all keys + invalidate pools so the next RPC call picks them up.
-  const persist = useCallback(async (next: RpcProviderKeys) => {
-    await saveRpcProviders(next);
-    invalidateAllPools();
-  }, []);
-
-  const onKeyBlur = useCallback((id: ProviderId) => {
-    const next = { ...draft, [id]: (draft[id] ?? '').trim() };
-    setDraft(next);
-    persist(next);
-    runTest(id, next[id] ?? '');
-  }, [draft, persist, runTest]);
-
-  const onKeyChange = useCallback((id: ProviderId, value: string) => {
-    setDraft(prev => ({ ...prev, [id]: value }));
-    // Drop stale results so the old latency isn't shown against a new key.
-    setTests(prev => ({ ...prev, [id]: undefined }));
-  }, []);
+  const runTest = (id: ProviderId) => providers.test(id);
+  const onKeyBlur = (id: ProviderId) => providers.blur(id);
+  const onKeyChange = (id: ProviderId, value: string) => providers.setKey(id, value);
 
   return (
     <AppModal visible={visible} onClose={onClose}>
@@ -176,7 +114,7 @@ export function RpcProvidersModal({ visible, onClose }: { visible: boolean; onCl
                     <ExternalLink size={13} color={color.fg.muted} strokeWidth={2} />
                   </Pressable>
                   {hasKey ? (
-                    <Pressable onPress={() => runTest(id, value)} hitSlop={8} style={s.testBtn} disabled={test?.status === 'testing'}>
+                    <Pressable onPress={() => runTest(id)} hitSlop={8} style={s.testBtn} disabled={test?.status === 'testing'}>
                       <Text style={s.testText}>{t('settingsModals.rpcProviders.test', { defaultValue: 'Test' })}</Text>
                     </Pressable>
                   ) : null}
@@ -199,11 +137,7 @@ export function RpcProvidersModal({ visible, onClose }: { visible: boolean; onCl
                     {isOpen ? (
                       <View style={s.netList}>
                         {test.results.map((r) => (
-                          <View key={r.chainId} style={s.netRow}>
-                            <ChainLogo label={r.logoLabel} color={r.logoColor} bgColor={r.logoBg} size={22} />
-                            <Text style={s.netName}>{r.name}</Text>
-                            <LatencyBadge s={s} ok={r.ok} latencyMs={r.latencyMs} />
-                          </View>
+                          <NetRow key={r.chainId} s={s} result={r} />
                         ))}
                       </View>
                     ) : null}
@@ -215,6 +149,24 @@ export function RpcProvidersModal({ visible, onClose }: { visible: boolean; onCl
         </ScrollView>
       </View>
     </AppModal>
+  );
+}
+
+/** One probed network. The chain's identity is presentation data, resolved from
+ *  the canonical table — the controller only carries the verdict and latency. */
+function NetRow({ s, result }: { s: S; result: ProviderNetResult }) {
+  const meta = chainMeta(result.chainId);
+  return (
+    <View style={s.netRow}>
+      <ChainLogo
+        label={meta?.iconLabel ?? '?'}
+        color={meta?.iconColor ?? color.fg.muted}
+        bgColor={meta?.iconBg ?? color.bg.sunken}
+        size={22}
+      />
+      <Text style={s.netName}>{meta?.displayName ?? `Chain ${result.chainId}`}</Text>
+      <LatencyBadge s={s} ok={result.ok} latencyMs={result.latencyMs} />
+    </View>
   );
 }
 

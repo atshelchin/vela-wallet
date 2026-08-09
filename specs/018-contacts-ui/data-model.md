@@ -59,7 +59,9 @@ Desktop rail: 全部联系人 `8` (selected in dc1) → 分组 label → 家人 
 
 ## Contact detail (Alice — c2 / dc2)
 
-- Hero identicon (96 mobile / 64 desktop), name **Alice**, short
+- Hero identicon (**64 mobile / 48 desktop** — measured from C2 and DC2 on
+  2026-08-09; the earlier ~96/~64 estimate in this file was wrong and all
+  four platforms were re-aligned to the measured values), name **Alice**, short
   address `0x9F3c…21aE` (mobile only), chips: `家人` + `+ 分组`.
 - Actions: 转账 / 收款 / 二维码 (cards mobile, pills desktop).
 - 地址 block, mono, mobile wraps as two lines exactly:

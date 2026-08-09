@@ -196,7 +196,9 @@ New named metrics per platform (desktop `theme.rs` consts, android
 `VelaSizing`/feature `Metrics`, ios `WalletGeometry`-style
 `ContactsGeometry`, web CSS from existing `--space/--size` vars):
 groups-rail width (216 measured from DC1), menu width/row height
-(220×44 from M1/M2), index-rail width, detail hero avatar 96 (mobile) /
-64 (desktop), motion constants (sheet 250ms, column 240/200ms,
+(220×44 from M1/M2), index-rail width, detail hero avatar **64 (mobile,
+measured in C2) / 48 (desktop, measured in DC2)** — an earlier estimate of
+96/64 shipped briefly and was corrected on all four platforms after the
+mocks were measured pixel-wise, motion constants (sheet 250ms, column 240/200ms,
 crossfade 150ms, hover 120ms, bubble 120/80ms) named in each platform's
 motion layer per FR-011.

@@ -3,12 +3,12 @@
 //! The SHARED key-path table: every dotted path in the corpus, sorted, interned
 //! once for all 15 locales. Regenerate with `node scripts/gen-i18n.mjs`.
 //!
-//! 1312 paths = 1234 leaf + 78 branch. Repeated per locale these key bytes
-//! would cost 516645 bytes; interned once they cost 35867.
+//! 1333 paths = 1255 leaf + 78 branch. Repeated per locale these key bytes
+//! would cost 522915 bytes; interned once they cost 36285.
 
 /// Every path in the corpus, strictly sorted. Lookup is a binary search here, then
 /// an O(1) index into the active locale's value table.
-pub(crate) static PATHS: [&str; 1312] = [
+pub(crate) static PATHS: [&str; 1333] = [
     "about",
     "about.footer",
     "about.linkGitHub",
@@ -636,20 +636,31 @@ pub(crate) static PATHS: [&str; 1312] = [
     "connect.list.waitingStatus",
     "connect.list.walletFallback",
     "contacts",
+    "contacts.actionQr",
     "contacts.addContact",
+    "contacts.addMember",
     "contacts.addTitle",
     "contacts.addressLabel",
     "contacts.addressPlaceholder",
+    "contacts.allContacts",
+    "contacts.batchSend",
+    "contacts.batchSendHint",
+    "contacts.batchSendHintTitled",
     "contacts.cancel",
+    "contacts.countPeople",
     "contacts.delete",
     "contacts.deleteBody",
+    "contacts.deleteContact",
     "contacts.deleteTitle",
+    "contacts.edit",
     "contacts.editTitle",
     "contacts.empty",
     "contacts.emptyHint",
     "contacts.emptyPicker",
+    "contacts.exportAll",
     "contacts.exportBody",
     "contacts.exportBtn",
+    "contacts.exportGroup",
     "contacts.exportTitle",
     "contacts.filterAll",
     "contacts.groupDelete",
@@ -664,20 +675,28 @@ pub(crate) static PATHS: [&str; 1312] = [
     "contacts.groupNamePlaceholder",
     "contacts.groupNew",
     "contacts.groupNoContacts",
+    "contacts.groupRename",
+    "contacts.importAll",
     "contacts.importBtn",
     "contacts.importDoneBody",
     "contacts.importDoneTitle",
     "contacts.importFailBody",
     "contacts.importFailTitle",
+    "contacts.importFile",
+    "contacts.importGroup",
     "contacts.importing",
     "contacts.invalidAddress",
     "contacts.kindAccount",
+    "contacts.manage",
     "contacts.manageSubtitle",
+    "contacts.membersCount",
+    "contacts.moveGroup",
     "contacts.nameLabel",
     "contacts.namePlaceholder",
     "contacts.noResults",
     "contacts.pickerEmptyHint",
     "contacts.pickerTitle",
+    "contacts.recentActivity",
     "contacts.save",
     "contacts.saveToContacts",
     "contacts.saved",
@@ -685,6 +704,7 @@ pub(crate) static PATHS: [&str; 1312] = [
     "contacts.savedTag",
     "contacts.scanToAdd",
     "contacts.searchPlaceholder",
+    "contacts.sectionContacts",
     "contacts.sectionFavorites",
     "contacts.sectionGroups",
     "contacts.sectionRecent",
@@ -695,6 +715,7 @@ pub(crate) static PATHS: [&str; 1312] = [
     "contacts.sends_other",
     "contacts.title",
     "contacts.useTyped",
+    "contacts.viewAllActivity",
     "history",
     "history.emptyBody",
     "history.emptyFilter",
@@ -1327,22 +1348,22 @@ pub(crate) static PATHS: [&str; 1312] = [
 /// A branch is a distinct lookup outcome, not a miss: `t("home")` must return the
 /// byte-exact diagnostic `key 'home (en)' returned an object instead of string.`,
 /// which a flat map could never distinguish from an absent key.
-pub(crate) static IS_BRANCH: [u8; 164] = [
+pub(crate) static IS_BRANCH: [u8; 167] = [
     0x01, 0x00, 0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00,
     0x14, 0x12, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x21, 0xa0, 0x00, 0x08, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x20,
     0x00, 0x03, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x04, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x10, 0x60, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x08,
-    0x00, 0x01, 0x00, 0x4e, 0x92, 0x24, 0x04, 0x80, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x20, 0x00,
-    0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x80, 0x29, 0x40, 0x10, 0x12, 0x02, 0x04, 0x01, 0x43, 0x00, 0x00, 0x08, 0x80, 0x08, 0x20, 0x80,
-    0x40, 0x00, 0x41, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x02, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00,
+    0x00, 0x00, 0x01, 0x20, 0x00, 0xc0, 0x49, 0x92, 0x84, 0x00, 0x10, 0x00, 0x40, 0x00, 0x00, 0x00,
+    0x00, 0x04, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x20, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x30, 0x05, 0x08, 0x42, 0x42, 0x80, 0x20, 0x60, 0x08, 0x00, 0x00, 0x01, 0x10,
+    0x01, 0x04, 0x10, 0x08, 0x20, 0x08, 0x00,
 ];
 
 /// Number of entries in [`PATHS`]. Value tables carry `N_PATHS + 1` offsets.
-pub(crate) const N_PATHS: usize = 1312;
+pub(crate) const N_PATHS: usize = 1333;
 
 /// Index of `path` in [`PATHS`], or `None`.
 pub(crate) fn path_id(path: &str) -> Option<usize> {

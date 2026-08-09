@@ -33,6 +33,9 @@ use vela_core::app::contacts::{
 use vela_core::app::dapp_permissions::{
     DpermOperation, DpermShellResult, DpermView, Event as DpermEvent,
 };
+use vela_core::app::dapp_session::{
+    DsessOperation, DsessShellResult, DsessView, Event as DsessEvent,
+};
 use vela_core::app::display_currency::{
     CurrencyOperation, CurrencyShellResult, CurrencyView, Event as CurrencyEvent,
 };
@@ -159,6 +162,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     ExtCacheOperation::export_all(&config)?;
     ExtCacheShellResult::export_all(&config)?;
     ExtCacheView::export_all(&config)?;
+    DsessEvent::export_all(&config)?;
+    DsessOperation::export_all(&config)?;
+    DsessShellResult::export_all(&config)?;
+    DsessView::export_all(&config)?;
 
     println!("wallet-state bindings written to {}", out_dir.display());
     Ok(())

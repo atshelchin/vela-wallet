@@ -59,7 +59,18 @@ let currentKey = JSON.stringify(INITIAL_VIEW);
  */
 let currentAccounts: StoredAccount[] = [];
 let currentAccountsKey = '[]';
-const listeners = new Set<(view: SessionView) => void>();
+/**
+ * Listeners receive the projected accounts ALONGSIDE the view, never by
+ * calling back into this module during a render.
+ *
+ * React Compiler is on: a module-global read inside a render body is not a
+ * tracked dependency, so the compiler is free to cache the first result
+ * forever. That is exactly what happened — `address` (from the view) updated
+ * while `accounts` stayed frozen at the empty first value, and every consumer
+ * of `state.accounts` silently saw an account-less wallet. Pushing the array
+ * makes it part of the tracked state instead.
+ */
+const listeners = new Set<(view: SessionView, accounts: StoredAccount[]) => void>();
 let session: ReturnType<typeof createWalletSession> | null = null;
 
 export function ensureWalletSession() {
@@ -75,7 +86,7 @@ export function ensureWalletSession() {
           currentAccounts = view.accounts.map((row) => toStoredAccount(row.account));
         }
         current = view;
-        listeners.forEach((listener) => listener(view));
+        listeners.forEach((listener) => listener(view, currentAccounts));
       },
       onError: (error) => console.error('[session] core fault:', error),
     });
@@ -104,7 +115,9 @@ export function walletSessionAccounts(): StoredAccount[] {
 }
 
 /** Subscribe to every committed view. Returns the unsubscribe. */
-export function subscribeWalletSession(listener: (view: SessionView) => void): () => void {
+export function subscribeWalletSession(
+  listener: (view: SessionView, accounts: StoredAccount[]) => void,
+): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

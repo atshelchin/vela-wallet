@@ -838,6 +838,100 @@ export class DappPermissionsCore {
 if (Symbol.dispose) DappPermissionsCore.prototype[Symbol.dispose] = DappPermissionsCore.prototype.free;
 
 /**
+ * r" dApp connection lifecycle: pairing, fingerprint confirmation,
+ * r" reconnect policy and the timer discipline behind it.
+ */
+export class DappSessionCore {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        DappSessionCoreFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_dappsessioncore_free(ptr, 0);
+    }
+    /**
+     * @param {string} event_json
+     * @returns {string}
+     */
+    dispatch(event_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(event_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.dappsessioncore_dispatch(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    constructor() {
+        const ret = wasm.dappsessioncore_new();
+        this.__wbg_ptr = ret;
+        DappSessionCoreFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * @param {bigint} effect_id
+     * @param {string} result_json
+     * @returns {string}
+     */
+    resolve_effect(effect_id, result_json) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(result_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.dappsessioncore_resolve_effect(this.__wbg_ptr, effect_id, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * @returns {string}
+     */
+    view() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.dappsessioncore_view(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+}
+if (Symbol.dispose) DappSessionCore.prototype[Symbol.dispose] = DappSessionCore.prototype.free;
+
+/**
  * r" The display currency: atomic code+rate pair, first-launch region seed,
  * r" user-choice-wins.
  */
@@ -3300,6 +3394,9 @@ const CreateWalletCoreFinalization = (typeof FinalizationRegistry === 'undefined
 const DappPermissionsCoreFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_dapppermissionscore_free(ptr, 1));
+const DappSessionCoreFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_dappsessioncore_free(ptr, 1));
 const DisplayCurrencyCoreFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_displaycurrencycore_free(ptr, 1));

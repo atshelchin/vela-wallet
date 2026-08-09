@@ -45,6 +45,7 @@ import {
 } from '@/services/wallet-state-core/session-resident.web';
 import { toCoreAccount } from '@/services/wallet-state-core/session-executor.web';
 import type { SessionView } from '@/services/wallet-state-core/generated/SessionView';
+import type { StoredAccount } from '@/models/types';
 
 export {
   INITIAL_STATE,
@@ -69,17 +70,26 @@ function wireIndex(index: number): number | null {
 // MARK: - Provider Component
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [view, setView] = useState<SessionView>(walletSessionView);
+  // View AND its projected accounts in ONE state cell. Reading the projection
+  // from the resident during render made it invisible to React Compiler, which
+  // cached the first (empty) result while `address` kept updating — an
+  // account-less wallet that still showed an address.
+  const [snapshot, setSnapshot] = useState<{ view: SessionView; accounts: StoredAccount[] }>(
+    () => ({ view: walletSessionView(), accounts: walletSessionAccounts() }),
+  );
+  const view = snapshot.view;
   // Out of the core's scope by design — see the header note.
   const [isConnectedToBrowser, setConnected] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = subscribeWalletSession(setView);
+    const unsubscribe = subscribeWalletSession((nextView, nextAccounts) => {
+      setSnapshot({ view: nextView, accounts: nextAccounts });
+    });
     // Boots the restore on first mount; inert on every later one (the session
     // outlives this component, and the core makes a second Boot inert too).
     ensureWalletSession();
     // Catch up on anything committed between the initial render and here.
-    setView(walletSessionView());
+    setSnapshot({ view: walletSessionView(), accounts: walletSessionAccounts() });
     return unsubscribe;
   }, []);
 
@@ -142,7 +152,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       // themselves are unchanged, so switching the active account does not
       // invalidate every `[state.accounts]` dependency — the reducer's
       // `SWITCH_ACCOUNT` kept the same array too.
-      accounts: walletSessionAccounts(),
+      accounts: snapshot.accounts,
       activeAccountIndex: view.active_index,
       isLoading: view.loading,
     }),

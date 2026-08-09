@@ -270,6 +270,19 @@ export class DappPermissionsCore {
 }
 
 /**
+ * r" dApp connection lifecycle: pairing, fingerprint confirmation,
+ * r" reconnect policy and the timer discipline behind it.
+ */
+export class DappSessionCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
  * r" The display currency: atomic code+rate pair, first-launch region seed,
  * r" user-choice-wins.
  */
@@ -594,6 +607,7 @@ export interface InitOutput {
     readonly __wbg_contactscore_free: (a: number, b: number) => void;
     readonly __wbg_createwalletcore_free: (a: number, b: number) => void;
     readonly __wbg_dapppermissionscore_free: (a: number, b: number) => void;
+    readonly __wbg_dappsessioncore_free: (a: number, b: number) => void;
     readonly __wbg_displaycurrencycore_free: (a: number, b: number) => void;
     readonly __wbg_extcachecore_free: (a: number, b: number) => void;
     readonly __wbg_feepolicycore_free: (a: number, b: number) => void;
@@ -653,6 +667,10 @@ export interface InitOutput {
     readonly dapppermissionscore_new: () => number;
     readonly dapppermissionscore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly dapppermissionscore_view: (a: number) => [number, number, number, number];
+    readonly dappsessioncore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly dappsessioncore_new: () => number;
+    readonly dappsessioncore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly dappsessioncore_view: (a: number) => [number, number, number, number];
     readonly decodeCalldata: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly derSignatureToRawLowS: (a: number, b: number) => [number, number, number, number];
     readonly displaycurrencycore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];

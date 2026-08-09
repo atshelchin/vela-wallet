@@ -16,13 +16,19 @@ test.describe('parallel-space · Home', () => {
     await page.getByRole('button', { name: /Switch account/ }).click({ force: true });
 
     // The switcher lists the other fixture accounts.
-    await expect(page.getByText('Parallel Two')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('Parallel Three')).toBeVisible();
+    //
+    // `.first()`: two HomeScreens are mounted (react-navigation keeps the
+    // inactive stack screen — the same duplicate 233c062 diagnosed on a clean
+    // baseline), each with its own switcher portaled to #root, so an account
+    // name matches twice. The two nodes are identical and overlap exactly, so
+    // either satisfies "the switcher lists it" and either is clickable.
+    await expect(page.getByText('Parallel Two').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Parallel Three').first()).toBeVisible();
 
     // Switch to Parallel Two → the Home header reflects it, with its address.
-    await page.getByText('Parallel Two').click({ force: true });
-    await expect(page.getByRole('button', { name: /Parallel Two/ })).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('0x031d...772b')).toBeVisible();
+    await page.getByText('Parallel Two').first().click({ force: true });
+    await expect(page.getByRole('button', { name: /Parallel Two/ }).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('0x031d...772b').first()).toBeVisible();
   });
 
   test('toggles Activity ⇄ Connections tabs', async ({ page }) => {

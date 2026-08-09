@@ -7,7 +7,7 @@ import { useDAppConnection } from '@/models/dapp-connection';
 import OnboardingScreen from '@/screens/onboarding/OnboardingScreen';
 import { getAllNetworksSync } from '@/models/network';
 import { getGrant, resolveGranted, setGrant } from '@/services/dapp-permissions';
-import { signAccountIndex } from '@/models/dapp-request-routing';
+import { reconcileGrantedAccount } from '@/services/dapp-account-reconcile';
 import { assertChainSupported } from '@/hooks/use-dapp-signing';
 import { WebPopupTransport, isAllowedWebDAppOrigin, type WebPopupPeer } from '@/services/web-popup-transport';
 import { color, font, inter, space, text as textSize } from '@/constants/theme';
@@ -198,13 +198,19 @@ export default function WebRequestScreen(): React.ReactElement {
         setPhase('done');
         closePopupSoon();
       });
-      const nextIndex = signAccountIndex(state.accounts, state.activeAccountIndex, granted[0]);
-      if (nextIndex !== state.activeAccountIndex) dispatch({ type: 'SWITCH_ACCOUNT', index: nextIndex });
-      beginExtensionSign(transport);
+      // §12.1.6 — sign from the account this origin was GRANTED, never whatever
+      // happens to be active. On web this is a no-op: `beginExtensionSign` hands
+      // the granted address to the `sign_request` core, which switches the
+      // account against the session's own row indices and keeps the approval
+      // surface shut until the switch has landed (that ack is where the
+      // `setTimeout(0)` that used to sit on the next line went). Native keeps the
+      // dispatch, in `dapp-account-reconcile.ts`.
+      reconcileGrantedAccount(state.accounts, state.activeAccountIndex, granted[0], (index) =>
+        dispatch({ type: 'SWITCH_ACCOUNT', index }),
+      );
+      beginExtensionSign(transport, { grantedAddress: granted[0] });
       setPhase('processing');
-      // Let a reconciled account reach DAppConnectionProvider's active-account ref
-      // before the approval sheet can be acted on.
-      window.setTimeout(() => void transport.connect(), 0);
+      void transport.connect();
     })();
   }, [peer, state.isLoading, state.hasWallet, state.accounts, state.activeAccountIndex, activeAccount, beginExtensionSign, dispatch, respond]);
 

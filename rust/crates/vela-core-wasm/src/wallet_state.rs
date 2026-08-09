@@ -131,3 +131,10 @@ bridge_class!(
     ExtCacheCore,
     vela_core::app::ext_cache::ExtCache
 );
+
+bridge_class!(
+    /// dApp connection lifecycle: pairing, fingerprint confirmation,
+    /// reconnect policy and the timer discipline behind it.
+    DappSessionCore,
+    vela_core::app::dapp_session::DappSession
+);

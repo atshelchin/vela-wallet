@@ -99,10 +99,43 @@ Waves of parallel agents, gates between waves, e2e after each:
   no-op — feed `sign_request` from `walletSessionAccounts()` so both lists are
   the same list, or a mismatched reconcile silently signs from the wrong
   account (the exact failure §12.1.6 exists to prevent).
+- **`tx_tracker` is not wired, and `activity_feed` needs it.** The feed core
+  re-reads the store (without celebrating) on `ReconcileCompleted{resolved_count}`
+  — the verdict is `tx_tracker`'s, not the feed's. G10 left the seam as
+  `notifyFeedReconciled(n)` in `feed-resident.web.ts`, and today's real caller is
+  `reconcileFeedPending(address)` in the same file, which runs the existing
+  TypeScript `reconcilePendingTransactions` on each tick exactly where `loadData`
+  step 1b ran it. **When `tx_tracker` lands**: delete `reconcileFeedPending` and
+  have that machine call `notifyFeedReconciled` after its own reconcile settles.
+  The core side needs no change, and nothing else in the app calls the seam.
+- **The Home chain-chip filter is applied in the shell, not through
+  `activity_feed`'s `ChainFilterChanged`.** The core's filtered projection is
+  reproduced exactly by dropping non-matching items and eliding the headers that
+  leaves empty (items are newest-first, so a day's rows are contiguous); keeping
+  the unfiltered list is what still lets the network sheet count every chain's
+  events. `ChainFilterChanged` is therefore currently unused on web.
+- **`activity_feed`'s celebration flag is consumed by whichever `StoreLoaded`
+  lands next**, and a tick issues the read and the scan together. If a scan ever
+  answered *before* the store read it raced, the stale read would eat the flag
+  and the new receipt would appear with no toast/glow/haptic. A multi-chain
+  `eth_getLogs` sweep is never faster than an AsyncStorage read, so this is not
+  reachable today — but it is a core-side ordering assumption, not a shell one.
 - **Reference stability in the session resident is load-bearing.** It memoizes
   the view and the projected account array so `state.accounts` identity
   survives a switch, as the reducer's did; eight sites key effects/memos off
   `[state.accounts]`. Do not "simplify" `walletSessionAccounts()` away.
+
+- **`activity_feed`'s celebration flag is not bound to the read that set it**
+  (port-fidelity defect, found during I4). The TypeScript original bound the
+  celebration to a specific `loadData` call by closure; the Rust port consumes
+  the flag on whichever `StoreLoaded` arrives next. A tick issues the store
+  read and the incoming-transfer scan together, so if a scan ever answered
+  before the read it raced, the stale read eats the flag and a genuine receipt
+  lands with no toast, glow or haptic. Unreachable today (an `eth_getLogs`
+  sweep is never faster than an AsyncStorage read) — reproducing it needed a
+  deliberately slowed mock. **Fix: correlate the read** (`ReadTxStore` gains a
+  `read_id`, `StoreLoaded` echoes it, the flag names the read it belongs to),
+  the same echo pattern `manage_tokens` and `token_trust` already use.
 
 ## Verification ledger
 
@@ -114,4 +147,5 @@ Waves of parallel agents, gates between waves, e2e after each:
 | I1 (G1–G5) | typecheck, jest 1554, full e2e | ✅ 69 passed, 0 failed |
 | I2 (G6–G8) | typecheck, lint 0, jest 1583, full e2e | ✅ 69 passed, 0 failed |
 | I3 (G9 session) | typecheck, lint 0, jest 1597, build:web static-renders 25 routes, full e2e | in progress |
-| I4…I5 | per-wave, above | pending |
+| I4 (G10 balance_dashboard + activity_feed) | typecheck, lint 0, jest 1623, build:web static-renders 25 routes | ✅ (e2e pending — dev server held) |
+| I5 | per-wave, above | pending |

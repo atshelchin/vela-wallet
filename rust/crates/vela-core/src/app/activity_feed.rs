@@ -64,7 +64,6 @@
 //! - The web-only `velaSimulateReceipt` dev hook is not ported.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::mem;
 
 use crux_core::capability::Operation;
 use crux_core::macros::effect;
@@ -287,7 +286,15 @@ pub struct FeedToast {
 pub enum FeedOperation {
     /// Read the whole local tx store (`loadTransactions`); the shell maps rows
     /// to [`FeedTxRecord`] and answers a load failure with an empty list.
-    ReadTxStore { address: String },
+    ///
+    /// `read_id` must be echoed back on [`FeedShellResult::StoreLoaded`]. It is
+    /// what binds a celebration to the read that earned it: a tick issues this
+    /// read and the incoming-transfer scan together, so without the echo a
+    /// scan that answered first would let the older read consume the flag and
+    /// a genuine receipt would land with no toast, glow or haptic. The
+    /// TypeScript original got that binding for free from a closure over one
+    /// `loadData` call.
+    ReadTxStore { address: String, read_id: u32 },
     /// Run receipt discovery + persistence (`syncReceivedTransfers`), token
     /// admission via token_trust; answers the count of genuinely-new records
     /// (0 on any failure).
@@ -313,6 +320,8 @@ pub enum FeedShellResult {
     StoreLoaded {
         records: Vec<FeedTxRecord>,
         now_ms: f64,
+        /// Echoed from the [`FeedOperation::ReadTxStore`] that produced it.
+        read_id: u32,
     },
     /// The scan finished; `new_count` new receipts were persisted.
     SyncCompleted { new_count: u32 },
@@ -394,6 +403,18 @@ struct Celebration {
     toast: Option<ToastState>,
 }
 
+/// Mint the next read id and the operation carrying it.
+fn read_store(model: &mut Model) -> (u32, FeedOperation) {
+    model.next_read_id = model.next_read_id.wrapping_add(1);
+    (
+        model.next_read_id,
+        FeedOperation::ReadTxStore {
+            address: model.address.clone(),
+            read_id: model.next_read_id,
+        },
+    )
+}
+
 #[derive(Default)]
 pub struct Model {
     address: String,
@@ -410,7 +431,10 @@ pub struct Model {
     initialized: bool,
     /// The next `StoreLoaded` commit is a post-sync re-read that may
     /// celebrate its newest incoming item.
-    celebrate_on_next_load: bool,
+    celebrate_read_id: Option<u32>,
+    /// Mints [`FeedOperation::ReadTxStore`] ids. Wraps harmlessly: a
+    /// collision needs 2^32 reads outstanding at once.
+    next_read_id: u32,
     /// Ids mid-delete: filtered out of every reload commit until the storage
     /// write settles (invariant ⑤).
     tombstones: BTreeSet<String>,
@@ -469,7 +493,7 @@ impl App for ActivityFeed {
                 model.attempt += 1;
                 model.address = address;
                 model.initialized = false;
-                model.celebrate_on_next_load = false;
+                model.celebrate_read_id = None;
                 // setNewItemId(null); setReceipt(null) — the account-change
                 // reset (`useHomeController.ts:399-402`).
                 model.celebration = None;
@@ -488,12 +512,8 @@ impl App for ActivityFeed {
                 }
                 // Converged records changed in place — re-read, never
                 // celebrate (`useHomeController.ts:287-294`).
-                shell_request(
-                    model.attempt,
-                    FeedOperation::ReadTxStore {
-                        address: model.address.clone(),
-                    },
-                )
+                let (_, op) = read_store(model);
+                shell_request(model.attempt, op)
             }
             Event::PrivacyChanged { hidden } => {
                 model.privacy_hidden = hidden;
@@ -586,7 +606,11 @@ impl App for ActivityFeed {
 
 fn accept(model: &mut Model, result: FeedShellResult) -> Command<FeedEffect, Event> {
     match result {
-        FeedShellResult::StoreLoaded { records, now_ms } => {
+        FeedShellResult::StoreLoaded {
+            records,
+            now_ms,
+            read_id,
+        } => {
             // The raw account-scoped list (`loadActivityTransactions`).
             let lc = model.address.to_lowercase();
             model.records = records
@@ -611,7 +635,10 @@ fn accept(model: &mut Model, result: FeedShellResult) -> Command<FeedEffect, Eve
             // A post-sync re-read may celebrate its newest incoming item —
             // never the first pass (invariant ③ was consumed upstream: the
             // flag is only ever set after `initialized`).
-            if mem::take(&mut model.celebrate_on_next_load) {
+            // Only the read the sync named may celebrate. A stale read that
+            // raced ahead commits its records and leaves the flag standing.
+            if model.celebrate_read_id == Some(read_id) {
+                model.celebrate_read_id = None;
                 let newest_in = model
                     .items
                     .iter()
@@ -678,15 +705,13 @@ fn accept(model: &mut Model, result: FeedShellResult) -> Command<FeedEffect, Eve
                 // (invariant ②).
                 return Command::done();
             }
+            let (read_id, op) = read_store(model);
             if !first_pass {
-                model.celebrate_on_next_load = true;
+                // Name the read this celebration belongs to — any OTHER
+                // StoreLoaded, including one already in flight, leaves it alone.
+                model.celebrate_read_id = Some(read_id);
             }
-            shell_request(
-                model.attempt,
-                FeedOperation::ReadTxStore {
-                    address: model.address.clone(),
-                },
-            )
+            shell_request(model.attempt, op)
         }
 
         FeedShellResult::AliasResolved { addr, name } => match name {
@@ -1036,18 +1061,14 @@ fn non_empty(s: &str) -> Option<String> {
 /// runs these sequentially inside one `loadData`; issuing both at once keeps
 /// the same visible behavior (the read commits the cached feed the moment it
 /// answers; the scan re-reads only when something landed).
-fn load_pipeline(model: &Model) -> Command<FeedEffect, Event> {
+fn load_pipeline(model: &mut Model) -> Command<FeedEffect, Event> {
     if model.address.is_empty() {
         return render();
     }
     let attempt = model.attempt;
+    let (_, read_op) = read_store(model);
     Command::all([
-        shell_request(
-            attempt,
-            FeedOperation::ReadTxStore {
-                address: model.address.clone(),
-            },
-        ),
+        shell_request(attempt, read_op),
         shell_request(
             attempt,
             FeedOperation::ScanIncomingTransfers {

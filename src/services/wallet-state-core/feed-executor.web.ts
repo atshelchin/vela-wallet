@@ -153,6 +153,11 @@ export function createFeedExecutor(
             .map(toFeedRecord)
             .filter((record): record is FeedTxRecord => record !== null),
           now_ms: Date.now(),
+          // Echoed so the core can tell WHICH read this answers. A tick issues
+          // the read and the scan together; without the echo a stale read
+          // consumes the celebration the sync earned and a real receipt lands
+          // with no toast, glow or haptic.
+          read_id: operation.read_id,
         };
       }
       case 'scan_incoming_transfers':
@@ -186,7 +191,12 @@ export function createFeedExecutor(
       case 'read_tx_store':
         // `loadTransactions().catch(() => [])` — ported verbatim: the store is
         // the source of truth even about emptiness.
-        return { type: 'store_loaded', records: [], now_ms: Date.now() };
+        return {
+          type: 'store_loaded',
+          records: [],
+          now_ms: Date.now(),
+          read_id: operation.read_id,
+        };
       case 'scan_incoming_transfers':
         // The TS `catch { return 0 }`: a failed scan is a scan that found
         // nothing, so the feed never flickers behind it.

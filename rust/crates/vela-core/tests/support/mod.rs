@@ -283,6 +283,30 @@ where
         }
     }
 
+    /// Answer the oldest outstanding operation matching `predicate`, leaving
+    /// the others outstanding — for the cases where two operations are
+    /// legitimately in flight and the ORDER they answer in is the thing under
+    /// test (a scan racing a store read, say).
+    pub fn resolve_matching(
+        &mut self,
+        predicate: impl Fn(&<A::Effect as SplitEffect>::Op) -> bool,
+        result: <<A::Effect as SplitEffect>::Op as crux_core::capability::Operation>::Output,
+    ) -> Vec<<A::Effect as SplitEffect>::Op> {
+        let index = self
+            .pending
+            .iter()
+            .position(|request| predicate(&request.operation))
+            .expect("no outstanding shell operation matches");
+        let mut request = self
+            .pending
+            .remove(index)
+            .expect("index came from position()");
+        match self.app.resolve(&mut request, result) {
+            Ok(effects) => self.collect(effects),
+            Err(_) => Vec::new(),
+        }
+    }
+
     pub fn view(&self) -> A::ViewModel {
         self.app.view()
     }

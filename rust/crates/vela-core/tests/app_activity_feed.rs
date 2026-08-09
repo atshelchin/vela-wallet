@@ -76,14 +76,53 @@ fn recv(id: &str, from: &str, value: &str, symbol: &str, ts: f64) -> FeedTxRecor
     r
 }
 
-fn loaded(records: Vec<FeedTxRecord>, now_ms: f64) -> Res {
-    Res::StoreLoaded { records, now_ms }
+/// A `StoreLoaded` echoing an explicit read id.
+fn loaded_for(read_id: u32, records: Vec<FeedTxRecord>, now_ms: f64) -> Res {
+    Res::StoreLoaded {
+        records,
+        now_ms,
+        read_id,
+    }
+}
+
+/// A `StoreLoaded` for the OLDEST outstanding read — what a shell answering in
+/// order produces, and what every test here means unless it says otherwise.
+fn loaded(sut: &Sut, records: Vec<FeedTxRecord>, now_ms: f64) -> Res {
+    loaded_for(oldest_read_id(sut), records, now_ms)
+}
+
+/// The id the oldest outstanding `ReadTxStore` is waiting to be echoed.
+fn oldest_read_id(sut: &Sut) -> u32 {
+    sut.outstanding()
+        .iter()
+        .find_map(|op| match op {
+            Op::ReadTxStore { read_id, .. } => Some(*read_id),
+            _ => None,
+        })
+        .expect("a ReadTxStore is outstanding")
+}
+
+/// Matches any `ReadTxStore` for the default address, whatever its id.
+fn read_op_for(address: &str, read_id: u32) -> Op {
+    Op::ReadTxStore {
+        address: address.to_owned(),
+        read_id,
+    }
 }
 
 fn read_op() -> Op {
-    Op::ReadTxStore {
-        address: ADDR.to_owned(),
-    }
+    read_op_for(ADDR, 0)
+}
+
+/// Zero every read id so an assertion can name the SHAPE of the requested
+/// operations without pinning ids the core mints internally.
+fn shapes(ops: Vec<Op>) -> Vec<Op> {
+    ops.into_iter()
+        .map(|op| match op {
+            Op::ReadTxStore { address, .. } => Op::ReadTxStore { address, read_id: 0 },
+            other => other,
+        })
+        .collect()
 }
 
 fn scan_op() -> Op {
@@ -107,8 +146,10 @@ fn boot(records: Vec<FeedTxRecord>) -> Sut {
     let ops = sut.dispatch(Event::AccountSwitched {
         address: ADDR.to_owned(),
     });
-    assert_eq!(ops, vec![read_op(), scan_op()], "tick = read + scan");
-    sut.resolve(loaded(records, T0));
+    assert_eq!(
+        shapes(ops),
+        vec![read_op(), scan_op()], "tick = read + scan");
+    sut.resolve(loaded(&sut, records, T0));
     sut.resolve(Res::SyncCompleted { new_count: 0 });
     drain_aliases(&mut sut);
     sut
@@ -259,10 +300,12 @@ fn cached_feed_survives_a_noop_sync() {
     assert_eq!(items(&sut).len(), 1);
 
     let ops = sut.dispatch(Event::FocusTick);
-    assert_eq!(ops, vec![read_op(), scan_op()]);
+    assert_eq!(
+        shapes(ops),
+        vec![read_op(), scan_op()]);
     assert_eq!(sut.view(), before, "nothing blanks while requests are out");
 
-    sut.resolve(loaded(vec![s1], T0 + 1_000.0));
+    sut.resolve(loaded(&sut, vec![s1], T0 + 1_000.0));
     let ops = sut.resolve(Res::SyncCompleted { new_count: 0 });
     assert!(ops.is_empty(), "newCount = 0 must not re-read (no flicker)");
     assert_eq!(sut.view(), before);
@@ -273,16 +316,20 @@ fn sync_with_new_receipts_rereads_the_store() {
     let s1 = send("s1", "0xU1", "0xCafe", "10", 100_000.0);
     let mut sut = boot(vec![s1.clone()]);
     sut.dispatch(Event::FocusTick);
-    sut.resolve(loaded(vec![s1], T0 + 1_000.0));
+    sut.resolve(loaded(&sut, vec![s1], T0 + 1_000.0));
     let ops = sut.resolve(Res::SyncCompleted { new_count: 2 });
-    assert_eq!(ops, vec![read_op()], "something landed — read it");
+    assert_eq!(
+        shapes(ops),
+        vec![read_op()], "something landed — read it");
 }
 
 #[test]
 fn live_tick_runs_the_same_pipeline() {
     let mut sut = boot(vec![]);
     let ops = sut.dispatch(Event::LiveTick);
-    assert_eq!(ops, vec![read_op(), scan_op()]);
+    assert_eq!(
+        shapes(ops),
+        vec![read_op(), scan_op()]);
 }
 
 // ---------------------------------------------------------------------------
@@ -295,12 +342,14 @@ fn first_sync_pass_never_celebrates_but_the_second_does() {
     sut.dispatch(Event::AccountSwitched {
         address: ADDR.to_owned(),
     });
-    sut.resolve(loaded(vec![], T0));
+    sut.resolve(loaded(&sut, vec![], T0));
     // First pass discovers a 2-receipt BACKLOG.
     let ops = sut.resolve(Res::SyncCompleted { new_count: 2 });
-    assert_eq!(ops, vec![read_op()]);
+    assert_eq!(
+        shapes(ops),
+        vec![read_op()]);
     let r1 = recv("r1", "0xBob", "5", "USDT", 100_000.0);
-    let ops = sut.resolve(loaded(vec![r1.clone()], T0 + 1_000.0));
+    let ops = sut.resolve(loaded(&sut, vec![r1.clone()], T0 + 1_000.0));
     assert_eq!(
         ops,
         vec![Op::ResolveRecipientIdentity {
@@ -317,12 +366,14 @@ fn first_sync_pass_never_celebrates_but_the_second_does() {
 
     // Second pass: a genuinely-new in-session receipt.
     sut.dispatch(Event::FocusTick);
-    sut.resolve(loaded(vec![r1.clone()], T0 + 2_000.0));
+    sut.resolve(loaded(&sut, vec![r1.clone()], T0 + 2_000.0));
     let ops = sut.resolve(Res::SyncCompleted { new_count: 1 });
-    assert_eq!(ops, vec![read_op()]);
+    assert_eq!(
+        shapes(ops),
+        vec![read_op()]);
     let newer_send = send("s9", "0xU9", "0xCafe", "1", 300_000.0);
     let r2 = recv("r2", "0xBob", "7", "USDT", 200_000.0);
-    let ops = sut.resolve(loaded(vec![newer_send, r2, r1], T0 + 3_000.0));
+    let ops = sut.resolve(loaded(&sut, vec![newer_send, r2, r1], T0 + 3_000.0));
     assert_eq!(
         ops,
         vec![
@@ -352,9 +403,11 @@ fn reconcile_rereads_without_celebrating() {
         .dispatch(Event::ReconcileCompleted { resolved_count: 0 })
         .is_empty());
     let ops = sut.dispatch(Event::ReconcileCompleted { resolved_count: 2 });
-    assert_eq!(ops, vec![read_op()]);
+    assert_eq!(
+        shapes(ops),
+        vec![read_op()]);
     let r1 = recv("r1", "0xBob", "5", "USDT", 100_000.0);
-    let ops = sut.resolve(loaded(vec![r1], T0 + 1_000.0));
+    let ops = sut.resolve(loaded(&sut, vec![r1], T0 + 1_000.0));
     assert_eq!(
         ops,
         vec![Op::ResolveRecipientIdentity {
@@ -377,10 +430,10 @@ fn privacy_suppresses_the_toast_but_not_glow_or_haptic() {
     sut.dispatch(Event::PrivacyChanged { hidden: true });
 
     sut.dispatch(Event::FocusTick);
-    sut.resolve(loaded(vec![r1.clone()], T0 + 1_000.0));
+    sut.resolve(loaded(&sut, vec![r1.clone()], T0 + 1_000.0));
     sut.resolve(Res::SyncCompleted { new_count: 1 });
     let r2 = recv("r2", "0xBob", "7", "USDT", 200_000.0);
-    let ops = sut.resolve(loaded(vec![r2, r1], T0 + 2_000.0));
+    let ops = sut.resolve(loaded(&sut, vec![r2, r1], T0 + 2_000.0));
     assert_eq!(
         ops,
         vec![
@@ -408,11 +461,11 @@ fn privacy_suppresses_the_toast_but_not_glow_or_haptic() {
 fn celebrated(records_before: Vec<FeedTxRecord>, new_record: FeedTxRecord) -> Sut {
     let mut sut = boot(records_before.clone());
     sut.dispatch(Event::FocusTick);
-    sut.resolve(loaded(records_before.clone(), T0 + 1_000.0));
+    sut.resolve(loaded(&sut, records_before.clone(), T0 + 1_000.0));
     sut.resolve(Res::SyncCompleted { new_count: 1 });
     let mut all = vec![new_record];
     all.extend(records_before);
-    let ops = sut.resolve(loaded(all, T0 + 2_000.0));
+    let ops = sut.resolve(loaded(&sut, all, T0 + 2_000.0));
     assert_eq!(
         ops,
         vec![
@@ -483,14 +536,14 @@ fn deleted_row_is_not_resurrected_by_a_concurrent_reload() {
     assert!(items(&sut).is_empty(), "optimistic removal is instant");
 
     // The stale read commits — the tombstone filters the ghost.
-    sut.resolve(loaded(vec![s1], T0 + 1_000.0));
+    sut.resolve(loaded(&sut, vec![s1], T0 + 1_000.0));
     assert!(items(&sut).is_empty(), "the ghost never repaints");
     sut.resolve(Res::SyncCompleted { new_count: 0 });
 
     // The write settles; post-delete reloads stay clean.
     assert!(sut.resolve(Res::DeleteCommitted { id: "s1".to_owned() }).is_empty());
     sut.dispatch(Event::FocusTick);
-    sut.resolve(loaded(vec![], T0 + 2_000.0));
+    sut.resolve(loaded(&sut, vec![], T0 + 2_000.0));
     sut.resolve(Res::SyncCompleted { new_count: 0 });
     assert!(items(&sut).is_empty());
 }
@@ -510,7 +563,7 @@ fn failed_delete_lets_the_next_reload_resurrect_the_row() {
     sut.resolve(Res::DeleteFailed { id: "s1".to_owned() });
 
     sut.dispatch(Event::FocusTick);
-    sut.resolve(loaded(vec![s1], T0 + 1_000.0));
+    sut.resolve(loaded(&sut, vec![s1], T0 + 1_000.0));
     sut.resolve(Res::SyncCompleted { new_count: 0 });
     assert_eq!(items(&sut).len(), 1, "the record still exists — show it");
 }
@@ -598,7 +651,7 @@ fn stored_name_blocks_network_and_attempts_never_repeat() {
     sut.dispatch(Event::AccountSwitched {
         address: ADDR.to_owned(),
     });
-    let ops = sut.resolve(loaded(
+    let ops = sut.resolve(loaded(&sut, 
         vec![named, unnamed, unnamed_again],
         T0,
     ));
@@ -623,7 +676,7 @@ fn stored_name_blocks_network_and_attempts_never_repeat() {
     // A reload re-derives pending addresses — attempted ones never re-ask.
     sut.dispatch(Event::FocusTick);
     let r3 = recv("r3", "0xBEEF", "4", "USDT", 50_000.0);
-    let ops = sut.resolve(loaded(
+    let ops = sut.resolve(loaded(&sut, 
         vec![
             send("s1", "0xU1", "0xCafe", "1", 300_000.0),
             recv("r1", "0xBeEf", "2", "USDT", 200_000.0),
@@ -647,7 +700,7 @@ fn resolved_name_wins_over_stored_for_display() {
     sut.dispatch(Event::AccountSwitched {
         address: ADDR.to_owned(),
     });
-    let ops = sut.resolve(loaded(vec![with_stored, bare], T0));
+    let ops = sut.resolve(loaded(&sut, vec![with_stored, bare], T0));
     assert_eq!(
         ops,
         vec![Op::ResolveRecipientIdentity {
@@ -677,7 +730,7 @@ fn unresolved_alias_never_retries() {
     sut.dispatch(Event::AccountSwitched {
         address: ADDR.to_owned(),
     });
-    let ops = sut.resolve(loaded(vec![r1.clone()], T0));
+    let ops = sut.resolve(loaded(&sut, vec![r1.clone()], T0));
     assert_eq!(ops.len(), 1);
     sut.resolve(Res::SyncCompleted { new_count: 0 });
     let ops = sut.resolve(Res::AliasResolved {
@@ -688,7 +741,7 @@ fn unresolved_alias_never_retries() {
     assert!(items(&sut)[0].alias.is_none());
 
     sut.dispatch(Event::FocusTick);
-    let ops = sut.resolve(loaded(vec![r1], T0 + 1_000.0));
+    let ops = sut.resolve(loaded(&sut, vec![r1], T0 + 1_000.0));
     assert!(ops.is_empty(), "no second network attempt");
     sut.resolve(Res::SyncCompleted { new_count: 0 });
 }
@@ -757,10 +810,11 @@ fn switching_accounts_drops_in_flight_answers() {
         address: "0xNewAccount".to_owned(),
     });
     assert_eq!(
-        ops,
+        shapes(ops),
         vec![
             Op::ReadTxStore {
-                address: "0xNewAccount".to_owned()
+                address: "0xNewAccount".to_owned(),
+                read_id: 0
             },
             Op::ScanIncomingTransfers {
                 address: "0xNewAccount".to_owned()
@@ -776,7 +830,7 @@ fn switching_accounts_drops_in_flight_answers() {
 
     // The OLD account's answers land late — and change nothing.
     let stale_extra = send("s2", "0xU2", "0xCafe", "99", 300_000.0);
-    let ops = sut.resolve(loaded(vec![s1, stale_extra], T0 + 1_000.0));
+    let ops = sut.resolve(loaded(&sut, vec![s1, stale_extra], T0 + 1_000.0));
     assert!(ops.is_empty());
     assert_eq!(sut.view(), before, "a stale commit never paints");
     let ops = sut.resolve(Res::SyncCompleted { new_count: 5 });
@@ -789,7 +843,7 @@ fn switching_accounts_drops_in_flight_answers() {
     theirs.to = "0xCafe".to_owned();
     theirs.to_name = Some("Ann".to_owned());
     theirs.user_op_hash = "0xN".to_owned();
-    sut.resolve(loaded(vec![theirs], T0 + 2_000.0));
+    sut.resolve(loaded(&sut, vec![theirs], T0 + 2_000.0));
     sut.resolve(Res::SyncCompleted { new_count: 0 });
     let ids: Vec<String> = items(&sut).into_iter().map(|i| i.id).collect();
     assert_eq!(ids, vec!["n1"]);
@@ -828,4 +882,65 @@ fn empty_address_is_inert() {
         })
         .is_empty());
     assert!(sut.view().rows.is_empty());
+}
+
+/// A celebration belongs to the read the sync asked for — not to whichever
+/// read answers next.
+///
+/// A tick issues the store read and the incoming-transfer scan together. If the
+/// scan answers first, the sync flags a celebration and asks for a FRESH read;
+/// the earlier read is still in flight and its snapshot predates the receipt.
+/// Before `read_id` correlation that stale answer consumed the flag, and the
+/// real receipt landed with no toast, glow or haptic — a regression against the
+/// TypeScript original, which bound the celebration to one `loadData` by
+/// closure.
+#[test]
+fn a_stale_read_never_eats_the_celebration_the_sync_earned() {
+    let old = send("tx-old", "uoh-old", "0xdead", "5", T0 / 1000.0);
+    let mut sut = boot(vec![old.clone()]);
+
+    // A tick: read + scan, both outstanding. Remember the tick's read id.
+    let ops = sut.dispatch(Event::FocusTick);
+    assert_eq!(shapes(ops), vec![read_op(), scan_op()]);
+    let stale_read = oldest_read_id(&sut);
+
+    // The scan answers FIRST: one receipt landed. That flags a celebration and
+    // asks for a read of its own.
+    sut.resolve_matching(
+        |op| matches!(op, Op::ScanIncomingTransfers { .. }),
+        Res::SyncCompleted { new_count: 1 },
+    );
+    let fresh_read = sut
+        .outstanding()
+        .iter()
+        .filter_map(|op| match op {
+            Op::ReadTxStore { read_id, .. } => Some(*read_id),
+            _ => None,
+        })
+        .find(|id| *id != stale_read)
+        .expect("the sync asked for a read of its own");
+
+    // The stale read finally answers — with the pre-receipt snapshot.
+    sut.resolve_matching(
+        |op| matches!(op, Op::ReadTxStore { read_id, .. } if *read_id == stale_read),
+        loaded_for(stale_read, vec![old.clone()], T0),
+    );
+    drain_aliases(&mut sut);
+    assert!(
+        sut.view().toast.is_none(),
+        "a snapshot that predates the receipt must not celebrate"
+    );
+
+    // The read the sync asked for arrives, carrying the receipt. THIS one
+    // celebrates.
+    let landed = recv("tx-in", "0xbeef", "9", "USDC", T0 / 1000.0 + 1.0);
+    sut.resolve_matching(
+        |op| matches!(op, Op::ReadTxStore { read_id, .. } if *read_id == fresh_read),
+        loaded_for(fresh_read, vec![landed, old], T0),
+    );
+    drain_aliases(&mut sut);
+    assert!(
+        sut.view().toast.is_some(),
+        "the receipt's own read must celebrate"
+    );
 }

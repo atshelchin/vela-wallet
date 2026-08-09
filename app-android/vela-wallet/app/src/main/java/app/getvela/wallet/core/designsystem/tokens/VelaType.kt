@@ -52,3 +52,11 @@ val VelaFontFamily: FontFamily = FontFamily(
     Font(R.font.plus_jakarta_sans_semibold, VelaFontWeight.semibold),
     Font(R.font.plus_jakarta_sans_bold, VelaFontWeight.bold),
 )
+
+/**
+ * font.mono projection. No mono face is bundled (DV-004), so this resolves to
+ * the platform monospace family — enough for the fixed-width hex blocks the
+ * spec-018 mocks render (contact-row addresses, the C2 地址 block). Declared in
+ * the token layer so feature code never names a font itself.
+ */
+val VelaMonoFontFamily: FontFamily = FontFamily.Monospace

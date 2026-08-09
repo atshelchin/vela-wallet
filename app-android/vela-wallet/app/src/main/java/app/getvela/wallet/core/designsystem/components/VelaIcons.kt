@@ -305,4 +305,130 @@ object VelaIcons {
             "M12 17h.01",
         )
     }
+
+    // --- Spec 018 contacts utility glyphs -------------------------------------
+    // Bodies copied verbatim from specs/018-contacts-ui/contracts/icons.json
+    // (lucide v1.11.0). <circle>/<rect> elements are expressed as the equivalent
+    // arc/rounded-rect path data — Compose has no primitive-shape node.
+
+    /** lucide user-round-plus — header add-contact button · 新建联系人 row. */
+    val UserRoundPlus: ImageVector by lazy {
+        strokeIcon(
+            "VelaUserRoundPlus",
+            "M2 21a8 8 0 0 1 13.292-6",
+            // circle cx=10 cy=8 r=5
+            "M5 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0",
+            "M19 16v6",
+            "M22 19h-6",
+        )
+    }
+
+    /** lucide users-round — group tile (GroupRow) · desktop rail rows. */
+    val UsersRound: ImageVector by lazy {
+        strokeIcon(
+            "VelaUsersRound",
+            "M18 21a8 8 0 0 0-16 0",
+            // circle cx=10 cy=8 r=5
+            "M5 8a5 5 0 1 0 10 0a5 5 0 1 0-10 0",
+            "M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3",
+        )
+    }
+
+    /** lucide folder-plus — 新建分组. */
+    val FolderPlus: ImageVector by lazy {
+        strokeIcon(
+            "VelaFolderPlus",
+            "M12 10v6",
+            "M9 13h6",
+            "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 " +
+                "7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z",
+        )
+    }
+
+    /** lucide download — 从文件导入 / 导入通讯录 / 导入到本组. */
+    val Download: ImageVector by lazy {
+        strokeIcon(
+            "VelaDownload",
+            "M12 15V3",
+            "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+            "m7 10 5 5 5-5",
+        )
+    }
+
+    /** lucide upload — 导出通讯录 / 导出全部通讯录 / 导出本组. */
+    val Upload: ImageVector by lazy {
+        strokeIcon(
+            "VelaUpload",
+            "M12 3v12",
+            "m17 8-5-5-5 5",
+            "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+        )
+    }
+
+    /** lucide pencil — C2 header edit · 编辑分组 / 重命名分组 / 编辑. */
+    val Pencil: ImageVector by lazy {
+        strokeIcon(
+            "VelaPencil",
+            "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 " +
+                "0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
+            "m15 5 4 4",
+        )
+    }
+
+    /** lucide trash-2 — destructive delete rows. */
+    val Trash2: ImageVector by lazy {
+        strokeIcon(
+            "VelaTrash2",
+            "M10 11v6",
+            "M14 11v6",
+            "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6",
+            "M3 6h18",
+            "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+        )
+    }
+
+    /** lucide ellipsis — page-header ⋯ button. */
+    val Ellipsis: ImageVector by lazy {
+        strokeIcon(
+            "VelaEllipsis",
+            // circle cx=12 cy=12 r=1
+            "M11 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0",
+            // circle cx=19 cy=12 r=1
+            "M18 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0",
+            // circle cx=5 cy=12 r=1
+            "M4 12a1 1 0 1 0 2 0a1 1 0 1 0-2 0",
+        )
+    }
+
+    /** lucide qr-code — 二维码 contact action. */
+    val QrCode: ImageVector by lazy {
+        strokeIcon(
+            "VelaQrCode",
+            // rect x=3 y=3 w=5 h=5 rx=1
+            "M4 3h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+            // rect x=16 y=3 w=5 h=5 rx=1
+            "M17 3h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
+            // rect x=3 y=16 w=5 h=5 rx=1
+            "M4 16h3a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1z",
+            "M21 16h-3a2 2 0 0 0-2 2v3",
+            "M21 21v.01",
+            "M12 7v3a2 2 0 0 1-2 2H7",
+            "M3 12h.01",
+            "M12 3h.01",
+            "M12 16v.01",
+            "M16 12h1",
+            "M21 12v.01",
+            "M12 21v-1",
+        )
+    }
+
+    /** lucide plus — 添加成员 ghost row · + 分组 chip. */
+    val Plus: ImageVector by lazy {
+        strokeIcon("VelaPlus", "M5 12h14", "M12 5v14")
+    }
+
+    /** lucide chevron-left — mobile back affordance (C2/C4). */
+    val ChevronLeft: ImageVector by lazy {
+        strokeIcon("VelaChevronLeft", "m15 18-6-6 6-6")
+    }
 }

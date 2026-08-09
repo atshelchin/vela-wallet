@@ -19,12 +19,14 @@ specs 017+ — the recommended order is in §Summary below.
 **仓库根**: `/Volumes/data/production/agent-2/vela-wallet`。10 份领域报告共产出 ~120 条业务状态条目（high 严重度约 45 条），无一份报告发现指定文件缺失；全部文件已实读。既有 Crux 先例是 spec 011 的 `create_wallet` / `login` 两台机器（`rust/crates/vela-core/src/app/`，JSON/wasm 边界 + `src/services/crux/effect-loop.ts` + `onboarding-core/executor.web.ts`），本清单所有提案沿用其范式：Model 私有、ViewModel 语义化投影、ShellOperation 是"句子"、失败是 serde variant、i18n key 留 shell。
 
 ### 状态分布与耦合热点
+
 1. **发送流程**（useSendController.ts 1273 行，40+ useState/useRef）：多步表单、三种模式（单发/split/multiSelect）、金额/费用/储备数学、单飞锁、乐观确认——资金不变量最密集，几乎全部靠 useRef + 注释纪律维持。
 2. **dApp 签名审批**（dapp-connection.tsx 1073 行 Provider）：BUG-2/BUG-3/funding-rid 三类历史资金 bug 全源于 React 异步状态与同步锁错配；4 个同步 ref 补丁是 Crux 同步 update 的直接受益者。
 3. **余额聚合**（useHomeController.ts 649 行）：max(live,cached)、流式合并、退避重试、stale-account 竞态守卫（7 处手工 addressRef 检查）。
 4. **模块级可变单例遍地**：tokenCache、nonce/deployed 缓存、banMap、descriptorCache、identity memo、rpc failed 集合——被跨域同步读取，迁移必须一次性划定所有权。
 
 ### 跨分析员重叠的合并裁决
+
 - **三个并行轮询者**（safe-transaction 的 waitForReceipt、tx-reconciler、TransactionReceipt 自轮询）→ 统一为 `tx_tracker` 一台机器（报告 2/8/1 一致建议）。
 - **费用数学被 3 份报告分别提名**（send 的 fee_policy、签名页的 fee_quote、GasFeeCard 共享组件）→ 统一为 `fee_policy` 纯模块，send 与 dapp 签名共用，避免"显示即签名"链路劈成两套。
 - **token 信任模型分裂在 3 份报告**（transfer-monitor allowlist、token-autoadd 准入、tx-simulation 不对称信任）→ 统一为 `token_trust`：它们是同一个反诈骗安全模型（收入需可信来源、绝不从模拟日志入账），且经 getCachedHeldTokens 隐式互相耦合。
@@ -34,14 +36,17 @@ specs 017+ — the recommended order is in §Summary below.
 - **display_currency**（报告 1 的 money display + 报告 6 的首启种子规则）→ 合并为一台。
 
 ### 命名澄清（分析员实证）
+
 - 仓库**没有 WalletConnect SDK**——"WalletPair"是自研 WS relay + X25519 指纹配对协议；会话与授权均**无 TTL**（被动发现过期）。
 - `abi-decode.ts`/`abi.ts`/`attestation-parser.ts`/`safe-address.ts` 等标注 QUARANTINED byte-frozen oracle，真实现已在 vela-core（spec 001），不属本次抽取。
 - `src/app/` 下大量文件是 2 行 re-export 路由壳；真实状态主体在 `src/screens/*/use*Controller.ts` 与 `src/services/`。
 
 ### 测试安全网（报告 10）
+
 ~100 个 service 层 jest 是现成行为规格书；e2e 18 个 Playwright spec 用**屏上英文文案**定位（无 testID）——迁移期间 Render 输出文案必须逐字节保持。3 个 jest 是对源码文本的 grep 断言（send-same-fee-token / send-tempo-gate / currency-picker-scope），逻辑进 Rust 的那个 PR 必须同步重写。Safari 真机矩阵（4 条资金安全不变量）不在 CI，相关迁移需手动重跑 `e2e/safari/run_matrix.py`。命令：`npm run test:core`（cargo test）、`npm run dump:vectors`/`verify:wasm`（平价工作流）、`npm run test:e2e`。
 
 ### 建议迁移顺序
+
 P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化）→ `clear_signing` → `tx_tracker`（统一三轮询者）→ `sign_request` → `send`（最大、收益最高）。P2 以 `rpc_pool` 决策核与 `session` 先行（所有资金流程的上游真相源）。任何 P1 动工前必须先解决 open_questions 第 1 条（native 双实现策略）。
 
 ## Candidate machines
@@ -59,6 +64,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①显示即签名：in-band 签名费用与 confirm 展示的 quotedFee 逐字一致（useSendController.ts:933-943; safe-transaction.ts:1286-1296）②未通过地址/金额/余额校验绝不进 confirm；估算失败/15s 超时绝不带假预览前进（useSendController.ts:651-791, 724-784）③tx 进行中 Back 必须拒绝（:1116）；~20s Phase-2 等待中取消后 passkey 弹窗绝不复活（:80-83）④单飞锁 generation token：被取消 promise 的 stale end 绝不释放新发送的锁（reentry-lock.ts:27-51, issue #91）⑤bundler 接受后慢/失败回执绝不把已提交付款翻成 error（useSendController.ts:1000-1004）⑥批量兄弟记录单次原子写（:1035-1039）；patch 先 await pendingWrites（:1045-1049）⑦fee-hold 是等待不是失败（:1051-1058）⑧同资产费用超限的注定失败批绝不到达 passkey（:860-875; safe-transaction.ts:310-332 sameAssetFeeLimit）⑨Max 字符串精确：toBaseUnits(result)+reserve===balance（:793-848; batch-send.ts:176-179）⑩split ≤60 行、sumSplitBaseUnits≤余额且与提交同一 helper（MultiRecipientEditor.tsx:56-96; batch-send.ts:42,92-101）⑪multiSelect 单链、原生行留 EntryPoint prefund、erc20 费用币 2× 裁剪、预览与签名同一 multiTokenSpecs（use-token-multi-select.ts:49-52; batch-send.ts:150-201; useSendController.ts:559-568）⑫EIP-681 金额按链上真实 decimals 还原而非链接声称的 dec（useSendController.ts:205-216）⑬split 行内扫码只取地址绝不清空其他行（SendScreen.tsx:184-189）⑭签名前金库复查覆盖预检后竞态窗口（:926-930; bundler-service.ts:787-839）⑮原始 RPC 异常绝不呈现在资金确认屏（:1097-1103）
 
 **Sources**:
+
 - `src/screens/wallet/useSendController.ts`
 - `src/screens/wallet/SendScreen.tsx`
 - `src/screens/wallet/send-utils.ts`
@@ -90,6 +96,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①报价只对其计算所在链有效，晚到的旧链报价绝不污染新表单（useSendController.ts:119-121; TransactionFeeEstimate.chainId safe-transaction.ts:265）②换算永不 undercharge：native USD 价向上取整、fee 币价向下取整（safe-transaction.ts:351-363）③稳定币最小 $0.01 / native 最小 0.00001；Tempo recipient 变更或低于 floor 即拒签（safe-transaction.ts:1087-1095）④bundler 报 0 价视为『不能报价』走本地兜底（:2070-2073）⑤undeployed 账户缺 publicKeyHex 绝不估算（initCode 必需, :634-642）⑥离开 confirm 必须清 erc20 估价防下游储备数学读到 0（useSendController.ts:467-473）⑦估费失败/进行中/重报价中确认必须禁用（SigningSheet.tsx:576-583）；新签名请求必须重置费资产（:247-249）⑧balance<fee 的费用资产禁选（FeeTokenSelector.tsx:74）⑨估算必须用真实 calldata 形状（防 Arbitrum 8× 过收费, useSendController.ts:734-753）
 
 **Sources**:
+
 - `src/services/safe-transaction.ts (242-434, 551-765, 1918-2086)`
 - `src/services/tempo.ts`
 - `src/services/batch-send.ts (136-201)`
@@ -116,6 +123,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①BUG-2：已 reject（4001 已发）的请求绝不允许仍广播交易或对同 id 再发成功；isSubmitting 后 swipe=dismiss 不 reject（dapp-connection.tsx:705-709, 851, 859; SigningRequestModal.tsx:34-42）②BUG-3：同 tick 双击绝不产生两次并发提交/两次 passkey（:632-633）③funding retry 必须与发起请求同 rid 且携带原 capped opts（:918-937）；晚到的充值 sheet 不劫持新请求（:860-864）④§4：持久记录先于 dApp 可轮询到的结果落盘（:753-770; dapp-history.ts:47-206）⑤F2：响应必须发给拥有该请求的 transport（dapp-request-routing.ts:26-76; dapp-connection.tsx:775）；F3/F4：签名/展示/历史用请求自己的链与 dApp 身份（:336-388）⑥切换全局链必须取消绑定旧链的挂起签名（4001 'wallet switched chains', :376-383）；不支持的链进 UI 前 4902 拒绝（use-dapp-signing.ts:105-156）⑦§12.1.6：先切到被授权账户、批准面才可操作；地址与 granted 不一致 4100 拒绝，绝不静默换签名者（dapp-request-routing.ts:67-76; web-request.tsx:190-207; ExtensionSignController.tsx:125-133）⑧extension 同一 rid 绝不二次签名；只有明确用户拒绝才落盘 4001，其余失败走可恢复 4900；>5min 请求不签（extension-bridge-transport.ts:66-207）⑨签名/提交/记录用 paramsOverride(capped) 而非原始请求（dapp-connection.tsx:638）⑩批量必须先拒绝不支持的 required capability(5700) 再触碰钱包（use-dapp-signing.ts:66-84, 403）
 
 **Sources**:
+
 - `src/models/dapp-connection.tsx (203-946)`
 - `src/models/dapp-request-routing.ts`
 - `src/components/signing/SigningRequestModal.tsx (34-42)`
@@ -144,6 +152,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①任何代码路径不得放出 ≥cap 的链上额度；UI 门控 + 提交端 enforceNoUnlimited fail-closed 双保险（approval-guard.ts 全文; use-dapp-signing.ts:364 单笔, 413-415 批量逐 leg）②rewrite 只改目标 32 字节字，assertOnlyWordChanged 否则抛错（approval-guard.ts:432-440）③离链 permit 签名绝不改写（改写使签名与 dApp 上链 struct 脱钩回滚）——走明示同意而非静默封顶（:223, 376-384; SigningSheet.tsx:421-423）④unbounded 请求初始 choice=null，用户选定有限额/revoke 前确认禁用（EditableApproveCard.tsx:85-107; SigningSheet.tsx:576-583）；custom ≥cap → choice=null+报错（:101-104）⑤布尔 grant-all 默认不预选，强迫 deliberate tap（:217）；setApprovalForAll 只有 revoke/明示 grant 两种改写⑥批量每个 granting leg 必须 capped/revoked/明示 grant 才能确认（SigningSheet.tsx:583; BatchCallsView.tsx:40-53）⑦『increase by 100』绝不读作『cap at 100』——读链上 allowance 显示合计，读失败仍须警示叠加语义（ApprovalView.tsx:40-66, 143-171）⑧typed-data 金额用十进制字符串防 JS number 精度损失（approval-guard.ts:359-361）⑨未验证 decimals 必须显式警示（EditableApproveCard.tsx:200-202; PermitSignView.tsx:103-105）
 
 **Sources**:
+
 - `src/services/approval-guard.ts`
 - `src/components/signing/EditableApproveCard.tsx`
 - `src/components/signing/SigningSheet.tsx (196-228, 316-387, 527-583)`
@@ -169,6 +178,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①绝不对未知 token 静默假设 18 位小数——查链失败则 18+unverified 显式旗标（clear-signing.ts:362-363）②ERC-165 只缓存确定性结论，RPC 不可达≠不支持（:186-201）③partial/unverified/expired 时风险下限 caution 绝不读作 safe（:1266-1270）；任何 warning 字段→danger④0 字段解出宁盲签不给半真相（:587-590）；共享 selector(approve/transferFrom) 必须判型后再渲染（:164-171）⑤SIWE domain 必须裸 authority——含 userinfo/path/scheme 的伪装直接判非 SIWE（siwe.ts:45）；CRLF 归一防锚点绕过（:33-36）；origin 不可解析→unknown 绝不假匹配（:88-92）；检测必须用请求自己的 dApp 身份（F3）⑥显示路径与签名路径必须用同一 isHexPayload 谓词（decode-sign-message.ts:33-66）；非 hex payload 按 UTF-8 签名（use-dapp-signing.ts:180-193）⑦eth_sign 绝不以平静的消息视图呈现（SigningSheet.tsx:465-470）；描述符解析期间绝不先闪盲签视图（:441-447）；授权检测优先于描述符（:426）⑧模拟不对称信任：SENT 可信、RECEIVED 仅可信集显示金额；重放模式用签名时刻持久化的 replaySim 绝不重算（SigningSheet.tsx:68-93, 407-415; dapp-connection.tsx:642, 742）
 
 **Sources**:
+
 - `src/services/clear-signing.ts`
 - `src/services/siwe.ts`
 - `src/services/decode-sign-message.ts`
@@ -195,6 +205,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①超时/不可达绝不判定失败——op 可能仍落地，误标 failed 诱导重发→双花（safe-transaction.ts:2185-2332; useSendController.ts:1000-1004）②fee-hold 保持 pending 仅换措辞，relay 排队中（safe-transaction 的 UserOpFeeHoldError; useSendController.ts:1051-1058）③rejected/确定性 drop/revert 才置 failed 且立即终止（waitForReceipt 分类; tx-reconciler.ts:205-252）④>24h 停止轮询但保持 pending——诚实的 unknown 而非误标失败（tx-reconciler.ts:16-23, 29-36）⑤同一 hash 多消费者共享 3s 节流请求，绝不加倍打 bundler（safe-transaction.ts:2237-2240; tx-reconciler.ts:117-197）⑥pending 记录必须跨应用重启存活并最终 resolve（dapp-connection.tsx:1029-1048 启动恢复扫描）⑦pending→confirmed 同 id 原地更新，绝不产生第二条（dapp-history.ts）⑧unreachable≠pending：诚实区分（net.ts 的 timeout/aborted/network 三分类）
 
 **Sources**:
+
 - `src/services/tx-reconciler.ts`
 - `src/services/safe-transaction.ts (2185-2332)`
 - `src/components/ui/TransactionReceipt.tsx (593-629)`
@@ -220,6 +231,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①address 恒等于 accounts[active_index].address；越界 SWITCH 整体 no-op 绝不把 address 置空（wallet-state.ts:12-85, :69）②存储中 address≠computeAddress(publicKeyHex) 的账户绝不原样展示（资金流向错误 Safe）；单账户迁移失败保留旧地址不破坏存储、不阻塞其余账户（:112-141, 126-129）③savedIndex 越界钳制为 0；恢复失败必落 LOADED_EMPTY 绝不卡 isLoading④加载窗口期间绝不持久化索引（初始 0 会覆盖用户保存值, :144-148）⑤存在未同步 pending upload 时绝不无警告登出（SettingsScreen.tsx:1416-1426, 1613-1646; storage.ts:101-104）⑥ADD_ACCOUNT 后新账户必须激活⑦切换器 dispatch 原始 index 而非显示位置（accounts.ts:21-40; AccountSwitcherModal.tsx:76-90）⑧无钱包时不停留在资金操作界面；isLoading 期间不做跳转判定（src/app/index.tsx:9-21）
 
 **Sources**:
+
 - `src/models/wallet-state.ts`
 - `src/services/storage.ts (49-79, 565-569)`
 - `src/services/accounts.ts`
@@ -245,6 +257,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①绝不显示『自信但偏小』的数字——partial 时取 max(live, cached)（useHomeController.ts:167-188）②绝不显示假 $0 后跳变真值——未知即骨架（:186-188）③常规抖动绝不立刻提示『仍在更新』——3 次静默重试耗尽才 notice（:46-54, 83-91, 350-366）④刷新中途总额绝不掉零——慢链保持上次值（:318-335; wallet-api.ts:167-220 每链 18s cap）⑤旧账户慢请求绝不画进新账户（7 处 addressRef 检查 :273-369 → Model 带 address 后按构造丢弃）⑥缓存只允许存完整总额——partial 落盘毒化 max 兜底（:340-348; balance-cache.ts:1-74, 24h TTL）⑦限流链自愈，绝不弹『换 RPC』横幅，余额安静回落缓存值（rpc-pool.ts:156-185; HomeScreen.tsx:133-139）⑧隐私威胁模型是递手机：隐藏后重启绝不恢复可见；所有金额面同时遮蔽含收款 toast 抑制与 fiat 不传（use-balance-privacy.ts:25-40; HomeScreen.tsx:176-180, 248-250）；hydrate 竞态用户操作赢⑨手动 pull 必须 forceRefresh 绕过 TTL（wallet-api.ts:55-133）；后台/非激活绝不轮询（:373-395）⑩切换器打开瞬间必须有数字——缓存先画（:451-479）
 
 **Sources**:
+
 - `src/screens/wallet/useHomeController.ts`
 - `src/screens/wallet/HomeScreen.tsx (95-139, 264-278)`
 - `src/services/balance-cache.ts`
@@ -269,6 +282,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①绝不把已存 code 与 rate=1 默认值配对渲染（¥12 vs ¥1,860 错量级, use-display-currency.ts:20-42; currency.ts:113-201）②首启种子只在真实汇率解析成功后才持久化（currency.ts:128-152）③用户显式选择绝不被异步种子覆盖（:146-150，提交前 re-read 的竞态窗口在核内消失）④key 缺失恒等于『从未选择』⑤display 路径可兜 1，种子/支持性判定绝不把『取不到』当 1（resolveRate vs getRate 分离, currency.ts:178-201）⑥缓存换 endpoint 必须失效（fiat-fx.ts:57-108 按 URL 键控）⑦批量导入的 per-batch 货币覆盖绝不改写全局（issue #80, currency-picker-scope.test）
 
 **Sources**:
+
 - `src/services/currency.ts`
 - `src/hooks/use-display-currency.ts`
 - `src/services/fiat-fx.ts`
@@ -293,6 +307,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①池中恶意/缓存端点绝不能伪造『已收款』——不信 RPC 的 topic 过滤，逐条本地复核 topics[2] 确为本钱包（transfer-monitor.ts:136-168）②spam 空投绝不进 feed——getLogs 限定可信合约 allowlist（:188-221）③元数据解析不了的 ERC-20 绝不落盘（18-decimals 兜底会把 6-decimals 稳定币记成 '+0 tokens'）④单次 poll 最多两次 getLogs（探测+一次 cap 重试），绝不 fan-out 触发限流（:96-118）⑤自动上架的数据源绝不能是 sign-time 模拟 log——攻击者可伪造 Transfer 事件把骗子币种进钱包，进而毒化 simulation 信任与 transfer allowlist 级联（token-autoadd.ts:5-14 明文警告, 32-86）⑥模拟不对称信任：SENT 不可被低估可信显示，RECEIVED 仅 trusted set 内渲染金额否则 unverified（tx-simulation.ts:206-286）⑦unknown 一律 null（没信息）绝不是 false（会失败）⑧symbol 解析不出的 token 绝不上架；同 `${chainId}_${addr}` 绝不重复保存；上架后必须失效 fetchTokens 缓存（token-autoadd.ts:81）
 
 **Sources**:
+
 - `src/services/transfer-monitor.ts`
 - `src/services/token-autoadd.ts`
 - `src/services/tx-simulation.ts (206-286)`
@@ -316,6 +331,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①同一 chainId 绝不添加两次——现状已发散：AddNetworkModal 有查重（SettingsScreen.tsx:620-626）而 services/add-network.ts:42-53（扫码路径）没有，Core 单实现收编②11 个必需 Safe/4337 合约 + RIP-7212 未全就绪的链绝不入库——否则用户存入后无法签名转出=资金被困（network-checker.ts:20-112; SettingsScreen.tsx:650）③RPC 全挂只能判『无法验证』绝不判『不兼容』（rpcFailed 导向 Retry, SettingsScreen.tsx:813-827）④override 保存前必须 probe eth_chainId 匹配——现状缺口：probeRpcChainId 存在却未被调用，错链 URL 以最高 tier 进池静默污染余额（SettingsScreen.tsx:178-328）⑤保存 RPC/Explorer 绝不清掉既有 bundlerURL（:204-211）；端点变更后旧池缓存绝不继续生效（:288-308）⑥服务端点强制 HTTPS（localhost 例外）、/api/health 身份必须匹配 SERVICE_IDENTITY——passkey 索引指错服务是登录安全问题（:340-379）；URL trim+去 CR/LF 防 header 注入（:453-460）⑦provider 探测必须 reported===target chainId（rpc-providers.ts:78）；清空 key 彻底移除；key 变更→池失效（storage.ts:298-340）⑧精确 chainId 搜索命中排第一（chain-registry.ts:84-176）；含密钥占位符的 RPC URL 绝不进候选⑨安全上下文中未知链绝不显示回退 explorer 链接（network.ts:70-78）
 
 **Sources**:
+
 - `src/screens/settings/SettingsScreen.tsx (93-516, 570-853)`
 - `src/services/add-network.ts`
 - `src/services/network-checker.ts`
@@ -342,6 +358,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①banned 端点绝不被选中（score=-Infinity, rpc-pool.ts:396-423）②报告错误 chainId 的端点绝不通过 X-Rpc-Url 交给 bundler（:673-681）③account-info/sponsor 必须解析到与提交 UserOp 相同的 bundler——否则 Tempo gas 报销打到错误 EOA 被拒（:957-974）④rate-limit 是自愈的瞬时故障，绝不为它向用户弹『换 RPC』横幅（:576-630; 分类被 parallel-rate-limit.spec 钉死）⑤getLogs range-cap 是请求级问题交调用方分片，不 failover 不封禁（:484-519）⑥全封禁自动清空恢复（:745-755）⑦永久封禁条件：0 成功且 ≥6 失败, 24h TTL（:58-185）⑧封禁概念现存两处真值（EndpointStats.banned vs banMap 生命周期不同步）——建模时合一
 
 **Sources**:
+
 - `src/services/rpc-pool.ts (26-1035 全文)`
 - `src/services/net.ts (23-52 超时表, 163-176 退避)`
 - `src/services/readonly-rpc-gate.ts (留 shell, 见 not_migrating)`
@@ -363,6 +380,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①指纹未经用户确认绝不建立会话——配对即授权（dapp-connection.tsx:203-224; walletpair-protocol.ts:694-697）②取消/替换 pending 配对必须释放临时 X25519 密钥（dapp-connection.tsx:461-474, 563-572）③重复 blip 不得延长 grace 窗口（:439 early-return）；手动重连绕过 grace 立即反馈④reconnecting 不允许无限旋转——45s/60s 双保险（:56-64, 221-242; walletpair-transport.ts:360-375）⑤死通道快照必须清除，否则每次启动 restore-loop 且与新配对在 relay 碰撞（BUG-5/6, :963-1027, 8s dropIfDead）⑥RemoteInject 优先于 WalletPair（互斥单会话）；恢复失败静默清理⑦WalletPair 计数器可持久化之前绝不产出该 nonce 的密文；receiveSequence 严格递增拒重放（walletpair-protocol.ts:372-437, 404, 418——留 shell 执行但 effect 顺序在 Command 序列显式表达）⑧明文 chainId 与加密 CAIP-2 上下文不一致必须拒绝（walletpair-transport.ts:65-81）⑨判别顺序不可颠倒：remote-inject 链接先于浏览器 fallback（dapp-transport.ts:262-334; ARCHITECTURE §7）
 
 **Sources**:
+
 - `src/models/dapp-connection.tsx (54-620, 963-1027)`
 - `src/services/walletpair-transport.ts`
 - `src/services/walletpair-protocol.ts`
@@ -386,6 +404,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①跨源 iframe 永远拿不到账户（wallet-browser-router.ts:135-166）②冷/空账户读绝不掉 grant——一次瞬态空态会把用户从所有 dApp 登出（dapp-permissions.ts:17-78, 注释明言 load-bearing）③公网 http 源上的签名/转账方法必拒 4100——IP 必须完整锚定，10.0.0.1.evil.com 不豁免（wallet-browser-router.ts:78-118）④同源重复 connect 合并进已开 sheet、异源第二个 4001（browser.tsx:110-129）⑤导航结算必须用 4900 绝不用 4001——dApp 视 4001 为可安全重试，已落地请求会被双花（browser.tsx:313-360, NAV_SETTLE_ERROR）⑥approve 的 await 期间发生导航，绝不 respond 或向新 origin 推 accountsChanged（:245-248）⑦地址绝不泄露给未连接的 origin；未连接时切账户不 emit（:193-196 区域）⑧eth_accounts 永不弹窗——反映授权状态⑨grant 钉在被授予地址而非 activeAccount⑩每个请求 id 恰好一个响应（幂等 gate 留 shell WebViewTransport）
 
 **Sources**:
+
 - `src/services/dapp-permissions.ts`
 - `src/services/wallet-browser-router.ts`
 - `src/app/browser.tsx (51-360)`
@@ -410,6 +429,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①dApp 合约调用地址（dapp_tx）绝不自动进入地址簿——防路由/代币合约地址污染信任信号（contacts.ts:61-317, auto 只来自 type:'send'）②已删除建议在无新交互时绝不复活；重新保存清墓碑③分组成员绝不悬垂/重复/非法地址；删联系人级联移出所有分组（:362-416）④并发写绝不互相覆盖——现靠 _writeChain 串行化，核单线程后自然消失⑤导入 existing-wins：绝不修改任何既有联系人或其既有分组关系；非法地址计 invalid 不入库；文件内重复地址取首个（contact-io.ts:117-245）⑥小写地址为规范键；分组 id 确定性生成不依赖时钟/随机⑦EIP-7702 委托 EOA（0xef0100+addr, 23 字节）绝不标 Contract（recipient-risk.ts:42-49）；unknown/不可达→null 绝不误报；只缓存正向身份解析（recipient-identity.ts:232-267）
 
 **Sources**:
+
 - `src/services/contacts.ts`
 - `src/services/contact-io.ts`
 - `src/components/contacts/ContactsManager.tsx`
@@ -434,6 +454,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①显示的 rate 字符串 IS 应用的 rate，显示与换算绝不分叉——历史缺陷：toFixed(2) 把 rate 镜像成 0 后一碰清零全表（BatchImportSheet.tsx 文件头 Rate invariant, 423-443）②正汇率绝不镜像成 "0"（formatRate :436-443）③重复地址跳过首个保留；>60 截断且 overCap 与 rejected 两条警告绝不互相遮蔽（:365-377）④合计基单位>余额 → apply 禁用；fiat 模式 rate≤0 不可 apply⑤每次打开全量重置——stale 粘贴/汇率绝不复用（:84-91）⑥名字绝不静默变成付款金额——带数字的名字(Alice123/团队2024/1e5)不当金额，空金额格报错不回落别列（recipient-table.ts:107-283, issue #137 两次回归）⑦2 列表的投票证据绝不给 3 列表用（shape 隔离）⑧贴进名字列的地址不能夺走付款（header 地址列优先）
 
 **Sources**:
+
 - `src/components/send/BatchImportSheet.tsx (67-154, 423-443)`
 - `src/services/recipient-table.ts`
 - `src/services/file-io.ts / file-io.web.ts (留 shell)`
@@ -456,6 +477,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①token 请求 uint256 必须是按真实 decimals 换算的基单位整数——错一位=金额差 10 倍（ReceiveRequestControls.tsx:51-93; eip681.ts:48-54）②amount 小数位绝不超 token decimals，否则 toBaseUnits 静默截断生成与所见不符的请求（sanitizeAmount :39-45）；Rust 移植改为显式 Result 拒绝静默截断③request 模式复制给对方的必须是 payLink 而非裸 ethereum: URI（ReceiveScreen.tsx:156-163）④格式非法的 amount 绝不崩页或被静默误解析——已实测缺陷：'1e18'/'1,5' → BigInt SyntaxError 整页崩，'0x10' → 静默解析成 ≈7.5 万枚 token 预填锁定 Send（PayScreen.tsx:44-66）⑤display hint(dec/sym/net) 与实际编码值必须一致（dec 伪造检测）⑥带 chainId 的完整请求必须锁定链+token+金额进 Send；chainless 绝不臆测链；split 行内扫码绝不清空其他收款行（useHomeController.ts:507-534; SendScreen.tsx:179-205）⑦bigint 金额跨路由以十进制字符串无损传递⑧未确认风险提示者不得取得可分享收款载体——QR 遮罩/copy 无 onPress/save 禁用三处门控收敛为 view model 三个显式布尔；加载中(null)也盖遮罩；按账户隔离（ReceiveScreen.tsx:38-70, 223, 287-366）⑨includeZeroBalance 结果绝不污染主余额缓存（wallet-api.ts:98, 106）
 
 **Sources**:
+
 - `src/components/ReceiveRequestControls.tsx`
 - `src/screens/wallet/ReceiveScreen.tsx`
 - `src/screens/wallet/PayScreen.tsx`
@@ -481,6 +503,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①绝不因部分链拉取失败误报入账——结果集缩水（tokens.length < 基线长度）跳过比较只重排下轮（ReceiveScreen.tsx:107）②5 分钟后必须停止轮询（省电/防限流, :28-31）③基线只在首轮或确认增量后前移④后台非激活跳过本轮（isAppActive 门控）⑤隐含语义需先显式裁决：无变化不前移基线 → 转出后再入账可能被旧高基线吞掉——迁移前决定是 bug 还是特性并写入不变量测试（:93-154）
 
 **Sources**:
+
 - `src/screens/wallet/ReceiveScreen.tsx (27-31, 49-52, 93-154)`
 
 **Integration notes**: 最典型的『决定 vs 执行』错位：整台状态机活在一个 useEffect 闭包里零测试。Crux 化后 fake clock + fixture 穷举『链失败缩水』『5 分钟截止』等路径。时间戳现硬编码 en-US locale（:130）——核输出 epoch，shell 按 locale 格式化，顺带修复。
@@ -500,6 +523,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①同一 id 绝不渲染两行；共享 userOpHash 的多行折叠为一条 batch 行，先按 id 去重防重提交单笔误判成批次（activity.ts:428-478）②feed 绝不因后台刷新闪空——先画缓存，sync 仅 newCount>0 时重读（useHomeController.ts:259-316）③历史存量绝不触发『到账』庆祝——只庆祝首轮之后的会话内新增（initializedRef, :219-257）④隐私模式下收款 toast 绝不弹（HomeScreen.tsx:176-180）⑤已删事件绝不被并发重载复活——墓碑过滤是重载路径唯一 setter 的职责（:133-144, 577-610）⑥分组 header 绝不与 item 错序（dayStartMs 本地午夜键）⑦已尝试别名地址绝不重复打网络；本地账户名优先远端解析（:421-449）⑧稳定币无价格源按面额估值，绝不显示 $0.00（activity.ts:149-181）
 
 **Sources**:
+
 - `src/services/activity.ts`
 - `src/screens/wallet/useHomeController.ts (111-144, 192-316, 421-449, 543-610)`
 - `src/services/storage.ts (437-533)`
@@ -515,13 +539,14 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 
 **Model**: Model = { input_address, validity, detection: Map<chain_id, Option<TokenMeta>>, detect_in_flight, added_token_ids: Set, custom_tokens: Vec }
 
-**Events**: AddressInput{s}, DetectRequested, ChainMetaResolved{chain_id, Option<meta>}, SaveRequested{chain_id}, SaveConfirmed/SaveFailed, DeleteRequested{id}
+**Events**: AddressInput{s}, DetectRequested, ChainMetaResolved{chain_id, Option}, SaveRequested{chain_id}, SaveConfirmed/SaveFailed, DeleteRequested{id}
 
 **Operations**: MulticallErc20Meta{chain_id, addr}, ReadCustomTokens/WriteCustomToken/RemoveCustomToken, InvalidateTokenCache{address}, Render
 
 **Invariants**: ①同 `${chainId}_${addr}` 绝不重复添加——手动与自动路径的 dedupe 语义现各自实现一遍，收敛为一处（AddTokenPanel.tsx:65-218; token-autoadd.ts:32-86）②symbol 解析不出的 token 绝不上架（'?' 不入列表）③新增后必须失效 fetchTokens 缓存使选币器立刻可见（ReceiveRequestControls.tsx:63-73）
 
 **Sources**:
+
 - `src/components/ui/AddTokenPanel.tsx`
 - `src/screens/wallet/AddTokenScreen.tsx`
 - `src/services/token-metadata.ts`
@@ -544,6 +569,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①只记真实 web origin（解析失败丢弃）②每 origin 一条——读作『用过的 dApp』而非页面日志③更新时保留旧 title/favicon（favicon 晚于 title 解析）④上限 40⑤时间由外部注入（browser-history.ts:9-105 已如此设计）
 
 **Sources**:
+
 - `src/services/browser-history.ts`
 - `src/app/browser.tsx (322-326)`
 
@@ -564,6 +590,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 **Invariants**: ①快照绝不携带敏感字段——强制重投影为 {name, address}（app-group-account-sync.ts:148）②isLoading 窗口绝不 clear——会永久删掉已登录用户的缓存（AccountFileWriter.tsx:70 注释）③UL 认证必须随 TTL 过期失效（关联可能静默失效, 14d）；TTL 判定现在两处重复 Date.now（app-group-account-sync.ts:66, 175）——核内合一④UL 正则锚定 apex host 防伪（AccountFileWriter.tsx:48）⑤chainId 用稳定默认值 1，绝不取易变的 dApp 桥 chainId⑥扩展缓存必须随登出清空（经 session 机的 ClearExtensionCache）
 
 **Sources**:
+
 - `src/services/app-group-account-sync.ts`
 - `src/components/AccountFileWriter.tsx`
 
@@ -576,6 +603,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 ## 明确留在 shell（TS/平台层）的状态与理由
 
 ### 一、纯渲染状态（Crux 原则：渲染域不进核）
+
 - **主题偏好 auto/light/dark**（constants/color-scheme.ts:24-131）：token 重建 + Appearance/DOM 副作用 + 整树 remount，纯外观；web 分叉 use-color-scheme.web.ts。
 - **字号缩放 6 级**（constants/text-scale.ts:15-136）：无业务不变量，Reanimated 手势吸附是纯 UI。
 - **头像风格偏好**（services/avatar-style.ts:15-55）：纯外观；但其 version-guard 竞态规则（迟到读不 clobber 新选择）可作 display_currency 核化时的参照测例。
@@ -583,6 +611,7 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 - **locale 数字/日期/时间格式化**（locale-format.ts, localePrefs）：显示层规则，核输出结构化值+格式化提示，14 个 locale 与 Intl 探测留 shell（spec 011 铁律：文案 key 而非文案本体）。
 
 ### 二、平台 I/O 适配（executor 词汇的执行端）
+
 - **passkey 模块**（modules/passkey, native/web 双实现）、**App Group 桥**（modules/app-group）、**WebView 桥**（modules/webview）。
 - **transport 实现**：webview-transport / web-popup-transport / extension-bridge-transport 的收发管道。特别地：WebViewTransport 的 pending-Set『每 id 恰一个响应』幂等 gate **必须保留在 shell**，不能因『core 已保证』而删（报告 4 风险条）。
 - **WalletPair 加密状态**：X25519 密钥、ChaCha20 消息计数器、加密快照**不过 JSON 边界**——core 只建模 phase 与句柄；『计数器先落盘再产密文』的 effect 顺序在 Command 序列显式表达但由 shell 执行（walletpair-protocol.ts:404）。
@@ -592,8 +621,9 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 - **net.ts 超时表与 AbortController**：shell HTTP capability 配置；『可退避/可重试的决策』留核（Wait op），单次 I/O 超时留 shell（spec 011 既定分工）。
 
 ### 三、值得留在 TS 的（有明确理由）
+
 - **QUARANTINED 冻结 oracle**：abi-decode.ts、abi.ts、attestation-parser.ts、safe-address.ts、eth-crypto.ts、webauthn-verify.ts、p256-recovery.ts——真实现已在 vela-core（spec 001），TS 版仅供 Hermes native 运行与 dump-vectors 语料提取，禁止新增调用方（no-restricted-imports 强制）。不动。
-- **onboarding-core 五件套与 copy.ts 语义→i18n 映射**：已是范式本体，新 app 照搬其结构而非迁移它。
+- **onboarding-core 五件套与 copy.ts 语义→i18n 映射**：已是范式本体，新 app 照搬其结构而非迁移它。tit
 - **readonly-rpc-gate.ts**（6 并发 + 512 队列 + 同 key 合流）：调度类逻辑，两份报告均判可留 shell——它管的是执行并发而非业务决策；其不变量（结果不跨时间缓存、签名路径永不节流）由 shell 测试维持。
 - **bundler 错误文案正则分类**（parseBundlerUnderfunded、/dropped from the network/、AA 码匹配）：留在 shell 的 operation 结果映射层，映射为 typed variant 进核——绝不把正则匹配搬进核（措辞已漂移过一次），长期方案是推动 relay 返回结构化错误码。
 - **bug-report.ts**：已是低耦合干净 service（脱敏/指纹/同意先行），Crux 化收益低，原地保留。
@@ -607,30 +637,17 @@ P1 内部：`fee_policy`（纯数学零风险）→ `approval_guard`（已纯化
 ## Open questions
 
 1. 【native 策略，P1 前置】Hermes 无 WebAssembly：vela-core-uniffi 未开 crux feature（Cargo.toml 确认），现有每台 web 机器在 native 都是 TS 手写副本（use-create-wallet.ts 等，靠注释纪律防漂移）。send/sign_request 这类 P1 资金机器动工前必须决定：uniffi/JSI 原生绑定采纳 vs 接受双实现漂移扩大——每抽一台机就多一份镜像。
-
 2. 【登出语义悬空】LOGOUT 只清内存，storage.clearAll()（storage.ts:565）全仓库仅测试引用——冷启动自动恢复登录。这是有意设计（passkey 钱包可辩护）还是缺陷？session 机的 SignOut 事件语义无法定稿，需产品确认。
-
 3. 【授权/会话无过期】dApp grant 的 grantedAt 从不参与判断（永久有效直到显式撤销）；WalletPair/RemoteInject 会话无 TTL（仅被动发现过期）。Crux 化是引入显式过期不变量的时机，但属行为变更，需产品确认。
-
 4. 【bigint JSON 编码规范】费用/余额/授权额度全用 bigint，JSON.stringify 直接抛异常。需在 spec 定十进制字符串（StoredAssetSim 已示范）vs hex 的统一约定，含 u64→bigint 的 ts-rs 已知坑（shell.rs Wait{ms:u32} 注释）。
-
 5. 【数值保真定谱】displayTotal/tokenUsdValue 全程 f64（parseFloat）：Rust 用 f64 复现会固化现有精度问题；换定点/BigDecimal 则 JSON 边界与 TS 展示出现 ±1 分钱级 diff。迁移 balance_dashboard 前先定谱。
-
 6. 【/pay 已验证缺陷，建议立即修不等迁移】PayScreen.tsx:65-66 不可信 query 直喂 toBaseUnits：amount='1e18'/'1,5' → BigInt SyntaxError 整页崩溃（实测复现）；'0x10' → 静默解析为 ≈7.5 万枚 token 预填锁定 Send；dec/sym/net display hint 可被伪造使 headline 与编码值脱钩。
-
 7. 【bindings/wasm 基建泛化】per-app Effect 词汇 vs 共享 ShellOperation union？gen-onboarding-types.mjs 输出目录硬编码 onboarding-core/generated 且整目录删重写——两个 app 共用一个目录或各自生成入口需先决定。wasm 1MB 硬门槛（build-web.mjs:42, 现 ~535KB）：迁移 send 这类大域前先量 serde 单态化增量。cancelled_effect_ids 通道现恒空（onboarding.rs:31-34）——sign_request 的取消需要 shell 真 abort，要扩展 Bridge，是范式未验证路径。
-
 8. 【缓存所有权与 core 生命周期】现有范式 core 生命周期=屏幕生命周期（Bridge 随 unmount free），而 session/balance/rpc_pool 需要常驻状态；模块级缓存（tokenCache/nonce/deployed/descriptorCache/banMap）挪进 Model 会改变失效语义（per-request 丢缓存 vs 进程级单例）。需为『常驻 core 实例』扩展范式并逐缓存显式决策。
-
 9. 【测试改造与迁移同 PR】3 个源码 grep jest（send-same-fee-token / send-tempo-gate / currency-picker-scope）在逻辑进 Rust 时立即红，必须同 PR 重写为 core 状态机测试+薄 shell 守卫；e2e 用屏上英文文案定位（无 testID），Render 输出文案须逐字节保持；Safari 真机矩阵（4 条资金安全不变量）不在 CI，签名总线迁移后需手动重跑 run_matrix.py；手写 INITIAL_VIEW 镜像会静默过期一帧（ts-rs 不保证默认值），是否加 gate？
-
 10. 【与预期不符的文件/功能（分析员标注，无文件缺失）】① src/services/accounts.ts 不是账户 CRUD 服务而是切换器纯排序辅助——账户持久化在 storage.ts:49-79；② 全仓库无账户级 rename/delete 功能（联系人有，账户没有）——是功能缺口还是有意为之？③ ReceiveToast.tsx 是 Home 收款 toast（纯动画）而非发送回执——发送回执在 components/ui/TransactionReceipt.tsx；④ 仓库没有 WalletConnect SDK——'WalletPair' 是自研协议，spec 用词勿写 WalletConnect；⑤ deployer-api.ts 大半为标注 mock；⑥ network-checker 的 REQUIRED_CONTRACTS 与 safe-address.ts 合约常量是两份手抄表——哪份是 canon？⑦ dex-price-test.ts 文件名不匹配 jest testMatch，不在自动化覆盖内。
-
 11. 【deposit watcher 隐含语义裁决】无变化不前移基线 → 转出后再入账可能被旧高基线吞掉；时间戳硬编码 en-US——迁移前决定是 bug 还是特性并写入不变量测试。
-
 12. 【契约变更需产品/设计确认】① ActivityItem 从预格式化字符串改结构化金额；② token-detail 从 route-param 字符串快照改为按 id 从 core store 取——改变导航契约，三个入口（HoldingsList/BalanceDetailSheet/未来 deep-link）需同步；③ 深链路由守卫收进 session view 模型会改变 web 直开深链行为，需逐路由回归；④ 端点/网络 override 健康检查从『徽章』改为『gate 保存』是行为变更。
-
 13. 【封禁概念双真值】rpc-pool 的 EndpointStats.banned 布尔与 banMap 生命周期不同步（池 10min 重建保留旧 banned，isBanned 只在 collectUrls 过滤）——建模前先裁定单一真值语义。
-
 14. 【readonly-rpc-gate 归属】本清单裁为留 shell（调度类），但报告 4 认为可选核化——若未来 dApp 读洪泛策略需要与签名优先级联动决策，再议。
 15. 【wasm 体积红灯,017 前置】016 实测:三台小机器使 wasm 从 ≈820KB 涨到 982,770 字节(每台 ≈54KB,主因 per-app Core/serde 单态化),1MB 硬门只剩 ~17KB 余量。下一台机器装不下。spec 017 动工前必须先做体积专项(共享 serde 路径 / wasm 构建裁剪 wire 类型的 Debug+PartialEq / wasm-opt -Oz / 核心分 chunk 加载),绝不抬高 MAX_WASM_BYTES(011 FR-030)。

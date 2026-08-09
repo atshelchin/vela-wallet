@@ -27,14 +27,18 @@ test.describe('parallel-space · Receive', () => {
     await understand.click();
     await expect(page.getByText('Before you receive')).toBeHidden();
 
-    // The fixture address + the supported-network grid.
-    await expect(page.getByText(ADDR_TRUNC)).toBeVisible();
-    await expect(page.getByText(/Works on \d+ EVM networks/)).toBeVisible();
-    await expect(page.getByText('Gnosis').first()).toBeVisible();
+    // The fixture address + the supported-network grid. Visible-filtered: the (tabs)
+    // navigation anchor keeps a hidden Home (with the same truncated address in its
+    // header) mounted in the DOM underneath /receive on web.
+    await expect(page.getByText(ADDR_TRUNC).filter({ visible: true })).toBeVisible();
+    // Copy per 9c3038f (design-language pass): "One address across all N networks".
+    await expect(page.getByText(/One address across all \d+ networks/)).toBeVisible();
+    // The strip is logos-only since e08bff6; network names live in the a11y label.
+    await expect(page.getByRole('button', { name: /^Gnosis/ }).first()).toBeVisible();
 
     // Copy → visible confirmation.
-    await page.getByText(ADDR_TRUNC).click();
-    await expect(page.getByText('Copied!')).toBeVisible({ timeout: 10_000 });
+    await page.getByText(ADDR_TRUNC).filter({ visible: true }).click();
+    await expect(page.getByText('Copied', { exact: true })).toBeVisible({ timeout: 10_000 });
   });
 
   test('switches to the EIP-681 payment-request builder', async ({ page }) => {

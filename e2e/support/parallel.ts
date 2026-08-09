@@ -51,7 +51,10 @@ export async function stubWalletNetwork(page: Page, _relayPort = RELAY_PORT): Pr
 export async function enterParallel(page: Page): Promise<void> {
   await page.goto('/parallel');
   await expect(page.getByTestId('parallel-space-badge')).toBeVisible({ timeout: 25_000 });
-  await expect(page.getByText('Parallel One').first()).toBeVisible({ timeout: 20_000 });
+  // `.filter({ visible: true })`: the /parallel → home redirect leaves the previous
+  // navigation screen mounted in the DOM (display:none) on web, so a bare `.first()`
+  // can resolve to the hidden duplicate Home and never become visible.
+  await expect(page.getByText('Parallel One').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 });
 }
 
 /**
@@ -63,8 +66,9 @@ export async function openWalletConnect(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle').catch(() => {});
   // The PARALLEL SPACE badge proves the mode is armed (fixed passkey + fixture wallet).
   await expect(page.getByTestId('parallel-space-badge')).toBeVisible({ timeout: 25_000 });
-  // Home → Connections tab → the inline paste field.
-  await page.getByText('Connections', { exact: true }).first().click();
+  // Home → Connections tab → the inline paste field. Visible-filtered for the same
+  // reason as enterParallel: a hidden duplicate Home screen also has this tab.
+  await page.getByText('Connections', { exact: true }).filter({ visible: true }).first().click();
   await expect(page.getByPlaceholder(/Paste/i)).toBeVisible({ timeout: 20_000 });
 }
 

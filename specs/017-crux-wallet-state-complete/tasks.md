@@ -13,8 +13,13 @@ description: "Task list for 017-crux-wallet-state-complete"
 - [X] T100 Raise `MAX_WASM_BYTES` to 2,000,000 in `rust/scripts/build-web.mjs`
   with the owner-decision comment (FR-204)
 - [X] T101 Stub + wire the six wave-A modules in `app/mod.rs`
-- [ ] T102 Restore the parallel e2e environment on this machine, or document
-  the CI-only fallback for the parallel suites
+- [X] T102 Restore the parallel e2e environment: enterParallel/openWalletConnect
+  now visible-filter (react-navigation keeps the inactive stack screen in the
+  web DOM as a hidden duplicate Home, so bare .first() resolved to a 0x0
+  node); parallel-receive.spec assertions updated to the CURRENT product copy
+  they had drifted from (design pass 9c3038f/e08bff6 postdate the spec) —
+  semantics unweakened, verified 2/2 green. Other parallel-* specs may carry
+  the same copy drift; fix per-suite as wave B reaches them
 
 ## Phase A: Kernels (core + tests, machine-parallel)
 

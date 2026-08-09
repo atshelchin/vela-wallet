@@ -10,11 +10,14 @@
  * comparison — evidence no offline corpus can produce, and the thing that
  * licenses the native rollout where the plural defect actually bites.
  *
- * Loading is synchronous, matching `src/services/vela-core/index.web.ts`: the
- * wasm module is base64-embedded and `initSync`'d at import, and the `en`
- * catalog comes from the bundle rather than the network. It has to be —
- * `src/services/activity.ts` calls `i18n.t()` outside React with no async gate,
- * so there is no point at which an await could be introduced.
+ * This module needs the wasm ALREADY initialized at import: `src/services/activity.ts`
+ * calls `i18n.t()` outside React with no async gate, so there is no point at
+ * which an await could be introduced here. Since spec 017 the module is
+ * fetched rather than base64-embedded, and the web entry (`index.web.js`)
+ * awaits `coreReady` before loading the app graph — so by the time this
+ * evaluates, init has happened. `assertCoreInitialized()` turns a broken entry
+ * into a clear message instead of a wasm-bindgen panic. The `en` catalog still
+ * comes from the bundle rather than the network.
  */
 import i18n, { setBeforeLanguageChange, type AppLanguage } from './shared';
 import { en } from './resources';
@@ -23,10 +26,8 @@ import { createSeam, type SeamEngine } from './seam';
 import { createDiffHarness, type HarnessMode, type HarnessReport } from './diff-harness';
 import { GIT_COMMIT } from '@/constants/build-info';
 
-// `initSync` is the NAMED export; the default export is the async loader, whose
-// module path this build deliberately removed.
 import { initSync, I18n as WasmI18n } from '../../rust/pkg-web/vela_core.js';
-import { WASM_BASE64 } from '../../rust/pkg-web/vela_core_bg.base64.js';
+import { assertCoreInitialized } from '@/services/vela-core';
 
 // `installI18nConsole` is re-declared below with the real implementation, so it
 // is excluded here rather than shadowed — an ambiguous re-export would resolve
@@ -51,14 +52,15 @@ export { default } from './shared';
 // Engine
 // ---------------------------------------------------------------------------
 
-function decodeBase64(b64: string): Uint8Array {
-  const bin = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+// Node (jest, static export): the harness plants the bytes, and `initSync` is
+// idempotent, so initializing here is safe whether or not the facade already
+// did. Browsers take the else branch — the entry has already awaited the
+// fetch, and this only turns a broken entry into a clear message.
+{
+  const planted = (globalThis as { __VELA_WASM_BYTES__?: Uint8Array }).__VELA_WASM_BYTES__;
+  if (planted) initSync({ module: planted });
+  else assertCoreInitialized();
 }
-
-initSync({ module: decodeBase64(WASM_BASE64) });
 
 /**
  * `en` bytes for the constructor.

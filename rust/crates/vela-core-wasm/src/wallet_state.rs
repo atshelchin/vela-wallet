@@ -63,3 +63,71 @@ bridge_class!(
     BatchImportCore,
     vela_core::app::batch_import::BatchImport
 );
+
+bridge_class!(
+    /// The wallet session truth source: accounts, active index, boot restore.
+    SessionCore,
+    vela_core::app::session::Session
+);
+
+bridge_class!(
+    /// Balance aggregation & display policy (per active account).
+    BalanceDashboardCore,
+    vela_core::app::balance_dashboard::BalanceDashboard
+);
+
+bridge_class!(
+    /// RPC/bundler endpoint pool decisions: scoring, cooldowns, bans.
+    RpcPoolCore,
+    vela_core::app::rpc_pool::RpcPool
+);
+
+bridge_class!(
+    /// The token trust model: transfer allowlists, auto-add admission,
+    /// asymmetric simulation trust.
+    TokenTrustCore,
+    vela_core::app::token_trust::TokenTrust
+);
+
+bridge_class!(
+    /// Network & endpoint configuration: add-network wizard, overrides,
+    /// service endpoints, provider keys.
+    NetworkAdminCore,
+    vela_core::app::network_admin::NetworkAdmin
+);
+
+bridge_class!(
+    /// The dApp signing approval lifecycle.
+    SignRequestCore,
+    vela_core::app::sign_request::SignRequest
+);
+
+bridge_class!(
+    /// Per-origin grants + browser consent.
+    DappPermissionsCore,
+    vela_core::app::dapp_permissions::DappPermissions
+);
+
+bridge_class!(
+    /// The activity feed: dedupe, batch folding, tombstones, celebrations.
+    ActivityFeedCore,
+    vela_core::app::activity_feed::ActivityFeed
+);
+
+bridge_class!(
+    /// Manual custom-token management.
+    ManageTokensCore,
+    vela_core::app::manage_tokens::ManageTokens
+);
+
+bridge_class!(
+    /// Browser history policy.
+    BrowserHistoryCore,
+    vela_core::app::browser_history::BrowserHistory
+);
+
+bridge_class!(
+    /// Safari extension account snapshot + Universal Link TTL.
+    ExtCacheCore,
+    vela_core::app::ext_cache::ExtCache
+);

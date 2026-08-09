@@ -11,11 +11,18 @@
 use std::{env, error::Error, fs, path::PathBuf};
 
 use ts_rs::{Config, TS};
+use vela_core::app::activity_feed::{Event as FeedEvent, FeedOperation, FeedShellResult, FeedView};
 use vela_core::app::approval_guard::{
     Event as GuardEvent, GuardOperation, GuardShellResult, GuardView,
 };
+use vela_core::app::balance_dashboard::{
+    BalanceOperation, BalanceShellResult, BalanceView, Event as BalanceEvent,
+};
 use vela_core::app::batch_import::{
     BatchOperation, BatchShellResult, BatchView, Event as BatchImportEvent,
+};
+use vela_core::app::browser_history::{
+    BhistOperation, BhistShellResult, BhistView, Event as BhistEvent,
 };
 use vela_core::app::clear_signing::{
     ClearOperation, ClearShellResult, ClearSigningView, Event as ClearSigningEvent,
@@ -23,16 +30,38 @@ use vela_core::app::clear_signing::{
 use vela_core::app::contacts::{
     ContactOperation, ContactShellResult, ContactsView, Event as ContactEvent,
 };
+use vela_core::app::dapp_permissions::{
+    DpermOperation, DpermShellResult, DpermView, Event as DpermEvent,
+};
 use vela_core::app::display_currency::{
     CurrencyOperation, CurrencyShellResult, CurrencyView, Event as CurrencyEvent,
 };
+use vela_core::app::ext_cache::{
+    Event as ExtCacheEvent, ExtCacheOperation, ExtCacheShellResult, ExtCacheView,
+};
 use vela_core::app::fee_policy::{Event as FeeEvent, FeeOperation, FeeShellResult, FeeView};
+use vela_core::app::manage_tokens::{
+    Event as MtokEvent, MtokOperation, MtokShellResult, MtokView,
+};
+use vela_core::app::network_admin::{
+    Event as NetEvent, NetOperation, NetShellResult, NetView,
+};
 use vela_core::app::payment_request::{
     Event as PaymentRequestEvent, PaymentRequestOperation, PaymentRequestShellResult,
     PaymentRequestView,
 };
 use vela_core::app::receive_watch::{
     Event as ReceiveWatchEvent, ReceiveWatchOperation, ReceiveWatchShellResult, ReceiveWatchView,
+};
+use vela_core::app::rpc_pool::{Event as RpcEvent, RpcOperation, RpcPoolView, RpcShellResult};
+use vela_core::app::session::{
+    Event as SessionEvent, SessionOperation, SessionShellResult, SessionView,
+};
+use vela_core::app::sign_request::{
+    Event as SignEvent, SignOperation, SignShellResult, SignView,
+};
+use vela_core::app::token_trust::{
+    Event as TrustEvent, TrustOperation, TrustShellResult, TrustView,
 };
 use vela_core::app::tx_tracker::{
     Event as TrackEvent, TrackOperation, TrackShellResult, TrackView,
@@ -85,6 +114,51 @@ fn main() -> Result<(), Box<dyn Error>> {
     BatchOperation::export_all(&config)?;
     BatchShellResult::export_all(&config)?;
     BatchView::export_all(&config)?;
+
+    SessionEvent::export_all(&config)?;
+    SessionOperation::export_all(&config)?;
+    SessionShellResult::export_all(&config)?;
+    SessionView::export_all(&config)?;
+    BalanceEvent::export_all(&config)?;
+    BalanceOperation::export_all(&config)?;
+    BalanceShellResult::export_all(&config)?;
+    BalanceView::export_all(&config)?;
+    RpcEvent::export_all(&config)?;
+    RpcOperation::export_all(&config)?;
+    RpcShellResult::export_all(&config)?;
+    RpcPoolView::export_all(&config)?;
+    TrustEvent::export_all(&config)?;
+    TrustOperation::export_all(&config)?;
+    TrustShellResult::export_all(&config)?;
+    TrustView::export_all(&config)?;
+    NetEvent::export_all(&config)?;
+    NetOperation::export_all(&config)?;
+    NetShellResult::export_all(&config)?;
+    NetView::export_all(&config)?;
+    SignEvent::export_all(&config)?;
+    SignOperation::export_all(&config)?;
+    SignShellResult::export_all(&config)?;
+    SignView::export_all(&config)?;
+    DpermEvent::export_all(&config)?;
+    DpermOperation::export_all(&config)?;
+    DpermShellResult::export_all(&config)?;
+    DpermView::export_all(&config)?;
+    FeedEvent::export_all(&config)?;
+    FeedOperation::export_all(&config)?;
+    FeedShellResult::export_all(&config)?;
+    FeedView::export_all(&config)?;
+    MtokEvent::export_all(&config)?;
+    MtokOperation::export_all(&config)?;
+    MtokShellResult::export_all(&config)?;
+    MtokView::export_all(&config)?;
+    BhistEvent::export_all(&config)?;
+    BhistOperation::export_all(&config)?;
+    BhistShellResult::export_all(&config)?;
+    BhistView::export_all(&config)?;
+    ExtCacheEvent::export_all(&config)?;
+    ExtCacheOperation::export_all(&config)?;
+    ExtCacheShellResult::export_all(&config)?;
+    ExtCacheView::export_all(&config)?;
 
     println!("wallet-state bindings written to {}", out_dir.display());
     Ok(())

@@ -135,3 +135,17 @@ export const recoverPublicKeyFromAssertions = legacyRecoverPublicKeyFromAssertio
 // `scripts/verify-identicon-parity.mjs` proves the two are byte-identical.
 export const identiconSvgCircular = legacyIdenticonSvgCircular;
 export const normalizeIdenticonSeed = legacyNormalizeIdenticonSeed;
+
+/**
+ * Resolves once the core is usable. Native has no wasm to load — the legacy
+ * TypeScript implementations are ready at import — so this is already
+ * resolved. It exists so the platform pair exposes matching export names:
+ * `tsc` resolves `.web.ts` imports to this base file.
+ */
+export const coreReady: Promise<void> = Promise.resolve();
+
+/**
+ * No-op on native: the legacy TypeScript implementations need no module load.
+ * Present so the platform pair exposes matching export names.
+ */
+export function assertCoreInitialized(): void {}

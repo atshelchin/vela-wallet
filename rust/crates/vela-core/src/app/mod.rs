@@ -36,12 +36,18 @@ use crate::safe;
 use crate::types::{ClientDataKind, WebAuthnAssertion};
 use crate::webauthn;
 
+pub mod approval_guard;
+pub mod batch_import;
+pub mod clear_signing;
+pub mod contacts;
 pub mod create_wallet;
 pub mod display_currency;
+pub mod fee_policy;
 pub mod login;
 pub mod payment_request;
 pub mod receive_watch;
 pub mod shell;
+pub mod tx_tracker;
 
 /// Implemented by every per-domain effect enum (spec 016) so product-agnostic
 /// plumbing — the wasm bridge, the test driver — can split shell requests

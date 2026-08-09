@@ -35,11 +35,16 @@ const OUT_DIR = join(RUST_DIR, 'pkg-web');
 
 /**
  * Hard ceiling on the wasm-opt'd module. Base64 inflates by 4/3 and the result
- * lands in the main web bundle, so growth past this means switching to the
- * async public/-dir route (research.md D7 fallback) rather than shipping a
- * multi-MB string.
+ * lands in the main web bundle.
+ *
+ * Raised 1,000,000 → 2,000,000 by owner decision (spec 017, 2026-08-09) to
+ * admit the full wallet-state machine roadmap. The cost is acknowledged: at
+ * the ceiling the embedded base64 is ~2.7 MB of raw bundle (~1 MB+ brotli'd
+ * on the wire). If growth approaches THIS ceiling, the answer is the async
+ * public/-dir loading route (011 research.md D7 fallback) — not a third
+ * raise.
  */
-const MAX_WASM_BYTES = 1_000_000;
+const MAX_WASM_BYTES = 2_000_000;
 
 const CHECK_ONLY = process.argv.includes('--check');
 

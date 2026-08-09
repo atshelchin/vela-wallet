@@ -81,6 +81,24 @@ enum Typography {
     /// Tab-bar item label — text.t10, medium, single-line.
     static let tab = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t10, relativeTo: .caption2, leading: Tokens.Leading.none)
 
+    // MARK: Contacts roles (spec 018 — design/contacts mocks)
+
+    /// Screen title (通讯录 / 家人) — text.t26, bold (mocks C1/C4).
+    static let pageTitle = TypeRole(fontName: FontName.bold, size: Tokens.TextSize.t26, relativeTo: .title, leading: Tokens.Leading.tight)
+    /// A–Z letter-section header + index-rail letters — text.t11, semibold.
+    static let sectionLetter = TypeRole(fontName: FontName.semiBold, size: Tokens.TextSize.t11, relativeTo: .caption, leading: Tokens.Leading.none)
+    /// Index-rail bubble HUD letter — text.t26, bold.
+    static let bubbleLetter = TypeRole(fontName: FontName.bold, size: Tokens.TextSize.t26, relativeTo: .title, leading: Tokens.Leading.none)
+    /// Menu-sheet row label (新建联系人 …) — text.t15, medium.
+    static let menuRow = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t15, relativeTo: .subheadline, leading: Tokens.Leading.tight)
+    /// Group chip label (家人 / + 分组) — text.t11, medium.
+    static let chip = TypeRole(fontName: FontName.medium, size: Tokens.TextSize.t11, relativeTo: .caption, leading: Tokens.Leading.none)
+
+    /// Detail short address / group-member address — system mono, text.t13.
+    static let monoAddressDetail = MonoTypeRole(size: Tokens.TextSize.t13, weight: .regular, relativeTo: .footnote)
+    /// Full address block (C2 two-line mono) — system mono, text.t15.
+    static let monoAddressBlock = MonoTypeRole(size: Tokens.TextSize.t15, weight: .regular, relativeTo: .subheadline)
+
     /// Middle-truncated address — system monospaced, text.t11.
     static let monoAddress = MonoTypeRole(size: Tokens.TextSize.t11, weight: .regular, relativeTo: .caption)
 }

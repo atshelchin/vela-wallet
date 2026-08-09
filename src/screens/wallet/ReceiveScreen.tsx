@@ -9,34 +9,25 @@ import { VelaButton } from '@/components/ui/VelaButton';
 import { fadeIn, fadeInDown } from '@/constants/entering';
 import { color, createStyles, font, inter, leading, radius, space, text } from '@/constants/theme';
 import { useSafeRouter } from '@/hooks/use-safe-router';
-import { chainName, explorerBaseURL } from '@/models/network';
+import { explorerBaseURL } from '@/models/network';
 import { useAllNetworks } from '@/hooks/use-networks';
-import { formatBalance, tokenBalanceDouble, tokenChainId, tokenId, type APIToken } from '@/models/types';
+import { useReceiveRequest } from '@/hooks/use-receive-request';
+import { useReceiveWatch } from '@/hooks/use-receive-watch';
 import { useWallet } from '@/models/wallet-state';
-import { hapticLight, hapticSuccess, isAppActive, openBrowser, showAlert } from '@/services/platform';
+import { hapticLight, openBrowser, showAlert } from '@/services/platform';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { composeShareBlob, saveReceiveCard } from '@/services/share-card';
-import { fetchTokens } from '@/services/wallet-api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ArrowLeft, Check, Copy, ExternalLink, ImageDown, ShieldAlert } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-// Aggressive polling: 3s for first 1 min, then 60s for next 4 min, then stop
-const FAST_INTERVAL_MS = 3_000;
-const SLOW_INTERVAL_MS = 60_000;
-const FAST_PHASE_MS = 1 * 60_000;
-const TOTAL_LISTEN_MS = 5 * 60_000;
-
 // QR quiet zone must stay literal white in BOTH color schemes — scanners need
 // the contrast, and every bg.* token darkens in dark mode.
 const QR_QUIET_ZONE = '#FFFFFF';
 // Deposit "landed" dot; item rows indent past it to align under the time label.
 const DEPOSIT_DOT_SIZE = 6;
-// The warning gate shows once per account, then decays to a one-line reminder.
-const warnedStorageKey = (address: string) => `vela.receiveWarned.${address}`;
 
 export default function ReceiveScreen() {
   const { t } = useTranslation();
@@ -46,28 +37,13 @@ export default function ReceiveScreen() {
   const accountName = activeAccount?.name ?? 'Wallet';
   const networks = useAllNetworks();
 
-  const [depositDetected, setDepositDetected] = useState(false);
-  interface DepositEntry { time: string; items: { symbol: string; amount: string; network: string; usd: string | null }[] }
-  const [deposits, setDeposits] = useState<DepositEntry[]>([]);
-  const previousTokens = useRef<APIToken[] | null>(null);
+  // Deposit detection + the acknowledge gate + the request builder are all
+  // controller-owned (spec 016): the web controllers are driven by the
+  // portable Rust machines, native keeps the moved TypeScript logic.
+  const { detected: depositDetected, deposits } = useReceiveWatch(address || undefined);
+  const rr = useReceiveRequest(address || undefined);
+  const { warned, acknowledge: acknowledgeWarning } = rr;
   const { copied, copy } = useCopyFeedback(2000);
-
-  // Per-account acknowledge flag: null = loading (keep the QR covered so first
-  // visits never flash it), false = show the gate, true = one-line reminder.
-  const [warned, setWarned] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!address) return;
-    let cancelled = false;
-    setWarned(null);
-    AsyncStorage.getItem(warnedStorageKey(address))
-      .then((v) => { if (!cancelled) setWarned(v === '1'); })
-      .catch(() => { if (!cancelled) setWarned(false); });
-    return () => { cancelled = true; };
-  }, [address]);
-  const acknowledgeWarning = useCallback(() => {
-    setWarned(true);
-    if (address) AsyncStorage.setItem(warnedStorageKey(address), '1').catch(() => {});
-  }, [address]);
 
   // Entrances play once (design language rule 10) — never replay on tab switch.
   const hasEntered = useRef(false);
@@ -78,7 +54,15 @@ export default function ReceiveScreen() {
 
   // Address vs EIP-681 payment-request mode.
   const [mode, setMode] = useState<'address' | 'request'>('address');
-  const [request, setRequest] = useState<{ qrValue: string; summary: string; payLink: string }>({ qrValue: '', summary: '', payLink: '' });
+  // The built request comes from the controller; the summary line is composed
+  // here (words are the shell's job).
+  const request = useMemo(() => ({
+    qrValue: rr.qrValue,
+    payLink: rr.payLink,
+    summary: rr.hasAmount
+      ? t('receive.request.summaryAmount', { amount: rr.amount, symbol: rr.asset.symbol, network: rr.asset.networkName })
+      : t('receive.request.summaryOpen', { symbol: rr.asset.symbol, network: rr.asset.networkName }),
+  }), [rr.qrValue, rr.payLink, rr.hasAmount, rr.amount, rr.asset.symbol, rr.asset.networkName, t]);
   const [savingImage, setSavingImage] = useState(false);
   const cardRef = useRef<View>(null);
   // Web only: the most recent pre-rendered share image, so Save can hand it to
@@ -87,71 +71,6 @@ export default function ReceiveScreen() {
 
   const isRequest = mode === 'request';
   const qrValue = isRequest ? (request.qrValue || address) : address;
-
-  // Deposit detection polling — quietly watches for incoming transfers while
-  // this screen is open and surfaces them as they land (no persistent status).
-  useEffect(() => {
-    if (!address) return;
-    previousTokens.current = null;
-    const startTime = Date.now();
-    let timerId: ReturnType<typeof setTimeout>;
-
-    const checkDeposit = async () => {
-      if (!isAppActive()) return;
-      try {
-        const tokens = await fetchTokens(address, { forceRefresh: true });
-
-        if (previousTokens.current !== null) {
-          // Guard: a smaller token set than baseline means a chain likely
-          // failed — skip comparison to avoid false positives.
-          if (tokens.length < previousTokens.current.length) {
-            scheduleNext();
-            return;
-          }
-
-          // Diff: find tokens whose balance increased vs baseline.
-          const prevMap = new Map(previousTokens.current.map(tk => [tokenId(tk), tokenBalanceDouble(tk)]));
-          const changes: DepositEntry['items'] = [];
-          for (const tk of tokens) {
-            const prevBal = prevMap.get(tokenId(tk)) ?? 0;
-            const curBal = tokenBalanceDouble(tk);
-            if (curBal > prevBal) {
-              const diff = curBal - prevBal;
-              changes.push({
-                symbol: tk.symbol,
-                amount: formatBalance(diff),
-                network: chainName(tokenChainId(tk)),
-                usd: tk.priceUsd ? `$${(diff * tk.priceUsd).toFixed(2)}` : null,
-              });
-            }
-          }
-
-          if (changes.length > 0) {
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            setDepositDetected(true);
-            setDeposits(prev => [{ time, items: changes }, ...prev]);
-            hapticSuccess();
-            previousTokens.current = tokens;
-          }
-        } else {
-          // First fetch — record initial baseline.
-          previousTokens.current = tokens;
-        }
-      } catch {}
-
-      scheduleNext();
-    };
-
-    const scheduleNext = () => {
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= TOTAL_LISTEN_MS) return;
-      const interval = elapsed < FAST_PHASE_MS ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
-      timerId = setTimeout(checkDeposit, interval);
-    };
-
-    checkDeposit();
-    return () => { clearTimeout(timerId); };
-  }, [address]);
 
   const copyValue = useCallback(() => {
     // In request mode we copy the public payment LINK (a web page that bridges
@@ -372,7 +291,7 @@ export default function ReceiveScreen() {
         <Animated.View entering={hasEntered.current ? undefined : fadeInDown(200, 400)}>
           {isRequest ? (
             /* Request builder */
-            address ? <ReceiveRequestControls recipient={address} onChange={setRequest} /> : null
+            address ? <ReceiveRequestControls controller={rr} /> : null
           ) : (
             /* Supported networks — a wrapped logo strip, names live in the a11y label */
             <>

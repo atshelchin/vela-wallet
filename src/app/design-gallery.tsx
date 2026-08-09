@@ -1403,7 +1403,20 @@ function DesignGalleryScreen() {
           </Cell>
 
           <Cell id="gallery-receiverequestcontrols-default" label="ReceiveRequestControls · default (native ETH, empty amount)">
-            <ReceiveRequestControls recipient={ME} onChange={() => {}} />
+            <ReceiveRequestControls
+              controller={{
+                recipient: ME,
+                warned: true,
+                acknowledge: () => {},
+                asset: { chainId: 1, tokenAddress: null, symbol: 'ETH', decimals: 18, networkName: 'Ethereum' },
+                pickAsset: () => {},
+                amount: '',
+                setAmountText: () => {},
+                qrValue: '',
+                payLink: '',
+                hasAmount: false,
+              }}
+            />
           </Cell>
 
           <Cell id="gallery-groupeditor-new" label="GroupEditor · editing=null (new group)" height={520}>

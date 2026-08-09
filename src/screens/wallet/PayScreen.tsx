@@ -17,10 +17,10 @@ import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
 import { VelaButton } from '@/components/ui/VelaButton';
 import { VelaCard } from '@/components/ui/VelaCard';
 import { color, createStyles, font, inter, radius, space, text } from '@/constants/theme';
+import { usePayRequest } from '@/hooks/use-pay-request';
 import { useSafeRouter } from '@/hooks/use-safe-router';
 import { networkForChainId, networkId, tokenBadgeNetwork } from '@/models/network';
-import { isAddress, tokenLogoURLs, type APIToken } from '@/models/types';
-import { buildEIP681, toBaseUnits } from '@/services/eip681';
+import { tokenLogoURLs, type APIToken } from '@/models/types';
 import { copyToClipboard, hapticLight, openURL } from '@/services/platform';
 import { Check, Copy } from 'lucide-react-native';
 import { useLocalSearchParams } from 'expo-router';
@@ -43,14 +43,10 @@ export default function PayScreen() {
   const router = useSafeRouter();
   const p = useLocalSearchParams<{ to?: string; chain?: string; token?: string; amount?: string; sym?: string; dec?: string; net?: string }>();
 
-  const to = (p.to ?? '').trim();
-  const chainId = parseInt(p.chain ?? '', 10);
-  const token = (p.token ?? '').trim();
-  const amount = (p.amount ?? '').trim();
-  const symbol = (p.sym ?? '').trim() || 'tokens';
-  const decimals = parseInt(p.dec ?? '18', 10) || 18;
-  const networkName = (p.net ?? '').trim() || (Number.isFinite(chainId) ? `Chain ${chainId}` : '');
-  const valid = isAddress(to) && Number.isFinite(chainId);
+  // Untrusted-query parsing is the controller's (spec 016): Rust-validated on
+  // web (strict amount grammar — research.md D8), today's TypeScript on native.
+  const { valid, to, chainId, token, amount, symbol, decimals, networkName, eip681, amountBase } =
+    usePayRequest(p);
   const isNative = !token;
 
   const network = useMemo(() => (Number.isFinite(chainId) ? networkForChainId(chainId) : null), [chainId]);
@@ -61,9 +57,6 @@ export default function PayScreen() {
     tokenAddress: token || null, priceUsd: null, spam: false,
   }), [chainId, networkName, symbol, decimals, isNative, token]);
   const badge = useMemo(() => tokenBadgeNetwork(apiToken), [apiToken]);
-
-  const eip681 = buildEIP681({ recipient: to, chainId, tokenAddress: token || null, decimals, amount });
-  const amountBase = amount ? toBaseUnits(amount, decimals).toString() : '';
 
   const [showOther, setShowOther] = useState(false);
   const [qrMode, setQrMode] = useState<'eip681' | 'address'>('eip681');

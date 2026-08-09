@@ -5,7 +5,12 @@
  * amount. The asset picker reuses the same TokenSelector as the Send flow, fed
  * with every token — including zero-balance, user-added (custom), and built-in
  * ones (via fetchTokens' includeZeroBalance) — so you can request a token you
- * don't hold yet. Reports the resulting QR value + summary up to ReceiveScreen.
+ * don't hold yet.
+ *
+ * Rendering only (spec 016): amount sanitation and request building are the
+ * controller's (`use-receive-request`) — Rust-driven on web, TypeScript on
+ * native. This component owns the picker UI: the token catalog, the modal,
+ * and the APIToken it renders logos from.
  */
 import { AppModal } from '@/components/ui/AppModal';
 import { Divider } from '@/components/ui/DetailRow';
@@ -15,7 +20,7 @@ import { TokenSelector } from '@/components/ui/TokenSelector';
 import { color, createStyles, inter, radius, space, text } from '@/constants/theme';
 import { chainName, networkForChainId, tokenBadgeNetwork } from '@/models/network';
 import { tokenChainId, tokenLogoURLs, type APIToken } from '@/models/types';
-import { buildEIP681, buildPayLink } from '@/services/eip681';
+import type { ReceiveRequestController } from '@/hooks/receive-controller-types';
 import { useLocalePrefs, numberSeparators, parseLocaleNumber } from '@/services/locale-format';
 import { hapticLight } from '@/services/platform';
 import { clearTokenCache, fetchTokens } from '@/services/wallet-api';
@@ -25,10 +30,8 @@ import { useTranslation } from 'react-i18next';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 interface Props {
-  /** The receiving address (the request's beneficiary). */
-  recipient: string;
-  /** Called whenever the built request changes. */
-  onChange: (req: { qrValue: string; summary: string; payLink: string }) => void;
+  /** The gate + builder controller owned by the Receive screen. */
+  controller: ReceiveRequestController;
 }
 
 /** Default asset shown before anything is picked / loaded: native ETH on Ethereum. */
@@ -36,20 +39,11 @@ function defaultAsset(): APIToken {
   return { network: 'eth-mainnet', chainName: 'Ethereum', symbol: 'ETH', balance: '0', decimals: 18, logo: null, name: 'Ethereum', tokenAddress: null, priceUsd: null, spam: false };
 }
 
-function sanitizeAmount(text: string, maxDecimals: number): string {
-  const cleaned = text.replace(/[^0-9.]/g, '');
-  if ((cleaned.match(/\./g) || []).length > 1) return text.slice(0, -1);
-  const [i, f] = cleaned.split('.');
-  if (f != null && f.length > maxDecimals) return `${i}.${f.slice(0, maxDecimals)}`;
-  return cleaned;
-}
-
-export function ReceiveRequestControls({ recipient, onChange }: Props) {
+export function ReceiveRequestControls({ controller }: Props) {
   const { t } = useTranslation();
   useLocalePrefs(); // re-render on number-format change
 
   const [asset, setAsset] = useState<APIToken>(defaultAsset);
-  const [amount, setAmount] = useState('');
   const [allTokens, setAllTokens] = useState<APIToken[]>([]);
   const [loadingTokens, setLoadingTokens] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
@@ -61,35 +55,29 @@ export function ReceiveRequestControls({ recipient, onChange }: Props) {
   );
 
   // Load every token (incl. zero-balance / custom / built-in) for the picker.
+  const address = controller.recipient;
   const loadTokens = (forceRefresh = false) => {
-    if (!recipient) return;
+    if (!address) return;
     setLoadingTokens(true);
-    if (forceRefresh) clearTokenCache(recipient);
-    fetchTokens(recipient, { includeZeroBalance: true })
+    if (forceRefresh) clearTokenCache(address);
+    fetchTokens(address, { includeZeroBalance: true })
       .then((list) => setAllTokens(list))
       .catch(() => {})
       .finally(() => setLoadingTokens(false));
   };
-  useEffect(() => { loadTokens(); }, [recipient]);
-
-  // Rebuild the URI + summary + public link whenever any input changes.
-  useEffect(() => {
-    const qrValue = buildEIP681({ recipient, chainId, tokenAddress: asset.tokenAddress, decimals: asset.decimals, amount });
-    const payLink = buildPayLink({
-      recipient, chainId, tokenAddress: asset.tokenAddress, amount,
-      symbol: asset.symbol, decimals: asset.decimals, networkName,
-    });
-    const hasAmount = !!amount && parseFloat(amount) > 0;
-    const summary = hasAmount
-      ? t('receive.request.summaryAmount', { amount, symbol: asset.symbol, network: networkName })
-      : t('receive.request.summaryOpen', { symbol: asset.symbol, network: networkName });
-    onChange({ qrValue, summary, payLink });
-  }, [recipient, asset, amount, networkName]);
+  useEffect(() => { loadTokens(); }, [address]);
 
   const pickAsset = (tok: APIToken) => {
     hapticLight();
     setAsset(tok);
-    setAmount((a) => sanitizeAmount(a, tok.decimals)); // re-clamp precision
+    const tokChainId = tokenChainId(tok);
+    controller.pickAsset({
+      chainId: tokChainId,
+      tokenAddress: tok.tokenAddress ?? null,
+      symbol: tok.symbol,
+      decimals: tok.decimals,
+      networkName: networkForChainId(tokChainId)?.displayName ?? chainName(tokChainId),
+    });
     setShowPicker(false);
   };
 
@@ -117,8 +105,8 @@ export function ReceiveRequestControls({ recipient, onChange }: Props) {
       <View style={styles.amountRow}>
         <TextInput
           style={styles.amountInput}
-          value={amount.replace('.', numberSeparators().decimal)}
-          onChangeText={(txt) => setAmount(sanitizeAmount(parseLocaleNumber(txt), asset.decimals))}
+          value={controller.amount.replace('.', numberSeparators().decimal)}
+          onChangeText={(txt) => controller.setAmountText(parseLocaleNumber(txt))}
           placeholder={t('receive.request.amountPlaceholder')}
           placeholderTextColor={color.fg.subtle}
           keyboardType="decimal-pad"

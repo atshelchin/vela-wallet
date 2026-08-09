@@ -102,6 +102,17 @@
 	--size-control-md: 44px; /* web addition: sizing.control.md per design-system.md */
 	--size-control-lg: 52px; /* web addition: sizing.control.lg per design-system.md */
 	--breakpoint-desktop: 1280px; /* web addition: feature 006 responsive contract */
+	--breakpoint-contactsOverlay: 1120px; /* web addition: spec 018 desktop SPEC sheet: below this width the third column overlays instead of squeezing the list */
+	--motion-panel-in: 240ms; /* web addition: spec 018 FR-011: third-column open */
+	--motion-panel-out: 200ms; /* web addition: spec 018 FR-011: third-column close */
+	--motion-crossfade: 150ms; /* web addition: spec 018 FR-011: content swap + reduced-motion degrade */
+	--motion-hover: 120ms; /* web addition: spec 018 FR-011: desktop row hover raise */
+	--motion-bubble-in: 120ms; /* web addition: spec 018 FR-011: index-rail letter bubble fade-in */
+	--motion-bubble-out: 80ms; /* web addition: spec 018 FR-011: index-rail letter bubble fade-out */
+	--size-identiconHero: 64px; /* web addition: spec 018: contact-detail hero avatar, measured 64 in C2 (mobile) */
+	--size-identiconDetail: 48px; /* web addition: spec 018: contact-detail avatar, measured 48 in DC2 (desktop) */
+	--layout-contactsRailW: 216px; /* web addition: spec 018 research D9: desktop group-rail width (DC1) */
+	--layout-contactsMenuW: 216px; /* web addition: spec 018 research D9: dropdown/context menu width (M1/M2) */
 	--color-onAccent: #FFFFFF; /* web addition: CTA label on accent.base, white in BOTH modes per mocks (fg.inverse flips) */
 	--opacity-hover: 0.92; /* web addition: pointer hover feedback; no export token exists for hover */
 	--color-fg-base: #E8E6E1;

@@ -7,22 +7,26 @@
 		title: string;
 		/** Optional trailing icon-button slot in the title row (mock H8: search). */
 		trailingIcon?: 'search';
+		/** Spec 018 C5/C6: action sheets show no visible title, only the a11y name. */
+		hideTitle?: boolean;
 		onclose?: () => void;
 		children: Snippet;
 	}
 
-	let { title, trailingIcon, onclose, children }: Props = $props();
+	let { title, trailingIcon, hideTitle = false, onclose, children }: Props = $props();
 </script>
 
 <div class="scrim" role="presentation" onclick={onclose}></div>
 <div class="sheet" role="dialog" aria-modal="true" aria-label={title}>
 	<span class="handle" aria-hidden="true"></span>
-	<header>
-		<h2>{title}</h2>
-		{#if trailingIcon === 'search'}
-			<span class="trailing"><Icon icon={UTILITY_ICONS.search} size="lg" /></span>
-		{/if}
-	</header>
+	{#if !hideTitle}
+		<header>
+			<h2>{title}</h2>
+			{#if trailingIcon === 'search'}
+				<span class="trailing"><Icon icon={UTILITY_ICONS.search} size="lg" /></span>
+			{/if}
+		</header>
+	{/if}
 	<div class="content">
 		{@render children()}
 	</div>

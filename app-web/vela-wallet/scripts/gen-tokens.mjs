@@ -29,6 +29,21 @@ const WEB_ADDITIONS = [
 	['size-control-lg', '52px', 'sizing.control.lg per design-system.md'],
 	['breakpoint-desktop', '1280px', 'feature 006 responsive contract'],
 	[
+		'breakpoint-contactsOverlay',
+		'1120px',
+		'spec 018 desktop SPEC sheet: below this width the third column overlays instead of squeezing the list'
+	],
+	['motion-panel-in', '240ms', 'spec 018 FR-011: third-column open'],
+	['motion-panel-out', '200ms', 'spec 018 FR-011: third-column close'],
+	['motion-crossfade', '150ms', 'spec 018 FR-011: content swap + reduced-motion degrade'],
+	['motion-hover', '120ms', 'spec 018 FR-011: desktop row hover raise'],
+	['motion-bubble-in', '120ms', 'spec 018 FR-011: index-rail letter bubble fade-in'],
+	['motion-bubble-out', '80ms', 'spec 018 FR-011: index-rail letter bubble fade-out'],
+	['size-identiconHero', '64px', 'spec 018: contact-detail hero avatar, measured 64 in C2 (mobile)'],
+	['size-identiconDetail', '48px', 'spec 018: contact-detail avatar, measured 48 in DC2 (desktop)'],
+	['layout-contactsRailW', '216px', 'spec 018 research D9: desktop group-rail width (DC1)'],
+	['layout-contactsMenuW', '216px', 'spec 018 research D9: dropdown/context menu width (M1/M2)'],
+	[
 		'color-onAccent',
 		'#FFFFFF',
 		'CTA label on accent.base, white in BOTH modes per mocks (fg.inverse flips)'
@@ -41,6 +56,9 @@ const FONT_UI = "'Plus Jakarta Sans', 'Noto Sans SC', system-ui, sans-serif";
 const FONT_MONO = "'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace";
 
 export const BREAKPOINT_DESKTOP = 1280;
+
+/** Spec 018: the desktop third column overlays the list below this width. */
+export const BREAKPOINT_CONTACTS_OVERLAY = 1120;
 
 // px-typed DTCG categories; everything else resolves via path rules below.
 const PX_TYPES = new Set([
@@ -149,6 +167,9 @@ export function generateTs(tokens = loadTokens()) {
 	return `${HEADER.replace('/*', '//').replace(' */', '')}
 
 export const BREAKPOINT_DESKTOP = ${BREAKPOINT_DESKTOP};
+
+/** Spec 018: below this width the desktop third column overlays the list. */
+export const BREAKPOINT_CONTACTS_OVERLAY = ${BREAKPOINT_CONTACTS_OVERLAY};
 
 export const CONTROL = { sm: 36, md: 44, lg: 52 } as const;
 

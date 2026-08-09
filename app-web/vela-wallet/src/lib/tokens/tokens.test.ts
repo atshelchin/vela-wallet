@@ -9,7 +9,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { generateCss, generateTs } from '../../../scripts/gen-tokens.mjs';
-import { BREAKPOINT_DESKTOP } from './tokens';
+import { BREAKPOINT_CONTACTS_OVERLAY, BREAKPOINT_DESKTOP } from './tokens';
 
 const APP_ROOT = join(import.meta.dirname, '..', '..', '..');
 
@@ -50,6 +50,8 @@ describe('literal audit — product UI references tokens, never raw values', () 
 
 	const sources = [
 		...collect(join(APP_ROOT, 'src/lib/ui')),
+		// spec 018 T018: the contacts feature layer is audited too.
+		...collect(join(APP_ROOT, 'src/lib/contacts')),
 		...collect(join(APP_ROOT, 'src/routes')),
 		join(APP_ROOT, 'src/app.css')
 	].filter((path) => !path.includes('/tokens/') && !path.endsWith('.test.ts'));
@@ -66,15 +68,25 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		}
 	});
 
-	it('the only px literal is the desktop breakpoint, and it equals BREAKPOINT_DESKTOP', () => {
+	/**
+	 * The only px literals allowed anywhere in product UI are the two responsive
+	 * breakpoints, and only inside `@media` — a media query cannot read a custom
+	 * property, so the value has to be spelled out. Both are generated tokens
+	 * (`--breakpoint-desktop`, `--breakpoint-contactsOverlay`) and this gate
+	 * pins the literals to those exports so the two can never drift apart.
+	 */
+	const BREAKPOINT_LITERALS = [`${BREAKPOINT_DESKTOP}px`, `${BREAKPOINT_CONTACTS_OVERLAY}px`];
+
+	it('the only px literals are the breakpoints, and they equal the token exports', () => {
 		for (const path of sources) {
 			const text = readFileSync(path, 'utf8');
 			const pxLiterals = text.match(/\b\d+(?:\.\d+)?px\b/g) ?? [];
-			const offenders = pxLiterals.filter((v) => v !== `${BREAKPOINT_DESKTOP}px`);
+			const offenders = pxLiterals.filter((v) => !BREAKPOINT_LITERALS.includes(v));
 			expect(offenders, relative(APP_ROOT, path)).toEqual([]);
 			// outside comments, breakpoint literals may appear only in media queries
 			for (const line of text.split('\n')) {
-				if (line.includes(`${BREAKPOINT_DESKTOP}px`) && !/\/\*|\*\//.test(line)) {
+				const hit = BREAKPOINT_LITERALS.some((v) => line.includes(v));
+				if (hit && !/\/\*|\*\//.test(line)) {
 					expect(line, relative(APP_ROOT, path)).toMatch(/@media/);
 				}
 			}

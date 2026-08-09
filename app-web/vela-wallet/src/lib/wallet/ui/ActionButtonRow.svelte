@@ -1,11 +1,19 @@
 <script lang="ts">
-	import { UTILITY_ICONS } from '../icons';
+	import { UTILITY_ICONS, type IconDef } from '../icons';
 	import Icon from './Icon.svelte';
 
+	interface ActionItem {
+		label: string;
+		icon: IconDef;
+		onclick?: () => void;
+	}
+
 	interface Props {
-		receive: string;
-		send: string;
-		scan: string;
+		receive?: string;
+		send?: string;
+		scan?: string;
+		/** Spec 018 #11: same anatomy, different items (转账 / 收款 / 二维码). */
+		items?: ActionItem[];
 		/** 'cards' = mobile 3-up tiles; 'pills' = desktop inline buttons. */
 		layout?: 'cards' | 'pills';
 		onreceive?: () => void;
@@ -13,17 +21,28 @@
 		onscan?: () => void;
 	}
 
-	let { receive, send, scan, layout = 'cards', onreceive, onsend, onscan }: Props = $props();
+	let {
+		receive = '',
+		send = '',
+		scan = '',
+		items,
+		layout = 'cards',
+		onreceive,
+		onsend,
+		onscan
+	}: Props = $props();
 
-	const items = $derived([
-		{ label: receive, icon: UTILITY_ICONS['arrow-down-left'], onclick: onreceive },
-		{ label: send, icon: UTILITY_ICONS['arrow-up-right'], onclick: onsend },
-		{ label: scan, icon: UTILITY_ICONS['scan-line'], onclick: onscan }
-	]);
+	const resolved = $derived(
+		items ?? [
+			{ label: receive, icon: UTILITY_ICONS['arrow-down-left'], onclick: onreceive },
+			{ label: send, icon: UTILITY_ICONS['arrow-up-right'], onclick: onsend },
+			{ label: scan, icon: UTILITY_ICONS['scan-line'], onclick: onscan }
+		]
+	);
 </script>
 
 <div class="actions {layout}">
-	{#each items as item (item.label)}
+	{#each resolved as item (item.label)}
 		<button type="button" onclick={item.onclick}>
 			<Icon icon={item.icon} size="lg" />
 			<span>{item.label}</span>

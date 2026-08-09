@@ -322,11 +322,20 @@ function assetRow(m: WalletMessages, f: AssetFixture, masked = false): AssetRowM
 	};
 }
 
-function chainRows(m: WalletMessages): ChainRowModel[] {
+/**
+ * The sidebar/sheet network list. Exported so the spec-018 contacts desktop
+ * shell feeds the SAME rows into the reused Sidebar without a second copy of
+ * the chain canon (SC-006 is about components; this keeps the data single too).
+ */
+export function chainRowsFor(allNetworksLabel: string): ChainRowModel[] {
 	return [
-		{ name: m.networkFilter.allNetworks, dot: 'all', count: NETWORK_COUNT, selected: true },
+		{ name: allNetworksLabel, dot: 'all', count: NETWORK_COUNT, selected: true },
 		...CHAINS.map((c) => ({ name: c.name, dot: c.dot, count: c.count, selected: false }))
 	];
+}
+
+function chainRows(m: WalletMessages): ChainRowModel[] {
+	return chainRowsFor(m.networkFilter.allNetworks);
 }
 
 function balance(

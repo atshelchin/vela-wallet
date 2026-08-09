@@ -5,6 +5,7 @@
     windows_subsystem = "windows"
 )]
 
+mod contacts;
 mod gallery;
 mod icons;
 mod identicon;
@@ -26,13 +27,14 @@ use onboarding::OnboardingPage;
 use theme::{WINDOW_H, WINDOW_W};
 use wallet::page::WalletPage;
 
-/// Which root the window hosts. `VELA_PAGE=wallet|gallery` (spec 015
-/// research.md D4) — same env-pin family as `VELA_THEME`/`VELA_LANG`; the
-/// default remains the onboarding flow.
+/// Which root the window hosts. `VELA_PAGE=wallet|contacts|gallery` (spec 015
+/// research.md D4, extended by spec 018 research.md D1) — same env-pin family
+/// as `VELA_THEME`/`VELA_LANG`; the default remains the onboarding flow.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum RootPage {
     Onboarding,
     Wallet,
+    Contacts,
     Gallery,
 }
 
@@ -40,6 +42,7 @@ impl RootPage {
     fn from_env() -> Self {
         match std::env::var("VELA_PAGE").as_deref() {
             Ok("wallet") => Self::Wallet,
+            Ok("contacts") => Self::Contacts,
             Ok("gallery") => Self::Gallery,
             _ => Self::Onboarding,
         }
@@ -66,6 +69,11 @@ fn open_main_window(cx: &mut App) {
         RootPage::Wallet => {
             open_window_with(cx, |window, cx| {
                 cx.new(|cx| WalletPage::new(false, window, cx))
+            })
+        }
+        RootPage::Contacts => {
+            open_window_with(cx, |window, cx| {
+                cx.new(|cx| WalletPage::contacts(window, cx))
             })
         }
         RootPage::Gallery => {

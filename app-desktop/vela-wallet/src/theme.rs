@@ -226,6 +226,63 @@ pub const WALLET_BADGE: f32 = 12.;
 pub const WALLET_NAV_ROW_H: f32 = 40.;
 pub const WALLET_CONTROL_H: f32 = 44.;
 
+// ---------------------------------------------------------------------------
+// Contacts (spec 018). Geometry measured on the DC1–DC6/M1/M2 mocks at their
+// 1280×800 logical size (research.md D9 — named metrics only, no new colors).
+// ---------------------------------------------------------------------------
+
+/// Groups rail (column between sidebar and the contact list), DC1.
+pub const CONTACTS_RAIL_W: f32 = 216.;
+/// Rail row height (全部联系人 / group rows / 新建分组).
+pub const CONTACTS_RAIL_ROW_H: f32 = 36.;
+/// The `分组` caption block between the 全部联系人 row and the group rows.
+pub const CONTACTS_RAIL_LABEL_H: f32 = 32.;
+/// Inset from the header hairline down to the first rail row / list section.
+pub const CONTACTS_BODY_PAD_TOP: f32 = 16.;
+/// Header/CTA control height shared by 添加联系人, 群发转账 and the ⋯ buttons.
+pub const CONTACTS_BUTTON_H: f32 = 40.;
+/// Page-local search field in the contacts header (DC1: 780 → 1060).
+pub const CONTACTS_SEARCH_W: f32 = 280.;
+/// Dropdown/context menu card width and row height (M1/M2).
+pub const CONTACTS_MENU_W: f32 = 220.;
+pub const CONTACTS_MENU_ROW_H: f32 = 44.;
+/// Contacts page header band (title + search + 添加联系人 + ⋯), DC1: the
+/// hairline under it sits at y = 92 in the mock.
+pub const CONTACTS_HEADER_H: f32 = 92.;
+/// Height of the gallery chip strip: 28 px chips, 8 px padding either side,
+/// and the 1 px hairline. Menus anchored in window coordinates offset by this
+/// whenever the gallery chrome is on screen.
+pub const GALLERY_BAR_H: f32 = 45.;
+/// Contact detail hero avatar (desktop third-column size — measured 48 in DC2).
+pub const CONTACTS_HERO_AVATAR: f32 = 48.;
+/// Contact row leading avatar (row size, same as the wallet rows).
+pub const CONTACTS_ROW_AVATAR: f32 = 40.;
+
+/// Contacts motion contract (spec 018 FR-011): named here so all four
+/// platforms share one set of values. The gpui build renders fixture states
+/// statically, so production code doesn't consume them yet — the test at the
+/// bottom of this file pins them against the cross-platform table.
+#[allow(
+    dead_code,
+    reason = "cross-platform motion contract, asserted by tests"
+)]
+pub const CONTACTS_MOTION_PANEL_OPEN_MS: u64 = 240;
+#[allow(
+    dead_code,
+    reason = "cross-platform motion contract, asserted by tests"
+)]
+pub const CONTACTS_MOTION_PANEL_CLOSE_MS: u64 = 200;
+#[allow(
+    dead_code,
+    reason = "cross-platform motion contract, asserted by tests"
+)]
+pub const CONTACTS_MOTION_CROSSFADE_MS: u64 = 150;
+#[allow(
+    dead_code,
+    reason = "cross-platform motion contract, asserted by tests"
+)]
+pub const CONTACTS_MOTION_HOVER_MS: u64 = 120;
+
 /// Wallet type scale (mock-measured).
 pub fn text_balance_hero() -> Pixels {
     px(40.)
@@ -507,12 +564,31 @@ mod tests {
                 // error-colored code line.
                 ("fg_base/bg_well", t.fg_base, t.bg_well, 4.5),
                 ("error_base/bg_well", t.error_base, t.bg_well, 3.0),
+                // spec 018 contacts: section letters + rail labels sit on
+                // bg_base (11 px semibold, decorative-adjacent — 3:1 floor);
+                // the detail-footer 删除联系人 is body text on bg_base.
+                ("fg_subtle/bg_base", t.fg_subtle, t.bg_base, 3.0),
+                ("error_base/bg_base", t.error_base, t.bg_base, 4.5),
+                // the 家人 membership chip is fg_muted on the sunken pill.
+                ("fg_muted/bg_sunken", t.fg_muted, t.bg_sunken, 4.5),
             ];
             for (pair, fg, bg, floor) in body {
                 let ratio = contrast(fg, bg);
                 assert!(ratio >= floor, "{name} {pair}: {ratio:.2} < {floor}");
             }
         }
+    }
+
+    /// Spec 018 FR-011: the contacts motion values are a four-platform
+    /// contract (third column 240/200 ms, content crossfade 150 ms, hover
+    /// 120 ms). Desktop renders fixture states statically, so this pin is the
+    /// only executable place the shared numbers live.
+    #[test]
+    fn contacts_motion_contract_matches_the_spec_table() {
+        assert_eq!(CONTACTS_MOTION_PANEL_OPEN_MS, 240);
+        assert_eq!(CONTACTS_MOTION_PANEL_CLOSE_MS, 200);
+        assert_eq!(CONTACTS_MOTION_CROSSFADE_MS, 150);
+        assert_eq!(CONTACTS_MOTION_HOVER_MS, 120);
     }
 
     /// The accent is the brand constant and identical across modes (research D3).

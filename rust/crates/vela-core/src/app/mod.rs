@@ -37,8 +37,20 @@ use crate::types::{ClientDataKind, WebAuthnAssertion};
 use crate::webauthn;
 
 pub mod create_wallet;
+pub mod display_currency;
 pub mod login;
+pub mod payment_request;
+pub mod receive_watch;
 pub mod shell;
+
+/// Implemented by every per-domain effect enum (spec 016) so product-agnostic
+/// plumbing — the wasm bridge, the test driver — can split shell requests
+/// from renders without knowing the domain. Three lines per machine; the
+/// bridge and driver are written once.
+pub trait SplitEffect {
+    type Op: crux_core::capability::Operation;
+    fn into_shell(self) -> Option<crux_core::Request<Self::Op>>;
+}
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;

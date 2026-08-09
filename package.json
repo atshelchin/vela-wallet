@@ -23,6 +23,7 @@
     "verify:identicon": "node scripts/verify-identicon-parity.mjs",
     "build:wasm": "node rust/scripts/build-web.mjs",
     "gen:onboarding-types": "node rust/scripts/gen-onboarding-types.mjs",
+    "gen:core-types": "node rust/scripts/gen-core-types.mjs",
     "test:core": "cd rust && cargo test -p vela-core --features crux,i18n-all",
     "verify:wasm": "node rust/scripts/verify-web.mjs",
     "bench:legacy": "jest --ci --config scripts/dump-vectors/jest.config.js --testPathPatterns '\\.bench\\.test\\.ts$'",

@@ -162,9 +162,22 @@ export interface SafeAddressInfo {
 
 
 /**
- * Creating a wallet: register → prove signing → derive → sync → save.
+ * r" Creating a wallet: register → prove signing → derive → sync → save.
  */
 export class CreateWalletCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The display currency: atomic code+rate pair, first-launch region seed,
+ * r" user-choice-wins.
+ */
+export class DisplayCurrencyCore {
     free(): void;
     [Symbol.dispose](): void;
     dispatch(event_json: string): string;
@@ -216,9 +229,35 @@ export class I18n {
 }
 
 /**
- * Signing in with an existing passkey, including on-device recovery.
+ * r" Signing in with an existing passkey, including on-device recovery.
  */
 export class LoginCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Payment requests: the acknowledge gate, the EIP-681/pay-link builder,
+ * r" and the strict `/pay` validator.
+ */
+export class PaymentRequestCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Deposit detection on the Receive screen: phased polling, baseline
+ * r" diff, false-positive guards.
+ */
+export class ReceiveWatchCore {
     free(): void;
     [Symbol.dispose](): void;
     dispatch(event_json: string): string;
@@ -340,8 +379,11 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly __wbg_createwalletcore_free: (a: number, b: number) => void;
+    readonly __wbg_displaycurrencycore_free: (a: number, b: number) => void;
     readonly __wbg_i18n_free: (a: number, b: number) => void;
     readonly __wbg_logincore_free: (a: number, b: number) => void;
+    readonly __wbg_paymentrequestcore_free: (a: number, b: number) => void;
+    readonly __wbg_receivewatchcore_free: (a: number, b: number) => void;
     readonly abiEncodeAddress: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeBytes32: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeUint256: (a: number, b: number) => [number, number, number, number];
@@ -357,6 +399,10 @@ export interface InitOutput {
     readonly createwalletcore_view: (a: number) => [number, number, number, number];
     readonly decodeCalldata: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly derSignatureToRawLowS: (a: number, b: number) => [number, number, number, number];
+    readonly displaycurrencycore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly displaycurrencycore_new: () => number;
+    readonly displaycurrencycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly displaycurrencycore_view: (a: number) => [number, number, number, number];
     readonly encodeSplitterDeployCall: (a: number, b: number) => [number, number, number, number];
     readonly encodeType: (a: number, b: number) => [number, number, number, number];
     readonly extractAttestationPublicKey: (a: number, b: number) => [number, number, number];
@@ -395,6 +441,14 @@ export interface InitOutput {
     readonly logincore_view: (a: number) => [number, number, number, number];
     readonly matchSelector: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];
+    readonly paymentrequestcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly paymentrequestcore_new: () => number;
+    readonly paymentrequestcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly paymentrequestcore_view: (a: number) => [number, number, number, number];
+    readonly receivewatchcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly receivewatchcore_new: () => number;
+    readonly receivewatchcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly receivewatchcore_view: (a: number) => [number, number, number, number];
     readonly recoverPublicKeyFromAssertions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly safeProxyRuntimeCode: () => [number, number, number, number];
     readonly sha256: (a: number, b: number) => [number, number];

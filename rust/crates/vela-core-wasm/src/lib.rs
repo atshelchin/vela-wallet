@@ -17,7 +17,9 @@ use wasm_bindgen::prelude::*;
 /// The onboarding state machines (spec 011-crux-onboarding-state). Unlike the
 /// function exports below — pure kernels the app calls — these are stateful
 /// cores the web shell drives with events and effect results.
+mod bridge;
 mod onboarding;
+mod wallet_state;
 
 // ---------------------------------------------------------------------------
 // Error

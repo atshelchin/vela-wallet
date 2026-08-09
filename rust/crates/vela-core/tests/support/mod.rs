@@ -229,3 +229,101 @@ pub fn account(id: &str, name: &str, address: &str) -> Account {
 }
 
 pub const NOW: &str = "2026-08-05T12:00:00.000Z";
+
+// ---------------------------------------------------------------------------
+// Generic driver for the per-domain machines (spec 016)
+// ---------------------------------------------------------------------------
+
+use vela_core::app::SplitEffect;
+
+/// Same contract as [`Driver`], for any machine whose effect enum implements
+/// [`SplitEffect`] — dispatch, collect operations, resolve in order.
+pub struct DomainDriver<A>
+where
+    A: App + Default,
+    A::Model: Default,
+    A::Effect: SplitEffect,
+{
+    app: Core<A>,
+    pending: VecDeque<Request<<A::Effect as SplitEffect>::Op>>,
+}
+
+impl<A> DomainDriver<A>
+where
+    A: App + Default,
+    A::Model: Default,
+    A::Effect: SplitEffect,
+    <A::Effect as SplitEffect>::Op: Clone,
+{
+    pub fn new() -> Self {
+        Self {
+            app: Core::new(),
+            pending: VecDeque::new(),
+        }
+    }
+
+    /// Send an event; returns the operations the core asked for, in order.
+    pub fn dispatch(&mut self, event: A::Event) -> Vec<<A::Effect as SplitEffect>::Op> {
+        let effects = self.app.process_event(event);
+        self.collect(effects)
+    }
+
+    /// Answer the oldest outstanding operation.
+    pub fn resolve(
+        &mut self,
+        result: <<A::Effect as SplitEffect>::Op as crux_core::capability::Operation>::Output,
+    ) -> Vec<<A::Effect as SplitEffect>::Op> {
+        let mut request = self
+            .pending
+            .pop_front()
+            .expect("no outstanding shell operation to resolve");
+        match self.app.resolve(&mut request, result) {
+            Ok(effects) => self.collect(effects),
+            Err(_) => Vec::new(),
+        }
+    }
+
+    pub fn view(&self) -> A::ViewModel {
+        self.app.view()
+    }
+
+    /// Operations still awaiting an answer.
+    pub fn outstanding(&self) -> Vec<<A::Effect as SplitEffect>::Op> {
+        self.pending
+            .iter()
+            .map(|request| request.operation.clone())
+            .collect()
+    }
+
+    /// Drop the oldest outstanding operation unanswered — "the shell never
+    /// got back to us". Used to assert what happens to abandoned requests.
+    pub fn drop_oldest(&mut self) {
+        self.pending.pop_front();
+    }
+
+    fn collect(
+        &mut self,
+        effects: Vec<A::Effect>,
+    ) -> Vec<<A::Effect as SplitEffect>::Op> {
+        let mut operations = Vec::new();
+        for effect in effects {
+            if let Some(request) = effect.into_shell() {
+                operations.push(request.operation.clone());
+                self.pending.push_back(request);
+            }
+        }
+        operations
+    }
+}
+
+impl<A> Default for DomainDriver<A>
+where
+    A: App + Default,
+    A::Model: Default,
+    A::Effect: SplitEffect,
+    <A::Effect as SplitEffect>::Op: Clone,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}

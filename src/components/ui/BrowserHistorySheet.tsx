@@ -9,12 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Globe, X } from 'lucide-react-native';
 
 import { AppModal } from '@/components/ui/AppModal';
-import {
-  clearBrowserHistory,
-  deleteBrowserHistory,
-  getBrowserHistory,
-  type BrowserHistoryEntry,
-} from '@/services/browser-history';
+import { useBrowserHistory } from '@/hooks/use-browser-history';
 import { showAlert } from '@/services/platform';
 import { color, space, text as textScale, createStyles } from '@/constants/theme';
 
@@ -40,22 +35,11 @@ function HistoryIcon({ favicon }: { favicon: string }) {
 
 export function BrowserHistorySheet({ visible, onClose, onOpen }: Props) {
   const { t } = useTranslation();
-  const [entries, setEntries] = useState<BrowserHistoryEntry[]>([]);
-
-  const refresh = useCallback(() => {
-    void getBrowserHistory().then(setEntries);
-  }, []);
+  const { entries, refresh, remove, clearAll } = useBrowserHistory();
 
   useEffect(() => {
     if (visible) refresh();
   }, [visible, refresh]);
-
-  const remove = useCallback(
-    (origin: string) => {
-      void deleteBrowserHistory(origin).then(refresh);
-    },
-    [refresh],
-  );
 
   const confirmClear = useCallback(() => {
     showAlert(t('connect.browser.clearAllTitle'), t('connect.browser.clearAllBody'), [
@@ -63,10 +47,10 @@ export function BrowserHistorySheet({ visible, onClose, onOpen }: Props) {
       {
         text: t('connect.browser.clearAll'),
         style: 'destructive',
-        onPress: () => void clearBrowserHistory().then(refresh),
+        onPress: clearAll,
       },
     ]);
-  }, [t, refresh]);
+  }, [t, clearAll]);
 
   return (
     <AppModal visible={visible} onClose={onClose}>

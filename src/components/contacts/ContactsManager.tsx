@@ -7,6 +7,12 @@
  * reads as one flat noisy wall. Favouriting is one tap; editing/deleting lives
  * in the form. Manual adds resolve an identity name (ENS/Basename/passkey) as
  * you type a valid address, so a contact rarely needs a hand-typed name.
+ *
+ * The book itself comes from {@link useContactsBook} — the TypeScript service on
+ * native, the portable `contacts` Rust machine on web (spec 017). What the merge
+ * of saved contacts and history suggestions contains, what a delete tombstones,
+ * and what an import overwrites are decided there; this file only renders and
+ * dispatches intent.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
@@ -26,11 +32,11 @@ import { shortAddr, isAddress } from '@/models/types';
 import { showAlert, hapticLight, hapticSuccess } from '@/services/platform';
 import { fadeIn } from '@/constants/entering';
 import {
-  getAllContacts, sortContacts, matchesQuery, contactDisplayName,
-  saveContact, deleteContact, toggleFavorite, enrichContactIdentity,
-  getGroups, type Contact, type ContactGroup,
+  matchesQuery, contactDisplayName, enrichContactIdentity,
+  type Contact, type ContactGroup, type SaveContactInput,
 } from '@/services/contacts';
-import { exportContactsJson, exportContactsCsv, parseContactsFile, importContacts } from '@/services/contact-io';
+import { serializeContactsJson, serializeContactsCsv, parseContactsFile } from '@/services/contact-io';
+import { useContactsBook } from '@/hooks/use-contacts-book';
 import { pickTable, saveTextFile } from '@/services/file-io';
 import { scaleFont, color, text, inter, space, radius, font, createStyles } from '@/constants/theme';
 
@@ -38,8 +44,8 @@ type Filter = 'all' | 'starred';
 
 export function ContactsManager({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { t } = useTranslation();
-  const [contacts, setContacts] = useState<Contact[] | null>(null);
-  const [groups, setGroups] = useState<ContactGroup[]>([]);
+  const book = useContactsBook();
+  const { contacts, groups } = book;
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [filter, setFilter] = useState<Filter>('all');
@@ -48,19 +54,15 @@ export function ContactsManager({ visible, onClose }: { visible: boolean; onClos
   const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const reload = React.useCallback(() => {
-    getAllContacts().then((l) => setContacts(sortContacts(l))).catch(() => setContacts([]));
-    getGroups().then(setGroups).catch(() => setGroups([]));
-  }, []);
-
+  const refresh = book.refresh;
   useEffect(() => {
     if (!visible) return;
     setView('list');
     setQuery('');
     setSearching(false);
     setFilter('all');
-    reload();
-  }, [visible, reload]);
+    refresh();
+  }, [visible, refresh]);
 
   const favorites = useMemo(() => (contacts ?? []).filter((c) => c.favorite), [contacts]);
   const others = useMemo(() => (contacts ?? []).filter((c) => !c.favorite), [contacts]);
@@ -79,12 +81,15 @@ export function ContactsManager({ visible, onClose }: { visible: boolean; onClos
   const openGroupEdit = (g: ContactGroup) => { setEditingGroup(g); setView('group'); };
 
   const onExport = () => {
+    // Serialized from the controller's book rather than re-read from the
+    // service, so the file always matches what this sheet is showing.
+    const saved = book.saved ?? [];
     showAlert(
       t('contacts.exportTitle', { defaultValue: 'Export contacts' }),
       t('contacts.exportBody', { defaultValue: 'Choose a format to back up your address book.' }),
       [
-        { text: 'JSON', onPress: async () => { await saveTextFile('vela-contacts.json', await exportContactsJson(), 'application/json'); } },
-        { text: 'CSV', onPress: async () => { await saveTextFile('vela-contacts.csv', await exportContactsCsv(), 'text/csv'); } },
+        { text: 'JSON', onPress: async () => { await saveTextFile('vela-contacts.json', serializeContactsJson(saved, groups), 'application/json'); } },
+        { text: 'CSV', onPress: async () => { await saveTextFile('vela-contacts.csv', serializeContactsCsv(saved, groups), 'text/csv'); } },
         { text: t('contacts.cancel'), style: 'cancel' },
       ],
     );
@@ -96,8 +101,7 @@ export function ContactsManager({ visible, onClose }: { visible: boolean; onClos
       const picked = await pickTable();
       if (!picked) return;
       const textContent = picked.text ?? (picked.bytes ? new TextDecoder().decode(picked.bytes) : '');
-      const report = await importContacts(parseContactsFile(textContent, picked.name));
-      reload();
+      const report = await book.importParsed(parseContactsFile(textContent, picked.name));
       showAlert(
         t('contacts.importDoneTitle', { defaultValue: 'Import complete' }),
         t('contacts.importDoneBody', { added: report.added, skipped: report.skipped, defaultValue: `${report.added} added, ${report.skipped} already existed.` }),
@@ -114,8 +118,7 @@ export function ContactsManager({ visible, onClose }: { visible: boolean; onClos
 
   const onToggleFav = async (c: Contact) => {
     hapticLight();
-    await toggleFavorite(c.address);
-    reload();
+    await book.toggleFavorite(c.address);
   };
 
   const onDelete = (c: Contact) => {
@@ -125,7 +128,7 @@ export function ContactsManager({ visible, onClose }: { visible: boolean; onClos
       {
         text: t('contacts.delete'),
         style: 'destructive',
-        onPress: async () => { await deleteContact(c.address); setView('list'); reload(); },
+        onPress: async () => { await book.remove(c.address); setView('list'); },
       },
     ]);
   };
@@ -285,14 +288,18 @@ export function ContactsManager({ visible, onClose }: { visible: boolean; onClos
         ) : view === 'group' ? (
           <GroupEditor
             editing={editingGroup}
+            saved={book.saved}
+            onSaveGroup={book.saveGroup}
+            onDeleteGroup={book.deleteGroup}
             onBack={() => setView('list')}
-            onSaved={() => { setView('list'); reload(); }}
+            onSaved={() => setView('list')}
           />
         ) : (
           <ContactForm
             editing={editing}
+            onSave={book.save}
             onBack={() => setView('list')}
-            onSaved={() => { setView('list'); reload(); }}
+            onSaved={() => setView('list')}
             onDelete={editing ? () => onDelete(editing) : undefined}
           />
         )}
@@ -360,8 +367,9 @@ function ContactRow({ c, onOpen, onToggleFav }: {
   );
 }
 
-function ContactForm({ editing, onBack, onSaved, onDelete }: {
+function ContactForm({ editing, onSave: saveContact, onBack, onSaved, onDelete }: {
   editing: Contact | null;
+  onSave: (input: SaveContactInput) => Promise<void>;
   onBack: () => void;
   onSaved: () => void;
   onDelete?: () => void;
@@ -389,7 +397,11 @@ function ContactForm({ editing, onBack, onSaved, onDelete }: {
     setSaving(true);
     await saveContact({
       address: address.trim(),
-      name: name.trim() || undefined,
+      // The trimmed field verbatim, empty string included: an emptied name box
+      // means "clear the name", and every read site treats '' as no name. (An
+      // absent key means "leave it alone" to the Rust machine, so sending
+      // `undefined` here would silently keep the old name on web.)
+      name: name.trim(),
       resolvedName: resolved,
     });
     hapticSuccess();

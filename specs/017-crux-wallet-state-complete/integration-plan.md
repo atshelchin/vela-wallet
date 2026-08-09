@@ -66,11 +66,31 @@ Waves of parallel agents, gates between waves, e2e after each:
   pattern from `use-display-currency.web.ts`, not per-screen sessions.
 - Run `npm run typecheck` + the surface's e2e before reporting done.
 
+## Carried-forward gaps (raised by integration agents, owned by later waves)
+
+- **`SendScreen.tsx:169` still writes contacts through the TypeScript service
+  on web** (the receipt's "save contact" action). The contacts core owns every
+  other writer; this one is safe today only because each contacts panel
+  re-reads on open and the executor clears the TS cache after every write.
+  **G12 must route it through the core** — until then it is the last
+  split-brain writer on that key.
+- **`RecipientTrust` has no chain context**, so the contacts core cannot
+  resolve identities from it. The component gained an optional `chainId` prop
+  that nobody passes yet (zero new RPC, zero e2e change); the surfaces that
+  know their chain should start passing it.
+- **`ext_cache`'s real surface is iOS-only** and therefore has no automated
+  coverage here. `markUniversalLinkVerified()` keeps byte-identical native
+  semantics, but a device pass of `e2e/safari/` is the honest confirmation.
+- **`session_ended` is not dispatched yet** — logout still reaches the
+  extension cache via `accounts_changed{has_wallet:false}`, exactly as today.
+  G9 should wire `ClearExtensionCache` to it.
+
 ## Verification ledger
 
 | Wave | Gates | Status |
 | --- | --- | --- |
 | cores | cargo 990/990, typecheck, lint, jest 1526, verify:wasm, drift gates, uniffi crux-free | ✅ |
 | D7 loading | dev server 200 + asset 200, smoke + parallel-receive 8/8 | ✅ |
-| full e2e baseline | every suite against the D7 build | in progress |
-| I1…I5 | per-wave, above | pending |
+| full e2e baseline | every suite against the D7 build | ✅ 68 passed, 0 failed |
+| I1 (G1–G5) | typecheck, jest 1554, full e2e | in progress |
+| I2…I5 | per-wave, above | pending |

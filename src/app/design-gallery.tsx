@@ -1420,7 +1420,14 @@ function DesignGalleryScreen() {
           </Cell>
 
           <Cell id="gallery-groupeditor-new" label="GroupEditor · editing=null (new group)" height={520}>
-            <GroupEditor editing={null} onBack={() => {}} onSaved={() => {}} />
+            <GroupEditor
+              editing={null}
+              saved={[]}
+              onSaveGroup={async () => {}}
+              onDeleteGroup={async () => {}}
+              onBack={() => {}}
+              onSaved={() => {}}
+            />
           </Cell>
 
           <Cell id="gallery-wavedock-default" label="WaveDock · default (Receive · Scan FAB · Send)" height={150} inert>

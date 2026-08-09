@@ -8,57 +8,31 @@
  *
  * `onAdded` fires after a token or network is successfully saved, letting hosts
  * refresh their lists.
+ *
+ * The ERC-20 tab is rendering only: its state lives in `useManageTokens`
+ * (spec 017 `manage_tokens` — a Rust machine on web, the same TypeScript as
+ * before on native). The custom-network tab below is still local state and
+ * belongs to `network_admin`.
  */
 import { QRScanner } from '@/components/QRScanner';
 import { VelaButton } from '@/components/ui/VelaButton';
 import { VelaCard } from '@/components/ui/VelaCard';
 import { fadeInDown } from '@/constants/entering';
 import { color, createStyles, font, inter, radius, shadow, space, text } from '@/constants/theme';
-import { DEFAULT_NETWORKS, getAllNetworksSync, refreshCustomNetworks } from '@/models/network';
-import { isAddress, extractAddress } from '@/models/types';
-import type { CompatibilityResult, CustomToken } from '@/models/types';
+import { useManageTokens } from '@/hooks/use-manage-tokens';
+import { DEFAULT_NETWORKS, refreshCustomNetworks } from '@/models/network';
+import { extractAddress } from '@/models/types';
+import type { CompatibilityResult } from '@/models/types';
 import { chainInfoToCustomNetwork } from '@/services/add-network';
-import { MULTICALL3, SEL, decAggregate3, decString, decU8, encAggregate3 } from '@/services/abi';
 import { fetchChainInfo, searchChains, type ChainSearchResult } from '@/services/chain-registry';
 import { checkNetworkCompatibility } from '@/services/network-checker';
 import { hapticSuccess, openBrowser, showAlert } from '@/services/platform';
-import { rpcCall } from '@/services/rpc-adapter';
-import { loadCustomNetworks, loadCustomTokens, removeCustomToken, saveCustomNetwork, saveCustomToken } from '@/services/storage';
+import { loadCustomNetworks, saveCustomNetwork } from '@/services/storage';
 import { Check, Globe, ScanLine, Trash2, X } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
-
-/**
- * Fetch ERC-20 name, symbol, decimals via a single Multicall3 aggregate3 call.
- * Uses rpcCall which routes through the RPC pool with automatic failover.
- * Decoding goes through the shared `abi` helpers (`decString` handles both
- * standard string and legacy bytes32 symbols, with proper UTF-8).
- */
-async function fetchErc20Meta(
-  chainId: number,
-  tokenAddress: string,
-): Promise<{ name: string; symbol: string; decimals: number } | null> {
-  const encoded = encAggregate3([
-    { target: tokenAddress, allowFailure: true, callData: '0x' + SEL.name },
-    { target: tokenAddress, allowFailure: true, callData: '0x' + SEL.symbol },
-    { target: tokenAddress, allowFailure: true, callData: '0x' + SEL.decimals },
-  ]);
-
-  const response = await rpcCall('eth_call', [{ to: MULTICALL3, data: encoded }, 'latest'], chainId);
-  if (response.error || !response.result) return null;
-
-  const results = decAggregate3(response.result);
-  if (results.length < 3 || !results[0].success || !results[1].success || !results[2].success) return null;
-
-  const name = decString(results[0].data);
-  const symbol = decString(results[1].data);
-  const decimals = decU8(results[2].data);
-
-  if (!name || !symbol) return null;
-  return { name, symbol, decimals };
-}
 
 type Tab = 'erc20' | 'network';
 
@@ -66,25 +40,9 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('erc20');
 
-  // ERC-20 state
-  const [contractAddress, setContractAddress] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [foundTokens, setFoundTokens] = useState<{ chainId: number; networkName: string; name: string; symbol: string; decimals: number }[]>([]);
-  const [saving, setSaving] = useState(false);
+  // ERC-20 tab — every piece of its state, and the save/delete pipelines.
+  const erc20 = useManageTokens(onChanged);
   const [showScanner, setShowScanner] = useState(false);
-  const [addedTokenIds, setAddedTokenIds] = useState<Set<string>>(new Set());
-
-  // Already-added custom tokens (manage + delete).
-  const [customTokens, setCustomTokens] = useState<CustomToken[]>([]);
-  const refreshCustom = () => { loadCustomTokens().then(setCustomTokens).catch(() => {}); };
-  useEffect(() => { refreshCustom(); }, []);
-
-  const handleDelete = async (id: string) => {
-    await removeCustomToken(id);
-    hapticSuccess();
-    refreshCustom();
-    onChanged?.();
-  };
 
   // Network state
   const [netQuery, setNetQuery] = useState('');
@@ -152,69 +110,6 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
       showAlert(t('addToken.errorTitle'), t('addToken.errorAddNetwork'));
     }
     setNetSaving(false);
-  };
-
-  const isValidAddress = isAddress(contractAddress);
-
-  const fetchTokenMetadata = async () => {
-    if (!isValidAddress) return;
-
-    setLoading(true);
-    setFoundTokens([]);
-
-    // Query all networks in parallel
-    const allNetworks = getAllNetworksSync();
-    const results = await Promise.allSettled(
-      allNetworks.map(async (network) => {
-        const meta = await fetchErc20Meta(network.chainId, contractAddress);
-        if (!meta) return null;
-        return { chainId: network.chainId, networkName: network.displayName, ...meta };
-      }),
-    );
-
-    const found: typeof foundTokens = [];
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) found.push(r.value);
-    }
-
-    if (found.length === 0) {
-      showAlert(t('addToken.notFoundTitle'), t('addToken.notFoundMessage'));
-    }
-    setFoundTokens(found);
-    setLoading(false);
-  };
-
-  const handleSave = async (token: typeof foundTokens[0]) => {
-    const tokenId = `${token.chainId}_${contractAddress.toLowerCase()}`;
-
-    // Check if already added
-    if (addedTokenIds.has(tokenId)) return;
-    const existing = await loadCustomTokens();
-    if (existing.some(t => t.id === tokenId)) {
-      setAddedTokenIds(prev => new Set(prev).add(tokenId));
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await saveCustomToken({
-        id: tokenId,
-        chainId: token.chainId,
-        contractAddress: contractAddress.toLowerCase(),
-        symbol: token.symbol,
-        name: token.name,
-        decimals: token.decimals,
-        networkName: token.networkName,
-      });
-      hapticSuccess();
-      setAddedTokenIds(prev => new Set(prev).add(tokenId));
-      refreshCustom();
-      onChanged?.();
-    } catch {
-      showAlert(t('addToken.errorTitle'), t('addToken.errorSaveToken'));
-    } finally {
-      setSaving(false);
-    }
   };
 
   return (
@@ -390,11 +285,8 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
             style={styles.inputWithIcon}
             placeholder="0x..."
             placeholderTextColor={color.fg.subtle}
-            value={contractAddress}
-            onChangeText={(val) => {
-              setContractAddress(val);
-              setFoundTokens([]);
-            }}
+            value={erc20.address}
+            onChangeText={erc20.setAddress}
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -405,16 +297,16 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
 
         {/* Fetch button */}
         <VelaButton
-          title={loading ? t('addToken.searchingNetworks') : t('addToken.searchTokenBtn')}
-          onPress={fetchTokenMetadata}
-          disabled={!isValidAddress || loading}
-          loading={loading}
+          title={erc20.detecting ? t('addToken.searchingNetworks') : t('addToken.searchTokenBtn')}
+          onPress={erc20.detect}
+          disabled={!erc20.addressValid || erc20.detecting}
+          loading={erc20.detecting}
           variant="secondary"
           style={styles.fetchBtn}
         />
 
         {/* Results — one card per network where the token was found */}
-        {foundTokens.map((token) => (
+        {erc20.found.map((token) => (
           <Animated.View key={token.chainId} entering={fadeInDown(0, 300)}>
             <VelaCard style={styles.resultCard}>
               <View style={styles.resultRow}>
@@ -437,7 +329,7 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
                 <Text style={styles.resultValue}>{token.networkName}</Text>
               </View>
 
-              {addedTokenIds.has(`${token.chainId}_${contractAddress.toLowerCase()}`) ? (
+              {token.added ? (
                 <View style={styles.addedRow}>
                   <Check size={16} color={color.success.base} strokeWidth={2.5} />
                   <Text style={styles.addedText}>{t('addToken.tokenAdded')}</Text>
@@ -445,9 +337,9 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
               ) : (
                 <VelaButton
                   title={t('addToken.addToWalletBtn')}
-                  onPress={() => handleSave(token)}
+                  onPress={() => erc20.save(token.chainId)}
                   variant="accent"
-                  loading={saving}
+                  loading={erc20.saving}
                   style={styles.saveBtn}
                 />
               )}
@@ -456,16 +348,16 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
         ))}
 
         {/* Already-added custom tokens — manage / remove */}
-        {customTokens.length > 0 && (
+        {erc20.customTokens.length > 0 && (
           <View style={styles.customSection}>
             <Text style={styles.fieldLabel}>{t('addToken.addedTokensLabel')}</Text>
-            {customTokens.map((ct) => (
+            {erc20.customTokens.map((ct) => (
               <View key={ct.id} style={styles.customRow}>
                 <View style={styles.customInfo}>
                   <Text style={styles.customSymbol} numberOfLines={1}>{ct.symbol}</Text>
                   <Text style={styles.customMeta} numberOfLines={1}>{ct.name} · {ct.networkName}</Text>
                 </View>
-                <Pressable onPress={() => handleDelete(ct.id)} hitSlop={8} style={styles.deleteBtn}>
+                <Pressable onPress={() => erc20.remove(ct.id)} hitSlop={8} style={styles.deleteBtn}>
                   <Trash2 size={18} color={color.error.base} strokeWidth={2} />
                 </Pressable>
               </View>
@@ -484,8 +376,7 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
             // Extract 0x address from QR data (may include ethereum: prefix or extra params)
             const addr = extractAddress(data);
             if (addr) {
-              setContractAddress(addr);
-              setFoundTokens([]);
+              erc20.setAddress(addr);
             }
           }}
           onClose={() => setShowScanner(false)}

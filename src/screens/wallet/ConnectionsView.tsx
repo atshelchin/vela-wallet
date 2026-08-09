@@ -9,7 +9,7 @@
  */
 import { useRouter } from 'expo-router';
 import { ArrowRight, ChevronRight, History, Plug, RefreshCw, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
@@ -20,8 +20,8 @@ import { BrowserHistorySheet } from '@/components/ui/BrowserHistorySheet';
 import { VelaCard } from '@/components/ui/VelaCard';
 import { color } from '@/constants/theme';
 import { type ConnectionStatus } from '@/models/dapp-connection';
+import { useBrowserHistory } from '@/hooks/use-browser-history';
 import { relativeTime, type ConnectionEvent } from '@/services/activity';
-import { getBrowserHistory } from '@/services/browser-history';
 import { hapticLight } from '@/services/platform';
 import { type LocalTransaction } from '@/services/storage';
 
@@ -92,10 +92,8 @@ export function ConnectionsView({
   // Recently-opened dApps — hidden behind the clock icon (the icon only appears once
   // there's history, so a fresh install stays clean).
   const [showHistory, setShowHistory] = useState(false);
-  const [historyCount, setHistoryCount] = useState(0);
-  const refreshHistoryCount = useCallback(() => {
-    void getBrowserHistory().then((h) => setHistoryCount(h.length));
-  }, []);
+  const { entries: historyEntries, refresh: refreshHistoryCount } = useBrowserHistory();
+  const historyCount = historyEntries.length;
   useEffect(() => { refreshHistoryCount(); }, [refreshHistoryCount]);
 
   // The persisted signing-activity list. Rendered in the connected branch AND —

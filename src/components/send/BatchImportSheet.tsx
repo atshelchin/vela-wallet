@@ -8,14 +8,18 @@
  * SendScreen drops into the existing split editor, so submission is the ordinary
  * single-UserOp `buildSplitCalls → sendBatchCalls` path — nothing new to sign.
  *
- * The heavy Excel parser (SheetJS) is only reached through file-io/recipient-table
- * lazy imports; the paste path is pure text and is what the E2E drives.
+ * This file renders; it decides nothing. Every rule — the table interpreter, the
+ * rate mirror, the fiat→token conversion, the dedupe, the cap and the balance
+ * gate — lives behind `useBatchImport`: the TypeScript controller on native, the
+ * Rust `batch_import` machine on web (spec 017). What stays here is shell work:
+ * the currency symbol, locale number shaping, haptics, and turning the applied
+ * drafts into `RecipientDraft` rows (`makeRecipientId` assigns the row ids).
  *
  * Rate invariant: the rate string in the input IS the applied rate — display and
  * conversion never diverge (the old toFixed(2) mirror showed "0" for sub-cent
  * prices while converting at the true value, and a touch then zeroed every row).
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { X, FileUp, Download, Check, ArrowRight, AlertCircle, ChevronRight } from 'lucide-react-native';
@@ -28,25 +32,13 @@ import { VelaButton } from '@/components/ui/VelaButton';
 import { ContactAvatar } from '@/components/contacts/ContactAvatar';
 import { RecipientTypeBadge } from '@/components/contacts/RecipientTypeBadge';
 import { color, text, inter, space, radius, font, createStyles } from '@/constants/theme';
-import { type APIToken, isAddress, shortAddr } from '@/models/types';
-import { toBaseUnits, fromBaseUnits } from '@/services/eip681';
-import { fiatToTokenAmount, tokenPriceInFiat } from '@/services/fiat-convert';
-import { parseRecipientTableText, parseRecipientTable, type ParseResult } from '@/services/recipient-table';
-import { getRate } from '@/services/currency';
+import { trimNum, type BatchUnitKey } from '@/hooks/batch-import-controller-types';
+import { useBatchImport } from '@/hooks/use-batch-import';
+import { type APIToken, shortAddr } from '@/models/types';
 import { currencyMeta } from '@/services/currency-catalog';
-import { pickTable, saveTextFile } from '@/services/file-io';
 import { makeRecipientId, type RecipientDraft } from '@/components/send/MultiRecipientEditor';
 import { formatTokenAmount, useLocalePrefs, numberSeparators, parseLocaleNumber } from '@/services/locale-format';
-import { showAlert, hapticSuccess, hapticLight } from '@/services/platform';
-
-const TEMPLATE_CSV =
-  'name,address,amount\n' +
-  'Alice,0x1111111111111111111111111111111111111111,5000\n' +
-  'Bob,0x2222222222222222222222222222222222222222,8000\n' +
-  'Carol,0x3333333333333333333333333333333333333333,6500\n';
-
-type Unit = 'fiat' | 'token';
-type RateStatus = 'loading' | 'ok' | 'failed';
+import { hapticSuccess, hapticLight } from '@/services/platform';
 
 interface Props {
   visible: boolean;
@@ -62,132 +54,25 @@ interface Props {
 export function BatchImportSheet({ visible, onClose, token, currencyCode, currencySymbol, onApply, maxRecipients }: Props) {
   const { t } = useTranslation();
   useLocalePrefs(); // re-render on number-format change
-  const priced = !!token.priceUsd && token.priceUsd > 0;
-
-  const [unit, setUnit] = useState<Unit>(priced ? 'fiat' : 'token');
-  const [fiatCode, setFiatCode] = useState(currencyCode);
-  const [rawText, setRawText] = useState('');
-  const [fileParsed, setFileParsed] = useState<ParseResult | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [templateSaved, setTemplateSaved] = useState(false);
-  const [usdFiatRate, setUsdFiatRate] = useState<number | null>(null);
-  const [rateStatus, setRateStatus] = useState<RateStatus>('loading');
-  const [rateInput, setRateInput] = useState('');
-  const [rateEdited, setRateEdited] = useState(false);
   const [rateInputWidth, setRateInputWidth] = useState(0);
   const [showCurrency, setShowCurrency] = useState(false);
 
-  // Reset per-open so the sheet never reopens with a stale paste/rate.
-  useEffect(() => {
-    if (!visible) return;
-    setUnit(priced ? 'fiat' : 'token');
-    setFiatCode(currencyCode);
-    setRawText('');
-    setFileParsed(null);
-    setFileName(null);
-    setTemplateSaved(false);
-    setRateEdited(false);
-  }, [visible, priced, currencyCode]);
+  const batch = useBatchImport({
+    visible,
+    token,
+    currencyCode,
+    maxRecipients,
+    onApplied: (rows) => {
+      const recipients: RecipientDraft[] = rows.map((r) => ({ id: makeRecipientId(), address: r.address, amount: r.amount, name: r.name }));
+      hapticSuccess();
+      onApply(recipients);
+    },
+  });
 
-  // USD→fiat rate for the chosen currency (auto rate). Re-fetch when it changes;
-  // status drives the loading/failure hints so a dead "0" is never unexplained.
-  useEffect(() => {
-    if (!visible) return;
-    let cancelled = false;
-    setRateStatus('loading');
-    getRate(fiatCode)
-      .then((r) => { if (!cancelled) { setUsdFiatRate(r); setRateStatus('ok'); } })
-      .catch(() => { if (!cancelled) { setUsdFiatRate(null); setRateStatus('failed'); } });
-    return () => { cancelled = true; };
-  }, [visible, fiatCode]);
-
-  const autoPricePerToken = tokenPriceInFiat(token.priceUsd, usdFiatRate ?? 0); // fiat per 1 token
-  // Keep the editable rate field mirroring the auto rate until the user overrides
-  // it. Significant-digit formatting: a positive rate never mirrors as "0".
-  useEffect(() => {
-    if (rateEdited) return;
-    setRateInput(autoPricePerToken > 0 ? formatRate(autoPricePerToken) : '');
-  }, [autoPricePerToken, rateEdited]);
-
-  // The displayed string is the single source of the applied rate.
-  const effPricePerToken = parseFloat(rateInput) || 0;
+  const unit = batch.unit;
+  const fiatCode = batch.fiatCode;
+  const priced = batch.priced;
   const fiatSymbol = currencyMeta(fiatCode).symbol || currencySymbol;
-
-  const parsed: ParseResult = useMemo(
-    () => fileParsed ?? parseRecipientTableText(rawText),
-    [fileParsed, rawText],
-  );
-
-  // Build the preview: validate, de-dupe by address, and convert fiat→token.
-  const preview = useMemo(() => {
-    const seen = new Set<string>();
-    return parsed.rows.map((r) => {
-      const address = r.address.trim();
-      const valid = isAddress(address);
-      const low = address.toLowerCase();
-      const dup = valid && seen.has(low);
-      if (valid) seen.add(low);
-      const fiatNum = parseFloat(r.rawAmount) || 0;
-      const tokenAmount =
-        unit === 'fiat'
-          ? effPricePerToken > 0
-            ? fiatToTokenAmount(fiatNum, effPricePerToken, token.decimals)
-            : ''
-          : r.rawAmount;
-      const ok = valid && !dup && parseFloat(tokenAmount) > 0;
-      return { line: r.line, name: r.name, address, valid, dup, fiatNum, tokenAmount, ok };
-    });
-  }, [parsed, unit, effPricePerToken, token.decimals]);
-
-  const okRows = preview.filter((r) => r.ok);
-  const capped = okRows.slice(0, maxRecipients);
-  const overCap = okRows.length > maxRecipients;
-
-  const totalTokenBase = capped.reduce((s, r) => s + toBaseUnits(r.tokenAmount, token.decimals), 0n);
-  const totalTokenHuman = fromBaseUnits(totalTokenBase, token.decimals);
-  const totalFiat = unit === 'fiat' ? capped.reduce((s, r) => s + r.fiatNum, 0) : 0;
-  const balBase = toBaseUnits(token.balance || '0', token.decimals);
-  const overBalance = totalTokenBase > balBase;
-
-  const rejected = preview.length - okRows.length + parsed.errors.length;
-  const canApply = capped.length > 0 && !overBalance && (unit === 'token' || effPricePerToken > 0);
-
-  const onPickFile = async () => {
-    setBusy(true);
-    try {
-      const picked = await pickTable();
-      if (!picked) return;
-      setFileName(picked.name);
-      if (picked.text != null) {
-        setRawText(picked.text);
-        setFileParsed(null);
-      } else if (picked.bytes) {
-        setRawText('');
-        setFileParsed(await parseRecipientTable(picked.bytes, picked.name));
-      }
-    } catch {
-      showAlert(t('send.batchImportFailedTitle', { defaultValue: 'Could not read file' }), t('send.batchImportFailedBody', { defaultValue: 'Please use a CSV, TSV, TXT, or Excel file.' }));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onTemplate = async () => {
-    hapticLight();
-    try {
-      await saveTextFile('vela-payroll-template.csv', TEMPLATE_CSV, 'text/csv');
-      setTemplateSaved(true);
-    } catch {
-      // Share sheet dismissed / unavailable — silently keep the plain label.
-    }
-  };
-
-  const apply = () => {
-    const recipients: RecipientDraft[] = capped.map((r) => ({ id: makeRecipientId(), address: r.address, amount: r.tokenAmount, name: r.name }));
-    hapticSuccess();
-    onApply(recipients);
-  };
 
   return (
     <AppModal visible={visible} onClose={onClose}>
@@ -210,13 +95,13 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
               Fiat works even for an unpriced token — the company can pin its own
               rate (e.g. "1 USDT = 7.2 CNY"), which is the whole payroll point. */}
           <View style={styles.toggleRow}>
-            <SegmentedToggle<Unit>
+            <SegmentedToggle<BatchUnitKey>
               options={[
                 { key: 'fiat', label: t('send.batchUnitFiat', { defaultValue: 'In {{code}}', code: fiatCode }), testID: 'batch-unit-fiat' },
                 { key: 'token', label: t('send.batchUnitToken', { defaultValue: 'In {{sym}}', sym: token.symbol }), testID: 'batch-unit-token' },
               ]}
               value={unit}
-              onChange={setUnit}
+              onChange={batch.setUnit}
             />
           </View>
 
@@ -224,8 +109,8 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
           <TextInput
             testID="batch-paste"
             style={styles.paste}
-            value={rawText}
-            onChangeText={(v) => { setRawText(v); setFileParsed(null); setFileName(null); }}
+            value={batch.rawText}
+            onChangeText={batch.setRawText}
             placeholder={t('send.batchPastePlaceholder', { defaultValue: '0xabc… , 5000\n0xdef… , 8000' })}
             placeholderTextColor={color.fg.subtle}
             multiline
@@ -235,31 +120,31 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
           <View style={styles.sourceRow}>
             <Pressable
               style={styles.sourceBtn}
-              onPress={onPickFile}
-              disabled={busy}
+              onPress={batch.pickFile}
+              disabled={batch.busy}
               testID="batch-file"
               accessibilityRole="button"
               accessibilityLabel={t('send.batchImportFile', { defaultValue: 'Import file' })}
-              accessibilityState={{ disabled: busy }}
+              accessibilityState={{ disabled: batch.busy }}
             >
               <FileUp size={16} color={color.fg.muted} strokeWidth={2} />
-              <Text style={styles.sourceBtnText}>{busy ? t('send.batchReading', { defaultValue: 'Reading…' }) : t('send.batchImportFile', { defaultValue: 'Import file' })}</Text>
+              <Text style={styles.sourceBtnText}>{batch.busy ? t('send.batchReading', { defaultValue: 'Reading…' }) : t('send.batchImportFile', { defaultValue: 'Import file' })}</Text>
             </Pressable>
             <Pressable
               style={styles.sourceBtn}
-              onPress={onTemplate}
+              onPress={() => { hapticLight(); batch.saveTemplate(); }}
               accessibilityRole="button"
               accessibilityLabel={t('send.batchTemplate', { defaultValue: 'Get template' })}
             >
-              {templateSaved
+              {batch.templateSaved
                 ? <Check size={16} color={color.fg.muted} strokeWidth={2} />
                 : <Download size={16} color={color.fg.muted} strokeWidth={2} />}
               <Text style={styles.sourceBtnText}>
-                {templateSaved ? t('send.batchTemplateSaved', { defaultValue: 'Template saved' }) : t('send.batchTemplate', { defaultValue: 'Get template' })}
+                {batch.templateSaved ? t('send.batchTemplateSaved', { defaultValue: 'Template saved' }) : t('send.batchTemplate', { defaultValue: 'Get template' })}
               </Text>
             </Pressable>
           </View>
-          {fileName && <Text style={styles.fileName}>{fileName}</Text>}
+          {batch.fileName && <Text style={styles.fileName}>{batch.fileName}</Text>}
 
           {/* Settlement currency (same picker as the home balance) + editable rate.
               De-containered: SectionLabel + open rows + hairline, no nested cards. */}
@@ -291,21 +176,21 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
                   accessibilityElementsHidden
                   importantForAccessibility="no-hide-descendants"
                 >
-                  {(rateInput || '0').replace('.', numberSeparators().decimal)}
+                  {(batch.rateInput || '0').replace('.', numberSeparators().decimal)}
                 </Text>
                 <TextInput
                   testID="batch-rate"
                   style={[styles.rateInput, { width: Math.max(28, rateInputWidth + 6) }]}
-                  value={rateInput.replace('.', numberSeparators().decimal)}
-                  onChangeText={(v) => { setRateInput(parseLocaleNumber(v).replace(/[^0-9.]/g, '')); setRateEdited(true); }}
+                  value={batch.rateInput.replace('.', numberSeparators().decimal)}
+                  onChangeText={(v) => batch.setRateText(parseLocaleNumber(v))}
                   keyboardType="decimal-pad"
                   placeholder="0"
                   placeholderTextColor={color.fg.subtle}
                 />
                 <Text style={styles.rowLabel}>{fiatCode}</Text>
-                {rateEdited && (
+                {batch.rateEdited && (
                   <Pressable
-                    onPress={() => setRateEdited(false)}
+                    onPress={batch.resetRate}
                     hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
                     style={styles.rateResetBtn}
                     accessibilityRole="button"
@@ -316,19 +201,19 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
                 )}
               </View>
               {!priced && <Text style={styles.hintText}>{t('send.batchNoPrice', { defaultValue: 'No market price — set your own rate above.' })}</Text>}
-              {priced && !rateEdited && rateStatus === 'loading' && (
+              {priced && !batch.rateEdited && batch.rateStatus === 'loading' && (
                 <Text style={styles.hintText}>{t('send.batchRateLoading', { defaultValue: 'Fetching rate…' })}</Text>
               )}
-              {priced && !rateEdited && rateStatus === 'failed' && (
+              {priced && !batch.rateEdited && batch.rateStatus === 'failed' && (
                 <Text style={styles.hintText}>{t('send.batchRateFailed', { defaultValue: 'Rate unavailable — enter one manually.' })}</Text>
               )}
             </View>
           )}
 
           {/* Preview */}
-          {preview.length > 0 && (
+          {batch.preview.length > 0 && (
             <View style={styles.preview}>
-              {preview.map((r, i) => (
+              {batch.preview.map((r, i) => (
                 <View key={`${r.address}-${i}`} style={[styles.pRow, !r.ok && styles.pRowBad]} testID={r.ok ? 'batch-row-ok' : 'batch-row-bad'}>
                   {/* Identity card avatar — helps catch a pasted/poisoned address by sight
                       (same avatar-per-address as Send/receipt). */}
@@ -347,7 +232,7 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
                     )}
                   </View>
                   <View style={styles.pAmt}>
-                    {unit === 'fiat' && <Text style={styles.pFiat}>{fiatSymbol}{trimNum(r.fiatNum)}</Text>}
+                    {unit === 'fiat' && <Text style={styles.pFiat}>{fiatSymbol}{trimNum(parseFloat(r.rawAmount) || 0)}</Text>}
                     {r.ok ? (
                       <View style={styles.pTokenRow}>
                         <ArrowRight size={11} color={color.fg.subtle} strokeWidth={2} />
@@ -363,16 +248,16 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
           )}
 
           {/* Both notices can be true at once — never hide one behind the other. */}
-          {overCap && (
+          {batch.overCap && (
             <View style={styles.noticeRow}>
               <AlertCircle size={13} color={color.warning.base} strokeWidth={2} />
               <Text style={styles.noticeText}>{t('send.batchOverCap', { defaultValue: 'Only the first {{n}} recipients will be sent.', n: maxRecipients })}</Text>
             </View>
           )}
-          {rejected > 0 && (
+          {batch.rejected > 0 && (
             <View style={styles.noticeRow}>
               <AlertCircle size={13} color={color.warning.base} strokeWidth={2} />
-              <Text style={styles.noticeText}>{t('send.batchRejected', { count: rejected, n: rejected })}</Text>
+              <Text style={styles.noticeText}>{t('send.batchRejected', { count: batch.rejected, n: batch.rejected })}</Text>
             </View>
           )}
         </ScrollView>
@@ -380,26 +265,26 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
         {/* Summary + apply. Empty state renders NO totals and a count-free CTA —
             never "Import 0 recipients" over a row of zeros. */}
         <View style={styles.footer}>
-          {capped.length > 0 && (
+          {batch.recipientCount > 0 && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>{t('send.recipientCount', { count: capped.length, n: capped.length })}</Text>
+              <Text style={styles.totalLabel}>{t('send.recipientCount', { count: batch.recipientCount, n: batch.recipientCount })}</Text>
               <View style={styles.totalRight}>
-                <Text style={[styles.totalToken, overBalance && styles.totalOver]}>{totalTokenHuman} {token.symbol}</Text>
-                {totalFiat > 0 && <Text style={styles.totalFiat}>≈ {fiatSymbol}{trimNum(totalFiat)} {fiatCode}</Text>}
+                <Text style={[styles.totalToken, batch.overBalance && styles.totalOver]}>{batch.totalToken} {token.symbol}</Text>
+                {batch.totalFiat != null && <Text style={styles.totalFiat}>≈ {fiatSymbol}{batch.totalFiat} {fiatCode}</Text>}
               </View>
             </View>
           )}
-          {overBalance && <Text style={styles.warnText}>{t('send.batchOverBalance', { defaultValue: 'Total exceeds your {{sym}} balance.', sym: token.symbol })}</Text>}
+          {batch.overBalance && <Text style={styles.warnText}>{t('send.batchOverBalance', { defaultValue: 'Total exceeds your {{sym}} balance.', sym: token.symbol })}</Text>}
           <View testID="batch-apply">
             <VelaButton
-              title={capped.length > 0
-                ? t('send.batchApply', { count: capped.length, n: capped.length })
+              title={batch.recipientCount > 0
+                ? t('send.batchApply', { count: batch.recipientCount, n: batch.recipientCount })
                 : t('send.batchApplyEmpty', { defaultValue: 'Import recipients' })}
-              onPress={apply}
-              disabled={!canApply}
-              variant={canApply ? 'accent' : 'secondary'}
+              onPress={batch.apply}
+              disabled={!batch.canApply}
+              variant={batch.canApply ? 'accent' : 'secondary'}
               // Disabled = quiet sunken slab (secondary ink), not a washed-out accent.
-              style={!canApply ? styles.applyDisabled : undefined}
+              style={!batch.canApply ? styles.applyDisabled : undefined}
             />
           </View>
         </View>
@@ -413,33 +298,11 @@ export function BatchImportSheet({ visible, onClose, token, currencyCode, curren
         // currency. A distinct title keeps it from reading as the global setting
         // (issue #80: the two pickers looked identical and seemed out of sync).
         title={t('send.batchCurrencyLabel', { defaultValue: 'Priced in' })}
-        onSelect={(code) => { setFiatCode(code); setRateEdited(false); }}
+        onSelect={batch.setFiatCode}
         onClose={() => setShowCurrency(false)}
       />
     </AppModal>
   );
-}
-
-/** Trim a float to a compact, trailing-zero-free string (fiat totals only). */
-function trimNum(n: number): string {
-  if (!Number.isFinite(n)) return '0';
-  return n.toFixed(2).replace(/\.?0+$/, '');
-}
-
-const RATE_SIG_DIGITS = 4;
-/**
- * Rate → plain-decimal string with 4 significant digits, trailing zeros trimmed.
- * Never returns "0" for a positive rate (that string, once touched, zeroed every
- * row via parseFloat) — and the returned string IS the applied rate, so what the
- * user reads is exactly what the conversion uses.
- */
-function formatRate(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return '';
-  const exp = Math.floor(Math.log10(n));
-  const decimals = Math.min(Math.max(RATE_SIG_DIGITS - 1 - exp, 0), 18);
-  const fixed = n.toFixed(decimals);
-  const s = fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
-  return parseFloat(s) > 0 ? s : '';
 }
 
 const styles = createStyles(() => ({

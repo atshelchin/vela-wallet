@@ -81,9 +81,28 @@ Waves of parallel agents, gates between waves, e2e after each:
 - **`ext_cache`'s real surface is iOS-only** and therefore has no automated
   coverage here. `markUniversalLinkVerified()` keeps byte-identical native
   semantics, but a device pass of `e2e/safari/` is the honest confirmation.
-- **`session_ended` is not dispatched yet** — logout still reaches the
-  extension cache via `accounts_changed{has_wallet:false}`, exactly as today.
-  G9 should wire `ClearExtensionCache` to it.
+- ~~**`session_ended` is not dispatched yet**~~ — G9 landed the wire
+  (`session-ext-cache-bridge.web.ts`) as a *capability*: the executor
+  implements `ClearExtensionCache`, but the session core still never emits it,
+  so logout stays memory-only exactly as today. Open question 2 (should logout
+  clear storage?) remains a product decision, undecided and visible.
+- **`§12.1.6` still runs on `web-request.tsx:207`'s `setTimeout(0)`.** G9
+  deliberately left it: `dispatchWalletSession({type:'switch_account'})` is
+  synchronous in the core but React has not committed when it returns, so
+  acking `SwitchActiveAccount` immediately would regress any surface still
+  reading the signer through `useWallet()`. **G11's path**: (1) put the yield
+  inside the executor to reproduce today's timing exactly and delete the
+  timeout in the same commit; (2) then stop reading the signer from React on
+  the sign path — take it from `sign_request`'s own `active_index` — and the
+  yield disappears for good. **Index-domain trap**: `SwitchActiveAccount.index`
+  is consumed by the session, where an out-of-range index is a silent whole
+  no-op — feed `sign_request` from `walletSessionAccounts()` so both lists are
+  the same list, or a mismatched reconcile silently signs from the wrong
+  account (the exact failure §12.1.6 exists to prevent).
+- **Reference stability in the session resident is load-bearing.** It memoizes
+  the view and the projected account array so `state.accounts` identity
+  survives a switch, as the reducer's did; eight sites key effects/memos off
+  `[state.accounts]`. Do not "simplify" `walletSessionAccounts()` away.
 
 ## Verification ledger
 
@@ -92,5 +111,7 @@ Waves of parallel agents, gates between waves, e2e after each:
 | cores | cargo 990/990, typecheck, lint, jest 1526, verify:wasm, drift gates, uniffi crux-free | ✅ |
 | D7 loading | dev server 200 + asset 200, smoke + parallel-receive 8/8 | ✅ |
 | full e2e baseline | every suite against the D7 build | ✅ 68 passed, 0 failed |
-| I1 (G1–G5) | typecheck, jest 1554, full e2e | in progress |
-| I2…I5 | per-wave, above | pending |
+| I1 (G1–G5) | typecheck, jest 1554, full e2e | ✅ 69 passed, 0 failed |
+| I2 (G6–G8) | typecheck, lint 0, jest 1583, full e2e | ✅ 69 passed, 0 failed |
+| I3 (G9 session) | typecheck, lint 0, jest 1597, build:web static-renders 25 routes, full e2e | in progress |
+| I4…I5 | per-wave, above | pending |

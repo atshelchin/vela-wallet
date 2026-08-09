@@ -20,6 +20,7 @@ import { useAvatarStyle } from '@/hooks/use-avatar-style';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import type { EndpointHealth, NetworkCardView, ServiceHealth } from '@/hooks/network-admin-controller-types';
 import { useAddNetworkWizard, useNetworkEditor, useServiceEndpoints } from '@/hooks/use-network-admin';
+import { useSessionSignOut } from '@/hooks/use-session-signout';
 import { LANGUAGE_NATIVE_NAMES, SUPPORTED_LANGUAGES, type AppLanguage, type LanguagePreference } from '@/i18n';
 import { useLanguagePreference } from '@/i18n/language';
 import { explorerAddressURL, getAllNetworksSync } from '@/models/network';
@@ -33,7 +34,7 @@ import { dateFormatOptions, numberFormatOptions, timeFormatOptions, type FormatO
 import { fetchWithTimeout, NET_TIMEOUTS } from '@/services/net';
 import { hapticLight, openBrowser, showAlert } from '@/services/platform';
 import { getBuiltinBundlerUrl, poolRpcCall } from '@/services/rpc-pool';
-import { getLocalePrefs, hasPendingUploads, loadLocalePrefs, loadServiceEndpoints, saveLocalePrefs } from '@/services/storage';
+import { getLocalePrefs, loadLocalePrefs, loadServiceEndpoints, saveLocalePrefs } from '@/services/storage';
 import { isTempoChain, TEMPO_DEFAULT_FEE_TOKEN } from '@/services/tempo';
 import { fetchTokens } from '@/services/wallet-api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -1100,7 +1101,7 @@ function formatPathUsd(units: bigint): string {
 
 export default function SettingsScreen() {
   const styles = useStyles(styleFactory);
-  const { state, dispatch, activeAccount } = useWallet();
+  const { state, activeAccount } = useWallet();
   const router = useRouter();
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
@@ -1133,9 +1134,11 @@ export default function SettingsScreen() {
   const [showTreasury, setShowTreasury] = useState(false);
   const [devUnlocked, setDevUnlocked] = useState(false);
   useEffect(() => { AsyncStorage.getItem('dev_unlocked').then(v => { if (v === '1') setDevUnlocked(true); }); }, []);
-  const [showSignOut, setShowSignOut] = useState(false);
-  const [pendingSync, setPendingSync] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  // Sign-out is a sequence, not a modal flag: the pending-upload check runs
+  // first and the dialog only exists once it has answered, so no unwarned
+  // logout path is reachable. The controller pair owns it (native: today's
+  // handlers verbatim; web: the Rust session machine).
+  const signOut = useSessionSignOut();
   const { levelIndex: currentScaleIndex, setIndex: setScaleIndex } = useTextScale();
   const { preference: colorPref, setPreference: setColorPref } = useColorSchemePreference();
   const avatarStyle = useAvatarStyle();
@@ -1146,15 +1149,8 @@ export default function SettingsScreen() {
   const accountName = activeAccount?.name ?? 'No Wallet';
   const address = activeAccount?.address ?? state.address;
 
-  const handleOpenSignOut = async () => {
-    const pending = await hasPendingUploads();
-    setPendingSync(pending);
-    setShowSignOut(true);
-  };
-
   const handleSignOut = () => {
-    setSigningOut(true);
-    dispatch({ type: 'LOGOUT' });
+    signOut.confirm();
     router.replace('/');
   };
 
@@ -1314,7 +1310,7 @@ export default function SettingsScreen() {
         <Animated.View entering={fadeInDown(225, 300)}>
           <Pressable
             style={styles.logoutButton}
-            onPress={handleOpenSignOut}
+            onPress={signOut.open}
             accessibilityRole="button"
             accessibilityLabel={t('settings.signOut.button')}
           >
@@ -1344,7 +1340,7 @@ export default function SettingsScreen() {
       <TreasuryModal visible={showTreasury} onClose={() => setShowTreasury(false)} />
 
       {/* Sign Out Confirmation */}
-      <AppModal visible={showSignOut} onClose={() => setShowSignOut(false)}>
+      <AppModal visible={signOut.visible} onClose={signOut.dismiss}>
         <View style={styles.signOutModal}>
           <View style={styles.signOutIconWrap}>
             <LogOutIcon size={24} color={color.error.base} strokeWidth={2} />
@@ -1354,7 +1350,7 @@ export default function SettingsScreen() {
             {t('settings.signOut.desc')}
           </Text>
 
-          {pendingSync && (
+          {signOut.pendingSync && (
             <View style={styles.signOutWarning}>
               <AlertTriangle size={16} color={color.warning.base} strokeWidth={2} />
               <Text style={styles.signOutWarningText}>
@@ -1366,13 +1362,13 @@ export default function SettingsScreen() {
           {/* Destructive commit = error, never accent. VelaButton has no
               destructive variant, so signOutBtn overrides the accent bg. */}
           <VelaButton
-            title={pendingSync ? t('settings.signOut.anyway') : t('settings.signOut.button')}
+            title={signOut.pendingSync ? t('settings.signOut.anyway') : t('settings.signOut.button')}
             onPress={handleSignOut}
             variant="accent"
-            loading={signingOut}
+            loading={signOut.signingOut}
             style={styles.signOutBtn}
           />
-          <Pressable style={styles.signOutCancel} onPress={() => setShowSignOut(false)}>
+          <Pressable style={styles.signOutCancel} onPress={signOut.dismiss}>
             <Text style={styles.signOutCancelText}>{t('settings.signOut.cancel')}</Text>
           </Pressable>
         </View>

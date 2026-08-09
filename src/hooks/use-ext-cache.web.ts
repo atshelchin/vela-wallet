@@ -28,6 +28,7 @@ import {
 } from '@/services/wallet-state-core/ext-cache-session';
 import type { Account as CoreAccount } from '@/services/wallet-state-core/generated/Account';
 import type { ExtCacheEvent } from '@/services/wallet-state-core/generated/ExtCacheEvent';
+import { registerExtCacheEnder } from '@/services/wallet-state-core/session-ext-cache-bridge.web';
 
 import type { ExtCacheInputs } from './ext-cache-controller-types';
 
@@ -94,7 +95,13 @@ export function useExtCache(input: ExtCacheInputs): void {
       onError: (error) => console.error('[ext-cache] core fault:', error),
     });
     session.current = loop;
+    // The session machine's `ClearExtensionCache` operation lands as this
+    // core's `session_ended`. Registered rather than imported so the two cores
+    // stay unaware of each other; see `session-ext-cache-bridge.web.ts` for why
+    // nothing emits it today.
+    registerExtCacheEnder(() => loop.dispatch({ type: 'session_ended' }));
     return () => {
+      registerExtCacheEnder(null);
       session.current = null;
       loop.dispose();
     };

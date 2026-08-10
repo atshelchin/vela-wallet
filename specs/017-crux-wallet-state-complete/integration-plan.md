@@ -218,6 +218,124 @@ Waves of parallel agents, gates between waves, e2e after each:
   anything survived. `clearAll()` is deleted rather than left as a
   near-synonym.
 
+## Phase 2 — the signing sheet reads its judgements from the cores (`52dbddb`)
+
+An audit of the "22/22 integrated" claim found the distinction that matters:
+**a `.web` session existing per machine is not the same as every business
+judgement on that screen being core-decided.** Controller-centric domains
+coincide; component-centric ones do not. The signing sheet decided 25 of its
+26 judgements in TypeScript while `clear_signing.rs` and `approval_guard.rs`
+shipped complete inside the wasm with **zero construction sites in `src/`**.
+The check that catches this is `grep -c "new <X>Core("` per machine, not the
+presence of a session file.
+
+Both cores are now constructed on web and own the decode fallback order, risk
+grading, SIWE phishing, the dangerous-view dispatch, the eight approval
+shapes, allowance-choice derivation, per-leg batch gating and the confirm-time
+re-encode. Two TypeScript self-contradictions died with it: non-printable
+detection ran an ASCII-only regex in the view and a Unicode-aware predicate in
+the service (so a CJK/emoji message rendered correctly *and* raised a false
+"disguised transaction" warning), and SIWE phishing was adjudicated twice, so
+the haptic and the red banner could disagree.
+
+An adversarial review of the merged result found seven wiring defects. The
+blocker, found independently by three of four lenses: `batchResolving` had one
+reset guarded by `!cancelled`, so a superseded `wallet_sendCalls` latched the
+sheet into permanent loading whose only exit was dismissing it — and dismissal
+**is** the reject path, so the dApp collected a 4001 the user never gave. It is
+now derived from `(input key, tagged output)` in `clear-batch.ts` and cannot
+latch. Also fixed: a first-frame regression (one machine on `useLayoutEffect`,
+the other on a passive `useEffect`, so the sheet painted a generic fallback
+card before the real danger surface), per-leg sessions that downgraded three
+process-wide caches, index-paired stale batch rows, a lost hex-message warning
+on native, a stray ellipsis, and a gallery fixture drift.
+
+**`e2e/parallel-clear-signing.spec.ts:87` was widened** to match its sibling at
+`clear-signing.spec.ts:219`, which had been updated for the adaptive blind
+surface (`b968190`/`f4eb833`) when it landed. This copy was missed and kept
+passing on a ~200ms transient: the pre-crux sheet flashed the red "Unable to
+decode" warning before the simulation landed, and the assertion caught it at
+83ms rather than the settled surface. Verified against `bfcbab3` in a baseline
+worktree with one spec file pointed at both apps — identical from 300ms on, and
+identical on the harness route. The sheet now resolves through
+`surface:'loading'` instead of flashing a warning it may immediately retract.
+
+**Two structural facts about the gates, learned here:**
+`jest.config.js` is `testEnvironment: 'node'` matching only `*.test.ts` (not
+`.tsx`), so **no test renders a component or runs a hook** — the cores are
+exhaustively covered and the wiring layer, where all seven defects lived, is
+not. And playwright's `retries: 1` reports fail-then-pass as "flaky" with a
+zero exit code, so a deterministic regression can read as a known flake;
+re-measure with `--retries=0`.
+
+## `fee_policy` — the core's money math is fixed; the web wiring is deliberately NOT landed
+
+`fee_policy` was the last machine with zero construction sites on web. Wiring
+it was attempted and **pulled**, on purpose. What landed is the core half.
+
+**The bug that made it worth doing anyway.** `calculate_in_band_fee_amount`
+evaluated `ceil_div(mul(mul(native_amount, native_usd), fee_unit), …)` in u128
+with *saturating* multiply. The saturation landed on the **numerator** — exact
+value `1.26e46` for a 700k-gas send at 30 gwei with ETH at $2,000, twenty-four
+orders past `u128::MAX` — and the following division by `1e26` pulled it back
+to `3.4e12`, which then lost to the `$0.01` `stable_minimum`. **126 DAI quoted
+as one cent**, a 12,600× undercharge, for every 18-decimal gas asset (DAI, and
+USDT/USDC on BNB Chain). The `mul` doc comment asserted this was impossible
+("saturates *upward* … never a silently cheap one") and that comment is why
+nobody looked.
+
+The whole money layer now evaluates in `U256` (`alloy_primitives`, the width
+`approval_guard` already uses) with exactly two narrowing points. The rule is
+stated where the helpers live, and it is **not** "clamp upward" — it is
+**never clamp an intermediate**, because a clamped numerator is silently undone
+by the division that follows. Unrepresentable values return `None` →
+`FeeFailure::CalculationFailed`: the only honest answers are the exact one or a
+refusal. Two independent differential fuzz campaigns (6,000 and 400 cases over
+decimals 0–78, USD prices `1e-8`–`1e34`, gas prices to `1e37`) found **zero**
+cases where the core quotes cheaper than the TypeScript half; every divergence
+is the core refusing.
+
+**Why the gates were green through all of it**: every `in_band_fee` vector and
+every parity scenario used a 6-decimal token. The corpus now pins fee-asset
+decimals **0, 4, 6, 8 and 18** — including the exact `126000000000000000000`
+case — plus a new `tempo_expected_gas` family, closing the hole where
+`tempo_reimbursement` took `expected_gas` as an *input* so the model producing
+it was never compared across languages. Both halves replay the corpus, and both
+assert the decimals coverage structurally, so "everything is 6 decimals" cannot
+silently reopen.
+
+**Why the wiring was pulled.** Four rounds, each verified, each followed by an
+independent review that found a *new* money defect: a Tempo `settlementRecipient`
+overwritten by the in-band picker row (every Tempo send failing at submit); a
+quote simulated against a native fee leg while submit builds an ERC-20 one
+(straddling the 1 KiB `ESTIMATION_REQUIRED_CALLDATA` cliff, so web enabled a
+confirm native refuses); the u128 overflow above; then a fix that landed on
+`select_fee_asset` while the path the wallet actually dispatches is
+`GasFeeCard.handleFeeTokenSelect`; then a re-quote that priced an *empty*
+operation because `ConfirmStep.tsx:300-312` renders `GasFeeCard` with no `tx`
+and no `batchCalls`.
+
+That is a seam problem, not an agent problem. The core is designed around a
+**live session** — `SelectFeeAsset`, the TTL, `options[].amount`,
+`confirm_fee_ready`. The attempt integrated at a per-estimate *promise driver*
+while `GasFeeCard` kept patching fee estimates locally in TypeScript, so the
+shell and the core each kept deciding part of one number. Every round found the
+next place they disagreed.
+
+**When it is redone**: give `GasFeeCard` a live session that owns the options,
+the TTL and the selection, and move the Send flow's pre-confirm estimate
+(`useSendController.handleContinue`) into that same session so there is exactly
+one writer of the fee. Landing that requires the confirm screen to pass the real
+`tx`/`batchCalls` it is confirming. `Event::QuoteRequested` already carries
+`fee_token`, so the simulated operation can be byte-identical to the submitted
+one — that part is done and kept.
+
+**Also caught here**: `build-web.mjs --check` is a real gate and it failed on a
+tree whose jest suites were all green — the committed wasm had been built from
+an intermediate source state that no longer existed. Green tests over a stale
+artifact prove nothing about the source. Run the provenance check before
+believing a wasm-backed suite.
+
 ## Still open
 
 - **Native has no e2e.** Sign-out's native behaviour changed in this branch

@@ -6,12 +6,21 @@
 //! split into two diverging implementations.
 //!
 //! ```text
-//! QuoteRequested ─► Gathering ──(gas price ∥ bundler quote ∥ in-band quotes)──►
-//!   Estimating ──(real-calldata UserOp simulation)──► Quoted ──30s──► stale
+//! QuoteRequested{fee_token} ─► Gathering ──(gas price ∥ bundler quote ∥
+//!   in-band quotes)──► Estimating ──(real-calldata UserOp simulation, fee leg
+//!   included)──► Quoted ──30s──► stale
 //!        │                                              │
 //!        └── any fatal step ─► Failed{semantic variant}  └─ SelectFeeAsset:
 //!                                                           local recompute
+//!                                                           (never on Tempo)
 //! ```
+//!
+//! The fee token is a QUOTE PARAMETER, carried on `QuoteRequested` and fixed
+//! before anything is simulated, because it changes the operation being
+//! priced: a stablecoin fee leg is `token.transfer(recipient, amount)`, 68
+//! bytes and one ERC-20 SSTORE heavier than a native `{to, value}` leg.
+//! `SelectFeeAsset` is the in-place chip switch on top of a settled generic
+//! in-band quote, and only there — Tempo re-prices through its own model.
 //!
 //! Faithful port of the TypeScript sources — behavior aligned line by line,
 //! magic numbers and wording classifications preserved:
@@ -45,11 +54,16 @@
 //!
 //! - `to_base_units` returns `None` for negative or non-numeric input where
 //!   `BigInt(...)` would produce a negative value or throw mid-render.
-//! - Multiplications saturate at `u128::MAX` instead of wrapping — an
-//!   astronomically overpriced fee is refused/overcharged, never underpaid.
+//! - Every money product/quotient is evaluated in 256-bit space (`U256`, the
+//!   same width `approval_guard` uses) and only the FINAL value is narrowed to
+//!   `u128`. A result that does not fit is a refusal (`None` → a `FeeFailure`)
+//!   or, where the signature cannot carry one, `u128::MAX` — an unpayable
+//!   number the balance gate then rejects out loud. See the arithmetic section
+//!   below for why an intermediate clamp is the one thing that is forbidden.
 //! - An unparseable USD price string prices as `None` ("cannot quote"), the
 //!   same refusal the TS regex produces.
 
+use alloy_primitives::U256;
 use crux_core::capability::Operation;
 use crux_core::macros::effect;
 use crux_core::{render::render, render::RenderOperation, App, Command};
@@ -140,33 +154,96 @@ pub const TEMPO_SPLIT_SAFETY_GAS: u128 = 20_000;
 pub const TEMPO_SPLIT_SAFETY_BPS: u128 = 300;
 
 // ---------------------------------------------------------------------------
-// Saturating arithmetic — overflow is explicit and never undercharges
+// Money arithmetic — exact in 256 bits, narrowed once, never clamped midway
 // ---------------------------------------------------------------------------
+//
+// TS `bigint` cannot overflow, so the port has to answer for every product the
+// canon takes for granted. The rule that matters is NOT "clamp upward": it is
+// **never clamp an intermediate**.
+//
+// The formula this module is built around is `ceil(a × b × c / (d × e))`. A
+// clamp applied to the numerator is silently undone by the division: for an
+// 18-decimal fee asset (DAI, and USDT/USDC on BNB Chain) the true numerator is
+// ~1.26e46, twenty-four decimal orders past `u128::MAX`, and `MAX / 1e26`
+// lands on 3.4e12 — a number small enough to disappear under the $0.01 floor.
+// That shipped as a 12,600× undercharge while every gate stayed green, because
+// every vector and every scenario used a 6-decimal token.
+//
+// So: evaluate in `U256` (1.16e77 — the width `approval_guard` already uses,
+// no new dependency), and narrow exactly once, at the end.
+//   * where the signature can refuse — `Option` — a value that does not fit is
+//     `None`, which the machine turns into a `FeeFailure`;
+//   * where it cannot, the final narrow clamps to `u128::MAX`, an amount no
+//     balance can cover, so `fee_row_insufficient` refuses it out loud.
+// Both are "expensive and refused". Neither can be mistaken for a real price.
 
-/// Multiply, saturating at `u128::MAX`. TS `bigint` cannot overflow; here an
-/// overflowing fee saturates *upward*, so the failure mode is an absurdly
-/// overpriced (and therefore refused) quote — never a silently cheap one.
-fn mul(a: u128, b: u128) -> u128 {
-    a.checked_mul(b).unwrap_or(u128::MAX)
+/// Widen. Named for brevity — this file is dense with conversions.
+fn w(value: u128) -> U256 {
+    U256::from(value)
 }
 
+/// `a × b` for two `u128`s. `(2^128 − 1)^2 < 2^256`, so this is EXACT and
+/// total: no clamp, no panic, no `checked_` ceremony at the call sites.
+fn mul_wide(a: u128, b: u128) -> U256 {
+    w(a) * w(b)
+}
+
+/// `10^d` in 256-bit space. `None` past `10^77`, where not even `U256` can
+/// hold the unit — a refusal, never a clamped unit that would deflate a
+/// quotient.
+fn pow10_wide(d: u32) -> Option<U256> {
+    U256::from(10u64).checked_pow(U256::from(d))
+}
+
+/// The one narrowing point. `None` when the exact value does not fit.
+fn narrow(value: U256) -> Option<u128> {
+    u128::try_from(value).ok()
+}
+
+/// Narrow for the signatures that cannot carry a refusal (the parity corpus
+/// pins them as plain `u128`, and the TypeScript half returns a `bigint`).
+/// `u128::MAX` is unpayable by construction, so it surfaces as "this asset
+/// cannot cover the fee" rather than as a price.
+fn narrow_saturating(value: U256) -> u128 {
+    u128::try_from(value).unwrap_or(u128::MAX)
+}
+
+/// `ceilDiv` (`safe-transaction.ts:342-344`) in 256-bit space. A zero
+/// denominator is unreachable (zero USD prices are filtered as unpriceable
+/// first) and answers `None` rather than panicking.
+fn ceil_div_wide(numerator: U256, denominator: U256) -> Option<U256> {
+    if denominator.is_zero() {
+        return None;
+    }
+    Some(numerator.checked_add(denominator - U256::from(1u64))? / denominator)
+}
+
+/// Attodollars are USD × 1e-18 (`tempo.ts:117-126`).
+const ATTO_SCALE: u128 = 1_000_000_000_000_000_000;
+
+/// Attodollars → fee-token base units, exact. `None` when the token's unit or
+/// the product cannot be represented at all.
+fn atto_units_wide(atto: U256, decimals: u32) -> Option<U256> {
+    if atto.is_zero() {
+        return Some(U256::ZERO);
+    }
+    let unit = pow10_wide(decimals)?;
+    Some(atto.checked_mul(unit)? / w(ATTO_SCALE))
+}
+
+/// Saturating addition. Unlike a product, a sum cannot be pulled back into a
+/// plausible range by a later division in this module — every `add` here feeds
+/// a `max`/`+` chain of gas units, never a numerator that gets divided down.
 fn add(a: u128, b: u128) -> u128 {
     a.checked_add(b).unwrap_or(u128::MAX)
 }
 
-/// `10^d`, saturating (a wire-supplied `decimals` beyond 38 cannot panic).
+/// `10^d` for the one call site whose `d` is a compile-time constant
+/// (`18 − TEMPO_FEE_TOKEN_DECIMALS` = 12) and therefore provably exact. Every
+/// wire-supplied `decimals` goes through [`pow10_wide`], which refuses instead
+/// of clamping.
 fn pow10(d: u32) -> u128 {
     10u128.checked_pow(d).unwrap_or(u128::MAX)
-}
-
-/// `ceilDiv` (`safe-transaction.ts:342-344`). A zero denominator is
-/// unreachable (zero USD prices are filtered as unpriceable first) but must
-/// not panic; it answers `MAX` — refusal, not undercharge.
-fn ceil_div(numerator: u128, denominator: u128) -> u128 {
-    if denominator == 0 {
-        return u128::MAX;
-    }
-    add(numerator, denominator - 1) / denominator
 }
 
 fn parse_units(s: &str) -> Option<u128> {
@@ -347,11 +424,22 @@ pub enum FeeEffect {
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "FeeEvent"))]
 pub enum Event {
     /// Confirm is about to open (send) or a signing request arrived (dApp).
-    /// Always restarts at the native fee asset — the SigningSheet reset
-    /// (`SigningSheet.tsx:247-249`) made a core rule. `deployed` and
-    /// `public_key_available` are account context the caller already holds;
-    /// an undeployed account without its public key can never build the real
-    /// initCode, so it must never estimate (invariant ⑤,
+    ///
+    /// `fee_token` is the asset the caller wants this quote denominated in
+    /// (`None` = native — the SigningSheet reset,
+    /// `SigningSheet.tsx:247-249`, is the caller passing `None`). It is a
+    /// QUOTE PARAMETER, not a post-quote adjustment: the fee leg that gets
+    /// batched into the simulated UserOp is a native transfer for `None` and
+    /// an ERC-20 `transfer` for `Some` — 68 bytes of calldata and one real
+    /// SSTORE apart. Quoting the native shape and then re-denominating would
+    /// price a DIFFERENT operation than the one `sendUserOpInBand` submits,
+    /// which is the exact class of mismatch this machine exists to prevent
+    /// (invariant ⑨; `estimateTransactionFee` passes the same `gasFeeToken`
+    /// into `buildInBandFeeLeg`, `safe-transaction.ts:665-668`).
+    ///
+    /// `deployed` and `public_key_available` are account context the caller
+    /// already holds; an undeployed account without its public key can never
+    /// build the real initCode, so it must never estimate (invariant ⑤,
     /// `safe-transaction.ts:634-642`).
     QuoteRequested {
         chain_id: u32,
@@ -360,6 +448,9 @@ pub enum Event {
         public_key_available: bool,
         tier: FeeTier,
         calls: Vec<FeeCall>,
+        /// `None` = native. On Tempo, `None` means the default TIP-20
+        /// (`estimateTempoFee`'s `gasFeeToken ?? TEMPO_DEFAULT_FEE_TOKEN`).
+        fee_token: Option<String>,
     },
     /// A fee-asset chip tap. `None` = native.
     SelectFeeAsset { token: Option<String> },
@@ -441,15 +532,20 @@ pub fn usd_price_scaled(value: Option<&str>, round_up: bool) -> Option<u128> {
         kept.push('0');
     }
     let kept: u128 = kept.parse().ok()?;
-    let mut scaled = add(mul(integer, USD_PRICE_SCALE), kept);
+    // Exact. A price whose scaled form does not fit `u128` is unpriceable, not
+    // clamped: it is the DENOMINATOR of the conversion for a fee token and the
+    // NUMERATOR for the native coin, so a clamp would move the quote in
+    // opposite directions depending on which side asked. `None` = "cannot
+    // quote", the same answer the TS regex gives for garbage.
+    let mut scaled = w(integer).checked_mul(w(USD_PRICE_SCALE))?.checked_add(w(kept))?;
     let tail_has_digit = fraction
         .bytes()
         .skip(USD_PRICE_DECIMALS as usize)
         .any(|b| (b'1'..=b'9').contains(&b));
     if round_up && tail_has_digit {
-        scaled = add(scaled, 1);
+        scaled = scaled.checked_add(U256::from(1u64))?;
     }
-    Some(scaled)
+    narrow(scaled)
 }
 
 /// Exact in-band reimbursement from the transaction's gas basis
@@ -457,6 +553,14 @@ pub fn usd_price_scaled(value: Option<&str>, round_up: bool) -> Option<u128> {
 /// intentionally not used. Returns `None` when it cannot price safely — a
 /// zero/absent USD price is "cannot quote", never rate 1 (invariant ④'s
 /// sibling: 0 is not a price).
+///
+/// Every step runs in `U256`, because the numerator here is where the port's
+/// worst bug lived: for an 18-decimal fee asset the exact numerator is ~1.26e46
+/// (`6.3e16 × 2e11 × 1e18` for a 700k-gas send at 30 gwei with ETH at $2,000),
+/// and clamping it to `u128::MAX` before dividing by `1e26` produced 3.4e12 —
+/// under the $0.01 floor, i.e. a 126 DAI fee quoted as one cent. The only
+/// honest answers are the exact one or a refusal; `None` is the refusal, and
+/// the machine turns it into `FeeFailure::CalculationFailed`.
 pub fn calculate_in_band_fee_amount(
     total_gas: u128,
     gas_price: u128,
@@ -466,28 +570,30 @@ pub fn calculate_in_band_fee_amount(
     if !native_asset.is_native {
         return None;
     }
-    let native_unit = pow10(native_asset.decimals);
+    let native_unit = pow10_wide(native_asset.decimals)?;
     // Minimum is 0.00001 native coin; below 5 decimals, one base unit.
     let native_minimum = if native_asset.decimals >= 5 {
-        pow10(native_asset.decimals - 5)
+        pow10_wide(native_asset.decimals - 5)?
     } else {
-        1
+        U256::from(1u64)
     };
-    let native_amount = mul(mul(total_gas, gas_price), INBAND_MARKUP).max(native_minimum);
+    let native_amount = mul_wide(total_gas, gas_price)
+        .checked_mul(w(INBAND_MARKUP))?
+        .max(native_minimum);
     if fee_asset.is_native {
-        return Some(native_amount);
+        return narrow(native_amount);
     }
     // JS `!nativeUsdPrice` is falsy for 0n too — a zero price is unpriceable.
     let native_usd =
         usd_price_scaled(native_asset.usd_price.as_deref(), true).filter(|v| *v != 0)?;
     let fee_usd = usd_price_scaled(fee_asset.usd_price.as_deref(), false).filter(|v| *v != 0)?;
-    let fee_unit = pow10(fee_asset.decimals);
-    let converted = ceil_div(
-        mul(mul(native_amount, native_usd), fee_unit),
-        mul(native_unit, fee_usd),
-    );
-    let stable_minimum = ceil_div(mul(STABLE_MIN_USD_SCALED, fee_unit), fee_usd);
-    Some(converted.max(stable_minimum))
+    let fee_unit = pow10_wide(fee_asset.decimals)?;
+    let converted = ceil_div_wide(
+        native_amount.checked_mul(w(native_usd))?.checked_mul(fee_unit)?,
+        native_unit.checked_mul(w(fee_usd))?,
+    )?;
+    let stable_minimum = ceil_div_wide(w(STABLE_MIN_USD_SCALED).checked_mul(fee_unit)?, w(fee_usd))?;
+    narrow(converted.max(stable_minimum))
 }
 
 /// Invariant ⑧ (`FeeTokenSelector.tsx:74`): a fee asset that cannot cover this
@@ -543,14 +649,25 @@ pub fn same_asset_fee_limit(
 /// actually requires.
 pub fn raw_bundler_gas_cost(fee: &FeeEstimate) -> u128 {
     let (num, den) = tier_multiplier(fee.tier);
-    mul(fee.total_wei, den) / num
+    // `den < num` for every tier, so the exact quotient is ≤ `total_wei` and
+    // the narrow is provably lossless. Computed wide anyway so that a future
+    // tier with `den > num` cannot reintroduce the clamp-then-divide shape:
+    // a funding pre-check that reads LOW is the one that lets an underfunded
+    // op through.
+    narrow_saturating(mul_wide(fee.total_wei, den) / w(num))
 }
 
 /// `calcMaxFeePerGas` (`safe-transaction.ts:2005-2011`):
 /// gasPrice × speedTier × BUNDLER_MARGIN, floored at 1 wei.
 pub fn calc_max_fee_per_gas(gas_price: u128, tier: FeeTier) -> u128 {
     let (num, den) = tier_multiplier(tier);
-    let max_fee = mul(mul(gas_price, num), BUNDLER_MARGIN_NUM) / (den * BUNDLER_MARGIN_DEN);
+    // ×4.0 at most, evaluated exactly; the clamp can only fire for a chain
+    // gas price above ~8.5e37 wei (there is not that much ether in existence),
+    // and it clamps the per-gas price UP-scale, never into a plausible number.
+    let max_fee = narrow_saturating(
+        mul_wide(gas_price, num).checked_mul(w(BUNDLER_MARGIN_NUM)).unwrap_or(U256::MAX)
+            / w(den * BUNDLER_MARGIN_DEN),
+    );
     max_fee.max(1)
 }
 
@@ -745,16 +862,23 @@ pub fn is_tempo_chain(chain_id: u32) -> bool {
 /// The smallest representable $0.01 fee (`tempo.ts:53-61`): rounds UP to a
 /// transferable unit for low-decimal tokens rather than undercharge.
 pub fn tempo_minimum_fee_token_units(decimals: u32) -> u128 {
-    let unit = pow10(decimals);
-    ceil_div(mul(unit, TEMPO_MIN_FEE_USD_CENTS), 100)
+    let Some(unit) = pow10_wide(decimals) else {
+        return u128::MAX;
+    };
+    let Some(scaled) = unit.checked_mul(w(TEMPO_MIN_FEE_USD_CENTS)) else {
+        return u128::MAX;
+    };
+    ceil_div_wide(scaled, w(100)).map_or(u128::MAX, narrow_saturating)
 }
 
 /// Attodollars (USD×1e-18) → fee-token base units (`tempo.ts:117-126`).
+///
+/// This is the second `x × 10^decimals / 10^18` in the file, i.e. the same
+/// clamp-then-divide shape as the in-band conversion; a clamped numerator here
+/// would deflate by up to 1e18. Exact in `U256`; an unrepresentable product
+/// answers `u128::MAX` (unpayable, hence refused), never a shrunken number.
 pub fn atto_to_token_units(atto: u128, decimals: u32) -> u128 {
-    if atto == 0 {
-        return 0;
-    }
-    mul(atto, pow10(decimals)) / pow10(18)
+    atto_units_wide(w(atto), decimals).map_or(u128::MAX, narrow_saturating)
 }
 
 /// Raw gas fee incl. outer-tx overhead, no margin (`tempo.ts:128-141`).
@@ -764,12 +888,17 @@ pub fn tempo_fee_token_units(total_gas: u128, gas_price_atto: u128, decimals: u3
     } else {
         TEMPO_BASE_FEE_ATTO
     };
-    atto_to_token_units(mul(add(total_gas, TEMPO_OUTER_OVERHEAD_GAS), price), decimals)
+    atto_units_wide(
+        mul_wide(add(total_gas, TEMPO_OUTER_OVERHEAD_GAS), price),
+        decimals,
+    )
+    .map_or(u128::MAX, narrow_saturating)
 }
 
 /// callGasLimit floor for a batch of `sub_calls` (`tempo.ts:82-84`).
 pub fn tempo_call_gas_limit(sub_calls: u32) -> u128 {
-    mul(u128::from(sub_calls.max(1)), TEMPO_CALL_GAS_PER_SUBCALL)
+    // `u32 × 380_000 < 2^69`: cannot overflow `u128`.
+    u128::from(sub_calls.max(1)) * TEMPO_CALL_GAS_PER_SUBCALL
 }
 
 /// Realistic total gas for a batch (`tempo.ts:113-116`) — used to PRICE the
@@ -780,7 +909,8 @@ pub fn tempo_expected_gas(deployed: bool, sub_calls: u32) -> u128 {
     } else {
         TEMPO_DEPLOY_GAS_EST
     };
-    add(fixed, mul(u128::from(sub_calls.max(1)), TEMPO_PER_SUBCALL_GAS_EST))
+    // `u32 × 110_000 + 4.15e6 < 2^68`: cannot overflow `u128`.
+    fixed + u128::from(sub_calls.max(1)) * TEMPO_PER_SUBCALL_GAS_EST
 }
 
 /// Stablecoin reimbursement = realistic cost × 2, floored at $0.01
@@ -791,14 +921,19 @@ pub fn tempo_reimbursement(expected_gas: u128, gas_price_atto: u128, decimals: u
     } else {
         TEMPO_BASE_FEE_ATTO
     };
-    let base = atto_to_token_units(mul(expected_gas, price), decimals);
-    let with_margin = mul(base, TEMPO_FEE_MARGIN_NUM) / TEMPO_FEE_MARGIN_DEN;
+    // One exact expression: gas × price → token units → ×2. The margin is
+    // applied to the WIDE base, so the doubling can never be swallowed by a
+    // clamp that already happened.
+    let with_margin = atto_units_wide(mul_wide(expected_gas, price), decimals)
+        .and_then(|base| base.checked_mul(w(TEMPO_FEE_MARGIN_NUM)))
+        .map_or(u128::MAX, |v| narrow_saturating(v / w(TEMPO_FEE_MARGIN_DEN)));
     with_margin.max(tempo_minimum_fee_token_units(decimals))
 }
 
 /// EOA-floor cushion: max(flat 20k, 3% of the priced gas) (`tempo.ts:177-180`).
 pub fn tempo_split_safety_gas(expected_gas: u128) -> u128 {
-    let proportional = mul(expected_gas, TEMPO_SPLIT_SAFETY_BPS) / 10_000;
+    // 3% of a `u128` always fits a `u128`; wide only so the product is exact.
+    let proportional = narrow_saturating(mul_wide(expected_gas, TEMPO_SPLIT_SAFETY_BPS) / w(10_000));
     proportional.max(TEMPO_SPLIT_SAFETY_GAS)
 }
 
@@ -823,8 +958,8 @@ pub fn tempo_settlement_split(
     } else {
         TEMPO_BASE_FEE_ATTO
     };
-    let eoa_floor = atto_to_token_units(
-        mul(
+    let eoa_floor = atto_units_wide(
+        mul_wide(
             add(
                 add(expected_gas, TEMPO_COST_BUFFER_GAS),
                 tempo_split_safety_gas(expected_gas),
@@ -832,7 +967,10 @@ pub fn tempo_settlement_split(
             price,
         ),
         decimals,
-    );
+    )
+    // A floor that cannot be represented keeps EVERYTHING on the bundler EOA
+    // (treasury 0) — the branch below that never lets the accept check fail.
+    .map_or(u128::MAX, narrow_saturating);
     if reimbursement <= eoa_floor {
         return TempoSplit {
             eoa: reimbursement,
@@ -1174,6 +1312,7 @@ impl App for FeePolicy {
                 public_key_available,
                 tier,
                 calls,
+                fee_token,
             } => {
                 model.attempt += 1;
                 model.form_chain_id = Some(chain_id);
@@ -1185,10 +1324,14 @@ impl App for FeePolicy {
                     tier,
                     calls,
                 });
-                // A new request starts back at the native fee asset
-                // (`SigningSheet.tsx:247-249`) with no leftover estimate
-                // (`useSendController.ts:723`: setFeeEstimate(null)).
-                model.fee_token = None;
+                // The requested denomination becomes THE fee token for this
+                // run, before anything is simulated, so the op that is priced
+                // carries the same fee leg as the op that is submitted. A
+                // caller that wants the SigningSheet's native reset
+                // (`SigningSheet.tsx:247-249`) asks for `None`.
+                // No leftover estimate survives (`useSendController.ts:723`:
+                // setFeeEstimate(null)).
+                model.fee_token = fee_token;
                 model.estimate = None;
                 model.stale = false;
                 model.quotes.clear();
@@ -1300,15 +1443,22 @@ fn begin_pipeline(model: &mut Model) -> Command<FeeEffect, Event> {
     let Some(ctx) = model.ctx.clone() else {
         return Command::done();
     };
+    let tempo = is_tempo_chain(ctx.chain_id);
     // Invariant ⑤ (`safe-transaction.ts:634-642`): an undeployed account
     // without its public key cannot build the real initCode — a draft that
     // cannot match the final operation must never be estimated.
-    if !ctx.deployed && !ctx.public_key_available {
+    //
+    // Tempo is exempt because it never estimates one: `advance_tempo` only
+    // simulates for a contract call on a DEPLOYED Safe, so an undeployed Tempo
+    // quote is pure static model and needs no initCode at all — which is why
+    // `estimateTempoFee` takes no `publicKeyHex` and quotes it happily
+    // (`safe-transaction.ts:464-546`). Refusing here would have blocked a new
+    // user's first Tempo send on web only.
+    if !tempo && !ctx.deployed && !ctx.public_key_available {
         return fail(model, FeeFailure::MissingPublicKey);
     }
     model.pending = Pending::default();
     model.phase = Phase::Gathering;
-    let tempo = is_tempo_chain(ctx.chain_id);
     let mut operations = vec![FeeOperation::FetchGasPrice {
         chain_id: ctx.chain_id,
         // Tempo is excluded from the tip query — attodollar gas makes
@@ -1514,7 +1664,7 @@ fn advance_generic(
             // Local fallback (`safe-transaction.ts:600-608`).
             let local_max = calc_max_fee_per_gas(gas.gas_price, ctx.tier);
             let (num, den) = tier_multiplier(ctx.tier);
-            let bgp = (mul(gas.gas_price, num) / den).max(1);
+            let bgp = narrow_saturating(mul_wide(gas.gas_price, num) / w(den)).max(1);
             (bgp, local_max.saturating_sub(bgp), bgp)
         }
     };
@@ -1653,12 +1803,14 @@ fn accept_gas_outcome(
                 };
                 // Padding (`safe-transaction.ts:697-702`): ×1.5 with floors —
                 // 2M for an undeployed account's deploy.
-                let est_vgl = (mul(vgl, 15) / 10).max(if ctx.deployed {
+                // ×1.5 exactly: a clamped `vgl × 15` divided by 10 would
+                // UNDER-count the gas the fee is priced from.
+                let est_vgl = narrow_saturating(mul_wide(vgl, 15) / w(10)).max(if ctx.deployed {
                     VERIFICATION_GAS_DEPLOYED
                 } else {
                     2_000_000
                 });
-                let est_cgl = (mul(cgl, 15) / 10).max(100_000);
+                let est_cgl = narrow_saturating(mul_wide(cgl, 15) / w(10)).max(100_000);
                 let est_pvg = add(pvg, 10_000);
                 let total_gas = add(add(est_vgl, est_cgl), est_pvg);
                 price_generic(model, &ctx, plan, total_gas)
@@ -1742,6 +1894,17 @@ fn price_generic(
     ) else {
         return fail(model, FeeFailure::CalculationFailed);
     };
+    // Invariant ⑧ (`FeeTokenSelector.tsx:74`), applied to a REQUESTED fee
+    // token: an asset whose balance cannot cover this transaction's fee would
+    // only produce a doomed op, so it is refused out loud with the sentence
+    // that tells the user to pick another asset — never silently downgraded to
+    // a native quote nobody asked for. It lives here (and not before the
+    // simulation) because the amount is only knowable once the gas is.
+    // The native row is NOT gated: quoting it is the caller's only remaining
+    // option, and `estimateTransactionFee` does not gate it either.
+    if model.fee_token.is_some() && fee_row_insufficient(selected.balance, Some(fee_amount)) {
+        return fail(model, FeeFailure::FeeTokenUnavailable);
+    }
     // Every signed UserOp pays maxFeePerGas = 0; the fee rides in the leg.
     // `feeRecipient` rides along so the submit path signs EXACTLY this quote
     // — displayed = signed, never a silent mismatch
@@ -1795,7 +1958,10 @@ fn price_tempo(
         tempo_reimbursement(expected_gas, *gas_price_atto, TEMPO_FEE_TOKEN_DECIMALS);
     // `totalWei` is the reimbursement scaled to attodollars so the USD
     // display path (totalWei / 1e18) renders it (`safe-transaction.ts:447-450`).
-    let total_wei = mul(reimbursement, pow10(18 - TEMPO_FEE_TOKEN_DECIMALS));
+    let total_wei = narrow_saturating(mul_wide(
+        reimbursement,
+        pow10(18 - TEMPO_FEE_TOKEN_DECIMALS),
+    ));
     let symbol = if fee_token.eq_ignore_ascii_case(TEMPO_DEFAULT_FEE_TOKEN) {
         Some("pathUSD".to_owned())
     } else {
@@ -1865,9 +2031,9 @@ fn fail(model: &mut Model, kind: FeeFailure) -> Command<FeeEffect, Event> {
 // ---------------------------------------------------------------------------
 
 /// `GasFeeCard.handleFeeTokenSelect` + the `FeeTokenSelector` row gate.
-/// A known option recomputes locally from the shared gas basis — no RPC; an
-/// unknown one falls back to a full re-estimate whose failure reverts the
-/// selection.
+/// On a generic in-band chain a known option recomputes locally from the
+/// shared gas basis — no RPC; an unknown one (and EVERY Tempo one) falls back
+/// to a full re-estimate whose failure reverts the selection.
 fn select_fee_asset(model: &mut Model, token: Option<String>) -> Command<FeeEffect, Event> {
     if model.ctx.is_none() || model.phase != Phase::Quoted {
         return Command::done();
@@ -1889,23 +2055,38 @@ fn select_fee_asset(model: &mut Model, token: Option<String>) -> Command<FeeEffe
         if fee_row_insufficient(option.balance, amount) {
             return Command::done();
         }
-        if let (Some(amount), Some(estimate)) = (amount, model.estimate.as_mut()) {
-            // Local recompute from the shared basis (`GasFeeCard.tsx:193-215`):
-            // the displayed amount switches immediately, recipient included,
-            // so approve/submit sends exactly what was quoted.
-            estimate.total_wei = if option.is_native { amount } else { 0 };
-            estimate.fee_recipient = Some(option.recipient.clone());
-            estimate.fee_asset = match &option.fee_token {
-                None => FeeAsset::Native,
-                Some(contract) => FeeAsset::Erc20 {
-                    token: contract.clone(),
-                    decimals: option.decimals,
-                    amount,
-                    symbol: None,
-                },
-            };
-            model.fee_token = token;
-            return render();
+        // Tempo's estimate is NOT a generic in-band quote and must never be
+        // patched like one: its `total_wei` is the reimbursement in
+        // attodollars (not 0), its symbol comes from the fee token, and its
+        // recipient is the bundler's `settlementRecipient`, which
+        // `sendUserOpTempo` compares byte for byte before signing
+        // (`safe-transaction.ts:1196-1198`). Overwriting those with an in-band
+        // picker row's recipient made every Tempo send throw "The gas quote
+        // has expired". Re-price through `advance_tempo` instead — the same
+        // path `estimateTempoFee` takes on native.
+        let tempo = model
+            .ctx
+            .as_ref()
+            .is_some_and(|ctx| is_tempo_chain(ctx.chain_id));
+        if !tempo {
+            if let (Some(amount), Some(estimate)) = (amount, model.estimate.as_mut()) {
+                // Local recompute from the shared basis (`GasFeeCard.tsx:193-215`):
+                // the displayed amount switches immediately, recipient included,
+                // so approve/submit sends exactly what was quoted.
+                estimate.total_wei = if option.is_native { amount } else { 0 };
+                estimate.fee_recipient = Some(option.recipient.clone());
+                estimate.fee_asset = match &option.fee_token {
+                    None => FeeAsset::Native,
+                    Some(contract) => FeeAsset::Erc20 {
+                        token: contract.clone(),
+                        decimals: option.decimals,
+                        amount,
+                        symbol: None,
+                    },
+                };
+                model.fee_token = token;
+                return render();
+            }
         }
     }
     // The quote may have expired while the sheet stayed open — fall back to a

@@ -85,6 +85,12 @@ fn pathusd_row(balance: &str) -> FeeAssetQuote {
 }
 
 fn request(chain_id: u32, calls: Vec<FeeCall>) -> Event {
+    request_in(chain_id, calls, None)
+}
+
+/// The same request, denominated in a specific fee asset — the shape the send
+/// and signing surfaces use once a chip has been tapped.
+fn request_in(chain_id: u32, calls: Vec<FeeCall>, fee_token: Option<&str>) -> Event {
     Event::QuoteRequested {
         chain_id,
         account: ACCOUNT.to_owned(),
@@ -92,6 +98,7 @@ fn request(chain_id: u32, calls: Vec<FeeCall>) -> Event {
         public_key_available: true,
         tier: FeeTier::Fast,
         calls,
+        fee_token: fee_token.map(str::to_owned),
     }
 }
 
@@ -385,6 +392,168 @@ fn zero_usd_price_is_unpriceable_not_rate_one() {
     assert_eq!(calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc_zero, &native), None);
     // A non-native "native" asset is a caller error → refuse.
     assert_eq!(calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &usdc), None);
+}
+
+/// The blocker this round exists for: an 18-decimal gas asset was quoted at the
+/// $0.01 floor because the conversion's numerator was clamped to `u128::MAX`
+/// and the following division pulled it back into a plausible-looking range.
+///
+/// The exact numerator for a 700k-gas send at 30 gwei with ETH at $2,000 and an
+/// 18-decimal fee token is `6.3e16 × 2e11 × 1e18 = 1.26e46`, twenty-four decimal
+/// orders past `u128::MAX = 3.4e38`. Clamped-then-divided it lands on 3.4e12,
+/// below the `stable_minimum` of 1e16 — 126 DAI quoted as one cent.
+///
+/// DAI, plus USDT and USDC on BNB Chain, are all 18 decimals; every vector and
+/// every scenario before this used 6, which is why both drift gates stayed
+/// green through it.
+#[test]
+fn eighteen_decimal_fee_asset_is_priced_exactly_not_clamped_to_the_cent_floor() {
+    let eth = AssetPricing {
+        is_native: true,
+        decimals: 18,
+        usd_price: Some("2000".to_owned()),
+    };
+    let dai = AssetPricing {
+        is_native: false,
+        decimals: 18,
+        usd_price: Some("1".to_owned()),
+    };
+    // 700_000 × 30 gwei × 3 = 0.063 ETH = $126 = 126 DAI.
+    assert_eq!(
+        calculate_in_band_fee_amount(700_000, 30_000_000_000, &dai, &eth),
+        Some(126_000_000_000_000_000_000)
+    );
+    // …and NOT the $0.01 floor, which is what the clamp produced.
+    assert_ne!(
+        calculate_in_band_fee_amount(700_000, 30_000_000_000, &dai, &eth),
+        Some(10_000_000_000_000_000)
+    );
+    // The floor itself is still honest when the fee genuinely is below a cent.
+    let cheap_native = AssetPricing {
+        is_native: true,
+        decimals: 18,
+        usd_price: Some("100".to_owned()),
+    };
+    assert_eq!(
+        calculate_in_band_fee_amount(1, 1, &dai, &cheap_native),
+        Some(10_000_000_000_000_000)
+    );
+    // The other precisions the relay can publish: 8 (WBTC) and 0.
+    let wbtc = AssetPricing {
+        is_native: false,
+        decimals: 8,
+        usd_price: Some("60000".to_owned()),
+    };
+    assert_eq!(
+        calculate_in_band_fee_amount(200_000, 1_000_000_000, &wbtc, &eth),
+        Some(2_000)
+    );
+    let whole = AssetPricing {
+        is_native: false,
+        decimals: 0,
+        usd_price: Some("1".to_owned()),
+    };
+    assert_eq!(
+        calculate_in_band_fee_amount(700_000, 30_000_000_000, &whole, &eth),
+        Some(126)
+    );
+}
+
+/// Monotonicity is the property a clamp destroys: with everything else fixed,
+/// more gas must cost MORE fee-token units. The old code broke it flat — past
+/// the overflow point every basis collapsed onto the same cent floor, so a
+/// 30M-gas batch and a 21k transfer quoted the identical $0.01. Strict `>` is
+/// therefore the assertion; `>=` would have been satisfied by the collapse.
+#[test]
+fn a_bigger_gas_basis_never_produces_a_smaller_fee() {
+    let eth = AssetPricing {
+        is_native: true,
+        decimals: 18,
+        usd_price: Some("2000".to_owned()),
+    };
+    let dai = AssetPricing {
+        is_native: false,
+        decimals: 18,
+        usd_price: Some("1".to_owned()),
+    };
+    let mut previous = 0u128;
+    for gas in [1u128, 21_000, 200_000, 450_000, 700_000, 3_000_000, 30_000_000] {
+        let amount = calculate_in_band_fee_amount(gas, 30_000_000_000, &dai, &eth)
+            .expect("a real gas basis is priceable");
+        assert!(
+            amount > previous,
+            "{gas} gas priced {amount}, not more than the previous step's {previous} — \
+             a flat line here is the clamp collapsing every basis onto one floor"
+        );
+        previous = amount;
+    }
+}
+
+/// Where the exact answer genuinely does not fit `u128`, the machine REFUSES
+/// (`None` → `FeeFailure::CalculationFailed`). It must never emit a clamped,
+/// smaller-than-true number, which is the only failure mode that can quietly
+/// undercharge.
+#[test]
+fn an_unrepresentable_conversion_refuses_instead_of_shrinking() {
+    let eth = AssetPricing {
+        is_native: true,
+        decimals: 18,
+        usd_price: Some("2000".to_owned()),
+    };
+    let absurd_precision = AssetPricing {
+        is_native: false,
+        decimals: 60,
+        usd_price: Some("1".to_owned()),
+    };
+    // 0.063 ETH → $126 → 126e60 units, which no `u128` can hold.
+    assert_eq!(
+        calculate_in_band_fee_amount(700_000, 30_000_000_000, &absurd_precision, &eth),
+        None
+    );
+    // A `decimals` past even 256-bit representability is a refusal too, not a
+    // clamped unit that would deflate the quotient.
+    let nonsense = AssetPricing {
+        is_native: false,
+        decimals: 200,
+        usd_price: Some("1".to_owned()),
+    };
+    assert_eq!(
+        calculate_in_band_fee_amount(700_000, 30_000_000_000, &nonsense, &eth),
+        None
+    );
+    // Native side, same rule: a gas basis whose ×3 markup cannot be represented
+    // is refused rather than clamped to a payable-looking `u128::MAX`.
+    let native_pair = AssetPricing {
+        is_native: true,
+        decimals: 18,
+        usd_price: Some("2000".to_owned()),
+    };
+    assert_eq!(
+        calculate_in_band_fee_amount(u128::MAX, u128::MAX, &native_pair, &eth),
+        None
+    );
+}
+
+/// `usd_price_scaled` is the conversion's denominator for the fee token and its
+/// numerator for the native coin, so a clamp there moves the quote in opposite
+/// directions depending on which side asked. Unrepresentable ⇒ unpriceable.
+#[test]
+fn an_unrepresentable_usd_price_is_unpriceable_not_clamped() {
+    let huge = "1".to_owned() + &"0".repeat(35); // 1e35 × 1e8 = 1e43 > u128::MAX
+    assert_eq!(usd_price_scaled(Some(&huge), false), None);
+    assert_eq!(usd_price_scaled(Some(&huge), true), None);
+    // …and it propagates as a refusal, not as a rate.
+    let native = AssetPricing {
+        is_native: true,
+        decimals: 18,
+        usd_price: Some(huge.clone()),
+    };
+    let usdc = AssetPricing {
+        is_native: false,
+        decimals: 6,
+        usd_price: Some("1".to_owned()),
+    };
+    assert_eq!(calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &native), None);
 }
 
 fn erc20_fee_estimate() -> FeeEstimate {
@@ -911,6 +1080,91 @@ fn select_unknown_asset_requotes_and_reverts_on_failure() {
     assert!(view.confirm_fee_ready);
 }
 
+/// Invariant ⑨, the version that costs money: when the caller asks for a
+/// stablecoin denomination, the op that is SIMULATED must be the op that is
+/// SUBMITTED — `sendUserOpInBand` batches `token.transfer(recipient, amount)`
+/// (`safe-transaction.ts:1265-1268`), which is 68 more bytes of calldata and
+/// one real ERC-20 SSTORE than the native `{to: recipient, value: 1}` leg.
+/// Quoting the native shape and re-denominating afterwards prices a cheaper,
+/// shorter operation than the one the user signs — and, right at the 1 KiB
+/// `ESTIMATION_REQUIRED_CALLDATA` line, turns a refusal into a fee.
+#[test]
+fn a_requested_fee_token_is_part_of_the_simulated_operation() {
+    let user_call = FeeCall {
+        to: NATIVE_RECIPIENT.to_owned(),
+        value: "1000".to_owned(),
+        data: "0x".to_owned(),
+    };
+    let mut sut = Sut::new();
+    sut.dispatch(request_in(CHAIN, vec![user_call.clone()], Some(USDC)));
+    sut.resolve(gas_ok());
+    sut.resolve(bundler_ok());
+    let ops = sut.resolve(quotes_ok());
+    let expected_leg = FeeCall {
+        to: USDC.to_owned(),
+        value: "0".to_owned(),
+        data: encode_erc20_transfer(USDC_RECIPIENT, 1).expect("erc20 leg"),
+    };
+    assert_eq!(
+        ops,
+        vec![Op::EstimateUserOpGas {
+            chain_id: CHAIN,
+            account: ACCOUNT.to_owned(),
+            deployed: true,
+            calls: vec![user_call, expected_leg],
+        }],
+        "the fee leg the submit path builds is the fee leg that gets simulated"
+    );
+
+    // …and the quote it produces is denominated in that asset, with that
+    // asset's recipient, without any second round trip.
+    sut.resolve(estimated());
+    let view = sut.view();
+    assert_eq!(view.fee_token.as_deref(), Some(USDC));
+    let fee = view.fee.expect("erc20 quote");
+    assert_eq!(fee.total_wei, "0");
+    assert_eq!(fee.fee_recipient.as_deref(), Some(USDC_RECIPIENT));
+    assert_eq!(
+        fee.fee_asset,
+        FeeAssetView::Erc20 {
+            token: USDC.to_owned(),
+            decimals: 6,
+            amount: USDC_FEE_UNITS.to_string(),
+            symbol: None,
+        }
+    );
+}
+
+/// Invariant ⑧ on the request path: a REQUESTED fee asset the Safe cannot
+/// afford is refused out loud (`FeeTokenUnavailable` → "pick a different gas
+/// asset"), never silently downgraded to a native quote nobody asked for.
+#[test]
+fn a_requested_fee_token_the_balance_cannot_cover_is_refused() {
+    let mut sut = Sut::new();
+    sut.dispatch(request_in(CHAIN, vec![], Some(USDC)));
+    sut.resolve(gas_ok());
+    sut.resolve(bundler_ok());
+    // 2 USDC held < the 2.522745 USDC this tx costs.
+    sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![native_row("1000000000000000000"), usdc_row("2000000")]),
+    });
+    sut.resolve(estimated());
+    let view = sut.view();
+    assert_eq!(view.failed, Some(FeeFailure::FeeTokenUnavailable));
+    assert!(view.fee.is_none(), "a doomed op is never quoted");
+    assert!(!view.confirm_fee_ready);
+
+    // The native row itself is never gated this way — it is the only
+    // denomination left, and `estimateTransactionFee` does not gate it either.
+    let mut sut = Sut::new();
+    sut.dispatch(request(CHAIN, vec![]));
+    sut.resolve(gas_ok());
+    sut.resolve(bundler_ok());
+    sut.resolve(Res::InBandQuotes { quotes: Some(vec![native_row("1")]) });
+    sut.resolve(estimated());
+    assert!(sut.view().confirm_fee_ready);
+}
+
 /// `GasFeeCard.handleRefresh`: ignored while busy; a failed refresh keeps the
 /// old quote showing (the `catch {}`).
 #[test]
@@ -1157,6 +1411,7 @@ fn undeployed_without_public_key_never_estimates() {
         public_key_available: false,
         tier: FeeTier::Fast,
         calls: vec![],
+        fee_token: None,
     });
     assert!(ops.is_empty(), "no RPC is ever issued");
     let view = sut.view();
@@ -1172,8 +1427,38 @@ fn undeployed_without_public_key_never_estimates() {
         public_key_available: true,
         tier: FeeTier::Fast,
         calls: vec![],
+        fee_token: None,
     });
     assert_eq!(ops.len(), 3);
+
+    // Tempo is exempt: it never simulates an undeployed op (the static model
+    // covers the deploy), so it needs no initCode and `estimateTempoFee`
+    // quotes it without a public key. Refusing would block a new user's first
+    // Tempo send on web while native quoted it.
+    let mut sut = Sut::new();
+    let ops = sut.dispatch(Event::QuoteRequested {
+        chain_id: TEMPO_CHAIN,
+        account: ACCOUNT.to_owned(),
+        deployed: false,
+        public_key_available: false,
+        tier: FeeTier::Fast,
+        calls: vec![],
+        fee_token: None,
+    });
+    assert_eq!(ops.len(), 3, "tempo gathers its context and prices statically");
+    sut.resolve(Res::GasPrice {
+        eth_gas_price: Some(TEMPO_BASE_FEE_ATTO.to_string()),
+        base_fee: None,
+        priority_fee: None,
+    });
+    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
+    sut.resolve(Res::InBandQuotes { quotes: Some(vec![pathusd_row("5000000")]) });
+    let view = sut.view();
+    assert!(view.failed.is_none());
+    assert_eq!(
+        view.fee.expect("static tempo quote").total_gas,
+        tempo_expected_gas(false, 2).to_string()
+    );
 }
 
 /// Invariant ⑥ — leaving confirm clears an erc20 estimate (so downstream
@@ -1543,6 +1828,7 @@ fn tempo_undeployed_contract_call_keeps_the_static_model() {
         public_key_available: true,
         tier: FeeTier::Fast,
         calls: vec![call],
+        fee_token: None,
     });
     sut.resolve(Res::GasPrice {
         eth_gas_price: Some(TEMPO_BASE_FEE_ATTO.to_string()),
@@ -1556,6 +1842,94 @@ fn tempo_undeployed_contract_call_keeps_the_static_model() {
     // 1 call + 2 reimbursement legs (contract call) = 3 sub-calls, deploy fixed cost.
     let expected = tempo_expected_gas(false, 3);
     assert_eq!(sut.view().fee.expect("static tempo quote").total_gas, expected.to_string());
+}
+
+/// A Tempo fee-asset switch NEVER takes the generic local-recompute path.
+///
+/// That path exists for in-band chains, where `total_wei = 0`, the fee rides
+/// in the ERC-20 leg, and the recipient is the picked row's. Applied to a
+/// Tempo estimate it destroys all three facts at once: `total_wei` stops being
+/// the attodollar reimbursement the USD display divides by 1e18, the pathUSD
+/// symbol is lost, and — the one that costs a send — `fee_recipient` becomes
+/// the in-band row's recipient instead of the bundler's `settlementRecipient`.
+/// `sendUserOpTempo` compares that address byte for byte and throws "The gas
+/// quote has expired" (`safe-transaction.ts:1196-1198`), so every Tempo send
+/// whose fee chip had been touched died at submit, and Refresh regenerated the
+/// same wrong address forever. Tempo re-prices through `advance_tempo`.
+#[test]
+fn tempo_fee_asset_switch_reprices_through_the_tempo_model() {
+    let other = "0x20c0000000000000000000000000000000000001";
+    let mut sut = Sut::new();
+    sut.dispatch(request(TEMPO_CHAIN, vec![]));
+    sut.resolve(Res::GasPrice {
+        eth_gas_price: Some(TEMPO_BASE_FEE_ATTO.to_string()),
+        base_fee: None,
+        priority_fee: None,
+    });
+    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
+    sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![
+            pathusd_row("5000000"),
+            FeeAssetQuote {
+                recipient: USDC_RECIPIENT.to_owned(),
+                fee_token: Some(other.to_owned()),
+                symbol: "othUSD".to_owned(),
+                ..pathusd_row("5000000")
+            },
+        ]),
+    });
+    assert!(sut.view().fee.is_some(), "tempo quote settled");
+
+    // The switch runs the WHOLE Tempo pipeline again rather than patching the
+    // settled estimate in place.
+    let ops = sut.dispatch(Event::SelectFeeAsset { token: Some(other.to_owned()) });
+    assert_eq!(
+        ops,
+        vec![
+            Op::FetchGasPrice { chain_id: TEMPO_CHAIN, want_tip: false },
+            Op::FetchFeeRecipient { chain_id: TEMPO_CHAIN, account: ACCOUNT.to_owned() },
+            Op::FetchInBandQuotes { chain_id: TEMPO_CHAIN, account: ACCOUNT.to_owned() },
+        ],
+        "a Tempo denomination change is a re-quote, never an in-place patch"
+    );
+    assert!(sut.view().busy, "invariant ⑦ — confirm is disabled while re-pricing");
+
+    assert!(sut.resolve(Res::TtlElapsed).is_empty(), "superseded timer dropped");
+    sut.resolve(Res::GasPrice {
+        eth_gas_price: Some(TEMPO_BASE_FEE_ATTO.to_string()),
+        base_fee: None,
+        priority_fee: None,
+    });
+    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
+    sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![
+            pathusd_row("5000000"),
+            FeeAssetQuote {
+                recipient: USDC_RECIPIENT.to_owned(),
+                fee_token: Some(other.to_owned()),
+                symbol: "othUSD".to_owned(),
+                ..pathusd_row("5000000")
+            },
+        ]),
+    });
+
+    let expected_gas = tempo_expected_gas(true, 2);
+    let reimbursement = tempo_reimbursement(expected_gas, TEMPO_BASE_FEE_ATTO, 6);
+    let fee = sut.view().fee.expect("re-priced tempo quote");
+    // The settlement recipient survives — the address sendUserOpTempo checks.
+    assert_eq!(fee.fee_recipient.as_deref(), Some(COLLECTOR));
+    // totalWei stays the attodollar reimbursement, never 0.
+    assert_eq!(fee.total_wei, (reimbursement * 10u128.pow(12)).to_string());
+    assert_eq!(
+        fee.fee_asset,
+        FeeAssetView::Erc20 {
+            token: other.to_owned(),
+            decimals: 6,
+            amount: reimbursement.to_string(),
+            // Not the default TIP-20 → no pathUSD label, as `estimateTempoFee`.
+            symbol: None,
+        }
+    );
 }
 
 /// A malformed settlement recipient never becomes part of the signed fee

@@ -1,6 +1,6 @@
 //! Fee-policy DRIFT GATE — the Rust half.
 //!
-//! Four fee decisions exist twice on purpose and cannot be de-duplicated:
+//! Five fee decisions exist twice on purpose and cannot be de-duplicated:
 //! iOS/Android run Hermes, which has no WebAssembly, so native executes the
 //! TypeScript copy while web executes this core. Deleting either copy is not an
 //! option; letting them disagree is not either, because the two halves quote the
@@ -12,6 +12,11 @@
 //!      (`safe-transaction.ts:342-390`)
 //!   3. the Tempo stablecoin reimbursement (`tempo.ts:143-160`)
 //!   4. the fee-row `balance < fee` selectability gate (`FeeTokenSelector.tsx`)
+//!   5. the Tempo realistic-gas model that PRODUCES the `expected_gas` case 3
+//!      merely takes as an input — `tempoExpectedGas` and the three constants
+//!      behind it (`tempo.ts:106-116`). Without this family a change to
+//!      TEMPO_PER_SUBCALL_GAS_EST on one side alone was invisible to every
+//!      gate in the repo.
 //!
 //! `tests/vectors-fee-policy/fee-policy.json` is the shared oracle; the
 //! TypeScript half replays the very same file in
@@ -27,8 +32,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use vela_core::app::fee_policy::{
-    calculate_in_band_fee_amount, fee_row_insufficient, tempo_reimbursement, tier_multiplier,
-    AssetPricing, FeeTier,
+    calculate_in_band_fee_amount, fee_row_insufficient, tempo_expected_gas, tempo_reimbursement,
+    tier_multiplier, AssetPricing, FeeTier,
 };
 
 #[derive(Deserialize)]
@@ -133,6 +138,12 @@ fn run(case: &Case) -> Result<(), String> {
             let value = fee_row_insufficient(u128_of(input, "balance"), opt_u128_of(input, "amount"));
             serde_json::json!({ "value": value })
         }
+        "tempo_expected_gas" => {
+            let deployed = input["deployed"].as_bool().expect("deployed");
+            let sub_calls =
+                u32::try_from(input["sub_calls"].as_u64().expect("sub_calls")).expect("sub_calls");
+            serde_json::json!({ "gas": tempo_expected_gas(deployed, sub_calls).to_string() })
+        }
         other => return Err(format!("unknown fn `{other}`")),
     };
     if actual == case.expect {
@@ -154,15 +165,55 @@ fn fee_policy_parity_corpus() {
     // A corpus that silently shrank (bad merge, partial checkout) would make
     // this gate report green over nothing — the failure mode the conformance
     // runner's suite pin exists to prevent, one level down.
-    let covered: Vec<&str> = ["tier_multiplier", "in_band_fee", "tempo_reimbursement", "fee_row_insufficient"]
+    const DUPLICATED: [&str; 5] = [
+        "tier_multiplier",
+        "in_band_fee",
+        "tempo_reimbursement",
+        "fee_row_insufficient",
+        "tempo_expected_gas",
+    ];
+    let covered: Vec<&str> = DUPLICATED
         .into_iter()
         .filter(|f| suite.cases.iter().any(|c| c.func == *f))
         .collect();
     assert_eq!(
-        covered,
-        ["tier_multiplier", "in_band_fee", "tempo_reimbursement", "fee_row_insufficient"],
-        "the parity corpus stopped covering one of the four duplicated decisions"
+        covered, DUPLICATED,
+        "the parity corpus stopped covering one of the five duplicated decisions"
     );
+
+    // The structural hole that let a 12,600× undercharge ship green: every
+    // in-band vector used a 6-decimal stablecoin, so the conversion's
+    // `nativeAmount × usdPrice × 10^decimals` numerator never came near the
+    // 128-bit ceiling and this half's clamped-then-divided answer stayed
+    // plausible. DAI is 18 decimals; USDT and USDC on BNB Chain are 18; WBTC
+    // is 8. A case COUNT would not have caught it — the precisions are the
+    // coverage, so they are asserted by name.
+    let erc20_decimals: Vec<u64> = suite
+        .cases
+        .iter()
+        .filter(|c| c.func == "in_band_fee")
+        .filter(|c| c.input["fee_asset"]["is_native"].as_bool() == Some(false))
+        .filter_map(|c| c.input["fee_asset"]["decimals"].as_u64())
+        .collect();
+    for wanted in [0u64, 6, 8, 18] {
+        assert!(
+            erc20_decimals.contains(&wanted),
+            "the parity corpus stopped covering {wanted}-decimal fee tokens — the exact gap \
+             the 18-decimal in-band overflow shipped through"
+        );
+    }
+    let tempo_decimals: Vec<u64> = suite
+        .cases
+        .iter()
+        .filter(|c| c.func == "tempo_reimbursement")
+        .filter_map(|c| c.input["decimals"].as_u64())
+        .collect();
+    for wanted in [0u64, 6, 18] {
+        assert!(
+            tempo_decimals.contains(&wanted),
+            "the parity corpus stopped covering {wanted}-decimal Tempo fee tokens"
+        );
+    }
 
     let failures: Vec<String> = suite
         .cases

@@ -2,4 +2,9 @@
 import type { FeeCall } from "./FeeCall";
 import type { FeeTier } from "./FeeTier";
 
-export type FeeEvent = { "type": "quote_requested", chain_id: number, account: string, deployed: boolean, public_key_available: boolean, tier: FeeTier, calls: Array<FeeCall>, } | { "type": "select_fee_asset", token: string | null, } | { "type": "requote" } | { "type": "leave_confirm" } | { "type": "chain_changed", chain_id: number, } | { "type": "quote_expired" };
+export type FeeEvent = { "type": "quote_requested", chain_id: number, account: string, deployed: boolean, public_key_available: boolean, tier: FeeTier, calls: Array<FeeCall>, 
+/**
+ * `None` = native. On Tempo, `None` means the default TIP-20
+ * (`estimateTempoFee`'s `gasFeeToken ?? TEMPO_DEFAULT_FEE_TOKEN`).
+ */
+fee_token: string | null, } | { "type": "select_fee_asset", token: string | null, } | { "type": "requote" } | { "type": "leave_confirm" } | { "type": "chain_changed", chain_id: number, } | { "type": "quote_expired" };

@@ -175,3 +175,39 @@ Waves of parallel agents, gates between waves, e2e after each:
 | I4 (G10 balance_dashboard + activity_feed) | typecheck, lint 0, jest 1623, build:web static-renders 25 routes | ✅ (e2e pending — dev server held) |
 | I5a (G11 sign_request + dapp_session + dapp_permissions) | per-wave, above | ✅ |
 | I5b (G12 send) | cargo 990/990, typecheck, lint 0, jest 1655 (+19 real-core send tests), verify:wasm, build:web static-renders 25 routes | ✅ (e2e pending — dev server held) |
+
+
+## Post-integration follow-ups (owner-decided, landed)
+
+- **RPC overrides refuse on proof, save on doubt.** `probeRpcChainId` existed
+  but the save path never called it, so a wrong-chain URL entered the pool at
+  the highest tier and silently poisoned balances. Now a *reported mismatch*
+  refuses; a probe that times out or cannot answer is "unable to verify" and
+  the save proceeds — the discipline the compatibility checker already used.
+  Web only: native's TypeScript controller keeps its ungated save.
+- **Sign-out clears the signed-in wallet, not the device.** Exactly
+  `vela.accounts` + `vela.activeAccountIndex`. Everything else survives, and
+  that is safe *by construction*: the address is derived from the passkey, so
+  re-login rebuilds the same identity and every address-keyed and origin-keyed
+  record re-aligns with no migration. `pendingUploads` survives because it is
+  an outbox. Copy rewritten in all 15 locales. Native changed too — the copy
+  is shared, so memory-only there would have been a lie.
+- **Two gates were dead at HEAD**: `verify:i18n` and `verify:identicon` both
+  imported the base64 module the D7 change retired. Repaired, and every other
+  verification script was run to check for the same rot.
+
+## Still open
+
+- **`§12.1.6` step 2** — the sign path should take the signer from
+  `sign_request`'s own `active_index` instead of React; step 1 (the executor
+  yield, replacing `web-request.tsx`'s `setTimeout(0)`) is done.
+- **`dapp_session`** — authored and exported, no shell. The densest timer
+  discipline in the repo; deserves its own change.
+- **`dapp_permissions`** — models a route that does not render on web.
+- **"Erase this device"** does not exist as a feature. When it is built, make
+  it prefix-based over the whole `vela.` namespace with an explicit keep-list
+  rather than a hand-maintained delete-list — the delete-list shape is exactly
+  why `clearAll()` silently drifted out of date (it never covered contacts,
+  groups, browser history, the `vela.perm.*` prefix, or any preference key).
+- **Native has no e2e.** Sign-out's native behaviour changed here and
+  `ext_cache`'s real surface is iOS-only; both want a device pass.

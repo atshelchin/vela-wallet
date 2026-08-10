@@ -73,8 +73,9 @@
   "signOut": {
    "button": "Keluar",
    "title": "Keluar",
-   "desc": "Data dompet Anda tetap tersimpan di perangkat ini. Masuk kembali kapan saja dengan passkey Anda (Face ID / sidik jari).",
-   "warning": "Kunci publik Anda belum disinkronkan ke server. Keluar sekarang dapat membuat pemulihan di perangkat lain gagal.",
+   "desc": "Perangkat ini akan keluar dari status masuk. Dompetnya sendiri tidak dihapus — passkey Anda tetap tersimpan di Face ID / sidik jari.",
+   "keeps": "Pilih “Saya sudah punya dompet” untuk masuk lagi dengan passkey yang sama: alamatnya tetap sama, dan riwayat transaksi, kontak, token serta pengaturan Anda masih ada.",
+   "warning": "Kunci publik Anda belum sampai ke server sinkronisasi. Aplikasi akan mencoba lagi saat dibuka berikutnya, tetapi sebelum berhasil Anda mungkin tidak bisa masuk di perangkat lain — juga di perangkat ini jika aplikasinya dihapus.",
    "anyway": "Tetap Keluar",
    "cancel": "Batal"
   },
@@ -1239,6 +1240,7 @@
    "modalTitle": "Jaringan",
    "chainId": "Chain {{chainId}}",
    "fieldRpcUrl": "URL RPC",
+   "rpcChainMismatch": "Tidak disimpan — RPC ini melaporkan Chain {{reported}}, padahal jaringan ini adalah Chain {{expected}}. Endpoint sebelumnya masih dipakai.",
    "fieldExplorer": "EXPLORER",
    "fieldBundler": "BUNDLER",
    "removeTitle": "Hapus Jaringan",

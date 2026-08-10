@@ -559,11 +559,43 @@ export async function deleteConnectionEvents(address: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Clear All (for logout)
+// Clearing
 // ---------------------------------------------------------------------------
 
+/**
+ * Erase every key this module owns. The nuclear option — kept for a future
+ * "erase this device" affordance; **not** what signing out does. Callers should
+ * be very sure they mean it: this takes the pending-upload outbox with it, and
+ * an un-uploaded public key that is deleted can never be retried.
+ */
 export async function clearAll(): Promise<void> {
   for (const key of Object.values(KEYS)) {
     await AsyncStorage.removeItem(key);
   }
+}
+
+/**
+ * Sign out of this device: forget the account list and which account was
+ * active, and nothing else.
+ *
+ * Those two keys are what "signed in" *is*. Everything else this module stores
+ * — transaction history, custom tokens, custom networks, per-network overrides,
+ * service endpoints, RPC provider keys, price source, locale preferences —
+ * belongs to the ACCOUNT, not to the session, and survives on purpose: signing
+ * in again resolves the same passkey → the same public key → the same derived
+ * Safe address, so every address-keyed record lines back up with no migration
+ * and no reconciliation. (The same holds for the keys other modules own:
+ * contacts, groups, browser history, `vela.perm.*` dApp grants, receive
+ * confirmations.) Erasing all of that is a different, deliberate action —
+ * {@link clearAll} — and signing out is not it.
+ *
+ * `vela.pendingUploads` is excluded for a second, independent reason: a record
+ * there is a public key the index service has never confirmed. `retryPendingUploads()`
+ * re-sends it on the next launch without needing an account list, but a deleted
+ * record can never be retried — and that credential then cannot be found at
+ * login, turning "recoverable" into "possibly ruined".
+ */
+export async function clearSignedInWallet(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.accounts);
+  await AsyncStorage.removeItem(KEYS.activeAccountIndex);
 }

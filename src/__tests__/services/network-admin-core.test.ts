@@ -174,6 +174,54 @@ describe('network_admin core (web shell)', () => {
     h.session.dispose();
   });
 
+  test('an RPC that answers as another chain is refused, and the pool is untouched', async () => {
+    mockStorage.set(CONFIG_KEY, JSON.stringify([{
+      chainId: 1, rpcURL: 'https://old.example', explorerURL: 'https://etherscan.io',
+      bundlerURL: 'https://relay/1',
+    }]));
+    // A real, healthy node — for Polygon. Pointing Ethereum at it would show
+    // Polygon balances under Ethereum, which is the whole reason for the gate.
+    handler = rpcReporting(137);
+
+    const h = open();
+    await settle();
+    h.session.dispatch({ type: 'override_expanded', chain_id: 1 });
+    h.session.dispatch({ type: 'override_field_edited', chain_id: 1, field: 'rpc', value: 'https://polygon.example' });
+    h.session.dispatch({ type: 'override_blurred', chain_id: 1 });
+    await settle();
+
+    // Nothing written: the previously saved endpoint still serves.
+    expect(JSON.parse(mockStorage.get(CONFIG_KEY)!)[0].rpcURL).toBe('https://old.example');
+    expect(refreshPool).not.toHaveBeenCalled();
+    expect(clearBundlerCache).not.toHaveBeenCalled();
+    // The card can state both numbers as fact, because the endpoint said one.
+    const row = h.latest().networks.find((n) => n.chain_id === 1)!;
+    expect(row.rpc_chain_mismatch).toEqual({ expected_chain_id: 1, reported_chain_id: 137 });
+    expect(row.rpc_save_deferred).toBe(false);
+    expect(h.faults).toEqual([]);
+    h.session.dispose();
+  });
+
+  test('an RPC that cannot be reached is "unable to verify", so the save goes through', async () => {
+    // The discipline the compatibility checker already follows: an endpoint we
+    // could not reach is never condemned. `handler` returning null throws in
+    // the fetch mock — a timeout/refusal, the commonest case for a private node
+    // that is briefly down while its URL is being pasted in.
+    handler = () => null;
+    const h = open();
+    await settle();
+    h.session.dispatch({ type: 'override_expanded', chain_id: 1 });
+    h.session.dispatch({ type: 'override_field_edited', chain_id: 1, field: 'rpc', value: 'https://unreachable.example' });
+    h.session.dispatch({ type: 'override_blurred', chain_id: 1 });
+    await settle();
+
+    expect(JSON.parse(mockStorage.get(CONFIG_KEY)!)[0].rpcURL).toBe('https://unreachable.example');
+    expect(refreshPool).toHaveBeenCalledWith(1);
+    expect(h.latest().networks.find((n) => n.chain_id === 1)!.rpc_chain_mismatch).toBeNull();
+    expect(h.faults).toEqual([]);
+    h.session.dispose();
+  });
+
   test('the unified probe reports a live RPC ok and a dead one offline', async () => {
     handler = (url) => (url.includes('good') ? { body: { jsonrpc: '2.0', id: 1, result: '0x1' } } : null);
     const h = open();

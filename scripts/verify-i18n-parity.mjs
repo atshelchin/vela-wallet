@@ -26,6 +26,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
+import { loadShippedCore } from '../rust/scripts/load-wasm-node.mjs';
+
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(join(REPO_ROOT, 'package.json'));
 
@@ -72,9 +74,13 @@ oracle.init({
 });
 
 // The Rust side, through the artifact the web app actually ships.
-const { initSync, ...wasm } = await import(join(REPO_ROOT, 'rust/pkg-web/vela_core.js'));
-const { WASM_BASE64 } = await import(join(REPO_ROOT, 'rust/pkg-web/vela_core_bg.base64.js'));
-initSync({ module: Buffer.from(WASM_BASE64, 'base64') });
+//
+// Spec 017 stopped embedding the module as base64 and moved it to `public/`
+// under a source-fingerprinted name (the D7 route), so the bytes are loaded the
+// way every other Node consumer loads them — `loadShippedCore()` — rather than
+// from the retired `vela_core_bg.base64.js`. Same artifact, same guarantee: the
+// oracle is compared against exactly what a browser runs.
+const wasm = await loadShippedCore();
 
 // Per-locale assets, exactly what the browser fetches from `/i18n/<lng>.json`.
 const assets = Object.fromEntries(

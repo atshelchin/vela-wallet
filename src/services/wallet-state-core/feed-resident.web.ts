@@ -22,7 +22,6 @@
 
 import { createActivityFeedSession } from '@/services/wallet-state-core/feed-session.web';
 import { walletSessionAccounts } from '@/services/wallet-state-core/session-resident.web';
-import { reconcilePendingTransactions } from '@/services/tx-reconciler';
 import type { FeedEvent } from './generated/FeedEvent';
 import type { FeedRow } from './generated/FeedRow';
 import type { FeedView } from './generated/FeedView';
@@ -130,38 +129,19 @@ export function subscribeActivityFeed(listener: (view: FeedView) => void): () =>
 }
 
 /**
- * The `tx_tracker` seam.
+ * The `tx_tracker` seam, now wired.
  *
  * The core re-reads the store when pending submissions converged, and it never
  * celebrates those (`useHomeController.ts:284-295`). Deciding *that* they
- * converged is `tx_tracker`'s job, not this machine's — and `tx_tracker` is not
- * wired yet. So this is the single entry point that machine will call once it
- * is: `notifyFeedReconciled(view.resolved_count)` after a reconcile settles.
+ * converged is `tx_tracker`'s job, not this machine's: its executor calls this
+ * with the number of records its `UpdateTxRecords` just patched
+ * (`tx-tracker-executor.web.ts`). The TypeScript `reconcileFeedPending` that
+ * stood in for it — and with it web's second caller of
+ * `reconcilePendingTransactions` — is gone; native still runs that reconciler
+ * from `useHomeController.ts`.
  *
  * A count of 0 is a whole no-op in the core, so it is always safe to call.
  */
 export function notifyFeedReconciled(resolvedCount: number): void {
   dispatchActivityFeed({ type: 'reconcile_completed', resolved_count: resolvedCount });
-}
-
-/**
- * Today's caller of that seam: the TypeScript reconciler, run on each tick
- * exactly where `loadData` ran it (step 1b). This is the real data source, not a
- * stand-in — when `tx_tracker` lands, delete this function and have that machine
- * call {@link notifyFeedReconciled}; the core side needs no change.
- *
- * Serialized per address: `loadData` awaited its reconcile inside one sequential
- * pipeline, so overlapping 10s ticks never ran two at once.
- */
-const reconciling = new Set<string>();
-export async function reconcileFeedPending(address: string): Promise<void> {
-  if (!address || reconciling.has(address)) return;
-  reconciling.add(address);
-  try {
-    notifyFeedReconciled(await reconcilePendingTransactions(address));
-  } catch {
-    // Ported verbatim: pending records stay pending and are retried next tick.
-  } finally {
-    reconciling.delete(address);
-  }
 }

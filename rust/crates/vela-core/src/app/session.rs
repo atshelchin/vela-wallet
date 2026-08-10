@@ -42,11 +42,37 @@
 //!   the core says what is allowed, the shell decides when and how to
 //!   navigate. `Loading` means "make no redirect judgment yet".
 //!
-//! Ported verbatim: LOGOUT clears **memory only** — `storage.clearAll()` is
-//! dead code today, so the accounts survive on disk and a relaunch restores
-//! them (inventory.md open question 2 owns whether that ever changes). The
-//! [`SessionOperation::ClearWalletStorage`] / `ClearExtensionCache` vocabulary
-//! exists precisely so that decision stays visible; nothing emits it.
+//! Open question 2 is **decided** (spec `017`), and narrowly: signing out means
+//! *stop being signed in on this device*, not *this device is no longer mine*.
+//! [`Event::SignOutConfirmed`] emits [`SessionOperation::ClearSignedInWallet`]
+//! (plus [`SessionOperation::ClearExtensionCache`]) alongside the in-memory
+//! wipe, so a relaunch lands on onboarding instead of silently restoring the
+//! session the user just ended — which is the whole user-visible point. Wiping
+//! the device is a different feature, and this is not it.
+//!
+//! What makes the narrow scope self-consistent — and why nothing has to be
+//! migrated or reconciled when the user comes back:
+//!
+//! - The address is DERIVED from the passkey, never merely stored. Signing in
+//!   again resolves the same credential → the same public key →
+//!   [`super::address_from_public_key_hex`] → the same Safe. So everything keyed
+//!   by address (balance caches, receive-confirmation flags, transaction
+//!   history) and everything keyed by origin (dApp permissions) lines back up on
+//!   its own.
+//! - Therefore only the two keys that *constitute being signed in* are cleared;
+//!   contacts, history, custom tokens/networks, endpoint and provider settings,
+//!   price source and locale preferences all stay. The user gets them back by
+//!   authenticating, not by restoring a backup.
+//! - The pending-upload outbox is NOT cleared either, for a different reason: a
+//!   record there means some public key never reached the index service, and
+//!   deleting it turns a retry-on-next-launch into a credential the index can
+//!   never answer for. The core cannot enforce a key set (it names sentences,
+//!   not storage) — [`SessionOperation::ClearSignedInWallet`] states it and the
+//!   shell obeys.
+//!
+//! Invariant ⑤ is what makes this safe to decide: the confirmation dialog only
+//! exists after the pending-upload check has answered, so the destructive
+//! button is never reachable without the warning it may need.
 //!
 //! Out of scope on purpose: `SET_CONNECTED` (browser connection) belongs to
 //! the dapp-connection machine, `shortAddress` and the balance-sorted switcher
@@ -88,15 +114,31 @@ pub enum SessionOperation {
     /// Are there passkeys whose public key never reached the index server?
     /// (`hasPendingUploads` — the sign-out warning's input, invariant ⑤.)
     CheckPendingUploads,
-    /// Wipe every wallet storage key (`storage.clearAll`). NEVER emitted:
-    /// today's LOGOUT clears memory only and `clearAll()` has no call site —
-    /// the operation exists so open question 2 stays an explicit decision
-    /// instead of silently-dead code.
-    ClearWalletStorage,
-    /// Drop the Safari extension's account cache (`vela.ext.account.json`).
-    /// NEVER emitted, for the same reason as [`Self::ClearWalletStorage`]:
-    /// today the cache is only rewritten reactively by the shell's
-    /// `AccountFileWriter`, not cleared by logout.
+    /// Stop this device being signed in: drop the stored account list and the
+    /// active-account index, and NOTHING else.
+    ///
+    /// The scope is the decision, not an implementation detail. Those two keys
+    /// are what "signed in" *is*; everything else — contacts, transaction
+    /// history, custom tokens and networks, endpoint/provider settings, price
+    /// source, locale preferences, dApp permissions — belongs to the account,
+    /// not to the session, and the account comes back intact because its
+    /// address is derived from the passkey rather than restored from disk.
+    ///
+    /// The pending-upload outbox is excluded for a second, independent reason:
+    /// a record there is a public key the index service has not confirmed, and
+    /// the next launch's `retryPendingUploads()` needs no account list to
+    /// finish the job — but a deleted record can never be retried, and that
+    /// credential becomes unfindable at login.
+    ///
+    /// Worded as a sentence because the key list is the shell's to know (016
+    /// rule). Best effort, like every other write here: a storage failure
+    /// leaves the session signed out in memory regardless.
+    ClearSignedInWallet,
+    /// Drop the Safari extension's account snapshot (`vela.ext.account.json`).
+    /// Same scope as [`Self::ClearSignedInWallet`] and for the same reason: the
+    /// snapshot mirrors the signed-in account, so leaving it behind would let
+    /// the extension keep answering as an account this device is no longer
+    /// signed into. A no-op wherever no extension exists.
     ClearExtensionCache,
 }
 
@@ -130,9 +172,9 @@ pub enum SessionShellResult {
     /// dies before `setShowSignOut(true)`, so the dialog simply never opens —
     /// fail-closed for invariant ⑤ (no unwarned logout path appears).
     PendingUploadsUnavailable,
-    /// Acks for the never-emitted clear operations, so the vocabulary is
-    /// complete if open question 2 ever lands.
-    WalletStorageCleared,
+    /// Acks for the two logout clears. Best effort: the session is already
+    /// signed out when they arrive, and neither can put it back.
+    SignedInWalletCleared,
     ExtensionCacheCleared,
 }
 
@@ -197,8 +239,8 @@ enum Phase {
     Empty,
     Active,
     /// Explicit logout this session. Same surface as `Empty` (onboarding),
-    /// kept distinct because the disk still holds the accounts (open
-    /// question 2) — the phases must not be conflated when that is decided.
+    /// kept distinct because the two arrive differently: `Empty` is "nothing
+    /// was ever stored", `SignedOut` is "the storage clear is on its way".
     SignedOut,
 }
 
@@ -463,11 +505,24 @@ fn sign_out_confirmed(model: &mut Model) -> Command<SessionEffect, Event> {
     model.accounts.clear();
     model.active_index = 0;
     model.phase = Phase::SignedOut;
-    // LOGOUT clears MEMORY ONLY — ported verbatim. `storage.clearAll()` is
-    // dead code (no call site), so the accounts and index stay on disk and a
-    // relaunch restores them. Emitting ClearWalletStorage /
-    // ClearExtensionCache here is open question 2's call, not this port's.
-    render()
+    // Open question 2, decided: the sign-in leaves the disk too. Memory alone
+    // made "sign out" a lie — the next launch restored the very session the
+    // user just ended. Narrow on purpose (module doc): the account list and the
+    // active index, plus the extension's mirror of them. Nothing that belongs
+    // to the ACCOUNT rather than to the session, and never the pending-upload
+    // outbox.
+    //
+    // Both clears are best-effort and their acks are inert: the session is
+    // signed out the instant this returns, whatever the disk does. `attempt`
+    // was just bumped, so a restore or an upload check still in flight cannot
+    // land after this and re-populate the model.
+    requests(
+        model,
+        vec![
+            SessionOperation::ClearSignedInWallet,
+            SessionOperation::ClearExtensionCache,
+        ],
+    )
 }
 
 // ---------------------------------------------------------------------------

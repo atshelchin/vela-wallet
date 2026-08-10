@@ -22,6 +22,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { loadShippedCore } from '../rust/scripts/load-wasm-node.mjs';
+
 import {
   getIdenticonsParams,
   defaultCircleShape,
@@ -32,9 +34,10 @@ import {
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const RANDOM_SEEDS = Number(process.argv[2] ?? 200_000);
 
-const { initSync, ...wasm } = await import(join(REPO_ROOT, 'rust/pkg-web/vela_core.js'));
-const { WASM_BASE64 } = await import(join(REPO_ROOT, 'rust/pkg-web/vela_core_bg.base64.js'));
-initSync({ module: Buffer.from(WASM_BASE64, 'base64') });
+// The module ships as a fingerprinted asset in public/ since spec 017 (the D7
+// route), so the bytes come from the shared Node loader rather than a base64
+// module that no longer exists. Same shipped bytes, same oracle.
+const wasm = await loadShippedCore();
 
 /**
  * Byte-for-byte what `src/components/ui/Identicon.tsx` builds today. Kept here as a

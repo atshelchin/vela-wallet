@@ -30,6 +30,11 @@ import {
   loadCustomTokens,
   removeCustomToken,
   clearAll,
+  clearSignedInWallet,
+  savePendingUpload,
+  loadPendingUploads,
+  saveActiveAccountIndex,
+  loadActiveAccountIndex,
   type LocalTransaction,
 } from '@/services/storage';
 import type { StoredAccount } from '@/models/types';
@@ -311,5 +316,48 @@ describe('storage - clearAll', () => {
     const txs = await loadTransactions();
     expect(accounts).toHaveLength(0);
     expect(txs).toHaveLength(0);
+  });
+});
+
+describe('storage - clearSignedInWallet', () => {
+  /**
+   * Sign-out's scope IS the decision (spec 017), so it is asserted key by key
+   * rather than by "storage is empty". Two things must go, and two very
+   * different things must stay:
+   *
+   *   - the outbox, because a pending record is a public key the index service
+   *     never confirmed — deleting it means the retry never happens and that
+   *     credential can never be found at login again;
+   *   - everything account-owned, because the address is derived from the
+   *     passkey, so signing back in lands on the same Safe and every
+   *     address-keyed record lines back up untouched.
+   */
+  test('drops the account list and the active index, and nothing else', async () => {
+    await saveAccount(makeAccount('a'));
+    await saveAccount(makeAccount('b'));
+    await saveActiveAccountIndex(1);
+    await savePendingUpload({
+      id: 'cred-1', name: 'One', publicKeyHex: '04' + '11'.repeat(64),
+      attestationObjectHex: '00', createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    await saveTransaction({
+      id: 'tx1', userOpHash: '0x1', txHash: '0x1',
+      from: '0x1', to: '0x2', value: '1', symbol: 'ETH',
+      decimals: 18, chainId: 1, timestamp: 1000, status: 'confirmed',
+    });
+    await saveCustomToken({
+      id: '1_0xtoken', chainId: 1, contractAddress: '0xtoken',
+      symbol: 'TKN', name: 'Token', decimals: 18, networkName: 'eth-mainnet',
+    });
+
+    await clearSignedInWallet();
+
+    expect(await loadAccounts()).toHaveLength(0);
+    expect(await loadActiveAccountIndex()).toBe(0);
+    // The outbox survives — it is a retry queue, not user data.
+    expect(await loadPendingUploads()).toHaveLength(1);
+    // Account-owned records survive; they come back with the passkey.
+    expect(await loadTransactions()).toHaveLength(1);
+    expect(await loadCustomTokens()).toHaveLength(1);
   });
 });

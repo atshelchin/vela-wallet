@@ -4,6 +4,7 @@
       "modalTitle": "網路",
       "chainId": "Chain {{chainId}}",
       "fieldRpcUrl": "RPC URL",
+      "rpcChainMismatch": "未儲存——該 RPC 回報的是 Chain {{reported}}，但此網路是 Chain {{expected}}。仍在使用先前的節點位址。",
       "fieldExplorer": "區塊鏈瀏覽器",
       "fieldBundler": "BUNDLER",
       "removeTitle": "移除網路",

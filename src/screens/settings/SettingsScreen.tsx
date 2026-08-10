@@ -167,6 +167,19 @@ function NetworkConfigCard({ s, card, onExpand, onCollapse, onChangeRpc, onChang
                 </View>
                 <TextInput style={s.configInput} value={val} onChangeText={setter} onBlur={onSave}
                   autoCapitalize="none" autoCorrect={false} placeholder={label} placeholderTextColor={color.fg.subtle} />
+                {/* The RPC field only: a save refused because the endpoint
+                    answered as another chain. It names both ids because a
+                    vaguer message ("invalid RPC") would send the user hunting
+                    for a typo that isn't there. Undefined on native, whose
+                    controller keeps the historic ungated save (FR-202). */}
+                {i === 0 && card.rpcMismatch && (
+                  <Text style={s.configMismatch}>
+                    {t('settingsModals.network.rpcChainMismatch', {
+                      reported: card.rpcMismatch.reportedChainId,
+                      expected: card.rpcMismatch.expectedChainId,
+                    })}
+                  </Text>
+                )}
               </View>
             );
           })}
@@ -1346,8 +1359,15 @@ export default function SettingsScreen() {
             <LogOutIcon size={24} color={color.error.base} strokeWidth={2} />
           </View>
           <Text style={styles.signOutTitle}>{t('settings.signOut.title')}</Text>
+          {/* Two paragraphs, in this order on purpose: what the action does,
+              then what it leaves alone. Signing out drops the stored account
+              list and nothing else, so the wallet — and everything keyed to its
+              address — comes back with the passkey. */}
           <Text style={styles.signOutDesc}>
             {t('settings.signOut.desc')}
+          </Text>
+          <Text style={styles.signOutKeeps}>
+            {t('settings.signOut.keeps')}
           </Text>
 
           {signOut.pendingSync && (
@@ -1465,6 +1485,9 @@ const styleFactory = () => ({
   configLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   configLabel: { fontSize: text.xs, ...inter.semibold, color: color.fg.subtle, letterSpacing: 1, textTransform: 'uppercase' as const },
   configInput: { fontSize: text.sm, fontWeight: '500' as const, fontFamily: font.mono, color: color.fg.base, padding: space.lg, backgroundColor: color.bg.sunken, borderRadius: radius.lg, borderWidth: 1, borderColor: color.border.base },
+  // A refused save, not a failed probe: warning, not error — the endpoint is
+  // alive (its badge stays green), it is simply not this network's.
+  configMismatch: { fontSize: text.sm, ...inter.medium, color: color.warning.base, lineHeight: 20 },
 
   // Endpoint Editor
   epScrollContent: { padding: space.xl, paddingBottom: space['5xl'] },
@@ -1514,7 +1537,9 @@ const styleFactory = () => ({
   signOutModal: { padding: space['3xl'], paddingTop: space['2xl'], alignItems: 'center' as const },
   signOutIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: color.error.soft, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: space.xl },
   signOutTitle: { fontSize: text.xl, ...inter.bold, color: color.fg.base, marginBottom: space.md },
-  signOutDesc: { fontSize: text.base, ...inter.regular, color: color.fg.muted, textAlign: 'center' as const, lineHeight: 22, marginBottom: space.xl },
+  signOutDesc: { fontSize: text.base, ...inter.regular, color: color.fg.muted, textAlign: 'center' as const, lineHeight: 22, marginBottom: space.md },
+  // The reassurance half: same column, one step quieter than the statement above it.
+  signOutKeeps: { fontSize: text.sm, ...inter.regular, color: color.fg.subtle, textAlign: 'center' as const, lineHeight: 20, marginBottom: space.xl },
   signOutWarning: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: space.md, backgroundColor: color.warning.soft, borderRadius: radius.lg, padding: space.xl, marginBottom: space.xl, width: '100%' as const },
   signOutWarningText: { flex: 1, fontSize: text.sm, ...inter.medium, color: color.warning.base, lineHeight: 20 },
   // backgroundColor overrides VelaButton's accent — destructive commit is error-colored.

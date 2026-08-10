@@ -73,8 +73,9 @@
     "signOut": {
       "button": "Sign Out",
       "title": "Sign Out",
-      "desc": "Your wallet data stays on this device. Sign back in anytime with your passkey (Face ID / fingerprint).",
-      "warning": "Your public key hasn't been synced to the server yet. Signing out now may prevent recovery on other devices.",
+      "desc": "This device stops being signed in. The wallet itself is not deleted — your passkey stays in Face ID / fingerprint.",
+      "keeps": "Choose “I already have a wallet” to sign back in with that passkey: the same address returns, and your history, contacts, tokens and settings are still here.",
+      "warning": "Your public key has not reached the sync server yet. It will be retried on the next launch, but until it succeeds you may not be able to sign in on another device — or here, if you remove the app.",
       "anyway": "Sign Out Anyway",
       "cancel": "Cancel"
     },

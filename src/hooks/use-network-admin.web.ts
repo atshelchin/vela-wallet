@@ -223,6 +223,16 @@ export function useNetworkEditor(): NetworkEditorController {
           rpcURL: row.rpc_url,
           explorerURL: row.explorer_url,
           healths: [toEndpointHealth(row.rpc_health), toEndpointHealth(row.explorer_health)],
+          // The invariant-④ gate's verdict. The core only ever sets this from a
+          // chain id the endpoint actually reported, so the screen can state
+          // both numbers as fact.
+          rpcMismatch:
+            row.rpc_chain_mismatch === null
+              ? undefined
+              : {
+                  expectedChainId: row.rpc_chain_mismatch.expected_chain_id,
+                  reportedChainId: row.rpc_chain_mismatch.reported_chain_id,
+                },
         }))
       : networks.map((network) => ({
           network,

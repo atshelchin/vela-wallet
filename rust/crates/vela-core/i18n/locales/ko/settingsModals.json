@@ -4,6 +4,7 @@
       "modalTitle": "네트워크",
       "chainId": "체인 {{chainId}}",
       "fieldRpcUrl": "RPC URL",
+      "rpcChainMismatch": "저장하지 않았습니다 — 이 RPC는 체인 {{reported}}(이)라고 응답했지만 이 네트워크는 체인 {{expected}}입니다. 이전 엔드포인트를 계속 사용합니다.",
       "fieldExplorer": "탐색기",
       "fieldBundler": "BUNDLER",
       "removeTitle": "네트워크 제거",

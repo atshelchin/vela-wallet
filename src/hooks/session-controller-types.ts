@@ -40,6 +40,11 @@ export interface SessionSignOutController {
   open: () => void;
   /** Cancel / backdrop dismiss. */
   dismiss: () => void;
-  /** The destructive button. Clears the session (memory only, as today). */
+  /**
+   * The destructive button. Clears the session in memory and — on web, where
+   * the `session` core drives this — ends the sign-in on disk too, by dropping
+   * the stored account list and active index. Native still clears memory only
+   * (FR-202: its reducer path is untouched).
+   */
   confirm: () => void;
 }

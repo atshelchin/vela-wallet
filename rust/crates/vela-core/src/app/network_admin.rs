@@ -39,11 +39,19 @@
 //!   (SettingsScreen.tsx:620-626) but the scan path (`add-network.ts:42-53`)
 //!   does not — the sources have diverged. Per the inventory, the core is the
 //!   single implementation and BOTH entry points pass the same gate.
-//! - **Invariant ④ current gap (open question)**: `probeRpcChainId` exists
-//!   but is never called before an override save (SettingsScreen.tsx:178-328),
-//!   so a wrong-chain URL enters the pool at the highest tier. Modeled as-is:
-//!   [`Event::OverrideBlurred`] saves without a probe gate. Fixing it is a
-//!   product decision the inventory leaves open.
+//! - **Invariant ④ — the save gate (decided, spec `017`)**: the TypeScript
+//!   sources never called `probeRpcChainId` before an override save
+//!   (SettingsScreen.tsx:178-328), so a wrong-chain URL entered the pool at the
+//!   highest tier and silently poisoned every balance read. The gate now lives
+//!   here, in [`Event::OverrideBlurred`], and it refuses only on PROOF: the
+//!   endpoint answered `eth_chainId` with a *different* id. A probe that timed
+//!   out, was refused, or returned nothing parseable is "unable to verify" and
+//!   the save proceeds — the same discipline the compatibility checker already
+//!   applies (an unreachable chain gets a Retry, never a condemnation;
+//!   [`NetRpcFailureKind`], invariant ③). The gate costs no extra request: it
+//!   consumes the `eth_chainId` answer the card's own health probe already
+//!   asks for, so a blur that lands before the probe does merely *waits*
+//!   ([`NetNetworkRow::rpc_save_deferred`]) instead of writing blind.
 //! - Health badges never gate saves (current behavior, kept).
 //! - "Reset to defaults" persists the defaults but does NOT flush the pools
 //!   (SettingsScreen.tsx:509 has no `invalidateAllPools()`); a field blur does.
@@ -498,6 +506,20 @@ pub enum NetOverrideField {
     Explorer,
 }
 
+/// A per-network override save the core REFUSED (invariant ④'s gate).
+///
+/// Only ever produced from PROOF: the endpoint answered `eth_chainId` with an
+/// id, and it was not this network's. A silent endpoint produces `None`, not a
+/// refusal — "unable to verify" is not "incompatible".
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct NetChainMismatch {
+    /// The network whose card was being edited.
+    pub expected_chain_id: u32,
+    /// What the endpoint said it serves.
+    pub reported_chain_id: u32,
+}
+
 // ---------------------------------------------------------------------------
 // Protocol
 // ---------------------------------------------------------------------------
@@ -663,8 +685,11 @@ pub enum Event {
         field: NetOverrideField,
         value: String,
     },
-    /// Field blur — save. NO probe gate before the save (invariant ④'s
-    /// recorded gap, ported verbatim; see the module doc).
+    /// Field blur — save, behind the invariant-④ chain-id gate. The write is
+    /// refused only when the RPC draft positively identified ANOTHER chain;
+    /// an unverifiable endpoint saves. A blur that arrives while the card's
+    /// `eth_chainId` probe is still in flight is held until it answers (see
+    /// the module doc).
     OverrideBlurred { chain_id: u32 },
 
     // -- service endpoints --------------------------------------------------
@@ -796,6 +821,22 @@ struct OverrideCard {
     explorer_draft: String,
     rpc_health: NetProbeHealth,
     explorer_health: NetProbeHealth,
+    /// What the current `rpc_draft` claims to be, for the invariant-④ gate:
+    /// `None` = the probe has not answered yet, `Some(None)` = it could not be
+    /// verified (timeout, refusal, unparseable id, or an empty URL — nothing to
+    /// verify), `Some(Some(id))` = the endpoint positively identified `id`.
+    ///
+    /// Distinguishing "not yet" from "cannot" is the whole gate: only the third
+    /// case can ever refuse a save.
+    rpc_chain_id: Option<Option<u32>>,
+    /// A blur landed while `rpc_chain_id` was still `None`. The save is owed
+    /// and runs the moment the verdict arrives — writing first and checking
+    /// afterwards would have already poisoned the pool.
+    save_deferred: bool,
+    /// The refusal the last blur produced, cleared by the next probe wave (any
+    /// edit starts one), so a card never shows a verdict about a URL that is no
+    /// longer in the field.
+    mismatch: Option<NetChainMismatch>,
 }
 
 /// One provider's per-chain probe run.
@@ -940,6 +981,15 @@ pub struct NetNetworkRow {
     pub bundler_url: String,
     pub rpc_health: Option<NetProbeHealth>,
     pub explorer_health: Option<NetProbeHealth>,
+    /// `Some` ⇒ the last blur was REFUSED: the RPC in the field answered
+    /// `eth_chainId` with another chain's id, so nothing was written and the
+    /// pool still serves the previous endpoint. The shell words it (invariant
+    /// ④); the next keystroke clears it.
+    pub rpc_chain_mismatch: Option<NetChainMismatch>,
+    /// `true` ⇒ a blur is waiting on the chain-id verdict; the override has NOT
+    /// been written yet. The card's `rpc_health` is `Checking` for the same
+    /// reason, so a shell that renders nothing extra is still honest.
+    pub rpc_save_deferred: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1790,6 +1840,9 @@ fn override_expanded(model: &mut Model, chain_id: u32) -> Command<NetEffect, Eve
                 explorer_draft: explorer,
                 rpc_health: NetProbeHealth::Checking,
                 explorer_health: NetProbeHealth::Checking,
+                rpc_chain_id: None,
+                save_deferred: false,
+                mismatch: None,
             },
         );
     }
@@ -1821,12 +1874,20 @@ fn override_probe_wave(model: &mut Model, chain_id: u32) -> Command<NetEffect, E
     let Some(card) = model.override_cards.get_mut(&chain_id) else {
         return Command::done();
     };
+    // A fresh wave is a fresh question: whatever the last one concluded about
+    // the previous URL says nothing about this one.
+    card.mismatch = None;
     let mut ops = Vec::new();
     if card.rpc_draft.is_empty() {
         // `checkEndpointHealth('')` answers error without fetching.
         card.rpc_health = NetProbeHealth::Error;
+        // An empty URL claims no chain, so the gate has nothing to disprove —
+        // "unverifiable", which saves (verbatim: today an empty override is
+        // storable, and `savedConfig?.rpcURL ?? ...` passes it through).
+        card.rpc_chain_id = Some(None);
     } else {
         card.rpc_health = NetProbeHealth::Checking;
+        card.rpc_chain_id = None;
         ops.push(NetOperation::ProbeRpc {
             url: card.rpc_draft.clone(),
         });
@@ -1839,13 +1900,76 @@ fn override_probe_wave(model: &mut Model, chain_id: u32) -> Command<NetEffect, E
             url: card.explorer_draft.clone(),
         });
     }
-    requests_with(gen, ops)
+    let probes = requests_with(gen, ops);
+    // The wave just answered the gate itself (empty URL ⇒ no probe to wait
+    // for). An owed save must not be stranded waiting for a `Probed` that will
+    // never arrive.
+    let owed = model
+        .override_cards
+        .get(&chain_id)
+        .is_some_and(|c| c.save_deferred && c.rpc_chain_id == Some(None));
+    if owed {
+        return Command::all([probes, resolve_override_save(model, chain_id, None)]);
+    }
+    probes
 }
 
+/// Field blur. Invariant ④'s gate: a save happens unless the endpoint in the
+/// RPC field PROVED it serves a different chain.
 fn override_blurred(model: &mut Model, chain_id: u32) -> Command<NetEffect, Event> {
     if !model.loaded {
         return Command::done();
     }
+    if network_defaults(model, chain_id).is_none() {
+        return Command::done();
+    }
+    let Some(card) = model.override_cards.get_mut(&chain_id) else {
+        return Command::done();
+    };
+    match card.rpc_chain_id {
+        // The verdict is in — decide now.
+        Some(reported) => resolve_override_save(model, chain_id, reported),
+        // Still probing. Hold the write: the whole point of the gate is that a
+        // wrong-chain URL must never reach the pool's top tier, and a save that
+        // is undone a second later has already served balances from the wrong
+        // chain.
+        None => {
+            card.save_deferred = true;
+            render()
+        }
+    }
+}
+
+/// Apply the gate to a known verdict: refuse a CONFIRMED mismatch, save
+/// anything else (including "could not verify" — invariant ③'s discipline).
+fn resolve_override_save(
+    model: &mut Model,
+    chain_id: u32,
+    reported: Option<u32>,
+) -> Command<NetEffect, Event> {
+    let Some(card) = model.override_cards.get_mut(&chain_id) else {
+        return Command::done();
+    };
+    card.save_deferred = false;
+    match reported {
+        Some(reported_chain_id) if reported_chain_id != chain_id => {
+            card.mismatch = Some(NetChainMismatch {
+                expected_chain_id: chain_id,
+                reported_chain_id,
+            });
+            // Nothing written, nothing flushed: the previously saved endpoint
+            // keeps serving, which is the safe half of the two.
+            render()
+        }
+        _ => {
+            card.mismatch = None;
+            commit_override(model, chain_id)
+        }
+    }
+}
+
+/// The write itself — the pre-gate `OverrideBlurred` body, unchanged.
+fn commit_override(model: &mut Model, chain_id: u32) -> Command<NetEffect, Event> {
     let Some(defaults) = network_defaults(model, chain_id) else {
         return Command::done();
     };
@@ -1868,10 +1992,6 @@ fn override_blurred(model: &mut Model, chain_id: u32) -> Command<NetEffect, Even
     model.overrides.retain(|c| c.chain_id != chain_id);
     model.overrides.push(config);
 
-    // Invariant ④'s recorded gap, ported verbatim: the save happens with NO
-    // chain-id probe gate — `probeRpcChainId` exists but is never consulted
-    // here (open question; module doc).
-    //
     // Invariant ⑤ second half: the old pool/bundler caches must not keep
     // serving the replaced endpoints (SettingsScreen.tsx:288-308).
     let gen = model.load_gen;
@@ -2342,13 +2462,22 @@ fn accept(model: &mut Model, attempt: u64, result: NetShellResult) -> Command<Ne
                 .find(|(_, &gen)| gen == attempt)
             {
                 if let Some(card) = model.override_cards.get_mut(&chain_id) {
-                    // `checkEndpointHealth` rpc: any JSON-RPC answer is ok —
-                    // the id is not matched here (verbatim; invariant ④'s
-                    // sibling gap).
+                    // `checkEndpointHealth` rpc: any JSON-RPC answer is ok.
+                    // The badge stays a LIVENESS badge — a wrong-chain node is
+                    // still a node that answered, and conflating the two would
+                    // make "offline" mean two different things. The chain
+                    // identity is a separate verdict, below.
                     card.rpc_health = match reported_chain_id {
                         Some(_) => NetProbeHealth::Ok { latency_ms },
                         None => NetProbeHealth::Error,
                     };
+                    // Invariant ④'s gate gets its answer from THIS probe — the
+                    // card already asks the endpoint what chain it is, so the
+                    // save needs no request of its own.
+                    card.rpc_chain_id = Some(reported_chain_id);
+                    if card.save_deferred {
+                        return resolve_override_save(model, chain_id, reported_chain_id);
+                    }
                     return render();
                 }
                 return Command::done();
@@ -2479,6 +2608,8 @@ fn network_row(
         bundler_url,
         rpc_health: card.map(|c| c.rpc_health.clone()),
         explorer_health: card.map(|c| c.explorer_health.clone()),
+        rpc_chain_mismatch: card.and_then(|c| c.mismatch),
+        rpc_save_deferred: card.is_some_and(|c| c.save_deferred),
     }
 }
 

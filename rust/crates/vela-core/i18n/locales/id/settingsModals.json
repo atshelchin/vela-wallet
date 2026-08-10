@@ -4,6 +4,7 @@
       "modalTitle": "Jaringan",
       "chainId": "Chain {{chainId}}",
       "fieldRpcUrl": "URL RPC",
+      "rpcChainMismatch": "Tidak disimpan — RPC ini melaporkan Chain {{reported}}, padahal jaringan ini adalah Chain {{expected}}. Endpoint sebelumnya masih dipakai.",
       "fieldExplorer": "EXPLORER",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Hapus Jaringan",

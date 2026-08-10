@@ -457,8 +457,8 @@ fn active_pair() -> Sut {
 }
 
 /// Invariant ⑤ — signing out with un-synced pending uploads warns; and LOGOUT
-/// clears memory only (open question 2): no ClearWalletStorage, no
-/// ClearExtensionCache.
+/// ends the sign-in on disk too (open question 2, decided in spec 017): the
+/// confirm emits both clears alongside the in-memory wipe.
 #[test]
 fn sign_out_warns_when_uploads_are_pending() {
     let mut sut = active_pair();
@@ -474,10 +474,11 @@ fn sign_out_warns_when_uploads_are_pending() {
     );
 
     let ops = sut.dispatch(Event::SignOutConfirmed);
-    assert!(
-        ops.is_empty(),
-        "LOGOUT clears memory ONLY — no storage clear is requested (ported \
-         verbatim; inventory open question 2)"
+    assert_eq!(
+        ops,
+        vec![Op::ClearSignedInWallet, Op::ClearExtensionCache],
+        "the sign-in has to leave the disk too — otherwise the next launch \
+         restores the session the user just ended"
     );
     let view = sut.view();
     assert!(!view.has_wallet);
@@ -561,8 +562,24 @@ fn sign_out_requires_an_active_session() {
     assert!(sut.dispatch(Event::SignOutDismissed).is_empty());
 }
 
+/// The clear acknowledgements are inert: they arrive after the session is
+/// already signed out and must not resurrect anything.
+#[test]
+fn the_logout_clear_acks_change_nothing() {
+    let mut sut = active_pair();
+    sut.dispatch(Event::SignOut);
+    sut.resolve(Res::PendingUploads { has_pending: false });
+    sut.dispatch(Event::SignOutConfirmed);
+    assert!(sut.resolve(Res::SignedInWalletCleared).is_empty());
+    assert!(sut.resolve(Res::ExtensionCacheCleared).is_empty());
+    let view = sut.view();
+    assert!(!view.has_wallet);
+    assert!(!view.loading);
+    assert_eq!(view.allowed_route, SessionRoute::Onboarding);
+}
+
 /// After a logout the same process can onboard again — the hand-off re-enters
-/// an Active session.
+/// an Active session, and a clear ack that lands late is dropped by attempt.
 #[test]
 fn sign_in_again_after_sign_out() {
     let mut sut = active_pair();

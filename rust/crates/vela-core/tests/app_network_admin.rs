@@ -1,10 +1,14 @@
 //! Rules of the network-admin machine, one test per rule.
 //!
 //! Inventory invariants ①–⑨ each have at least one test named after the
-//! rule; the recorded quirks (the invariant-④ save-without-probe gap, the
-//! reset-without-pool-flush, the scan path flattening `rpcFailed`) are pinned
-//! as tests too, so an accidental "fix" fails loudly instead of silently
-//! changing product behavior.
+//! rule; the recorded quirks (the reset-without-pool-flush, the scan path
+//! flattening `rpcFailed`) are pinned as tests too, so an accidental "fix"
+//! fails loudly instead of silently changing product behavior.
+//!
+//! Invariant ④ is no longer one of those quirks: spec 017 closed the
+//! save-without-a-probe gap, so the tests below pin the GATE — refused on a
+//! proven mismatch, saved on anything unverifiable, held while the verdict is
+//! still in flight.
 //!
 //! The machine tests drive the lifecycle exactly the way the shell will:
 //! dispatch an event, answer the operations one at a time, in order.
@@ -845,21 +849,70 @@ fn a_late_result_from_a_superseded_wizard_run_is_dropped() {
 }
 
 // ===========================================================================
-// Invariant ④ (recorded gap) + ⑤ — override saves
+// Invariant ④ (the save gate) + ⑤ — override saves
 // ===========================================================================
 
-/// The recorded invariant-④ gap, pinned: an override save issues NO chain-id
-/// probe gate before the write (`probeRpcChainId` exists but is not called —
-/// open question; a "fix" must consciously break this test).
+/// Answer the two health probes one expanded card issues, in the order
+/// `override_probe_wave` pushes them (RPC first, explorer second).
+fn answer_card_probes(sut: &mut Sut, rpc_url: &str, reported: Option<u32>, explorer_url: &str) {
+    sut.resolve(Res::Probed {
+        url: rpc_url.to_owned(),
+        reported_chain_id: reported,
+        latency_ms: 12.0,
+    });
+    sut.resolve(Res::Reachable {
+        url: explorer_url.to_owned(),
+        ok: true,
+        latency_ms: 20.0,
+    });
+}
+
+const WRONG_RPC: &str = "https://wrong-chain.example";
+const ETH_SCAN: &str = "https://etherscan.io";
+
+/// Invariant ④: an RPC that PROVES it serves another chain is refused. Nothing
+/// is written, no pool is flushed, and the card says which chain it actually
+/// got — the wrong-chain endpoint never reaches the pool's top tier.
 #[test]
-fn an_override_save_has_no_probe_gate_ported_verbatim() {
+fn an_override_save_is_refused_when_the_rpc_reports_another_chain() {
     let mut sut = started();
     sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
+    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
     sut.dispatch(Event::OverrideFieldEdited {
         chain_id: 1,
         field: NetOverrideField::Rpc,
-        value: "https://wrong-chain.example".to_owned(),
+        value: WRONG_RPC.to_owned(),
     });
+    // The edit's own probe answers "this is chain 137".
+    answer_card_probes(&mut sut, WRONG_RPC, Some(137), ETH_SCAN);
+
+    let ops = sut.dispatch(Event::OverrideBlurred { chain_id: 1 });
+    assert!(ops.is_empty(), "refused: nothing written, nothing flushed");
+    let row = &sut.view().networks[0];
+    assert_eq!(
+        row.rpc_chain_mismatch.map(|m| (m.expected_chain_id, m.reported_chain_id)),
+        Some((1, 137)),
+        "the card carries what to say: expected 1, got 137"
+    );
+    assert!(!row.rpc_save_deferred);
+}
+
+/// The gate refuses on PROOF only. An endpoint that timed out, refused, or
+/// answered garbage is "unable to verify" — and the save proceeds, exactly as
+/// the compatibility checker never condemns a chain it could not reach
+/// (invariant ③'s discipline).
+#[test]
+fn an_unverifiable_rpc_still_saves() {
+    let mut sut = started();
+    sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
+    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    sut.dispatch(Event::OverrideFieldEdited {
+        chain_id: 1,
+        field: NetOverrideField::Rpc,
+        value: "https://offline.example".to_owned(),
+    });
+    answer_card_probes(&mut sut, "https://offline.example", None, ETH_SCAN);
+
     let ops = sut.dispatch(Event::OverrideBlurred { chain_id: 1 });
     assert_eq!(
         ops,
@@ -867,16 +920,138 @@ fn an_override_save_has_no_probe_gate_ported_verbatim() {
             Op::WriteNetworkConfigs {
                 configs: vec![NetNetworkConfig {
                     chain_id: 1,
-                    rpc_url: "https://wrong-chain.example".to_owned(),
-                    explorer_url: "https://etherscan.io".to_owned(),
+                    rpc_url: "https://offline.example".to_owned(),
+                    explorer_url: ETH_SCAN.to_owned(),
                     bundler_url: format!("{BUNDLER_BASE}/1"),
                 }]
             },
             Op::InvalidatePools { chain_id: Some(1) },
             Op::ClearBundlerCache { chain_id: 1 },
         ],
-        "write + pool flush + bundler-cache flush — and no ProbeRpc gate"
+        "write + pool flush + bundler-cache flush"
     );
+    assert!(sut.view().networks[0].rpc_chain_mismatch.is_none());
+}
+
+/// A blur that lands before the probe does must WAIT, not write. Writing first
+/// and undoing later has already served balances from the wrong chain.
+#[test]
+fn a_blur_before_the_verdict_is_held_until_the_probe_answers() {
+    let mut sut = started();
+    sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
+    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    sut.dispatch(Event::OverrideFieldEdited {
+        chain_id: 1,
+        field: NetOverrideField::Rpc,
+        value: WRONG_RPC.to_owned(),
+    });
+
+    let ops = sut.dispatch(Event::OverrideBlurred { chain_id: 1 });
+    assert!(ops.is_empty(), "the verdict is not in yet — nothing is written");
+    assert!(sut.view().networks[0].rpc_save_deferred);
+
+    // The probe answers "chain 137" — the owed save resolves into a refusal.
+    let ops = sut.resolve(Res::Probed {
+        url: WRONG_RPC.to_owned(),
+        reported_chain_id: Some(137),
+        latency_ms: 12.0,
+    });
+    assert!(ops.is_empty(), "still refused, just later");
+    let row = &sut.view().networks[0];
+    assert!(!row.rpc_save_deferred);
+    assert_eq!(
+        row.rpc_chain_mismatch.map(|m| m.reported_chain_id),
+        Some(137)
+    );
+}
+
+/// The same hold, resolving the other way: the probe agrees, so the owed save
+/// runs with the full write + flush sequence.
+#[test]
+fn a_held_save_commits_once_the_probe_agrees() {
+    let mut sut = started();
+    sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
+    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    sut.dispatch(Event::OverrideFieldEdited {
+        chain_id: 1,
+        field: NetOverrideField::Rpc,
+        value: "https://my-node.example".to_owned(),
+    });
+    assert!(sut.dispatch(Event::OverrideBlurred { chain_id: 1 }).is_empty());
+
+    let ops = sut.resolve(Res::Probed {
+        url: "https://my-node.example".to_owned(),
+        reported_chain_id: Some(1),
+        latency_ms: 9.0,
+    });
+    assert_eq!(
+        ops,
+        vec![
+            Op::WriteNetworkConfigs {
+                configs: vec![NetNetworkConfig {
+                    chain_id: 1,
+                    rpc_url: "https://my-node.example".to_owned(),
+                    explorer_url: ETH_SCAN.to_owned(),
+                    bundler_url: format!("{BUNDLER_BASE}/1"),
+                }]
+            },
+            Op::InvalidatePools { chain_id: Some(1) },
+            Op::ClearBundlerCache { chain_id: 1 },
+        ]
+    );
+    assert!(!sut.view().networks[0].rpc_save_deferred);
+}
+
+/// An emptied RPC field issues no probe, so the gate has nothing to disprove:
+/// a held save must not wait forever for an answer that will never come.
+#[test]
+fn a_held_save_over_an_emptied_rpc_field_still_lands() {
+    let mut sut = started();
+    sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
+    assert!(sut.dispatch(Event::OverrideBlurred { chain_id: 1 }).is_empty());
+    assert!(sut.view().networks[0].rpc_save_deferred);
+
+    let ops = sut.dispatch(Event::OverrideFieldEdited {
+        chain_id: 1,
+        field: NetOverrideField::Rpc,
+        value: String::new(),
+    });
+    assert!(
+        ops.contains(&Op::WriteNetworkConfigs {
+            configs: vec![NetNetworkConfig {
+                chain_id: 1,
+                rpc_url: String::new(),
+                explorer_url: ETH_SCAN.to_owned(),
+                bundler_url: format!("{BUNDLER_BASE}/1"),
+            }]
+        }),
+        "an unverifiable (empty) URL saves; got {ops:?}"
+    );
+    assert!(!sut.view().networks[0].rpc_save_deferred);
+}
+
+/// A refusal is about a URL, not about a card: the next keystroke clears it,
+/// so the message can never outlive the value it describes.
+#[test]
+fn editing_the_field_clears_a_previous_refusal() {
+    let mut sut = started();
+    sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
+    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    sut.dispatch(Event::OverrideFieldEdited {
+        chain_id: 1,
+        field: NetOverrideField::Rpc,
+        value: WRONG_RPC.to_owned(),
+    });
+    answer_card_probes(&mut sut, WRONG_RPC, Some(137), ETH_SCAN);
+    sut.dispatch(Event::OverrideBlurred { chain_id: 1 });
+    assert!(sut.view().networks[0].rpc_chain_mismatch.is_some());
+
+    sut.dispatch(Event::OverrideFieldEdited {
+        chain_id: 1,
+        field: NetOverrideField::Rpc,
+        value: "https://ethereum-rpc.publicnode.com".to_owned(),
+    });
+    assert!(sut.view().networks[0].rpc_chain_mismatch.is_none());
 }
 
 /// Invariant ⑤ first half: the bundler field is not editable per network —
@@ -896,11 +1071,24 @@ fn an_override_save_never_clears_the_saved_bundler_url() {
     // The card seeds from the SAVED config, not the builtin default.
     let row = &sut.view().networks[0];
     assert_eq!(row.rpc_url, "https://saved-rpc.example");
+    answer_card_probes(
+        &mut sut,
+        "https://saved-rpc.example",
+        Some(1),
+        "https://saved-scan.example",
+    );
     sut.dispatch(Event::OverrideFieldEdited {
         chain_id: 1,
         field: NetOverrideField::Rpc,
         value: "https://new-rpc.example".to_owned(),
     });
+    // The gate needs a verdict before it can let the write through.
+    answer_card_probes(
+        &mut sut,
+        "https://new-rpc.example",
+        Some(1),
+        "https://saved-scan.example",
+    );
     let ops = sut.dispatch(Event::OverrideBlurred { chain_id: 1 });
     let Some(Op::WriteNetworkConfigs { configs }) = ops.first() else {
         panic!("expected the config write, got {ops:?}");
@@ -917,6 +1105,12 @@ fn an_override_save_never_clears_the_saved_bundler_url() {
 fn a_custom_networks_card_preserves_its_own_bundler() {
     let mut sut = started_with(vec![custom_network(999)], vec![]);
     sut.dispatch(Event::OverrideExpanded { chain_id: 999 });
+    answer_card_probes(
+        &mut sut,
+        "https://custom-rpc.example",
+        Some(999),
+        "https://custom-scan.example/",
+    );
     let ops = sut.dispatch(Event::OverrideBlurred { chain_id: 999 });
     let Some(Op::WriteNetworkConfigs { configs }) = ops.first() else {
         panic!("expected the config write, got {ops:?}");

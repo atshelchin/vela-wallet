@@ -73,8 +73,9 @@
   "signOut": {
    "button": "Esci",
    "title": "Esci",
-   "desc": "I dati del tuo wallet restano su questo dispositivo. Puoi accedere di nuovo in qualsiasi momento con la tua passkey (Face ID / impronta digitale).",
-   "warning": "La tua chiave pubblica non è ancora stata sincronizzata con il server. Se esci ora, il recupero su altri dispositivi potrebbe non essere possibile.",
+   "desc": "Questo dispositivo non sarà più connesso. Il wallet non viene eliminato: la tua passkey resta in Face ID / impronta digitale.",
+   "keeps": "Scegli «Ho già un wallet» per accedere di nuovo con la stessa passkey: ritrovi lo stesso indirizzo e restano al loro posto cronologia, contatti, token e impostazioni.",
+   "warning": "La tua chiave pubblica non è ancora arrivata al server di sincronizzazione. L'app riproverà al prossimo avvio, ma finché non riesce potresti non riuscire ad accedere da un altro dispositivo — né da qui, se disinstalli l'app.",
    "anyway": "Esci comunque",
    "cancel": "Annulla"
   },
@@ -1242,6 +1243,7 @@
    "modalTitle": "Reti",
    "chainId": "Rete {{chainId}}",
    "fieldRpcUrl": "URL RPC",
+   "rpcChainMismatch": "Non salvato: questo RPC dichiara la Rete {{reported}}, ma questa rete è la Rete {{expected}}. Continua a essere usato l'endpoint precedente.",
    "fieldExplorer": "EXPLORER",
    "fieldBundler": "BUNDLER",
    "removeTitle": "Rimuovi rete",

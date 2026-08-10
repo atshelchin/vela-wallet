@@ -46,8 +46,7 @@ import {
 } from '@/services/walletpair-transport';
 import { isSigningMethod, handleReadOnlyRPC, INSTANT_READONLY_METHODS } from '@/hooks/use-dapp-signing';
 import { gateReadOnly, readOnlyKey } from '@/services/readonly-rpc-gate';
-import { updateTransaction, loadTransactions } from '@/services/storage';
-import { waitForReceipt } from '@/services/safe-transaction';
+import { startTxTracker } from '@/services/wallet-state-core/tx-tracker-resident.web';
 import {
   bindSignRequest,
   dispatchSign,
@@ -643,28 +642,20 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.hasWallet, state.isLoading]);
 
-  // --- Resume in-flight dApp txs left 'pending' (sheet closed / page reloaded
+  // --- Resume in-flight txs left 'pending' (sheet closed / page reloaded
   //     mid-confirmation) so their status still resolves instead of showing as
   //     forever-pending in the Connections panel. ---
   //
-  // This is `tx_tracker`'s job the day it lands (see `setSignTrackerSink` in
-  // `sign-resident.web.ts`); until then it stays exactly where it was.
-  const resumedRef = useRef(false);
+  // `tx_tracker` owns this now. Starting the resident here keeps the trigger
+  // exactly where the hand-rolled scan was (root provider, once the wallet is
+  // loaded) and also installs the `sign_request` hand-off, so a dApp tx is
+  // tracked from the moment the bundler accepts it. The scan itself is the
+  // core's `LoadPendingTxs` sweep: same 24h cutoff, same `dapp_tx` records —
+  // plus `send` records, and with the honest rule that an unreachable bundler
+  // is never a failure.
   useEffect(() => {
-    if (resumedRef.current || !state.hasWallet || state.isLoading) return;
-    resumedRef.current = true;
-    (async () => {
-      const txs = await loadTransactions().catch(() => []);
-      const cutoff = Math.floor(Date.now() / 1000) - 24 * 3600; // ignore ancient stuck ops
-      const pending = txs.filter(
-        (t) => t.status === 'pending' && (t.type ?? '') === 'dapp_tx' && !!t.userOpHash && t.timestamp >= cutoff,
-      );
-      for (const t of pending) {
-        waitForReceipt(t.userOpHash, t.chainId)
-          .then((txHash) => updateTransaction(t.id, { status: 'confirmed', txHash }))
-          .catch(() => { /* still unconfirmed or dropped — leave for the user to clear */ });
-      }
-    })();
+    if (!state.hasWallet || state.isLoading) return;
+    startTxTracker();
   }, [state.hasWallet, state.isLoading]);
 
   const value = useMemo(() => ({

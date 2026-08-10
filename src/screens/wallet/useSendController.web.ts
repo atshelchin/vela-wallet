@@ -66,6 +66,8 @@ import { useLocalePrefs } from '@/services/locale-format';
 import { showAlert } from '@/services/platform';
 import { prefetchForSend, type TransactionFeeEstimate } from '@/services/safe-transaction';
 import { deserializeAssetSim, type AssetSimResult } from '@/services/tx-simulation';
+import { setSendTrackerSink } from '@/services/wallet-state-core/send-executor.web';
+import { trackSubmitted } from '@/services/wallet-state-core/tx-tracker-resident.web';
 import { createSendSession, type SendSession } from '@/services/wallet-state-core/send-session';
 import {
   indexTokens,
@@ -493,6 +495,23 @@ export function useSendController(): SendController {
   const ensure = useCallback((): SendSession => {
     const p = projector.current;
     if (p.session) return p.session;
+    // The `tx_tracker` seam, installed here because this is where the receipt
+    // outcome has somewhere to go. It REPLACES the executor's own
+    // `waitForReceipt` fallback wholesale: the tracker owns the poll (sharing
+    // the one 3s-throttled `eth_getUserOperationReceipt` per hash with every
+    // other watcher), the record patch and the 24h abandon line, and hands back
+    // only the three verdicts `ReceiptUpdate` accepts — never a timeout.
+    // `handoff.submitted` is deliberately dropped: awaiting the bundler's own
+    // promise here would be a second, unthrottled poller for the same hash.
+    setSendTrackerSink((handoff) => {
+      trackSubmitted(handoff.userOpHash, handoff.recordIds, handoff.chainId, (outcome) => {
+        projector.current.session?.dispatch({
+          type: 'receipt_update',
+          user_op_hash: handoff.userOpHash,
+          outcome,
+        });
+      });
+    });
     p.session = createSendSession({
       onView: commit,
       onError: (error) => console.error('[send] core fault:', error),

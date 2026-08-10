@@ -73,8 +73,9 @@
   "signOut": {
    "button": "Đăng xuất",
    "title": "Đăng xuất",
-   "desc": "Dữ liệu ví của bạn vẫn ở trên thiết bị này. Bạn có thể đăng nhập lại bất cứ lúc nào bằng passkey (Face ID / vân tay).",
-   "warning": "Khóa công khai của bạn chưa được đồng bộ lên máy chủ. Đăng xuất ngay bây giờ có thể khiến bạn không khôi phục được ví trên các thiết bị khác.",
+   "desc": "Thiết bị này sẽ không còn ở trạng thái đã đăng nhập. Ví không bị xoá — passkey của bạn vẫn nằm trong Face ID / vân tay.",
+   "keeps": "Chọn “Tôi đã có ví” để đăng nhập lại bằng chính passkey đó: địa chỉ vẫn như cũ, và lịch sử giao dịch, danh bạ, token cùng các cài đặt vẫn còn nguyên.",
+   "warning": "Khóa công khai của bạn chưa tới được máy chủ đồng bộ. Ứng dụng sẽ thử lại ở lần mở kế tiếp, nhưng cho tới khi thành công, bạn có thể không đăng nhập được trên thiết bị khác — và cả trên máy này nếu bạn gỡ ứng dụng.",
    "anyway": "Vẫn đăng xuất",
    "cancel": "Hủy"
   },
@@ -1239,6 +1240,7 @@
    "modalTitle": "Mạng lưới",
    "chainId": "Chain {{chainId}}",
    "fieldRpcUrl": "URL RPC",
+   "rpcChainMismatch": "Chưa lưu — RPC này báo Chain {{reported}}, nhưng mạng này là Chain {{expected}}. Điểm cuối trước đó vẫn đang được dùng.",
    "fieldExplorer": "EXPLORER",
    "fieldBundler": "BUNDLER",
    "removeTitle": "Xóa mạng",

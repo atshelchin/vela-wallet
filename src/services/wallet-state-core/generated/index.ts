@@ -152,6 +152,7 @@ export * from './MtokTokenMeta';
 export * from './MtokView';
 export * from './NetChainIndexEntry';
 export * from './NetChainInfo';
+export * from './NetChainMismatch';
 export * from './NetCompatibility';
 export * from './NetContractStatus';
 export * from './NetCustomNetwork';

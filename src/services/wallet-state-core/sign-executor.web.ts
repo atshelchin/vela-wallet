@@ -42,9 +42,7 @@ import {
 } from '@/services/bundler-service';
 import { buildSigningRecord } from '@/services/dapp-history';
 import { nativeSymbol } from '@/models/network';
-import { rpcCall } from '@/services/rpc-adapter';
 import { saveTransaction, updateTransaction } from '@/services/storage';
-import { autoAddReceivedTokens } from '@/services/token-autoadd';
 import { serializeAssetSim } from '@/services/tx-simulation';
 import { handleDAppRequest } from '@/hooks/use-dapp-signing';
 import type { Account } from '@/models/types';
@@ -131,29 +129,6 @@ export function createSignExecutor(ports: SignShellPorts) {
       if (writes.get(recordId) === next) writes.delete(recordId);
     });
     return next;
-  }
-
-  /**
-   * `record_id` → what the confirm step needs to list silently-received tokens
-   * from the AUTHENTIC receipt logs (`dapp-connection.tsx:786-802`). Only a tx
-   * that reached the bundler has one, and it is consumed by its own patch.
-   */
-  const submitted = new Map<string, { opHash: string; from: string; chainId: number }>();
-
-  /**
-   * Detached, exactly as the TS was: it must never block closing the sheet, and
-   * the tx-reconciler is the backstop if it races or fails.
-   */
-  function autoAddFromReceipt(entry: { opHash: string; from: string; chainId: number }): void {
-    void (async () => {
-      try {
-        const res = await rpcCall('eth_getUserOperationReceipt', [entry.opHash], entry.chainId);
-        const logs = (res.result as { receipt?: { logs?: any[] } } | null)?.receipt?.logs;
-        await autoAddReceivedTokens(entry.from, entry.chainId, logs);
-      } catch {
-        /* reconciler backstop */
-      }
-    })();
   }
 
   async function execute(effect: SignEffect): Promise<SignShellResult> {
@@ -283,13 +258,6 @@ export function createSignExecutor(ports: SignShellPorts) {
           assetChanges: sim ? serializeAssetSim(sim) : undefined,
           intent: record.intent ?? undefined,
         });
-        if (record.user_op_hash) {
-          submitted.set(record.record_id, {
-            opHash: record.user_op_hash,
-            from: record.from,
-            chainId: record.chain_id,
-          });
-        }
         // The core owns the id (`dapp-<ms>-tx|typed|msg`); the builder derives
         // the same one from the same clock, but the core's is authoritative
         // because the patch below is keyed on it.
@@ -312,11 +280,11 @@ export function createSignExecutor(ports: SignShellPorts) {
             console.warn('[sign_request] Failed to patch record:', e);
           }),
         );
-        const entry = submitted.get(operation.record_id);
-        submitted.delete(operation.record_id);
-        // Silently list any token this tx delivered, from the AUTHENTIC receipt
-        // logs (never the spoofable sign-time sim) — `:786-802`.
-        if (entry && close.type === 'confirmed') autoAddFromReceipt(entry);
+        // Listing what this tx silently delivered is NOT done here any more:
+        // `tx_tracker` polls the receipt it hands off at `OpSubmitted` and
+        // routes the AUTHENTIC logs to `token_trust`'s `ReceiptLogsConfirmed`,
+        // which is the single legal auto-add entry point. Doing it here as well
+        // would make web's custom-token list have two writers.
         return { type: 'record_updated' };
       }
 

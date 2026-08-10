@@ -4,6 +4,7 @@
       "modalTitle": "Mạng lưới",
       "chainId": "Chain {{chainId}}",
       "fieldRpcUrl": "URL RPC",
+      "rpcChainMismatch": "Chưa lưu — RPC này báo Chain {{reported}}, nhưng mạng này là Chain {{expected}}. Điểm cuối trước đó vẫn đang được dùng.",
       "fieldExplorer": "EXPLORER",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Xóa mạng",

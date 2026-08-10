@@ -22,10 +22,11 @@
  *   including the identity-provider compatibility check.
  * - **`prefetchForSend` cache warming** is the shell's (the core says so); it
  *   runs from the controller on token selection, not from an operation.
- * - **The `tx_tracker` seam.** `TrackSubmitted` is the hand-off point. Until that
- *   machine is wired, the receipt wait that used to live in
- *   `useSendController.ts:1045-1070` runs here, at exactly the same point in the
- *   sequence — see `setSendTrackerSink`.
+ * - **The `tx_tracker` seam.** `TrackSubmitted` is the hand-off point, and on web
+ *   it is now taken: `useSendController.web.ts` installs a sink before it builds
+ *   the session, so the receipt wait below is the NO-SINK path only (a session
+ *   built without one — the send core's own test harness). See
+ *   `setSendTrackerSink`.
  *
  * Failure contract (shared effect loop): nothing rejects. Every rejection is
  * converted into the result variant that operation answers with.
@@ -75,23 +76,27 @@ import {
  * (invariant ⑥'s ordering half), carrying the op hash, the record ids it belongs
  * to and the chain. Deciding what happens to that op next — the receipt poll,
  * the record patch on a dropped op, the reconcile — is `tx_tracker`'s job, and
- * `tx_tracker` is not wired yet. So this is the single entry point that machine
- * will call once it is:
+ * `useSendController.web.ts` installs the sink that gives it to that machine:
  *
  * ```ts
- * setSendTrackerSink((handoff) => dispatchTxTracker({
- *   type: 'submitted', user_op_hash: handoff.userOpHash,
- *   record_ids: handoff.recordIds, chain_id: handoff.chainId, now_ms: Date.now(),
- * }));
+ * setSendTrackerSink((handoff) => trackSubmitted(
+ *   handoff.userOpHash, handoff.recordIds, handoff.chainId,
+ *   (outcome) => session.dispatch({ type: 'receipt_update', ... }),
+ * ));
  * ```
  *
- * Until then the fallback below runs — and unlike `sign_request`'s seam, it is
- * NOT a stand-in data source: it is the very `result.waitForTxHash()` chain that
+ * With a sink installed the fallback below does not run at all: the tracker owns
+ * the poll (at the shared 3 s throttle every other watcher of that hash uses),
+ * the record patch and the 24 h abandon line, and it hands back only the three
+ * verdicts `ReceiptUpdate` accepts. `handoff.submitted` is offered for a
+ * consumer that would rather await the bundler's own promise; the tracker
+ * deliberately does not, because that would be a second unthrottled poller.
+ *
+ * Without one, the fallback runs — and unlike `sign_request`'s seam it is NOT a
+ * stand-in data source: it is the very `result.waitForTxHash()` chain that
  * `useSendController.ts:1045-1070` ran, moved verbatim to the same point in the
  * sequence (the records are already written, so the `await pendingWrites` it
- * used to open with is what the core's ordering now guarantees). Installing a
- * sink replaces it wholesale; the `SubmitResult` is handed over so the tracker
- * can own the poll.
+ * used to open with is what the core's ordering now guarantees).
  */
 export interface SendTrackerHandoff {
   userOpHash: string;

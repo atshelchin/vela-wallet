@@ -78,10 +78,10 @@ import {
   activityFeedView,
   dispatchActivityFeed,
   ensureActivityFeed,
-  reconcileFeedPending,
   setActivityFeedAccount,
   subscribeActivityFeed,
 } from '@/services/wallet-state-core/feed-resident.web';
+import { dispatchTxTracker } from '@/services/wallet-state-core/tx-tracker-resident.web';
 import type { BalanceView } from '@/services/wallet-state-core/generated/BalanceView';
 import type { FeedBatch } from '@/services/wallet-state-core/generated/FeedBatch';
 import type { FeedItem } from '@/services/wallet-state-core/generated/FeedItem';
@@ -318,11 +318,14 @@ export function useHomeController(): HomeController {
     } catch { /* ignore — keep the last-known list */ }
   }, []);
 
-  // --- the tick: one place both machines and the TS reconciler are poked ---
+  // --- the tick: one place all three machines are poked ---
+  // `HomeFocused` is where `reconcileFeedPending` stood: `tx_tracker` owns the
+  // pending sweep now (12s-throttled and single-flight inside the core), and it
+  // is what tells the feed to re-read through `ReconcileCompleted`.
   const tick = useCallback((force: boolean) => {
     dispatchBalance({ type: 'refresh_requested', force, pull: false });
     dispatchActivityFeed({ type: 'focus_tick' });
-    void reconcileFeedPending(addressRef.current);
+    dispatchTxTracker({ type: 'home_focused' });
     void loadConn(addressRef.current);
   }, [loadConn]);
 
@@ -333,7 +336,7 @@ export function useHomeController(): HomeController {
     // and starts a non-forced fetch); the feed's own tick rides alongside.
     dispatchBalance({ type: 'app_focused' });
     dispatchActivityFeed({ type: 'focus_tick' });
-    void reconcileFeedPending(addressRef.current);
+    dispatchTxTracker({ type: 'home_focused' });
     void loadConn(addressRef.current);
     const timer = setInterval(() => { if (isAppActive()) tick(false); }, AUTO_REFRESH_MS);
     return () => {
@@ -352,7 +355,7 @@ export function useHomeController(): HomeController {
       if (!isAppActive()) return;
       dispatchBalance({ type: 'refresh_requested', force: false, pull: false });
       dispatchActivityFeed({ type: 'live_tick' });
-      void reconcileFeedPending(addressRef.current);
+      dispatchTxTracker({ type: 'home_focused' });
       void loadConn(addressRef.current);
     }, LIVE_POLL_MS);
     return () => clearInterval(timer);
@@ -378,7 +381,7 @@ export function useHomeController(): HomeController {
     // 5-minute token cache, and `pull` is what raises the core's spinner.
     dispatchBalance({ type: 'refresh_requested', force: true, pull: true });
     dispatchActivityFeed({ type: 'focus_tick' });
-    void reconcileFeedPending(addressRef.current);
+    dispatchTxTracker({ type: 'home_focused' });
     void loadConn(addressRef.current);
     if (pullTimer.current) clearTimeout(pullTimer.current);
     pullTimer.current = setTimeout(() => { setPullHold(false); }, PULL_MIN_MS);

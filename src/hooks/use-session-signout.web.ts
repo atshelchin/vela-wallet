@@ -5,9 +5,14 @@
  * This file owns no rules. `SignOut` runs the pending-upload check, the dialog
  * exists only once that check has ANSWERED (invariant ⑤: no unwarned logout
  * path is reachable), a check that throws leaves it closed, and
- * `SignOutConfirmed` is inert unless the dialog is open. Logout itself is zero
- * operations — memory only, exactly as today, because `storage.clearAll()` has
- * no call site (016 inventory open question 2 owns whether that changes).
+ * `SignOutConfirmed` is inert unless the dialog is open. Logout now also ends
+ * the sign-in on disk (016 inventory open question 2, decided in 017): the core
+ * emits `ClearSignedInWallet` + `ClearExtensionCache`, which drop the stored
+ * account list and active index — and nothing else, because everything else
+ * belongs to the account and comes back with the passkey.
+ *
+ * Native keeps its own `LOGOUT` reducer path unchanged (FR-202), so this
+ * behaviour is web-only for now.
  */
 import { useCallback, useEffect, useState } from 'react';
 

@@ -3,10 +3,10 @@
  *
  * Seven operations, one existing `services/storage.ts` call each — the
  * vocabulary the core declares (`LoadAccounts` / `LoadActiveIndex` /
- * `SaveAccount` / `SaveActiveIndex` / `CheckPendingUploads`, plus the two clear
- * operations the core documents as NEVER emitted). No branching on business
- * meaning: the address migration, the index clamp, the restore gather, the
- * sign-out gate and the "which write, when" choices all live in Rust.
+ * `SaveAccount` / `SaveActiveIndex` / `CheckPendingUploads`, plus the two
+ * logout clears). No branching on business meaning: the address migration, the
+ * index clamp, the restore gather, the sign-out gate and the "which write,
+ * when" choices all live in Rust.
  *
  * Wire vs stored shape: the core speaks `Account`
  * (`public_key_hex` / `created_at_iso`), storage holds `StoredAccount`
@@ -25,7 +25,7 @@ import type { SessionShellResult } from './generated/SessionShellResult';
 import type { SessionEffect } from './session-types';
 import type { Account, StoredAccount } from '@/models/types';
 import {
-  clearAll,
+  clearSignedInWallet,
   hasPendingUploads,
   loadAccounts,
   loadActiveAccountIndex,
@@ -102,18 +102,20 @@ export async function executeSessionOperation(
       return { type: 'active_index_saved' };
     case 'check_pending_uploads':
       return { type: 'pending_uploads', has_pending: await hasPendingUploads() };
-    case 'clear_wallet_storage':
-      // NEVER reached: today's LOGOUT clears memory only and the core documents
-      // this operation as unemitted while inventory open question 2 is open.
-      // Implemented faithfully anyway — the executor performs what it is asked,
-      // it does not second-guess whether the core should have asked.
-      await clearAll();
-      return { type: 'wallet_storage_cleared' };
+    case 'clear_signed_in_wallet':
+      // `clearSignedInWallet()`, deliberately NOT `clearAll()`: the operation's
+      // whole point is its scope. It removes `vela.accounts` and
+      // `vela.activeAccountIndex` — the two keys that make this device signed
+      // in — and leaves every other key, including the pending-upload outbox,
+      // for the reasons that function documents.
+      await clearSignedInWallet();
+      return { type: 'signed_in_wallet_cleared' };
     case 'clear_extension_cache':
-      // Also never reached, same reason. Routed to the ext-cache CORE
-      // (`session_ended`) rather than to `clearAccountCache()` directly: which
-      // writes survive a clear, and the attempt guard that makes logout win
-      // over an in-flight write, are that machine's rules.
+      // Routed to the ext-cache CORE (`session_ended`) rather than to
+      // `clearAccountCache()` directly: which writes survive a clear, and the
+      // attempt guard that makes logout win over an in-flight write, are that
+      // machine's rules. A no-op when no writer is mounted (i.e. everywhere but
+      // the iOS Safari-extension host).
       endExtCacheSession();
       return { type: 'extension_cache_cleared' };
   }
@@ -143,8 +145,11 @@ export function sessionOperationFailure(
       // Ported verbatim: `handleOpenSignOut` died before `setShowSignOut(true)`,
       // so the dialog simply never opens — fail-closed for invariant ⑤.
       return { type: 'pending_uploads_unavailable' };
-    case 'clear_wallet_storage':
-      return { type: 'wallet_storage_cleared' };
+    case 'clear_signed_in_wallet':
+      // Best effort, like every other write: the session is already signed out
+      // in memory, and a failed removal cannot put it back. The stale keys are
+      // re-cleared by the next successful sign-out.
+      return { type: 'signed_in_wallet_cleared' };
     case 'clear_extension_cache':
       return { type: 'extension_cache_cleared' };
   }

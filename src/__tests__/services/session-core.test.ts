@@ -235,10 +235,11 @@ describe('session core (web shell)', () => {
     h.session.dispose();
   });
 
-  test('sign-out warns about un-synced passkeys, and clears MEMORY ONLY', async () => {
+  test('sign-out warns about un-synced passkeys, and ends the sign-in on disk', async () => {
     const a = stored(0, 'One');
     plant([a], '0');
-    mockStorage.set(UPLOADS_KEY, JSON.stringify([{ id: 'x', name: 'One', publicKeyHex: a.publicKeyHex, attestationObjectHex: '00', createdAt: a.createdAt }]));
+    const pending = { id: 'x', name: 'One', publicKeyHex: a.publicKeyHex, attestationObjectHex: '00', createdAt: a.createdAt };
+    mockStorage.set(UPLOADS_KEY, JSON.stringify([pending]));
     const h = open();
     await settle();
 
@@ -253,10 +254,51 @@ describe('session core (web shell)', () => {
     expect(h.latest().has_wallet).toBe(false);
     expect(h.latest().address).toBe('');
     expect(h.latest().allowed_route).toBe('onboarding');
-    // Ported verbatim: `storage.clearAll()` is dead code, so the accounts and
-    // the index survive on disk and a relaunch restores them.
-    expect(readStored()).toHaveLength(1);
-    expect(mockStorage.get(INDEX_KEY)).toBe('0');
+    // The two keys that ARE being signed in: gone, so a relaunch cannot restore
+    // the session the user just ended (the whole point of the decision).
+    expect(mockStorage.has(ACCOUNTS_KEY)).toBe(false);
+    expect(mockStorage.has(INDEX_KEY)).toBe(false);
+    // The outbox is NOT touched. A pending record is a public key the index
+    // service never confirmed; deleting it means the retry never happens and
+    // that credential can never be found at login again.
+    expect(JSON.parse(mockStorage.get(UPLOADS_KEY)!)).toEqual([pending]);
+    expect(h.faults).toEqual([]);
+    h.session.dispose();
+  });
+
+  test('sign-out keeps everything that belongs to the account, not the session', async () => {
+    // The scope IS the decision: signing out is not "erase this device". These
+    // keys survive because the same passkey derives the same address, so every
+    // address-keyed record lines back up with no migration.
+    const survivors: Record<string, string> = {
+      'vela.transactionHistory': '[{"id":"t1"}]',
+      'vela.customTokens': '[{"address":"0xabc"}]',
+      'vela.customNetworks': '[{"id":"custom-999"}]',
+      'vela.networkConfig': '[{"chainId":1}]',
+      'vela.serviceEndpoints': '{"ethereumDataURL":"https://mine.example"}',
+      'vela.rpcProviders': '{"alchemy":"key"}',
+      'vela.priceSource': 'dex',
+      'vela.localePrefs': '{"numberFormat":"de"}',
+      // Not even in `clearAll()`'s key set, and still worth pinning: a sign-out
+      // that started deleting these would be a different feature.
+      'vela.contacts': '[{"address":"0xdef"}]',
+      'vela.browserHistory': '[{"url":"https://app.example"}]',
+      'vela.perm.https://app.example': '{"accounts":["0x1"]}',
+    };
+    plant([stored(0, 'One')], '0');
+    for (const [key, value] of Object.entries(survivors)) mockStorage.set(key, value);
+
+    const h = open();
+    await settle();
+    h.session.dispatch({ type: 'sign_out' });
+    await settle();
+    h.session.dispatch({ type: 'sign_out_confirmed' });
+    await settle();
+
+    expect(mockStorage.has(ACCOUNTS_KEY)).toBe(false);
+    for (const [key, value] of Object.entries(survivors)) {
+      expect([key, mockStorage.get(key)]).toEqual([key, value]);
+    }
     expect(h.faults).toEqual([]);
     h.session.dispose();
   });

@@ -73,8 +73,9 @@
   "signOut": {
    "button": "Çıkış Yap",
    "title": "Çıkış Yap",
-   "desc": "Cüzdan verileriniz bu cihazda kalır. Geçiş anahtarınızla (Face ID / parmak izi) istediğiniz zaman tekrar giriş yapabilirsiniz.",
-   "warning": "Açık anahtarınız henüz sunucuyla eşitlenmedi. Şimdi çıkış yapmanız, diğer cihazlarda kurtarmayı engelleyebilir.",
+   "desc": "Bu cihazda oturum kapanacak. Cüzdanın kendisi silinmez — geçiş anahtarınız Face ID / parmak izinde kalır.",
+   "keeps": "“Zaten bir cüzdanım var” seçeneğiyle aynı geçiş anahtarını kullanarak yeniden giriş yapın: adres aynı kalır, işlem geçmişiniz, kişileriniz, tokenlarınız ve ayarlarınız da yerinde durur.",
+   "warning": "Açık anahtarınız henüz eşitleme sunucusuna ulaşmadı. Uygulama bir sonraki açılışta yeniden deneyecek, ancak başarılı olana kadar başka bir cihazda giriş yapamayabilirsiniz — uygulamayı kaldırırsanız bu cihazda da.",
    "anyway": "Yine de Çıkış Yap",
    "cancel": "İptal"
   },
@@ -1239,6 +1240,7 @@
    "modalTitle": "Ağlar",
    "chainId": "Zincir {{chainId}}",
    "fieldRpcUrl": "RPC URL",
+   "rpcChainMismatch": "Kaydedilmedi — bu RPC Zincir {{reported}} bildiriyor, oysa bu ağ Zincir {{expected}}. Önceki uç nokta kullanılmaya devam ediyor.",
    "fieldExplorer": "GEZGİN",
    "fieldBundler": "BUNDLER",
    "removeTitle": "Ağı Kaldır",

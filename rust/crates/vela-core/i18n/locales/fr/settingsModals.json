@@ -4,6 +4,7 @@
       "modalTitle": "Réseaux",
       "chainId": "Chaîne {{chainId}}",
       "fieldRpcUrl": "URL RPC",
+      "rpcChainMismatch": "Non enregistré : ce RPC annonce la Chaîne {{reported}}, alors que ce réseau est la Chaîne {{expected}}. L'ancien point de terminaison reste utilisé.",
       "fieldExplorer": "EXPLORATEUR",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Supprimer le réseau",

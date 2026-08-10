@@ -26,6 +26,22 @@ export type ServiceHealth = {
   detail?: string;
 };
 
+/**
+ * A save the wallet refused because the RPC in the field proved it serves a
+ * different chain (spec 017, `network_admin` invariant ④).
+ *
+ * Only ever set from a POSITIVE `eth_chainId` answer that disagreed. An
+ * endpoint that timed out or refused the request is "unable to verify" and its
+ * save goes through — the same rule the compatibility checker follows, where an
+ * unreachable chain gets a Retry and never a condemnation.
+ */
+export interface RpcChainMismatch {
+  /** The network being edited. */
+  expectedChainId: number;
+  /** What the endpoint said it serves. */
+  reportedChainId: number;
+}
+
 /** One row of the network editor — the visual identity plus the editable state. */
 export interface NetworkCardView {
   /** Icon/name/bundler identity. Presentation only; values below are authoritative. */
@@ -37,6 +53,14 @@ export interface NetworkCardView {
   explorerURL: string;
   /** `[rpc, explorer]`, in the order the two fields render. */
   healths: [EndpointHealth, EndpointHealth];
+  /**
+   * Set when the last blur was REFUSED: nothing was written and the previously
+   * saved endpoint is still in use. Cleared by the next keystroke.
+   *
+   * `undefined` on native, where the TypeScript controller keeps its historic
+   * save-without-a-gate behaviour (FR-202: native semantics unchanged).
+   */
+  rpcMismatch?: RpcChainMismatch;
 }
 
 export interface NetworkEditorController {
@@ -49,7 +73,12 @@ export interface NetworkEditorController {
   collapse(chainId: number): void;
   setRpcURL(chainId: number, value: string): void;
   setExplorerURL(chainId: number, value: string): void;
-  /** Field blur — persist the override and flush the caches. */
+  /**
+   * Field blur — persist the override and flush the caches.
+   *
+   * On web the write is gated on the RPC's own `eth_chainId` answer, so it can
+   * be refused (`rpcMismatch`) or briefly deferred until that answer lands.
+   */
   save(chainId: number): void;
   /** Delete a custom network (the confirm dialog belongs to the screen). */
   remove(id: string): void;

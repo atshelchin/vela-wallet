@@ -12,21 +12,28 @@
  * — but never more than the user holds, and always below the never-unlimited cap.
  * That is a bounded cap, NOT the forbidden "unlimited" grant.
  *
- * Pure presentational: all encoding/guarding lives in services/approval-guard.
+ * PURE RENDER. It holds no state and derives no verdict: the mode, the typed
+ * text, the error and the choice all arrive in `editor`, decided by the
+ * approval guard (`rust/crates/vela-core/src/app/approval_guard.rs` on web,
+ * `hooks/use-approval-guard.ts` on native). Which chips exist, whether a
+ * grant-all is preselected (it never is), and whether a custom amount is
+ * accepted are that machine's calls — this file only renders them and hands
+ * back taps.
+ *
+ * The one thing that stays here is the WORDS: the error is a semantic key, the
+ * number is localized here, and the editor's canonical '.' decimal is swapped
+ * for the locale's mark on the way in / out (the guard's contract).
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import { View, Text, Pressable, TextInput } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, ShieldCheck, Pencil } from 'lucide-react-native';
 import { scaleFont, color, text, inter, space, radius, createStyles } from '@/constants/theme';
 import { TokenLogo } from '@/components/TokenLogo';
-import {
-  type DetectedApproval,
-  type ApprovalChoice,
-  parseTokenAmount,
-  formatTokenAmount,
-  isUnboundedAmount,
-} from '@/services/approval-guard';
+import { type DetectedApproval, formatTokenAmount } from '@/services/approval-guard';
+import type {
+  ApprovalEditorMode, ApprovalEditorState,
+} from '@/hooks/approval-guard-controller-types';
 import { useLocalePrefs, numberSeparators, inputSeparators, parseLocaleNumber } from '@/services/locale-format';
 import { useDisplayCurrency } from '@/hooks/use-display-currency';
 
@@ -41,15 +48,14 @@ interface Props {
   spenderLabel: string;
   /** Token USD price for the ≈$ line (omit to hide it). */
   usdPrice?: number;
-  /** The wallet's on-chain balance of this token (raw units), if read. Powers the
-   *  one-tap "Balance" cap — a FINITE safe max that lets a swap proceed without
-   *  ever granting unlimited (issue #86). */
-  balanceRaw?: bigint | null;
-  choice: ApprovalChoice | null;
-  onChange: (choice: ApprovalChoice | null) => void;
+  /** The guard's derivation for THIS card — mode, text, error, choice. */
+  editor: ApprovalEditorState;
+  onPreset: (mode: ApprovalEditorMode) => void;
+  /** Canonical text (dot decimal); the card localizes on the way in and out. */
+  onCustomText: (text: string) => void;
+  onGrant: () => void;
+  onRevoke: () => void;
 }
-
-type Mode = 'requested' | 'balance' | 'custom' | 'revoke';
 
 export function EditableApproveCard(props: Props) {
   if (props.approval.isBooleanGrant) return <BooleanGrantCard {...props} />;
@@ -62,7 +68,8 @@ export function EditableApproveCard(props: Props) {
 // ---------------------------------------------------------------------------
 
 function AmountCard({
-  approval, symbol, decimals, decimalsVerified, logoUrls, spenderLabel, usdPrice, balanceRaw, onChange,
+  approval, symbol, decimals, decimalsVerified, logoUrls, spenderLabel, usdPrice,
+  editor, onPreset, onCustomText,
 }: Props) {
   const { t } = useTranslation();
   useLocalePrefs();
@@ -70,41 +77,21 @@ function AmountCard({
   // Editable input uses the locale decimal mark (no grouping) so it reads the same
   // as the display value — "47,284177", not the canonical "47.284177".
   const inSep = inputSeparators();
-  const seedInput = (raw: bigint) => formatTokenAmount(raw, decimals, 6, inSep);
   const dc = useDisplayCurrency();
-  const requested = approval.amountRaw ?? 0n;
-  const requestedFinite = !approval.isUnbounded && requested > 0n;
   const isReducing = approval.kind === 'decreaseAllowance';
-  // A one-tap FINITE cap at the user's balance: enough for any swap, never more
-  // than they hold, and always well below the never-unlimited cap. Not offered on
-  // a decrease (capping a reduction by balance is meaningless).
-  const hasBalanceCap = !isReducing && balanceRaw != null && balanceRaw > 0n;
 
-  // Initial mode: a finite, reasonable request is pre-accepted; an unbounded
-  // request forces a deliberate choice (custom).
-  const [mode, setMode] = useState<Mode>(requestedFinite ? 'requested' : 'custom');
-  const [customText, setCustomText] = useState<string>(
-    requestedFinite ? seedInput(requested) : '',
-  );
-
-  // Derive the chosen amount + validity from mode/customText.
-  const { choice, error, displayRaw } = useMemo(() => {
-    if (mode === 'revoke') return { choice: { type: 'revoke' } as ApprovalChoice, error: null, displayRaw: 0n };
-    if (mode === 'requested') return { choice: { type: 'amount', amountRaw: requested } as ApprovalChoice, error: null, displayRaw: requested };
-    // A finite cap at the user's balance — always below the never-unlimited cap.
-    if (mode === 'balance' && hasBalanceCap) return { choice: { type: 'amount', amountRaw: balanceRaw! } as ApprovalChoice, error: null, displayRaw: balanceRaw! };
-    // custom
-    const trimmed = customText.trim();
-    if (trimmed === '') return { choice: null, error: null as string | null, displayRaw: null as bigint | null };
-    const raw = parseTokenAmount(parseLocaleNumber(trimmed), decimals);
-    if (raw === null) return { choice: null, error: t('componentsUi.signingApprove.invalidAmount'), displayRaw: null };
-    if (isUnboundedAmount(raw, approval.amountBits ?? 256)) {
-      return { choice: null, error: t('componentsUi.signingApprove.unlimitedDisabled'), displayRaw: raw };
-    }
-    return { choice: { type: 'amount', amountRaw: raw } as ApprovalChoice, error: null, displayRaw: raw };
-  }, [mode, customText, requested, decimals, approval.amountBits, hasBalanceCap, balanceRaw, t]);
-
-  useEffect(() => { onChange(choice); }, [choice]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mode = editor.mode ?? 'custom';
+  const choice = editor.choice;
+  const displayRaw = editor.displayAmountRaw;
+  const errorText = editor.error === 'invalid-amount'
+    ? t('componentsUi.signingApprove.invalidAmount')
+    : editor.error === 'unlimited-disabled'
+      ? t('componentsUi.signingApprove.unlimitedDisabled')
+      : null;
+  // The guard stores canonical text; the field shows the locale's decimal mark.
+  const customText = inSep.decimal === '.'
+    ? editor.customText
+    : editor.customText.split('.').join(inSep.decimal);
 
   const accent = isReducing ? color.success.base : color.accent.base;
   const usd = displayRaw != null && usdPrice ? (Number(displayRaw) / 10 ** decimals) * usdPrice : null;
@@ -125,19 +112,19 @@ function AmountCard({
       {mode === 'custom' ? (
         <View style={styles.inputRow}>
           <TextInput
-            style={[styles.amountInput, { color: error ? color.error.base : color.fg.base }]}
+            style={[styles.amountInput, { color: errorText ? color.error.base : color.fg.base }]}
             value={customText}
-            onChangeText={setCustomText}
+            onChangeText={(value) => onCustomText(parseLocaleNumber(value))}
             keyboardType="decimal-pad"
             inputMode="decimal"
             placeholder="0"
             placeholderTextColor={color.fg.subtle}
-            autoFocus={!requestedFinite}
+            autoFocus={!editor.requestedFinite}
             selectionColor={accent}
           />
         </View>
       ) : (
-        <Pressable style={styles.valueRow} onPress={() => setMode('custom')}>
+        <Pressable style={styles.valueRow} onPress={() => onPreset('custom')}>
           <Text style={[styles.amountValue, mode === 'revoke' && { color: color.success.base }]} numberOfLines={1}>
             {mode === 'revoke' ? t('componentsUi.signingApprove.revokeValue') : `${formatTokenAmount(displayRaw ?? 0n, decimals, 6, sep)} ${symbol}`}
           </Text>
@@ -145,54 +132,54 @@ function AmountCard({
         </Pressable>
       )}
 
-      {usd != null && mode !== 'revoke' && !error && (
+      {usd != null && mode !== 'revoke' && !errorText && (
         <Text style={styles.usd}>≈ {dc.fmt(usd)}</Text>
       )}
 
       {/* Presets */}
       <View style={styles.presets}>
-        {requestedFinite && (
+        {editor.requestedFinite && (
           <PresetChip
             label={t('componentsUi.signingApprove.requested')}
             active={mode === 'requested'}
-            onPress={() => { setMode('requested'); setCustomText(seedInput(requested)); }}
+            onPress={() => onPreset('requested')}
           />
         )}
-        {hasBalanceCap && (
+        {editor.hasBalanceCap && (
           <PresetChip
             label={t('componentsUi.signingApprove.balanceCap', { defaultValue: 'Balance' })}
             active={mode === 'balance'}
-            onPress={() => { setMode('balance'); setCustomText(seedInput(balanceRaw!)); }}
+            onPress={() => onPreset('balance')}
           />
         )}
         <PresetChip
           label={t('componentsUi.signingApprove.custom')}
           active={mode === 'custom'}
-          onPress={() => setMode('custom')}
+          onPress={() => onPreset('custom')}
         />
         <PresetChip
           label={t('componentsUi.signingApprove.revoke')}
           active={mode === 'revoke'}
           tone="safe"
-          onPress={() => setMode('revoke')}
+          onPress={() => onPreset('revoke')}
         />
       </View>
 
       {/* Inline error */}
-      {error && (
+      {errorText && (
         <View style={styles.errorRow}>
           <AlertTriangle size={13} color={color.error.base} strokeWidth={2} />
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={styles.errorText}>{errorText}</Text>
         </View>
       )}
 
       {/* Plain-language summary */}
-      {!error && (
+      {!errorText && (
         <Text style={styles.summary}>
           {mode === 'revoke'
             ? t('componentsUi.signingApprove.revokeSummary', { spender: spenderLabel })
-            : choice
-              ? t('componentsUi.signingApprove.capSummary', { spender: spenderLabel, amount: `${formatTokenAmount((choice as any).amountRaw, decimals, 6, sep)} ${symbol}` })
+            : choice?.type === 'amount'
+              ? t('componentsUi.signingApprove.capSummary', { spender: spenderLabel, amount: `${formatTokenAmount(choice.amountRaw, decimals, 6, sep)} ${symbol}` })
               : t('componentsUi.signingApprove.choosePrompt')}
         </Text>
       )}
@@ -208,17 +195,11 @@ function AmountCard({
 // Boolean grants (setApprovalForAll / DAI permit). No amount — grant or revoke.
 // ---------------------------------------------------------------------------
 
-function BooleanGrantCard({ approval, spenderLabel, onChange }: Props) {
+function BooleanGrantCard({ approval, spenderLabel, editor, onGrant, onRevoke }: Props) {
   const { t } = useTranslation();
-  const incomingGrant = approval.isUnbounded; // true === a grant-all request
-  // Default to the safe action: if the dApp asked to grant, we still default to a
-  // conscious choice — preselect nothing for a grant (force deliberate tap), and
-  // preselect revoke when the request is already a revoke.
-  const [selected, setSelected] = useState<'grant' | 'revoke' | null>(incomingGrant ? null : 'revoke');
-
-  useEffect(() => {
-    onChange(selected === 'grant' ? { type: 'grant' } : selected === 'revoke' ? { type: 'revoke' } : null);
-  }, [selected]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The guard preselects NOTHING for a grant-all (the deliberate tap is the
+  // consent) and preselects revoke when the request is already a revoke.
+  const selected = editor.mode === 'grant' ? 'grant' : editor.mode === 'revoke' ? 'revoke' : null;
 
   const isNft = approval.kind === 'setApprovalForAll';
 
@@ -239,7 +220,7 @@ function BooleanGrantCard({ approval, spenderLabel, onChange }: Props) {
 
       <Pressable
         style={[styles.boolBtn, styles.boolRevoke, selected === 'revoke' && styles.boolRevokeActive]}
-        onPress={() => setSelected('revoke')}
+        onPress={onRevoke}
       >
         <ShieldCheck size={16} color={color.success.base} strokeWidth={2} />
         <Text style={[styles.boolBtnText, { color: color.success.base }]}>{t('componentsUi.signingApprove.revokeAccess')}</Text>
@@ -247,7 +228,7 @@ function BooleanGrantCard({ approval, spenderLabel, onChange }: Props) {
 
       <Pressable
         style={[styles.boolBtn, styles.boolGrant, selected === 'grant' && styles.boolGrantActive]}
-        onPress={() => setSelected('grant')}
+        onPress={onGrant}
       >
         <Text style={[styles.boolBtnText, { color: selected === 'grant' ? color.error.base : color.fg.muted }]}>
           {t('componentsUi.signingApprove.grantAllAnyway')}

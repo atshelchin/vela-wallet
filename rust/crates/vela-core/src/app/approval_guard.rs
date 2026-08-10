@@ -5,7 +5,9 @@
 //! drainer's #1 tool is an unbounded `approve` / `permit` / `setApprovalForAll`,
 //! and a descriptor lookup is exactly what fails on novel/hostile contracts),
 //! the finite re-encode, the descriptor-independent submit guard, plus the
-//! spending-cap editor's choice derivation and the EIP-5792 per-leg gating.
+//! spending-cap editor's choice derivation (single AND per batch leg — one
+//! `init_editor` / `derive_editor` pair serves both) and the EIP-5792 per-leg
+//! gating.
 //!
 //! ```text
 //! ApprovalDetected ─► detect (8 shapes, pure) ─► editor init
@@ -36,7 +38,9 @@
 //!   allowance/balance reads and the increaseAllowance resulting-total rule
 //!   ("increase by 100" must never read as "cap at 100")
 //! - `src/components/signing/views/BatchCallsView.tsx:40-53` —
-//!   `legNeedsChoice` / `legGrantsBroad`
+//!   `legNeedsChoice` / `legGrantsBroad`; `:74-77` — the "a token sent to its
+//!   own contract is a burn" banner (the shell forwards the descriptor
+//!   pipeline's recipients, this machine decides)
 //! - `src/components/signing/views/PermitSignView.tsx:103-105` — the bounded
 //!   unverified-decimals warning on the permit surface
 //! - `src/hooks/use-dapp-signing.ts:364, 413-415` — the submit chokepoints
@@ -331,11 +335,21 @@ pub enum Event {
     GrantDeliberatelyChosen,
     /// The boolean card's revoke button.
     RevokeChosen,
-    /// A batch leg's shell-side editor reported a choice (`None` = cleared).
-    LegChoiceChanged {
-        index: u32,
-        choice: Option<GuardChoice>,
-    },
+    /// A preset chip on ONE batch leg's inline cap editor. The leg editors are
+    /// this machine's too (`BatchCallsView` mounts the same card per leg);
+    /// only the index travels, never a derived choice.
+    LegPresetSelected { index: u32, mode: GuardEditorMode },
+    /// One batch leg's custom amount input changed.
+    LegCustomAmountChanged { index: u32, text: String },
+    /// The deliberate "grant all anyway" tap on one batch leg.
+    LegGrantDeliberatelyChosen { index: u32 },
+    /// One batch leg's revoke button.
+    LegRevokeChosen { index: u32 },
+    /// The recipients the shell's descriptor pipeline resolved for each leg,
+    /// in leg order (`ClearSignField { role: recipient }.address`). Raw data,
+    /// not a verdict: the "sending a token to its own contract burns it" rule
+    /// is decided here (`BatchCallsView.tsx:74-77`).
+    BatchRecipientsResolved { recipients: Vec<Vec<String>> },
     #[serde(skip)]
     ShellCompleted { attempt: u64, result: GuardShellResult },
 }
@@ -397,7 +411,12 @@ struct Leg {
     call: Value,
     to: String,
     detected: Option<GuardDetectedApproval>,
-    choice: Option<GuardChoice>,
+    /// This leg's inline cap editor. `Editor::None` for every leg that shows
+    /// no editor (finite / reducing / non-approval legs, and every leg in a
+    /// read-only replay) — exactly the legs `BatchCallsView` mounts no card
+    /// for, so they can never acquire a choice and the confirm-time rebuild
+    /// leaves them byte-identical.
+    editor: Editor,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -410,6 +429,10 @@ enum BatchMeta {
 struct BatchState {
     legs: Vec<Leg>,
     meta: BatchMeta,
+    /// Per-leg recipient addresses as the descriptor pipeline resolved them
+    /// (empty until `BatchRecipientsResolved` arrives, which is exactly the
+    /// "descriptors still loading → no banner" state today).
+    recipients: Vec<Vec<String>>,
 }
 
 #[derive(Default)]
@@ -506,6 +529,10 @@ pub struct GuardLegView {
     pub to: String,
     pub approval: Option<GuardDetectedApproval>,
     pub meta: GuardTokenMetaView,
+    /// This leg's inline cap editor, when one is shown. Same projection the
+    /// single-approval surface gets — the leg card renders it, it derives
+    /// nothing.
+    pub editor: Option<GuardEditorView>,
     pub choice: Option<GuardChoice>,
     /// Show the inline cap editor (unbounded / grant-all only —
     /// `BatchCallsView.tsx:98`).
@@ -523,6 +550,10 @@ pub struct GuardBatchView {
     pub legs: Vec<GuardLegView>,
     /// The effective-state danger banner.
     pub any_uncapped: bool,
+    /// A leg that sends a token to its OWN contract burns it — the same
+    /// fat-finger the single-send path flags, easy to miss buried in a batch
+    /// (F13, `BatchCallsView.tsx:74-77`).
+    pub any_to_own_token: bool,
     pub all_settled: bool,
 }
 
@@ -581,32 +612,47 @@ impl App for ApprovalGuard {
                 read_only,
                 now_ms,
             ),
-            Event::PresetSelected { mode } => preset_selected(model, mode),
-            Event::CustomAmountChanged { text } => {
-                if let Editor::Amount { custom_text, .. } = &mut model.editor {
-                    *custom_text = text;
-                    render()
-                } else {
-                    Command::done()
-                }
+            Event::PresetSelected { mode } => {
+                let Some(detected) = model.detected.clone() else {
+                    return Command::done();
+                };
+                let meta = effective_meta(model);
+                let balance = model.balance;
+                apply_preset(&mut model.editor, &detected, &meta, balance, mode)
             }
-            Event::GrantDeliberatelyChosen => {
-                if let Editor::Boolean { selected } = &mut model.editor {
-                    *selected = Some(BoolPick::Grant);
-                    render()
-                } else {
-                    Command::done()
-                }
+            Event::CustomAmountChanged { text } => set_custom_text(&mut model.editor, text),
+            Event::GrantDeliberatelyChosen => set_bool_pick(&mut model.editor, BoolPick::Grant),
+            Event::RevokeChosen => set_bool_pick(&mut model.editor, BoolPick::Revoke),
+            Event::LegPresetSelected { index, mode } => {
+                let Some((detected, meta)) = leg_context(model, index) else {
+                    return Command::done();
+                };
+                let Some(leg) = leg_mut(model, index) else {
+                    return Command::done();
+                };
+                // A batch leg card is mounted without a balance, so it never
+                // offers the Balance chip (`BatchCallsView.tsx:107-116`).
+                apply_preset(&mut leg.editor, &detected, &meta, None, mode)
             }
-            Event::RevokeChosen => {
-                if let Editor::Boolean { selected } = &mut model.editor {
-                    *selected = Some(BoolPick::Revoke);
-                    render()
-                } else {
-                    Command::done()
-                }
+            Event::LegCustomAmountChanged { index, text } => match leg_mut(model, index) {
+                Some(leg) => set_custom_text(&mut leg.editor, text),
+                None => Command::done(),
+            },
+            Event::LegGrantDeliberatelyChosen { index } => match leg_mut(model, index) {
+                Some(leg) => set_bool_pick(&mut leg.editor, BoolPick::Grant),
+                None => Command::done(),
+            },
+            Event::LegRevokeChosen { index } => match leg_mut(model, index) {
+                Some(leg) => set_bool_pick(&mut leg.editor, BoolPick::Revoke),
+                None => Command::done(),
+            },
+            Event::BatchRecipientsResolved { recipients } => {
+                let Some(batch) = &mut model.batch else {
+                    return Command::done();
+                };
+                batch.recipients = recipients;
+                render()
             }
-            Event::LegChoiceChanged { index, choice } => leg_choice_changed(model, index, choice),
             Event::ShellCompleted { attempt, result } => {
                 if attempt != model.attempt {
                     // A superseded request's slow read — dropping it is what
@@ -622,6 +668,7 @@ impl App for ApprovalGuard {
         if let Some(batch) = &model.batch {
             let batch_view = build_batch_view(model, batch);
             let confirm_allowed = batch_view.all_settled;
+            let rewritten_params_json = rewritten_batch_params(model, batch, &batch_view);
             return GuardView {
                 surface: GuardSurface::Batch,
                 detected: None,
@@ -633,7 +680,7 @@ impl App for ApprovalGuard {
                 },
                 editor: None,
                 confirm_allowed,
-                rewritten_params_json: rewritten_batch_params(model, batch),
+                rewritten_params_json,
                 increase_total: None,
                 decimals_unverified: false,
                 expired: false,
@@ -657,7 +704,7 @@ impl App for ApprovalGuard {
             };
         };
 
-        let editor = derive_editor(model, detected, &meta);
+        let editor = derive_editor(&model.editor, detected, &meta, model.balance);
         let choice = editor.as_ref().and_then(|e| e.choice.clone());
 
         let surface = if matches!(detected.locus, GuardLocus::TypedPath { .. }) {
@@ -760,20 +807,31 @@ fn start_batch(model: &mut Model, ops: &mut Vec<GuardOperation>) {
         _ => return,
     };
 
+    let editable = !model.read_only;
     let legs: Vec<Leg> = calls
         .iter()
-        .map(|call| Leg {
-            to: call
-                .get("to")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_owned(),
-            detected: detect_calldata_approval(
+        .map(|call| {
+            let detected = detect_calldata_approval(
                 call.get("to").and_then(Value::as_str),
                 call.get("data").and_then(Value::as_str),
-            ),
-            choice: None,
-            call: call.clone(),
+            );
+            Leg {
+                to: call
+                    .get("to")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned(),
+                // Only the legs that MOUNT a card get an editor — the same
+                // `needsEditor` predicate the view reports, evaluated once at
+                // detection so a finite leg can never acquire a choice (and so
+                // the confirm-time rebuild leaves it byte-identical).
+                editor: match &detected {
+                    Some(d) if leg_shows_editor(editable, d) => init_editor(d),
+                    _ => Editor::None,
+                },
+                detected,
+                call: call.clone(),
+            }
         })
         .collect();
 
@@ -797,7 +855,54 @@ fn start_batch(model: &mut Model, ops: &mut Vec<GuardOperation>) {
         BatchMeta::Loading { tokens }
     };
 
-    model.batch = Some(BatchState { legs, meta });
+    model.batch = Some(BatchState {
+        legs,
+        meta,
+        recipients: Vec::new(),
+    });
+}
+
+/// Show the inline cap editor for this leg? Unbounded / grant-all only —
+/// a bounded approve is already capped (`BatchCallsView.tsx:98`).
+fn leg_shows_editor(editable: bool, detected: &GuardDetectedApproval) -> bool {
+    editable
+        && detected.editable
+        && !detected.is_reducing
+        && (detected.is_unbounded || detected.is_boolean_grant)
+}
+
+/// The editor a freshly-detected calldata approval mounts with. Shared by the
+/// single-approval surface and every batch leg, so "a grant-all preselects
+/// nothing" and "an unbounded amount starts blank" are one rule.
+fn init_editor(detected: &GuardDetectedApproval) -> Editor {
+    if detected.is_boolean_grant {
+        return Editor::Boolean {
+            // A grant-all request preselects NOTHING — the deliberate tap is
+            // the consent (`EditableApproveCard.tsx:217`). An incoming revoke
+            // preselects the safe action.
+            selected: if detected.is_unbounded {
+                None
+            } else {
+                Some(BoolPick::Revoke)
+            },
+        };
+    }
+    let requested = parse_signed_dec(detected.amount_raw.as_deref().unwrap_or("0"));
+    let requested_finite = !detected.is_unbounded && !requested.neg && !requested.mag.is_zero();
+    if requested_finite {
+        // Seeded with the 18-decimals fallback — metadata has not resolved
+        // yet. Ported verbatim (module doc quirks).
+        Editor::Amount {
+            mode: GuardEditorMode::Requested,
+            custom_text: format_token_amount(requested.mag, 18, 6, "", ".", false),
+        }
+    } else {
+        // An unbounded request forces a deliberate choice.
+        Editor::Amount {
+            mode: GuardEditorMode::Custom,
+            custom_text: String::new(),
+        }
+    }
 }
 
 fn start_single(model: &mut Model, detected: GuardDetectedApproval, ops: &mut Vec<GuardOperation>) {
@@ -837,53 +942,59 @@ fn start_single(model: &mut Model, detected: GuardDetectedApproval, ops: &mut Ve
     }
 
     if matches!(detected.locus, GuardLocus::CalldataWord { .. }) {
-        model.editor = if detected.is_boolean_grant {
-            Editor::Boolean {
-                // A grant-all request preselects NOTHING — the deliberate tap
-                // is the consent (`EditableApproveCard.tsx:217`). An incoming
-                // revoke preselects the safe action.
-                selected: if detected.is_unbounded {
-                    None
-                } else {
-                    Some(BoolPick::Revoke)
-                },
-            }
-        } else {
-            let requested = parse_signed_dec(detected.amount_raw.as_deref().unwrap_or("0"));
-            let requested_finite =
-                !detected.is_unbounded && !requested.neg && !requested.mag.is_zero();
-            if requested_finite {
-                // Seeded with the 18-decimals fallback — metadata has not
-                // resolved yet. Ported verbatim (module doc quirks).
-                Editor::Amount {
-                    mode: GuardEditorMode::Requested,
-                    custom_text: format_token_amount(requested.mag, 18, 6, "", ".", false),
-                }
-            } else {
-                // An unbounded request forces a deliberate choice.
-                Editor::Amount {
-                    mode: GuardEditorMode::Custom,
-                    custom_text: String::new(),
-                }
-            }
-        };
+        model.editor = init_editor(&detected);
     }
 
     model.detected = Some(detected);
 }
 
-fn preset_selected(model: &mut Model, mode: GuardEditorMode) -> Command<GuardEffect, Event> {
-    let Some(detected) = &model.detected else {
-        return Command::done();
-    };
-    let meta = effective_meta(model);
+/// The leg's identity for a preset press: its detection + the metadata its
+/// card is currently rendering with (decimals drive the re-seed).
+fn leg_context(
+    model: &Model,
+    index: u32,
+) -> Option<(GuardDetectedApproval, GuardTokenMetaView)> {
+    let batch = model.batch.as_ref()?;
+    let leg = batch.legs.get(index as usize)?;
+    let detected = leg.detected.clone()?;
+    Some((detected.clone(), leg_meta(batch, &detected)))
+}
+
+fn leg_mut(model: &mut Model, index: u32) -> Option<&mut Leg> {
+    model.batch.as_mut()?.legs.get_mut(index as usize)
+}
+
+fn set_custom_text(editor: &mut Editor, text: String) -> Command<GuardEffect, Event> {
+    if let Editor::Amount { custom_text, .. } = editor {
+        *custom_text = text;
+        render()
+    } else {
+        Command::done()
+    }
+}
+
+fn set_bool_pick(editor: &mut Editor, pick: BoolPick) -> Command<GuardEffect, Event> {
+    if let Editor::Boolean { selected } = editor {
+        *selected = Some(pick);
+        render()
+    } else {
+        Command::done()
+    }
+}
+
+fn apply_preset(
+    editor: &mut Editor,
+    detected: &GuardDetectedApproval,
+    meta: &GuardTokenMetaView,
+    balance: Option<U256>,
+    mode: GuardEditorMode,
+) -> Command<GuardEffect, Event> {
     let requested = parse_signed_dec(detected.amount_raw.as_deref().unwrap_or("0"));
     let requested_finite = !detected.is_unbounded && !requested.neg && !requested.mag.is_zero();
     let card_reducing = detected.kind == GuardApprovalKind::DecreaseAllowance;
-    let has_balance_cap = !card_reducing && model.balance.is_some_and(|b| !b.is_zero());
-    let balance = model.balance;
+    let has_balance_cap = !card_reducing && balance.is_some_and(|b| !b.is_zero());
 
-    let Editor::Amount { mode: current, custom_text } = &mut model.editor else {
+    let Editor::Amount { mode: current, custom_text } = editor else {
         return Command::done();
     };
     match mode {
@@ -906,54 +1017,6 @@ fn preset_selected(model: &mut Model, mode: GuardEditorMode) -> Command<GuardEff
         _ => return Command::done(),
     }
     render()
-}
-
-fn leg_choice_changed(
-    model: &mut Model,
-    index: u32,
-    choice: Option<GuardChoice>,
-) -> Command<GuardEffect, Event> {
-    let Some(batch) = &mut model.batch else {
-        return Command::done();
-    };
-    let Some(leg) = batch.legs.get_mut(index as usize) else {
-        return Command::done();
-    };
-    let Some(detected) = &leg.detected else {
-        return Command::done();
-    };
-    if !detected.editable {
-        return Command::done();
-    }
-    leg.choice = sanitize_leg_choice(detected, choice);
-    render()
-}
-
-/// The shell-side leg editors never emit an unbounded amount (their own
-/// derivation nulls it) — but the wire is not trusted to uphold that. An
-/// invalid choice degrades to `None`: the leg stays unsettled and confirm
-/// stays gated, which is the fail-closed direction.
-fn sanitize_leg_choice(
-    detected: &GuardDetectedApproval,
-    choice: Option<GuardChoice>,
-) -> Option<GuardChoice> {
-    match choice {
-        Some(GuardChoice::Amount { amount_raw }) => {
-            let raw = parse_dec_u256(&amount_raw)?;
-            if is_unbounded_amount(raw, bits_from_wire(detected.amount_bits)) {
-                return None;
-            }
-            Some(GuardChoice::Amount { amount_raw })
-        }
-        Some(GuardChoice::Grant) => {
-            if detected.is_boolean_grant {
-                Some(GuardChoice::Grant)
-            } else {
-                None
-            }
-        }
-        other => other,
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1072,11 +1135,12 @@ fn effective_meta(model: &Model) -> GuardTokenMetaView {
 /// `EditableApproveCard.tsx:85-107` (amount card) and `:217-221` (boolean
 /// card). `choice == None` is what keeps confirm disabled.
 fn derive_editor(
-    model: &Model,
+    editor: &Editor,
     detected: &GuardDetectedApproval,
     meta: &GuardTokenMetaView,
+    balance: Option<U256>,
 ) -> Option<GuardEditorView> {
-    match &model.editor {
+    match editor {
         Editor::None => None,
         Editor::Boolean { selected } => Some(GuardEditorView {
             mode: selected.map(|pick| match pick {
@@ -1101,7 +1165,7 @@ fn derive_editor(
             // The card's `isReducing` is by KIND (decrease only), unlike the
             // detection flag which also covers approve-to-0.
             let card_reducing = detected.kind == GuardApprovalKind::DecreaseAllowance;
-            let has_balance_cap = !card_reducing && model.balance.is_some_and(|b| !b.is_zero());
+            let has_balance_cap = !card_reducing && balance.is_some_and(|b| !b.is_zero());
             let bits = bits_from_wire(detected.amount_bits);
 
             let (choice, error, display) = match mode {
@@ -1114,7 +1178,7 @@ fn derive_editor(
                     Some(requested.mag),
                 ),
                 GuardEditorMode::Balance if has_balance_cap => {
-                    let balance = model.balance.unwrap_or(U256::ZERO);
+                    let balance = balance.unwrap_or(U256::ZERO);
                     (
                         Some(GuardChoice::Amount {
                             amount_raw: balance.to_string(),
@@ -1157,7 +1221,7 @@ fn derive_editor(
                 display_amount_raw: display.map(|d| d.to_string()),
                 requested_finite,
                 has_balance_cap,
-                balance_raw: model.balance.map(|b| b.to_string()),
+                balance_raw: balance.map(|b| b.to_string()),
             })
         }
     }
@@ -1228,6 +1292,31 @@ fn is_expired(detected: &GuardDetectedApproval, now_ms: f64) -> bool {
     deadline_sec > 0.0 && deadline_sec < (now_ms / 1000.0).floor()
 }
 
+/// The metadata one leg's card renders with — the batch map when it resolved,
+/// the `…`/18/unverified default otherwise (`SigningSheet.tsx:373-385`).
+fn leg_meta(batch: &BatchState, detected: &GuardDetectedApproval) -> GuardTokenMetaView {
+    let meta_loading = matches!(batch.meta, BatchMeta::Loading { .. });
+    detected
+        .token_address
+        .as_ref()
+        .and_then(|token| match &batch.meta {
+            BatchMeta::Resolved(map) => map.get(token),
+            BatchMeta::Loading { .. } => None,
+        })
+        .map(|info| GuardTokenMetaView {
+            symbol: info.symbol.clone(),
+            decimals: info.decimals,
+            verified: info.verified,
+            loading: false,
+        })
+        .unwrap_or(GuardTokenMetaView {
+            symbol: "…".to_owned(),
+            decimals: 18,
+            verified: false,
+            loading: meta_loading,
+        })
+}
+
 fn build_batch_view(model: &Model, batch: &BatchState) -> GuardBatchView {
     let editable = !model.read_only;
     let meta_loading = matches!(batch.meta, BatchMeta::Loading { .. });
@@ -1240,34 +1329,28 @@ fn build_batch_view(model: &Model, batch: &BatchState) -> GuardBatchView {
             let meta = leg
                 .detected
                 .as_ref()
-                .and_then(|d| d.token_address.as_ref())
-                .and_then(|token| match &batch.meta {
-                    BatchMeta::Resolved(map) => map.get(token),
-                    BatchMeta::Loading { .. } => None,
-                })
-                .map(|info| GuardTokenMetaView {
-                    symbol: info.symbol.clone(),
-                    decimals: info.decimals,
-                    verified: info.verified,
-                    loading: false,
-                })
+                .map(|detected| leg_meta(batch, detected))
                 .unwrap_or(GuardTokenMetaView {
                     symbol: "…".to_owned(),
                     decimals: 18,
                     verified: false,
                     loading: meta_loading,
                 });
+            // A leg card carries no balance, so it never offers the Balance
+            // chip — matching today's `<EditableApproveCard>` per leg, which
+            // is mounted without `balanceRaw`.
+            let editor = approval
+                .and_then(|detected| derive_editor(&leg.editor, detected, &meta, None));
+            let choice = editor.as_ref().and_then(|e| e.choice.clone());
             GuardLegView {
                 to: leg.to.clone(),
                 approval: leg.detected.clone(),
                 meta,
-                choice: leg.choice.clone(),
-                needs_editor: editable
-                    && approval.is_some_and(|a| {
-                        a.editable && !a.is_reducing && (a.is_unbounded || a.is_boolean_grant)
-                    }),
-                needs_choice: leg_needs_choice(approval, leg.choice.as_ref()),
-                grants_broad: leg_grants_broad(approval, leg.choice.as_ref()),
+                needs_editor: approval.is_some_and(|a| leg_shows_editor(editable, a)),
+                needs_choice: leg_needs_choice(approval, choice.as_ref()),
+                grants_broad: leg_grants_broad(approval, choice.as_ref()),
+                editor,
+                choice,
             }
         })
         .collect();
@@ -1284,10 +1367,19 @@ fn build_batch_view(model: &Model, batch: &BatchState) -> GuardBatchView {
         })
     };
     let all_settled = !legs.iter().any(|leg| leg.needs_choice);
+    // `!!to && fields.some(f => f.role === 'recipient' && f.address === to)`
+    // — a leg whose token is being sent to the token's own contract.
+    let any_to_own_token = batch.legs.iter().zip(batch.recipients.iter()).any(|(leg, rs)| {
+        !leg.to.is_empty()
+            && rs
+                .iter()
+                .any(|recipient| recipient.eq_ignore_ascii_case(&leg.to))
+    });
 
     GuardBatchView {
         legs,
         any_uncapped,
+        any_to_own_token,
         all_settled,
     }
 }
@@ -1340,14 +1432,19 @@ pub fn leg_grants_broad(
 /// The confirm-time batch rebuild (`SigningSheet.tsx:531-549`): re-encode
 /// each leg the user capped/revoked; a per-leg rewrite failure keeps the
 /// original call, which the per-leg submit guard then refuses — fail closed.
-fn rewritten_batch_params(model: &Model, batch: &BatchState) -> Option<String> {
+fn rewritten_batch_params(
+    model: &Model,
+    batch: &BatchState,
+    view: &GuardBatchView,
+) -> Option<String> {
     let params = model.params.as_ref()?;
     let mut changed = false;
     let new_calls: Vec<Value> = batch
         .legs
         .iter()
-        .map(|leg| {
-            if let (Some(detected), Some(choice)) = (&leg.detected, &leg.choice) {
+        .zip(view.legs.iter())
+        .map(|(leg, projected)| {
+            if let (Some(detected), Some(choice)) = (&leg.detected, &projected.choice) {
                 if detected.editable {
                     if let Some(data) = leg.call.get("data").and_then(Value::as_str) {
                         if let Ok(new_data) = rewrite_calldata(data, detected, choice) {

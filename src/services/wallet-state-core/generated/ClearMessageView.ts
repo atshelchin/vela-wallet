@@ -8,6 +8,13 @@ import type { ClearSiweFields } from "./ClearSiweFields";
  */
 export type ClearMessageView = { 
 /**
+ * The param this method actually signs, already chosen (inventory ⑩):
+ * `params[0]` for `personal_sign`, `params[1]` for `eth_sign` — falling
+ * back to `params[0]` for a malformed single-param `eth_sign`. The
+ * `eth_sign` surface renders this string verbatim as the opaque digest.
+ */
+payload: string, 
+/**
  * The single `isHexPayload` predicate both display and signer branch on.
  */
 is_hex: boolean, 

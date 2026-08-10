@@ -18,18 +18,11 @@ import { SlideToConfirmButton } from '@/components/ui/SlideToConfirmButton';
 import { type BLEIncomingRequest } from '@/models/types';
 import { nativeSymbol } from '@/models/network';
 import { hapticLight, hapticSuccess, hapticError, hapticWarning, showAlert } from '@/services/platform';
-import {
-  resolveTransaction, resolveTypedData,
-  type ClearSignResult,
-} from '@/services/clear-signing';
+import { type ClearSignResult } from '@/services/clear-signing';
+import { useClearSigning } from '@/hooks/use-clear-signing';
 import { color } from '@/constants/theme';
 import { GasFeeCard } from '@/components/ui/GasFeeCard';
-import {
-  detectApproval, rewriteApprovalParams,
-  type DetectedApproval, type ApprovalChoice,
-} from '@/services/approval-guard';
-import { resolveTokenMetadata } from '@/services/token-metadata';
-import { parseSiwe, checkSiweDomainBinding } from '@/services/siwe';
+import { useApprovalGuard } from '@/hooks/use-approval-guard';
 import { fetchChainlinkPrices, resolveChainlinkPrice } from '@/services/price-service';
 import { findAccountByCredentialId } from '@/services/storage';
 import { simulateAssetChanges, type AssetSimResult } from '@/services/tx-simulation';
@@ -47,11 +40,14 @@ import { WarningBanner } from './WarningBanner';
 import { ClearSignView } from './views/ClearSignView';
 import { ApprovalView } from './views/ApprovalView';
 import { PermitSignView } from './views/PermitSignView';
-import { MessageSignView, decodePersonalMessage } from './views/MessageSignView';
+import { MessageSignView } from './views/MessageSignView';
 import { EthSignDangerView } from './views/EthSignDangerView';
 import { BlindTypedDataView } from './views/BlindTypedDataView';
 import { BlindTransactionView } from './views/BlindTransactionView';
-import { BatchCallsView, type BatchItem, legNeedsChoice } from './views/BatchCallsView';
+import { BatchCallsView, type BatchItem } from './views/BatchCallsView';
+import {
+  batchItemsFor, batchPassKey, batchPassPending, batchRowsAligned, type BatchPass,
+} from '@/services/wallet-state-core/clear-batch';
 
 export interface SigningSheetProps {
   request: BLEIncomingRequest;
@@ -91,6 +87,14 @@ export interface SigningSheetProps {
    * demand (e.g. a scam's undeclared outflow). Never set in production.
    */
   simOverride?: AssetSimResult | null;
+  /**
+   * The `sign_request` machine's own approval gate (`SignView.confirm_gate_open`):
+   * a reviewable request, the granted account reconciled, nothing in flight. Its
+   * doc requires the shell to AND it with the approval guard's `confirm_allowed`
+   * — this prop is that AND's other operand. Defaults to open for the surfaces
+   * that have no signing machine behind them (the harness, the replay sheet).
+   */
+  confirmGateOpen?: boolean;
 }
 
 export function SigningSheet({
@@ -108,11 +112,9 @@ export function SigningSheet({
   replaySim = null,
   simFromOverride,
   simOverride,
+  confirmGateOpen = true,
 }: SigningSheetProps) {
   const { t } = useTranslation();
-
-  const [clearSign, setClearSign] = useState<ClearSignResult | null>(null);
-  const [resolving, setResolving] = useState(false);
 
   // Gas estimation state (for eth_sendTransaction only). Speed tiers are gone —
   // every estimate/submit runs at 'fast'. The user's remaining choice is the fee
@@ -168,69 +170,90 @@ export function SigningSheet({
   }, [chainId]);
 
   // --- Editable approval (the never-unlimited mandate) ---
-  // Detected straight off the raw request, independent of any descriptor.
-  const approval = useMemo<DetectedApproval | null>(
-    () => (incomingRequest ? detectApproval(incomingRequest.method, incomingRequest.params) : null),
-    [incomingRequest],
+  // Detection, the metadata / allowance / balance reads, the spending-cap
+  // editor's choice derivation, the per-leg batch gating and the confirm-time
+  // re-encode all belong to the approval guard. This sheet renders its verdicts
+  // and forwards taps; it decides none of them.
+  const guard = useApprovalGuard({
+    request: incomingRequest ?? null,
+    chainId,
+    walletAddress: activeAccount?.address,
+    readOnly,
+  });
+  const approval = guard.approval;
+
+  // --- Clear signing (the parse pipeline + message adjudication) ---
+  // Descriptor resolution, the risk grade, the SIWE domain binding, the
+  // hex-vs-text split, which surface to render and what the confirm button
+  // MEANS are all this controller's verdicts (the `clear_signing` core on web,
+  // the TypeScript services on native). This sheet renders them.
+  const clearRequest = useMemo(
+    () => (incomingRequest
+      ? {
+          method: incomingRequest.method,
+          params: incomingRequest.params,
+          // F3: the dApp's own identity when we have it, the transport origin otherwise.
+          requestOrigin: dappInfo?.url ?? incomingRequest.origin,
+        }
+      : null),
+    [incomingRequest, dappInfo?.url],
   );
+  const clear = useClearSigning(clearRequest, chainId);
+  const clearSign: ClearSignResult | null = clear.clearSign;
+  const resolveCall = clear.resolveCall;
 
   // --- Branded haptic feedback (no-op on web) ---
-  // A danger sheet (opaque eth_sign, or an unbounded approval) buzzes on open — a
-  // physical "pay attention" that lands before the eye reaches the warning.
+  // A danger sheet (opaque eth_sign, a phishing SIWE prompt, or an unbounded
+  // approval) buzzes on open — a physical "pay attention" that lands before the
+  // eye reaches the warning. Two machines answer, one each; ORing their verdicts
+  // is not a third opinion. In particular the SIWE binding is adjudicated ONCE,
+  // by the same verdict that paints the red banner, so the buzz and the banner
+  // can never disagree.
   useEffect(() => {
     if (readOnly) return;
-    const m = incomingRequest?.method;
-    const p = incomingRequest?.params?.[0];
-    const siwePhish = m === 'personal_sign' && !!p && (() => {
-      const s = parseSiwe(decodePersonalMessage(p));
-      return !!s && checkSiweDomainBinding(s.domain, dappInfo?.url ?? incomingRequest?.origin) === 'mismatch';
-    })();
-    const dangerous = m === 'eth_sign' || (!!approval?.isUnbounded && !approval.isReducing) || siwePhish;
-    if (dangerous) hapticWarning();
-  }, [incomingRequest, approval, readOnly, dappInfo?.url]);
+    if (clear.dangerHaptic || (!!approval?.isUnbounded && !approval.isReducing)) hapticWarning();
+  }, [clear.dangerHaptic, approval, readOnly]);
   // Physical confirmation of the outcome — success buzz when the signature lands,
   // error buzz when it's rejected or fails.
   useEffect(() => { if (pendingOpHash) hapticSuccess(); }, [pendingOpHash]);
   useEffect(() => { if (signError) hapticError(); }, [signError]);
 
-  const [approveChoice, setApproveChoice] = useState<ApprovalChoice | null>(null);
-  const [approveTokenMeta, setApproveTokenMeta] = useState<{ symbol: string; decimals: number; verified: boolean } | null>(null);
-
   // Client-side simulation: revert pre-check + net balance changes (null = unknown / not run).
   const [sim, setSim] = useState<AssetSimResult | null>(null);
 
-  // EIP-5792 batch (wallet_sendCalls): each leg resolved + approval-checked, so the
+  // EIP-5792 batch (wallet_sendCalls): each leg's DESCRIPTOR resolution, so the
   // user sees a per-call breakdown instead of blind-signing the whole bundle.
-  const [batch, setBatch] = useState<BatchItem[] | null>(null);
-  // Per-leg spending-cap choices keyed by leg index — the same never-unlimited
-  // editor single approvals use, applied to each approval leg of the batch.
-  const [batchChoices, setBatchChoices] = useState<Record<number, ApprovalChoice | null>>({});
-  // On-chain symbol/decimals for every token approved across the batch (one
-  // Multicall3 read), keyed by lowercased address, so each leg's editor shows
-  // real amounts.
-  const [batchMeta, setBatchMeta] = useState<Map<string, { symbol: string; decimals: number; verified: boolean }>>(new Map());
+  // The approval half of each leg (detection, metadata, the cap editor, the
+  // gating) is the guard's — see `guard.batch`.
+  //
+  // Modelled as INPUT (what needs resolving) + PASS (what we resolved, tagged
+  // with the input it answers), never as an items array plus a `resolving`
+  // boolean. A boolean needs a reset; this sheet is not unmounted between
+  // requests (the cores overwrite `pending` in place), so a second
+  // `wallet_sendCalls` arriving mid-flight cancelled the only continuation that
+  // could have performed that reset — and the sheet stayed on the loading
+  // placeholder with confirm permanently disabled, leaving "close the sheet" as
+  // the user's only move. Closing IS the reject path, so the dApp collected a
+  // 4001 the user never gave. Both derivations below are total functions of
+  // values present on every render, so there is no reset to skip.
+  const batchInput = useMemo(() => {
+    if (incomingRequest?.method !== 'wallet_sendCalls') return null;
+    const calls = incomingRequest.params?.[0]?.calls;
+    if (!Array.isArray(calls) || calls.length === 0) return null;
+    return { key: batchPassKey(incomingRequest.id, chainId, calls), calls: calls as any[], chainId };
+  }, [incomingRequest, chainId]);
+  const batchKey = batchInput?.key ?? null;
+  const [batchPass, setBatchPass] = useState<BatchPass<BatchItem> | null>(null);
+  const batch = batchItemsFor(batchKey, batchPass);
+  // Separate from the controller's `resolving` (which tracks the single
+  // presented request) but ORed with it below: both hold the loading surface
+  // and both gate confirm.
+  const resolving = clear.resolving || batchPassPending(batchKey, batchPass);
 
-  // Resolve the approved token's symbol/decimals (on-chain via Multicall3, cached).
-  useEffect(() => {
-    setApproveChoice(null);
-    const tokenAddr = approval?.tokenAddress;
-    if (!tokenAddr) { setApproveTokenMeta(null); return; }
-    let cancelled = false;
-    const fallback = { symbol: `${tokenAddr.slice(0, 6)}…`, decimals: 18, verified: false };
-    resolveTokenMetadata(chainId, [tokenAddr])
-      .then((map) => {
-        if (cancelled) return;
-        const m = map.get(tokenAddr.toLowerCase());
-        setApproveTokenMeta(m ? { symbol: m.symbol, decimals: m.decimals, verified: true } : fallback);
-      })
-      .catch(() => { if (!cancelled) setApproveTokenMeta(fallback); });
-    return () => { cancelled = true; };
-  }, [approval?.tokenAddress, chainId]);
-
-  // Resolve clear signing + estimate gas when a new request comes in
+  // Estimate gas + simulate when a new request comes in. Descriptor resolution
+  // is the controller's — this effect owns only the live-only work.
   useEffect(() => {
     if (!incomingRequest) {
-      setClearSign(null);
       setFeeEstimate(null);
       setGasFeeToken(null);
       setGasEstimateFailed(false);
@@ -248,13 +271,7 @@ export function SigningSheet({
     setGasFeeToken(null);
 
     if (method === 'eth_sendTransaction' && params?.[0]) {
-      setResolving(true);
-      resolveTransaction(params[0].to, params[0].data, params[0].value, chainId)
-        .then(setClearSign)
-        .catch(() => setClearSign(null))
-        .finally(() => setResolving(false));
-
-      // Estimate gas fee in parallel — against the REAL tx so the displayed fee and
+      // Estimate gas fee — against the REAL tx so the displayed fee and
       // the funding pre-check reflect this contract call/deploy, not a dummy transfer.
       // Skipped in read-only replay: a historical signature isn't about to be sent.
       if (activeAccount?.address && !readOnly && publicKeyLoaded) {
@@ -283,21 +300,6 @@ export function SigningSheet({
           .then((r) => { if (!cancelled) setSim(r); })
           .catch(() => { if (!cancelled) setSim(null); });
       }
-    } else if (method.includes('signTypedData') && params) {
-      setResolving(true);
-      const typedDataRaw = params[1] ?? params[0];
-      try {
-        const typedData = typeof typedDataRaw === 'string' ? JSON.parse(typedDataRaw) : typedDataRaw;
-        resolveTypedData(typedData, chainId)
-          .then(setClearSign)
-          .catch(() => setClearSign(null))
-          .finally(() => setResolving(false));
-      } catch {
-        setClearSign(null);
-        setResolving(false);
-      }
-    } else {
-      setClearSign(null);
     }
     return () => { cancelled = true; };
   }, [
@@ -311,23 +313,45 @@ export function SigningSheet({
     return p ? { to: p.to, value: p.value, data: p.data } : undefined;
   }, [incomingRequest]);
 
-  // Resolve each leg of an EIP-5792 batch (intent + approval flag per call), and
-  // simulate the whole bundle for a net balance-change preview.
+  // Resolve each leg of an EIP-5792 batch (intent per call).
+  //
+  // Deliberately NOT the same effect as the bundle's simulation + gas estimate
+  // below: descriptor resolution has nothing to do with the signer or its
+  // passkey, and sharing an effect with them re-ran the WHOLE pass the moment
+  // `publicKeyHex`/`publicKeyLoaded` landed. Every leg resolves on its own core
+  // session (the machine supersedes anything in flight, so N legs cannot share
+  // one), and a session's descriptor / ERC-165 / decimals caches die with it —
+  // so that second pass was a full cold start whose ERC-165 race and decimals
+  // warm ran again, and it was the second pass's answer that reached the screen.
+  // Two runs of one leg could therefore disagree. Keyed on the request and the
+  // chain alone, the pass runs once and there is no second answer to disagree
+  // with. (`resolveCall` is a stable `useCallback` in both controllers; the
+  // executor coalesces the identical lookups sibling legs issue in the same
+  // tick, so they also cannot disagree with each other.)
   useEffect(() => {
-    if (incomingRequest?.method !== 'wallet_sendCalls') { setBatch(null); return; }
-    const calls = incomingRequest.params?.[0]?.calls;
-    if (!Array.isArray(calls) || calls.length === 0) { setBatch(null); return; }
+    if (!batchInput) return;
+    const { key, calls, chainId: legChainId } = batchInput;
     let cancelled = false;
-    setResolving(true);
-    setBatchChoices({}); // fresh request → no carried-over caps
-    Promise.all(calls.map(async (c: any): Promise<BatchItem> => {
-      const cs = await resolveTransaction(c.to, c.data, c.value, chainId).catch(() => null);
-      const approval = detectApproval('eth_sendTransaction', [{ to: c.to, data: c.data, value: c.value }]);
-      return { to: c.to ?? '', clearSign: cs, approval };
-    }))
-      .then((items) => { if (!cancelled) setBatch(items); })
-      .catch(() => { if (!cancelled) setBatch(null); })
-      .finally(() => { if (!cancelled) setResolving(false); });
+    // Each leg through the SAME pipeline the single request uses — one leg must
+    // never be graded by different rules than the transaction it is part of.
+    Promise.all(calls.map(async (c: any): Promise<BatchItem> => ({
+      to: c.to ?? '',
+      clearSign: await resolveCall({ to: c.to, data: c.data, value: c.value }, legChainId),
+    })))
+      .then((items) => { if (!cancelled) setBatchPass({ key, items }); })
+      .catch(() => { if (!cancelled) setBatchPass({ key, items: null }); });
+    // `cancelled` only stops a superseded pass from overwriting a NEWER answer;
+    // it can no longer strand the loading state, because the loading state is
+    // derived from `key` and this pass's answer carries the key it belongs to.
+    return () => { cancelled = true; };
+  }, [batchInput, resolveCall]);
+
+  // The bundle's live-only work: net balance changes + the gas estimate.
+  useEffect(() => {
+    if (incomingRequest?.method !== 'wallet_sendCalls') return;
+    const calls = incomingRequest.params?.[0]?.calls;
+    if (!Array.isArray(calls) || calls.length === 0) return;
+    let cancelled = false;
 
     // Net balance changes across all legs (executed sequentially, shared state —
     // e.g. approve + swap nets to −USDC / +WETH), plus the revert + underfunded
@@ -361,37 +385,22 @@ export function SigningSheet({
     simFromOverride,
   ]);
 
-  // Resolve symbol/decimals for every token approved across the batch's legs, so
-  // each leg's spending-cap editor can show and parse real token amounts.
+  // Hand the guard the RECIPIENTS the descriptor pipeline resolved per leg —
+  // raw data, not a verdict. It decides whether any leg sends a token to the
+  // token's own contract (a burn), the same way the single-send path does.
+  const reportBatchRecipients = guard.reportBatchRecipients;
   useEffect(() => {
-    if (!batch) { setBatchMeta(new Map()); return; }
-    const tokens = Array.from(new Set(
-      batch.map((it) => it.approval?.tokenAddress?.toLowerCase()).filter(Boolean) as string[],
-    ));
-    if (tokens.length === 0) { setBatchMeta(new Map()); return; }
-    let cancelled = false;
-    resolveTokenMetadata(chainId, tokens)
-      .then((map) => {
-        if (cancelled) return;
-        const out = new Map<string, { symbol: string; decimals: number; verified: boolean }>();
-        for (const tk of tokens) {
-          const m = map.get(tk);
-          out.set(tk, m
-            ? { symbol: m.symbol, decimals: m.decimals, verified: true }
-            : { symbol: `${tk.slice(0, 6)}…`, decimals: 18, verified: false });
-        }
-        setBatchMeta(out);
-      })
-      .catch(() => { if (!cancelled) setBatchMeta(new Map()); });
-    return () => { cancelled = true; };
-  }, [batch, chainId]);
+    if (!batch) return;
+    reportBatchRecipients(
+      batch.map((it) => (it.clearSign?.fields ?? [])
+        .filter((f) => f.role === 'recipient' && !!f.address)
+        .map((f) => f.address as string)),
+    );
+  }, [batch, reportBatchRecipients]);
 
   if (!incomingRequest) return null;
 
   const { method, params } = incomingRequest;
-  const isPersonalSign = method === 'personal_sign';
-  const isEthSign = method === 'eth_sign';
-  const isTypedData = method.includes('signTypedData');
   const isTx = method === 'eth_sendTransaction';
   const isBatch = method === 'wallet_sendCalls';
 
@@ -403,41 +412,70 @@ export function SigningSheet({
 
   const addr = activeAccount?.address;
 
-  // Choose which view to render — wait for descriptor resolution before showing content
-  const renderContent = () => {
-    // Engine-verified confidence: the tx was simulated and is NOT expected to revert.
-    // A sim's SENT side can't be understated (the real token emits its own transfer
-    // log), so this is a trustworthy "here's what actually leaves your wallet" signal
-    // that stands independent of any ERC-7730 descriptor. When present, the sheet
-    // leads with the outcome and calms the descriptor-absence alarms; RECEIVED amounts
-    // still read as 'unverified' (spoofable) per the asymmetric model in tx-simulation.
-    const activeSim = simOverride ?? (readOnly ? replaySim : sim);
-    const simConfident = !!activeSim && activeSim.ok === true;
+  // THE simulation this sheet is showing, chosen once (it was derived twice,
+  // and two copies of "which sim" is one bug away from a screen that previews
+  // one transaction and confirms another).
+  //
+  // A read-only replay uses the simulation PERSISTED at signature time: state
+  // has moved on, so re-simulating a past signature would preview a different
+  // world than the one the user consented to. The test harness's override wins
+  // over both. Ownership note: this branch, and the asymmetric trust below,
+  // belong to the simulation service and the replay record — the clear-signing
+  // core deliberately carries no simulation state and takes `simConfident` as
+  // an input to nothing; it is the SHELL that hands it to the surfaces.
+  const simResult = simOverride ?? (readOnly ? replaySim : sim);
+  // Engine-verified confidence: the tx was simulated and is NOT expected to
+  // revert. A sim's SENT side can't be understated (the real token emits its own
+  // transfer log), so this is a trustworthy "here's what actually leaves your
+  // wallet" signal that stands independent of any ERC-7730 descriptor. When
+  // present, the sheet leads with the outcome and calms the descriptor-absence
+  // alarms; RECEIVED amounts still read as 'unverified' (spoofable) per the
+  // asymmetric model in tx-simulation.
+  const simConfident = !!simResult && simResult.ok === true;
 
+  // Choose which view to render. The order is the two machines' verdicts
+  // interleaved — the approval guard's surface outranks everything (detection is
+  // instant and needs no descriptor), then `clear.surface`, with the batch list
+  // slotted where it has always sat: after the clear-sign surface, before the
+  // method-specific blind ones. Nothing here re-decides either verdict.
+  const renderContent = () => {
     // Off-chain permit signature (Permit2 / ERC-2612 / DAI). The dApp redeems its
     // OWN struct on-chain, so we can't cap it — capping the signed amount only
     // desyncs the signature and reverts the dApp's tx. Surface the real risk and
     // sign verbatim under deliberate consent, never the cap editor.
-    if (approval && approval.locus.type === 'typed-path') {
-      return <PermitSignView approval={approval} meta={approveTokenMeta} clearSign={clearSign} />;
-    }
-    // Editable approval takes precedence — detection is instant (no descriptor),
-    // and the spending-cap editor is the primary content for these requests.
-    if (approval?.editable) {
+    if (guard.surface === 'permit-sign' && approval) {
       return (
-        <ApprovalView
+        <PermitSignView
           approval={approval}
-          meta={approveTokenMeta}
-          choice={approveChoice}
-          onChange={setApproveChoice}
-          chainId={chainId}
-          walletAddress={addr}
+          meta={guard.meta}
+          expired={guard.expired}
+          decimalsUnverified={guard.decimalsUnverified}
           clearSign={clearSign}
-          requestId={incomingRequest.id}
         />
       );
     }
-    // While loading descriptor, show loading state (prevents blind→clear flash)
+    // Editable approval takes precedence — detection is instant (no descriptor),
+    // and the spending-cap editor is the primary content for these requests.
+    if (guard.surface === 'approval-editor' && approval?.editable) {
+      return (
+        <ApprovalView
+          approval={approval}
+          meta={guard.meta}
+          editor={guard.editor}
+          increaseTotal={guard.increaseTotal}
+          expired={guard.expired}
+          chainId={chainId}
+          clearSign={clearSign}
+          requestId={incomingRequest.id}
+          onPreset={guard.selectPreset}
+          onCustomText={guard.setCustomText}
+          onGrant={guard.chooseGrant}
+          onRevoke={guard.chooseRevoke}
+        />
+      );
+    }
+    // While a descriptor resolves, hold the loading state — a blind view must
+    // never flash before the clear one.
     if (resolving) {
       return (
         <View style={styles.fallback}>
@@ -445,37 +483,51 @@ export function SigningSheet({
         </View>
       );
     }
-    if (clearSign) {
+    if (clear.surface === 'clear_sign' && clearSign) {
       return <ClearSignView cs={clearSign} simConfident={simConfident} walletAddress={addr} />;
     }
     // EIP-5792 batch — list each call, with an editable spending cap on every
     // approval leg (so an unlimited approve can be capped instead of only rejected).
-    if (isBatch && batch) {
+    //
+    // `BatchCallsView` pairs the two machines' per-leg output BY INDEX, and they
+    // reach this sheet at different speeds (the guard's legs are in place before
+    // paint; the descriptor rows are async). Rendering only when both describe
+    // the same number of legs is what keeps that pairing honest: `batch` is
+    // already null for any request the stored pass doesn't answer, so a
+    // superseded bundle's decoded amounts can never sit above the current
+    // bundle's spenders — this check covers the remaining, by-construction
+    // impossible case rather than trusting it.
+    if (isBatch && batchRowsAligned(batch, guard.batch?.legs.length ?? null) && guard.batch) {
       return (
         <BatchCallsView
           items={batch}
-          choices={batchChoices}
-          onChoiceChange={(i, c) => setBatchChoices((prev) => ({ ...prev, [i]: c }))}
-          metaByToken={batchMeta}
-          editable={!readOnly}
+          batch={guard.batch}
           requestId={incomingRequest.id}
+          onLegPreset={guard.selectLegPreset}
+          onLegCustomText={guard.setLegCustomText}
+          onLegGrant={guard.chooseLegGrant}
+          onLegRevoke={guard.chooseLegRevoke}
         />
       );
     }
     // eth_sign signs an OPAQUE 32-byte hash — the classic blind-sign trap. It gets
     // its own hard-warning surface, never the calm personal_sign message view.
-    if (isEthSign && params) {
-      // eth_sign(address, data) → data is params[1]; fall back to params[0] only
-      // for a malformed single-param request.
-      return <EthSignDangerView dataHex={params.length > 1 ? params[1] : params[0]} />;
+    // Which param holds that hash is the controller's ruling, not this sheet's.
+    if (clear.surface === 'eth_sign' && clear.message) {
+      return <EthSignDangerView dataHex={clear.message.payload} />;
     }
-    if (isPersonalSign && params?.[0]) {
-      return <MessageSignView hexMsg={params[0]} requestOrigin={dappInfo?.url ?? incomingRequest.origin} />;
+    if (clear.surface === 'message_sign' && clear.message) {
+      return (
+        <MessageSignView
+          view={clear.message}
+          requestOrigin={dappInfo?.url ?? incomingRequest.origin}
+        />
+      );
     }
-    if (isTypedData && params) {
-      return <BlindTypedDataView params={params} />;
+    if (clear.surface === 'blind_typed_data' && clear.blindTyped) {
+      return <BlindTypedDataView view={clear.blindTyped} />;
     }
-    if (isTx && params?.[0]) {
+    if (clear.surface === 'blind_transaction' && params?.[0]) {
       return <BlindTransactionView tx={params[0]} chainId={chainId} simConfident={simConfident} nativeUsdPrice={nativeUsdPrice} />;
     }
     return (
@@ -486,28 +538,26 @@ export function SigningSheet({
     );
   };
 
-  // Button config — keep label short (max ~15 chars)
+  // Button config — keep label short (max ~15 chars). The SEMANTICS come from
+  // the two machines (`guard.editor.choice`, `clear.confirm`); only the words
+  // and the "does the localized intent still fit?" measurement live here — the
+  // 14+ translation catalogues never enter wasm.
   const buttonLabel = (): string => {
     if (isSigning) return t('componentsUi.signing.signing');
     if (approval?.editable) {
-      return approveChoice?.type === 'revoke'
+      return guard.editor?.choice?.type === 'revoke'
         ? t('componentsUi.signingApprove.verbRevoke')
         : t('componentsUi.signingApprove.verbApprove');
     }
-    if (clearSign) {
-      if (clearSign.type === 'signature') return t('componentsUi.signing.signLabel');
+    // A batch is the approval guard's surface; its confirm reads neutrally.
+    if (isBatch) return t('componentsUi.signing.confirmLabel');
+    if (clear.confirm.type === 'sign') return t('componentsUi.signing.signLabel');
+    if (clear.confirm.type === 'confirm_intent') {
       // Localize the descriptor intent so the button reads "确认兑换", never
       // "确认Swap"/"确认Send". Long or unrecognized intents → neutral "确认".
-      const li = localizeIntent(clearSign.intent);
+      const li = localizeIntent(clear.confirm.intent);
       if (!li || li.length > 12) return t('componentsUi.signing.confirmLabel');
       return t('componentsUi.signing.confirmIntentLabel', { intent: li });
-    }
-    if (isPersonalSign || isTypedData) return t('componentsUi.signing.signLabel');
-    if (isBatch) return t('componentsUi.signing.confirmLabel');
-    // A plain native send (value, no calldata) reads as "Confirm Send", matching the
-    // eyebrow — same as the decoded ERC-20 transfer.
-    if (isTx && (!params?.[0]?.data || params[0].data === '0x')) {
-      return t('componentsUi.signing.confirmIntentLabel', { intent: localizeIntent('send') });
     }
     // Catch-all (blind contract call, eth_sign): a neutral "确认", never "授权" —
     // that verb belongs only to an actual token approval.
@@ -521,33 +571,11 @@ export function SigningSheet({
 
   const confirm = () => {
     hapticLight(); // tactile acknowledgement the moment the user commits to signing
-    // For an edited approval, re-encode to the chosen finite amount BEFORE submit.
-    // The independent guard re-checks at the submit chokepoint, so a rewrite
-    // failure fails closed (never unbounded).
-    let paramsOverride: any[] | undefined;
-    if (approval?.editable && approveChoice) {
-      try { paramsOverride = rewriteApprovalParams(method, params, approval, approveChoice); }
-      catch { paramsOverride = undefined; }
-    } else if (isBatch && batch && Array.isArray(params?.[0]?.calls)) {
-      // Re-encode each approval leg the user capped/revoked, rebuilding the calls
-      // array. The per-leg submit guard re-checks each call, so an un-rewritten
-      // unbounded leg still fails closed.
-      const calls = params[0].calls;
-      let changed = false;
-      const newCalls = calls.map((c: any, i: number) => {
-        const ap = batch[i]?.approval;
-        const choice = batchChoices[i];
-        if (ap?.editable && choice) {
-          try {
-            const [rw] = rewriteApprovalParams('eth_sendTransaction', [{ to: c.to, data: c.data, value: c.value }], ap, choice);
-            changed = true;
-            return { ...c, data: rw.data };
-          } catch { return c; }
-        }
-        return c;
-      });
-      if (changed) paramsOverride = [{ ...params[0], calls: newCalls }, ...params.slice(1)];
-    }
+    // For an edited approval the guard already re-encoded the request to the
+    // chosen finite amount (single tx AND every batch leg); a rewrite failure
+    // yields no override, so the untouched params still hit the independent
+    // submit guard and fail closed (never unbounded).
+    const paramsOverride: any[] | undefined = guard.rewrittenParams ?? undefined;
     onApprove({
       maxFeePerGas: feeEstimate?.maxFeePerGas,
       // Raw bundler cost (tier markup removed) drives the funding pre-check.
@@ -573,19 +601,20 @@ export function SigningSheet({
     });
   };
 
+  // Two gates, ANDed exactly as `SignView.confirm_gate_open` documents:
+  // the signing machine's own (a reviewable request, the granted account
+  // reconciled, nothing in flight) and the approval guard's (no editable
+  // approval left un-chosen, no batch leg left unsettled).
   const confirmDisabled =
     resolving
     || (isTx && (estimatingGas || gasEstimateFailed))
     || ((isTx || isBatch) && feeBusy)
-    || (!!approval?.editable && !approveChoice)
-    // Every granting batch leg must be capped/revoked (or its grant deliberately
-    // chosen) before the bundle can be confirmed — mirrors the single-tx rule.
-    || (isBatch && (batch?.some((it, i) => legNeedsChoice(it.approval, batchChoices[i])) ?? false));
+    || !guard.confirmAllowed
+    || !confirmGateOpen;
 
-  // Simulation result + the decoded hero's asset flows — shared by the loud
+  // The decoded hero's asset flows — paired with `simResult` above by the loud
   // BalanceChangePreview (unexpected changes / reverts) and the quiet factual
   // "模拟结果" row now shown inside 技术细节 instead of a green promise up top.
-  const simResult = simOverride ?? (readOnly ? replaySim : sim);
   const heroFlows: { token?: string; dir: 'out' | 'in' }[] =
     (approval || isBatch)
       ? []

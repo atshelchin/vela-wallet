@@ -108,6 +108,13 @@ export interface DAppConnectionContextValue {
   signError: string | null;
   /** UserOp hash once a tx is submitted, while awaiting the on-chain receipt. */
   pendingOpHash: string | null;
+  /**
+   * The signing machine's own approval gate: a reviewable request, the granted
+   * account reconciled, nothing in flight. The sheet ANDs it with the approval
+   * guard's `confirm_allowed` — that AND is the whole confirm gate
+   * (`SignView.confirm_gate_open`'s stated contract).
+   */
+  confirmGateOpen: boolean;
   /** Current chain ID for the bridge connection. */
   chainId: number;
   /** Which transport is active. */
@@ -166,6 +173,7 @@ export const DAppConnectionContext = createContext<DAppConnectionContextValue>({
   isSubmitting: false,
   signError: null,
   pendingOpHash: null,
+  confirmGateOpen: false,
   chainId: 1,
   connectionType: null,
   pendingFingerprint: null,

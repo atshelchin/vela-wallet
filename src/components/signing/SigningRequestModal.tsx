@@ -12,6 +12,7 @@ import { SigningSheet } from './SigningSheet';
 export function SigningRequestModal() {
   const {
     incomingRequest, isSigning, isSubmitting, signError, pendingOpHash, chainId, dappInfo,
+    confirmGateOpen,
     approveRequest, rejectRequest, dismissRequest,
     fundingNeeded, handleFundingComplete, handleFundingCancel,
   } = useDAppConnection();
@@ -61,6 +62,7 @@ export function SigningRequestModal() {
           isSigning={isSigning}
           signError={signError}
           pendingOpHash={pendingOpHash}
+          confirmGateOpen={confirmGateOpen}
           onApprove={approveRequest}
           onReject={rejectRequest}
           onDismiss={dismissRequest}

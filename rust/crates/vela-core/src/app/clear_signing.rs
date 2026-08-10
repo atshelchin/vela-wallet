@@ -471,6 +471,11 @@ pub enum ClearSignMethod {
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ClearSiweFields"))]
 pub struct ClearSiweFields {
     pub domain: String,
+    /// The lowercased host the binding was actually COMPARED on (`siweHost`),
+    /// or `None` when the authority is unparseable. The domain row renders this
+    /// so the string on screen is the string that was adjudicated — showing a
+    /// prettier one than the check ran against is how a lookalike slips past.
+    pub domain_host: Option<String>,
     pub address: Option<String>,
     pub statement: Option<String>,
     pub uri: Option<String>,
@@ -506,6 +511,11 @@ pub enum ClearDangerClass {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ClearMessageView"))]
 pub struct ClearMessageView {
+    /// The param this method actually signs, already chosen (inventory ⑩):
+    /// `params[0]` for `personal_sign`, `params[1]` for `eth_sign` — falling
+    /// back to `params[0]` for a malformed single-param `eth_sign`. The
+    /// `eth_sign` surface renders this string verbatim as the opaque digest.
+    pub payload: String,
     /// The single `isHexPayload` predicate both display and signer branch on.
     pub is_hex: bool,
     /// Readable text (hex-decoded UTF-8, or the verbatim non-hex payload).
@@ -517,6 +527,87 @@ pub struct ClearMessageView {
     pub siwe: Option<ClearSiweFields>,
     pub binding: Option<ClearSiweBinding>,
     pub danger_class: ClearDangerClass,
+}
+
+// ---------------------------------------------------------------------------
+// Wire value types — blind typed data (EIP-712 with no descriptor)
+// ---------------------------------------------------------------------------
+
+/// One raw `message` entry of an undecodable EIP-712 payload, already rendered
+/// to the single line the sheet shows (`BlindTypedDataView.formatBlindValue`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ClearBlindField"))]
+pub struct ClearBlindField {
+    pub key: String,
+    pub value: String,
+}
+
+/// The blind typed-data projection (`BlindTypedDataView.parseTypedDataForDisplay`,
+/// inventory ㉓). Computed for EVERY typed-data request the moment it is
+/// presented — it is a pure read of the untrusted payload, and the sheet only
+/// reaches for it once resolution has concluded with no descriptor.
+///
+/// Deliberately NOT reinterpreted: no decimals, no timestamp guessing. The
+/// descriptor is unknown, so an honest raw value beats a confident wrong one.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ClearBlindTyped"))]
+pub struct ClearBlindTyped {
+    pub primary_type: Option<String>,
+    /// `domain` is present and truthy — the "signing for" bar renders.
+    pub has_domain: bool,
+    pub domain_name: Option<String>,
+    /// `domain.verifyingContract`, lowercased.
+    pub verifying_contract: Option<String>,
+    /// The first five `message` entries, in payload order.
+    pub fields: Vec<ClearBlindField>,
+}
+
+// ---------------------------------------------------------------------------
+// Wire value types — sheet dispatch (inventory ⑨ and ㉔)
+// ---------------------------------------------------------------------------
+
+/// Which surface this machine's slice of the sheet dispatch order resolves to
+/// (`SigningSheet.tsx:407-487`).
+///
+/// The full order is `typed permit → editable approval → LOADING → CLEAR SIGN →
+/// batch → ETH_SIGN → MESSAGE → BLIND TYPED → BLIND TX`; the two approval
+/// surfaces and the batch list belong to `approval_guard`, so the sheet
+/// interleaves exactly two verdicts and decides nothing itself. Everything
+/// upper-cased above is decided here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ClearSurface"))]
+pub enum ClearSurface {
+    /// Nothing presented (or a method this machine does not adjudicate) — the
+    /// sheet's shield fallback.
+    None,
+    /// A descriptor is resolving. Holds the sheet: a blind view must never
+    /// flash before the clear one (invariant ⑦).
+    Loading,
+    ClearSign,
+    /// `eth_sign` — the hard-warning surface, never the calm message view.
+    EthSign,
+    MessageSign,
+    BlindTypedData,
+    BlindTransaction,
+}
+
+/// The SEMANTICS of the confirm button (inventory ㉔). The words stay in the
+/// shell — 14+ locales never enter wasm (011) — and so does the "the localized
+/// intent is too long to fit" measurement, which is a property of the
+/// translated string, not of the request.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ClearConfirm"))]
+pub enum ClearConfirm {
+    /// A pure signature — "Sign".
+    Sign,
+    /// Neutral "Confirm". Never "Approve": that verb belongs only to an actual
+    /// token approval, which is `approval_guard`'s surface.
+    Confirm,
+    /// "Confirm {intent}" — the descriptor intent (or `send` for a plain native
+    /// transfer) travels as the canonical English key for the shell to localize.
+    ConfirmIntent { intent: String },
 }
 
 // ---------------------------------------------------------------------------
@@ -546,13 +637,18 @@ pub enum Event {
         #[serde(default)]
         locale: ClearLocale,
     },
-    /// `personal_sign` / `eth_sign` presented. Pure derivation. For
-    /// `eth_sign` the shell passes `params[1]` (falling back to `params[0]`
-    /// for a malformed single-param request — `SigningSheet.tsx:467-470`).
+    /// `personal_sign` / `eth_sign` presented. Pure derivation.
+    ///
+    /// `params` is the JSON-RPC parameter list, string-coerced, VERBATIM: WHICH
+    /// param carries the signed bytes is a rule, not plumbing, so it is decided
+    /// here (`SigningSheet.tsx:467-473`) — `params[0]` for `personal_sign`,
+    /// `params[1]` for `eth_sign(address, data)`, falling back to `params[0]`
+    /// for a malformed single-param `eth_sign`. A shell that picked the wrong
+    /// one would show the ADDRESS where the opaque digest belongs.
     /// `request_origin` is `dappInfo.url ?? request.origin` (F3).
     MessagePresented {
         method: ClearSignMethod,
-        payload: String,
+        params: Vec<String>,
         request_origin: Option<String>,
     },
     /// The sheet closed / the request was replaced with nothing.
@@ -676,6 +772,23 @@ struct Run {
     step: Step,
 }
 
+/// What was last presented. The dispatch order (⑨) and the confirm semantics
+/// (㉔) both need to know WHICH request this is once resolution has finished —
+/// `run` is gone by then and `result` is `None` for every blind outcome.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ReqKind {
+    #[default]
+    None,
+    /// `eth_sendTransaction` with calldata.
+    TxCall,
+    /// `eth_sendTransaction` with no calldata — the plain native transfer that
+    /// reads "Confirm Send", matching its eyebrow.
+    TxPlain,
+    Typed,
+    PersonalSign,
+    EthSign,
+}
+
 #[derive(Default)]
 pub struct Model {
     /// The in-flight resolution — `Some` IS the "resolving" flag the sheet
@@ -685,6 +798,10 @@ pub struct Model {
     resolved: bool,
     result: Option<ClearSignResult>,
     message: Option<ClearMessageView>,
+    /// Survives the run so the surface/confirm verdicts stay decidable.
+    kind: ReqKind,
+    /// The raw EIP-712 projection, held for the blind outcome.
+    blind_typed: Option<ClearBlindTyped>,
     /// path → parsed descriptor (`null` failures are cached too, exactly as
     /// `descriptorCache` does — a 404 shouldn't be re-fetched every render).
     descriptor_cache: BTreeMap<String, Option<Value>>,
@@ -705,10 +822,10 @@ pub struct Model {
 // ViewModel
 // ---------------------------------------------------------------------------
 
-/// The sheet's dispatch inputs, in dispatch order (`SigningSheet.tsx:407-487`):
-/// approval views (approval_guard's domain) → `resolving` loading view →
-/// `result` clear-sign view → method-specific views, with `message`
-/// carrying the personal_sign/eth_sign adjudication.
+/// The sheet's dispatch VERDICTS (`SigningSheet.tsx:407-487`). [`Self::surface`]
+/// already answers "which view", [`Self::confirm`] "which button semantics";
+/// `resolving`/`resolved`/`result`/`message` remain because the surfaces render
+/// from them (and `resolving` also gates the confirm action).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ClearSigningView"))]
 pub struct ClearSigningView {
@@ -716,6 +833,19 @@ pub struct ClearSigningView {
     pub resolved: bool,
     pub result: Option<ClearSignResult>,
     pub message: Option<ClearMessageView>,
+    /// This machine's slice of the dispatch order (⑨).
+    pub surface: ClearSurface,
+    /// Confirm-button semantics (㉔) — words stay in the shell.
+    pub confirm: ClearConfirm,
+    /// The raw EIP-712 projection (㉓); present for every typed-data request.
+    pub blind_typed: Option<ClearBlindTyped>,
+    /// The sheet buzzes a warning on open (⑤ of the haptics rules, inventory ㉑)
+    /// — `eth_sign`, or a SIWE message whose domain does not bind to the
+    /// requesting origin. Computed ONCE here: the haptic and the red banner
+    /// must never be able to disagree (canon ruling above). The unbounded
+    /// approval half of the same buzz is `approval_guard`'s verdict; the sheet
+    /// ORs the two machines' answers and decides nothing.
+    pub danger_haptic: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -747,7 +877,7 @@ impl App for ClearSigning {
             } => start_typed(model, &typed_data_json, chain_id, locale),
             Event::MessagePresented {
                 method,
-                payload,
+                params,
                 request_origin,
             } => {
                 // A new message request supersedes any in-flight resolution.
@@ -755,6 +885,20 @@ impl App for ClearSigning {
                 model.run = None;
                 model.resolved = false;
                 model.result = None;
+                model.blind_typed = None;
+                model.kind = match method {
+                    ClearSignMethod::PersonalSign => ReqKind::PersonalSign,
+                    ClearSignMethod::EthSign => ReqKind::EthSign,
+                };
+                // WHICH param carries the signed bytes is decided here (⑩).
+                let payload = match method {
+                    ClearSignMethod::PersonalSign => params.first(),
+                    // `eth_sign(address, data)` — `params[0]` only for a
+                    // malformed single-param request.
+                    ClearSignMethod::EthSign => params.get(1).or_else(|| params.first()),
+                }
+                .cloned()
+                .unwrap_or_default();
                 model.message = Some(analyze_message(method, &payload, request_origin.as_deref()));
                 render()
             }
@@ -764,6 +908,8 @@ impl App for ClearSigning {
                 model.resolved = false;
                 model.result = None;
                 model.message = None;
+                model.blind_typed = None;
+                model.kind = ReqKind::None;
                 render()
             }
             Event::ShellCompleted { attempt, result } => {
@@ -786,7 +932,64 @@ impl App for ClearSigning {
             resolved: model.resolved,
             result: model.result.clone(),
             message: model.message.clone(),
+            surface: surface_of(model),
+            confirm: confirm_of(model),
+            blind_typed: model.blind_typed.clone(),
+            danger_haptic: matches!(
+                model.message.as_ref().map(|m| m.danger_class),
+                Some(ClearDangerClass::EthSign) | Some(ClearDangerClass::SiwePhish)
+            ),
         }
+    }
+}
+
+/// The dispatch verdict (⑨). Resolution ALWAYS outranks a blind surface — the
+/// sheet must never flash a red "Unknown" that a descriptor is about to replace.
+fn surface_of(model: &Model) -> ClearSurface {
+    if model.run.is_some() {
+        return ClearSurface::Loading;
+    }
+    match model.kind {
+        ReqKind::None => ClearSurface::None,
+        ReqKind::EthSign => ClearSurface::EthSign,
+        ReqKind::PersonalSign => ClearSurface::MessageSign,
+        ReqKind::TxCall | ReqKind::TxPlain => {
+            if model.result.is_some() {
+                ClearSurface::ClearSign
+            } else {
+                ClearSurface::BlindTransaction
+            }
+        }
+        ReqKind::Typed => {
+            if model.result.is_some() {
+                ClearSurface::ClearSign
+            } else {
+                ClearSurface::BlindTypedData
+            }
+        }
+    }
+}
+
+/// Confirm-button semantics (㉔), in the order `buttonLabel()` reads them.
+fn confirm_of(model: &Model) -> ClearConfirm {
+    if let Some(result) = &model.result {
+        return match result.sign_type {
+            ClearSignType::Signature => ClearConfirm::Sign,
+            ClearSignType::Transaction => ClearConfirm::ConfirmIntent {
+                intent: result.intent.clone(),
+            },
+        };
+    }
+    match model.kind {
+        ReqKind::PersonalSign | ReqKind::Typed => ClearConfirm::Sign,
+        // A plain native send reads "Confirm Send", matching its eyebrow —
+        // the same sentence the decoded ERC-20 transfer gets.
+        ReqKind::TxPlain => ClearConfirm::ConfirmIntent {
+            intent: "send".to_owned(),
+        },
+        // Blind contract call, `eth_sign`, nothing presented: a neutral
+        // "Confirm", never "Approve".
+        ReqKind::TxCall | ReqKind::EthSign | ReqKind::None => ClearConfirm::Confirm,
     }
 }
 
@@ -807,10 +1010,13 @@ fn start_tx(
     model.resolved = false;
     model.result = None;
     model.message = None;
+    model.blind_typed = None;
+    model.kind = ReqKind::TxCall;
 
     let data = data.unwrap_or_default();
     if data.is_empty() || data == "0x" {
         // Plain ETH transfer — the modal shows its native transfer UI.
+        model.kind = ReqKind::TxPlain;
         model.resolved = true;
         return render();
     }
@@ -854,13 +1060,20 @@ fn start_typed(
     model.resolved = false;
     model.result = None;
     model.message = None;
+    model.kind = ReqKind::Typed;
 
     let Ok(typed) = serde_json::from_str::<Value>(typed_data_json) else {
         // Untrusted JSON that doesn't parse resolves blind, exactly as the
-        // sheet's try/catch does.
+        // sheet's try/catch does — and the blind surface shows nothing, exactly
+        // as `parseTypedDataForDisplay`'s own catch does.
+        model.blind_typed = Some(ClearBlindTyped::empty());
         model.resolved = true;
         return render();
     };
+    // The raw projection is computed for EVERY typed request, up front: the
+    // blind surface needs it whichever way the pipeline ends, and it is a pure
+    // read of the payload the shell already holds.
+    model.blind_typed = Some(project_blind_typed(typed_data_json));
     if typed
         .get("domain")
         .and_then(|d| d.get("verifyingContract"))
@@ -2873,6 +3086,333 @@ fn contains_any(haystack: &str, needles: &[&str]) -> bool {
 }
 
 // ---------------------------------------------------------------------------
+// Blind typed data (BlindTypedDataView.parseTypedDataForDisplay, ㉓)
+// ---------------------------------------------------------------------------
+
+/// A JSON value that remembers the order its keys were WRITTEN in.
+///
+/// `serde_json::Map` is a `BTreeMap` here (no `preserve_order`), which would
+/// alphabetise both the rows an EIP-712 payload declared in a meaningful order
+/// and the keys inside a nested struct rendered as JSON. `Object.entries` and
+/// `JSON.stringify` do neither, and neither may we: the first five entries are
+/// what the user reads (so re-ordering changes WHICH five are shown), and a
+/// re-ordered nested struct is a visibly different line on a security surface.
+enum OrderedValue {
+    /// null / bool / number / string.
+    Scalar(Value),
+    Array(Vec<OrderedValue>),
+    Object(Vec<(String, OrderedValue)>),
+}
+
+impl OrderedValue {
+    fn is_container(&self) -> bool {
+        matches!(self, OrderedValue::Array(_) | OrderedValue::Object(_))
+    }
+
+    /// `JSON.stringify` for this value: compact, insertion-ordered, and with
+    /// numbers printed the way JavaScript prints them.
+    fn to_json(&self) -> String {
+        let mut out = String::new();
+        self.write_json(&mut out);
+        out
+    }
+
+    fn write_json(&self, out: &mut String) {
+        match self {
+            OrderedValue::Scalar(Value::Number(n)) => {
+                out.push_str(&n.as_f64().map(js_number_to_string).unwrap_or_default());
+            }
+            OrderedValue::Scalar(value) => {
+                out.push_str(&serde_json::to_string(value).unwrap_or_default());
+            }
+            OrderedValue::Array(items) => {
+                out.push('[');
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    item.write_json(out);
+                }
+                out.push(']');
+            }
+            OrderedValue::Object(entries) => {
+                out.push('{');
+                for (i, (key, value)) in entries.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    out.push_str(&serde_json::to_string(key).unwrap_or_default());
+                    out.push(':');
+                    value.write_json(out);
+                }
+                out.push('}');
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for OrderedValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visit;
+        impl<'de> serde::de::Visitor<'de> for Visit {
+            type Value = OrderedValue;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("any JSON value")
+            }
+            fn visit_unit<E>(self) -> Result<OrderedValue, E> {
+                Ok(OrderedValue::Scalar(Value::Null))
+            }
+            fn visit_none<E>(self) -> Result<OrderedValue, E> {
+                Ok(OrderedValue::Scalar(Value::Null))
+            }
+            fn visit_some<D2>(self, d: D2) -> Result<OrderedValue, D2::Error>
+            where
+                D2: serde::Deserializer<'de>,
+            {
+                OrderedValue::deserialize(d)
+            }
+            fn visit_bool<E>(self, v: bool) -> Result<OrderedValue, E> {
+                Ok(OrderedValue::Scalar(Value::Bool(v)))
+            }
+            fn visit_i64<E>(self, v: i64) -> Result<OrderedValue, E> {
+                Ok(OrderedValue::Scalar(Value::from(v)))
+            }
+            fn visit_u64<E>(self, v: u64) -> Result<OrderedValue, E> {
+                Ok(OrderedValue::Scalar(Value::from(v)))
+            }
+            fn visit_f64<E>(self, v: f64) -> Result<OrderedValue, E> {
+                Ok(OrderedValue::Scalar(Value::from(v)))
+            }
+            fn visit_str<E>(self, v: &str) -> Result<OrderedValue, E> {
+                Ok(OrderedValue::Scalar(Value::from(v)))
+            }
+            fn visit_seq<A>(self, mut seq: A) -> Result<OrderedValue, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let mut out = Vec::new();
+                while let Some(item) = seq.next_element::<OrderedValue>()? {
+                    out.push(item);
+                }
+                Ok(OrderedValue::Array(out))
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<OrderedValue, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut out = Vec::new();
+                while let Some(entry) = map.next_entry::<String, OrderedValue>()? {
+                    out.push(entry);
+                }
+                Ok(OrderedValue::Object(out))
+            }
+        }
+        deserializer.deserialize_any(Visit)
+    }
+}
+
+/// `message`'s own entries, in payload order.
+struct OrderedEntries(Vec<(String, OrderedValue)>);
+
+impl<'de> Deserialize<'de> for OrderedEntries {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visit;
+        impl<'de> serde::de::Visitor<'de> for Visit {
+            type Value = OrderedEntries;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a JSON object")
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<OrderedEntries, A::Error>
+            where
+                A: serde::de::MapAccess<'de>,
+            {
+                let mut out = Vec::new();
+                while let Some(entry) = map.next_entry::<String, OrderedValue>()? {
+                    out.push(entry);
+                }
+                Ok(OrderedEntries(out))
+            }
+        }
+        deserializer.deserialize_map(Visit)
+    }
+}
+
+/// `message` may be anything at all — it is untrusted. Only an object has
+/// entries to show; everything else renders no rows, as `Object.entries` on a
+/// non-object yields nothing the view can label.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum MessageRaw {
+    Ordered(OrderedEntries),
+    Other(#[allow(dead_code)] Value),
+}
+
+#[derive(Deserialize)]
+struct TypedRaw {
+    #[serde(default, rename = "primaryType")]
+    primary_type: Option<Value>,
+    #[serde(default)]
+    domain: Option<Value>,
+    #[serde(default)]
+    message: Option<MessageRaw>,
+}
+
+impl ClearBlindTyped {
+    fn empty() -> Self {
+        ClearBlindTyped {
+            primary_type: None,
+            has_domain: false,
+            domain_name: None,
+            verifying_contract: None,
+            fields: Vec::new(),
+        }
+    }
+}
+
+/// How many `message` rows the blind surface shows (`slice(0, 5)`).
+const BLIND_FIELD_LIMIT: usize = 5;
+/// `formatBlindValue`'s cap (`slice(0, 60)`).
+const BLIND_VALUE_LIMIT: usize = 60;
+
+fn project_blind_typed(typed_data_json: &str) -> ClearBlindTyped {
+    let Ok(raw) = serde_json::from_str::<TypedRaw>(typed_data_json) else {
+        // Valid JSON that isn't an object — nothing to project, exactly as
+        // `data?.primaryType` / `data?.domain` read `undefined`.
+        return ClearBlindTyped::empty();
+    };
+    let domain = raw.domain.filter(is_truthy);
+    ClearBlindTyped {
+        primary_type: raw.primary_type.filter(is_truthy).as_ref().map(js_scalar_string),
+        has_domain: domain.is_some(),
+        domain_name: domain
+            .as_ref()
+            .and_then(|d| d.get("name"))
+            .filter(|v| is_truthy(v))
+            .map(js_scalar_string),
+        // `.toLowerCase()` is only reachable on a string; anything else is no
+        // address at all rather than a coerced one.
+        verifying_contract: domain
+            .as_ref()
+            .and_then(|d| d.get("verifyingContract"))
+            .and_then(Value::as_str)
+            .map(str::to_lowercase),
+        fields: match raw.message {
+            Some(MessageRaw::Ordered(entries)) => entries
+                .0
+                .into_iter()
+                .take(BLIND_FIELD_LIMIT)
+                .map(|(key, value)| ClearBlindField {
+                    key,
+                    value: format_blind_value(&value),
+                })
+                .collect(),
+            _ => Vec::new(),
+        },
+    }
+}
+
+/// JavaScript truthiness — `{domain && …}` / `{primaryType && …}`.
+fn is_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(b) => *b,
+        Value::Number(n) => n.as_f64().is_some_and(|f| f != 0.0 && !f.is_nan()),
+        Value::String(s) => !s.is_empty(),
+        Value::Array(_) | Value::Object(_) => true,
+    }
+}
+
+/// One raw typed-data value on a single line (`formatBlindValue`). A long hex
+/// blob is mid-truncated so it never wraps into a two-line hex wall.
+fn format_blind_value(value: &OrderedValue) -> String {
+    if value.is_container() {
+        return take_chars(&value.to_json(), 0, BLIND_VALUE_LIMIT);
+    }
+    let OrderedValue::Scalar(value) = value else {
+        unreachable!("containers handled above");
+    };
+    let s = js_scalar_string(value);
+    if is_long_hex_word(&s) {
+        let bytes = s.as_bytes();
+        let head = &s[..10];
+        let tail = std::str::from_utf8(&bytes[bytes.len() - 8..]).unwrap_or("");
+        return format!("{head}…{tail}");
+    }
+    take_chars(&s, 0, BLIND_VALUE_LIMIT)
+}
+
+/// `/^0x[0-9a-fA-F]{21,}$/` — an address / salt / bytes blob.
+fn is_long_hex_word(s: &str) -> bool {
+    let Some(body) = s.strip_prefix("0x") else {
+        return false;
+    };
+    body.len() >= 21 && body.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+/// `String(v)` for a JSON scalar.
+fn js_scalar_string(value: &Value) -> String {
+    match value {
+        Value::Null => "null".to_owned(),
+        Value::Bool(true) => "true".to_owned(),
+        Value::Bool(false) => "false".to_owned(),
+        Value::String(s) => s.clone(),
+        Value::Number(n) => n.as_f64().map(js_number_to_string).unwrap_or_default(),
+        // Unreachable from `format_blind_value`; JSON is the honest rendering.
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
+/// ECMAScript `Number::toString` (radix 10). `serde_json` would print `1e21`
+/// as `1000000000000000000000` and `100.0` for an integral float; JS prints
+/// `1e+21` and `100`. This is a displayed value on a signing surface, so it
+/// matches the engine that produced today's screen, digit for digit.
+fn js_number_to_string(f: f64) -> String {
+    if f.is_nan() {
+        return "NaN".to_owned();
+    }
+    if f.is_infinite() {
+        return if f > 0.0 { "Infinity" } else { "-Infinity" }.to_owned();
+    }
+    if f == 0.0 {
+        return "0".to_owned();
+    }
+    let sign = if f < 0.0 { "-" } else { "" };
+    // `{:e}` is the shortest round-trip form: "1e21", "1.5e-7", "1.234e2".
+    let repr = format!("{:e}", f.abs());
+    let (mantissa, exponent) = match repr.split_once('e') {
+        Some(parts) => parts,
+        None => return format!("{sign}{repr}"),
+    };
+    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
+    let k = digits.len() as i32;
+    let n = exponent.parse::<i32>().unwrap_or(0) + 1;
+
+    let body = if k <= n && n <= 21 {
+        // Digits, then n−k zeros.
+        format!("{digits}{}", "0".repeat((n - k) as usize))
+    } else if 0 < n && n <= 21 {
+        format!("{}.{}", &digits[..n as usize], &digits[n as usize..])
+    } else if -6 < n && n <= 0 {
+        format!("0.{}{digits}", "0".repeat((-n) as usize))
+    } else {
+        let e = n - 1;
+        let esign = if e >= 0 { "+" } else { "-" };
+        if k == 1 {
+            format!("{digits}e{esign}{}", e.abs())
+        } else {
+            format!("{}.{}e{esign}{}", &digits[..1], &digits[1..], e.abs())
+        }
+    };
+    format!("{sign}{body}")
+}
+
+// ---------------------------------------------------------------------------
 // personal_sign / eth_sign analysis (decode-sign-message.ts + siwe.ts)
 // ---------------------------------------------------------------------------
 
@@ -2891,6 +3431,7 @@ fn analyze_message(
     if method == ClearSignMethod::EthSign {
         // The classic blind-sign trap — hard warning, no message analysis.
         return ClearMessageView {
+            payload: payload.to_owned(),
             is_hex,
             decoded_text,
             binary_preview,
@@ -2913,6 +3454,7 @@ fn analyze_message(
     };
 
     ClearMessageView {
+        payload: payload.to_owned(),
         is_hex,
         decoded_text,
         binary_preview,
@@ -3013,6 +3555,7 @@ fn parse_siwe(message: &str) -> Option<ClearSiweFields> {
 
     let mut out = ClearSiweFields {
         domain: domain.to_owned(),
+        domain_host: siwe_host(Some(domain)),
         address: None,
         statement: None,
         uri: None,

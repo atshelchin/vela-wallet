@@ -87,8 +87,20 @@ test('an unlimited ERC-20 approve surfaces the spending-cap editor', async () =>
 test('a genuinely blind transaction shows the Unknown / blind-sign warning', async () => {
   const sc = CLEAR_SIGNING_SCENARIOS.find((s) => s.id === 'blind-tx')!;
   await request(dapp, sc.request.method, sc.request.params, async () => {
+    // The blind surface adapts (b968190/f4eb833): with a confident simulation it
+    // reads calm ("Contract interaction" + "couldn't read this contract's details"),
+    // without one it stays the red "Unknown" + "Unable to decode", and a 4-byte match
+    // downgrades to the best-effort caution. clear-signing.spec.ts:219 was widened for
+    // this at the time; this parallel copy was missed, and kept passing only because
+    // the pre-crux sheet flashed the red variant for ~200ms before the simulation
+    // landed — this assertion caught that transient in 83ms rather than the end state.
+    // The crux sheet resolves through surface:'loading' instead of flashing a warning
+    // it may immediately retract, so the flash is gone; the settled surface is
+    // byte-identical to the pre-crux one (verified against bfcbab3 at 300ms/1s/3s).
+    // Assert whichever variant the live resolution produced — all three carry the
+    // not-verified warning.
     await expect(
-      wallet.getByText(/Unknown|Unable to decode|blind|not.*decoded|Decoded from the function signature/i)
+      wallet.getByText(/Unknown|Unable to decode|blind|not.*decoded|Decoded from the function signature|couldn't read this contract's details/i)
         .filter({ visible: true }).first(),
     ).toBeVisible({ timeout: 20_000 });
     await rejectSheet(wallet);

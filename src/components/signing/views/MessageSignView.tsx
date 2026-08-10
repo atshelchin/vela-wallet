@@ -1,63 +1,55 @@
 /**
  * Message Sign View (personal_sign) — plain message + SIWE domain binding.
+ *
+ * Pure rendering. The hex-vs-text split, the decode and the SIWE domain binding
+ * are ONE adjudication made upstream (`use-clear-signing`), which is also what
+ * decides whether the sheet buzzes on open — so the warning haptic and the red
+ * banner below can never disagree.
+ *
+ * This view used to run a second DECODE of its own — an ASCII-only regex over
+ * the raw payload — so a payload could be shown as readable text by one rule and
+ * called unreadable by the other. That second decode is gone. What survives is
+ * the caution banner's verdict, and it is now a pure function OF the core's
+ * projection (`isPossibleDisguisedTransaction`), not of the raw payload: one
+ * decode, two questions asked of it.
  */
-import React, { useMemo } from 'react';
+import React from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { color } from '@/constants/theme';
-import { parseSiwe, checkSiweDomainBinding, siweHost, type SiweBinding } from '@/services/siwe';
+import type { ClearMessageView } from '@/services/wallet-state-core/generated/ClearMessageView';
+import { isPossibleDisguisedTransaction } from '@/services/decode-sign-message';
 import { ShieldCheck } from 'lucide-react-native';
 import { styles, riskColors } from '../signing-core';
 import { IntentHeader } from '../IntentHeader';
 import { WarningBanner } from '../WarningBanner';
-// Unicode-aware decoder (issue #82) — a re-export so SigningSheet keeps importing
-// `decodePersonalMessage` from this view, but the logic lives in one shared module
-// (emoji / CJK / accents decode as text instead of falling back to raw hex).
-export { decodePersonalMessage } from '@/services/decode-sign-message';
-import { decodePersonalMessage } from '@/services/decode-sign-message';
 
-export function MessageSignView({ hexMsg, requestOrigin }: {
-  hexMsg: string;
+export function MessageSignView({ view, requestOrigin }: {
+  /** The adjudication: decoded text, SIWE fields, domain binding, danger class. */
+  view: ClearMessageView;
   requestOrigin?: string;
 }) {
   const { t } = useTranslation();
-  const decoded = decodePersonalMessage(hexMsg);
-
-  // Non-printable hex isn't a human message — it can be a disguised hash (a transfer
-  // or approval hidden behind personal_sign). Legit apps sign readable text; flag the
-  // hex case so it never reads as calmly as a login prompt (F9).
-  const nonPrintable = useMemo(() => {
-    try {
-      const clean = hexMsg.startsWith('0x') ? hexMsg.slice(2) : hexMsg;
-      if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length < 2) return false;
-      const bytes = new Uint8Array(clean.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)));
-      return !/^[\x20-\x7E\n\r\t]+$/.test(new TextDecoder().decode(bytes));
-    } catch { return false; }
-  }, [hexMsg]);
-
-  // Sign-In with Ethereum: bind the domain inside the message to the request
-  // origin. A mismatch is the canonical phishing pattern.
-  const siwe = useMemo(() => parseSiwe(decoded), [decoded]);
-  const binding: SiweBinding | null = useMemo(
-    () => (siwe ? checkSiweDomainBinding(siwe.domain, requestOrigin) : null),
-    [siwe, requestOrigin],
-  );
+  const siwe = view.siwe;
+  const phishing = view.danger_class === 'siwe_phish';
 
   if (siwe) {
     return (
       <View>
         <IntentHeader
           intent={t('componentsUi.signing.signInIntent')}
-          color={binding === 'mismatch' ? color.error.base : color.fg.base}
+          color={phishing ? color.error.base : color.fg.base}
           variant="eyebrow"
-          colorEyebrow={binding === 'mismatch'}
+          colorEyebrow={phishing}
         />
 
         <View style={styles.genericFields}>
           <View style={styles.genRow}>
             <Text style={styles.contractLabel}>{t('componentsUi.signing.siweDomain')}</Text>
-            <Text style={[styles.genValue, binding === 'mismatch' && { color: riskColors().danger }]} numberOfLines={1}>
-              {siweHost(siwe.domain) ?? siwe.domain}
+            {/* The host the binding was COMPARED on — never a prettier one than
+                the check ran against. */}
+            <Text style={[styles.genValue, phishing && { color: riskColors().danger }]} numberOfLines={1}>
+              {siwe.domain_host ?? siwe.domain}
             </Text>
           </View>
           {!!siwe.statement && (
@@ -68,13 +60,15 @@ export function MessageSignView({ hexMsg, requestOrigin }: {
           )}
         </View>
 
-        {binding === 'mismatch' && (
+        {phishing && (
           <WarningBanner
             severity="danger"
             text={t('componentsUi.signing.siweMismatch', { domain: siwe.domain, origin: hostLabel(requestOrigin) })}
           />
         )}
-        {binding === 'ok' && (
+        {/* The verified badge renders only on a POSITIVE match: an origin we
+            couldn't parse is "unknown", and unknown must never assert safety. */}
+        {view.binding === 'ok' && (
           <View style={styles.siweOkRow}>
             <ShieldCheck size={13} color={color.success.base} strokeWidth={2} />
             <Text style={styles.siweOkText}>{t('componentsUi.signing.siweOk', { domain: siwe.domain })}</Text>
@@ -90,12 +84,19 @@ export function MessageSignView({ hexMsg, requestOrigin }: {
       <IntentHeader intent={t('componentsUi.signing.signMessage')} color={color.fg.base} variant="eyebrow" />
 
       {/* Just the message — the "personal_sign · no gas fee" tag was redundant noise
-          (a signature obviously costs no gas). */}
+          (a signature obviously costs no gas). Readable text verbatim; a genuinely
+          binary payload as the short hex preview the decoder produced. */}
       <View style={styles.msgBubble}>
-        <Text style={styles.msgText}>{decoded}</Text>
+        <Text style={styles.msgText}>{view.decoded_text ?? view.binary_preview ?? ''}</Text>
       </View>
 
-      {nonPrintable && (
+      {/* Hex that isn't plain ASCII isn't a human message — it can be a disguised
+          hash (a transfer or approval hidden behind personal_sign). Legit apps
+          sign readable text; flag the hex case so it never reads as calmly as a
+          login prompt (F9). Strictly wider than `view.non_printable` and derived
+          from the same projection, so the banner cannot go missing on a payload
+          the core already calls opaque; a payload signed as TEXT never gets it. */}
+      {isPossibleDisguisedTransaction(view) && (
         <WarningBanner
           severity="caution"
           text={t('componentsUi.signing.hexMessageWarning', {
@@ -117,4 +118,3 @@ function hostLabel(value: string | undefined): string {
     return value;
   }
 }
-

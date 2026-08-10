@@ -4,4 +4,11 @@
  * Parsed EIP-4361 fields (`SiweFields`). `chain_id` wider than u32 is
  * dropped (TS `parseInt` kept a float; no real chain needs it).
  */
-export type ClearSiweFields = { domain: string, address: string | null, statement: string | null, uri: string | null, chain_id: number | null, nonce: string | null, };
+export type ClearSiweFields = { domain: string, 
+/**
+ * The lowercased host the binding was actually COMPARED on (`siweHost`),
+ * or `None` when the authority is unparseable. The domain row renders this
+ * so the string on screen is the string that was adjudicated — showing a
+ * prettier one than the check ran against is how a lookalike slips past.
+ */
+domain_host: string | null, address: string | null, statement: string | null, uri: string | null, chain_id: number | null, nonce: string | null, };

@@ -47,20 +47,110 @@ export function isHexPayload(payload: string): boolean {
   return body.length % 2 === 0 && /^[0-9a-fA-F]*$/.test(body);
 }
 
-export function decodePersonalMessage(hexMsg: string): string {
-  if (!isHexPayload(hexMsg)) return hexMsg; // plain UTF-8 — show it verbatim
+/**
+ * The decode, split into its two outcomes.
+ *
+ * `text` and `binaryPreview` are mutually exclusive, and WHICH one you get is
+ * the canonical "is this a readable message?" verdict — the same predicate the
+ * signer branches on. It is exported because the signing sheet needs the verdict
+ * itself, not just the string: a payload that decoded to a hex preview is a
+ * possible transaction in disguise and must be flagged, while a payload that
+ * decoded to text — emoji, CJK, accents and all — must NOT be
+ * (`MessageSignView` used to run a second, ASCII-only test here and raised a
+ * false alarm on every non-ASCII message).
+ */
+export function decodeSignMessage(hexMsg: string): {
+  isHex: boolean;
+  text: string | null;
+  binaryPreview: string | null;
+} {
+  if (!isHexPayload(hexMsg)) {
+    return { isHex: false, text: hexMsg, binaryPreview: null }; // plain UTF-8 — verbatim
+  }
   try {
     const clean = hexMsg.slice(2);
-    if (clean.length === 0) return '';
+    if (clean.length === 0) return { isHex: true, text: '', binaryPreview: null };
     const bytes = new Uint8Array(clean.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)));
     const decoded = new TextDecoder().decode(bytes); // non-fatal → U+FFFD on invalid bytes
     for (let i = 0; i < decoded.length; i++) {
       if (isBinaryChar(decoded.charCodeAt(i))) {
-        return `0x${clean.slice(0, 64)}${clean.length > 64 ? '...' : ''}`;
+        return {
+          isHex: true,
+          text: null,
+          binaryPreview: `0x${clean.slice(0, 64)}${clean.length > 64 ? '...' : ''}`,
+        };
       }
     }
-    return decoded;
+    return { isHex: true, text: decoded, binaryPreview: null };
   } catch {
-    return hexMsg.slice(0, 66) + (hexMsg.length > 66 ? '...' : '');
+    return {
+      isHex: true,
+      text: null,
+      binaryPreview: hexMsg.slice(0, 66) + (hexMsg.length > 66 ? '...' : ''),
+    };
   }
+}
+
+export function decodePersonalMessage(hexMsg: string): string {
+  const { text, binaryPreview } = decodeSignMessage(hexMsg);
+  return text ?? binaryPreview ?? '';
+}
+
+// ---------------------------------------------------------------------------
+// The "could be a transaction in disguise" verdict (F9 caution banner)
+// ---------------------------------------------------------------------------
+
+/**
+ * Printable ASCII plus the whitespace multi-line text needs (SIWE is multi-line).
+ *
+ * Deliberately a DIFFERENT and weaker bar than `isBinaryChar`: that one answers
+ * "can this be rendered as text at all?", this one answers "is this the plain
+ * ASCII a dApp's login prompt is made of?".
+ */
+const PLAIN_ASCII_TEXT = /^[\x20-\x7E\n\r\t]*$/;
+
+/** Is every character printable ASCII (or tab/newline/CR)? */
+export function isPlainAsciiText(text: string): boolean {
+  return PLAIN_ASCII_TEXT.test(text);
+}
+
+/**
+ * Does this personal_sign payload deserve the F9 caution banner ("this isn't
+ * readable text — it could be a transaction or approval in disguise")?
+ *
+ * TWO different questions live here and conflating them is how the warning got
+ * lost once already:
+ *
+ * 1. *Which string do we SHOW?* — `decodeSignMessage`'s Unicode-aware verdict.
+ *    Emoji / CJK / accents are text and render as text (issue #82).
+ * 2. *Is the payload suspicious?* — THIS predicate, computed from that same
+ *    verdict, never from a second decode. It is strictly weaker: hex-encoded
+ *    bytes that decode to anything outside plain ASCII are flagged even when
+ *    they render perfectly, because a disguised 32-byte hash and a Chinese
+ *    sentence are indistinguishable to a user reading a hex blob, and the
+ *    baseline UI flagged both.
+ *
+ * The gate is `is_hex`, and that is the whole distinction:
+ * - a payload the signer treats as TEXT (not `0x`-prefixed even-length hex) is
+ *   shown verbatim and signed verbatim — CJK, emoji and all — and is never
+ *   flagged. Warning "this isn't readable text" over readable text on screen is
+ *   the false alarm that trains users to ignore the real one.
+ * - a payload the signer treats as BYTES is flagged the moment those bytes are
+ *   not plain ASCII, whether they decoded to a hex preview (`decoded_text` is
+ *   null — the core's `non_printable`) or to non-ASCII text.
+ *
+ * Because the null case is folded in here, this can never be *narrower* than
+ * `non_printable`: the banner cannot go missing while the core calls the
+ * payload opaque.
+ *
+ * Takes the core's own projection, so web (Rust `analyze_message`) and native
+ * (the TS decode above) feed it the identical two fields — there is no second
+ * decode to drift.
+ */
+export function isPossibleDisguisedTransaction(
+  view: { is_hex: boolean; decoded_text: string | null },
+): boolean {
+  if (!view.is_hex) return false;
+  if (view.decoded_text === null) return true; // binary — the core's non_printable
+  return !isPlainAsciiText(view.decoded_text);
 }

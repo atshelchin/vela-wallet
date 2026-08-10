@@ -14,9 +14,9 @@ use serde_json::json;
 use support::DomainDriver;
 use vela_core::abi::compute_selector;
 use vela_core::app::clear_signing::{
-    ClearDangerClass, ClearFieldRole, ClearLocale, ClearOperation as Op, ClearProbe,
-    ClearRisk, ClearShellResult as Res, ClearSignMethod, ClearSignType, ClearSigning,
-    ClearSiweBinding, Event,
+    ClearConfirm, ClearDangerClass, ClearFieldRole, ClearLocale, ClearOperation as Op,
+    ClearProbe, ClearRisk, ClearShellResult as Res, ClearSignMethod, ClearSignType,
+    ClearSigning, ClearSiweBinding, ClearSurface, Event,
 };
 
 type Sut = DomainDriver<ClearSigning>;
@@ -82,7 +82,7 @@ fn message_view(
     let mut sut = Sut::new();
     let ops = sut.dispatch(Event::MessagePresented {
         method,
-        payload: payload.to_owned(),
+        params: vec![payload.to_owned()],
         request_origin: origin.map(str::to_owned),
     });
     assert!(ops.is_empty(), "message analysis is pure — no shell work");
@@ -1383,7 +1383,7 @@ fn message_presented_cancels_inflight_resolution() {
 
     sut.dispatch(Event::MessagePresented {
         method: ClearSignMethod::PersonalSign,
-        payload: text_hex("hello"),
+        params: vec![text_hex("hello")],
         request_origin: None,
     });
     let view = sut.view();
@@ -1418,4 +1418,340 @@ fn cleared_resets_the_surface() {
     assert!(!view.resolved);
     assert!(view.result.is_none());
     assert!(view.message.is_none());
+}
+
+// ---------------------------------------------------------------------------
+// Sheet dispatch verdicts (inventory ⑨, ⑩, ㉑, ㉓, ㉔)
+// ---------------------------------------------------------------------------
+
+/// Deliberately a RAW literal, not `json!`: `serde_json::Map` is a `BTreeMap`
+/// here, so building the fixture through `json!` would alphabetise `message`
+/// before the projection ever saw it — and the ordering is what this asserts.
+fn typed_json() -> &'static str {
+    r#"{
+        "types": {
+            "EIP712Domain": [{ "name": "name", "type": "string" }],
+            "CustomOrder": [{ "name": "maker", "type": "address" }]
+        },
+        "primaryType": "CustomOrder",
+        "domain": { "name": "Unknown Protocol", "verifyingContract": "0x1234567890ABCDEF1234567890abcdef12345678" },
+        "message": {
+            "maker": "0xaF5e8917831Ef08A64e18b2Cde9f8f5D32C7b3e1",
+            "amount": "5000000000000000000",
+            "expiry": "1750000000",
+            "salt": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        }
+    }"#
+}
+
+fn start_typed(sut: &mut Sut, raw: &str) -> Vec<Op> {
+    sut.dispatch(Event::ResolveTypedData {
+        typed_data_json: raw.to_owned(),
+        chain_id: 1,
+        locale: ClearLocale::default(),
+    })
+}
+
+/// ⑨ — a descriptor still resolving holds the sheet on `Loading`. A blind
+/// surface must never flash before the clear one.
+#[test]
+fn surface_holds_loading_until_resolution_concludes() {
+    let mut sut = Sut::new();
+    let transfer = format!("0xa9059cbb{}{}", pad(VITALIK), pad_u128(1_000_000_000));
+    resolve_tx(&mut sut, USDC, &transfer, "0x0");
+    assert_eq!(sut.view().surface, ClearSurface::Loading);
+
+    sut.resolve(Res::DescriptorFetched {
+        path: format!("/erc7730/calldata/eip155-1/{USDC}.json"),
+        json: None,
+    });
+    assert_eq!(sut.view().surface, ClearSurface::ClearSign);
+}
+
+/// ⑨ — an undecodable contract call lands on the blind TRANSACTION surface,
+/// an undecodable typed payload on the blind TYPED one. Same "no result",
+/// two different screens.
+#[test]
+fn blind_outcomes_split_by_request_kind() {
+    let mut sut = Sut::new();
+    // A selector no descriptor and no 4-byte entry knows.
+    let ops = resolve_tx(&mut sut, UNKNOWN_TOKEN, "0xdeadbeef", "0x0");
+    assert!(!ops.is_empty());
+    loop {
+        let outstanding = sut.outstanding();
+        if outstanding.is_empty() {
+            break;
+        }
+        match &outstanding[0] {
+            Op::HttpGet { path } => {
+                let path = path.clone();
+                sut.resolve(Res::DescriptorFetched { path, json: None });
+            }
+            Op::SelectorDbLookup { .. } => {
+                sut.resolve(Res::SelectorCandidates { sigs: vec![] });
+            }
+            other => panic!("unexpected op {other:?}"),
+        }
+    }
+    assert!(sut.view().result.is_none());
+    assert_eq!(sut.view().surface, ClearSurface::BlindTransaction);
+    assert_eq!(sut.view().confirm, ClearConfirm::Confirm);
+
+    let mut sut = Sut::new();
+    // No `verifyingContract` — resolves blind immediately.
+    start_typed(&mut sut, r#"{"primaryType":"X","domain":{},"message":{}}"#);
+    assert_eq!(sut.view().surface, ClearSurface::BlindTypedData);
+    assert_eq!(sut.view().confirm, ClearConfirm::Sign);
+}
+
+/// ⑨ — `eth_sign` never reaches the calm message view, even though both
+/// arrive as `MessagePresented`.
+#[test]
+fn eth_sign_and_personal_sign_take_different_surfaces() {
+    let mut sut = Sut::new();
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::PersonalSign,
+        params: vec![text_hex("hello")],
+        request_origin: None,
+    });
+    assert_eq!(sut.view().surface, ClearSurface::MessageSign);
+    assert!(!sut.view().danger_haptic);
+
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::EthSign,
+        params: vec![
+            "0x0000000000000000000000000000000000000000".to_owned(),
+            "0x9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658".to_owned(),
+        ],
+        request_origin: None,
+    });
+    assert_eq!(sut.view().surface, ClearSurface::EthSign);
+    assert!(sut.view().danger_haptic, "eth_sign always buzzes");
+}
+
+/// ⑩ — `eth_sign(address, data)` displays `params[1]`; showing `params[0]`
+/// would put the ADDRESS where the opaque digest belongs. A malformed
+/// single-param request still shows what it has.
+#[test]
+fn eth_sign_reads_the_second_param_and_falls_back_to_the_first() {
+    let digest = "0x9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658";
+    let mut sut = Sut::new();
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::EthSign,
+        params: vec![
+            "0x0000000000000000000000000000000000000000".to_owned(),
+            digest.to_owned(),
+        ],
+        request_origin: None,
+    });
+    assert_eq!(sut.view().message.expect("analyzed").payload, digest);
+
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::EthSign,
+        params: vec![digest.to_owned()],
+        request_origin: None,
+    });
+    assert_eq!(sut.view().message.expect("analyzed").payload, digest);
+
+    // personal_sign always signs params[0]; params[1] is the account.
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::PersonalSign,
+        params: vec![
+            text_hex("hello"),
+            "0x0000000000000000000000000000000000000000".to_owned(),
+        ],
+        request_origin: None,
+    });
+    assert_eq!(sut.view().message.expect("analyzed").payload, text_hex("hello"));
+}
+
+/// ㉑ — the haptic and the red banner come from ONE adjudication, so they can
+/// never disagree.
+#[test]
+fn siwe_phishing_drives_the_same_verdict_as_the_banner() {
+    let mut sut = Sut::new();
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::PersonalSign,
+        params: vec![text_hex(&siwe_text())],
+        request_origin: Some("https://uniswap-airdrop.xyz".to_owned()),
+    });
+    let view = sut.view();
+    assert_eq!(
+        view.message.expect("analyzed").danger_class,
+        ClearDangerClass::SiwePhish
+    );
+    assert!(view.danger_haptic);
+
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::PersonalSign,
+        params: vec![text_hex(&siwe_text())],
+        request_origin: Some("https://app.uniswap.org".to_owned()),
+    });
+    let view = sut.view();
+    assert_eq!(
+        view.message.expect("analyzed").danger_class,
+        ClearDangerClass::SiweOk
+    );
+    assert!(!view.danger_haptic, "a bound sign-in never buzzes");
+}
+
+/// ㉓ — the raw typed projection keeps PAYLOAD order, caps at five rows and
+/// mid-truncates a long hex blob. Alphabetising would change which five rows
+/// the user reads.
+#[test]
+fn blind_typed_projection_keeps_payload_order_and_truncates() {
+    let mut sut = Sut::new();
+    start_typed(&mut sut, typed_json());
+    let blind = sut.view().blind_typed.expect("projected up front");
+    assert_eq!(blind.primary_type.as_deref(), Some("CustomOrder"));
+    assert!(blind.has_domain);
+    assert_eq!(blind.domain_name.as_deref(), Some("Unknown Protocol"));
+    assert_eq!(
+        blind.verifying_contract.as_deref(),
+        Some("0x1234567890abcdef1234567890abcdef12345678"),
+        "lowercased for the explorer link"
+    );
+    let keys: Vec<&str> = blind.fields.iter().map(|f| f.key.as_str()).collect();
+    assert_eq!(keys, vec!["maker", "amount", "expiry", "salt"]);
+    assert_eq!(
+        blind.fields[3].value, "0xabcdef12…34567890",
+        "a 32-byte salt is mid-truncated, never a two-line hex wall"
+    );
+    assert_eq!(blind.fields[1].value, "5000000000000000000");
+
+    // Six fields → only the first five are shown.
+    let mut sut = Sut::new();
+    start_typed(
+        &mut sut,
+        r#"{"message":{"a":1,"b":2,"c":3,"d":4,"e":5,"f":6}}"#,
+    );
+    let blind = sut.view().blind_typed.expect("projected");
+    assert_eq!(blind.fields.len(), 5);
+    assert_eq!(blind.fields[0].value, "1");
+    assert!(!blind.has_domain);
+}
+
+/// ㉓ — a payload that isn't even an object projects to nothing rather than
+/// throwing; the caution banner still renders.
+#[test]
+fn blind_typed_projection_survives_hostile_payloads() {
+    let mut sut = Sut::new();
+    start_typed(&mut sut, "\"not an object\"");
+    let blind = sut.view().blind_typed.expect("projected");
+    assert!(blind.fields.is_empty());
+    assert!(blind.primary_type.is_none());
+    assert_eq!(sut.view().surface, ClearSurface::BlindTypedData);
+
+    let mut sut = Sut::new();
+    start_typed(&mut sut, "{not json");
+    let blind = sut.view().blind_typed.expect("projected");
+    assert!(blind.fields.is_empty());
+    assert_eq!(sut.view().surface, ClearSurface::BlindTypedData);
+}
+
+/// ㉔ — confirm semantics, never the words. A signature reads "Sign"; a
+/// decoded transaction reads "Confirm {intent}"; a plain native transfer
+/// reads "Confirm Send" to match its own eyebrow.
+#[test]
+fn confirm_semantics_follow_the_resolved_request() {
+    let mut sut = Sut::new();
+    let transfer = format!("0xa9059cbb{}{}", pad(VITALIK), pad_u128(1_000_000_000));
+    resolve_tx(&mut sut, USDC, &transfer, "0x0");
+    sut.resolve(Res::DescriptorFetched {
+        path: format!("/erc7730/calldata/eip155-1/{USDC}.json"),
+        json: None,
+    });
+    let view = sut.view();
+    let intent = view.result.expect("decoded").intent;
+    assert_eq!(view.confirm, ClearConfirm::ConfirmIntent { intent });
+
+    // A plain native send — no calldata, nothing to resolve.
+    let mut sut = Sut::new();
+    sut.dispatch(Event::ResolveTransaction {
+        to: Some(VITALIK.to_owned()),
+        data: Some("0x".to_owned()),
+        value: Some("0xde0b6b3a7640000".to_owned()),
+        chain_id: 1,
+        locale: ClearLocale::default(),
+    });
+    let view = sut.view();
+    assert!(view.resolved && !view.resolving);
+    assert_eq!(view.surface, ClearSurface::BlindTransaction);
+    assert_eq!(
+        view.confirm,
+        ClearConfirm::ConfirmIntent {
+            intent: "send".to_owned()
+        }
+    );
+
+    // A message is always "Sign"; eth_sign falls back to the neutral verb.
+    let mut sut = Sut::new();
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::PersonalSign,
+        params: vec![text_hex("hello")],
+        request_origin: None,
+    });
+    assert_eq!(sut.view().confirm, ClearConfirm::Sign);
+    sut.dispatch(Event::MessagePresented {
+        method: ClearSignMethod::EthSign,
+        params: vec![text_hex("hello")],
+        request_origin: None,
+    });
+    assert_eq!(sut.view().confirm, ClearConfirm::Confirm);
+
+    // Nothing presented — neutral, never "Approve".
+    let mut sut = Sut::new();
+    sut.dispatch(Event::Cleared);
+    assert_eq!(sut.view().surface, ClearSurface::None);
+    assert_eq!(sut.view().confirm, ClearConfirm::Confirm);
+}
+
+/// ② — a CREATE2 deployment is a calm "Deploy contract" that resolves
+/// synchronously onto the clear surface, never a red blind "Unknown".
+#[test]
+fn create2_deployment_resolves_calmly_on_the_clear_surface() {
+    let mut sut = Sut::new();
+    let ops = sut.dispatch(Event::ResolveTransaction {
+        to: Some("0x4E59b44847b379578588920cA78FbF26c0B4956C".to_owned()),
+        data: Some("0x0000000000000000000000000000000000000000000000000000000000000000600a".to_owned()),
+        value: Some("0x0".to_owned()),
+        chain_id: 1,
+        locale: ClearLocale::default(),
+    });
+    assert!(ops.is_empty(), "deployment detection needs no network");
+    let view = sut.view();
+    assert_eq!(view.surface, ClearSurface::ClearSign);
+    assert_eq!(view.result.expect("deploy result").intent, "Deploy contract");
+}
+
+/// ㉓ — numbers print the way the engine that rendered today's screen prints
+/// them. `serde_json` alone would show `1e21` as `1000000000000000000000`
+/// and an integral float as `100.0`.
+#[test]
+fn blind_typed_numbers_print_as_javascript_does() {
+    let mut sut = Sut::new();
+    start_typed(
+        &mut sut,
+        r#"{"message":{"int":100,"huge":1e21,"tiny":1e-7,"frac":1.5}}"#,
+    );
+    let blind = sut.view().blind_typed.expect("projected");
+    let values: Vec<&str> = blind.fields.iter().map(|f| f.value.as_str()).collect();
+    assert_eq!(values, vec!["100", "1e+21", "1e-7", "1.5"]);
+}
+
+/// ㉓ — a nested struct is rendered as JSON in the order the payload wrote it.
+/// Alphabetising it (which `serde_json::Map` would) changes a line the user
+/// reads on a security surface.
+#[test]
+fn blind_typed_nested_struct_keeps_its_own_key_order() {
+    let mut sut = Sut::new();
+    start_typed(
+        &mut sut,
+        r#"{"message":{"details":{"token":"0xAA","amount":"1000000000","expiration":1799999999}}}"#,
+    );
+    let blind = sut.view().blind_typed.expect("projected");
+    assert_eq!(
+        blind.fields[0].value,
+        r#"{"token":"0xAA","amount":"1000000000","expiration":179999999"#
+    );
 }

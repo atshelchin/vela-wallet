@@ -5,4 +5,10 @@ export type GuardBatchView = { legs: Array<GuardLegView>,
 /**
  * The effective-state danger banner.
  */
-any_uncapped: boolean, all_settled: boolean, };
+any_uncapped: boolean, 
+/**
+ * A leg that sends a token to its OWN contract burns it — the same
+ * fat-finger the single-send path flags, easy to miss buried in a batch
+ * (F13, `BatchCallsView.tsx:74-77`).
+ */
+any_to_own_token: boolean, all_settled: boolean, };

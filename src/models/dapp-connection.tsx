@@ -938,6 +938,11 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
 
   const value = React.useMemo(() => ({
     status, errorMessage, session, dappInfo,
+    // NATIVE has no `sign_request` machine (no WebAssembly on Hermes): the
+    // reject/approve lifecycle is this provider's own refs, and there is no
+    // separate reconcile ack to wait on, so this gate is always open and the
+    // sheet's confirm is governed by the approval guard alone — today's rule.
+    confirmGateOpen: true,
     incomingRequest, isSigning, isSubmitting, signError, pendingOpHash, chainId,
     connectionType, pendingFingerprint,
     connectToBridge, connectToWalletPair, confirmFingerprint, cancelFingerprint,

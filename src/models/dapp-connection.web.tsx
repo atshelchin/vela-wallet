@@ -494,6 +494,9 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     isSubmitting: signView.is_submitting,
     signError,
     pendingOpHash: signView.pending_op_hash,
+    // §12.1.6 + invariant ⑦: the core's own gate, handed to the sheet so the
+    // confirm control reflects it instead of two gates and zero ANDs.
+    confirmGateOpen: signView.confirm_gate_open,
     chainId,
     connectionType, pendingFingerprint,
     connectToBridge, connectToWalletPair, confirmFingerprint, cancelFingerprint,
@@ -503,7 +506,7 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   }), [
     status, errorMessage, session, dappInfo,
     incomingRequest, signView.is_signing, signView.is_submitting, signError,
-    signView.pending_op_hash, chainId,
+    signView.pending_op_hash, signView.confirm_gate_open, chainId,
     connectionType, pendingFingerprint,
     connectToBridge, connectToWalletPair, confirmFingerprint, cancelFingerprint,
     disconnectBridge, beginExtensionSign, reconnect, reconnectStuck,

@@ -1,16 +1,22 @@
 /**
  * Approval View — the editable, never-unlimited spending-cap surface.
+ *
+ * Presentation only. The detection, the allowance/balance reads, the editor's
+ * choice derivation and the increaseAllowance resulting total are the approval
+ * guard's (`hooks/use-approval-guard*`); this file arranges them into words.
  */
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { color } from '@/constants/theme';
 import {
-  type DetectedApproval, type ApprovalChoice,
+  type DetectedApproval,
   formatTokenAmount as formatRawTokenAmount,
 } from '@/services/approval-guard';
+import type {
+  ApprovalEditorMode, ApprovalEditorState, ApprovalIncreaseTotal, ApprovalTokenMeta,
+} from '@/hooks/approval-guard-controller-types';
 import { type ClearSignResult } from '@/services/clear-signing';
-import { readErc20Allowance, readErc20Balance } from '@/services/token-reads';
 import { knownContract } from '@/services/local-descriptors';
 import { useLocalePrefs, numberSeparators } from '@/services/locale-format';
 import { shortAddr, tokenLogoURLsByAddress } from '@/models/types';
@@ -20,50 +26,26 @@ import { EditableApproveCard } from '../EditableApproveCard';
 import { WarningBanner } from '../WarningBanner';
 import { SummaryLine } from '../SummaryLine';
 
-export function ApprovalView({ approval, meta, choice, onChange, chainId, walletAddress, clearSign, requestId }: {
+export function ApprovalView({
+  approval, meta, editor, increaseTotal, expired, chainId, clearSign, requestId,
+  onPreset, onCustomText, onGrant, onRevoke,
+}: {
   approval: DetectedApproval;
-  meta: { symbol: string; decimals: number; verified: boolean } | null;
-  choice: ApprovalChoice | null;
-  onChange: (c: ApprovalChoice | null) => void;
+  meta: ApprovalTokenMeta;
+  editor: ApprovalEditorState | null;
+  /** The resulting-total row for an increaseAllowance, once the read settled. */
+  increaseTotal: ApprovalIncreaseTotal | null;
+  expired: boolean;
   chainId: number;
-  walletAddress?: string;
   clearSign: ClearSignResult | null;
   requestId: string;
+  onPreset: (mode: ApprovalEditorMode) => void;
+  onCustomText: (text: string) => void;
+  onGrant: () => void;
+  onRevoke: () => void;
 }) {
   const { t } = useTranslation();
   const isNft = approval.kind === 'setApprovalForAll';
-
-  // increaseAllowance adds to the EXISTING allowance — showing only the increment
-  // is dangerously incomplete. Read the current on-chain allowance so we can show
-  // the resulting total (current + increment). On a slow/failed read we still warn
-  // the increment ADDS to an existing allowance rather than hiding the row.
-  const [currentAllowance, setCurrentAllowance] = useState<bigint | null>(null);
-  const [allowanceResolved, setAllowanceResolved] = useState(false);
-  useEffect(() => {
-    setCurrentAllowance(null);
-    setAllowanceResolved(false);
-    if (approval.kind !== 'increaseAllowance' || !walletAddress || !approval.tokenAddress) return;
-    let cancelled = false;
-    readErc20Allowance(chainId, approval.tokenAddress, walletAddress, approval.spender)
-      .then((a) => { if (!cancelled) { setCurrentAllowance(a); setAllowanceResolved(true); } })
-      .catch(() => { if (!cancelled) setAllowanceResolved(true); });
-    return () => { cancelled = true; };
-  }, [approval.kind, approval.tokenAddress, approval.spender, walletAddress, chainId]);
-
-  // The wallet's balance of the token — powers EditableApproveCard's one-tap finite
-  // "Balance" cap (issue #86: an unbounded approve, e.g. Uniswap's USDT approve,
-  // otherwise leaves a blank custom field with no workable amount). Degrades to no
-  // preset on any read failure; not read for NFT grants.
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
-  useEffect(() => {
-    setTokenBalance(null);
-    if (isNft || !walletAddress || !approval.tokenAddress) return;
-    let cancelled = false;
-    readErc20Balance(chainId, approval.tokenAddress, walletAddress)
-      .then((b) => { if (!cancelled) setTokenBalance(b); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [isNft, approval.tokenAddress, walletAddress, chainId]);
 
   const verb = approval.isReducing
     ? t('componentsUi.signingApprove.verbRevoke')
@@ -78,15 +60,14 @@ export function ApprovalView({ approval, meta, choice, onChange, chainId, wallet
       ? color.error.base
       : color.fg.base;
 
-  // Expiry classification (UI-side; the pure resolver injects `now` for tests).
-  const deadlineSec = approval.deadline ? Number(approval.deadline) : 0;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const expired = deadlineSec > 0 && deadlineSec < nowSec;
-
   useLocalePrefs();
   const sep = numberSeparators();
-  const symbol = meta?.symbol ?? '…';
-  const decimals = meta?.decimals ?? 18;
+  const symbol = meta.symbol;
+  const decimals = meta.decimals;
+  // The resulting-total row prints an EMPTY symbol while metadata is still in
+  // flight, exactly as `meta?.symbol ?? ''` did — never a placeholder ellipsis
+  // inside a sum.
+  const sym = meta.loading ? '' : symbol;
   const logoUrls = approval.tokenAddress
     ? tokenLogoURLsByAddress(chainId, approval.tokenAddress)
     : undefined;
@@ -124,51 +105,44 @@ export function ApprovalView({ approval, meta, choice, onChange, chainId, wallet
         emphasize={[spenderName, approveAmount, symbol]}
       />
 
-      <EditableApproveCard
-        key={requestId}
-        approval={approval}
-        symbol={symbol}
-        decimals={decimals}
-        decimalsVerified={meta?.verified ?? false}
-        logoUrls={logoUrls}
-        spenderLabel={spenderName}
-        balanceRaw={tokenBalance}
-        choice={choice}
-        onChange={onChange}
-      />
+      {editor && (
+        <EditableApproveCard
+          key={requestId}
+          approval={approval}
+          symbol={symbol}
+          decimals={decimals}
+          decimalsVerified={meta.verified}
+          logoUrls={logoUrls}
+          spenderLabel={spenderName}
+          editor={editor}
+          onPreset={onPreset}
+          onCustomText={onCustomText}
+          onGrant={onGrant}
+          onRevoke={onRevoke}
+        />
+      )}
 
       {/* increaseAllowance: the chosen value is an INCREMENT — surface the
           resulting total so "increase by 100" can't read as "cap at 100". When the
           current allowance couldn't be read, still say the increment ADDS to it. */}
-      {approval.kind === 'increaseAllowance' && allowanceResolved && (() => {
-        const dec = meta?.decimals ?? 18;
-        const sym = meta?.symbol ?? '';
-        // Revoke zeroes the allowance outright — the increment math no longer
-        // applies, so the resulting total is simply 0 (not "current + increment").
-        if (choice?.type === 'revoke') {
-          return (
-            <View style={styles.allowanceTotalRow}>
-              <Text style={styles.allowanceTotalLabel}>{t('componentsUi.signingApprove.resultingTotal')}</Text>
-              <Text style={styles.allowanceTotalValue}>{`0 ${sym}`}</Text>
-            </View>
-          );
-        }
-        const increment = choice?.type === 'amount' ? choice.amountRaw : (approval.amountRaw ?? 0n);
-        return (
-          <View style={styles.allowanceTotalRow}>
-            <Text style={styles.allowanceTotalLabel}>{t('componentsUi.signingApprove.resultingTotal')}</Text>
-            {currentAllowance !== null ? (
-              <Text style={styles.allowanceTotalValue}>
-                {`${formatRawTokenAmount(currentAllowance, dec, 6, sep)} + ${formatRawTokenAmount(increment, dec, 6, sep)} = ${formatRawTokenAmount(currentAllowance + increment, dec, 6, sep)} ${sym}`}
-              </Text>
-            ) : (
-              <Text style={styles.allowanceTotalUnknown}>
-                {t('componentsUi.signingApprove.resultingTotalUnknown', { amount: `${formatRawTokenAmount(increment, dec, 6, sep)} ${sym}` })}
-              </Text>
-            )}
-          </View>
-        );
-      })()}
+      {increaseTotal && (
+        <View style={styles.allowanceTotalRow}>
+          <Text style={styles.allowanceTotalLabel}>{t('componentsUi.signingApprove.resultingTotal')}</Text>
+          {increaseTotal.current !== null ? (
+            <Text style={styles.allowanceTotalValue}>
+              {`${formatRawTokenAmount(increaseTotal.current, decimals, 6, sep)} + ${formatRawTokenAmount(increaseTotal.increment, decimals, 6, sep)} = ${formatRawTokenAmount(increaseTotal.total ?? 0n, decimals, 6, sep)} ${sym}`}
+            </Text>
+          ) : increaseTotal.total !== null ? (
+            // Revoke zeroes the allowance outright — the increment math no
+            // longer applies, so the resulting total is simply 0.
+            <Text style={styles.allowanceTotalValue}>{`0 ${sym}`}</Text>
+          ) : (
+            <Text style={styles.allowanceTotalUnknown}>
+              {t('componentsUi.signingApprove.resultingTotalUnknown', { amount: `${formatRawTokenAmount(increaseTotal.increment, decimals, 6, sep)} ${sym}` })}
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* No standalone spender/operator/collection rows: the spender is already
           named in the summary + the cap card, and every raw address (spender,

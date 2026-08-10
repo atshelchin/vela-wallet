@@ -1057,13 +1057,19 @@ fn batch_gates_every_granting_leg() {
     let needs: Vec<bool> = batch.legs.iter().map(|l| l.needs_choice).collect();
     assert_eq!(needs, vec![false, true, false], "only the unbounded leg blocks");
     assert!(batch.legs[1].needs_editor);
+    // Only the leg that MOUNTS a card carries an editor — a finite leg can
+    // never acquire a choice, so the rebuild leaves it byte-identical.
+    assert!(batch.legs[0].editor.is_none(), "non-approval leg");
+    assert!(batch.legs[2].editor.is_none(), "finite leg");
+    let editor = batch.legs[1].editor.clone().expect("leg 1 editor");
+    assert_eq!(editor.mode, Some(GuardEditorMode::Custom), "unbounded starts blank");
+    assert_eq!(editor.choice, None);
     assert!(batch.any_uncapped);
     assert!(!view.confirm_allowed);
 
-    sut.dispatch(Event::LegChoiceChanged {
-        index: 1,
-        choice: Some(GuardChoice::Amount { amount_raw: "500000000".to_owned() }),
-    });
+    // The leg's own editor decides — the shell types, the core derives.
+    sut.resolve(usdc_meta());
+    sut.dispatch(Event::LegCustomAmountChanged { index: 1, text: "500".to_owned() });
     let view = sut.view();
     assert!(view.confirm_allowed, "every granting leg settled");
     let batch = view.batch.expect("batch");
@@ -1097,7 +1103,12 @@ fn batch_boolean_leg_requires_an_explicit_choice() {
     let view = sut.view();
     assert!(!view.confirm_allowed);
 
-    sut.dispatch(Event::LegChoiceChanged { index: 0, choice: Some(GuardChoice::Grant) });
+    // Nothing is preselected — the deliberate tap is the consent (⑭).
+    assert_eq!(
+        view.batch.expect("batch").legs[0].editor.clone().expect("editor").mode,
+        None,
+    );
+    sut.dispatch(Event::LegGrantDeliberatelyChosen { index: 0 });
     let view = sut.view();
     assert!(view.confirm_allowed, "an explicit grant settles the leg");
     let batch = view.batch.expect("batch");
@@ -1105,25 +1116,70 @@ fn batch_boolean_leg_requires_an_explicit_choice() {
     assert!(batch.any_uncapped, "…and the banner says so");
 }
 
-/// Defensive fail-closed: an unbounded amount choice on the wire (which the
-/// shell-side editor can never legitimately emit) degrades to "no choice" —
+/// Fail-closed: a leg's custom amount at or above the cap derives NO choice —
 /// the leg stays unsettled instead of smuggling an unlimited grant through.
 #[test]
-fn batch_leg_rejects_an_unbounded_choice() {
+fn batch_leg_rejects_an_unbounded_custom_amount() {
     let mut sut = Sut::new();
     sut.dispatch(batch_event(vec![json!({
         "to": USDC, "data": approve_calldata(SPENDER, max_u256()), "value": "0x0"
     })]));
-    sut.dispatch(Event::LegChoiceChanged {
+    sut.resolve(usdc_meta());
+    // 2^200 base units at 6 decimals — comfortably past the uint256 cap.
+    sut.dispatch(Event::LegCustomAmountChanged {
         index: 0,
-        choice: Some(GuardChoice::Amount { amount_raw: max_u256().to_string() }),
+        text: (UNLIMITED_CAP_256 / U256::from(1_000_000u64) + U256::from(1u8)).to_string(),
     });
     let view = sut.view();
     assert!(!view.confirm_allowed, "still gated");
     let batch = view.batch.expect("batch");
+    let editor = batch.legs[0].editor.clone().expect("editor");
+    assert_eq!(editor.error, Some(GuardAmountError::UnlimitedDisabled));
     assert_eq!(batch.legs[0].choice, None);
     assert!(batch.legs[0].needs_choice);
     assert_eq!(view.rewritten_params_json, None);
+}
+
+/// ⑰ — a leg that sends a token to the token's OWN contract burns it. The
+/// shell forwards the descriptor pipeline's recipients; the rule is here.
+#[test]
+fn batch_flags_a_token_sent_to_its_own_contract() {
+    let mut sut = Sut::new();
+    sut.dispatch(batch_event(vec![transfer_call()]));
+    assert!(!sut.view().batch.expect("batch").any_to_own_token, "no descriptors yet");
+
+    sut.dispatch(Event::BatchRecipientsResolved {
+        recipients: vec![vec![SPENDER.to_owned()]],
+    });
+    assert!(!sut.view().batch.expect("batch").any_to_own_token, "an ordinary recipient");
+
+    // Case-insensitively the leg's own `to` — the burn.
+    sut.dispatch(Event::BatchRecipientsResolved {
+        recipients: vec![vec![USDC.to_lowercase()]],
+    });
+    assert!(sut.view().batch.expect("batch").any_to_own_token);
+}
+
+/// A read-only replay mounts no leg editors at all — nothing to decide, and
+/// the banner reports the RAW request rather than an effective state.
+#[test]
+fn read_only_batch_has_no_leg_editors() {
+    let mut sut = Sut::new();
+    sut.dispatch(Event::ApprovalDetected {
+        method: "wallet_sendCalls".to_owned(),
+        params_json: batch_params(vec![json!({
+            "to": USDC, "data": approve_calldata(SPENDER, max_u256()), "value": "0x0"
+        })])
+        .to_string(),
+        chain_id: 1,
+        wallet_address: Some(WALLET.to_owned()),
+        read_only: true,
+        now_ms: NOW_MS,
+    });
+    let batch = sut.view().batch.expect("batch");
+    assert!(!batch.legs[0].needs_editor);
+    assert!(batch.legs[0].editor.is_none());
+    assert!(batch.any_uncapped, "the raw request still grants unlimited");
 }
 
 #[test]

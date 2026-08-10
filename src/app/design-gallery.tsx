@@ -109,7 +109,12 @@ import { color, createStyles, font, inter, radius, space, text } from '@/constan
 import { chainName, nativeCoinLogoURL, networkForChainId, networkId, type Network } from '@/models/network';
 import { tokenLogoURLsByAddress, type APIToken } from '@/models/types';
 import type { ActivityBatch } from '@/services/activity';
-import type { ApprovalChoice, DetectedApproval } from '@/services/approval-guard';
+import type { DetectedApproval } from '@/services/approval-guard';
+import type { ClearBlindTyped } from '@/services/wallet-state-core/generated/ClearBlindTyped';
+import type { ClearMessageView } from '@/services/wallet-state-core/generated/ClearMessageView';
+import type {
+  ApprovalBatchState, ApprovalEditorState, ApprovalTokenMeta,
+} from '@/hooks/approval-guard-controller-types';
 import type { TreasuryStatus } from '@/services/bundler-service';
 import type { ClearSignField, ClearSignResult } from '@/services/clear-signing';
 import type { Currency } from '@/services/currency';
@@ -297,11 +302,64 @@ const approvalLocked: DetectedApproval = {
   isReducing: false, editable: false, blockReason: 'unrecognized-encoding',
   locus: { type: 'calldata-word', wordIndex: 1 },
 };
-const tokenMeta = { symbol: 'USDC', decimals: 18, verified: true };
+const tokenMeta: ApprovalTokenMeta = { symbol: 'USDC', decimals: 18, verified: true, loading: false };
+const unknownMeta: ApprovalTokenMeta = { symbol: '…', decimals: 18, verified: false, loading: false };
 const batchItems: BatchItem[] = [
-  { to: USDC_BSC, clearSign: null, approval: approvalUnlimited },
-  { to: ROUTER, clearSign: csSwap, approval: null },
+  { to: USDC_BSC, clearSign: null },
+  { to: ROUTER, clearSign: csSwap },
 ];
+
+// The guard's projections, frozen at the states worth LOOKING at. Real
+// derivation lives in `hooks/use-approval-guard*`; a gallery only renders.
+const editorNoChoice: ApprovalEditorState = {
+  mode: 'custom', customText: '', error: null, choice: null,
+  displayAmountRaw: null, requestedFinite: false, hasBalanceCap: true,
+};
+const editorRequested: ApprovalEditorState = {
+  mode: 'requested', customText: '500', error: null,
+  choice: { type: 'amount', amountRaw: 500_000000000000000000n },
+  displayAmountRaw: 500_000000000000000000n, requestedFinite: true, hasBalanceCap: true,
+};
+const editorCapped: ApprovalEditorState = {
+  mode: 'balance', customText: '1240', error: null,
+  choice: { type: 'amount', amountRaw: 1_240_000000000000000000n },
+  displayAmountRaw: 1_240_000000000000000000n, requestedFinite: false, hasBalanceCap: true,
+};
+const editorRevoke: ApprovalEditorState = {
+  mode: 'revoke', customText: '', error: null, choice: { type: 'revoke' },
+  displayAmountRaw: 0n, requestedFinite: true, hasBalanceCap: false,
+};
+// Same forced-choice state, but for a card whose balance was never read: no
+// Balance chip. This cell exists to show `editable=false / blockReason`, so it
+// must not smuggle in a second difference (a preset the state above happens to
+// carry) — a gallery cell that shows more than its label claims is a lie.
+const editorLockedNoBalance: ApprovalEditorState = {
+  ...editorNoChoice, hasBalanceCap: false,
+};
+const editorBoolean: ApprovalEditorState = {
+  mode: null, customText: '', error: null, choice: null,
+  displayAmountRaw: null, requestedFinite: false, hasBalanceCap: false,
+};
+const noopEditorProps = {
+  onPreset: () => {}, onCustomText: () => {}, onGrant: () => {}, onRevoke: () => {},
+};
+const batchEditable: ApprovalBatchState = {
+  legs: [
+    {
+      to: USDC_BSC, approval: approvalUnlimited, meta: tokenMeta, editor: editorNoChoice,
+      choice: null, needsEditor: true, needsChoice: true, grantsBroad: true,
+    },
+    {
+      to: ROUTER, approval: null, meta: unknownMeta, editor: null,
+      choice: null, needsEditor: false, needsChoice: false, grantsBroad: false,
+    },
+  ],
+  anyUncapped: true, anyToOwnToken: false, allSettled: false,
+};
+const batchReadOnly: ApprovalBatchState = {
+  legs: batchEditable.legs.map((leg) => ({ ...leg, editor: null, needsEditor: false, needsChoice: false })),
+  anyUncapped: true, anyToOwnToken: false, allSettled: true,
+};
 
 const SIWE = [
   'app.uniswap.org wants you to sign in with your Ethereum account:',
@@ -320,6 +378,70 @@ const TYPED_DATA = JSON.stringify({
   primaryType: 'PermitSingle',
   message: { details: { token: USDC_BSC, amount: '1000000000', expiration: 1799999999 }, spender: ROUTER },
 });
+
+// The clear-signing machine's projections, frozen at the states worth LOOKING
+// at. Real adjudication lives in `hooks/use-clear-signing*` (the Rust core on
+// web); a gallery only renders — so these are the verdicts, spelled out.
+function siweMessageView(binding: 'ok' | 'mismatch'): ClearMessageView {
+  return {
+    payload: hexOf(SIWE),
+    is_hex: true,
+    decoded_text: SIWE,
+    binary_preview: null,
+    non_printable: false,
+    siwe: {
+      domain: 'app.uniswap.org',
+      domain_host: 'app.uniswap.org',
+      address: ME,
+      statement: 'Sign in to Uniswap. This request will not trigger a blockchain transaction.',
+      uri: 'https://app.uniswap.org',
+      chain_id: 1,
+      nonce: '8f2a41cd',
+    },
+    binding,
+    danger_class: binding === 'mismatch' ? 'siwe_phish' : 'siwe_ok',
+  };
+}
+const PLAIN_MESSAGE = 'Confirm you own this wallet — nonce 8f2a41cd';
+// A dApp that sent the message as raw UTF-8 (not hex): signed verbatim, shown
+// verbatim, never flagged. Modelling it as hex would be a lie about THIS sample
+// — its em dash makes the bytes non-ASCII, which the F9 banner exists to flag,
+// so the "plain message" cell would render its neighbour's caution banner
+// (the `hexOf` charCode encoder mangles it into control bytes on top of that).
+const plainMessageView: ClearMessageView = {
+  payload: PLAIN_MESSAGE,
+  is_hex: false,
+  decoded_text: PLAIN_MESSAGE,
+  binary_preview: null,
+  non_printable: false,
+  siwe: null,
+  binding: null,
+  danger_class: 'plain',
+};
+const nonPrintableMessageView: ClearMessageView = {
+  payload: '0xa9059cbb00000000000000000000000000000000000000000000000000000000deadbeef',
+  is_hex: true,
+  decoded_text: null,
+  binary_preview: '0xa9059cbb00000000000000000000000000000000000000000000000000000000deadbeef',
+  non_printable: true,
+  siwe: null,
+  binding: null,
+  danger_class: 'opaque_hash',
+};
+const blindTypedView: ClearBlindTyped = {
+  primary_type: 'PermitSingle',
+  has_domain: true,
+  domain_name: 'Permit2',
+  verifying_contract: ROUTER.toLowerCase(),
+  fields: [
+    // A nested struct is JSON on one capped line; a long hex word is mid-truncated.
+    {
+      key: 'details',
+      value: JSON.stringify({ token: USDC_BSC, amount: '1000000000', expiration: 1799999999 }).slice(0, 60),
+    },
+    { key: 'spender', value: `${ROUTER.slice(0, 10)}…${ROUTER.slice(-8)}` },
+  ],
+};
 
 // =============================================================================
 // Cell / Section scaffolding
@@ -422,8 +544,6 @@ function DesignGalleryScreen() {
   const [tab, setTab] = useState<'activity' | 'assets' | 'connections'>('activity');
   const [autoGrow, setAutoGrow] = useState('0x600746aC1234567890abcDef1234567890f495f4');
   const [feeSel, setFeeSel] = useState<string | null>(USDC_BSC);
-  const [approveChoice, setApproveChoice] = useState<ApprovalChoice | null>(null);
-  const [batchChoices, setBatchChoices] = useState<Record<number, ApprovalChoice | null>>({});
   const [recipients, setRecipients] = useState<React.ComponentProps<typeof MultiRecipientEditor>['recipients']>([
     { id: 'r1', address: VITALIK, amount: '25' },
     { id: 'r2', address: FRIEND, amount: '25' },
@@ -1115,9 +1235,8 @@ function DesignGalleryScreen() {
                 logoUrls={usdcLogos}
                 spenderLabel="PancakeSwap V3 SmartRouter"
                 usdPrice={1}
-                balanceRaw={1_240_000000000000000000n}
-                choice={approveChoice}
-                onChange={setApproveChoice}
+                editor={editorNoChoice}
+                {...noopEditorProps}
               />
             </Cell>
             <Cell id="gallery-editableapprovecard-finite" label="EditableApproveCard · finite requested amount">
@@ -1129,9 +1248,8 @@ function DesignGalleryScreen() {
                 logoUrls={usdcLogos}
                 spenderLabel="PancakeSwap V3 SmartRouter"
                 usdPrice={1}
-                balanceRaw={1_240_000000000000000000n}
-                choice={null}
-                onChange={() => {}}
+                editor={editorRequested}
+                {...noopEditorProps}
               />
             </Cell>
             <Cell id="gallery-editableapprovecard-capped" label="EditableApproveCard · choice=amount (capped to balance)">
@@ -1143,9 +1261,8 @@ function DesignGalleryScreen() {
                 logoUrls={usdcLogos}
                 spenderLabel="PancakeSwap V3 SmartRouter"
                 usdPrice={1}
-                balanceRaw={1_240_000000000000000000n}
-                choice={{ type: 'amount', amountRaw: 1_240_000000000000000000n }}
-                onChange={() => {}}
+                editor={editorCapped}
+                {...noopEditorProps}
               />
             </Cell>
             <Cell id="gallery-editableapprovecard-revoke" label="EditableApproveCard · choice=revoke">
@@ -1156,8 +1273,8 @@ function DesignGalleryScreen() {
                 decimalsVerified
                 logoUrls={usdcLogos}
                 spenderLabel="PancakeSwap V3 SmartRouter"
-                choice={{ type: 'revoke' }}
-                onChange={() => {}}
+                editor={editorRevoke}
+                {...noopEditorProps}
               />
             </Cell>
             <Cell id="gallery-editableapprovecard-locked" label="EditableApproveCard · editable=false (blockReason)">
@@ -1168,8 +1285,8 @@ function DesignGalleryScreen() {
                 decimalsVerified={false}
                 logoUrls={usdtLogos}
                 spenderLabel="0x13f4…8Dd4"
-                choice={null}
-                onChange={() => {}}
+                editor={editorLockedNoBalance}
+                {...noopEditorProps}
               />
             </Cell>
             <Cell id="gallery-editableapprovecard-boolean" label="EditableApproveCard · setApprovalForAll (boolean grant)">
@@ -1179,8 +1296,8 @@ function DesignGalleryScreen() {
                 decimals={0}
                 decimalsVerified
                 spenderLabel="OpenSea Seaport"
-                choice={null}
-                onChange={() => {}}
+                editor={editorBoolean}
+                {...noopEditorProps}
               />
             </Cell>
 
@@ -1205,19 +1322,19 @@ function DesignGalleryScreen() {
             </Cell>
 
             <Cell id="gallery-messagesignview-siwe" label="MessageSignView · SIWE message, origin matches">
-              <MessageSignView hexMsg={hexOf(SIWE)} requestOrigin="https://app.uniswap.org" />
+              <MessageSignView view={siweMessageView('ok')} requestOrigin="https://app.uniswap.org" />
             </Cell>
             <Cell id="gallery-messagesignview-mismatch" label="MessageSignView · SIWE domain ≠ request origin (phishing)">
-              <MessageSignView hexMsg={hexOf(SIWE)} requestOrigin="https://uniswap-airdrop.xyz" />
+              <MessageSignView view={siweMessageView('mismatch')} requestOrigin="https://uniswap-airdrop.xyz" />
             </Cell>
             <Cell id="gallery-messagesignview-plain" label="MessageSignView · plain text message">
-              <MessageSignView hexMsg={hexOf('Confirm you own this wallet — nonce 8f2a41cd')} requestOrigin="https://getvela.app" />
+              <MessageSignView view={plainMessageView} requestOrigin="https://getvela.app" />
             </Cell>
             <Cell id="gallery-messagesignview-nonprintable" label="MessageSignView · non-printable hex (disguised hash)">
-              <MessageSignView hexMsg="0xa9059cbb00000000000000000000000000000000000000000000000000000000deadbeef" requestOrigin="https://getvela.app" />
+              <MessageSignView view={nonPrintableMessageView} requestOrigin="https://getvela.app" />
             </Cell>
             <Cell id="gallery-blindtypeddataview-permit2" label="BlindTypedDataView · Permit2 typed data">
-              <BlindTypedDataView params={[ME, TYPED_DATA]} />
+              <BlindTypedDataView view={blindTypedView} />
             </Cell>
             <Cell id="gallery-ethsigndangerview-default" label="EthSignDangerView · raw eth_sign digest">
               <EthSignDangerView dataHex="0x9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658" />
@@ -1244,54 +1361,66 @@ function DesignGalleryScreen() {
               <ApprovalView
                 approval={approvalUnlimited}
                 meta={tokenMeta}
-                choice={null}
-                onChange={() => {}}
+                editor={editorNoChoice}
+                increaseTotal={null}
+                expired={false}
                 chainId={56}
-                walletAddress={ME}
                 clearSign={null}
                 requestId="gallery-approval-1"
+                {...noopEditorProps}
               />
             </Cell>
             <Cell id="gallery-approvalview-nft" label="ApprovalView · setApprovalForAll (NFT collection)">
               <ApprovalView
                 approval={approvalNft}
-                meta={null}
-                choice={null}
-                onChange={() => {}}
+                meta={unknownMeta}
+                editor={editorBoolean}
+                increaseTotal={null}
+                expired={false}
                 chainId={56}
-                walletAddress={ME}
                 clearSign={null}
                 requestId="gallery-approval-2"
+                {...noopEditorProps}
               />
             </Cell>
             <Cell id="gallery-permitsignview-finite" label="PermitSignView · ERC-2612 permit with deadline">
-              <PermitSignView approval={approvalPermit} meta={{ symbol: 'USDT', decimals: 18, verified: true }} clearSign={null} />
+              <PermitSignView
+                approval={approvalPermit}
+                meta={{ symbol: 'USDT', decimals: 18, verified: true, loading: false }}
+                expired={false}
+                decimalsUnverified={false}
+                clearSign={null}
+              />
             </Cell>
             <Cell id="gallery-permitsignview-unlimited" label="PermitSignView · unlimited permit (danger)">
               <PermitSignView
                 approval={{ ...approvalPermit, amountRaw: (1n << 256n) - 1n, isUnbounded: true }}
-                meta={{ symbol: 'USDT', decimals: 18, verified: true }}
+                meta={{ symbol: 'USDT', decimals: 18, verified: true, loading: false }}
+                expired={false}
+                decimalsUnverified={false}
                 clearSign={null}
               />
             </Cell>
             <Cell id="gallery-batchcallsview-editable" label="BatchCallsView · 2 legs (approve + swap), editable">
               <BatchCallsView
                 items={batchItems}
-                choices={batchChoices}
-                onChoiceChange={(i, c) => setBatchChoices((p) => ({ ...p, [i]: c }))}
-                metaByToken={new Map([[USDC_BSC.toLowerCase(), tokenMeta]])}
-                editable
+                batch={batchEditable}
                 requestId="gallery-batch-1"
+                onLegPreset={() => {}}
+                onLegCustomText={() => {}}
+                onLegGrant={() => {}}
+                onLegRevoke={() => {}}
               />
             </Cell>
             <Cell id="gallery-batchcallsview-readonly" label="BatchCallsView · editable=false (replay)">
               <BatchCallsView
                 items={batchItems}
-                choices={{}}
-                onChoiceChange={() => {}}
-                metaByToken={new Map([[USDC_BSC.toLowerCase(), tokenMeta]])}
-                editable={false}
+                batch={batchReadOnly}
                 requestId="gallery-batch-2"
+                onLegPreset={() => {}}
+                onLegCustomText={() => {}}
+                onLegGrant={() => {}}
+                onLegRevoke={() => {}}
               />
             </Cell>
           </Section>

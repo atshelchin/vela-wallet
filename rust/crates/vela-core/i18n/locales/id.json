@@ -79,6 +79,16 @@
       "anyway": "Tetap Keluar",
       "cancel": "Batal"
     },
+    "eraseDevice": {
+      "title": "Hapus Perangkat Ini",
+      "subtitle": "Hapus semua yang disimpan Vela di sini",
+      "desc": "Semua yang disimpan Vela di perangkat ini akan dihapus. Tidak ada cadangan dan tidak bisa dibatalkan.",
+      "loses": "Anda kehilangan: riwayat transaksi, kontak dan grup, riwayat penjelajahan, izin dApp, token dan jaringan khusus, pengaturan RPC dan endpoint, serta semua preferensi.",
+      "keeps": "Anda tidak kehilangan dompetnya. Passkey Anda tetap di Face ID / sidik jari — pilih “Saya sudah punya dompet” dan alamat yang sama kembali, hanya tanpa riwayat.",
+      "confirm": "Hapus Semuanya",
+      "cancel": "Batal",
+      "failed": "Penghapusan tidak selesai. Sebagian data masih ada di perangkat ini dan Anda masih masuk — coba lagi."
+    },
     "formatNote": {
       "system": "Sistem",
       "indian": "India",

@@ -3,12 +3,12 @@
 //! The SHARED key-path table: every dotted path in the corpus, sorted, interned
 //! once for all 15 locales. Regenerate with `node scripts/gen-i18n.mjs`.
 //!
-//! 1314 paths = 1236 leaf + 78 branch. Repeated per locale these key bytes
-//! would cost 517560 bytes; interned once they cost 35928.
+//! 1323 paths = 1244 leaf + 79 branch. Repeated per locale these key bytes
+//! would cost 520770 bytes; interned once they cost 36162.
 
 /// Every path in the corpus, strictly sorted. Lookup is a binary search here, then
 /// an O(1) index into the active locale's value table.
-pub(crate) static PATHS: [&str; 1314] = [
+pub(crate) static PATHS: [&str; 1323] = [
     "about",
     "about.footer",
     "about.linkGitHub",
@@ -1194,6 +1194,15 @@ pub(crate) static PATHS: [&str; 1314] = [
     "settings.developer.clearSigningTitle",
     "settings.developer.treasurySubtitle",
     "settings.developer.treasuryTitle",
+    "settings.eraseDevice",
+    "settings.eraseDevice.cancel",
+    "settings.eraseDevice.confirm",
+    "settings.eraseDevice.desc",
+    "settings.eraseDevice.failed",
+    "settings.eraseDevice.keeps",
+    "settings.eraseDevice.loses",
+    "settings.eraseDevice.subtitle",
+    "settings.eraseDevice.title",
     "settings.feedback",
     "settings.feedback.subtitle",
     "settings.feedback.title",
@@ -1329,7 +1338,7 @@ pub(crate) static PATHS: [&str; 1314] = [
 /// A branch is a distinct lookup outcome, not a miss: `t("home")` must return the
 /// byte-exact diagnostic `key 'home (en)' returned an object instead of string.`,
 /// which a flat map could never distinguish from an absent key.
-pub(crate) static IS_BRANCH: [u8; 165] = [
+pub(crate) static IS_BRANCH: [u8; 166] = [
     0x01, 0x00, 0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00,
     0x14, 0x12, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x21, 0xa0, 0x00, 0x08, 0x00, 0x00, 0x00,
@@ -1339,12 +1348,12 @@ pub(crate) static IS_BRANCH: [u8; 165] = [
     0x10, 0x60, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x08,
     0x00, 0x01, 0x00, 0x4e, 0x92, 0x24, 0x04, 0x80, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x20, 0x00,
     0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x80, 0x29, 0x40, 0x10, 0x12, 0x02, 0x04, 0x01, 0x86, 0x00, 0x00, 0x10, 0x00, 0x11, 0x80, 0x00,
-    0x02, 0x01, 0x04, 0x01, 0x00,
+    0x80, 0x29, 0x40, 0x10, 0x02, 0x24, 0x04, 0x08, 0x02, 0x0c, 0x01, 0x00, 0x20, 0x00, 0x22, 0x00,
+    0x01, 0x04, 0x02, 0x08, 0x02, 0x00,
 ];
 
 /// Number of entries in [`PATHS`]. Value tables carry `N_PATHS + 1` offsets.
-pub(crate) const N_PATHS: usize = 1314;
+pub(crate) const N_PATHS: usize = 1323;
 
 /// Index of `path` in [`PATHS`], or `None`.
 pub(crate) fn path_id(path: &str) -> Option<usize> {

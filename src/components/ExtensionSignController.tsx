@@ -126,7 +126,10 @@ export function ExtensionSignController(): React.ReactElement {
         // whatever is active. Switch to it before the user approves. ONE writer:
         // native dispatches here, web lets the `sign_request` core do it from
         // `RequestArrived.granted_address` (against the session's own row
-        // indices) and gates the approval surface on the ack.
+        // indices) and gates the approval surface on the ack — which the core
+        // gives only after the switch is verified to have landed in that domain.
+        // The signer it then signs with is its own `accounts[active_index]`, so
+        // neither path reads the signer back out of React (§12.1.6 step 2).
         reconcileGrantedAccount(
           accountsRef.current, activeIdxRef.current, transport.requestAddress,
           (index) => {

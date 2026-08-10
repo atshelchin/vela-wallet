@@ -1,7 +1,8 @@
 /**
- * Global dApp connection context — WEB, with the signing half driven by the
- * portable Rust state machine (spec 017,
- * `rust/crates/vela-core/src/app/sign_request.rs`).
+ * Global dApp connection context — WEB, with BOTH halves driven by portable
+ * Rust state machines (spec 017): the signing half by
+ * `rust/crates/vela-core/src/app/sign_request.rs`, and the connection lifecycle
+ * by `rust/crates/vela-core/src/app/dapp_session.rs`.
  *
  * What moved into the core, and is therefore GONE from this file: the five
  * synchronous refs the approve path used to coordinate through
@@ -21,9 +22,31 @@
  * - **§12.1.6** — the granted account is switched FIRST and the approval
  *   surface only opens on the ack (see `sign-resident.web.ts`).
  *
- * What stays here is the connection lifecycle the `dapp_session` machine will
- * eventually own — transports, the relay session, reconnect/grace, WalletPair
- * pairing — plus the read-only RPC routing, unchanged from native.
+ * What moved into `dapp_session`, and is therefore also GONE from this file:
+ * the transport refs, the relay session state, and every timer the connection
+ * lifecycle used to hold by hand —
+ *
+ * - **the 4 s reconnect grace**, which a repeated blip must never extend (③);
+ * - **the 45 s stuck prompt** and the `reconnectNonce` that re-armed it;
+ * - **the 120 s join watchdog** for a relay that silently drops the join;
+ * - **the 60 s reconnect deadline**, the `min(1s·2ⁿ, 30s)` backoff ladder and
+ *   the 8 s `dropIfDead` that keeps a dead restored channel from looping on
+ *   every launch (BUG-5/6, invariant ⑤);
+ * - **the fingerprint gate** — a pairing becomes a session only through
+ *   `FingerprintConfirmed`, and cancelling or replacing one releases the
+ *   ephemeral X25519 key explicitly (① and ②);
+ * - **the counter-durability order** — a WalletPair push is issued only from
+ *   `CountersPersisted { ok: true }`, so no ciphertext is produced for a nonce
+ *   that is not durable yet (⑦).
+ *
+ * The core holds numeric handles and a phase; every key, counter and encrypted
+ * snapshot stays in the shell's transport objects
+ * (`src/services/wallet-state-core/dsess-executor.web.ts`, which also documents
+ * the single deliberate divergence: the backoff is arbitrated by the core and
+ * executed by `WalletPairTransport`'s own identical ladder).
+ *
+ * What stays here is the read-only RPC routing, the extension-sign slot, and
+ * the wiring between the two cores — unchanged from native.
  *
  * `dapp-connection.tsx` is the native counterpart (Hermes has no wasm) and
  * `dapp-connection-shape.ts` holds everything both share; a `.web` file must
@@ -34,16 +57,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { useWallet } from '@/models/wallet-state';
-import {
-  RemoteInjectTransport,
-  type DAppTransport,
-  type DAppInfo,
-  type RemoteInjectSession,
-} from '@/services/dapp-transport';
-import {
-  WalletPairTransport,
-  clearWalletPairSession,
-} from '@/services/walletpair-transport';
+import type { DAppInfo, DAppTransport, RemoteInjectSession } from '@/services/dapp-transport';
 import { isSigningMethod, handleReadOnlyRPC, INSTANT_READONLY_METHODS } from '@/hooks/use-dapp-signing';
 import { gateReadOnly, readOnlyKey } from '@/services/readonly-rpc-gate';
 import { startTxTracker } from '@/services/wallet-state-core/tx-tracker-resident.web';
@@ -53,7 +67,6 @@ import {
   registerSignTransport,
   setSignAccounts,
   setSignApproveExtras,
-  setSignDurableTransport,
   signRequestFunding,
   signRequestPending,
   signRequestView,
@@ -61,17 +74,24 @@ import {
   subscribeSignRequest,
   syncSignNetworks,
 } from '@/services/wallet-state-core/sign-resident.web';
+import {
+  connectDsessBridge,
+  connectDsessWalletPair,
+  dispatchDsess,
+  dsessDappInfo,
+  dsessDurableTransport,
+  dsessProjection,
+  restoreDsess,
+  setDsessRequestSink,
+  setDsessWalletInfoSource,
+  subscribeDsess,
+  type DsessProjection,
+} from '@/services/wallet-state-core/dsess-resident.web';
 import { signErrorMessage } from '@/services/wallet-state-core/sign-types';
 import type { SignView } from '@/services/wallet-state-core/generated/SignView';
 import {
   DAppConnectionContext,
-  RECONNECT_GRACE_MS,
-  clearSession,
-  loadSession,
-  saveSession,
   type ApproveRequestOptions,
-  type ConnectionStatus,
-  type ConnectionType,
   type ExtensionSignMeta,
 } from './dapp-connection-shape';
 
@@ -99,16 +119,32 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   const address = activeAccount?.address ?? state.address;
   const accountName = activeAccount?.name ?? 'Wallet';
 
-  const [status, setStatus] = useState<ConnectionStatus>('disconnected');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [session, setSession] = useState<RemoteInjectSession | null>(null);
-  const [dappInfo, setDappInfo] = useState<DAppInfo | null>(null);
-  const [connectionType, setConnectionType] = useState<ConnectionType>(null);
-  const [pendingFingerprint, setPendingFingerprint] = useState<string | null>(null);
-  const [reconnectStuck, setReconnectStuck] = useState(false);
-  // Bumped on each manual "Reconnect now" so the stuck timer re-arms even though
-  // `status` stays 'reconnecting' (a same-value setState wouldn't re-run the effect).
-  const [reconnectNonce, setReconnectNonce] = useState(0);
+  // The ENTIRE connection half, as one projection of the `dapp_session` core.
+  // Pushed, never read from the module during render: the resident is the app's
+  // most mutable state and an untracked render-time read would be cached
+  // forever by the React Compiler (`wallet-state.web.ts`).
+  const [conn, setConn] = useState<DsessProjection>(dsessProjection);
+  useEffect(() => {
+    const unsubscribe = subscribeDsess(setConn);
+    // Catch up on anything committed between the initial render and here.
+    setConn(dsessProjection());
+    return unsubscribe;
+  }, []);
+
+  const {
+    status, session, dappInfo, connectionType, pendingFingerprint, reconnectStuck,
+  } = conn;
+
+  /**
+   * A Safari-extension / popup sign transport's own transport-level error.
+   * Kept apart from the connection error rather than sharing one slot: the
+   * core is the single writer of the session's error, and this one belongs to
+   * a transport the session does not own. The error card only renders under
+   * `status === 'error'`, which only a connection failure produces, so the
+   * connection's message wins when both exist.
+   */
+  const [extErrorMessage, setExtErrorMessage] = useState<string | null>(null);
+  const errorMessage = conn.errorMessage ?? extErrorMessage;
 
   // The ENTIRE signing half, as one projection of the core.
   const [signView, setSignView] = useState<SignView>(signRequestView);
@@ -134,32 +170,12 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   const fundingNeeded = signRequestFunding();
   const signError = signView.error ? signErrorMessage(signView.error) : null;
 
-  // Holds the grace-window timer that debounces the "Reconnecting…" indicator, so
-  // a brief, self-healing reconnect never flickers the UI off "connected".
-  const reconnectGraceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearReconnectGrace = useCallback(() => {
-    if (reconnectGraceTimer.current) { clearTimeout(reconnectGraceTimer.current); reconnectGraceTimer.current = null; }
-  }, []);
-  // Don't let a pending grace timer fire setStatus after the provider unmounts.
-  useEffect(() => () => clearReconnectGrace(), [clearReconnectGrace]);
-
-  // If an auto-reconnect drags on (relay down / session expired), surface a
-  // manual-recovery prompt instead of spinning "Reconnecting…" forever.
-  useEffect(() => {
-    if (status !== 'reconnecting') { setReconnectStuck(false); return; }
-    setReconnectStuck(false);
-    const timer = setTimeout(() => setReconnectStuck(true), 45_000);
-    return () => clearTimeout(timer);
-  }, [status, reconnectNonce]);
-
-  const transportRef = useRef<DAppTransport | null>(null);
-  /** Holds WalletPairTransport during fingerprint verification (before connect). */
-  const pendingWpTransportRef = useRef<WalletPairTransport | null>(null);
   /**
    * Transient slot for a Safari-extension / web-popup sign transport
-   * (beginExtensionSign). SEPARATE from transportRef so a live WalletPair/bridge
-   * session is NOT clobbered by an extension sign. Responses route per-request
-   * through the core's `transport_id` (F2), never through this ref.
+   * (beginExtensionSign). SEPARATE from the session's own transport so a live
+   * WalletPair/bridge session is NOT clobbered by an extension sign. Responses
+   * route per-request through the core's `transport_id` (F2), never through
+   * this ref.
    */
   const signTransportRef = useRef<DAppTransport | null>(null);
   /** The per-transport facts a one-shot sign transport was installed with. */
@@ -168,23 +184,29 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   const addressRef = useRef(address);
   const accountNameRef = useRef(accountName);
   const accountsRef = useRef(state.accounts);
-  const dappInfoRef = useRef(dappInfo);
 
   useEffect(() => { addressRef.current = address; }, [address]);
   useEffect(() => { accountNameRef.current = accountName; }, [accountName]);
   useEffect(() => { accountsRef.current = state.accounts; }, [state.accounts]);
-  useEffect(() => { dappInfoRef.current = dappInfo; }, [dappInfo]);
 
-  // Push wallet info when account/chain changes while connected
+  // The wallet identity a `PushWalletInfo` is composed from. Read at push time
+  // from the refs above, exactly as the transport handlers read them.
   useEffect(() => {
-    if (status === 'connected' && transportRef.current?.connected) {
-      transportRef.current.pushWalletInfo({
-        address,
-        chainId,
-        name: accountName,
-        accounts: state.accounts.map(a => ({ name: a.name, address: a.address })),
-      });
-    }
+    setDsessWalletInfoSource(() => ({
+      address: addressRef.current,
+      name: accountNameRef.current,
+      accounts: accountsRef.current.map(a => ({ name: a.name, address: a.address })),
+    }));
+    return () => setDsessWalletInfoSource(null);
+  }, []);
+
+  // Push wallet info when account/chain changes while connected. The core
+  // decides whether anything goes out (`status === 'connected' &&
+  // transport.connected`) and, for WalletPair, sequences the counter persist
+  // ahead of it (⑦). The dependency list is the one this effect always had, so
+  // the same five changes still push.
+  useEffect(() => {
+    dispatchDsess({ type: 'wallet_changed', chain_id: chainId });
   }, [address, chainId, accountName, status, state.accounts]);
 
   // --- Handle incoming request ---
@@ -202,10 +224,11 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     // the new chain. `signRequestView()` is committed synchronously by the
     // effect loop, so it keeps that property.
     const cid = meta?.chainId ?? signRequestView().global_chain_id;
-    // The transport that OWNS this request. Responses MUST route here, never a
-    // shared transportRef — with a concurrent WalletPair session live, using
-    // transportRef would deliver an extension signature over the WP socket (F2).
-    const owner = meta?.transport ?? transportRef.current;
+    // The transport that OWNS this request. Responses MUST route here, never
+    // the session's durable transport — with a concurrent WalletPair session
+    // live, that would deliver an extension signature over the WP socket (F2).
+    // Read at REQUEST time, never in render.
+    const owner = meta?.transport ?? dsessDurableTransport();
 
     // `eth_accounts` may legitimately be empty, but `eth_requestAccounts` is an
     // authorization request. Do not try to serialize an absent account as an
@@ -222,7 +245,7 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
       syncSignNetworks();
       const transportId = meta?.transport
         ? registerSignTransport(meta.transport)
-        : signTransportId(transportRef.current);
+        : signTransportId(dsessDurableTransport());
 
       if (method === 'wallet_switchEthereumChain') {
         const cp = params?.[0] as { chainId?: string } | undefined;
@@ -241,7 +264,7 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
       bindSignRequest(id, transportId, meta?.dapp ?? null);
       // What the RECORD is attributed to, resolved at arrival exactly as
       // `requestDApp(request, dappInfo)?.name ?? request.origin` resolved it.
-      const identity = meta?.dapp ?? dappInfoRef.current;
+      const identity = meta?.dapp ?? dsessDappInfo();
       const granted =
         signMetaRef.current.get(meta?.transport as DAppTransport)?.grantedAddress ??
         (meta?.transport as { requestAddress?: string } | undefined)?.requestAddress ??
@@ -287,206 +310,63 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // --- Wire transport events (shared by both transport types) ---
-  const wireTransport = useCallback((transport: DAppTransport, type: ConnectionType) => {
-    transport.on('connected', () => {
-      // Recovered (possibly within the grace window) — cancel any pending
-      // "Reconnecting…" flip so a self-healing blip never showed at all.
-      clearReconnectGrace();
-      setStatus('connected');
-      setConnectionType(type);
-      transport.pushWalletInfo({
-        address: addressRef.current,
-        chainId: signRequestView().global_chain_id,
-        name: accountNameRef.current,
-        accounts: accountsRef.current.map(a => ({ name: a.name, address: a.address })),
-      });
+  // --- Where a live transport's requests go ---
+  // The `dapp_session` executor wires every transport it builds and forwards
+  // `request` here, stamped with the OWNING transport and its per-request chain
+  // (F2/F4). Installed before the restore effect below, which is the first
+  // thing that can create a transport.
+  useEffect(() => {
+    setDsessRequestSink((transport, id, method, params, origin, requestChainId) => {
+      handleIncoming(id, method, params as any[], origin, { transport, chainId: requestChainId });
     });
-
-    transport.on('disconnected', () => {
-      clearReconnectGrace();
-      setStatus('disconnected');
-      setConnectionType(null);
-      // Owner-aware: only clear a request THIS transport owns. Otherwise a terminal
-      // WalletPair/bridge drop would tear down a concurrent extension sign's modal
-      // (which lives in the same shared sheet but is owned by the ext transport).
-      // The core applies the rule; the shell only reports which transport died.
-      dispatchSign({ type: 'transport_dropped', transport_id: signTransportId(transport) });
-      transportRef.current = null;
-      setSignDurableTransport(null);
-    });
-
-    transport.on('reconnecting', () => {
-      // Transient disconnect — WalletPair is auto-reconnecting. Keep transport ref and
-      // dApp info intact. Don't flip the indicator immediately: hold "connected"
-      // for the grace window so a sub-second blip self-heals invisibly, and only
-      // surface "Reconnecting…" if it hasn't recovered by then. Already-pending
-      // timer is left to run (don't extend the window on repeated blips).
-      if (reconnectGraceTimer.current) return;
-      reconnectGraceTimer.current = setTimeout(() => {
-        reconnectGraceTimer.current = null;
-        setStatus('reconnecting');
-      }, RECONNECT_GRACE_MS);
-    });
-
-    // Stamp the OWNING transport on every inbound request so responses route back
-    // to it, not a shared ref (matters once a second transport — the extension
-    // sign slot — can be live at the same time; see F2).
-    transport.on('request', (id, method, params, origin, requestChainId) => {
-      handleIncoming(id, method, params, origin, { transport, chainId: requestChainId });
-    });
-
-    transport.on('error', (msg) => {
-      setErrorMessage(msg);
-    });
-
-    transportRef.current = transport;
-    setSignDurableTransport(transport);
-  }, [handleIncoming, clearReconnectGrace]);
-
-  // --- Disconnect any active transport ---
-  const disconnectCurrent = useCallback(() => {
-    clearReconnectGrace();
-    // A pairing awaiting fingerprint approval has not persisted a resumable
-    // snapshot, but it already owns an ephemeral X25519 key pair. Replacing it
-    // or disconnecting must release that key explicitly.
-    const pendingWalletPair = pendingWpTransportRef.current;
-    pendingWpTransportRef.current = null;
-    pendingWalletPair?.disconnect();
-    setPendingFingerprint(null);
-    if (transportRef.current) {
-      transportRef.current.disconnect();
-      transportRef.current = null;
-      setSignDurableTransport(null);
-    }
-  }, [clearReconnectGrace]);
+    return () => setDsessRequestSink(null);
+  }, [handleIncoming]);
 
   // --- Connect (Remote Inject) ---
+  // Entry classification is the core's (invariant ⑨) and the Connect screen
+  // hands over an already-parsed session, so the resident re-serialises it into
+  // the canonical link the core's own parser reads back field-for-field.
   const connectToBridge = useCallback(async (sess: RemoteInjectSession) => {
-    disconnectCurrent();
-
-    setStatus('connecting');
-    setErrorMessage(null);
-    setSession(sess);
-
-    const transport = new RemoteInjectTransport(sess);
-    wireTransport(transport, 'remote-inject');
-
-    try {
-      await transport.connect();
-      const [info] = await Promise.all([
-        transport.fetchDAppInfo().catch(() => null),
-        saveSession(sess),
-      ]);
-      setDappInfo(info);
-    } catch (err: any) {
-      setStatus('error');
-      setErrorMessage(err.message ?? 'Connection failed');
-      transportRef.current = null;
-      setSignDurableTransport(null);
-    }
-  }, [wireTransport, disconnectCurrent]);
+    connectDsessBridge(sess);
+  }, []);
 
   // --- Connect (WalletPair) ---
   const connectToWalletPair = useCallback(async (uri: string) => {
-    disconnectCurrent();
-
-    setStatus('connecting');
-    setErrorMessage(null);
-    setSession(null);
-
-    try {
-      const { fingerprint, dappInfo: info, transport } = WalletPairTransport.prepare(uri);
-      setPendingFingerprint(fingerprint);
-      setDappInfo(info);
-      pendingWpTransportRef.current = transport;
-      // Wait for user to call confirmFingerprint()
-    } catch (err: any) {
-      setStatus('error');
-      setErrorMessage(err.message ?? 'Failed to prepare WalletPair session');
-    }
-  }, [disconnectCurrent]);
+    connectDsessWalletPair(uri);
+  }, []);
 
   // --- Confirm fingerprint (WalletPair) ---
+  // Invariant ①: this event is the ONLY path to `ConfirmWalletPairJoin`. The
+  // 120 s join watchdog it may arm afterwards is the core's, keyed to the
+  // handle it watches, so a superseded pairing can never trip it.
   const confirmFingerprint = useCallback(async () => {
-    const transport = pendingWpTransportRef.current;
-    if (!transport) return;
-
-    setPendingFingerprint(null);
-    pendingWpTransportRef.current = null;
-
-    wireTransport(transport, 'walletpair');
-
-    try {
-      await transport.connect();
-
-      // If still not connected after confirmJoin resolved, start a timeout.
-      // The relay may silently drop the join message (e.g. CF Worker hibernation),
-      // leaving both sides stuck in waiting_accept with no transport-level error.
-      if (!transport.connected) {
-        const timeout = setTimeout(() => {
-          if (!transport.connected && transportRef.current === transport) {
-            setStatus('error');
-            setErrorMessage('Connection timed out. The relay may be unavailable — try scanning again.');
-            transport.disconnect();
-            transportRef.current = null;
-            setSignDurableTransport(null);
-          }
-        }, 120_000);
-
-        // Clear timeout if connection succeeds before deadline
-        const unsub = transport.on('connected', () => {
-          clearTimeout(timeout);
-          unsub();
-        });
-      }
-    } catch (err: any) {
-      setStatus('error');
-      setErrorMessage(err.message ?? 'WalletPair connection failed');
-      // A failed confirmation must not leave a retry loop or join key behind.
-      transport.disconnect();
-      if (transportRef.current === transport) {
-        transportRef.current = null;
-        setSignDurableTransport(null);
-      }
-    }
-  }, [wireTransport]);
+    dispatchDsess({ type: 'fingerprint_confirmed' });
+  }, []);
 
   // --- Cancel fingerprint verification ---
+  // Invariant ②: the core answers with an explicit `DisconnectTransport` for
+  // the pending handle — prepare() minted an X25519 pair the relay never
+  // accepted, and cancelling must release it.
   const cancelFingerprint = useCallback(() => {
-    // prepare() generated a wallet identity even though the relay has not yet
-    // accepted the join. Explicit cancellation must zero it as well.
-    pendingWpTransportRef.current?.disconnect();
-    pendingWpTransportRef.current = null;
-    setPendingFingerprint(null);
-    setStatus('disconnected');
-    setDappInfo(null);
-    setErrorMessage(null);
+    dispatchDsess({ type: 'fingerprint_cancelled' });
   }, []);
 
   // --- Disconnect ---
   const disconnectBridge = useCallback(() => {
-    disconnectCurrent();
-    setStatus('disconnected');
-    setConnectionType(null);
-    setSession(null);
-    setDappInfo(null);
+    // Tears the session down and wipes BOTH stores; `errorMessage` is
+    // deliberately not cleared, exactly as before.
+    dispatchDsess({ type: 'disconnect_requested' });
     // No response goes out — the same nothing `setIncomingRequest(null)` did.
     dispatchSign({ type: 'dismiss_tapped' });
-    clearSession();
-    clearWalletPairSession();
-  }, [disconnectCurrent]);
+  }, []);
 
   // --- Manual reconnect ("Reconnect now") ---
+  // Bypasses the 4 s grace window (invariant ③) and re-arms the 45 s stuck
+  // prompt even when the status was already 'reconnecting' — the
+  // `reconnectNonce` bump, now a rule inside the core.
   const reconnect = useCallback(() => {
-    const transport = transportRef.current;
-    if (!transport) return;
-    clearReconnectGrace(); // manual tap → show "Reconnecting…" now, don't wait out the grace
-    setStatus('reconnecting');
-    setReconnectStuck(false);
-    setReconnectNonce((n) => n + 1); // re-arm the stuck timer even if status was already 'reconnecting'
-    transport.reconnect?.().catch(() => { /* WalletPair keeps retrying; UI stays reconnecting */ });
-  }, [clearReconnectGrace]);
+    dispatchDsess({ type: 'manual_reconnect' });
+  }, []);
 
   // --- Begin an extension sign (Safari extension → App Group, or web popup) ---
   // Installs `transport` into the TRANSIENT signTransportRef, NOT transportRef, and
@@ -511,7 +391,7 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     transport.on('disconnected', () => {
       if (signTransportRef.current === transport) signTransportRef.current = null;
     });
-    transport.on('error', (msg) => setErrorMessage(msg));
+    transport.on('error', (msg) => setExtErrorMessage(msg));
     signTransportRef.current = transport;
   }, [handleIncoming]);
 
@@ -573,73 +453,22 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // --- Auto-reconnect on mount ---
+  //
+  // The shell reads BOTH stores and reports what exists; the CORE picks
+  // remote-inject first (invariant ⑥), commits a restored relay session only on
+  // a successful connect, cleans a stale one up silently, and gives a restored
+  // WalletPair channel the 8 s `dropIfDead` window before it drops it AND wipes
+  // the snapshot (BUG-5/6, invariant ⑤). `RestoreLoaded` is single-shot in the
+  // core and refuses to run while anything is live, so a re-run of this effect
+  // can never clobber a session the user just made.
+  //
+  // No teardown: the resident owns its transports for the lifetime of the tab,
+  // which is what makes a connection survive navigation. The provider is
+  // mounted once at the root, so the old unmount-disconnect only ever ran on a
+  // hot reload.
   useEffect(() => {
     if (!state.hasWallet || state.isLoading) return;
-
-    // Try Remote Inject first, then WalletPair
-    (async () => {
-      const sess = await loadSession();
-      if (sess) {
-        // Try auto-reconnect — on failure, clear stale session silently
-        const transport = new RemoteInjectTransport(sess);
-        wireTransport(transport, 'remote-inject');
-        try {
-          await transport.connect();
-          setSession(sess);
-          const info = await transport.fetchDAppInfo().catch(() => null);
-          setDappInfo(info);
-          await saveSession(sess);
-        } catch {
-          // Stale session — clean up silently, don't show error
-          transport.disconnect();
-          transportRef.current = null;
-          setSignDurableTransport(null);
-          await clearSession();
-        }
-        return;
-      }
-
-      // Try restoring a WalletPair session
-      try {
-        const wpTransport = await WalletPairTransport.restore();
-        if (wpTransport) {
-          wireTransport(wpTransport, 'walletpair');
-          const info = await wpTransport.fetchDAppInfo();
-          setDappInfo(info);
-          const dropIfDead = () => {
-            // A restored session whose channel is gone (the relay answers a join with
-            // `terminate: channel_not_found`) can NEVER come back. Left alone, the session
-            // treats it as the durable session and the snapshot restore-loops on every
-            // launch — and a live reconnect attempt to a dead channel collides with a
-            // fresh pairing on the relay (BUG-6, and a contributor to BUG-5). So if it
-            // isn't live shortly after the reconnect attempt, drop it AND clear the
-            // snapshot so the next launch starts clean.
-            if (transportRef.current === wpTransport && !wpTransport.connected) {
-              wpTransport.disconnect();
-              if (transportRef.current === wpTransport) {
-                transportRef.current = null;
-                setSignDurableTransport(null);
-              }
-              clearWalletPairSession();
-            }
-          };
-          try {
-            await wpTransport.reconnect();
-            setTimeout(dropIfDead, 8000); // real reconnects settle well under this; dead channels 404 fast
-          } catch {
-            dropIfDead();
-          }
-        }
-      } catch {
-        // WalletPair restore failed — clean up
-        clearWalletPairSession();
-      }
-    })();
-
-    return () => {
-      transportRef.current?.disconnect();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    void restoreDsess();
   }, [state.hasWallet, state.isLoading]);
 
   // --- Resume in-flight txs left 'pending' (sheet closed / page reloaded

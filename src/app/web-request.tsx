@@ -6,7 +6,10 @@ import { useWallet } from '@/models/wallet-state';
 import { useDAppConnection } from '@/models/dapp-connection';
 import OnboardingScreen from '@/screens/onboarding/OnboardingScreen';
 import { getAllNetworksSync } from '@/models/network';
-import { getGrant, resolveGranted, setGrant } from '@/services/dapp-permissions';
+import { getGrant, setGrant } from '@/services/dapp-permissions';
+import { decidePopupRequest } from '@/services/wallet-state-core/dperm-popup';
+import { dpermRejectMessage, toWireGrant } from '@/services/wallet-state-core/dperm-types';
+import type { DpermRespondPayload } from '@/services/wallet-state-core/generated/DpermRespondPayload';
 import { reconcileGrantedAccount } from '@/services/dapp-account-reconcile';
 import { assertChainSupported } from '@/hooks/use-dapp-signing';
 import { WebPopupTransport, isAllowedWebDAppOrigin, type WebPopupPeer } from '@/services/web-popup-transport';
@@ -46,6 +49,25 @@ function trustedDAppLogo(icon: string | undefined, origin: string | undefined): 
     return secure && iconUrl.origin === originUrl.origin ? iconUrl.href : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * A `Respond` payload → the JSON-RPC result the SDK expects. The core names
+ * the shape (`Accounts` / `Permissions`); the EIP-2255 encoding is this side's,
+ * exactly as it was written inline before.
+ */
+function popupResult(payload: DpermRespondPayload): unknown {
+  switch (payload.type) {
+    case 'accounts':
+      return payload.addresses;
+    case 'permissions':
+      return payload.granted ? [{ parentCapability: 'eth_accounts' }] : [];
+    case 'error':
+    default:
+      // The core never answers a popup question with an `Error` payload (a
+      // refusal arrives as its own outcome), so this is the defensive tail.
+      return null;
   }
 }
 
@@ -166,32 +188,37 @@ export default function WebRequestScreen(): React.ReactElement {
         return;
       }
 
+      // The authorization decision is the `dapp_permissions` core's, not this
+      // screen's: whether a never-connected origin may be answered at all, WHICH
+      // address the grant exposes (the grant's own, never the active account),
+      // and whether a pinned address still matches it. The shell keeps only the
+      // grant I/O and the words. See `dperm-popup.web.ts`.
       const grant = await getGrant(peer.origin);
-      const currentAddresses = state.accounts.map((account) => account.address);
-      const granted = resolveGranted(grant, currentAddresses);
-      const isConnect = peer.request.method === 'eth_requestAccounts' || peer.request.method === 'wallet_requestPermissions';
+      const verdict = decidePopupRequest({
+        method: peer.request.method,
+        grant: toWireGrant(grant),
+        currentAddresses: state.accounts.map((account) => account.address),
+        pinnedAddress: peer.request.address,
+      });
+      const outcome = verdict.outcome;
 
-      if (isConnect) {
-        if (granted.length > 0) {
-          const result = peer.request.method === 'wallet_requestPermissions'
-            ? [{ parentCapability: 'eth_accounts' }]
-            : granted;
-          respond(peer, result);
-        } else {
-          setPhase('consent');
-        }
+      if (outcome.type === 'respond') {
+        respond(peer, popupResult(outcome.payload));
+        return;
+      }
+      if (outcome.type === 'consent') {
+        setPhase('consent');
+        return;
+      }
+      if (outcome.type === 'reject') {
+        // 4100 for both refusals, with the wording each one has always had.
+        respond(peer, undefined, { code: outcome.code, message: dpermRejectMessage(outcome.reason) });
         return;
       }
 
-      if (granted.length === 0) {
-        respond(peer, undefined, { code: 4100, message: 'Connect Vela Wallet to this site first' });
-        return;
-      }
-      if (peer.request.address && peer.request.address.toLowerCase() !== granted[0].toLowerCase()) {
-        respond(peer, undefined, { code: 4100, message: 'The requested account is no longer authorized' });
-        return;
-      }
-
+      // `forward_to_signing` — and `granted_address` is the address the core
+      // pinned the forward to. Nothing downstream may substitute another one.
+      const grantedAddress = outcome.granted_address;
       const transport = new WebPopupTransport(peer);
       transport.on('disconnected', () => {
         peerRef.current = null;
@@ -200,15 +227,16 @@ export default function WebRequestScreen(): React.ReactElement {
       });
       // §12.1.6 — sign from the account this origin was GRANTED, never whatever
       // happens to be active. On web this is a no-op: `beginExtensionSign` hands
-      // the granted address to the `sign_request` core, which switches the
-      // account against the session's own row indices and keeps the approval
-      // surface shut until the switch has landed (that ack is where the
-      // `setTimeout(0)` that used to sit on the next line went). Native keeps the
-      // dispatch, in `dapp-account-reconcile.ts`.
-      reconcileGrantedAccount(state.accounts, state.activeAccountIndex, granted[0], (index) =>
+      // the granted address to the `sign_request` core, which resolves it against
+      // the session's own row indices, switches, verifies the switch landed, and
+      // only then opens the approval surface. Nothing on that path reads the
+      // signer back out of React, so the `setTimeout(0)` that used to sit on the
+      // next line is gone rather than moved. Native keeps the dispatch, in
+      // `dapp-account-reconcile.ts`.
+      reconcileGrantedAccount(state.accounts, state.activeAccountIndex, grantedAddress, (index) =>
         dispatch({ type: 'SWITCH_ACCOUNT', index }),
       );
-      beginExtensionSign(transport, { grantedAddress: granted[0] });
+      beginExtensionSign(transport, { grantedAddress });
       setPhase('processing');
       void transport.connect();
     })();

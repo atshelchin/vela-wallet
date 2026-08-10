@@ -563,15 +563,27 @@ export async function deleteConnectionEvents(address: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
- * Erase every key this module owns. The nuclear option — kept for a future
- * "erase this device" affordance; **not** what signing out does. Callers should
- * be very sure they mean it: this takes the pending-upload outbox with it, and
- * an un-uploaded public key that is deleted can never be retried.
+ * Drop this module's in-memory caches back to their defaults and wake their
+ * subscribers.
+ *
+ * Only `eraseDeviceData()` (`services/erase-device.ts`) may call this. All
+ * three caches are read SYNCHRONOUSLY during render — `getLocalePrefs()`
+ * formats every number and date, `getEthereumDataURL()` and friends pick the
+ * host for the next request, `getRpcProviderKeys()` builds each chain's
+ * endpoint list — so an erase that only cleared the disk would keep serving
+ * the erased values (including the provider API keys, which are credentials)
+ * for the rest of the process.
+ *
+ * Explicitly NOT part of signing out: those preferences are still on disk and
+ * still the user's, and resetting them would visibly re-theme and re-format an
+ * app that merely lost its account list.
  */
-export async function clearAll(): Promise<void> {
-  for (const key of Object.values(KEYS)) {
-    await AsyncStorage.removeItem(key);
-  }
+export function resetStorageCaches(): void {
+  _endpointsCache = { ...DEFAULT_SERVICE_ENDPOINTS };
+  _localePrefsCache = { ...DEFAULT_LOCALE_PREFS };
+  _rpcProvidersCache = {};
+  notifyLocaleListeners();
+  notifyRpcProviderListeners();
 }
 
 /**
@@ -587,7 +599,8 @@ export async function clearAll(): Promise<void> {
  * and no reconciliation. (The same holds for the keys other modules own:
  * contacts, groups, browser history, `vela.perm.*` dApp grants, receive
  * confirmations.) Erasing all of that is a different, deliberate action —
- * {@link clearAll} — and signing out is not it.
+ * `eraseDeviceData()` in `services/erase-device.ts`, which scans the whole
+ * `vela.` namespace rather than any list kept here — and signing out is not it.
  *
  * `vela.pendingUploads` is excluded for a second, independent reason: a record
  * there is a public key the index service has never confirmed. `retryPendingUploads()`

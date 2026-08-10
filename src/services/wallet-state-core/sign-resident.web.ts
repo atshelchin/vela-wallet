@@ -29,7 +29,11 @@
 
 import { createSignRequestSession } from '@/services/wallet-state-core/sign-session.web';
 import { fromWireWei } from '@/services/wallet-state-core/sign-executor.web';
-import { dispatchWalletSession } from '@/services/wallet-state-core/session-resident.web';
+import {
+  dispatchWalletSession,
+  walletSessionAccounts,
+  walletSessionView,
+} from '@/services/wallet-state-core/session-resident.web';
 import { formatWei, type FundingNeeded } from '@/services/bundler-service';
 import { getAllNetworksSync } from '@/models/network';
 import type { AssetSimResult } from '@/services/tx-simulation';
@@ -268,6 +272,28 @@ function projectFunding(view: SignView): FundingNeeded | null {
 // The session
 // ---------------------------------------------------------------------------
 
+/**
+ * §12.1.6's fail-closed branch: the switch the core asked for is not a switch
+ * to the account this request was granted to. Say so, and NEVER ack — the ack
+ * is what opens the approval surface, so acking here is precisely the silent
+ * wrong-account signature the rule exists to prevent. The user can still
+ * reject or dismiss the sheet; only approving is dead.
+ */
+function refuseSwitch(
+  index: number,
+  intended: string | null,
+  target: string | null,
+): Promise<never> {
+  console.error(
+    `[sign_request] §12.1.6: refusing the granted-account switch — index ${index} is not ` +
+      `the session's row for ${intended ?? '(unknown signer)'} (that row holds ` +
+      `${target ?? 'nothing'}). The accounts this machine holds are not the session's own ` +
+      'rows, so the index domains disagree. The approval surface stays shut; nothing is signed.',
+  );
+  // Deliberately never resolves.
+  return new Promise<never>(() => {});
+}
+
 export function ensureSignRequest() {
   if (!session) {
     session = createSignRequestSession({
@@ -297,19 +323,34 @@ export function ensureSignRequest() {
         },
         assetSim: () => approveAssetSim,
         switchActiveAccount: async (index: number) => {
-          // §12.1.6 step 1 (integration-plan §12.1.6): the switch itself is
-          // synchronous in the session core, but React has not committed when
-          // it returns — and any surface still reading the signer through
-          // `useWallet()` would act on the OLD account. The yield that used to
-          // sit at `web-request.tsx:207` lives here now, so the ack the core
-          // gates the approval surface on means "the switch has landed".
+          // §12.1.6 step 2. The signer no longer travels through React at all:
+          // the core picks it out of its OWN `accounts`/`active_index` (see
+          // `sign_request.rs::sign_account_index`) and hands it to
+          // `SignAndSubmit` and `CheckBundlerFunding` directly, so acking this
+          // operation no longer has to wait for a React commit. Step 1's
+          // `setTimeout(0)` — which is where `web-request.tsx:207`'s timeout
+          // had moved — is therefore gone, and the ack is immediate.
           //
-          // The index is the session's OWN row index: the shell feeds this
-          // machine from `walletSessionAccounts()`, so the two lists are one
-          // list. An index from any other domain would be a silent whole no-op
-          // in the session and the wallet would sign from the wrong account.
+          // What replaces it is stronger than a yield: the switch is VERIFIED
+          // to have landed before it is acked. `dispatchWalletSession` commits
+          // the session's view synchronously (`effect-loop.ts` commits inside
+          // `dispatch`), and `SwitchAccount` with an out-of-range index is a
+          // silent WHOLE no-op there (`session.rs::switch_account`, invariant
+          // ①). Silent is the danger: the surface would open on an account the
+          // origin was never granted. So we check, and a failure is fail-closed
+          // — never acked, so `confirm_gate_open` stays false and nothing can
+          // be signed. The user can still reject or dismiss the sheet.
+          const intended = current.request?.signer_address ?? null;
+          const target = walletSessionAccounts()[index]?.address ?? null;
+          // Checked BEFORE the dispatch: a bad index must not move the user's
+          // active account either.
+          if (target === null || (intended !== null && !sameAddress(target, intended))) {
+            return refuseSwitch(index, intended, target);
+          }
           dispatchWalletSession({ type: 'switch_account', index });
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          if (walletSessionView().active_index !== index) {
+            return refuseSwitch(index, intended, target);
+          }
         },
       },
     });
@@ -360,25 +401,69 @@ export function syncSignNetworks(): void {
 
 let accountsKey = '';
 
+/** Hex addresses, compared the way every other site in this app compares them. */
+function sameAddress(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && a.toLowerCase() === b.toLowerCase();
+}
+
+function rowsKey(accounts: { address: string; id: string }[], activeIndex: number): string {
+  return `${activeIndex}|${accounts.map((account) => `${account.address}:${account.id}`).join(',')}`;
+}
+
 /**
- * The wallet accounts snapshot. Fed from the SESSION's own rows so
- * `SwitchActiveAccount.index` lands in the domain that consumes it — see the
- * index-domain note in `switchActiveAccount` above.
+ * Whether `accounts` is positionally the same list as the session's rows over
+ * the range they share. Deliberately length- and index-tolerant: a caller's
+ * snapshot can legitimately be one commit behind (React flushes passive effects
+ * in a later task), and that is not a domain error. A reordered, filtered or
+ * foreign list is.
+ */
+function sameDomain(accounts: { address: string }[], rows: { address: string }[]): boolean {
+  const overlap = Math.min(accounts.length, rows.length);
+  for (let i = 0; i < overlap; i += 1) {
+    if (!sameAddress(accounts[i]?.address, rows[i]?.address)) return false;
+  }
+  return true;
+}
+
+/**
+ * The wallet accounts snapshot — and the one place the §12.1.6 index domain is
+ * decided.
+ *
+ * `sign_request` answers a granted address with a POSITION in this list, and
+ * that position is consumed by the SESSION (`SwitchAccount.index`), where an
+ * index that names no row is a silent whole no-op. So the two lists have to be
+ * one list. On web they are: `useWallet().state.accounts` IS
+ * `walletSessionAccounts()`. Rather than trust that, this reads the session's
+ * own rows and feeds THOSE, and the caller's array is used only to notice that
+ * it was a different list and say so. A caller handing over a filtered, sorted
+ * or otherwise foreign list therefore cannot move this machine into a second
+ * index domain; the worst it can do is print.
  */
 export function setSignAccounts(
   accounts: { address: string; id: string }[],
   activeIndex: number,
 ): void {
-  const key = `${activeIndex}|${accounts.map((account) => `${account.address}:${account.id}`).join(',')}`;
+  const rows = walletSessionAccounts();
+  const sessionIndex = walletSessionView().active_index;
+  if (!sameDomain(accounts, rows)) {
+    console.error(
+      '[sign_request] §12.1.6: the accounts handed to setSignAccounts are not the ' +
+        "session's own rows. `SwitchAccount.index` is consumed in the session's " +
+        'domain, so the session rows are used instead. Caller: ' +
+        `${accounts.map((a) => a.address).join(',') || '(none)'} @${activeIndex}; ` +
+        `session: ${rows.map((a) => a.address).join(',') || '(none)'} @${sessionIndex}.`,
+    );
+  }
+  const key = rowsKey(rows, sessionIndex);
   if (key === accountsKey && session) return;
   accountsKey = key;
   dispatchSign({
     type: 'accounts_changed',
-    accounts: accounts.map((account) => ({
+    accounts: rows.map((account) => ({
       address: account.address,
       credential_id: account.id,
     })),
-    active_index: activeIndex,
+    active_index: sessionIndex,
   });
 }
 

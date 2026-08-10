@@ -74,6 +74,8 @@ export * from './DpermEvent';
 export * from './DpermGrant';
 export * from './DpermOperation';
 export * from './DpermPageEvent';
+export * from './DpermPopupOutcome';
+export * from './DpermPopupView';
 export * from './DpermRejectReason';
 export * from './DpermRespondPayload';
 export * from './DpermShellResult';

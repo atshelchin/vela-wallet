@@ -279,8 +279,9 @@ describe('session core (web shell)', () => {
       'vela.rpcProviders': '{"alchemy":"key"}',
       'vela.priceSource': 'dex',
       'vela.localePrefs': '{"numberFormat":"de"}',
-      // Not even in `clearAll()`'s key set, and still worth pinning: a sign-out
-      // that started deleting these would be a different feature.
+      // Owned by other modules entirely, and still worth pinning: a sign-out
+      // that started deleting these would be a different feature — the one
+      // `services/erase-device.ts` now implements.
       'vela.contacts': '[{"address":"0xdef"}]',
       'vela.browserHistory': '[{"url":"https://app.example"}]',
       'vela.perm.https://app.example': '{"accounts":["0x1"]}',

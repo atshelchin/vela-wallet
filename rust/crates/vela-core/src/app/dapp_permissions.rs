@@ -200,6 +200,42 @@ pub struct DpermQueuedRequest {
     pub method: String,
 }
 
+/// The web-popup entry's verdict, on the wire.
+///
+/// A projection of [`DpermPopupDecision`] — [`decide_popup_request`] keeps
+/// exactly the semantics it was ported with; this only gives the answer a
+/// serialisable shape so the popup window can ASK for it. `ForwardToSigning`
+/// carries the granted address because that is the address the sign path must
+/// be pinned to (invariant ⑨: the grant's own address, never the wallet's
+/// active account).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub enum DpermPopupOutcome {
+    Respond {
+        payload: DpermRespondPayload,
+    },
+    /// Open the popup's connect consent.
+    Consent,
+    Reject {
+        code: u32,
+        reason: DpermRejectReason,
+    },
+    ForwardToSigning {
+        granted_address: String,
+    },
+}
+
+/// The answer to one [`Event::PopupRequest`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct DpermPopupView {
+    pub outcome: DpermPopupOutcome,
+    /// [`resolve_granted`]'s answer for this origin — exposed so the popup
+    /// never re-derives the load-bearing cold-read rule (invariant ②) itself.
+    pub granted: Vec<String>,
+}
+
 // ---------------------------------------------------------------------------
 // Protocol
 // ---------------------------------------------------------------------------
@@ -314,6 +350,29 @@ pub enum Event {
     /// origin revokes silently (no page events — the page for that origin is
     /// not in front of us).
     RevokeRequested { origin: Option<String> },
+    /// The web-popup entry (`web-request.tsx:169-193`) asks for one request's
+    /// verdict.
+    ///
+    /// PURE, on purpose: it requests no shell operation, touches none of the
+    /// browser state above, and only publishes its answer on the view — the
+    /// `validate_pay_query` pattern (`payment_request.rs`), because the popup
+    /// is a one-shot window that owns its own grant I/O and its own transport
+    /// and has no document to emit page events into. Without it
+    /// [`decide_popup_request`] is authored, tested and exported but never
+    /// executed anywhere, which is worse than not having it: it reads as the
+    /// source of truth for rules the shell is actually re-implementing.
+    PopupRequest {
+        method: String,
+        /// The stored `vela.perm.<origin>` value — `None` when absent or
+        /// unreadable (`getGrant`'s catch).
+        grant: Option<DpermGrant>,
+        /// Every wallet address. `None`/empty = not known yet (cold load), and
+        /// [`resolve_granted`] must NOT log the origin out on that.
+        current_addresses: Option<Vec<String>>,
+        /// `peer.request.address`, the address the request pins itself to.
+        /// The shell maps the TS empty string to `None`.
+        pinned_address: Option<String>,
+    },
     #[serde(skip)]
     ShellCompleted {
         attempt: u64,
@@ -366,6 +425,10 @@ pub struct Model {
     /// Bumped on navigation/close; a result carrying an older attempt belongs
     /// to a torn-down document and is dropped.
     attempt: u64,
+    /// The last [`Event::PopupRequest`] verdict. Separate from every field
+    /// above: the popup is a different entry with a different window, and its
+    /// answer must never be confused with the in-app browser's state.
+    popup: Option<DpermPopupView>,
 }
 
 // ---------------------------------------------------------------------------
@@ -388,6 +451,9 @@ pub struct DpermView {
     /// The connected chip. `None` = disconnected view.
     pub connected_address: Option<String>,
     pub current_origin: Option<String>,
+    /// The answer to the last [`Event::PopupRequest`]. `None` on every core
+    /// that has never been asked one — the in-app browser never sets it.
+    pub popup: Option<DpermPopupView>,
 }
 
 // ---------------------------------------------------------------------------
@@ -432,6 +498,18 @@ impl App for DappPermissions {
             Event::AccountSwitched { address, now_ms } => account_switched(model, address, now_ms),
             Event::ChainChanged { chain_id } => chain_changed(model, chain_id),
             Event::RevokeRequested { origin } => revoke_requested(model, origin),
+            Event::PopupRequest {
+                method,
+                grant,
+                current_addresses,
+                pinned_address,
+            } => popup_request(
+                model,
+                &method,
+                grant.as_ref(),
+                current_addresses.as_deref(),
+                pinned_address.as_deref(),
+            ),
             Event::ShellCompleted { attempt, result } => {
                 if attempt != model.attempt {
                     return Command::done();
@@ -457,6 +535,7 @@ impl App for DappPermissions {
             } else {
                 Some(model.current_origin.clone())
             },
+            popup: model.popup.clone(),
         }
     }
 }
@@ -769,6 +848,51 @@ fn revoke_requested(model: &mut Model, origin: Option<String>) -> Command<DpermE
         model.connected_addr = None;
     }
     finish(model, ops)
+}
+
+/// The popup entry's one question, answered on the view.
+///
+/// Both halves of the answer come from the pure policy below — nothing is
+/// re-decided here: [`resolve_granted`] says what this origin may see (and
+/// refuses to log it out on a cold read, invariant ②), [`decide_popup_request`]
+/// says what to do about it. The three rules the popup exists to enforce are
+/// therefore stated once, in Rust:
+///
+/// - a never-connected origin gets no address — 4100, not a forward;
+/// - the forward is pinned to the GRANT's address, never the wallet's active
+///   account (invariant ⑨);
+/// - a request pinning some other address is refused 4100 — never a silent
+///   swap of the signer for one the dApp did not ask for.
+fn popup_request(
+    model: &mut Model,
+    method: &str,
+    grant: Option<&DpermGrant>,
+    current_addresses: Option<&[String]>,
+    pinned_address: Option<&str>,
+) -> Command<DpermEffect, Event> {
+    let granted = resolve_granted(grant, current_addresses);
+    let outcome = match decide_popup_request(method, &granted, pinned_address) {
+        DpermPopupDecision::Respond(payload) => DpermPopupOutcome::Respond { payload },
+        DpermPopupDecision::Consent => DpermPopupOutcome::Consent,
+        DpermPopupDecision::Reject(reason) => DpermPopupOutcome::Reject {
+            code: reason.code(),
+            reason,
+        },
+        DpermPopupDecision::ForwardToSigning => match granted.first() {
+            Some(address) => DpermPopupOutcome::ForwardToSigning {
+                granted_address: address.clone(),
+            },
+            // Unreachable — `decide_popup_request` only forwards with a
+            // non-empty grant. Fail closed rather than forward with no address
+            // to pin the signer to.
+            None => DpermPopupOutcome::Reject {
+                code: DpermRejectReason::NotConnected.code(),
+                reason: DpermRejectReason::NotConnected,
+            },
+        },
+    };
+    model.popup = Some(DpermPopupView { outcome, granted });
+    render()
 }
 
 // ---------------------------------------------------------------------------

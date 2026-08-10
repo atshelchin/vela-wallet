@@ -10,8 +10,8 @@ use support::DomainDriver;
 use vela_core::app::dapp_permissions::{
     decide_popup_request, hex_chain_id, is_connect_method, is_insecure_public_origin,
     is_signing_method, origin_of, DappPermissions, DpermGrant, DpermOperation as Op,
-    DpermPageEvent, DpermPopupDecision, DpermRejectReason as Reason,
-    DpermRespondPayload as Payload, DpermShellResult as Res, Event,
+    DpermPageEvent, DpermPopupDecision, DpermPopupOutcome, DpermPopupView,
+    DpermRejectReason as Reason, DpermRespondPayload as Payload, DpermShellResult as Res, Event,
 };
 
 type Sut = DomainDriver<DappPermissions>;
@@ -860,6 +860,176 @@ fn popup_pinned_address_must_match_the_grant() {
         decide_popup_request("eth_sendTransaction", &granted, None),
         DpermPopupDecision::ForwardToSigning,
     );
+}
+
+// ---------------------------------------------------------------------------
+// The popup entry, as a DISPATCHABLE decision (`Event::PopupRequest`)
+//
+// The rules above are the pure function's; these are the same rules reached
+// the only way a shell can reach them. Every one of them is a fund-safety
+// rule, so the projection has to be asserted, not assumed.
+// ---------------------------------------------------------------------------
+
+fn popup(method: &str, grant: Option<DpermGrant>, addresses: Option<&[&str]>, pinned: Option<&str>) -> Event {
+    Event::PopupRequest {
+        method: method.to_owned(),
+        grant,
+        current_addresses: addresses.map(|a| a.iter().map(|s| (*s).to_owned()).collect()),
+        pinned_address: pinned.map(str::to_owned),
+    }
+}
+
+/// Ask the verdict and read it back. Every popup question must be answered
+/// with NO shell operation — the popup owns its own grant I/O and its own
+/// window; this core is asked the question and nothing else.
+fn ask(sut: &mut Sut, event: Event) -> DpermPopupView {
+    let ops = sut.dispatch(event);
+    assert!(ops.is_empty(), "a popup question asks the shell for nothing");
+    sut.view().popup.expect("a popup verdict")
+}
+
+/// A never-connected origin gets NO address — 4100, never a forward.
+#[test]
+fn popup_event_refuses_an_unconnected_origin() {
+    let mut sut = Sut::new();
+    let verdict = ask(&mut sut, popup("personal_sign", None, Some(&[A1]), None));
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::Reject {
+            code: 4100,
+            reason: Reason::NotConnected,
+        },
+    );
+    assert!(verdict.granted.is_empty());
+
+    // …and the connect methods do not leak one either: they ask the user.
+    let verdict = ask(&mut sut, popup("eth_requestAccounts", None, Some(&[A1]), None));
+    assert_eq!(verdict.outcome, DpermPopupOutcome::Consent);
+}
+
+/// The forward is pinned to the GRANT's address, never the wallet's active
+/// account (invariant ⑨). A2 is first in the wallet here; A1 is the grant.
+#[test]
+fn popup_event_forwards_the_granted_address_not_the_active_account() {
+    let mut sut = Sut::new();
+    let verdict = ask(
+        &mut sut,
+        popup("eth_sendTransaction", Some(grant(A1)), Some(&[A2, A1]), None),
+    );
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::ForwardToSigning {
+            granted_address: A1.to_owned(),
+        },
+    );
+
+    // A grant whose account was deleted from the wallet exposes nothing.
+    let verdict = ask(
+        &mut sut,
+        popup("eth_sendTransaction", Some(grant(A3)), Some(&[A1, A2]), None),
+    );
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::Reject {
+            code: 4100,
+            reason: Reason::NotConnected,
+        },
+    );
+
+    // Cold read (addresses not known yet): the grant is TRUSTED, not revoked
+    // (invariant ②) — a transient empty list must not log the origin out.
+    let verdict = ask(
+        &mut sut,
+        popup("eth_sendTransaction", Some(grant(A1)), None, None),
+    );
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::ForwardToSigning {
+            granted_address: A1.to_owned(),
+        },
+    );
+}
+
+/// A request pinning an address other than the granted one is refused 4100 —
+/// and the verdict is a REFUSAL, never a forward carrying some other signer.
+#[test]
+fn popup_event_refuses_a_stale_pinned_address() {
+    let mut sut = Sut::new();
+    let verdict = ask(
+        &mut sut,
+        popup("personal_sign", Some(grant(A1)), Some(&[A1, A2]), Some(A2)),
+    );
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::Reject {
+            code: 4100,
+            reason: Reason::StaleAuthorizedAddress,
+        },
+    );
+
+    // The same address in another case still forwards, pinned to the grant.
+    let upper = A1.to_uppercase().replace("0X", "0x");
+    let verdict = ask(
+        &mut sut,
+        popup("personal_sign", Some(grant(A1)), Some(&[A1, A2]), Some(&upper)),
+    );
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::ForwardToSigning {
+            granted_address: A1.to_owned(),
+        },
+    );
+}
+
+/// Connect on an already-granted origin answers immediately, in the shape the
+/// method asks for — no second prompt on revisit.
+#[test]
+fn popup_event_connect_on_a_granted_origin_answers_without_a_prompt() {
+    let mut sut = Sut::new();
+    let verdict = ask(
+        &mut sut,
+        popup("eth_requestAccounts", Some(grant(A1)), Some(&[A1, A2]), None),
+    );
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::Respond {
+            payload: Payload::Accounts {
+                addresses: vec![A1.to_owned()],
+            },
+        },
+    );
+    let verdict = ask(
+        &mut sut,
+        popup("wallet_requestPermissions", Some(grant(A1)), Some(&[A1, A2]), None),
+    );
+    assert_eq!(
+        verdict.outcome,
+        DpermPopupOutcome::Respond {
+            payload: Payload::Permissions { granted: true },
+        },
+    );
+}
+
+/// The popup question touches NONE of the browser state — it is a different
+/// entry with a different window, and it must not disturb the consent sheet,
+/// the connected chip or the current origin.
+#[test]
+fn popup_event_leaves_the_browser_half_untouched() {
+    let mut sut = ready();
+    assert!(sut
+        .dispatch(provider("c1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
+    let before = sut.view();
+
+    ask(
+        &mut sut,
+        popup("personal_sign", Some(grant(A2)), Some(&[A1, A2]), None),
+    );
+    let after = sut.view();
+    assert_eq!(after.consent, before.consent);
+    assert_eq!(after.connected_address, before.connected_address);
+    assert_eq!(after.current_origin, before.current_origin);
+    assert!(sut.outstanding().is_empty());
 }
 
 // ---------------------------------------------------------------------------

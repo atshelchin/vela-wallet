@@ -20,6 +20,7 @@ import { useAvatarStyle } from '@/hooks/use-avatar-style';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import type { EndpointHealth, NetworkCardView, ServiceHealth } from '@/hooks/network-admin-controller-types';
 import { useAddNetworkWizard, useNetworkEditor, useServiceEndpoints } from '@/hooks/use-network-admin';
+import { useEraseDevice } from '@/hooks/use-erase-device';
 import { useSessionSignOut } from '@/hooks/use-session-signout';
 import { LANGUAGE_NATIVE_NAMES, SUPPORTED_LANGUAGES, type AppLanguage, type LanguagePreference } from '@/i18n';
 import { useLanguagePreference } from '@/i18n/language';
@@ -1152,6 +1153,11 @@ export default function SettingsScreen() {
   // logout path is reachable. The controller pair owns it (native: today's
   // handlers verbatim; web: the Rust session machine).
   const signOut = useSessionSignOut();
+  // Erase-this-device: the destructive twin of sign-out, and a different
+  // controller on purpose — it clears the whole `vela.` namespace rather than
+  // the two keys that constitute a session, so nothing about it should share
+  // state with the row above it.
+  const eraseDevice = useEraseDevice();
   const { levelIndex: currentScaleIndex, setIndex: setScaleIndex } = useTextScale();
   const { preference: colorPref, setPreference: setColorPref } = useColorSchemePreference();
   const avatarStyle = useAvatarStyle();
@@ -1331,6 +1337,27 @@ export default function SettingsScreen() {
             <Text style={styles.logoutText}>{t('settings.signOut.button')}</Text>
           </Pressable>
         </Animated.View>
+
+        {/* Erase this device — NOT a second sign-out, and styled so it cannot be
+            mistaken for one. Sign-out above is an open, quiet, unboxed row in
+            body ink because it is routine and fully reversible; this one is
+            boxed, hairlined in the error colour, sits below a rule and carries
+            a subtitle, because it is neither. The two are never adjacent
+            look-alikes the thumb can confuse. */}
+        <Animated.View entering={fadeInDown(250, 300)} style={styles.eraseZone}>
+          <Pressable
+            style={styles.eraseButton}
+            onPress={eraseDevice.open}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.eraseDevice.title')}
+          >
+            <Trash2 size={16} color={color.error.base} strokeWidth={2} />
+            <View style={styles.eraseButtonLabel}>
+              <Text style={styles.eraseButtonTitle}>{t('settings.eraseDevice.title')}</Text>
+              <Text style={styles.eraseButtonSubtitle}>{t('settings.eraseDevice.subtitle')}</Text>
+            </View>
+          </Pressable>
+        </Animated.View>
       </ScrollView>
 
       <LanguagePickerModal s={styles} visible={showLanguagePicker} preference={langPref}
@@ -1393,6 +1420,53 @@ export default function SettingsScreen() {
           </Pressable>
         </View>
       </AppModal>
+
+      {/* Erase confirmation. The three paragraphs are ordered the way the
+          decision is actually made: what the action does, then the itemised
+          list of what it takes (a vague "all data" is what makes a destructive
+          confirmation useless), then — last, so it is the thing still on screen
+          above the button — what it does NOT take, because "the wallet is gone"
+          is the fear this dialog has to answer, and it is false. */}
+      <AppModal visible={eraseDevice.visible} onClose={eraseDevice.dismiss}>
+        <View style={styles.eraseModal}>
+          <View style={styles.eraseIconWrap}>
+            <Trash2 size={24} color={color.error.base} strokeWidth={2} />
+          </View>
+          <Text style={styles.eraseTitle}>{t('settings.eraseDevice.title')}</Text>
+          <Text style={styles.eraseDesc}>
+            {t('settings.eraseDevice.desc')}
+          </Text>
+          <View style={styles.eraseLosesBox}>
+            <AlertTriangle size={16} color={color.error.base} strokeWidth={2} />
+            <Text style={styles.eraseLosesText}>
+              {t('settings.eraseDevice.loses')}
+            </Text>
+          </View>
+          <Text style={styles.eraseKeeps}>
+            {t('settings.eraseDevice.keeps')}
+          </Text>
+
+          {/* Shown only after an attempt that did not finish. The user is still
+              signed in and the data is still here; saying so is the whole
+              point of not navigating away. */}
+          {eraseDevice.failed && (
+            <Text style={styles.eraseFailed}>
+              {t('settings.eraseDevice.failed')}
+            </Text>
+          )}
+
+          <VelaButton
+            title={t('settings.eraseDevice.confirm')}
+            onPress={eraseDevice.confirm}
+            variant="accent"
+            loading={eraseDevice.erasing}
+            style={styles.eraseBtn}
+          />
+          <Pressable style={styles.eraseCancel} onPress={eraseDevice.dismiss}>
+            <Text style={styles.eraseCancelText}>{t('settings.eraseDevice.cancel')}</Text>
+          </Pressable>
+        </View>
+      </AppModal>
     </ScreenContainer>
   );
 }
@@ -1441,6 +1515,33 @@ const styleFactory = () => ({
   // Logout — open (de-boxed) row; quiet ink, danger lives in the confirm modal
   logoutButton: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: space.xl, gap: space.md },
   logoutText: { fontSize: text.lg, ...inter.semibold, color: color.fg.base },
+
+  // Erase this device — the one boxed, error-tinted control on the screen. The
+  // rule above it separates it from sign-out so the two never read as a pair of
+  // equivalent "leave" actions; everything else here (hairline, soft error fill,
+  // left-aligned title + subtitle) is chosen to look unlike every other row.
+  eraseZone: { marginTop: space.md, paddingTop: space['2xl'], borderTopWidth: 1, borderTopColor: color.border.base },
+  eraseButton: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: space.lg,
+    paddingVertical: space.xl, paddingHorizontal: space.xl,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: color.error.base, backgroundColor: color.error.soft,
+  },
+  eraseButtonLabel: { flex: 1, gap: space.xs },
+  eraseButtonTitle: { fontSize: text.base, ...inter.semibold, color: color.error.base },
+  eraseButtonSubtitle: { fontSize: text.sm, ...inter.regular, color: color.fg.muted, lineHeight: 18 },
+
+  // Erase confirmation modal
+  eraseModal: { padding: space['3xl'], paddingTop: space['2xl'], alignItems: 'center' as const },
+  eraseIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: color.error.soft, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: space.xl },
+  eraseTitle: { fontSize: text.xl, ...inter.bold, color: color.fg.base, marginBottom: space.md },
+  eraseDesc: { fontSize: text.base, ...inter.regular, color: color.fg.muted, textAlign: 'center' as const, lineHeight: 22, marginBottom: space.xl },
+  eraseLosesBox: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: space.md, backgroundColor: color.error.soft, borderRadius: radius.lg, padding: space.xl, marginBottom: space.xl, width: '100%' as const },
+  eraseLosesText: { flex: 1, fontSize: text.sm, ...inter.medium, color: color.error.base, lineHeight: 20 },
+  eraseKeeps: { fontSize: text.sm, ...inter.regular, color: color.fg.subtle, textAlign: 'center' as const, lineHeight: 20, marginBottom: space.xl },
+  eraseFailed: { fontSize: text.sm, ...inter.medium, color: color.error.base, textAlign: 'center' as const, lineHeight: 20, marginBottom: space.xl },
+  eraseBtn: { width: '100%' as const, marginBottom: space.lg, backgroundColor: color.error.base },
+  eraseCancel: { paddingVertical: space.lg },
+  eraseCancelText: { fontSize: text.base, ...inter.semibold, color: color.fg.muted },
 
   // Theme / avatar pickers — SegmentedToggle rows, inset to match SettingsRow
   pickerRow: { paddingVertical: space.lg, paddingHorizontal: space.xl },

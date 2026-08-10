@@ -29,15 +29,24 @@ import {
   saveCustomToken,
   loadCustomTokens,
   removeCustomToken,
-  clearAll,
   clearSignedInWallet,
+  resetStorageCaches,
   savePendingUpload,
   loadPendingUploads,
   saveActiveAccountIndex,
   loadActiveAccountIndex,
+  saveServiceEndpoints,
+  saveLocalePrefs,
+  saveRpcProviders,
+  getEthereumDataURL,
+  getLocalePrefs,
+  getRpcProviderKeys,
+  subscribeLocalePrefs,
+  subscribeRpcProviders,
   type LocalTransaction,
 } from '@/services/storage';
 import type { StoredAccount } from '@/models/types';
+import { DEFAULT_LOCALE_PREFS, DEFAULT_SERVICE_ENDPOINTS } from '@/models/types';
 
 const makeAccount = (id: string, name: string = 'Test'): StoredAccount => ({
   id,
@@ -301,21 +310,43 @@ describe('storage - custom tokens', () => {
   });
 });
 
-describe('storage - clearAll', () => {
-  test('clears all local storage', async () => {
-    await saveAccount(makeAccount('test'));
-    await saveTransaction({
-      id: 'tx1', userOpHash: '0x1', txHash: '0x1',
-      from: '0x1', to: '0x2', value: '1', symbol: 'ETH',
-      decimals: 18, chainId: 1, timestamp: 1000, status: 'confirmed',
-    });
+describe('storage - resetStorageCaches', () => {
+  /**
+   * `clearAll()` used to live here and is gone: it walked a hand-maintained
+   * list of the eleven keys THIS module happens to own, which is why it never
+   * covered contacts, groups, browser history, `vela.perm.*` or a single
+   * preference key. Erasing a device is now a namespace scan in
+   * `services/erase-device.ts`, tested there; what remains here is the piece
+   * that only this module can do — dropping the caches it reads synchronously
+   * during render, which no amount of deleting keys would touch.
+   */
+  test('endpoints, locale prefs and provider keys go back to their defaults', async () => {
+    await saveServiceEndpoints({ ...DEFAULT_SERVICE_ENDPOINTS, ethereumDataURL: 'https://example.invalid' });
+    await saveLocalePrefs({ ...DEFAULT_LOCALE_PREFS, numberFormat: 'indian' });
+    await saveRpcProviders({ alchemy: 'secret-key' });
+    expect(getEthereumDataURL()).toBe('https://example.invalid');
+    expect(getLocalePrefs().numberFormat).toBe('indian');
+    expect(getRpcProviderKeys()).toEqual({ alchemy: 'secret-key' });
 
-    await clearAll();
+    resetStorageCaches();
 
-    const accounts = await loadAccounts();
-    const txs = await loadTransactions();
-    expect(accounts).toHaveLength(0);
-    expect(txs).toHaveLength(0);
+    expect(getEthereumDataURL()).toBe(DEFAULT_SERVICE_ENDPOINTS.ethereumDataURL);
+    expect(getLocalePrefs()).toEqual(DEFAULT_LOCALE_PREFS);
+    expect(getRpcProviderKeys()).toEqual({});
+  });
+
+  test('subscribers are woken, so a live screen cannot keep rendering erased prefs', () => {
+    const localeListener = jest.fn();
+    const providerListener = jest.fn();
+    const unsubLocale = subscribeLocalePrefs(localeListener);
+    const unsubProviders = subscribeRpcProviders(providerListener);
+
+    resetStorageCaches();
+
+    expect(localeListener).toHaveBeenCalled();
+    expect(providerListener).toHaveBeenCalled();
+    unsubLocale();
+    unsubProviders();
   });
 });
 

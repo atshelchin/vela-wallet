@@ -103,11 +103,11 @@ export async function executeSessionOperation(
     case 'check_pending_uploads':
       return { type: 'pending_uploads', has_pending: await hasPendingUploads() };
     case 'clear_signed_in_wallet':
-      // `clearSignedInWallet()`, deliberately NOT `clearAll()`: the operation's
-      // whole point is its scope. It removes `vela.accounts` and
-      // `vela.activeAccountIndex` — the two keys that make this device signed
-      // in — and leaves every other key, including the pending-upload outbox,
-      // for the reasons that function documents.
+      // `clearSignedInWallet()`, deliberately NOT the erase-this-device scan in
+      // `services/erase-device.ts`: the operation's whole point is its scope. It
+      // removes `vela.accounts` and `vela.activeAccountIndex` — the two keys
+      // that make this device signed in — and leaves every other key, including
+      // the pending-upload outbox, for the reasons that function documents.
       await clearSignedInWallet();
       return { type: 'signed_in_wallet_cleared' };
     case 'clear_extension_cache':

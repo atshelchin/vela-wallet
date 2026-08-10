@@ -79,6 +79,16 @@
       "anyway": "Vẫn đăng xuất",
       "cancel": "Hủy"
     },
+    "eraseDevice": {
+      "title": "Xoá sạch thiết bị này",
+      "subtitle": "Xoá mọi thứ Vela đã lưu trên máy này",
+      "desc": "Mọi thứ Vela đã lưu trên thiết bị này sẽ bị xoá. Không có bản sao lưu và không thể hoàn tác.",
+      "loses": "Bạn sẽ mất: lịch sử giao dịch, danh bạ và nhóm, lịch sử duyệt web, quyền của dApp, token và mạng tuỳ chỉnh, cài đặt RPC và điểm cuối, cùng mọi tuỳ chọn.",
+      "keeps": "Bạn không mất ví. Passkey vẫn nằm trong Face ID / vân tay — chọn “Tôi đã có ví” là địa chỉ cũ quay lại, chỉ khác là không còn lịch sử.",
+      "confirm": "Xoá tất cả",
+      "cancel": "Hủy",
+      "failed": "Việc xoá chưa hoàn tất. Vẫn còn dữ liệu trên thiết bị này và bạn vẫn đang đăng nhập — hãy thử lại."
+    },
     "formatNote": {
       "system": "Hệ thống",
       "indian": "Ấn Độ",

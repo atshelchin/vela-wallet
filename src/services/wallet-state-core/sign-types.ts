@@ -41,9 +41,19 @@ export interface SignShellPorts {
    */
   assetSim(): AssetSimResult | null | undefined;
   /**
-   * §12.1.6 — switch the active account to the granted one and let React
-   * commit before the operation is acked (the `setTimeout(0)` of
-   * `web-request.tsx:207`, made an explicit yield inside the executor).
+   * §12.1.6 — switch the active account to the granted one.
+   *
+   * `index` is a position in the list this machine was given, and it is
+   * consumed in the SESSION's domain, where an out-of-range index is a silent
+   * whole no-op. The implementation must therefore feed from the session's own
+   * rows and VERIFY the switch landed before it resolves: resolving is what
+   * opens the approval surface, and resolving on a switch that did not happen
+   * is a signature from an account the origin was never granted.
+   *
+   * It no longer waits for React. The signer the core hands to `SignAndSubmit`
+   * and `CheckBundlerFunding` comes from the core's own
+   * `accounts`/`active_index` (§12.1.6 step 2), so there is nothing left on the
+   * sign path for a React commit to be ahead of.
    */
   switchActiveAccount(index: number): Promise<void>;
 }

@@ -16,7 +16,6 @@ import { chainName, nativeSymbol, tokenBadgeNetwork } from '@/models/network';
 import { formatBalance, isNativeToken, tokenBalanceDouble, tokenChainId, tokenId, tokenLogoURLs, type APIToken } from '@/models/types';
 import { sumSplitBaseUnits } from '@/services/batch-send';
 import { fromBaseUnits } from '@/services/eip681';
-import { resolveTokenAmount } from '@/services/fiat-convert';
 import { AlertCircle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
@@ -43,12 +42,10 @@ export function ConfirmStep({ c }: { c: SendController }) {
     t,
     activeAccount,
     address,
-    dc,
     formatUsd,
     tokens,
     selectedToken,
     recipient,
-    amount,
     splitMode,
     recipients,
     multiSelectMode,
@@ -57,7 +54,8 @@ export function ConfirmStep({ c }: { c: SendController }) {
     estimatingGas,
     txStatus,
     txError,
-    inputInUsd,
+    tokenAmount,
+    canConfirm,
     gasFeeToken,
     feeBusy,
     publicKeyHex,
@@ -77,7 +75,10 @@ export function ConfirmStep({ c }: { c: SendController }) {
   } = c;
 
     if (!selectedToken) return null;
-    const tokenAmount = resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate);
+    // `tokenAmount` is the controller's — on web it is the CORE's resolution, the
+    // very string the signed batch is built from. Re-running the fiat↔token
+    // conversion here would put a second, independently-derived number on the
+    // page the user is signing.
     const singleAmountNum = parseFloat(tokenAmount || '0');
     // In split mode the headline amount is the sum across all recipients.
     const splitTotalNum = splitMode
@@ -354,7 +355,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
                 hint={t('componentsUi.signing.slideToConfirm', { defaultValue: 'Slide to confirm' })}
                 onConfirm={handleConfirm}
                 loading={sending}
-                disabled={estimatingGas || feeBusy}
+                disabled={!canConfirm}
                 style={styles.confirmBtn}
               />
             )

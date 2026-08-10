@@ -1003,7 +1003,10 @@ function DesignGalleryScreen() {
               tokenSymbol="USDC"
               decimals={18}
               priceUsd={1}
-              balance="40"
+              /* The fixture's rows total 50 against a 40 balance. In the app this
+                 flag is the core's (web) / the controller's (native) — the editor
+                 only paints it, so a fixture states it outright. */
+              overBalance
               formatUsd={(n) => `$${n.toFixed(2)}`}
               onPickContact={() => {}}
               onImport={() => setOverlay('batchimport')}

@@ -39,6 +39,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
     setAmount,
     splitMode,
     recipients,
+    splitOverBalance,
     multiSelectMode,
     openScanner,
     copiedContract,
@@ -261,7 +262,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               tokenSymbol={selectedToken.symbol}
               decimals={selectedToken.decimals}
               priceUsd={selectedToken.priceUsd}
-              balance={selectedToken.balance}
+              overBalance={splitOverBalance}
               formatUsd={formatUsd}
               onPickContact={(id) => openContactPicker(id)}
               onImport={openBatchImport}

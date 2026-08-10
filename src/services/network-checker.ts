@@ -16,8 +16,16 @@ import { fetchChainInfo } from './chain-registry';
 // Required contracts (from safe-address.ts)
 // ---------------------------------------------------------------------------
 
-/** Order matches biubiu.tools Vela Wallet Chain Setup */
-const REQUIRED_CONTRACTS: { name: string; address: string }[] = [
+/**
+ * Order matches biubiu.tools Vela Wallet Chain Setup.
+ *
+ * Exported ONLY so the drift gate can read it: `network_admin.rs:97-109` carries
+ * the same eleven, because native has no wasm and web has no other copy of the
+ * checker. `__tests__/services/network-admin-constants-parity.test.ts` fails the
+ * moment one side is edited without the other — a chain admitted by a shorter
+ * list is a chain that can take deposits the wallet can never sign out of.
+ */
+export const REQUIRED_CONTRACTS: { name: string; address: string }[] = [
   { name: 'Deterministic Deployment Proxy', address: '0x4e59b44847b379578588920cA78FbF26c0B4956C' },
   { name: 'Safe Singleton Factory',         address: '0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7' },
   { name: 'Multicall3',                     address: '0xcA11bde05977b3631167028862bE2a173976CA11' },
@@ -177,10 +185,10 @@ async function checkAllContracts(rpcUrl: string): Promise<ContractStatus[]> {
 // RIP-7212 P256 precompile check
 // ---------------------------------------------------------------------------
 
-const P256_PRECOMPILE = '0x0000000000000000000000000000000000000100';
+export const P256_PRECOMPILE = '0x0000000000000000000000000000000000000100';
 
 /** sha256("test") signed with a known P-256 key — 160 bytes input */
-const VALID_P256_CALL =
+export const VALID_P256_CALL =
   '0x' +
   '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08' +
   '7bf0e18d07660f15994adce5c3836d7bd6167cdb5726f631098f433ebe0be9c0' +

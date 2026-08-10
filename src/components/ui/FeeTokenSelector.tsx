@@ -23,6 +23,7 @@ import { Check } from 'lucide-react-native';
 import { TokenLogo } from '@/components/TokenLogo';
 import { color, createStyles, font, inter, space, text } from '@/constants/theme';
 import { formatTokenAmount, useLocalePrefs } from '@/services/locale-format';
+import { feeRowInsufficient } from '@/services/safe-transaction';
 import type { FeeTokenOption } from '@/hooks/use-inband-fee-tokens';
 
 interface FeeTokenSelectorProps {
@@ -69,9 +70,9 @@ export function FeeTokenSelector({ options, selected, onSelect, feeAmountFor, bu
         const costUnits = feeAmount === null ? null : Number(feeAmount) / 10 ** opt.decimals;
         const costLabel = fmtCost(costUnits);
         // A coin that can't cover the fee (notably the native coin at 0 balance) is SHOWN for
-        // context but not selectable — paying gas in it would only produce a doomed op. It's
-        // insufficient when held ≤ 0, or held < the fee it would cost.
-        const insufficient = feeAmount === null || opt.balance < feeAmount;
+        // context but not selectable — paying gas in it would only produce a doomed op. The
+        // rule itself lives in the fee service, next to the Rust core's copy of it.
+        const insufficient = feeRowInsufficient(opt.balance, feeAmount);
         const pending = busy && pendingKey === k;
         return (
           <Pressable

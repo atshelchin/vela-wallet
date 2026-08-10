@@ -16,7 +16,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Image } from 'react-native';
 import { BadgeCheck, Globe, HelpCircle, Wallet, FileText } from 'lucide-react-native';
-import { getSavedContact } from '@/services/contacts';
+import { savedContactFor } from '@/services/saved-contact';
 import { useRecipientIdentity } from '@/hooks/use-recipient-identity';
 import type { RecipientIdentity } from '@/services/recipient-identity';
 import { color, createStyles, space } from '@/constants/theme';
@@ -42,7 +42,7 @@ export function RecipientTypeBadge({
     setIsContact(null);
     if (!address) return;
     let cancelled = false;
-    getSavedContact(address)
+    savedContactFor(address)
       .then((c) => { if (!cancelled) setIsContact(!!c); })
       .catch(() => { if (!cancelled) setIsContact(false); });
     return () => { cancelled = true; };

@@ -490,6 +490,15 @@ pub fn calculate_in_band_fee_amount(
     Some(converted.max(stable_minimum))
 }
 
+/// Invariant ⑧ (`FeeTokenSelector.tsx:74`): a fee asset that cannot cover this
+/// transaction's fee is shown for context but is NOT selectable — paying gas in
+/// it would only produce a doomed op. An unpriceable asset (`None`) is just as
+/// unselectable as a short one. Replayed against `FeeTokenSelector`'s own copy
+/// by the fee-policy parity corpus.
+pub fn fee_row_insufficient(balance: u128, amount: Option<u128>) -> bool {
+    amount.is_none_or(|a| balance < a)
+}
+
 /// What the fee costs and what may still be transferred when the transfer and
 /// its fee draw from the same asset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1877,8 +1886,7 @@ fn select_fee_asset(model: &mut Model, token: Option<String>) -> Command<FeeEffe
         // Invariant ⑧ (`FeeTokenSelector.tsx:74`): a coin that can't cover
         // the fee is shown for context but NOT selectable — paying gas in it
         // would only produce a doomed op.
-        let insufficient = amount.is_none_or(|a| option.balance < a);
-        if insufficient {
+        if fee_row_insufficient(option.balance, amount) {
             return Command::done();
         }
         if let (Some(amount), Some(estimate)) = (amount, model.estimate.as_mut()) {
@@ -1994,7 +2002,7 @@ fn option_views(model: &Model) -> Vec<FeeOptionView> {
     picker_rows(model)
         .map(|row| {
             let amount = fee_amount_for_option(model, row);
-            let insufficient = amount.is_none_or(|a| row.balance < a);
+            let insufficient = fee_row_insufficient(row.balance, amount);
             let selected = match (&model.fee_token, &row.fee_token, row.is_native) {
                 (None, _, true) => true,
                 (Some(sel), Some(contract), false) => sel.eq_ignore_ascii_case(contract),

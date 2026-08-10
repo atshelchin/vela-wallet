@@ -393,6 +393,19 @@ export function calculateInBandFeeAmount(
   return bigintMax(convertedAmount, stableMinimum);
 }
 
+/** Whether a fee asset cannot pay for THIS transaction: it is shown for context but
+ *  never selectable, because paying gas in it would only produce a doomed op. An
+ *  asset we cannot price (`null`) is just as unselectable as a short one.
+ *
+ *  The one copy behind every surface that asks the question — the fee-asset rows
+ *  (`FeeTokenSelector`) and the auto-default that picks the first affordable asset
+ *  (`GasFeeCard`). The Rust core owns the same rule for web
+ *  (`fee_policy::fee_row_insufficient`); the two are pinned to each other by
+ *  `src/__tests__/services/fee-policy-parity.test.ts`. */
+export function feeRowInsufficient(balance: bigint, feeAmount: bigint | null): boolean {
+  return feeAmount === null || balance < feeAmount;
+}
+
 /** Re-quote an existing in-band estimate for a different fee asset. The bundler
  * returns all assets in one address-only response; its short-lived shared cache
  * normally makes a chip switch a local lookup. */

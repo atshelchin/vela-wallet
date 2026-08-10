@@ -228,6 +228,14 @@ export function createSignExecutor(ports: SignShellPorts) {
                   recipient: operation.quoted_fee.recipient,
                 }
               : undefined,
+            // The never-unlimited gate is the CORE's on this path: `proceed_submit`
+            // (`sign_request.rs`) ran `enforce_no_unlimited` over this request and
+            // over every `wallet_sendCalls` leg before it emitted this effect, and
+            // refuses by failing the inflight request. Letting the TS copy decide
+            // it again would put one safety mandate in two implementations that
+            // nothing keeps in step. Native never reaches this `.web.ts` module and
+            // so keeps its own TS guard (Hermes has no wasm) — see SubmitGuardOwner.
+            'core',
           );
           return {
             type: 'submit',

@@ -38,15 +38,21 @@ function hostOf(origin: string): string {
 }
 
 /** Only load a dApp logo from the exact requesting origin. Metadata can suggest a
- * path, but it cannot turn the wallet into a third-party tracking-image client. */
+ * path, but it cannot turn the wallet into a third-party tracking-image client.
+ *
+ * "Secure enough for this popup" is asked ONCE, of `isAllowedWebDAppOrigin` —
+ * the same gate that decided whether to accept this dApp's INIT at all. It used
+ * to be restated here as a second https-or-loopback list, which had already
+ * drifted: it never learned `[::1]`, so a dev dApp the popup happily talks to
+ * had its own icon refused. One allowlist, one place. */
 function trustedDAppLogo(icon: string | undefined, origin: string | undefined): string | null {
   if (!icon || !origin) return null;
   try {
     const originUrl = new URL(origin);
     const iconUrl = new URL(icon, originUrl);
-    const secure = iconUrl.protocol === 'https:' ||
-      (iconUrl.protocol === 'http:' && (iconUrl.hostname === 'localhost' || iconUrl.hostname === '127.0.0.1'));
-    return secure && iconUrl.origin === originUrl.origin ? iconUrl.href : null;
+    return isAllowedWebDAppOrigin(iconUrl.origin) && iconUrl.origin === originUrl.origin
+      ? iconUrl.href
+      : null;
   } catch {
     return null;
   }

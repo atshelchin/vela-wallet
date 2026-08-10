@@ -25,6 +25,7 @@ import { useLocalePrefs, numberSeparators, formatNumber } from '@/services/local
 import {
   calculateInBandFeeAmount,
   estimateTransactionFee,
+  feeRowInsufficient,
   refreshGasPrice,
   type TransactionFeeEstimate,
 } from '@/services/safe-transaction';
@@ -235,10 +236,9 @@ export function GasFeeCard({
   useEffect(() => {
     if (didAutoDefaultRef.current) return;
     if (!feeTokenOptions || feeTokenOptions.length === 0) return;
-    const affordable = (o: FeeTokenOption): boolean => {
-      const amount = feeAmountForOption(o);
-      return amount !== null && o.balance >= amount;
-    };
+    // Exactly the selector rows' own gate, negated — one rule, one place.
+    const affordable = (o: FeeTokenOption): boolean =>
+      !feeRowInsufficient(o.balance, feeAmountForOption(o));
     const selKey = selectedFeeToken?.toLowerCase() ?? null;
     const current = feeTokenOptions.find((o) => (o.contract?.toLowerCase() ?? null) === selKey);
     if (current && affordable(current)) { didAutoDefaultRef.current = true; return; } // current is fine

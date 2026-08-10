@@ -35,7 +35,9 @@
  *   reproducible by dropping non-matching items and eliding the headers left
  *   empty (items are newest-first, so a day's rows are contiguous), and keeping
  *   the unfiltered list is what lets the network sheet still count every chain's
- *   events the way `useHomeController.ts:323` does.
+ *   events the way `useHomeController.ts:323` does. "Exactly reproducible" is
+ *   not taken on trust: the rule lives in `feed-chain-filter.ts` and
+ *   `core-projection-parity.test.ts` replays it against the real core.
  */
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -57,12 +59,11 @@ import {
   type ActivityItem, type ActivityBatch, type ConnectionEvent,
 } from '@/services/activity';
 import { currencyMeta } from '@/services/currency';
-import { coerceBrowserUrl, parseRemoteInjectURL } from '@/services/dapp-transport';
+import { classifyConnectEntry } from '@/services/connect-entry';
 import { parseEIP681 } from '@/services/eip681';
 import { formatTokenAmount, useLocalePrefs } from '@/services/locale-format';
 import { copyToClipboard, hapticLight, isAppActive, showAlert } from '@/services/platform';
 import { deleteConnectionEvents, deleteTransaction, type LocalTransaction } from '@/services/storage';
-import { isWalletPairURI } from '@/services/walletpair-transport';
 import {
   balanceSwitcherBalances,
   balanceTokens,
@@ -87,6 +88,7 @@ import type { FeedBatch } from '@/services/wallet-state-core/generated/FeedBatch
 import type { FeedItem } from '@/services/wallet-state-core/generated/FeedItem';
 import type { FeedView } from '@/services/wallet-state-core/generated/FeedView';
 
+import { filterFeedRowsByChain } from './feed-chain-filter';
 import { styles } from './HomeScreen.styles';
 import type { FeedRow, HomeController, Tab } from './home-controller-types';
 
@@ -106,6 +108,13 @@ const LIVE_POLL_MS = 10 * 1000;
  * otherwise flash.
  */
 const PULL_MIN_MS = 650;
+
+/**
+ * The alias overlay `HomeScreen` merges over each row — empty here, and shared
+ * so the reference never changes. See the `aliasMap` field at the bottom of the
+ * controller for why web hands the screen nothing to merge.
+ */
+const EMPTY_ALIAS_MAP: Map<string, string> = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
 // Formatting — everything the contract change moved out of the store
@@ -411,18 +420,23 @@ export function useHomeController(): HomeController {
     };
     const items: ActivityItem[] = [];
     const uiRows: FeedRow[] = [];
-    const aliasMap = new Map<string, string>();
+    const aliasById = new Map<string, string>();
     for (const row of rows) {
       if (row.type === 'header') {
         uiRows.push({ kind: 'header', id: row.id, label: dayGroupLabel(row.timestamp) });
         continue;
       }
       const item = toActivityItem(row.item, labels);
-      if (item.address && item.alias) aliasMap.set(item.address.toLowerCase(), item.alias);
+      // Keyed by ROW, not by counterparty. The core already answered "what is
+      // this row's counterparty called" (`alias_map[addr] ?? stored`); a
+      // by-address overlay would re-run that precedence in the screen AND
+      // cross-pollinate, handing a stored send-name to a *receive* row from the
+      // same address that the core deliberately left unnamed.
+      if (item.alias) aliasById.set(item.id, item.alias);
       items.push(item);
       uiRows.push({ kind: 'item', item });
     }
-    return { items, uiRows, aliasMap };
+    return { items, uiRows, aliasById };
     // `localePrefs` is a dep so amounts + date headers re-derive when the
     // number/date preset changes — a pure re-render now, never a re-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -432,20 +446,15 @@ export function useHomeController(): HomeController {
   // contiguous; keeping a header only when a matching item follows reproduces
   // the core's own filtered grouping exactly, while `projected.items` stays the
   // unfiltered list the network sheet counts from.
-  const activityFeed = useMemo<FeedRow[]>(() => {
-    if (selectedChainId == null) return projected.uiRows;
-    const out: FeedRow[] = [];
-    let pending: FeedRow | null = null;
-    for (const row of projected.uiRows) {
-      if (row.kind === 'header') { pending = row; continue; }
-      if (row.item.chainId !== selectedChainId) continue;
-      if (pending) { out.push(pending); pending = null; }
-      out.push(row);
-    }
-    return out;
-  }, [projected.uiRows, selectedChainId]);
+  const activityFeed = useMemo<FeedRow[]>(
+    () => filterFeedRowsByChain(projected.uiRows, selectedChainId),
+    [projected.uiRows, selectedChainId],
+  );
 
   // --- receipt toast ---
+  // Already withheld by the core while privacy hides amounts (`FeedView::toast`
+  // is `None` then), so nothing here — and nothing in `HomeScreen` — repeats
+  // that test.
   const receipt = useMemo(() => {
     const toast = feed.toast;
     if (!toast) return null;
@@ -488,26 +497,29 @@ export function useHomeController(): HomeController {
   // --- connect (shared by scanner + pasted URI) ---
   // Returns true if `data` was a recognized pairing link and a connection was
   // kicked off.
+  // The five-way decision is the CORE's (invariant ⑨) — `classifyConnectEntry`
+  // asks `dapp_session`'s own `classify_connect_input` rather than re-deciding
+  // here and letting the core decide the same thing again over the string this
+  // hook hands the resident. What stays local is only the side effect each
+  // verdict names: which tab to show, where to navigate, what to answer.
   const connectFromUri = useCallback((data: string): boolean => {
-    const trimmed = data.trim();
-    if (isWalletPairURI(trimmed)) {
-      connectToWalletPair(trimmed);
-      setTab('connections');
-      return true;
+    const entry = classifyConnectEntry(data);
+    switch (entry.kind) {
+      case 'walletpair':
+        connectToWalletPair(entry.uri);
+        setTab('connections');
+        return true;
+      case 'remote-inject':
+        connectToBridge(entry.session);
+        setTab('connections');
+        return true;
+      case 'browser':
+        // Any remaining web address (full URL or bare host) → the in-app browser.
+        router.push({ pathname: '/browser', params: { url: entry.url } });
+        return true;
+      case 'invalid':
+        return false;
     }
-    const bridge = parseRemoteInjectURL(trimmed);
-    if (bridge) {
-      connectToBridge(bridge);
-      setTab('connections');
-      return true;
-    }
-    // Any remaining web address (full URL or bare host) → open the in-app browser.
-    const browserUrl = coerceBrowserUrl(trimmed);
-    if (browserUrl) {
-      router.push({ pathname: '/browser', params: { url: browserUrl } });
-      return true;
-    }
-    return false;
   }, [connectToWalletPair, connectToBridge, router]);
 
   const onScan = useCallback((data: string) => {
@@ -589,11 +601,12 @@ export function useHomeController(): HomeController {
       .finally(() => { pendingDeleteConnIds.current.delete(id); });
   }, []);
 
-  // Resolved alias for the open detail tx's counterparty.
+  // Resolved alias for the open detail tx's counterparty — the stored name
+  // first, then whatever the core resolved for THAT row (`useHomeController.ts`
+  // reads the same two, in the same order; there the second is the ENS map).
   const detailAlias = (() => {
     if (!detailTx) return undefined;
-    const cp = ((detailTx.type ?? 'send') === 'receive' ? detailTx.from : detailTx.to) ?? '';
-    return detailTx.toName ?? projected.aliasMap.get(cp.toLowerCase());
+    return detailTx.toName ?? projected.aliasById.get(detailTx.id);
   })();
 
   const refreshStatus = balance.last_refreshed_at_ms != null
@@ -616,10 +629,17 @@ export function useHomeController(): HomeController {
     balancePartial: balance.balance_partial,
     balanceUnknown: balance.balance_unknown,
     // `Some` only when partial AND the silent retries are exhausted, so the
-    // screen's `balancePartial && noticeAllowed` gate is unchanged.
-    noticeAllowed: balance.notice !== null,
+    // screen's `balancePartial && notice` gate is unchanged. WHICH line to show
+    // is the core's `BalanceNotice`, not a second `failedChainIds.length` test
+    // in the screen.
+    notice: balance.notice === null
+      ? null
+      : balance.notice === 'unpriced' ? 'unpriced' : 'still-updating',
     failedChainIds: balance.failed_chain_ids,
     rateLimitedChainIds: balance.rate_limited_chain_ids,
+    // Failed minus rate-limited, straight from the core (invariant ⑦) — the
+    // screen no longer re-derives the exclusion.
+    bannerChainIds: balance.banner_chain_ids,
     unpricedTokens: balanceUnpricedTokens(),
     balanceScaleStyle, hasEntered,
     // balance-detail + rpc-fix
@@ -627,9 +647,18 @@ export function useHomeController(): HomeController {
     // tokens / assets
     tokens: balanceTokens(),
     cachedTotal: balance.cached_total_usd,
+    // The Assets-tab skeleton gate — the core's, not a second
+    // `tokens.length === 0 && cachedTotal > 0` in the screen.
+    holdingsLoading: balance.holdings_loading,
     // activity feed
     activityFeed,
-    aliasMap: projected.aliasMap,
+    // Empty BY CONSTRUCTION. `aliasMap` is the native controller's ENS overlay,
+    // which `HomeScreen` merges over each row's stored name; on web the core has
+    // already applied exactly that precedence and stamped the answer on
+    // `item.alias`, so handing the screen a second copy would re-decide a
+    // settled question — and, because a shell-built map is keyed by address
+    // rather than by row, would leak one row's name onto another's.
+    aliasMap: EMPTY_ALIAS_MAP,
     newItemId: feed.new_item_id,
     chainFor, openDetail,
     // refresh

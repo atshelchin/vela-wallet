@@ -57,10 +57,10 @@ export default function HomeScreen() {
     tab, setTab, networks, selectedNetwork, selectedChainId, setSelectedChainId,
     showNetSheet, setShowNetSheet, connected, activity,
     dc, currency, hidden, toggleHidden, displayTotal, balancePartial, balanceUnknown,
-    noticeAllowed, failedChainIds, rateLimitedChainIds, unpricedTokens,
+    notice, failedChainIds, rateLimitedChainIds, bannerChainIds, unpricedTokens,
     balanceScaleStyle, hasEntered,
     showBalanceDetail, setShowBalanceDetail, fixChainId, setFixChainId, setFailedChainIds,
-    tokens, cachedTotal,
+    tokens, holdingsLoading,
     activityFeed, aliasMap, newItemId, chainFor, openDetail,
     refreshing, onRefresh, refreshStatus, listContentStyle, loadData,
     receipt,
@@ -107,7 +107,7 @@ export default function HomeScreen() {
               <Balance value={displayTotal * dc.rate} symbol={dc.symbol} code={dc.code} />
             )}
           </Pressable>
-          {balancePartial && noticeAllowed && (
+          {balancePartial && notice && (
             // Tappable: the ChevronRight is the "there's more — see exactly what"
             // affordance. Opens a sheet enumerating the culprit networks + tokens.
             <Pressable
@@ -118,11 +118,13 @@ export default function HomeScreen() {
               accessibilityHint={t('home.balanceDetailViewHint')}
             >
               <AlertTriangle size={12} color={color.warning.base} strokeWidth={2.5} />
-              {/* Failed chains are transient ("still updating" is honest — a retry
-                  can fix it); a held token with no price source is not going to
-                  resolve on its own, so promising an update would lie. */}
+              {/* WHICH line is the controller's call (`BalanceNoticeKind`), not
+                  a second `failedChainIds.length` test here: failed chains are
+                  transient ("still updating" is honest — a retry can fix it),
+                  while a held token with no price source is not going to resolve
+                  on its own, so promising an update would lie. */}
               <Text style={styles.balanceStaleText}>
-                {t(failedChainIds.length > 0 ? 'home.balanceStale' : 'home.balanceUnpriced')}
+                {t(notice === 'unpriced' ? 'home.balanceUnpriced' : 'home.balanceStale')}
               </Text>
               <ChevronRight size={14} color={color.warning.base} strokeWidth={2.5} />
             </Pressable>
@@ -130,13 +132,11 @@ export default function HomeScreen() {
         </View>
       </Animated.View>
 
-      {/* RPC failure banner + fix flow. Rate-limited
-          chains are excluded — that's transient and self-healing, so nagging the
-          user to swap RPC would be wrong; their balance quietly stays on cache. */}
-      <RpcTroubleBanner
-        chainIds={failedChainIds.filter((id) => !rateLimitedChainIds.includes(id))}
-        onFix={setFixChainId}
-      />
+      {/* RPC failure banner + fix flow. `bannerChainIds` is already failed MINUS
+          rate-limited — that exclusion is the controller's (on web, the core's),
+          because a rate limit is transient and self-healing, so nagging the user
+          to swap RPC would be wrong; their balance quietly stays on cache. */}
+      <RpcTroubleBanner chainIds={bannerChainIds} onFix={setFixChainId} />
 
       {/* Toggle + network filter */}
       <View style={styles.navRow}>
@@ -173,9 +173,10 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Suppressed while balance privacy is on — an incoming toast would leak
-          exactly the class of number the mask conceals. */}
-      {receipt && !hidden && (
+      {/* Already suppressed by the controller while balance privacy is on — an
+          incoming toast would leak exactly the class of number the mask
+          conceals — so `receipt` is simply `null` then. */}
+      {receipt && (
         <ReceiptToast amount={receipt.amount} token={receipt.token} top={insets.top + space.md} />
       )}
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -268,7 +269,7 @@ export default function HomeScreen() {
           <HoldingsList
             key={address ?? 'none'}
             tokens={tokens}
-            loading={tokens.length === 0 && (cachedTotal ?? 0) > 0}
+            loading={holdingsLoading}
             selectedChainId={selectedChainId}
             header={renderHeader()}
             refreshing={refreshing}

@@ -17,6 +17,14 @@ import type { SessionOptions } from './types';
 export type BalanceEffect = { id: number; operation: BalanceOperation };
 
 /**
+ * The persisted "hide amounts" byte. Declared here — the graph's leaf — so the
+ * boot-time read (`balance-resident.web.ts`), the core's `WritePrivacy` write
+ * (`balance-executor.web.ts`) and the native store (`use-balance-privacy.ts`)
+ * all name the same key without importing one another.
+ */
+export const BALANCE_PRIVACY_KEY = 'vela.balanceHidden';
+
+/**
  * Where the mid-fetch stream goes.
  *
  * `FetchTokens` is the one operation that speaks twice: it streams every

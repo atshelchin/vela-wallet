@@ -1265,6 +1265,28 @@ export function useSendController() {
     (locked && !!amountWarning)
   );
 
+  /**
+   * The resolved amount every confirm-page number is built from (was
+   * ConfirmStep.tsx:80, inlined here unchanged — same call, same arguments, so
+   * native renders byte-identically). Web gets this from the core instead, which
+   * is the point: one resolution, shared by the display and the signature.
+   */
+  const tokenAmount = selectedToken
+    ? resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate)
+    : '';
+
+  /** The confirm slide's gate (was ConfirmStep.tsx:357, negated). */
+  const canConfirm = txStatus === 'idle' && !estimatingGas && !feeBusy && !sameAssetFeeIssue;
+
+  /**
+   * The split editor's live over-balance hint (was MultiRecipientEditor.tsx:99-101,
+   * inlined here unchanged — including the `toBaseUnits` throw on a malformed
+   * row, which the editor would have raised from the same render).
+   */
+  const splitOverBalance = splitMode && !!selectedToken
+    && sumSplitBaseUnits(recipients, selectedToken.decimals)
+      > toBaseUnits(selectedToken.balance || '0', selectedToken.decimals);
+
   // The receipt's scalar amount + fiat line (was SendScreen.tsx:152/158).
   const receiptAmount = selectedToken
     ? resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate)
@@ -1410,6 +1432,9 @@ export function useSendController() {
     multiSelectChainId: multiSelect.chainId,
     publicKeyHex: prefetchedAccount.current?.publicKeyHex,
     canContinue,
+    canConfirm,
+    tokenAmount,
+    splitOverBalance,
     receiptAmount,
     receiptUsdValue,
     toggleFiatInput,

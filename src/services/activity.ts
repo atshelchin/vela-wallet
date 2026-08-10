@@ -150,8 +150,16 @@ function formatUsd(n: number): string {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** Symbols treated as ≈ $1 so stablecoin transfers aren't shown as "$0.00". */
-const STABLE_SYMBOLS = new Set([
+/**
+ * Symbols treated as ≈ $1 so stablecoin transfers aren't shown as "$0.00".
+ *
+ * Copied verbatim in `activity_feed.rs`'s `STABLE_SYMBOLS`, which is what web
+ * re-judges the same record with at render time (this table decides the `usd`
+ * string written at ingest — see `incomingToRecord`). Hermes has no wasm, so
+ * neither copy can go; `src/__tests__/services/core-table-parity.test.ts` is the
+ * gate that turns a one-sided edit red.
+ */
+export const STABLE_SYMBOLS = new Set([
   'USDT', 'USDT0', 'USDC', 'USDC.E', 'DAI', 'BUSD', 'TUSD', 'FDUSD', 'USDE', 'PYUSD', 'USDP', 'GUSD', 'LUSD', 'FRAX', 'USDD',
 ]);
 
@@ -393,8 +401,16 @@ function receiveRecordToActivity(tx: LocalTransaction): ActivityItem {
  * local store (de-duped). Best-effort: any failure is swallowed so the cached
  * feed still renders. Returns the number of new receipts persisted.
  */
-/** Main payment chains to monitor when the wallet has no balances yet. */
-const DEFAULT_MONITOR_CHAINS = [1, 56, 137, 42161, 8453, 100];
+/**
+ * Main payment chains to monitor when the wallet has no balances yet.
+ *
+ * Mirrored by `token_trust.rs`'s `DEFAULT_MONITOR_CHAINS`, which the core falls
+ * back to when it is handed an empty scan list. On web this side substitutes
+ * first, so the core's copy stays dormant — but a chain added to only one of
+ * them would silently stop being watched on the other platform, which is what
+ * `src/__tests__/services/core-table-parity.test.ts` guards.
+ */
+export const DEFAULT_MONITOR_CHAINS = [1, 56, 137, 42161, 8453, 100];
 
 export async function syncReceivedTransfers(address: string): Promise<number> {
   if (!address) return 0;

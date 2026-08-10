@@ -19,7 +19,21 @@ export type SendView = { stage: SendStage, loading: boolean, locked: boolean,
 /**
  * The amount is fixed only when the locked request actually named one.
  */
-amount_locked: boolean, lock_error: SendLockError | null, resolving_lock: boolean, adding_network: boolean, add_network_msg: SendAddNetworkMsg | null, tokens: Array<SendToken>, selected_token: SendToken | null, recipient: string, amount: string, input_in_fiat: boolean, split_mode: boolean, recipients: Array<SendRecipientDraft>, picker_target: string | null, multi_select_mode: boolean, multi_selected_ids: Array<string>, multi_chain_id: number | null, 
+amount_locked: boolean, lock_error: SendLockError | null, resolving_lock: boolean, adding_network: boolean, add_network_msg: SendAddNetworkMsg | null, tokens: Array<SendToken>, selected_token: SendToken | null, recipient: string, amount: string, input_in_fiat: boolean, 
+/**
+ * `amount` already resolved through the fiat↔token conversion — the ONE
+ * number the confirm page may display, because it is the very number the
+ * signed batch is built from (`resolve_token_amount`, invariant "displayed
+ * == signed"). Empty while no token is selected.
+ */
+token_amount: string, split_mode: boolean, recipients: Array<SendRecipientDraft>, 
+/**
+ * Split mode only: the rows' total exceeds the selected token's balance.
+ * The same predicate the `Continue` gate refuses on
+ * (`SendAlertKind::SplitOverBalance`), so the live hint and the gate can
+ * never disagree.
+ */
+split_over_balance: boolean, picker_target: string | null, multi_select_mode: boolean, multi_selected_ids: Array<string>, multi_chain_id: number | null, 
 /**
  * Reserved multiSelect amounts for the selected token's chain.
  */

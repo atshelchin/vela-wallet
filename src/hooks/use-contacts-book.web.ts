@@ -139,6 +139,42 @@ export function saveContactThroughCore(input: SaveContactInput): void {
   });
 }
 
+/**
+ * The saved contact for ONE address, from OUTSIDE the React tree — the read
+ * behind `services/saved-contact.web.ts`.
+ *
+ * `getSavedContact` (contacts.ts:253) re-read the store on every call, and four
+ * surfaces still called it on web (the recipient name, the trust badge, the
+ * signing address identity, the summary line) while this core held the same
+ * ledger — the second implementation of "is this address saved, and what is it
+ * called" (spec 017). They read this instead, so a save made through the core is
+ * visible to them immediately and a tombstone hides the address here too.
+ *
+ * Resolves against the first *loaded* view, so it never answers "not saved" off
+ * an empty pre-load ledger — the answer's whole purpose is an anti-poisoning
+ * signal, and a false negative there is the dangerous direction.
+ */
+export async function savedContactThroughCore(address: string): Promise<Contact | null> {
+  // `async` on purpose: a wasm that failed to initialise makes `ensureSession`
+  // throw, and the callers are `.then(...).catch(...)` effects — a SYNCHRONOUS
+  // throw would escape their catch and take the row's whole tree down. As a
+  // rejection it lands where the old `getSavedContact` failure landed.
+  const addr = address.toLowerCase();
+  const pick = (view: ContactsView): Contact | null => {
+    const wire = savedContact(view, addr);
+    return wire ? toContact(wire) : null;
+  };
+  ensureSession();
+  if (settled.loaded) return Promise.resolve(pick(settled));
+  return new Promise<Contact | null>((resolve) => {
+    const listener = (view: ContactsView) => {
+      settledListeners.delete(listener);
+      resolve(pick(view));
+    };
+    settledListeners.add(listener);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Wire → the shapes the components render
 // ---------------------------------------------------------------------------

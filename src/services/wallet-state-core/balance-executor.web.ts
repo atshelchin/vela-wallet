@@ -29,7 +29,8 @@
  * converted into the result variant that operation answers with.
  */
 
-import { setBalanceHidden } from '@/hooks/use-balance-privacy';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { chainName, networkId } from '@/models/network';
 import { tokenChainId, type APIToken } from '@/models/types';
 import { getAccountBalance, getAccountBalances, setAccountBalance } from '@/services/balance-cache';
@@ -42,6 +43,7 @@ import { fetchTokens } from '@/services/wallet-api';
 
 import type { BalanceShellResult } from './generated/BalanceShellResult';
 import type { BalanceToken } from './generated/BalanceToken';
+import { BALANCE_PRIVACY_KEY } from './balance-types';
 import type { BalanceEffect, BalanceStreamSink } from './balance-types';
 
 /** An `APIToken` in the core's vocabulary. */
@@ -147,12 +149,11 @@ export function createBalanceExecutor(stream: BalanceStreamSink) {
         await delay(operation.ms, signal);
         return { type: 'retry_elapsed', timer_id: operation.timer_id };
       case 'write_privacy':
-        // Routed through the privacy store rather than straight to AsyncStorage:
-        // it writes the same `vela.balanceHidden` byte AND wakes the three other
-        // masking surfaces (HoldingsList, BalanceDetailSheet,
-        // AccountSwitcherModal) that still read the store directly. One writer,
-        // one key, no second source of truth.
-        setBalanceHidden(operation.hidden);
+        // Straight to the byte. The other masking surfaces (HoldingsList,
+        // BalanceDetailSheet, AccountSwitcherModal) read `hidden` off the core's
+        // own view through `use-balance-privacy.web.ts`, so there is no second
+        // in-memory flag to keep in step — and no second hydrate race.
+        await AsyncStorage.setItem(BALANCE_PRIVACY_KEY, operation.hidden ? '1' : '0');
         return { type: 'privacy_written' };
     }
   }

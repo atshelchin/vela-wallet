@@ -31,6 +31,19 @@ import type { LocalTransaction } from '@/services/storage';
 export type Tab = 'activity' | 'assets' | 'connections';
 
 /**
+ * Which hero notice is due once the silent retry budget is exhausted — the
+ * decision `balance_dashboard.rs`'s `BalanceNotice` owns on web
+ * (`StillUpdating` / `Unpriced`). It used to be re-derived inside `HomeScreen`
+ * from `failedChainIds.length`, which meant the rule shipped twice on web; the
+ * screen now only maps the answer to a copy key.
+ *
+ * `still-updating` is honest for a failed chain (a retry can fix it); a held
+ * token with no price source will not resolve on its own, so promising an
+ * update there would lie.
+ */
+export type BalanceNoticeKind = 'still-updating' | 'unpriced';
+
+/**
  * Date-first feed: rows carry no per-row time; instead they're grouped under a
  * date header ("Today" / "Yesterday" / "04/07/2026").
  */
@@ -70,9 +83,18 @@ export interface HomeController {
   displayTotal: number;
   balancePartial: boolean;
   balanceUnknown: boolean;
-  noticeAllowed: boolean;
+  /** `null` while the silent force-retries still have budget left. */
+  notice: BalanceNoticeKind | null;
   failedChainIds: number[];
   rateLimitedChainIds: number[];
+  /**
+   * The chains the "fix your RPC" banner may nag about: failed MINUS
+   * rate-limited. A rate limit lifts on its own, so swapping RPC is the wrong
+   * fix — the balance quietly stays on cache. Decided by the controller (on web
+   * that is `balance_dashboard.rs`'s `banner_chain_ids`) so the exclusion is
+   * not re-derived in the screen.
+   */
+  bannerChainIds: number[];
   unpricedTokens: APIToken[];
   balanceScaleStyle: StyleProp<ViewStyle>;
   hasEntered: React.MutableRefObject<boolean>;
@@ -88,6 +110,12 @@ export interface HomeController {
   // tokens / assets
   tokens: APIToken[];
   cachedTotal: number | null;
+  /**
+   * The Assets tab shows its skeleton while a cached total says there IS money
+   * but no holding has streamed in yet. Decided by the controller (on web:
+   * `balance_dashboard.rs`'s `holdings_loading`), never re-derived downstream.
+   */
+  holdingsLoading: boolean;
 
   // activity feed
   activityFeed: FeedRow[];
@@ -104,6 +132,12 @@ export interface HomeController {
   loadData: (forceRefresh?: boolean) => void;
 
   // receipt toast
+  /**
+   * `null` whenever privacy hides amounts — the suppression is the controller's
+   * (on web the core withholds the toast outright), so the screen renders
+   * whatever it is handed. The row glow, the haptic and the balance pulse still
+   * play while hidden; only the figure is withheld.
+   */
   receipt: { amount: string; token: string } | null;
 
   // connections

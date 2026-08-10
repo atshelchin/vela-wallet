@@ -20,7 +20,8 @@ import { useWallet } from '@/models/wallet-state';
 import { knownContract } from '@/services/local-descriptors';
 import { knownTokenSymbol } from '@/services/tokens';
 import { resolveTokenMetadata } from '@/services/token-metadata';
-import { getSavedContact, contactDisplayName } from '@/services/contacts';
+import { contactDisplayName } from '@/services/contacts';
+import { savedContactFor } from '@/services/saved-contact';
 import { resolveRecipientIdentity } from '@/services/recipient-identity';
 
 export type AddrKind = 'wallet' | 'contract';
@@ -60,7 +61,7 @@ export function useAddressIdentity(
       if (hintKind === 'wallet') {
         // A saved contact is the highest-trust label for a wallet.
         try {
-          const c = await getSavedContact(address);
+          const c = await savedContactFor(address);
           const cn = c ? contactDisplayName(c) : '';
           if (cn) { if (!cancelled) { setAsyncName(cn); setAsyncKind('wallet'); } return; }
         } catch { /* fall through */ }

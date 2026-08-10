@@ -54,12 +54,13 @@ export function ensureNetworkAdmin() {
     });
     // Hydrate from the four stores. `Started` is idempotent — it re-reads.
     session.start({ type: 'started' });
-    // The Add-Token panel's "Add network" tab still writes `vela.customNetworks`
-    // through the TypeScript service on web (it belongs to the manage_tokens
-    // surface, not this one). Re-hydrating whenever the network set changes keeps
-    // this core's ledger from ever overwriting a record it never saw. Our own
-    // writes notify through here too — a redundant read, never a write, so it
-    // cannot loop.
+    // Re-hydrate whenever the network set changes, so this core's ledger can
+    // never overwrite a record it did not see. This used to be load-bearing —
+    // the Add-Token panel's "Add network" tab wrote `vela.customNetworks`
+    // through the TypeScript service on web, beside this machine — and is now a
+    // belt: that tab goes through `use-add-network-tab.web.ts` and this core
+    // (spec 017), leaving only our OWN writes to notify through here, which is a
+    // redundant read, never a write, so it cannot loop.
     subscribeNetworks(() => {
       session?.dispatch({ type: 'started' });
     });

@@ -340,6 +340,31 @@ export async function handleGenericSign(
 }
 
 /**
+ * Which layer owns the never-unlimited submit guard for one call into
+ * {@link handleDAppRequest} / {@link handleSendCalls}.
+ *
+ * `'ts'` — the DEFAULT, and the only value native ever gets: `enforceNoUnlimited`
+ * runs right here, at the submit chokepoint, exactly as it always has. Hermes has
+ * no WebAssembly, so on iOS/Android this TypeScript copy IS the guard; it can
+ * never be deleted.
+ *
+ * `'core'` — the Rust core already ran its own `enforce_no_unlimited` over this
+ * exact request (the single request AND every batch leg) inside `proceed_submit`
+ * (`rust/crates/vela-core/src/app/sign_request.rs`) *before* it emitted the
+ * `SignAndSubmit` effect that led here, and it refuses by failing the inflight
+ * request rather than by throwing. Re-deciding it here would make the same
+ * safety call twice out of two separately-maintained implementations — the exact
+ * drift hazard this seam exists to remove. On web the core owns the gate.
+ *
+ * Only `services/wallet-state-core/sign-executor.web.ts` may pass `'core'`: it is
+ * the sole handler of that effect and it is a `.web.ts` module, so no native
+ * bundle can reach it. The default is the *guarded* value on purpose — a caller
+ * that says nothing stays guarded, so forgetting this argument can never open a
+ * hole on either platform.
+ */
+export type SubmitGuardOwner = 'ts' | 'core';
+
+/**
  * Route a request to the appropriate handler.
  * Returns the result to send back to the dApp.
  */
@@ -355,18 +380,22 @@ export async function handleDAppRequest(
   gasFeeToken?: string | null,
   // In-band: the displayed fee (amount + recipient) — signed verbatim.
   quotedFee?: QuotedInBandFee,
+  // Who already enforced the never-unlimited mandate for this request. See
+  // {@link SubmitGuardOwner}; omitting it keeps the guard here.
+  guardOwner: SubmitGuardOwner = 'ts',
 ): Promise<any> {
   const { method } = request;
 
   // Final, descriptor-independent safety net: never sign or submit a request that
   // would grant an unbounded allowance. The UI caps approvals up-front, but this
   // guard catches anything that bypassed it (incl. shapes no descriptor decodes).
-  enforceNoUnlimited(method, request.params);
+  // On the core-driven path the core has already made this exact call.
+  if (guardOwner === 'ts') enforceNoUnlimited(method, request.params);
 
   if (method === 'eth_sendTransaction') {
     return handleSendTransaction(request, account, safeAddress, chainId, maxFeeOverride, onSubmitted, gasFeeToken, quotedFee);
   } else if (method === 'wallet_sendCalls') {
-    return handleSendCalls(request, account, safeAddress, chainId, gasFeeToken, quotedFee);
+    return handleSendCalls(request, account, safeAddress, chainId, gasFeeToken, quotedFee, guardOwner);
   } else if (method === 'personal_sign') {
     return handlePersonalSign(request, account, safeAddress, chainId);
   } else if (method.includes('signTypedData')) {
@@ -390,6 +419,9 @@ export async function handleSendCalls(
   gasFeeToken?: string | null,
   // In-band: the displayed fee (amount + recipient) — signed verbatim.
   quotedFee?: QuotedInBandFee,
+  // Who already enforced the never-unlimited mandate for these legs. See
+  // {@link SubmitGuardOwner}; omitting it keeps the guard here.
+  guardOwner: SubmitGuardOwner = 'ts',
 ): Promise<string> {
   const payload = request.params[0] as {
     calls: Array<{ to: string; value?: string; data?: string; capabilities?: Record<string, { optional?: boolean }> }>;
@@ -409,9 +441,12 @@ export async function handleSendCalls(
   if (calls.length === 0) throw new Error('No calls provided');
 
   // A batch must not smuggle an unbounded approval past the per-tx guard — check
-  // every leg as if it were a standalone transaction.
-  for (const c of calls) {
-    enforceNoUnlimited('eth_sendTransaction', [{ to: c.to, data: c.data, value: c.value }]);
+  // every leg as if it were a standalone transaction. On the core-driven path the
+  // core has already walked these same legs (`sign_request.rs` `proceed_submit`).
+  if (guardOwner === 'ts') {
+    for (const c of calls) {
+      enforceNoUnlimited('eth_sendTransaction', [{ to: c.to, data: c.data, value: c.value }]);
+    }
   }
 
   // Get public key

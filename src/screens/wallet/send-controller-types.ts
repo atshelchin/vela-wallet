@@ -131,8 +131,18 @@ export interface SendController {
   recipient: string;
   amount: string;
   inputInUsd: boolean;
+  /**
+   * `amount` with the fiat↔token conversion already applied — the ONLY number
+   * the confirm page may put on screen, because on web it is produced by the
+   * same core call the signed batch is built from ("displayed == signed"). The
+   * shell must never re-derive it.
+   */
+  tokenAmount: string;
   splitMode: boolean;
   recipients: RecipientDraft[];
+  /** Split mode: the rows' total exceeds the balance — the live hint under the
+   *  editor's total, decided by whoever owns the `Continue` refusal. */
+  splitOverBalance: boolean;
   pickerTarget: string | null;
   amountWarning: string | null;
   amountInputRef: { current: TextInput | null };
@@ -140,6 +150,9 @@ export interface SendController {
   setCopiedContract: (copied: boolean) => void;
   /** The Continue button's gate — `disabled` is its negation. */
   canContinue: boolean;
+  /** The confirm slide's gate — `disabled` is its negation. Fee settled ∧
+   *  nothing re-quoting ∧ no same-asset breach ∧ the send still idle. */
+  canConfirm: boolean;
 
   // ── fee & confirm ─────────────────────────────────────────────────────────
   feeEstimate: TransactionFeeEstimate | null;

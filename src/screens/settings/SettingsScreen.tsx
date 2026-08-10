@@ -22,6 +22,7 @@ import type { EndpointHealth, NetworkCardView, ServiceHealth } from '@/hooks/net
 import { useAddNetworkWizard, useNetworkEditor, useServiceEndpoints } from '@/hooks/use-network-admin';
 import { useEraseDevice } from '@/hooks/use-erase-device';
 import { useSessionSignOut } from '@/hooks/use-session-signout';
+import { useSettingsCurrency } from '@/hooks/use-settings-currency';
 import { LANGUAGE_NATIVE_NAMES, SUPPORTED_LANGUAGES, type AppLanguage, type LanguagePreference } from '@/i18n';
 import { useLanguagePreference } from '@/i18n/language';
 import { explorerAddressURL, getAllNetworksSync } from '@/models/network';
@@ -29,7 +30,7 @@ import type { LocalePrefs, ServiceEndpoints } from '@/models/types';
 import { DEFAULT_SERVICE_ENDPOINTS, isNativeToken, tokenChainId } from '@/models/types';
 import { shortAddress, useWallet } from '@/models/wallet-state';
 import { setAvatarStyle, type AvatarStyle } from '@/services/avatar-style';
-import { currencyMeta, formatFiat, getCurrencyCode, getRate, loadCurrency, setCurrency } from '@/services/currency';
+import { currencyMeta, formatFiat } from '@/services/currency';
 import { formatWeiToEth as formatEth } from '@/services/format-eth';
 import { dateFormatOptions, numberFormatOptions, timeFormatOptions, type FormatOption } from '@/services/locale-format';
 import { fetchWithTimeout, NET_TIMEOUTS } from '@/services/net';
@@ -1128,16 +1129,12 @@ export default function SettingsScreen() {
   const [fmtPicker, setFmtPicker] = useState<null | 'number' | 'date' | 'time'>(null);
   useEffect(() => { loadLocalePrefs().then(setLocalePrefs); }, []);
   // Display currency (E06) — the app-wide preference; screens pick the change up
-  // on focus via useDisplayCurrency. Warm the rate here so Home paints converted
-  // values immediately on return instead of a USD-magnitude flash.
-  const [currencyCode, setCurrencyCode] = useState(getCurrencyCode());
+  // on focus via useDisplayCurrency. The controller pair owns it (native:
+  // today's `loadCurrency`/`setCurrency` verbatim, rate warmed on pick; web: the
+  // `display_currency` core, so the first-launch region seed has exactly one
+  // implementation instead of racing the core's).
+  const { code: currencyCode, pick: pickCurrency } = useSettingsCurrency();
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
-  useEffect(() => { loadCurrency().then(setCurrencyCode); }, []);
-  const pickCurrency = async (code: string) => {
-    await setCurrency(code);
-    setCurrencyCode(code);
-    getRate(code).catch(() => {});
-  };
   const applyLocale = async (patch: Partial<LocalePrefs>) => {
     const next = { ...localePrefs, ...patch };
     setLocalePrefs(next);

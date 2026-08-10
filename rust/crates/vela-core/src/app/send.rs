@@ -1234,8 +1234,18 @@ pub struct SendView {
     pub recipient: String,
     pub amount: String,
     pub input_in_fiat: bool,
+    /// `amount` already resolved through the fiat↔token conversion — the ONE
+    /// number the confirm page may display, because it is the very number the
+    /// signed batch is built from (`resolve_token_amount`, invariant "displayed
+    /// == signed"). Empty while no token is selected.
+    pub token_amount: String,
     pub split_mode: bool,
     pub recipients: Vec<SendRecipientDraft>,
+    /// Split mode only: the rows' total exceeds the selected token's balance.
+    /// The same predicate the `Continue` gate refuses on
+    /// (`SendAlertKind::SplitOverBalance`), so the live hint and the gate can
+    /// never disagree.
+    pub split_over_balance: bool,
     pub picker_target: Option<String>,
     pub multi_select_mode: bool,
     pub multi_selected_ids: Vec<String>,
@@ -1429,6 +1439,37 @@ impl App for Send {
                 !model.recipient.is_empty() && !model.amount.is_empty()
             };
 
+        // The confirm page's headline amount (`ConfirmStep.tsx:80`). Derived
+        // here, not in the shell, so what is shown is by construction the
+        // string the submit path turns into base units.
+        let token_amount = model
+            .selected_token
+            .as_ref()
+            .map(|token| {
+                resolve_token_amount(
+                    &model.amount,
+                    model.input_in_fiat,
+                    token.price_usd,
+                    token.decimals,
+                    model.display.rate,
+                )
+            })
+            .unwrap_or_default();
+
+        // The split editor's live over-balance hint (`MultiRecipientEditor.tsx:99-101`),
+        // decided with the very helpers the `Continue` gate uses. An unparsable
+        // row (where TS `toBaseUnits` throws) is not "over balance" — the row's
+        // own invalid-amount state owns that case.
+        let split_over_balance = model.split_mode
+            && model.selected_token.as_ref().is_some_and(|token| {
+                match sum_split_base_units(&model.recipients, token.decimals) {
+                    Some(total) => {
+                        total > to_base_units(&full_balance(token), token.decimals).unwrap_or(0)
+                    }
+                    None => false,
+                }
+            });
+
         let can_confirm = stage == SendStage::Confirm
             && model.tx == SendTxStatus::Idle
             && !model.estimating_gas
@@ -1465,8 +1506,10 @@ impl App for Send {
             recipient: model.recipient.clone(),
             amount: model.amount.clone(),
             input_in_fiat: model.input_in_fiat,
+            token_amount,
             split_mode: model.split_mode,
             recipients: model.recipients.clone(),
+            split_over_balance,
             picker_target: model.picker_target.clone(),
             multi_select_mode: model.multi_select_mode,
             multi_selected_ids: model.multi_selected_ids.clone(),

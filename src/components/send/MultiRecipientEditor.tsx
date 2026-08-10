@@ -20,7 +20,7 @@ import { RecipientTrust } from '@/components/contacts/RecipientTrust';
 import { RecipientTypeBadge } from '@/components/contacts/RecipientTypeBadge';
 import { color, text, inter, space, radius, createStyles } from '@/constants/theme';
 import { sumSplitBaseUnits } from '@/services/batch-send';
-import { toBaseUnits, fromBaseUnits } from '@/services/eip681';
+import { fromBaseUnits } from '@/services/eip681';
 import { useLocalePrefs, numberSeparators, parseLocaleNumber } from '@/services/locale-format';
 
 export interface RecipientDraft {
@@ -72,8 +72,10 @@ interface Props {
   tokenSymbol: string;
   decimals: number;
   priceUsd?: number | null;
-  /** Token balance (human string) for the over-balance check. */
-  balance: string;
+  /** The rows' total exceeds the balance. Decided by the owner of the `Continue`
+   *  refusal (the core on web, the controller on native) and only rendered here,
+   *  so the red total and the refusal can never disagree. */
+  overBalance: boolean;
   formatUsd: (n: number) => string;
   /** Open the host's contact picker to fill the row with this id. */
   onPickContact: (id: string) => void;
@@ -83,7 +85,7 @@ interface Props {
 }
 
 export function MultiRecipientEditor({
-  recipients, onChange, tokenSymbol, decimals, priceUsd, balance, formatUsd, onPickContact, onImport, maxRecipients = 20,
+  recipients, onChange, tokenSymbol, decimals, priceUsd, overBalance, formatUsd, onPickContact, onImport, maxRecipients = 20,
 }: Props) {
   const { t } = useTranslation();
   useLocalePrefs(); // re-render on number-format change
@@ -97,8 +99,6 @@ export function MultiRecipientEditor({
   };
 
   const totalBase = sumSplitBaseUnits(recipients, decimals);
-  const balanceBase = toBaseUnits(balance || '0', decimals);
-  const overBalance = totalBase > balanceBase;
   const totalHuman = fromBaseUnits(totalBase, decimals);
   const totalUsd = priceUsd ? parseFloat(totalHuman) * priceUsd : 0;
 

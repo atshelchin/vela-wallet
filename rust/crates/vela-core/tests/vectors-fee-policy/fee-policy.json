@@ -1,0 +1,246 @@
+{
+  "suite": "fee-policy",
+  "note": "Cross-language DRIFT GATE for the fee decisions that must exist twice: Hermes has no wasm, so native runs the TypeScript copy (src/services/safe-transaction.ts, src/services/tempo.ts, src/components/ui/FeeTokenSelector.tsx) while web runs the Rust core (rust/crates/vela-core/src/app/fee_policy.rs). Neither copy may be deleted; both replay THIS file. Replayed by rust/crates/vela-core/tests/app_fee_policy_parity.rs and src/__tests__/services/fee-policy-parity.test.ts. Every number is a decimal string, never a JSON number.",
+  "cases": [
+    {
+      "name": "tier multiplier: slow is x1.1",
+      "fn": "tier_multiplier",
+      "input": { "tier": "slow" },
+      "expect": { "num": "11", "den": "10" }
+    },
+    {
+      "name": "tier multiplier: standard is x1.2",
+      "fn": "tier_multiplier",
+      "input": { "tier": "standard" },
+      "expect": { "num": "12", "den": "10" }
+    },
+    {
+      "name": "tier multiplier: rapid is x1.5",
+      "fn": "tier_multiplier",
+      "input": { "tier": "rapid" },
+      "expect": { "num": "15", "den": "10" }
+    },
+    {
+      "name": "tier multiplier: fast is x2.0",
+      "fn": "tier_multiplier",
+      "input": { "tier": "fast" },
+      "expect": { "num": "20", "den": "10" }
+    },
+
+    {
+      "name": "in-band native fee is gas x price x 3",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" }
+      },
+      "expect": { "amount": "600000000000000" }
+    },
+    {
+      "name": "in-band native fee needs no USD price at all",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": true, "decimals": 18, "usd_price": null },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": null }
+      },
+      "expect": { "amount": "600000000000000" }
+    },
+    {
+      "name": "in-band native floor is 0.00001 of the native coin",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "1",
+        "gas_price": "1",
+        "fee_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" }
+      },
+      "expect": { "amount": "10000000000000" }
+    },
+    {
+      "name": "in-band native floor degrades to one base unit below 5 decimals",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "0",
+        "gas_price": "0",
+        "fee_asset": { "is_native": true, "decimals": 4, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 4, "usd_price": "1" }
+      },
+      "expect": { "amount": "1" }
+    },
+    {
+      "name": "in-band stable fee converts through the 8-dp USD scale",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" }
+      },
+      "expect": { "amount": "1121220" }
+    },
+    {
+      "name": "in-band stable fee ceils the conversion (never undercharges)",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "1",
+        "gas_price": "1",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.71" }
+      },
+      "expect": { "amount": "18688" }
+    },
+    {
+      "name": "in-band stable fee at the native floor, above one cent",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "1",
+        "gas_price": "1",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" }
+      },
+      "expect": { "amount": "18687" }
+    },
+    {
+      "name": "in-band stable fee floors at $0.01",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "1",
+        "gas_price": "1",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "100" }
+      },
+      "expect": { "amount": "10000" }
+    },
+    {
+      "name": "in-band conversion rounds the NATIVE price up past 8 dp",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "1",
+        "gas_price": "1",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.700000005" }
+      },
+      "expect": { "amount": "18688" }
+    },
+    {
+      "name": "in-band conversion truncates the FEE TOKEN price past 8 dp",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "1",
+        "gas_price": "1",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1.000000005" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" }
+      },
+      "expect": { "amount": "18687" }
+    },
+    {
+      "name": "in-band refuses when the native asset is not native",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": false, "decimals": 6, "usd_price": "1" }
+      },
+      "expect": { "amount": null }
+    },
+    {
+      "name": "in-band refuses a stable quote with no native price",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": null }
+      },
+      "expect": { "amount": null }
+    },
+    {
+      "name": "in-band refuses a ZERO native price (0 is not a price)",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "0" }
+      },
+      "expect": { "amount": null }
+    },
+    {
+      "name": "in-band refuses a ZERO fee-token price",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "0" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868.70000000" }
+      },
+      "expect": { "amount": null }
+    },
+    {
+      "name": "in-band refuses an unparsable native price",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "200000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": false, "decimals": 6, "usd_price": "1" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "1868." }
+      },
+      "expect": { "amount": null }
+    },
+
+    {
+      "name": "tempo reimbursement: deployed one-call batch at the base fee",
+      "fn": "tempo_reimbursement",
+      "input": { "expected_gas": "360000", "gas_price_atto": "0", "decimals": 6 },
+      "expect": { "amount": "14400" }
+    },
+    {
+      "name": "tempo reimbursement: doubles the priced cost",
+      "fn": "tempo_reimbursement",
+      "input": { "expected_gas": "500000", "gas_price_atto": "20000000000", "decimals": 6 },
+      "expect": { "amount": "20000" }
+    },
+    {
+      "name": "tempo reimbursement floors at $0.01",
+      "fn": "tempo_reimbursement",
+      "input": { "expected_gas": "0", "gas_price_atto": "0", "decimals": 6 },
+      "expect": { "amount": "10000" }
+    },
+    {
+      "name": "tempo reimbursement floor rounds up for a 2-decimal token",
+      "fn": "tempo_reimbursement",
+      "input": { "expected_gas": "1", "gas_price_atto": "1", "decimals": 2 },
+      "expect": { "amount": "1" }
+    },
+
+    {
+      "name": "fee row: a short balance is not selectable",
+      "fn": "fee_row_insufficient",
+      "input": { "balance": "1000", "amount": "1001" },
+      "expect": { "value": true }
+    },
+    {
+      "name": "fee row: exactly enough IS selectable",
+      "fn": "fee_row_insufficient",
+      "input": { "balance": "1001", "amount": "1001" },
+      "expect": { "value": false }
+    },
+    {
+      "name": "fee row: an unpriceable asset is not selectable",
+      "fn": "fee_row_insufficient",
+      "input": { "balance": "1000000", "amount": null },
+      "expect": { "value": true }
+    },
+    {
+      "name": "fee row: a zero-cost quote is selectable at zero balance",
+      "fn": "fee_row_insufficient",
+      "input": { "balance": "0", "amount": "0" },
+      "expect": { "value": false }
+    }
+  ]
+}

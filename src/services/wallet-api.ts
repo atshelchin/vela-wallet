@@ -49,6 +49,77 @@ const NATIVE_CHAINLINK_FEEDS: Record<number, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Named holdings + native-pricing rules.
+//
+// These four are ALSO implemented in `rust/crates/vela-core/src/app/
+// balance_dashboard.rs` — the core re-applies them on web (`sort_by_usd_desc`,
+// the `token_balance_double(...) > 0.0` merge filter, `best_native_dex_price`,
+// `choose_native_price`), and Hermes has no wasm so this file stays native's
+// only implementation. They are named and exported rather than left inline so
+// the pair can be pinned against each other:
+// `src/__tests__/services/balance-core-parity.test.ts` replays the real core
+// over the same inputs and reads the Rust source for the band constants, which
+// is what turns a one-sided edit red.
+// ---------------------------------------------------------------------------
+
+/**
+ * Holdings as every surface consumes them: zero balances dropped (unless the
+ * caller asked for the superset), most valuable first.
+ */
+export function sortAndFilterHoldings(tokens: APIToken[], includeZeroBalance?: boolean): APIToken[] {
+  return tokens
+    .filter(t => includeZeroBalance || parseFloat(t.balance) > 0)
+    .sort((a, b) => tokenUsdValue(b) - tokenUsdValue(a));
+}
+
+/** Quote-token decimals when the `decimals()` read failed — USDC's 6. */
+export const DEFAULT_QUOTE_DECIMALS = 6;
+
+/**
+ * The deepest pool across ALL stable quotes. Each entry is one stable's best
+ * price, already normalised by ITS OWN decimals (USDC=6 vs DAI=18 must never be
+ * compared under one shared scale). For a fixed input a more-liquid pool returns
+ * more output, so the max is the least-distorted price: X Layer's WOKB/USDC pool
+ * quotes OKB at ~$5 while WOKB/USD₮0 holds the liquid one at ~$81, and taking
+ * the first would lock in the junk.
+ */
+export function bestNativeDexPrice(groupPrices: (number | null)[]): number | null {
+  let best: number | null = null;
+  for (const p of groupPrices) {
+    if (p != null && (best == null || p > best)) best = p;
+  }
+  return best;
+}
+
+/** Where the chosen native price came from — surfaced in the price log. */
+export type NativePriceSource = 'none' | 'DEX' | 'Chainlink(sanity)' | 'Chainlink(local)' | 'Chainlink(ETH)';
+
+/**
+ * The source ladder and its sanity band. DEX is preferred, but a DEX price that
+ * deviates beyond (0.5, 2.0) against the best Chainlink read means the pool is
+ * too thin to trust, so Chainlink wins. `onChainClPrice` must already carry its
+ * finite-and-positive decode gate; the Ethereum-mainnet fallback is deliberately
+ * ungated.
+ */
+export function chooseNativePrice(
+  dexPrice: number | null,
+  onChainClPrice: number | null,
+  ethClPrice: number | null,
+): { price: number | null; source: NativePriceSource } {
+  const clBestPrice = onChainClPrice ?? ethClPrice;
+  if (dexPrice != null && clBestPrice != null) {
+    const ratio = dexPrice / clBestPrice;
+    return ratio > 0.5 && ratio < 2.0
+      ? { price: dexPrice, source: 'DEX' }
+      : { price: clBestPrice, source: 'Chainlink(sanity)' };
+  }
+  if (dexPrice != null) return { price: dexPrice, source: 'DEX' };
+  if (onChainClPrice != null) return { price: onChainClPrice, source: 'Chainlink(local)' };
+  if (ethClPrice != null) return { price: ethClPrice, source: 'Chainlink(ETH)' };
+  return { price: null, source: 'none' };
+}
+
+// ---------------------------------------------------------------------------
 // Cache (same interface as before)
 // ---------------------------------------------------------------------------
 
@@ -180,10 +251,7 @@ async function fetchAllChainTokens(
   const networks = getAllNetworksSync();
   const accumulated: APIToken[] = [];
 
-  const sortAndFilter = () =>
-    accumulated
-      .filter(t => includeZeroBalance || parseFloat(t.balance) > 0)
-      .sort((a, b) => tokenUsdValue(b) - tokenUsdValue(a));
+  const sortAndFilter = () => sortAndFilterHoldings(accumulated, includeZeroBalance);
 
   // Cap each chain so one dead/slow RPC can't hold the whole fetch (a chain
   // with no healthy endpoint can otherwise burn ~60s on sequential failover).
@@ -357,28 +425,24 @@ async function queryChainAssets(
   }
 
   // 4. Decode quote token decimals (for price conversion)
-  let quoteDecimals = 6; // sensible default for USDC
+  let quoteDecimals = DEFAULT_QUOTE_DECIMALS; // sensible default for USDC
   if (quoteTokenDecCallIdx != null) {
     const r = results[quoteTokenDecCallIdx];
     if (r?.success) quoteDecimals = decU8(r.data);
   }
 
   // 5. Resolve native price: DEX → on-chain Chainlink → Ethereum Chainlink
-  let nativePriceUsd: number | null = null;
-  let nativePriceSource = 'none';
 
   // Try DEX (use correct decoder based on protocol). Take the DEEPEST pool across ALL stable
   // quotes — a more-liquid V3 pool returns more output for the same 1-native input (less
   // slippage), so the max is the least-distorted price and routes around a broken pool. Each
   // group is normalized by its own stable's decimals before comparing.
   const dexDecoder = dex?.protocol === 'solidly' ? decAmountsOut : decU256;
-  let dexPrice: number | null = null;
-  for (const g of nativeQuoteGroups) {
+  const dexPrice = bestNativeDexPrice(nativeQuoteGroups.map(g => {
     const decR = g.decCallIdx != null ? results[g.decCallIdx] : null;
-    const gDec = decR?.success ? decU8(decR.data) : 6;
-    const p = extractBestPrice(results, g.idxs, gDec, dexDecoder);
-    if (p != null && (dexPrice == null || p > dexPrice)) dexPrice = p;
-  }
+    const gDec = decR?.success ? decU8(decR.data) : DEFAULT_QUOTE_DECIMALS;
+    return extractBestPrice(results, g.idxs, gDec, dexDecoder);
+  }));
 
   // Try on-chain Chainlink feed (queried in same multicall, zero extra cost)
   let onChainClPrice: number | null = null;
@@ -395,26 +459,8 @@ async function queryChainAssets(
 
   // Pick best price: DEX preferred, but sanity-check against Chainlink.
   // If DEX price deviates >50% from Chainlink, DEX likely has low liquidity → prefer Chainlink.
-  const clBestPrice = onChainClPrice ?? ethClPrice;
-  if (dexPrice != null && clBestPrice != null) {
-    const ratio = dexPrice / clBestPrice;
-    if (ratio > 0.5 && ratio < 2.0) {
-      nativePriceUsd = dexPrice;
-      nativePriceSource = 'DEX';
-    } else {
-      nativePriceUsd = clBestPrice;
-      nativePriceSource = 'Chainlink(sanity)';
-    }
-  } else if (dexPrice != null) {
-    nativePriceUsd = dexPrice;
-    nativePriceSource = 'DEX';
-  } else if (onChainClPrice != null) {
-    nativePriceUsd = onChainClPrice;
-    nativePriceSource = 'Chainlink(local)';
-  } else if (ethClPrice != null) {
-    nativePriceUsd = ethClPrice;
-    nativePriceSource = 'Chainlink(ETH)';
-  }
+  const { price: nativePriceUsd, source: nativePriceSource } =
+    chooseNativePrice(dexPrice, onChainClPrice, ethClPrice);
 
   // Log summary: which source was used + status of all sources
   const dexOk = nativeQuoteGroups.reduce((n, g) => n + g.idxs.filter(i => results[i]?.success).length, 0);

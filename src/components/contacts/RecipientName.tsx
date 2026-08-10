@@ -8,7 +8,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Text, type StyleProp, type TextStyle } from 'react-native';
-import { getSavedContact, contactDisplayName } from '@/services/contacts';
+import { contactDisplayName } from '@/services/contacts';
+import { savedContactFor } from '@/services/saved-contact';
 import { useRecipientIdentity } from '@/hooks/use-recipient-identity';
 import { shortAddress } from '@/models/wallet-state';
 
@@ -27,7 +28,7 @@ export function RecipientName({
 
   useEffect(() => {
     let cancelled = false;
-    getSavedContact(address)
+    savedContactFor(address)
       .then((c) => { if (!cancelled) setContactName(c ? (contactDisplayName(c) || null) : null); })
       .catch(() => { if (!cancelled) setContactName(null); });
     return () => { cancelled = true; };

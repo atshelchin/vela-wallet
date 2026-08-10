@@ -10,7 +10,8 @@ import { Text } from 'react-native';
 import { isAddress, shortAddr } from '@/models/types';
 import { resolveRecipientIdentity } from '@/services/recipient-identity';
 import { useWallet } from '@/models/wallet-state';
-import { getSavedContact, contactDisplayName } from '@/services/contacts';
+import { contactDisplayName } from '@/services/contacts';
+import { savedContactFor } from '@/services/saved-contact';
 import { styles } from './signing-core';
 
 export function SummaryLine({ text, tone = 'neutral', emphasize }: {
@@ -67,7 +68,7 @@ export function useResolvedName(address?: string, descriptorName?: string): stri
     (async () => {
       // A saved contact is your own label → wins over ENS.
       try {
-        const c = await getSavedContact(address!);
+        const c = await savedContactFor(address!);
         const cn = c ? contactDisplayName(c) : '';
         if (cn) { if (!cancelled) setName(cn); return; }
       } catch { /* fall through */ }

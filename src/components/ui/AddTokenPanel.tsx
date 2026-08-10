@@ -9,25 +9,24 @@
  * `onAdded` fires after a token or network is successfully saved, letting hosts
  * refresh their lists.
  *
- * The ERC-20 tab is rendering only: its state lives in `useManageTokens`
- * (spec 017 `manage_tokens` — a Rust machine on web, the same TypeScript as
- * before on native). The custom-network tab below is still local state and
- * belongs to `network_admin`.
+ * Neither tab owns rules any more. The ERC-20 tab's state lives in
+ * `useManageTokens` (spec 017 `manage_tokens`) and the custom-network tab's in
+ * `useAddNetworkTab` (spec 017 `network_admin`) — a Rust machine on web, the
+ * same TypeScript as before on native. The panel used to call
+ * `checkNetworkCompatibility` and `saveCustomNetwork` itself, which made it a
+ * second add-network wizard running beside the core on web; the file below is
+ * now rendering only.
  */
 import { QRScanner } from '@/components/QRScanner';
 import { VelaButton } from '@/components/ui/VelaButton';
 import { VelaCard } from '@/components/ui/VelaCard';
 import { fadeInDown } from '@/constants/entering';
 import { color, createStyles, font, inter, radius, shadow, space, text } from '@/constants/theme';
+import { useAddNetworkTab } from '@/hooks/use-add-network-tab';
+import type { AddNetworkTabError } from '@/hooks/add-network-tab-types';
 import { useManageTokens } from '@/hooks/use-manage-tokens';
-import { DEFAULT_NETWORKS, refreshCustomNetworks } from '@/models/network';
 import { extractAddress } from '@/models/types';
-import type { CompatibilityResult } from '@/models/types';
-import { chainInfoToCustomNetwork } from '@/services/add-network';
-import { fetchChainInfo, searchChains, type ChainSearchResult } from '@/services/chain-registry';
-import { checkNetworkCompatibility } from '@/services/network-checker';
-import { hapticSuccess, openBrowser, showAlert } from '@/services/platform';
-import { loadCustomNetworks, saveCustomNetwork } from '@/services/storage';
+import { openBrowser } from '@/services/platform';
 import { Check, Globe, ScanLine, Trash2, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
@@ -44,73 +43,22 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
   const erc20 = useManageTokens(onChanged);
   const [showScanner, setShowScanner] = useState(false);
 
-  // Network state
-  const [netQuery, setNetQuery] = useState('');
-  const [netSuggestions, setNetSuggestions] = useState<ChainSearchResult[]>([]);
-  const [netSearching, setNetSearching] = useState(false);
-  const [netChainInfo, setNetChainInfo] = useState<any>(null);
-  const [netCompat, setNetCompat] = useState<CompatibilityResult | null>(null);
-  const [netLoading, setNetLoading] = useState(false);
-  const [netSaving, setNetSaving] = useState(false);
-  const [netError, setNetError] = useState<string | null>(null);
-
-  // --- Network tab logic ---
-  const handleNetSearch = async (q: string) => {
-    setNetQuery(q);
-    setNetChainInfo(null);
-    setNetCompat(null);
-    setNetError(null);
-    if (q.trim().length < 2) { setNetSuggestions([]); return; }
-    setNetSearching(true);
-    try {
-      const results = await searchChains(q.trim());
-      setNetSuggestions(results.slice(0, 8));
-    } catch { setNetSuggestions([]); }
-    setNetSearching(false);
-  };
-
-  const handleNetSelect = async (chainId: number) => {
-    setNetSuggestions([]);
-    setNetLoading(true);
-    setNetError(null);
-    try {
-      const existing = DEFAULT_NETWORKS.find(n => n.chainId === chainId);
-      const custom = await loadCustomNetworks();
-      if (existing || custom.find(n => n.chainId === chainId)) {
-        setNetError(t('addToken.errorAlreadyAdded'));
-        setNetLoading(false);
-        return;
-      }
-      const info = await fetchChainInfo(chainId);
-      if (!info) { setNetError(t('addToken.errorChainNotFound')); setNetLoading(false); return; }
-      setNetChainInfo(info);
-      const compat = await checkNetworkCompatibility(info.rpcUrls, chainId);
-      setNetCompat(compat);
-      if (!compat.compatible) {
-        setNetError(compat.error ?? t('addToken.errorNotCompatible'));
-      }
-    } catch (err) {
-      setNetError(err instanceof Error ? err.message : 'Failed to fetch chain info');
+  // Custom-network tab — likewise. The panel words the failures; the controller
+  // only says which one happened, so the copy cannot drift between platforms.
+  const net = useAddNetworkTab(onChanged);
+  const netChainInfo = net.chainInfo;
+  const netCompat = net.compat;
+  const wordNetError = (error: AddNetworkTabError): string => {
+    switch (error.kind) {
+      case 'already_added': return t('addToken.errorAlreadyAdded');
+      case 'chain_not_found': return t('addToken.errorChainNotFound');
+      case 'not_compatible': return error.detail ?? t('addToken.errorNotCompatible');
+      case 'message': return error.text;
     }
-    setNetLoading(false);
   };
-
-  const handleNetAdd = async () => {
-    if (!netChainInfo || !netCompat?.compatible) return;
-    setNetSaving(true);
-    try {
-      const network = chainInfoToCustomNetwork(netChainInfo, netCompat.bestRpcUrl);
-      await saveCustomNetwork(network);
-      await refreshCustomNetworks();
-      hapticSuccess();
-      setNetError(null);
-      setNetChainInfo({ ...netChainInfo, _added: true });
-      onChanged?.();
-    } catch {
-      showAlert(t('addToken.errorTitle'), t('addToken.errorAddNetwork'));
-    }
-    setNetSaving(false);
-  };
+  // `null`, never `''` — the JSX below guards on it, and an empty string in a
+  // View is a raw text child on native.
+  const netError = net.error === null ? null : wordNetError(net.error);
 
   return (
     <>
@@ -133,20 +81,20 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
               style={styles.input}
               placeholder={t('addToken.netSearchPlaceholder')}
               placeholderTextColor={color.fg.subtle}
-              value={netQuery}
-              onChangeText={handleNetSearch}
+              value={net.query}
+              onChangeText={net.search}
               autoCapitalize="none"
               autoCorrect={false}
             />
 
-            {netSearching && <Text style={styles.searchHint}>{t('addToken.netSearching')}</Text>}
+            {net.searching && <Text style={styles.searchHint}>{t('addToken.netSearching')}</Text>}
 
-            {netSuggestions.length > 0 && (
+            {net.suggestions.length > 0 && (
               <VelaCard style={styles.suggestionsCard}>
-                {netSuggestions.map((s, i) => (
+                {net.suggestions.map((s, i) => (
                   <React.Fragment key={s.chainId}>
                     {i > 0 && <View style={styles.separator} />}
-                    <Pressable style={styles.suggestionRow} onPress={() => { setNetQuery(s.name); handleNetSelect(s.chainId); }}>
+                    <Pressable style={styles.suggestionRow} onPress={() => net.select(s.chainId)}>
                       <Text style={styles.suggestionName}>{s.name}</Text>
                       <Text style={styles.suggestionChainId}>{t('addToken.chainId', { chainId: s.chainId })}</Text>
                     </Pressable>
@@ -156,7 +104,7 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
             )}
 
             {/* Chain info card — shown as soon as chain data is fetched */}
-            {netChainInfo && !netChainInfo._added && (
+            {netChainInfo && !net.added && (
               <Animated.View entering={fadeInDown(0, 300)}>
                 <VelaCard style={styles.resultCard}>
                   <View style={styles.resultRow}>
@@ -171,19 +119,19 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
                   <View style={styles.separator} />
                   <View style={styles.resultRow}>
                     <Text style={styles.resultLabel}>{t('addToken.labelNativeToken')}</Text>
-                    <Text style={styles.resultValue}>{netChainInfo.nativeCurrency?.symbol}</Text>
+                    <Text style={styles.resultValue}>{netChainInfo.nativeSymbol}</Text>
                   </View>
                   <View style={styles.separator} />
                   <View style={styles.resultRow}>
                     <Text style={styles.resultLabel}>{t('addToken.labelDecimals')}</Text>
-                    <Text style={styles.resultValue}>{netChainInfo.nativeCurrency?.decimals}</Text>
+                    <Text style={styles.resultValue}>{netChainInfo.nativeDecimals}</Text>
                   </View>
-                  {netChainInfo.explorerUrl ? (
+                  {netChainInfo.explorerURL ? (
                     <>
                       <View style={styles.separator} />
                       <View style={styles.resultRow}>
                         <Text style={styles.resultLabel}>{t('addToken.labelExplorer')}</Text>
-                        <Pressable onPress={() => openBrowser(netChainInfo.explorerUrl)}>
+                        <Pressable onPress={() => openBrowser(netChainInfo.explorerURL)}>
                           <Text style={[styles.resultValue, { color: color.accent.base }]}>{t('addToken.labelExplorerLink')}</Text>
                         </Pressable>
                       </View>
@@ -194,8 +142,8 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
                   <Text style={[styles.fieldLabel, { marginTop: space.lg }]}>{t('addToken.labelRpcUrl')}</Text>
                   <TextInput
                     style={styles.input}
-                    value={netChainInfo.rpcUrl}
-                    onChangeText={(val) => setNetChainInfo({ ...netChainInfo, rpcUrl: val, rpcUrls: [val] })}
+                    value={netChainInfo.rpcURL}
+                    onChangeText={net.setRpcURL}
                     autoCapitalize="none"
                     autoCorrect={false}
                     placeholder="https://..."
@@ -205,7 +153,7 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
               </Animated.View>
             )}
 
-            {netLoading && <Text style={styles.searchHint}>{t('addToken.checkingCompat')}</Text>}
+            {net.loading && <Text style={styles.searchHint}>{t('addToken.checkingCompat')}</Text>}
             {netError && netCompat && !netCompat.compatible && (
               <Animated.View entering={fadeInDown(0, 300)}>
                 <VelaCard elevated style={styles.compatCard}>
@@ -258,7 +206,7 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
                     <Check size={20} color={color.success.base} strokeWidth={2.5} />
                     <Text style={styles.resultTitle}>{t('addToken.compatible')}</Text>
                   </View>
-                  {netChainInfo._added ? (
+                  {net.added ? (
                     <View style={styles.addedRow}>
                       <Check size={16} color={color.success.base} strokeWidth={2.5} />
                       <Text style={styles.addedText}>{t('addToken.networkAdded')}</Text>
@@ -266,9 +214,9 @@ export function AddTokenPanel({ onChanged }: { onChanged?: () => void }) {
                   ) : (
                     <VelaButton
                       title={t('addToken.addNetworkBtn')}
-                      onPress={handleNetAdd}
+                      onPress={net.add}
                       variant="accent"
-                      loading={netSaving}
+                      loading={net.saving}
                       style={styles.saveBtn}
                     />
                   )}

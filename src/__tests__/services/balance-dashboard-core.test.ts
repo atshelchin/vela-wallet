@@ -339,8 +339,9 @@ describe('balance_dashboard core (web shell)', () => {
     expect(h.latest().hidden).toBe(true);
     // Withheld by construction, not masked downstream (invariant ⑧).
     expect(h.latest().display_total_usd).toBeNull();
-    // Written through `setBalanceHidden`, so the three other masking surfaces
-    // (holdings, balance detail, switcher) see it too — one writer, one key.
+    // The core's `WritePrivacy` is the ONE writer of this byte on web; the three
+    // other masking surfaces (holdings, balance detail, switcher) read `hidden`
+    // off this same view through `use-balance-privacy.web.ts`.
     expect(mockStorage.get(PRIVACY_KEY)).toBe('1');
 
     // A hydrate that lands after the tap must not undo it.

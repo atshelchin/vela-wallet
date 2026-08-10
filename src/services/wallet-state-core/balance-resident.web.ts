@@ -33,12 +33,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { toApiToken } from '@/services/wallet-state-core/balance-executor.web';
 import { createBalanceSession } from '@/services/wallet-state-core/balance-session.web';
+import { BALANCE_PRIVACY_KEY } from './balance-types';
 import type { BalanceEvent } from './generated/BalanceEvent';
 import type { BalanceView } from './generated/BalanceView';
 import type { APIToken } from '@/models/types';
 
-/** The key `use-balance-privacy.ts` owns; the core's hydrate reads the same byte. */
-const PRIVACY_KEY = 'vela.balanceHidden';
+/**
+ * The persisted privacy byte. On web this module is the ONLY hydrate: the core
+ * owns the first-write-wins race, and `use-balance-privacy.web.ts` mirrors the
+ * core's `hidden` rather than reading the key a second time.
+ */
+const PRIVACY_KEY = BALANCE_PRIVACY_KEY;
 
 /** The machine's own initial projection — mirrored until the first view lands. */
 const INITIAL_VIEW: BalanceView = {

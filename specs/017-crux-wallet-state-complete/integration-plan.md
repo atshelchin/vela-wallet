@@ -196,18 +196,34 @@ Waves of parallel agents, gates between waves, e2e after each:
   imported the base64 module the D7 change retired. Repaired, and every other
   verification script was run to check for the same rot.
 
+## Closed in the final pass
+
+- **`§12.1.6` step 2** — the sign path takes its signer from `sign_request`'s
+  own accounts, so the `setTimeout(0)` yield is gone. The switch is validated
+  before dispatch and verified before the ack; a mismatch never resolves, so
+  `confirm_gate_open` stays false rather than acking a wrong-account
+  signature. (Throwing would not have been fail-closed: `toFailure` answers
+  `account_switched` unconditionally.)
+- **`dapp_permissions`** — the "unreachable" judgement was verified before
+  acting and was accurate (`decide_popup_request` had no caller on any
+  platform). It now has the minimum event/view projection to be dispatched,
+  and the popup authorisation runs through it.
+- **`dapp_session`** — integrated; one deliberate divergence, pinned by a
+  test: a backoff reconnect is acked WITHOUT calling `transport.reconnect()`,
+  because `WalletPairTransport` owns the identical ladder and driving both
+  would put two writers on one relay channel — the dead-channel collision
+  BUG-5/6 came from.
+- **Erase this device** — prefix scan over `vela.` with an explicit keep-list
+  (`vela.pendingUploads` only), re-enumerating afterwards and failing if
+  anything survived. `clearAll()` is deleted rather than left as a
+  near-synonym.
+
 ## Still open
 
-- **`§12.1.6` step 2** — the sign path should take the signer from
-  `sign_request`'s own `active_index` instead of React; step 1 (the executor
-  yield, replacing `web-request.tsx`'s `setTimeout(0)`) is done.
-- **`dapp_session`** — authored and exported, no shell. The densest timer
-  discipline in the repo; deserves its own change.
-- **`dapp_permissions`** — models a route that does not render on web.
-- **"Erase this device"** does not exist as a feature. When it is built, make
-  it prefix-based over the whole `vela.` namespace with an explicit keep-list
-  rather than a hand-maintained delete-list — the delete-list shape is exactly
-  why `clearAll()` silently drifted out of date (it never covered contacts,
-  groups, browser history, the `vela.perm.*` prefix, or any preference key).
-- **Native has no e2e.** Sign-out's native behaviour changed here and
-  `ext_cache`'s real surface is iOS-only; both want a device pass.
+- **Native has no e2e.** Sign-out's native behaviour changed in this branch
+  and `ext_cache`'s real surface is iOS-only; both want a device pass
+  (`e2e/safari/run_matrix.py`).
+- **Two HomeScreens are mounted on web** (react-navigation keeps the inactive
+  stack screen). Pre-existing, diagnosed on a clean baseline in 233c062, and
+  currently worked around in one spec assertion. Rooting it out means touching
+  navigation config — its own change, with its own risk assessment.

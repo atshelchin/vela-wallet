@@ -162,7 +162,10 @@ export function useHomeController() {
   // Display currency — set in Settings › Localization; re-read on focus by the
   // hook, so a change over there lands here without a remount.
   const dc = useDisplayCurrency();
-  const currency = currencyMeta(dc.code);
+  // `dc.shown.code`: the currency the fiat figures are ACTUALLY rendered in.
+  // It is the chosen one whenever it can be priced, and USD when it cannot —
+  // taken together with `dc.shown.rate`, never paired by hand.
+  const currency = currencyMeta(dc.shown.code);
 
   // --- balance: derive from streamed tokens, with cache fallback + partial detection ---
   // Never show a confidently-wrong smaller number. If a chain's RPC failed or a

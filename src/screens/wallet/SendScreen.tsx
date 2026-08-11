@@ -156,9 +156,9 @@ export default function SendScreen() {
           userOpHash={userOpHash ?? undefined}
           logoUrls={tokenLogoURLs(selectedToken)}
           usdValue={receiptUsdValue}
-          rate={dc.rate}
-          currencyCode={dc.code}
-          currencySymbol={dc.symbol}
+          rate={dc.shown.rate}
+          currencyCode={dc.shown.code}
+          currencySymbol={dc.shown.symbol}
           timestamp={new Date()}
           recipientIdentity={recipientIdentity}
           transfers={receiptTransfers ?? undefined}

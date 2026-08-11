@@ -211,6 +211,8 @@
   "warnInsufficientForGas": "Không đủ {{sym}} để trả số tiền + phí gas",
   "warnInsufficientGas": "Không đủ {{sym}} để trả phí gas",
   "warnNeedGas": "Bạn cần {{sym}} để trả phí gas",
+  "warnCannotConvert": "Hiện không thể quy đổi {{code}} sang {{symbol}} — hãy chuyển sang {{symbol}} để nhập số tiền.",
+  "denomToggleNoRate": "Hiện chưa có tỷ giá {{code}} — hãy nhập số tiền bằng {{symbol}}.",
   "confirmTitle": "Xác nhận",
   "walletFallbackName": "Ví",
   "fromLabel": "Từ",

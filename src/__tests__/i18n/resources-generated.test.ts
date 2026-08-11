@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 18,378 leaves across 15 locales', () => {
+  it('carries the whole corpus — 18,408 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -97,10 +97,15 @@ describe('generated i18n resources', () => {
     // serving another chain), plus the 120 erase-this-device strings spec 017
     // added (8 keys × 15 locales: `settings.eraseDevice.*`, the destructive
     // counterpart to sign-out — its copy has to name what is lost AND what is
-    // not, which is why it is eight strings and not one).
+    // not, which is why it is eight strings and not one), plus the 30 send
+    // unit-refusal strings spec 017 added (2 keys × 15 locales:
+    // `send.warnCannotConvert` — a fiat figure the screen cannot restate in
+    // token units — and `send.denomToggleNoRate` — the ⇄ row shown but inert,
+    // the one branch the first key cannot cover, since there the figure is in
+    // TOKEN units and resolves fine so nothing else on the screen speaks).
     // The number moving is the point; it should only ever move deliberately.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(18_378);
+    expect(total).toBe(18_408);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

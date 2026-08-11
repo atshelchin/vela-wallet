@@ -9,11 +9,20 @@
  * cleared only once the wallet reference resolves (issue #89) — also lives in
  * `rust/crates/vela-core/src/app/create_wallet.rs`, which is what drives web
  * onboarding now. This file still runs on iOS/Android (Hermes has no
- * WebAssembly) and on every platform for `retryPendingUploads()` at launch.
+ * WebAssembly) and on every platform for `retryPendingUploads()` at launch —
+ * `_layout.tsx` calls it on every cold start, web included, so this table is
+ * live on the platform the core also runs on.
  *
  * Change the Rust table and this one together, or the platforms drift. The
  * shared source of truth is the table in
  * `specs/011-crux-onboarding-state/data-model.md`.
+ *
+ * The warning above was the ONLY thing holding the two copies together, and a
+ * comment cannot fail a build. The table is therefore extracted below into two
+ * pure functions — `judgeUpload` and `shouldClearPending` — whose inputs are
+ * observations and whose outputs are labelled verdicts, so both copies can be
+ * read by one test: `src/__tests__/services/public-key-upload-parity.test.ts`
+ * executes these and reads the corresponding arms out of `create_wallet.rs`.
  */
 import { computeAddress, fromHex } from '@/services/vela-core';
 import * as PublicKeyIndex from './public-key-index';
@@ -71,6 +80,85 @@ export function validateCreateClientData(clientDataJSONHex: string): void {
 }
 
 // ---------------------------------------------------------------------------
+// The decision table, as data
+// ---------------------------------------------------------------------------
+
+/**
+ * What the shell OBSERVED, never what it concluded. `create` failing is not a
+ * verdict (the write may have landed with its response lost, or the record may
+ * already exist from an idempotent retry), and a query that could not answer is
+ * not a verdict either — the query 404-ing and the query timing out are the
+ * same thing here: unconfirmed.
+ */
+export type CreateObservation =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly error: unknown };
+
+export type QueryObservation =
+  | { readonly type: 'record'; readonly publicKey: string }
+  | { readonly type: 'unavailable'; readonly error: unknown };
+
+/** The labelled verdict. Every caller branches on `type`, never on an error string. */
+export type UploadVerdict =
+  /** The server holds the matching key — proceed to the wallet-ref step. */
+  | { readonly type: 'confirmed' }
+  /** Nothing was proven; keep the pending entry and retry on a later launch. */
+  | { readonly type: 'unconfirmed'; readonly error: unknown }
+  /** The server holds a DIFFERENT key for this credential — never retryable by waiting. */
+  | { readonly type: 'mismatch' };
+
+/** The message a `mismatch` surfaces. Byte-identical to the core's. */
+export const MISMATCH_MESSAGE = 'Server verification failed: public key mismatch';
+
+/**
+ * Row lookup for the index-upload table (spec 011 data-model.md), mirroring
+ * `create_wallet.rs`'s `Syncing(Creating|Confirming)` arms:
+ *
+ *   create ok   / record matches  → confirmed
+ *   create fail / record matches  → confirmed  (already-exists, or write landed)
+ *   create ok   / record differs  → mismatch
+ *   create fail / record differs  → mismatch
+ *   create ok   / no answer       → unconfirmed with the query's error
+ *   create fail / no answer       → unconfirmed with the CREATE error (the original cause)
+ *
+ * The key comparison is case-insensitive, exactly as the core's
+ * `eq_ignore_ascii_case` is: hex case carries no meaning, and two copies of one
+ * table that disagree about `04AB…` vs `04ab…` are a drift, not a nuance.
+ */
+export function judgeUpload(
+  expectedPublicKeyHex: string,
+  create: CreateObservation,
+  query: QueryObservation,
+): UploadVerdict {
+  if (query.type === 'unavailable') {
+    // `throw createError ?? verifyErr`: the create error is the original cause
+    // and wins when both failed.
+    return { type: 'unconfirmed', error: create.ok ? query.error : create.error };
+  }
+  return query.publicKey.toLowerCase() === expectedPublicKeyHex.toLowerCase()
+    ? { type: 'confirmed' }
+    : { type: 'mismatch' };
+}
+
+/**
+ * The wallet-reference step (issue #89). `unknown` is the index/RPC failing to
+ * answer — never confused with a definitive "not revealed yet", though both
+ * keep the entry.
+ */
+export type WalletRefObservation = 'resolved' | 'unresolved' | 'unknown';
+
+/**
+ * Clear the pending entry ONLY on a resolved wallet reference. The credential
+ * record existing is not the signal: the bundler grants sponsorship once the
+ * key resolves BY walletRef, which lands after the index's async on-chain
+ * commit-reveal — minutes later, and sometimes stuck. Clearing early abandoned
+ * those registrations and the funded treasury never paid out (issue #89).
+ */
+export function shouldClearPending(walletRef: WalletRefObservation): boolean {
+  return walletRef === 'resolved';
+}
+
+// ---------------------------------------------------------------------------
 // Upload
 // ---------------------------------------------------------------------------
 
@@ -93,32 +181,34 @@ export async function uploadPublicKey(params: {
   //    Idempotency-Key) or the write may have landed but the response was lost to
   //    a timeout. The verify step below is the source of truth, so remember the
   //    error and only surface it if verification can't confirm the record.
-  let createError: unknown = null;
+  let create: CreateObservation;
   try {
     await PublicKeyIndex.createRecord({ rpId, credentialId, publicKey: publicKeyHex, name });
     console.log('[PublicKeyUpload] Upload request OK for:', name);
+    create = { ok: true };
   } catch (err) {
-    createError = err;
+    create = { ok: false, error: err };
     console.warn('[PublicKeyUpload] create failed; verifying before deciding:', err instanceof Error ? err.message : String(err));
   }
 
   // 2. Verify against the server — the stored record is the source of truth. If it
   //    exists and matches, the upload succeeded regardless of whether THIS call
   //    wrote it (covers "already exists" on retry and timeout-but-succeeded).
-  let record: PublicKeyIndex.PublicKeyRecord;
+  //    A query that cannot answer (404 or transport) is not a verdict: the write
+  //    may have landed but we can't prove it yet, so the entry stays pending and
+  //    is retried on next launch (createRecord dedupes via Idempotency-Key).
+  //    Never remove the pending entry on an unconfirmed result, never fake success.
+  let query: QueryObservation;
   try {
-    record = await PublicKeyIndex.queryRecord(rpId, credentialId);
+    const record = await PublicKeyIndex.queryRecord(rpId, credentialId);
+    query = { type: 'record', publicKey: record.publicKey };
   } catch (verifyErr) {
-    // Couldn't confirm. If the create also failed (e.g. genuine 4xx, or the
-    // record really isn't there → query 404s), surface that. Otherwise the write
-    // likely landed but we can't prove it yet — throw so it stays pending and is
-    // retried on next launch (createRecord dedupes via Idempotency-Key). Never
-    // remove the pending entry on an unconfirmed result, never fake success.
-    throw createError ?? verifyErr;
+    query = { type: 'unavailable', error: verifyErr };
   }
-  if (record.publicKey !== publicKeyHex) {
-    throw new Error('Server verification failed: public key mismatch');
-  }
+
+  const verdict = judgeUpload(publicKeyHex, create, query);
+  if (verdict.type === 'unconfirmed') throw verdict.error;
+  if (verdict.type === 'mismatch') throw new Error(MISMATCH_MESSAGE);
   console.log('[PublicKeyUpload] Verified on server for:', name);
 
   // 3. The credentialId record exists — but that is NOT the signal that the key
@@ -132,17 +222,29 @@ export async function uploadPublicKey(params: {
   //    idempotent and re-queues a stuck reveal). Never throw here: the credentialId
   //    is confirmed, the wallet is fully usable locally, and onboarding must not be
   //    blocked on the slow reveal (saveAccount still gates on credentialId only).
+  let walletRef: WalletRefObservation;
   try {
-    const resolvedByWalletRef = await PublicKeyIndex.queryByWalletRef(computeAddress(publicKeyHex));
-    if (resolvedByWalletRef) {
+    walletRef = (await PublicKeyIndex.queryByWalletRef(computeAddress(publicKeyHex)))
+      ? 'resolved'
+      : 'unresolved';
+  } catch (err) {
+    // walletRef check failed (index/RPC down) — an absence of information, not
+    // an absence of the reveal.
+    walletRef = 'unknown';
+    console.warn('[PublicKeyUpload] walletRef check failed; leaving pending:', err instanceof Error ? err.message : String(err));
+  }
+  if (shouldClearPending(walletRef)) {
+    try {
       await removePendingUpload(credentialId);
       console.log('[PublicKeyUpload] walletRef resolved — registration complete:', name);
-    } else {
-      console.log('[PublicKeyUpload] credentialId stored; walletRef pending on-chain reveal — keeping for retry:', name);
+    } catch (err) {
+      // A failed local delete is not a failed registration — the key IS on the
+      // index. The entry is simply re-driven once more next launch, which is
+      // idempotent. (`RemovingPending, StorageFailed` → `save_account` in the core.)
+      console.warn('[PublicKeyUpload] pending entry could not be cleared:', err instanceof Error ? err.message : String(err));
     }
-  } catch (err) {
-    // walletRef check failed (index/RPC down) — keep it pending, retry next launch.
-    console.warn('[PublicKeyUpload] walletRef check failed; leaving pending:', err instanceof Error ? err.message : String(err));
+  } else if (walletRef === 'unresolved') {
+    console.log('[PublicKeyUpload] credentialId stored; walletRef pending on-chain reveal — keeping for retry:', name);
   }
 }
 

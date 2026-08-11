@@ -45,7 +45,7 @@ fn initial_view_is_usd_at_rate_one_and_uncommitted() {
     let sut = Sut::new();
     let view = sut.view();
     assert_eq!(view.code, "USD");
-    assert_eq!(view.rate, 1.0);
+    assert_eq!(view.rate, Some(1.0));
     assert!(!view.committed);
 }
 
@@ -63,22 +63,52 @@ fn stored_code_never_surfaces_before_its_rate() {
 
     sut.resolve(rate("JPY", Some(155.0)));
     let view = sut.view();
-    assert_eq!((view.code.as_str(), view.rate), ("JPY", 155.0));
+    assert_eq!((view.code.as_str(), view.rate), ("JPY", Some(155.0)));
     assert!(view.committed);
 }
 
-/// `getRate` semantics — the DISPLAY path may fall back to 1, but only
-/// together with its own code (JPY/1 as priced, never JPY at a leftover rate).
+/// An unpriceable DISPLAY currency commits as unpriceable — `rate: None`, not
+/// rate 1.
+///
+/// This used to be `rate.unwrap_or(1.0)`: the `getRate` display convenience,
+/// baked into the one pair every surface reads. It is a fine convenience for a
+/// balance card (print the USD figure rather than a blank) and a catastrophe
+/// for the send screen, which divides a fiat-denominated amount by exactly
+/// this number — "5000" typed as CNY became 5000 USDT, ~7x, with the confirm
+/// slider armed. The shell may still degrade its FORMATTING; the core no
+/// longer hands it a multiplier it does not have.
+///
+/// Mutation proof: restore `rate.unwrap_or(1.0)` and this asserts `Some(1.0)`,
+/// and `unpriceable_display_currency_refuses_to_convert` in `app_send.rs` pays
+/// out 5000 tokens for a 5000 CNY line.
 #[test]
-fn display_rate_failure_falls_back_to_one_with_its_code() {
+fn unpriceable_display_currency_commits_none_not_one() {
     let mut sut = Sut::new();
     sut.dispatch(Event::Refresh);
     sut.resolve(stored(Some("EUR")));
     sut.resolve(rate("EUR", None));
 
     let view = sut.view();
-    assert_eq!((view.code.as_str(), view.rate), ("EUR", 1.0));
+    assert_eq!(
+        (view.code.as_str(), view.rate),
+        ("EUR", None),
+        "EUR still shows; it is simply not priced"
+    );
     assert!(view.committed);
+}
+
+/// A source answering 0 (or a negative, or NaN) has priced nothing — the same
+/// refusal as an outright failure, because once only a multiplier survives
+/// they are indistinguishable from a claim that the rate is 1.
+#[test]
+fn a_non_positive_answer_is_not_a_rate() {
+    for answer in [0.0, -7.17, f64::NAN] {
+        let mut sut = Sut::new();
+        sut.dispatch(Event::Refresh);
+        sut.resolve(stored(Some("CNY")));
+        sut.resolve(rate("CNY", Some(answer)));
+        assert_eq!(sut.view().rate, None, "answer {answer} is not a rate");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +146,7 @@ fn seed_persists_only_after_a_real_rate() {
         "the seed persists exactly once, after the rate"
     );
     let view = sut.view();
-    assert_eq!((view.code.as_str(), view.rate), ("VND", 26_000.0));
+    assert_eq!((view.code.as_str(), view.rate), ("VND", Some(26_000.0)));
 }
 
 /// FR-006/FR-007 — unpriceable is NOT rate 1: no rate, no seed, key stays
@@ -131,7 +161,7 @@ fn unpriceable_seed_stays_usd_and_persists_nothing() {
     let ops = sut.resolve(rate("VND", None));
     assert!(ops.is_empty(), "no write, no further ops");
     let view = sut.view();
-    assert_eq!((view.code.as_str(), view.rate), ("USD", 1.0));
+    assert_eq!((view.code.as_str(), view.rate), ("USD", Some(1.0)));
     assert!(view.committed, "USD/1 is a real commitment, not the placeholder");
 }
 
@@ -219,7 +249,7 @@ fn user_choice_writes_and_prices() {
     sut.resolve(Res::CodeWritten);
     sut.resolve(rate("KRW", Some(1_390.0)));
     let view = sut.view();
-    assert_eq!((view.code.as_str(), view.rate), ("KRW", 1_390.0));
+    assert_eq!((view.code.as_str(), view.rate), ("KRW", Some(1_390.0)));
 }
 
 /// FR-006 — the attempt fence: a seed's rate that arrives AFTER an explicit
@@ -258,7 +288,7 @@ fn previous_pair_holds_while_a_new_pick_resolves() {
     let view = sut.view();
     assert_eq!(
         (view.code.as_str(), view.rate),
-        ("JPY", 155.0),
+        ("JPY", Some(155.0)),
         "the old pair renders until the new one commits atomically"
     );
 }

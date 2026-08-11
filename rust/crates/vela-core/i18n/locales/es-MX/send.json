@@ -28,6 +28,8 @@
     "warnInsufficientForGas": "{{sym}} insuficiente para cubrir la cantidad y las comisiones de gas",
     "warnInsufficientGas": "{{sym}} insuficiente para las comisiones de gas",
     "warnNeedGas": "Necesitas {{sym}} para pagar las comisiones de gas",
+    "warnCannotConvert": "Ahora no se puede convertir {{code}} a {{symbol}}: cambia a {{symbol}} para ingresar el monto.",
+    "denomToggleNoRate": "Sin tipo de cambio de {{code}} por ahora: ingresa el monto en {{symbol}}.",
     "confirmTitle": "Confirmar",
     "walletFallbackName": "Billetera",
     "fromLabel": "De",

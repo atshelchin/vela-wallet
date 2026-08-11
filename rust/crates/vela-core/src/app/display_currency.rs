@@ -1,7 +1,7 @@
 //! Machine — the display currency (spec `016-crux-wallet-state`, US1).
 //!
 //! ```text
-//! refresh ─► LoadingStored ─┬─ stored code ─► ResolvingDisplay ─► commit {code, rate|1}
+//! refresh ─► LoadingStored ─┬─ stored code ─► ResolvingDisplay ─► commit {code, rate?}
 //!                           └─ absent ─► ReadingDevice ─┬─ none/USD ─► commit {USD, 1}
 //!                                                       └─ candidate ─► ResolvingSeed
 //!                                    rate? ─► RecheckingStored ─► persist + commit
@@ -102,10 +102,20 @@ pub enum Event {
 // Model
 // ---------------------------------------------------------------------------
 
+/// A display currency and the multiplier that prices it — inseparable.
+///
+/// `rate: None` is a currency the shell is SHOWING but could not price. It is
+/// not rate 1: a rate of 1 is a claim (1 USD = 1 CNY), and the difference is
+/// the whole reason `ResolveRate` answers `Option<f64>` instead of a number.
+/// A surface may still render in `code` — degrading the fiat figure it prints
+/// is a cosmetic loss — but nothing may CONVERT with a `None`, because the
+/// conversion is what moves money (`send`'s fiat-denominated amount input
+/// divides by exactly this multiplier).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pair {
     pub code: String,
-    pub rate: f64,
+    /// USD → `code`. `None` ⇒ no source could price `code`; never 1-by-default.
+    pub rate: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -113,7 +123,8 @@ enum Phase {
     #[default]
     Idle,
     LoadingStored,
-    /// Pricing a KNOWN preference for display. Display may fall back to 1.
+    /// Pricing a KNOWN preference. Unpriceable commits `{code, None}` — the
+    /// currency still shows, but nothing may convert with it.
     ResolvingDisplay { code: String },
     ReadingDevice,
     /// Pricing a seed CANDIDATE. Strict: no rate, no seed.
@@ -143,7 +154,14 @@ pub struct Model {
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub struct CurrencyView {
     pub code: String,
-    pub rate: f64,
+    /// USD → `code`, or `null` when no source could price `code` right now.
+    ///
+    /// `null` is NOT 1. Every shell-side use splits on it: formatting may
+    /// degrade (show the USD figure rather than label an unconverted number
+    /// with a ¥), converting may not — a fiat-denominated amount multiplied by
+    /// a defaulted 1 is a real 7x mispayment, the single-send twin of the
+    /// batch importer's refusal to quote a rate it cannot vouch for.
+    pub rate: Option<f64>,
     /// `false` ⇒ the USD/1 placeholder is showing. The shell derives the
     /// symbol from its catalog and owns all formatting.
     pub committed: bool,
@@ -216,7 +234,9 @@ impl App for DisplayCurrency {
             },
             None => CurrencyView {
                 code: "USD".to_owned(),
-                rate: 1.0,
+                // The placeholder is USD, and USD really is 1 against itself —
+                // this `Some` is a priced pair, not a default.
+                rate: Some(1.0),
                 committed: false,
             },
         }
@@ -240,7 +260,7 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
                 // or region USD). Stay where we are; next LAUNCH retries.
                 model.phase = Phase::Idle;
                 if model.committed.is_none() {
-                    commit(model, "USD", 1.0);
+                    commit(model, "USD", Some(1.0));
                 }
                 return render();
             }
@@ -251,15 +271,27 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
 
         // -- display pricing -------------------------------------------------
         //
-        // `getRate` semantics: display falls back to 1 so the balance always
-        // renders — but only TOGETHER with its code, which is what makes the
-        // fallback safe (USD/1 or code/1-as-priced, never stored-code/1 by
-        // default).
+        // The pair commits with the rate EXACTLY as the shell observed it —
+        // `None` stays `None`. This used to be `rate.unwrap_or(1.0)`, i.e. the
+        // `getRate` display fallback baked into the one pair every surface
+        // reads; the balance card would rather show a USD figure than a blank,
+        // but the same pair is the multiplier `send` divides a fiat-denominated
+        // amount by, and there rate-1-by-default is a 7x mispayment behind a
+        // green button (the single-send twin of `batch_import`'s
+        // `auto_price_per_token`, owner ruling: when the number that moves
+        // money is unknown, stop; do not guess). The degradation the card
+        // wanted is a FORMATTING choice and now lives where formatting lives —
+        // the shell, which can print the USD figure without claiming it is ¥.
+        //
+        // The `code == priced` guard is the other half: a rate only ever
+        // labels the currency it was fetched for.
         (Phase::ResolvingDisplay { code }, CurrencyShellResult::RateResolved { code: priced, rate })
             if *code == priced =>
         {
             let code = code.clone();
-            commit(model, &code, rate.unwrap_or(1.0));
+            // A source answering 0 or a negative number has not priced
+            // anything — same refusal as unknown, not a multiplier.
+            commit(model, &code, rate.filter(|r| r.is_finite() && *r > 0.0));
             model.phase = Phase::Idle;
             render()
         }
@@ -273,7 +305,7 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
                 None => {
                     // No region signal, or the region already is USD.
                     model.phase = Phase::Idle;
-                    commit(model, "USD", 1.0);
+                    commit(model, "USD", Some(1.0));
                     render()
                 }
                 Some(candidate) => {
@@ -292,7 +324,7 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
                 // launch retries. Unpriceable is NOT rate 1 (FR-007).
                 None => {
                     model.phase = Phase::Idle;
-                    commit(model, "USD", 1.0);
+                    commit(model, "USD", Some(1.0));
                     render()
                 }
                 Some(rate) => {
@@ -311,7 +343,7 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
             CurrencyShellResult::StoredCode { code: None },
         ) => {
             let (candidate, rate) = (candidate.clone(), *rate);
-            commit(model, &candidate, rate);
+            commit(model, &candidate, Some(rate));
             model.phase = Phase::Idle;
             let attempt = model.attempt;
             Command::all([
@@ -340,8 +372,10 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// The ONLY place `committed` changes — code and rate always land together.
-fn commit(model: &mut Model, code: &str, rate: f64) {
+/// The ONLY place `committed` changes — code and rate always land together,
+/// and `rate: None` (unpriceable) is a value the pair can hold, not a hole to
+/// be plugged with 1 on the way in.
+fn commit(model: &mut Model, code: &str, rate: Option<f64>) {
     model.committed = Some(Pair {
         code: code.to_owned(),
         rate,

@@ -31,6 +31,8 @@
     "warnInsufficientForGas": "Insufficient {{sym}} to cover amount + gas fees",
     "warnInsufficientGas": "Insufficient {{sym}} for gas fees",
     "warnNeedGas": "You need {{sym}} to pay gas fees",
+    "warnCannotConvert": "Can't convert {{code}} to {{symbol}} right now — switch to {{symbol}} to enter the amount.",
+    "denomToggleNoRate": "No {{code}} rate right now — enter the amount in {{symbol}}.",
     "sameFeeTokenTitle": "Not enough {{symbol}} to cover this transfer",
     "sameFeeTokenBody": "Sending {{amount}} + network fee {{fee}} requires {{total}} {{symbol}}, but you have {{balance}}.",
     "sameFeeTokenMax": "You can send up to {{amount}} {{symbol}}.",

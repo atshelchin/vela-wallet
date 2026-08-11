@@ -56,6 +56,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
     txError,
     tokenAmount,
     canConfirm,
+    confirmAmountIssue,
     gasFeeToken,
     feeBusy,
     publicKeyHex,
@@ -336,6 +337,17 @@ export function ConfirmStep({ c }: { c: SendController }) {
                 </Text>
               </View>
             </View>
+          )}
+
+          {/* The money on this page can stop resolving while the page is open:
+              a display-currency commit re-denominates the amount field and the
+              figure the user reviewed is gone. `canConfirm` refuses that now —
+              this is the sentence that goes with the refusal, so the dead
+              slider is never dead in silence. */}
+          {confirmAmountIssue && !feeIssue && txStatus === 'idle' && (
+            <Text style={styles.confirmAmountIssue} accessibilityRole="alert">
+              {confirmAmountIssue}
+            </Text>
           )}
 
           {txStatus === 'idle' && (

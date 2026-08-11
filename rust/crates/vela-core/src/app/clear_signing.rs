@@ -449,6 +449,43 @@ pub struct ClearSignResult {
     pub partial: bool,
     /// Recovered via 4-byte DB, decoded generically — "best effort, not verified".
     pub best_effort: bool,
+    /// A recipient of this call IS the contract being called: the token is
+    /// being sent to its own contract, which burns it irreversibly. The
+    /// single-call twin of [`super::approval_guard::GuardBatchView::any_to_own_token`]
+    /// — same predicate, same ASCII-case-insensitive address compare, so one
+    /// burn does not warn in a batch and stay silent on its own (and the single
+    /// send is the far more common entry point).
+    ///
+    /// PROJECTION, not resolution state: filled in by [`to_own_token`] when the
+    /// view is built, never at construction. Every builder therefore writes
+    /// `false` here and cannot get it wrong by forgetting.
+    pub to_own_token: bool,
+}
+
+/// Is any `recipient` field of this result the contract being called?
+///
+/// ASCII-case-insensitive, like the batch twin and for the same reason. Both
+/// sides HAPPEN to be lowercase today — `start_tx` lowercases `tx.to`,
+/// `verifying_contract` lowercases the EIP-712 domain, `build_deploy_result`
+/// lowercases its own — but that is four separate normalisations in four
+/// builders holding up a security rule from a distance. The dApp sends `tx.to`
+/// EIP-55 checksummed; the day one builder forgets, a byte-compare would
+/// silently downgrade an irreversible burn to an ordinary transfer with no
+/// test failing anywhere. Comparing case-insensitively makes the rule true on
+/// its own terms.
+fn to_own_token(result: &ClearSignResult) -> bool {
+    let Some(contract) = result.contract_address.as_deref() else {
+        return false;
+    };
+    if contract.is_empty() {
+        return false;
+    }
+    result.fields.iter().any(|f| {
+        f.role == ClearFieldRole::Recipient
+            && f.address
+                .as_deref()
+                .is_some_and(|a| a.eq_ignore_ascii_case(contract))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -930,7 +967,13 @@ impl App for ClearSigning {
         ClearSigningView {
             resolving: model.run.is_some(),
             resolved: model.resolved,
-            result: model.result.clone(),
+            // The burn verdict is graded HERE, on the finished result, so every
+            // builder — descriptor, typed data, best-effort, deploy — is covered
+            // by one rule and a future fifth builder cannot forget it.
+            result: model.result.clone().map(|mut r| {
+                r.to_own_token = to_own_token(&r);
+                r
+            }),
             message: model.message.clone(),
             surface: surface_of(model),
             confirm: confirm_of(model),
@@ -1946,6 +1989,9 @@ fn finish_calldata(
         sign_type: ClearSignType::Transaction,
         partial,
         best_effort: false,
+        // Filled by `to_own_token` in `view()` — the burn verdict is a
+        // projection over the finished fields, never a builder's business.
+        to_own_token: false,
     })
 }
 
@@ -2029,6 +2075,9 @@ fn finish_eip712(
         sign_type: ClearSignType::Signature,
         partial,
         best_effort: false,
+        // Filled by `to_own_token` in `view()` — the burn verdict is a
+        // projection over the finished fields, never a builder's business.
+        to_own_token: false,
     })
 }
 
@@ -2083,6 +2132,8 @@ fn best_effort_result(run: &Run, sigs: &[String]) -> Option<ClearSignResult> {
             sign_type: ClearSignType::Transaction,
             partial: false,
             best_effort: true,
+            // Filled by `to_own_token` in `view()`.
+            to_own_token: false,
         });
     }
     None
@@ -2255,6 +2306,9 @@ fn build_deploy_result(to: Option<&str>, data: &str) -> ClearSignResult {
         sign_type: ClearSignType::Transaction,
         partial: false,
         best_effort: false,
+        // Filled by `to_own_token` in `view()` — the burn verdict is a
+        // projection over the finished fields, never a builder's business.
+        to_own_token: false,
     }
 }
 
@@ -4539,5 +4593,99 @@ impl super::SplitEffect for ClearSigningEffect {
             ClearSigningEffect::Render(_) => None,
             ClearSigningEffect::Shell(request) => Some(request),
         }
+    }
+}
+
+#[cfg(test)]
+mod to_own_token_tests {
+    use super::*;
+
+    fn field(role: ClearFieldRole, address: Option<&str>) -> ClearSignField {
+        ClearSignField {
+            label: "To".to_owned(),
+            value: "0x…".to_owned(),
+            format: "addressName".to_owned(),
+            token_address: None,
+            warning: false,
+            unverified: false,
+            role,
+            detail: false,
+            expired: false,
+            address: address.map(str::to_owned),
+            usd_value: None,
+        }
+    }
+
+    fn result(contract: Option<&str>, fields: Vec<ClearSignField>) -> ClearSignResult {
+        ClearSignResult {
+            intent: "Send".to_owned(),
+            contract_name: None,
+            owner: None,
+            fields,
+            risk: ClearRisk::Normal,
+            contract_address: contract.map(str::to_owned),
+            verified: false,
+            sign_type: ClearSignType::Transaction,
+            partial: false,
+            best_effort: false,
+            to_own_token: false,
+        }
+    }
+
+    const LOWER: &str = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
+    const EIP55: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+
+    /// The rule the whole field exists for, stated on its own terms — no
+    /// builder, no ingest normalisation propping it up.
+    #[test]
+    fn case_never_decides_a_burn() {
+        assert!(to_own_token(&result(
+            Some(EIP55),
+            vec![field(ClearFieldRole::Recipient, Some(LOWER))]
+        )));
+        assert!(to_own_token(&result(
+            Some(LOWER),
+            vec![field(ClearFieldRole::Recipient, Some(EIP55))]
+        )));
+        assert!(to_own_token(&result(
+            Some(EIP55),
+            vec![field(ClearFieldRole::Recipient, Some(EIP55))]
+        )));
+    }
+
+    /// Only `recipient` counts. A spender equal to the contract grants an
+    /// allowance; nothing moves, nothing burns.
+    #[test]
+    fn only_the_recipient_role_counts() {
+        for role in [
+            ClearFieldRole::Spender,
+            ClearFieldRole::Generic,
+            ClearFieldRole::SendAmount,
+            ClearFieldRole::ReceiveAmount,
+        ] {
+            assert!(
+                !to_own_token(&result(Some(EIP55), vec![field(role, Some(LOWER))])),
+                "{role:?} must not read as a burn",
+            );
+        }
+    }
+
+    /// No contract, an empty contract, or a recipient with no resolved address
+    /// is never a burn — the batch twin's `!leg.to.is_empty()` guard.
+    #[test]
+    fn missing_facts_are_never_a_burn() {
+        assert!(!to_own_token(&result(
+            None,
+            vec![field(ClearFieldRole::Recipient, Some(LOWER))]
+        )));
+        assert!(!to_own_token(&result(
+            Some(""),
+            vec![field(ClearFieldRole::Recipient, Some(""))]
+        )));
+        assert!(!to_own_token(&result(
+            Some(LOWER),
+            vec![field(ClearFieldRole::Recipient, None)]
+        )));
+        assert!(!to_own_token(&result(Some(LOWER), vec![])));
     }
 }

@@ -62,6 +62,20 @@ export interface ClearSignResult {
    * not verified" — drives a caution banner instead of a blind-sign.
    */
   bestEffort?: boolean;
+  /**
+   * A recipient of this call IS the contract being called: the token is being
+   * sent to its own contract, which burns it irreversibly.
+   *
+   * ADJUDICATED, never re-derived by a view. On web it is
+   * `clear_signing::to_own_token` — the single-call twin of the batch rule
+   * `approval_guard::any_to_own_token`, so one burn cannot warn in a batch and
+   * stay silent on its own. Absent (`undefined`) on native, which has no core:
+   * this module does not produce it, and `ClearSignView` falls back to the
+   * TypeScript predicate it has always used there. Absent therefore means "no
+   * verdict was made", which is why it is optional rather than defaulting to
+   * `false` — a `false` would read as "adjudicated: not a burn".
+   */
+  toOwnToken?: boolean;
 }
 
 /** Layout role hint for field rendering. */

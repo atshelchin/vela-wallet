@@ -18,7 +18,13 @@ import { createDisplayCurrencySession } from '@/services/wallet-state-core/sessi
 import type { CurrencyEvent } from '@/services/wallet-state-core/generated/CurrencyEvent';
 import type { CurrencyView } from '@/services/wallet-state-core/generated/CurrencyView';
 
-export type DisplayCurrencyPair = { code: string; rate: number };
+/**
+ * The core's committed pair, verbatim. `rate: null` = the shell could not price
+ * `code`; it is NOT 1 (see `display_currency::Pair` and
+ * `services/fiat-rate-quote.ts`) — formatting may degrade to the USD figure,
+ * conversion must refuse.
+ */
+export type DisplayCurrencyPair = { code: string; rate: number | null };
 
 // The machine's own initial view is USD/1 — mirrored here only until the
 // session's first committed view arrives.

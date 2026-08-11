@@ -15,7 +15,7 @@ import { probeTreasury, parseBundlerUnderfunded, type TreasuryStatus } from '@/s
 import { saveContact } from '@/services/contacts';
 import { ZERO_DECIMAL_CODES } from '@/services/currency';
 import { fromBaseUnits, parseEIP681, toBaseUnits } from '@/services/eip681';
-import { resolveTokenAmount } from '@/services/fiat-convert';
+import { DenominatedAmount, TokenPrice, TOKEN_DENOM, fiatDenom, type Denom } from '@/services/fiat-convert';
 import { useLocalePrefs } from '@/services/locale-format';
 import { hapticError, hapticSuccess, showAlert } from '@/services/platform';
 import { resolveRecipientIdentity, type RecipientIdentity } from '@/services/recipient-identity';
@@ -37,7 +37,7 @@ import { resolveTokenMetadata } from '@/services/token-metadata';
 import { simulateAssetChanges, type AssetSimResult } from '@/services/tx-simulation';
 import { clearTokenCache, fetchTokens } from '@/services/wallet-api';
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TextInput } from 'react-native';
 import type { ExtendsSendController } from './send-controller-types';
@@ -99,7 +99,52 @@ export function useSendController() {
   const [loading, setLoading] = useState(true);
   const [selectedToken, setSelectedToken] = useState<APIToken | null>(null);
   const [recipient, setRecipient] = useState('');
-  const [amount, setAmount] = useState('');
+  // The typed figure AND the unit it is counted in, as one value. They used to
+  // be `amount: string` + `inputInUsd: boolean`, and that pair is exactly how
+  // the last defect was written: flip the boolean, leave the digits, and a
+  // figure typed in CNY became a figure of USDC without anything multiplying by
+  // anything. `DenominatedAmount`'s unit is private, so from here it can only
+  // change through `convert`, which restates the digits or refuses.
+  // Twin of `send.rs`'s `Model.amount`.
+  const [storedAmount, setTypedAmount] = useState<DenominatedAmount>(() => DenominatedAmount.token(''));
+  /**
+   * The figure as this render must read it — the stored one re-denominated
+   * into the currency now on screen. Twin of
+   * `send.rs::redenominate_to_display`.
+   *
+   * A display-currency commit can land under a screen that already has a
+   * figure on it: the shell boots on a placeholder `{code:'USD', rate:1}` and
+   * replaces it once AsyncStorage and the FX/Chainlink round trip answer. The
+   * figure keeps its own code, which is what stops it being relabelled — but
+   * left alone it also becomes permanently unresolvable, because
+   * `toTokenUnits` refuses a price quoted in another currency AND `withValue`
+   * preserves the stale unit, so **retyping could not fix it**. Continue stayed
+   * lit on an amount that could only ever raise `alertInvalidAmount`.
+   *
+   * The digits cannot come across (this screen has no CNY↔USD cross rate, and
+   * inventing one is the defect the whole area exists to forbid), so the FIGURE
+   * is dropped and the CURRENCY is adopted. The MODE is untouched: typing in
+   * tokens or in money is the user's choice, unmade only at ⇄.
+   *
+   * Derived during RENDER, not in an effect, so this controller and the core's
+   * synchronous `display_changed` agree on every frame rather than on all but
+   * one.
+   */
+  const typedAmount =
+    storedAmount.fiatCode !== null && storedAmount.fiatCode !== dc.code
+      ? DenominatedAmount.fiat('', dc.code)
+      : storedAmount;
+  const amount = typedAmount.value;
+  /** The amount text field: retype the FIGURE, keep the unit. */
+  const setAmount = useCallback(
+    // `typedAmount`, never the stored figure: retyping must not inherit a
+    // currency that is no longer on screen — that is what made the trap
+    // unrecoverable.
+    (next: string) => setTypedAmount(typedAmount.withValue(next)), [typedAmount]);
+  /** Fill in token units — for callers that produce a token figure outright
+   *  (Max, a split row, a locked request's base units, a reset). */
+  const setTokenAmount = useCallback(
+    (next: string) => setTypedAmount(DenominatedAmount.token(next)), []);
   // ① split mode (一币多人): one token → many recipients, each its own amount,
   // settled in one UserOp via sendBatchCalls. Off by default — single sends keep
   // their exact existing flow. `pickerTarget` = the row id the contact picker fills
@@ -149,12 +194,62 @@ export function useSendController() {
   // Set when the background on-chain poll reports a definitive failure, so the
   // receipt shows a clear "Failed" stamp instead of staying "Submitted" forever.
   const [receiptFailed, setReceiptFailed] = useState(false);
+  /**
+   * The money that was SIGNED, captured the instant the bundler accepted it.
+   *
+   * The receipt used to read `tokenUnitsFor(selectedToken)`, which re-runs the
+   * fiat↔token conversion against whatever display context is on screen NOW —
+   * a live computation about a fact that stopped being live when the calldata
+   * was signed. Change the display currency on a receipt and its token amount
+   * changed with it (and read `0` once the rate went away), so the number on a
+   * completed transfer could be one that was never in any signature. Something
+   * already on-chain is not the currency picker's to rewrite. Twin of
+   * `send.rs::receipt_signed`.
+   */
+  const [receiptSigned, setReceiptSigned] = useState<{ amount: string; priceUsd: number } | null>(null);
   // The relay parked the op because network fees moved above the reimbursement the
   // user signed. Not a failure: it stays queued and sends itself when fees settle.
   const [feeHeld, setFeeHeld] = useState(false);
   // The hold ran out of patience and the relay gave the op back. Nothing was sent.
   const [feeRejected, setFeeRejected] = useState(false);
-  const [inputInUsd, setInputInUsd] = useState(false);
+  // Derived, never stored: the flag and the figure's unit are the same fact, so
+  // they cannot drift apart.
+  const inputInUsd = typedAmount.isFiat;
+  /**
+   * The unit the typed figure is counted in — `null` = the selected token's own
+   * units, otherwise the fiat code it was TYPED in, which is not necessarily
+   * `dc.code` (a display-currency commit can land under a screen that already
+   * has a figure on it). The screen renders this; it must never re-derive the
+   * unit from the display context. Twin of `SendView.amount_fiat_code`.
+   */
+  const amountFiatCode = typedAmount.fiatCode;
+  /**
+   * The token's unit price in the display currency, quoted in the currency it
+   * is actually quoted in. `null` whenever either factor is missing — never a
+   * defaulted 1 (see {@link TokenPrice.of}).
+   */
+  const displayPriceFor = useCallback(
+    (token: Pick<APIToken, 'priceUsd'>) => TokenPrice.of(token.priceUsd, dc.rate, dc.code),
+    [dc.rate, dc.code],
+  );
+  /**
+   * The typed figure resolved into token units — the ONE number every gate,
+   * every call builder and the confirm screen read.
+   *
+   * This is the whole of what the old free-function resolver did at nine
+   * separate call sites, minus the `const ANY = ''` that stood in for the
+   * currency at both ends and made the code comparison vacuous. Here
+   * the figure names the currency it was typed in and the price names the
+   * currency it is quoted in, so a figure that has outlived its rate resolves
+   * to '0' instead of being converted at somebody else's rate.
+   *
+   * Twin of `send.rs::model_token_amount`.
+   */
+  const tokenUnitsFor = useCallback(
+    (token: Pick<APIToken, 'priceUsd' | 'decimals'>) =>
+      typedAmount.toTokenUnits(displayPriceFor(token), token.decimals),
+    [typedAmount, displayPriceFor],
+  );
   // Speed tiers are gone — every estimate/submit runs at 'fast'. What the user
   // CAN choose (when the relay publishes alternatives) is the fee ASSET: null = native,
   // else a whitelisted stablecoin contract. Options load when confirm opens; null means the
@@ -216,7 +311,7 @@ export function useSendController() {
       setSelectedToken(tok);
       setRecipient(params.prefilledRecipient ?? '');
       if (params.prefilledAmountBase) {
-        try { setAmount(fromBaseUnits(BigInt(params.prefilledAmountBase), tok.decimals)); } catch {}
+        try { setTokenAmount(fromBaseUnits(BigInt(params.prefilledAmountBase), tok.decimals)); } catch {}
       }
       setStep('enter-details');
     } finally {
@@ -332,10 +427,21 @@ export function useSendController() {
       return;
     }
 
-    const tokenAmount = resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate);
+    const tokenAmount = tokenUnitsFor(selectedToken);
     const amountNum = parseFloat(tokenAmount || '0');
     if (isNaN(amountNum) || amountNum <= 0) {
-      setAmountWarning(null);
+      // Typed digits that resolve to nothing are not "no amount" — they are an
+      // amount whose FACTOR is missing (no rate for the display currency, or no
+      // price for the token). Continue refuses it either way; this is the
+      // sentence that says so, and it names the way out (the ⇄ row, which
+      // `denomToggleShown` keeps reachable for exactly this reason).
+      // Twin of `send.rs`'s `SendAmountWarning::CannotConvert`.
+      const code = typedAmount.fiatCode;
+      setAmountWarning(
+        code !== null && typedAmount.numeric > 0
+          ? t('send.warnCannotConvert', { code, symbol: selectedToken.symbol })
+          : null,
+      );
       return;
     }
 
@@ -398,7 +504,7 @@ export function useSendController() {
     }
 
     setAmountWarning(null);
-  }, [amount, inputInUsd, selectedToken, tokens, selectedFeeEstimate, dc.rate]);
+  }, [tokenUnitsFor, typedAmount, amount, selectedToken, tokens, selectedFeeEstimate, t]);
 
   // Resolve recipient identity (passkey index → ENS) when a valid address is entered
   useEffect(() => {
@@ -438,7 +544,7 @@ export function useSendController() {
           recipients.map((r) => ({ address: r.address.trim(), amount: r.amount })),
         );
       } else {
-        const tokenAmount = resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate);
+        const tokenAmount = tokenUnitsFor(selectedToken);
         const weiHex = amountToWeiHex(tokenAmount, selectedToken.decimals);
         calls = [isNativeToken(selectedToken)
           ? { to: recipient, value: '0x' + weiHex }
@@ -451,7 +557,7 @@ export function useSendController() {
       /* malformed amount → no sim */
     }
     return () => { cancelled = true; };
-  }, [step, selectedToken, recipient, amount, inputInUsd, activeAccount, dc.rate, splitMode, recipients, multiSelectMode, multiSelect.selectedIds, feeEstimate]);
+  }, [step, selectedToken, recipient, tokenUnitsFor, activeAccount, splitMode, recipients, multiSelectMode, multiSelect.selectedIds, feeEstimate]);
 
   // Recipient-risk on the confirm step: "first time" (address-poisoning defense)
   // + contract-vs-EOA. Drives the first-time/contract tags by the To row and
@@ -508,12 +614,16 @@ export function useSendController() {
   // units) + one empty row; a converted amount keeps continuity from the hero.
   const enterSplitMode = () => {
     if (!selectedToken) return;
-    const tokenAmt = resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate);
+    const tokenAmt = tokenUnitsFor(selectedToken);
+    const rowAmount = amount ? tokenAmt : '';
     setRecipients([
-      { id: makeRecipientId(), address: recipient, amount: amount ? tokenAmt : '' },
+      { id: makeRecipientId(), address: recipient, amount: rowAmount },
       { id: makeRecipientId(), address: '', amount: '' },
     ]);
-    setInputInUsd(false);
+    // Split rows are token-denominated, so the single-send figure follows them
+    // into token units — RESTATED through the same resolution the first row
+    // got, not merely re-labelled.
+    setTokenAmount(rowAmount);
     setSplitMode(true);
   };
 
@@ -521,7 +631,9 @@ export function useSendController() {
   // with the resolved recipient rows — same submission path as a hand-built split.
   const seedSplitRecipients = (rows: RecipientDraft[]) => {
     if (rows.length === 0) return;
-    setInputInUsd(false);
+    // The imported rows replace the single-send figure outright; nothing is left
+    // to restate, so the field goes empty in token units.
+    setTokenAmount('');
     setRecipients(rows);
     setSplitMode(true);
     setShowBatchImport(false);
@@ -533,7 +645,8 @@ export function useSendController() {
   const handleRecipientsChange = (next: RecipientDraft[]) => {
     if (next.length <= 1) {
       setRecipient(next[0]?.address ?? '');
-      setAmount(next[0]?.amount ?? '');
+      // A split row's amount is token-denominated by construction.
+      setTokenAmount(next[0]?.amount ?? '');
       setSplitMode(false);
       setRecipients([]);
       return;
@@ -579,10 +692,7 @@ export function useSendController() {
     try {
       const transferAmount = splitMode
         ? sumSplitBaseUnits(recipients, selectedToken.decimals)
-        : toBaseUnits(
-            resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate),
-            selectedToken.decimals,
-          );
+        : toBaseUnits(tokenUnitsFor(selectedToken), selectedToken.decimals);
       const balance = balanceToWei(selectedToken.balance, selectedToken.decimals);
       const limit = sameAssetFeeLimit(
         selectedFeeEstimate,
@@ -676,7 +786,7 @@ export function useSendController() {
         showAlert(t('send.alertInvalidAddressTitle'), t('send.alertInvalidAddressBody'));
         return;
       }
-      const tokenAmount = resolveTokenAmount(amount, inputInUsd, selectedToken!.priceUsd, selectedToken!.decimals, dc.rate);
+      const tokenAmount = tokenUnitsFor(selectedToken!);
       const amountNum = parseFloat(tokenAmount);
       if (isNaN(amountNum) || amountNum <= 0) {
         showAlert(t('send.alertInvalidAmountTitle'), t('send.alertInvalidAmountBody'));
@@ -743,7 +853,7 @@ export function useSendController() {
               recipients.map((r) => ({ address: r.address.trim(), amount: r.amount })),
             );
           } else if (selectedToken && amount && isValidAddress(recipient)) {
-            const tokenAmt = resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate);
+            const tokenAmt = tokenUnitsFor(selectedToken);
             const weiHex = amountToWeiHex(tokenAmt, selectedToken.decimals);
             estTx = isNativeToken(selectedToken)
               ? { to: recipient.trim(), value: weiHex }
@@ -795,8 +905,10 @@ export function useSendController() {
 
   const handleMaxAmount = async () => {
     if (!selectedToken) return;
-    // Max always fills in token amount (not USD)
-    if (inputInUsd) setInputInUsd(false);
+    // Max always fills in token units. Every exit below writes a token figure;
+    // the ones that await an estimate leave the field blank meanwhile rather
+    // than letting the previous fiat digits sit under a token label.
+    setTokenAmount('');
 
     // For native tokens (ETH, BNB, etc.), reserve gas for the EntryPoint prefund.
     // The Safe must hold: transferAmount + prefund, so max = balance - prefund.
@@ -817,7 +929,7 @@ export function useSendController() {
         // amountWei + reserveWei === balanceWei exactly and the "insufficient for
         // gas" pre-check no longer trips on its own Max fill. Returns '0' when the
         // balance can't cover the gas reserve.
-        setAmount(maxNativeSendable(balanceWei, reserveWei, selectedToken.decimals));
+        setTokenAmount(maxNativeSendable(balanceWei, reserveWei, selectedToken.decimals));
         return;
       } catch {
         // Estimation failed — fall through to full balance (tx may fail but user sees the error)
@@ -838,7 +950,7 @@ export function useSendController() {
           // Reserve 1.5× the quoted fee (+50% for the send-time re-quote drift the 2× gate absorbs).
           const reserve = (fee.feeAsset.amount * 3n) / 2n;
           const balUnits = balanceToWei(selectedToken.balance, selectedToken.decimals);
-          setAmount(balUnits > reserve ? fromBaseUnits(balUnits - reserve, selectedToken.decimals) : '0');
+          setTokenAmount(balUnits > reserve ? fromBaseUnits(balUnits - reserve, selectedToken.decimals) : '0');
           return;
         }
       } catch {
@@ -847,7 +959,7 @@ export function useSendController() {
     }
 
     // Gas is paid in native or a separate ERC-20 fee asset, so the full balance is sendable.
-    setAmount(selectedToken.balance || '0');
+    setTokenAmount(selectedToken.balance || '0');
   };
 
   /** Return from a blocked confirmation to the exact amount form, retaining every other choice. */
@@ -866,6 +978,16 @@ export function useSendController() {
     // Never let the slide reach signing in that state; the confirmation UI gives the user the
     // actionable "Edit amount" recovery instead.
     if (sameAssetFeeIssue) {
+      handleEditAmount();
+      return;
+    }
+    // …and the same for a figure that stopped resolving: a display-currency
+    // commit can empty the field while this page is open, and `toBaseUnits('0')`
+    // is a perfectly valid 0n, so the submit path would have encoded a
+    // zero-value transfer and asked for a passkey over it. `canConfirm` disables
+    // the slider, but a disabled control is a suggestion — this is the refusal.
+    // Twin of `send.rs::slide_confirm`.
+    if (!confirmAmountOk) {
       handleEditAmount();
       return;
     }
@@ -891,6 +1013,7 @@ export function useSendController() {
     setUserOpHash(null);
     setTxError(null);
     setReceiptFailed(false);
+    setReceiptSigned(null);
     setFeeHeld(false);
     setFeeRejected(false);
     try {
@@ -972,7 +1095,7 @@ export function useSendController() {
         result = await sendBatchCalls(activeAccount.address, calls, chainId, stored.publicKeyHex, signFn, maxFee, gasFeeToken, quotedFee);
         lines = recipients.map((r) => ({ to: r.address.trim(), toName: r.name?.trim() || undefined, amount: r.amount, symbol: selectedToken!.symbol, decimals: selectedToken!.decimals, priceUsd: selectedToken!.priceUsd ?? 0, logoUrls: tokenLogoURLs(selectedToken!) }));
       } else {
-        const tokenAmount = resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate);
+        const tokenAmount = tokenUnitsFor(selectedToken);
         const weiHex = amountToWeiHex(tokenAmount, selectedToken.decimals);
         if (isNativeToken(selectedToken)) {
           result = await sendNative(activeAccount.address, recipient, weiHex, chainId, stored.publicKeyHex, signFn, maxFee, gasFeeToken, quotedFee);
@@ -999,6 +1122,9 @@ export function useSendController() {
         setReceiptTransfers(null);
         setReceiptKind(null);
       }
+      // The signature is now a fact. Freeze the money it moved (and the price it
+      // moved at); the receipt reads THIS and never converts again.
+      setReceiptSigned(lines[0] ? { amount: lines[0].amount, priceUsd: lines[0].priceUsd } : null);
 
       // Bundler accepted the UserOp — treat the payment as sent right now (we
       // have the userOpHash). The on-chain tx hash resolves in the background to
@@ -1127,7 +1253,7 @@ export function useSendController() {
         setStep('select-token');
       } else {
         setSelectedToken(null);
-        setAmount('');
+        setTokenAmount('');
         setRecipient('');
         setSplitMode(false);
         setRecipients([]);
@@ -1144,28 +1270,77 @@ export function useSendController() {
   // an intent instead of writing this controller's state from outside (spec 017
   // G12; native behaviour is byte-identical).
 
-  /** The ⇄ conversion toggle (was EnterDetailsStep.tsx:165-176). */
+  /**
+   * The ⇄ conversion toggle (was EnterDetailsStep.tsx:165-176).
+   *
+   * The whole operation is one `DenominatedAmount.convert`, and it cannot be
+   * written any other way from here: the figure's unit is private, so "flip the
+   * label, keep the digits" — the defect this replaces — is not expressible.
+   * What is left is deciding what an UNCONVERTIBLE figure should become, and
+   * only two answers are honest:
+   *
+   * - Entering fiat mode commits the user to typing money in the display
+   *   currency. With no price for that currency there is nothing to divide by,
+   *   so the door stays shut and the typed token amount is left alone.
+   * - Leaving is always allowed, because a currency can go unpriceable while a
+   *   fiat figure is already typed and trapping someone in a mode whose amount
+   *   can never resolve is its own bug. But the figure does NOT come along:
+   *   5000 CNY is not 5000 USDC and there is no rate to say what it is, so the
+   *   field is emptied. Empty is the one state that claims nothing —
+   *   `canContinue` already refuses it and the ⇅ row already reads `0 SYM`.
+   *
+   * A blank or zero figure crosses units with no rate at all (zero is zero in
+   * every unit), so an untouched screen is never stuck.
+   *
+   * Twin of `send.rs::toggle_fiat_input`.
+   */
   const toggleFiatInput = () => {
     if (!selectedToken) return;
-    const fiatPrice = (selectedToken.priceUsd ?? 0) * dc.rate;
+    const price = displayPriceFor(selectedToken);
+    const target: Denom = typedAmount.isFiat ? TOKEN_DENOM : fiatDenom(dc.code);
+    if (target.kind === 'fiat' && !price) return; // the door into fiat stays shut
     const fiatDecimals = ZERO_DECIMAL_CODES.has(dc.code) ? 0 : 2;
-    const val = parseFloat(amount || '0');
-    if (val > 0 && fiatPrice > 0) {
-      if (inputInUsd) {
-        setAmount((val / fiatPrice).toFixed(selectedToken.decimals).replace(/\.?0+$/, ''));
-      } else {
-        setAmount((val * fiatPrice).toFixed(fiatDecimals));
-      }
-    }
-    setInputInUsd(!inputInUsd);
+    const converted = typedAmount.convert(target, price, selectedToken.decimals, fiatDecimals);
+    // Unconvertible on the way OUT of fiat: leave the mode, drop the figure.
+    // Never carry the digits across the unit boundary.
+    setTypedAmount(converted ?? DenominatedAmount.token(''));
   };
+
+  /**
+   * Whether the ⇄ row is offered, and whether pressing it would do anything.
+   *
+   * Decided here, in the same sentence as the refusal above, because they used
+   * to be decided in two places: `toggleFiatInput` returned early with no price
+   * for the display currency, while `EnterDetailsStep` rendered the row on
+   * `priceUsd > 0` alone. The control looked live and swallowed the tap — no
+   * mode change, no message, no disabled state. It is disabled now.
+   *
+   * `denomToggleShown` also keeps the row up whenever the figure is already
+   * fiat, even for a token that has lost its price: leaving is the only way out
+   * of a mode whose amount can no longer resolve, and the exit used to vanish
+   * with the price. Twin of `send.rs::denom_toggle`.
+   */
+  const denomToggleShown = !!selectedToken
+    && ((selectedToken.priceUsd != null && selectedToken.priceUsd > 0) || typedAmount.isFiat);
+  const denomToggleEnabled = !!selectedToken
+    && (typedAmount.isFiat || !!displayPriceFor(selectedToken));
+  /**
+   * And WHY it is inert. Dimming the row closed half the hole: the refusal
+   * became visible, the reason did not — and this is the one branch
+   * `warnCannotConvert` cannot cover. A priced token whose display currency has
+   * no rate leaves the figure in TOKEN units, which resolves perfectly, so no
+   * amount warning fires; the row simply sat there at 40% opacity saying
+   * nothing. Twin of `send.rs::denom_toggle_reason`.
+   */
+  const denomToggleReason = denomToggleShown && !denomToggleEnabled && selectedToken
+    ? t('send.denomToggleNoRate', { code: typedAmount.fiatCode ?? dc.code, symbol: selectedToken.symbol })
+    : null;
 
   /** Tapping the token hero — back to the picker, KEEPING the recipient. */
   const changeToken = () => {
     setStep('select-token');
     setSelectedToken(null);
-    setAmount('');
-    setInputInUsd(false);
+    setTokenAmount('');
     setSplitMode(false);
     setRecipients([]);
   };
@@ -1254,29 +1429,57 @@ export function useSendController() {
     });
   };
 
-  /** The Continue button's gate (was EnterDetailsStep.tsx:372, negated). */
+  /**
+   * The resolved amount every confirm-page number is built from (was
+   * ConfirmStep.tsx:80). Web gets this from the core instead, which is the
+   * point: one resolution, shared by the display and the signature.
+   */
+  const tokenAmount = selectedToken ? tokenUnitsFor(selectedToken) : '';
+
+  /**
+   * The Continue button's gate (was EnterDetailsStep.tsx:372, negated), plus
+   * the one condition it never had: the figure must actually RESOLVE.
+   *
+   * `!amount` alone lit the button on an amount that could never become base
+   * units — a fiat figure with no rate resolves to '0', so Continue was armed
+   * on a number `handleContinue` was guaranteed to reject with
+   * `alertInvalidAmount`, again and again, with nothing on screen to explain
+   * it. The gate now asks the very string the signature is built from, which
+   * is also the string the ⇅ row prints. Twin of `send.rs`'s `can_continue`.
+   */
   const canContinue = !(
     (splitMode
       ? !recipientsAreValid(recipients)
       : multiSelectMode
         ? !isValidAddress(recipient) || pickedTokens.length === 0
-        : !recipient || !amount) ||
+        : !recipient || !amount || !(parseFloat(tokenAmount || '0') > 0)) ||
     estimatingGas ||
     (locked && !!amountWarning)
   );
 
   /**
-   * The resolved amount every confirm-page number is built from (was
-   * ConfirmStep.tsx:80, inlined here unchanged — same call, same arguments, so
-   * native renders byte-identically). Web gets this from the core instead, which
-   * is the point: one resolution, shared by the display and the signature.
+   * The confirm slide's gate (was ConfirmStep.tsx:357, negated) — plus the
+   * amount question it never asked.
+   *
+   * Everything here was about the FEE and the pipeline; the money itself was
+   * never re-examined after Continue. But the confirm page is a page someone
+   * can sit on, and a display-currency commit landing underneath re-denominates
+   * the field to empty (the `storedAmount.fiatCode !== dc.code` rule above),
+   * leaving the slider armed over a figure that resolves to nothing — a
+   * zero-value transfer, signable, with no warning anywhere. It now asks
+   * exactly what `canContinue` asks. The batch modes carry their money in
+   * `recipients`/`multiTokenSpecs`, not in the amount field, so they are exempt
+   * for the same reason `canContinue` exempts them. Twin of
+   * `send.rs::can_confirm`.
    */
-  const tokenAmount = selectedToken
-    ? resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate)
-    : '';
-
-  /** The confirm slide's gate (was ConfirmStep.tsx:357, negated). */
-  const canConfirm = txStatus === 'idle' && !estimatingGas && !feeBusy && !sameAssetFeeIssue;
+  const confirmAmountOk = splitMode || multiSelectMode || parseFloat(tokenAmount || '0') > 0;
+  const canConfirm = txStatus === 'idle' && !estimatingGas && !feeBusy && !sameAssetFeeIssue
+    && confirmAmountOk;
+  /** …and the refusal is not allowed to be silent. Confirm step only — the
+   *  entry screen already has `amountWarning`. */
+  const confirmAmountIssue = step === 'confirm' && !confirmAmountOk && selectedToken
+    ? t('send.warnCannotConvert', { code: typedAmount.fiatCode ?? dc.code, symbol: selectedToken.symbol })
+    : null;
 
   /**
    * The split editor's live over-balance hint (was MultiRecipientEditor.tsx:99-101,
@@ -1288,11 +1491,11 @@ export function useSendController() {
       > toBaseUnits(selectedToken.balance || '0', selectedToken.decimals);
 
   // The receipt's scalar amount + fiat line (was SendScreen.tsx:152/158).
-  const receiptAmount = selectedToken
-    ? resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate)
-    : '';
-  const receiptUsdValue = selectedToken
-    ? parseFloat(receiptAmount) * (selectedToken.priceUsd ?? 0)
+  // READ, never re-derive: both come off the submit-time snapshot, which is the
+  // same discipline `receiptTransfers` has always had.
+  const receiptAmount = receiptSigned?.amount ?? '';
+  const receiptUsdValue = receiptSigned
+    ? Math.max(parseFloat(receiptSigned.amount) || 0, 0) * receiptSigned.priceUsd
     : 0;
 
   // Step 1: Select Token — delegated to the shared TokenSelector.
@@ -1385,7 +1588,10 @@ export function useSendController() {
     feeHeld,
     feeRejected,
     inputInUsd,
-    setInputInUsd,
+    amountFiatCode,
+    denomToggleShown,
+    denomToggleEnabled,
+    denomToggleReason,
     gasFeeToken,
     setGasFeeToken,
     treasuryBootstrap,
@@ -1433,6 +1639,7 @@ export function useSendController() {
     publicKeyHex: prefetchedAccount.current?.publicKeyHex,
     canContinue,
     canConfirm,
+    confirmAmountIssue,
     tokenAmount,
     splitOverBalance,
     receiptAmount,

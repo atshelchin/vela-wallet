@@ -309,7 +309,10 @@ export function useHomeController(): HomeController {
   const selectedNetwork = selectedChainId != null ? networks.find((n) => n.chainId === selectedChainId) ?? null : null;
   const connected = conn.status === 'connected' || conn.status === 'reconnecting';
   const dc = useDisplayCurrency();
-  const currency = currencyMeta(dc.code);
+  // `dc.shown.code`: the currency the fiat figures are ACTUALLY rendered in.
+  // It is the chosen one whenever it can be priced, and USD when it cannot —
+  // taken together with `dc.shown.rate`, never paired by hand.
+  const currency = currencyMeta(dc.shown.code);
   const localePrefs = useLocalePrefs();
 
   // --- connection activity (dApp records — no machine owns them in this wave) ---

@@ -211,6 +211,8 @@
   "warnInsufficientForGas": "{{sym}} insuficiente para cobrir o valor + as taxas de gas",
   "warnInsufficientGas": "{{sym}} insuficiente para as taxas de gas",
   "warnNeedGas": "Você precisa de {{sym}} para pagar as taxas de gas",
+  "warnCannotConvert": "No momento não dá para converter {{code}} em {{symbol}} — mude para {{symbol}} para digitar o valor.",
+  "denomToggleNoRate": "Sem cotação de {{code}} no momento — digite o valor em {{symbol}}.",
   "confirmTitle": "Confirmar",
   "walletFallbackName": "Carteira",
   "fromLabel": "De",

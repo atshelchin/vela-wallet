@@ -211,6 +211,8 @@
   "warnInsufficientForGas": "{{sym}} insuffisant pour couvrir le montant + les frais de gas",
   "warnInsufficientGas": "{{sym}} insuffisant pour les frais de gas",
   "warnNeedGas": "Vous avez besoin de {{sym}} pour payer les frais de gas",
+  "warnCannotConvert": "Impossible de convertir {{code}} en {{symbol}} pour l'instant — passez en {{symbol}} pour saisir le montant.",
+  "denomToggleNoRate": "Pas de taux {{code}} pour l'instant — saisissez le montant en {{symbol}}.",
   "confirmTitle": "Confirmer",
   "walletFallbackName": "Portefeuille",
   "fromLabel": "De",

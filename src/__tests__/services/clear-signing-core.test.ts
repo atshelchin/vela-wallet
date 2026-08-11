@@ -199,6 +199,7 @@ describe('clear-signing wire codec', () => {
       sign_type: 'transaction',
       partial: false,
       best_effort: true,
+      to_own_token: true,
       fields: [
         {
           label: 'Amount', value: '100 USDC', format: 'tokenAmount',
@@ -217,6 +218,10 @@ describe('clear-signing wire codec', () => {
 
     expect(shell.type).toBe('transaction');
     expect(shell.bestEffort).toBe(true);
+    // The burn verdict crosses as an adjudicated fact — `ClearSignView` reads
+    // it instead of re-deriving one, so a dropped mapping here would silently
+    // hand the view `undefined` and send it back to its native fallback.
+    expect(shell.toOwnToken).toBe(true);
     expect(shell.contractName).toBe('Uniswap V3 Router');
     expect('owner' in shell).toBe(false);
     expect(shell.fields[0]).toEqual({

@@ -2,4 +2,4 @@
 import type { RpcBanEntry } from "./RpcBanEntry";
 import type { RpcKind } from "./RpcKind";
 
-export type RpcEvent = { "type": "bans_loaded", entries: Array<RpcBanEntry>, } | { "type": "call_requested", call_id: string, chain_id: number, kind: RpcKind, method: string, now_ms: number, } | { "type": "bundler_base_requested", call_id: string, chain_id: number, now_ms: number, } | { "type": "invalidate_all" } | { "type": "refresh_chain", chain_id: number, };
+export type RpcEvent = { "type": "bans_loaded", entries: Array<RpcBanEntry>, } | { "type": "call_requested", call_id: string, chain_id: number, kind: RpcKind, method: string, now_ms: number, } | { "type": "bundler_base_requested", call_id: string, chain_id: number, now_ms: number, } | { "type": "best_rpc_url_requested", call_id: string, chain_id: number, now_ms: number, } | { "type": "invalidate_all" } | { "type": "refresh_chain", chain_id: number, };

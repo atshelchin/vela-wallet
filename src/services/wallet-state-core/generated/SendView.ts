@@ -14,12 +14,71 @@ import type { SendToken } from "./SendToken";
 import type { SendTreasuryStatus } from "./SendTreasuryStatus";
 import type { SendTxErrorKey } from "./SendTxErrorKey";
 import type { SendTxStatus } from "./SendTxStatus";
+import type { SendUnitIssue } from "./SendUnitIssue";
 
 export type SendView = { stage: SendStage, loading: boolean, locked: boolean, 
 /**
  * The amount is fixed only when the locked request actually named one.
  */
-amount_locked: boolean, lock_error: SendLockError | null, resolving_lock: boolean, adding_network: boolean, add_network_msg: SendAddNetworkMsg | null, tokens: Array<SendToken>, selected_token: SendToken | null, recipient: string, amount: string, input_in_fiat: boolean, 
+amount_locked: boolean, lock_error: SendLockError | null, resolving_lock: boolean, adding_network: boolean, add_network_msg: SendAddNetworkMsg | null, tokens: Array<SendToken>, selected_token: SendToken | null, recipient: string, amount: string, 
+/**
+ * The unit `amount` is counted in: `None` = the selected token's own
+ * units, `Some(code)` = that fiat currency.
+ *
+ * This is the figure's OWN code, straight off [`DenominatedAmount`] — not
+ * the display currency. The two can differ for exactly one instant (a
+ * commit lands under a screen that already has a figure on it), and that
+ * instant is when the screen used to lie: it had only a `bool` here, so it
+ * labelled the number with whatever `dc.code` happened to be, and a figure
+ * typed in USD was printed as CNY. A boolean cannot name a currency, so
+ * the boolean is gone; the screen renders THIS and never re-derives the
+ * unit from the display context.
+ *
+ * (`display_changed` re-denominates the field, so the mismatch does not
+ * outlive the event — see `redenominate_to_display`. This field is what
+ * makes that unnecessary to trust.)
+ */
+amount_fiat_code: string | null, 
+/**
+ * Whether the ⇄ row is offered at all.
+ *
+ * Ported condition: the token has a price. Plus one addition — it is ALSO
+ * offered whenever the figure is already fiat-denominated, because that
+ * row is the only way back out, and a token that loses its price while a
+ * fiat figure is on screen used to take the exit with it.
+ */
+denom_toggle_shown: boolean, 
+/**
+ * Whether pressing ⇄ would change anything. Entering fiat needs a price in
+ * the display currency; leaving is always allowed. Without this the
+ * control looked live and did nothing at all when the currency was
+ * unpriceable — the refusal was real but invisible.
+ */
+denom_toggle_enabled: boolean, 
+/**
+ * **Why** ⇄ is inert, when it is inert.
+ *
+ * The previous round made the refusal VISIBLE (the row dims) and stopped
+ * there, so this was the one branch on the screen where nothing said what
+ * was wrong: a priced token whose display currency has no rate leaves the
+ * figure in token units, which resolves perfectly, so no amount warning
+ * fires either. A dimmed control with no sentence is a refusal the user
+ * cannot act on. `Some` exactly when `denom_toggle_shown && !enabled`.
+ */
+denom_toggle_reason: SendUnitIssue | null, 
+/**
+ * **Why** the confirm slide is disarmed, when what disarmed it is the
+ * money.
+ *
+ * [`SendView::can_confirm`] never looked at the amount at all: a
+ * display-currency commit landing while the confirm page is open
+ * re-denominates the field to empty (`redenominate_to_display`), and the
+ * slider stayed armed over a figure that resolved to nothing — a
+ * zero-value transfer, signable, unexplained. The gate now asks the same
+ * question `can_continue` asks, and this is the sentence that goes with
+ * the refusal (`send.warnCannotConvert`, the key that round added).
+ */
+confirm_amount_issue: SendUnitIssue | null, 
 /**
  * `amount` already resolved through the fiat↔token conversion — the ONE
  * number the confirm page may display, because it is the very number the

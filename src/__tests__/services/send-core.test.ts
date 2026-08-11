@@ -291,7 +291,7 @@ function open(params: Partial<Extract<SendEvent, { type: 'open' }>['params']> = 
       preselected_multi: null,
       ...params,
     },
-    display: { rate: 1, fiat_decimals: 2 },
+    display: { code: 'USD', rate: 1, fiat_decimals: 2 },
   });
 
   return {
@@ -668,6 +668,299 @@ describe('send core (web shell)', () => {
     await settle();
     expect(app.partials).toEqual([1]);
     expect(app.latest().tokens.map((t) => t.symbol)).toEqual(['ETH', 'USDC']);
+  });
+
+  /**
+   * The ⇄ toggle, through the REAL core, on the web shell — the twin of
+   * `app_send.rs::leaving_fiat_mode_with_no_rate_drops_the_figure_instead_of_relabelling_it`.
+   *
+   * The defect had no arithmetic in it: the conversion was skipped (no rate),
+   * the digits were kept, and only the unit LABEL changed. 5000 CNY became
+   * 5000 USDC with the confirm slider armed. Relabelling a unit and multiplying
+   * by 1 are the same operation, which is why four rounds of `?? 1` guards did
+   * not catch it.
+   *
+   * Mutation proof (rebuild the wasm — jest loads the prebuilt artifact):
+   * make `toggle_fiat_input`'s failed `convert` keep `model.amount`'s digits
+   * and `amount` becomes "5000" with `token_amount: "5000"` — 5000 whole USDC,
+   * signable, on a `can_continue: true` form.
+   */
+  it('never carries a fiat figure out of fiat mode when nothing can price it', async () => {
+    mockFetchTokens.mockImplementation(async () => [NATIVE, TOKEN]);
+    const app = track(open());
+    await settle();
+    app.dispatch({ type: 'select_token', token_id: tokenId(TOKEN) });
+    await settle();
+    app.dispatch({ type: 'set_recipient', recipient: BOB });
+
+    // A priced CNY: the door opens and 5000 CNY is a real, resolvable figure.
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: 7.17, fiat_decimals: 2 } });
+    app.dispatch({ type: 'toggle_fiat_input' });
+    app.dispatch({ type: 'set_amount', amount: '5000' });
+    await settle();
+    expect(app.latest().amount_fiat_code).toBe('CNY');
+    expect(app.latest().token_amount).toBe('697.35007');
+
+    // CNY goes unpriceable mid-screen — nothing converts (already guarded).
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: null, fiat_decimals: 2 } });
+    await settle();
+    expect(app.latest().token_amount).toBe('0');
+
+    // Leaving is still allowed (never trap someone in an unresolvable mode),
+    // but the CNY digits do NOT come along wearing a USDC label.
+    app.dispatch({ type: 'toggle_fiat_input' });
+    await settle();
+    const view = app.latest();
+    expect(view.amount_fiat_code).toBeNull();
+    expect(view.amount).toBe('');
+    expect(view.token_amount).toBe('');
+    expect(view.can_continue).toBe(false);
+  });
+
+  /**
+   * The other road to the same overpayment: the figure is fine, the RATE
+   * belongs to another currency. `display_changed` swaps the whole context in
+   * one event, so "5000" typed in CNY can end up beside a USD rate.
+   *
+   * Two things are pinned. The figure is not converted at the wrong rate — and
+   * the mismatch does not OUTLIVE the event either, because a screen the user
+   * cannot type their way out of is the same bug wearing a different hat:
+   * `with_value` keeps the unit, so a stranded CNY figure meant every
+   * subsequent keystroke also resolved to "0", for ever, with `Continue`
+   * refusing each one and nothing on screen saying why.
+   *
+   * Mutation proof: drop the `p.code() == code` filter in
+   * `DenominatedAmount::to_token_units` (and rebuild the wasm) and
+   * `token_amount` becomes "5000"; delete `redenominate_to_display` and the
+   * recovery block at the bottom goes back to "0".
+   */
+  it('will not resolve a CNY figure at a USD rate, and lets the user recover', async () => {
+    mockFetchTokens.mockImplementation(async () => [NATIVE, TOKEN]);
+    const app = track(open());
+    await settle();
+    app.dispatch({ type: 'select_token', token_id: tokenId(TOKEN) });
+    await settle();
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: 7.17, fiat_decimals: 2 } });
+    app.dispatch({ type: 'toggle_fiat_input' });
+    app.dispatch({ type: 'set_amount', amount: '5000' });
+    await settle();
+    expect(app.latest().token_amount).toBe('697.35007');
+
+    app.dispatch({ type: 'display_changed', display: { code: 'USD', rate: 1, fiat_decimals: 2 } });
+    await settle();
+    // Still fiat — the MODE is the user's choice — but denominated in the
+    // currency now on screen, and the CNY digits did not come with it.
+    expect(app.latest().amount_fiat_code).toBe('USD');
+    expect(app.latest().amount).toBe('');
+    expect(app.latest().token_amount).toBe('0');
+    expect(app.latest().can_continue).toBe(false);
+
+    // And typing again works, at the rate now on screen. This is the recovery
+    // that did not exist: the figure used to keep its CNY unit through every
+    // `set_amount`, so nothing the user typed could ever resolve.
+    app.dispatch({ type: 'set_recipient', recipient: BOB });
+    app.dispatch({ type: 'set_amount', amount: '4999' });
+    await settle();
+    expect(app.latest().amount_fiat_code).toBe('USD');
+    expect(app.latest().token_amount).toBe('4999');
+    expect(app.latest().can_continue).toBe(true);
+  });
+
+  /**
+   * `can_continue` used to ask only `!amount.is_empty()`, so the button lit up
+   * on a figure that could never become base units — press it and the machine
+   * answered `InvalidAmount`, every time, with no explanation anywhere on the
+   * screen. The gate now asks the string the signature is built from, and the
+   * screen says which factor is missing.
+   *
+   * Mutation proof: restore `!model.amount.is_empty()` as the whole gate (and
+   * rebuild the wasm) and `can_continue` goes true on an amount worth nothing.
+   */
+  it('refuses Continue on an unresolvable figure, and says why', async () => {
+    mockFetchTokens.mockImplementation(async () => [NATIVE, TOKEN]);
+    const app = track(open());
+    await settle();
+    app.dispatch({ type: 'select_token', token_id: tokenId(TOKEN) });
+    await settle();
+    app.dispatch({ type: 'set_recipient', recipient: BOB });
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: 7.17, fiat_decimals: 2 } });
+    app.dispatch({ type: 'toggle_fiat_input' });
+    app.dispatch({ type: 'set_amount', amount: '5000' });
+    await settle();
+    expect(app.latest().can_continue).toBe(true);
+    expect(app.latest().amount_warning?.type).not.toBe('cannot_convert');
+
+    // The rate for the currency already on screen goes away.
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: null, fiat_decimals: 2 } });
+    await settle();
+    const view = app.latest();
+    expect(view.amount).toBe('5000');
+    expect(view.token_amount).toBe('0');
+    expect(view.can_continue).toBe(false);
+    expect(view.amount_warning).toEqual({ type: 'cannot_convert', code: 'CNY', symbol: TOKEN.symbol });
+    // The way out is on screen and pressable — an unpriced currency must not
+    // take the exit with it.
+    expect(view.denom_toggle_shown).toBe(true);
+    expect(view.denom_toggle_enabled).toBe(true);
+  });
+
+  /**
+   * ⇄ used to be rendered on `priceUsd > 0` alone while the core refused to
+   * enter fiat without a rate for the display currency: the control looked
+   * live and swallowed the tap. Nothing happened, and nothing said so.
+   *
+   * Mutation proof: make `denom_toggle` return `true` unconditionally (and
+   * rebuild the wasm) and the screen goes back to offering a control that
+   * cannot act.
+   */
+  it('disables ⇄ instead of silently ignoring it', async () => {
+    mockFetchTokens.mockImplementation(async () => [NATIVE, TOKEN]);
+    const app = track(open());
+    await settle();
+    app.dispatch({ type: 'select_token', token_id: tokenId(TOKEN) });
+    await settle();
+    app.dispatch({ type: 'set_amount', amount: '1' });
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: null, fiat_decimals: 2 } });
+    await settle();
+    expect(app.latest().denom_toggle_shown).toBe(true);
+    expect(app.latest().denom_toggle_enabled).toBe(false);
+
+    // And the refusal is real: pressing it changes nothing.
+    app.dispatch({ type: 'toggle_fiat_input' });
+    await settle();
+    expect(app.latest().amount_fiat_code).toBeNull();
+    expect(app.latest().amount).toBe('1');
+  });
+
+  /**
+   * A receipt is about a signature, not about today's rate.
+   *
+   * `receipt_view` used to ask `resolve_token_amount` for its headline figure,
+   * re-running the fiat↔token conversion against the CURRENT display context —
+   * a live computation about a fact that stopped being live when the calldata
+   * was signed. Move the display currency after the payment and the token
+   * amount on a completed transfer moved with it, down to `0` once the rate was
+   * gone. This is the same repro that produced the calldata below.
+   *
+   * Mutation proof: put `model_token_amount(model, token)` back in
+   * `receipt_view` (and rebuild the wasm) and the post-payment amount reads
+   * `"0"` under the unpriced currency and `"5000"` — the raw CNY digits wearing
+   * a USDC label — under a USD rate.
+   */
+  it('reports the amount that was signed, whatever the currency does next', async () => {
+    mockFetchTokens.mockImplementation(async () => [NATIVE, TOKEN]);
+    const app = track(open());
+    await settle();
+    app.dispatch({ type: 'select_token', token_id: tokenId(TOKEN) });
+    await settle();
+    app.dispatch({ type: 'set_recipient', recipient: BOB });
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: 7.17, fiat_decimals: 2 } });
+    app.dispatch({ type: 'toggle_fiat_input' });
+    app.dispatch({ type: 'set_amount', amount: '500' });
+    await settle();
+    expect(app.latest().token_amount).toBe('69.735007');
+
+    app.dispatch({ type: 'continue' });
+    await settle();
+    app.dispatch({ type: 'slide_confirm' });
+    await settle();
+
+    // 69_735_007 base units of a 6-decimal token — what the passkey signed.
+    expect(submits[0].calls[0].data.endsWith('0428125f')).toBe(true);
+    expect(app.latest().receipt?.amount).toBe('69.735007');
+    expect(app.latest().receipt?.usd_value).toBeCloseTo(69.735007, 9);
+
+    // The rate vanishes AFTER the payment.
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: null, fiat_decimals: 2 } });
+    await settle();
+    expect(app.latest().receipt?.amount).toBe('69.735007');
+    expect(app.latest().receipt?.usd_value).toBeCloseTo(69.735007, 9);
+
+    // …and neither does a different currency with a perfectly good rate.
+    app.dispatch({ type: 'display_changed', display: { code: 'USD', rate: 1, fiat_decimals: 2 } });
+    await settle();
+    expect(app.latest().receipt?.amount).toBe('69.735007');
+  });
+
+  /**
+   * `can_confirm` never looked at the amount — it asked only about the fee and
+   * the pipeline, so the money was checked once by `Continue` and never again.
+   * A `display_changed` landing under an open confirm page re-denominates the
+   * field to empty, and the slide stayed armed over nothing at all.
+   *
+   * Mutation proof: drop `&& confirm_amount_ok` from `can_confirm` (and rebuild
+   * the wasm) and `can_confirm` stays true on a `token_amount` of `"0"`.
+   */
+  it('disarms the confirm slide when the amount stops resolving, and says why', async () => {
+    mockFetchTokens.mockImplementation(async () => [NATIVE, TOKEN]);
+    const app = track(open());
+    await settle();
+    app.dispatch({ type: 'select_token', token_id: tokenId(TOKEN) });
+    await settle();
+    app.dispatch({ type: 'set_recipient', recipient: BOB });
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: 7.17, fiat_decimals: 2 } });
+    app.dispatch({ type: 'toggle_fiat_input' });
+    app.dispatch({ type: 'set_amount', amount: '500' });
+    await settle();
+    app.dispatch({ type: 'continue' });
+    await settle();
+    expect(app.latest().stage).toBe('confirm');
+    expect(app.latest().can_confirm).toBe(true);
+    expect(app.latest().confirm_amount_issue).toBeNull();
+
+    // The display currency commits to USD while the review page is open.
+    app.dispatch({ type: 'display_changed', display: { code: 'USD', rate: 1, fiat_decimals: 2 } });
+    await settle();
+    const view = app.latest();
+    expect(view.stage).toBe('confirm');
+    expect(view.amount).toBe('');
+    expect(view.token_amount).toBe('0');
+    expect(view.can_confirm).toBe(false);
+    expect(view.confirm_amount_issue).toEqual({ code: 'USD', symbol: TOKEN.symbol });
+
+    // And the machine does not depend on the shell honouring `can_confirm`: a
+    // slide that arrives anyway signs nothing. `toBaseUnits('0', 6)` is a
+    // perfectly valid 0n, so without the guard the submit path would have
+    // encoded a zero-value transfer and asked for a passkey over it.
+    app.dispatch({ type: 'slide_confirm' });
+    await settle();
+    expect(submits).toHaveLength(0);
+    expect(mockPasskeySign).not.toHaveBeenCalled();
+    expect(app.latest().stage).toBe('enter_details');
+  });
+
+  /**
+   * The previous round made the ⇄ refusal visible (the row dims). This is the
+   * half that was still missing: WHY. It is also the one branch
+   * `amount_warning` cannot reach — the figure is in token units, so it
+   * resolves perfectly and nothing else on the screen has anything to say.
+   *
+   * Mutation proof: return `None` unconditionally for `denom_toggle_reason`
+   * (and rebuild the wasm) and the dimmed row goes back to explaining nothing.
+   */
+  it('says why ⇄ is disabled, not just that it is', async () => {
+    mockFetchTokens.mockImplementation(async () => [NATIVE, TOKEN]);
+    const app = track(open());
+    await settle();
+    app.dispatch({ type: 'select_token', token_id: tokenId(TOKEN) });
+    await settle();
+    app.dispatch({ type: 'set_amount', amount: '10' });
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: null, fiat_decimals: 2 } });
+    await settle();
+    const view = app.latest();
+    expect(view.denom_toggle_shown).toBe(true);
+    expect(view.denom_toggle_enabled).toBe(false);
+    // The token figure resolves fine, so no other surface speaks…
+    expect(view.token_amount).toBe('10');
+    expect(view.amount_warning).toBeNull();
+    // …which is why the row has to.
+    expect(view.denom_toggle_reason).toEqual({ code: 'CNY', symbol: TOKEN.symbol });
+
+    // And when the row works again it goes quiet.
+    app.dispatch({ type: 'display_changed', display: { code: 'CNY', rate: 7.17, fiat_decimals: 2 } });
+    await settle();
+    expect(app.latest().denom_toggle_enabled).toBe(true);
+    expect(app.latest().denom_toggle_reason).toBeNull();
   });
 
   it('refuses a second slide while one is in flight (invariant ④)', async () => {

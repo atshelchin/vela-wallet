@@ -336,6 +336,75 @@ an intermediate source state that no longer existed. Green tests over a stale
 artifact prove nothing about the source. Run the provenance check before
 believing a wasm-backed suite.
 
+## The coverage audit, and what handing judgements back to the cores exposed
+
+"22/22 web-integrated" was measured wrong twice. The check that means something
+is `grep -c "new <X>Core("` per machine, and then, per surface, *which
+judgements the shell still makes*. A six-way audit of the latter found **42
+business judgements the web runtime still decided in TypeScript** — 25 where a
+core already owned the rule, 17 with no core owner. Of the 7 highest-severity,
+one directly overrode an owner ruling: `RpcTroubleBanner` refused to save an RPC
+override whose probe could not answer, while `network_admin::resolve_override_save`
+refuses only a *confirmed* mismatch. It is now routed through the core's own
+override path, which also removed a second writer to `vela.networkConfig`.
+
+**The audit's own error rate is part of the record**: ~20% of its findings were
+false positives (a case-sensitivity claim died because every producer already
+lowercases; the "writes confirmed/failed for unreachable" claim was literally
+false — `pollUserOpReceipt` only returns on a definitive receipt). Fix agents
+were told to *disprove first* and report false positives as such, and they did.
+Any future audit should carry the same instruction; a static read of this
+codebase is wrong about one finding in five.
+
+### The money-unit class — six rounds, and why it took six
+
+Handing judgements back to the cores kept surfacing the same shape: **"absent"
+silently becoming 1.** `getRate() = resolveRate(code) ?? 1`;
+`commit(model, &code, rate.unwrap_or(1.0))`; `token_price_in_fiat`'s
+non-positive → 1.0; `amount / (fiatPrice || 1)`; and the subtlest one — *skip
+the conversion, keep the digits, change the label*, which is multiplication by
+an implicit 1 written as an assignment, and is why four rounds of grepping for
+`?? 1` did not find it.
+
+Each round closed a door and the next review found the adjacent one: unknown
+rate → **stale** rate after a currency switch → **reopen** with the previous
+session's rate → the **display-currency** path feeding single-send → the
+**escape hatch** from fiat mode. The fix only stopped being whack-a-mole when
+the primitive changed: `rust/crates/vela-core/src/app/money.rs` —
+`Denom::{Token, Fiat(code)}`, `DenominatedAmount` with **private** fields so a
+relabel is not expressible, and `TokenPrice::new` returning `None` unless both
+factors are present, finite and positive. A rate now carries the currency it is
+*for*; an amount carries the unit it is *in*; `convert` restates digits and unit
+together or fails. `SendView` carries `amount_fiat_code: Option<String>` instead
+of a boolean, because a boolean cannot name a currency.
+
+**Two lessons worth keeping.** First, blocking is not the same as fixing: an
+early round left `can_continue` true with a stale denomination, so no amount the
+user typed could ever resolve — Continue stayed lit, pressing it always failed,
+and nothing on screen said why. A guard that traps the user is its own defect,
+and reviews should assert *both* "no wrong number" and "not stuck". Second, a
+comment asserting an invariant is where to look for its violation: `mul`'s
+"saturates *upward* … never a silently cheap one" was the cover for the 126 DAI
+quoted as one cent, and `rpc_pool`'s "deliberately no all-banned RESCUE here"
+sat a dozen lines from a rescue that deleted from the global ban map.
+
+**A stated tripwire, and why it was not honoured mechanically.** After round 5
+the plan was: if the next review finds another door in this class, revert the
+`send`/`display_currency` work rather than open round 7. The review did find two
+blockers — and both were then shown, against `git show 4a2fc3e:`, to be
+**pre-existing**: `receipt_view` re-derived a *completed* transfer's amount from
+the live display rate (baseline line 3716), and `can_confirm`'s gate was
+byte-identical to baseline and never consulted the amount. The tripwire's
+premise — that the work was not converging — was false; what had changed was the
+sharpness of the lens. Reverting would have discarded verified improvements *and*
+left the defects. The rule was overridden deliberately and on evidence, and the
+override was surfaced to the owner rather than made silently.
+
+**None of these were introduced by the migration.** They were reachable on
+`main`. Moving each judgement into a core is what made them impossible to
+overlook, because every rule had to be stated once, in one place, precisely
+enough for two languages to agree on it.
+
 ## Still open
 
 - **Native has no e2e.** Sign-out's native behaviour changed in this branch

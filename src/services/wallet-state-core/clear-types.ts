@@ -87,6 +87,11 @@ export function toShellResult(result: ClearSignResult): ShellResult {
     type: result.sign_type,
     partial: result.partial,
     bestEffort: result.best_effort,
+    // The burn verdict — a rule, decided by `clear_signing::to_own_token`, not
+    // a flag the shell may re-derive. Absent on native (see the property's own
+    // doc in `services/clear-signing.ts`), so it is stated explicitly here
+    // rather than left to a spread.
+    toOwnToken: result.to_own_token,
     ...(result.contract_name !== null ? { contractName: result.contract_name } : {}),
     ...(result.owner !== null ? { owner: result.owner } : {}),
     ...(result.contract_address !== null ? { contractAddress: result.contract_address } : {}),

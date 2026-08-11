@@ -13,7 +13,7 @@
  * keeps ownership of classification.
  */
 
-import { getRate } from '@/services/currency';
+import { resolveRate } from '@/services/currency';
 import { pickTable, saveTextFile } from '@/services/file-io';
 import { readWorkbookMatrix } from '@/services/recipient-table';
 
@@ -34,9 +34,16 @@ export async function executeBatchOperation(effect: BatchEffect): Promise<BatchS
   const operation = effect.operation;
   switch (operation.type) {
     case 'fetch_usd_fiat_rate': {
-      // `getRate` already falls back to 1 for an unpriceable code; a thrown
-      // source lands in `batchOperationFailure` as `rate: null`.
-      const rate = await getRate(operation.code);
+      // `resolveRate`, NOT `getRate`: `getRate` is the DISPLAY helper and ends
+      // in `?? 1`, so an unpriceable code would arrive at the core as "the rate
+      // really is 1" and `BatchRateStatus::Failed` would only ever be reachable
+      // when the source *throws*. A CNY payroll row would then be split at
+      // 1 CNY = 1 token — ~7x the intended payout — with `can_apply` still
+      // true, because the core's guardrail had been answered a lie.
+      // `null` is the honest observation ("no source can price it"); the core
+      // turns it into Failed → empty rate → `can_apply = false`. Same choice as
+      // the display-currency executor (`executors.web.ts::resolve_rate`).
+      const rate = await resolveRate(operation.code);
       return { type: 'rate_resolved', code: operation.code, rate };
     }
     case 'pick_file': {

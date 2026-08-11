@@ -26,7 +26,11 @@
 //!   `rpc-pool.ts:396-423`) — here banned URLs are excluded from selection
 //!   entirely, see the unification note below.
 //! - ② an endpoint that reported the wrong `eth_chainId` is never handed to
-//!   the bundler via `X-Rpc-Url` (`:673-681`).
+//!   the bundler via `X-Rpc-Url` (`:673-681`) — for BOTH consumers of that
+//!   header: the JSON-RPC sweep ([`Event::CallRequested`] with
+//!   [`RpcKind::Bundler`]) and the REST leg
+//!   ([`Event::BestRpcUrlRequested`] / `getChainRpcUrl`, which feeds
+//!   `/v1/account` and the `/v1/sponsor` treasury transfer).
 //! - ③ account-info/sponsor resolve to the SAME bundler the pool would submit
 //!   to — Tempo's gas reimbursement is paid to that bundler's per-Safe EOA;
 //!   reading it from a different bundler reimburses the wrong EOA and the op
@@ -39,8 +43,12 @@
 //!   but capped, so the answer goes back to the caller to split the range —
 //!   no failover, no ban, and the endpoint records a *success* (`:484-519`,
 //!   `:768-779`).
-//! - ⑥ when every endpooint of a pool is banned, the bans are cleared and
-//!   failure counters reset so the chain can recover (`:745-755`).
+//! - ⑥ when every endpoint of a pool is banned, that pool's next pass proceeds
+//!   over the bans and the failure counters reset, so the chain can recover
+//!   (`:745-755`). The rescue is scoped to the pass: unlike TS it does not
+//!   delete the ban entries, because those entries are also what
+//!   [`bundler_eligible_urls`] reads, and an endpoint nothing else will touch
+//!   must not become the one named to the bundler in `X-Rpc-Url`.
 //! - ⑦ a permanent ban requires zero successes AND ≥ 6 failures, and expires
 //!   after 24h to allow recovery from transient outages (`:58-185`).
 //! - ⑧ the two ban truths (`EndpointStats.banned` vs `banMap`) are unified —
@@ -97,6 +105,12 @@
 //! - `isUsingBuiltinBundler` and `probeRpcChainId` (settings validation) stay
 //!   in the shell: both are pure functions of shell-owned config, not pool
 //!   decisions (the probe unification belongs to network_admin).
+//! - `getChainRpcUrl` does NOT stay in the shell, and the distinction is the
+//!   one above: it is not a question about config, it is the pool's ranking
+//!   ([`Event::BestRpcUrlRequested`]). Answering it shell-side means answering
+//!   it from collection order alone — no EMA latency, no failure cooldown, no
+//!   wrong-chain memory — which is materially weaker than the TypeScript pool
+//!   it replaced, on a value that decides a treasury transfer.
 //!
 //! Time never originates here: every shell result carries `now_ms` (epoch
 //! milliseconds, f64). Randomness never originates here: the backoff jitter
@@ -292,6 +306,13 @@ pub enum RpcCallVerdict {
     /// base (`getActiveBundlerBaseUrl`'s fallback; the built-in URL is shell
     /// config).
     BundlerBase { base_url: Option<String> },
+    /// Answer to [`Event::BestRpcUrlRequested`] (`getChainRpcUrl`): the RPC
+    /// endpoint this chain's pool would reach for first. `None` ⇒ nothing
+    /// eligible (empty pool, everything banned, or every candidate has
+    /// reported another chain's id) — the caller sends no `X-Rpc-Url` header
+    /// and the fork simulator declines to run, both of which are the
+    /// fail-closed side (invariant ②).
+    BestRpcUrl { url: Option<String> },
 }
 
 // ---------------------------------------------------------------------------
@@ -411,6 +432,20 @@ pub enum Event {
     /// the same bundler the pool would submit to (invariant ③,
     /// `getActiveBundlerBaseUrl`).
     BundlerBaseRequested {
+        call_id: String,
+        chain_id: u32,
+        now_ms: f64,
+    },
+    /// Which RPC URL this chain's pool would reach for first (`getChainRpcUrl`).
+    ///
+    /// The answer rides `X-Rpc-Url` on the bundler's REST endpoints
+    /// (`/v1/account`, and `/v1/sponsor` — a real treasury transfer) and seeds
+    /// the local fork simulator, so it is the SECOND consumer of that header
+    /// after [`RpcOperation::JsonRpcPost`]. It is therefore answered from the
+    /// same score-sorted, ban-filtered ranking the sweep uses, minus every
+    /// endpoint that has reported another chain's id — invariant ② governs
+    /// both consumers or it governs neither.
+    BestRpcUrlRequested {
         call_id: String,
         chain_id: u32,
         now_ms: f64,
@@ -740,6 +775,7 @@ pub fn strip_chain_suffix(url: &str, chain_id: u32) -> String {
 enum PendingWork {
     Call { call_id: String },
     Base { call_id: String, chain_id: u32 },
+    BestRpc { call_id: String, chain_id: u32 },
 }
 
 /// Both pools of one chain — `poolInitAt` is keyed by chain in TS because
@@ -838,6 +874,26 @@ pub struct Model {
     rate_limited_chains: BTreeSet<u32>,
     /// Cached fastest-RPC winner per chain, 1h TTL (`fastestRpcCache`).
     fastest: BTreeMap<u32, FastestPick>,
+    /// Per chain, the URLs that answered `eth_chainId` with a DIFFERENT id.
+    ///
+    /// [`ProbeRace::wrong_chain`] knows this too, but only for the length of one
+    /// race — it dies with the race that learned it. Invariant ② has to outlive
+    /// that: [`Event::BestRpcUrlRequested`] hands its answer to `/v1/sponsor`,
+    /// which spends the treasury based on what that endpoint reports about the
+    /// Safe, and it runs nowhere near a race. Proof, never suspicion: only a
+    /// positive disagreeing id lands here (a timeout or a refusal is
+    /// "unverified" and changes nothing), which is why it can safely exclude.
+    /// Cleared wherever `fastest` is, since a config change can put a different
+    /// node behind the same URL.
+    ///
+    /// Read by BOTH consumers of `X-Rpc-Url`, which is the whole point of
+    /// keeping it: [`answer_best_rpc_url`] for the REST leg, and
+    /// [`begin_bundler_call`] for the JSON-RPC leg, where it filters the
+    /// candidate set BEFORE the single-candidate short-circuit. A pool that
+    /// has shrunk to one endpoint is exactly when the two legs would otherwise
+    /// disagree — the REST leg answering `None`, the JSON-RPC leg submitting a
+    /// UserOp through the condemned node.
+    wrong_chain: BTreeMap<u32, BTreeSet<String>>,
     probes: BTreeMap<u32, ProbeRace>,
     calls: BTreeMap<String, CallSession>,
     /// Captured into every request. Never bumped: no event abandons the
@@ -923,6 +979,16 @@ impl App for RpcPool {
                 chain_id,
                 now_ms,
             } => ensure_pool_then(model, chain_id, PendingWork::Base { call_id, chain_id }, now_ms),
+            Event::BestRpcUrlRequested {
+                call_id,
+                chain_id,
+                now_ms,
+            } => ensure_pool_then(
+                model,
+                chain_id,
+                PendingWork::BestRpc { call_id, chain_id },
+                now_ms,
+            ),
             Event::InvalidateAll => {
                 for pool in model.pools.values_mut() {
                     pool.loaded_at_ms = None;
@@ -930,10 +996,12 @@ impl App for RpcPool {
                 // After a provider-key change the old winner would otherwise
                 // ride `X-Rpc-Url` for up to an hour.
                 model.fastest.clear();
+                model.wrong_chain.clear();
                 Command::done()
             }
             Event::RefreshChain { chain_id } => {
                 model.fastest.remove(&chain_id);
+                model.wrong_chain.remove(&chain_id);
                 let pool = model.pools.entry(chain_id).or_default();
                 pool.loaded_at_ms = None;
                 if pool.loading {
@@ -1086,6 +1154,9 @@ fn start_work(model: &mut Model, work: PendingWork, now_ms: f64) -> Command<RpcE
         PendingWork::Base { call_id, chain_id } => {
             answer_bundler_base(model, &call_id, chain_id, now_ms)
         }
+        PendingWork::BestRpc { call_id, chain_id } => {
+            answer_best_rpc_url(model, &call_id, chain_id, now_ms)
+        }
     }
 }
 
@@ -1103,33 +1174,88 @@ fn start_call(model: &mut Model, call_id: &str, now_ms: f64) -> Command<RpcEffec
 // Fastest-RPC pick (X-Rpc-Url) — `pickFastestRpcUrl`
 // ---------------------------------------------------------------------------
 
+/// **The** predicate behind every `X-Rpc-Url` this core will name for a chain,
+/// as a set: the chain's RPC endpoints in [`select_urls`] order (six-tier
+/// source priority, EMA latency penalty, failure cooldown, and the single ban
+/// truth re-checked live against `now_ms`), minus every endpoint that has
+/// PROVED it serves another chain (invariant ②).
+///
+/// Both legs that can put a URL in front of the bundler read it — the JSON-RPC
+/// leg through [`begin_bundler_call`] and the REST leg through
+/// [`answer_best_rpc_url`] — so "may this endpoint be handed to the bundler"
+/// has exactly one answer per chain, whichever door the question comes in by.
+/// It is deliberately a SET rather than four scattered checks: the empty case,
+/// the single-candidate case, the cached-fastest case and the race seed are all
+/// phrased against it, and none of them can grow a private notion of eligible.
+///
+/// What that unification cost when it was missing: the `fastest` short-circuit
+/// re-checked `wrong_chain` but not the ban map, so for the whole
+/// `FASTEST_RPC_TTL_MS` (one hour) after a race, `eth_sendUserOperation` rode a
+/// header naming an endpoint the pool had banned on a 401 — while
+/// `getChainRpcUrl`, asked about the very same chain in the very same second,
+/// correctly refused to name it. One pool, two opinions.
+///
+/// Emptiness is an honest answer, never a reason to relax: the caller omits the
+/// header rather than fall back to a URL this predicate has already rejected.
+fn bundler_eligible_urls(model: &Model, chain_id: u32, now_ms: f64) -> Vec<String> {
+    let bans: Vec<RpcBanEntry> = model.bans.values().cloned().collect();
+    let wrong = model.wrong_chain.get(&chain_id);
+    model
+        .pools
+        .get(&chain_id)
+        .map(|pool| select_urls(pool.list(RpcKind::Rpc), &bans, now_ms))
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|candidate| !wrong.is_some_and(|set| set.contains(candidate)))
+        .collect()
+}
+
 fn begin_bundler_call(model: &mut Model, call_id: &str, now_ms: f64) -> Command<RpcEffect, Event> {
     let Some(session) = model.calls.get(call_id) else {
         return Command::done();
     };
     let chain_id = session.chain_id;
 
-    // Candidates: non-banned RPC endpoints, score-sorted. The single ban
-    // truth keeps banned endpoints out of the race (see module doc).
-    let ranked = {
-        let bans: Vec<RpcBanEntry> = model.bans.values().cloned().collect();
-        model
-            .pools
-            .get(&chain_id)
-            .map(|pool| select_urls(&pool.rpc, &bans, now_ms))
-            .unwrap_or_default()
-    };
+    // The candidate set IS the predicate (see `bundler_eligible_urls`), applied
+    // here once — not re-derived at the exits below, where the single-candidate
+    // short-circuit used to skip invariant ② and the cached-fastest
+    // short-circuit used to skip the ban map, both submitting a UserOp with
+    // `X-Rpc-Url` pointing at a node the pool had already condemned (and which
+    // `answer_best_rpc_url` was refusing to name for the very same chain).
+    // Cleared with `fastest` on `RefreshChain` / `InvalidateAll`, so a config
+    // change re-admits the URL.
+    let ranked = bundler_eligible_urls(model, chain_id, now_ms);
 
     if ranked.is_empty() {
+        // Nothing left to vouch for — every endpoint banned, or every endpoint
+        // proved to be another chain's. No header is the honest answer;
+        // falling back to an endpoint this predicate rejected is the one thing
+        // invariant ② forbids (same fail-closed exit as `handle_probe`'s
+        // fallback). Note there is deliberately no all-banned RESCUE here: the
+        // sweep may rescue a chain's pool to keep it reachable at all, but a
+        // rescued endpoint has no business being named to the bundler until it
+        // has earned its way back through a selection — which is exactly why
+        // `select_with_rescue` no longer deletes the ban entries this predicate
+        // reads. The sweep's rescue and this refusal used to contradict each
+        // other in the same file.
         return set_x_and_sweep(model, call_id, None, now_ms);
     }
     if ranked.len() == 1 {
-        // Single endpoint: used directly, and — ported — NOT cached.
+        // Single eligible endpoint: used directly, and — ported — NOT cached.
         let only = ranked.first().cloned();
         return set_x_and_sweep(model, call_id, only, now_ms);
     }
     if let Some(pick) = model.fastest.get(&chain_id) {
-        if now_ms - pick.at_ms < FASTEST_RPC_TTL_MS {
+        // A cached winner came from `race.matches` — an endpoint that reported
+        // THIS chain's id — but that was up to an hour ago, and everything the
+        // pool has learned since is a reason it may no longer be eligible: a
+        // 401 that banned it, a rate-limit ban, a wrong-chain report from a
+        // later race, or a config change that dropped it from the pool. So the
+        // winner is not trusted for being a winner; it is re-asked the ONE
+        // question, by membership in the set above. A winner that no longer
+        // belongs falls through to a fresh race rather than riding the header.
+        let eligible = ranked.iter().any(|candidate| candidate == &pick.url);
+        if now_ms - pick.at_ms < FASTEST_RPC_TTL_MS && eligible {
             let url = Some(pick.url.clone());
             return set_x_and_sweep(model, call_id, url, now_ms);
         }
@@ -1197,6 +1323,7 @@ fn handle_probe(
     if !race.outstanding.remove(url) {
         return Command::done();
     }
+    let mut proved_wrong_chain = false;
     match reported {
         Some(id) if id == chain_id => race.matches.push((url.to_owned(), latency_ms)),
         // Invariant ②: a fast endpoint on the WRONG chain must never be
@@ -1204,10 +1331,24 @@ fn handle_probe(
         // win the fallback below.
         Some(_) => {
             race.wrong_chain.insert(url.to_owned());
+            proved_wrong_chain = true;
         }
         // Timeout / network / invalid answer — skipped silently.
         None => {}
     }
+    if proved_wrong_chain {
+        // The same fact, kept past this race: `getChainRpcUrl` hands `X-Rpc-Url`
+        // to `/v1/sponsor` and `/v1/account` without ever running a race, and it
+        // must be bound by invariant ② too.
+        model
+            .wrong_chain
+            .entry(chain_id)
+            .or_default()
+            .insert(url.to_owned());
+    }
+    let Some(race) = model.probes.get_mut(&chain_id) else {
+        return Command::done();
+    };
     if !race.outstanding.is_empty() {
         return Command::done();
     }
@@ -1215,26 +1356,49 @@ fn handle_probe(
         return Command::done();
     };
 
+    // A probe race is up to `PING_TIMEOUT_MS` wide, and everything the pool
+    // learned inside that window still binds: a 401/403 ban landed by the
+    // JSON-RPC leg, a rate-limit ban, another chain's proof from a concurrent
+    // race, a `RefreshChain` that dropped the endpoint from the pool. Winning a
+    // race is not a licence. So the race results are not consulted directly —
+    // they are intersected with [`bundler_eligible_urls`], the same single
+    // predicate `begin_bundler_call` and `answer_best_rpc_url` ask, re-derived
+    // HERE against the pool as it stands now that the race has landed.
+    //
+    // This was the last door into `X-Rpc-Url` still deciding for itself:
+    // an endpoint banned mid-race rode the header on `eth_sendUserOperation`
+    // while `getChainRpcUrl`, asked about the same chain in the same instant,
+    // correctly refused to name it. One pool, two opinions, again.
+    let eligible = bundler_eligible_urls(model, chain_id, now_ms);
+    let is_eligible = |url: &str| eligible.iter().any(|candidate| candidate == url);
+
     let winner = if race.matches.is_empty() {
         // TS falls back to the score-sorted first endpoint unverified; here a
-        // wrong-chain REPORTER is excluded even from the fallback, and if
-        // every endpoint reported a wrong chain the header is omitted
-        // entirely (fail-closed — invariant ② over `rpc-pool.ts:689-692`).
-        // Fallback winners are not cached, as in TS.
+        // wrong-chain REPORTER is excluded even from the fallback, and so is
+        // anything the predicate no longer admits. If nothing survives, the
+        // header is omitted entirely (fail-closed — invariant ② over
+        // `rpc-pool.ts:689-692`). Fallback winners are not cached, as in TS.
         race.ranked
             .iter()
-            .find(|candidate| !race.wrong_chain.contains(*candidate))
+            .find(|candidate| {
+                !race.wrong_chain.contains(*candidate) && is_eligible(candidate)
+            })
             .cloned()
     } else {
         // Lowest latency wins; ties keep arrival order (the TS stable sort).
+        // Endpoints that verified this chain but have since become ineligible
+        // are simply not candidates — and if that empties the field, the
+        // answer is no header, NOT a demotion to the unverified fallback.
         let mut best: Option<&(String, f64)> = None;
-        for entry in &race.matches {
+        for entry in race.matches.iter().filter(|(url, _)| is_eligible(url)) {
             match best {
                 Some(current) if entry.1 >= current.1 => {}
                 _ => best = Some(entry),
             }
         }
         let winner = best.map(|(url, _)| url.clone());
+        // Only a verified AND still-eligible winner earns the hour-long cache;
+        // a condemned endpoint must not be parked there to be re-litigated.
         if let Some(url) = &winner {
             model.fastest.insert(
                 chain_id,
@@ -1285,7 +1449,7 @@ fn start_pass(model: &mut Model, call_id: &str, now_ms: f64) -> Command<RpcEffec
     let (chain_id, kind) = (session.chain_id, session.kind);
 
     let pruned = prune_expired_bans(model, now_ms);
-    let (urls, rescued) = select_with_rescue(model, chain_id, kind, now_ms);
+    let urls = select_with_rescue(model, chain_id, kind, now_ms);
 
     if let Some(session) = model.calls.get_mut(call_id) {
         session.queue = urls.into_iter().collect();
@@ -1295,7 +1459,11 @@ fn start_pass(model: &mut Model, call_id: &str, now_ms: f64) -> Command<RpcEffec
     }
 
     let mut commands = Vec::new();
-    if pruned || rescued {
+    // Only the prune changes the ban record. The rescue deliberately does not
+    // (see `select_with_rescue`), so there is nothing to persist and nothing
+    // for a ban-watching surface to re-read: an endpoint a pass had to fall
+    // back onto is still a banned endpoint everywhere else.
+    if pruned {
         let entries: Vec<RpcBanEntry> = model.bans.values().cloned().collect();
         commands.push(request(model, RpcOperation::PersistBans { entries }));
         commands.push(render());
@@ -1305,30 +1473,42 @@ fn start_pass(model: &mut Model, call_id: &str, now_ms: f64) -> Command<RpcEffec
 }
 
 /// Selection with the all-banned self-rescue (`rpc-pool.ts:745-755`,
-/// invariant ⑥): if every pool member is banned, clear their bans and reset
-/// consecutive-failure counters so the chain can recover. Returns
-/// (score-sorted URLs, whether a rescue ran).
-fn select_with_rescue(
-    model: &mut Model,
-    chain_id: u32,
-    kind: RpcKind,
-    now_ms: f64,
-) -> (Vec<String>, bool) {
+/// invariant ⑥): when every member of THIS pool is banned, this pass proceeds
+/// anyway — over the bans, in score order — and the consecutive-failure
+/// counters reset, so a chain whose whole pool stands condemned (a permanent
+/// 401 on its only endpoint, say) is still reachable and can still recover.
+///
+/// The rescue is scoped to the pass that needed it, and that scope is the whole
+/// point. It used to `model.bans.remove(..)`, which is a GLOBAL edit: one
+/// ordinary `eth_call` on a dead pool deleted yesterday's permanent ban, and
+/// the endpoint was thereby re-admitted to [`bundler_eligible_urls`] — named to
+/// the bundler in `X-Rpc-Url` by both legs, having answered nothing.
+/// [`begin_bundler_call`] says in so many words that a rescued endpoint has no
+/// business being named to the bundler until it has earned its way back through
+/// a selection; the code did the exact opposite of its own comment. Now the ban
+/// record stands (so every other reader of the pool still sees the truth) and
+/// merely stops binding the one leg that has nothing else left.
+///
+/// Consequence, deliberately: the rescue writes nothing, so it persists
+/// nothing — there is no longer a "rescued" outcome for the caller to react to.
+/// A ban survives the rescue and a restart alike, and the endpoint is re-tried
+/// on every pass of a pool that has no alternative, which is where
+/// `rpc-pool.ts` also ends up (its cleared ban is re-applied by the next 401).
+fn select_with_rescue(model: &mut Model, chain_id: u32, kind: RpcKind, now_ms: f64) -> Vec<String> {
     let Some(pool) = model.pools.get_mut(&chain_id) else {
-        return (Vec::new(), false);
+        return Vec::new();
     };
     let list = pool.list_mut(kind);
     let bans: Vec<RpcBanEntry> = model.bans.values().cloned().collect();
     let urls = select_urls(list, &bans, now_ms);
     if !urls.is_empty() || list.is_empty() {
-        return (urls, false);
+        return urls;
     }
     for endpoint in list.iter_mut() {
-        model.bans.remove(&endpoint.url);
         endpoint.consecutive_failures = 0;
     }
-    let bans: Vec<RpcBanEntry> = model.bans.values().cloned().collect();
-    (select_urls(list, &bans, now_ms), true)
+    // No bans handed in: this pass, and only this pass, proceeds over them.
+    select_urls(list, &[], now_ms)
 }
 
 /// `pruneExpiredBans` (`rpc-pool.ts:98-116`): throttled sweep; persists only
@@ -1347,18 +1527,66 @@ fn prune_expired_bans(model: &mut Model, now_ms: f64) -> bool {
     before != model.bans.len()
 }
 
+/// Re-ask [`bundler_eligible_urls`] about the header this session is carrying,
+/// immediately before it goes out.
+///
+/// `session.x_rpc_url` is chosen ONCE — at [`set_x_and_sweep`] or when a probe
+/// race lands — and a bundler call is then up to two passes of several POSTs
+/// each. Everything the pool learns in between is a reason the chosen endpoint
+/// may no longer be eligible, and until this existed none of it was consulted
+/// again: an endpoint that won the race and was banned a moment later (403 on
+/// a concurrent `eth_call`) kept riding the header for the rest of the call,
+/// while `getChainRpcUrl`, asked about the same chain in the same second,
+/// refused to name it. The sixth door into `X-Rpc-Url`, and the last one that
+/// still decided for itself.
+///
+/// It is a *re-ask*, not a second opinion: the predicate is the same single
+/// function all the other doors ask. An endpoint that is still eligible is
+/// kept (so a healthy call does not wander between nodes); one that is not is
+/// replaced by the best endpoint that is; and when nothing qualifies the header
+/// is dropped rather than sent knowingly wrong — the same honest failure
+/// `begin_bundler_call` and `handle_probe` end in.
+///
+/// A header that is deliberately ABSENT stays absent. `begin_bundler_call` and
+/// `handle_probe` both have exits that mean "nothing here has earned the
+/// header"; promoting a URL here would quietly overrule them.
+fn revalidated_x_rpc_url(
+    model: &mut Model,
+    call_id: &str,
+    chain_id: u32,
+    now_ms: f64,
+) -> Option<String> {
+    let held = model.calls.get(call_id)?.x_rpc_url.clone()?;
+    let eligible = bundler_eligible_urls(model, chain_id, now_ms);
+    let next = if eligible.iter().any(|candidate| *candidate == held) {
+        Some(held)
+    } else {
+        eligible.into_iter().next()
+    };
+    // Written back so the session, the POST and any later pass all name the
+    // same endpoint — one truth per session, as with the pool's one ban truth.
+    if let Some(session) = model.calls.get_mut(call_id) {
+        session.x_rpc_url = next.clone();
+    }
+    next
+}
+
 /// Try the next endpoint of the current pass, or close the pass: another
 /// jittered-backoff pass while attempts remain, else the chain-level verdict.
-fn next_endpoint(model: &mut Model, call_id: &str, _now_ms: f64) -> Command<RpcEffect, Event> {
+fn next_endpoint(model: &mut Model, call_id: &str, now_ms: f64) -> Command<RpcEffect, Event> {
     let Some(session) = model.calls.get_mut(call_id) else {
         return Command::done();
     };
     if let Some(url) = session.queue.pop_front() {
         session.state = SessionState::WaitingPost { url: url.clone() };
         let method = session.method.clone();
-        let (x_rpc_url, timeout_ms) = match session.kind {
+        let (kind, chain_id) = (session.kind, session.chain_id);
+        let (x_rpc_url, timeout_ms) = match kind {
             RpcKind::Rpc => (None, RPC_READ_TIMEOUT_MS),
-            RpcKind::Bundler => (session.x_rpc_url.clone(), BUNDLER_RPC_TIMEOUT_MS),
+            RpcKind::Bundler => (
+                revalidated_x_rpc_url(model, call_id, chain_id, now_ms),
+                BUNDLER_RPC_TIMEOUT_MS,
+            ),
         };
         return request(
             model,
@@ -1664,6 +1892,38 @@ fn answer_bundler_base(
         RpcOperation::Conclude {
             call_id: call_id.to_owned(),
             verdict: RpcCallVerdict::BundlerBase { base_url },
+        },
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Best RPC URL for the bundler's REST leg / the fork simulator (invariant ②)
+// ---------------------------------------------------------------------------
+
+/// `getChainRpcUrl`: the RPC endpoint this chain's pool would reach for first.
+///
+/// The first member of [`bundler_eligible_urls`] — the SAME predicate the
+/// JSON-RPC leg's `X-Rpc-Url` is chosen by, deliberately not a second
+/// re-statement of it. The bundler will read the Safe's code, nonce and balance
+/// through this URL to decide a treasury transfer, and it reaches that decision
+/// through whichever of the two legs the shell happened to call; the two must
+/// not be able to disagree about which endpoints are usable. `None` when
+/// nothing survives; the shell then omits the header rather than guessing
+/// (fail-closed, exactly as [`handle_probe`]'s fallback does).
+fn answer_best_rpc_url(
+    model: &mut Model,
+    call_id: &str,
+    chain_id: u32,
+    now_ms: f64,
+) -> Command<RpcEffect, Event> {
+    let url = bundler_eligible_urls(model, chain_id, now_ms)
+        .into_iter()
+        .next();
+    request(
+        model,
+        RpcOperation::Conclude {
+            call_id: call_id.to_owned(),
+            verdict: RpcCallVerdict::BestRpcUrl { url },
         },
     )
 }

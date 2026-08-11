@@ -1755,3 +1755,104 @@ fn blind_typed_nested_struct_keeps_its_own_key_order() {
         r#"{"token":"0xAA","amount":"1000000000","expiration":179999999"#
     );
 }
+
+// ---------------------------------------------------------------------------
+// Burn detection — a token sent to its OWN contract
+// ---------------------------------------------------------------------------
+//
+// The single-call twin of `approval_guard`'s `any_to_own_token`. It lives here
+// because this machine is the one that owns BOTH facts it needs (the resolved
+// recipient fields and the contract being called), and because a burn that
+// warns in a batch and stays silent on its own is the worst possible split —
+// the single send is the far more common entry point.
+
+/// The rule itself: a `transfer` whose recipient is the token contract.
+#[test]
+fn transfer_to_the_token_itself_is_flagged_as_a_burn() {
+    let mut sut = Sut::new();
+    let transfer = format!("0xa9059cbb{}{}", pad(USDC), pad_u128(1_000_000_000));
+    resolve_tx(&mut sut, USDC, &transfer, "0x0");
+    sut.resolve(Res::DescriptorFetched {
+        path: format!("/erc7730/calldata/eip155-1/{USDC}.json"),
+        json: None,
+    });
+
+    let result = sut.view().result.expect("clear-sign result");
+    assert_eq!(result.fields[1].role, ClearFieldRole::Recipient);
+    assert!(
+        result.to_own_token,
+        "recipient IS the contract being called — the tokens are burned",
+    );
+}
+
+/// A dApp routinely sends `tx.to` EIP-55 CHECKSUMMED while every resolved field
+/// address is lowercased. Two independent things keep that from hiding a burn:
+/// `start_tx` normalises `to` at ingest, and the rule compares
+/// case-insensitively anyway (`to_own_token`'s own unit test). This pins the
+/// OUTCOME, so losing either one is a failing test rather than a silent
+/// downgrade of a danger banner to nothing.
+#[test]
+fn a_checksummed_tx_to_does_not_hide_the_burn() {
+    const USDC_EIP55: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+    let mut sut = Sut::new();
+    let transfer = format!("0xa9059cbb{}{}", pad(USDC_EIP55), pad_u128(1_000_000_000));
+    resolve_tx(&mut sut, USDC_EIP55, &transfer, "0x0");
+    sut.resolve(Res::DescriptorFetched {
+        path: format!("/erc7730/calldata/eip155-1/{USDC}.json"),
+        json: None,
+    });
+
+    let result = sut.view().result.expect("clear-sign result");
+    assert_eq!(
+        result.contract_address.as_deref(),
+        Some(USDC),
+        "`tx.to` is normalised at ingest",
+    );
+    assert_eq!(result.fields[1].address.as_deref(), Some(USDC));
+    assert!(result.to_own_token, "case must not decide a burn warning");
+}
+
+/// The control: an ordinary transfer to a wallet is not a burn.
+#[test]
+fn transfer_to_a_wallet_is_not_a_burn() {
+    let mut sut = Sut::new();
+    let transfer = format!("0xa9059cbb{}{}", pad(VITALIK), pad_u128(1_000_000_000));
+    resolve_tx(&mut sut, USDC, &transfer, "0x0");
+    sut.resolve(Res::DescriptorFetched {
+        path: format!("/erc7730/calldata/eip155-1/{USDC}.json"),
+        json: None,
+    });
+
+    assert!(!sut.view().result.expect("result").to_own_token);
+}
+
+/// A SPENDER equal to the contract is not a burn — `approve(token, …)` grants an
+/// allowance, it moves nothing. Only the `recipient` role counts, exactly as in
+/// `approval_guard`, whose recipient lists come from the same role filter.
+#[test]
+fn a_spender_equal_to_the_contract_is_not_a_burn() {
+    let mut sut = Sut::new();
+    let approve = format!("0x095ea7b3{}{}", pad(USDC), pad_u128(1_000_000));
+    resolve_tx(&mut sut, USDC, &approve, "0x0");
+    sut.resolve(Res::DescriptorFetched {
+        path: format!("/erc7730/calldata/eip155-1/{USDC}.json"),
+        json: None,
+    });
+    // approve shares its selector with ERC-721 — settle the disambiguation.
+    for probe in [ClearProbe::SupportsErc721, ClearProbe::SupportsErc1155] {
+        sut.resolve(Res::RpcAnswer {
+            probe,
+            chain_id: 1,
+            to: USDC.to_owned(),
+            result: None,
+            rpc_error: true,
+        });
+    }
+
+    let result = sut.view().result.expect("result");
+    assert!(
+        result.fields.iter().all(|f| f.role != ClearFieldRole::Recipient),
+        "approve resolves a spender, never a recipient",
+    );
+    assert!(!result.to_own_token);
+}

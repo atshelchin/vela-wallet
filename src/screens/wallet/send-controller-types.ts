@@ -132,6 +132,41 @@ export interface SendController {
   amount: string;
   inputInUsd: boolean;
   /**
+   * The unit `amount` is counted in: `null` = the selected token's own units,
+   * otherwise the fiat code it was TYPED in — which is not necessarily the
+   * display currency, because a commit can land under a screen that already has
+   * a figure on it.
+   *
+   * The screen renders THIS. It used to have only `inputInUsd` and so labelled
+   * the number with whatever `dc.code` happened to be at that moment: a figure
+   * typed against the boot placeholder `{code:'USD', rate:1}` was printed as
+   * "5000 CNY" the instant the real currency committed. A boolean cannot name a
+   * currency. Mirrors `SendView.amount_fiat_code`.
+   */
+  amountFiatCode: string | null;
+  /** Whether the ⇄ conversion row is offered at all. Mirrors
+   *  `SendView.denom_toggle_shown` — true while the token is priced, and always
+   *  while the figure is fiat, so the way out of an unresolvable mode cannot
+   *  disappear with the price. */
+  denomToggleShown: boolean;
+  /** Whether pressing ⇄ would do anything. Mirrors
+   *  `SendView.denom_toggle_enabled`: entering fiat needs a price in the display
+   *  currency, and without one the control is visibly disabled rather than
+   *  silently inert. */
+  denomToggleEnabled: boolean;
+  /** WHY ⇄ is inert, already worded (`send.denomToggleNoRate`), or `null` when
+   *  it isn't. Mirrors `SendView.denom_toggle_reason`. Dimming the row made the
+   *  refusal visible; this is the half that was still missing — a priced token
+   *  whose display currency has no rate leaves the figure in token units, so it
+   *  resolves fine and no amount warning fires, and nothing on screen said a
+   *  word. */
+  denomToggleReason: string | null;
+  /** WHY the confirm slide is disarmed when what disarmed it is the money,
+   *  already worded (`send.warnCannotConvert`), or `null`. Mirrors
+   *  `SendView.confirm_amount_issue` — the sentence that goes with `canConfirm`'s
+   *  new amount condition. */
+  confirmAmountIssue: string | null;
+  /**
    * `amount` with the fiat↔token conversion already applied — the ONLY number
    * the confirm page may put on screen, because on web it is produced by the
    * same core call the signed batch is built from ("displayed == signed"). The
@@ -151,7 +186,10 @@ export interface SendController {
   /** The Continue button's gate — `disabled` is its negation. */
   canContinue: boolean;
   /** The confirm slide's gate — `disabled` is its negation. Fee settled ∧
-   *  nothing re-quoting ∧ no same-asset breach ∧ the send still idle. */
+   *  nothing re-quoting ∧ no same-asset breach ∧ the send still idle ∧ the
+   *  amount still resolves. That last one is `canContinue`'s judgement, asked
+   *  again here: a display-currency commit can empty the field while the confirm
+   *  page is open, and the slider used to stay armed over a zero. */
   canConfirm: boolean;
 
   // ── fee & confirm ─────────────────────────────────────────────────────────

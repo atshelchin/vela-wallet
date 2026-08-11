@@ -14,4 +14,17 @@ partial: boolean,
 /**
  * Recovered via 4-byte DB, decoded generically — "best effort, not verified".
  */
-best_effort: boolean, };
+best_effort: boolean, 
+/**
+ * A recipient of this call IS the contract being called: the token is
+ * being sent to its own contract, which burns it irreversibly. The
+ * single-call twin of [`super::approval_guard::GuardBatchView::any_to_own_token`]
+ * — same predicate, same ASCII-case-insensitive address compare, so one
+ * burn does not warn in a batch and stay silent on its own (and the single
+ * send is the far more common entry point).
+ *
+ * PROJECTION, not resolution state: filled in by [`to_own_token`] when the
+ * view is built, never at construction. Every builder therefore writes
+ * `false` here and cannot get it wrong by forgetting.
+ */
+to_own_token: boolean, };

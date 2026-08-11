@@ -537,17 +537,25 @@ fn the_cap_is_sixty() {
     assert_eq!(BATCH_MAX_RECIPIENTS, 60);
 }
 
-/// Ported quirk — while the rate is loading, `tokenPriceInFiat(price, 0)`
-/// treats the missing rate as 1, so the mirror shows the token's USD price as
-/// if it were the fiat price (`usdFiatRate ?? 0` + the `: 1` fallback).
+/// NOT A REGRESSION — this test used to assert `rate_input == "1"` while the
+/// rate was loading, because `tokenPriceInFiat(price, 0)` mapped the missing
+/// rate to 1 and the mirror showed the token's USD price as if it were the
+/// fiat price. The OWNER OVERTURNED that ported quirk: a rate that has not
+/// landed is UNKNOWN, and an unknown rate must not quote a price. So the
+/// mirror stays empty until the fetch answers.
 #[test]
-fn loading_rate_mirrors_the_usd_price_verbatim_quirk() {
-    let sut = opened(usdt("1000"));
+fn loading_rate_mirrors_nothing_because_the_rate_is_not_known_yet() {
+    let mut sut = opened(usdt("1000"));
+    paste(&mut sut, format!("{},5000", a()));
     let view = sut.view();
     assert!(view.opened);
     assert!(view.priced);
     assert_eq!(view.rate_status, BatchRateStatus::Loading);
-    assert_eq!(view.rate_input, "1", "USD price shown until the rate lands");
+    assert_eq!(view.rate_input, "", "no rate yet, so no rate is quoted");
+    assert!(
+        !view.can_apply,
+        "a pasted payroll cannot be applied at a rate nobody has answered"
+    );
 }
 
 /// Invariant ① — the auto rate mirrors into the input with significant-digit
@@ -626,18 +634,96 @@ fn reset_to_auto_returns_the_mirror() {
     assert_eq!(view.rate_input, "7.2");
 }
 
-/// A failed fetch is a status, not a silent zero — and the mirror falls back
-/// to the USD-price quirk so the sheet stays workable.
+/// NOT A REGRESSION — the earlier version of this test
+/// (`failed_rate_sets_status_and_keeps_the_quirk_mirror`) asserted
+/// `rate_input == "1"`, pinning the `tokenPriceInFiat` `?: 1` fallback ported
+/// from `fiat-convert.ts`. The OWNER OVERTURNED that product decision: an
+/// unpriceable currency must BLOCK the import, not convert 1:1. Do not
+/// "restore" the old assertion — it is the bug, not the baseline.
+///
+/// What it cost: `5000 CNY` (worth ~698 USDT at 7.17) previewed as 5000 USDT
+/// with `can_apply: true`. One payroll batch, ~7x the intended payout, behind
+/// a button that looked ready. The manual `rate_input` channel below is the
+/// way through, and `Failed` is what tells the user to use it.
 #[test]
-fn failed_rate_sets_status_and_keeps_the_quirk_mirror() {
+fn failed_rate_empties_the_mirror_and_blocks_apply() {
     let mut sut = opened(usdt("1000"));
+    paste(&mut sut, format!("{},5000", a()));
     sut.resolve(Res::RateResolved {
         code: "CNY".to_owned(),
         rate: None,
     });
     let view = sut.view();
     assert_eq!(view.rate_status, BatchRateStatus::Failed);
-    assert_eq!(view.rate_input, "1");
+    assert_eq!(view.rate_input, "", "an unknown rate quotes no price");
+    assert_eq!(
+        view.preview[0].token_amount, "",
+        "the row converts to nothing rather than to the fiat figure"
+    );
+    assert!(!view.can_apply, "Apply is blocked until a rate is supplied");
+}
+
+/// A source that answers something that is not a rate (0, or negative) is
+/// INVALID, and must be refused exactly like the UNKNOWN case — the `?: 1`
+/// fallback used to swallow both.
+#[test]
+fn a_non_positive_rate_answer_is_refused_like_a_missing_one() {
+    for bogus in [0.0_f64, -7.17_f64] {
+        let mut sut = opened(usdt("1000"));
+        paste(&mut sut, format!("{},5000", a()));
+        sut.resolve(Res::RateResolved {
+            code: "CNY".to_owned(),
+            rate: Some(bogus),
+        });
+        let view = sut.view();
+        assert_eq!(view.rate_input, "", "rate {bogus} must not convert");
+        assert!(!view.can_apply, "rate {bogus} must not enable Apply");
+    }
+}
+
+/// The manual channel the "Rate unavailable — enter one manually" hint points
+/// at: a hand-typed rate re-opens the import, and it converts at exactly what
+/// is on screen.
+#[test]
+fn a_hand_typed_rate_reopens_apply_after_a_failed_fetch() {
+    let mut sut = opened(usdt("10000"));
+    paste(&mut sut, format!("{},5000", a()));
+    sut.resolve(Res::RateResolved {
+        code: "CNY".to_owned(),
+        rate: None,
+    });
+    assert!(!sut.view().can_apply);
+
+    sut.dispatch(Event::EditRate {
+        text: "7.17".to_owned(),
+    });
+    let view = sut.view();
+    assert_eq!(view.rate_status, BatchRateStatus::Failed, "still no source");
+    assert!(view.rate_edited);
+    assert_eq!(
+        view.preview[0].token_amount, "697.35007",
+        "5000 CNY at the typed 7.17 — not 5000"
+    );
+    assert!(view.can_apply);
+}
+
+/// Token mode never depended on the fiat rate, and the guard must not start
+/// blocking it: the pasted figures ARE token amounts.
+#[test]
+fn token_mode_still_applies_when_the_rate_is_unknown() {
+    let mut sut = opened(usdt("10000"));
+    sut.dispatch(Event::SetUnit {
+        unit: BatchUnit::Token,
+    });
+    paste(&mut sut, format!("{},5000", a()));
+    sut.resolve(Res::RateResolved {
+        code: "CNY".to_owned(),
+        rate: None,
+    });
+    let view = sut.view();
+    assert_eq!(view.rate_input, "");
+    assert_eq!(view.preview[0].token_amount, "5000");
+    assert!(view.can_apply, "token amounts need no rate");
 }
 
 // ---------------------------------------------------------------------------
@@ -664,21 +750,152 @@ fn currency_pick_refetches_and_never_writes_storage() {
     assert_eq!(sut.view().rate_status, BatchRateStatus::Loading);
 }
 
-/// Ported quirk — until the new currency's fetch lands, the mirror keeps
-/// converting at the OLD currency's rate (the component's mirror effect
-/// re-runs on `rateEdited=false` before the fetch resolves).
+/// NOT A REGRESSION — this test used to assert `rate_input == "7.2"` right
+/// after a switch to EUR, as the ported component did (its mirror effect
+/// re-ran on `rateEdited=false` before the new fetch resolved). That is the
+/// unknown-rate overpayment reached from the other side: the number shown is a
+/// real rate, just for the currency the user LEFT. The owner's ruling — an
+/// unvouchable rate blocks the import — covers a mislabelled rate too, so the
+/// mirror stays empty for the whole round-trip.
 #[test]
-fn currency_switch_keeps_the_old_rate_until_the_new_fetch_lands() {
+fn currency_switch_drops_the_old_currencys_rate_for_the_whole_round_trip() {
     let mut sut = rated(usdt("1000"), 7.2);
+    assert_eq!(sut.view().rate_input, "7.2", "CNY, priced");
     sut.dispatch(Event::SetFiatCode {
         code: "EUR".to_owned(),
     });
-    assert_eq!(sut.view().rate_input, "7.2", "old currency's rate, verbatim");
+    assert_eq!(
+        sut.view().rate_input,
+        "",
+        "7.2 is CNY per USDT; it says nothing about EUR"
+    );
+    assert_eq!(sut.view().rate_status, BatchRateStatus::Loading);
     sut.resolve(Res::RateResolved {
         code: "EUR".to_owned(),
         rate: Some(0.9),
     });
     assert_eq!(sut.view().rate_input, "0.9");
+    assert_eq!(sut.view().rate_status, BatchRateStatus::Ok);
+}
+
+/// The payroll the tag exists to stop: USD (rate 1) → CNY, twenty rows of
+/// 5000. Mirroring the retained rate of 1 showed "1 USDT = 1 CNY" and sent
+/// 5000 USDT per row where ~698 was meant — ~7.2x, twenty recipients, Apply
+/// green the whole way.
+#[test]
+fn switching_from_usd_to_cny_cannot_pay_the_fiat_figure_one_for_one() {
+    let mut sut = Sut::new();
+    let ops = sut.dispatch(Event::Open {
+        token: usdt("1000000"),
+        currency_code: "USD".to_owned(),
+        max_recipients: BATCH_MAX_RECIPIENTS,
+    });
+    assert_eq!(
+        ops,
+        vec![Op::FetchUsdFiatRate {
+            code: "USD".to_owned()
+        }]
+    );
+    sut.resolve(Res::RateResolved {
+        code: "USD".to_owned(),
+        rate: Some(1.0),
+    });
+    assert_eq!(sut.view().rate_input, "1");
+
+    let payroll: Vec<String> = (0..20)
+        .map(|i| format!("0x{:040x},5000", i + 1))
+        .collect();
+    paste(&mut sut, payroll.join("\n"));
+    assert_eq!(sut.view().recipient_count, 20);
+    assert!(sut.view().can_apply);
+
+    // "Priced in" → CNY. The USD rate is still in the model.
+    sut.dispatch(Event::SetFiatCode {
+        code: "CNY".to_owned(),
+    });
+    let view = sut.view();
+    assert_eq!(view.rate_input, "", "no rate is quoted for CNY yet");
+    assert_eq!(view.rate_status, BatchRateStatus::Loading);
+    assert!(!view.can_apply, "the button is not green during the fetch");
+    assert_eq!(view.recipient_count, 0);
+    assert!(view.recipients.is_empty());
+    assert!(view.preview.iter().all(|row| row.token_amount.is_empty()));
+
+    // Apply is not merely greyed — the event itself is refused.
+    assert!(sut.dispatch(Event::Apply).is_empty());
+    assert!(!sut.view().applied);
+
+    // The CNY rate lands: 5000 CNY is ~697.35 USDT, not 5000.
+    sut.resolve(cny(7.17));
+    let view = sut.view();
+    assert_eq!(view.rate_input, "7.17");
+    assert!(view.can_apply);
+    assert_eq!(view.recipient_count, 20);
+    let paid: f64 = view.recipients[0].amount.parse().unwrap();
+    assert!((paid - 697.35).abs() < 0.01, "{paid} is not ~697.35");
+}
+
+/// The third door onto the same room: a rate typed by hand for CNY is no more
+/// a EUR rate than a fetched one is, so `ResetRateToAuto` after a switch
+/// cannot resurrect it either. (`SetFiatCode` clears `rate_edited`; "Auto"
+/// re-reads the tagged rate, finds it labelled CNY, and quotes nothing.)
+#[test]
+fn reset_to_auto_after_a_switch_cannot_resurrect_the_old_currencys_rate() {
+    let mut sut = rated(usdt("1000"), 7.2);
+    sut.dispatch(Event::EditRate {
+        text: "7.5".to_owned(),
+    });
+    assert_eq!(sut.view().rate_input, "7.5");
+    sut.dispatch(Event::SetFiatCode {
+        code: "EUR".to_owned(),
+    });
+    assert!(!sut.view().rate_edited, "the pick returns the mirror to auto");
+    assert_eq!(sut.view().rate_input, "");
+    sut.dispatch(Event::ResetRateToAuto);
+    assert_eq!(sut.view().rate_input, "", "still nothing to mirror");
+    // Only a rate fetched FOR EUR prices EUR.
+    sut.resolve(Res::RateResolved {
+        code: "EUR".to_owned(),
+        rate: Some(0.9),
+    });
+    assert_eq!(sut.view().rate_input, "0.9");
+}
+
+/// The tag excludes by CURRENCY, not by "anything changed" — which is what
+/// makes it a fix rather than a blanket blackout. Switch CNY → EUR → CNY and
+/// the session's own CNY rate is a CNY rate again, immediately; a refresh is
+/// in flight, but nothing about 7.2 was ever wrong for CNY. What still cannot
+/// happen is the EUR answer landing on it: dropped by the same comparison.
+#[test]
+fn switching_away_and_back_re_admits_the_rate_that_was_always_cnys() {
+    let mut sut = rated(usdt("1000"), 7.2);
+    sut.dispatch(Event::SetFiatCode {
+        code: "EUR".to_owned(),
+    });
+    assert_eq!(sut.view().rate_input, "");
+    let ops = sut.dispatch(Event::SetFiatCode {
+        code: "CNY".to_owned(),
+    });
+    assert_eq!(
+        ops,
+        vec![Op::FetchUsdFiatRate {
+            code: "CNY".to_owned()
+        }]
+    );
+    assert_eq!(sut.view().rate_input, "7.2", "CNY per USDT, as it always was");
+    assert_eq!(sut.view().rate_status, BatchRateStatus::Loading);
+    // The in-flight EUR answer belongs to a currency the sheet has left: it
+    // neither prices CNY nor ends CNY's load.
+    assert!(sut
+        .resolve(Res::RateResolved {
+            code: "EUR".to_owned(),
+            rate: Some(0.9),
+        })
+        .is_empty());
+    assert_eq!(sut.view().rate_input, "7.2");
+    assert_eq!(sut.view().rate_status, BatchRateStatus::Loading);
+    sut.resolve(cny(7.3));
+    assert_eq!(sut.view().rate_input, "7.3");
     assert_eq!(sut.view().rate_status, BatchRateStatus::Ok);
 }
 
@@ -694,7 +911,9 @@ fn rate_for_a_switched_away_currency_is_dropped() {
     let ops = sut.resolve(cny(7.2));
     assert!(ops.is_empty());
     assert_eq!(sut.view().rate_status, BatchRateStatus::Loading);
-    assert_eq!(sut.view().rate_input, "1", "still the missing-rate quirk");
+    // Was "1" while the missing-rate quirk stood; the owner overturned it, so
+    // a dropped rate leaves the mirror as empty as it was before.
+    assert_eq!(sut.view().rate_input, "", "the dropped rate priced nothing");
     // The EUR fetch lands normally.
     sut.resolve(Res::RateResolved {
         code: "EUR".to_owned(),
@@ -905,7 +1124,8 @@ fn stale_rate_from_a_previous_open_is_dropped() {
     let ops = sut.resolve(cny(7.2));
     assert!(ops.is_empty());
     assert_eq!(sut.view().rate_status, BatchRateStatus::Loading);
-    assert_eq!(sut.view().rate_input, "1");
+    // Was "1" while the missing-rate quirk stood (owner-overturned).
+    assert_eq!(sut.view().rate_input, "");
     // The current open's fetch lands normally.
     sut.resolve(cny(7.5));
     assert_eq!(sut.view().rate_status, BatchRateStatus::Ok);

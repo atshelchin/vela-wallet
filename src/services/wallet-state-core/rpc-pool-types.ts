@@ -43,10 +43,12 @@ export interface RpcPoolCallRegistry {
   /** A verdict arrived — settle whatever promise the shell is holding. */
   settle(callId: string, verdict: RpcCallVerdict): void;
   /**
-   * The chain's candidate lists, as just collected. Observational only: the
-   * core owns the pool, but `getChainRpcUrl` / `isUsingBuiltinBundler` answer
-   * questions *about config* that the view does not carry, and re-collecting
-   * for each would re-fetch the chain index.
+   * The chain's candidate lists, as just collected. Observational only, and for
+   * exactly one caller: `isUsingBuiltinBundler` asks a question *about config*
+   * (is any bundler endpoint user-supplied) that the view does not carry, and
+   * re-collecting for it would re-fetch the chain index. `getChainRpcUrl` used
+   * to read these too and no longer does — which endpoint ranks first is a pool
+   * decision, so it is asked of the core (`best_rpc_url_requested`).
    */
   noteEndpoints?(chainId: number, rpc: CollectedEndpoint[], bundler: CollectedEndpoint[]): void;
   /**

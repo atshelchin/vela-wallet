@@ -54,6 +54,7 @@ use super::fee_policy::{
     reserve_native_gas, same_asset_fee_limit, to_base_units, FeeAsset, FeeAssetView, FeeCall,
     FeeEstimate, FeeEstimateView, MultiTokenSpec,
 };
+use super::money::{js_parse_float, DenominatedAmount, Denom, TokenPrice};
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -123,51 +124,6 @@ impl ReentryLock {
 // Pure helpers — JS-number semantics kept where the TS display path uses them
 // ---------------------------------------------------------------------------
 
-/// `parseFloat` — longest valid numeric prefix, `NaN` when none.
-fn js_parse_float(s: &str) -> f64 {
-    let t = s.trim_start();
-    let b = t.as_bytes();
-    let mut i = 0usize;
-    if i < b.len() && (b[i] == b'+' || b[i] == b'-') {
-        i += 1;
-    }
-    let int_start = i;
-    while i < b.len() && b[i].is_ascii_digit() {
-        i += 1;
-    }
-    let has_int = i > int_start;
-    let mut has_frac = false;
-    if i < b.len() && b[i] == b'.' {
-        let f0 = i + 1;
-        let mut k = f0;
-        while k < b.len() && b[k].is_ascii_digit() {
-            k += 1;
-        }
-        has_frac = k > f0;
-        if has_int || has_frac {
-            i = k;
-        }
-    }
-    if !has_int && !has_frac {
-        return f64::NAN;
-    }
-    let mut end = i;
-    if i < b.len() && (b[i] == b'e' || b[i] == b'E') {
-        let mut k = i + 1;
-        if k < b.len() && (b[k] == b'+' || b[k] == b'-') {
-            k += 1;
-        }
-        let e0 = k;
-        while k < b.len() && b[k].is_ascii_digit() {
-            k += 1;
-        }
-        if k > e0 {
-            end = k;
-        }
-    }
-    t[..end].parse::<f64>().unwrap_or(f64::NAN)
-}
-
 /// `parseFloat(x) || 0` — the `tokenBalanceDouble` shape.
 fn parse_float_or_zero(s: &str) -> f64 {
     let v = js_parse_float(s);
@@ -178,82 +134,14 @@ fn parse_float_or_zero(s: &str) -> f64 {
     }
 }
 
-/// `Number.prototype.toFixed` (display path — f64 is fine per the migration
-/// notes; sub-ulp rounding differences from V8 are acceptable drift).
-fn to_fixed(v: f64, decimals: u32) -> String {
-    format!("{v:.*}", decimals as usize)
-}
-
-/// `stripTrailingZeros` (`fiat-convert.ts:17-20`): integers untouched.
-fn strip_trailing_zeros(s: &str) -> String {
-    if !s.contains('.') {
-        return s.to_owned();
-    }
-    let s = s.trim_end_matches('0');
-    s.trim_end_matches('.').to_owned()
-}
-
-/// The `replace(/\.?0+$/, '')` used by the fiat toggle
-/// (`EnterDetailsStep.tsx:170, 184`). Ported verbatim — including the quirk
-/// that it also eats trailing zeros of an INTEGER ("100" → "1"), which only a
-/// 0-decimal token could hit.
-fn strip_zeros_regex(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut end = b.len();
-    while end > 0 && b[end - 1] == b'0' {
-        end -= 1;
-    }
-    if end == b.len() {
-        return s.to_owned(); // the regex needs at least one trailing zero
-    }
-    if end > 0 && b[end - 1] == b'.' {
-        end -= 1;
-    }
-    s[..end].to_owned()
-}
-
-/// `tokenPriceInFiat` (`fiat-convert.ts:26-30`).
-fn token_price_in_fiat(price_usd: Option<f64>, usd_to_fiat_rate: f64) -> f64 {
-    let Some(price) = price_usd else { return 0.0 };
-    if !(price > 0.0) {
-        return 0.0;
-    }
-    let rate = if usd_to_fiat_rate > 0.0 {
-        usd_to_fiat_rate
-    } else {
-        1.0
-    };
-    price * rate
-}
-
-/// `fiatToTokenAmount` (`fiat-convert.ts:39-43`).
-fn fiat_to_token_amount(fiat: f64, price_in_fiat: f64, decimals: u32) -> String {
-    if !(price_in_fiat > 0.0) || !(fiat > 0.0) {
-        return "0".to_owned();
-    }
-    strip_trailing_zeros(&to_fixed(fiat / price_in_fiat, decimals))
-}
-
-/// `resolveTokenAmount` (`fiat-convert.ts:51-62`): fiat-input mode divides by
-/// the token's price in the display currency; token mode (or an unpriced
-/// token) passes the typed amount through untouched.
-pub fn resolve_token_amount(
-    amount: &str,
-    in_fiat: bool,
-    price_usd: Option<f64>,
-    decimals: u32,
-    rate: f64,
-) -> String {
-    let priced = price_usd.is_some_and(|p| p > 0.0);
-    if !in_fiat || !priced {
-        return amount.to_owned();
-    }
-    let fiat = js_parse_float(if amount.is_empty() { "0" } else { amount });
-    if fiat <= 0.0 {
-        return "0".to_owned();
-    }
-    fiat_to_token_amount(fiat, token_price_in_fiat(price_usd, rate), decimals)
-}
+// `resolve_token_amount` used to live here as the free-function twin of the TS
+// `resolveTokenAmount`. It took `in_fiat: bool` and no currency code, so it had
+// to label the figure AND the price with the same placeholder — which made the
+// currency half of `DenominatedAmount`'s guard compare `"" == ""` and pass
+// unconditionally. A guard that is switched off by the only helper anyone calls
+// is not a guard, so the helper is gone: every caller now names the code, on
+// both platforms ([`model_token_amount`] here, `useSendController`'s
+// `tokenUnitsFor` there).
 
 /// `isValidAddress` (`send-utils.ts:8-10`).
 pub fn is_valid_address(addr: &str) -> bool {
@@ -445,19 +333,44 @@ pub struct SendOpenParams {
 
 /// Display-currency context (`useDisplayCurrency`): the USD→fiat rate and the
 /// fiat input precision (0 for zero-decimal codes, else 2).
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+///
+/// `rate: None` — the shell could not price the display currency — is the one
+/// state this struct exists to keep expressible. It arrives straight from
+/// `display_currency`'s committed pair and means the fiat-denominated amount
+/// input is unavailable: the ⇄ toggle will not enter it, and
+/// [`DenominatedAmount::to_token_units`] converts nothing while it is set.
+/// Token-denominated sending is untouched, because it never multiplies by this
+/// number.
+///
+/// `code` is not decoration: it is half of what `rate` MEANS, and it is what
+/// lets a figure already typed on this screen remember which currency it is
+/// counted in when the display currency changes under it. Without it, "5000"
+/// typed in CNY and a rate that is now USD's look identical.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub struct SendDisplayContext {
-    pub rate: f64,
+    /// The display-currency code the `rate` is quoted in ("USD", "CNY").
+    pub code: String,
+    /// USD → display currency. `null` ⇒ unpriceable; never 1-by-default.
+    pub rate: Option<f64>,
     pub fiat_decimals: u32,
 }
 
 impl Default for SendDisplayContext {
     fn default() -> Self {
         Self {
-            rate: 1.0,
+            // The default context is USD, which really is 1 against itself.
+            code: "USD".to_owned(),
+            rate: Some(1.0),
             fiat_decimals: 2,
         }
+    }
+}
+
+impl SendDisplayContext {
+    /// This screen's fiat unit.
+    fn denom(&self) -> Denom {
+        Denom::fiat(self.code.clone())
     }
 }
 
@@ -684,6 +597,29 @@ pub enum SendAmountWarning {
     NotEnoughToken { symbol: String },
     InsufficientForGas { symbol: Option<String> },
     NeedGas { symbol: Option<String> },
+    /// A fiat-denominated figure this screen cannot restate in token units:
+    /// the digits are fine, it is the FACTOR that is missing (no rate for
+    /// `code`, or no price for the token). Without this the screen showed a
+    /// perfectly ordinary "5000", a `⇅ 0 SYM` row, and a `Continue` that
+    /// refused with nothing said — the amount resolved to `"0"` and no surface
+    /// admitted why.
+    CannotConvert { code: String, symbol: String },
+}
+
+/// The two nouns every "these units cannot be crossed" sentence on this screen
+/// needs: the currency on screen and the token being sent.
+///
+/// Carried by the fields that explain a REFUSAL — a control that visibly
+/// declines ([`SendView::denom_toggle_reason`]) and a gate that silently
+/// declines ([`SendView::confirm_amount_issue`]). Both refusals existed before
+/// this type; neither said anything, which is the same defect twice.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct SendUnitIssue {
+    /// The display currency this screen would have to cross into.
+    pub code: String,
+    /// The selected token's symbol.
+    pub symbol: String,
 }
 
 /// One `showAlert` call site each (semantic keys only).
@@ -1090,9 +1026,16 @@ pub struct Model {
     loading: bool,
     selected_token: Option<SendToken>,
     recipient: String,
-    /// Canonical dot-decimal, exactly as typed/sanitized.
-    amount: String,
-    input_in_fiat: bool,
+    /// Canonical dot-decimal, exactly as typed/sanitized — **plus the unit it
+    /// is counted in**.
+    ///
+    /// This used to be a `String` and a separate `input_in_fiat: bool`, and
+    /// that pair is precisely how the last defect was written: flip the bool,
+    /// leave the digits, and a figure typed in CNY became a figure of USDC
+    /// without anything ever multiplying by anything. [`DenominatedAmount`]'s
+    /// fields are private to `money`, so from here the unit can only change by
+    /// [`DenominatedAmount::convert`] — which restates the digits or fails.
+    amount: DenominatedAmount,
     split_mode: bool,
     recipients: Vec<SendRecipientDraft>,
     picker_target: Option<String>,
@@ -1122,6 +1065,23 @@ pub struct Model {
     user_op_hash: Option<String>,
     receipt_lines: Option<Vec<SendLine>>,
     receipt_kind: Option<SendReceiptKind>,
+    /// **The money that was signed**, captured at the instant the bundler
+    /// accepted the UserOp — not re-derived afterwards.
+    ///
+    /// The receipt used to ask [`model_token_amount`] for its headline figure,
+    /// which re-runs the fiat↔token conversion against whatever display
+    /// context is on screen *now*. That is a live computation about a fact
+    /// that stopped being live the moment the calldata was signed: change the
+    /// display currency on the receipt and the number changed with it (and
+    /// with the rate gone it read `0`), so a receipt could show token amounts
+    /// that were never in any signature. An amount already on-chain cannot be
+    /// rewritten by a currency picker, so it is snapshotted here and the
+    /// receipt only ever reads it.
+    ///
+    /// Holds the FIRST signed line (the whole of a single send; the batch
+    /// modes additionally carry every line in `receipt_lines`, which is the
+    /// same snapshot discipline — those were already captured at submit).
+    receipt_signed: Option<SendLine>,
     receipt_failed: bool,
     fee_held: bool,
     fee_rejected: bool,
@@ -1233,7 +1193,54 @@ pub struct SendView {
     pub selected_token: Option<SendToken>,
     pub recipient: String,
     pub amount: String,
-    pub input_in_fiat: bool,
+    /// The unit `amount` is counted in: `None` = the selected token's own
+    /// units, `Some(code)` = that fiat currency.
+    ///
+    /// This is the figure's OWN code, straight off [`DenominatedAmount`] — not
+    /// the display currency. The two can differ for exactly one instant (a
+    /// commit lands under a screen that already has a figure on it), and that
+    /// instant is when the screen used to lie: it had only a `bool` here, so it
+    /// labelled the number with whatever `dc.code` happened to be, and a figure
+    /// typed in USD was printed as CNY. A boolean cannot name a currency, so
+    /// the boolean is gone; the screen renders THIS and never re-derives the
+    /// unit from the display context.
+    ///
+    /// (`display_changed` re-denominates the field, so the mismatch does not
+    /// outlive the event — see `redenominate_to_display`. This field is what
+    /// makes that unnecessary to trust.)
+    pub amount_fiat_code: Option<String>,
+    /// Whether the ⇄ row is offered at all.
+    ///
+    /// Ported condition: the token has a price. Plus one addition — it is ALSO
+    /// offered whenever the figure is already fiat-denominated, because that
+    /// row is the only way back out, and a token that loses its price while a
+    /// fiat figure is on screen used to take the exit with it.
+    pub denom_toggle_shown: bool,
+    /// Whether pressing ⇄ would change anything. Entering fiat needs a price in
+    /// the display currency; leaving is always allowed. Without this the
+    /// control looked live and did nothing at all when the currency was
+    /// unpriceable — the refusal was real but invisible.
+    pub denom_toggle_enabled: bool,
+    /// **Why** ⇄ is inert, when it is inert.
+    ///
+    /// The previous round made the refusal VISIBLE (the row dims) and stopped
+    /// there, so this was the one branch on the screen where nothing said what
+    /// was wrong: a priced token whose display currency has no rate leaves the
+    /// figure in token units, which resolves perfectly, so no amount warning
+    /// fires either. A dimmed control with no sentence is a refusal the user
+    /// cannot act on. `Some` exactly when `denom_toggle_shown && !enabled`.
+    pub denom_toggle_reason: Option<SendUnitIssue>,
+    /// **Why** the confirm slide is disarmed, when what disarmed it is the
+    /// money.
+    ///
+    /// [`SendView::can_confirm`] never looked at the amount at all: a
+    /// display-currency commit landing while the confirm page is open
+    /// re-denominates the field to empty (`redenominate_to_display`), and the
+    /// slider stayed armed over a figure that resolved to nothing — a
+    /// zero-value transfer, signable, unexplained. The gate now asks the same
+    /// question `can_continue` asks, and this is the sentence that goes with
+    /// the refusal (`send.warnCannotConvert`, the key that round added).
+    pub confirm_amount_issue: Option<SendUnitIssue>,
     /// `amount` already resolved through the fiat↔token conversion — the ONE
     /// number the confirm page may display, because it is the very number the
     /// signed batch is built from (`resolve_token_amount`, invariant "displayed
@@ -1302,6 +1309,7 @@ impl App for Send {
             } => open(model, account, params, display),
             Event::DisplayChanged { display } => {
                 model.display = display;
+                redenominate_to_display(model);
                 render()
             }
             Event::TokensPartial { tokens } => tokens_partial(model, tokens),
@@ -1325,7 +1333,9 @@ impl App for Send {
                 if view_amount_locked(model) {
                     return Command::done(); // the field is not editable then
                 }
-                model.amount = amount;
+                // The text field edits the figure; the unit is whatever the
+                // ⇄ toggle last established and only `convert` may change it.
+                model.amount = model.amount.with_value(amount);
                 render()
             }
             Event::ToggleFiatInput => toggle_fiat_input(model),
@@ -1428,17 +1438,6 @@ impl App for Send {
         let issue = derive_same_asset_issue(model);
         let picked = picked_tokens(model);
 
-        // The Continue button gate (`EnterDetailsStep.tsx:372`).
-        let can_continue = !model.estimating_gas
-            && !(locked && warning.is_some())
-            && if model.split_mode {
-                recipients_are_valid(&model.recipients)
-            } else if model.multi_select_mode {
-                is_valid_address(&model.recipient) && !picked.is_empty()
-            } else {
-                !model.recipient.is_empty() && !model.amount.is_empty()
-            };
-
         // The confirm page's headline amount (`ConfirmStep.tsx:80`). Derived
         // here, not in the shell, so what is shown is by construction the
         // string the submit path turns into base units.
@@ -1446,15 +1445,38 @@ impl App for Send {
             .selected_token
             .as_ref()
             .map(|token| {
-                resolve_token_amount(
-                    &model.amount,
-                    model.input_in_fiat,
-                    token.price_usd,
-                    token.decimals,
-                    model.display.rate,
-                )
+                model_token_amount(model, token)
             })
             .unwrap_or_default();
+
+        // The Continue button gate (`EnterDetailsStep.tsx:372`), plus the one
+        // condition it never had: the figure must actually RESOLVE.
+        //
+        // `!amount.is_empty()` alone let the button light up on an amount that
+        // could never become base units — a fiat figure with no rate resolves
+        // to "0", so `Continue` was armed on a number the submit path was
+        // guaranteed to reject with `InvalidAmount`, over and over, with
+        // nothing on screen to explain it. The gate now asks the very string
+        // the signature would be built from, which is also the string the ⇅ row
+        // prints: button, row and signature cannot disagree.
+        let amount_resolves = js_parse_float(&token_amount) > 0.0;
+        let can_continue = !model.estimating_gas
+            && !(locked && warning.is_some())
+            && if model.split_mode {
+                recipients_are_valid(&model.recipients)
+            } else if model.multi_select_mode {
+                is_valid_address(&model.recipient) && !picked.is_empty()
+            } else {
+                !model.recipient.is_empty() && !model.amount.is_empty() && amount_resolves
+            };
+
+        let (denom_toggle_shown, denom_toggle_enabled) = denom_toggle(model);
+        // A control that declines must also say why. The only way to be shown
+        // and refuse is "entering fiat, but nothing prices this token in the
+        // currency on screen" — so the sentence names exactly that pair.
+        let denom_toggle_reason = (denom_toggle_shown && !denom_toggle_enabled)
+            .then(|| unit_issue(model))
+            .flatten();
 
         // The split editor's live over-balance hint (`MultiRecipientEditor.tsx:99-101`),
         // decided with the very helpers the `Continue` gate uses. An unparsable
@@ -1470,11 +1492,31 @@ impl App for Send {
                 }
             });
 
+        // The confirm slide's gate — and the same amount question `Continue`
+        // asks, which this twin never asked.
+        //
+        // Everything it checked was about the FEE and the pipeline; the money
+        // itself was never re-examined after `Continue`. But the confirm page
+        // is a page someone can sit on, and a `display_changed` commit landing
+        // underneath re-denominates the field to empty
+        // (`redenominate_to_display`) — leaving a slider armed over a figure
+        // that resolves to nothing. Sliding it signed a zero-value transfer
+        // with no warning anywhere. The batch modes carry their money in
+        // `recipients`/`multi_specs`, not in `model.amount`, so they are asked
+        // the same question `can_continue` asks them.
+        let confirm_amount_ok =
+            model.split_mode || model.multi_select_mode || amount_resolves;
         let can_confirm = stage == SendStage::Confirm
             && model.tx == SendTxStatus::Idle
             && !model.estimating_gas
             && !model.fee_busy
-            && issue.is_none();
+            && issue.is_none()
+            && confirm_amount_ok;
+        // …and the refusal is not allowed to be silent. Only on the page the
+        // gate governs: the entry screen already has `amount_warning`.
+        let confirm_amount_issue = (stage == SendStage::Confirm && !confirm_amount_ok)
+            .then(|| unit_issue(model))
+            .flatten();
 
         let multi_specs = model
             .selected_token
@@ -1504,8 +1546,14 @@ impl App for Send {
             tokens: model.tokens.clone(),
             selected_token: model.selected_token.clone(),
             recipient: model.recipient.clone(),
-            amount: model.amount.clone(),
-            input_in_fiat: model.input_in_fiat,
+            amount: model.amount.value().to_owned(),
+            // Derived, not stored: the view's unit and the figure's unit are
+            // the same fact, so they cannot drift apart.
+            amount_fiat_code: model.amount.fiat_code().map(str::to_owned),
+            denom_toggle_shown,
+            denom_toggle_enabled,
+            denom_toggle_reason,
+            confirm_amount_issue,
             token_amount,
             split_mode: model.split_mode,
             recipients: model.recipients.clone(),
@@ -1835,7 +1883,7 @@ fn finish_lock_resolution(model: &mut Model, token: SendToken) -> Cmd {
         // `fromBaseUnits(BigInt(base), tok.decimals)` in a try/catch — an
         // unparsable amount is simply skipped.
         if let Ok(units) = base.trim().parse::<u128>() {
-            model.amount = from_base_units(units, token.decimals);
+            model.amount = DenominatedAmount::token(from_base_units(units, token.decimals));
         }
     }
     model.selected_token = Some(token);
@@ -2031,26 +2079,151 @@ fn view_amount_locked(model: &Model) -> bool {
     model.params.locked && model.params.prefilled_amount_base.is_some()
 }
 
+/// This screen's token price, in the display currency, or `None` when either
+/// factor is missing. Never a defaulted 1 — see [`TokenPrice::new`].
+fn display_price(model: &Model, token: &SendToken) -> Option<TokenPrice> {
+    TokenPrice::new(token.price_usd, model.display.rate, &model.display.code)
+}
+
+/// The typed figure resolved into token units — the number every gate, every
+/// call builder and the confirm screen read (`resolveTokenAmount`'s job, now
+/// asked of the figure itself so the unit cannot be lost on the way).
+fn model_token_amount(model: &Model, token: &SendToken) -> String {
+    model
+        .amount
+        .to_token_units(display_price(model, token).as_ref(), token.decimals)
+}
+
+/// Whether the ⇄ row is offered, and whether pressing it would do anything.
+///
+/// One function so the control's appearance and its behaviour are decided by
+/// the same sentence. They were decided in two places before: `send.rs` refused
+/// to enter fiat without a price while `EnterDetailsStep` rendered the row on
+/// `priceUsd > 0` alone, so the control looked live and swallowed the tap.
+fn denom_toggle(model: &Model) -> (bool, bool) {
+    let Some(token) = model.selected_token.as_ref() else {
+        return (false, false);
+    };
+    // The ported render condition (`EnterDetailsStep.tsx:170`).
+    let priced = token.price_usd.is_some_and(|p| p > 0.0);
+    let in_fiat = model.amount.is_fiat();
+    // A door in must have a door out: while the figure is fiat the row is
+    // shown even for an unpriced token, because leaving is the only escape
+    // from a mode whose amount can no longer resolve.
+    let shown = priced || in_fiat;
+    // Leaving is always allowed; entering needs a price in the display
+    // currency — the same condition `toggle_fiat_input` refuses on, asked here
+    // so the refusal is visible instead of silent.
+    let enabled = in_fiat || display_price(model, token).is_some();
+    (shown, enabled)
+}
+
+/// The currency/token pair every refusal sentence on this screen names.
+///
+/// The currency is the FIGURE's when it has one and the display currency
+/// otherwise — the same rule [`redenominate_to_display`] keeps true, so the
+/// two only ever differ inside the event that is fixing them. Never invents a
+/// currency: no token, no sentence.
+fn unit_issue(model: &Model) -> Option<SendUnitIssue> {
+    let token = model.selected_token.as_ref()?;
+    Some(SendUnitIssue {
+        code: model
+            .amount
+            .fiat_code()
+            .unwrap_or(&model.display.code)
+            .to_owned(),
+        symbol: token.symbol.clone(),
+    })
+}
+
+/// Keep the typed figure's currency and the display currency the same currency.
+///
+/// A commit can land under a screen that already has a figure on it (the shell
+/// boots on a placeholder `USD` pair and replaces it once AsyncStorage and the
+/// FX/Chainlink round trip answer). The figure keeps its own code, which is
+/// what stops it being *relabelled* — but left alone it also becomes
+/// permanently unresolvable: `to_token_units` refuses a price quoted in another
+/// currency, so the amount reads `"0"` for ever, and `with_value` preserves the
+/// stale unit, so **retyping cannot fix it**. That was the trap: `Continue`
+/// disabled (or worse, armed) on every figure the user could possibly enter.
+///
+/// The figure cannot come across — a CNY↔USD cross rate is not something this
+/// screen has, and inventing one is the defect this whole area exists to
+/// forbid. So the FIGURE is dropped and the CURRENCY is adopted: the field is
+/// re-denominated in the currency now on screen, empty, ready to be typed in.
+/// Empty is the one state that claims nothing (it crosses units with no factor
+/// at all), and it is the same answer `toggle_fiat_input` gives when leaving an
+/// unconvertible fiat mode.
+///
+/// What it does NOT touch is the MODE. Whether money is typed in tokens or in
+/// currency is the user's choice, made through ⇄ and unmade only there; a
+/// display-currency commit landing in the background is not a reason to move
+/// someone out of the mode they picked. So even an unpriceable new currency
+/// keeps them in fiat — with an empty field, a stated reason
+/// ([`SendAmountWarning::CannotConvert`]) once they type, and the ⇄ row shown
+/// and enabled so the way out is one tap away.
+///
+/// The invariant this establishes, and which the rest of the file may rely on:
+/// **`model.amount`'s fiat code, when there is one, is `model.display.code`.**
+/// A figure and a rate on this screen are never about different currencies for
+/// longer than the event that made them so.
+fn redenominate_to_display(model: &mut Model) {
+    let Some(code) = model.amount.fiat_code() else {
+        return; // token units are not denominated in anyone's currency
+    };
+    if code == model.display.code {
+        return; // same currency: the figure stands, rate change or not
+    }
+    model.amount = DenominatedAmount::fiat("", &model.display.code);
+}
+
+/// The ⇄ toggle (`EnterDetailsStep.tsx:165-176`).
+///
+/// The whole operation is one [`DenominatedAmount::convert`]. It cannot be
+/// written any other way from here: `model.amount`'s unit is private to
+/// `money`, so "flip the label, keep the digits" — the defect this replaces —
+/// is not expressible. What is left is deciding what an *unconvertible* figure
+/// should become, and there are only honest options:
+///
+/// - **Entering** fiat mode is what commits someone to typing money in a
+///   currency the app must divide by. With no price for that currency there is
+///   nothing to divide by, so the door stays shut and the typed token amount is
+///   left exactly alone.
+/// - **Leaving** is always allowed, because a currency can go unpriceable while
+///   a fiat figure is already typed and trapping someone in a mode whose amount
+///   can never resolve is its own bug. But the figure does NOT come with them:
+///   5000 CNY is not 5000 USDC, and there is no rate to say what it is, so the
+///   field is emptied. An empty field is the one state that claims nothing —
+///   `can_continue` already refuses it, and the ⇅ row already reads `0 SYM`.
+///
+/// A blank or zero figure converts freely in both directions with no rate at
+/// all (zero is zero in every unit), which is why an untouched screen can still
+/// flip modes when the currency is unpriceable... except into fiat, where there
+/// would be nothing to type against.
 fn toggle_fiat_input(model: &mut Model) -> Cmd {
     let Some(token) = model.selected_token.clone() else {
         return Command::done();
     };
-    // `EnterDetailsStep.tsx:165-176` — ported verbatim, including the sloppy
-    // strip regex (see `strip_zeros_regex`).
-    let fiat_price = token.price_usd.unwrap_or(0.0) * model.display.rate;
-    let val = js_parse_float(if model.amount.is_empty() {
-        "0"
+    let price = display_price(model, &token);
+    let target = if model.amount.is_fiat() {
+        Denom::Token
     } else {
-        &model.amount
-    });
-    if val > 0.0 && fiat_price > 0.0 {
-        if model.input_in_fiat {
-            model.amount = strip_zeros_regex(&to_fixed(val / fiat_price, token.decimals));
-        } else {
-            model.amount = to_fixed(val * fiat_price, model.display.fiat_decimals);
-        }
+        model.display.denom()
+    };
+    if target.is_fiat() && price.is_none() {
+        return Command::done(); // the door into fiat stays shut
     }
-    model.input_in_fiat = !model.input_in_fiat;
+    model.amount = model
+        .amount
+        .convert(
+            &target,
+            price.as_ref(),
+            token.decimals,
+            model.display.fiat_decimals,
+        )
+        // Unconvertible on the way OUT of fiat: leave the mode, drop the
+        // figure. Never carry the digits across the unit boundary.
+        .unwrap_or_else(|_| DenominatedAmount::token(""));
     render()
 }
 
@@ -2058,8 +2231,10 @@ fn tap_max(model: &mut Model) -> Cmd {
     let Some(token) = model.selected_token.clone() else {
         return Command::done();
     };
-    // Max always fills in token amount (not fiat).
-    model.input_in_fiat = false;
+    // Max always fills in token units. Every exit below writes a token
+    // figure; the one that waits for an estimate leaves the field blank
+    // meanwhile rather than re-labelling whatever was typed before.
+    model.amount = DenominatedAmount::token("");
 
     if let Some(fee) = selected_fee(model).cloned() {
         apply_max_with_fee(model, &token, &fee);
@@ -2071,13 +2246,13 @@ fn tap_max(model: &mut Model) -> Cmd {
     let needs_estimate =
         model.account.is_some() && (token.is_native() || token.token_address.is_some());
     if !needs_estimate {
-        model.amount = full_balance(&token);
+        model.amount = DenominatedAmount::token(full_balance(&token));
         return render();
     }
     let account = match model.account.as_ref() {
         Some(a) => a.address.clone(),
         None => {
-            model.amount = full_balance(&token);
+            model.amount = DenominatedAmount::token(full_balance(&token));
             return render();
         }
     };
@@ -2115,10 +2290,11 @@ fn apply_max_with_fee(model: &mut Model, token: &SendToken, fee: &FeeEstimate) {
         // (invariant ⑨).
         match to_base_units(&token.balance, token.decimals) {
             Some(balance_wei) => {
-                model.amount = max_native_sendable(balance_wei, fee.total_wei, token.decimals);
+                model.amount =
+                    DenominatedAmount::token(max_native_sendable(balance_wei, fee.total_wei, token.decimals));
             }
             // TS `balanceToWei` would throw → catch → full balance.
-            None => model.amount = full_balance(token),
+            None => model.amount = DenominatedAmount::token(full_balance(token)),
         }
         return;
     }
@@ -2130,16 +2306,17 @@ fn apply_max_with_fee(model: &mut Model, token: &SendToken, fee: &FeeEstimate) {
             let reserve = amount.saturating_mul(3) / 2;
             match to_base_units(&token.balance, token.decimals) {
                 Some(bal) if bal > reserve => {
-                    model.amount = from_base_units(bal - reserve, token.decimals);
+                    model.amount =
+                        DenominatedAmount::token(from_base_units(bal - reserve, token.decimals));
                 }
-                Some(_) => model.amount = "0".to_owned(),
-                None => model.amount = full_balance(token),
+                Some(_) => model.amount = DenominatedAmount::token("0"),
+                None => model.amount = DenominatedAmount::token(full_balance(token)),
             }
             return;
         }
     }
     // Gas is paid in native or a separate fee asset — full balance sendable.
-    model.amount = full_balance(token);
+    model.amount = DenominatedAmount::token(full_balance(token));
 }
 
 // ---------------------------------------------------------------------------
@@ -2155,21 +2332,16 @@ fn enter_split_mode(model: &mut Model) -> Cmd {
     let Some(token) = model.selected_token.clone() else {
         return Command::done();
     };
-    let token_amt = resolve_token_amount(
-        &model.amount,
-        model.input_in_fiat,
-        token.price_usd,
-        token.decimals,
-        model.display.rate,
-    );
+    let token_amt = model_token_amount(model, &token);
+    let row_amount = if model.amount.is_empty() {
+        String::new()
+    } else {
+        token_amt
+    };
     let first = SendRecipientDraft {
         id: make_recipient_id(model),
         address: model.recipient.clone(),
-        amount: if model.amount.is_empty() {
-            String::new()
-        } else {
-            token_amt
-        },
+        amount: row_amount.clone(),
         name: None,
     };
     let empty = SendRecipientDraft {
@@ -2179,7 +2351,10 @@ fn enter_split_mode(model: &mut Model) -> Cmd {
         name: None,
     };
     model.recipients = vec![first, empty];
-    model.input_in_fiat = false;
+    // Split rows are token-denominated, so the single-send figure follows them
+    // into token units — RESTATED through the same resolution the first row
+    // got, not merely re-labelled.
+    model.amount = DenominatedAmount::token(row_amount);
     model.split_mode = true;
     render()
 }
@@ -2199,7 +2374,9 @@ fn seed_split(model: &mut Model, rows: Vec<SendRecipientDraft>) -> Cmd {
     }
     let mut rows = assign_ids(model, rows);
     rows.truncate(BATCH_MAX_RECIPIENTS); // the importer's trim (invariant ⑩)
-    model.input_in_fiat = false;
+    // The imported rows replace the single-send figure outright; there is
+    // nothing left to restate, so the field goes empty in token units.
+    model.amount = DenominatedAmount::token("");
     model.recipients = rows;
     model.split_mode = true;
     model.show_batch_import = false;
@@ -2211,7 +2388,9 @@ fn recipients_changed(model: &mut Model, rows: Vec<SendRecipientDraft>) -> Cmd {
     if rows.len() <= 1 {
         // Collapse back to single mode, carrying the remaining row.
         model.recipient = rows.first().map(|r| r.address.clone()).unwrap_or_default();
-        model.amount = rows.first().map(|r| r.amount.clone()).unwrap_or_default();
+        // A split row's amount is token-denominated by construction.
+        model.amount =
+            DenominatedAmount::token(rows.first().map(|r| r.amount.clone()).unwrap_or_default());
         model.split_mode = false;
         model.recipients.clear();
         return Command::all([sync_identity(model), render()]);
@@ -2259,7 +2438,7 @@ fn scan_resolved(model: &mut Model, scan: SendScan) -> Cmd {
         } => {
             // A full EIP-681 request re-opens Send locked (`router.replace`).
             let account = model.account.clone();
-            let display = model.display;
+            let display = model.display.clone();
             let params = SendOpenParams {
                 prefilled_recipient: Some(recipient),
                 prefilled_chain_id: Some(chain_id.to_string()),
@@ -2373,13 +2552,7 @@ fn build_sim_calls(model: &Model, token: &SendToken) -> Option<Vec<FeeCall>> {
             &model.recipients,
         )
     } else {
-        let amount = resolve_token_amount(
-            &model.amount,
-            model.input_in_fiat,
-            token.price_usd,
-            token.decimals,
-            model.display.rate,
-        );
+        let amount = model_token_amount(model, token);
         let units = to_base_units(&amount, token.decimals)?;
         Some(vec![match token.token_address.as_deref() {
             None => FeeCall {
@@ -2415,19 +2588,26 @@ fn derive_amount_warning(model: &Model) -> Option<SendAmountWarning> {
     if model.amount.is_empty() {
         return None;
     }
-    let token_amount = resolve_token_amount(
-        &model.amount,
-        model.input_in_fiat,
-        token.price_usd,
-        token.decimals,
-        model.display.rate,
-    );
+    let token_amount = model_token_amount(model, token);
     let amount_num = js_parse_float(if token_amount.is_empty() {
         "0"
     } else {
         &token_amount
     });
     if !(amount_num > 0.0) {
+        // Typed digits that resolve to nothing are not "no amount" — they are
+        // an amount whose FACTOR is missing (no rate for the display currency,
+        // or no price for the token). `Continue` refuses it either way; this is
+        // the sentence that says so, and it names the way out (the ⇄ row, which
+        // `denom_toggle` keeps reachable for exactly this reason).
+        if model.amount.as_f64() > 0.0 {
+            if let Some(code) = model.amount.fiat_code() {
+                return Some(SendAmountWarning::CannotConvert {
+                    code: code.to_owned(),
+                    symbol: token.symbol.clone(),
+                });
+            }
+        }
         return None;
     }
     let fee = selected_fee(model);
@@ -2527,13 +2707,7 @@ fn derive_same_asset_issue(model: &Model) -> Option<SendFeeIssueView> {
         sum_split_base_units(&model.recipients, token.decimals)?
     } else {
         to_base_units(
-            &resolve_token_amount(
-                &model.amount,
-                model.input_in_fiat,
-                token.price_usd,
-                token.decimals,
-                model.display.rate,
-            ),
+            &model_token_amount(model, token),
             token.decimals,
         )?
     };
@@ -2611,15 +2785,9 @@ fn handle_continue(model: &mut Model) -> Cmd {
             return alert(model, SendAlertKind::InvalidAddress);
         }
         let token = model.selected_token.clone();
-        let amount_num = token.as_ref().map(|tk| {
-            js_parse_float(&resolve_token_amount(
-                &model.amount,
-                model.input_in_fiat,
-                tk.price_usd,
-                tk.decimals,
-                model.display.rate,
-            ))
-        });
+        let amount_num = token
+            .as_ref()
+            .map(|tk| js_parse_float(&model_token_amount(model, tk)));
         if let Some(n) = amount_num {
             if n.is_nan() || n <= 0.0 {
                 return alert(model, SendAlertKind::InvalidAmount);
@@ -2688,13 +2856,7 @@ fn build_estimate_shape(model: &Model, token: &SendToken) -> (Option<FeeCall>, O
         };
     }
     if !model.amount.is_empty() && is_valid_address(&model.recipient) {
-        let amount = resolve_token_amount(
-            &model.amount,
-            model.input_in_fiat,
-            token.price_usd,
-            token.decimals,
-            model.display.rate,
-        );
+        let amount = model_token_amount(model, token);
         let Some(units) = to_base_units(&amount, token.decimals) else {
             return (None, None);
         };
@@ -2822,6 +2984,21 @@ fn slide_confirm(model: &mut Model) -> Cmd {
     if derive_same_asset_issue(model).is_some() {
         return edit_amount(model);
     }
+    // …and the same for a figure that stopped resolving. `can_confirm` disables
+    // the control, but a disabled control is a suggestion — the event can still
+    // arrive from a stale frame, and `to_base_units("0", d)` is a perfectly
+    // valid `Some(0)`, so the build path would have happily encoded a
+    // zero-value transfer and asked for a passkey over it. The recovery is the
+    // one the same-asset breach already gets: back to the amount field.
+    let unresolved = !model.split_mode
+        && !model.multi_select_mode
+        && model
+            .selected_token
+            .as_ref()
+            .is_some_and(|token| !(js_parse_float(&model_token_amount(model, token)) > 0.0));
+    if unresolved {
+        return edit_amount(model);
+    }
     // Synchronous single-flight lock: a second slide in the same tick is a
     // no-op (invariant ④'s acquisition half).
     let Some(gen) = model.lock.begin() else {
@@ -2833,6 +3010,7 @@ fn slide_confirm(model: &mut Model) -> Cmd {
     model.user_op_hash = None;
     model.tx_error = None;
     model.receipt_failed = false;
+    model.receipt_signed = None;
     model.fee_held = false;
     model.fee_rejected = false;
 
@@ -2959,13 +3137,7 @@ fn submit_user_op(model: &mut Model, gen: u64, public_key_hex: String) -> Cmd {
             (calls, lines)
         })
     } else {
-        let amount = resolve_token_amount(
-            &model.amount,
-            model.input_in_fiat,
-            token.price_usd,
-            token.decimals,
-            model.display.rate,
-        );
+        let amount = model_token_amount(model, &token);
         to_base_units(&amount, token.decimals).and_then(|units| {
             let call = match token.token_address.as_deref() {
                 None => FeeCall {
@@ -3099,7 +3271,7 @@ fn handle_back(model: &mut Model) -> Cmd {
                 model.step = SendStep::SelectToken;
             } else {
                 model.selected_token = None;
-                model.amount.clear();
+                model.amount = DenominatedAmount::token("");
                 model.recipient.clear();
                 model.split_mode = false;
                 model.recipients.clear();
@@ -3358,14 +3530,14 @@ fn accept_fee(model: &mut Model, id: u64, outcome: SendFeeOutcome) -> Cmd {
                         render()
                     }
                     None => {
-                        model.amount = full_balance(&token);
+                        model.amount = DenominatedAmount::token(full_balance(&token));
                         render()
                     }
                 },
                 SendFeeOutcome::Failed { .. } => {
                     // Estimation failed — full balance; the pre-check still
                     // warns (`useSendController.ts:819-821, 841-843`).
-                    model.amount = full_balance(&token);
+                    model.amount = DenominatedAmount::token(full_balance(&token));
                     render()
                 }
             }
@@ -3526,6 +3698,10 @@ fn accept_submitted(model: &mut Model, id: u64, user_op_hash: String, now_ms: f6
         model.receipt_lines = None;
         model.receipt_kind = None;
     }
+    // The signature is now a fact. Freeze the money it moved (and the price it
+    // moved at) so no later display-currency commit can restate it — the
+    // receipt reads THIS and never converts again.
+    model.receipt_signed = lines.first().cloned();
     model.user_op_hash = Some(user_op_hash.clone());
     model.tx = SendTxStatus::Confirmed;
     model.lock.end(gen);
@@ -3712,15 +3888,18 @@ fn receipt_view(model: &Model, stage: SendStage) -> Option<SendReceiptView> {
     if stage != SendStage::Receipt {
         return None;
     }
-    let token = model.selected_token.as_ref()?;
-    let amount = resolve_token_amount(
-        &model.amount,
-        model.input_in_fiat,
-        token.price_usd,
-        token.decimals,
-        model.display.rate,
-    );
-    let usd_value = js_parse_float(&amount).max(0.0) * token.price_usd.unwrap_or(0.0);
+    // The receipt is a screen about a selected token (`SendScreen.tsx:147`).
+    model.selected_token.as_ref()?;
+    // READ, never re-derive. `model_token_amount` used to be called here, which
+    // re-ran the fiat↔token conversion against the display context of the
+    // moment: the receipt's number then tracked the currency picker instead of
+    // the signature, and printed `0` as soon as the rate went away. Both the
+    // figure and the price it was worth are read off the submit-time snapshot,
+    // which is the same discipline `transfers` below has always had (its lines
+    // are captured at submit too).
+    let signed = model.receipt_signed.as_ref();
+    let amount = signed.map(|ln| ln.amount.clone()).unwrap_or_default();
+    let usd_value = signed.map_or(0.0, |ln| js_parse_float(&ln.amount).max(0.0) * ln.price_usd);
     let transfers = model
         .receipt_lines
         .as_deref()

@@ -165,6 +165,15 @@ export function GasFeeCard({
     : feeEstimate ? Number(feeEstimate.totalWei) / 1e18 : 0);
   // A native-price feed is optional: gas can still be paid and displayed in the native
   // asset without a USD conversion. Prefer the wallet's price fallback when available.
+  //
+  // DISPLAY ONLY. `feeUsd` never leaves this component — it decides `showFiat`
+  // and one formatted string, and the number that is quoted, signed and
+  // reimbursed is `feeUnits` in `feeSym`, which is token-denominated. The
+  // `erc20Fee ? feeUnits : …` arm is therefore a rendering convenience for an
+  // unpriced fee asset (the whitelist is stablecoins, so ≈1:1), not a rate:
+  // nothing derived from it may enter a conversion, a gate or a submit. If this
+  // value ever needs to gate anything, take the missing price as a refusal —
+  // see `fiat-convert.ts::TokenPrice`.
   const selectedUsdPrice = selectedOption?.usdPrice === null || selectedOption?.usdPrice === undefined
     ? null
     : Number(selectedOption.usdPrice);

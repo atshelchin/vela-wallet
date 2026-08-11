@@ -21,7 +21,7 @@ use vela_core::app::rpc_pool::{
     strip_chain_suffix, Event, RpcBanEntry, RpcCallVerdict, RpcEndpointSeed, RpcEndpointStats,
     RpcErrorInfo, RpcKind, RpcOperation as Op, RpcPool, RpcShellResult as Res, RpcSource,
     RpcTransportOutcome as Out, BUNDLER_RPC_TIMEOUT_MS, PERMA_BAN_TTL_MS, PING_TIMEOUT_MS,
-    RPC_READ_TIMEOUT_MS, TEMP_BAN_TTL_MS,
+    POOL_REFRESH_MS, RPC_READ_TIMEOUT_MS, TEMP_BAN_TTL_MS,
 };
 
 type Sut = DomainDriver<RpcPool>;
@@ -793,8 +793,19 @@ fn bundler_retries_once_and_never_classifies_chains() {
     assert!(view.rate_limited_chains.is_empty());
 }
 
-/// Invariant ⑥: when every endpoint of the pool is banned, the bans clear
-/// and failure counters reset so the chain can recover.
+/// Invariant ⑥: when every endpoint of the pool is banned, the next pass goes
+/// over the bans and the failure counters reset, so the chain can recover.
+///
+/// The rescue is scoped to the pass. It does NOT delete the ban entries, and
+/// that is load-bearing rather than incidental: those entries are the same ones
+/// `bundler_eligible_urls` reads, so deleting them here (as `rpc-pool.ts` does,
+/// and as this core used to) silently re-admitted the endpoint to BOTH
+/// `X-Rpc-Url` legs — the thing `begin_bundler_call`'s own comment says must
+/// not happen. See `a_read_leg_rescue_does_not_re_admit_an_endpoint_to_the_header`.
+///
+/// Mutation proof: restore the `model.bans.remove(&endpoint.url)` loop in
+/// `select_with_rescue` and this test wants `PersistBans { entries: vec![] }`
+/// again while the companion test's header flips from `None` to `USER`.
 #[test]
 fn all_banned_pool_rescues_itself() {
     let mut sut = Sut::new();
@@ -834,23 +845,66 @@ fn all_banned_pool_rescues_itself() {
             delay_ms: 0
         }]
     );
-    // The next pass finds everything banned → rescue: bans cleared (and
-    // persisted empty), counters reset, the sweep restarts at the top tier.
+    // The next pass finds everything banned → rescue: the pass proceeds over
+    // the bans, counters reset, the sweep restarts at the top tier. Nothing is
+    // persisted, because nothing about the ban record changed.
     let ops = sut.resolve(Res::BackoffElapsed {
         call_id: "c1".to_owned(),
         now_ms: T0 + 30.0,
     });
-    assert_eq!(
-        ops,
-        vec![
-            Op::PersistBans { entries: vec![] },
-            rpc_post("c1", USER, "eth_call"),
-        ]
-    );
-    assert!(sut.resolve(Res::Persisted).is_empty());
+    assert_eq!(ops, vec![rpc_post("c1", USER, "eth_call")]);
     let ops = sut.resolve(outcome("c1", USER, ok(), 40.0, T0 + 70.0));
     assert_eq!(ops, vec![respond("c1", USER)]);
-    assert!(sut.view().banned.is_empty());
+    // The bans stand. A pass with no alternative had to use these endpoints;
+    // that is not the same as the pool being healthy, and every other reader —
+    // `getChainRpcUrl`, the bundler header, the next chain's selection — is
+    // still told the truth.
+    let banned: Vec<String> = sut.view().banned.iter().map(|b| b.url.clone()).collect();
+    assert_eq!(banned, vec![PUB1.to_owned(), USER.to_owned()]);
+}
+
+/// The contradiction invariant ⑥ used to carry, as a test.
+///
+/// A single ordinary read on a chain whose only RPC endpoint is under
+/// yesterday's permanent 401 used to DELETE that ban — and `X-Rpc-Url` reads
+/// the same ban map, so the very next bundler call handed the relay an endpoint
+/// that has never once answered, on the strength of a rescue that was about
+/// keeping READS alive. Two legs, one edit, and a comment three hundred lines
+/// up promising the opposite.
+#[test]
+fn a_read_leg_rescue_does_not_re_admit_an_endpoint_to_the_header() {
+    let mut sut = Sut::new();
+    assert!(sut
+        .dispatch(Event::BansLoaded {
+            entries: vec![perma_ban(USER, T0 - HOUR)],
+        })
+        .is_empty());
+
+    // A read on the all-banned pool. The rescue runs (it must — otherwise the
+    // chain is simply unreachable) and the read succeeds.
+    sut.dispatch(rpc_call("c1", "eth_call", T0));
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User)],
+        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        T0,
+    ));
+    assert_eq!(ops, vec![rpc_post("c1", USER, "eth_call")]);
+    let ops = sut.resolve(outcome("c1", USER, ok(), 40.0, T0 + 40.0));
+    assert_eq!(ops, vec![respond("c1", USER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // The ban survived the rescue…
+    assert_eq!(sut.view().banned.len(), 1);
+    // …so the bundler leg still refuses to name it,
+    let ops = sut.dispatch(bundler_call("b1", T0 + 100.0));
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, None)]);
+    let ops = sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 200.0));
+    assert_eq!(ops, vec![respond("b1", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+    // …and so does the REST leg, in the same breath.
+    let ops = sut.dispatch(best_rpc("q1", T0 + 300.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", None)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
 }
 
 /// Invariant ⑦: an endpoint that NEVER succeeded and failed ≥ 6 times is
@@ -1023,8 +1077,17 @@ fn wrong_chain_id_never_reaches_x_rpc_url() {
 
 /// Invariant ② fail-closed deviation (doc'd in the module): when EVERY
 /// endpoint reported a wrong chain, no X-Rpc-Url is sent at all — TS would
-/// have fallen back to the unverified score-sorted first. A pure ping
-/// failure (no report) still falls back, as in TS, and is not cached.
+/// have fallen back to the unverified score-sorted first.
+///
+/// NOT A REGRESSION — the second half of this test used to show the NEXT
+/// bundler call racing the same two endpoints again and, on a pure ping
+/// failure, riding `Some(USER)`. USER had already PROVED it serves chain 1;
+/// the proof simply was not consulted outside the race that produced it, so
+/// the JSON-RPC leg re-offered an endpoint `getChainRpcUrl` was refusing to
+/// name for the very same chain in the same instant. The memory now binds
+/// both legs, and the ported ping-failure fallback is shown where it still
+/// applies: after `RefreshChain`, which forgets the condemnation because a
+/// config change can put a different node behind the same URL.
 #[test]
 fn all_wrong_chain_probes_fail_closed_ping_failures_fall_back() {
     let mut sut = Sut::new();
@@ -1043,13 +1106,431 @@ fn all_wrong_chain_probes_fail_closed_ping_failures_fall_back() {
     assert_eq!(ops, vec![respond("b1", BUSER)]);
     assert!(sut.resolve(Res::Concluded).is_empty());
 
-    // Nothing was cached — the next call races again; this time both pings
-    // FAIL (no report) → fall back to the score-sorted first, as in TS.
+    // Nothing was cached — but the condemnation outlived the race, so the next
+    // bundler call has no candidate left to vouch for and does not even race.
+    // The header is omitted; a UserOp is never submitted through a node the
+    // pool has proved is on another chain.
     let ops = sut.dispatch(bundler_call("b2", T0 + 1_000.0));
+    assert_eq!(ops, vec![bundler_post("b2", BUSER, None)]);
+    let ops = sut.resolve(outcome("b2", BUSER, ok(), 50.0, T0 + 1_100.0));
+    assert_eq!(ops, vec![respond("b2", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Both legs agree, which is what invariant ② asks for: the REST leg
+    // answers `None` for the same chain in the same instant.
+    let ops = sut.dispatch(best_rpc("q1", T0 + 1_200.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", None)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // `RefreshChain` forgets the condemnation (a config change can put a
+    // different node behind the same URL) — and only then does the ported
+    // ping-failure fallback apply: a probe that merely timed out proves
+    // nothing, so the score-sorted first is used unverified, as in TS, and is
+    // not cached.
+    let ops = sut.dispatch(Event::RefreshChain { chain_id: CHAIN });
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
+    assert!(sut
+        .resolve(config(
+            vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
+            vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+            T0 + 2_000.0,
+        ))
+        .is_empty());
+    let ops = sut.dispatch(bundler_call("b3", T0 + 3_000.0));
     assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
-    assert!(sut.resolve(probed(USER, None, 3_000.0, T0 + 4_000.0)).is_empty());
-    let ops = sut.resolve(probed(PUB1, None, 3_000.0, T0 + 4_100.0));
+    assert!(sut.resolve(probed(USER, None, 3_000.0, T0 + 6_000.0)).is_empty());
+    let ops = sut.resolve(probed(PUB1, None, 3_000.0, T0 + 6_100.0));
+    assert_eq!(ops, vec![bundler_post("b3", BUSER, Some(USER))]);
+}
+
+/// The cached race winner is re-asked the ONE question, not trusted for having
+/// won: a `fastest` pick that has since been BANNED never rides `X-Rpc-Url`.
+///
+/// The short-circuit used to re-check `wrong_chain` and nothing else, so for
+/// the whole hour of `FASTEST_RPC_TTL_MS` the JSON-RPC leg kept naming an
+/// endpoint the pool had banned on a 403/401 — while `getChainRpcUrl`, asked
+/// about the same chain in the same instant, correctly refused it. One pool,
+/// two opinions, and the one that reached the bundler was the wrong one: the
+/// bundler reads the Safe's code, nonce and balance through this URL to decide
+/// a treasury transfer, and a banned endpoint is precisely one that has proved
+/// it cannot answer.
+///
+/// Mutation proof: replace the membership test in `begin_bundler_call` with
+/// the old wrong-chain-only `condemned` check and the final assertions here
+/// become `bundler_post("b3", BUSER, Some(USER))` — the banned endpoint back
+/// in the header, disagreeing with `best_rpc_answer("q1", Some(PUB1))` two
+/// lines down.
+#[test]
+fn a_cached_fastest_winner_that_has_been_banned_never_rides_the_header() {
+    let mut sut = loaded(T0);
+
+    // A race USER wins outright — it is genuinely this chain's, and genuinely
+    // the fastest. The winner is cached for an hour.
+    let ops = sut.dispatch(bundler_call("b1", T0 + 1_000.0));
+    assert_eq!(ops, vec![probe(USER), probe(PUB1), probe(PUB2)]);
+    assert!(sut
+        .resolve(probed(USER, Some(CHAIN), 10.0, T0 + 1_010.0))
+        .is_empty());
+    assert!(sut
+        .resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 1_900.0))
+        .is_empty());
+    let ops = sut.resolve(probed(PUB2, Some(CHAIN), 950.0, T0 + 1_950.0));
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(USER))]);
+    let ops = sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 2_000.0));
+    assert_eq!(ops, vec![respond("b1", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Guard against a vacuous test: the cache really is live and really does
+    // short-circuit — no probes, straight to the header.
+    let ops = sut.dispatch(bundler_call("b2", T0 + 3_000.0));
     assert_eq!(ops, vec![bundler_post("b2", BUSER, Some(USER))]);
+    let ops = sut.resolve(outcome("b2", BUSER, ok(), 80.0, T0 + 3_100.0));
+    assert_eq!(ops, vec![respond("b2", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Then an ordinary read gets HTTP 403 from USER: banned, failed over.
+    // Nothing about this touches `fastest` — the ban is learned on the other
+    // leg entirely, which is exactly how the two opinions drifted apart.
+    let ops = sut.dispatch(rpc_call("c1", "eth_call", T0 + 4_000.0));
+    assert_eq!(ops, vec![rpc_post("c1", USER, "eth_call")]);
+    let ops = sut.resolve(outcome(
+        "c1",
+        USER,
+        Out::HttpError { status: 403 },
+        30.0,
+        T0 + 4_100.0,
+    ));
+    assert_eq!(
+        ops,
+        vec![
+            Op::PersistBans {
+                entries: vec![temp_ban(USER, T0 + 4_100.0)]
+            },
+            rpc_post("c1", PUB1, "eth_call"),
+        ]
+    );
+    assert!(sut.resolve(Res::Persisted).is_empty());
+    let ops = sut.resolve(outcome("c1", PUB1, ok(), 40.0, T0 + 4_200.0));
+    assert_eq!(ops, vec![respond("c1", PUB1)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Well inside the hour, so the pick is not stale — only ineligible. The
+    // cached winner is no longer a member of the candidate set, so it cannot
+    // be handed out; a fresh race runs over what is left instead. This
+    // assertion read `bundler_post("b3", BUSER, Some(USER))` before.
+    let ops = sut.dispatch(bundler_call("b3", T0 + 5_000.0));
+    assert_eq!(ops, vec![probe(PUB1), probe(PUB2)]);
+    assert!(sut
+        .resolve(probed(PUB1, Some(CHAIN), 100.0, T0 + 5_100.0))
+        .is_empty());
+    let ops = sut.resolve(probed(PUB2, Some(CHAIN), 200.0, T0 + 5_200.0));
+    assert_eq!(ops, vec![bundler_post("b3", BUSER, Some(PUB1))]);
+    let ops = sut.resolve(outcome("b3", BUSER, ok(), 80.0, T0 + 5_300.0));
+    assert_eq!(ops, vec![respond("b3", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Both legs agree, which is the whole invariant: the REST leg answers the
+    // same chain with the same non-banned endpoint.
+    let ops = sut.dispatch(best_rpc("q1", T0 + 5_400.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", Some(PUB1))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+}
+
+/// A ban learned **while the probes were still out** binds the race winner.
+///
+/// The race window is up to `PING_TIMEOUT_MS` wide and the JSON-RPC leg keeps
+/// running through it, so the pool can condemn an endpoint between "probe
+/// sent" and "probe answered". `handle_probe` used to hand the fastest matcher
+/// straight to every waiter without re-asking anything — so the endpoint that
+/// had just earned a 403 went out on `X-Rpc-Url` with
+/// `eth_sendUserOperation`, in the same instant `answer_best_rpc_url` was
+/// refusing to name it for the same chain. Fifth door, same predicate now.
+///
+/// Note the winner is not merely dropped: the race verified PUB1 too, and PUB1
+/// is still eligible, so it takes the header. Fail-closed is for when nothing
+/// survives the predicate, not a punishment for the whole race.
+///
+/// Mutation proof: delete the `is_eligible` filter over `race.matches` in
+/// `handle_probe` and the header assertion becomes
+/// `bundler_post("b1", BUSER, Some(USER))` — the banned endpoint, contradicting
+/// `best_rpc_answer("q1", Some(PUB1))` on the line below.
+#[test]
+fn a_ban_learned_during_the_probe_window_disqualifies_the_race_winner() {
+    let mut sut = loaded(T0);
+
+    // The bundler call opens a race over the whole pool. Nothing is decided
+    // until every probe lands.
+    let ops = sut.dispatch(bundler_call("b1", T0 + 1_000.0));
+    assert_eq!(ops, vec![probe(USER), probe(PUB1), probe(PUB2)]);
+
+    // Mid-race, an ordinary read gets HTTP 403 from USER — the endpoint that
+    // is about to win on latency. The ban is learned on the other leg, which
+    // is exactly how the two opinions used to drift apart.
+    let ops = sut.dispatch(rpc_call("c1", "eth_call", T0 + 1_100.0));
+    assert_eq!(ops, vec![rpc_post("c1", USER, "eth_call")]);
+    let ops = sut.resolve(outcome(
+        "c1",
+        USER,
+        Out::HttpError { status: 403 },
+        30.0,
+        T0 + 1_200.0,
+    ));
+    assert_eq!(
+        ops,
+        vec![
+            Op::PersistBans {
+                entries: vec![temp_ban(USER, T0 + 1_200.0)]
+            },
+            rpc_post("c1", PUB1, "eth_call"),
+        ]
+    );
+    assert!(sut.resolve(Res::Persisted).is_empty());
+    let ops = sut.resolve(outcome("c1", PUB1, ok(), 40.0, T0 + 1_300.0));
+    assert_eq!(ops, vec![respond("c1", PUB1)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Now the probes land. USER answers first AND reports the right chain —
+    // under the old code that was enough to put it on the header.
+    assert!(sut
+        .resolve(probed(USER, Some(CHAIN), 10.0, T0 + 1_400.0))
+        .is_empty());
+    assert!(sut
+        .resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 2_000.0))
+        .is_empty());
+    let ops = sut.resolve(probed(PUB2, Some(CHAIN), 950.0, T0 + 2_050.0));
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(PUB1))]);
+    let ops = sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 2_100.0));
+    assert_eq!(ops, vec![respond("b1", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Both legs agree — the whole point of one predicate.
+    let ops = sut.dispatch(best_rpc("q1", T0 + 2_200.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", Some(PUB1))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // And the banned endpoint was never parked in the hour-long cache: the
+    // next bundler call short-circuits to PUB1, not USER.
+    let ops = sut.dispatch(bundler_call("b2", T0 + 2_300.0));
+    assert_eq!(ops, vec![bundler_post("b2", BUSER, Some(PUB1))]);
+}
+
+/// Nothing eligible is an honest failure, not a reason to relax the predicate:
+/// a pool whose every RPC endpoint is banned sends no `X-Rpc-Url` at all — it
+/// does not resurrect one for the bundler.
+///
+/// The sweep DOES rescue an all-banned pool (invariant ⑥) so the chain stays
+/// reachable for reads; that rescue must not leak into the header, because a
+/// rescued endpoint has not answered anything yet.
+#[test]
+fn an_all_banned_pool_sends_no_x_rpc_url_rather_than_resurrect_one() {
+    let mut sut = Sut::new();
+    // Yesterday's 401 ("unauthorized" — the endpoint can never serve us),
+    // restored from storage at startup. The chain's only RPC endpoint.
+    assert!(sut
+        .dispatch(Event::BansLoaded {
+            entries: vec![perma_ban(USER, T0 - HOUR)],
+        })
+        .is_empty());
+
+    sut.dispatch(bundler_call("b1", T0));
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User)],
+        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        T0,
+    ));
+    // No eligible endpoint, so no header. The single-candidate exit is phrased
+    // against the same predicate as the others, so "one candidate" and "one
+    // ELIGIBLE candidate" cannot come apart here.
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, None)]);
+    let ops = sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 100.0));
+    assert_eq!(ops, vec![respond("b1", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // And the REST leg says the same. Note the read sweep would RESCUE this
+    // pool (invariant ⑥) to keep the chain reachable at all; that rescue is
+    // deliberately not visible here.
+    let ops = sut.dispatch(best_rpc("q1", T0 + 200.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", None)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+}
+
+/// The sixth door: the header was chosen ONCE per call and then re-used
+/// unexamined for every POST of that call.
+///
+/// A bundler call is up to two passes of several POSTs. `session.x_rpc_url` was
+/// captured at `set_x_and_sweep` / when the probe race landed, and
+/// `next_endpoint` read it straight out of the session — so everything the pool
+/// learned *after* the header was picked (a 403 ban from a concurrent
+/// `eth_call`, a wrong-chain proof from a later race, a config change) applied
+/// to every other consumer of the pool and to no POST of the call in flight.
+/// One pool, two opinions, for the fifth time — and this one was invisible
+/// because the FIRST POST was always right.
+///
+/// Mutation proof: put `session.x_rpc_url.clone()` back in `next_endpoint` and
+/// the last assertion goes from `Some(PUB1)` to `Some(USER)` — a UserOp built
+/// against a node the pool banned for returning 403 to everyone else.
+#[test]
+fn a_ban_learned_mid_call_changes_the_header_on_the_very_next_post() {
+    let mut sut = Sut::new();
+    sut.dispatch(bundler_call("b1", T0));
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
+        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        T0,
+    ));
+    assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
+    // USER wins the race fairly, on this chain, and rides the first POST.
+    assert!(sut.resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 900.0)).is_empty());
+    let ops = sut.resolve(probed(USER, Some(CHAIN), 10.0, T0 + 910.0));
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(USER))]);
+
+    // While that POST is in flight, an ordinary read gets 403 from USER and
+    // the pool bans it. Nothing about the bundler call has changed — yet.
+    sut.dispatch(rpc_call("c1", "eth_call", T0 + 1_000.0));
+    let ops = sut.resolve(outcome(
+        "c1",
+        USER,
+        Out::HttpError { status: 403 },
+        10.0,
+        T0 + 1_010.0,
+    ));
+    assert_eq!(
+        ops,
+        vec![
+            Op::PersistBans {
+                entries: vec![temp_ban(USER, T0 + 1_010.0)]
+            },
+            rpc_post("c1", PUB1, "eth_call"),
+        ]
+    );
+    assert!(sut.resolve(Res::Persisted).is_empty());
+
+    // Now the bundler's first endpoint fails and the call moves to its second.
+    // The header is re-asked and USER no longer qualifies, so the POST carries
+    // the best endpoint that does.
+    let ops = sut.resolve(outcome(
+        "b1",
+        BUSER,
+        Out::HttpError { status: 502 },
+        30.0,
+        T0 + 1_100.0,
+    ));
+    assert_eq!(ops, vec![bundler_post("b1", BRELAY, Some(PUB1))]);
+}
+
+/// …and when nothing qualifies, the header is dropped rather than sent knowing
+/// it is wrong. Same fail-closed answer `begin_bundler_call` gives on an empty
+/// candidate set — asked again, later, by the same predicate.
+#[test]
+fn a_header_with_no_eligible_replacement_is_dropped_not_kept() {
+    let mut sut = Sut::new();
+    sut.dispatch(bundler_call("b1", T0));
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User)],
+        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        T0,
+    ));
+    // A lone candidate needs no race.
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(USER))]);
+
+    // The only RPC endpoint is banned mid-call by a concurrent read.
+    sut.dispatch(rpc_call("c1", "eth_call", T0 + 100.0));
+    let ops = sut.resolve(outcome(
+        "c1",
+        USER,
+        Out::HttpError { status: 401 },
+        10.0,
+        T0 + 110.0,
+    ));
+    assert_eq!(
+        ops,
+        vec![
+            Op::PersistBans {
+                entries: vec![temp_ban(USER, T0 + 110.0)]
+            },
+            Op::DrawJitter { call_id: "c1".to_owned() },
+        ]
+    );
+    assert!(sut.resolve(Res::Persisted).is_empty());
+
+    let ops = sut.resolve(outcome(
+        "b1",
+        BUSER,
+        Out::HttpError { status: 502 },
+        30.0,
+        T0 + 200.0,
+    ));
+    assert_eq!(ops, vec![bundler_post("b1", BRELAY, None)]);
+}
+
+/// The door the single-candidate short-circuit left open, and the one the
+/// reproduction walks through: a chain whose pool has SHRUNK to one endpoint,
+/// and that endpoint is the one already proved to be on chain 999.
+///
+/// `ranked.len() == 1` used to return it directly, without consulting the
+/// wrong-chain memory at all — so `eth_sendUserOperation` went out with
+/// `X-Rpc-Url: USER`, and the bundler read the Safe's code, nonce and balance
+/// on chain 999 to decide a treasury transfer. `getChainRpcUrl` answered `None`
+/// for that same chain at that same moment: one header, two legs, two answers.
+#[test]
+fn a_lone_surviving_candidate_is_still_refused_when_it_proved_another_chain() {
+    let mut sut = Sut::new();
+    sut.dispatch(bundler_call("b1", T0));
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
+        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        T0,
+    ));
+    assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
+    // USER reports chain 999; PUB1 is correct and wins.
+    assert!(sut.resolve(probed(USER, Some(999), 10.0, T0 + 10.0)).is_empty());
+    let ops = sut.resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 900.0));
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(PUB1))]);
+    let ops = sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 1_000.0));
+    assert_eq!(ops, vec![respond("b1", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // PUB1 then leaves the chain index. This is the ordinary 10-minute pool
+    // refresh, NOT `RefreshChain`/`InvalidateAll` — nothing here says the node
+    // behind USER changed, so the condemnation stands.
+    let later = T0 + POOL_REFRESH_MS + 1_000.0;
+    let ops = sut.dispatch(bundler_call("b2", later));
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User)],
+        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        later,
+    ));
+
+    // The sole candidate is condemned, so there is no header. An honest
+    // failure — never a fall-back to a node known to serve another chain.
+    // This assertion read `Some(USER)` before the short-circuit consulted the
+    // memory: a UserOp submitted against chain 999's view of the Safe.
+    assert_eq!(ops, vec![bundler_post("b2", BUSER, None)]);
+    let ops = sut.resolve(outcome("b2", BUSER, ok(), 80.0, later + 100.0));
+    assert_eq!(ops, vec![respond("b2", BUSER)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // And the REST leg says exactly the same thing — which is the invariant:
+    // one header, two legs, one answer.
+    let ops = sut.dispatch(best_rpc("q1", later + 200.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", None)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // `RefreshChain` is the one thing that DOES say the node may have changed,
+    // and it re-admits the URL — otherwise a user who fixes their endpoint
+    // could never be believed again.
+    let ops = sut.dispatch(Event::RefreshChain { chain_id: CHAIN });
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
+    assert!(sut
+        .resolve(config(
+            vec![seed(USER, RpcSource::User)],
+            vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+            later + 300.0,
+        ))
+        .is_empty());
+    let ops = sut.dispatch(bundler_call("b3", later + 400.0));
+    assert_eq!(ops, vec![bundler_post("b3", BUSER, Some(USER))]);
 }
 
 /// Invariant ③: account-info/sponsor must resolve through the SAME bundler
@@ -1149,6 +1630,198 @@ fn account_info_and_sponsor_use_the_submitting_bundler() {
     );
 }
 
+fn best_rpc(id: &str, now: f64) -> Event {
+    Event::BestRpcUrlRequested {
+        call_id: id.to_owned(),
+        chain_id: CHAIN,
+        now_ms: now,
+    }
+}
+
+fn best_rpc_answer(id: &str, url: Option<&str>) -> Op {
+    Op::Conclude {
+        call_id: id.to_owned(),
+        verdict: RpcCallVerdict::BestRpcUrl {
+            url: url.map(str::to_owned),
+        },
+    }
+}
+
+/// `getChainRpcUrl` is the pool's ranking, not collection order: the same
+/// score-sorted, ban-filtered list the sweep uses. A shell answering this from
+/// its own collected list would keep naming USER here — it is first collected
+/// and never banned — even after the failure cooldown has pushed it below a
+/// public endpoint. This value rides `X-Rpc-Url` into `/v1/sponsor`.
+#[test]
+fn best_rpc_url_follows_the_pool_ranking_not_collection_order() {
+    let mut sut = loaded(T0);
+
+    // Cold, healthy pool: the user endpoint outranks both publics.
+    let ops = sut.dispatch(best_rpc("q1", T0 + 1_000.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", Some(USER))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // One timeout puts USER inside its failure cooldown — not banned, still
+    // first in collection order, but no longer the endpoint the pool would use.
+    let ops = sut.dispatch(rpc_call("f1", "eth_call", T0 + 2_000.0));
+    assert_eq!(ops, vec![rpc_post("f1", USER, "eth_call")]);
+    let ops = sut.resolve(outcome("f1", USER, Out::Timeout, 10.0, T0 + 2_010.0));
+    assert_eq!(ops, vec![rpc_post("f1", PUB1, "eth_call")]);
+    let ops = sut.resolve(outcome("f1", PUB1, ok(), 20.0, T0 + 2_020.0));
+    assert_eq!(ops, vec![respond("f1", PUB1)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // Guard against a vacuous assertion: USER really is below the publics now.
+    let mut demoted = stats(USER, RpcSource::User);
+    record_success(&mut demoted, 50.0);
+    record_failure(&mut demoted, T0 + 2_010.0);
+    assert!(
+        endpoint_score(&demoted, T0 + 2_100.0) < source_priority(RpcSource::Public),
+        "fixture must actually demote USER",
+    );
+
+    let ops = sut.dispatch(best_rpc("q2", T0 + 2_100.0));
+    assert_eq!(ops, vec![best_rpc_answer("q2", Some(PUB1))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // The cooldown is a cooldown, not a sentence: once it lapses USER's source
+    // tier wins again — the live re-check the shell copy could never do.
+    let ops = sut.dispatch(best_rpc("q3", T0 + 2_010.0 + cooldown_ms(1) + 1.0));
+    assert_eq!(ops, vec![best_rpc_answer("q3", Some(USER))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // A ban removes an endpoint outright (invariant ①). Still inside the
+    // 10-minute pool TTL, so no reload interleaves.
+    let at = T0 + 40_000.0;
+    let ops = sut.dispatch(rpc_call("f2", "eth_call", at));
+    assert_eq!(ops, vec![rpc_post("f2", USER, "eth_call")]);
+    let ops = sut.resolve(outcome("f2", USER, Out::HttpError { status: 401 }, 10.0, at + 10.0));
+    assert_eq!(
+        ops,
+        vec![
+            Op::PersistBans {
+                entries: vec![temp_ban(USER, at + 10.0)]
+            },
+            rpc_post("f2", PUB1, "eth_call"),
+        ]
+    );
+    assert!(sut.resolve(Res::Persisted).is_empty());
+    let ops = sut.resolve(outcome("f2", PUB1, ok(), 20.0, at + 20.0));
+    assert_eq!(ops, vec![respond("f2", PUB1)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    let ops = sut.dispatch(best_rpc("q4", at + 100.0));
+    assert_eq!(ops, vec![best_rpc_answer("q4", Some(PUB1))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // An hour on, the temp ban has expired and USER is selectable again (the
+    // pool has gone stale by then, so the query re-reads config first — it never
+    // answers from a list it has not refreshed).
+    let later = at + 10.0 + TEMP_BAN_TTL_MS + 1.0;
+    let ops = sut.dispatch(best_rpc("q5", later));
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
+    let ops = sut.resolve(config3(later));
+    assert_eq!(ops, vec![best_rpc_answer("q5", Some(USER))]);
+}
+
+/// Invariant ②, second consumer: the endpoint that PROVED it serves another
+/// chain must not ride `X-Rpc-Url` into `/v1/account` or `/v1/sponsor` either —
+/// the bundler would read the Safe's code, nonce and balance on the wrong chain
+/// and decide a treasury transfer from it. The fact outlives the race that
+/// learned it; a probe that merely failed proves nothing and excludes nothing.
+#[test]
+fn best_rpc_url_excludes_a_proven_wrong_chain_endpoint() {
+    let mut sut = Sut::new();
+    sut.dispatch(bundler_call("b1", T0));
+    let ops = sut.resolve(config3(T0));
+    assert_eq!(ops, vec![probe(USER), probe(PUB1), probe(PUB2)]);
+    // USER is top-ranked AND fast — and on chain 1, not 56.
+    assert!(sut.resolve(probed(USER, Some(1), 10.0, T0 + 10.0)).is_empty());
+    // PUB2 merely times out: unverified, never condemned.
+    assert!(sut.resolve(probed(PUB2, None, 3_000.0, T0 + 3_000.0)).is_empty());
+    let ops = sut.resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 3_100.0));
+    assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(PUB1))]);
+    sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 3_200.0));
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // The race is long over. USER still outranks everything by source tier, and
+    // is still excluded; PUB1 (correct) is next.
+    let ops = sut.dispatch(best_rpc("q1", T0 + 60_000.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", Some(PUB1))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // `RefreshChain` clears the memory along with the cached winner: the same
+    // URL may now be a different node.
+    let ops = sut.dispatch(Event::RefreshChain { chain_id: CHAIN });
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
+    assert!(sut.resolve(config3(T0 + 61_000.0)).is_empty());
+    let ops = sut.dispatch(best_rpc("q2", T0 + 62_000.0));
+    assert_eq!(ops, vec![best_rpc_answer("q2", Some(USER))]);
+}
+
+/// Fail-closed, as everywhere else invariant ② applies: when every candidate
+/// has proved itself to be on another chain there is no answer, and the shell
+/// sends no header rather than one it cannot vouch for.
+#[test]
+fn best_rpc_url_is_none_when_every_candidate_proved_wrong_chain() {
+    let mut sut = Sut::new();
+    sut.dispatch(bundler_call("b1", T0));
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
+        vec![seed(BRELAY, RpcSource::Builtin)],
+        T0,
+    ));
+    assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
+    assert!(sut.resolve(probed(USER, Some(1), 10.0, T0 + 10.0)).is_empty());
+    let ops = sut.resolve(probed(PUB1, Some(137), 20.0, T0 + 20.0));
+    assert_eq!(ops, vec![bundler_post("b1", BRELAY, None)]);
+    sut.resolve(outcome("b1", BRELAY, ok(), 50.0, T0 + 100.0));
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    let ops = sut.dispatch(best_rpc("q1", T0 + 200.0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", None)]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // `InvalidateAll` forgets it too (a provider-key change can put a different
+    // node behind the same URL), and the pool re-reads before answering.
+    sut.dispatch(Event::InvalidateAll);
+    let ops = sut.dispatch(best_rpc("q2", T0 + 300.0));
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
+    let ops = sut.resolve(config(
+        vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
+        vec![seed(BRELAY, RpcSource::Builtin)],
+        T0 + 300.0,
+    ));
+    assert_eq!(ops, vec![best_rpc_answer("q2", Some(USER))]);
+}
+
+/// An unloaded pool loads first — the query never answers from an empty pool it
+/// simply has not read yet.
+#[test]
+fn best_rpc_url_loads_the_pool_before_answering() {
+    let mut sut = Sut::new();
+    let ops = sut.dispatch(best_rpc("q1", T0));
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
+    let ops = sut.resolve(config1(T0));
+    assert_eq!(ops, vec![best_rpc_answer("q1", Some(PUB1))]);
+    assert!(sut.resolve(Res::Concluded).is_empty());
+
+    // A chain with no endpoints at all answers None, not a guess.
+    let ops = sut.dispatch(Event::BestRpcUrlRequested {
+        call_id: "q2".to_owned(),
+        chain_id: 999,
+        now_ms: T0 + 100.0,
+    });
+    assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: 999 }]);
+    let ops = sut.resolve(Res::PoolConfig {
+        chain_id: 999,
+        rpc_endpoints: vec![],
+        bundler_endpoints: vec![],
+        now_ms: T0 + 100.0,
+    });
+    assert_eq!(ops, vec![best_rpc_answer("q2", None)]);
+}
+
 /// The 10-minute pool TTL: fresh pools skip the config read; stale pools
 /// (or `InvalidateAll`) re-read it, and the merge preserves stats.
 #[test]
@@ -1242,19 +1915,13 @@ fn permanent_rate_limit_signal_classifies_final_pass() {
             delay_ms: 300
         }]
     );
-    // Pass 1 rescues the all-banned pool and tries again.
+    // Pass 1 rescues the all-banned pool and tries again — over the ban, which
+    // stands (nothing to persist).
     let ops = sut.resolve(Res::BackoffElapsed {
         call_id: "c1".to_owned(),
         now_ms: T0 + 330.0,
     });
-    assert_eq!(
-        ops,
-        vec![
-            Op::PersistBans { entries: vec![] },
-            rpc_post("c1", PUB1, "eth_call"),
-        ]
-    );
-    assert!(sut.resolve(Res::Persisted).is_empty());
+    assert_eq!(ops, vec![rpc_post("c1", PUB1, "eth_call")]);
     let ops = sut.resolve(outcome(
         "c1",
         PUB1,
@@ -1287,14 +1954,7 @@ fn permanent_rate_limit_signal_classifies_final_pass() {
         call_id: "c1".to_owned(),
         now_ms: T0 + 600.0,
     });
-    assert_eq!(
-        ops,
-        vec![
-            Op::PersistBans { entries: vec![] },
-            rpc_post("c1", PUB1, "eth_call"),
-        ]
-    );
-    assert!(sut.resolve(Res::Persisted).is_empty());
+    assert_eq!(ops, vec![rpc_post("c1", PUB1, "eth_call")]);
 
     // Final pass: the signal on the permanent error classifies the chain as
     // rate-limited — quota exhaustion is transient, never the banner.

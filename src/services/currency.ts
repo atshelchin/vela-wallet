@@ -16,6 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
 import { currencyMeta } from '@/services/currency-catalog';
 import { getFxRate, getSupportedFxCodes } from '@/services/fiat-fx';
+import type { FiatRateQuote } from '@/services/fiat-rate-quote';
 import { getChainlinkRate, isChainlinkFiat, FIAT_FEED_CODES } from '@/services/fiat-rates';
 import { formatNumber } from '@/services/locale-format';
 
@@ -98,6 +99,28 @@ const DECIMAL_DROP_THRESHOLD = 100_000;
 /** Whether to render minor units for `value` in `code` (no for yen/won/big sums). */
 export function shouldShowDecimals(value: number, code: string): boolean {
   return !ZERO_DECIMAL_CODES.has(code.toUpperCase()) && Math.abs(value) < DECIMAL_DROP_THRESHOLD;
+}
+
+/**
+ * The {code, symbol, rate} triple a fiat figure may be RENDERED with, given the
+ * chosen currency and the rate that could (or could not) be found for it.
+ *
+ * When the currency has no rate the triple degrades to USD/1 — code, symbol and
+ * rate together, which is the point: taking the parts from one call makes
+ * "¥" in front of an unconverted USD number unrepresentable. This is the same
+ * choice the first-launch seed already makes (`₫78 instead of ₫2,000,000 is
+ * strictly worse than showing USD`), applied to every fiat figure on screen.
+ *
+ * DISPLAY ONLY, and deliberately total: it always yields a usable multiplier,
+ * which is exactly why nothing that MOVES money may read `.rate` from it. Those
+ * callers take `useDisplayCurrency().rate` and keep its `null`.
+ */
+export function shownCurrency(
+  code: string,
+  rate: number | null,
+): { code: string; symbol: string; rate: number } {
+  const meta = currencyMeta(rate == null ? 'USD' : code);
+  return { code: meta.code, symbol: meta.symbol, rate: rate ?? 1 };
 }
 
 /**
@@ -195,7 +218,31 @@ export async function resolveRate(code: string): Promise<number | null> {
   return null;
 }
 
-/** USD → `code` rate (1 for USD). Falls back to 1 so the balance always renders. */
+/**
+ * `resolveRate`, with the answer carrying the currency it is about.
+ *
+ * The one way anything that CONVERTS money should ask for a rate. A bare
+ * `number` in flight is a rate that has forgotten what it prices, and every
+ * caller here is async: the currency can change while the fetch is out, and the
+ * answer that lands is then a perfectly good rate for the wrong currency. The
+ * quote is unwrapped by `convertibleRate(quote, code)`, which refuses that.
+ */
+export async function resolveQuote(code: string): Promise<FiatRateQuote | null> {
+  const rate = await resolveRate(code);
+  return rate == null ? null : { code, rate };
+}
+
+/**
+ * USD → `code` rate (1 for USD). Falls back to 1 so the balance always renders.
+ *
+ * DISPLAY ONLY. The `?? 1` is a rendering convenience — an unpriceable currency
+ * shows the USD figure instead of a blank card — and it is indistinguishable
+ * from "the rate really is 1". Never feed it to anything that MOVES money or
+ * that a guardrail reads: a batch-import row of "5000 CNY" priced at rate 1
+ * becomes 5000 tokens instead of ~698, and the "rate unavailable" gate can
+ * never fire because it was told the rate is known. Those callers take
+ * `resolveRate` and keep the `null`.
+ */
 export async function getRate(code: string): Promise<number> {
   return (await resolveRate(code)) ?? 1;
 }

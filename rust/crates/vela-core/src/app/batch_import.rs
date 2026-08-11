@@ -32,20 +32,41 @@
 //! here per inventory invariant ⑤: the USD→fiat rate is also cleared, where
 //! the component kept the previous fetch's value for one frame).
 //!
+//! One ported quirk was REJECTED rather than mirrored — **an unknown rate
+//! blocks the import**. `tokenPriceInFiat`'s `usdToFiatRate > 0 ? … : 1`
+//! (`fiat-convert.ts`, reached through `usdFiatRate ?? 0` at
+//! `BatchImportSheet.tsx:105`) made a rate nobody could fetch convert 1:1, so
+//! `5000 CNY` previewed as 5000 USDT — worth ~698 — with `can_apply: true`:
+//! one payroll batch at ~7x the intended payout, behind a green button. The
+//! owner overturned that decision, so `auto_price_per_token` refuses an
+//! unknown (`None`) or invalid (`<= 0`) rate: the mirror goes EMPTY, nothing
+//! converts, apply is blocked, and `BatchRateStatus::Failed` sends the user to
+//! the manual `rate_input` channel ("Rate unavailable — enter one manually",
+//! `send.batchRateFailed`). Same discipline as `enforce_no_unlimited` and the
+//! never-assume-18-decimals rule; the native twin
+//! (`use-batch-import.ts` + `batch-import-controller-types.ts::autoPricePerToken`)
+//! holds it identically, and the shared `fiat-convert.ts` helper is untouched
+//! because its fallback is still right for DISPLAY.
+//!
+//! A second quirk from the same family was REJECTED with it: the component
+//! kept mirroring the OLD currency's rate across a "Priced in" switch, until
+//! the new fetch landed. That is the identical overpayment wearing a different
+//! hat — USD→CNY at the retained rate 1 showed "1 USDT = 1 CNY" with Apply
+//! green, and a 5000-a-row payroll went out at ~7.2x for the whole FX
+//! round-trip. Unknown and MISLABELLED are the same refusal, so a rate here is
+//! never a bare number: [`FiatRate`] carries the code it was fetched FOR and
+//! [`auto_price_per_token`] quotes nothing unless that code is the one being
+//! priced right now. That single check closes both directions at once — the
+//! old rate cannot outlive the switch, and a late answer for the abandoned
+//! currency cannot relabel itself as the new one.
+//!
 //! Quirks ported verbatim (see inventory open questions):
-//! - While the rate is loading or failed, `tokenPriceInFiat(price, 0)`
-//!   treats the missing rate as 1, so the mirror shows the token's USD price
-//!   as if it were the fiat price until the real rate lands
-//!   (`fiat-convert.ts` `usdToFiatRate > 0 ? usdToFiatRate : 1` +
-//!   `usdFiatRate ?? 0` at `BatchImportSheet.tsx:105`).
-//! - A currency switch keeps mirroring with the OLD currency's rate until
-//!   the new fetch resolves (the component's mirror effect re-runs on
-//!   `rateEdited=false` before the fetch lands).
 //! - In token mode a pasted amount with more decimals than the token is
 //!   silently truncated by `to_base_units` (eip681.ts `toBaseUnits` slice).
 //!
 //! The shell owns the file picker, SheetJS (`.xlsx` → cell matrix — the text
-//! path is parsed entirely in core), the rate source (`getRate`), haptics,
+//! path is parsed entirely in core), the rate source (`resolveRate` — NOT the
+//! display `getRate`, whose `?? 1` would answer this machine a lie), haptics,
 //! and all formatting/locale; the core owns the table interpreter, the money
 //! math and every gate. The produced `recipients` (address, token amount,
 //! optional name) are the hand-off to the send machine's split editor —
@@ -81,9 +102,13 @@ Carol,0x3333333333333333333333333333333333333333,6500\n";
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "BatchOperation"))]
 pub enum BatchOperation {
-    /// USD→`code` multiplier (`getRate` in currency.ts). The shell answers
-    /// `rate: None` when the source threw — status drives the loading/failed
-    /// hints so a dead mirror is never unexplained.
+    /// USD→`code` multiplier (`resolveRate` in currency.ts). `rate: None` is
+    /// the honest "no source could price it" — including when the source
+    /// threw — and the ONLY thing the shell may answer when it does not know.
+    /// Never `getRate`: its `?? 1` is a display fallback and arrives here as
+    /// "the rate really is 1", which is what this machine's guard exists to
+    /// refuse. Status drives the loading/failed hints so an empty mirror is
+    /// never unexplained.
     FetchUsdFiatRate { code: String },
     /// Open the table picker. Text files come back as text (parsed in core);
     /// Excel workbooks are flattened by the shell's lazy SheetJS into a cell
@@ -785,10 +810,16 @@ fn strip_trailing_zeros(s: &str) -> String {
     s.trim_end_matches('0').trim_end_matches('.').to_owned()
 }
 
-/// `tokenPriceInFiat` (`fiat-convert.ts:27-31`) — including the quirk that a
-/// missing (≤0) USD→fiat rate is treated as 1, so an unresolved rate shows
-/// the token's USD price as the fiat price. Ported verbatim, see inventory
-/// open questions.
+/// `tokenPriceInFiat` (`fiat-convert.ts:27-31`) — the shared display-side
+/// math, ported verbatim INCLUDING its `usdToFiatRate > 0 ? … : 1` fallback.
+///
+/// That fallback is a DISPLAY convenience (an unpriceable currency renders the
+/// USD figure rather than a blank), and it is why this function must never be
+/// handed a rate it cannot vouch for. The importer's only caller,
+/// `auto_price_per_token`, therefore screens the rate first and never reaches
+/// the `1.0` branch — the discrimination lives at the call site so the shared
+/// helper keeps one meaning on both sides of the FFI (the same split
+/// `currency.ts` draws between `resolveRate` and the display `getRate`).
 fn token_price_in_fiat(price_usd: Option<f64>, usd_to_fiat_rate: f64) -> f64 {
     let Some(price) = price_usd else { return 0.0 };
     if !(price > 0.0) {
@@ -949,6 +980,26 @@ pub enum Event {
 // Model
 // ---------------------------------------------------------------------------
 
+/// A fetched USD→fiat multiplier, inseparable from the currency it prices.
+///
+/// The rate is never stored as a bare `f64`, because a bare `f64` cannot say
+/// which currency it belongs to — and every way this machine can be holding a
+/// rate for the WRONG currency (a "Priced in" switch whose fetch has not landed,
+/// a late answer for a currency already abandoned, a re-open) is a way to pay
+/// out the fiat figure at another currency's exchange rate. Pairing the two
+/// makes the mistake unrepresentable rather than merely unlikely: the only
+/// reader, [`auto_price_per_token`], compares `code` against the currency being
+/// priced before it quotes anything.
+#[derive(Clone, Debug, PartialEq)]
+struct FiatRate {
+    /// The currency this rate was fetched FOR — not necessarily the one the
+    /// sheet is showing now.
+    code: String,
+    /// USD → `code` multiplier, exactly as the source answered it (a
+    /// non-positive answer is kept as-is and refused at use).
+    rate: f64,
+}
+
 #[derive(Default)]
 pub struct Model {
     /// `None` until the first `Open` — every other event is ignored before.
@@ -964,7 +1015,9 @@ pub struct Model {
     busy: bool,
     file_error: bool,
     template_saved: bool,
-    usd_fiat_rate: Option<f64>,
+    /// The last rate the shell answered, tagged with its currency. Only
+    /// usable while `code` still equals [`Model::fiat_code`].
+    usd_fiat_rate: Option<FiatRate>,
     rate_status: BatchRateStatus,
     /// The single source of the applied rate — the mirror of the auto rate
     /// until the user overrides it (Rate invariant).
@@ -1029,7 +1082,14 @@ pub struct BatchView {
     /// show and the default unit.
     pub priced: bool,
     pub rate_status: BatchRateStatus,
-    /// The rate string. What is displayed here IS what converts every row.
+    /// The rate string, and it always belongs to `fiat_code`. What is
+    /// displayed here IS what converts every row — and, in fiat mode, EMPTY
+    /// means nothing converts and `can_apply` is false. `Loading`/`Failed`
+    /// both land here empty (the rate is unknown), and so does the whole
+    /// round-trip after a "Priced in" switch: the previous currency's rate is
+    /// not this currency's rate, so it is refused rather than re-shown under
+    /// the new code. The user's own typing is the way out of all three, which
+    /// is what the "Rate unavailable — enter one manually" hint asks for.
     pub rate_input: String,
     pub rate_edited: bool,
     pub preview: Vec<BatchPreviewRow>,
@@ -1119,9 +1179,12 @@ impl App for BatchImport {
                 let changed = code != model.fiat_code;
                 model.fiat_code = code;
                 model.rate_edited = false;
-                // Ported quirk: until the new fetch lands the mirror keeps
-                // the previous currency's rate (the component's mirror
-                // effect re-runs before the fetch resolves).
+                // The previous currency's rate is still in `usd_fiat_rate`,
+                // and it does NOT price this one: `sync_auto_rate` finds the
+                // tag no longer matches `fiat_code` and empties the mirror,
+                // which blocks apply for the whole FX round-trip. (The
+                // component mirrored the old rate through the switch instead
+                // — USD→CNY at rate 1 paid every row ~7.2x, button green.)
                 sync_auto_rate(model);
                 if !changed {
                     // Re-picking the same code doesn't re-run the fetch
@@ -1271,12 +1334,18 @@ fn accept(model: &mut Model, result: BatchShellResult) -> Command<BatchEffect, E
             if model.token.is_none() || code != model.fiat_code {
                 // A same-session fetch for a currency the user has already
                 // switched away from — its rate must not label the current
-                // currency (the effect-cleanup `cancelled` flag's job).
+                // currency (the effect-cleanup `cancelled` flag's job), and
+                // above all must not move `rate_status` off Loading for a
+                // fetch that is still in flight. Storing it would be harmless
+                // now that the rate carries its own code, but dropping it is
+                // the honest record.
                 return Command::done();
             }
             match rate {
                 Some(rate) => {
-                    model.usd_fiat_rate = Some(rate);
+                    // Tagged with the code it was fetched FOR — never with
+                    // "whatever the sheet happens to show later".
+                    model.usd_fiat_rate = Some(FiatRate { code, rate });
                     model.rate_status = BatchRateStatus::Ok;
                 }
                 None => {
@@ -1442,15 +1511,65 @@ fn derived(model: &Model, token: &BatchToken) -> Derived {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// The auto rate for the mirror — `for_code` per 1 token, or `0.0` when it
+/// cannot be known.
+///
+/// This is the guard that keeps a rate this machine cannot vouch for from
+/// spending money. FOUR cases the mirror must NOT collapse into one:
+///
+/// - `None` — UNKNOWN: no source could price the currency (or the fetch has
+///   not landed yet). Nothing is asserted about the rate.
+/// - `Some(r)` with `r.rate <= 0` — INVALID: a source answered something that
+///   is not a rate.
+/// - `Some(r)` with `r.code != for_code` — MISLABELLED: a perfectly good rate
+///   for a DIFFERENT currency. Just as unusable as unknown, and far more
+///   dangerous, because it is a plausible number: it renders, it converts, and
+///   it turns Apply green.
+/// - `Some(r)` with `r.code == for_code && r.rate > 0` — KNOWN: the only case
+///   that converts.
+///
+/// The first three return `0.0`, which empties `rate_input` and — because the
+/// displayed string IS the applied rate — blocks apply until the user types a
+/// rate by hand (`rate_input` is that manual channel; `BatchRateStatus::Failed`
+/// is what tells them to use it).
+///
+/// This deliberately does NOT use `token_price_in_fiat`'s `?: 1` fallback.
+/// Doing so treated an unpriceable currency as 1:1, so a `5000 CNY` payroll
+/// line previewed as 5000 USDT instead of ~698 with `can_apply` still true —
+/// a ~7x overpayment behind a green button. The `code` check is the same
+/// refusal reached by the other road: carrying USD's rate of 1 into CNY prices
+/// that identical line identically wrong. Same discipline as
+/// `enforce_no_unlimited` and the "never assume 18 decimals" rule: when the
+/// number that moves money is unknown — or is known to be about something
+/// else — stop, do not guess.
+fn auto_price_per_token(
+    price_usd: Option<f64>,
+    usd_fiat_rate: Option<&FiatRate>,
+    for_code: &str,
+) -> f64 {
+    match usd_fiat_rate {
+        Some(quote) if quote.code == for_code && quote.rate > 0.0 => {
+            token_price_in_fiat(price_usd, quote.rate)
+        }
+        _ => 0.0,
+    }
+}
+
 /// Keep the editable rate field mirroring the auto rate until the user
 /// overrides it (`BatchImportSheet.tsx:108-111`). Significant-digit
-/// formatting: a positive rate never mirrors as "0".
+/// formatting: a positive rate never mirrors as "0"; an unknown, invalid or
+/// other-currency rate mirrors as "" (see [`auto_price_per_token`]).
+///
+/// Every path that can change WHICH currency is being priced runs through
+/// here — `Open`, `SetFiatCode`, `ResetRateToAuto`, and each landing rate —
+/// so the tag check is applied on every one of them rather than at any single
+/// call site that could be forgotten.
 fn sync_auto_rate(model: &mut Model) {
     if model.rate_edited {
         return;
     }
     let price_usd = model.token.as_ref().and_then(|t| t.price_usd);
-    let auto = token_price_in_fiat(price_usd, model.usd_fiat_rate.unwrap_or(0.0));
+    let auto = auto_price_per_token(price_usd, model.usd_fiat_rate.as_ref(), &model.fiat_code);
     model.rate_input = if auto > 0.0 {
         format_rate(auto)
     } else {

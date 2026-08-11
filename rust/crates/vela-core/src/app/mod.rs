@@ -50,6 +50,7 @@ pub mod display_currency;
 pub mod ext_cache;
 pub mod fee_policy;
 pub mod manage_tokens;
+pub mod money;
 pub mod login;
 pub mod payment_request;
 pub mod network_admin;

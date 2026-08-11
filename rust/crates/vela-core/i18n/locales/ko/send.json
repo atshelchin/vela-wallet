@@ -28,6 +28,8 @@
     "warnInsufficientForGas": "{{sym}} 잔액이 금액 + 가스 수수료를 충당하기에 부족합니다",
     "warnInsufficientGas": "가스 수수료를 낼 {{sym}}이(가) 부족합니다",
     "warnNeedGas": "가스 수수료를 내려면 {{sym}}이(가) 필요합니다",
+    "warnCannotConvert": "지금은 {{code}}를 {{symbol}}로 환산할 수 없습니다. {{symbol}}로 전환해 금액을 입력하세요.",
+    "denomToggleNoRate": "지금은 {{code}} 환율이 없습니다. 금액을 {{symbol}}로 입력하세요.",
     "confirmTitle": "확인",
     "walletFallbackName": "지갑",
     "fromLabel": "보내는 곳",

@@ -78,8 +78,10 @@ export default function HomeScreen() {
       <Animated.View style={balanceScaleStyle}>
         <View style={styles.balanceCard}>
           {/* The code in the label keeps the unit unambiguous ($ alone could be
-              USD/CAD/AUD…) now that the currency control lives in Settings. */}
-          <Text style={styles.balanceLabel}>{`${t('home.totalBalance')} · ${dc.code}`}</Text>
+              USD/CAD/AUD…) now that the currency control lives in Settings.
+              `dc.shown.code` so the label names the unit the number is ACTUALLY
+              in — an unpriceable currency degrades the whole triple to USD. */}
+          <Text style={styles.balanceLabel}>{`${t('home.totalBalance')} · ${dc.shown.code}`}</Text>
           {/* The number is the hero's only actor: tapping it toggles privacy
               mode (persisted). The EyeOff glyph appears only beside the masked
               value — chrome only when it has something to say. */}
@@ -104,7 +106,7 @@ export default function HomeScreen() {
             ) : balanceUnknown ? (
               <BalanceSkeleton />
             ) : (
-              <Balance value={displayTotal * dc.rate} symbol={dc.symbol} code={dc.code} />
+              <Balance value={displayTotal * dc.shown.rate} symbol={dc.shown.symbol} code={dc.shown.code} />
             )}
           </Pressable>
           {balancePartial && notice && (
@@ -373,7 +375,7 @@ export default function HomeScreen() {
         tx={detailTx}
         batch={detailBatch}
         alias={detailAlias}
-        rate={dc.rate}
+        rate={dc.shown.rate}
         currency={currency}
         onResolved={() => loadData()}
         onClose={() => { setDetailTx(null); setDetailBatch(null); }}

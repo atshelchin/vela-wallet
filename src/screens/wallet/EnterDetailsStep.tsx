@@ -46,6 +46,11 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
     setCopiedContract,
     estimatingGas,
     inputInUsd,
+    amountFiatCode,
+    denomToggleShown,
+    denomToggleEnabled,
+    denomToggleReason,
+    tokenAmount,
     toggleFiatInput,
     openContactPicker,
     openBatchImport,
@@ -66,9 +71,22 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
     const balance = tokenBalanceDouble(selectedToken);
     const logos = tokenLogoURLs(selectedToken);
     const chain = chainName(tokenChainId(selectedToken));
-    // Fiat-input mode is denominated in the user's display currency, not USD.
-    const fiatPrice = (selectedToken.priceUsd ?? 0) * dc.rate; // 1 token in display currency
-    const fiatDecimals = ZERO_DECIMAL_CODES.has(dc.code) ? 0 : 2;
+    // Fiat-input mode is denominated in the currency the FIGURE was typed in —
+    // `amountFiatCode`, straight from the controller — and not in whatever
+    // `dc.code` happens to be this frame. Those two differ for exactly one
+    // instant (a display-currency commit landing under a typed figure), and
+    // that instant is when this screen used to lie: it had only a boolean, so
+    // it printed a number typed in USD with a CNY label beside it.
+    //
+    // The ⇅ row below no longer computes its own conversion either: it reads the
+    // controller's `tokenAmount`, which is the very string the signature is
+    // built from. A screen may not advertise an answer its own button would not
+    // produce — this row used to print "⇅ 5000 USDC" under "5000 CNY" while the
+    // controller held '0', and the one action it offered would have made the
+    // lie true. (The old expression divided by the fiat price with a `|| 1`
+    // fallback: an implicit rate of 1 on the display side of the very screen
+    // that refuses one on the money side.)
+    const fiatDecimals = ZERO_DECIMAL_CODES.has(amountFiatCode ?? dc.code) ? 0 : 2;
 
     return (
       <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -150,7 +168,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               </View>
               {amount || amountLocked ? (
                 <Text style={[styles.unitLabel, { fontSize: Math.max(amountFontSize(amount || '0') * 0.7, 16) }]}>
-                  {inputInUsd ? dc.code : selectedToken.symbol}
+                  {amountFiatCode ?? selectedToken.symbol}
                 </Text>
               ) : (
                 <Pressable onPress={handleMaxAmount} hitSlop={8} style={styles.maxBtn}>
@@ -158,24 +176,39 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
                 </Pressable>
               )}
             </View>
-            {/* Conversion toggle row — below the input, like ↕ 0.0113 ETH */}
-            {selectedToken.priceUsd != null && selectedToken.priceUsd > 0 ? (
+            {/* Conversion toggle row — below the input, like ↕ 0.0113 ETH.
+                Shown and enabled by the controller, not by a second reading of
+                `priceUsd` here: the core refused to enter fiat without a rate
+                for the display currency while this row rendered on `priceUsd`
+                alone, so the control looked live and swallowed the tap. It is
+                visibly disabled now, and it stays on screen while the figure is
+                fiat even for an unpriced token — leaving is the only way out of
+                a mode whose amount can no longer resolve. */}
+            {denomToggleShown ? (
               <Pressable
                 onPress={toggleFiatInput}
+                disabled={!denomToggleEnabled}
                 hitSlop={8}
-                style={styles.conversionRow}
+                style={[styles.conversionRow, !denomToggleEnabled && styles.conversionRowDisabled]}
               >
                 <ArrowUpDown size={14} color={color.fg.muted} strokeWidth={2.5} />
                 <Text style={styles.conversionText}>
                   {amount
                     ? inputInUsd
-                      ? `${(parseFloat(amount || '0') / (fiatPrice || 1)).toFixed(Math.min(selectedToken.decimals, 8)).replace(/\.?0+$/, '')} ${selectedToken.symbol}`
+                      ? `${parseFloat(tokenAmount || '0').toFixed(Math.min(selectedToken.decimals, 8)).replace(/\.?0+$/, '')} ${selectedToken.symbol}`
                       : formatUsd(parseFloat(amount || '0') * (selectedToken.priceUsd ?? 0))
                     : inputInUsd
                       ? `0 ${selectedToken.symbol}`
                       : formatUsd(0)}
                 </Text>
               </Pressable>
+            ) : null}
+            {/* The dimming said "no"; this says why. It is the one branch the
+                amount warning cannot reach — the figure is in token units and
+                resolves perfectly, so nothing else on this screen has any
+                reason to speak. */}
+            {denomToggleShown && denomToggleReason ? (
+              <Text style={styles.conversionDisabledReason}>{denomToggleReason}</Text>
             ) : null}
           </Pressable>
           {amountWarning ? (

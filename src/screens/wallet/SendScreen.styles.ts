@@ -378,6 +378,21 @@ export const styles = createStyles(() => ({
     gap: space.sm,
     marginTop: space.md,
   },
+  // The ⇄ row when the controller says pressing it would do nothing (no rate
+  // for the display currency, so there is no fiat mode to enter). Dimmed rather
+  // than hidden: the row is also the conversion READOUT, which stays true.
+  conversionRowDisabled: {
+    opacity: 0.4,
+  },
+  // …and the sentence that goes with the dimming. Muted, not error red: the
+  // screen still works, only this one door is shut, and the copy says which
+  // unit to type in instead.
+  conversionDisabledReason: {
+    fontSize: text.sm,
+    ...inter.medium,
+    color: color.fg.muted,
+    marginTop: space.sm,
+  },
   conversionText: {
     fontSize: text.sm,
     ...inter.medium,
@@ -595,6 +610,17 @@ export const styles = createStyles(() => ({
     ...inter.semibold,
     color: color.fg.base,
     marginTop: 2,
+  },
+  // Why the slide is dead: the amount this page was opened on no longer
+  // resolves. Sits directly above the disabled slider so the refusal and its
+  // reason are read together.
+  confirmAmountIssue: {
+    fontSize: text.sm,
+    ...inter.medium,
+    color: color.error.base,
+    marginTop: space.sm,
+    marginBottom: space.sm,
+    paddingHorizontal: space.xs,
   },
 
   // Inline tx status

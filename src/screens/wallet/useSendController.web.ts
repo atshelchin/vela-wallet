@@ -123,7 +123,11 @@ const INITIAL_VIEW: SendView = {
   selected_token: null,
   recipient: '',
   amount: '',
-  input_in_fiat: false,
+  amount_fiat_code: null,
+  denom_toggle_shown: false,
+  denom_toggle_enabled: false,
+  denom_toggle_reason: null,
+  confirm_amount_issue: null,
   token_amount: '',
   split_mode: false,
   recipients: [],
@@ -280,6 +284,10 @@ function wordWarning(t: TFunction, warning: SendAmountWarning): string {
       return t('send.warnInsufficientForGas', { sym: warning.symbol ?? '' });
     case 'need_gas':
       return t('send.warnNeedGas', { sym: warning.symbol ?? 'gas token' });
+    case 'cannot_convert':
+      // The digits are fine; the FACTOR is missing. Names the way out, which
+      // `denom_toggle_shown` guarantees is on screen.
+      return t('send.warnCannotConvert', { code: warning.code, symbol: warning.symbol });
   }
 }
 
@@ -595,7 +603,7 @@ export function useSendController(): SendController {
         locked: params.locked === '1',
         preselected_multi: params.preselectedMulti ?? null,
       },
-      display: { rate: dc.rate, fiat_decimals: fiatDecimals },
+      display: { code: dc.code, rate: dc.rate, fiat_decimals: fiatDecimals },
     };
     if (!p.started) {
       p.started = true;
@@ -626,9 +634,9 @@ export function useSendController(): SendController {
     if (!p.started) return;
     p.session?.dispatch({
       type: 'display_changed',
-      display: { rate: dc.rate, fiat_decimals: fiatDecimals },
+      display: { code: dc.code, rate: dc.rate, fiat_decimals: fiatDecimals },
     });
-  }, [dc.rate, fiatDecimals]);
+  }, [dc.code, dc.rate, fiatDecimals]);
 
   const view = snapshot.view;
   const selectedToken = snapshot.selectedToken;
@@ -788,7 +796,26 @@ export function useSendController(): SendController {
 
     recipient: view.recipient,
     amount: view.amount,
-    inputInUsd: view.input_in_fiat,
+    inputInUsd: view.amount_fiat_code !== null,
+    // The unit the core says the figure is counted in. The screen renders this
+    // and never re-derives it from `dc.code`.
+    amountFiatCode: view.amount_fiat_code,
+    denomToggleShown: view.denom_toggle_shown,
+    denomToggleEnabled: view.denom_toggle_enabled,
+    // The core decides WHEN each refusal applies and names the pair; the shell
+    // only owns the words. Twins of `useSendController.ts`.
+    denomToggleReason: view.denom_toggle_reason
+      ? t('send.denomToggleNoRate', {
+          code: view.denom_toggle_reason.code,
+          symbol: view.denom_toggle_reason.symbol,
+        })
+      : null,
+    confirmAmountIssue: view.confirm_amount_issue
+      ? t('send.warnCannotConvert', {
+          code: view.confirm_amount_issue.code,
+          symbol: view.confirm_amount_issue.symbol,
+        })
+      : null,
     // The core's own resolution — the confirm page shows the string the signed
     // batch is built from, never a second conversion of its own.
     tokenAmount: view.token_amount,

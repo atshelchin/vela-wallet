@@ -211,6 +211,8 @@
   "warnInsufficientForGas": "{{sym}} tidak cukup untuk menutup jumlah + biaya gas",
   "warnInsufficientGas": "{{sym}} tidak cukup untuk biaya gas",
   "warnNeedGas": "Anda membutuhkan {{sym}} untuk membayar biaya gas",
+  "warnCannotConvert": "Saat ini {{code}} tidak bisa dikonversi ke {{symbol}} — beralihlah ke {{symbol}} untuk memasukkan jumlah.",
+  "denomToggleNoRate": "Belum ada kurs {{code}} saat ini — masukkan jumlah dalam {{symbol}}.",
   "confirmTitle": "Konfirmasi",
   "walletFallbackName": "Dompet",
   "fromLabel": "Dari",

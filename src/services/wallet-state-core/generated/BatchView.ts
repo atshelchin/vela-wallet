@@ -15,7 +15,14 @@ file_error: boolean, template_saved: boolean,
  */
 priced: boolean, rate_status: BatchRateStatus, 
 /**
- * The rate string. What is displayed here IS what converts every row.
+ * The rate string, and it always belongs to `fiat_code`. What is
+ * displayed here IS what converts every row — and, in fiat mode, EMPTY
+ * means nothing converts and `can_apply` is false. `Loading`/`Failed`
+ * both land here empty (the rate is unknown), and so does the whole
+ * round-trip after a "Priced in" switch: the previous currency's rate is
+ * not this currency's rate, so it is refused rather than re-shown under
+ * the new code. The user's own typing is the way out of all three, which
+ * is what the "Rate unavailable — enter one manually" hint asks for.
  */
 rate_input: string, rate_edited: boolean, preview: Array<BatchPreviewRow>, 
 /**

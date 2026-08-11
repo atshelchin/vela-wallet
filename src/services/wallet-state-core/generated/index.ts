@@ -246,6 +246,7 @@ export * from './SendTreasuryStatus';
 export * from './SendTxErrorKey';
 export * from './SendTxRecord';
 export * from './SendTxStatus';
+export * from './SendUnitIssue';
 export * from './SendView';
 export * from './SessionAccountRow';
 export * from './SessionEvent';

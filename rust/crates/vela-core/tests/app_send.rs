@@ -18,15 +18,16 @@ use std::collections::VecDeque;
 use crux_core::{Core, Request};
 use support::DomainDriver;
 use vela_core::app::fee_policy::{to_base_units, FeeAssetView, FeeCall, FeeEstimateView, FeeTier};
+use vela_core::app::money::{DenominatedAmount, TokenPrice};
 use vela_core::app::send::{
     build_multi_token_calls, build_split_calls, is_valid_address, recipients_are_valid,
-    resolve_token_amount, sum_split_base_units, Event, ReentryLock, Send, SendAccountRef,
+    sum_split_base_units, Event, ReentryLock, Send, SendAccountRef,
     SendAddNetworkOutcome, SendAlertKind, SendAmountWarning, SendChainInfo, SendDisplayContext,
     SendEstimateFailure, SendFeeOutcome, SendHapticKind, SendHoldReason, SendLockError,
     SendOpenParams, SendOperation as Op, SendReceiptKind, SendReceiptOutcome, SendReceiptStatus,
     SendRecipientDraft, SendScan, SendShellResult as Res, SendStage, SendSubmitFailure,
     SendTimerTag, SendToken, SendTokenMeta, SendTreasuryAsset, SendTreasuryProbe,
-    SendTreasuryStatus, SendTxErrorKey, SendTxStatus, SendView, BATCH_MAX_RECIPIENTS,
+    SendTreasuryStatus, SendTxErrorKey, SendTxStatus, SendUnitIssue, SendView, BATCH_MAX_RECIPIENTS,
 };
 use vela_core::app::SplitEffect;
 
@@ -55,7 +56,28 @@ fn acct() -> SendAccountRef {
 
 fn display() -> SendDisplayContext {
     SendDisplayContext {
-        rate: 1.0,
+        code: "USD".to_owned(),
+        rate: Some(1.0),
+        fiat_decimals: 2,
+    }
+}
+
+/// A display currency that IS priced, and is not USD — the case where the
+/// figure on screen and the rate must agree about which currency they mean.
+fn cny_display() -> SendDisplayContext {
+    SendDisplayContext {
+        code: "CNY".to_owned(),
+        rate: Some(7.17),
+        fiat_decimals: 2,
+    }
+}
+
+/// The display context for a currency NO source could price — the state
+/// `display_currency` commits as `{code, None}`.
+fn unpriced_display() -> SendDisplayContext {
+    SendDisplayContext {
+        code: "CNY".to_owned(),
+        rate: None,
         fiat_decimals: 2,
     }
 }
@@ -244,6 +266,21 @@ fn select_eth(sut: &mut Sut) {
     assert!(sut.resolve(credential(Some(PK))).is_empty());
 }
 
+/// Select USDC (6 decimals, priced at 1 USD) and settle the credential
+/// prefetch — the token the CNY overpayment was originally reported against.
+fn select_usdc(sut: &mut Sut) {
+    let ops = sut.dispatch(Event::SelectToken {
+        token_id: usdc("9000").id(),
+    });
+    assert_eq!(
+        ops,
+        vec![Op::LoadAccountCredential {
+            account_id: "cred-1".to_owned()
+        }]
+    );
+    assert!(sut.resolve(credential(Some(PK))).is_empty());
+}
+
 fn set_recipient(sut: &mut Sut, addr: &str) {
     let ops = sut.dispatch(Event::SetRecipient {
         recipient: addr.to_owned(),
@@ -368,23 +405,129 @@ impl Flex {
 // Ported pure helpers
 // ===========================================================================
 
+/// What the shell now does at every call site, spelled out: the figure names
+/// the currency it was typed in, the price names the currency it is quoted in,
+/// and the two are compared.
+///
+/// This used to be `resolve_token_amount(amount, in_fiat, ..)` — a free
+/// function with no code parameter, which therefore had to label both halves
+/// with the same `const ANY: &str = ""`. That made the comparison `"" == ""`,
+/// true always, so the one guard that catches a figure meeting another
+/// currency's price was switched off for every caller of the only helper
+/// anybody called. The helper is gone; this fixture is what replaced it, and
+/// the code is a parameter now.
+fn token_units(
+    amount: &str,
+    fiat_code: Option<&str>,
+    price_usd: Option<f64>,
+    decimals: u32,
+    rate: Option<f64>,
+    quoted_in: &str,
+) -> String {
+    let figure = match fiat_code {
+        Some(code) => DenominatedAmount::fiat(amount, code),
+        None => DenominatedAmount::token(amount),
+    };
+    figure.to_token_units(
+        TokenPrice::new(price_usd, rate, quoted_in).as_ref(),
+        decimals,
+    )
+}
+
+/// The half of the guard the placeholder used to disable: a figure typed in one
+/// currency is not converted by another currency's price. `display_changed` can
+/// swap the whole context in a single event, so this pairing is reachable.
+///
+/// Mutation proof: drop the `p.code() == code` filter in
+/// `DenominatedAmount::to_token_units` and the first line below returns
+/// "697.35007" — 5000 CNY paid out as if it were 5000 USD.
+#[test]
+fn a_figure_is_never_converted_by_another_currencys_price() {
+    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(7.17), "USD"), "0");
+    assert_eq!(token_units("5000", Some("USD"), Some(1.0), 6, Some(7.17), "CNY"), "0");
+    // Same currency on both halves: the conversion happens.
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, Some(7.17), "CNY"),
+        "697.35007"
+    );
+}
+
 #[test]
 fn resolve_token_amount_passes_token_mode_through_untouched() {
-    assert_eq!(resolve_token_amount("1.5", false, Some(2000.0), 18, 1.0), "1.5");
-    // Unpriced token: the raw typed amount comes back even in fiat mode.
-    assert_eq!(resolve_token_amount("7", true, None, 18, 1.0), "7");
-    assert_eq!(resolve_token_amount("7", true, Some(0.0), 18, 1.0), "7");
+    assert_eq!(token_units("1.5", None, Some(2000.0), 18, Some(1.0), "USD"), "1.5");
+    // …and keeps passing it through when nothing can price the token, because
+    // a token-denominated figure needs no conversion at all.
+    assert_eq!(token_units("1.5", None, None, 18, Some(1.0), "USD"), "1.5");
+    assert_eq!(token_units("1.5", None, Some(0.0), 18, None, "USD"), "1.5");
+    // Not even a price quoted in a currency the figure has never heard of.
+    assert_eq!(token_units("1.5", None, Some(2000.0), 18, Some(7.17), "CNY"), "1.5");
+}
+
+/// An unpriced TOKEN is the same refusal as an unpriceable CURRENCY: both are
+/// a missing factor in `price_usd × rate`, and a fiat figure has no token twin
+/// without both. This used to pass "7" straight through — so a price feed that
+/// dropped ETH while "7" was on screen in USD turned it into 7 whole ETH.
+///
+/// Mutation proof: make `DenominatedAmount::to_token_units` fall back to
+/// `self.value` when the price is absent and every assertion here flips to "7".
+#[test]
+fn resolve_token_amount_refuses_an_unpriced_token_in_fiat_mode() {
+    assert_eq!(token_units("7", Some("USD"), None, 18, Some(1.0), "USD"), "0");
+    assert_eq!(token_units("7", Some("USD"), Some(0.0), 18, Some(1.0), "USD"), "0");
+    assert_eq!(
+        token_units("7", Some("USD"), Some(f64::NAN), 18, Some(1.0), "USD"),
+        "0"
+    );
 }
 
 #[test]
 fn resolve_token_amount_divides_fiat_by_the_display_price() {
     // $70 at $7/token → 10 tokens.
-    assert_eq!(resolve_token_amount("70", true, Some(7.0), 18, 1.0), "10");
+    assert_eq!(token_units("70", Some("USD"), Some(7.0), 18, Some(1.0), "USD"), "10");
     // Display rate 2: 70 fiat = $35 → 5 tokens.
-    assert_eq!(resolve_token_amount("70", true, Some(7.0), 18, 2.0), "5");
+    assert_eq!(token_units("70", Some("XXX"), Some(7.0), 18, Some(2.0), "XXX"), "5");
     // Garbage / non-positive fiat → '0'.
-    assert_eq!(resolve_token_amount("abc", true, Some(7.0), 18, 1.0), "0");
-    assert_eq!(resolve_token_amount("", true, Some(7.0), 18, 1.0), "0");
+    assert_eq!(token_units("abc", Some("USD"), Some(7.0), 18, Some(1.0), "USD"), "0");
+    assert_eq!(token_units("", Some("USD"), Some(7.0), 18, Some(1.0), "USD"), "0");
+}
+
+/// An unknown display rate converts NOTHING in fiat mode — and costs token
+/// mode nothing at all.
+///
+/// The tempting shape is `rate.unwrap_or(1.0)`, which is also what
+/// `token_price_in_fiat`'s own `else { 1.0 }` branch does if it is ever
+/// reached with 0. Either way a "5000" typed in an unpriceable CNY resolves to
+/// 5000 whole tokens — the batch importer's 7x payout, one screen over.
+///
+/// Mutation proof: change the `let Some(rate) = rate.filter(..)` guard to
+/// `rate.unwrap_or(1.0)` and the fiat lines below return "5000" / "714.28...";
+/// delete the `is_finite()`/`> 0.0` filter and the 0.0 and NaN lines do the
+/// same. The token-mode lines stay green under every one of those mutations,
+/// which is the point: the refusal is narrow.
+#[test]
+fn resolve_token_amount_refuses_an_unknown_display_rate() {
+    // 5000 CNY of USDT, with nothing able to price CNY.
+    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, None, "CNY"), "0");
+    // A source that answered nonsense is no better than one that failed.
+    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(0.0), "CNY"), "0");
+    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(-7.17), "CNY"), "0");
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, Some(f64::NAN), "CNY"),
+        "0"
+    );
+
+    // What the fallback used to pay: the fiat figure, one token for one yuan.
+    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(1.0), "CNY"), "5000");
+    // And what it is actually worth once CNY can be priced.
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, Some(7.17), "CNY"),
+        "697.35007"
+    );
+
+    // TOKEN mode never reads the rate: sending 5 USDT still works with no
+    // rate at all. Blocking the conversion must not block the send screen.
+    assert_eq!(token_units("5", None, Some(1.0), 6, None, "CNY"), "5");
+    assert_eq!(token_units("0.25", None, Some(2000.0), 18, None, "CNY"), "0.25");
 }
 
 #[test]
@@ -836,7 +979,7 @@ fn max_native_is_string_exact_against_the_reserve() {
         filled + reserve,
         to_base_units("1.234567891234567891", 18).expect("balance parses")
     );
-    assert!(!view.input_in_fiat, "Max always fills token units");
+    assert_eq!(view.amount_fiat_code, None, "Max always fills token units");
     assert_eq!(view.amount_warning, None, "its own fill never trips the gate");
 }
 
@@ -886,12 +1029,223 @@ fn fiat_toggle_converts_across_the_boundary_both_ways() {
     });
     sut.dispatch(Event::ToggleFiatInput);
     let view = sut.view();
-    assert!(view.input_in_fiat);
+    assert_eq!(view.amount_fiat_code.as_deref(), Some("USD"));
     assert_eq!(view.amount, "2000.00", "1 ETH at $2000, toFixed(2)");
     sut.dispatch(Event::ToggleFiatInput);
     let view = sut.view();
-    assert!(!view.input_in_fiat);
+    assert_eq!(view.amount_fiat_code, None);
     assert_eq!(view.amount, "1", "round-trips through the strip regex");
+}
+
+/// An unpriceable display currency closes the fiat-denominated input — and
+/// leaves everything else on the screen working.
+///
+/// The ⇄ toggle is the door into typing money in the display currency, and the
+/// display currency is exactly what nothing can price here. The core will not
+/// open that door; it will always let someone back OUT of it (a currency can
+/// go unpriceable while a fiat amount is already typed, and trapping the user
+/// in a mode whose amount can never resolve would be its own bug).
+///
+/// Mutation proof: drop the `target.is_fiat() && price.is_none()` guard in
+/// `toggle_fiat_input` and the first assertion flips to a `Some("CNY")` code
+/// with `amount: "0.00"` — the ETH amount rewritten by a multiplier that does
+/// not exist. The last block is the narrowness: a token-denominated send is
+/// completely unaffected by the missing rate.
+#[test]
+fn an_unpriceable_display_currency_closes_fiat_input_but_not_the_send() {
+    let mut sut = boot(vec![eth("2")]);
+    select_eth(&mut sut);
+    sut.dispatch(Event::DisplayChanged {
+        display: unpriced_display(),
+    });
+    sut.dispatch(Event::SetAmount {
+        amount: "1".to_owned(),
+    });
+
+    // The door will not open.
+    sut.dispatch(Event::ToggleFiatInput);
+    let view = sut.view();
+    assert_eq!(view.amount_fiat_code, None, "no rate, no fiat-denominated input");
+    assert_eq!(view.amount, "1", "and the typed amount is left alone");
+
+    // Token mode is untouched: 1 ETH is still 1 ETH, and it is still the
+    // number the confirm page and the signature are built from.
+    assert_eq!(view.token_amount, "1");
+
+    // Someone already inside fiat mode when the rate vanished can leave.
+    sut.dispatch(Event::DisplayChanged {
+        display: display(),
+    });
+    sut.dispatch(Event::ToggleFiatInput);
+    assert_eq!(sut.view().amount_fiat_code.as_deref(), Some("USD"));
+    sut.dispatch(Event::DisplayChanged {
+        display: unpriced_display(),
+    });
+    // While stuck there, nothing converts — 2000 "unpriceable units" buys no
+    // ETH at all, rather than 2000 ETH at a defaulted rate of 1.
+    assert_eq!(sut.view().token_amount, "0");
+    sut.dispatch(Event::ToggleFiatInput);
+    assert_eq!(sut.view().amount_fiat_code, None, "leaving is always allowed");
+}
+
+/// **Leaving fiat mode without a rate does not smuggle the fiat digits out
+/// wearing a token label.**
+///
+/// This is the shape of the last four defects with the arithmetic removed. No
+/// `?? 1`, no `unwrap_or(1.0)`, no `|| 1` — the conversion was simply skipped
+/// and the unit label changed underneath the number, which is multiplication by
+/// an implicit 1 written as an assignment. 5000 CNY became 5000 USDC, and the
+/// confirm slider was armed on it.
+///
+/// The honest outcomes when a figure cannot be restated are: refuse the unit
+/// change, or drop the figure. Trapping the user in fiat mode is NOT one of
+/// them (that was the previous round's mistake in the other direction), so
+/// leaving still works — the field simply arrives empty, which is the one state
+/// that claims nothing. `can_continue` already refuses an empty amount.
+///
+/// Mutation proof: replace the `.unwrap_or_else(|_| DenominatedAmount::token(""))`
+/// in `toggle_fiat_input` with anything that keeps `model.amount`'s digits and
+/// `token_amount` becomes "5000" — 5000 whole USDC, signable.
+#[test]
+fn leaving_fiat_mode_with_no_rate_drops_the_figure_instead_of_relabelling_it() {
+    let mut sut = boot(vec![usdc("9000")]);
+    select_usdc(&mut sut);
+    set_recipient(&mut sut, RECIPIENT);
+
+    // Priced CNY: the door opens and 5000 CNY is a real, resolvable figure.
+    sut.dispatch(Event::DisplayChanged {
+        display: cny_display(),
+    });
+    sut.dispatch(Event::ToggleFiatInput);
+    sut.dispatch(Event::SetAmount {
+        amount: "5000".to_owned(),
+    });
+    assert_eq!(sut.view().amount_fiat_code.as_deref(), Some("CNY"));
+    assert_eq!(sut.view().token_amount, "697.35007");
+
+    // CNY goes unpriceable mid-screen. Nothing converts — already covered.
+    sut.dispatch(Event::DisplayChanged {
+        display: unpriced_display(),
+    });
+    assert_eq!(sut.view().token_amount, "0");
+
+    // Now leave. The mode flips (no trap) and the figure does NOT come along.
+    sut.dispatch(Event::ToggleFiatInput);
+    let view = sut.view();
+    assert_eq!(view.amount_fiat_code, None, "leaving is always allowed");
+    assert_eq!(view.amount, "", "5000 CNY is not 5000 USDC");
+    assert_eq!(view.token_amount, "", "nothing to sign");
+    assert!(!view.can_continue, "and nothing to continue with");
+}
+
+/// The same figure, but the rate that reappears belongs to a DIFFERENT
+/// currency than the one it was typed in.
+///
+/// `display_changed` can swap the whole context in one event, so "5000" typed
+/// in CNY can find itself sitting next to a USD rate. Because the figure
+/// carries its own code and `TokenPrice` carries the code it is quoted in,
+/// that mismatch is a refusal — not a 7x conversion at the wrong rate.
+///
+/// Mutation proof: drop the `p.code() == code` filter in
+/// `DenominatedAmount::to_token_units` and `token_amount` becomes "5000".
+#[test]
+fn a_figure_typed_in_one_currency_is_not_resolved_at_another_currencys_rate() {
+    let mut sut = boot(vec![usdc("9000")]);
+    select_usdc(&mut sut);
+    sut.dispatch(Event::DisplayChanged {
+        display: cny_display(),
+    });
+    sut.dispatch(Event::ToggleFiatInput);
+    sut.dispatch(Event::SetAmount {
+        amount: "5000".to_owned(),
+    });
+    assert_eq!(sut.view().token_amount, "697.35007");
+
+    // The display currency becomes USD while a CNY figure is on the field.
+    sut.dispatch(Event::DisplayChanged {
+        display: display(),
+    });
+    assert_eq!(
+        sut.view().amount_fiat_code.as_deref(),
+        Some("USD"),
+        "still a fiat-denominated figure — in the currency now on screen"
+    );
+    assert_eq!(
+        sut.view().token_amount,
+        "0",
+        "a CNY figure has no USD-rate answer"
+    );
+
+    // Leaving drops it rather than calling 5000 CNY 5000 USDC.
+    sut.dispatch(Event::ToggleFiatInput);
+    assert_eq!(sut.view().amount, "");
+}
+
+/// Max is a token-unit fill, so it must leave a fiat-denominated field in token
+/// units — and while it waits for an estimate it leaves the field EMPTY rather
+/// than letting the previous fiat digits sit under a token label.
+#[test]
+fn max_never_leaves_a_fiat_figure_wearing_a_token_label() {
+    let mut sut = boot(vec![usdc("9000")]);
+    select_usdc(&mut sut);
+    sut.dispatch(Event::DisplayChanged {
+        display: cny_display(),
+    });
+    sut.dispatch(Event::ToggleFiatInput);
+    sut.dispatch(Event::SetAmount {
+        amount: "5000".to_owned(),
+    });
+    sut.dispatch(Event::TapMax);
+    let view = sut.view();
+    assert_eq!(view.amount_fiat_code, None, "Max always fills token units");
+    assert_ne!(view.amount, "5000", "never the CNY digits relabelled");
+}
+
+/// **A ⇄ row that refuses says why it refuses.**
+///
+/// The previous round closed half of this: the row now dims instead of
+/// silently swallowing the tap. But dimming is a refusal, not a reason, and
+/// this is the ONE branch on the screen where nothing else speaks — the token
+/// is priced, the display currency is not, and the figure is in TOKEN units,
+/// so it resolves perfectly and `derive_amount_warning` has nothing to say.
+/// A 40%-opacity control and total silence is a dead end.
+///
+/// Mutation proof: drop the `denom_toggle_shown && !denom_toggle_enabled`
+/// guard's `.then(...)` (return `None` unconditionally) and the last-but-one
+/// assertion fails with `None` — the exact state the screen was in before.
+#[test]
+fn a_conversion_row_that_cannot_be_pressed_says_why() {
+    let mut sut = boot(vec![usdc("9000")]);
+    select_usdc(&mut sut);
+    sut.dispatch(Event::DisplayChanged {
+        display: unpriced_display(),
+    });
+    sut.dispatch(Event::SetAmount {
+        amount: "10".to_owned(),
+    });
+
+    let view = sut.view();
+    assert!(view.denom_toggle_shown, "a priced token still offers the row");
+    assert!(!view.denom_toggle_enabled, "but there is no CNY rate to enter");
+    assert_eq!(view.token_amount, "10", "the token figure resolves perfectly…");
+    assert_eq!(view.amount_warning, None, "…so nothing else on the screen speaks");
+    assert_eq!(
+        view.denom_toggle_reason,
+        Some(SendUnitIssue {
+            code: "CNY".to_owned(),
+            symbol: "USDC".to_owned(),
+        }),
+        "the dimming must come with a sentence"
+    );
+
+    // And when the row works again it goes quiet: a reason for a refusal that
+    // is not happening is noise.
+    sut.dispatch(Event::DisplayChanged {
+        display: cny_display(),
+    });
+    let view = sut.view();
+    assert!(view.denom_toggle_enabled);
+    assert_eq!(view.denom_toggle_reason, None);
 }
 
 #[test]
@@ -900,7 +1254,7 @@ fn fiat_toggle_with_no_amount_only_flips_the_mode() {
     select_eth(&mut sut);
     sut.dispatch(Event::ToggleFiatInput);
     let view = sut.view();
-    assert!(view.input_in_fiat);
+    assert_eq!(view.amount_fiat_code.as_deref(), Some("USD"));
     assert_eq!(view.amount, "");
 }
 
@@ -919,7 +1273,7 @@ fn enter_split_mode_seeds_the_current_recipient_plus_an_empty_row() {
     sut.dispatch(Event::EnterSplitMode);
     let view = sut.view();
     assert!(view.split_mode);
-    assert!(!view.input_in_fiat);
+    assert_eq!(view.amount_fiat_code, None);
     assert_eq!(view.recipients.len(), 2);
     assert_eq!(view.recipients[0].address, RECIPIENT);
     assert_eq!(view.recipients[0].amount, "1");
@@ -1596,6 +1950,109 @@ fn a_cancelled_runs_stale_result_never_touches_the_retrys_lock() {
     assert!(matches!(ops.as_slice(), [Op::SubmitUserOp { .. }]));
 }
 
+/// **The confirm slider disarms when the money stops resolving — and says so.**
+///
+/// `can_confirm` looked only at the fee and the pipeline: the amount was
+/// checked once, by `Continue`, and never again. But the confirm page is a page
+/// someone can sit on, and `display_changed` lands whenever the currency
+/// commits. A CNY figure cannot be restated in USD (this screen has no cross
+/// rate and inventing one is the defect the whole area exists to forbid), so
+/// `redenominate_to_display` drops it — leaving a fully armed slide over
+/// nothing at all. This is the confirm-stage twin of the hole the previous
+/// round closed on `can_continue`.
+///
+/// Mutation proof: remove `&& confirm_amount_ok` from `can_confirm` and the
+/// `!view.can_confirm` assertion fails — the slider is armed on a `"0"` amount,
+/// which is exactly a signable zero-value transfer.
+#[test]
+fn a_currency_commit_under_the_confirm_page_disarms_the_slide_and_says_why() {
+    let mut sut = boot(vec![usdc("9000")]);
+    select_usdc(&mut sut);
+    set_recipient(&mut sut, RECIPIENT);
+    sut.dispatch(Event::DisplayChanged {
+        display: cny_display(),
+    });
+    sut.dispatch(Event::ToggleFiatInput);
+    sut.dispatch(Event::SetAmount {
+        amount: "500".to_owned(),
+    });
+    continue_to_confirm(&mut sut, native_fee(1, 1_000));
+    assert!(sut.view().can_confirm, "a resolvable figure is signable");
+
+    // The display currency commits to USD while the review page is open.
+    sut.dispatch(Event::DisplayChanged {
+        display: display(),
+    });
+    let view = sut.view();
+    assert_eq!(view.stage, SendStage::Confirm, "still on the page");
+    assert_eq!(view.amount, "", "the reviewed figure could not come across");
+    assert_eq!(view.token_amount, "0", "and there is nothing to sign");
+    assert!(!view.can_confirm, "so the slide is not armed");
+    assert_eq!(
+        view.confirm_amount_issue,
+        Some(SendUnitIssue {
+            code: "USD".to_owned(),
+            symbol: "USDC".to_owned(),
+        }),
+        "and the refusal is not silent"
+    );
+
+    // The entry screen's gate agrees — one judgement, two pages.
+    assert!(!view.can_continue);
+
+    // And the machine does not rely on the shell honouring `can_confirm`: a
+    // slide that arrives anyway signs nothing. `to_base_units("0", 6)` is a
+    // perfectly valid `Some(0)`, so without this the build path would have
+    // encoded a zero-value transfer and asked for a passkey over it.
+    let ops = sut.dispatch(Event::SlideConfirm);
+    assert!(
+        !ops.iter()
+            .any(|op| matches!(op, Op::SubmitUserOp { .. } | Op::ProbeTreasury { .. })),
+        "a figure that does not resolve never reaches signing: {ops:?}"
+    );
+    assert_eq!(
+        sut.view().stage,
+        SendStage::EnterDetails,
+        "back to the amount field — the same recovery the fee breach gets"
+    );
+}
+
+/// The confirm-stage reason is scoped to the refusal: a healthy confirm page
+/// says nothing, and the batch modes (whose money lives in `recipients` /
+/// `multi_specs`, not in the amount field) are never accused of an empty one.
+#[test]
+fn a_healthy_confirm_page_and_the_batch_modes_are_never_accused_of_a_dead_amount() {
+    let mut sut = boot(vec![eth("2")]);
+    to_confirm_native(&mut sut, "1", native_fee(1, 1_000));
+    let view = sut.view();
+    assert!(view.can_confirm);
+    assert_eq!(view.confirm_amount_issue, None);
+
+    let mut sut = boot(vec![eth("2")]);
+    select_eth(&mut sut);
+    sut.dispatch(Event::EnterSplitMode);
+    sut.dispatch(Event::RecipientsChanged {
+        recipients: vec![
+            SendRecipientDraft {
+                id: "rcpt_1".to_owned(),
+                address: RECIPIENT.to_owned(),
+                amount: "0.5".to_owned(),
+                name: None,
+            },
+            SendRecipientDraft {
+                id: "rcpt_2".to_owned(),
+                address: RECIPIENT_B.to_owned(),
+                amount: "0.25".to_owned(),
+                name: None,
+            },
+        ],
+    });
+    continue_to_confirm(&mut sut, native_fee(1, 1_000));
+    let view = sut.view();
+    assert!(view.can_confirm, "split money is not in `model.amount`");
+    assert_eq!(view.confirm_amount_issue, None);
+}
+
 #[test]
 fn double_slide_in_one_tick_starts_exactly_one_submit() {
     let mut sut = boot(vec![eth("2")]);
@@ -1651,6 +2108,70 @@ fn a_single_send_persists_one_record_then_hands_off_to_the_tracker() {
         }
     );
     assert!(sut.resolve(Res::TrackHandedOff).is_empty());
+}
+
+/// **A receipt reports the amount that was SIGNED, not one recomputed from
+/// whatever rate is on screen now.**
+///
+/// `receipt_view` asked `model_token_amount` for its headline figure, which
+/// re-runs the fiat↔token conversion against the CURRENT display context. That
+/// is a live computation about a fact that stopped being live the instant the
+/// calldata was signed: move the display currency after the payment and the
+/// receipt's token amount moved with it — down to `0` once the rate was gone.
+/// A number already on-chain is not the currency picker's to rewrite.
+///
+/// Mutation proof: put `model_token_amount(model, token)` back in
+/// `receipt_view` and the post-payment assertions fail — `"69.735007"` becomes
+/// `"0"` under the unpriced currency and `"500"` (the raw CNY digits, wearing a
+/// USDC label) under a USD rate.
+#[test]
+fn a_receipt_shows_the_signed_amount_and_no_later_rate_can_restate_it() {
+    let mut sut = boot(vec![usdc("9000")]);
+    select_usdc(&mut sut);
+    set_recipient(&mut sut, RECIPIENT);
+    sut.dispatch(Event::DisplayChanged {
+        display: cny_display(),
+    });
+    sut.dispatch(Event::ToggleFiatInput);
+    sut.dispatch(Event::SetAmount {
+        amount: "500".to_owned(),
+    });
+    assert_eq!(sut.view().token_amount, "69.735007", "500 CNY at 7.17/USD");
+
+    continue_to_confirm(&mut sut, native_fee(1, 1_000));
+    let op = slide_to_submit(&mut sut);
+    // What the passkey actually signed: 69_735_007 base units of a 6-decimal
+    // token — `0x0428125f` in the transfer's second word.
+    let Op::SubmitUserOp { calls, .. } = &op else {
+        panic!("expected a submit, got {op:?}")
+    };
+    assert!(
+        calls[0].data.starts_with("0xa9059cbb") && calls[0].data.ends_with("0428125f"),
+        "signed calldata: {}",
+        calls[0].data
+    );
+
+    sut.resolve(submitted(HASH));
+    let receipt = sut.view().receipt.expect("receipt view");
+    assert_eq!(receipt.amount, "69.735007");
+    assert_eq!(receipt.usd_value, 69.735007);
+
+    // The rate vanishes AFTER the payment. Nothing about a signature changes.
+    sut.dispatch(Event::DisplayChanged {
+        display: unpriced_display(),
+    });
+    let receipt = sut.view().receipt.expect("receipt view");
+    assert_eq!(
+        receipt.amount, "69.735007",
+        "an on-chain transfer is not re-derived from today's rate"
+    );
+    assert_eq!(receipt.usd_value, 69.735007);
+
+    // …and neither does a different currency with a perfectly good rate.
+    sut.dispatch(Event::DisplayChanged {
+        display: display(),
+    });
+    assert_eq!(sut.view().receipt.expect("receipt view").amount, "69.735007");
 }
 
 #[test]

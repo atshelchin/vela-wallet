@@ -32,10 +32,12 @@
  *   custom-bundler user never wanted anyway.
  * - `poolRpcCall`'s `attempt` argument is accepted and ignored: passes are the
  *   core's business now.
- * - A ban whose TTL expired is dropped from selection immediately here (the
- *   core re-checks TTLs live), where the TypeScript pool could pin an endpoint
- *   at -Infinity until restart. That is `rpc_pool.rs`'s ban-truth unification,
- *   invariant ⑧.
+ * - A ban whose TTL expired is dropped from selection immediately (the core
+ *   re-checks TTLs live), where the TypeScript pool could pin an endpoint at
+ *   -Infinity until restart. That is `rpc_pool.rs`'s ban-truth unification,
+ *   invariant ⑧. Note that this module holds no ban TTLs of its own: it used to
+ *   keep a copy for `getChainRpcUrl`'s selection, and a third copy of a policy
+ *   constant is a third thing to forget to change.
  *
  * Dev fault injection stays in TypeScript on purpose: it short-circuits
  * *before* any routing, so the core never sees those calls — which is what
@@ -55,7 +57,6 @@ import {
 } from './rpc-pool-endpoints';
 import { readStoredBans } from './wallet-state-core/rpc-pool-executor.web';
 import { createRpcPoolSession, type RpcPoolSession } from './wallet-state-core/rpc-pool-session';
-import type { RpcBanEntry } from './wallet-state-core/generated/RpcBanEntry';
 import type { RpcCallVerdict } from './wallet-state-core/generated/RpcCallVerdict';
 import type { RpcKind } from './wallet-state-core/generated/RpcKind';
 import type { RpcPoolView } from './wallet-state-core/generated/RpcPoolView';
@@ -67,13 +68,8 @@ export { getBuiltinBundlerUrl, getLogsRangeCap, probeRpcChainId } from './rpc-po
 // Projected core state
 // ---------------------------------------------------------------------------
 
-/** Ban TTLs — mirrors `rpc_pool.rs::is_ban_active`, for the config queries below. */
-const TEMP_BAN_TTL_MS = 60 * 60 * 1000;
-const PERMA_BAN_TTL_MS = 24 * 60 * 60 * 1000;
-
 let coreFailedChains: number[] = [];
 let coreRateLimitedChains: number[] = [];
-let coreBans: RpcBanEntry[] = [];
 
 /**
  * Fault-injected chains. Kept apart from the projected core sets because the
@@ -117,15 +113,6 @@ if (typeof __DEV__ !== 'undefined' && __DEV__) {
   };
 }
 
-function isBanActive(entry: RpcBanEntry, nowMs: number): boolean {
-  return nowMs - entry.banned_at_ms < (entry.permanent ? PERMA_BAN_TTL_MS : TEMP_BAN_TTL_MS);
-}
-
-function activeBannedUrls(): Set<string> {
-  const now = Date.now();
-  return new Set(coreBans.filter((entry) => isBanActive(entry, now)).map((entry) => entry.url));
-}
-
 // ---------------------------------------------------------------------------
 // The calls in flight
 // ---------------------------------------------------------------------------
@@ -143,6 +130,8 @@ const payloads = new Map<string, { method: string; params: unknown[] }>();
 const bodies = new Map<string, Map<string, RPCResponse>>();
 const pendingCalls = new Map<string, PendingCall>();
 const pendingBases = new Map<string, (baseUrl: string) => void>();
+/** `getChainRpcUrl` queries awaiting the core's ranking. */
+const pendingBestRpc = new Map<string, (url: string | null) => void>();
 /** Last collected candidate lists per chain, for the config queries. */
 const seeds = new Map<number, { rpc: CollectedEndpoint[]; bundler: CollectedEndpoint[] }>();
 
@@ -161,6 +150,16 @@ function settle(callId: string, verdict: RpcCallVerdict): void {
     // `null` ⇒ every bundler endpoint is banned or the pool is empty; the
     // built-in base is shell config, so the fallback is applied here.
     resolve?.(verdict.base_url ?? getBuiltinBundlerUrl());
+    return;
+  }
+
+  if (verdict.type === 'best_rpc_url') {
+    const resolve = pendingBestRpc.get(callId);
+    pendingBestRpc.delete(callId);
+    // `null` passes straight through: no eligible endpoint means no `X-Rpc-Url`
+    // header and no fork source. There is no shell-side fallback to apply here —
+    // inventing one is exactly the wrong-chain hand-off invariant ② forbids.
+    resolve?.(verdict.url);
     return;
   }
 
@@ -235,6 +234,12 @@ function abandonInFlight(error: unknown): void {
     pendingBases.delete(callId);
     resolve(getBuiltinBundlerUrl());
   }
+  for (const [callId, resolve] of [...pendingBestRpc]) {
+    pendingBestRpc.delete(callId);
+    // No ranking means no verified endpoint: answer `null` (send no header,
+    // skip the fork) rather than fall back to an unranked guess.
+    resolve(null);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -256,7 +261,6 @@ function ensureReady(): Promise<void> {
       onView: (view: RpcPoolView) => {
         coreFailedChains = view.failed_chains;
         coreRateLimitedChains = view.rate_limited_chains;
-        coreBans = view.banned;
       },
       onError: (error) => {
         console.error('[rpc-pool] core fault:', error);
@@ -399,14 +403,33 @@ export async function getActiveBundlerBaseUrl(chainId: number): Promise<string> 
   });
 }
 
-/** Get the best RPC URL for a chain (for passing to bundler via X-Rpc-Url). */
+/**
+ * Get the best RPC URL for a chain (for passing to bundler via X-Rpc-Url).
+ *
+ * Answered by the core, for the same reason `getActiveBundlerBaseUrl` is: this
+ * is not a question about config, it is the pool's own ranking, and the answer
+ * is consequential. It rides `X-Rpc-Url` into `/v1/account` and `/v1/sponsor` —
+ * the bundler reads the Safe's code, nonce and balance through this URL and
+ * transfers from its treasury on what it finds — and it seeds the Tevm fork.
+ *
+ * Deriving it here from the collected list would mean six-tier source priority
+ * and nothing else: no EMA latency, no failure cooldown, and no memory of an
+ * endpoint that answered `eth_chainId` with another chain's id. That is weaker
+ * than the TypeScript pool this module replaced, and invariant ② would hold for
+ * the JSON-RPC leg's header while quietly not holding for the REST leg's.
+ */
 export async function getChainRpcUrl(chainId: number): Promise<string | null> {
   await ensureReady();
-  const { rpc } = await endpointsFor(chainId);
-  const banned = activeBannedUrls();
-  // Collection order is the cold-start source-priority order the core sorts by;
-  // the live latency/failure adjustments it also applies are core state.
-  return rpc.find((e) => !banned.has(e.url))?.url ?? null;
+  const callId = `rpc-url:${chainId}:${(sequence += 1)}`;
+  return new Promise<string | null>((resolve) => {
+    pendingBestRpc.set(callId, resolve);
+    session?.dispatch({
+      type: 'best_rpc_url_requested',
+      call_id: callId,
+      chain_id: chainId,
+      now_ms: Date.now(),
+    });
+  });
 }
 
 /**

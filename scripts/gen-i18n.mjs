@@ -145,8 +145,20 @@ for (let i = 1; i < PATHS.length; i++) {
 // + 9 erase-this-device paths (spec 017: the `settings.eraseDevice` branch and
 //   its 8 leaves — the destructive counterpart to sign-out, whose copy has to
 //   name what is lost and what is not).
-if (PATHS.length !== 1323) fail(`expected 1323 paths (1244 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1244) fail(`expected 1244 leaf paths, got ${leafSet.size}`);
+// + 1 send leaf (spec 017: send.warnCannotConvert — a fiat figure the screen
+//   cannot restate in token units. `Continue` refuses it and the ⇅ row reads
+//   `0 SYM`; before this key nothing on the screen said why, and the grep for
+//   an existing amount/rate string turned up none that fit — `batchRateFailed`
+//   and `batchNoPrice` both send you to a manual-rate field this screen has
+//   not got).
+// + 1 send leaf (spec 017: send.denomToggleNoRate — the ⇄ row shown but
+//   inert, which is the one branch `warnCannotConvert` cannot cover: the
+//   figure is in TOKEN units and resolves fine, so no amount warning fires,
+//   and `warnCannotConvert`'s "switch to {{symbol}}" would tell the user to go
+//   where they already are. The refusal was visible (the row dims); the reason
+//   was not.
+if (PATHS.length !== 1325) fail(`expected 1325 paths (1246 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1246) fail(`expected 1246 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

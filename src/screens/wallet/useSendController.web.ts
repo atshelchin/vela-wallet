@@ -28,13 +28,15 @@
  *
  * ### Deliberate, visible differences from the native controller
  *
- * - **"Select all valuable" stays scoped to what the picker is showing.** The
- *   core's `ToggleAllMultiTokens` selects every valuable token on the filtered
- *   CHAIN; `TokenSelector` hands its own search/category-filtered list to
- *   `onToggleAll`. Sweeping tokens the user cannot see is a fund-safety
- *   regression, so the shell reproduces `use-token-multi-select.ts` exactly by
- *   toggling each visible row through the core's own per-token event. The
- *   core's aggregate event is therefore unused on web.
+ * - **"Select all valuable" stays scoped to what the picker is showing.**
+ *   `TokenSelector` hands its own search/category-filtered list to
+ *   `onToggleAll`, and sweeping tokens the user cannot see is a fund-safety
+ *   regression — so the shell states that SCOPE (`visible_ids`) and the core's
+ *   `ToggleAllMultiTokens` does the rest: which of those rows are worth
+ *   sweeping (`is_valuable`) and whether the master row toggles on or off. The
+ *   picker's tick reads `multi_valuable_ids` the same way. No predicate about
+ *   money lives on this side; native keeps `use-token-multi-select.ts` and
+ *   `send-sweep-scope-parity.test.ts` pins the two together.
  * - **A scanned EIP-681 request re-locks the flow in place, not through the
  *   router.** The core's `ScanResolved` re-runs `Open` itself, so there is no
  *   `router.replace` and the address bar keeps the URL the screen was opened
@@ -57,7 +59,7 @@ import { useSafeRouter } from '@/hooks/use-safe-router';
 import { chainName } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
 import { useWallet } from '@/models/wallet-state';
-import { selectAllValuable, type MultiTokenSpec } from '@/services/batch-send';
+import { type MultiTokenSpec } from '@/services/batch-send';
 import { type TreasuryStatus } from '@/services/bundler-service';
 import { saveContactThroughCore } from '@/hooks/use-contacts-book.web';
 import { ZERO_DECIMAL_CODES } from '@/services/currency';
@@ -129,12 +131,14 @@ const INITIAL_VIEW: SendView = {
   denom_toggle_reason: null,
   confirm_amount_issue: null,
   token_amount: '',
+  confirm_amount: '',
   split_mode: false,
   recipients: [],
   split_over_balance: false,
   picker_target: null,
   multi_select_mode: false,
   multi_selected_ids: [],
+  multi_valuable_ids: [],
   multi_chain_id: null,
   multi_specs: [],
   show_scanner: false,
@@ -704,23 +708,26 @@ export function useSendController(): SendController {
     [view.multi_selected_ids],
   );
 
+  // Which held assets the core would sweep. The shell only ever INTERSECTS
+  // this with the rows on screen; it never re-decides membership.
+  const valuableIds = useMemo(
+    () => new Set(view.multi_valuable_ids),
+    [view.multi_valuable_ids],
+  );
+
   const tokenMultiSelect = useMemo<SendTokenMultiSelect>(
     () => ({
       selectedIds,
       onToggle: (token) => dispatch({ type: 'toggle_multi_token', token_id: tokenId(token) }),
-      onToggleAll: (visible) => {
-        // `use-token-multi-select.ts:41-46` verbatim, over the list the picker
-        // is actually showing (see the header note on the core's own event).
-        const valuable = selectAllValuable(visible);
-        if (valuable.length === 0) return;
-        const allOn = valuable.every((token) => selectedIds.has(tokenId(token)));
-        for (const token of valuable) {
-          const id = tokenId(token);
-          if (selectedIds.has(id) === allOn) dispatch({ type: 'toggle_multi_token', token_id: id });
-        }
-      },
+      // The shell names the SCOPE — the rows the picker is showing — and the
+      // core decides the rest. It used to run `selectAllValuable` here, a
+      // second copy of `is_valuable` deciding which assets get swept.
+      onToggleAll: (visible) =>
+        dispatch({ type: 'toggle_all_multi_tokens', visible_ids: visible.map(tokenId) }),
+      // The master tick: the same intersection the event applies, so the
+      // checkbox can never claim a state the tap would not produce.
       isAllSelected: (visible) => {
-        const valuable = selectAllValuable(visible);
+        const valuable = visible.filter((token) => valuableIds.has(tokenId(token)));
         return valuable.length > 0 && valuable.every((token) => selectedIds.has(tokenId(token)));
       },
       onNetworkChange: (chainId) => dispatch({ type: 'set_multi_network', chain_id: chainId }),
@@ -734,7 +741,7 @@ export function useSendController(): SendController {
             }),
       selectAllLabel: t('send.selectAllValuable', { defaultValue: 'Select all valuable' }),
     }),
-    [dispatch, selectedIds, t, view.multi_chain_id],
+    [dispatch, selectedIds, valuableIds, t, view.multi_chain_id],
   );
 
   // ── worded projections ────────────────────────────────────────────────────
@@ -819,6 +826,9 @@ export function useSendController(): SendController {
     // The core's own resolution — the confirm page shows the string the signed
     // batch is built from, never a second conversion of its own.
     tokenAmount: view.token_amount,
+    // The split total is the core's too — the same `sum_split_base_units` the
+    // over-balance gate, the same-asset ceiling and `build_split_calls` read.
+    confirmAmount: view.confirm_amount,
     splitMode: view.split_mode,
     recipients: snapshot.recipients,
     splitOverBalance: view.split_over_balance,

@@ -89,6 +89,7 @@ import type { FeedItem } from '@/services/wallet-state-core/generated/FeedItem';
 import type { FeedView } from '@/services/wallet-state-core/generated/FeedView';
 
 import { filterFeedRowsByChain } from './feed-chain-filter';
+import { detailCounterpartyAlias } from './home-detail-alias';
 import { styles } from './HomeScreen.styles';
 import type { FeedRow, HomeController, Tab } from './home-controller-types';
 
@@ -604,13 +605,16 @@ export function useHomeController(): HomeController {
       .finally(() => { pendingDeleteConnIds.current.delete(id); });
   }, []);
 
-  // Resolved alias for the open detail tx's counterparty — the stored name
-  // first, then whatever the core resolved for THAT row (`useHomeController.ts`
-  // reads the same two, in the same order; there the second is the ENS map).
-  const detailAlias = (() => {
-    if (!detailTx) return undefined;
-    return detailTx.toName ?? projected.aliasById.get(detailTx.id);
-  })();
+  // What the detail sheet calls the open tx's counterparty. The core already
+  // answered that question for THIS row (`aliasById` holds its
+  // `alias_map[addr] ?? stored` verdict, which is what the list renders), so
+  // the sheet reads the core's answer first and the stored name only as the
+  // fallback for a row outside the committed view. Reading them the other way
+  // round — which this did — let one transaction carry two different names on
+  // two surfaces. See `home-detail-alias.ts`.
+  const detailAlias = detailTx
+    ? detailCounterpartyAlias(detailTx.toName, projected.aliasById.get(detailTx.id))
+    : undefined;
 
   const refreshStatus = balance.last_refreshed_at_ms != null
     ? t('home.lastUpdated', { ago: relativeTime(Math.floor(balance.last_refreshed_at_ms / 1000)) })

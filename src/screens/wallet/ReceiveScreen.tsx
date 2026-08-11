@@ -40,9 +40,23 @@ export default function ReceiveScreen() {
   // Deposit detection + the acknowledge gate + the request builder are all
   // controller-owned (spec 016): the web controllers are driven by the
   // portable Rust machines, native keeps the moved TypeScript logic.
+  //
+  // That now includes every judgement about WHAT this screen hands out. The
+  // tab, the QR's content, the clipboard payload and the two permissions the
+  // anti-poisoning gate grants are single facts read from the controller —
+  // this file used to re-decide each of them, once per surface.
   const { detected: depositDetected, deposits } = useReceiveWatch(address || undefined);
   const rr = useReceiveRequest(address || undefined);
-  const { warned, acknowledge: acknowledgeWarning } = rr;
+  const {
+    warned,
+    acknowledge: acknowledgeWarning,
+    mode,
+    setMode,
+    qrPayload,
+    copyPayload,
+    canCopy,
+    canSave,
+  } = rr;
   const { copied, copy } = useCopyFeedback(2000);
 
   // Entrances play once (design language rule 10) — never replay on tab switch.
@@ -52,17 +66,13 @@ export default function ReceiveScreen() {
   // Tapped network in the supported-networks strip → reveals its name + chain ID.
   const [selectedNet, setSelectedNet] = useState<string | null>(null);
 
-  // Address vs EIP-681 payment-request mode.
-  const [mode, setMode] = useState<'address' | 'request'>('address');
-  // The built request comes from the controller; the summary line is composed
-  // here (words are the shell's job).
-  const request = useMemo(() => ({
-    qrValue: rr.qrValue,
-    payLink: rr.payLink,
-    summary: rr.hasAmount
+  // The request itself is the controller's; only the summary SENTENCE is
+  // composed here (words are the shell's job).
+  const summary = useMemo(() => (
+    rr.hasAmount
       ? t('receive.request.summaryAmount', { amount: rr.amount, symbol: rr.asset.symbol, network: rr.asset.networkName })
-      : t('receive.request.summaryOpen', { symbol: rr.asset.symbol, network: rr.asset.networkName }),
-  }), [rr.qrValue, rr.payLink, rr.hasAmount, rr.amount, rr.asset.symbol, rr.asset.networkName, t]);
+      : t('receive.request.summaryOpen', { symbol: rr.asset.symbol, network: rr.asset.networkName })
+  ), [rr.hasAmount, rr.amount, rr.asset.symbol, rr.asset.networkName, t]);
   const [savingImage, setSavingImage] = useState(false);
   const cardRef = useRef<View>(null);
   // Web only: the most recent pre-rendered share image, so Save can hand it to
@@ -70,16 +80,15 @@ export default function ReceiveScreen() {
   const shareBlobRef = useRef<{ model: ShareCardModel; blob: Blob } | null>(null);
 
   const isRequest = mode === 'request';
-  const qrValue = isRequest ? (request.qrValue || address) : address;
 
   const copyValue = useCallback(() => {
-    // In request mode we copy the public payment LINK (a web page that bridges
-    // to the Vela web wallet / other wallets), not the raw ethereum: URI.
-    const value = isRequest ? request.payLink : address;
-    if (!value) return;
+    // In request mode the payload is the public payment LINK (a web page that
+    // bridges to the Vela web wallet / other wallets), never the raw ethereum:
+    // URI — a rule that lives with the builder, not with this button.
+    if (!copyPayload) return;
     hapticLight();
-    copy(value);
-  }, [isRequest, request.payLink, address, copy]);
+    copy(copyPayload);
+  }, [copyPayload, copy]);
 
   const truncatedAddress = address
     ? `${address.slice(0, 8)}...${address.slice(-6)}`
@@ -92,18 +101,20 @@ export default function ReceiveScreen() {
       ? {
           variant: 'request',
           name: accountName,
-          qrValue: request.qrValue || address || '',
+          // The same payload the on-screen QR shows — one destination, so a
+          // shared card can never encode something the screen didn't.
+          qrValue: qrPayload,
           address: address || '',
-          summary: request.summary,
+          summary,
         }
       : {
           variant: 'address',
           name: accountName,
-          qrValue: address || '',
+          qrValue: qrPayload,
           address: address || '',
           networks: networks.map((n) => ({ label: n.iconLabel, name: n.displayName, color: n.iconColor, bg: n.iconBg, logoURL: n.logoURL })),
         }
-  ), [isRequest, accountName, request.qrValue, request.summary, address, networks]);
+  ), [isRequest, accountName, qrPayload, summary, address, networks]);
 
   const shareFileName = `vela-${isRequest ? 'request' : 'address'}-${(address || '').slice(0, 10)}`;
 
@@ -139,7 +150,7 @@ export default function ReceiveScreen() {
   // Save-image button — sits right under the copy button inside the QR card,
   // so it serves both Address and Request modes. Secondary action: muted icon +
   // ink label (accent is reserved for the copy action on each tab).
-  const saveDisabled = savingImage || warned !== true;
+  const saveDisabled = savingImage || !canSave;
   const saveButton = (
     <Pressable
       style={[styles.saveBtn, savingImage && styles.saveBtnBusy]}
@@ -193,8 +204,8 @@ export default function ReceiveScreen() {
             <View style={styles.qrCard}>
               {/* QR — keeps its own white quiet-zone frame (required to scan) */}
               <View style={styles.qrBorder}>
-                {qrValue ? (
-                  <QRCode value={qrValue} size={200} />
+                {qrPayload ? (
+                  <QRCode value={qrPayload} size={200} />
                 ) : (
                   <View style={styles.qrPlaceholder}>
                     <Text style={styles.qrPlaceholderText}>{t('receive.noAddress')}</Text>
@@ -219,7 +230,7 @@ export default function ReceiveScreen() {
               {/* Big, easy-to-tap copy button — THE accent action of each tab
                   (address tab: copy address; request tab: copy payment link) */}
               <Pressable
-                onPress={warned === true ? copyValue : undefined}
+                onPress={canCopy ? copyValue : undefined}
                 style={styles.copyBtn}
                 accessibilityRole="button"
                 accessibilityLabel={isRequest ? t('receive.copyRequestLink') : t('receive.a11yCopyAddress')}

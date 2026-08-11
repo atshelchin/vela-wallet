@@ -7,8 +7,12 @@ import { useDAppConnection } from '@/models/dapp-connection';
 import OnboardingScreen from '@/screens/onboarding/OnboardingScreen';
 import { getAllNetworksSync } from '@/models/network';
 import { getGrant, setGrant } from '@/services/dapp-permissions';
+import { buildConnectionRecord } from '@/services/dapp-history';
+import { saveTransaction } from '@/services/storage';
 import { decidePopupRequest } from '@/services/wallet-state-core/dperm-popup';
+import { planPopupConnect, popupCloseSettlement } from '@/services/wallet-state-core/dperm-connect';
 import { dpermRejectMessage, toWireGrant } from '@/services/wallet-state-core/dperm-types';
+import type { PopupConnectPlan } from '@/services/wallet-state-core/dperm-connect-types';
 import type { DpermRespondPayload } from '@/services/wallet-state-core/generated/DpermRespondPayload';
 import { reconcileGrantedAccount } from '@/services/dapp-account-reconcile';
 import { assertChainSupported } from '@/hooks/use-dapp-signing';
@@ -248,24 +252,106 @@ export default function WebRequestScreen(): React.ReactElement {
     })();
   }, [peer, state.isLoading, state.hasWallet, state.accounts, state.activeAccountIndex, activeAccount, beginExtensionSign, dispatch, respond]);
 
+  // This window is going away with an answer still owed. The code that goes out
+  // is NOT this screen's to pick: `dapp_permissions` settles everything a torn
+  // down surface still held with 4900 unknown-pending, never 4001, because a
+  // dApp reads 4001 as "the user said no, nothing happened" and re-sends — which
+  // double-spends a UserOp that may already be at the bundler. Asked of the core
+  // (`browser_closed` → `SettleForwarded`) rather than restated here.
+  //
+  // Deliberately not routed through `respond`: an unmounting screen has no state
+  // left to set and no window left to schedule a close on. It posts the terminal
+  // answer and closes the port, and nothing else.
   useEffect(() => () => {
     const pending = peerRef.current;
-    if (pending) respond(pending, undefined, { code: 4001, message: 'Vela request was closed' });
-  }, [respond]);
+    if (!pending) return;
+    peerRef.current = null;
+    try {
+      const settlement = popupCloseSettlement();
+      const message: VelaWebResponseMessage = {
+        channel: VELA_WEB_CHANNEL,
+        type: VELA_WEB_RESPONSE,
+        sessionId: pending.sessionId,
+        id: pending.request.id,
+        error: { code: settlement.code, message: dpermRejectMessage(settlement.reason) },
+      };
+      pending.port.postMessage(message);
+    } catch (settleError) {
+      // Teardown must not throw. Saying nothing leaves the dApp on its own
+      // timeout, which is the one honest fallback: anything this side invented
+      // here would be a second statement of the rule above.
+      console.warn('[WebRequest] Could not settle a pending request on close:', settleError);
+    } finally {
+      pending.port.close();
+    }
+  }, []);
+
+  // Ask the whole request again, from the store as it is now. `processedRef` is
+  // the once-per-request latch; the peer clone makes the evaluation effect fire
+  // even when React batches a wallet dispatch performed immediately before.
+  const reevaluateRequest = () => {
+    processedRef.current = false;
+    setPhase('waiting');
+    setPeer((current) => current ? { ...current } : current);
+  };
 
   const approveConnection = async () => {
     if (!peer || !activeAccount) return;
     setPhase('processing');
+    // Everything below the user's press belongs to `dapp_permissions`
+    // (`consent_approved`): which address the grant is written for, which chain
+    // it records, that a "Connected to <app>" audit row is written at all, and
+    // what the dApp is answered with. This screen supplies the facts and
+    // performs the three operations the core authors.
+    let plan: PopupConnectPlan | null = null;
+    try {
+      plan = planPopupConnect({
+        origin: peer.origin,
+        requestId: peer.request.id,
+        method: peer.request.method,
+        activeAddress: activeAccount.address,
+        currentAddresses: state.accounts.map((account) => account.address),
+        // The chain this popup session is for — `assertChainSupported` refused
+        // the request above if the wallet cannot serve it, and the signing
+        // pipeline reads the same number off `transport.requestChainId`.
+        chainId: peer.request.chainId,
+        nowMs: Date.now(),
+        storedGrant: toWireGrant(await getGrant(peer.origin)),
+      });
+    } catch (planError) {
+      console.warn('[WebRequest] Connection was not authorized by the core:', planError);
+    }
+    if (!plan) {
+      // The core sanctioned no connection, so nothing was persisted and nothing
+      // was sent — and a refusal here is not the same as being stuck. The most
+      // likely cause is that this origin got connected while the card was open
+      // (a dApp may open two popups at once), which means the core can now
+      // ANSWER this request outright instead of asking. So put the whole
+      // question back through `decidePopupRequest`, the one place that knows
+      // every outcome: it responds, refuses, or shows the card again with
+      // Connect and Cancel both working. A gate that leaves the user pressing a
+      // button that can never succeed is its own defect.
+      reevaluateRequest();
+      return;
+    }
     await setGrant({
-      origin: peer.origin,
-      address: activeAccount.address,
-      chainId: peer.request.chainId,
-      grantedAt: Date.now(),
+      origin: plan.grant.origin,
+      address: plan.grant.address,
+      chainId: plan.grant.chain_id,
+      grantedAt: plan.grant.granted_at_ms,
     });
-    const result = peer.request.method === 'wallet_requestPermissions'
-      ? [{ parentCapability: 'eth_accounts' }]
-      : [activeAccount.address];
-    respond(peer, result);
+    // The session trail the web popup never left. Fire-and-forget, exactly as
+    // the in-app browser does it: an audit row that failed to persist must never
+    // cost the dApp its answer.
+    void saveTransaction(
+      buildConnectionRecord({
+        from: plan.record.address,
+        chainId: plan.record.chainId,
+        dappOrigin: hostOf(plan.record.origin),
+        nowMs: Date.now(),
+      }),
+    ).catch((recordError) => console.warn('[WebRequest] Failed to save connect record:', recordError));
+    respond(peer, popupResult(plan.respond));
   };
 
   const rejectConnection = () => {
@@ -273,13 +359,7 @@ export default function WebRequestScreen(): React.ReactElement {
     else closePopupSoon();
   };
 
-  const resumeAfterOnboarding = () => {
-    processedRef.current = false;
-    setPhase('waiting');
-    // Trigger request evaluation even when React batches the wallet dispatch
-    // performed immediately before this callback.
-    setPeer((current) => current ? { ...current } : current);
-  };
+  const resumeAfterOnboarding = reevaluateRequest;
 
   const closeUnsupportedNetwork = () => {
     if (peer && unsupportedNetwork) {

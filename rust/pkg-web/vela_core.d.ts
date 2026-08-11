@@ -45,6 +45,25 @@ export interface IdenticonParams {
 }
 
 /**
+ * One stable\'s DEX quotes for 1 native coin, as the shell decodes them out of
+ * the multicall. Each stable is its own group because its own `decimals()`
+ * normalizes the amount — USDC (6) and DAI (18) must never be compared under
+ * one shared scale.
+ */
+export interface NativeQuoteGroup {
+    /**
+     * Successful quote outputs in THIS stable\'s base units, as decimal
+     * strings (failed calls are simply absent).
+     */
+    amountsOut: string[];
+    /**
+     * This stable\'s `decimals()` read; `null` = the read failed, and the core
+     * applies its own `DEFAULT_QUOTE_DECIMALS`.
+     */
+    quoteDecimals: number | undefined;
+}
+
+/**
  * Per-call translation options, shaped so a TS caller writes the i18next object
  * literal verbatim — `{ count: 3, name: \'Alice\' }`. The reserved names are typed;
  * everything else falls into `vars` through `#[serde(flatten)]`.
@@ -105,12 +124,28 @@ export interface TOptions extends Map<string, VarValue> {
 }
 
 /**
+ * The chosen price and the rung of the ladder it came from. `source` is the
+ * `NativePriceSource` variant name; `\"none\"` when nothing could price.
+ */
+export interface NativePriceChoice {
+    price: number | undefined;
+    source: string;
+}
+
+/**
  * The resolve state after a language change.
  */
 export interface LanguageState {
     language: string;
     resolvedLanguage: string | undefined;
     languages: string[];
+}
+
+/**
+ * Wrapper so the group list crosses the boundary as one value.
+ */
+export interface NativeQuoteGroups {
+    groups: NativeQuoteGroup[];
 }
 
 /**
@@ -506,9 +541,20 @@ export function abiEncodeBytes32(data: Uint8Array): Uint8Array;
 
 export function abiEncodeUint256(value_hex: string): Uint8Array;
 
+/**
+ * The deepest pool across ALL stable quotes — `best_native_dex_price`, which
+ * folds `best_group_price` over each group.
+ */
+export function bestNativeDexPrice(groups: NativeQuoteGroups): number | undefined;
+
 export function canonicalizeSignature(sig: string): string;
 
 export function checksumAddress(address_hex: string): string;
+
+/**
+ * The source ladder and its sanity band — `choose_native_price`.
+ */
+export function chooseNativePrice(dex?: number | null, chainlink_local?: number | null, chainlink_eth?: number | null): NativePriceChoice;
 
 export function computeSafeAddress(x: Uint8Array, y: Uint8Array): SafeAddressInfo;
 
@@ -656,12 +702,14 @@ export interface InitOutput {
     readonly batchimportcore_new: () => number;
     readonly batchimportcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly batchimportcore_view: (a: number) => [number, number, number, number];
+    readonly bestNativeDexPrice: (a: any) => [number, number];
     readonly browserhistorycore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly browserhistorycore_new: () => number;
     readonly browserhistorycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly browserhistorycore_view: (a: number) => [number, number, number, number];
     readonly canonicalizeSignature: (a: number, b: number) => [number, number, number, number];
     readonly checksumAddress: (a: number, b: number) => [number, number, number, number];
+    readonly chooseNativePrice: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
     readonly clearsigningcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly clearsigningcore_new: () => number;
     readonly clearsigningcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];

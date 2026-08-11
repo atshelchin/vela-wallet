@@ -794,7 +794,16 @@ pub enum Event {
     RefreshTokens,
     SelectToken { token_id: String },
     ToggleMultiToken { token_id: String },
-    ToggleAllMultiTokens,
+    /// The picker's master "select all valuable" row.
+    ///
+    /// `visible_ids` is what the picker is SHOWING (its search/category/chain
+    /// filtered rows, in `TokenSelector`'s order) — sweeping a token the user
+    /// cannot see is a fund-safety regression, so the shell states the scope.
+    /// Which of those are worth sweeping, and whether the row toggles on or
+    /// off, stay this machine's ([`SendToken::is_valuable`], the ported
+    /// `isMultiSelectable(tok, true)`): the shell owns no money predicate.
+    /// An id the machine does not hold is ignored.
+    ToggleAllMultiTokens { visible_ids: Vec<String> },
     SetMultiNetwork { chain_id: Option<u32> },
     ConfirmMultiSelection,
     SetRecipient { recipient: String },
@@ -1246,6 +1255,26 @@ pub struct SendView {
     /// signed batch is built from (`resolve_token_amount`, invariant "displayed
     /// == signed"). Empty while no token is selected.
     pub token_amount: String,
+    /// The single figure the confirm page prints beside From/To — always in
+    /// TOKEN units, always this machine's.
+    ///
+    /// A 1→1 send restates [`SendView::token_amount`]. A SPLIT restates the
+    /// sum the money gates already read: the same [`sum_split_base_units`]
+    /// that `Continue` refuses an over-balance batch on, that
+    /// [`derive_same_asset_issue`] measures against the fee ceiling, and that
+    /// `build_split_calls` turns into the signed transfers. It is not a second
+    /// derivation of the total — it is that total, said out loud.
+    ///
+    /// The shell used to sum the rows itself (`ConfirmStep.tsx:85`), which put
+    /// a number on the signing page that nothing else in the flow had agreed
+    /// to, and whose TS `toBaseUnits` THREW on a row this machine merely
+    /// declines — a white confirm page instead of a refusal. An unresolvable
+    /// row now answers `""` here (the shell prints its own zero), and the
+    /// existing gates keep the batch off the passkey.
+    ///
+    /// Empty in multiSelect: that mode has no single headline (the per-token
+    /// rows come from [`SendView::multi_specs`]).
+    pub confirm_amount: String,
     pub split_mode: bool,
     pub recipients: Vec<SendRecipientDraft>,
     /// Split mode only: the rows' total exceeds the selected token's balance.
@@ -1256,6 +1285,11 @@ pub struct SendView {
     pub picker_target: Option<String>,
     pub multi_select_mode: bool,
     pub multi_selected_ids: Vec<String>,
+    /// Every held id on the filtered chain that "select all valuable" would
+    /// sweep. The picker's master tick is `visible ∩ this`, all selected — the
+    /// shell narrows the SCOPE to what is on screen and never re-decides what
+    /// counts as valuable.
+    pub multi_valuable_ids: Vec<String>,
     pub multi_chain_id: Option<u32>,
     /// Reserved multiSelect amounts for the selected token's chain.
     pub multi_specs: Vec<SendMultiSpecView>,
@@ -1316,7 +1350,7 @@ impl App for Send {
             Event::RefreshTokens => refresh_tokens(model),
             Event::SelectToken { token_id } => select_token(model, &token_id),
             Event::ToggleMultiToken { token_id } => toggle_multi_token(model, token_id),
-            Event::ToggleAllMultiTokens => toggle_all_multi(model),
+            Event::ToggleAllMultiTokens { visible_ids } => toggle_all_multi(model, &visible_ids),
             Event::SetMultiNetwork { chain_id } => {
                 // A batch is one chain: changing the filter clears the pick
                 // (`use-token-multi-select.ts:49-52`, invariant ⑪).
@@ -1459,6 +1493,22 @@ impl App for Send {
         // nothing on screen to explain it. The gate now asks the very string
         // the signature would be built from, which is also the string the ⇅ row
         // prints: button, row and signature cannot disagree.
+        // The confirm page's ONE headline figure, in token units. Split mode
+        // reads the very sum the gates below read; multiSelect has no headline.
+        let confirm_amount = match model.selected_token.as_ref() {
+            Some(token) if model.multi_select_mode => {
+                let _ = token;
+                String::new()
+            }
+            Some(token) if model.split_mode => {
+                sum_split_base_units(&model.recipients, token.decimals)
+                    .map(|total| from_base_units(total, token.decimals))
+                    .unwrap_or_default()
+            }
+            Some(_) => token_amount.clone(),
+            None => String::new(),
+        };
+
         let amount_resolves = js_parse_float(&token_amount) > 0.0;
         let can_continue = !model.estimating_gas
             && !(locked && warning.is_some())
@@ -1555,12 +1605,14 @@ impl App for Send {
             denom_toggle_reason,
             confirm_amount_issue,
             token_amount,
+            confirm_amount,
             split_mode: model.split_mode,
             recipients: model.recipients.clone(),
             split_over_balance,
             picker_target: model.picker_target.clone(),
             multi_select_mode: model.multi_select_mode,
             multi_selected_ids: model.multi_selected_ids.clone(),
+            multi_valuable_ids: valuable_multi_ids(model),
             multi_chain_id: model.multi_chain_id,
             multi_specs,
             show_scanner: model.show_scanner,
@@ -2007,11 +2059,26 @@ fn visible_multi_tokens(model: &Model) -> Vec<&SendToken> {
         .collect()
 }
 
-fn toggle_all_multi(model: &mut Model) -> Cmd {
-    let valuable: Vec<String> = visible_multi_tokens(model)
+/// Every id on the filtered chain this machine would sweep — the projection
+/// behind the picker's master checkbox tick. The shell intersects it with the
+/// rows it is showing (a display scope); the predicate itself never leaves
+/// here.
+fn valuable_multi_ids(model: &Model) -> Vec<String> {
+    visible_multi_tokens(model)
         .into_iter()
         .filter(|t| t.is_valuable())
         .map(|t| t.id())
+        .collect()
+}
+
+/// `visible_ids` scopes the sweep to what the picker is showing; the chain
+/// filter and [`SendToken::is_valuable`] still decide which of those count.
+/// Unknown ids simply do not match a held token, so a stale list can never
+/// select something this machine does not hold.
+fn toggle_all_multi(model: &mut Model, visible_ids: &[String]) -> Cmd {
+    let valuable: Vec<String> = valuable_multi_ids(model)
+        .into_iter()
+        .filter(|id| visible_ids.contains(id))
         .collect();
     if valuable.is_empty() {
         return Command::done();

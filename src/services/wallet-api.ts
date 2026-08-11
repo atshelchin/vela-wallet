@@ -20,6 +20,14 @@ import { fetchWithTimeout, NET_TIMEOUTS } from './net';
 import { poolRpcCall, getFailedRpcChains } from './rpc-pool';
 import { priceShouldNull } from './dev/fault-injection';
 import { fetchChainTokens, pickQuoteToken, type ChainTokenData } from './chain-tokens';
+// The platform seam for the native-coin price rules (spec 017 wave C): web
+// resolves to `native-price.web.ts` and the CORE decides; iOS/Android resolve
+// to `native-price.ts`, the TypeScript twin, because Hermes has no wasm.
+import {
+  bestNativeDexPrice,
+  chooseNativePrice,
+  type NativeQuoteGroup,
+} from '@/services/native-price';
 import { fetchChainlinkPrices, resolveChainlinkPrice } from './price-service';
 import {
   MULTICALL3,
@@ -49,17 +57,25 @@ const NATIVE_CHAINLINK_FEEDS: Record<number, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// Named holdings + native-pricing rules.
+// Named holdings rule.
 //
-// These four are ALSO implemented in `rust/crates/vela-core/src/app/
-// balance_dashboard.rs` — the core re-applies them on web (`sort_by_usd_desc`,
-// the `token_balance_double(...) > 0.0` merge filter, `best_native_dex_price`,
-// `choose_native_price`), and Hermes has no wasm so this file stays native's
-// only implementation. They are named and exported rather than left inline so
-// the pair can be pinned against each other:
-// `src/__tests__/services/balance-core-parity.test.ts` replays the real core
-// over the same inputs and reads the Rust source for the band constants, which
-// is what turns a one-sided edit red.
+// `sortAndFilterHoldings` is ALSO implemented in `rust/crates/vela-core/src/
+// app/balance_dashboard.rs` (`sort_by_usd_desc` + the
+// `token_balance_double(...) > 0.0` merge filter) — the core re-applies it on
+// web, and Hermes has no wasm so this file stays native's only
+// implementation.
+//
+// The native-COIN pricing rules used to sit here too. They now live behind the
+// `@/services/native-price` seam: on web that resolves to `native-price.web.ts`
+// and the RULES are executed by the core (`best_group_price`,
+// `best_native_dex_price`, `choose_native_price`, which were dead code on every
+// platform until spec 017 wave C); on iOS/Android it resolves to
+// `native-price.ts`, the TypeScript twin. `src/__tests__/services/
+// native-price-parity.test.ts` drives the real core and the twin over the same
+// scenarios, which is what turns a one-sided edit red — and
+// `src/__tests__/services/core-table-parity.test.ts` reads the band constants
+// straight out of the Rust source. (An earlier version of this comment named
+// `balance-core-parity.test.ts`, which has never existed in this repo.)
 // ---------------------------------------------------------------------------
 
 /**
@@ -72,52 +88,20 @@ export function sortAndFilterHoldings(tokens: APIToken[], includeZeroBalance?: b
     .sort((a, b) => tokenUsdValue(b) - tokenUsdValue(a));
 }
 
-/** Quote-token decimals when the `decimals()` read failed — USDC's 6. */
+/**
+ * Quote-token decimals when the `decimals()` read failed — USDC's 6.
+ *
+ * Shell-side default for the CUSTOM-token price paths below, which the core
+ * has no rule for. The native-coin path does not use it: it forwards
+ * `quoteDecimals: null` and the core applies its own `DEFAULT_QUOTE_DECIMALS`
+ * (pinned to this value by `core-table-parity.test.ts`).
+ */
 export const DEFAULT_QUOTE_DECIMALS = 6;
 
-/**
- * The deepest pool across ALL stable quotes. Each entry is one stable's best
- * price, already normalised by ITS OWN decimals (USDC=6 vs DAI=18 must never be
- * compared under one shared scale). For a fixed input a more-liquid pool returns
- * more output, so the max is the least-distorted price: X Layer's WOKB/USDC pool
- * quotes OKB at ~$5 while WOKB/USD₮0 holds the liquid one at ~$81, and taking
- * the first would lock in the junk.
- */
-export function bestNativeDexPrice(groupPrices: (number | null)[]): number | null {
-  let best: number | null = null;
-  for (const p of groupPrices) {
-    if (p != null && (best == null || p > best)) best = p;
-  }
-  return best;
-}
-
-/** Where the chosen native price came from — surfaced in the price log. */
-export type NativePriceSource = 'none' | 'DEX' | 'Chainlink(sanity)' | 'Chainlink(local)' | 'Chainlink(ETH)';
-
-/**
- * The source ladder and its sanity band. DEX is preferred, but a DEX price that
- * deviates beyond (0.5, 2.0) against the best Chainlink read means the pool is
- * too thin to trust, so Chainlink wins. `onChainClPrice` must already carry its
- * finite-and-positive decode gate; the Ethereum-mainnet fallback is deliberately
- * ungated.
- */
-export function chooseNativePrice(
-  dexPrice: number | null,
-  onChainClPrice: number | null,
-  ethClPrice: number | null,
-): { price: number | null; source: NativePriceSource } {
-  const clBestPrice = onChainClPrice ?? ethClPrice;
-  if (dexPrice != null && clBestPrice != null) {
-    const ratio = dexPrice / clBestPrice;
-    return ratio > 0.5 && ratio < 2.0
-      ? { price: dexPrice, source: 'DEX' }
-      : { price: clBestPrice, source: 'Chainlink(sanity)' };
-  }
-  if (dexPrice != null) return { price: dexPrice, source: 'DEX' };
-  if (onChainClPrice != null) return { price: onChainClPrice, source: 'Chainlink(local)' };
-  if (ethClPrice != null) return { price: ethClPrice, source: 'Chainlink(ETH)' };
-  return { price: null, source: 'none' };
-}
+// Re-exported so existing importers (and the drift gate) keep one name for the
+// native-price vocabulary. On web these ARE the core's answers.
+export { bestNativeDexPrice, chooseNativePrice } from '@/services/native-price';
+export type { NativePrice, NativePriceSource, NativeQuoteGroup } from '@/services/native-price';
 
 // ---------------------------------------------------------------------------
 // Cache (same interface as before)
@@ -432,17 +416,22 @@ async function queryChainAssets(
   }
 
   // 5. Resolve native price: DEX → on-chain Chainlink → Ethereum Chainlink
-
-  // Try DEX (use correct decoder based on protocol). Take the DEEPEST pool across ALL stable
-  // quotes — a more-liquid V3 pool returns more output for the same 1-native input (less
-  // slippage), so the max is the least-distorted price and routes around a broken pool. Each
-  // group is normalized by its own stable's decimals before comparing.
+  //
+  // Everything below the decode is the seam's — WHICH pool wins inside a
+  // stable, which stable wins across them, whether the DEX price survives the
+  // sanity band and which rung of the ladder answers. This function only
+  // decodes: raw `amountOut`s per group and this group's `decimals()` read, or
+  // `null` when that read failed so the seam applies its own default rather
+  // than a second copy of it here.
   const dexDecoder = dex?.protocol === 'solidly' ? decAmountsOut : decU256;
-  const dexPrice = bestNativeDexPrice(nativeQuoteGroups.map(g => {
+  const dexGroups: NativeQuoteGroup[] = nativeQuoteGroups.map(g => {
     const decR = g.decCallIdx != null ? results[g.decCallIdx] : null;
-    const gDec = decR?.success ? decU8(decR.data) : DEFAULT_QUOTE_DECIMALS;
-    return extractBestPrice(results, g.idxs, gDec, dexDecoder);
-  }));
+    return {
+      amountsOut: decodeQuoteAmounts(results, g.idxs, dexDecoder),
+      quoteDecimals: decR?.success ? decU8(decR.data) : null,
+    };
+  });
+  const dexPrice = bestNativeDexPrice(dexGroups);
 
   // Try on-chain Chainlink feed (queried in same multicall, zero extra cost)
   let onChainClPrice: number | null = null;
@@ -623,24 +612,25 @@ function extractPrice(
  *  output is the least-distorted price — this dodges a broken/near-empty pool that would quote
  *  a garbage low value. Only safe within a single quote token (same decimals); callers group
  *  per token and compare the per-token results afterward. */
-function extractBestPrice(
+/**
+ * The successful quote outputs of one group, in that stable's base units.
+ *
+ * Decode only — no comparison, no scaling, no "which pool is best". A failed
+ * or too-short result is simply absent (there is no amount to report), and a
+ * zero amount is reported as `"0"` because deciding that a zero quote cannot
+ * price is the core's rule, not this function's.
+ */
+function decodeQuoteAmounts(
   results: McResult[],
   callIdxs: number[],
-  quoteDecimals: number,
   decoder: (hex: string) => bigint = decU256,
-): number | null {
-  let best: number | null = null;
+): string[] {
+  const amounts: string[] = [];
   for (const idx of callIdxs) {
     const r = results[idx];
-    if (r?.success && r.data.length >= 66) {
-      const amountOut = decoder(r.data);
-      if (amountOut > 0n) {
-        const p = Number(amountOut) / 10 ** quoteDecimals;
-        if (best == null || p > best) best = p;
-      }
-    }
+    if (r?.success && r.data.length >= 66) amounts.push(decoder(r.data).toString());
   }
-  return best;
+  return amounts;
 }
 
 // ---------------------------------------------------------------------------

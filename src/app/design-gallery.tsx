@@ -1547,6 +1547,12 @@ function DesignGalleryScreen() {
                 qrValue: '',
                 payLink: '',
                 hasAmount: false,
+                mode: 'request',
+                setMode: () => {},
+                qrPayload: '',
+                copyPayload: '',
+                canCopy: true,
+                canSave: true,
               }}
             />
           </Cell>

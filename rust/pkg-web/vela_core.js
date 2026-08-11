@@ -2494,6 +2494,17 @@ export function abiEncodeUint256(value_hex) {
 }
 
 /**
+ * The deepest pool across ALL stable quotes — `best_native_dex_price`, which
+ * folds `best_group_price` over each group.
+ * @param {NativeQuoteGroups} groups
+ * @returns {number | undefined}
+ */
+export function bestNativeDexPrice(groups) {
+    const ret = wasm.bestNativeDexPrice(groups);
+    return ret[0] === 0 ? undefined : ret[1];
+}
+
+/**
  * @param {string} sig
  * @returns {string}
  */
@@ -2541,6 +2552,18 @@ export function checksumAddress(address_hex) {
     } finally {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
+}
+
+/**
+ * The source ladder and its sanity band — `choose_native_price`.
+ * @param {number | null} [dex]
+ * @param {number | null} [chainlink_local]
+ * @param {number | null} [chainlink_eth]
+ * @returns {NativePriceChoice}
+ */
+export function chooseNativePrice(dex, chainlink_local, chainlink_eth) {
+    const ret = wasm.chooseNativePrice(!isLikeNone(dex), isLikeNone(dex) ? 0 : dex, !isLikeNone(chainlink_local), isLikeNone(chainlink_local) ? 0 : chainlink_local, !isLikeNone(chainlink_eth), isLikeNone(chainlink_eth) ? 0 : chainlink_eth);
+    return ret;
 }
 
 /**
@@ -3249,6 +3272,10 @@ function __wbg_get_imports() {
             const ret = Error(getStringFromWasm0(arg0, arg1));
             return ret;
         },
+        __wbg_Number_9a4e0ecb0fa16705: function(arg0) {
+            const ret = Number(arg0);
+            return ret;
+        },
         __wbg_String_8564e559799eccda: function(arg0, arg1) {
             const ret = String(arg1);
             const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
@@ -3348,6 +3375,10 @@ function __wbg_get_imports() {
             const ret = arg0[arg1 >>> 0];
             return ret;
         },
+        __wbg_get_with_ref_key_6412cf3094599694: function(arg0, arg1) {
+            const ret = arg0[arg1];
+            return ret;
+        },
         __wbg_instanceof_ArrayBuffer_4480b9e0068a8adb: function(arg0) {
             let result;
             try {
@@ -3432,16 +3463,21 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000001: function(arg0) {
+            // Cast intrinsic for `F64 -> Externref`.
+            const ret = arg0;
+            return ret;
+        },
+        __wbindgen_cast_0000000000000002: function(arg0) {
             // Cast intrinsic for `I64 -> Externref`.
             const ret = arg0;
             return ret;
         },
-        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
+        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000003: function(arg0) {
+        __wbindgen_cast_0000000000000004: function(arg0) {
             // Cast intrinsic for `U64 -> Externref`.
             const ret = BigInt.asUintN(64, arg0);
             return ret;

@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { buildEIP681, buildPayLink } from '@/services/eip681';
 
-import { DEFAULT_ASSET_FACTS, type ReceiveRequestController, type RequestAssetFacts } from './receive-controller-types';
+import { DEFAULT_ASSET_FACTS, type ReceiveMode, type ReceiveRequestController, type RequestAssetFacts } from './receive-controller-types';
 
 // The warning gate shows once per account, then decays to a one-line reminder.
 const warnedStorageKey = (address: string) => `vela.receiveWarned.${address}`;
@@ -44,7 +44,10 @@ export function useReceiveRequest(address: string | undefined): ReceiveRequestCo
     if (address) AsyncStorage.setItem(warnedStorageKey(address), '1').catch(() => {});
   }, [address]);
 
-  // Builder state.
+  // Builder state. `mode` moved here from `ReceiveScreen`'s own `useState`
+  // unchanged — the payload rules below are derived from it, so it belongs
+  // beside them (the web twin keeps it in the core for the same reason).
+  const [mode, setMode] = useState<ReceiveMode>('address');
   const [asset, setAsset] = useState<RequestAssetFacts>(DEFAULT_ASSET_FACTS);
   const [amount, setAmount] = useState('');
 
@@ -92,5 +95,15 @@ export function useReceiveRequest(address: string | undefined): ReceiveRequestCo
     qrValue,
     payLink,
     hasAmount,
+
+    // `ReceiveScreen.tsx:73/78` verbatim, only relocated: the screen used to
+    // pick these per surface, which is how the same tab could hand a different
+    // destination to the QR, the share card and the clipboard.
+    mode,
+    setMode,
+    qrPayload: mode === 'request' ? (qrValue || address || '') : (address || ''),
+    copyPayload: mode === 'request' ? payLink : (address || ''),
+    canCopy: warned === true,
+    canSave: warned === true,
   };
 }

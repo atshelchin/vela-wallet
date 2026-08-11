@@ -14,7 +14,7 @@ import { payLinkBase } from '@/services/eip681';
 import { createPaymentRequestSession } from '@/services/wallet-state-core/session';
 import type { PaymentRequestView } from '@/services/wallet-state-core/generated/PaymentRequestView';
 
-import type { ReceiveRequestController, RequestAssetFacts } from './receive-controller-types';
+import type { ReceiveMode, ReceiveRequestController, RequestAssetFacts } from './receive-controller-types';
 
 export function useReceiveRequest(address: string | undefined): ReceiveRequestController {
   const [view, setView] = useState<PaymentRequestView | null>(null);
@@ -59,6 +59,14 @@ export function useReceiveRequest(address: string | undefined): ReceiveRequestCo
     session.current?.dispatch({ type: 'amount_changed', text });
   }, []);
 
+  // The tab is a core fact because the payloads below are derived from it.
+  // Until this was dispatched the core's `mode` was permanently `Address`, so
+  // `qr_value` and `copy_payload` answered with the bare address in request
+  // mode — right-looking fields nobody could safely read.
+  const setMode = useCallback((mode: ReceiveMode) => {
+    session.current?.dispatch({ type: 'mode_changed', mode });
+  }, []);
+
   return {
     recipient: address ?? '',
     // Loading (null) until the core has read the per-account flag.
@@ -79,5 +87,15 @@ export function useReceiveRequest(address: string | undefined): ReceiveRequestCo
     qrValue: view?.eip681_uri ?? '',
     payLink: view?.pay_link ?? '',
     hasAmount: view?.has_amount ?? false,
+
+    // Before the first view lands (and while no address exists) the screen is
+    // covered by the acknowledge gate — `warned` is null there — so these
+    // conservative defaults are never what the user is looking at.
+    mode: view?.mode ?? 'address',
+    setMode,
+    qrPayload: view?.qr_value ?? '',
+    copyPayload: view?.copy_payload ?? '',
+    canCopy: view?.can_copy ?? false,
+    canSave: view?.can_save ?? false,
   };
 }

@@ -16,7 +16,12 @@ import { AmountText } from '@/components/ui/AmountText';
 import { Divider } from '@/components/ui/DetailRow';
 import { color, text, inter, space, font, createStyles } from '@/constants/theme';
 import { formatTokenAmount, useLocalePrefs } from '@/services/locale-format';
-import { shortAddr, tokenChainId as networkToChainId } from '@/models/types';
+import {
+  shortAddr,
+  tokenBalanceDouble,
+  tokenChainId as networkToChainId,
+  tokenUsdValue,
+} from '@/models/types';
 import type { APIToken } from '@/models/types';
 import { badgeNetworkFor, chainName, explorerTokenURL, explorerAddressURL } from '@/models/network';
 import { Copy, Check, ArrowLeft, ExternalLink } from 'lucide-react-native';
@@ -39,15 +44,40 @@ export default function TokenDetailScreen() {
 
   const symbol = params.symbol ?? '';
   const tokenName = params.name ?? symbol;
-  const balance = parseFloat(params.balance ?? '0');
-  const priceUsd = parseFloat(params.priceUsd ?? '0');
-  const usdValue = balance * priceUsd;
   const logoUrls: string[] = (() => { try { return JSON.parse(params.logos ?? '[]'); } catch { return []; } })();
   const contractAddress = params.tokenAddress || null;
   const network = params.network ?? '';
   const decimals = parseInt(params.decimals ?? '18', 10);
 
-  const chainId = networkToChainId({ network } as APIToken);
+  // The route params are one `APIToken` flattened into strings by the opener
+  // (`HomeScreen.tsx`), so rebuild it and ask the SAME two helpers everything
+  // else asks — `tokenBalanceDouble` / `tokenUsdValue`, which
+  // `balance_dashboard.rs` ports verbatim as `token_balance_double` /
+  // `token_usd_value` (right down to reproducing `parseFloat`'s quirks) and
+  // which the core has already applied to this very token for the holdings
+  // row the user tapped. A third `parseFloat(balance) * parseFloat(price)`
+  // here was one more copy of a rule that exists twice already, and a laxer
+  // one: on web this screen is a URL, so `/token-detail?balance=x` reached
+  // `NaN` and rendered it as the balance. `|| 0` is what the shared helper —
+  // and the core — do with an unreadable amount.
+  const priceParam = parseFloat(params.priceUsd ?? '0');
+  const priceUsd = Number.isFinite(priceParam) ? priceParam : 0;
+  const token: APIToken = {
+    network,
+    chainName: params.chainName ?? '',
+    symbol,
+    balance: params.balance ?? '0',
+    decimals,
+    logo: null,
+    name: tokenName,
+    tokenAddress: contractAddress,
+    priceUsd,
+    spam: false,
+  };
+  const balance = tokenBalanceDouble(token);
+  const usdValue = tokenUsdValue(token);
+
+  const chainId = networkToChainId(token);
   const chain = chainName(chainId);
 
   // Token fiat values follow the selected display currency + number format.

@@ -1374,6 +1374,63 @@ fn split_continue_rejects_invalid_rows_and_over_balance_totals() {
     assert_eq!(sut.view().stage, SendStage::EnterDetails);
 }
 
+/// The headline on the signing page and the sum the money gates read are the
+/// same number, in every mode. The shell used to add the rows up itself.
+#[test]
+fn the_confirm_headline_is_the_machines_own_total_in_every_mode() {
+    let mut sut = boot(vec![eth("2")]);
+    select_eth(&mut sut);
+    set_recipient(&mut sut, RECIPIENT);
+    sut.dispatch(Event::SetAmount {
+        amount: "0.5".to_owned(),
+    });
+    // 1→1: the headline restates the resolved figure.
+    assert_eq!(sut.view().confirm_amount, "0.5");
+    assert_eq!(sut.view().confirm_amount, sut.view().token_amount);
+
+    sut.dispatch(Event::EnterSplitMode);
+    let row = |id: &str, to: &str, amount: &str| SendRecipientDraft {
+        id: id.to_owned(),
+        address: to.to_owned(),
+        amount: amount.to_owned(),
+        name: None,
+    };
+    sut.dispatch(Event::RecipientsChanged {
+        recipients: vec![
+            row("rcpt_1", RECIPIENT, "0.5"),
+            row("rcpt_2", RECIPIENT_B, "0.25"),
+        ],
+    });
+    let view = sut.view();
+    // The sum, not the single-send field the rows were seeded from.
+    assert_eq!(view.confirm_amount, "0.75");
+    assert_eq!(
+        to_base_units(&view.confirm_amount, 18),
+        sum_split_base_units(&view.recipients, 18),
+        "the headline and the gate's total are one number",
+    );
+
+    // A row this machine declines answers "" — never a shell exception on the
+    // page the user is signing.
+    sut.dispatch(Event::RecipientsChanged {
+        recipients: vec![
+            row("rcpt_1", RECIPIENT, "1,5"),
+            row("rcpt_2", RECIPIENT_B, "0.25"),
+        ],
+    });
+    assert_eq!(sut.view().confirm_amount, "");
+
+    // multiSelect has no single headline — its rows come from `multi_specs`.
+    let mut sweep = boot(vec![eth("2"), usdc("5")]);
+    sweep.dispatch(Event::SetMultiNetwork { chain_id: Some(1) });
+    sweep.dispatch(Event::ToggleAllMultiTokens {
+        visible_ids: vec![eth("2").id(), usdc("5").id()],
+    });
+    sweep.dispatch(Event::ConfirmMultiSelection);
+    assert!(sweep.view().multi_select_mode);
+    assert_eq!(sweep.view().confirm_amount, "");
+}
+
 #[test]
 fn split_preview_estimate_and_signed_batch_use_the_same_calls() {
     let mut sut = boot(vec![eth("2")]);
@@ -1455,13 +1512,57 @@ fn toggle_all_selects_only_valuable_tokens_and_toggles_off_again() {
         symbol: "MYST".to_owned(),
         ..dai("3")
     };
-    let mut sut = boot(vec![eth("2"), usdc("5"), spam, unpriced]);
+    let mut sut = boot(vec![eth("2"), usdc("5"), spam.clone(), unpriced.clone()]);
     sut.dispatch(Event::SetMultiNetwork { chain_id: Some(1) });
-    sut.dispatch(Event::ToggleAllMultiTokens);
+    let all_on_screen: Vec<String> = vec![eth("2"), usdc("5"), spam, unpriced]
+        .iter()
+        .map(|t| t.id())
+        .collect();
+    assert_eq!(
+        sut.view().multi_valuable_ids.len(),
+        2,
+        "the projection behind the master tick excludes spam/unpriced too"
+    );
+    sut.dispatch(Event::ToggleAllMultiTokens {
+        visible_ids: all_on_screen.clone(),
+    });
     let view = sut.view();
     assert_eq!(view.multi_selected_ids.len(), 2, "spam/unpriced excluded");
-    sut.dispatch(Event::ToggleAllMultiTokens);
+    sut.dispatch(Event::ToggleAllMultiTokens {
+        visible_ids: all_on_screen,
+    });
     assert!(sut.view().multi_selected_ids.is_empty());
+}
+
+/// The sweep is scoped to what the picker is SHOWING. A search box narrowed to
+/// one row must sweep that row only — never every valuable token on the chain.
+#[test]
+fn toggle_all_sweeps_only_the_rows_the_picker_is_showing() {
+    let mut sut = boot(vec![eth("2"), usdc("5"), dai("3")]);
+    sut.dispatch(Event::SetMultiNetwork { chain_id: Some(1) });
+    sut.dispatch(Event::ToggleAllMultiTokens {
+        visible_ids: vec![usdc("5").id()],
+    });
+    assert_eq!(
+        sut.view().multi_selected_ids,
+        vec![usdc("5").id()],
+        "a filtered picker never sweeps what it is hiding"
+    );
+    // A second tap over the same narrowed list clears only that row.
+    sut.dispatch(Event::ToggleMultiToken { token_id: eth("2").id() });
+    sut.dispatch(Event::ToggleAllMultiTokens {
+        visible_ids: vec![usdc("5").id()],
+    });
+    assert_eq!(
+        sut.view().multi_selected_ids,
+        vec![eth("2").id()],
+        "the hidden row keeps whatever the user did to it by hand"
+    );
+    // Ids the machine does not hold cannot select anything.
+    sut.dispatch(Event::ToggleAllMultiTokens {
+        visible_ids: vec!["1_0xdead_GHOST".to_owned()],
+    });
+    assert_eq!(sut.view().multi_selected_ids, vec![eth("2").id()]);
 }
 
 #[test]

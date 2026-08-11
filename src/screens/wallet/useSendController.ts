@@ -1437,6 +1437,20 @@ export function useSendController() {
   const tokenAmount = selectedToken ? tokenUnitsFor(selectedToken) : '';
 
   /**
+   * The confirm page's ONE headline figure (was ConfirmStep.tsx:83-88, moved
+   * here verbatim so the page reads a single controller fact on both
+   * platforms). Native behaviour is unchanged down to the throw: a split row
+   * `toBaseUnits` refuses raises from this render exactly as it raised from
+   * ConfirmStep's. Web takes the same field from the core instead, where an
+   * unresolvable row answers '' rather than throwing.
+   */
+  const confirmAmount = !selectedToken
+    ? ''
+    : splitMode
+      ? fromBaseUnits(sumSplitBaseUnits(recipients, selectedToken.decimals), selectedToken.decimals)
+      : tokenAmount;
+
+  /**
    * The Continue button's gate (was EnterDetailsStep.tsx:372, negated), plus
    * the one condition it never had: the figure must actually RESOLVE.
    *
@@ -1641,6 +1655,7 @@ export function useSendController() {
     canConfirm,
     confirmAmountIssue,
     tokenAmount,
+    confirmAmount,
     splitOverBalance,
     receiptAmount,
     receiptUsdValue,

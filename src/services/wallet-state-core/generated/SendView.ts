@@ -85,14 +85,43 @@ confirm_amount_issue: SendUnitIssue | null,
  * signed batch is built from (`resolve_token_amount`, invariant "displayed
  * == signed"). Empty while no token is selected.
  */
-token_amount: string, split_mode: boolean, recipients: Array<SendRecipientDraft>, 
+token_amount: string, 
+/**
+ * The single figure the confirm page prints beside From/To — always in
+ * TOKEN units, always this machine's.
+ *
+ * A 1→1 send restates [`SendView::token_amount`]. A SPLIT restates the
+ * sum the money gates already read: the same [`sum_split_base_units`]
+ * that `Continue` refuses an over-balance batch on, that
+ * [`derive_same_asset_issue`] measures against the fee ceiling, and that
+ * `build_split_calls` turns into the signed transfers. It is not a second
+ * derivation of the total — it is that total, said out loud.
+ *
+ * The shell used to sum the rows itself (`ConfirmStep.tsx:85`), which put
+ * a number on the signing page that nothing else in the flow had agreed
+ * to, and whose TS `toBaseUnits` THREW on a row this machine merely
+ * declines — a white confirm page instead of a refusal. An unresolvable
+ * row now answers `""` here (the shell prints its own zero), and the
+ * existing gates keep the batch off the passkey.
+ *
+ * Empty in multiSelect: that mode has no single headline (the per-token
+ * rows come from [`SendView::multi_specs`]).
+ */
+confirm_amount: string, split_mode: boolean, recipients: Array<SendRecipientDraft>, 
 /**
  * Split mode only: the rows' total exceeds the selected token's balance.
  * The same predicate the `Continue` gate refuses on
  * (`SendAlertKind::SplitOverBalance`), so the live hint and the gate can
  * never disagree.
  */
-split_over_balance: boolean, picker_target: string | null, multi_select_mode: boolean, multi_selected_ids: Array<string>, multi_chain_id: number | null, 
+split_over_balance: boolean, picker_target: string | null, multi_select_mode: boolean, multi_selected_ids: Array<string>, 
+/**
+ * Every held id on the filtered chain that "select all valuable" would
+ * sweep. The picker's master tick is `visible ∩ this`, all selected — the
+ * shell narrows the SCOPE to what is on screen and never re-decides what
+ * counts as valuable.
+ */
+multi_valuable_ids: Array<string>, multi_chain_id: number | null, 
 /**
  * Reserved multiSelect amounts for the selected token's chain.
  */

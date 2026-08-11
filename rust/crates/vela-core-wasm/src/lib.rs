@@ -389,6 +389,100 @@ pub fn identicon_normalize_seed(seed: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Native-coin price selection (`vela_core::app::balance_dashboard`)
+// ---------------------------------------------------------------------------
+//
+// The floor under the home hero number and under every per-row fiat value: get
+// the native coin's USD price wrong and every holding priced through it is
+// wrong too (X Layer's WOKB reads $5 out of a near-empty pool and $81 out of
+// the liquid one). The rules — the deepest-pool max within one stable, the
+// cross-stable max, the DEX/Chainlink sanity band and the source ladder —
+// have always lived in `balance_dashboard.rs`; these three exports are how the
+// web shell finally executes them instead of re-deciding in TypeScript.
+//
+// Pure kernels, not a machine: the shell still owns the multicall, the ABI
+// decode and the log line. It hands over decoded numbers and gets a verdict.
+
+/// One stable's DEX quotes for 1 native coin, as the shell decodes them out of
+/// the multicall. Each stable is its own group because its own `decimals()`
+/// normalizes the amount — USDC (6) and DAI (18) must never be compared under
+/// one shared scale.
+#[derive(Serialize, Deserialize, Tsify)]
+pub struct NativeQuoteGroup {
+    /// Successful quote outputs in THIS stable's base units, as decimal
+    /// strings (failed calls are simply absent).
+    #[serde(rename = "amountsOut")]
+    pub amounts_out: Vec<String>,
+    /// This stable's `decimals()` read; `null` = the read failed, and the core
+    /// applies its own `DEFAULT_QUOTE_DECIMALS`.
+    #[serde(rename = "quoteDecimals")]
+    pub quote_decimals: Option<u32>,
+}
+
+/// Wrapper so the group list crosses the boundary as one value.
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
+pub struct NativeQuoteGroups {
+    pub groups: Vec<NativeQuoteGroup>,
+}
+
+/// The chosen price and the rung of the ladder it came from. `source` is the
+/// `NativePriceSource` variant name; `"none"` when nothing could price.
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+pub struct NativePriceChoice {
+    pub price: Option<f64>,
+    pub source: String,
+}
+
+fn source_name(source: vela_core::app::balance_dashboard::NativePriceSource) -> &'static str {
+    use vela_core::app::balance_dashboard::NativePriceSource as S;
+    match source {
+        S::Dex => "dex",
+        S::ChainlinkSanity => "chainlinkSanity",
+        S::ChainlinkLocal => "chainlinkLocal",
+        S::ChainlinkEth => "chainlinkEth",
+    }
+}
+
+/// The deepest pool across ALL stable quotes — `best_native_dex_price`, which
+/// folds `best_group_price` over each group.
+#[wasm_bindgen(js_name = bestNativeDexPrice)]
+pub fn best_native_dex_price(groups: NativeQuoteGroups) -> Option<f64> {
+    let groups: Vec<vela_core::app::balance_dashboard::NativeQuoteGroup> = groups
+        .groups
+        .into_iter()
+        .map(
+            |g| vela_core::app::balance_dashboard::NativeQuoteGroup {
+                amounts_out: g.amounts_out,
+                quote_decimals: g.quote_decimals,
+            },
+        )
+        .collect();
+    vela_core::app::balance_dashboard::best_native_dex_price(&groups)
+}
+
+/// The source ladder and its sanity band — `choose_native_price`.
+#[wasm_bindgen(js_name = chooseNativePrice)]
+pub fn choose_native_price(
+    dex: Option<f64>,
+    chainlink_local: Option<f64>,
+    chainlink_eth: Option<f64>,
+) -> NativePriceChoice {
+    match vela_core::app::balance_dashboard::choose_native_price(dex, chainlink_local, chainlink_eth)
+    {
+        Some(chosen) => NativePriceChoice {
+            price: Some(chosen.price),
+            source: source_name(chosen.source).to_owned(),
+        },
+        None => NativePriceChoice {
+            price: None,
+            source: "none".to_owned(),
+        },
+    }
+}
+
+// ---------------------------------------------------------------------------
 // i18n (spec 004-rust-i18n, contracts/i18n-api.md §1.3 / §2.3)
 // ---------------------------------------------------------------------------
 //

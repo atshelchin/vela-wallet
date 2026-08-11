@@ -14,7 +14,6 @@ import { styles } from './SendScreen.styles';
 import { shortAddr } from './send-utils';
 import { chainName, nativeSymbol, tokenBadgeNetwork } from '@/models/network';
 import { formatBalance, isNativeToken, tokenBalanceDouble, tokenChainId, tokenId, tokenLogoURLs, type APIToken } from '@/models/types';
-import { sumSplitBaseUnits } from '@/services/batch-send';
 import { fromBaseUnits } from '@/services/eip681';
 import { AlertCircle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
@@ -54,7 +53,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
     estimatingGas,
     txStatus,
     txError,
-    tokenAmount,
+    confirmAmount,
     canConfirm,
     confirmAmountIssue,
     gasFeeToken,
@@ -76,16 +75,14 @@ export function ConfirmStep({ c }: { c: SendController }) {
   } = c;
 
     if (!selectedToken) return null;
-    // `tokenAmount` is the controller's — on web it is the CORE's resolution, the
-    // very string the signed batch is built from. Re-running the fiat↔token
-    // conversion here would put a second, independently-derived number on the
-    // page the user is signing.
-    const singleAmountNum = parseFloat(tokenAmount || '0');
-    // In split mode the headline amount is the sum across all recipients.
-    const splitTotalNum = splitMode
-      ? parseFloat(fromBaseUnits(sumSplitBaseUnits(recipients, selectedToken.decimals), selectedToken.decimals))
-      : 0;
-    const amountNum = splitMode ? splitTotalNum : singleAmountNum;
+    // `confirmAmount` is the controller's — on web it is the CORE's own figure:
+    // for a 1→1 send the resolution the signed transfer is built from, for a
+    // SPLIT the very `sumSplitBaseUnits` total the over-balance gate, the
+    // same-asset fee ceiling and `buildSplitCalls` read. Summing the rows here
+    // put a second, independently derived number under the user's thumb — and
+    // `toBaseUnits` threw mid-render on a row the core merely declines, which
+    // is a white confirm page. '' (unresolvable) prints as zero.
+    const amountNum = parseFloat(confirmAmount || '0');
     const usdAmount = amountNum * (selectedToken.priceUsd ?? 0);
     const logos = tokenLogoURLs(selectedToken);
     const chain = chainName(tokenChainId(selectedToken));

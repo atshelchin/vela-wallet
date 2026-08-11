@@ -173,6 +173,19 @@ export interface SendController {
    * shell must never re-derive it.
    */
   tokenAmount: string;
+  /**
+   * The single figure the confirm page prints beside From/To, in token units.
+   * A 1→1 send restates `tokenAmount`; a SPLIT restates the sum of the rows —
+   * and on web both come from the core (`SendView.confirm_amount`), so the
+   * number under the user's thumb is the number the over-balance gate, the fee
+   * ceiling and `buildSplitCalls` all read.
+   *
+   * `ConfirmStep` used to sum the split rows itself with `sumSplitBaseUnits` +
+   * `fromBaseUnits`, which put a second, independently derived total on the
+   * page being signed — and threw mid-render on a row the core merely
+   * declines. `''` means "does not resolve"; the page prints its own zero.
+   */
+  confirmAmount: string;
   splitMode: boolean;
   recipients: RecipientDraft[];
   /** Split mode: the rows' total exceeds the balance — the live hint under the

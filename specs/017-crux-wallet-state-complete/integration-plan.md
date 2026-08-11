@@ -405,8 +405,53 @@ override was surfaced to the owner rather than made silently.
 overlook, because every rule had to be stated once, in one place, precisely
 enough for two languages to agree on it.
 
+### Waves A/B/C — the audit worked through (`77c0428`, `911e893`, `c513c4c`)
+
+Of the 42 findings: **9 disproved outright** (roughly one in five, and one round
+hit one in three — including the audit's own most severe claim, that the core
+reports a deleted contact as saved; `Event::Delete` retains-out of `model.saved`
+*before* writing the tombstone). Every fix agent was told to falsify first and
+to report a false positive as a first-class outcome. Do the same next time: a
+static read of this codebase is wrong about a fifth of what it asserts.
+
+Wave C's job was **ruling**, not migrating: 11 judgements were deliberately
+**kept in the shell** with the reason written into the code, 2 built into a
+core, 4 fixed where they stood. "Everything in Rust" was never the goal — one
+owner per judgement was. Filtering, sorting, icon precedence and copy stay in
+the shell for the same reason the 15-locale catalogues do.
+
+**The audit's real yield was the bugs beside the findings**, each caught while
+confirming a neighbouring item:
+- A custom ERC-20 could be priced **10¹² too high** — quotes against every
+  stablecoin on a chain were all scaled by USDC's 6 decimals, so on Polygon,
+  Gnosis, Arbitrum or Base (DAI/WXDAI beside USDC) a token with no USDC pool got
+  the wrong scale. That value is `APIToken.priceUsd`: the home total, the
+  holdings order, and the `usd` string written into a **durable** receive record.
+- The **passkey index endpoint was saved with no admission condition at all** —
+  no https, no health check, no allowlist — while `login.rs` takes that record's
+  `public_key_hex` straight to `address_from_public_key_hex` and saves the result
+  as the account, without re-deriving from the assertion. Whoever controls the
+  endpoint controls **which wallet address the user lands in**; plain http hands
+  that to any network attacker. The health dot gated nothing.
+- An `ethereum:` URI naming a function other than `transfer` fell through to the
+  native branch, where the **contract** it addressed became the **recipient**.
+- A local Chainlink read of `0` produced `ratio = dex/0 = Infinity`, failed the
+  sanity band, and published **$0 as a chain's native coin price**.
+
+**A flake is not a flake until you measure it.** `parallel-send`'s "Add Token"
+assertion uses the default 5s timeout where its neighbours use 25s; it fails
+about **2 runs in 6 on the parent commit**. A single clean full-suite run was
+mistaken for determinism and it was briefly attributed to Wave B — the baseline
+measurement corrected that. Playwright's `retries: 1` reports fail-then-pass as
+"flaky" and still exits 0, so re-measure with `--retries=0` before believing
+either story.
+
 ## Still open
 
+- **`parallel-send.spec.ts:22`'s "Add Token" assertion** carries the default 5s
+  timeout while the two assertions around it use 25s, so it loses a race with
+  token loading about a third of the time. Aligning it is an `e2e/` edit and
+  therefore an owner call, like the `parallel-clear-signing` regex was.
 - **Native has no e2e.** Sign-out's native behaviour changed in this branch
   and `ext_cache`'s real surface is iOS-only; both want a device pass
   (`e2e/safari/run_matrix.py`).

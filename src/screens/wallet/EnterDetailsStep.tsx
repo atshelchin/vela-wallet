@@ -230,6 +230,14 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               onChangeText={(t) => setRecipient(t)}
               autoCapitalize="none"
               autoCorrect={false}
+              // Read-only for a prefilled recipient. This prop is the SCREEN's
+              // half of the rule; the other half now lives with the machine
+              // that builds the call — `send.rs::view_recipient_locked` refuses
+              // `SetRecipient` for a LOCKED request, the same way it already
+              // refused `SetAmount` for a locked amount. Note the two
+              // conditions differ on purpose: an unlocked prefill (a contact
+              // tapped "Send") is read-only here but re-settable there, because
+              // `changeToken` clears and restores it.
               editable={!prefilledRecipient}
               blurOnSubmit
               returnKeyType="done"
@@ -273,7 +281,14 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
           )}
 
           {/* Send this token to several people at once → split mode, or import a
-              payroll table (fiat → token) in one go. */}
+              payroll table (fiat → token) in one go.
+
+              Hidden — not disabled — for a locked request: one scanned EIP-681
+              request pays one payee, and `send.rs` now refuses `EnterSplitMode`
+              / `SeedSplitRecipients` while locked, so the mode cannot be
+              reached through any other door either. Removing the affordance
+              rather than dimming it is why a silent refusal underneath is safe:
+              there is no lit control here to press and have nothing happen. */}
           {!locked && !prefilledRecipient && (
             <View style={styles.splitEntryRow}>
               <Pressable onPress={enterSplitMode} style={styles.addRecipientEntry}>

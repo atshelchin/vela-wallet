@@ -849,6 +849,25 @@ function TextScaleSlider({ s, currentIndex, onChangeIndex }: {
 
 // ---------------------------------------------------------------------------
 // Treasury (Developer Options)
+//
+// Reachable only behind the 6-tap `dev_unlocked` latch (see `devUnlocked`
+// below), and the audience is whoever operates the sponsor treasury. Everything
+// in this block — the "needs funding" threshold and the fiat figures beside the
+// balances — is DISPLAY ONLY and stays in the shell on purpose (spec 017
+// no_core_owns_it):
+//
+//   - `gasPrice × 10M gas` is a staffing heuristic ("enough to sponsor ~15-20
+//     new users"), not a protocol quantity. It is never signed, never sent and
+//     never persisted; it decides one warning triangle and one hint line.
+//   - the USD figures go through `Number(bigint) / 1e18 × price`, which is a
+//     double and openly so. That is admissible HERE and only here, because the
+//     number leaves the function as pixels. It must not be copied into any path
+//     that converts, signs or stores a value — those already have owners
+//     (`money.rs`, `fee_policy.rs`), and a 256-bit rule exists there for the
+//     reason `4a2fc3e` records.
+//
+// Building a core for it would put a dev-tools heuristic in the same place as
+// the fee rules and invite exactly the copying the paragraph above forbids.
 // ---------------------------------------------------------------------------
 
 type TreasuryBalance = { chainId: number; name: string; explorerURL: string; balance: string; wei: bigint; recommended: string; recommendedWei: bigint; usd: number | null; loading: boolean };
@@ -1089,7 +1108,11 @@ async function fetchTreasuryBalance(address: string, chainId: number): Promise<{
     ]);
     const wei = BigInt((balRes.result as string) ?? '0x0');
     const gasPrice = BigInt((gasPriceRes.result as string) ?? '0x0');
-    // Recommended: gasPrice × 10M gas — enough to sponsor ~15-20 new users
+    // Recommended: gasPrice × 10M gas — enough to sponsor ~15-20 new users.
+    // Computed in 256 bits and kept in wei; only the rendering divides. A
+    // gasPrice the node could not answer stays 0n, which makes the threshold
+    // 0n — the `wei === 0n && recommendedWei === 0n` arm of `needsFunding`
+    // reads that as "unknown, warn" rather than as "funded".
     const recommendedWei = gasPrice * 10_000_000n;
     return {
       formatted: formatEth(wei),

@@ -17,6 +17,34 @@
  *    hand back a placeholder symbol while the metadata read is in flight AND
  *    when it failed outright, so the placeholder is a spinner, not a symbol,
  *    and a compact row must not print it as one.
+ *
+ * ---------------------------------------------------------------------------
+ * OWNERSHIP (re-affirmed): these belong to the SHELL, and the reason is
+ * structural, not a preference.
+ * ---------------------------------------------------------------------------
+ *
+ * `clear_signing` resolves ONE transaction at a time and supersedes anything
+ * in flight the moment a new `ResolveTransaction` arrives (`Event::` doc,
+ * `attempt` in the model). An EIP-5792 bundle is therefore not one core
+ * question but N of them: `SigningSheet.tsx` opens a separate core session per
+ * leg precisely because one session cannot hold N concurrent resolutions —
+ * and single-session supersession is the wrong shape for the question being
+ * asked here, which is *"do these N answers, together, belong to the request
+ * currently on screen?"*. No core is in a position to know that; the shell
+ * that fanned the legs out is. So the pass is tagged with the key of the input
+ * it answers, and the sheet compares keys.
+ *
+ * That is also the *reason* this file exists rather than a boolean: the
+ * comparison is a total function of two values present on every render, so
+ * unlike a `resolving` flag it cannot latch. A latched flag here disabled
+ * Confirm permanently with the loading placeholder up, leaving "close the
+ * sheet" as the user's only move — and closing IS the reject path, so the dApp
+ * collected a 4001 the user never gave. Any replacement must keep that
+ * property: correct verdict AND a way forward.
+ *
+ * Nothing here parses, scales or compares an AMOUNT (`batchPassKey` only
+ * stringifies legs; `displayTokenSymbol` only chooses between a symbol and the
+ * empty string), so no money rule is being restated outside a core.
  */
 
 import type { ApprovalTokenMeta } from '@/hooks/approval-guard-controller-types';

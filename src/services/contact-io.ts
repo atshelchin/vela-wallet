@@ -13,6 +13,18 @@
  *
  * Serialize/parse are pure; only {@link importContacts} and the `export*` helpers
  * touch the contacts service.
+ *
+ * ── Who owns these rules ────────────────────────────────────────────────────
+ * File FORMAT lives here and stays here: quoting, line endings, which column is
+ * which, JSON-vs-CSV sniffing. The core asks for exactly that split — its
+ * `ImportParsed` event takes already-parsed arrays, and everything it decides
+ * about them (is this an address, existing-wins, de-duplication, which groups
+ * are created, the counts in `ContactImportReport`) is `contacts.rs`'s.
+ *
+ * The one rule this file must NOT keep is validity. It used to `continue` past
+ * every row whose address didn't parse, which meant the importer's `invalid`
+ * counter could only ever read 0 on the CSV path — the file's mistakes were
+ * erased before the machine that counts them ever saw them.
  */
 import { isAddress } from '@/models/types';
 import { splitCsvLine } from '@/services/recipient-table';
@@ -156,10 +168,69 @@ function parseJson(text: string): ParsedContactsImport {
 
 const nz = (i: number) => (i === -1 ? undefined : i);
 
-function indexColumns(header: string[]): { address: number; name?: number; note?: number; favorite?: number; groups?: number } {
-  const find = (kw: string) => header.findIndex((h) => h.toLowerCase() === kw);
-  const address = find('address');
-  return { address: address === -1 ? 0 : address, name: nz(find('name')), note: nz(find('note')), favorite: nz(find('favorite')), groups: nz(find('groups')) };
+interface CsvColumns { address: number; name?: number; note?: number; favorite?: number; groups?: number }
+
+/**
+ * Which column holds the address.
+ *
+ * The header word is preferred, but a foreign file rarely spells it `address`
+ * — `wallet`, `Public Address`, `Recipient` are all common, and a header we
+ * don't recognise used to fall back to *column 0*. When column 0 held the
+ * NAME, every row failed the address test, every row was dropped silently, and
+ * the import reported "0 added, 0 already existed": nothing imported, nothing
+ * explained, nothing to try differently. So when the header does not say it,
+ * the DATA does — the first column that actually contains an address.
+ */
+function findAddressColumn(header: string[] | null, rows: string[][]): number | null {
+  if (header) {
+    const named = header.findIndex((h) => h.toLowerCase() === 'address');
+    if (named !== -1) return named;
+  }
+  const width = rows.reduce((w, r) => Math.max(w, r.length), 0);
+  for (let i = 0; i < width; i += 1) {
+    if (rows.some((r) => isAddress(r[i] ?? ''))) return i;
+  }
+  return null;
+}
+
+function indexColumns(header: string[] | null, address: number, namedAddress: boolean): CsvColumns {
+  if (header && namedAddress) {
+    // The file speaks our vocabulary — take every column it names and infer
+    // nothing beyond them.
+    const find = (kw: string) => nz(header.findIndex((h) => h.toLowerCase() === kw));
+    return { address, name: find('name'), note: find('note'), favorite: find('favorite'), groups: find('groups') };
+  }
+  if (header) {
+    // A foreign header (`label,wallet`): its words told us nothing, so keep
+    // only what is unambiguous — the address, plus a single label column if the
+    // header happens to name one.
+    const named = nz(header.findIndex((h) => h.toLowerCase() === 'name'));
+    return { address, name: named ?? firstOther(address) };
+  }
+  // Headerless: our own export order, positionally — but only when the address
+  // sits where that order puts it. A headerless file whose address is somewhere
+  // else tells us nothing about the rest, so we take the one thing that is
+  // unambiguous (the label beside it) and no more.
+  if (address === 0) return { address, name: 1, note: 2, favorite: 3, groups: 4 };
+  return { address, name: firstOther(address) };
+}
+
+/** The first column that is not the address one — the de-facto label column. */
+function firstOther(address: number): number {
+  return address === 0 ? 1 : 0;
+}
+
+/**
+ * Thrown when a CSV plainly had contact rows and not one of them yielded an
+ * address. The caller already renders this as "Import failed — use a JSON or
+ * CSV contacts file", which is the whole point: a file we cannot read must say
+ * so, instead of succeeding with zero of everything.
+ */
+export class ContactsImportUnreadableError extends Error {
+  constructor() {
+    super('No address column found in the CSV');
+    this.name = 'ContactsImportUnreadableError';
+  }
 }
 
 function parseCsv(text: string): ParsedContactsImport {
@@ -167,15 +238,24 @@ function parseCsv(text: string): ParsedContactsImport {
   if (lines.length === 0) return { contacts: [], groups: [] };
   const first = splitCsvLine(lines[0], ',').map((c) => c.trim());
   const hasHeader = !first.some((c) => isAddress(c));
-  const cols = hasHeader ? indexColumns(first) : { address: 0, name: 1, note: 2, favorite: 3, groups: 4 };
   const dataLines = hasHeader ? lines.slice(1) : lines;
+  const rows = dataLines.map((line) => splitCsvLine(line, ',').map((c) => c.trim()));
+
+  const header = hasHeader ? first : null;
+  const namedAddress = !!header && header.some((h) => h.toLowerCase() === 'address');
+  const addressCol = findAddressColumn(header, rows);
+  const cols = indexColumns(header, addressCol ?? 0, namedAddress);
 
   const contacts: ExportedContact[] = [];
   const groupMap = new Map<string, string[]>();
-  for (const line of dataLines) {
-    const cells = splitCsvLine(line, ',').map((c) => c.trim());
+  let valid = 0;
+  let attempted = 0;
+  for (const cells of rows) {
     const address = cells[cols.address] ?? '';
-    if (!isAddress(address)) continue;
+    // A row with nothing where the address goes is structure (a blank or a
+    // separator), not a contact anyone tried to import.
+    if (!address) continue;
+    attempted += 1;
     const c: ExportedContact = { address };
     const name = cols.name != null ? cells[cols.name] : undefined;
     const note = cols.note != null ? cells[cols.note] : undefined;
@@ -183,7 +263,13 @@ function parseCsv(text: string): ParsedContactsImport {
     if (name) c.name = name;
     if (note) c.note = note;
     if (fav && /^(true|1|yes)$/i.test(fav)) c.favorite = true;
+    // Malformed rows are carried through rather than dropped here. "Is this an
+    // address" is the importer's question, and it already counts the answer —
+    // `ImportReport.invalid` was structurally 0 on the CSV path because this
+    // loop had silently swallowed every bad row first.
     contacts.push(c);
+    if (!isAddress(address)) continue;
+    valid += 1;
 
     const grpCell = cols.groups != null ? cells[cols.groups] : undefined;
     if (grpCell) {
@@ -194,6 +280,7 @@ function parseCsv(text: string): ParsedContactsImport {
       }
     }
   }
+  if (attempted > 0 && valid === 0) throw new ContactsImportUnreadableError();
   const groups: ExportedGroup[] = [...groupMap.entries()].map(([name, members]) => ({ name, members }));
   return { contacts, groups };
 }

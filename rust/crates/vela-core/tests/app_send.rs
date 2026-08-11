@@ -139,6 +139,21 @@ fn dai(balance: &str) -> SendToken {
     }
 }
 
+/// The same asset on ANOTHER chain — the row a one-chain sweep must not take.
+fn polygon_usdc(balance: &str) -> SendToken {
+    SendToken {
+        network: "polygon".to_owned(),
+        chain_id: 137,
+        symbol: "USDC".to_owned(),
+        balance: balance.to_owned(),
+        decimals: 6,
+        token_address: Some(USDC.to_owned()),
+        price_usd: Some(1.0),
+        logo_urls: vec![],
+        spam: false,
+    }
+}
+
 fn loaded(tokens: Vec<SendToken>) -> Res {
     Res::TokensLoaded {
         tokens: Some(tokens),
@@ -2714,6 +2729,100 @@ fn locked_amounts_are_not_editable() {
         amount: "99".to_owned(),
     });
     assert_eq!(sut.view().amount, "1.5", "locked amount stays");
+}
+
+#[test]
+fn locked_recipients_are_not_editable_either() {
+    let mut sut = Sut::new();
+    sut.dispatch(open_event(locked_params(Some(USDC), Some("1500000"), "1")));
+    sut.resolve(loaded(vec![usdc("5")]));
+    assert_eq!(sut.view().recipient, RECIPIENT);
+    // The screen renders the field disabled; the machine refuses the edit too,
+    // so the payee a scanned request names cannot be re-pointed.
+    let ops = sut.dispatch(Event::SetRecipient {
+        recipient: RECIPIENT_B.to_owned(),
+    });
+    assert!(ops.is_empty(), "no identity lookup for a refused edit");
+    assert_eq!(sut.view().recipient, RECIPIENT, "locked recipient stays");
+}
+
+#[test]
+fn an_unlocked_prefill_still_carries_its_recipient_across_a_token_change() {
+    // The recovery path the lock must not eat: a contact tapped "Send" prefills
+    // the recipient WITHOUT locking, and `changeToken` = Back (which clears the
+    // recipient) + SetRecipient (which puts it back).
+    let mut sut = Sut::new();
+    sut.dispatch(open_event(SendOpenParams {
+        prefilled_recipient: Some(RECIPIENT.to_owned()),
+        ..SendOpenParams::default()
+    }));
+    sut.resolve(loaded(vec![eth("2"), usdc("5")]));
+    select_eth(&mut sut);
+    sut.dispatch(Event::Back);
+    assert_eq!(sut.view().recipient, "");
+    sut.dispatch(Event::SetRecipient {
+        recipient: RECIPIENT.to_owned(),
+    });
+    assert_eq!(
+        sut.view().recipient,
+        RECIPIENT,
+        "an unlocked prefill is re-settable — the field is only READ-ONLY on screen"
+    );
+}
+
+#[test]
+fn a_locked_request_cannot_become_a_split_or_a_batch() {
+    let mut sut = Sut::new();
+    sut.dispatch(open_event(locked_params(Some(USDC), Some("1500000"), "1")));
+    sut.resolve(loaded(vec![usdc("5")]));
+
+    sut.dispatch(Event::EnterSplitMode);
+    let view = sut.view();
+    assert!(!view.split_mode, "one request pays one payee");
+    assert!(view.recipients.is_empty());
+
+    sut.dispatch(Event::SeedSplitRecipients {
+        recipients: vec![
+            SendRecipientDraft {
+                id: String::new(),
+                address: RECIPIENT_B.to_owned(),
+                amount: "1".to_owned(),
+                name: None,
+            },
+            SendRecipientDraft {
+                id: String::new(),
+                address: RECIPIENT.to_owned(),
+                amount: "1".to_owned(),
+                name: None,
+            },
+        ],
+    });
+    let view = sut.view();
+    assert!(!view.split_mode, "an import cannot re-target a locked request");
+    assert_eq!(view.recipient, RECIPIENT);
+    assert_eq!(view.amount, "1.5", "and the pinned amount survives it");
+}
+
+#[test]
+fn a_token_off_the_filtered_chain_cannot_join_the_sweep() {
+    let mut sut = boot(vec![eth("2"), polygon_usdc("9")]);
+    sut.dispatch(Event::SetMultiNetwork { chain_id: Some(1) });
+    sut.dispatch(Event::ToggleMultiToken {
+        token_id: polygon_usdc("9").id(),
+    });
+    assert!(
+        sut.view().multi_selected_ids.is_empty(),
+        "⑪: a batch is one chain — the picker's filter is not the only guard"
+    );
+    // …and the rows the filter IS showing still toggle both ways.
+    sut.dispatch(Event::ToggleMultiToken {
+        token_id: eth("2").id(),
+    });
+    assert_eq!(sut.view().multi_selected_ids, vec![eth("2").id()]);
+    sut.dispatch(Event::ToggleMultiToken {
+        token_id: eth("2").id(),
+    });
+    assert!(sut.view().multi_selected_ids.is_empty(), "never stuck on");
 }
 
 #[test]

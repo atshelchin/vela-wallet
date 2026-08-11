@@ -146,6 +146,32 @@ export function isPlainAsciiText(text: string): boolean {
  * Takes the core's own projection, so web (Rust `analyze_message`) and native
  * (the TS decode above) feed it the identical two fields — there is no second
  * decode to drift.
+ *
+ * ---------------------------------------------------------------------------
+ * OWNERSHIP (re-affirmed): F9 is the SHELL's verdict and stays here.
+ * ---------------------------------------------------------------------------
+ *
+ * The core publishes four facts about a message — `is_hex`, `decoded_text`,
+ * `non_printable`, `danger_class` — and has no F9 tier. That is not a gap to
+ * be filled by adding one:
+ *   - F9 is a BANNER rule over a rendered string ("does what is on screen read
+ *     as the plain-ASCII prose a login prompt is made of?"), which is the same
+ *     class of question as which words to print. It gates nothing, signs
+ *     nothing and touches no amount.
+ *   - it is a pure function of the core's own projection, never of a second
+ *     decode, so the two ends cannot disagree about the payload — and the
+ *     projections themselves ARE pinned end to end:
+ *     `clear-signing-adjudication-parity.test.ts` drives the real Rust core and
+ *     asserts the whole `ClearMessageView` equals the native TS adjudication,
+ *     field for field, including these two.
+ *   - the folding of `decoded_text === null` into the predicate makes it a
+ *     strict SUPERSET of the core's `non_printable` by construction: the banner
+ *     can never go missing on a payload the core already refuses to render as
+ *     text. `sign-message-disguise-warning.test.ts` asserts that invariant over
+ *     a corpus, and `sign-message-disguise-core-parity.test.ts` asserts it again
+ *     over the REAL core's projection rather than a TypeScript stand-in.
+ * Moving it into Rust would buy nothing and would put a piece of copy policy
+ * behind the wasm boundary.
  */
 export function isPossibleDisguisedTransaction(
   view: { is_hex: boolean; decoded_text: string | null },

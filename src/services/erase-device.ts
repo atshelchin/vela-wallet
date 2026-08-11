@@ -43,6 +43,36 @@
  * Keys outside the `vela.` namespace are not this module's to judge and are
  * left alone — today that is only `dev_unlocked`, the developer-menu latch,
  * which holds no user data.
+ *
+ * ## Why no core owns this (spec 017 no_core_owns_it)
+ *
+ * `rg -i erase` across `rust/crates/vela-core/src` hits nothing but i18n copy,
+ * and that is the right answer rather than a gap. The rule is
+ * `startsWith('vela.') && !KEEP.has(key)` applied to an ENUMERATION of the
+ * device's key-value store — the core has no port that can list keys, and
+ * adding one so it could re-express a `startsWith` would move the enumeration,
+ * the batch/one-by-one retry and the verification pass into the shell anyway
+ * and leave the core holding a string comparison. The two judgements that are
+ * genuinely rules — the prefix and the keep-list — are the owner's, already
+ * decided in spec 017's `integration-plan.md`, and they are *stated as exported
+ * constants* here so a reader finds them without reading the loop.
+ *
+ * What that ownership buys has to be checked rather than assumed, so it was:
+ *
+ *   - **"claims erased but history is still here."** Nothing writes outside
+ *     `AsyncStorage` on any platform except a `__DEV__`-gated `localStorage`
+ *     flag in `services/vela-core/diff-harness.ts`, which holds no user data;
+ *     there is no IndexedDB or `sessionStorage` writer. Every key literal any
+ *     module passes to the store is `vela.`-prefixed except `dev_unlocked`.
+ *     And the claim is not taken on trust at runtime either: the verification
+ *     pass re-enumerates and {@link EraseIncompleteError} rejects, which is
+ *     what stops the caller navigating to onboarding over a partial wipe.
+ *   - **"deleted the only retryable public-key upload."** `vela.pendingUploads`
+ *     is the keep-list, for the reason above it.
+ *   - **A failed erase is not a dead end.** `use-erase-device*` leaves the user
+ *     signed in, on the same sheet, with `settings.eraseDevice.failed` shown
+ *     and the confirm button live — the data is still there, saying so is the
+ *     point, and the action can simply be taken again.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

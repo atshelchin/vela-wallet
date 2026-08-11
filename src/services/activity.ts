@@ -295,8 +295,32 @@ function incomingToRecord(tx: IncomingTransfer, address: string, index: Map<stri
   const symbol = meta?.symbol ?? (tx.isNative ? nativeSymbol(tx.chainId) : 'tokens');
   const decimals = meta?.decimals ?? 18;
   const amount = Number(tx.value) / 10 ** decimals;
+  // ── Ingest valuation: the SHELL's, on purpose (spec 017 no_core_owns_it) ──
+  //
   // Prefer a real price; otherwise treat ≈$1 stablecoins as their token amount
   // (covers on-chain-resolved tokens with no price feed), else unknown ($0.00).
+  //
+  // The core owns the READ side (`activity_feed.rs::tx_usd_value`), and this is
+  // the write side, so the two must not be allowed to disagree. They don't, and
+  // the reason is structural rather than a promise:
+  //
+  //   - the ONE table both sides consult is `STABLE_SYMBOLS`, and
+  //     `core-table-parity.test.ts` fails on a one-sided edit;
+  //   - the stored string is not authoritative. `tx_usd_value` re-derives from
+  //     it and, when it parses to 0 (absent, legacy, or a sub-cent amount that
+  //     `formatUsd` rounded to `$0.00`), applies the SAME ≈$1 stablecoin
+  //     fallback this line applies. A received USDT can therefore never end up
+  //     displayed at $0.00 because of what was written here, which is the
+  //     invariant that made the read-side rule core-owned in the first place;
+  //   - `src/__tests__/services/activity-ingest-valuation.test.ts` drives the
+  //     real core over the strings this line produces, scenario by scenario.
+  //
+  // What CANNOT move into the core is the input: `meta.priceUsd` is a live DEX
+  // + Chainlink read (`wallet-api.ts`), and the symbol/decimals come from an
+  // on-chain metadata resolve. Both are shell I/O with no core port, and a core
+  // that took them as arguments would be re-implementing `formatUsd`, not
+  // deciding anything. The judgement that is genuinely a rule — "which symbols
+  // are worth ≈$1" — is already the core's.
   const usd = meta?.priceUsd != null
     ? formatUsd(amount * meta.priceUsd)
     : isStable(symbol)

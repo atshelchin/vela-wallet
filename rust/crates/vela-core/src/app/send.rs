@@ -1360,6 +1360,17 @@ impl App for Send {
             }
             Event::ConfirmMultiSelection => confirm_multi_selection(model),
             Event::SetRecipient { recipient } => {
+                if view_recipient_locked(model) {
+                    // The field is not editable then — same shape as the
+                    // amount lock below. A refusal here can never surprise
+                    // anyone: the control that would send this event renders
+                    // disabled, so nothing is typed to be swallowed. (The
+                    // contact picker and the scanner are NOT gated here for
+                    // the opposite reason — they are removed from the screen
+                    // rather than shown disabled, so a silent no-op on them
+                    // would be a dead button.)
+                    return Command::done();
+                }
                 model.recipient = recipient;
                 Command::all([sync_identity(model), render()])
             }
@@ -2042,10 +2053,22 @@ fn prefetch_credential(model: &mut Model) -> Cmd {
     ])
 }
 
+/// One tap on one row. Deselecting is ALWAYS allowed — a row that somehow got
+/// into the pick must never be impossible to take back out — but selecting is
+/// scoped by the same `visible_multi_tokens` the master tick uses, so "a batch
+/// is one chain" (invariant ⑪) holds in the machine and not only in the
+/// picker's `chainFilter != null`. An id this machine does not hold selects
+/// nothing, exactly as `toggle_all_multi` already promised.
 fn toggle_multi_token(model: &mut Model, token_id: String) -> Cmd {
     if let Some(pos) = model.multi_selected_ids.iter().position(|id| *id == token_id) {
         model.multi_selected_ids.remove(pos);
     } else {
+        if !visible_multi_tokens(model)
+            .iter()
+            .any(|token| token.id() == token_id)
+        {
+            return Command::done();
+        }
         model.multi_selected_ids.push(token_id);
     }
     render()
@@ -2144,6 +2167,25 @@ fn warm_estimate_start(model: &mut Model) -> Cmd {
 
 fn view_amount_locked(model: &Model) -> bool {
     model.params.locked && model.params.prefilled_amount_base.is_some()
+}
+
+/// A locked request pins WHO is paid exactly as `amount_locked` pins how much.
+///
+/// Both locks used to live on the same screen at different depths: the amount's
+/// refusal was written here, the recipient's existed only as
+/// `editable={!prefilledRecipient}` in `EnterDetailsStep.tsx`. A scanned
+/// EIP-681 request names a payee; if the shell ever stops passing that prop the
+/// machine would happily re-point the transfer while still calling itself
+/// locked, so the rule sits with the machine that builds the call.
+///
+/// The condition is `locked && prefilled_recipient`, NOT `prefilled_recipient`
+/// alone: an unlocked prefill (a contact tapped "Send") legitimately re-sets
+/// the recipient — `changeToken` dispatches `Back` (which clears it) and then
+/// `SetRecipient` to carry it across. Refusing that would leave the user on an
+/// uneditable EMPTY recipient field, which is precisely the kind of gate that
+/// stops the wrong thing and the right thing at once.
+fn view_recipient_locked(model: &Model) -> bool {
+    model.params.locked && model.params.prefilled_recipient.is_some()
 }
 
 /// This screen's token price, in the display currency, or `None` when either
@@ -2395,7 +2437,18 @@ fn make_recipient_id(model: &mut Model) -> String {
     format!("rcpt_{}", model.recipient_seq)
 }
 
+/// A locked request is one payment to one payee: it may not become a split or
+/// a batch. The entry points (`Add recipient`, `Import list`) are already
+/// absent from the screen while locked — this is the same sentence said where
+/// the calls are built, so the mode cannot be entered by any other door.
+fn split_locked_out(model: &Model) -> bool {
+    model.params.locked
+}
+
 fn enter_split_mode(model: &mut Model) -> Cmd {
+    if split_locked_out(model) {
+        return Command::done();
+    }
     let Some(token) = model.selected_token.clone() else {
         return Command::done();
     };
@@ -2436,7 +2489,7 @@ fn assign_ids(model: &mut Model, mut rows: Vec<SendRecipientDraft>) -> Vec<SendR
 }
 
 fn seed_split(model: &mut Model, rows: Vec<SendRecipientDraft>) -> Cmd {
-    if rows.is_empty() {
+    if rows.is_empty() || split_locked_out(model) {
         return Command::done();
     }
     let mut rows = assign_ids(model, rows);

@@ -339,13 +339,10 @@ async function queryChainAssets(
   }
 
   // --- DEX price queries ---
+  // The preferred quote token — it only orders the custom-token price attempts
+  // now. It is deliberately NOT a source of decimals for anyone else's quote:
+  // every quote is scaled by the decimals of the stable it was quoted against.
   const quoteToken = pickQuoteToken(stables);
-  // Track which call index was used for the quote token's decimals (used to price custom ERC-20s).
-  let quoteTokenDecCallIdx: number | null = null;
-  if (quoteToken) {
-    const qi = stables.indexOf(quoteToken);
-    if (qi >= 0) quoteTokenDecCallIdx = decIdx[1 + qi]; // +1 because native is slot 0
-  }
 
   // Native price: quote 1 wrappedNative against EVERY stable and keep the DEEPEST pool's
   // result (see extractBestPrice), not the first that happens to return. One stable's pool can
@@ -366,19 +363,40 @@ async function queryChainAssets(
   // Custom ERC-20 prices:
   //   Path A: token → ANY stablecoin (USDC, USDC.e, USDT, etc.)
   //   Path B: token → wrappedNative (WETH/WMATIC) — then multiply by nativePriceUsd
-  const customDirectIdxs = new Map<number, number[]>();
+  //
+  // Path A is grouped PER STABLE, exactly like the native path above, because
+  // the amount a quote returns is denominated in that stable's own base units.
+  // A flat list of quotes across USDC (6) and DAI (18) scaled by one shared
+  // `quoteDecimals` mis-prices by 10^12 the moment the first surviving quote is
+  // not the token whose decimals were read — see `firstGroupedQuotePrice`.
+  //
+  // The groups are ordered preferred-quote-token first (`pickQuoteToken`, the
+  // choice this code always declared but never actually honoured), then the
+  // remaining stables in chain order, so USDC's deeper pool wins a tie and a
+  // chain-specific bridge stable (USDC.e) still answers when it does not.
+  const customDirectGroups = new Map<number, { idxs: number[]; decCallIdx: number | null }[]>();
   const customViaNativeIdxs = new Map<number, number[]>();
   if (dex) {
+    // Stable indices in the order Path A should try them.
+    const preferredIdx = quoteToken ? stables.indexOf(quoteToken) : -1;
+    const stableOrder = stables.map((_, si) => si);
+    if (preferredIdx > 0) {
+      stableOrder.splice(preferredIdx, 1);
+      stableOrder.unshift(preferredIdx);
+    }
     for (let i = 0; i < slots.length; i++) {
       if (slots[i].category !== 'custom' || !slots[i].contract) continue;
       const dec = slots[i].knownDecimals ?? 18;
       const amountIn = 10n ** BigInt(dec);
       // Path A: token → stablecoin (try ALL stablecoins — e.g. USDC.e has pools native USDC doesn't)
-      const directIdxs: number[] = [];
-      for (const stable of stables) {
-        addDexPriceCalls(dex, slots[i].contract!, stable.contract, amountIn, directIdxs);
+      const directGroups: { idxs: number[]; decCallIdx: number | null }[] = [];
+      for (const si of stableOrder) {
+        const idxs: number[] = [];
+        addDexPriceCalls(dex, slots[i].contract!, stables[si].contract, amountIn, idxs);
+        // +1 because native is slot 0, so stable `si` is slot `1 + si`.
+        if (idxs.length > 0) directGroups.push({ idxs, decCallIdx: decIdx[1 + si] });
       }
-      if (directIdxs.length > 0) customDirectIdxs.set(i, directIdxs);
+      if (directGroups.length > 0) customDirectGroups.set(i, directGroups);
       // Path B: token → wrappedNative (most tokens have WETH/WMATIC pools)
       if (wrappedNative) {
         const nativeIdxs: number[] = [];
@@ -408,14 +426,7 @@ async function queryChainAssets(
     return []; // chain unsupported or RPC failed
   }
 
-  // 4. Decode quote token decimals (for price conversion)
-  let quoteDecimals = DEFAULT_QUOTE_DECIMALS; // sensible default for USDC
-  if (quoteTokenDecCallIdx != null) {
-    const r = results[quoteTokenDecCallIdx];
-    if (r?.success) quoteDecimals = decU8(r.data);
-  }
-
-  // 5. Resolve native price: DEX → on-chain Chainlink → Ethereum Chainlink
+  // 4. Resolve native price: DEX → on-chain Chainlink → Ethereum Chainlink
   //
   // Everything below the decode is the seam's — WHICH pool wins inside a
   // stable, which stable wins across them, whether the DEX price survives the
@@ -489,14 +500,47 @@ async function queryChainAssets(
         priceUsd = nativePriceUsd;
         break;
       case 'stable':
+        // ── This one is the SHELL's, on purpose (spec 017 no_core_owns_it) ──
+        //
+        // $1.00 here is not a missing factor defaulting to 1: `stable` is a
+        // MEMBERSHIP verdict — the token came from this chain's curated
+        // stablecoin list (`chain-tokens.ts`) — and ≈$1 is the definition of
+        // that membership. The same approximation is already core-owned on the
+        // two paths that matter for records and signing (`activity_feed.rs::
+        // is_stable` / `tx_usd_value`, `clear_signing.rs::STABLE_SYMBOLS`), and
+        // `core-table-parity.test.ts` gates the table both platforms read.
+        //
+        // A de-peg GATE was considered and rejected. The only independent
+        // measurement available here is the same DEX quote whose near-empty
+        // pools `chooseNativePrice` already has to defend against; nulling a
+        // stablecoin's price on its say-so would silently drop that holding out
+        // of the user's total with no explanation and no way to proceed — the
+        // exact failure mode a gate is supposed to prevent, inverted. A wrong
+        // de-peg verdict costs more than the approximation it replaces.
+        //
+        // The one thing this value must never do is enter a conversion,
+        // signing or persistence path that has its own owner. It does not: it
+        // reaches display (`tokenUsdValue`) and, for tokens the user holds, the
+        // ingest valuation in `activity.ts` — which is documented there and
+        // re-derived on read by the core.
         priceUsd = 1.0;
         break;
       case 'custom': {
-        // Path A: direct token → stablecoin
-        const directIdxs = customDirectIdxs.get(i);
-        priceUsd = extractPrice(results, directIdxs ?? [], quoteDecimals, dexDecoder);
+        // Path A: direct token → stablecoin, each group scaled by ITS OWN
+        // quote token's decimals (see `customDirectGroups`).
+        const directGroups = customDirectGroups.get(i) ?? [];
+        priceUsd = firstGroupedQuotePrice(
+          directGroups.map(g => ({
+            amountsOut: decodeQuoteAmounts(results, g.idxs, dexDecoder),
+            quoteDecimals: g.decCallIdx != null && results[g.decCallIdx]?.success
+              ? decU8(results[g.decCallIdx]!.data)
+              : null,
+          })),
+        );
         let erc20Source = priceUsd != null ? 'direct' : '';
-        // Path B: token → wrappedNative, then multiply by native USD price
+        // Path B: token → wrappedNative, then multiply by native USD price.
+        // One quote token (the wrapped native), so one scale — and wrapped
+        // native mirrors the coin's decimals by construction.
         if (priceUsd == null && nativePriceUsd != null) {
           const viaNativeIdxs = customViaNativeIdxs.get(i);
           const priceInNative = extractPrice(results, viaNativeIdxs ?? [], nativeCurrency.decimals, dexDecoder);
@@ -505,8 +549,9 @@ async function queryChainAssets(
             erc20Source = 'viaNative';
           }
         }
-        const dOk = (directIdxs ?? []).filter(j => results[j]?.success).length;
-        const dTot = directIdxs?.length ?? 0;
+        const directIdxs = directGroups.flatMap(g => g.idxs);
+        const dOk = directIdxs.filter(j => results[j]?.success).length;
+        const dTot = directIdxs.length;
         const nOk = (customViaNativeIdxs.get(i) ?? []).filter(j => results[j]?.success).length;
         const nTot = customViaNativeIdxs.get(i)?.length ?? 0;
         console.log(`[Price] chain=${chainId} ERC20 ${slot.symbol} → $${priceUsd?.toFixed(4) ?? '?'} via ${erc20Source || 'FAIL'} | direct(${dOk}/${dTot}) viaNative(${nOk}/${nTot})`);
@@ -586,9 +631,39 @@ function mc(target: string, callData: string): Call3 {
 // Price extraction
 // ---------------------------------------------------------------------------
 
+/**
+ * First usable USD price across quote groups, each scaled by ITS OWN quote
+ * token's decimals.
+ *
+ * The rule this replaces took the first surviving quote out of a flat list that
+ * mixed quote tokens and divided it by ONE token's `decimals()`. On any chain
+ * whose stablecoin list holds both a 6-decimal (USDC/USDT) and an 18-decimal
+ * (DAI/WXDAI) entry, a custom token with no USDC pool but a live DAI pool was
+ * priced 10^12 times too high, and that number is what the portfolio total, the
+ * sort order and the ingest valuation in `activity.ts` all consume.
+ *
+ * `quoteDecimals: null` means that group's `decimals()` read failed; it falls
+ * back to {@link DEFAULT_QUOTE_DECIMALS} — the SAME group's fallback, never a
+ * neighbour's real value. Groups are tried in order and a zero amount does not
+ * price (a zero-output quote is a dead pool, not a free token).
+ */
+export function firstGroupedQuotePrice(
+  groups: { amountsOut: string[]; quoteDecimals: number | null }[],
+): number | null {
+  for (const group of groups) {
+    const dec = group.quoteDecimals ?? DEFAULT_QUOTE_DECIMALS;
+    for (const raw of group.amountsOut) {
+      const amountOut = BigInt(raw);
+      if (amountOut > 0n) return Number(amountOut) / 10 ** dec;
+    }
+  }
+  return null;
+}
+
 /** Extract a USD price from DEX quote results. Takes the first successful quote. Callers must
- *  pass only quotes that share `quoteDecimals` (the custom-ERC20 path lumps several stables of
- *  differing decimals into one array, so it can't take the max — see extractBestPrice). */
+ *  pass only quotes that share `quoteDecimals` — today that is the token→wrappedNative path,
+ *  which has exactly one quote token. Mixed quote tokens go through
+ *  {@link firstGroupedQuotePrice} instead. */
 function extractPrice(
   results: McResult[],
   callIdxs: number[],

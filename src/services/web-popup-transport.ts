@@ -72,6 +72,43 @@ export class WebPopupTransport implements DAppTransport {
   }
 }
 
+/**
+ * WHICH ORIGINS MAY DRIVE THE WALLET POPUP AT ALL: https on any host, or http
+ * on a strict loopback host (dev). Anything unparseable is refused.
+ *
+ * ---------------------------------------------------------------------------
+ * OWNERSHIP: the shell's, and it stays here. This is the ruling; do not
+ * re-adjudicate it.
+ * ---------------------------------------------------------------------------
+ *
+ * The core has a NEIGHBOURING but different rule —
+ * `dapp_permissions::is_insecure_public_origin` / `should_block_insecure_signing`
+ * — and the two must not be confused:
+ *   - the core's asks *"may this origin SIGN?"* for the in-app WebView browser
+ *     (iOS/Android only). It exempts the whole private-LAN space (10/8,
+ *     192.168/16, 172.16–31, 169.254/16, `.local`, `fc00::/7`, `fe80::`) so the
+ *     on-device test dApp served over the LAN keeps working.
+ *   - this one asks *"may this origin open a wallet popup and hand it a
+ *     request over `postMessage`?"* — a web-only surface (there is no popup
+ *     transport on native, so there is no second implementation of it and
+ *     nothing to drift against).
+ *
+ * They are consistent by CONTAINMENT, not by equality: every origin admitted
+ * here is one the core does NOT call an insecure public origin, and the
+ * containment is asserted against the REAL Rust core in
+ * `web-popup-origin-containment.test.ts`. The difference is one-directional on
+ * purpose — a LAN-served http dApp can drive the native browser but not the web
+ * popup — because a browser popup is reached from an arbitrary page over
+ * `postMessage`, with no committed-origin evidence from a native WebView layer
+ * behind it. Stricter is the safe direction; that containment test is what
+ * keeps a future edit from making it the other one.
+ *
+ * `web-request.tsx` asks this ONCE, for both the INIT handshake and the dApp
+ * logo. It must stay synchronous and fail-closed: it runs inside a `message`
+ * listener that has to claim `event.ports[0]` in the same turn, and routing it
+ * through the async wasm bridge would mean a wasm-load failure either opened
+ * the gate or bricked every web dApp connection.
+ */
 export function isAllowedWebDAppOrigin(origin: string): boolean {
   try {
     const url = new URL(origin);

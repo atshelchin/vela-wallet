@@ -228,16 +228,27 @@ pub enum ContactOperation {
     ReadStore,
     /// Best-effort persist (the shell swallows storage errors, matching
     /// today's `persist*`; the in-memory ledger stays authoritative).
-    WriteContacts { contacts: Vec<Contact> },
-    WriteDismissed { tombstones: Vec<ContactTombstone> },
-    WriteGroups { groups: Vec<ContactGroup> },
+    WriteContacts {
+        contacts: Vec<Contact>,
+    },
+    WriteDismissed {
+        tombstones: Vec<ContactTombstone>,
+    },
+    WriteGroups {
+        groups: Vec<ContactGroup>,
+    },
     /// The current account's local transaction history.
     LoadSendHistory,
     /// Best-effort identity lookup (passkey index → name services).
-    ResolveIdentity { address: String },
+    ResolveIdentity {
+        address: String,
+    },
     /// `eth_getCode` for the recipient. The shell returns the raw code so the
     /// core owns both projections (contact kind + risk badge).
-    ClassifyRecipient { chain_id: u32, address: String },
+    ClassifyRecipient {
+        chain_id: u32,
+        address: String,
+    },
 }
 
 /// What the shell observed.
@@ -250,7 +261,9 @@ pub enum ContactShellResult {
         tombstones: Vec<ContactTombstone>,
         groups: Vec<ContactGroup>,
     },
-    HistoryLoaded { txs: Vec<ContactHistoryTx> },
+    HistoryLoaded {
+        txs: Vec<ContactHistoryTx>,
+    },
     /// `loadTransactions` threw — derivation yields no suggestions
     /// (contacts.ts:286-290).
     HistoryFailed,
@@ -294,7 +307,9 @@ pub enum Event {
     /// identity/classification caches) and reloads, so a previous account's
     /// history can never bleed into the new book (integration note: miss this
     /// event and the books cross accounts).
-    AccountSwitched { my_address: Option<String> },
+    AccountSwitched {
+        my_address: Option<String>,
+    },
     /// The local tx store changed (a send landed) — refresh the derivation
     /// source. TS re-read history on every `getAllContacts` call; the core is
     /// told instead.
@@ -302,15 +317,31 @@ pub enum Event {
     /// Create or update a saved contact (idempotent on address). `now_ms`
     /// rides on the event (the 016 now-from-shell pattern): the core has no
     /// clock, the shell stamps dispatch time.
-    Save { input: ContactSaveInput, now_ms: f64 },
+    Save {
+        input: ContactSaveInput,
+        now_ms: f64,
+    },
     /// Delete a saved contact: tombstone it and cascade it out of every group.
-    Delete { address: String, now_ms: f64 },
+    Delete {
+        address: String,
+        now_ms: f64,
+    },
     /// Flip a saved contact's star — or promote an unsaved suggestion to a
     /// starred saved contact (contacts.ts:238-245).
-    ToggleFavorite { address: String, now_ms: f64 },
-    GroupSave { input: ContactGroupInput },
-    GroupDelete { id: String },
-    SetGroupMembers { id: String, members: Vec<String> },
+    ToggleFavorite {
+        address: String,
+        now_ms: f64,
+    },
+    GroupSave {
+        input: ContactGroupInput,
+    },
+    GroupDelete {
+        id: String,
+    },
+    SetGroupMembers {
+        id: String,
+        members: Vec<String>,
+    },
     /// An import file, already parsed by the shell. The core applies the
     /// existing-wins policy and reports counts (contact-io.ts:203-245).
     ImportParsed {
@@ -320,7 +351,10 @@ pub enum Event {
     },
     /// A recipient came on screen (Send entry, confirm row, trust line) —
     /// resolve identity + classification for it and project the trust view.
-    InspectRecipient { chain_id: u32, address: String },
+    InspectRecipient {
+        chain_id: u32,
+        address: String,
+    },
     /// Internal: an effect resolved. `attempt` is captured when the request
     /// is made; a result carrying an older attempt belongs to a previous
     /// account's session and is dropped.
@@ -461,7 +495,10 @@ impl App for Contacts {
                 };
                 requests(
                     model,
-                    vec![ContactOperation::ReadStore, ContactOperation::LoadSendHistory],
+                    vec![
+                        ContactOperation::ReadStore,
+                        ContactOperation::LoadSendHistory,
+                    ],
                 )
             }
             Event::HistoryChanged => requests(model, vec![ContactOperation::LoadSendHistory]),
@@ -498,11 +535,7 @@ impl App for Contacts {
                 // Cascade: drop the address from every group so a member never
                 // dangles (contacts.ts:219-226, invariant ③). Groups are only
                 // written when one actually held the address, as today.
-                if model
-                    .groups
-                    .iter()
-                    .any(|g| g.members.iter().any(|m| *m == addr))
-                {
+                if model.groups.iter().any(|g| g.members.contains(&addr)) {
                     for group in &mut model.groups {
                         group.members.retain(|m| *m != addr);
                     }
@@ -764,7 +797,9 @@ fn accept(model: &mut Model, result: ContactShellResult) -> Command<ContactEffec
                 // cached, so the next inspect retries (invariant ⑦).
                 None => Command::done(),
                 Some(code) => {
-                    model.verdicts.insert((chain_id, addr), classify_code(&code));
+                    model
+                        .verdicts
+                        .insert((chain_id, addr), classify_code(&code));
                     render()
                 }
             }

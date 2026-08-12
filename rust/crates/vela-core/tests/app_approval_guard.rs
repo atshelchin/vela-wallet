@@ -17,8 +17,8 @@ use vela_core::app::approval_guard::{
     detect_approval, enforce_no_unlimited, format_token_amount, is_unbounded_amount,
     leg_needs_choice, parse_token_amount, rewrite_approval_params, AmountBits, ApprovalGuard,
     Event, GuardAmountError, GuardApprovalKind, GuardBlockReason, GuardChoice, GuardEditorMode,
-    GuardLocus, GuardOperation as Op, GuardRewriteError, GuardShellResult as Res,
-    GuardSurface, GuardTokenMetaEntry, UNLIMITED_CAP_160, UNLIMITED_CAP_256,
+    GuardLocus, GuardOperation as Op, GuardRewriteError, GuardShellResult as Res, GuardSurface,
+    GuardTokenMetaEntry, UNLIMITED_CAP_160, UNLIMITED_CAP_256,
 };
 
 type Sut = DomainDriver<ApprovalGuard>;
@@ -185,7 +185,10 @@ fn selectors_match_canonical_signatures() {
 #[test]
 fn uint256_sentinels_are_unbounded() {
     assert!(is_unbounded_amount(max_u256(), AmountBits::B256));
-    assert!(is_unbounded_amount(U256::from(1u8) << 255, AmountBits::B256));
+    assert!(is_unbounded_amount(
+        U256::from(1u8) << 255,
+        AmountBits::B256
+    ));
     assert!(is_unbounded_amount(UNLIMITED_CAP_256, AmountBits::B256));
 }
 
@@ -201,7 +204,10 @@ fn large_but_legit_amounts_are_not_unbounded() {
     let big = U256::from(10u8).pow(U256::from(33u8));
     assert!(!is_unbounded_amount(big, AmountBits::B256));
     assert!(!is_unbounded_amount(big, AmountBits::B160));
-    assert!(!is_unbounded_amount(U256::from(500_000_000u64), AmountBits::B256));
+    assert!(!is_unbounded_amount(
+        U256::from(500_000_000u64),
+        AmountBits::B256
+    ));
 }
 
 /// A "cap at balance" (issue #86) is always finite — even a whale balance.
@@ -223,19 +229,28 @@ fn whale_balance_caps_are_always_finite() {
 fn detects_unlimited_erc20_approve() {
     let d = detect(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256())));
     assert_eq!(d.kind, GuardApprovalKind::Erc20Approve);
-    assert_eq!(d.token_address.as_deref(), Some(USDC.to_lowercase().as_str()));
+    assert_eq!(
+        d.token_address.as_deref(),
+        Some(USDC.to_lowercase().as_str())
+    );
     assert_eq!(d.spender, SPENDER.to_lowercase());
     assert!(d.is_unbounded);
     assert_eq!(d.amount_bits, Some(256));
     assert!(!d.is_boolean_grant);
     assert!(d.editable);
-    assert_eq!(d.amount_raw.as_deref(), Some(max_u256().to_string().as_str()));
+    assert_eq!(
+        d.amount_raw.as_deref(),
+        Some(max_u256().to_string().as_str())
+    );
     assert_eq!(d.locus, GuardLocus::CalldataWord { word_index: 1 });
 }
 
 #[test]
 fn detects_limited_erc20_approve() {
-    let d = detect(TX, &tx_params(USDC, &approve_calldata(SPENDER, U256::from(500_000_000u64))));
+    let d = detect(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, U256::from(500_000_000u64))),
+    );
     assert!(!d.is_unbounded);
     assert_eq!(d.amount_raw.as_deref(), Some("500000000"));
 }
@@ -248,14 +263,20 @@ fn approve_to_zero_is_reducing() {
 
 #[test]
 fn detects_increase_allowance() {
-    let d = detect(TX, &tx_params(USDC, &increase_calldata(SPENDER, max_u256())));
+    let d = detect(
+        TX,
+        &tx_params(USDC, &increase_calldata(SPENDER, max_u256())),
+    );
     assert_eq!(d.kind, GuardApprovalKind::IncreaseAllowance);
     assert!(d.is_unbounded);
 }
 
 #[test]
 fn decrease_allowance_is_reducing_never_unbounded() {
-    let d = detect(TX, &tx_params(USDC, &decrease_calldata(SPENDER, max_u256())));
+    let d = detect(
+        TX,
+        &tx_params(USDC, &decrease_calldata(SPENDER, max_u256())),
+    );
     assert_eq!(d.kind, GuardApprovalKind::DecreaseAllowance);
     assert!(d.is_reducing);
     assert!(!d.is_unbounded);
@@ -263,7 +284,10 @@ fn decrease_allowance_is_reducing_never_unbounded() {
 
 #[test]
 fn detects_set_approval_for_all_grant() {
-    let d = detect(TX, &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, true)));
+    let d = detect(
+        TX,
+        &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, true)),
+    );
     assert_eq!(d.kind, GuardApprovalKind::SetApprovalForAll);
     assert!(d.is_boolean_grant);
     assert!(d.is_unbounded);
@@ -272,7 +296,10 @@ fn detects_set_approval_for_all_grant() {
 
 #[test]
 fn detects_set_approval_for_all_revoke() {
-    let d = detect(TX, &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, false)));
+    let d = detect(
+        TX,
+        &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, false)),
+    );
     assert!(d.is_boolean_grant);
     assert!(!d.is_unbounded);
     assert!(d.is_reducing);
@@ -282,9 +309,15 @@ fn detects_set_approval_for_all_revoke() {
 /// which is the Permit2 contract), and the amount is a uint160.
 #[test]
 fn detects_permit2_onchain_approve() {
-    let d = detect(TX, &tx_params(PERMIT2, &permit2_calldata(USDC, SPENDER, max_u160())));
+    let d = detect(
+        TX,
+        &tx_params(PERMIT2, &permit2_calldata(USDC, SPENDER, max_u160())),
+    );
     assert_eq!(d.kind, GuardApprovalKind::Permit2Single);
-    assert_eq!(d.token_address.as_deref(), Some(USDC.to_lowercase().as_str()));
+    assert_eq!(
+        d.token_address.as_deref(),
+        Some(USDC.to_lowercase().as_str())
+    );
     assert_eq!(d.spender, SPENDER.to_lowercase());
     assert_eq!(d.amount_bits, Some(160));
     assert!(d.is_unbounded);
@@ -296,7 +329,11 @@ fn detects_permit2_onchain_approve() {
 #[test]
 fn non_approval_calldata_detects_nothing() {
     // transfer(address,uint256)
-    let transfer = format!("0xa9059cbb{}{}", addr_word(SPENDER), amt_word(U256::from(1000u64)));
+    let transfer = format!(
+        "0xa9059cbb{}{}",
+        addr_word(SPENDER),
+        amt_word(U256::from(1000u64))
+    );
     assert!(detect_approval(TX, Some(&tx_params(USDC, &transfer))).is_none());
 }
 
@@ -315,7 +352,10 @@ fn plain_eth_send_detects_nothing() {
 fn detects_unlimited_erc2612_permit() {
     let d = detect(TYPED, &erc2612_params(&max_u256().to_string()));
     assert_eq!(d.kind, GuardApprovalKind::Erc2612Permit);
-    assert_eq!(d.token_address.as_deref(), Some(USDC.to_lowercase().as_str()));
+    assert_eq!(
+        d.token_address.as_deref(),
+        Some(USDC.to_lowercase().as_str())
+    );
     assert!(d.is_unbounded);
     assert_eq!(d.amount_bits, Some(256));
     assert_eq!(d.deadline.as_deref(), Some("1750000000"));
@@ -384,7 +424,10 @@ fn rewrite_caps_unlimited_approve() {
     assert_eq!(d2.amount_raw.as_deref(), Some("500000000"));
     assert_eq!(d2.spender, SPENDER.to_lowercase());
     assert!(!d2.is_unbounded);
-    assert!(!new_data.to_lowercase().contains(&"f".repeat(64)), "no 2^256-1 word");
+    assert!(
+        !new_data.to_lowercase().contains(&"f".repeat(64)),
+        "no 2^256-1 word"
+    );
 }
 
 #[test]
@@ -437,7 +480,8 @@ fn rewrite_touches_only_the_amount_word() {
     let data = approve_calldata(SPENDER, max_u256());
     let params = tx_params(USDC, &data);
     let d = detect(TX, &params);
-    let out = rewrite_approval_params(TX, &params, &d, &amount_choice(U256::from(7u8))).expect("rewrite");
+    let out =
+        rewrite_approval_params(TX, &params, &d, &amount_choice(U256::from(7u8))).expect("rewrite");
     let new_data = out_data(&out);
     // selector + spender word byte-identical; only the amount word moved.
     assert_eq!(&new_data[..8 + 2 + 64], &data[..8 + 2 + 64]);
@@ -469,9 +513,15 @@ fn set_approval_for_all_has_no_amount_to_set() {
 fn rewrite_caps_unlimited_erc2612_preserving_every_other_field() {
     let params = erc2612_params(&max_u256().to_string());
     let d = detect(TYPED, &params);
-    let out = rewrite_approval_params(TYPED, &params, &d, &amount_choice(U256::from(1_000_000_000u64)))
-        .expect("rewrite");
-    let td: Value = serde_json::from_str(out[1].as_str().expect("string typed data")).expect("json");
+    let out = rewrite_approval_params(
+        TYPED,
+        &params,
+        &d,
+        &amount_choice(U256::from(1_000_000_000u64)),
+    )
+    .expect("rewrite");
+    let td: Value =
+        serde_json::from_str(out[1].as_str().expect("string typed data")).expect("json");
     assert_eq!(td["message"]["value"], json!("1000000000"));
     assert_eq!(td["message"]["spender"], json!(SPENDER));
     assert_eq!(td["message"]["nonce"], json!("0"));
@@ -482,9 +532,15 @@ fn rewrite_caps_unlimited_erc2612_preserving_every_other_field() {
 fn rewrite_caps_unlimited_permit2_single_typed() {
     let params = permit2_single_params(&max_u160().to_string());
     let d = detect(TYPED, &params);
-    let out = rewrite_approval_params(TYPED, &params, &d, &amount_choice(U256::from(1_000_000_000u64)))
-        .expect("rewrite");
-    let td: Value = serde_json::from_str(out[1].as_str().expect("string typed data")).expect("json");
+    let out = rewrite_approval_params(
+        TYPED,
+        &params,
+        &d,
+        &amount_choice(U256::from(1_000_000_000u64)),
+    )
+    .expect("rewrite");
+    let td: Value =
+        serde_json::from_str(out[1].as_str().expect("string typed data")).expect("json");
     assert_eq!(td["message"]["details"]["amount"], json!("1000000000"));
 }
 
@@ -493,7 +549,8 @@ fn rewrite_dai_permit_revoke_sets_allowed_false() {
     let params = dai_permit_params(true);
     let d = detect(TYPED, &params);
     let out = rewrite_approval_params(TYPED, &params, &d, &GuardChoice::Revoke).expect("rewrite");
-    let td: Value = serde_json::from_str(out[1].as_str().expect("string typed data")).expect("json");
+    let td: Value =
+        serde_json::from_str(out[1].as_str().expect("string typed data")).expect("json");
     assert_eq!(td["message"]["allowed"], json!(false));
 }
 
@@ -568,7 +625,11 @@ fn enforce_allows_set_approval_for_all_true() {
 
 #[test]
 fn enforce_allows_a_plain_transfer() {
-    let transfer = format!("0xa9059cbb{}{}", addr_word(SPENDER), amt_word(U256::from(1000u64)));
+    let transfer = format!(
+        "0xa9059cbb{}{}",
+        addr_word(SPENDER),
+        amt_word(U256::from(1000u64))
+    );
     let params = tx_params(USDC, &transfer);
     assert!(enforce_no_unlimited(TX, Some(&params)).is_ok());
 }
@@ -588,8 +649,14 @@ fn end_to_end_rewrite_then_guard_passes() {
 
 #[test]
 fn parses_with_decimals_and_commas() {
-    assert_eq!(parse_token_amount("1,234.5", 6), Some(U256::from(1_234_500_000u64)));
-    assert_eq!(parse_token_amount("1000", 6), Some(U256::from(1_000_000_000u64)));
+    assert_eq!(
+        parse_token_amount("1,234.5", 6),
+        Some(U256::from(1_234_500_000u64))
+    );
+    assert_eq!(
+        parse_token_amount("1000", 6),
+        Some(U256::from(1_000_000_000u64))
+    );
     assert_eq!(parse_token_amount("0.000001", 6), Some(U256::from(1u8)));
 }
 
@@ -615,8 +682,14 @@ fn format_round_trips_with_thousands_separators() {
 #[test]
 fn format_localizes_with_injected_separators_without_precision_loss() {
     // European (dot_comma)
-    assert_eq!(format_token_amount(U256::from(1_234_500_000u64), 6, 6, ".", ",", false), "1.234,5");
-    assert_eq!(format_token_amount(U256::from(1_000_000_000u64), 6, 6, ".", ",", false), "1.000");
+    assert_eq!(
+        format_token_amount(U256::from(1_234_500_000u64), 6, 6, ".", ",", false),
+        "1.234,5"
+    );
+    assert_eq!(
+        format_token_amount(U256::from(1_000_000_000u64), 6, 6, ".", ",", false),
+        "1.000"
+    );
     // space_comma
     assert_eq!(
         format_token_amount(U256::from(1_234_567_000_000u64), 6, 6, " ", ",", false),
@@ -659,12 +732,22 @@ fn usdc_meta() -> Res {
 #[test]
 fn unbounded_request_starts_with_no_choice_and_gates_confirm() {
     let mut sut = Sut::new();
-    let ops = sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    let ops = sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     assert_eq!(
         ops,
         vec![
-            Op::ReadTokenMetadata { chain_id: 1, tokens: vec![USDC.to_lowercase()] },
-            Op::ReadErc20Balance { chain_id: 1, token: USDC.to_lowercase(), owner: WALLET.to_owned() },
+            Op::ReadTokenMetadata {
+                chain_id: 1,
+                tokens: vec![USDC.to_lowercase()]
+            },
+            Op::ReadErc20Balance {
+                chain_id: 1,
+                token: USDC.to_lowercase(),
+                owner: WALLET.to_owned()
+            },
         ]
     );
     let view = sut.view();
@@ -681,14 +764,19 @@ fn unbounded_request_starts_with_no_choice_and_gates_confirm() {
 #[test]
 fn finite_request_is_preaccepted() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, U256::from(500_000_000u64)))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, U256::from(500_000_000u64))),
+    ));
     let view = sut.view();
     let editor = view.editor.expect("editor");
     assert_eq!(editor.mode, Some(GuardEditorMode::Requested));
     assert!(editor.requested_finite);
     assert_eq!(
         editor.choice,
-        Some(GuardChoice::Amount { amount_raw: "500000000".to_owned() })
+        Some(GuardChoice::Amount {
+            amount_raw: "500000000".to_owned()
+        })
     );
     assert!(view.confirm_allowed);
     // The re-encode of the accepted request is available for submit.
@@ -701,15 +789,22 @@ fn finite_request_is_preaccepted() {
 #[test]
 fn custom_below_cap_derives_choice_and_rewrites() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     sut.resolve(usdc_meta());
     sut.resolve(Res::BalanceRead { balance: None });
-    sut.dispatch(Event::CustomAmountChanged { text: "500".to_owned() });
+    sut.dispatch(Event::CustomAmountChanged {
+        text: "500".to_owned(),
+    });
     let view = sut.view();
     let editor = view.editor.expect("editor");
     assert_eq!(
         editor.choice,
-        Some(GuardChoice::Amount { amount_raw: "500000000".to_owned() }),
+        Some(GuardChoice::Amount {
+            amount_raw: "500000000".to_owned()
+        }),
         "500 at the resolved 6 decimals"
     );
     assert!(view.confirm_allowed);
@@ -726,7 +821,10 @@ fn custom_below_cap_derives_choice_and_rewrites() {
 #[test]
 fn custom_at_or_above_cap_derives_null_choice_and_error() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     sut.resolve(usdc_meta());
     // 1e60 human × 1e6 decimals = 1e66 raw ≥ 2^200.
     let huge = format!("1{}", "0".repeat(60));
@@ -742,8 +840,13 @@ fn custom_at_or_above_cap_derives_null_choice_and_error() {
 #[test]
 fn custom_junk_is_an_invalid_amount() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
-    sut.dispatch(Event::CustomAmountChanged { text: "abc".to_owned() });
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
+    sut.dispatch(Event::CustomAmountChanged {
+        text: "abc".to_owned(),
+    });
     let editor = sut.view().editor.expect("editor");
     assert_eq!(editor.error, Some(GuardAmountError::InvalidAmount));
     assert_eq!(editor.choice, None);
@@ -752,10 +855,18 @@ fn custom_junk_is_an_invalid_amount() {
 #[test]
 fn revoke_preset_rewrites_to_zero() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
-    sut.dispatch(Event::PresetSelected { mode: GuardEditorMode::Revoke });
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
+    sut.dispatch(Event::PresetSelected {
+        mode: GuardEditorMode::Revoke,
+    });
     let view = sut.view();
-    assert_eq!(view.editor.as_ref().and_then(|e| e.choice.clone()), Some(GuardChoice::Revoke));
+    assert_eq!(
+        view.editor.as_ref().and_then(|e| e.choice.clone()),
+        Some(GuardChoice::Revoke)
+    );
     assert!(view.confirm_allowed);
     let rewritten: Value =
         serde_json::from_str(&view.rewritten_params_json.expect("rewritten")).expect("json");
@@ -769,19 +880,28 @@ fn revoke_preset_rewrites_to_zero() {
 #[test]
 fn balance_preset_offers_a_finite_cap() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     sut.resolve(usdc_meta());
-    sut.resolve(Res::BalanceRead { balance: Some("1234000000".to_owned()) });
+    sut.resolve(Res::BalanceRead {
+        balance: Some("1234000000".to_owned()),
+    });
     let editor = sut.view().editor.expect("editor");
     assert!(editor.has_balance_cap);
 
-    sut.dispatch(Event::PresetSelected { mode: GuardEditorMode::Balance });
+    sut.dispatch(Event::PresetSelected {
+        mode: GuardEditorMode::Balance,
+    });
     let view = sut.view();
     let editor = view.editor.expect("editor");
     assert_eq!(editor.mode, Some(GuardEditorMode::Balance));
     assert_eq!(
         editor.choice,
-        Some(GuardChoice::Amount { amount_raw: "1234000000".to_owned() })
+        Some(GuardChoice::Amount {
+            amount_raw: "1234000000".to_owned()
+        })
     );
     assert!(view.confirm_allowed);
 }
@@ -789,14 +909,22 @@ fn balance_preset_offers_a_finite_cap() {
 #[test]
 fn balance_read_failure_degrades_to_no_preset() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     sut.resolve(usdc_meta());
     sut.resolve(Res::BalanceRead { balance: None });
     let editor = sut.view().editor.expect("editor");
     assert!(!editor.has_balance_cap);
     // A press on the absent chip is a no-op.
-    sut.dispatch(Event::PresetSelected { mode: GuardEditorMode::Balance });
-    assert_eq!(sut.view().editor.expect("editor").mode, Some(GuardEditorMode::Custom));
+    sut.dispatch(Event::PresetSelected {
+        mode: GuardEditorMode::Balance,
+    });
+    assert_eq!(
+        sut.view().editor.expect("editor").mode,
+        Some(GuardEditorMode::Custom)
+    );
 }
 
 /// Invariant ⑤ — a boolean grant-all is never preselected; the grant is a
@@ -804,7 +932,10 @@ fn balance_read_failure_degrades_to_no_preset() {
 #[test]
 fn boolean_grant_forces_a_deliberate_tap() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, true))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, true)),
+    ));
     let view = sut.view();
     let editor = view.editor.expect("editor");
     assert_eq!(editor.mode, None, "nothing preselected");
@@ -813,25 +944,40 @@ fn boolean_grant_forces_a_deliberate_tap() {
 
     sut.dispatch(Event::GrantDeliberatelyChosen);
     let view = sut.view();
-    assert_eq!(view.editor.as_ref().and_then(|e| e.choice.clone()), Some(GuardChoice::Grant));
+    assert_eq!(
+        view.editor.as_ref().and_then(|e| e.choice.clone()),
+        Some(GuardChoice::Grant)
+    );
     assert!(view.confirm_allowed);
     let rewritten: Value =
         serde_json::from_str(&view.rewritten_params_json.expect("rewritten")).expect("json");
-    assert!(redetect_data(&out_data(&rewritten)).is_unbounded, "grant keeps true");
+    assert!(
+        redetect_data(&out_data(&rewritten)).is_unbounded,
+        "grant keeps true"
+    );
 
     sut.dispatch(Event::RevokeChosen);
     let view = sut.view();
     let rewritten: Value =
         serde_json::from_str(&view.rewritten_params_json.expect("rewritten")).expect("json");
-    assert!(redetect_data(&out_data(&rewritten)).is_reducing, "revoke flips to false");
+    assert!(
+        redetect_data(&out_data(&rewritten)).is_reducing,
+        "revoke flips to false"
+    );
 }
 
 #[test]
 fn incoming_boolean_revoke_preselects_the_safe_action() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, false))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, false)),
+    ));
     let view = sut.view();
-    assert_eq!(view.editor.as_ref().and_then(|e| e.choice.clone()), Some(GuardChoice::Revoke));
+    assert_eq!(
+        view.editor.as_ref().and_then(|e| e.choice.clone()),
+        Some(GuardChoice::Revoke)
+    );
     assert!(view.confirm_allowed);
 }
 
@@ -841,11 +987,17 @@ fn incoming_boolean_revoke_preselects_the_safe_action() {
 #[test]
 fn typed_permit_is_never_rewritten() {
     let mut sut = Sut::new();
-    let ops = sut.dispatch(approval_event(TYPED, &erc2612_params(&max_u256().to_string())));
+    let ops = sut.dispatch(approval_event(
+        TYPED,
+        &erc2612_params(&max_u256().to_string()),
+    ));
     // Metadata still resolves (the permit surface shows the real symbol).
     assert_eq!(
         ops,
-        vec![Op::ReadTokenMetadata { chain_id: 1, tokens: vec![USDC.to_lowercase()] }]
+        vec![Op::ReadTokenMetadata {
+            chain_id: 1,
+            tokens: vec![USDC.to_lowercase()]
+        }]
     );
     let view = sut.view();
     assert_eq!(view.surface, GuardSurface::PermitSign);
@@ -864,24 +1016,40 @@ fn increase_totals_show_the_resulting_sum() {
     let mut sut = Sut::new();
     let ops = sut.dispatch(approval_event(
         TX,
-        &tx_params(USDC, &increase_calldata(SPENDER, U256::from(100_000_000u64))),
+        &tx_params(
+            USDC,
+            &increase_calldata(SPENDER, U256::from(100_000_000u64)),
+        ),
     ));
     assert_eq!(
         ops,
         vec![
-            Op::ReadTokenMetadata { chain_id: 1, tokens: vec![USDC.to_lowercase()] },
+            Op::ReadTokenMetadata {
+                chain_id: 1,
+                tokens: vec![USDC.to_lowercase()]
+            },
             Op::ReadErc20Allowance {
                 chain_id: 1,
                 token: USDC.to_lowercase(),
                 owner: WALLET.to_owned(),
                 spender: SPENDER.to_lowercase(),
             },
-            Op::ReadErc20Balance { chain_id: 1, token: USDC.to_lowercase(), owner: WALLET.to_owned() },
+            Op::ReadErc20Balance {
+                chain_id: 1,
+                token: USDC.to_lowercase(),
+                owner: WALLET.to_owned()
+            },
         ]
     );
-    assert_eq!(sut.view().increase_total, None, "no half-rendered total while in flight");
+    assert_eq!(
+        sut.view().increase_total,
+        None,
+        "no half-rendered total while in flight"
+    );
     sut.resolve(usdc_meta());
-    sut.resolve(Res::AllowanceRead { allowance: Some("250000000".to_owned()) });
+    sut.resolve(Res::AllowanceRead {
+        allowance: Some("250000000".to_owned()),
+    });
     let total = sut.view().increase_total.expect("resulting total");
     assert_eq!(total.current.as_deref(), Some("250000000"));
     assert_eq!(total.increment, "100000000");
@@ -895,7 +1063,10 @@ fn increase_total_read_failure_still_warns_additive() {
     let mut sut = Sut::new();
     sut.dispatch(approval_event(
         TX,
-        &tx_params(USDC, &increase_calldata(SPENDER, U256::from(100_000_000u64))),
+        &tx_params(
+            USDC,
+            &increase_calldata(SPENDER, U256::from(100_000_000u64)),
+        ),
     ));
     sut.resolve(usdc_meta());
     sut.resolve(Res::AllowanceRead { allowance: None });
@@ -910,11 +1081,18 @@ fn increase_revoke_totals_zero() {
     let mut sut = Sut::new();
     sut.dispatch(approval_event(
         TX,
-        &tx_params(USDC, &increase_calldata(SPENDER, U256::from(100_000_000u64))),
+        &tx_params(
+            USDC,
+            &increase_calldata(SPENDER, U256::from(100_000_000u64)),
+        ),
     ));
     sut.resolve(usdc_meta());
-    sut.resolve(Res::AllowanceRead { allowance: Some("250000000".to_owned()) });
-    sut.dispatch(Event::PresetSelected { mode: GuardEditorMode::Revoke });
+    sut.resolve(Res::AllowanceRead {
+        allowance: Some("250000000".to_owned()),
+    });
+    sut.dispatch(Event::PresetSelected {
+        mode: GuardEditorMode::Revoke,
+    });
     let total = sut.view().increase_total.expect("total");
     assert_eq!(total.total.as_deref(), Some("0"), "revoke zeroes outright");
 }
@@ -924,8 +1102,14 @@ fn increase_revoke_totals_zero() {
 #[test]
 fn unverified_decimals_are_flagged() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
-    assert!(sut.view().decimals_unverified, "unverified while loading too");
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
+    assert!(
+        sut.view().decimals_unverified,
+        "unverified while loading too"
+    );
     sut.resolve(Res::MetaResolved { metas: None });
     let view = sut.view();
     assert!(view.decimals_unverified);
@@ -935,7 +1119,10 @@ fn unverified_decimals_are_flagged() {
 
     // A verified read clears the flag.
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     sut.resolve(usdc_meta());
     let view = sut.view();
     assert!(!view.decimals_unverified);
@@ -954,7 +1141,10 @@ fn typed_bounded_permit_flags_unverified_decimals() {
     assert!(sut.view().decimals_unverified);
 
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TYPED, &permit2_single_params(&max_u160().to_string())));
+    sut.dispatch(approval_event(
+        TYPED,
+        &permit2_single_params(&max_u160().to_string()),
+    ));
     sut.resolve(Res::MetaResolved { metas: None });
     assert!(!sut.view().decimals_unverified);
 }
@@ -979,19 +1169,32 @@ fn expired_deadline_is_flagged() {
 #[test]
 fn custom_seed_uses_fallback_decimals_until_a_preset_press() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, U256::from(500_000_000u64)))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, U256::from(500_000_000u64))),
+    ));
     // 500000000 raw at 18 dp, 6 max frac digits → "0".
     assert_eq!(sut.view().editor.expect("editor").custom_text, "0");
     sut.resolve(usdc_meta());
-    assert_eq!(sut.view().editor.expect("editor").custom_text, "0", "not re-seeded by meta");
-    sut.dispatch(Event::PresetSelected { mode: GuardEditorMode::Requested });
+    assert_eq!(
+        sut.view().editor.expect("editor").custom_text,
+        "0",
+        "not re-seeded by meta"
+    );
+    sut.dispatch(Event::PresetSelected {
+        mode: GuardEditorMode::Requested,
+    });
     assert_eq!(sut.view().editor.expect("editor").custom_text, "500");
 }
 
 #[test]
 fn non_approval_request_is_inert() {
     let mut sut = Sut::new();
-    let transfer = format!("0xa9059cbb{}{}", addr_word(SPENDER), amt_word(U256::from(1000u64)));
+    let transfer = format!(
+        "0xa9059cbb{}{}",
+        addr_word(SPENDER),
+        amt_word(U256::from(1000u64))
+    );
     let ops = sut.dispatch(approval_event(TX, &tx_params(USDC, &transfer)));
     assert!(ops.is_empty(), "nothing to read");
     let view = sut.view();
@@ -1005,12 +1208,20 @@ fn non_approval_request_is_inert() {
 #[test]
 fn stale_results_are_dropped() {
     let mut sut = Sut::new();
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     // A new request supersedes before the first one's reads resolve.
-    sut.dispatch(approval_event(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256()))));
+    sut.dispatch(approval_event(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, max_u256())),
+    ));
     // Resolve run 1's two reads — both stale, both dropped.
     sut.resolve(usdc_meta());
-    sut.resolve(Res::BalanceRead { balance: Some("77".to_owned()) });
+    sut.resolve(Res::BalanceRead {
+        balance: Some("77".to_owned()),
+    });
     let view = sut.view();
     assert!(view.meta.loading, "run 2's read is still outstanding");
     assert!(!view.editor.expect("editor").has_balance_cap);
@@ -1032,7 +1243,11 @@ fn batch_event(calls: Vec<Value>) -> Event {
 }
 
 fn transfer_call() -> Value {
-    let transfer = format!("0xa9059cbb{}{}", addr_word(SPENDER), amt_word(U256::from(1000u64)));
+    let transfer = format!(
+        "0xa9059cbb{}{}",
+        addr_word(SPENDER),
+        amt_word(U256::from(1000u64))
+    );
     json!({ "to": USDC, "data": transfer, "value": "0x0" })
 }
 
@@ -1048,28 +1263,42 @@ fn batch_gates_every_granting_leg() {
     ]));
     assert_eq!(
         ops,
-        vec![Op::ReadTokenMetadata { chain_id: 1, tokens: vec![USDC.to_lowercase()] }],
+        vec![Op::ReadTokenMetadata {
+            chain_id: 1,
+            tokens: vec![USDC.to_lowercase()]
+        }],
         "one Multicall3 read for the whole batch"
     );
     let view = sut.view();
     assert_eq!(view.surface, GuardSurface::Batch);
     let batch = view.batch.expect("batch");
     let needs: Vec<bool> = batch.legs.iter().map(|l| l.needs_choice).collect();
-    assert_eq!(needs, vec![false, true, false], "only the unbounded leg blocks");
+    assert_eq!(
+        needs,
+        vec![false, true, false],
+        "only the unbounded leg blocks"
+    );
     assert!(batch.legs[1].needs_editor);
     // Only the leg that MOUNTS a card carries an editor — a finite leg can
     // never acquire a choice, so the rebuild leaves it byte-identical.
     assert!(batch.legs[0].editor.is_none(), "non-approval leg");
     assert!(batch.legs[2].editor.is_none(), "finite leg");
     let editor = batch.legs[1].editor.clone().expect("leg 1 editor");
-    assert_eq!(editor.mode, Some(GuardEditorMode::Custom), "unbounded starts blank");
+    assert_eq!(
+        editor.mode,
+        Some(GuardEditorMode::Custom),
+        "unbounded starts blank"
+    );
     assert_eq!(editor.choice, None);
     assert!(batch.any_uncapped);
     assert!(!view.confirm_allowed);
 
     // The leg's own editor decides — the shell types, the core derives.
     sut.resolve(usdc_meta());
-    sut.dispatch(Event::LegCustomAmountChanged { index: 1, text: "500".to_owned() });
+    sut.dispatch(Event::LegCustomAmountChanged {
+        index: 1,
+        text: "500".to_owned(),
+    });
     let view = sut.view();
     assert!(view.confirm_allowed, "every granting leg settled");
     let batch = view.batch.expect("batch");
@@ -1086,7 +1315,11 @@ fn batch_gates_every_granting_leg() {
     .expect("leg 1 still an approve");
     assert_eq!(leg1.amount_raw.as_deref(), Some("500000000"));
     assert!(!leg1.is_unbounded);
-    assert_eq!(calls[0]["data"], transfer_call()["data"], "non-approval leg untouched");
+    assert_eq!(
+        calls[0]["data"],
+        transfer_call()["data"],
+        "non-approval leg untouched"
+    );
     assert_eq!(
         calls[2]["data"].as_str(),
         Some(approve_calldata(SPENDER, U256::from(500_000_000u64)).as_str()),
@@ -1105,14 +1338,21 @@ fn batch_boolean_leg_requires_an_explicit_choice() {
 
     // Nothing is preselected — the deliberate tap is the consent (⑭).
     assert_eq!(
-        view.batch.expect("batch").legs[0].editor.clone().expect("editor").mode,
+        view.batch.expect("batch").legs[0]
+            .editor
+            .clone()
+            .expect("editor")
+            .mode,
         None,
     );
     sut.dispatch(Event::LegGrantDeliberatelyChosen { index: 0 });
     let view = sut.view();
     assert!(view.confirm_allowed, "an explicit grant settles the leg");
     let batch = view.batch.expect("batch");
-    assert!(batch.legs[0].grants_broad, "…but it still grants broad access");
+    assert!(
+        batch.legs[0].grants_broad,
+        "…but it still grants broad access"
+    );
     assert!(batch.any_uncapped, "…and the banner says so");
 }
 
@@ -1146,12 +1386,18 @@ fn batch_leg_rejects_an_unbounded_custom_amount() {
 fn batch_flags_a_token_sent_to_its_own_contract() {
     let mut sut = Sut::new();
     sut.dispatch(batch_event(vec![transfer_call()]));
-    assert!(!sut.view().batch.expect("batch").any_to_own_token, "no descriptors yet");
+    assert!(
+        !sut.view().batch.expect("batch").any_to_own_token,
+        "no descriptors yet"
+    );
 
     sut.dispatch(Event::BatchRecipientsResolved {
         recipients: vec![vec![SPENDER.to_owned()]],
     });
-    assert!(!sut.view().batch.expect("batch").any_to_own_token, "an ordinary recipient");
+    assert!(
+        !sut.view().batch.expect("batch").any_to_own_token,
+        "an ordinary recipient"
+    );
 
     // Case-insensitively the leg's own `to` — the burn.
     sut.dispatch(Event::BatchRecipientsResolved {
@@ -1200,7 +1446,9 @@ fn batch_meta_failure_defaults_legs_and_missing_tokens_get_fallback() {
     sut.dispatch(batch_event(vec![json!({
         "to": USDC, "data": approve_calldata(SPENDER, max_u256()), "value": "0x0"
     })]));
-    sut.resolve(Res::MetaResolved { metas: Some(vec![]) });
+    sut.resolve(Res::MetaResolved {
+        metas: Some(vec![]),
+    });
     let batch = sut.view().batch.expect("batch");
     assert_eq!(batch.legs[0].meta.symbol, "0xa0b8…");
     assert!(!batch.legs[0].meta.verified);
@@ -1209,17 +1457,32 @@ fn batch_meta_failure_defaults_legs_and_missing_tokens_get_fallback() {
 #[test]
 fn leg_needs_choice_matches_the_component_rule() {
     let unbounded = detect(TX, &tx_params(USDC, &approve_calldata(SPENDER, max_u256())));
-    let finite = detect(TX, &tx_params(USDC, &approve_calldata(SPENDER, U256::from(5u8))));
-    let reduce = detect(TX, &tx_params(USDC, &decrease_calldata(SPENDER, max_u256())));
-    let boolean = detect(TX, &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, true)));
+    let finite = detect(
+        TX,
+        &tx_params(USDC, &approve_calldata(SPENDER, U256::from(5u8))),
+    );
+    let reduce = detect(
+        TX,
+        &tx_params(USDC, &decrease_calldata(SPENDER, max_u256())),
+    );
+    let boolean = detect(
+        TX,
+        &tx_params(USDC, &set_approval_for_all_calldata(SPENDER, true)),
+    );
 
     assert!(leg_needs_choice(Some(&unbounded), None));
-    assert!(!leg_needs_choice(Some(&unbounded), Some(&GuardChoice::Revoke)));
+    assert!(!leg_needs_choice(
+        Some(&unbounded),
+        Some(&GuardChoice::Revoke)
+    ));
     assert!(
         leg_needs_choice(Some(&unbounded), Some(&GuardChoice::Grant)),
         "grant does not settle an amount leg"
     );
-    assert!(!leg_needs_choice(Some(&finite), None), "finite amounts are pre-accepted");
+    assert!(
+        !leg_needs_choice(Some(&finite), None),
+        "finite amounts are pre-accepted"
+    );
     assert!(!leg_needs_choice(Some(&reduce), None));
     assert!(leg_needs_choice(Some(&boolean), None));
     assert!(!leg_needs_choice(Some(&boolean), Some(&GuardChoice::Grant)));

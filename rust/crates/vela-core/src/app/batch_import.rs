@@ -141,7 +141,10 @@ pub enum BatchFileContent {
 pub enum BatchShellResult {
     /// `code` rides along so a result for a currency the user has already
     /// switched away from can be identified and dropped.
-    RateResolved { code: String, rate: Option<f64> },
+    RateResolved {
+        code: String,
+        rate: Option<f64>,
+    },
     FilePicked {
         name: String,
         content: BatchFileContent,
@@ -244,9 +247,7 @@ const DELIMITERS: [char; 3] = [',', '\t', ';'];
 /// `^0x[0-9a-fA-F]{40}$` — `ADDRESS_RE` (`models/types.ts:383`).
 fn is_address(s: &str) -> bool {
     let bytes = s.as_bytes();
-    bytes.len() == 42
-        && bytes.starts_with(b"0x")
-        && bytes[2..].iter().all(u8::is_ascii_hexdigit)
+    bytes.len() == 42 && bytes.starts_with(b"0x") && bytes[2..].iter().all(u8::is_ascii_hexdigit)
 }
 
 /// Pick the delimiter: prefer whichever splits the first line into a cell
@@ -322,15 +323,49 @@ fn clean_amount(cell: &str) -> String {
 /// Header labels (lowercased) that pin a column's role
 /// (`recipient-table.ts:107-118`).
 const AMOUNT_LABELS: [&str; 16] = [
-    "amount", "amt", "sum", "value", "money", "pay", "salary", "wage", "金额", "数量", "工资",
-    "薪资", "薪酬", "数额", "转账金额", "发放金额",
+    "amount",
+    "amt",
+    "sum",
+    "value",
+    "money",
+    "pay",
+    "salary",
+    "wage",
+    "金额",
+    "数量",
+    "工资",
+    "薪资",
+    "薪酬",
+    "数额",
+    "转账金额",
+    "发放金额",
 ];
 const NAME_LABELS: [&str; 13] = [
-    "name", "username", "nickname", "employee", "recipient", "payee", "contact", "姓名", "名字",
-    "名称", "收款人", "员工", "昵称",
+    "name",
+    "username",
+    "nickname",
+    "employee",
+    "recipient",
+    "payee",
+    "contact",
+    "姓名",
+    "名字",
+    "名称",
+    "收款人",
+    "员工",
+    "昵称",
 ];
 const ADDRESS_LABELS: [&str; 11] = [
-    "address", "addr", "wallet", "account", "to", "地址", "钱包", "钱包地址", "账户", "账号",
+    "address",
+    "addr",
+    "wallet",
+    "account",
+    "to",
+    "地址",
+    "钱包",
+    "钱包地址",
+    "账户",
+    "账号",
     "收款地址",
 ];
 
@@ -511,8 +546,8 @@ fn is_amount_cell(cell: &str) -> bool {
         }
     }
     if let Some(trail) = &shape.trail {
-        let cjk_single = trail.chars().count() == 1
-            && trail.chars().all(|c| CJK_CURRENCY.contains(&c));
+        let cjk_single =
+            trail.chars().count() == 1 && trail.chars().all(|c| CJK_CURRENCY.contains(&c));
         if !cjk_single && !is_currency_code(trail) {
             return false;
         }
@@ -686,8 +721,7 @@ pub fn interpret_rows(matrix: &[Vec<String>]) -> BatchParseResult {
         // cell that reads as text (so a row-number column never labels the
         // payee); else the first non-empty leftover (a digit-only name is
         // still a name). Empty header cells fall through, as `||` does.
-        let leftover =
-            |i: usize, c: &str| i != addr_idx && Some(i) != amt_idx && !c.is_empty();
+        let leftover = |i: usize, c: &str| i != addr_idx && Some(i) != amt_idx && !c.is_empty();
         let name = header_name_idx
             .filter(|&h| h != addr_idx && Some(h) != amt_idx)
             .and_then(|h| row.cells.get(h))
@@ -820,6 +854,10 @@ fn strip_trailing_zeros(s: &str) -> String {
 /// the `1.0` branch — the discrimination lives at the call site so the shared
 /// helper keeps one meaning on both sides of the FFI (the same split
 /// `currency.ts` draws between `resolveRate` and the display `getRate`).
+// `!(x > 0.0)` is not `x <= 0.0`: it is the one spelling that also catches NaN,
+// which is the whole point of the guard below. Do not let clippy talk it into
+// the `partial_cmp` rewrite — that hands NaN the priced branch.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn token_price_in_fiat(price_usd: Option<f64>, usd_to_fiat_rate: f64) -> f64 {
     let Some(price) = price_usd else { return 0.0 };
     if !(price > 0.0) {
@@ -837,6 +875,7 @@ fn token_price_in_fiat(price_usd: Option<f64>, usd_to_fiat_rate: f64) -> f64 {
 /// `decimals` so we never emit more precision than the token can carry —
 /// the same guard `to_base_units` applies on-chain-side. Returns "0" for a
 /// non-positive fiat OR an unknown (≤0) price.
+#[allow(clippy::neg_cmp_op_on_partial_ord)] // NaN must take the "0" branch
 fn fiat_to_token_amount(fiat: f64, price_in_fiat: f64, decimals: u32) -> String {
     if !(price_in_fiat > 0.0) || !(fiat > 0.0) {
         return "0".to_owned();
@@ -949,21 +988,29 @@ pub enum Event {
         currency_code: String,
         max_recipients: u32,
     },
-    SetUnit { unit: BatchUnit },
+    SetUnit {
+        unit: BatchUnit,
+    },
     /// A pick in the scoped per-batch currency sheet (issue #80: this must
     /// never write the app-wide display currency — and this machine's
     /// operation vocabulary has no storage write at all). Re-fetches the
     /// rate and returns the mirror to auto (`BatchImportSheet.tsx:416`).
-    SetFiatCode { code: String },
+    SetFiatCode {
+        code: String,
+    },
     /// Pasted / typed table text. Clears any picked file
     /// (`BatchImportSheet.tsx:228`).
-    SetRawText { text: String },
+    SetRawText {
+        text: String,
+    },
     PickFileRequested,
     SaveTemplateRequested,
     /// The rate input edited. The shell dot-normalizes locale input
     /// (`parseLocaleNumber`); the core applies the `[^0-9.]` strip. From
     /// here the typed string is the applied rate.
-    EditRate { text: String },
+    EditRate {
+        text: String,
+    },
     /// The "Auto" button — back to mirroring the fetched rate.
     ResetRateToAuto,
     /// Hand the capped, converted drafts to the send machine. Ignored
@@ -1473,7 +1520,10 @@ fn derived(model: &Model, token: &BatchToken) -> Derived {
         total_base = total_base.saturating_add(add);
     }
     let total_fiat_sum: f64 = if model.unit == BatchUnit::Fiat {
-        capped.iter().map(|r| parse_float_prefix(&r.raw_amount)).sum()
+        capped
+            .iter()
+            .map(|r| parse_float_prefix(&r.raw_amount))
+            .sum()
     } else {
         0.0
     };

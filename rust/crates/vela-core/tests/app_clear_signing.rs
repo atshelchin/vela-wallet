@@ -14,9 +14,9 @@ use serde_json::json;
 use support::DomainDriver;
 use vela_core::abi::compute_selector;
 use vela_core::app::clear_signing::{
-    ClearConfirm, ClearDangerClass, ClearFieldRole, ClearLocale, ClearOperation as Op,
-    ClearProbe, ClearRisk, ClearShellResult as Res, ClearSignMethod, ClearSignType,
-    ClearSigning, ClearSiweBinding, ClearSurface, Event,
+    ClearConfirm, ClearDangerClass, ClearFieldRole, ClearLocale, ClearOperation as Op, ClearProbe,
+    ClearRisk, ClearShellResult as Res, ClearSignMethod, ClearSignType, ClearSigning,
+    ClearSiweBinding, ClearSurface, Event,
 };
 
 type Sut = DomainDriver<ClearSigning>;
@@ -70,7 +70,11 @@ fn resolve_tx(sut: &mut Sut, to: &str, data: &str, value: &str) -> Vec<Op> {
         chain_id: 1,
         locale: ClearLocale::default(),
     });
-    assert_eq!(ops, vec![Op::Now], "every resolution starts by asking the clock");
+    assert_eq!(
+        ops,
+        vec![Op::Now],
+        "every resolution starts by asking the clock"
+    );
     sut.resolve(Res::Clock { now_ms: NOW })
 }
 
@@ -89,7 +93,10 @@ fn message_view(
     sut.view().message.expect("message analyzed")
 }
 
-fn personal(payload: &str, origin: Option<&str>) -> vela_core::app::clear_signing::ClearMessageView {
+fn personal(
+    payload: &str,
+    origin: Option<&str>,
+) -> vela_core::app::clear_signing::ClearMessageView {
     message_view(ClearSignMethod::PersonalSign, payload, origin)
 }
 
@@ -130,7 +137,9 @@ fn siwe_canonical_message_parses() {
 
 #[test]
 fn siwe_plain_prose_is_not_a_sign_in() {
-    assert!(personal("gm, please sign this to continue", None).siwe.is_none());
+    assert!(personal("gm, please sign this to continue", None)
+        .siwe
+        .is_none());
     let view = personal("gm, please sign this to continue", None);
     assert_eq!(view.danger_class, ClearDangerClass::Plain);
 }
@@ -143,7 +152,11 @@ fn siwe_crlf_normalized_keeps_phish_detection_armed() {
     let view = personal(&crlf, Some("https://uniswaq.app"));
     let siwe = view.siwe.expect("CRLF SIWE still parses");
     assert_eq!(siwe.domain, "app.uniswap.org");
-    assert_eq!(siwe.nonce.as_deref(), Some("8a3b9f2c"), "no stray \\r in fields");
+    assert_eq!(
+        siwe.nonce.as_deref(),
+        Some("8a3b9f2c"),
+        "no stray \\r in fields"
+    );
     assert_eq!(view.binding, Some(ClearSiweBinding::Mismatch));
     assert_eq!(view.danger_class, ClearDangerClass::SiwePhish);
 }
@@ -194,10 +207,7 @@ fn siwe_unknown_when_origin_missing_never_asserts_a_match() {
 fn siwe_host_ignores_port_and_trailing_fqdn_dot() {
     let view = personal(&siwe_text(), Some("https://app.uniswap.org:443"));
     assert_eq!(view.binding, Some(ClearSiweBinding::Ok));
-    let dotted = siwe_text().replace(
-        "app.uniswap.org wants",
-        "app.uniswap.org. wants",
-    );
+    let dotted = siwe_text().replace("app.uniswap.org wants", "app.uniswap.org. wants");
     let view = personal(&dotted, Some("https://app.uniswap.org"));
     assert_eq!(view.binding, Some(ClearSiweBinding::Ok));
 }
@@ -220,7 +230,10 @@ fn siwe_unparseable_origin_is_unknown() {
 fn hex_payload_with_emoji_decodes_as_text() {
     let view = personal(&text_hex("Hello from biubiu.tools 👋"), None);
     assert!(view.is_hex);
-    assert_eq!(view.decoded_text.as_deref(), Some("Hello from biubiu.tools 👋"));
+    assert_eq!(
+        view.decoded_text.as_deref(),
+        Some("Hello from biubiu.tools 👋")
+    );
     assert!(!view.non_printable);
     assert_eq!(view.danger_class, ClearDangerClass::Plain);
 }
@@ -228,15 +241,21 @@ fn hex_payload_with_emoji_decodes_as_text() {
 #[test]
 fn hex_payload_with_cjk_and_accents_decodes_as_text() {
     assert_eq!(
-        personal(&text_hex("Café résumé"), None).decoded_text.as_deref(),
+        personal(&text_hex("Café résumé"), None)
+            .decoded_text
+            .as_deref(),
         Some("Café résumé")
     );
     assert_eq!(
-        personal(&text_hex("签名消息"), None).decoded_text.as_deref(),
+        personal(&text_hex("签名消息"), None)
+            .decoded_text
+            .as_deref(),
         Some("签名消息")
     );
     assert_eq!(
-        personal(&text_hex("Test sign message"), None).decoded_text.as_deref(),
+        personal(&text_hex("Test sign message"), None)
+            .decoded_text
+            .as_deref(),
         Some("Test sign message")
     );
 }
@@ -282,7 +301,10 @@ fn non_hex_payload_is_shown_verbatim() {
     let view = personal("deadbeef", None);
     assert!(!view.is_hex);
     assert_eq!(view.decoded_text.as_deref(), Some("deadbeef"));
-    assert!(!view.non_printable, "canon predicate, not the view-side ASCII one");
+    assert!(
+        !view.non_printable,
+        "canon predicate, not the view-side ASCII one"
+    );
 
     let view = personal("0xabc", None);
     assert!(!view.is_hex);
@@ -409,7 +431,10 @@ fn erc20_transfer_decodes_with_known_decimals_and_usd() {
     let result = sut.view().result.expect("clear-sign result");
     assert_eq!(result.intent, "Send");
     assert_eq!(result.sign_type, ClearSignType::Transaction);
-    assert!(!result.verified, "interface descriptor is not contract-specific");
+    assert!(
+        !result.verified,
+        "interface descriptor is not contract-specific"
+    );
     assert_eq!(result.risk, ClearRisk::Normal);
     assert_eq!(result.contract_address.as_deref(), Some(USDC));
 
@@ -453,7 +478,10 @@ fn unlimited_approve_reads_danger() {
                 data: supports_data("d9b67a26"),
                 probe: ClearProbe::SupportsErc1155,
             },
-            Op::Timer { ms: 3_000, token: 1 },
+            Op::Timer {
+                ms: 3_000,
+                token: 1
+            },
         ]
     );
     // Both probes revert — a plain ERC-20, definitively.
@@ -474,7 +502,11 @@ fn unlimited_approve_reads_danger() {
 
     let result = sut.view().result.expect("approve result");
     assert_eq!(result.intent, "Approve");
-    assert_eq!(result.risk, ClearRisk::Danger, "unlimited approval is danger");
+    assert_eq!(
+        result.risk,
+        ClearRisk::Danger,
+        "unlimited approval is danger"
+    );
     let amount = &result.fields[0];
     assert!(amount.warning);
     assert_eq!(amount.value, "Unlimited");
@@ -553,10 +585,17 @@ fn shared_selector_transfer_from_is_judged_before_rendering() {
 
     let result = sut.view().result.expect("NFT result");
     assert_eq!(result.intent, "Transfer NFT");
-    let token_id = result.fields.iter().find(|f| f.label == "Token ID").expect("token id");
+    let token_id = result
+        .fields
+        .iter()
+        .find(|f| f.label == "Token ID")
+        .expect("token id");
     assert_eq!(token_id.value, "#6,529");
     assert!(
-        !result.fields.iter().any(|f| f.role == ClearFieldRole::SendAmount),
+        !result
+            .fields
+            .iter()
+            .any(|f| f.role == ClearFieldRole::SendAmount),
         "a tokenId must never read as a fungible send amount"
     );
 
@@ -602,7 +641,10 @@ fn erc165_definitive_verdict_is_cached() {
     // answer everything — zero shell operations.
     let ops = resolve_tx(&mut sut, BAYC, &transfer_from, "0x0");
     assert!(ops.is_empty(), "cached verdicts, no re-probe, no re-fetch");
-    assert_eq!(sut.view().result.expect("cached NFT result").intent, "Transfer NFT");
+    assert_eq!(
+        sut.view().result.expect("cached NFT result").intent,
+        "Transfer NFT"
+    );
 }
 
 /// clear-signing.ts:186-201 (invariant ②) — RPC-unreachable is UNKNOWN, not
@@ -633,7 +675,13 @@ fn erc165_unreachable_is_never_cached_as_a_verdict() {
         rpc_error: false,
     });
     // The run continues into the decimals warm for the unknown token.
-    assert!(ops.iter().any(|op| matches!(op, Op::RpcEthCall { probe: ClearProbe::Decimals, .. })));
+    assert!(ops.iter().any(|op| matches!(
+        op,
+        Op::RpcEthCall {
+            probe: ClearProbe::Decimals,
+            ..
+        }
+    )));
     let warm_token = timer_token(&ops);
     sut.resolve(Res::RpcAnswer {
         probe: ClearProbe::Decimals,
@@ -651,7 +699,10 @@ fn erc165_unreachable_is_never_cached_as_a_verdict() {
     assert!(
         ops.iter().any(|op| matches!(
             op,
-            Op::RpcEthCall { probe: ClearProbe::SupportsErc721, .. }
+            Op::RpcEthCall {
+                probe: ClearProbe::SupportsErc721,
+                ..
+            }
         )),
         "unreachable was not cached — the chain is asked again"
     );
@@ -742,14 +793,21 @@ fn erc165_timeout_renders_erc20_without_caching() {
     let warm_token = timer_token(&ops);
     sut.drop_oldest(); // decimals call never answers either
     sut.resolve(Res::TimedOut { token: warm_token });
-    let result = sut.view().result.expect("approve rendered despite timeouts");
+    let result = sut
+        .view()
+        .result
+        .expect("approve rendered despite timeouts");
     assert_eq!(result.intent, "Approve");
 
     // Nothing was cached: a fresh request probes again.
     let ops = resolve_tx(&mut sut, UNKNOWN_TOKEN, &approve, "0x0");
-    assert!(ops
-        .iter()
-        .any(|op| matches!(op, Op::RpcEthCall { probe: ClearProbe::SupportsErc721, .. })));
+    assert!(ops.iter().any(|op| matches!(
+        op,
+        Op::RpcEthCall {
+            probe: ClearProbe::SupportsErc721,
+            ..
+        }
+    )));
 }
 
 // ---------------------------------------------------------------------------
@@ -762,7 +820,11 @@ fn erc165_timeout_renders_erc20_without_caching() {
 #[test]
 fn unknown_token_decimals_are_never_assumed_silently() {
     let mut sut = Sut::new();
-    let transfer = format!("0xa9059cbb{}{}", pad(VITALIK), pad_u128(500_000_000_000_000_000));
+    let transfer = format!(
+        "0xa9059cbb{}{}",
+        pad(VITALIK),
+        pad_u128(500_000_000_000_000_000)
+    );
     resolve_tx(&mut sut, UNKNOWN_TOKEN, &transfer, "0x0");
     let ops = sut.resolve(Res::DescriptorFetched {
         path: format!("/erc7730/calldata/eip155-1/{UNKNOWN_TOKEN}.json"),
@@ -790,9 +852,16 @@ fn unknown_token_decimals_are_never_assumed_silently() {
     assert!(ops.is_empty());
     let result = sut.view().result.expect("transfer result");
     let amount = &result.fields[0];
-    assert!(amount.unverified, "failed lookup ⇒ 18 + explicit unverified flag");
+    assert!(
+        amount.unverified,
+        "failed lookup ⇒ 18 + explicit unverified flag"
+    );
     assert_eq!(amount.value, format!("0.5 {}...", &UNKNOWN_TOKEN[..6]));
-    assert_eq!(result.risk, ClearRisk::Caution, "unverified floors risk at caution");
+    assert_eq!(
+        result.risk,
+        ClearRisk::Caution,
+        "unverified floors risk at caution"
+    );
     assert!(amount.usd_value.is_none());
 
     sut.resolve(Res::TimedOut { token: warm_token });
@@ -869,7 +938,10 @@ fn decimals_timeout_shows_safe_fallback_and_late_answer_caches() {
     assert!(ops.is_empty(), "descriptor cached + decimals cached");
     let result = sut.view().result.expect("result");
     assert!(!result.fields[0].unverified);
-    assert_eq!(result.fields[0].value, format!("5 {}...", &UNKNOWN_TOKEN[..6]));
+    assert_eq!(
+        result.fields[0].value,
+        format!("5 {}...", &UNKNOWN_TOKEN[..6])
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1013,17 +1085,20 @@ fn local_uniswap_v2_swap_renders_richly_without_network() {
     let deadline: u128 = 1_755_000_000; // future vs NOW — a live swap
     let swap = format!(
         "0x38ed1739{}{}{}{}{}{}{}{}",
-        pad_u128(1_000_000_000),             // amountIn: 1000 USDC (6dp)
-        pad_u128(500_000_000_000_000_000),   // amountOutMin: 0.5 WETH
-        pad("a0"),                           // path offset
-        pad(VITALIK),                        // to
+        pad_u128(1_000_000_000),           // amountIn: 1000 USDC (6dp)
+        pad_u128(500_000_000_000_000_000), // amountOutMin: 0.5 WETH
+        pad("a0"),                         // path offset
+        pad(VITALIK),                      // to
         pad_u128(deadline),
-        pad("2"),                            // path length
+        pad("2"), // path length
         pad(USDC),
         pad(weth),
     );
     let ops = resolve_tx(&mut sut, UNIV2, &swap, "0x0");
-    assert!(ops.is_empty(), "local descriptor + known tokens: zero round-trips");
+    assert!(
+        ops.is_empty(),
+        "local descriptor + known tokens: zero round-trips"
+    );
 
     let result = sut.view().result.expect("swap result");
     assert_eq!(result.intent, "Swap");
@@ -1241,7 +1316,10 @@ fn eip712_permit_resolves_via_erc2612_fallback() {
         .iter()
         .find(|f| f.label == "Max spending amount")
         .expect("amount field");
-    assert_eq!(amount.value, "1,000 USDC", "@.to binds the verifying contract");
+    assert_eq!(
+        amount.value, "1,000 USDC",
+        "@.to binds the verifying contract"
+    );
     assert_eq!(amount.usd_value, Some(1000.0));
 
     let deadline = result
@@ -1256,7 +1334,8 @@ fn eip712_permit_resolves_via_erc2612_fallback() {
 #[test]
 fn eip712_contract_entry_is_keyed_by_typehash_and_verified() {
     let mut sut = Sut::new();
-    let encode_type = "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)";
+    let encode_type =
+        "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)";
     let type_hash = {
         let hash = vela_core::primitives::keccak256(encode_type.as_bytes());
         hash.iter().map(|b| format!("{b:02x}")).collect::<String>()
@@ -1562,7 +1641,10 @@ fn eth_sign_reads_the_second_param_and_falls_back_to_the_first() {
         ],
         request_origin: None,
     });
-    assert_eq!(sut.view().message.expect("analyzed").payload, text_hex("hello"));
+    assert_eq!(
+        sut.view().message.expect("analyzed").payload,
+        text_hex("hello")
+    );
 }
 
 /// ㉑ — the haptic and the red banner come from ONE adjudication, so they can
@@ -1713,7 +1795,9 @@ fn create2_deployment_resolves_calmly_on_the_clear_surface() {
     let mut sut = Sut::new();
     let ops = sut.dispatch(Event::ResolveTransaction {
         to: Some("0x4E59b44847b379578588920cA78FbF26c0B4956C".to_owned()),
-        data: Some("0x0000000000000000000000000000000000000000000000000000000000000000600a".to_owned()),
+        data: Some(
+            "0x0000000000000000000000000000000000000000000000000000000000000000600a".to_owned(),
+        ),
         value: Some("0x0".to_owned()),
         chain_id: 1,
         locale: ClearLocale::default(),
@@ -1721,7 +1805,10 @@ fn create2_deployment_resolves_calmly_on_the_clear_surface() {
     assert!(ops.is_empty(), "deployment detection needs no network");
     let view = sut.view();
     assert_eq!(view.surface, ClearSurface::ClearSign);
-    assert_eq!(view.result.expect("deploy result").intent, "Deploy contract");
+    assert_eq!(
+        view.result.expect("deploy result").intent,
+        "Deploy contract"
+    );
 }
 
 /// ㉓ — numbers print the way the engine that rendered today's screen prints
@@ -1851,7 +1938,10 @@ fn a_spender_equal_to_the_contract_is_not_a_burn() {
 
     let result = sut.view().result.expect("result");
     assert!(
-        result.fields.iter().all(|f| f.role != ClearFieldRole::Recipient),
+        result
+            .fields
+            .iter()
+            .all(|f| f.role != ClearFieldRole::Recipient),
         "approve resolves a spender, never a recipient",
     );
     assert!(!result.to_own_token);

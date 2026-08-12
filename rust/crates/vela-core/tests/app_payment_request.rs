@@ -8,8 +8,7 @@ mod support;
 
 use support::DomainDriver;
 use vela_core::app::payment_request::{
-    Event, Mode, PaymentRequest, PaymentRequestOperation as Op,
-    PaymentRequestShellResult as Res,
+    Event, Mode, PaymentRequest, PaymentRequestOperation as Op, PaymentRequestShellResult as Res,
 };
 
 type Sut = DomainDriver<PaymentRequest>;
@@ -202,9 +201,7 @@ fn request_mode_copies_the_pay_link() {
     let view = sut.view();
     assert_eq!(
         view.copy_payload,
-        format!(
-            "{BASE_URL}?to={ADDR}&chain=8453&token={USDC}&amount=1.5&sym=USDC&dec=6&net=Base"
-        )
+        format!("{BASE_URL}?to={ADDR}&chain=8453&token={USDC}&amount=1.5&sym=USDC&dec=6&net=Base")
     );
 }
 
@@ -236,10 +233,10 @@ fn amount_sanitation_matches_the_screen() {
     let mut sut = acknowledged();
     pick_usdc(&mut sut); // 6 decimals
     let cases = [
-        ("1a5", "15"),            // strip non-numerics
-        ("1.2.3", "1.2."),        // >1 dot: raw input minus its last char
-        ("1.1234567", "1.123456"),// clamp to the asset's precision
-        ("00.5", "00.5"),         // leading zeros pass through (as today)
+        ("1a5", "15"),             // strip non-numerics
+        ("1.2.3", "1.2."),         // >1 dot: raw input minus its last char
+        ("1.1234567", "1.123456"), // clamp to the asset's precision
+        ("00.5", "00.5"),          // leading zeros pass through (as today)
     ];
     for (input, expected) in cases {
         sut.dispatch(Event::AmountChanged {
@@ -307,11 +304,25 @@ fn open_pay_link_is_valid_without_an_amount() {
 /// invalid surface — never a crash, never a different amount than displayed.
 #[test]
 fn malformed_amounts_are_invalid_not_crashes() {
-    for bad in ["1e18", "0x10", "1,5", "-3", "+3", ".", "1.2345678", "NaN", "١٢"] {
+    for bad in [
+        "1e18",
+        "0x10",
+        "1,5",
+        "-3",
+        "+3",
+        ".",
+        "1.2345678",
+        "NaN",
+        "١٢",
+    ] {
         let mut sut = Sut::new();
         sut.dispatch(pay_query(Some(bad)));
         let view = sut.view();
-        assert_eq!(view.pay_valid, Some(false), "amount {bad:?} must be invalid");
+        assert_eq!(
+            view.pay_valid,
+            Some(false),
+            "amount {bad:?} must be invalid"
+        );
         assert!(view.pay.is_none());
     }
 }
@@ -354,7 +365,11 @@ fn bad_recipient_or_chain_is_invalid() {
             dec: None,
             net: None,
         });
-        assert_eq!(sut.view().pay_valid, Some(false), "to={to:?} chain={chain:?}");
+        assert_eq!(
+            sut.view().pay_valid,
+            Some(false),
+            "to={to:?} chain={chain:?}"
+        );
     }
 }
 

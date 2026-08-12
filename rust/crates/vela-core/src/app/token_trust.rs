@@ -257,11 +257,15 @@ pub enum TrustOperation {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub enum TrustLogsOutcome {
-    Ok { logs: Vec<TrustRawLog> },
+    Ok {
+        logs: Vec<TrustRawLog>,
+    },
     /// The endpoint capped the span. `cap` is the parsed block count; `0`
     /// means "capped, but no number could be parsed" → stay conservative
     /// (`transfer-monitor.ts:104-110`).
-    RangeCapped { cap: u32 },
+    RangeCapped {
+        cap: u32,
+    },
     /// Non-range failure — this chain yields nothing this tick
     /// (`transfer-monitor.ts:122-128`).
     Failed,
@@ -306,7 +310,9 @@ pub enum TrustShellResult {
     CustomTokens {
         tokens: Option<Vec<TrustCustomToken>>,
     },
-    TokenWritten { ok: bool },
+    TokenWritten {
+        ok: bool,
+    },
     CacheInvalidated,
 }
 
@@ -334,7 +340,10 @@ pub enum Event {
     /// "brand-new wallet" and the poll falls back to
     /// [`DEFAULT_MONITOR_CHAINS`]. A different address switches the account:
     /// the feed and any in-flight scan are discarded.
-    HeldChainsSnapshot { address: String, chain_ids: Vec<u32> },
+    HeldChainsSnapshot {
+        address: String,
+        chain_ids: Vec<u32>,
+    },
     /// The ERC-20 addresses this account holds on one chain — the
     /// `getCachedHeldTokens` feed for the trusted receive set. Cold cache =
     /// no event = empty set = everything unverified, the safe direction.
@@ -463,7 +472,11 @@ pub fn decode_transfer_logs(
         if log.topics.len() < 3 {
             continue;
         }
-        let recipient = log.topics.get(2).map(|t| t.to_lowercase()).unwrap_or_default();
+        let recipient = log
+            .topics
+            .get(2)
+            .map(|t| t.to_lowercase())
+            .unwrap_or_default();
         if recipient != want {
             continue;
         }
@@ -490,14 +503,17 @@ pub fn decode_transfer_logs(
         let Ok(log_index) = u32::try_from(log_index) else {
             continue;
         };
-        let Some(block_number) = parse_hex_u64(log.block_number.as_deref().unwrap_or("0x0"))
-        else {
+        let Some(block_number) = parse_hex_u64(log.block_number.as_deref().unwrap_or("0x0")) else {
             continue;
         };
         out.push(TrustTransfer {
             id: format!("{chain_id}-{}-{log_index}", log.transaction_hash),
             chain_id,
-            token: if is_native { None } else { Some(contract.clone()) },
+            token: if is_native {
+                None
+            } else {
+                Some(contract.clone())
+            },
             is_native,
             from,
             value,
@@ -532,7 +548,11 @@ pub fn derive_asset_deltas(logs: &[TrustReceiptLog], user: &str) -> Vec<TrustNet
         if log.topics.len() != 3 {
             continue;
         }
-        let topic0 = log.topics.first().map(|t| t.to_lowercase()).unwrap_or_default();
+        let topic0 = log
+            .topics
+            .first()
+            .map(|t| t.to_lowercase())
+            .unwrap_or_default();
         if topic0 != TRANSFER_TOPIC {
             continue;
         }
@@ -544,7 +564,11 @@ pub fn derive_asset_deltas(logs: &[TrustReceiptLog], user: &str) -> Vec<TrustNet
         let value = first_word_value(&log.data);
         let addr_lc = log.address.to_lowercase();
         let is_native = NATIVE_LOG_ADDRESSES.contains(&addr_lc.as_str());
-        let key = if is_native { "native".to_owned() } else { addr_lc.clone() };
+        let key = if is_native {
+            "native".to_owned()
+        } else {
+            addr_lc.clone()
+        };
         if key.is_empty() {
             continue;
         }
@@ -552,7 +576,11 @@ pub fn derive_asset_deltas(logs: &[TrustReceiptLog], user: &str) -> Vec<TrustNet
             order.push(key.clone());
             Acc {
                 is_native,
-                token: if is_native { None } else { Some(addr_lc.clone()) },
+                token: if is_native {
+                    None
+                } else {
+                    Some(addr_lc.clone())
+                },
                 delta: 0,
                 poisoned: false,
             }
@@ -621,11 +649,7 @@ pub fn admission_allows(
     known: bool,
     symbol: Option<&str>,
 ) -> bool {
-    net_received
-        && !already_listed
-        && !held
-        && !known
-        && symbol.is_some_and(|s| !s.is_empty())
+    net_received && !already_listed && !held && !known && symbol.is_some_and(|s| !s.is_empty())
 }
 
 /// The per-chain `eth_getLogs` allowlist (`transferAllowlist`,
@@ -748,7 +772,9 @@ struct FeedItem {
 enum ChainPhase {
     AwaitingBlockNumber,
     /// First getLogs out (invariant ④'s "probe").
-    Probe { latest: u64 },
+    Probe {
+        latest: u64,
+    },
     /// The one capped retry is out — a second cap ends the chain (④).
     Retry,
     Timestamps {
@@ -779,6 +805,7 @@ struct PendingAutoAdd {
 }
 
 #[derive(Clone, Debug)]
+#[allow(clippy::enum_variant_names)] // the phases are named for what they await; that is the axis
 enum AutoAddPhase {
     AwaitingCustoms,
     AwaitingMeta { fresh: Vec<String> },
@@ -905,8 +932,7 @@ impl App for TokenTrust {
                 chain_id,
                 tokens,
             } => {
-                let set: BTreeSet<String> =
-                    tokens.iter().map(|t| t.to_lowercase()).collect();
+                let set: BTreeSet<String> = tokens.iter().map(|t| t.to_lowercase()).collect();
                 model
                     .held
                     .entry(address.to_lowercase())
@@ -1224,7 +1250,10 @@ fn on_block_number(
     }
     // `!Number.isFinite(latest) || latest <= 0` → the chain yields nothing
     // this tick (`scanChain`'s catch).
-    let latest = block_hex.as_deref().and_then(parse_hex_u64).filter(|l| *l > 0);
+    let latest = block_hex
+        .as_deref()
+        .and_then(parse_hex_u64)
+        .filter(|l| *l > 0);
     let Some(latest) = latest else {
         model.scan.remove(&chain_id);
         return render();
@@ -1417,7 +1446,11 @@ fn scan_meta_of(model: &Model, chain_id: u32, token: &str) -> Option<TrustTokenM
             decimals: custom.decimals,
         });
     }
-    model.meta.get(&(chain_id, token.to_owned())).cloned().flatten()
+    model
+        .meta
+        .get(&(chain_id, token.to_owned()))
+        .cloned()
+        .flatten()
 }
 
 /// Emit a finished chain's transfers into the judged feed. Native rows always
@@ -1553,7 +1586,10 @@ fn start_next_auto_add(model: &mut Model) -> Option<Command<TrustEffect, Event>>
         received: pending.received,
         phase: AutoAddPhase::AwaitingCustoms,
     });
-    Some(shell_request(model.attempt, TrustOperation::ReadCustomTokens))
+    Some(shell_request(
+        model.attempt,
+        TrustOperation::ReadCustomTokens,
+    ))
 }
 
 fn on_auto_add_customs(
@@ -1573,9 +1609,10 @@ fn on_auto_add_customs(
         return finish_auto_add(model, None);
     };
     let (address, chain_id, received) = {
-        let s = model.auto_add.as_ref().map(|s| {
-            (s.address.clone(), s.chain_id, s.received.clone())
-        });
+        let s = model
+            .auto_add
+            .as_ref()
+            .map(|s| (s.address.clone(), s.chain_id, s.received.clone()));
         match s {
             Some(t) => t,
             None => return Command::done(),
@@ -1641,11 +1678,7 @@ fn auto_add_write_phase(model: &mut Model) -> Command<TrustEffect, Event> {
 
     let mut writes = Vec::new();
     for addr in &fresh {
-        let meta = model
-            .meta
-            .get(&(chain_id, addr.clone()))
-            .cloned()
-            .flatten();
+        let meta = model.meta.get(&(chain_id, addr.clone())).cloned().flatten();
         let Some(meta) = meta else {
             continue; // unresolvable → never listed (⑧)
         };
@@ -1855,7 +1888,10 @@ fn first_word_value(data: &str) -> Result<u128, HexValue> {
 }
 
 fn parse_hex_u64(hex: &str) -> Option<u64> {
-    let h = hex.strip_prefix("0x").or_else(|| hex.strip_prefix("0X")).unwrap_or(hex);
+    let h = hex
+        .strip_prefix("0x")
+        .or_else(|| hex.strip_prefix("0X"))
+        .unwrap_or(hex);
     if h.is_empty() {
         return None;
     }

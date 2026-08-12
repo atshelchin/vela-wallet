@@ -54,7 +54,7 @@ use super::fee_policy::{
     reserve_native_gas, same_asset_fee_limit, to_base_units, FeeAsset, FeeAssetView, FeeCall,
     FeeEstimate, FeeEstimateView, MultiTokenSpec,
 };
-use super::money::{js_parse_float, DenominatedAmount, Denom, TokenPrice};
+use super::money::{js_parse_float, Denom, DenominatedAmount, TokenPrice};
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -215,7 +215,13 @@ pub fn build_split_calls(
     }
     recipients
         .iter()
-        .map(|r| build_transfer_call(token_address, r.address.trim(), to_base_units(&r.amount, decimals)?))
+        .map(|r| {
+            build_transfer_call(
+                token_address,
+                r.address.trim(),
+                to_base_units(&r.amount, decimals)?,
+            )
+        })
         .collect()
 }
 
@@ -555,7 +561,9 @@ pub enum SendSubmitFailure {
     BundlerUnderfunded,
     /// `message` is diagnostics-only (the TS path logs it) — it never reaches
     /// the view.
-    Other { message: Option<String> },
+    Other {
+        message: Option<String>,
+    },
 }
 
 /// Post-submit receipt convergence, fed by the shell from `tx_tracker`
@@ -566,8 +574,12 @@ pub enum SendSubmitFailure {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub enum SendReceiptOutcome {
-    Confirmed { tx_hash: String },
-    Failed { rejected: bool },
+    Confirmed {
+        tx_hash: String,
+    },
+    Failed {
+        rejected: bool,
+    },
     /// The relay parked the op until fees settle — pending, new wording only
     /// (invariant ⑦).
     FeeHeld,
@@ -594,16 +606,25 @@ pub enum SendHapticKind {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub enum SendAmountWarning {
-    NotEnoughToken { symbol: String },
-    InsufficientForGas { symbol: Option<String> },
-    NeedGas { symbol: Option<String> },
+    NotEnoughToken {
+        symbol: String,
+    },
+    InsufficientForGas {
+        symbol: Option<String>,
+    },
+    NeedGas {
+        symbol: Option<String>,
+    },
     /// A fiat-denominated figure this screen cannot restate in token units:
     /// the digits are fine, it is the FACTOR that is missing (no rate for
     /// `code`, or no price for the token). Without this the screen showed a
     /// perfectly ordinary "5000", a `⇅ 0 SYM` row, and a `Continue` that
     /// refused with nothing said — the amount resolved to `"0"` and no surface
     /// admitted why.
-    CannotConvert { code: String, symbol: String },
+    CannotConvert {
+        code: String,
+        symbol: String,
+    },
 }
 
 /// The two nouns every "these units cannot be crossed" sentence on this screen
@@ -649,13 +670,22 @@ pub enum SendAlertKind {
 pub enum SendOperation {
     /// `fetchTokens(address)` — answers ONCE with the full list (progressive
     /// chain results arrive as [`Event::TokensPartial`]).
-    FetchTokens { address: String },
-    ClearTokenCache { address: String },
+    FetchTokens {
+        address: String,
+    },
+    ClearTokenCache {
+        address: String,
+    },
     /// `resolveTokenMetadata(chain, [addr])` for a locked request's unknown
     /// token.
-    ResolveTokenMetadata { chain_id: u32, address: String },
+    ResolveTokenMetadata {
+        chain_id: u32,
+        address: String,
+    },
     /// `addCustomNetworkByChainId`.
-    AddNetwork { chain_id: u32 },
+    AddNetwork {
+        chain_id: u32,
+    },
     /// `estimateTransactionFee(address, chain, 'fast', tx, batch, feeToken,
     /// publicKeyHex)`. The shell may satisfy it with the `fee_policy` machine;
     /// the answer is the same wire estimate either way.
@@ -668,9 +698,13 @@ pub enum SendOperation {
         public_key_hex: Option<String>,
     },
     /// `probeTreasury(chainId)`.
-    ProbeTreasury { chain_id: u32 },
+    ProbeTreasury {
+        chain_id: u32,
+    },
     /// `findAccountByCredentialId(id)` → the stored public key.
-    LoadAccountCredential { account_id: String },
+    LoadAccountCredential {
+        account_id: String,
+    },
     /// The whole sign→submit orchestration (`sendNative`/`sendERC20`/
     /// `sendBatchCalls`). The shell dispatches [`Event::SigningStarted`] when
     /// the passkey sheet opens and answers exactly once with
@@ -689,7 +723,9 @@ pub enum SendOperation {
     CancelPasskeySign,
     /// Persist ALL sibling records in ONE atomic write (invariant ⑥ —
     /// `saveTransactions(records)`, never per-record).
-    PersistTxRecords { records: Vec<SendTxRecord> },
+    PersistTxRecords {
+        records: Vec<SendTxRecord>,
+    },
     /// Hand the accepted op to `tx_tracker` (`Event::Submitted` there).
     /// Emitted only AFTER `RecordsPersisted`, so the tracker's patches always
     /// find their records (invariant ⑥'s ordering half).
@@ -699,18 +735,30 @@ pub enum SendOperation {
         chain_id: u32,
     },
     /// `resolveRecipientIdentity(addr)`.
-    ResolveIdentity { address: String },
+    ResolveIdentity {
+        address: String,
+    },
     /// `resolveRecipientRisk(chain, addr)`.
-    ResolveRisk { chain_id: u32, address: String },
+    ResolveRisk {
+        chain_id: u32,
+        address: String,
+    },
     /// `simulateAssetChanges(account, calls, chain)`.
     SimulateCalls {
         chain_id: u32,
         account: String,
         calls: Vec<FeeCall>,
     },
-    StartTimer { ms: u32, tag: SendTimerTag },
-    Haptic { kind: SendHapticKind },
-    ShowAlert { kind: SendAlertKind },
+    StartTimer {
+        ms: u32,
+        tag: SendTimerTag,
+    },
+    Haptic {
+        kind: SendHapticKind,
+    },
+    ShowAlert {
+        kind: SendAlertKind,
+    },
     /// Leave the Send flow (`router.back()` from the first step / receipt).
     Close,
 }
@@ -729,24 +777,47 @@ pub enum SendShellResult {
         chains: Vec<SendChainInfo>,
     },
     TokenCacheCleared,
-    TokenMetadata { meta: Option<SendTokenMeta> },
-    NetworkAdded { outcome: SendAddNetworkOutcome },
-    FeeEstimated { outcome: SendFeeOutcome },
-    TreasuryProbed { probe: SendTreasuryProbe },
+    TokenMetadata {
+        meta: Option<SendTokenMeta>,
+    },
+    NetworkAdded {
+        outcome: SendAddNetworkOutcome,
+    },
+    FeeEstimated {
+        outcome: SendFeeOutcome,
+    },
+    TreasuryProbed {
+        probe: SendTreasuryProbe,
+    },
     /// `None` = the account record is missing its public key, or the read
     /// threw — both alert `send.alertAccountUnavailableBody` today.
-    AccountCredential { public_key_hex: Option<String> },
-    Submitted { user_op_hash: String, now_ms: f64 },
-    SubmitFailed { failure: SendSubmitFailure },
+    AccountCredential {
+        public_key_hex: Option<String>,
+    },
+    Submitted {
+        user_op_hash: String,
+        now_ms: f64,
+    },
+    SubmitFailed {
+        failure: SendSubmitFailure,
+    },
     PasskeyCancelAcknowledged,
     RecordsPersisted,
     TrackHandedOff,
-    IdentityResolved { identity: Option<SendRecipientIdentity> },
-    RiskResolved { risk: Option<SendRecipientRisk> },
+    IdentityResolved {
+        identity: Option<SendRecipientIdentity>,
+    },
+    RiskResolved {
+        risk: Option<SendRecipientRisk>,
+    },
     /// Opaque `AssetSimResult` JSON — display-only, the core never decides on
     /// it.
-    SimResolved { sim_json: Option<String> },
-    TimerElapsed { tag: SendTimerTag },
+    SimResolved {
+        sim_json: Option<String>,
+    },
+    TimerElapsed {
+        tag: SendTimerTag,
+    },
     AlertAcknowledged,
     HapticPlayed,
     Closed,
@@ -756,6 +827,7 @@ pub enum SendShellResult {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS))]
+#[allow(clippy::large_enum_variant)] // a wire type: the JSON shape is pinned by the generated TS
 pub enum SendFeeOutcome {
     Ok { estimate: FeeEstimateView },
     Failed { kind: SendEstimateFailure },
@@ -786,14 +858,22 @@ pub enum Event {
         display: SendDisplayContext,
     },
     /// The display currency changed while the screen is open.
-    DisplayChanged { display: SendDisplayContext },
+    DisplayChanged {
+        display: SendDisplayContext,
+    },
     /// A progressive `fetchTokens` chunk (`onProgress`) — display-only, never
     /// consulted by lock resolution.
-    TokensPartial { tokens: Vec<SendToken> },
+    TokensPartial {
+        tokens: Vec<SendToken>,
+    },
     /// The user added/removed a custom token — re-pull without a page refresh.
     RefreshTokens,
-    SelectToken { token_id: String },
-    ToggleMultiToken { token_id: String },
+    SelectToken {
+        token_id: String,
+    },
+    ToggleMultiToken {
+        token_id: String,
+    },
     /// The picker's master "select all valuable" row.
     ///
     /// `visible_ids` is what the picker is SHOWING (its search/category/chain
@@ -803,49 +883,75 @@ pub enum Event {
     /// off, stay this machine's ([`SendToken::is_valuable`], the ported
     /// `isMultiSelectable(tok, true)`): the shell owns no money predicate.
     /// An id the machine does not hold is ignored.
-    ToggleAllMultiTokens { visible_ids: Vec<String> },
-    SetMultiNetwork { chain_id: Option<u32> },
+    ToggleAllMultiTokens {
+        visible_ids: Vec<String>,
+    },
+    SetMultiNetwork {
+        chain_id: Option<u32>,
+    },
     ConfirmMultiSelection,
-    SetRecipient { recipient: String },
-    SetAmount { amount: String },
+    SetRecipient {
+        recipient: String,
+    },
+    SetAmount {
+        amount: String,
+    },
     /// The ⇄ conversion toggle (`EnterDetailsStep.tsx:165-176`) — converts the
     /// typed amount across the fiat boundary, then flips the mode.
     ToggleFiatInput,
     TapMax,
     EnterSplitMode,
     /// Batch import / whole-group pick → seed split rows directly.
-    SeedSplitRecipients { recipients: Vec<SendRecipientDraft> },
+    SeedSplitRecipients {
+        recipients: Vec<SendRecipientDraft>,
+    },
     /// The split editor's whole-array onChange; ≤1 row collapses back to
     /// single mode carrying the remaining row.
-    RecipientsChanged { recipients: Vec<SendRecipientDraft> },
+    RecipientsChanged {
+        recipients: Vec<SendRecipientDraft>,
+    },
     /// `target` = the split row the picker fills; `None` = the single-mode
     /// recipient field.
-    OpenContactPicker { target: Option<String> },
+    OpenContactPicker {
+        target: Option<String>,
+    },
     CloseContactPicker,
     /// The contact picker chose an address.
-    PickedAddress { address: String },
+    PickedAddress {
+        address: String,
+    },
     OpenScanner,
     CloseScanner,
     /// A scan, parsed by the shell. Routing (`SendScreen.tsx:181-203`): a
     /// targeted split row takes ONLY the address (invariant ⑬); a full
     /// request re-locks the whole flow; anything else fills the recipient.
-    ScanResolved { scan: SendScan },
+    ScanResolved {
+        scan: SendScan,
+    },
     OpenBatchImport,
     CloseBatchImport,
     /// "Add this network" on the locked-request exception screen.
-    AddNetworkTapped { chain_id: u32 },
+    AddNetworkTapped {
+        chain_id: u32,
+    },
     Continue,
     Back,
     /// "Edit amount" — the recovery from a blocked confirmation.
     EditAmount,
     /// Fee-asset chip (`setGasFeeToken`); the embedded fee card re-quotes and
     /// answers via [`Event::FeeUpdated`].
-    ChooseFeeToken { token: Option<String> },
+    ChooseFeeToken {
+        token: Option<String>,
+    },
     /// The fee card settled a (re)quote (`GasFeeCard.onFeeUpdate`).
-    FeeUpdated { estimate: FeeEstimateView },
+    FeeUpdated {
+        estimate: FeeEstimateView,
+    },
     /// The fee card is re-quoting (`onBusyChange`) — confirm stays disabled
     /// while true.
-    FeeBusyChanged { busy: bool },
+    FeeBusyChanged {
+        busy: bool,
+    },
     /// The slide-to-confirm completed.
     SlideConfirm,
     /// The passkey sheet opened inside `SubmitUserOp`.
@@ -868,7 +974,10 @@ pub enum Event {
     /// by the core when the request was made; a result whose id no flight
     /// expects belongs to a superseded run and is dropped.
     #[serde(skip)]
-    ShellCompleted { attempt: u64, result: SendShellResult },
+    ShellCompleted {
+        attempt: u64,
+        result: SendShellResult,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -951,11 +1060,16 @@ enum FailureFallback {
 /// The single in-flight orchestration. Every variant embeds the request ids it
 /// is waiting on; a result carrying any other id is stale and dropped.
 #[derive(Clone, Debug, Default, PartialEq)]
+// One `Pipeline` exists at a time, inside the model. Boxing the wide variants
+// would add an allocation to every state transition to save bytes nothing counts.
+#[allow(clippy::large_enum_variant)]
 enum Pipeline {
     #[default]
     Idle,
     /// `handleContinue`'s credential load (prefetch missed).
-    ContinueCredential { id: u64 },
+    ContinueCredential {
+        id: u64,
+    },
     /// The `Promise.all([estimate, treasury])` racing the 15s timer.
     PreCheck {
         fee_id: u64,
@@ -967,16 +1081,31 @@ enum Pipeline {
     /// After the timeout alert: a late successful estimate still lands in the
     /// model (ported verbatim — TS's raced-out `preCheck` keeps running its
     /// `setFeeEstimate`); a late failure or treasury answer is dropped.
-    LateFee { fee_id: u64 },
+    LateFee {
+        fee_id: u64,
+    },
     /// `handleMaxAmount`'s on-demand estimate.
-    MaxEstimate { id: u64 },
+    MaxEstimate {
+        id: u64,
+    },
     /// `confirmSelection` / `preselectedMulti` warm-up: credential, then a
     /// best-effort background estimate whose failure is swallowed.
-    WarmCredential { id: u64 },
-    WarmEstimate { id: u64 },
+    WarmCredential {
+        id: u64,
+    },
+    WarmEstimate {
+        id: u64,
+    },
     /// `executeTransaction` pre-sign hops — cancel checkpoints (invariant ③).
-    SubmitCredential { id: u64, gen: u64 },
-    SubmitTreasury { id: u64, gen: u64, public_key_hex: String },
+    SubmitCredential {
+        id: u64,
+        gen: u64,
+    },
+    SubmitTreasury {
+        id: u64,
+        gen: u64,
+        public_key_hex: String,
+    },
     /// The sign→submit is in flight. Kept alive across a Cancel-during-signing
     /// (the shell's outcome decides, exactly as TS), replaced by any newer
     /// slide.
@@ -1489,9 +1618,7 @@ impl App for Send {
         let token_amount = model
             .selected_token
             .as_ref()
-            .map(|token| {
-                model_token_amount(model, token)
-            })
+            .map(|token| model_token_amount(model, token))
             .unwrap_or_default();
 
         // The Continue button gate (`EnterDetailsStep.tsx:372`), plus the one
@@ -1565,8 +1692,7 @@ impl App for Send {
         // with no warning anywhere. The batch modes carry their money in
         // `recipients`/`multi_specs`, not in `model.amount`, so they are asked
         // the same question `can_continue` asks them.
-        let confirm_amount_ok =
-            model.split_mode || model.multi_select_mode || amount_resolves;
+        let confirm_amount_ok = model.split_mode || model.multi_select_mode || amount_resolves;
         let can_confirm = stage == SendStage::Confirm
             && model.tx == SendTxStatus::Idle
             && !model.estimating_gas
@@ -1663,8 +1789,10 @@ fn next(model: &mut Model) -> u64 {
 
 /// One tracked request: the answer must quote `id` back.
 fn issue(id: u64, operation: SendOperation) -> Cmd {
-    Command::request_from_shell(operation)
-        .then_send(move |result| Event::ShellCompleted { attempt: id, result })
+    Command::request_from_shell(operation).then_send(move |result| Event::ShellCompleted {
+        attempt: id,
+        result,
+    })
 }
 
 /// Fire-and-forget (alerts, haptics, cancels) — the ack is dropped on arrival.
@@ -2060,7 +2188,11 @@ fn prefetch_credential(model: &mut Model) -> Cmd {
 /// picker's `chainFilter != null`. An id this machine does not hold selects
 /// nothing, exactly as `toggle_all_multi` already promised.
 fn toggle_multi_token(model: &mut Model, token_id: String) -> Cmd {
-    if let Some(pos) = model.multi_selected_ids.iter().position(|id| *id == token_id) {
+    if let Some(pos) = model
+        .multi_selected_ids
+        .iter()
+        .position(|id| *id == token_id)
+    {
         model.multi_selected_ids.remove(pos);
     } else {
         if !visible_multi_tokens(model)
@@ -2078,7 +2210,7 @@ fn visible_multi_tokens(model: &Model) -> Vec<&SendToken> {
     model
         .tokens
         .iter()
-        .filter(|t| model.multi_chain_id.map_or(true, |c| t.chain_id == c))
+        .filter(|t| model.multi_chain_id.is_none_or(|c| t.chain_id == c))
         .collect()
 }
 
@@ -2399,16 +2531,25 @@ fn apply_max_with_fee(model: &mut Model, token: &SendToken, fee: &FeeEstimate) {
         // (invariant ⑨).
         match to_base_units(&token.balance, token.decimals) {
             Some(balance_wei) => {
-                model.amount =
-                    DenominatedAmount::token(max_native_sendable(balance_wei, fee.total_wei, token.decimals));
+                model.amount = DenominatedAmount::token(max_native_sendable(
+                    balance_wei,
+                    fee.total_wei,
+                    token.decimals,
+                ));
             }
             // TS `balanceToWei` would throw → catch → full balance.
             None => model.amount = DenominatedAmount::token(full_balance(token)),
         }
         return;
     }
-    if let (Some(addr), FeeAsset::Erc20 { token: fee_token, amount, .. }) =
-        (token.token_address.as_deref(), &fee.fee_asset)
+    if let (
+        Some(addr),
+        FeeAsset::Erc20 {
+            token: fee_token,
+            amount,
+            ..
+        },
+    ) = (token.token_address.as_deref(), &fee.fee_asset)
     {
         if fee_token.eq_ignore_ascii_case(addr) {
             // Reserve 1.5× the quoted fee (+50% for send-time re-quote drift).
@@ -2494,8 +2635,8 @@ fn seed_split(model: &mut Model, rows: Vec<SendRecipientDraft>) -> Cmd {
     }
     let mut rows = assign_ids(model, rows);
     rows.truncate(BATCH_MAX_RECIPIENTS); // the importer's trim (invariant ⑩)
-    // The imported rows replace the single-send figure outright; there is
-    // nothing left to restate, so the field goes empty in token units.
+                                         // The imported rows replace the single-send figure outright; there is
+                                         // nothing left to restate, so the field goes empty in token units.
     model.amount = DenominatedAmount::token("");
     model.recipients = rows;
     model.split_mode = true;
@@ -2703,6 +2844,7 @@ fn selected_fee(model: &Model) -> Option<&FeeEstimate> {
 
 /// The live amount warning (`useSendController.ts:326-398`), as a pure
 /// derivation instead of a `useEffect` + `useState` pair.
+#[allow(clippy::neg_cmp_op_on_partial_ord)] // NaN is an unresolved amount, not a valid one
 fn derive_amount_warning(model: &Model) -> Option<SendAmountWarning> {
     let token = model.selected_token.as_ref()?;
     if model.amount.is_empty() {
@@ -2783,9 +2925,7 @@ fn derive_amount_warning(model: &Model) -> Option<SendAmountWarning> {
                 let send_units = to_base_units(&token_amount, token.decimals).unwrap_or(0);
                 if send_units.saturating_add(*fee_amount) > balance_units {
                     return Some(SendAmountWarning::InsufficientForGas {
-                        symbol: Some(
-                            fee_symbol.clone().unwrap_or_else(|| token.symbol.clone()),
-                        ),
+                        symbol: Some(fee_symbol.clone().unwrap_or_else(|| token.symbol.clone())),
                     });
                 }
             } else {
@@ -2826,10 +2966,7 @@ fn derive_same_asset_issue(model: &Model) -> Option<SendFeeIssueView> {
     let transfer_amount = if model.split_mode {
         sum_split_base_units(&model.recipients, token.decimals)?
     } else {
-        to_base_units(
-            &model_token_amount(model, token),
-            token.decimals,
-        )?
+        to_base_units(&model_token_amount(model, token), token.decimals)?
     };
     let balance = to_base_units(&token.balance, token.decimals)?;
     let limit = same_asset_fee_limit(Some(fee), token.token_address.as_deref(), balance)?;
@@ -2950,7 +3087,10 @@ fn handle_continue(model: &mut Model) -> Cmd {
 /// The real-shape estimate context (`useSendController.ts:732-753`): the batch
 /// modes use the RAW transfer legs (no circular fee dependency); any build
 /// failure falls back to the rough basis.
-fn build_estimate_shape(model: &Model, token: &SendToken) -> (Option<FeeCall>, Option<Vec<FeeCall>>) {
+fn build_estimate_shape(
+    model: &Model,
+    token: &SendToken,
+) -> (Option<FeeCall>, Option<Vec<FeeCall>>) {
     if model.multi_select_mode {
         let raw: Vec<MultiTokenSpec> = picked_tokens(model)
             .iter()
@@ -3092,6 +3232,7 @@ fn leave_confirm(model: &mut Model) {
     }
 }
 
+#[allow(clippy::neg_cmp_op_on_partial_ord)] // NaN must fall to `edit_amount`, never to signing
 fn slide_confirm(model: &mut Model) -> Cmd {
     if model.step != SendStep::Confirm {
         return Command::done();
@@ -3166,7 +3307,10 @@ fn submit_treasury_recheck(model: &mut Model, gen: u64, public_key_hex: String) 
         gen,
         public_key_hex,
     };
-    Command::all([issue(id, SendOperation::ProbeTreasury { chain_id }), render()])
+    Command::all([
+        issue(id, SendOperation::ProbeTreasury { chain_id }),
+        render(),
+    ])
 }
 
 /// Build the submit batch + activity lines and hand them to the shell's
@@ -3458,12 +3602,10 @@ fn accept(model: &mut Model, id: u64, result: SendShellResult) -> Cmd {
             model.chains = chains;
             tokens_loaded(model, tokens, purpose)
         }
-        R::TokenMetadata { meta } => {
-            match &model.flights.lock_meta {
-                Some((expect, _, _)) if *expect == id => lock_meta_resolved(model, meta),
-                _ => Command::done(),
-            }
-        }
+        R::TokenMetadata { meta } => match &model.flights.lock_meta {
+            Some((expect, _, _)) if *expect == id => lock_meta_resolved(model, meta),
+            _ => Command::done(),
+        },
         R::NetworkAdded { outcome } => {
             if model.flights.add_network != Some(id) {
                 return Command::done();
@@ -3687,7 +3829,10 @@ fn precheck_fail(model: &mut Model, kind: SendEstimateFailure) -> Cmd {
 
 fn accept_timer(model: &mut Model, id: u64) -> Cmd {
     let Pipeline::PreCheck {
-        timer_id, fee_id, fee, ..
+        timer_id,
+        fee_id,
+        fee,
+        ..
     } = model.pipeline.clone()
     else {
         return Command::done();
@@ -3887,7 +4032,10 @@ fn accept_submitted(model: &mut Model, id: u64, user_op_hash: String, now_ms: f6
 }
 
 fn accept_submit_failed(model: &mut Model, id: u64, failure: SendSubmitFailure) -> Cmd {
-    let Pipeline::Submitting { id: expect, gen, .. } = model.pipeline.clone() else {
+    let Pipeline::Submitting {
+        id: expect, gen, ..
+    } = model.pipeline.clone()
+    else {
         return Command::done();
     };
     if expect != id {
@@ -3936,7 +4084,10 @@ fn failure_probe(model: &mut Model, gen: u64, fallback: FailureFallback) -> Cmd 
     let chain_id = token.chain_id;
     let id = next(model);
     model.pipeline = Pipeline::FailureProbe { id, gen, fallback };
-    Command::all([issue(id, SendOperation::ProbeTreasury { chain_id }), render()])
+    Command::all([
+        issue(id, SendOperation::ProbeTreasury { chain_id }),
+        render(),
+    ])
 }
 
 // ---------------------------------------------------------------------------

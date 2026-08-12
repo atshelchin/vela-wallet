@@ -452,12 +452,10 @@ pub fn best_native_dex_price(groups: NativeQuoteGroups) -> Option<f64> {
     let groups: Vec<vela_core::app::balance_dashboard::NativeQuoteGroup> = groups
         .groups
         .into_iter()
-        .map(
-            |g| vela_core::app::balance_dashboard::NativeQuoteGroup {
-                amounts_out: g.amounts_out,
-                quote_decimals: g.quote_decimals,
-            },
-        )
+        .map(|g| vela_core::app::balance_dashboard::NativeQuoteGroup {
+            amounts_out: g.amounts_out,
+            quote_decimals: g.quote_decimals,
+        })
         .collect();
     vela_core::app::balance_dashboard::best_native_dex_price(&groups)
 }
@@ -469,8 +467,11 @@ pub fn choose_native_price(
     chainlink_local: Option<f64>,
     chainlink_eth: Option<f64>,
 ) -> NativePriceChoice {
-    match vela_core::app::balance_dashboard::choose_native_price(dex, chainlink_local, chainlink_eth)
-    {
+    match vela_core::app::balance_dashboard::choose_native_price(
+        dex,
+        chainlink_local,
+        chainlink_eth,
+    ) {
         Some(chosen) => NativePriceChoice {
             price: Some(chosen.price),
             source: source_name(chosen.source).to_owned(),

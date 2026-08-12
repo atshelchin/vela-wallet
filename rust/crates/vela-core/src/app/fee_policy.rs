@@ -235,7 +235,7 @@ fn atto_units_wide(atto: U256, decimals: u32) -> Option<U256> {
 /// plausible range by a later division in this module — every `add` here feeds
 /// a `max`/`+` chain of gas units, never a numerator that gets divided down.
 fn add(a: u128, b: u128) -> u128 {
-    a.checked_add(b).unwrap_or(u128::MAX)
+    a.saturating_add(b)
 }
 
 /// `10^d` for the one call site whose `d` is a compile-time constant
@@ -397,11 +397,19 @@ pub enum FeeShellResult {
         priority_fee: Option<String>,
     },
     /// `None` = method unsupported / transport failure → local fallback.
-    BundlerQuote { quote: Option<FeeBundlerQuote> },
+    BundlerQuote {
+        quote: Option<FeeBundlerQuote>,
+    },
     /// `None` = unavailable/malformed response (`fetchInBandGasQuotes`).
-    InBandQuotes { quotes: Option<Vec<FeeAssetQuote>> },
-    FeeRecipient { recipient: Option<String> },
-    UserOpGas { outcome: FeeGasOutcome },
+    InBandQuotes {
+        quotes: Option<Vec<FeeAssetQuote>>,
+    },
+    FeeRecipient {
+        recipient: Option<String>,
+    },
+    UserOpGas {
+        outcome: FeeGasOutcome,
+    },
     TtlElapsed,
 }
 
@@ -468,7 +476,10 @@ pub enum Event {
     /// is dropped — this IS the "late old-chain quote never pollutes the new
     /// form" rule.
     #[serde(skip)]
-    ShellCompleted { attempt: u64, result: FeeShellResult },
+    ShellCompleted {
+        attempt: u64,
+        result: FeeShellResult,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -537,7 +548,9 @@ pub fn usd_price_scaled(value: Option<&str>, round_up: bool) -> Option<u128> {
     // NUMERATOR for the native coin, so a clamp would move the quote in
     // opposite directions depending on which side asked. `None` = "cannot
     // quote", the same answer the TS regex gives for garbage.
-    let mut scaled = w(integer).checked_mul(w(USD_PRICE_SCALE))?.checked_add(w(kept))?;
+    let mut scaled = w(integer)
+        .checked_mul(w(USD_PRICE_SCALE))?
+        .checked_add(w(kept))?;
     let tail_has_digit = fraction
         .bytes()
         .skip(USD_PRICE_DECIMALS as usize)
@@ -589,10 +602,13 @@ pub fn calculate_in_band_fee_amount(
     let fee_usd = usd_price_scaled(fee_asset.usd_price.as_deref(), false).filter(|v| *v != 0)?;
     let fee_unit = pow10_wide(fee_asset.decimals)?;
     let converted = ceil_div_wide(
-        native_amount.checked_mul(w(native_usd))?.checked_mul(fee_unit)?,
+        native_amount
+            .checked_mul(w(native_usd))?
+            .checked_mul(fee_unit)?,
         native_unit.checked_mul(w(fee_usd))?,
     )?;
-    let stable_minimum = ceil_div_wide(w(STABLE_MIN_USD_SCALED).checked_mul(fee_unit)?, w(fee_usd))?;
+    let stable_minimum =
+        ceil_div_wide(w(STABLE_MIN_USD_SCALED).checked_mul(fee_unit)?, w(fee_usd))?;
     narrow(converted.max(stable_minimum))
 }
 
@@ -665,7 +681,9 @@ pub fn calc_max_fee_per_gas(gas_price: u128, tier: FeeTier) -> u128 {
     // gas price above ~8.5e37 wei (there is not that much ether in existence),
     // and it clamps the per-gas price UP-scale, never into a plausible number.
     let max_fee = narrow_saturating(
-        mul_wide(gas_price, num).checked_mul(w(BUNDLER_MARGIN_NUM)).unwrap_or(U256::MAX)
+        mul_wide(gas_price, num)
+            .checked_mul(w(BUNDLER_MARGIN_NUM))
+            .unwrap_or(U256::MAX)
             / w(den * BUNDLER_MARGIN_DEN),
     );
     max_fee.max(1)
@@ -926,14 +944,17 @@ pub fn tempo_reimbursement(expected_gas: u128, gas_price_atto: u128, decimals: u
     // clamp that already happened.
     let with_margin = atto_units_wide(mul_wide(expected_gas, price), decimals)
         .and_then(|base| base.checked_mul(w(TEMPO_FEE_MARGIN_NUM)))
-        .map_or(u128::MAX, |v| narrow_saturating(v / w(TEMPO_FEE_MARGIN_DEN)));
+        .map_or(u128::MAX, |v| {
+            narrow_saturating(v / w(TEMPO_FEE_MARGIN_DEN))
+        });
     with_margin.max(tempo_minimum_fee_token_units(decimals))
 }
 
 /// EOA-floor cushion: max(flat 20k, 3% of the priced gas) (`tempo.ts:177-180`).
 pub fn tempo_split_safety_gas(expected_gas: u128) -> u128 {
     // 3% of a `u128` always fits a `u128`; wide only so the product is exact.
-    let proportional = narrow_saturating(mul_wide(expected_gas, TEMPO_SPLIT_SAFETY_BPS) / w(10_000));
+    let proportional =
+        narrow_saturating(mul_wide(expected_gas, TEMPO_SPLIT_SAFETY_BPS) / w(10_000));
     proportional.max(TEMPO_SPLIT_SAFETY_GAS)
 }
 
@@ -1493,7 +1514,10 @@ fn accept(model: &mut Model, result: FeeShellResult) -> Command<FeeEffect, Event
                 priority_fee,
             },
         ) => {
-            let tempo = model.ctx.as_ref().is_some_and(|c| is_tempo_chain(c.chain_id));
+            let tempo = model
+                .ctx
+                .as_ref()
+                .is_some_and(|c| is_tempo_chain(c.chain_id));
             model.pending.gas = Some(resolve_gas_price(
                 eth_gas_price.as_deref(),
                 base_fee.as_deref(),
@@ -1507,9 +1531,8 @@ fn accept(model: &mut Model, result: FeeShellResult) -> Command<FeeEffect, Event
             try_advance(model)
         }
         (Phase::Gathering, FeeShellResult::InBandQuotes { quotes }) => {
-            model.pending.quotes = Some(quotes.map(|rows| {
-                rows.iter().map(parse_quote_row).collect::<Vec<_>>()
-            }));
+            model.pending.quotes =
+                Some(quotes.map(|rows| rows.iter().map(parse_quote_row).collect::<Vec<_>>()));
             try_advance(model)
         }
         (Phase::Gathering, FeeShellResult::FeeRecipient { recipient }) => {
@@ -1828,7 +1851,8 @@ fn accept_gas_outcome(
                 } else {
                     VERIFICATION_GAS_UNDEPLOYED
                 };
-                let mut total_gas = add(add(verification_gas, CALL_GAS_LIMIT), PRE_VERIFICATION_GAS);
+                let mut total_gas =
+                    add(add(verification_gas, CALL_GAS_LIMIT), PRE_VERIFICATION_GAS);
                 // L2 rollup data-fee adjustments (`safe-transaction.ts:723-731`).
                 if ARBITRUM_CHAIN_IDS.contains(&ctx.chain_id) {
                     total_gas = add(total_gas, ARBITRUM_STATIC_GAS_ADDER);

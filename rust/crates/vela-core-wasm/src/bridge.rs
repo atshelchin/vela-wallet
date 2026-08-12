@@ -83,8 +83,9 @@ where
         result_json: &str,
     ) -> Result<String, JsValue> {
         let result: <<A::Effect as SplitEffect>::Op as Operation>::Output =
-            serde_json::from_str(result_json)
-                .map_err(|error| JsValue::from_str(&format!("invalid result from shell: {error}")))?;
+            serde_json::from_str(result_json).map_err(|error| {
+                JsValue::from_str(&format!("invalid result from shell: {error}"))
+            })?;
 
         // An unknown id means the answer outlived the question — the shell
         // resolved an operation that was already abandoned. Expected, not a

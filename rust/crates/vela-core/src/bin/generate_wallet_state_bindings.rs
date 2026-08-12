@@ -43,12 +43,8 @@ use vela_core::app::ext_cache::{
     Event as ExtCacheEvent, ExtCacheOperation, ExtCacheShellResult, ExtCacheView,
 };
 use vela_core::app::fee_policy::{Event as FeeEvent, FeeOperation, FeeShellResult, FeeView};
-use vela_core::app::manage_tokens::{
-    Event as MtokEvent, MtokOperation, MtokShellResult, MtokView,
-};
-use vela_core::app::network_admin::{
-    Event as NetEvent, NetOperation, NetShellResult, NetView,
-};
+use vela_core::app::manage_tokens::{Event as MtokEvent, MtokOperation, MtokShellResult, MtokView};
+use vela_core::app::network_admin::{Event as NetEvent, NetOperation, NetShellResult, NetView};
 use vela_core::app::payment_request::{
     Event as PaymentRequestEvent, PaymentRequestOperation, PaymentRequestShellResult,
     PaymentRequestView,
@@ -57,15 +53,11 @@ use vela_core::app::receive_watch::{
     Event as ReceiveWatchEvent, ReceiveWatchOperation, ReceiveWatchShellResult, ReceiveWatchView,
 };
 use vela_core::app::rpc_pool::{Event as RpcEvent, RpcOperation, RpcPoolView, RpcShellResult};
-use vela_core::app::send::{
-    Event as SendEvent, SendOperation, SendShellResult, SendView,
-};
+use vela_core::app::send::{Event as SendEvent, SendOperation, SendShellResult, SendView};
 use vela_core::app::session::{
     Event as SessionEvent, SessionOperation, SessionShellResult, SessionView,
 };
-use vela_core::app::sign_request::{
-    Event as SignEvent, SignOperation, SignShellResult, SignView,
-};
+use vela_core::app::sign_request::{Event as SignEvent, SignOperation, SignShellResult, SignView};
 use vela_core::app::token_trust::{
     Event as TrustEvent, TrustOperation, TrustShellResult, TrustView,
 };

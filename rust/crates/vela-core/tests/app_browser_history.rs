@@ -63,7 +63,14 @@ fn written(ops: Vec<Op>) -> Vec<BhistEntry> {
 /// Start reads `vela.browserHistory` once; the view shows what was stored.
 #[test]
 fn start_hydrates_from_the_store() {
-    let a = entry("https://a.io", "https://a.io/x", "a.io", "A", "", T0 + 1_000.0);
+    let a = entry(
+        "https://a.io",
+        "https://a.io/x",
+        "a.io",
+        "A",
+        "",
+        T0 + 1_000.0,
+    );
     let b = entry("https://b.io", "https://b.io/", "b.io", "B", "", T0);
     let sut = ready(vec![a.clone(), b.clone()]);
     assert_eq!(sut.view().entries, vec![a, b]);
@@ -87,7 +94,9 @@ fn mutations_before_hydration_are_dropped() {
         .dispatch(visit("https://a.io/", Some("A"), None, T0))
         .is_empty());
     assert!(sut
-        .dispatch(Event::DeleteOrigin { origin: "https://a.io".to_owned() })
+        .dispatch(Event::DeleteOrigin {
+            origin: "https://a.io".to_owned()
+        })
         .is_empty());
     assert!(sut.dispatch(Event::ClearAll).is_empty());
 
@@ -97,7 +106,10 @@ fn mutations_before_hydration_are_dropped() {
         .dispatch(visit("https://a.io/", Some("A"), None, T0))
         .is_empty());
     sut.resolve(Res::Loaded { entries: vec![] });
-    assert!(sut.view().entries.is_empty(), "nothing leaked through the gate");
+    assert!(
+        sut.view().entries.is_empty(),
+        "nothing leaked through the gate"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -165,10 +177,18 @@ fn host_normalization_matches_the_url_parser() {
     let cases: &[(&str, &str, &str)] = &[
         ("https://x.io:443/a", "https://x.io", "x.io"),
         ("http://x.io:0080/", "http://x.io", "x.io"),
-        ("http://localhost:8080/dev", "http://localhost:8080", "localhost:8080"),
+        (
+            "http://localhost:8080/dev",
+            "http://localhost:8080",
+            "localhost:8080",
+        ),
         ("https://x.io:/a", "https://x.io", "x.io"),
         ("https://user:pw@x.io/", "https://x.io", "x.io"),
-        ("https://trusted.org@evil.com/", "https://evil.com", "evil.com"),
+        (
+            "https://trusted.org@evil.com/",
+            "https://evil.com",
+            "evil.com",
+        ),
         ("https://[::1]:8443/", "https://[::1]:8443", "[::1]:8443"),
         ("wss://relay.x.io/", "wss://relay.x.io", "relay.x.io"),
         ("velawallet://sign:80", "velawallet://sign:80", "sign:80"),
@@ -204,7 +224,10 @@ fn one_entry_per_origin_and_revisit_moves_to_front() {
 
     assert_eq!(stored.len(), 2, "same origin never duplicates");
     assert_eq!(stored[0].origin, "https://a.io");
-    assert_eq!(stored[0].url, "https://a.io/two?tab=pool", "latest url wins");
+    assert_eq!(
+        stored[0].url, "https://a.io/two?tab=pool",
+        "latest url wins"
+    );
     assert_eq!(stored[0].title, "A2");
     assert_eq!(stored[0].last_visited_ms, T0 + 2_000.0);
     assert_eq!(stored[1].origin, "https://b.io");
@@ -407,7 +430,14 @@ fn acks_and_wrong_shaped_results_never_mutate() {
     sut.dispatch(visit("https://b.io/", Some("B"), None, T0 + 1_000.0));
     let before = sut.view();
     let ops = sut.resolve(Res::Loaded {
-        entries: vec![entry("https://evil.io", "https://evil.io/", "evil.io", "E", "", T0)],
+        entries: vec![entry(
+            "https://evil.io",
+            "https://evil.io/",
+            "evil.io",
+            "E",
+            "",
+            T0,
+        )],
     });
     assert!(ops.is_empty());
     assert_eq!(sut.view(), before, "the mirror was not clobbered");

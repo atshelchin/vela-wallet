@@ -177,9 +177,16 @@ pub struct DpermGrant {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub enum DpermRespondPayload {
-    Accounts { addresses: Vec<String> },
-    Permissions { granted: bool },
-    Error { code: u32, reason: DpermRejectReason },
+    Accounts {
+        addresses: Vec<String>,
+    },
+    Permissions {
+        granted: bool,
+    },
+    Error {
+        code: u32,
+        reason: DpermRejectReason,
+    },
 }
 
 /// An EIP-1193 event pushed to the page via the bridge.
@@ -264,7 +271,10 @@ pub enum DpermOperation {
     /// terminal error (`transport.settlePending`). The transport is a live
     /// object the core never holds — the exactly-one-response-per-id gate
     /// stays there (invariant ⑩); the core owns WHICH code is used.
-    SettleForwarded { code: u32, reason: DpermRejectReason },
+    SettleForwarded {
+        code: u32,
+        reason: DpermRejectReason,
+    },
     /// Write the "Connected to <app>" audit row (`buildConnectionRecord` +
     /// `saveTransaction` — the shell derives the display host and stamps its
     /// own clock, both presentation).
@@ -650,7 +660,9 @@ fn consent_approved(model: &mut Model, now_ms: f64) -> Command<DpermEffect, Even
         chain_id: model.chain_id,
         granted_at_ms: now_ms,
     };
-    model.grants.insert(consent.origin.clone(), Some(grant.clone()));
+    model
+        .grants
+        .insert(consent.origin.clone(), Some(grant.clone()));
     model.reads_in_flight.retain(|o| o != &consent.origin);
     model.connected_addr = Some(active.clone());
 
@@ -773,7 +785,11 @@ fn settle_local(model: &mut Model, reason: DpermRejectReason, ops: &mut Vec<Dper
     }
 }
 
-fn account_switched(model: &mut Model, address: String, now_ms: f64) -> Command<DpermEffect, Event> {
+fn account_switched(
+    model: &mut Model,
+    address: String,
+    now_ms: f64,
+) -> Command<DpermEffect, Event> {
     model.active_address = Some(address.clone());
     // Only a CONNECTED main-frame origin hears about the switch — never leak
     // an address to a site that never connected, and never emit while
@@ -960,7 +976,10 @@ pub fn resolve_granted(
     if addresses.is_empty() {
         return vec![grant.address.clone()];
     }
-    if addresses.iter().any(|a| a.eq_ignore_ascii_case(&grant.address)) {
+    if addresses
+        .iter()
+        .any(|a| a.eq_ignore_ascii_case(&grant.address))
+    {
         vec![grant.address.clone()]
     } else {
         Vec::new()
@@ -970,10 +989,7 @@ pub fn resolve_granted(
 /// Whether a grant should be dropped: ONLY when the account list is known
 /// (present + non-empty) and no longer contains the granted address. Never on
 /// a cold/empty read — that would revoke every dApp on app launch.
-pub fn should_drop_grant(
-    grant: Option<&DpermGrant>,
-    current_addresses: Option<&[String]>,
-) -> bool {
+pub fn should_drop_grant(grant: Option<&DpermGrant>, current_addresses: Option<&[String]>) -> bool {
     let Some(grant) = grant else {
         return false;
     };
@@ -983,7 +999,9 @@ pub fn should_drop_grant(
     if addresses.is_empty() {
         return false;
     }
-    !addresses.iter().any(|a| a.eq_ignore_ascii_case(&grant.address))
+    !addresses
+        .iter()
+        .any(|a| a.eq_ignore_ascii_case(&grant.address))
 }
 
 // ---------------------------------------------------------------------------
@@ -1231,9 +1249,7 @@ fn parse_origin(value: &str) -> Option<(String, String, Option<u32>)> {
     let scheme = scheme.to_ascii_lowercase();
 
     // Authority: everything up to the first path/query/fragment delimiter.
-    let end = rest
-        .find(['/', '?', '#'])
-        .unwrap_or(rest.len());
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
     let authority = rest.get(..end)?;
     // Drop userinfo (`user:pass@host`).
     let host_port = authority

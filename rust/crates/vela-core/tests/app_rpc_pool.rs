@@ -110,7 +110,10 @@ fn config3(now: f64) -> Res {
             seed(PUB1, RpcSource::Public),
             seed(PUB2, RpcSource::Public),
         ],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         now,
     )
 }
@@ -365,7 +368,10 @@ fn rate_limit_signal_codes_and_messages() {
 #[test]
 fn get_logs_range_cap_vectors() {
     // Not a range error at all.
-    assert_eq!(get_logs_range_cap(&err(Some(-32000), "invalid params")), None);
+    assert_eq!(
+        get_logs_range_cap(&err(Some(-32000), "invalid params")),
+        None
+    );
     assert_eq!(
         get_logs_range_cap(&RpcErrorInfo {
             code: Some(-32000),
@@ -456,7 +462,10 @@ fn select_urls_excludes_banned_and_sorts_stable() {
         stats(PUB2, RpcSource::Public),
     ];
     let bans = vec![temp_ban(USER, T0)];
-    assert_eq!(select_urls(&endpoints, &bans, T0 + 1_000.0), vec![PUB1, PUB2]);
+    assert_eq!(
+        select_urls(&endpoints, &bans, T0 + 1_000.0),
+        vec![PUB1, PUB2]
+    );
     // An expired ban no longer excludes.
     let bans = vec![temp_ban(USER, T0 - 2.0 * HOUR)];
     assert_eq!(select_urls(&endpoints, &bans, T0), vec![USER, PUB1, PUB2]);
@@ -465,10 +474,22 @@ fn select_urls_excludes_banned_and_sorts_stable() {
 /// `getActiveBundlerBaseUrl`'s `/${chainId}/?$` suffix strip.
 #[test]
 fn strip_chain_suffix_matches_the_regex() {
-    assert_eq!(strip_chain_suffix("https://r.example/56", 56), "https://r.example");
-    assert_eq!(strip_chain_suffix("https://r.example/56/", 56), "https://r.example");
-    assert_eq!(strip_chain_suffix("https://r.example/560", 56), "https://r.example/560");
-    assert_eq!(strip_chain_suffix("https://r.example", 56), "https://r.example");
+    assert_eq!(
+        strip_chain_suffix("https://r.example/56", 56),
+        "https://r.example"
+    );
+    assert_eq!(
+        strip_chain_suffix("https://r.example/56/", 56),
+        "https://r.example"
+    );
+    assert_eq!(
+        strip_chain_suffix("https://r.example/560", 56),
+        "https://r.example/560"
+    );
+    assert_eq!(
+        strip_chain_suffix("https://r.example", 56),
+        "https://r.example"
+    );
 }
 
 // ===========================================================================
@@ -627,8 +648,19 @@ fn rate_limited_chain_is_transient_never_the_banner() {
     assert_eq!(ops, vec![rpc_post("c1", PUB1, "eth_call")]);
 
     // Pass 0: 429.
-    let ops = sut.resolve(outcome("c1", PUB1, Out::HttpError { status: 429 }, 20.0, T0 + 20.0));
-    assert_eq!(ops, vec![Op::DrawJitter { call_id: "c1".to_owned() }]);
+    let ops = sut.resolve(outcome(
+        "c1",
+        PUB1,
+        Out::HttpError { status: 429 },
+        20.0,
+        T0 + 20.0,
+    ));
+    assert_eq!(
+        ops,
+        vec![Op::DrawJitter {
+            call_id: "c1".to_owned()
+        }]
+    );
     let ops = sut.resolve(Res::Jitter {
         call_id: "c1".to_owned(),
         value: 0.5,
@@ -647,8 +679,19 @@ fn rate_limited_chain_is_transient_never_the_banner() {
     assert_eq!(ops, vec![rpc_post("c1", PUB1, "eth_call")]);
 
     // Pass 1: 429 again.
-    let ops = sut.resolve(outcome("c1", PUB1, Out::HttpError { status: 429 }, 20.0, T0 + 250.0));
-    assert_eq!(ops, vec![Op::DrawJitter { call_id: "c1".to_owned() }]);
+    let ops = sut.resolve(outcome(
+        "c1",
+        PUB1,
+        Out::HttpError { status: 429 },
+        20.0,
+        T0 + 250.0,
+    ));
+    assert_eq!(
+        ops,
+        vec![Op::DrawJitter {
+            call_id: "c1".to_owned()
+        }]
+    );
     let ops = sut.resolve(Res::Jitter {
         call_id: "c1".to_owned(),
         value: 0.5,
@@ -667,7 +710,13 @@ fn rate_limited_chain_is_transient_never_the_banner() {
     assert_eq!(ops, vec![rpc_post("c1", PUB1, "eth_call")]);
 
     // Pass 2 (final): 429 → the chain fails RATE-LIMITED.
-    let ops = sut.resolve(outcome("c1", PUB1, Out::HttpError { status: 429 }, 20.0, T0 + 700.0));
+    let ops = sut.resolve(outcome(
+        "c1",
+        PUB1,
+        Out::HttpError { status: 429 },
+        20.0,
+        T0 + 700.0,
+    ));
     assert_eq!(
         ops,
         vec![Op::Conclude {
@@ -703,8 +752,19 @@ fn final_pass_only_classification_ported_verbatim() {
     assert_eq!(ops, vec![rpc_post("c1", PUB1, "eth_call")]);
 
     for (pass_now, delay) in [(T0 + 20.0, 150), (T0 + 250.0, 300)] {
-        let ops = sut.resolve(outcome("c1", PUB1, Out::HttpError { status: 429 }, 20.0, pass_now));
-        assert_eq!(ops, vec![Op::DrawJitter { call_id: "c1".to_owned() }]);
+        let ops = sut.resolve(outcome(
+            "c1",
+            PUB1,
+            Out::HttpError { status: 429 },
+            20.0,
+            pass_now,
+        ));
+        assert_eq!(
+            ops,
+            vec![Op::DrawJitter {
+                call_id: "c1".to_owned()
+            }]
+        );
         let ops = sut.resolve(Res::Jitter {
             call_id: "c1".to_owned(),
             value: 0.5,
@@ -749,7 +809,10 @@ fn bundler_retries_once_and_never_classifies_chains() {
     // A single RPC endpoint skips the ping race and is used directly.
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(USER))]);
@@ -757,7 +820,12 @@ fn bundler_retries_once_and_never_classifies_chains() {
     let ops = sut.resolve(outcome("b1", BUSER, Out::Network, 100.0, T0 + 100.0));
     assert_eq!(ops, vec![bundler_post("b1", BRELAY, Some(USER))]);
     let ops = sut.resolve(outcome("b1", BRELAY, Out::Network, 100.0, T0 + 200.0));
-    assert_eq!(ops, vec![Op::DrawJitter { call_id: "b1".to_owned() }]);
+    assert_eq!(
+        ops,
+        vec![Op::DrawJitter {
+            call_id: "b1".to_owned()
+        }]
+    );
     let ops = sut.resolve(Res::Jitter {
         call_id: "b1".to_owned(),
         value: 0.5,
@@ -812,7 +880,13 @@ fn all_banned_pool_rescues_itself() {
     sut.dispatch(rpc_call("c1", "eth_call", T0));
     let ops = sut.resolve(config2(T0));
     assert_eq!(ops, vec![rpc_post("c1", USER, "eth_call")]);
-    let ops = sut.resolve(outcome("c1", USER, Out::HttpError { status: 401 }, 10.0, T0 + 10.0));
+    let ops = sut.resolve(outcome(
+        "c1",
+        USER,
+        Out::HttpError { status: 401 },
+        10.0,
+        T0 + 10.0,
+    ));
     assert_eq!(
         ops,
         vec![
@@ -823,14 +897,22 @@ fn all_banned_pool_rescues_itself() {
         ]
     );
     assert!(sut.resolve(Res::Persisted).is_empty());
-    let ops = sut.resolve(outcome("c1", PUB1, Out::HttpError { status: 403 }, 10.0, T0 + 20.0));
+    let ops = sut.resolve(outcome(
+        "c1",
+        PUB1,
+        Out::HttpError { status: 403 },
+        10.0,
+        T0 + 20.0,
+    ));
     assert_eq!(
         ops,
         vec![
             Op::PersistBans {
                 entries: vec![temp_ban(PUB1, T0 + 20.0), temp_ban(USER, T0 + 10.0)]
             },
-            Op::DrawJitter { call_id: "c1".to_owned() },
+            Op::DrawJitter {
+                call_id: "c1".to_owned()
+            },
         ]
     );
     assert!(sut.resolve(Res::Persisted).is_empty());
@@ -885,7 +967,10 @@ fn a_read_leg_rescue_does_not_re_admit_an_endpoint_to_the_header() {
     sut.dispatch(rpc_call("c1", "eth_call", T0));
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     assert_eq!(ops, vec![rpc_post("c1", USER, "eth_call")]);
@@ -1051,8 +1136,12 @@ fn wrong_chain_id_never_reaches_x_rpc_url() {
     // Two RPC candidates (PUB2 excluded? no — three): all race.
     assert_eq!(ops, vec![probe(USER), probe(PUB1), probe(PUB2)]);
     // USER is FAST but on the wrong chain; PUB1 slow but correct.
-    assert!(sut.resolve(probed(USER, Some(1), 10.0, T0 + 10.0)).is_empty());
-    assert!(sut.resolve(probed(PUB2, None, 3_000.0, T0 + 3_000.0)).is_empty());
+    assert!(sut
+        .resolve(probed(USER, Some(1), 10.0, T0 + 10.0))
+        .is_empty());
+    assert!(sut
+        .resolve(probed(PUB2, None, 3_000.0, T0 + 3_000.0))
+        .is_empty());
     let ops = sut.resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 3_100.0));
     assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(PUB1))]);
     let ops = sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 3_200.0));
@@ -1094,11 +1183,16 @@ fn all_wrong_chain_probes_fail_closed_ping_failures_fall_back() {
     sut.dispatch(bundler_call("b1", T0));
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
-    assert!(sut.resolve(probed(USER, Some(1), 10.0, T0 + 10.0)).is_empty());
+    assert!(sut
+        .resolve(probed(USER, Some(1), 10.0, T0 + 10.0))
+        .is_empty());
     let ops = sut.resolve(probed(PUB1, Some(137), 20.0, T0 + 20.0));
     // Both REPORTED wrong chains → header omitted entirely.
     assert_eq!(ops, vec![bundler_post("b1", BUSER, None)]);
@@ -1132,13 +1226,18 @@ fn all_wrong_chain_probes_fail_closed_ping_failures_fall_back() {
     assert!(sut
         .resolve(config(
             vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
-            vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+            vec![
+                seed(BUSER, RpcSource::User),
+                seed(BRELAY, RpcSource::Builtin)
+            ],
             T0 + 2_000.0,
         ))
         .is_empty());
     let ops = sut.dispatch(bundler_call("b3", T0 + 3_000.0));
     assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
-    assert!(sut.resolve(probed(USER, None, 3_000.0, T0 + 6_000.0)).is_empty());
+    assert!(sut
+        .resolve(probed(USER, None, 3_000.0, T0 + 6_000.0))
+        .is_empty());
     let ops = sut.resolve(probed(PUB1, None, 3_000.0, T0 + 6_100.0));
     assert_eq!(ops, vec![bundler_post("b3", BUSER, Some(USER))]);
 }
@@ -1335,7 +1434,10 @@ fn an_all_banned_pool_sends_no_x_rpc_url_rather_than_resurrect_one() {
     sut.dispatch(bundler_call("b1", T0));
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     // No eligible endpoint, so no header. The single-candidate exit is phrased
@@ -1375,12 +1477,17 @@ fn a_ban_learned_mid_call_changes_the_header_on_the_very_next_post() {
     sut.dispatch(bundler_call("b1", T0));
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
     // USER wins the race fairly, on this chain, and rides the first POST.
-    assert!(sut.resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 900.0)).is_empty());
+    assert!(sut
+        .resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 900.0))
+        .is_empty());
     let ops = sut.resolve(probed(USER, Some(CHAIN), 10.0, T0 + 910.0));
     assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(USER))]);
 
@@ -1427,7 +1534,10 @@ fn a_header_with_no_eligible_replacement_is_dropped_not_kept() {
     sut.dispatch(bundler_call("b1", T0));
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     // A lone candidate needs no race.
@@ -1448,7 +1558,9 @@ fn a_header_with_no_eligible_replacement_is_dropped_not_kept() {
             Op::PersistBans {
                 entries: vec![temp_ban(USER, T0 + 110.0)]
             },
-            Op::DrawJitter { call_id: "c1".to_owned() },
+            Op::DrawJitter {
+                call_id: "c1".to_owned()
+            },
         ]
     );
     assert!(sut.resolve(Res::Persisted).is_empty());
@@ -1478,12 +1590,17 @@ fn a_lone_surviving_candidate_is_still_refused_when_it_proved_another_chain() {
     sut.dispatch(bundler_call("b1", T0));
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User), seed(PUB1, RpcSource::Public)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
     // USER reports chain 999; PUB1 is correct and wins.
-    assert!(sut.resolve(probed(USER, Some(999), 10.0, T0 + 10.0)).is_empty());
+    assert!(sut
+        .resolve(probed(USER, Some(999), 10.0, T0 + 10.0))
+        .is_empty());
     let ops = sut.resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 900.0));
     assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(PUB1))]);
     let ops = sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 1_000.0));
@@ -1498,7 +1615,10 @@ fn a_lone_surviving_candidate_is_still_refused_when_it_proved_another_chain() {
     assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         later,
     ));
 
@@ -1525,7 +1645,10 @@ fn a_lone_surviving_candidate_is_still_refused_when_it_proved_another_chain() {
     assert!(sut
         .resolve(config(
             vec![seed(USER, RpcSource::User)],
-            vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+            vec![
+                seed(BUSER, RpcSource::User),
+                seed(BRELAY, RpcSource::Builtin)
+            ],
             later + 300.0,
         ))
         .is_empty());
@@ -1543,7 +1666,10 @@ fn account_info_and_sponsor_use_the_submitting_bundler() {
     sut.dispatch(bundler_call("b1", T0));
     let ops = sut.resolve(config(
         vec![seed(USER, RpcSource::User)],
-        vec![seed(BUSER, RpcSource::User), seed(BRELAY, RpcSource::Builtin)],
+        vec![
+            seed(BUSER, RpcSource::User),
+            seed(BRELAY, RpcSource::Builtin),
+        ],
         T0,
     ));
     assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(USER))]);
@@ -1570,7 +1696,13 @@ fn account_info_and_sponsor_use_the_submitting_bundler() {
 
     // Ban the top bundler; submission moves to the relay…
     sut.dispatch(bundler_call("b2", T0 + 2_000.0));
-    let ops = sut.resolve(outcome("b2", BUSER, Out::HttpError { status: 401 }, 40.0, T0 + 2_050.0));
+    let ops = sut.resolve(outcome(
+        "b2",
+        BUSER,
+        Out::HttpError { status: 401 },
+        40.0,
+        T0 + 2_050.0,
+    ));
     assert_eq!(
         ops,
         vec![
@@ -1605,14 +1737,25 @@ fn account_info_and_sponsor_use_the_submitting_bundler() {
     // With every bundler banned the base is None — the shell uses the
     // built-in URL, exactly `getActiveBundlerBaseUrl`'s fallback.
     sut.dispatch(bundler_call("b3", T0 + 4_000.0));
-    let ops = sut.resolve(outcome("b3", BRELAY, Out::HttpError { status: 403 }, 40.0, T0 + 4_050.0));
+    let ops = sut.resolve(outcome(
+        "b3",
+        BRELAY,
+        Out::HttpError { status: 403 },
+        40.0,
+        T0 + 4_050.0,
+    ));
     assert_eq!(
         ops,
         vec![
             Op::PersistBans {
-                entries: vec![temp_ban(BUSER, T0 + 2_050.0), temp_ban(BRELAY, T0 + 4_050.0)]
+                entries: vec![
+                    temp_ban(BUSER, T0 + 2_050.0),
+                    temp_ban(BRELAY, T0 + 4_050.0)
+                ]
             },
-            Op::DrawJitter { call_id: "b3".to_owned() },
+            Op::DrawJitter {
+                call_id: "b3".to_owned()
+            },
         ]
     );
     assert!(sut.resolve(Res::Persisted).is_empty());
@@ -1695,7 +1838,13 @@ fn best_rpc_url_follows_the_pool_ranking_not_collection_order() {
     let at = T0 + 40_000.0;
     let ops = sut.dispatch(rpc_call("f2", "eth_call", at));
     assert_eq!(ops, vec![rpc_post("f2", USER, "eth_call")]);
-    let ops = sut.resolve(outcome("f2", USER, Out::HttpError { status: 401 }, 10.0, at + 10.0));
+    let ops = sut.resolve(outcome(
+        "f2",
+        USER,
+        Out::HttpError { status: 401 },
+        10.0,
+        at + 10.0,
+    ));
     assert_eq!(
         ops,
         vec![
@@ -1736,9 +1885,13 @@ fn best_rpc_url_excludes_a_proven_wrong_chain_endpoint() {
     let ops = sut.resolve(config3(T0));
     assert_eq!(ops, vec![probe(USER), probe(PUB1), probe(PUB2)]);
     // USER is top-ranked AND fast — and on chain 1, not 56.
-    assert!(sut.resolve(probed(USER, Some(1), 10.0, T0 + 10.0)).is_empty());
+    assert!(sut
+        .resolve(probed(USER, Some(1), 10.0, T0 + 10.0))
+        .is_empty());
     // PUB2 merely times out: unverified, never condemned.
-    assert!(sut.resolve(probed(PUB2, None, 3_000.0, T0 + 3_000.0)).is_empty());
+    assert!(sut
+        .resolve(probed(PUB2, None, 3_000.0, T0 + 3_000.0))
+        .is_empty());
     let ops = sut.resolve(probed(PUB1, Some(CHAIN), 900.0, T0 + 3_100.0));
     assert_eq!(ops, vec![bundler_post("b1", BUSER, Some(PUB1))]);
     sut.resolve(outcome("b1", BUSER, ok(), 80.0, T0 + 3_200.0));
@@ -1772,7 +1925,9 @@ fn best_rpc_url_is_none_when_every_candidate_proved_wrong_chain() {
         T0,
     ));
     assert_eq!(ops, vec![probe(USER), probe(PUB1)]);
-    assert!(sut.resolve(probed(USER, Some(1), 10.0, T0 + 10.0)).is_empty());
+    assert!(sut
+        .resolve(probed(USER, Some(1), 10.0, T0 + 10.0))
+        .is_empty());
     let ops = sut.resolve(probed(PUB1, Some(137), 20.0, T0 + 20.0));
     assert_eq!(ops, vec![bundler_post("b1", BRELAY, None)]);
     sut.resolve(outcome("b1", BRELAY, ok(), 50.0, T0 + 100.0));
@@ -1900,7 +2055,9 @@ fn permanent_rate_limit_signal_classifies_final_pass() {
             Op::PersistBans {
                 entries: vec![temp_ban(PUB1, T0 + 30.0)]
             },
-            Op::DrawJitter { call_id: "c1".to_owned() },
+            Op::DrawJitter {
+                call_id: "c1".to_owned()
+            },
         ]
     );
     assert!(sut.resolve(Res::Persisted).is_empty());
@@ -1935,7 +2092,9 @@ fn permanent_rate_limit_signal_classifies_final_pass() {
             Op::PersistBans {
                 entries: vec![temp_ban(PUB1, T0 + 400.0)]
             },
-            Op::DrawJitter { call_id: "c1".to_owned() },
+            Op::DrawJitter {
+                call_id: "c1".to_owned()
+            },
         ]
     );
     assert!(sut.resolve(Res::Persisted).is_empty());
@@ -1996,7 +2155,9 @@ fn persisted_bans_load_once_and_prune_expired() {
         })
         .is_empty());
     // A duplicate load is ignored (`banLoaded`).
-    assert!(sut.dispatch(Event::BansLoaded { entries: vec![] }).is_empty());
+    assert!(sut
+        .dispatch(Event::BansLoaded { entries: vec![] })
+        .is_empty());
 
     let ops = sut.dispatch(rpc_call("c1", "eth_call", T0));
     assert_eq!(ops, vec![Op::LoadPoolConfig { chain_id: CHAIN }]);
@@ -2035,7 +2196,9 @@ fn stale_results_are_dropped_by_construction() {
     assert!(sut.resolve(config3(T0 + 2_000.0)).is_empty());
 
     // A duplicate call id: dropped outright (fail-closed).
-    assert!(sut.dispatch(rpc_call("c2", "eth_call", T0 + 2_500.0)).is_empty());
+    assert!(sut
+        .dispatch(rpc_call("c2", "eth_call", T0 + 2_500.0))
+        .is_empty());
 
     // The machine still routes fresh work.
     let ops = sut.dispatch(rpc_call("c3", "eth_call", T0 + 3_000.0));

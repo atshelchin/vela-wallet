@@ -134,7 +134,9 @@ fn restore_result_order_does_not_matter() {
 fn empty_storage_lands_empty() {
     let mut sut = Sut::new();
     sut.dispatch(Event::Boot);
-    assert!(sut.resolve(Res::AccountsLoaded { accounts: vec![] }).is_empty());
+    assert!(sut
+        .resolve(Res::AccountsLoaded { accounts: vec![] })
+        .is_empty());
     let ops = sut.resolve(Res::ActiveIndexLoaded { index: 3 });
     assert!(ops.is_empty(), "no index persist for an empty wallet");
     let view = sut.view();
@@ -266,10 +268,20 @@ fn migration_failure_keeps_the_old_address_without_blocking_others() {
     }
     let view = sut.view();
     assert_eq!(view.accounts.len(), 3, "nothing was dropped");
-    assert_eq!(view.accounts[0].account.address, ADDR_A, "failed compute keeps the old address");
+    assert_eq!(
+        view.accounts[0].account.address, ADDR_A,
+        "failed compute keeps the old address"
+    );
     assert_eq!(view.accounts[1].account.address, correct_address());
-    assert_eq!(view.accounts[2].account.address, ADDR_C, "keyless record untouched");
-    assert_eq!(view.allowed_route, SessionRoute::Wallet, "restore completed");
+    assert_eq!(
+        view.accounts[2].account.address, ADDR_C,
+        "keyless record untouched"
+    );
+    assert_eq!(
+        view.allowed_route,
+        SessionRoute::Wallet,
+        "restore completed"
+    );
 }
 
 /// A record whose address already matches is not rewritten — no write, no
@@ -464,8 +476,13 @@ fn sign_out_warns_when_uploads_are_pending() {
     let mut sut = active_pair();
     let ops = sut.dispatch(Event::SignOut);
     assert_eq!(ops, vec![Op::CheckPendingUploads]);
-    assert!(sut.view().sign_out.is_none(), "the dialog waits for the check");
-    assert!(sut.resolve(Res::PendingUploads { has_pending: true }).is_empty());
+    assert!(
+        sut.view().sign_out.is_none(),
+        "the dialog waits for the check"
+    );
+    assert!(sut
+        .resolve(Res::PendingUploads { has_pending: true })
+        .is_empty());
     let view = sut.view();
     assert_eq!(
         view.sign_out.map(|s| s.pending_upload_warning),
@@ -551,7 +568,10 @@ fn sign_out_is_single_flight() {
     assert_eq!(sut.dispatch(Event::SignOut), vec![Op::CheckPendingUploads]);
     assert!(sut.dispatch(Event::SignOut).is_empty(), "check in flight");
     sut.resolve(Res::PendingUploads { has_pending: false });
-    assert!(sut.dispatch(Event::SignOut).is_empty(), "dialog already open");
+    assert!(
+        sut.dispatch(Event::SignOut).is_empty(),
+        "dialog already open"
+    );
 }
 
 /// Sign-out is a settings action — it needs a signed-in session.
@@ -632,6 +652,8 @@ fn mispaired_results_are_inert() {
     let mut sut = active_pair();
     sut.dispatch(Event::SwitchAccount { index: 1 }); // SaveActiveIndex outstanding
     let before = sut.view();
-    assert!(sut.resolve(Res::PendingUploads { has_pending: true }).is_empty());
+    assert!(sut
+        .resolve(Res::PendingUploads { has_pending: true })
+        .is_empty());
     assert_eq!(sut.view(), before, "no dialog from an unrequested answer");
 }

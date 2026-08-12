@@ -277,7 +277,10 @@ fn attestation_at_ttl_expires_but_raw_timestamp_survives() {
     let ts = T0 - UL_TTL_MS;
     let snapshot = written(sut.resolve(attestation(ts, T0)));
     assert!(!snapshot.ul_verified, "exactly-TTL is expired");
-    assert_eq!(snapshot.ul_verified_at_ms, ts, "raw ts survives the verdict");
+    assert_eq!(
+        snapshot.ul_verified_at_ms, ts,
+        "raw ts survives the verdict"
+    );
 }
 
 /// A FUTURE timestamp is not fresh (`now - ts >= 0` guard): a rolled-back

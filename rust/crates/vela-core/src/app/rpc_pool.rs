@@ -391,8 +391,14 @@ pub enum RpcShellResult {
         latency_ms: f64,
         now_ms: f64,
     },
-    Jitter { call_id: String, value: f64 },
-    BackoffElapsed { call_id: String, now_ms: f64 },
+    Jitter {
+        call_id: String,
+        value: f64,
+    },
+    BackoffElapsed {
+        call_id: String,
+        now_ms: f64,
+    },
     Persisted,
     Concluded,
 }
@@ -464,7 +470,10 @@ pub enum Event {
     /// result names its call/chain/url and is dropped when they no longer
     /// match.
     #[serde(skip)]
-    ShellCompleted { attempt: u64, result: RpcShellResult },
+    ShellCompleted {
+        attempt: u64,
+        result: RpcShellResult,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -570,7 +579,11 @@ pub fn qualifies_for_perma_ban(total_calls: u64, total_failures: u64) -> bool {
 /// shell fast path can take the URL order for the same stats snapshot the
 /// machine holds. The sort is stable: equal scores keep collection order,
 /// which is the cold-start source-priority tiebreak.
-pub fn select_urls(endpoints: &[RpcEndpointStats], bans: &[RpcBanEntry], now_ms: f64) -> Vec<String> {
+pub fn select_urls(
+    endpoints: &[RpcEndpointStats],
+    bans: &[RpcBanEntry],
+    now_ms: f64,
+) -> Vec<String> {
     let mut eligible: Vec<&RpcEndpointStats> = endpoints
         .iter()
         .filter(|ep| {
@@ -806,13 +819,16 @@ impl ChainPool {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(clippy::enum_variant_names)] // every variant is one kind of waiting — that is the state
 enum SessionState {
     /// Queued behind a pool load.
     WaitingPool,
     /// A bundler call waiting on the fastest-RPC ping race.
     WaitingProbe,
     /// One endpoint attempt in flight.
-    WaitingPost { url: String },
+    WaitingPost {
+        url: String,
+    },
     WaitingJitter,
     WaitingBackoff,
 }
@@ -978,7 +994,12 @@ impl App for RpcPool {
                 call_id,
                 chain_id,
                 now_ms,
-            } => ensure_pool_then(model, chain_id, PendingWork::Base { call_id, chain_id }, now_ms),
+            } => ensure_pool_then(
+                model,
+                chain_id,
+                PendingWork::Base { call_id, chain_id },
+                now_ms,
+            ),
             Event::BestRpcUrlRequested {
                 call_id,
                 chain_id,
@@ -1380,9 +1401,7 @@ fn handle_probe(
         // `rpc-pool.ts:689-692`). Fallback winners are not cached, as in TS.
         race.ranked
             .iter()
-            .find(|candidate| {
-                !race.wrong_chain.contains(*candidate) && is_eligible(candidate)
-            })
+            .find(|candidate| !race.wrong_chain.contains(*candidate) && is_eligible(candidate))
             .cloned()
     } else {
         // Lowest latency wins; ties keep arrival order (the TS stable sort).
@@ -1558,7 +1577,7 @@ fn revalidated_x_rpc_url(
 ) -> Option<String> {
     let held = model.calls.get(call_id)?.x_rpc_url.clone()?;
     let eligible = bundler_eligible_urls(model, chain_id, now_ms);
-    let next = if eligible.iter().any(|candidate| *candidate == held) {
+    let next = if eligible.contains(&held) {
         Some(held)
     } else {
         eligible.into_iter().next()
@@ -1717,7 +1736,9 @@ fn handle_outcome(
                 classify_response_error(&error)
             }
         }
-        RpcTransportOutcome::HttpError { status: 401 | 403 | 404 } => Route::Ban {
+        RpcTransportOutcome::HttpError {
+            status: 401 | 403 | 404,
+        } => Route::Ban {
             // The HttpBanError catch never feeds `sawRateLimit` (ported).
             rate_limit_signal: false,
         },
@@ -1884,7 +1905,11 @@ fn answer_bundler_base(
         model
             .pools
             .get(&chain_id)
-            .and_then(|pool| select_urls(pool.list(RpcKind::Bundler), &bans, now_ms).into_iter().next())
+            .and_then(|pool| {
+                select_urls(pool.list(RpcKind::Bundler), &bans, now_ms)
+                    .into_iter()
+                    .next()
+            })
             .map(|url| strip_chain_suffix(&url, chain_id))
     };
     request(

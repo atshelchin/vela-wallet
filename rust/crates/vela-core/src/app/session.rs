@@ -410,11 +410,11 @@ impl App for Session {
                 // Empty and SignedOut: never linger on a funds surface.
                 _ => SessionRoute::Onboarding,
             },
-            sign_out: model.sign_out_warning.map(|pending_upload_warning| {
-                SessionSignOutView {
+            sign_out: model
+                .sign_out_warning
+                .map(|pending_upload_warning| SessionSignOutView {
                     pending_upload_warning,
-                }
-            }),
+                }),
         }
     }
 }
@@ -482,7 +482,11 @@ fn establish(model: &mut Model, mode: CompletionMode) -> Command<SessionEffect, 
             let has_wallet = !accounts.is_empty();
             model.accounts = accounts;
             model.active_index = index;
-            model.phase = if has_wallet { Phase::Active } else { Phase::Empty };
+            model.phase = if has_wallet {
+                Phase::Active
+            } else {
+                Phase::Empty
+            };
             if has_wallet {
                 requests(model, vec![SessionOperation::SaveActiveIndex { index }])
             } else {
@@ -637,10 +641,7 @@ fn try_finish_restore(model: &mut Model) -> Command<SessionEffect, Event> {
 // ---------------------------------------------------------------------------
 
 /// Issue operations whose answers must match the current attempt.
-fn requests(
-    model: &Model,
-    operations: Vec<SessionOperation>,
-) -> Command<SessionEffect, Event> {
+fn requests(model: &Model, operations: Vec<SessionOperation>) -> Command<SessionEffect, Event> {
     let attempt = model.attempt;
     let mut commands: Vec<Command<SessionEffect, Event>> = operations
         .into_iter()

@@ -379,7 +379,11 @@ fn parse_web_origin(url: &str) -> Option<(String, String)> {
             None => return None,
         };
         let inner = host.get(1..host.len() - 1)?;
-        if inner.is_empty() || !inner.bytes().all(|b| b.is_ascii_hexdigit() || b == b':' || b == b'.') {
+        if inner.is_empty()
+            || !inner
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() || b == b':' || b == b'.')
+        {
             return None;
         }
         (host, port)
@@ -403,7 +407,7 @@ fn parse_web_origin(url: &str) -> Option<(String, String)> {
 
     let host = match port {
         None => host_lc,
-        Some(p) if p.is_empty() => host_lc, // `https://x.io:` — valid, portless
+        Some("") => host_lc, // `https://x.io:` — valid, portless
         Some(p) => {
             if !p.bytes().all(|b| b.is_ascii_digit()) {
                 return None;

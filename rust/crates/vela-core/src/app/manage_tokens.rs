@@ -164,17 +164,23 @@ pub enum MtokShellResult {
         address: String,
         meta: Option<MtokTokenMeta>,
     },
-    CustomTokensLoaded { tokens: Vec<MtokCustomToken> },
+    CustomTokensLoaded {
+        tokens: Vec<MtokCustomToken>,
+    },
     Saved,
     /// `saveCustomToken` threw — the `showAlert(errorSaveToken)` branch
     /// (`AddTokenPanel.tsx:213-214`).
     SaveFailed,
     /// `id` rides along so the answer correlates with the row it removes.
-    Removed { id: String },
+    Removed {
+        id: String,
+    },
     /// `removeCustomToken` threw. TS has NO handler here
     /// (`AddTokenPanel.tsx:82-87` — the rejection is unhandled and none of
     /// the follow-ups run), so the port fails closed: the row stays.
-    RemoveFailed { id: String },
+    RemoveFailed {
+        id: String,
+    },
     /// Cache-invalidation acknowledged. Never changes state.
     CacheInvalidated,
 }
@@ -510,10 +516,9 @@ fn accept(model: &mut Model, result: MtokShellResult) -> Command<MtokEffect, Eve
             }
             // Admission (invariant ②): a missing name or symbol is a miss no
             // matter what the shell sent — the one gate for `!name || !symbol`.
-            model.detection.insert(
-                chain_id,
-                meta.filter(admissible_erc20_meta),
-            );
+            model
+                .detection
+                .insert(chain_id, meta.filter(admissible_erc20_meta));
             if model.pending_probes.is_empty() {
                 model.detect_in_flight = false;
                 if model.detection.values().all(Option::is_none) {
@@ -542,7 +547,9 @@ fn accept(model: &mut Model, result: MtokShellResult) -> Command<MtokEffect, Eve
                 model.save_phase = SavePhase::Idle;
                 return render();
             }
-            model.save_phase = SavePhase::Writing { token: token.clone() };
+            model.save_phase = SavePhase::Writing {
+                token: token.clone(),
+            };
             request(model, MtokOperation::WriteCustomToken { token })
         }
 
@@ -552,7 +559,9 @@ fn accept(model: &mut Model, result: MtokShellResult) -> Command<MtokEffect, Eve
             };
             model.added_token_ids.insert(token.id.clone());
             // Mirror the storage semantics: replace-by-id, then append.
-            model.custom_tokens.retain(|existing| existing.id != token.id);
+            model
+                .custom_tokens
+                .retain(|existing| existing.id != token.id);
             model.custom_tokens.push(token);
             // Invariant ③ — the picker must see the token NOW, not after
             // the 5-minute fetchTokens TTL.

@@ -20,9 +20,9 @@
 //! catalog (names/symbols), formatting, and the storage key — the core only
 //! decides what may be paired, persisted and shown.
 
-use crux_core::{render::render, render::RenderOperation, App, Command};
 use crux_core::capability::Operation;
 use crux_core::macros::effect;
+use crux_core::{render::render, render::RenderOperation, App, Command};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "bindings")]
@@ -125,13 +125,20 @@ enum Phase {
     LoadingStored,
     /// Pricing a KNOWN preference. Unpriceable commits `{code, None}` — the
     /// currency still shows, but nothing may convert with it.
-    ResolvingDisplay { code: String },
+    ResolvingDisplay {
+        code: String,
+    },
     ReadingDevice,
     /// Pricing a seed CANDIDATE. Strict: no rate, no seed.
-    ResolvingSeed { candidate: String },
+    ResolvingSeed {
+        candidate: String,
+    },
     /// The seed's rate resolved; re-read storage because the user may have
     /// picked a currency during the fetch. Their choice wins.
-    RecheckingStored { candidate: String, rate: f64 },
+    RecheckingStored {
+        candidate: String,
+        rate: f64,
+    },
 }
 
 #[derive(Default)]
@@ -285,9 +292,10 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
         //
         // The `code == priced` guard is the other half: a rate only ever
         // labels the currency it was fetched for.
-        (Phase::ResolvingDisplay { code }, CurrencyShellResult::RateResolved { code: priced, rate })
-            if *code == priced =>
-        {
+        (
+            Phase::ResolvingDisplay { code },
+            CurrencyShellResult::RateResolved { code: priced, rate },
+        ) if *code == priced => {
             let code = code.clone();
             // A source answering 0 or a negative number has not priced
             // anything — same refusal as unknown, not a multiplier.
@@ -352,10 +360,7 @@ fn accept(model: &mut Model, result: CurrencyShellResult) -> Command<CurrencyEff
                 render(),
             ])
         }
-        (
-            Phase::RecheckingStored { .. },
-            CurrencyShellResult::StoredCode { code: Some(code) },
-        ) => {
+        (Phase::RecheckingStored { .. }, CurrencyShellResult::StoredCode { code: Some(code) }) => {
             // The user chose during the seed's rate fetch. Their pick wins;
             // the seed is NOT persisted. Price their choice instead.
             model.phase = Phase::ResolvingDisplay { code: code.clone() };

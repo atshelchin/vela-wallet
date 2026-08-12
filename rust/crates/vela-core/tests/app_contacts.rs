@@ -244,7 +244,10 @@ fn stale_results_from_a_previous_account_are_dropped() {
         groups: vec![],
     });
     assert!(ops.is_empty());
-    assert!(!sut.view().loaded, "a stale store read must not load the book");
+    assert!(
+        !sut.view().loaded,
+        "a stale store read must not load the book"
+    );
     sut.resolve(Res::HistoryLoaded {
         txs: vec![send(A, 100.0)],
     });
@@ -469,10 +472,8 @@ fn deleted_recipient_never_resurrects_without_new_interaction() {
     });
     assert_eq!(ops.len(), 2, "contacts + tombstones both persist");
     assert!(matches!(&ops[0], Op::WriteContacts { contacts } if contacts.is_empty()));
-    assert!(
-        matches!(&ops[1], Op::WriteDismissed { tombstones }
-            if tombstones.len() == 1 && tombstones[0].address == A && tombstones[0].dismissed_at_ms == 1_000.0)
-    );
+    assert!(matches!(&ops[1], Op::WriteDismissed { tombstones }
+            if tombstones.len() == 1 && tombstones[0].address == A && tombstones[0].dismissed_at_ms == 1_000.0));
     ack_writes(&mut sut, 2);
     assert!(
         sut.view().contacts.is_empty(),
@@ -544,7 +545,11 @@ fn save_is_idempotent_on_lowercased_address() {
         input: save_input(&A.to_uppercase().replace("0X", "0x"), Some("Alice")),
         now_ms: 1_000.0,
     });
-    assert_eq!(ops.len(), 1, "no tombstone to clear, only the contacts write");
+    assert_eq!(
+        ops.len(),
+        1,
+        "no tombstone to clear, only the contacts write"
+    );
     ack_writes(&mut sut, 1);
     let view = sut.view();
     assert_eq!(addresses(&view), vec![A.to_owned()]);
@@ -644,7 +649,11 @@ fn group_members_are_normalized_lowercased_deduped_valid_only() {
         .iter()
         .map(|c| c.address.as_str())
         .collect();
-    assert_eq!(members, vec![A, B], "upper-cased dup dropped, invalid dropped");
+    assert_eq!(
+        members,
+        vec![A, B],
+        "upper-cased dup dropped, invalid dropped"
+    );
 }
 
 /// Invariant ⑥ — ids derive from the max persisted suffix, never a clock or a
@@ -657,8 +666,8 @@ fn group_ids_are_deterministic_and_never_collide_across_cold_reload() {
         vec![],
         vec![
             group("grp_9", "Nine", &[]),
-            group("custom", "X", &[]),   // parseInt('custom') → NaN, ignored
-            group("grp_3x", "Y", &[]),   // parseInt('3x') → 3
+            group("custom", "X", &[]), // parseInt('custom') → NaN, ignored
+            group("grp_3x", "Y", &[]), // parseInt('3x') → 3
         ],
         vec![],
     );
@@ -785,7 +794,11 @@ fn deleting_a_contact_cascades_out_of_every_group() {
     let payroll = &view.groups[0];
     let friends = &view.groups[1];
     assert_eq!(
-        payroll.members.iter().map(|c| c.address.as_str()).collect::<Vec<_>>(),
+        payroll
+            .members
+            .iter()
+            .map(|c| c.address.as_str())
+            .collect::<Vec<_>>(),
         vec![B]
     );
     assert!(friends.members.is_empty(), "empty, never dangling");
@@ -849,7 +862,11 @@ fn import_is_existing_wins_never_overwrites_local() {
         groups: vec![],
         now_ms: 2_000.0,
     });
-    assert_eq!(ops.len(), 1, "one contacts write, no group/tombstone writes");
+    assert_eq!(
+        ops.len(),
+        1,
+        "one contacts write, no group/tombstone writes"
+    );
     ack_writes(&mut sut, 1);
 
     let view = sut.view();
@@ -1103,7 +1120,11 @@ fn eip7702_delegated_eoa_is_never_badged_contract() {
         code: Some(delegation),
     });
     let recipient = sut.view().recipient.expect("recipient projected");
-    assert_eq!(recipient.is_contract, Some(false), "a wallet, not a contract");
+    assert_eq!(
+        recipient.is_contract,
+        Some(false),
+        "a wallet, not a contract"
+    );
     assert_eq!(
         recipient.kind,
         ContactKind::Account,
@@ -1236,7 +1257,12 @@ fn only_positive_identity_resolutions_are_cached() {
 /// identity and the adoption is persisted, so the picker shows the real name.
 #[test]
 fn identity_write_back_names_a_saved_unnamed_contact() {
-    let mut sut = booted(vec![manual(A, None, false, 1_000.0)], vec![], vec![], vec![]);
+    let mut sut = booted(
+        vec![manual(A, None, false, 1_000.0)],
+        vec![],
+        vec![],
+        vec![],
+    );
     sut.dispatch(Event::InspectRecipient {
         chain_id: 1,
         address: A.to_owned(),
@@ -1386,7 +1412,10 @@ fn sort_ties_break_on_display_name_then_address() {
         manual(C, None, false, 100.0), // no name → empty display name first
     ]);
     let names: Vec<String> = sorted.iter().map(contact_display_name).collect();
-    assert_eq!(names, vec![String::new(), "Alice".to_owned(), "bob".to_owned()]);
+    assert_eq!(
+        names,
+        vec![String::new(), "Alice".to_owned(), "bob".to_owned()]
+    );
 }
 
 /// contacts.ts:461-469.

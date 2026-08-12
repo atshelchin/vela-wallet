@@ -20,9 +20,9 @@
 //! validator share the one implementation so encode and display cannot
 //! diverge (FR-012).
 
-use crux_core::{render::render, render::RenderOperation, App, Command};
 use crux_core::capability::Operation;
 use crux_core::macros::effect;
+use crux_core::{render::render, render::RenderOperation, App, Command};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "bindings")]
@@ -34,7 +34,11 @@ use ts_rs::TS;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "PaymentRequestOperation"))]
+#[cfg_attr(
+    feature = "bindings",
+    derive(TS),
+    ts(rename = "PaymentRequestOperation")
+)]
 pub enum PaymentRequestOperation {
     /// Read `vela.receiveWarned.{account}`. A read error answers `false`
     /// (show the gate), exactly as the screen's `.catch` does today.
@@ -45,7 +49,11 @@ pub enum PaymentRequestOperation {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "PaymentRequestShellResult"))]
+#[cfg_attr(
+    feature = "bindings",
+    derive(TS),
+    ts(rename = "PaymentRequestShellResult")
+)]
 pub enum PaymentRequestShellResult {
     AckFlag { acknowledged: bool },
     AckWritten,
@@ -138,7 +146,9 @@ pub enum Event {
         recipient: String,
         base_url: String,
     },
-    ModeChanged { mode: Mode },
+    ModeChanged {
+        mode: Mode,
+    },
     /// A pick re-clamps the amount to the new asset's precision.
     AssetPicked {
         chain_id: u32,
@@ -149,7 +159,9 @@ pub enum Event {
     },
     /// Input already dot-normalized by the shell (`parseLocaleNumber`); the
     /// core applies the sanitize rules.
-    AmountChanged { text: String },
+    AmountChanged {
+        text: String,
+    },
     /// The warning gate's confirm button.
     Acknowledge,
     /// `/pay` landing-page session: the raw query, entirely untrusted.
@@ -427,7 +439,10 @@ pub(crate) fn sanitize_amount(text: &str, max_decimals: u32) -> String {
 /// non-zero digit in the numeric prefix?
 fn has_positive_amount(amount: &str) -> bool {
     let (int_part, frac) = amount.split_once('.').unwrap_or((amount, ""));
-    int_part.bytes().chain(frac.bytes()).any(|b| (b'1'..=b'9').contains(&b))
+    int_part
+        .bytes()
+        .chain(frac.bytes())
+        .any(|b| (b'1'..=b'9').contains(&b))
 }
 
 /// Human decimal → base units, by string shifting (no floats, no overflow).
@@ -520,7 +535,17 @@ fn encode_uri_component(s: &str) -> String {
     let mut buf = [0u8; 4];
     for c in s.chars() {
         match c {
-            'A'..='Z' | 'a'..='z' | '0'..='9' | '-' | '_' | '.' | '!' | '~' | '*' | '\'' | '('
+            'A'..='Z'
+            | 'a'..='z'
+            | '0'..='9'
+            | '-'
+            | '_'
+            | '.'
+            | '!'
+            | '~'
+            | '*'
+            | '\''
+            | '('
             | ')' => out.push(c),
             _ => {
                 for byte in c.encode_utf8(&mut buf).as_bytes() {
@@ -538,9 +563,7 @@ fn encode_uri_component(s: &str) -> String {
 
 fn is_hex_address(s: &str) -> bool {
     let s = s.trim();
-    s.len() == 42
-        && s.starts_with("0x")
-        && s[2..].bytes().all(|b| b.is_ascii_hexdigit())
+    s.len() == 42 && s.starts_with("0x") && s[2..].bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 /// Plain non-negative decimal with at most `decimals` fractional digits.
@@ -598,11 +621,9 @@ fn validate_pay_query(
         .filter(|d| *d != 0)
         .unwrap_or(18);
 
-    let token_address = Some(token.unwrap_or_default().trim().to_owned())
-        .filter(|t| !t.is_empty());
+    let token_address = Some(token.unwrap_or_default().trim().to_owned()).filter(|t| !t.is_empty());
 
-    let amount = Some(amount.unwrap_or_default().trim().to_owned())
-        .filter(|a| !a.is_empty());
+    let amount = Some(amount.unwrap_or_default().trim().to_owned()).filter(|a| !a.is_empty());
     if let Some(a) = &amount {
         if !is_strict_amount(a, decimals) {
             return PayParse::Invalid;

@@ -23,9 +23,9 @@
 //! shell owns timers, the actual token fetch, and every piece of formatting
 //! (amounts, USD, the entry's local time — the core emits epoch ms).
 
-use crux_core::{render::render, render::RenderOperation, App, Command};
 use crux_core::capability::Operation;
 use crux_core::macros::effect;
+use crux_core::{render::render, render::RenderOperation, App, Command};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "bindings")]
@@ -71,7 +71,11 @@ pub enum ReceiveWatchOperation {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-#[cfg_attr(feature = "bindings", derive(TS), ts(rename = "ReceiveWatchShellResult"))]
+#[cfg_attr(
+    feature = "bindings",
+    derive(TS),
+    ts(rename = "ReceiveWatchShellResult")
+)]
 pub enum ReceiveWatchShellResult {
     /// `now_ms` rides on the result (the 011 `now_iso` pattern) so the core
     /// stays a pure function of its inputs.
@@ -79,10 +83,14 @@ pub enum ReceiveWatchShellResult {
         tokens: Vec<TokenSnapshot>,
         now_ms: f64,
     },
-    FetchFailed { now_ms: f64 },
+    FetchFailed {
+        now_ms: f64,
+    },
     /// The app was backgrounded when the tick fired.
     Inactive,
-    Waited { now_ms: f64 },
+    Waited {
+        now_ms: f64,
+    },
     Signalled,
 }
 

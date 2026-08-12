@@ -95,16 +95,40 @@ use ts_rs::TS;
 /// (or the P256 precompile) can accept deposits the wallet can never sign out
 /// of — invariant ②.
 pub const REQUIRED_CONTRACTS: [(&str, &str); 11] = [
-    ("Deterministic Deployment Proxy", "0x4e59b44847b379578588920cA78FbF26c0B4956C"),
-    ("Safe Singleton Factory", "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7"),
+    (
+        "Deterministic Deployment Proxy",
+        "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    ),
+    (
+        "Safe Singleton Factory",
+        "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7",
+    ),
     ("Multicall3", "0xcA11bde05977b3631167028862bE2a173976CA11"),
-    ("EntryPoint v0.7", "0x0000000071727De22E5E9d8BAf0edAc6f37da032"),
+    (
+        "EntryPoint v0.7",
+        "0x0000000071727De22E5E9d8BAf0edAc6f37da032",
+    ),
     ("Safe L2", "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762"),
-    ("Safe Proxy Factory", "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"),
-    ("Safe 4337 Module", "0x75cf11467937ce3F2f357CE24ffc3DBF8fD5c226"),
-    ("Safe Module Setup", "0x2dd68b007B46fBe91B9A7c3EDa5A7a1063cB5b47"),
-    ("WebAuthn Signer", "0x94a4F6affBd8975951142c3999aEAB7ecee555c2"),
-    ("Fallback Handler", "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99"),
+    (
+        "Safe Proxy Factory",
+        "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+    ),
+    (
+        "Safe 4337 Module",
+        "0x75cf11467937ce3F2f357CE24ffc3DBF8fD5c226",
+    ),
+    (
+        "Safe Module Setup",
+        "0x2dd68b007B46fBe91B9A7c3EDa5A7a1063cB5b47",
+    ),
+    (
+        "WebAuthn Signer",
+        "0x94a4F6affBd8975951142c3999aEAB7ecee555c2",
+    ),
+    (
+        "Fallback Handler",
+        "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+    ),
     ("MultiSend", "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"),
 ];
 
@@ -163,18 +187,102 @@ pub struct NetBuiltinChain {
 }
 
 pub const BUILTIN_CHAINS: [NetBuiltinChain; 12] = [
-    NetBuiltinChain { id: "ethereum", display_name: "Ethereum", chain_id: 1, native_symbol: "ETH", rpc_url: "https://ethereum-rpc.publicnode.com", explorer_url: "https://etherscan.io" },
-    NetBuiltinChain { id: "bnb", display_name: "BNB Chain", chain_id: 56, native_symbol: "BNB", rpc_url: "https://bsc-dataseed.binance.org", explorer_url: "https://bscscan.com" },
-    NetBuiltinChain { id: "polygon", display_name: "Polygon", chain_id: 137, native_symbol: "POL", rpc_url: "https://polygon-bor-rpc.publicnode.com", explorer_url: "https://polygonscan.com" },
-    NetBuiltinChain { id: "arbitrum", display_name: "Arbitrum", chain_id: 42161, native_symbol: "ETH", rpc_url: "https://arb1.arbitrum.io/rpc", explorer_url: "https://arbiscan.io" },
-    NetBuiltinChain { id: "optimism", display_name: "Optimism", chain_id: 10, native_symbol: "ETH", rpc_url: "https://mainnet.optimism.io", explorer_url: "https://optimistic.etherscan.io" },
-    NetBuiltinChain { id: "base", display_name: "Base", chain_id: 8453, native_symbol: "ETH", rpc_url: "https://mainnet.base.org", explorer_url: "https://basescan.org" },
-    NetBuiltinChain { id: "avalanche", display_name: "Avalanche", chain_id: 43114, native_symbol: "AVAX", rpc_url: "https://api.avax.network/ext/bc/C/rpc", explorer_url: "https://snowtrace.io" },
-    NetBuiltinChain { id: "gnosis", display_name: "Gnosis", chain_id: 100, native_symbol: "xDAI", rpc_url: "https://rpc.gnosischain.com", explorer_url: "https://gnosisscan.io" },
-    NetBuiltinChain { id: "unichain", display_name: "Unichain", chain_id: 130, native_symbol: "ETH", rpc_url: "https://mainnet.unichain.org", explorer_url: "https://uniscan.xyz" },
-    NetBuiltinChain { id: "tempo", display_name: "Tempo", chain_id: 4217, native_symbol: "USD", rpc_url: "https://rpc.mainnet.tempo.xyz", explorer_url: "https://explore.tempo.xyz" },
-    NetBuiltinChain { id: "monad", display_name: "Monad", chain_id: 143, native_symbol: "MON", rpc_url: "https://rpc.monad.xyz", explorer_url: "https://monadscan.com" },
-    NetBuiltinChain { id: "worldchain", display_name: "World Chain", chain_id: 480, native_symbol: "ETH", rpc_url: "https://worldchain.drpc.org", explorer_url: "https://worldscan.org" },
+    NetBuiltinChain {
+        id: "ethereum",
+        display_name: "Ethereum",
+        chain_id: 1,
+        native_symbol: "ETH",
+        rpc_url: "https://ethereum-rpc.publicnode.com",
+        explorer_url: "https://etherscan.io",
+    },
+    NetBuiltinChain {
+        id: "bnb",
+        display_name: "BNB Chain",
+        chain_id: 56,
+        native_symbol: "BNB",
+        rpc_url: "https://bsc-dataseed.binance.org",
+        explorer_url: "https://bscscan.com",
+    },
+    NetBuiltinChain {
+        id: "polygon",
+        display_name: "Polygon",
+        chain_id: 137,
+        native_symbol: "POL",
+        rpc_url: "https://polygon-bor-rpc.publicnode.com",
+        explorer_url: "https://polygonscan.com",
+    },
+    NetBuiltinChain {
+        id: "arbitrum",
+        display_name: "Arbitrum",
+        chain_id: 42161,
+        native_symbol: "ETH",
+        rpc_url: "https://arb1.arbitrum.io/rpc",
+        explorer_url: "https://arbiscan.io",
+    },
+    NetBuiltinChain {
+        id: "optimism",
+        display_name: "Optimism",
+        chain_id: 10,
+        native_symbol: "ETH",
+        rpc_url: "https://mainnet.optimism.io",
+        explorer_url: "https://optimistic.etherscan.io",
+    },
+    NetBuiltinChain {
+        id: "base",
+        display_name: "Base",
+        chain_id: 8453,
+        native_symbol: "ETH",
+        rpc_url: "https://mainnet.base.org",
+        explorer_url: "https://basescan.org",
+    },
+    NetBuiltinChain {
+        id: "avalanche",
+        display_name: "Avalanche",
+        chain_id: 43114,
+        native_symbol: "AVAX",
+        rpc_url: "https://api.avax.network/ext/bc/C/rpc",
+        explorer_url: "https://snowtrace.io",
+    },
+    NetBuiltinChain {
+        id: "gnosis",
+        display_name: "Gnosis",
+        chain_id: 100,
+        native_symbol: "xDAI",
+        rpc_url: "https://rpc.gnosischain.com",
+        explorer_url: "https://gnosisscan.io",
+    },
+    NetBuiltinChain {
+        id: "unichain",
+        display_name: "Unichain",
+        chain_id: 130,
+        native_symbol: "ETH",
+        rpc_url: "https://mainnet.unichain.org",
+        explorer_url: "https://uniscan.xyz",
+    },
+    NetBuiltinChain {
+        id: "tempo",
+        display_name: "Tempo",
+        chain_id: 4217,
+        native_symbol: "USD",
+        rpc_url: "https://rpc.mainnet.tempo.xyz",
+        explorer_url: "https://explore.tempo.xyz",
+    },
+    NetBuiltinChain {
+        id: "monad",
+        display_name: "Monad",
+        chain_id: 143,
+        native_symbol: "MON",
+        rpc_url: "https://rpc.monad.xyz",
+        explorer_url: "https://monadscan.com",
+    },
+    NetBuiltinChain {
+        id: "worldchain",
+        display_name: "World Chain",
+        chain_id: 480,
+        native_symbol: "ETH",
+        rpc_url: "https://worldchain.drpc.org",
+        explorer_url: "https://worldscan.org",
+    },
 ];
 
 fn builtin(chain_id: u32) -> Option<&'static NetBuiltinChain> {
@@ -182,8 +290,11 @@ fn builtin(chain_id: u32) -> Option<&'static NetBuiltinChain> {
 }
 
 /// `PROVIDER_ORDER` (rpc-providers.ts:37).
-pub const PROVIDER_ORDER: [NetProviderId; 3] =
-    [NetProviderId::Alchemy, NetProviderId::Drpc, NetProviderId::Ankr];
+pub const PROVIDER_ORDER: [NetProviderId; 3] = [
+    NetProviderId::Alchemy,
+    NetProviderId::Drpc,
+    NetProviderId::Ankr,
+];
 
 /// `PROVIDER_CHAIN_SLUGS` (rpc-providers.ts:74-118), verbatim — including
 /// Alchemy's X Layer (196) entry that the canonical chain table filters out.
@@ -537,41 +648,71 @@ pub enum NetOperation {
     ReadStore,
     /// Best-effort persists — the shell swallows storage errors; the
     /// in-memory ledger stays authoritative.
-    WriteCustomNetworks { networks: Vec<NetCustomNetwork> },
-    WriteNetworkConfigs { configs: Vec<NetNetworkConfig> },
-    WriteServiceEndpoints { endpoints: NetServiceEndpoints },
-    WriteRpcProviders { keys: NetProviderKeys },
+    WriteCustomNetworks {
+        networks: Vec<NetCustomNetwork>,
+    },
+    WriteNetworkConfigs {
+        configs: Vec<NetNetworkConfig>,
+    },
+    WriteServiceEndpoints {
+        endpoints: NetServiceEndpoints,
+    },
+    WriteRpcProviders {
+        keys: NetProviderKeys,
+    },
     /// The 300ms search debounce (a plain timer).
-    StartSearchDebounce { ms: u32 },
+    StartSearchDebounce {
+        ms: u32,
+    },
     /// `/index/fuse-chains.json` — the shell owns its 30-minute cache; a
     /// fetch failure answers the stale cache or an empty list, verbatim
     /// (chain-registry.ts:88-109).
     FetchSearchIndex,
     /// `/chains/eip155-{chain_id}.json` → raw data, or `None` on any failure.
-    FetchChainInfo { chain_id: u32 },
+    FetchChainInfo {
+        chain_id: u32,
+    },
     /// THE unified `eth_chainId` probe (inventory: one Probe word for the
     /// four legacy implementations). The shell answers the reported chain id
     /// (`None` = no/invalid/timeout answer) plus measured latency.
-    ProbeRpc { url: String },
+    ProbeRpc {
+        url: String,
+    },
     /// Explorer-style liveness: GET, `no-cors` — "resolved without throwing"
     /// is the only honest cross-origin signal (SettingsScreen.tsx:137-145).
-    ProbeReachable { url: String },
+    ProbeReachable {
+        url: String,
+    },
     /// `eth_getCode(address, 'latest')` → the raw code string, `None` on RPC
     /// error. The deployment verdict is the core's ([`is_code_deployed`]).
-    RpcGetCode { url: String, address: String },
+    RpcGetCode {
+        url: String,
+        address: String,
+    },
     /// Probe strategy 1: `eth_call` of [`VALID_P256_CALL`] against
     /// [`P256_PRECOMPILE`] with `gas: 0x100000` → the raw result, `None` on
     /// RPC error. Acceptance is the core's ([`p256_call_indicates_support`]).
-    RpcCallP256 { url: String },
+    RpcCallP256 {
+        url: String,
+    },
     /// GET `{base_url}/api/health` (+ shell-side `?_t=` cache-buster).
-    FetchServiceHealth { field: NetEndpointField, base_url: String },
+    FetchServiceHealth {
+        field: NetEndpointField,
+        base_url: String,
+    },
     /// GET the fiat-rates URL itself; the shell reports the rate count
     /// (array length or `rates` key count — `normalizeRates` shapes).
-    FetchFiatRates { url: String },
+    FetchFiatRates {
+        url: String,
+    },
     /// `refreshPool(chain_id)` / `invalidateAllPools()` (invariant ⑤).
-    InvalidatePools { chain_id: Option<u32> },
+    InvalidatePools {
+        chain_id: Option<u32>,
+    },
     /// `clearBundlerCache(chain_id)`.
-    ClearBundlerCache { chain_id: u32 },
+    ClearBundlerCache {
+        chain_id: u32,
+    },
 }
 
 /// What one `/api/health` (or fiat) fetch came back as.
@@ -585,7 +726,10 @@ pub enum NetHealthBody {
     /// `!res.ok`.
     HttpError { status: u32 },
     /// Parsed `/api/health` body.
-    Identity { service: Option<String>, status: Option<String> },
+    Identity {
+        service: Option<String>,
+        status: Option<String>,
+    },
     /// Parsed fiat body — how many currencies the map/array carried.
     Rates { rate_count: u32 },
 }
@@ -604,27 +748,42 @@ pub enum NetShellResult {
     /// A best-effort write acknowledged. Never changes state.
     Written,
     DebounceElapsed,
-    SearchIndex { chains: Vec<NetChainIndexEntry> },
-    ChainInfo { chain_id: u32, data: Option<NetRawChainData> },
+    SearchIndex {
+        chains: Vec<NetChainIndexEntry>,
+    },
+    ChainInfo {
+        chain_id: u32,
+        data: Option<NetRawChainData>,
+    },
     Probed {
         url: String,
         /// `None` = failed/timed out/no parseable id.
         reported_chain_id: Option<u32>,
         latency_ms: f64,
     },
-    Reachable { url: String, ok: bool, latency_ms: f64 },
+    Reachable {
+        url: String,
+        ok: bool,
+        latency_ms: f64,
+    },
     Code {
         url: String,
         address: String,
         code: Option<String>,
     },
-    P256Call { url: String, result: Option<String> },
+    P256Call {
+        url: String,
+        result: Option<String>,
+    },
     ServiceHealth {
         field: NetEndpointField,
         body: NetHealthBody,
         latency_ms: f64,
     },
-    FiatRates { body: NetHealthBody, latency_ms: f64 },
+    FiatRates {
+        body: NetHealthBody,
+        latency_ms: f64,
+    },
     Invalidated,
     BundlerCacheCleared,
 }
@@ -654,30 +813,46 @@ pub enum Event {
     // -- add-network wizard -------------------------------------------------
     /// A keystroke in the wizard search box. Clears any selected chain state
     /// (`handleQueryChange`) and (re)starts the 300ms debounce.
-    SearchInput { query: String },
+    SearchInput {
+        query: String,
+    },
     /// A suggestion tap, or the wizard's "Recheck" buttons
     /// (`keep_custom_rpc: true` preserves the user-typed RPC, matching
     /// `handleSelect(chainId, keepCustomRpc)`).
-    ChainSelected { chain_id: u32, keep_custom_rpc: bool },
-    CustomRpcEdited { value: String },
+    ChainSelected {
+        chain_id: u32,
+        keep_custom_rpc: bool,
+    },
+    CustomRpcEdited {
+        value: String,
+    },
     /// The "Add network" button. Only acts from `Checked` + compatible —
     /// `handleAdd`'s `if (!chainInfo || !compatResult?.compatible) return`.
     /// `now_iso` stamps `added_at_iso` (shell clock, 016 rule).
-    AddConfirmed { now_iso: String },
+    AddConfirmed {
+        now_iso: String,
+    },
     /// Modal closed — `reset()`.
     WizardReset,
     /// The EIP-681 scan recovery path (`addCustomNetworkByChainId`): resolve
     /// → check → save without user confirmation. Shares the wizard pipeline
     /// AND the invariant-① dedup gate the TS scan path was missing.
-    AddByChainIdRequested { chain_id: u32, now_iso: String },
+    AddByChainIdRequested {
+        chain_id: u32,
+        now_iso: String,
+    },
     /// The delete affordance on a custom network's card (the confirm dialog
     /// is the shell's).
-    DeleteConfirmed { id: String },
+    DeleteConfirmed {
+        id: String,
+    },
 
     // -- per-network overrides ----------------------------------------------
     /// A network card expanded — seed the drafts and run the two health
     /// probes (SettingsScreen.tsx:214-223).
-    OverrideExpanded { chain_id: u32 },
+    OverrideExpanded {
+        chain_id: u32,
+    },
     /// A keystroke in the RPC/Explorer field. Re-probes BOTH fields, exactly
     /// as the TS effect's `[expanded, rpcURL, explorerURL]` deps do.
     OverrideFieldEdited {
@@ -690,16 +865,23 @@ pub enum Event {
     /// an unverifiable endpoint saves. A blur that arrives while the card's
     /// `eth_chainId` probe is still in flight is held until it answers (see
     /// the module doc).
-    OverrideBlurred { chain_id: u32 },
+    OverrideBlurred {
+        chain_id: u32,
+    },
 
     // -- service endpoints --------------------------------------------------
     /// The endpoint editor opened — probe all four fields. (TS also re-reads
     /// storage here; the core model is the always-loaded mirror.)
     EndpointsOpened,
-    EndpointEdited { field: NetEndpointField, value: String },
+    EndpointEdited {
+        field: NetEndpointField,
+        value: String,
+    },
     /// Blur — trim + CR/LF-strip (invariant ⑥), persist, flush pools,
     /// re-probe all four.
-    EndpointBlurred { field: NetEndpointField },
+    EndpointBlurred {
+        field: NetEndpointField,
+    },
     /// The refresh affordance.
     EndpointsRefreshRequested,
     /// Persists the defaults and re-probes. Quirk kept: TS does NOT flush
@@ -712,19 +894,29 @@ pub enum Event {
     ProvidersOpened,
     /// A keystroke in a key field — drops that provider's stale test results
     /// (RpcProvidersModal.tsx:111-115).
-    ProviderKeyEdited { provider: NetProviderId, value: String },
+    ProviderKeyEdited {
+        provider: NetProviderId,
+        value: String,
+    },
     /// Blur — persist ALL drafts (trimmed, empties dropped — a cleared key
     /// fully removes the provider, invariant ⑦), flush pools, re-test.
-    ProviderKeyBlurred { provider: NetProviderId },
+    ProviderKeyBlurred {
+        provider: NetProviderId,
+    },
     /// The explicit "Test" button.
-    ProviderTestRequested { provider: NetProviderId },
+    ProviderTestRequested {
+        provider: NetProviderId,
+    },
 
     /// Internal: an effect resolved. `attempt` is the issuing wave's
     /// generation (drawn from one machine-wide counter, so values never
     /// collide across subsystems); a result carrying a superseded generation
     /// is dropped — stale probes can never repaint fresh state.
     #[serde(skip)]
-    ShellCompleted { attempt: u64, result: NetShellResult },
+    ShellCompleted {
+        attempt: u64,
+        result: NetShellResult,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -931,7 +1123,9 @@ pub enum NetServiceHealth {
     /// Reachable but not the service it must be (identity mismatch, empty
     /// rate map). A warning badge — it does NOT gate saves (current
     /// behavior, kept).
-    InvalidResponse { latency_ms: f64 },
+    InvalidResponse {
+        latency_ms: f64,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1091,9 +1285,7 @@ impl App for NetworkAdmin {
             Event::OverrideBlurred { chain_id } => override_blurred(model, chain_id),
 
             // -- endpoints ---------------------------------------------------
-            Event::EndpointsOpened | Event::EndpointsRefreshRequested => {
-                endpoint_probe_wave(model)
-            }
+            Event::EndpointsOpened | Event::EndpointsRefreshRequested => endpoint_probe_wave(model),
             Event::EndpointEdited { field, value } => {
                 model.endpoint_drafts.set(field, value);
                 render()
@@ -1192,8 +1384,8 @@ pub fn rank_search(chains: &[NetChainIndexEntry], query: &str) -> Vec<NetChainIn
     }
     let q = trimmed.to_lowercase();
 
-    let exact = parse_int_prefix(&q)
-        .and_then(|n| chains.iter().find(|c| i64::from(c.chain_id) == n));
+    let exact =
+        parse_int_prefix(&q).and_then(|n| chains.iter().find(|c| i64::from(c.chain_id) == n));
 
     let mut results: Vec<NetChainIndexEntry> = Vec::new();
     if let Some(hit) = exact {
@@ -1267,8 +1459,8 @@ fn select_chain(
     // Invariant ① — ONE dedup implementation for both callers. (Today the
     // modal checks and the scan path does not; the inventory collapses the
     // divergence onto this gate.)
-    let duplicate = builtin(chain_id).is_some()
-        || model.custom_networks.iter().any(|n| n.chain_id == chain_id);
+    let duplicate =
+        builtin(chain_id).is_some() || model.custom_networks.iter().any(|n| n.chain_id == chain_id);
     if duplicate {
         model.wizard.phase = WizardPhase::Error {
             kind: NetWizardErrorKind::AlreadyAdded { chain_id },
@@ -1340,10 +1532,7 @@ fn chain_info_fetched(
     chain_id: u32,
     data: Option<NetRawChainData>,
 ) -> Command<NetEffect, Event> {
-    let WizardPhase::Resolving {
-        chain_id: expected,
-    } = model.wizard.phase
-    else {
+    let WizardPhase::Resolving { chain_id: expected } = model.wizard.phase else {
         return Command::done();
     };
     if expected != chain_id {
@@ -1579,10 +1768,7 @@ fn wizard_code(
         if *p256 == P256Probe::AwaitingCode {
             *p256 = P256Probe::Done(is_code_deployed(code.as_deref()));
         }
-    } else if let Some(index) = REQUIRED_CONTRACTS
-        .iter()
-        .position(|(_, a)| *a == address)
-    {
+    } else if let Some(index) = REQUIRED_CONTRACTS.iter().position(|(_, a)| *a == address) {
         if let Some(slot) = deployed.get_mut(index) {
             if slot.is_none() {
                 *slot = Some(is_code_deployed(code.as_deref()));
@@ -1743,11 +1929,7 @@ fn build_custom_network(
         // The fastest RPC wins; the registry's single URL is the fallback.
         rpc_url: best_rpc_url.unwrap_or(&info.rpc_url).to_owned(),
         explorer_url: info.explorer_url.clone(),
-        bundler_url: format!(
-            "{}/{}",
-            effective_bundler_service_url(model),
-            info.chain_id
-        ),
+        bundler_url: format!("{}/{}", effective_bundler_service_url(model), info.chain_id),
         native_symbol: info.native_symbol.clone(),
         added_at_iso: now_iso,
     }
@@ -2083,10 +2265,14 @@ fn endpoint_probe_wave(model: &mut Model) -> Command<NetEffect, Event> {
         // The HTTPS gate runs on the RAW value (a leading space fails it) —
         // verbatim ordering of checkServiceEndpointHealth.
         if !url.starts_with("https://") && !is_localhost_http(&url) {
-            model.endpoint_health.insert(field, NetServiceHealth::NotHttps);
+            model
+                .endpoint_health
+                .insert(field, NetServiceHealth::NotHttps);
             continue;
         }
-        model.endpoint_health.insert(field, NetServiceHealth::Checking);
+        model
+            .endpoint_health
+            .insert(field, NetServiceHealth::Checking);
         if field == NetEndpointField::FiatRates {
             // Fiat keeps its query string; only trim + CR/LF strip.
             ops.push(NetOperation::FetchFiatRates {
@@ -2199,9 +2385,7 @@ fn fiat_health_result(
             latency_ms: Some(latency_ms),
         },
         // 'No rates returned' — reachable but not a rates service.
-        NetHealthBody::Rates { rate_count: 0 } => {
-            NetServiceHealth::InvalidResponse { latency_ms }
-        }
+        NetHealthBody::Rates { rate_count: 0 } => NetServiceHealth::InvalidResponse { latency_ms },
         NetHealthBody::Rates { rate_count } => NetServiceHealth::Ok {
             latency_ms,
             rate_count: Some(rate_count),
@@ -2456,10 +2640,8 @@ fn accept(model: &mut Model, attempt: u64, result: NetShellResult) -> Command<Ne
             if attempt == model.wizard_gen {
                 return wizard_probed(model, &url, reported_chain_id, latency_ms);
             }
-            if let Some((&chain_id, _)) = model
-                .override_gens
-                .iter()
-                .find(|(_, &gen)| gen == attempt)
+            if let Some((&chain_id, _)) =
+                model.override_gens.iter().find(|(_, &gen)| gen == attempt)
             {
                 if let Some(card) = model.override_cards.get_mut(&chain_id) {
                     // `checkEndpointHealth` rpc: any JSON-RPC answer is ok.
@@ -2482,10 +2664,8 @@ fn accept(model: &mut Model, attempt: u64, result: NetShellResult) -> Command<Ne
                 }
                 return Command::done();
             }
-            if let Some((&provider, _)) = model
-                .provider_gens
-                .iter()
-                .find(|(_, &gen)| gen == attempt)
+            if let Some((&provider, _)) =
+                model.provider_gens.iter().find(|(_, &gen)| gen == attempt)
             {
                 return provider_probed(model, provider, &url, reported_chain_id, latency_ms);
             }
@@ -2496,10 +2676,8 @@ fn accept(model: &mut Model, attempt: u64, result: NetShellResult) -> Command<Ne
             ok,
             latency_ms,
         } => {
-            if let Some((&chain_id, _)) = model
-                .override_gens
-                .iter()
-                .find(|(_, &gen)| gen == attempt)
+            if let Some((&chain_id, _)) =
+                model.override_gens.iter().find(|(_, &gen)| gen == attempt)
             {
                 if let Some(card) = model.override_cards.get_mut(&chain_id) {
                     card.explorer_health = if ok {
@@ -2627,11 +2805,7 @@ fn wizard_view(model: &Model) -> NetWizardView {
     };
     let can_add = phase == NetWizardPhase::Checked
         && !model.wizard.auto
-        && model
-            .wizard
-            .compat
-            .as_ref()
-            .is_some_and(|c| c.compatible);
+        && model.wizard.compat.as_ref().is_some_and(|c| c.compatible);
     NetWizardView {
         phase,
         query: model.wizard.query.clone(),
@@ -2691,11 +2865,10 @@ fn requests_with(gen: u64, operations: Vec<NetOperation>) -> Command<NetEffect, 
     let mut commands: Vec<Command<NetEffect, Event>> = operations
         .into_iter()
         .map(|operation| {
-            Command::request_from_shell(operation)
-                .then_send(move |result| Event::ShellCompleted {
-                    attempt: gen,
-                    result,
-                })
+            Command::request_from_shell(operation).then_send(move |result| Event::ShellCompleted {
+                attempt: gen,
+                result,
+            })
         })
         .collect();
     commands.push(render());

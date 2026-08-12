@@ -18,8 +18,7 @@ use vela_core::app::token_trust::{
     decode_transfer_logs, derive_asset_deltas, judge_delta, known_token, Event, TokenTrust,
     TrustAssetDelta, TrustCustomToken, TrustDeltaKind, TrustLogsOutcome, TrustMetaEntry,
     TrustNetDelta, TrustOperation as Op, TrustRawLog, TrustReceiptLog, TrustShellResult as Res,
-    TrustSimJudgment, TrustTokenMeta, DEFAULT_MONITOR_CHAINS, NATIVE_LOG_ADDRESSES,
-    TRANSFER_TOPIC,
+    TrustSimJudgment, TrustTokenMeta, DEFAULT_MONITOR_CHAINS, NATIVE_LOG_ADDRESSES, TRANSFER_TOPIC,
 };
 
 type Sut = DomainDriver<TokenTrust>;
@@ -46,7 +45,15 @@ fn word(v: u128) -> String {
     format!("0x{v:064x}")
 }
 
-fn raw_log(contract: &str, from: &str, to: &str, value: u128, tx: &str, block: u64, idx: u32) -> TrustRawLog {
+fn raw_log(
+    contract: &str,
+    from: &str,
+    to: &str,
+    value: u128,
+    tx: &str,
+    block: u64,
+    idx: u32,
+) -> TrustRawLog {
     TrustRawLog {
         address: contract.to_owned(),
         topics: vec![
@@ -115,7 +122,10 @@ fn native_delta(delta: &str) -> TrustAssetDelta {
 }
 
 fn sentinels() -> Vec<String> {
-    NATIVE_LOG_ADDRESSES.iter().map(|s| (*s).to_owned()).collect()
+    NATIVE_LOG_ADDRESSES
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect()
 }
 
 /// A machine that has adopted `WALLET` with the given held chains.
@@ -208,7 +218,7 @@ fn decode_skips_zero_value_and_malformed_logs() {
     garbage_data.data = "0xzz".to_owned(); // BigInt throws → skipped
     let mut garbage_index = raw_log(STABLE, PEER, WALLET, 5, "0x4", 999, 3);
     garbage_index.log_index = Some("0xnope".to_owned()); // fail-closed
-    // A value beyond u128 — JS BigInt carries it, this core fails closed.
+                                                         // A value beyond u128 — JS BigInt carries it, this core fails closed.
     let mut huge = raw_log(STABLE, PEER, WALLET, 5, "0x5", 999, 4);
     huge.data = format!("0x{}2{}", "0".repeat(31), "0".repeat(32)); // 2^129
     let good = raw_log(STABLE, PEER, WALLET, 7, "0x6", 999, 5);
@@ -229,7 +239,15 @@ fn decode_flags_native_sentinels_and_lowercases_erc20() {
         .enumerate()
         .map(|(i, sentinel)| raw_log(sentinel, PEER, WALLET, 9, "0xn", 999, i as u32))
         .collect();
-    logs.push(raw_log(&STABLE.to_uppercase().replace("0X", "0x"), PEER, WALLET, 5, "0xe", 999, 7));
+    logs.push(raw_log(
+        &STABLE.to_uppercase().replace("0X", "0x"),
+        PEER,
+        WALLET,
+        5,
+        "0xe",
+        999,
+        7,
+    ));
     let out = decode_transfer_logs(&logs, WALLET, 1);
     assert_eq!(out.len(), 4);
     for native in &out[..3] {
@@ -252,7 +270,11 @@ fn decode_quirks_are_ported_verbatim() {
     erc721.topics.push(word(7));
     erc721.data = "0x".to_owned();
     let mut shouty_sender = raw_log(STABLE, PEER, WALLET, 5, "0x3", 999, 2);
-    shouty_sender.topics[1] = format!("0x{}{}", "0".repeat(24), "ABCDEF0000000000000000000000000000000000");
+    shouty_sender.topics[1] = format!(
+        "0x{}{}",
+        "0".repeat(24),
+        "ABCDEF0000000000000000000000000000000000"
+    );
 
     let out = decode_transfer_logs(&[four_topics, erc721, shouty_sender], WALLET, 1);
     assert_eq!(out.len(), 2);
@@ -271,19 +293,31 @@ fn decode_quirks_are_ported_verbatim() {
 fn derive_asset_deltas_nets_per_asset_and_keeps_first_seen_order() {
     let logs = vec![
         receipt(FRESH, PEER, WALLET, 100),
-        receipt(FRESH, WALLET, PEER, 30), // nets to +70
-        receipt(T_SENT, WALLET, PEER, 5), // net outflow
-        receipt(STABLE, WALLET, WALLET, 50), // self-transfer → cancels to 0
+        receipt(FRESH, WALLET, PEER, 30),          // nets to +70
+        receipt(T_SENT, WALLET, PEER, 5),          // net outflow
+        receipt(STABLE, WALLET, WALLET, 50),       // self-transfer → cancels to 0
         receipt(NATIVE_SENTINEL, PEER, WALLET, 9), // native inflow
-        receipt(LISTED, ATTACKER, PEER, 42), // not our wallet → ignored
+        receipt(LISTED, ATTACKER, PEER, 42),       // not our wallet → ignored
     ];
     let out = derive_asset_deltas(&logs, WALLET);
     assert_eq!(
         out,
         vec![
-            TrustNetDelta { is_native: false, token: Some(FRESH.to_owned()), delta: 70 },
-            TrustNetDelta { is_native: false, token: Some(T_SENT.to_owned()), delta: -5 },
-            TrustNetDelta { is_native: true, token: None, delta: 9 },
+            TrustNetDelta {
+                is_native: false,
+                token: Some(FRESH.to_owned()),
+                delta: 70
+            },
+            TrustNetDelta {
+                is_native: false,
+                token: Some(T_SENT.to_owned()),
+                delta: -5
+            },
+            TrustNetDelta {
+                is_native: true,
+                token: None,
+                delta: 9
+            },
         ]
     );
 }
@@ -440,7 +474,11 @@ fn judge_delta_edges_fail_toward_unverified() {
     let m = meta("TOK", 6);
     // A curated known token is trusted even outside the passed set.
     assert_eq!(
-        judge_delta(&erc20_delta(KNOWN_USDC, "50"), Some(&meta("USDC", 6)), false),
+        judge_delta(
+            &erc20_delta(KNOWN_USDC, "50"),
+            Some(&meta("USDC", 6)),
+            false
+        ),
         TrustSimJudgment::Erc20Trusted {
             token: KNOWN_USDC.to_owned(),
             delta: "50".to_owned(),
@@ -456,7 +494,10 @@ fn judge_delta_edges_fail_toward_unverified() {
     };
     assert_eq!(
         judge_delta(&no_token, Some(&m), true),
-        TrustSimJudgment::Erc20Unverified { token: None, delta: "50".to_owned() }
+        TrustSimJudgment::Erc20Unverified {
+            token: None,
+            delta: "50".to_owned()
+        }
     );
     // A garbled delta (no JS counterpart — bigints can't be malformed) and an
     // empty symbol both fail closed.
@@ -473,7 +514,9 @@ fn judge_delta_edges_fail_toward_unverified() {
     // Native always passes through — naming is the shell's.
     assert_eq!(
         judge_delta(&native_delta("-42"), None, false),
-        TrustSimJudgment::Native { delta: "-42".to_owned() }
+        TrustSimJudgment::Native {
+            delta: "-42".to_owned()
+        }
     );
 }
 
@@ -490,10 +533,17 @@ fn untrusted_tokens_are_invisible_to_every_surface() {
     let allow = allowlist_for_chain(&[STABLE.to_owned()], &[custom(1, LISTED, "MINE")], 1);
     for stranger in strangers {
         assert!(!allow.contains(&stranger.to_owned()), "② not watched");
-        assert!(matches!(
-            judge_delta(&erc20_delta(stranger, "1000000"), Some(&meta("SCAM", 6)), false),
-            TrustSimJudgment::Erc20Unverified { .. }
-        ), "⑥ received amount never rendered confidently");
+        assert!(
+            matches!(
+                judge_delta(
+                    &erc20_delta(stranger, "1000000"),
+                    Some(&meta("SCAM", 6)),
+                    false
+                ),
+                TrustSimJudgment::Erc20Unverified { .. }
+            ),
+            "⑥ received amount never rendered confidently"
+        );
         assert!(known_token(stranger).is_none());
     }
 }
@@ -513,7 +563,9 @@ fn poll_scans_each_held_chain_with_its_allowlist() {
         stables: vec![STABLE.to_owned()],
         wrapped_native: Some(WRAPPED.to_owned()),
     });
-    let ops = sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
+    let ops = sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
     assert_eq!(ops, vec![Op::ReadCustomTokens]);
     assert!(sut.view().scanning);
 
@@ -523,8 +575,14 @@ fn poll_scans_each_held_chain_with_its_allowlist() {
     assert_eq!(
         ops,
         vec![
-            Op::RpcBlockNumber { address: WALLET_LC.to_owned(), chain_id: 1 },
-            Op::RpcBlockNumber { address: WALLET_LC.to_owned(), chain_id: 137 },
+            Op::RpcBlockNumber {
+                address: WALLET_LC.to_owned(),
+                chain_id: 1
+            },
+            Op::RpcBlockNumber {
+                address: WALLET_LC.to_owned(),
+                chain_id: 137
+            },
         ]
     );
 
@@ -550,7 +608,11 @@ fn poll_scans_each_held_chain_with_its_allowlist() {
     let mut chain137_contracts = sentinels();
     chain137_contracts.push(FRESH.to_owned());
     match &ops[0] {
-        Op::RpcGetLogs { chain_id, contracts, .. } => {
+        Op::RpcGetLogs {
+            chain_id,
+            contracts,
+            ..
+        } => {
             assert_eq!(*chain_id, 137);
             assert_eq!(contracts, &chain137_contracts);
         }
@@ -561,8 +623,12 @@ fn poll_scans_each_held_chain_with_its_allowlist() {
 #[test]
 fn brand_new_wallet_polls_the_default_payment_chains() {
     let mut sut = booted(vec![]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    let ops = sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    let ops = sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     let chains: Vec<u32> = ops
         .iter()
         .map(|op| match op {
@@ -578,19 +644,30 @@ fn brand_new_wallet_polls_the_default_payment_chains() {
 #[test]
 fn fake_recipient_from_malicious_endpoint_never_reaches_feed() {
     let mut sut = booted(vec![1]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
-    let ops = sut.resolve(logs_ok(1, vec![
-        raw_log(NATIVE_SENTINEL, PEER, ATTACKER, 1_000_000, "0xbad", 999, 0),
-        raw_log(NATIVE_SENTINEL, PEER, WALLET, 5, "0xgood", 999, 1),
-    ]));
+    let ops = sut.resolve(logs_ok(
+        1,
+        vec![
+            raw_log(NATIVE_SENTINEL, PEER, ATTACKER, 1_000_000, "0xbad", 999, 0),
+            raw_log(NATIVE_SENTINEL, PEER, WALLET, 5, "0xgood", 999, 1),
+        ],
+    ));
     assert_eq!(ops.len(), 1, "one distinct block to timestamp");
     sut.resolve(timestamp(1, 999, Some(1_700_000_000.0)));
 
     let view = sut.view();
     assert!(!view.scanning);
-    assert_eq!(view.incoming.len(), 1, "the attacker's log died at local re-verification");
+    assert_eq!(
+        view.incoming.len(),
+        1,
+        "the attacker's log died at local re-verification"
+    );
     assert_eq!(view.incoming[0].id, "1-0xgood-1");
     assert_eq!(view.incoming[0].value, "5");
     assert!(view.incoming[0].is_native);
@@ -602,8 +679,12 @@ fn fake_recipient_from_malicious_endpoint_never_reaches_feed() {
 #[test]
 fn range_cap_retries_once_and_never_fans_out() {
     let mut sut = booted(vec![1]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
     let ops = sut.resolve(Res::Logs {
         address: WALLET_LC.to_owned(),
@@ -611,8 +692,15 @@ fn range_cap_retries_once_and_never_fans_out() {
         outcome: TrustLogsOutcome::RangeCapped { cap: 50 },
     });
     match &ops[0] {
-        Op::RpcGetLogs { from_block, to_block, .. } => {
-            assert_eq!(from_block, "0x3b7", "latest - (cap - 1) = 951: exactly 50 blocks");
+        Op::RpcGetLogs {
+            from_block,
+            to_block,
+            ..
+        } => {
+            assert_eq!(
+                from_block, "0x3b7",
+                "latest - (cap - 1) = 951: exactly 50 blocks"
+            );
             assert_eq!(to_block, "0x3e8");
         }
         other => panic!("expected the capped retry, got {other:?}"),
@@ -622,13 +710,20 @@ fn range_cap_retries_once_and_never_fans_out() {
         chain_id: 1,
         outcome: TrustLogsOutcome::RangeCapped { cap: 50 },
     });
-    assert!(ops.is_empty(), "a second cap must NOT produce a third getLogs");
+    assert!(
+        ops.is_empty(),
+        "a second cap must NOT produce a third getLogs"
+    );
     assert!(!sut.view().scanning);
     assert!(sut.outstanding().is_empty());
 
     // A cap with no parsable number stays conservative: 100 blocks.
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
     let ops = sut.resolve(Res::Logs {
         address: WALLET_LC.to_owned(),
@@ -645,8 +740,12 @@ fn range_cap_retries_once_and_never_fans_out() {
 fn failing_chain_yields_nothing_this_tick() {
     // A hard getLogs failure.
     let mut sut = booted(vec![1]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
     let ops = sut.resolve(Res::Logs {
         address: WALLET_LC.to_owned(),
@@ -658,8 +757,12 @@ fn failing_chain_yields_nothing_this_tick() {
     assert!(sut.view().incoming.is_empty());
 
     // An unreadable block number never even reaches getLogs.
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     let ops = sut.resolve(Res::BlockNumber {
         address: WALLET_LC.to_owned(),
         chain_id: 1,
@@ -669,8 +772,12 @@ fn failing_chain_yields_nothing_this_tick() {
     assert!(!sut.view().scanning);
 
     // `latest <= 0` is invalid, exactly as `hexToNumber` + the guard has it.
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     let ops = sut.resolve(block_number(1, 0));
     assert!(ops.is_empty());
     assert!(!sut.view().scanning);
@@ -679,18 +786,33 @@ fn failing_chain_yields_nothing_this_tick() {
 #[test]
 fn timestamps_come_from_blocks_with_now_fallback() {
     let mut sut = booted(vec![1]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
-    let ops = sut.resolve(logs_ok(1, vec![
-        raw_log(NATIVE_SENTINEL, PEER, WALLET, 5, "0xa", 999, 1),
-        raw_log(NATIVE_SENTINEL, PEER, WALLET, 6, "0xb", 998, 0),
-    ]));
+    let ops = sut.resolve(logs_ok(
+        1,
+        vec![
+            raw_log(NATIVE_SENTINEL, PEER, WALLET, 5, "0xa", 999, 1),
+            raw_log(NATIVE_SENTINEL, PEER, WALLET, 6, "0xb", 998, 0),
+        ],
+    ));
     assert_eq!(
         ops,
         vec![
-            Op::RpcGetBlockByNumber { address: WALLET_LC.to_owned(), chain_id: 1, block: "0x3e7".to_owned() },
-            Op::RpcGetBlockByNumber { address: WALLET_LC.to_owned(), chain_id: 1, block: "0x3e6".to_owned() },
+            Op::RpcGetBlockByNumber {
+                address: WALLET_LC.to_owned(),
+                chain_id: 1,
+                block: "0x3e7".to_owned()
+            },
+            Op::RpcGetBlockByNumber {
+                address: WALLET_LC.to_owned(),
+                chain_id: 1,
+                block: "0x3e6".to_owned()
+            },
         ]
     );
     sut.resolve(timestamp(1, 999, Some(1_700_000_000.0)));
@@ -718,29 +840,49 @@ fn unresolvable_metadata_withholds_the_erc20_but_not_native() {
         raw_log(STABLE, PEER, WALLET, 1_230_000, "0xa", 999, 0),
         raw_log(NATIVE_SENTINEL, PEER, WALLET, 5, "0xa", 999, 1),
     ];
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
     sut.resolve(logs_ok(1, logs.clone()));
     let ops = sut.resolve(timestamp(1, 999, Some(1_700_000_000.0)));
     assert_eq!(
         ops,
-        vec![Op::MulticallErc20Meta { chain_id: 1, addrs: vec![STABLE.to_owned()] }]
+        vec![Op::MulticallErc20Meta {
+            chain_id: 1,
+            addrs: vec![STABLE.to_owned()]
+        }]
     );
-    sut.resolve(Res::ErcMeta { chain_id: 1, entries: vec![meta_entry(STABLE, None)] });
+    sut.resolve(Res::ErcMeta {
+        chain_id: 1,
+        entries: vec![meta_entry(STABLE, None)],
+    });
     let view = sut.view();
-    assert_eq!(view.incoming.len(), 1, "the unresolvable stable is withheld");
+    assert_eq!(
+        view.incoming.len(),
+        1,
+        "the unresolvable stable is withheld"
+    );
     assert!(view.incoming[0].is_native);
 
     // Next poll, same window: the negative memo answers — no new multicall,
     // and the token stays withheld rather than gaining invented decimals.
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
     let ops = sut.resolve(logs_ok(1, logs));
     sut.resolve(timestamp(1, 999, Some(1_700_000_000.0)));
     assert!(
-        !sut.outstanding().iter().any(|op| matches!(op, Op::MulticallErc20Meta { .. })),
+        !sut.outstanding()
+            .iter()
+            .any(|op| matches!(op, Op::MulticallErc20Meta { .. })),
         "session negative memo — no re-query (ops after logs: {ops:?})"
     );
     assert_eq!(sut.view().incoming.len(), 1);
@@ -754,10 +896,17 @@ fn resolved_metadata_admits_the_erc20_with_symbol_and_decimals() {
         stables: vec![STABLE.to_owned()],
         wrapped_native: None,
     });
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
-    sut.resolve(logs_ok(1, vec![raw_log(STABLE, PEER, WALLET, 1_230_000, "0xa", 999, 0)]));
+    sut.resolve(logs_ok(
+        1,
+        vec![raw_log(STABLE, PEER, WALLET, 1_230_000, "0xa", 999, 0)],
+    ));
     sut.resolve(timestamp(1, 999, Some(1_700_000_000.0)));
     sut.resolve(Res::ErcMeta {
         chain_id: 1,
@@ -780,10 +929,17 @@ fn feed_sorts_newest_first_and_dedupes_across_overlapping_polls() {
     let newer_low = raw_log(NATIVE_SENTINEL, PEER, WALLET, 2, "0xt2", 999, 1);
     let newer_high = raw_log(NATIVE_SENTINEL, PEER, WALLET, 3, "0xt2", 999, 2);
 
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1000));
-    sut.resolve(logs_ok(1, vec![older.clone(), newer_low.clone(), newer_high.clone()]));
+    sut.resolve(logs_ok(
+        1,
+        vec![older.clone(), newer_low.clone(), newer_high.clone()],
+    ));
     sut.resolve(timestamp(1, 998, Some(1.0)));
     sut.resolve(timestamp(1, 999, Some(2.0)));
     let view = sut.view();
@@ -792,12 +948,20 @@ fn feed_sorts_newest_first_and_dedupes_across_overlapping_polls() {
 
     // The next poll's window overlaps and returns one of them again — the
     // stable id de-dupes, exactly why there is no checkpoint to maintain.
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(block_number(1, 1001));
     sut.resolve(logs_ok(1, vec![newer_high]));
     sut.resolve(timestamp(1, 999, Some(2.0)));
-    assert_eq!(sut.view().incoming.len(), 3, "no duplicates from window overlap");
+    assert_eq!(
+        sut.view().incoming.len(),
+        3,
+        "no duplicates from window overlap"
+    );
 }
 
 /// The resident-machine rule: results are dropped by construction when the
@@ -805,36 +969,69 @@ fn feed_sorts_newest_first_and_dedupes_across_overlapping_polls() {
 #[test]
 fn account_switch_drops_stale_scan_results_by_construction() {
     let mut sut = booted(vec![1]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     // Switch accounts while the block-number probe is in flight.
-    sut.dispatch(Event::HeldChainsSnapshot { address: OTHER.to_owned(), chain_ids: vec![1] });
+    sut.dispatch(Event::HeldChainsSnapshot {
+        address: OTHER.to_owned(),
+        chain_ids: vec![1],
+    });
     let ops = sut.resolve(block_number(1, 1000));
-    assert!(ops.is_empty(), "old-account block number must start nothing");
+    assert!(
+        ops.is_empty(),
+        "old-account block number must start nothing"
+    );
     assert!(!sut.view().scanning);
     assert!(sut.view().incoming.is_empty());
 
     // Away and back: same address, but the attempt generation moved on.
     let mut sut = booted(vec![1]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
-    sut.dispatch(Event::HeldChainsSnapshot { address: OTHER.to_owned(), chain_ids: vec![] });
-    sut.dispatch(Event::HeldChainsSnapshot { address: WALLET.to_owned(), chain_ids: vec![1] });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
+    sut.dispatch(Event::HeldChainsSnapshot {
+        address: OTHER.to_owned(),
+        chain_ids: vec![],
+    });
+    sut.dispatch(Event::HeldChainsSnapshot {
+        address: WALLET.to_owned(),
+        chain_ids: vec![1],
+    });
     let ops = sut.resolve(block_number(1, 1000));
-    assert!(ops.is_empty(), "an address tag alone is not enough — the attempt catches this");
+    assert!(
+        ops.is_empty(),
+        "an address tag alone is not enough — the attempt catches this"
+    );
 }
 
 #[test]
 fn poll_is_single_flight() {
     let mut sut = booted(vec![1]);
-    sut.dispatch(Event::PollRequested { address: WALLET.to_owned() });
+    sut.dispatch(Event::PollRequested {
+        address: WALLET.to_owned(),
+    });
     assert!(
-        sut.dispatch(Event::PollRequested { address: WALLET.to_owned() }).is_empty(),
+        sut.dispatch(Event::PollRequested {
+            address: WALLET.to_owned()
+        })
+        .is_empty(),
         "ignored while reading customs"
     );
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     assert!(
-        sut.dispatch(Event::PollRequested { address: WALLET.to_owned() }).is_empty(),
+        sut.dispatch(Event::PollRequested {
+            address: WALLET.to_owned()
+        })
+        .is_empty(),
         "ignored while chains are scanning"
     );
 }
@@ -904,7 +1101,9 @@ fn sim_sent_is_trusted_received_needs_the_trusted_set() {
     assert_eq!(
         sim.judgments,
         vec![
-            TrustSimJudgment::Native { delta: "100".to_owned() },
+            TrustSimJudgment::Native {
+                delta: "100".to_owned()
+            },
             TrustSimJudgment::Erc20Trusted {
                 token: T_SENT.to_owned(),
                 delta: "-50".to_owned(),
@@ -988,7 +1187,10 @@ fn sim_unknown_metadata_is_unverified_and_memoised() {
         deltas: vec![erc20_delta(FRESH, "-5")],
     });
     assert_eq!(ops.len(), 1);
-    sut.resolve(Res::ErcMeta { chain_id: 1, entries: vec![meta_entry(FRESH, None)] });
+    sut.resolve(Res::ErcMeta {
+        chain_id: 1,
+        entries: vec![meta_entry(FRESH, None)],
+    });
     let sim = sut.view().sim.expect("judged");
     assert!(sim.ready);
     // Even the SENT side is unverified without metadata — no 18-decimals guess.
@@ -1025,11 +1227,17 @@ fn sim_latest_wins() {
     });
     // The FIRST request's answer arrives: absorbed as a fact, but the view
     // belongs to the newer session, which is still resolving.
-    sut.resolve(Res::ErcMeta { chain_id: 1, entries: vec![meta_entry(FRESH, Some(meta("A", 18)))] });
+    sut.resolve(Res::ErcMeta {
+        chain_id: 1,
+        entries: vec![meta_entry(FRESH, Some(meta("A", 18)))],
+    });
     let sim = sut.view().sim.expect("newest session");
     assert!(!sim.ready);
     // Its own answer completes it.
-    sut.resolve(Res::ErcMeta { chain_id: 1, entries: vec![meta_entry(T_SENT, Some(meta("B", 18)))] });
+    sut.resolve(Res::ErcMeta {
+        chain_id: 1,
+        entries: vec![meta_entry(T_SENT, Some(meta("B", 18)))],
+    });
     let sim = sut.view().sim.expect("newest session judged");
     assert!(sim.ready);
     assert_eq!(
@@ -1056,14 +1264,24 @@ fn receipt_confirmation_drives_the_admission_pipeline() {
     let ops = sut.dispatch(Event::ReceiptLogsConfirmed {
         from: WALLET.to_owned(),
         chain_id: 1,
-        logs: vec![receipt(&FRESH.to_uppercase().replace("0X", "0x"), PEER, WALLET, 100)],
+        logs: vec![receipt(
+            &FRESH.to_uppercase().replace("0X", "0x"),
+            PEER,
+            WALLET,
+            100,
+        )],
     });
     assert_eq!(ops, vec![Op::ReadCustomTokens]);
 
-    let ops = sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    let ops = sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     assert_eq!(
         ops,
-        vec![Op::MulticallErc20Meta { chain_id: 1, addrs: vec![FRESH.to_owned()] }]
+        vec![Op::MulticallErc20Meta {
+            chain_id: 1,
+            addrs: vec![FRESH.to_owned()]
+        }]
     );
 
     let ops = sut.resolve(Res::ErcMeta {
@@ -1087,7 +1305,9 @@ fn receipt_confirmation_drives_the_admission_pipeline() {
     let ops = sut.resolve(Res::TokenWritten { ok: true });
     assert_eq!(
         ops,
-        vec![Op::InvalidateTokenCache { address: WALLET_LC.to_owned() }],
+        vec![Op::InvalidateTokenCache {
+            address: WALLET_LC.to_owned()
+        }],
         "without this the token hides behind the 5-min fetchTokens TTL"
     );
     assert!(sut.resolve(Res::CacheInvalidated).is_empty());
@@ -1112,10 +1332,15 @@ fn admission_skips_listed_held_and_known_tokens() {
             receipt(FRESH, PEER, WALLET, 4),
         ],
     });
-    let ops = sut.resolve(Res::CustomTokens { tokens: Some(vec![custom(1, LISTED, "MINE")]) });
+    let ops = sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![custom(1, LISTED, "MINE")]),
+    });
     assert_eq!(
         ops,
-        vec![Op::MulticallErc20Meta { chain_id: 1, addrs: vec![FRESH.to_owned()] }],
+        vec![Op::MulticallErc20Meta {
+            chain_id: 1,
+            addrs: vec![FRESH.to_owned()]
+        }],
         "already-visible tokens are never re-admitted"
     );
     let ops = sut.resolve(Res::ErcMeta {
@@ -1137,14 +1362,19 @@ fn no_symbol_means_no_listing_and_no_invalidation() {
     sut.dispatch(Event::ReceiptLogsConfirmed {
         from: WALLET.to_owned(),
         chain_id: 1,
-        logs: vec![receipt(FRESH, PEER, WALLET, 100), receipt(T_SENT, PEER, WALLET, 5)],
+        logs: vec![
+            receipt(FRESH, PEER, WALLET, 100),
+            receipt(T_SENT, PEER, WALLET, 5),
+        ],
     });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     let ops = sut.resolve(Res::ErcMeta {
         chain_id: 1,
         entries: vec![
-            meta_entry(FRESH, None),                    // unresolvable
-            meta_entry(T_SENT, Some(meta("", 18))),     // empty symbol
+            meta_entry(FRESH, None),                // unresolvable
+            meta_entry(T_SENT, Some(meta("", 18))), // empty symbol
         ],
     });
     assert!(ops.is_empty(), "no write, no invalidation: {ops:?}");
@@ -1166,10 +1396,18 @@ fn wash_or_net_outflow_is_never_received() {
     assert!(ops.is_empty(), "nothing net-received → no session at all");
     // And the degenerate guards.
     assert!(sut
-        .dispatch(Event::ReceiptLogsConfirmed { from: String::new(), chain_id: 1, logs: vec![receipt(FRESH, PEER, WALLET, 1)] })
+        .dispatch(Event::ReceiptLogsConfirmed {
+            from: String::new(),
+            chain_id: 1,
+            logs: vec![receipt(FRESH, PEER, WALLET, 1)]
+        })
         .is_empty());
     assert!(sut
-        .dispatch(Event::ReceiptLogsConfirmed { from: WALLET.to_owned(), chain_id: 1, logs: vec![] })
+        .dispatch(Event::ReceiptLogsConfirmed {
+            from: WALLET.to_owned(),
+            chain_id: 1,
+            logs: vec![]
+        })
         .is_empty());
 }
 
@@ -1187,7 +1425,9 @@ fn duplicates_collapse_and_invalidation_fires_once_after_writes() {
             receipt(T_SENT, PEER, WALLET, 3),
         ],
     });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     let ops = sut.resolve(Res::ErcMeta {
         chain_id: 1,
         entries: vec![
@@ -1196,9 +1436,17 @@ fn duplicates_collapse_and_invalidation_fires_once_after_writes() {
         ],
     });
     assert_eq!(ops.len(), 2, "one write per admitted token, no duplicates");
-    assert!(sut.resolve(Res::TokenWritten { ok: true }).is_empty(), "not yet — one write left");
+    assert!(
+        sut.resolve(Res::TokenWritten { ok: true }).is_empty(),
+        "not yet — one write left"
+    );
     let ops = sut.resolve(Res::TokenWritten { ok: true });
-    assert_eq!(ops, vec![Op::InvalidateTokenCache { address: WALLET_LC.to_owned() }]);
+    assert_eq!(
+        ops,
+        vec![Op::InvalidateTokenCache {
+            address: WALLET_LC.to_owned()
+        }]
+    );
 }
 
 /// A failed save suppresses the invalidation — in TS the throw skips
@@ -1211,13 +1459,18 @@ fn failed_write_suppresses_cache_invalidation() {
         chain_id: 1,
         logs: vec![receipt(FRESH, PEER, WALLET, 100)],
     });
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     sut.resolve(Res::ErcMeta {
         chain_id: 1,
         entries: vec![meta_entry(FRESH, Some(meta("NEWT", 18)))],
     });
     let ops = sut.resolve(Res::TokenWritten { ok: false });
-    assert!(ops.is_empty(), "no invalidation after a failed save: {ops:?}");
+    assert!(
+        ops.is_empty(),
+        "no invalidation after a failed save: {ops:?}"
+    );
     assert!(sut.outstanding().is_empty());
 }
 
@@ -1251,14 +1504,28 @@ fn second_receipt_queues_behind_the_active_session() {
     });
     assert!(ops.is_empty(), "queued behind the running admission");
 
-    sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     // The first session ends with nothing admissible → the queued one starts.
-    let ops = sut.resolve(Res::ErcMeta { chain_id: 1, entries: vec![meta_entry(FRESH, None)] });
-    assert_eq!(ops, vec![Op::ReadCustomTokens], "the second session's fresh read");
-    let ops = sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    let ops = sut.resolve(Res::ErcMeta {
+        chain_id: 1,
+        entries: vec![meta_entry(FRESH, None)],
+    });
     assert_eq!(
         ops,
-        vec![Op::MulticallErc20Meta { chain_id: 137, addrs: vec![T_SENT.to_owned()] }]
+        vec![Op::ReadCustomTokens],
+        "the second session's fresh read"
+    );
+    let ops = sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
+    assert_eq!(
+        ops,
+        vec![Op::MulticallErc20Meta {
+            chain_id: 137,
+            addrs: vec![T_SENT.to_owned()]
+        }]
     );
 }
 
@@ -1273,11 +1540,19 @@ fn admission_survives_an_account_switch() {
         chain_id: 1,
         logs: vec![receipt(FRESH, PEER, WALLET, 100)],
     });
-    sut.dispatch(Event::HeldChainsSnapshot { address: OTHER.to_owned(), chain_ids: vec![1] });
-    let ops = sut.resolve(Res::CustomTokens { tokens: Some(vec![]) });
+    sut.dispatch(Event::HeldChainsSnapshot {
+        address: OTHER.to_owned(),
+        chain_ids: vec![1],
+    });
+    let ops = sut.resolve(Res::CustomTokens {
+        tokens: Some(vec![]),
+    });
     assert_eq!(
         ops,
-        vec![Op::MulticallErc20Meta { chain_id: 1, addrs: vec![FRESH.to_owned()] }]
+        vec![Op::MulticallErc20Meta {
+            chain_id: 1,
+            addrs: vec![FRESH.to_owned()]
+        }]
     );
     sut.resolve(Res::ErcMeta {
         chain_id: 1,
@@ -1286,7 +1561,9 @@ fn admission_survives_an_account_switch() {
     let ops = sut.resolve(Res::TokenWritten { ok: true });
     assert_eq!(
         ops,
-        vec![Op::InvalidateTokenCache { address: WALLET_LC.to_owned() }],
+        vec![Op::InvalidateTokenCache {
+            address: WALLET_LC.to_owned()
+        }],
         "invalidation targets the receipt's account, not the active one"
     );
 }

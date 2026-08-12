@@ -325,10 +325,7 @@ where
         self.pending.pop_front();
     }
 
-    fn collect(
-        &mut self,
-        effects: Vec<A::Effect>,
-    ) -> Vec<<A::Effect as SplitEffect>::Op> {
+    fn collect(&mut self, effects: Vec<A::Effect>) -> Vec<<A::Effect as SplitEffect>::Op> {
         let mut operations = Vec::new();
         for effect in effects {
             if let Some(request) = effect.into_shell() {

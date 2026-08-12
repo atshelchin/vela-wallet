@@ -119,7 +119,10 @@ fn read_op() -> Op {
 fn shapes(ops: Vec<Op>) -> Vec<Op> {
     ops.into_iter()
         .map(|op| match op {
-            Op::ReadTxStore { address, .. } => Op::ReadTxStore { address, read_id: 0 },
+            Op::ReadTxStore { address, .. } => Op::ReadTxStore {
+                address,
+                read_id: 0,
+            },
             other => other,
         })
         .collect()
@@ -148,7 +151,9 @@ fn boot(records: Vec<FeedTxRecord>) -> Sut {
     });
     assert_eq!(
         shapes(ops),
-        vec![read_op(), scan_op()], "tick = read + scan");
+        vec![read_op(), scan_op()],
+        "tick = read + scan"
+    );
     sut.resolve(loaded(&sut, records, T0));
     sut.resolve(Res::SyncCompleted { new_count: 0 });
     drain_aliases(&mut sut);
@@ -204,7 +209,11 @@ fn batch_siblings_fold_to_one_split_row() {
     let batch_row = &rows[0];
     assert_eq!(batch_row.id, "0xH", "row id is the shared userOpHash");
     assert_eq!(batch_row.direction, FeedDirection::Out);
-    assert_eq!(batch_row.value.as_deref(), Some("60"), "split sums one token");
+    assert_eq!(
+        batch_row.value.as_deref(),
+        Some("60"),
+        "split sums one token"
+    );
     assert_eq!(batch_row.symbol, "USDC");
     assert_eq!(batch_row.decimals, Some(6));
     assert!(batch_row.counterparty.is_none(), "no single recipient");
@@ -300,9 +309,7 @@ fn cached_feed_survives_a_noop_sync() {
     assert_eq!(items(&sut).len(), 1);
 
     let ops = sut.dispatch(Event::FocusTick);
-    assert_eq!(
-        shapes(ops),
-        vec![read_op(), scan_op()]);
+    assert_eq!(shapes(ops), vec![read_op(), scan_op()]);
     assert_eq!(sut.view(), before, "nothing blanks while requests are out");
 
     sut.resolve(loaded(&sut, vec![s1], T0 + 1_000.0));
@@ -318,18 +325,14 @@ fn sync_with_new_receipts_rereads_the_store() {
     sut.dispatch(Event::FocusTick);
     sut.resolve(loaded(&sut, vec![s1], T0 + 1_000.0));
     let ops = sut.resolve(Res::SyncCompleted { new_count: 2 });
-    assert_eq!(
-        shapes(ops),
-        vec![read_op()], "something landed — read it");
+    assert_eq!(shapes(ops), vec![read_op()], "something landed — read it");
 }
 
 #[test]
 fn live_tick_runs_the_same_pipeline() {
     let mut sut = boot(vec![]);
     let ops = sut.dispatch(Event::LiveTick);
-    assert_eq!(
-        shapes(ops),
-        vec![read_op(), scan_op()]);
+    assert_eq!(shapes(ops), vec![read_op(), scan_op()]);
 }
 
 // ---------------------------------------------------------------------------
@@ -345,9 +348,7 @@ fn first_sync_pass_never_celebrates_but_the_second_does() {
     sut.resolve(loaded(&sut, vec![], T0));
     // First pass discovers a 2-receipt BACKLOG.
     let ops = sut.resolve(Res::SyncCompleted { new_count: 2 });
-    assert_eq!(
-        shapes(ops),
-        vec![read_op()]);
+    assert_eq!(shapes(ops), vec![read_op()]);
     let r1 = recv("r1", "0xBob", "5", "USDT", 100_000.0);
     let ops = sut.resolve(loaded(&sut, vec![r1.clone()], T0 + 1_000.0));
     assert_eq!(
@@ -368,9 +369,7 @@ fn first_sync_pass_never_celebrates_but_the_second_does() {
     sut.dispatch(Event::FocusTick);
     sut.resolve(loaded(&sut, vec![r1.clone()], T0 + 2_000.0));
     let ops = sut.resolve(Res::SyncCompleted { new_count: 1 });
-    assert_eq!(
-        shapes(ops),
-        vec![read_op()]);
+    assert_eq!(shapes(ops), vec![read_op()]);
     let newer_send = send("s9", "0xU9", "0xCafe", "1", 300_000.0);
     let r2 = recv("r2", "0xBob", "7", "USDT", 200_000.0);
     let ops = sut.resolve(loaded(&sut, vec![newer_send, r2, r1], T0 + 3_000.0));
@@ -387,7 +386,10 @@ fn first_sync_pass_never_celebrates_but_the_second_does() {
     );
     let view = sut.view();
     let toast = view.toast.expect("toast shows");
-    assert_eq!(toast.item_id, "r2", "the newest INCOMING item, not the newest row");
+    assert_eq!(
+        toast.item_id, "r2",
+        "the newest INCOMING item, not the newest row"
+    );
     assert_eq!(toast.value, "7");
     assert_eq!(toast.symbol, "USDT");
     assert_eq!(toast.deadline_ms, T0 + 3_000.0 + 2_800.0);
@@ -403,9 +405,7 @@ fn reconcile_rereads_without_celebrating() {
         .dispatch(Event::ReconcileCompleted { resolved_count: 0 })
         .is_empty());
     let ops = sut.dispatch(Event::ReconcileCompleted { resolved_count: 2 });
-    assert_eq!(
-        shapes(ops),
-        vec![read_op()]);
+    assert_eq!(shapes(ops), vec![read_op()]);
     let r1 = recv("r1", "0xBob", "5", "USDT", 100_000.0);
     let ops = sut.resolve(loaded(&sut, vec![r1], T0 + 1_000.0));
     assert_eq!(
@@ -447,7 +447,11 @@ fn privacy_suppresses_the_toast_but_not_glow_or_haptic() {
     );
     let view = sut.view();
     assert!(view.toast.is_none(), "a toast would leak the masked number");
-    assert_eq!(view.new_item_id.as_deref(), Some("r2"), "glow is amount-free");
+    assert_eq!(
+        view.new_item_id.as_deref(),
+        Some("r2"),
+        "glow is amount-free"
+    );
 
     // Unhide within the toast window: the withheld state becomes visible.
     sut.dispatch(Event::PrivacyChanged { hidden: false });
@@ -541,7 +545,11 @@ fn deleted_row_is_not_resurrected_by_a_concurrent_reload() {
     sut.resolve(Res::SyncCompleted { new_count: 0 });
 
     // The write settles; post-delete reloads stay clean.
-    assert!(sut.resolve(Res::DeleteCommitted { id: "s1".to_owned() }).is_empty());
+    assert!(sut
+        .resolve(Res::DeleteCommitted {
+            id: "s1".to_owned()
+        })
+        .is_empty());
     sut.dispatch(Event::FocusTick);
     sut.resolve(loaded(&sut, vec![], T0 + 2_000.0));
     sut.resolve(Res::SyncCompleted { new_count: 0 });
@@ -560,7 +568,9 @@ fn failed_delete_lets_the_next_reload_resurrect_the_row() {
         id: "s1".to_owned(),
     });
     assert!(items(&sut).is_empty());
-    sut.resolve(Res::DeleteFailed { id: "s1".to_owned() });
+    sut.resolve(Res::DeleteFailed {
+        id: "s1".to_owned(),
+    });
 
     sut.dispatch(Event::FocusTick);
     sut.resolve(loaded(&sut, vec![s1], T0 + 1_000.0));
@@ -616,7 +626,9 @@ fn chain_filter_regroups_headers_over_the_filtered_list() {
     let mut sut = boot(vec![r_a, r_b, s_c]);
     drain_aliases(&mut sut);
 
-    sut.dispatch(Event::ChainFilterChanged { chain_id: Some(8453) });
+    sut.dispatch(Event::ChainFilterChanged {
+        chain_id: Some(8453),
+    });
     let rows = sut.view().rows;
     assert_eq!(rows.len(), 2, "one day, one item on 8453");
     match &rows[0] {
@@ -651,10 +663,7 @@ fn stored_name_blocks_network_and_attempts_never_repeat() {
     sut.dispatch(Event::AccountSwitched {
         address: ADDR.to_owned(),
     });
-    let ops = sut.resolve(loaded(&sut, 
-        vec![named, unnamed, unnamed_again],
-        T0,
-    ));
+    let ops = sut.resolve(loaded(&sut, vec![named, unnamed, unnamed_again], T0));
     assert_eq!(
         ops,
         vec![Op::ResolveRecipientIdentity {
@@ -676,7 +685,8 @@ fn stored_name_blocks_network_and_attempts_never_repeat() {
     // A reload re-derives pending addresses — attempted ones never re-ask.
     sut.dispatch(Event::FocusTick);
     let r3 = recv("r3", "0xBEEF", "4", "USDT", 50_000.0);
-    let ops = sut.resolve(loaded(&sut, 
+    let ops = sut.resolve(loaded(
+        &sut,
         vec![
             send("s1", "0xU1", "0xCafe", "1", 300_000.0),
             recv("r1", "0xBeEf", "2", "USDT", 200_000.0),
@@ -684,7 +694,10 @@ fn stored_name_blocks_network_and_attempts_never_repeat() {
         ],
         T0 + 1_000.0,
     ));
-    assert!(ops.is_empty(), "0xbeef was attempted — never again this session");
+    assert!(
+        ops.is_empty(),
+        "0xbeef was attempted — never again this session"
+    );
     sut.resolve(Res::SyncCompleted { new_count: 0 });
 }
 
@@ -737,7 +750,10 @@ fn unresolved_alias_never_retries() {
         addr: "0xghost".to_owned(),
         name: Some(String::new()),
     });
-    assert!(ops.is_empty(), "empty name is falsy — not memoised as a name");
+    assert!(
+        ops.is_empty(),
+        "empty name is falsy — not memoised as a name"
+    );
     assert!(items(&sut)[0].alias.is_none());
 
     sut.dispatch(Event::FocusTick);

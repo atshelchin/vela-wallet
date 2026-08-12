@@ -126,7 +126,9 @@ pub enum TrackOperation {
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "TrackShellResult"))]
 pub enum TrackShellResult {
-    Clock { now_ms: f64 },
+    Clock {
+        now_ms: f64,
+    },
     /// A definitive successful receipt (`success !== false`, txHash present).
     Receipt {
         user_op_hash: String,
@@ -142,10 +144,16 @@ pub enum TrackShellResult {
     },
     /// The bundler answered cleanly but the op has not landed yet
     /// (`reachedBundler: true, resolution: null`).
-    ReceiptPending { user_op_hash: String, now_ms: f64 },
+    ReceiptPending {
+        user_op_hash: String,
+        now_ms: f64,
+    },
     /// The bundler could not answer — timeout / network / RPC error
     /// (`reachedBundler: false`; `net.ts` classification). NOT a failure.
-    ReceiptUnreachable { user_op_hash: String, now_ms: f64 },
+    ReceiptUnreachable {
+        user_op_hash: String,
+        now_ms: f64,
+    },
     /// The relay's view of an op with no receipt (`eth_getUserOperationStatus`).
     Status {
         user_op_hash: String,
@@ -156,7 +164,10 @@ pub enum TrackShellResult {
         now_ms: f64,
     },
     /// The status endpoint yielded nothing (unreachable or an older relay).
-    StatusUnavailable { user_op_hash: String, now_ms: f64 },
+    StatusUnavailable {
+        user_op_hash: String,
+        now_ms: f64,
+    },
     RecordsLoaded {
         records: Vec<TrackPendingRecord>,
         now_ms: f64,
@@ -278,9 +289,13 @@ enum EntryStatus {
     Pending,
     /// Relay parked the op until fees settle — still pending, new wording.
     FeeHeld,
-    Confirmed { tx_hash: String },
+    Confirmed {
+        tx_hash: String,
+    },
     /// Dropped from the network / reverted (`success === false`).
-    Failed { tx_hash: String },
+    Failed {
+        tx_hash: String,
+    },
     /// The relay refused it before any block — nothing was sent.
     Rejected,
     /// The bundler was unreachable for the whole wait window: the op's fate
@@ -662,7 +677,10 @@ fn accept(model: &mut Model, result: TrackShellResult) -> Command<TrackEffect, E
         }
 
         // -- non-answers ------------------------------------------------------
-        TrackShellResult::ReceiptPending { user_op_hash, now_ms } => {
+        TrackShellResult::ReceiptPending {
+            user_op_hash,
+            now_ms,
+        } => {
             let key = normalize(&user_op_hash);
             if let Some(entry) = model.entries.get_mut(&key) {
                 entry.receipt_in_flight = false;
@@ -673,7 +691,10 @@ fn accept(model: &mut Model, result: TrackShellResult) -> Command<TrackEffect, E
             // attempt is when the 12s status check runs.
             run_scheduler(model, now_ms)
         }
-        TrackShellResult::ReceiptUnreachable { user_op_hash, now_ms } => {
+        TrackShellResult::ReceiptUnreachable {
+            user_op_hash,
+            now_ms,
+        } => {
             let key = normalize(&user_op_hash);
             if let Some(entry) = model.entries.get_mut(&key) {
                 entry.receipt_in_flight = false;
@@ -720,7 +741,10 @@ fn accept(model: &mut Model, result: TrackShellResult) -> Command<TrackEffect, E
                 None => run_scheduler(model, now_ms),
             }
         }
-        TrackShellResult::StatusUnavailable { user_op_hash, now_ms } => {
+        TrackShellResult::StatusUnavailable {
+            user_op_hash,
+            now_ms,
+        } => {
             let key = normalize(&user_op_hash);
             if let Some(entry) = model.entries.get_mut(&key) {
                 entry.status_in_flight = false;

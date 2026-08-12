@@ -170,7 +170,10 @@ pub enum ExtCacheShellResult {
     /// `vela.ext.ulVerifiedAt` as persisted — 0 for never/unreadable (the
     /// shell fails closed like `getUniversalLinkVerifiedAt`). `now_ms` rides
     /// the result so the core stays a pure function of its inputs.
-    AttestationRead { ts: f64, now_ms: f64 },
+    AttestationRead {
+        ts: f64,
+        now_ms: f64,
+    },
     AttestationPersisted,
     SnapshotWritten,
     SnapshotRemoved,

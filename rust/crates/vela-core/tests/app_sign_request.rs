@@ -14,12 +14,11 @@ use vela_core::app::fee_policy::{tempo_reimbursement, TEMPO_FEE_TOKEN_DECIMALS};
 use vela_core::app::sign_request::{
     extract_request_chain_id, is_signing_method, method_kind, required_capabilities,
     sign_account_index, Event, SignAccountRef, SignApproveOpts, SignDappIdentity, SignErrorKind,
-    SignFundingNeeded, SignFundingPresentation, SignMethodKind, SignNotice,
-    SignOperation as Op, SignQuotedFee, SignRecordClose, SignRecordKind, SignRecordStatus,
-    SignRequest, SignResponsePayload, SignSettledOutcome, SignShellResult as Res,
-    SignSponsorship, SignSubmitOutcome, SignSurface, SignSwipeAction, CODE_INTERNAL,
-    CODE_INVALID_PARAMS, CODE_UNAUTHORIZED, CODE_UNSUPPORTED_CAPABILITY, CODE_UNSUPPORTED_CHAIN,
-    CODE_USER_REJECTED,
+    SignFundingNeeded, SignFundingPresentation, SignMethodKind, SignNotice, SignOperation as Op,
+    SignQuotedFee, SignRecordClose, SignRecordKind, SignRecordStatus, SignRequest,
+    SignResponsePayload, SignSettledOutcome, SignShellResult as Res, SignSponsorship,
+    SignSubmitOutcome, SignSurface, SignSwipeAction, CODE_INTERNAL, CODE_INVALID_PARAMS,
+    CODE_UNAUTHORIZED, CODE_UNSUPPORTED_CAPABILITY, CODE_UNSUPPORTED_CHAIN, CODE_USER_REJECTED,
 };
 
 type Sut = DomainDriver<SignRequest>;
@@ -233,9 +232,15 @@ fn extract_chain_reads_typed_data_tx_and_batch_shapes() {
         Some(137)
     );
     let tx = serde_json::json!([{ "chainId": "0x1", "to": "0x0" }]);
-    assert_eq!(extract_request_chain_id("eth_sendTransaction", &tx), Some(1));
+    assert_eq!(
+        extract_request_chain_id("eth_sendTransaction", &tx),
+        Some(1)
+    );
     let batch = serde_json::json!([{ "chainId": "137", "calls": [] }]);
-    assert_eq!(extract_request_chain_id("wallet_sendCalls", &batch), Some(137));
+    assert_eq!(
+        extract_request_chain_id("wallet_sendCalls", &batch),
+        Some(137)
+    );
     // No hint / malformed → None.
     let none = serde_json::json!([{ "to": "0x0" }]);
     assert_eq!(extract_request_chain_id("eth_sendTransaction", &none), None);
@@ -269,7 +274,14 @@ fn sign_account_index_prefers_granted_falls_back_visible() {
         1
     );
     // Unknown grant → keep the active signer VISIBLE, never silent.
-    assert_eq!(sign_account_index(&accts, 1, Some("0x9999999999999999999999999999999999999999")), 1);
+    assert_eq!(
+        sign_account_index(
+            &accts,
+            1,
+            Some("0x9999999999999999999999999999999999999999")
+        ),
+        1
+    );
     assert_eq!(sign_account_index(&accts, 1, None), 1);
 }
 
@@ -283,7 +295,14 @@ fn bug2_reject_during_gas_precheck_aborts_before_submit() {
     sut.dispatch(Arrive::global("req-1", "eth_sendTransaction", &plain_send_params()).event());
     let ops = sut.dispatch(approve(SignApproveOpts::default()));
     assert!(
-        matches!(ops.as_slice(), [Op::CheckBundlerFunding { chain_id: 1, bust_cache: false, .. }]),
+        matches!(
+            ops.as_slice(),
+            [Op::CheckBundlerFunding {
+                chain_id: 1,
+                bust_cache: false,
+                ..
+            }]
+        ),
         "approve starts at the funding pre-check: {ops:?}"
     );
 
@@ -291,7 +310,14 @@ fn bug2_reject_during_gas_precheck_aborts_before_submit() {
     let ops = sut.dispatch(Event::RejectTapped);
     assert_eq!(ops.len(), 1);
     let (code, kind, tid) = response_error(&ops[0]).expect("a 4001 response");
-    assert_eq!((code, kind, tid), (CODE_USER_REJECTED, SignErrorKind::UserRejected, WP.to_owned()));
+    assert_eq!(
+        (code, kind, tid),
+        (
+            CODE_USER_REJECTED,
+            SignErrorKind::UserRejected,
+            WP.to_owned()
+        )
+    );
 
     // The late pre-check answer must never reach submission (BUG-2).
     let ops = sut.resolve(Res::PreCheck { funding: None });
@@ -306,7 +332,11 @@ fn bug2_swipe_after_commit_dismisses_and_late_result_still_delivers() {
     sut.dispatch(approve(SignApproveOpts::default()));
     let ops = sut.resolve(Res::PreCheck { funding: None });
     assert!(matches!(ops.as_slice(), [Op::SignAndSubmit { .. }]));
-    assert_eq!(sut.view().swipe_action, SignSwipeAction::Dismiss, "committed → dismiss");
+    assert_eq!(
+        sut.view().swipe_action,
+        SignSwipeAction::Dismiss,
+        "committed → dismiss"
+    );
 
     // Swipe now: NO 4001, the op proceeds.
     let ops = sut.dispatch(Event::SwipeDismissed);
@@ -350,8 +380,15 @@ fn bug3_same_tick_double_approve_is_single_flight() {
     let first = sut.dispatch(approve(SignApproveOpts::default()));
     assert_eq!(first.len(), 1, "one pre-check");
     let second = sut.dispatch(approve(SignApproveOpts::default()));
-    assert!(second.is_empty(), "the second tap finds the pipeline occupied: {second:?}");
-    assert_eq!(sut.outstanding().len(), 1, "exactly one operation in flight");
+    assert!(
+        second.is_empty(),
+        "the second tap finds the pipeline occupied: {second:?}"
+    );
+    assert_eq!(
+        sut.outstanding().len(),
+        1,
+        "exactly one operation in flight"
+    );
 }
 
 // ===========================================================================
@@ -369,13 +406,18 @@ fn opts_with_override(override_json: &str) -> SignApproveOpts {
 fn funding_retry_replays_same_rid_with_original_capped_opts() {
     let capped = capped_approve_params();
     let mut sut = boot();
-    sut.dispatch(Arrive::global("req-5", "eth_sendTransaction", &unlimited_approve_params()).event());
+    sut.dispatch(
+        Arrive::global("req-5", "eth_sendTransaction", &unlimited_approve_params()).event(),
+    );
     sut.dispatch(approve(opts_with_override(&capped)));
 
     let ops = sut.resolve(Res::PreCheck {
         funding: Some(funding_fixture()),
     });
-    assert!(matches!(ops.as_slice(), [Op::AttemptSponsorship { force: false, .. }]));
+    assert!(matches!(
+        ops.as_slice(),
+        [Op::AttemptSponsorship { force: false, .. }]
+    ));
     let ops = sut.resolve(Res::Sponsorship {
         outcome: SignSponsorship::Denied {
             reason: Some("budget".to_owned()),
@@ -391,7 +433,13 @@ fn funding_retry_replays_same_rid_with_original_capped_opts() {
     // Continue after top-up: fresh cache, SAME capped params all the way in.
     let ops = sut.dispatch(Event::FundingCompleteTapped);
     assert!(
-        matches!(ops.as_slice(), [Op::CheckBundlerFunding { bust_cache: true, .. }]),
+        matches!(
+            ops.as_slice(),
+            [Op::CheckBundlerFunding {
+                bust_cache: true,
+                ..
+            }]
+        ),
         "retry busts the bundler cache: {ops:?}"
     );
     let ops = sut.resolve(Res::PreCheck { funding: None });
@@ -446,7 +494,10 @@ fn fresh_request_clears_leftover_funding_and_pin() {
     assert_eq!(view.surface, SignSurface::Sheet);
     // The stale pin cannot replay old opts under the new request.
     let ops = sut.dispatch(Event::FundingCompleteTapped);
-    assert!(ops.is_empty(), "no funding view → nothing to complete: {ops:?}");
+    assert!(
+        ops.is_empty(),
+        "no funding view → nothing to complete: {ops:?}"
+    );
 }
 
 // ===========================================================================
@@ -458,7 +509,10 @@ fn signature_record_lands_before_the_response() {
     let mut sut = boot();
     sut.dispatch(Arrive::global("req-6", "personal_sign", r#"["0xdead","0x0"]"#).event());
     let ops = sut.dispatch(approve(SignApproveOpts::default()));
-    assert!(matches!(ops.as_slice(), [Op::SignAndSubmit { .. }]), "no gas pre-check for signatures");
+    assert!(
+        matches!(ops.as_slice(), [Op::SignAndSubmit { .. }]),
+        "no gas pre-check for signatures"
+    );
 
     let ops = sut.resolve(Res::Submit {
         outcome: SignSubmitOutcome::Succeeded {
@@ -476,7 +530,10 @@ fn signature_record_lands_before_the_response() {
         "durable record precedes the result: {ops:?}"
     );
     let ops = sut.resolve(Res::RecordPersisted);
-    assert_eq!(response_ok(&ops[0]), Some((WP.to_owned(), Some("0xsig".to_owned()))));
+    assert_eq!(
+        response_ok(&ops[0]),
+        Some((WP.to_owned(), Some("0xsig".to_owned())))
+    );
     assert_eq!(sut.view().surface, SignSurface::Hidden);
 }
 
@@ -484,7 +541,9 @@ fn signature_record_lands_before_the_response() {
 fn tx_pending_record_persists_at_submission_then_flips_confirmed_in_place() {
     let capped = capped_approve_params();
     let mut sut = boot();
-    sut.dispatch(Arrive::global("req-7", "eth_sendTransaction", &unlimited_approve_params()).event());
+    sut.dispatch(
+        Arrive::global("req-7", "eth_sendTransaction", &unlimited_approve_params()).event(),
+    );
     sut.dispatch(approve(opts_with_override(&capped)));
     sut.resolve(Res::PreCheck { funding: None });
 
@@ -512,7 +571,10 @@ fn tx_pending_record_persists_at_submission_then_flips_confirmed_in_place() {
 
     // Final result: respond, then flip the SAME record confirmed.
     let ops = sut.resolve(submit_ok("0xtxhash"));
-    assert_eq!(response_ok(&ops[0]), Some((WP.to_owned(), Some("0xtxhash".to_owned()))));
+    assert_eq!(
+        response_ok(&ops[0]),
+        Some((WP.to_owned(), Some("0xtxhash".to_owned())))
+    );
     assert!(
         matches!(&ops[1], Op::UpdateRecord { record_id, close: SignRecordClose::Confirmed { tx_hash } }
             if record_id == "dapp-5000-tx" && tx_hash == "0xtxhash"),
@@ -562,22 +624,34 @@ fn f2_response_routes_to_the_owning_transport() {
     sut.dispatch(Arrive::extension("rid-1", "personal_sign", r#"["0xdead","0x0"]"#, 137).event());
     let ops = sut.dispatch(Event::RejectTapped);
     let (code, _, tid) = response_error(&ops[0]).expect("response");
-    assert_eq!((code, tid), (CODE_USER_REJECTED, EXT.to_owned()), "owner transport, never a shared ref");
+    assert_eq!(
+        (code, tid),
+        (CODE_USER_REJECTED, EXT.to_owned()),
+        "owner transport, never a shared ref"
+    );
 }
 
 #[test]
 fn f3_f4_request_uses_its_own_chain_and_dapp_identity() {
     let mut sut = boot();
-    sut.dispatch(Arrive::extension("rid-2", "eth_sendTransaction", &plain_send_params(), 137).event());
+    sut.dispatch(
+        Arrive::extension("rid-2", "eth_sendTransaction", &plain_send_params(), 137).event(),
+    );
     let view = sut.view();
     let request = view.request.expect("request");
     assert_eq!(request.chain_id, 137, "the origin's granted chain (F4)");
     assert_eq!(view.global_chain_id, 1, "the global chain is untouched");
 
     let ops = sut.dispatch(approve(SignApproveOpts::default()));
-    assert!(matches!(ops.as_slice(), [Op::CheckBundlerFunding { chain_id: 137, .. }]));
+    assert!(matches!(
+        ops.as_slice(),
+        [Op::CheckBundlerFunding { chain_id: 137, .. }]
+    ));
     let ops = sut.resolve(Res::PreCheck { funding: None });
-    assert!(matches!(ops.as_slice(), [Op::SignAndSubmit { chain_id: 137, .. }]));
+    assert!(matches!(
+        ops.as_slice(),
+        [Op::SignAndSubmit { chain_id: 137, .. }]
+    ));
     let ops = sut.dispatch(Event::OpSubmitted {
         id: "rid-2".to_owned(),
         user_op_hash: "0xop".to_owned(),
@@ -605,8 +679,15 @@ fn chain_switch_cancels_global_chain_pending_with_4001() {
     });
     assert_eq!(ops.len(), 2);
     let (code, kind, _) = response_error(&ops[0]).expect("cancellation");
-    assert_eq!((code, kind), (CODE_USER_REJECTED, SignErrorKind::WalletSwitchedChains));
-    assert_eq!(response_ok(&ops[1]), Some((WP.to_owned(), None)), "switch answered null");
+    assert_eq!(
+        (code, kind),
+        (CODE_USER_REJECTED, SignErrorKind::WalletSwitchedChains)
+    );
+    assert_eq!(
+        response_ok(&ops[1]),
+        Some((WP.to_owned(), None)),
+        "switch answered null"
+    );
     let view = sut.view();
     assert_eq!(view.surface, SignSurface::Hidden);
     assert_eq!(view.global_chain_id, 137);
@@ -635,7 +716,10 @@ fn chain_switch_missing_or_malformed_param_is_32602_never_phantom_success() {
             chain_id_param: bad,
         });
         let (code, kind, _) = response_error(&ops[0]).expect("error");
-        assert_eq!((code, kind), (CODE_INVALID_PARAMS, SignErrorKind::InvalidParams));
+        assert_eq!(
+            (code, kind),
+            (CODE_INVALID_PARAMS, SignErrorKind::InvalidParams)
+        );
     }
 }
 
@@ -645,14 +729,28 @@ fn unsupported_chain_is_refused_4902_before_any_ui() {
     let mut sut = boot();
     let ops = sut.dispatch(Arrive::extension("rid-4", "personal_sign", "[]", 999).event());
     let (code, kind, tid) = response_error(&ops[0]).expect("refusal");
-    assert_eq!((code, kind, tid), (CODE_UNSUPPORTED_CHAIN, SignErrorKind::UnsupportedChain, EXT.to_owned()));
-    assert_eq!(sut.view().surface, SignSurface::Hidden, "never reached the sheet");
+    assert_eq!(
+        (code, kind, tid),
+        (
+            CODE_UNSUPPORTED_CHAIN,
+            SignErrorKind::UnsupportedChain,
+            EXT.to_owned()
+        )
+    );
+    assert_eq!(
+        sut.view().surface,
+        SignSurface::Hidden,
+        "never reached the sheet"
+    );
 
     // Embedded chain (typed data domain).
     let params = r#"["0x0", "{\"domain\":{\"chainId\":999}}"]"#;
     let ops = sut.dispatch(Arrive::global("req-10", "eth_signTypedData_v4", params).event());
     let (code, kind, _) = response_error(&ops[0]).expect("refusal");
-    assert_eq!((code, kind), (CODE_UNSUPPORTED_CHAIN, SignErrorKind::UnsupportedChain));
+    assert_eq!(
+        (code, kind),
+        (CODE_UNSUPPORTED_CHAIN, SignErrorKind::UnsupportedChain)
+    );
     assert_eq!(sut.view().surface, SignSurface::Hidden);
 }
 
@@ -690,7 +788,10 @@ fn grant_mismatch_is_4100_never_a_silent_signer_swap() {
     arrive.requested = Some(ACCT1.to_owned());
     let ops = sut.dispatch(arrive.event());
     let (code, kind, _) = response_error(&ops[0]).expect("refusal");
-    assert_eq!((code, kind), (CODE_UNAUTHORIZED, SignErrorKind::UnauthorizedAccount));
+    assert_eq!(
+        (code, kind),
+        (CODE_UNAUTHORIZED, SignErrorKind::UnauthorizedAccount)
+    );
     assert_eq!(sut.view().surface, SignSurface::Hidden);
 }
 
@@ -700,14 +801,20 @@ fn approval_surface_waits_for_the_account_switch_ack() {
     let mut arrive = Arrive::extension("rid-7", "personal_sign", r#"["0xdead","0x0"]"#, 1);
     arrive.granted = Some(ACCT1.to_owned()); // granted ≠ active
     let ops = sut.dispatch(arrive.event());
-    assert!(matches!(ops.as_slice(), [Op::SwitchActiveAccount { index: 1 }]), "switch FIRST: {ops:?}");
+    assert!(
+        matches!(ops.as_slice(), [Op::SwitchActiveAccount { index: 1 }]),
+        "switch FIRST: {ops:?}"
+    );
     let view = sut.view();
     assert!(view.reconcile_pending);
     assert!(!view.confirm_gate_open);
 
     // Approve before the ack must be inert.
     let ops = sut.dispatch(approve(SignApproveOpts::default()));
-    assert!(ops.is_empty(), "the sheet may not act before the switch lands: {ops:?}");
+    assert!(
+        ops.is_empty(),
+        "the sheet may not act before the switch lands: {ops:?}"
+    );
 
     let ops = sut.resolve(Res::AccountSwitched);
     assert!(ops.is_empty());
@@ -732,7 +839,10 @@ fn unowned_grant_falls_back_to_the_visible_active_signer() {
     let view = sut.view();
     assert!(!view.reconcile_pending);
     assert!(view.confirm_gate_open);
-    assert_eq!(view.request.expect("request").signer_address.as_deref(), Some(ACCT0));
+    assert_eq!(
+        view.request.expect("request").signer_address.as_deref(),
+        Some(ACCT0)
+    );
 }
 
 // ===========================================================================
@@ -754,7 +864,8 @@ fn a_settled_rid_never_signs_twice_replays_outcome() {
     sut.resolve(Res::RecordPersisted);
 
     // The same rid arrives again (cold relaunch replay).
-    let ops = sut.dispatch(Arrive::extension("rid-9", "personal_sign", r#"["0xdead","0x0"]"#, 1).event());
+    let ops =
+        sut.dispatch(Arrive::extension("rid-9", "personal_sign", r#"["0xdead","0x0"]"#, 1).event());
     assert!(ops.is_empty(), "never a second sign: {ops:?}");
     let view = sut.view();
     assert_eq!(view.surface, SignSurface::Hidden);
@@ -783,7 +894,10 @@ fn a_stale_request_payload_never_signs_and_never_responds() {
     let mut arrive = Arrive::extension("rid-11", "personal_sign", r#"["0xdead","0x0"]"#, 1);
     arrive.ts = Some(NOW - 301_000.0); // > 5 min old
     let ops = sut.dispatch(arrive.event());
-    assert!(ops.is_empty(), "no sign, no response — the page recovers via 4900: {ops:?}");
+    assert!(
+        ops.is_empty(),
+        "no sign, no response — the page recovers via 4900: {ops:?}"
+    );
     let view = sut.view();
     assert_eq!(view.surface, SignSurface::Hidden);
     assert_eq!(view.notice, Some(SignNotice::Expired));
@@ -810,7 +924,10 @@ fn only_an_explicit_reject_carries_4001() {
     assert_eq!(sut.view().swipe_action, SignSwipeAction::FundingCancel);
     let ops = sut.dispatch(Event::SwipeDismissed);
     let (code, kind, _) = response_error(&ops[0]).expect("cancellation");
-    assert_eq!((code, kind), (CODE_INTERNAL, SignErrorKind::FundingCancelled));
+    assert_eq!(
+        (code, kind),
+        (CODE_INTERNAL, SignErrorKind::FundingCancelled)
+    );
 
     // Passkey cancel → NO response at all; the modal stays open for a retry.
     sut.dispatch(Arrive::global("req-13", "personal_sign", r#"["0xdead","0x0"]"#).event());
@@ -835,7 +952,9 @@ fn capped_override_is_what_gets_signed_submitted_and_recorded() {
     // signature-method path too.
     let capped = capped_approve_params();
     let mut sut = boot();
-    sut.dispatch(Arrive::global("req-14", "eth_sendTransaction", &unlimited_approve_params()).event());
+    sut.dispatch(
+        Arrive::global("req-14", "eth_sendTransaction", &unlimited_approve_params()).event(),
+    );
     sut.dispatch(approve(opts_with_override(&capped)));
     let ops = sut.resolve(Res::PreCheck { funding: None });
     assert!(
@@ -864,9 +983,19 @@ fn batch_rejects_required_capability_5700_before_touching_the_wallet() {
     );
     sut.dispatch(Arrive::global("req-15", "wallet_sendCalls", &params).event());
     let ops = sut.dispatch(approve(SignApproveOpts::default()));
-    assert_eq!(ops.len(), 1, "the refusal is the ONLY operation — no pre-check, no passkey: {ops:?}");
+    assert_eq!(
+        ops.len(),
+        1,
+        "the refusal is the ONLY operation — no pre-check, no passkey: {ops:?}"
+    );
     let (code, kind, _) = response_error(&ops[0]).expect("refusal");
-    assert_eq!((code, kind), (CODE_UNSUPPORTED_CAPABILITY, SignErrorKind::UnsupportedCapability));
+    assert_eq!(
+        (code, kind),
+        (
+            CODE_UNSUPPORTED_CAPABILITY,
+            SignErrorKind::UnsupportedCapability
+        )
+    );
 }
 
 #[test]
@@ -878,7 +1007,10 @@ fn batch_with_optional_capability_proceeds() {
     );
     sut.dispatch(Arrive::global("req-16", "wallet_sendCalls", &params).event());
     let ops = sut.dispatch(approve(SignApproveOpts::default()));
-    assert!(matches!(ops.as_slice(), [Op::CheckBundlerFunding { .. }]), "{ops:?}");
+    assert!(
+        matches!(ops.as_slice(), [Op::CheckBundlerFunding { .. }]),
+        "{ops:?}"
+    );
 }
 
 #[test]
@@ -897,14 +1029,21 @@ fn empty_batch_is_refused() {
 #[test]
 fn unlimited_single_approval_is_refused_at_the_submit_throat() {
     let mut sut = boot();
-    sut.dispatch(Arrive::global("req-18", "eth_sendTransaction", &unlimited_approve_params()).event());
+    sut.dispatch(
+        Arrive::global("req-18", "eth_sendTransaction", &unlimited_approve_params()).event(),
+    );
     sut.dispatch(approve(SignApproveOpts::default())); // no capped override
     let ops = sut.resolve(Res::PreCheck { funding: None });
     assert_eq!(ops.len(), 1, "refusal only — nothing is signed: {ops:?}");
     let (code, kind, _) = response_error(&ops[0]).expect("refusal");
-    assert_eq!((code, kind), (CODE_INTERNAL, SignErrorKind::UnlimitedApproval));
+    assert_eq!(
+        (code, kind),
+        (CODE_INTERNAL, SignErrorKind::UnlimitedApproval)
+    );
     assert!(
-        !sut.outstanding().iter().any(|op| matches!(op, Op::SignAndSubmit { .. })),
+        !sut.outstanding()
+            .iter()
+            .any(|op| matches!(op, Op::SignAndSubmit { .. })),
         "fail-closed: no SignAndSubmit ever issued"
     );
 }
@@ -920,7 +1059,10 @@ fn unlimited_batch_leg_is_refused_per_leg() {
     sut.dispatch(approve(SignApproveOpts::default()));
     let ops = sut.resolve(Res::PreCheck { funding: None });
     let (code, kind, _) = response_error(&ops[0]).expect("refusal");
-    assert_eq!((code, kind), (CODE_INTERNAL, SignErrorKind::UnlimitedApproval));
+    assert_eq!(
+        (code, kind),
+        (CODE_INTERNAL, SignErrorKind::UnlimitedApproval)
+    );
 }
 
 #[test]
@@ -929,7 +1071,10 @@ fn capped_approval_passes_the_guard_and_submits() {
     sut.dispatch(Arrive::global("req-20", "eth_sendTransaction", &capped_approve_params()).event());
     sut.dispatch(approve(SignApproveOpts::default()));
     let ops = sut.resolve(Res::PreCheck { funding: None });
-    assert!(matches!(ops.as_slice(), [Op::SignAndSubmit { .. }]), "{ops:?}");
+    assert!(
+        matches!(ops.as_slice(), [Op::SignAndSubmit { .. }]),
+        "{ops:?}"
+    );
 }
 
 // ===========================================================================
@@ -939,7 +1084,9 @@ fn capped_approval_passes_the_guard_and_submits() {
 #[test]
 fn stale_tempo_quote_is_rereviewed_never_silently_repriced() {
     let mut sut = boot();
-    sut.dispatch(Arrive::extension("rid-13", "eth_sendTransaction", &plain_send_params(), 4_217).event());
+    sut.dispatch(
+        Arrive::extension("rid-13", "eth_sendTransaction", &plain_send_params(), 4_217).event(),
+    );
 
     let collector = "0x5555555555555555555555555555555555555555";
     let stale_opts = SignApproveOpts {
@@ -953,8 +1100,15 @@ fn stale_tempo_quote_is_rereviewed_never_silently_repriced() {
     let ops = sut.dispatch(approve(stale_opts));
     assert!(ops.is_empty(), "a stale quote never submits: {ops:?}");
     let view = sut.view();
-    assert_eq!(view.error.expect("stale").kind, SignErrorKind::StaleFeeQuote);
-    assert_eq!(view.surface, SignSurface::Sheet, "stays reviewable for a re-quote");
+    assert_eq!(
+        view.error.expect("stale").kind,
+        SignErrorKind::StaleFeeQuote
+    );
+    assert_eq!(
+        view.surface,
+        SignSurface::Sheet,
+        "stays reviewable for a re-quote"
+    );
 
     // A recipient that no longer matches the collector is stale too.
     let floor = tempo_reimbursement(0, 0, TEMPO_FEE_TOKEN_DECIMALS).to_string();
@@ -978,7 +1132,16 @@ fn stale_tempo_quote_is_rereviewed_never_silently_repriced() {
         ..SignApproveOpts::default()
     };
     let ops = sut.dispatch(approve(fresh_opts));
-    assert!(matches!(ops.as_slice(), [Op::CheckBundlerFunding { chain_id: 4_217, .. }]), "{ops:?}");
+    assert!(
+        matches!(
+            ops.as_slice(),
+            [Op::CheckBundlerFunding {
+                chain_id: 4_217,
+                ..
+            }]
+        ),
+        "{ops:?}"
+    );
 }
 
 // ===========================================================================
@@ -993,7 +1156,10 @@ fn swipe_routes_by_phase() {
     assert_eq!(sut.view().swipe_action, SignSwipeAction::Reject);
     let ops = sut.dispatch(Event::SwipeDismissed);
     let (code, kind, _) = response_error(&ops[0]).expect("reject");
-    assert_eq!((code, kind), (CODE_USER_REJECTED, SignErrorKind::UserRejected));
+    assert_eq!(
+        (code, kind),
+        (CODE_USER_REJECTED, SignErrorKind::UserRejected)
+    );
     assert_eq!(sut.view().swipe_action, SignSwipeAction::None);
 }
 
@@ -1012,8 +1178,15 @@ fn no_second_response_after_a_terminal_error() {
 
     // Neither a re-approve nor a reject may answer the same id again.
     assert!(sut.dispatch(approve(SignApproveOpts::default())).is_empty());
-    assert!(sut.dispatch(Event::RejectTapped).is_empty(), "reject after response = dismiss");
-    assert_eq!(sut.view().surface, SignSurface::Hidden, "reject routed to dismiss");
+    assert!(
+        sut.dispatch(Event::RejectTapped).is_empty(),
+        "reject after response = dismiss"
+    );
+    assert_eq!(
+        sut.view().surface,
+        SignSurface::Hidden,
+        "reject routed to dismiss"
+    );
 }
 
 #[test]
@@ -1049,7 +1222,10 @@ fn underfunded_submit_heals_silently_then_offers_funding_and_retries() {
         },
         now_ms: 12_000.0,
     });
-    assert!(matches!(ops.as_slice(), [Op::AttemptSponsorship { force: true, .. }]), "{ops:?}");
+    assert!(
+        matches!(ops.as_slice(), [Op::AttemptSponsorship { force: true, .. }]),
+        "{ops:?}"
+    );
 
     let ops = sut.resolve(Res::Sponsorship {
         outcome: SignSponsorship::Denied {
@@ -1064,7 +1240,13 @@ fn underfunded_submit_heals_silently_then_offers_funding_and_retries() {
 
     // Continue → fresh pre-check → submit again, same request.
     let ops = sut.dispatch(Event::FundingCompleteTapped);
-    assert!(matches!(ops.as_slice(), [Op::CheckBundlerFunding { bust_cache: true, .. }]));
+    assert!(matches!(
+        ops.as_slice(),
+        [Op::CheckBundlerFunding {
+            bust_cache: true,
+            ..
+        }]
+    ));
     let ops = sut.resolve(Res::PreCheck { funding: None });
     assert!(matches!(ops.as_slice(), [Op::SignAndSubmit { id, .. }] if id == "req-24"));
 }
@@ -1098,7 +1280,10 @@ fn proactive_sponsorship_funded_proceeds_straight_to_submit() {
     let ops = sut.resolve(Res::Sponsorship {
         outcome: SignSponsorship::Funded,
     });
-    assert!(matches!(ops.as_slice(), [Op::SignAndSubmit { .. }]), "{ops:?}");
+    assert!(
+        matches!(ops.as_slice(), [Op::SignAndSubmit { .. }]),
+        "{ops:?}"
+    );
 }
 
 #[test]
@@ -1127,7 +1312,10 @@ fn batch_result_records_then_responds_with_the_batch_id() {
         "{ops:?}"
     );
     let ops = sut.resolve(Res::RecordPersisted);
-    assert_eq!(response_ok(&ops[0]), Some((WP.to_owned(), Some("0xbatchid".to_owned()))));
+    assert_eq!(
+        response_ok(&ops[0]),
+        Some((WP.to_owned(), Some("0xbatchid".to_owned())))
+    );
 }
 
 #[test]
@@ -1138,7 +1326,9 @@ fn malformed_params_fail_closed_at_approve() {
     let (code, kind, _) = response_error(&ops[0]).expect("refusal");
     assert_eq!((code, kind), (CODE_INTERNAL, SignErrorKind::InvalidParams));
     assert!(
-        !sut.outstanding().iter().any(|op| matches!(op, Op::SignAndSubmit { .. })),
+        !sut.outstanding()
+            .iter()
+            .any(|op| matches!(op, Op::SignAndSubmit { .. })),
         "nothing unparseable is ever signed"
     );
 }

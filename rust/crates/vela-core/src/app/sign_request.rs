@@ -389,7 +389,9 @@ pub enum SignSponsorship {
 pub enum SignSubmitOutcome {
     /// tx: the real tx hash after the receipt wait; batch: the userOpHash;
     /// signatures: the EIP-1271 signature hex.
-    Succeeded { result: String },
+    Succeeded {
+        result: String,
+    },
     /// User dismissed the passkey sheet — never an error, never a response
     /// (`dapp-connection.tsx:808-812`).
     PasskeyCancelled,
@@ -401,7 +403,9 @@ pub enum SignSubmitOutcome {
         message: String,
         funding: Option<SignFundingNeeded>,
     },
-    Failed { message: String },
+    Failed {
+        message: String,
+    },
 }
 
 /// What the shell observed. Every clock-bearing variant carries `now_ms`.
@@ -411,8 +415,12 @@ pub enum SignSubmitOutcome {
 pub enum SignShellResult {
     /// `None` = no funding needed OR the 15 s race timed out / errored — all
     /// of which proceed to submit (`dapp-connection.tsx:666-698`).
-    PreCheck { funding: Option<SignFundingNeeded> },
-    Sponsorship { outcome: SignSponsorship },
+    PreCheck {
+        funding: Option<SignFundingNeeded>,
+    },
+    Sponsorship {
+        outcome: SignSponsorship,
+    },
     Submit {
         outcome: SignSubmitOutcome,
         now_ms: f64,
@@ -1049,7 +1057,9 @@ impl App for SignRequest {
             params_json: p.params_json.clone(),
             origin: p.origin.clone(),
             dapp: p.dapp.clone(),
-            chain_id: p.per_request_chain.unwrap_or_else(|| model.global_chain_id()),
+            chain_id: p
+                .per_request_chain
+                .unwrap_or_else(|| model.global_chain_id()),
             signer_address: model
                 .accounts
                 .get(model.active_index as usize)
@@ -1070,10 +1080,7 @@ impl App for SignRequest {
                 && model.inflight.is_none()
                 && model.funding.is_none()
                 && model.reconciled
-                && !model
-                    .pending
-                    .as_ref()
-                    .is_some_and(|p| p.responded),
+                && !model.pending.as_ref().is_some_and(|p| p.responded),
             request,
             is_signing,
             is_submitting,
@@ -1152,10 +1159,7 @@ fn request_op(
     command
 }
 
-fn ops_and_render(
-    model: &mut Model,
-    operations: Vec<SignOperation>,
-) -> Command<SignEffect, Event> {
+fn ops_and_render(model: &mut Model, operations: Vec<SignOperation>) -> Command<SignEffect, Event> {
     let mut commands: Vec<Command<SignEffect, Event>> = operations
         .into_iter()
         .map(|op| request_op(model, op, false))
@@ -1231,7 +1235,11 @@ fn on_request_arrived(model: &mut Model, arrival: Arrival) -> Command<SignEffect
             let op = respond_op(
                 &arrival.transport_id,
                 &arrival.id,
-                err_payload(CODE_UNSUPPORTED_CHAIN, SignErrorKind::UnsupportedChain, None),
+                err_payload(
+                    CODE_UNSUPPORTED_CHAIN,
+                    SignErrorKind::UnsupportedChain,
+                    None,
+                ),
             );
             return ops_and_render(model, vec![op]);
         }
@@ -1334,7 +1342,11 @@ fn on_chain_switch(
                 vec![respond_op(
                     &tid,
                     &rid,
-                    err_payload(CODE_UNSUPPORTED_CHAIN, SignErrorKind::UnsupportedChain, None),
+                    err_payload(
+                        CODE_UNSUPPORTED_CHAIN,
+                        SignErrorKind::UnsupportedChain,
+                        None,
+                    ),
                 )]
             })
             .unwrap_or_default();
@@ -1359,7 +1371,11 @@ fn on_chain_switch(
             ops.push(respond_op(
                 &p.transport_id,
                 &p.id,
-                err_payload(CODE_USER_REJECTED, SignErrorKind::WalletSwitchedChains, None),
+                err_payload(
+                    CODE_USER_REJECTED,
+                    SignErrorKind::WalletSwitchedChains,
+                    None,
+                ),
             ));
         }
         kill_presubmit_pipeline(model);
@@ -1368,7 +1384,11 @@ fn on_chain_switch(
 
     model.global_chain = Some(new_chain);
     if let Some((tid, rid)) = responder {
-        ops.push(respond_op(&tid, &rid, SignResponsePayload::Ok { result: None }));
+        ops.push(respond_op(
+            &tid,
+            &rid,
+            SignResponsePayload::Ok { result: None },
+        ));
     }
     ops_and_render(model, ops)
 }
@@ -1723,11 +1743,7 @@ fn funding_cancel(model: &mut Model) -> Command<SignEffect, Event> {
     let op = respond_op(
         &pending.transport_id,
         &pending.id,
-        err_payload(
-            CODE_INTERNAL,
-            SignErrorKind::FundingCancelled,
-            None,
-        ),
+        err_payload(CODE_INTERNAL, SignErrorKind::FundingCancelled, None),
     );
     ops_and_render(model, vec![op])
 }
@@ -1824,8 +1840,7 @@ fn accept(model: &mut Model, result: SignShellResult) -> Command<SignEffect, Eve
             model.reconciled = true;
             render()
         }
-        SignShellResult::Responded
-        | SignShellResult::RecordUpdated => Command::done(),
+        SignShellResult::Responded | SignShellResult::RecordUpdated => Command::done(),
         SignShellResult::RecordPersisted => on_record_persisted(model),
         SignShellResult::PreCheck { funding } => on_precheck(model, funding),
         SignShellResult::Sponsorship { outcome } => on_sponsorship(model, outcome),

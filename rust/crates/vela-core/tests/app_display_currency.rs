@@ -162,7 +162,10 @@ fn unpriceable_seed_stays_usd_and_persists_nothing() {
     assert!(ops.is_empty(), "no write, no further ops");
     let view = sut.view();
     assert_eq!((view.code.as_str(), view.rate), ("USD", Some(1.0)));
-    assert!(view.committed, "USD/1 is a real commitment, not the placeholder");
+    assert!(
+        view.committed,
+        "USD/1 is a real commitment, not the placeholder"
+    );
 }
 
 /// A USD region, a missing region, and a malformed code all mean "no seed".

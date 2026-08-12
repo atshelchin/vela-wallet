@@ -252,6 +252,10 @@ pub struct FeedItem {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[cfg_attr(feature = "bindings", derive(TS))]
+// Boxing `Item` to even the variants out would buy an allocation per row and
+// change nothing the shell sees — this is a wire type whose JSON shape is
+// pinned by the generated TypeScript.
+#[allow(clippy::large_enum_variant)]
 pub enum FeedRow {
     Header {
         /// `day-<dayStartMs>` — the stable list key.
@@ -261,7 +265,9 @@ pub enum FeedRow {
         /// "Today" / "Yesterday" / date from it plus its own `now`.
         timestamp: f64,
     },
-    Item { item: FeedItem },
+    Item {
+        item: FeedItem,
+    },
 }
 
 /// The receipt toast, structured — the shell formats `value` + `symbol`
@@ -324,12 +330,23 @@ pub enum FeedShellResult {
         read_id: u32,
     },
     /// The scan finished; `new_count` new receipts were persisted.
-    SyncCompleted { new_count: u32 },
-    DeleteCommitted { id: String },
-    DeleteFailed { id: String },
+    SyncCompleted {
+        new_count: u32,
+    },
+    DeleteCommitted {
+        id: String,
+    },
+    DeleteFailed {
+        id: String,
+    },
     /// `name: None` ⇒ nothing resolved (never retried this session).
-    AliasResolved { addr: String, name: Option<String> },
-    ToastExpired { generation: u32 },
+    AliasResolved {
+        addr: String,
+        name: Option<String>,
+    },
+    ToastExpired {
+        generation: u32,
+    },
     HapticPlayed,
 }
 
@@ -951,7 +968,11 @@ fn build_batch(group: &[&FeedTxRecord]) -> Option<FeedBatch> {
         status: first.status,
         tx_hash: first.tx_hash.clone(),
         user_op_hash: first.user_op_hash.clone(),
-        symbol: if split { Some(first.symbol.clone()) } else { None },
+        symbol: if split {
+            Some(first.symbol.clone())
+        } else {
+            None
+        },
         logo_urls: if split { first.logo_urls.clone() } else { None },
         to: if split { None } else { Some(first.to.clone()) },
         to_name: if split { None } else { first.to_name.clone() },

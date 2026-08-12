@@ -25,10 +25,10 @@ use vela_core::app::fee_policy::{
     tempo_settlement_split, tempo_split_safety_gas, tier_multiplier, to_base_units,
     usd_price_scaled, AssetPricing, Event, FeeAsset, FeeAssetKind, FeeAssetQuote, FeeAssetView,
     FeeBundlerQuote, FeeCall, FeeEstimate, FeeFailure, FeeGasOutcome, FeeOperation as Op,
-    FeePolicy, FeeShellResult as Res, FeeTier, GasSignals, MultiTokenSpec,
-    TEMPO_BASE_FEE_ATTO, TEMPO_CALL_GAS_PER_SUBCALL, TEMPO_COST_BUFFER_GAS,
-    TEMPO_DEFAULT_FEE_TOKEN, TEMPO_DEPLOYED_GAS_EST, TEMPO_DEPLOY_GAS_EST,
-    TEMPO_PER_SUBCALL_GAS_EST, TEMPO_SPLIT_SAFETY_BPS, TEMPO_SPLIT_SAFETY_GAS,
+    FeePolicy, FeeShellResult as Res, FeeTier, GasSignals, MultiTokenSpec, TEMPO_BASE_FEE_ATTO,
+    TEMPO_CALL_GAS_PER_SUBCALL, TEMPO_COST_BUFFER_GAS, TEMPO_DEFAULT_FEE_TOKEN,
+    TEMPO_DEPLOYED_GAS_EST, TEMPO_DEPLOY_GAS_EST, TEMPO_PER_SUBCALL_GAS_EST,
+    TEMPO_SPLIT_SAFETY_BPS, TEMPO_SPLIT_SAFETY_GAS,
 };
 
 type Sut = DomainDriver<FeePolicy>;
@@ -187,16 +187,37 @@ fn quoted_native(calls: Vec<FeeCall>) -> Sut {
 #[test]
 fn calc_max_fee_per_gas_matches_tier_vectors() {
     let gas_price: u128 = 10_000_000_000; // 10 gwei
-    assert_eq!(calc_max_fee_per_gas(gas_price, FeeTier::Standard), 24_000_000_000);
-    assert_eq!(calc_max_fee_per_gas(gas_price, FeeTier::Slow), 22_000_000_000);
-    assert_eq!(calc_max_fee_per_gas(gas_price, FeeTier::Rapid), 30_000_000_000);
-    assert_eq!(calc_max_fee_per_gas(gas_price, FeeTier::Fast), 40_000_000_000);
+    assert_eq!(
+        calc_max_fee_per_gas(gas_price, FeeTier::Standard),
+        24_000_000_000
+    );
+    assert_eq!(
+        calc_max_fee_per_gas(gas_price, FeeTier::Slow),
+        22_000_000_000
+    );
+    assert_eq!(
+        calc_max_fee_per_gas(gas_price, FeeTier::Rapid),
+        30_000_000_000
+    );
+    assert_eq!(
+        calc_max_fee_per_gas(gas_price, FeeTier::Fast),
+        40_000_000_000
+    );
     // floor: gasPrice=0 → 1 wei
     assert_eq!(calc_max_fee_per_gas(0, FeeTier::Standard), 1);
     // user cost scales with tier
-    assert!(calc_max_fee_per_gas(gas_price, FeeTier::Slow) < calc_max_fee_per_gas(gas_price, FeeTier::Standard));
-    assert!(calc_max_fee_per_gas(gas_price, FeeTier::Standard) < calc_max_fee_per_gas(gas_price, FeeTier::Rapid));
-    assert!(calc_max_fee_per_gas(gas_price, FeeTier::Rapid) < calc_max_fee_per_gas(gas_price, FeeTier::Fast));
+    assert!(
+        calc_max_fee_per_gas(gas_price, FeeTier::Slow)
+            < calc_max_fee_per_gas(gas_price, FeeTier::Standard)
+    );
+    assert!(
+        calc_max_fee_per_gas(gas_price, FeeTier::Standard)
+            < calc_max_fee_per_gas(gas_price, FeeTier::Rapid)
+    );
+    assert!(
+        calc_max_fee_per_gas(gas_price, FeeTier::Rapid)
+            < calc_max_fee_per_gas(gas_price, FeeTier::Fast)
+    );
 }
 
 /// `GAS_TIER_MULTIPLIERS` (`safe-transaction.ts:244-249`).
@@ -258,7 +279,10 @@ fn derive_chain_gas_price_includes_priority_tip() {
 /// decimal grammar, directional rounding.
 #[test]
 fn usd_price_scaled_parses_strictly() {
-    assert_eq!(usd_price_scaled(Some("1868.70000000"), true), Some(186_870_000_000));
+    assert_eq!(
+        usd_price_scaled(Some("1868.70000000"), true),
+        Some(186_870_000_000)
+    );
     assert_eq!(usd_price_scaled(Some("1"), false), Some(100_000_000));
     assert_eq!(usd_price_scaled(Some(" 5 "), false), Some(500_000_000));
     assert_eq!(usd_price_scaled(Some("0"), true), Some(0));
@@ -277,10 +301,19 @@ fn usd_price_scaled_parses_strictly() {
 #[test]
 fn conversion_rounds_native_up_fee_token_down_never_undercharging() {
     // 9th decimal digit: round_up bumps, round_down truncates.
-    assert_eq!(usd_price_scaled(Some("1868.700000005"), true), Some(186_870_000_001));
-    assert_eq!(usd_price_scaled(Some("1868.700000005"), false), Some(186_870_000_000));
+    assert_eq!(
+        usd_price_scaled(Some("1868.700000005"), true),
+        Some(186_870_000_001)
+    );
+    assert_eq!(
+        usd_price_scaled(Some("1868.700000005"), false),
+        Some(186_870_000_000)
+    );
     // A trailing zero tail is not a digit — no bump.
-    assert_eq!(usd_price_scaled(Some("1868.700000000"), true), Some(186_870_000_000));
+    assert_eq!(
+        usd_price_scaled(Some("1868.700000000"), true),
+        Some(186_870_000_000)
+    );
 
     // And the conversion itself ceils: $18687.1 worth of fee units → 18688.
     let native = AssetPricing {
@@ -293,7 +326,10 @@ fn conversion_rounds_native_up_fee_token_down_never_undercharging() {
         decimals: 6,
         usd_price: Some("1".to_owned()),
     };
-    assert_eq!(calculate_in_band_fee_amount(1, 1, &usdc, &native), Some(18_688));
+    assert_eq!(
+        calculate_in_band_fee_amount(1, 1, &usdc, &native),
+        Some(18_688)
+    );
 }
 
 /// `calculateInBandFeeAmount` native vectors (`inband-send.test.ts:191-201`).
@@ -320,7 +356,12 @@ fn in_band_fee_native_is_gas_times_price_times_three() {
     );
     // Native payment works without any oracle price…
     assert_eq!(
-        calculate_in_band_fee_amount(200_000, 1_000_000_000, &native_without_price, &native_without_price),
+        calculate_in_band_fee_amount(
+            200_000,
+            1_000_000_000,
+            &native_without_price,
+            &native_without_price
+        ),
         Some(600_000_000_000_000)
     );
     // …but a stablecoin conversion without one is unsafe → cannot quote.
@@ -350,7 +391,10 @@ fn in_band_fee_converts_to_stable_with_cent_floor() {
         Some(1_121_220)
     );
     // 1 wei × 3 is below the 0.00001 ETH floor; $0.018687 exceeds $0.01.
-    assert_eq!(calculate_in_band_fee_amount(1, 1, &usdc, &native), Some(18_687));
+    assert_eq!(
+        calculate_in_band_fee_amount(1, 1, &usdc, &native),
+        Some(18_687)
+    );
     // If the native floor converts below one cent, stablecoin payment still
     // floors at $0.01.
     let low_price_native = AssetPricing {
@@ -388,10 +432,19 @@ fn zero_usd_price_is_unpriceable_not_rate_one() {
         decimals: 6,
         usd_price: Some("1".to_owned()),
     };
-    assert_eq!(calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &native_zero), None);
-    assert_eq!(calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc_zero, &native), None);
+    assert_eq!(
+        calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &native_zero),
+        None
+    );
+    assert_eq!(
+        calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc_zero, &native),
+        None
+    );
     // A non-native "native" asset is a caller error → refuse.
-    assert_eq!(calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &usdc), None);
+    assert_eq!(
+        calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &usdc),
+        None
+    );
 }
 
 /// The blocker this round exists for: an 18-decimal gas asset was quoted at the
@@ -477,7 +530,9 @@ fn a_bigger_gas_basis_never_produces_a_smaller_fee() {
         usd_price: Some("1".to_owned()),
     };
     let mut previous = 0u128;
-    for gas in [1u128, 21_000, 200_000, 450_000, 700_000, 3_000_000, 30_000_000] {
+    for gas in [
+        1u128, 21_000, 200_000, 450_000, 700_000, 3_000_000, 30_000_000,
+    ] {
         let amount = calculate_in_band_fee_amount(gas, 30_000_000_000, &dai, &eth)
             .expect("a real gas basis is priceable");
         assert!(
@@ -553,7 +608,10 @@ fn an_unrepresentable_usd_price_is_unpriceable_not_clamped() {
         decimals: 6,
         usd_price: Some("1".to_owned()),
     };
-    assert_eq!(calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &native), None);
+    assert_eq!(
+        calculate_in_band_fee_amount(200_000, 1_000_000_000, &usdc, &native),
+        None
+    );
 }
 
 fn erc20_fee_estimate() -> FeeEstimate {
@@ -711,23 +769,39 @@ fn reserve_fee_token_trims_only_the_fee_asset_line() {
     let pathusd = erc20_line(TEMPO_DEFAULT_FEE_TOKEN, 6, "1");
     let other = erc20_line(USDC, 6, "10");
 
-    let out = reserve_fee_token(&[other.clone(), pathusd.clone()], TEMPO_DEFAULT_FEE_TOKEN, 200_000);
+    let out = reserve_fee_token(
+        &[other.clone(), pathusd.clone()],
+        TEMPO_DEFAULT_FEE_TOKEN,
+        200_000,
+    );
     assert_eq!(out[0], other, "other TIP-20s pay no gas and pass through");
     assert_eq!(out[1], erc20_line(TEMPO_DEFAULT_FEE_TOKEN, 6, "0.8"));
 
     // Case-insensitive token match.
     let upper = TEMPO_DEFAULT_FEE_TOKEN.to_uppercase().replace("0X", "0x");
-    let out = reserve_fee_token(&[pathusd.clone()], &upper, 200_000);
+    let out = reserve_fee_token(std::slice::from_ref(&pathusd), &upper, 200_000);
     assert_eq!(out[0].amount, "0.8");
 
     // Drops the line if the whole balance is needed for gas.
-    let out = reserve_fee_token(&[other.clone(), pathusd.clone()], TEMPO_DEFAULT_FEE_TOKEN, 5_000_000);
+    let out = reserve_fee_token(
+        &[other.clone(), pathusd.clone()],
+        TEMPO_DEFAULT_FEE_TOKEN,
+        5_000_000,
+    );
     assert_eq!(out, vec![other.clone()]);
 
     // No-op when the fee token is absent, and for a zero reserve.
-    let out = reserve_fee_token(&[other.clone()], TEMPO_DEFAULT_FEE_TOKEN, 200_000);
+    let out = reserve_fee_token(
+        std::slice::from_ref(&other),
+        TEMPO_DEFAULT_FEE_TOKEN,
+        200_000,
+    );
     assert_eq!(out, vec![other.clone()]);
-    let out = reserve_fee_token(&[other.clone(), pathusd.clone()], TEMPO_DEFAULT_FEE_TOKEN, 0);
+    let out = reserve_fee_token(
+        &[other.clone(), pathusd.clone()],
+        TEMPO_DEFAULT_FEE_TOKEN,
+        0,
+    );
     assert_eq!(out, vec![other, pathusd]);
 }
 
@@ -752,7 +826,10 @@ fn max_native_sendable_is_string_exact() {
     }
 
     // "0" when the balance cannot even cover the reserve (or exactly equals it).
-    assert_eq!(max_native_sendable(to_base_units("0.001", 18).expect("parses"), reserve, 18), "0");
+    assert_eq!(
+        max_native_sendable(to_base_units("0.001", 18).expect("parses"), reserve, 18),
+        "0"
+    );
     assert_eq!(max_native_sendable(reserve, reserve, 18), "0");
 
     // Respects non-18-decimal tokens.
@@ -765,7 +842,10 @@ fn encode_erc20_transfer_matches_canonical_layout() {
     let usdc = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
     let out = encode_erc20_transfer(usdc, 1_000_000).expect("valid recipient encodes");
     assert_eq!(out.len(), 2 + 8 + 64 + 64);
-    assert!(out.starts_with("0xa9059cbb"), "transfer(address,uint256) selector");
+    assert!(
+        out.starts_with("0xa9059cbb"),
+        "transfer(address,uint256) selector"
+    );
     let recipient_word = &out[10..74];
     assert_eq!(
         recipient_word,
@@ -795,7 +875,10 @@ fn tempo_chain_set_is_verbatim() {
     for id in [1, 56, 137, 42_161, 10, 8_453, 100, 43_114] {
         assert!(!is_tempo_chain(id), "chain {id} is not Tempo");
     }
-    assert_eq!(TEMPO_DEFAULT_FEE_TOKEN, "0x20c0000000000000000000000000000000000000");
+    assert_eq!(
+        TEMPO_DEFAULT_FEE_TOKEN,
+        "0x20c0000000000000000000000000000000000000"
+    );
 }
 
 #[test]
@@ -851,7 +934,7 @@ fn bundler_cost_units(sim_gas: u128, price: u128) -> u128 {
     let atto = (sim_gas + TEMPO_COST_BUFFER_GAS) * price;
     let num = atto * 10u128.pow(6);
     let den = 10u128.pow(18);
-    (num + den - 1) / den
+    num.div_ceil(den)
 }
 
 #[test]
@@ -860,8 +943,10 @@ fn tempo_settlement_split_floors_the_eoa_at_bundler_cost() {
     let gas: u128 = 500_000;
     let reimbursement = tempo_reimbursement(gas, price, 6); // 2× base
     let split = tempo_settlement_split(reimbursement, gas, price, 6);
-    let expected_floor =
-        atto_to_token_units((gas + TEMPO_COST_BUFFER_GAS + TEMPO_SPLIT_SAFETY_GAS) * price, 6);
+    let expected_floor = atto_to_token_units(
+        (gas + TEMPO_COST_BUFFER_GAS + TEMPO_SPLIT_SAFETY_GAS) * price,
+        6,
+    );
     assert_eq!(split.eoa, expected_floor);
     assert_eq!(split.treasury, reimbursement - expected_floor);
     // Conserves the total.
@@ -875,8 +960,10 @@ fn tempo_settlement_split_floors_the_eoa_at_bundler_cost() {
 fn tempo_settlement_split_keeps_everything_on_the_eoa_when_thin() {
     let price = TEMPO_BASE_FEE_ATTO;
     let gas: u128 = 500_000;
-    let floor =
-        atto_to_token_units((gas + TEMPO_COST_BUFFER_GAS + TEMPO_SPLIT_SAFETY_GAS) * price, 6);
+    let floor = atto_to_token_units(
+        (gas + TEMPO_COST_BUFFER_GAS + TEMPO_SPLIT_SAFETY_GAS) * price,
+        6,
+    );
     let thin = floor - 1;
     let split = tempo_settlement_split(thin, gas, price, 6);
     assert_eq!(split.eoa, thin);
@@ -895,7 +982,10 @@ fn tempo_eoa_floor_clears_bundler_cost_despite_estimate_drift() {
     let reimbursement = tempo_reimbursement(wallet_gas, price, 6);
     let split = tempo_settlement_split(reimbursement, wallet_gas, price, 6);
     assert!(split.eoa >= bundler_cost_units(bundler_sim_gas, price));
-    assert!(split.eoa > 90_025, "beats the incident's rejection threshold");
+    assert!(
+        split.eoa > 90_025,
+        "beats the incident's rejection threshold"
+    );
     assert!(split.treasury > 0, "still routes surplus to the treasury");
 
     // And across a wide range of estimate error, up to +3% simGas drift.
@@ -916,7 +1006,10 @@ fn tempo_split_safety_gas_is_flat_then_proportional() {
     assert_eq!(tempo_split_safety_gas(500_000), TEMPO_SPLIT_SAFETY_GAS);
     // Scales with the op for large ops.
     let gas: u128 = 4_385_000;
-    assert_eq!(tempo_split_safety_gas(gas), (gas * TEMPO_SPLIT_SAFETY_BPS) / 10_000);
+    assert_eq!(
+        tempo_split_safety_gas(gas),
+        (gas * TEMPO_SPLIT_SAFETY_BPS) / 10_000
+    );
     assert!(tempo_split_safety_gas(gas) > 130_000);
 }
 
@@ -936,7 +1029,12 @@ fn tempo_call_gas_limit_scales_per_subcall() {
 #[test]
 fn tempo_recipient_change_or_subfloor_quote_is_stale() {
     // Recipient matches (case-insensitively) and the amount meets the floor.
-    assert!(!tempo_quote_is_stale(10_000, COLLECTOR, &COLLECTOR.to_uppercase().replace("0X", "0x"), 6));
+    assert!(!tempo_quote_is_stale(
+        10_000,
+        COLLECTOR,
+        &COLLECTOR.to_uppercase().replace("0X", "0x"),
+        6
+    ));
     // The relay rotated its recipient → stale.
     assert!(tempo_quote_is_stale(10_000, COLLECTOR, NATIVE_RECIPIENT, 6));
     // A cached pre-floor amount → stale.
@@ -990,11 +1088,18 @@ fn picker_shows_native_always_and_held_stables_only() {
     sut.resolve(estimated());
     let view = sut.view();
     let symbols: Vec<&str> = view.options.iter().map(|o| o.symbol.as_str()).collect();
-    assert_eq!(symbols, vec!["ETH", "USDC"], "zero-balance stable omitted, empty native kept");
+    assert_eq!(
+        symbols,
+        vec!["ETH", "USDC"],
+        "zero-balance stable omitted, empty native kept"
+    );
     // A zero-balance native row is shown for context but cannot pay.
     assert!(view.options[0].insufficient);
     assert!(view.options[0].selected);
-    assert_eq!(view.options[1].amount.as_deref(), Some(&*USDC_FEE_UNITS.to_string()));
+    assert_eq!(
+        view.options[1].amount.as_deref(),
+        Some(&*USDC_FEE_UNITS.to_string())
+    );
     assert!(!view.options[1].insufficient);
 }
 
@@ -1009,9 +1114,15 @@ fn select_fee_asset_recomputes_locally_without_rpc() {
     assert!(ops.is_empty(), "local recompute issues no operations");
     let view = sut.view();
     assert!(view.confirm_fee_ready);
-    assert_eq!(view.fee_token.as_deref().map(str::to_lowercase), Some(USDC.to_lowercase()));
+    assert_eq!(
+        view.fee_token.as_deref().map(str::to_lowercase),
+        Some(USDC.to_lowercase())
+    );
     let fee = view.fee.expect("quote survives the switch");
-    assert_eq!(fee.total_wei, "0", "erc20 fee rides in fee_asset, not totalWei");
+    assert_eq!(
+        fee.total_wei, "0",
+        "erc20 fee rides in fee_asset, not totalWei"
+    );
     assert_eq!(
         fee.fee_asset,
         FeeAssetView::Erc20 {
@@ -1026,7 +1137,9 @@ fn select_fee_asset_recomputes_locally_without_rpc() {
     assert_eq!(fee.fee_recipient.as_deref(), Some(USDC_RECIPIENT));
 
     // Selecting the already-active asset is a no-op.
-    let ops = sut.dispatch(Event::SelectFeeAsset { token: Some(USDC.to_owned()) });
+    let ops = sut.dispatch(Event::SelectFeeAsset {
+        token: Some(USDC.to_owned()),
+    });
     assert!(ops.is_empty());
 }
 
@@ -1046,11 +1159,16 @@ fn balance_below_fee_asset_cannot_be_selected() {
     let view = sut.view();
     assert!(view.options[1].insufficient);
 
-    let ops = sut.dispatch(Event::SelectFeeAsset { token: Some(USDC.to_owned()) });
+    let ops = sut.dispatch(Event::SelectFeeAsset {
+        token: Some(USDC.to_owned()),
+    });
     assert!(ops.is_empty(), "a doomed op is never quoted");
     let view = sut.view();
     assert_eq!(view.fee_token, None, "selection unchanged");
-    assert_eq!(view.fee.expect("quote intact").fee_asset, FeeAssetView::Native);
+    assert_eq!(
+        view.fee.expect("quote intact").fee_asset,
+        FeeAssetView::Native
+    );
 }
 
 /// The slow path: an asset missing from the cached rows falls back to a full
@@ -1060,9 +1178,14 @@ fn balance_below_fee_asset_cannot_be_selected() {
 fn select_unknown_asset_requotes_and_reverts_on_failure() {
     let dai = "0x5555555555555555555555555555555555555555";
     let mut sut = quoted_native(vec![]);
-    let ops = sut.dispatch(Event::SelectFeeAsset { token: Some(dai.to_owned()) });
+    let ops = sut.dispatch(Event::SelectFeeAsset {
+        token: Some(dai.to_owned()),
+    });
     assert_eq!(ops.len(), 3, "full pipeline re-runs");
-    assert!(sut.view().busy, "re-quoting → confirm stays disabled (invariant ⑦)");
+    assert!(
+        sut.view().busy,
+        "re-quoting → confirm stays disabled (invariant ⑦)"
+    );
 
     // The superseded TTL timer from the first quote resolves late → dropped.
     assert!(sut.resolve(Res::TtlElapsed).is_empty());
@@ -1074,9 +1197,15 @@ fn select_unknown_asset_requotes_and_reverts_on_failure() {
     let view = sut.view();
     // …and the selection reverts to the previous asset with the old quote intact.
     assert!(!view.busy);
-    assert!(view.failed.is_none(), "a failed switch never scraps a good quote");
+    assert!(
+        view.failed.is_none(),
+        "a failed switch never scraps a good quote"
+    );
     assert_eq!(view.fee_token, None);
-    assert_eq!(view.fee.expect("old quote survives").total_wei, NATIVE_FEE_WEI.to_string());
+    assert_eq!(
+        view.fee.expect("old quote survives").total_wei,
+        NATIVE_FEE_WEI.to_string()
+    );
     assert!(view.confirm_fee_ready);
 }
 
@@ -1160,7 +1289,9 @@ fn a_requested_fee_token_the_balance_cannot_cover_is_refused() {
     sut.dispatch(request(CHAIN, vec![]));
     sut.resolve(gas_ok());
     sut.resolve(bundler_ok());
-    sut.resolve(Res::InBandQuotes { quotes: Some(vec![native_row("1")]) });
+    sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![native_row("1")]),
+    });
     sut.resolve(estimated());
     assert!(sut.view().confirm_fee_ready);
 }
@@ -1186,7 +1317,10 @@ fn requote_is_single_flight_and_keeps_old_quote_on_failure() {
     // …but the old quote keeps showing.
     assert!(!view.busy);
     assert!(view.failed.is_none());
-    assert_eq!(view.fee.expect("old quote").total_wei, NATIVE_FEE_WEI.to_string());
+    assert_eq!(
+        view.fee.expect("old quote").total_wei,
+        NATIVE_FEE_WEI.to_string()
+    );
 }
 
 /// Invariant ⑨ across requotes: the refresh re-runs the SAME transaction shape.
@@ -1227,7 +1361,10 @@ fn quote_ttl_marks_stale_and_superseded_timers_are_dropped() {
     assert!(!sut.view().stale);
     assert!(sut.resolve(Res::TtlElapsed).is_empty());
     assert!(sut.view().stale, "TTL elapsed → refresh affordance");
-    assert!(sut.view().confirm_fee_ready, "staleness is advisory, not a gate");
+    assert!(
+        sut.view().confirm_fee_ready,
+        "staleness is advisory, not a gate"
+    );
 
     // Refresh: the new quote resets staleness and arms a NEW timer.
     sut.dispatch(Event::Requote);
@@ -1238,7 +1375,10 @@ fn quote_ttl_marks_stale_and_superseded_timers_are_dropped() {
     assert_eq!(ops, vec![Op::StartTtl { ms: 30_000 }]);
     assert!(!sut.view().stale);
     assert!(sut.resolve(Res::TtlElapsed).is_empty());
-    assert!(sut.view().stale, "the second timer belongs to the new quote");
+    assert!(
+        sut.view().stale,
+        "the second timer belongs to the new quote"
+    );
 }
 
 /// `QuoteExpired` (external staleness, e.g. app resume) only applies to a
@@ -1247,7 +1387,10 @@ fn quote_ttl_marks_stale_and_superseded_timers_are_dropped() {
 fn external_expiry_only_applies_to_a_settled_quote() {
     let mut sut = Sut::new();
     sut.dispatch(request(CHAIN, vec![]));
-    assert!(sut.dispatch(Event::QuoteExpired).is_empty(), "inert while gathering");
+    assert!(
+        sut.dispatch(Event::QuoteExpired).is_empty(),
+        "inert while gathering"
+    );
     assert!(!sut.view().stale);
     sut.resolve(gas_ok());
     sut.resolve(bundler_ok());
@@ -1283,7 +1426,10 @@ fn quote_is_only_valid_for_its_chain() {
     let ops = sut.dispatch(Event::ChainChanged { chain_id: 10 });
     assert!(ops.is_empty(), "a chain switch alone starts nothing");
     let view = sut.view();
-    assert!(view.fee.is_none(), "the old-chain estimate must not price the new form");
+    assert!(
+        view.fee.is_none(),
+        "the old-chain estimate must not price the new form"
+    );
     assert!(!view.confirm_fee_ready);
     assert!(view.options.is_empty(), "old-chain fee assets are gone too");
 
@@ -1306,7 +1452,10 @@ fn late_old_chain_results_never_pollute_the_new_form() {
     // The three chain-1 answers arrive late: all dropped, no estimate issued.
     assert!(sut.resolve(gas_ok()).is_empty());
     assert!(sut.resolve(bundler_ok()).is_empty());
-    assert!(sut.resolve(quotes_ok()).is_empty(), "stale quotes must not advance the run");
+    assert!(
+        sut.resolve(quotes_ok()).is_empty(),
+        "stale quotes must not advance the run"
+    );
     assert!(sut.view().busy, "the chain-10 run is still gathering");
 
     // The chain-10 answers complete normally.
@@ -1323,14 +1472,24 @@ fn late_old_chain_results_never_pollute_the_new_form() {
 #[test]
 fn settled_stable_amount_uses_never_undercharge_conversion() {
     let mut sut = quoted_native(vec![]);
-    sut.dispatch(Event::SelectFeeAsset { token: Some(USDC.to_owned()) });
+    sut.dispatch(Event::SelectFeeAsset {
+        token: Some(USDC.to_owned()),
+    });
     let fee = sut.view().fee.expect("switched quote");
     // The oracle: the vector-pinned pure function on the same basis.
     let expected = calculate_in_band_fee_amount(
         TOTAL_GAS,
         NETWORK_FEE,
-        &AssetPricing { is_native: false, decimals: 6, usd_price: Some("1".to_owned()) },
-        &AssetPricing { is_native: true, decimals: 18, usd_price: Some("1868.70000000".to_owned()) },
+        &AssetPricing {
+            is_native: false,
+            decimals: 6,
+            usd_price: Some("1".to_owned()),
+        },
+        &AssetPricing {
+            is_native: true,
+            decimals: 18,
+            usd_price: Some("1868.70000000".to_owned()),
+        },
     )
     .expect("priceable");
     match fee.fee_asset {
@@ -1445,14 +1604,22 @@ fn undeployed_without_public_key_never_estimates() {
         calls: vec![],
         fee_token: None,
     });
-    assert_eq!(ops.len(), 3, "tempo gathers its context and prices statically");
+    assert_eq!(
+        ops.len(),
+        3,
+        "tempo gathers its context and prices statically"
+    );
     sut.resolve(Res::GasPrice {
         eth_gas_price: Some(TEMPO_BASE_FEE_ATTO.to_string()),
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
-    sut.resolve(Res::InBandQuotes { quotes: Some(vec![pathusd_row("5000000")]) });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some(COLLECTOR.to_owned()),
+    });
+    sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![pathusd_row("5000000")]),
+    });
     let view = sut.view();
     assert!(view.failed.is_none());
     assert_eq!(
@@ -1467,12 +1634,17 @@ fn undeployed_without_public_key_never_estimates() {
 #[test]
 fn leave_confirm_clears_erc20_estimate_and_resets_fee_asset() {
     let mut sut = quoted_native(vec![]);
-    sut.dispatch(Event::SelectFeeAsset { token: Some(USDC.to_owned()) });
+    sut.dispatch(Event::SelectFeeAsset {
+        token: Some(USDC.to_owned()),
+    });
     assert!(sut.view().fee.is_some());
 
     sut.dispatch(Event::LeaveConfirm);
     let view = sut.view();
-    assert!(view.fee.is_none(), "an erc20 estimate (totalWei=0) must not linger");
+    assert!(
+        view.fee.is_none(),
+        "an erc20 estimate (totalWei=0) must not linger"
+    );
     assert_eq!(view.fee_token, None, "next entry re-quotes in native");
     assert!(!view.confirm_fee_ready);
 
@@ -1480,7 +1652,10 @@ fn leave_confirm_clears_erc20_estimate_and_resets_fee_asset() {
     let mut sut = quoted_native(vec![]);
     sut.dispatch(Event::LeaveConfirm);
     let view = sut.view();
-    assert_eq!(view.fee.expect("native estimate kept").total_wei, NATIVE_FEE_WEI.to_string());
+    assert_eq!(
+        view.fee.expect("native estimate kept").total_wei,
+        NATIVE_FEE_WEI.to_string()
+    );
     assert_eq!(view.fee_token, None);
 }
 
@@ -1517,7 +1692,9 @@ fn confirm_disabled_while_estimating_or_failed() {
 #[test]
 fn new_request_resets_fee_asset_and_estimate() {
     let mut sut = quoted_native(vec![]);
-    sut.dispatch(Event::SelectFeeAsset { token: Some(USDC.to_owned()) });
+    sut.dispatch(Event::SelectFeeAsset {
+        token: Some(USDC.to_owned()),
+    });
     assert!(sut.view().fee_token.is_some());
 
     let ops = sut.dispatch(request(CHAIN, vec![]));
@@ -1525,7 +1702,10 @@ fn new_request_resets_fee_asset_and_estimate() {
     let view = sut.view();
     assert!(view.busy);
     assert_eq!(view.fee_token, None, "back to native");
-    assert!(view.fee.is_none(), "no leftover estimate prices the new request");
+    assert!(
+        view.fee.is_none(),
+        "no leftover estimate prices the new request"
+    );
 }
 
 /// Invariant ⑨ — the estimate simulates the REAL calldata shape: the user's
@@ -1544,7 +1724,12 @@ fn estimate_uses_real_calldata_shape() {
     sut.resolve(bundler_ok());
     let ops = sut.resolve(quotes_ok());
     match &ops[0] {
-        Op::EstimateUserOpGas { chain_id, account, deployed, calls } => {
+        Op::EstimateUserOpGas {
+            chain_id,
+            account,
+            deployed,
+            calls,
+        } => {
             assert_eq!(*chain_id, CHAIN);
             assert_eq!(account, ACCOUNT);
             assert!(deployed);
@@ -1579,7 +1764,11 @@ fn empty_calls_estimate_with_the_erc20_sized_dummy() {
             assert_eq!(calls.len(), 2);
             assert_eq!(calls[0].to, "0x0000000000000000000000000000000000000004");
             assert_eq!(calls[0].value, "0");
-            assert_eq!(calls[0].data.len(), 2 + 68 * 2, "68 zero bytes — transfer-sized");
+            assert_eq!(
+                calls[0].data.len(),
+                2 + 68 * 2,
+                "68 zero bytes — transfer-sized"
+            );
         }
         other => panic!("expected estimate, got {other:?}"),
     }
@@ -1591,7 +1780,9 @@ fn erc20_fee_leg_is_a_token_transfer() {
     let mut sut = quoted_native(vec![]);
     // Force the slow requote path with USDC selected: unknown-asset select
     // falls back to the pipeline with fee_token set.
-    sut.dispatch(Event::SelectFeeAsset { token: Some(USDC.to_owned()) }); // local switch first
+    sut.dispatch(Event::SelectFeeAsset {
+        token: Some(USDC.to_owned()),
+    }); // local switch first
     sut.dispatch(Event::Requote);
     assert!(sut.resolve(Res::TtlElapsed).is_empty());
     sut.resolve(gas_ok());
@@ -1622,7 +1813,9 @@ fn failed_simulation_uses_static_fallback_with_l2_adders() {
     sut.resolve(gas_ok());
     sut.resolve(bundler_ok());
     sut.resolve(quotes_ok());
-    sut.resolve(Res::UserOpGas { outcome: FeeGasOutcome::SimulationFailed });
+    sut.resolve(Res::UserOpGas {
+        outcome: FeeGasOutcome::SimulationFailed,
+    });
     assert_eq!(sut.view().fee.expect("static quote").total_gas, "600000");
 
     // Arbitrum: + 600k rollup data-fee adder.
@@ -1631,7 +1824,9 @@ fn failed_simulation_uses_static_fallback_with_l2_adders() {
     sut.resolve(gas_ok());
     sut.resolve(bundler_ok());
     sut.resolve(quotes_ok());
-    sut.resolve(Res::UserOpGas { outcome: FeeGasOutcome::SimulationFailed });
+    sut.resolve(Res::UserOpGas {
+        outcome: FeeGasOutcome::SimulationFailed,
+    });
     assert_eq!(sut.view().fee.expect("static quote").total_gas, "1200000");
 
     // OP-stack (Base): + 150k.
@@ -1640,7 +1835,9 @@ fn failed_simulation_uses_static_fallback_with_l2_adders() {
     sut.resolve(gas_ok());
     sut.resolve(bundler_ok());
     sut.resolve(quotes_ok());
-    sut.resolve(Res::UserOpGas { outcome: FeeGasOutcome::SimulationFailed });
+    sut.resolve(Res::UserOpGas {
+        outcome: FeeGasOutcome::SimulationFailed,
+    });
     assert_eq!(sut.view().fee.expect("static quote").total_gas, "750000");
 }
 
@@ -1658,7 +1855,9 @@ fn failed_simulation_of_large_calldata_surfaces() {
     sut.resolve(gas_ok());
     sut.resolve(bundler_ok());
     sut.resolve(quotes_ok());
-    sut.resolve(Res::UserOpGas { outcome: FeeGasOutcome::SimulationFailed });
+    sut.resolve(Res::UserOpGas {
+        outcome: FeeGasOutcome::SimulationFailed,
+    });
     let view = sut.view();
     assert_eq!(view.failed, Some(FeeFailure::EstimateFailed));
     assert!(view.fee.is_none());
@@ -1673,7 +1872,9 @@ fn missing_account_context_fails_the_estimate() {
     sut.resolve(gas_ok());
     sut.resolve(bundler_ok());
     sut.resolve(quotes_ok());
-    sut.resolve(Res::UserOpGas { outcome: FeeGasOutcome::ContextUnavailable });
+    sut.resolve(Res::UserOpGas {
+        outcome: FeeGasOutcome::ContextUnavailable,
+    });
     assert_eq!(sut.view().failed, Some(FeeFailure::EstimateFailed));
 }
 
@@ -1687,18 +1888,30 @@ fn missing_account_context_fails_the_estimate() {
 #[test]
 fn tempo_transfer_prices_the_stablecoin_reimbursement_statically() {
     let mut sut = Sut::new();
-    let ops = sut.dispatch(request(TEMPO_CHAIN, vec![FeeCall {
-        to: NATIVE_RECIPIENT.to_owned(),
-        value: "1000".to_owned(),
-        data: "0x".to_owned(),
-    }]));
+    let ops = sut.dispatch(request(
+        TEMPO_CHAIN,
+        vec![FeeCall {
+            to: NATIVE_RECIPIENT.to_owned(),
+            value: "1000".to_owned(),
+            data: "0x".to_owned(),
+        }],
+    ));
     assert_eq!(
         ops,
         vec![
             // attodollar gas makes eth_maxPriorityFeePerGas meaningless.
-            Op::FetchGasPrice { chain_id: TEMPO_CHAIN, want_tip: false },
-            Op::FetchFeeRecipient { chain_id: TEMPO_CHAIN, account: ACCOUNT.to_owned() },
-            Op::FetchInBandQuotes { chain_id: TEMPO_CHAIN, account: ACCOUNT.to_owned() },
+            Op::FetchGasPrice {
+                chain_id: TEMPO_CHAIN,
+                want_tip: false
+            },
+            Op::FetchFeeRecipient {
+                chain_id: TEMPO_CHAIN,
+                account: ACCOUNT.to_owned()
+            },
+            Op::FetchInBandQuotes {
+                chain_id: TEMPO_CHAIN,
+                account: ACCOUNT.to_owned()
+            },
         ]
     );
     sut.resolve(Res::GasPrice {
@@ -1706,9 +1919,13 @@ fn tempo_transfer_prices_the_stablecoin_reimbursement_statically() {
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some(COLLECTOR.to_owned()),
+    });
     // A transfer needs no simulation: pricing settles as soon as the rows land.
-    let ops = sut.resolve(Res::InBandQuotes { quotes: Some(vec![pathusd_row("5000000")]) });
+    let ops = sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![pathusd_row("5000000")]),
+    });
     assert_eq!(ops, vec![Op::StartTtl { ms: 30_000 }]);
 
     let view = sut.view();
@@ -1734,7 +1951,10 @@ fn tempo_transfer_prices_the_stablecoin_reimbursement_statically() {
     // The native coin cannot pay gas on Tempo — no native picker row exists,
     // and the pathUSD row prices at the reimbursement.
     assert_eq!(view.options.len(), 1);
-    assert_eq!(view.options[0].amount.as_deref(), Some(&*reimbursement.to_string()));
+    assert_eq!(
+        view.options[0].amount.as_deref(),
+        Some(&*reimbursement.to_string())
+    );
 }
 
 /// A deployed Tempo contract call refines off the bundler's estimate of the
@@ -1754,11 +1974,19 @@ fn tempo_contract_call_refines_off_the_real_estimate() {
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
-    let ops = sut.resolve(Res::InBandQuotes { quotes: Some(vec![pathusd_row("5000000")]) });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some(COLLECTOR.to_owned()),
+    });
+    let ops = sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![pathusd_row("5000000")]),
+    });
     match &ops[0] {
         Op::EstimateUserOpGas { calls, .. } => {
-            assert_eq!(calls.len(), 3, "the call + two placeholder legs (split case)");
+            assert_eq!(
+                calls.len(),
+                3,
+                "the call + two placeholder legs (split case)"
+            );
             assert_eq!(calls[0], call);
             let leg_data = encode_erc20_transfer(ACCOUNT, 1).expect("encodes");
             for leg in &calls[1..] {
@@ -1779,7 +2007,10 @@ fn tempo_contract_call_refines_off_the_real_estimate() {
         },
     });
     let fee = sut.view().fee.expect("refined quote");
-    assert_eq!(fee.total_gas, "3600000", "un-padded sum beats the static model");
+    assert_eq!(
+        fee.total_gas, "3600000",
+        "un-padded sum beats the static model"
+    );
     let reimbursement = tempo_reimbursement(3_600_000, TEMPO_BASE_FEE_ATTO, 6);
     match fee.fee_asset {
         FeeAssetView::Erc20 { amount, .. } => assert_eq!(amount, reimbursement.to_string()),
@@ -1803,9 +2034,15 @@ fn tempo_unestimable_contract_call_surfaces() {
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
-    sut.resolve(Res::InBandQuotes { quotes: Some(vec![pathusd_row("5000000")]) });
-    sut.resolve(Res::UserOpGas { outcome: FeeGasOutcome::SimulationFailed });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some(COLLECTOR.to_owned()),
+    });
+    sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![pathusd_row("5000000")]),
+    });
+    sut.resolve(Res::UserOpGas {
+        outcome: FeeGasOutcome::SimulationFailed,
+    });
     let view = sut.view();
     assert_eq!(view.failed, Some(FeeFailure::EstimateFailed));
     assert!(view.fee.is_none());
@@ -1835,13 +2072,20 @@ fn tempo_undeployed_contract_call_keeps_the_static_model() {
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some(COLLECTOR.to_owned()),
+    });
     // No simulation is requested: the quote settles directly.
-    let ops = sut.resolve(Res::InBandQuotes { quotes: Some(vec![pathusd_row("5000000")]) });
+    let ops = sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![pathusd_row("5000000")]),
+    });
     assert_eq!(ops, vec![Op::StartTtl { ms: 30_000 }]);
     // 1 call + 2 reimbursement legs (contract call) = 3 sub-calls, deploy fixed cost.
     let expected = tempo_expected_gas(false, 3);
-    assert_eq!(sut.view().fee.expect("static tempo quote").total_gas, expected.to_string());
+    assert_eq!(
+        sut.view().fee.expect("static tempo quote").total_gas,
+        expected.to_string()
+    );
 }
 
 /// A Tempo fee-asset switch NEVER takes the generic local-recompute path.
@@ -1866,7 +2110,9 @@ fn tempo_fee_asset_switch_reprices_through_the_tempo_model() {
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some(COLLECTOR.to_owned()),
+    });
     sut.resolve(Res::InBandQuotes {
         quotes: Some(vec![
             pathusd_row("5000000"),
@@ -1882,25 +2128,44 @@ fn tempo_fee_asset_switch_reprices_through_the_tempo_model() {
 
     // The switch runs the WHOLE Tempo pipeline again rather than patching the
     // settled estimate in place.
-    let ops = sut.dispatch(Event::SelectFeeAsset { token: Some(other.to_owned()) });
+    let ops = sut.dispatch(Event::SelectFeeAsset {
+        token: Some(other.to_owned()),
+    });
     assert_eq!(
         ops,
         vec![
-            Op::FetchGasPrice { chain_id: TEMPO_CHAIN, want_tip: false },
-            Op::FetchFeeRecipient { chain_id: TEMPO_CHAIN, account: ACCOUNT.to_owned() },
-            Op::FetchInBandQuotes { chain_id: TEMPO_CHAIN, account: ACCOUNT.to_owned() },
+            Op::FetchGasPrice {
+                chain_id: TEMPO_CHAIN,
+                want_tip: false
+            },
+            Op::FetchFeeRecipient {
+                chain_id: TEMPO_CHAIN,
+                account: ACCOUNT.to_owned()
+            },
+            Op::FetchInBandQuotes {
+                chain_id: TEMPO_CHAIN,
+                account: ACCOUNT.to_owned()
+            },
         ],
         "a Tempo denomination change is a re-quote, never an in-place patch"
     );
-    assert!(sut.view().busy, "invariant ⑦ — confirm is disabled while re-pricing");
+    assert!(
+        sut.view().busy,
+        "invariant ⑦ — confirm is disabled while re-pricing"
+    );
 
-    assert!(sut.resolve(Res::TtlElapsed).is_empty(), "superseded timer dropped");
+    assert!(
+        sut.resolve(Res::TtlElapsed).is_empty(),
+        "superseded timer dropped"
+    );
     sut.resolve(Res::GasPrice {
         eth_gas_price: Some(TEMPO_BASE_FEE_ATTO.to_string()),
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some(COLLECTOR.to_owned()) });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some(COLLECTOR.to_owned()),
+    });
     sut.resolve(Res::InBandQuotes {
         quotes: Some(vec![
             pathusd_row("5000000"),
@@ -1943,8 +2208,12 @@ fn tempo_malformed_recipient_is_not_signed() {
         base_fee: None,
         priority_fee: None,
     });
-    sut.resolve(Res::FeeRecipient { recipient: Some("not-an-address".to_owned()) });
-    sut.resolve(Res::InBandQuotes { quotes: Some(vec![pathusd_row("5000000")]) });
+    sut.resolve(Res::FeeRecipient {
+        recipient: Some("not-an-address".to_owned()),
+    });
+    sut.resolve(Res::InBandQuotes {
+        quotes: Some(vec![pathusd_row("5000000")]),
+    });
     let fee = sut.view().fee.expect("quote without recipient");
     assert_eq!(fee.fee_recipient, None);
 }

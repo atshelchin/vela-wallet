@@ -14,9 +14,9 @@ mod support;
 use support::DomainDriver;
 use vela_core::app::balance_dashboard::{
     best_group_price, best_native_dex_price, choose_native_price, token_balance_double,
-    token_usd_value, BalanceDashboard, BalanceCacheEntry, BalanceNotice,
-    BalanceOperation as Op, BalanceShellResult as Res, BalanceToken, Event, NativePriceSource,
-    NativeQuoteGroup, FALLBACK_RETRY_DELAY_MS, MAX_PARTIAL_RETRIES, PARTIAL_RETRY_DELAYS_MS,
+    token_usd_value, BalanceCacheEntry, BalanceDashboard, BalanceNotice, BalanceOperation as Op,
+    BalanceShellResult as Res, BalanceToken, Event, NativePriceSource, NativeQuoteGroup,
+    FALLBACK_RETRY_DELAY_MS, MAX_PARTIAL_RETRIES, PARTIAL_RETRY_DELAYS_MS,
 };
 
 type Sut = DomainDriver<BalanceDashboard>;
@@ -107,13 +107,16 @@ fn token_balance_double_ports_parse_float_or_zero() {
     assert_eq!(token_balance_double("1e3"), 1000.0);
     assert_eq!(token_balance_double("2.5e-1"), 0.25);
     assert_eq!(token_balance_double("1e"), 1.0); // dangling exponent ignored
-    // `-0 || 0` is 0 in JS — the sign never survives.
+                                                 // `-0 || 0` is 0 in JS — the sign never survives.
     assert_eq!(token_balance_double("-0").to_bits(), 0f64.to_bits());
 }
 
 #[test]
 fn token_usd_value_treats_a_missing_price_as_zero() {
-    assert_eq!(token_usd_value(&token(1, "ETH", "2", Some(1868.70))), 3737.4);
+    assert_eq!(
+        token_usd_value(&token(1, "ETH", "2", Some(1868.70))),
+        3737.4
+    );
     assert_eq!(token_usd_value(&token(1, "MYSTERY", "1000", None)), 0.0);
     assert_eq!(token_usd_value(&token(1, "DUST", "0", Some(5.0))), 0.0);
 }
@@ -208,7 +211,10 @@ fn choose_native_price_prefers_dex_only_inside_the_sanity_band() {
 fn choose_native_price_walks_the_source_ladder() {
     // DEX alone.
     let picked = choose_native_price(Some(81.0), None, None).unwrap();
-    assert_eq!((picked.price, picked.source), (81.0, NativePriceSource::Dex));
+    assert_eq!(
+        (picked.price, picked.source),
+        (81.0, NativePriceSource::Dex)
+    );
     // Local feed preferred over the Ethereum-mainnet fallback.
     let picked = choose_native_price(None, Some(80.0), Some(79.0)).unwrap();
     assert_eq!(
@@ -224,7 +230,10 @@ fn choose_native_price_walks_the_source_ladder() {
     // The decode gate travels with the local feed: 0 is not a price, so the
     // band compares against the Ethereum fallback instead.
     let picked = choose_native_price(Some(81.0), Some(0.0), Some(80.0)).unwrap();
-    assert_eq!((picked.price, picked.source), (81.0, NativePriceSource::Dex));
+    assert_eq!(
+        (picked.price, picked.source),
+        (81.0, NativePriceSource::Dex)
+    );
 }
 
 // ===========================================================================
@@ -285,7 +294,12 @@ fn partial_result_never_undershows_max_of_live_and_cached() {
     let sut = booted(
         ADDR_A,
         Some(100.0),
-        settled(ADDR_A, vec![token(1, "ETH", "40", Some(1.0))], vec![56], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "40", Some(1.0))],
+            vec![56],
+            vec![],
+        ),
     );
     let view = sut.view();
     assert!(view.balance_partial);
@@ -295,7 +309,12 @@ fn partial_result_never_undershows_max_of_live_and_cached() {
     let sut = booted(
         ADDR_A,
         Some(100.0),
-        settled(ADDR_A, vec![token(1, "ETH", "150", Some(1.0))], vec![56], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "150", Some(1.0))],
+            vec![56],
+            vec![],
+        ),
     );
     assert_eq!(sut.view().display_total_usd, Some(150.0));
 }
@@ -381,7 +400,12 @@ fn stale_account_results_are_dropped_by_construction() {
 
     // A's fetch settles late → dropped: no cache write, no tokens, still B.
     assert!(sut
-        .resolve(settled(ADDR_A, vec![token(1, "ETH", "9", Some(1.0))], vec![], vec![]))
+        .resolve(settled(
+            ADDR_A,
+            vec![token(1, "ETH", "9", Some(1.0))],
+            vec![],
+            vec![]
+        ))
         .is_empty());
     let view = sut.view();
     assert_eq!(view.address.as_deref(), Some(ADDR_B));
@@ -403,7 +427,12 @@ fn account_switch_resets_balance_state_but_keeps_the_ported_quirks() {
     let mut sut = booted(
         ADDR_A,
         None,
-        settled(ADDR_A, vec![token(1, "ETH", "10", Some(1.0))], vec![10], vec![10]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "10", Some(1.0))],
+            vec![10],
+            vec![10],
+        ),
     );
     let view = sut.view();
     assert_eq!(view.rate_limited_chain_ids, vec![10]);
@@ -434,7 +463,12 @@ fn three_silent_retries_then_notice() {
     let mut sut = booted(
         ADDR_A,
         Some(100.0),
-        settled(ADDR_A, vec![token(1, "ETH", "40", Some(1.0))], vec![56], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "40", Some(1.0))],
+            vec![56],
+            vec![],
+        ),
     );
 
     for (round, expected_ms) in PARTIAL_RETRY_DELAYS_MS.iter().enumerate() {
@@ -454,7 +488,12 @@ fn three_silent_retries_then_notice() {
             "round {round} at {expected_ms}ms"
         );
         assert!(!sut.view().refreshing);
-        sut.resolve(settled(ADDR_A, vec![token(1, "ETH", "40", Some(1.0))], vec![56], vec![]));
+        sut.resolve(settled(
+            ADDR_A,
+            vec![token(1, "ETH", "40", Some(1.0))],
+            vec![56],
+            vec![],
+        ));
     }
 
     // Budget exhausted and STILL incomplete — now the notice is honest, and
@@ -482,7 +521,9 @@ fn retry_delays_escalate_in_table_order() {
             panic!("round {round}: expected exactly one armed timer, got {ops:?}");
         };
         seen.push(*ms);
-        let fetch = sut.resolve(Res::RetryElapsed { timer_id: *timer_id });
+        let fetch = sut.resolve(Res::RetryElapsed {
+            timer_id: *timer_id,
+        });
         assert_eq!(fetch.len(), 1);
         ops = sut.resolve(settled(ADDR_A, vec![], vec![56], vec![]));
     }
@@ -497,11 +538,7 @@ fn retry_delays_escalate_in_table_order() {
 /// gets its own grace.
 #[test]
 fn clean_result_resets_the_retry_budget_and_notice() {
-    let mut sut = booted(
-        ADDR_A,
-        None,
-        settled(ADDR_A, vec![], vec![56], vec![]),
-    );
+    let mut sut = booted(ADDR_A, None, settled(ADDR_A, vec![], vec![56], vec![]));
     // Exhaust the budget.
     for round in 0..MAX_PARTIAL_RETRIES {
         sut.resolve(Res::RetryElapsed {
@@ -516,7 +553,12 @@ fn clean_result_resets_the_retry_budget_and_notice() {
         force: false,
         pull: false,
     });
-    let ops = sut.resolve(settled(ADDR_A, vec![token(1, "ETH", "5", Some(1.0))], vec![], vec![]));
+    let ops = sut.resolve(settled(
+        ADDR_A,
+        vec![token(1, "ETH", "5", Some(1.0))],
+        vec![],
+        vec![],
+    ));
     assert_eq!(
         ops,
         vec![Op::WriteBalanceCache {
@@ -545,13 +587,14 @@ fn clean_result_resets_the_retry_budget_and_notice() {
 /// trigger a second refetch.
 #[test]
 fn stale_retry_timer_never_fires() {
-    let mut sut = booted(
-        ADDR_A,
-        None,
-        settled(ADDR_A, vec![], vec![56], vec![]),
-    );
+    let mut sut = booted(ADDR_A, None, settled(ADDR_A, vec![], vec![56], vec![]));
     // A complete settle lands before the timer fires → timer cancelled.
-    sut.resolve(settled(ADDR_A, vec![token(1, "ETH", "5", Some(1.0))], vec![], vec![]));
+    sut.resolve(settled(
+        ADDR_A,
+        vec![token(1, "ETH", "5", Some(1.0))],
+        vec![],
+        vec![],
+    ));
     // The shell's timer still fires eventually — dropped, no fetch.
     let ops = sut.resolve(Res::RetryElapsed { timer_id: 1 });
     assert!(ops.is_empty());
@@ -597,14 +640,20 @@ fn partial_totals_never_touch_the_cache() {
         vec![],
     ));
     assert!(
-        ops.iter().all(|op| !matches!(op, Op::WriteBalanceCache { .. })),
+        ops.iter()
+            .all(|op| !matches!(op, Op::WriteBalanceCache { .. })),
         "partial result must not be persisted: {ops:?}"
     );
     assert_eq!(sut.view().cached_total_usd, Some(100.0), "unchanged");
 
     // Complete settle: persisted, and the model's floor moves with it.
     sut.resolve(Res::RetryElapsed { timer_id: 1 });
-    let ops = sut.resolve(settled(ADDR_A, vec![token(1, "ETH", "150", Some(1.0))], vec![], vec![]));
+    let ops = sut.resolve(settled(
+        ADDR_A,
+        vec![token(1, "ETH", "150", Some(1.0))],
+        vec![],
+        vec![],
+    ));
     assert_eq!(
         ops,
         vec![Op::WriteBalanceCache {
@@ -624,7 +673,12 @@ fn rate_limited_chains_fall_back_quietly_without_banner() {
     let sut = booted(
         ADDR_A,
         Some(100.0),
-        settled(ADDR_A, vec![token(1, "ETH", "40", Some(1.0))], vec![196, 56], vec![196]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "40", Some(1.0))],
+            vec![196, 56],
+            vec![196],
+        ),
     );
     let view = sut.view();
     // The balance quietly stays on the max(live, cached) fallback …
@@ -650,7 +704,12 @@ fn notice_kind_follows_the_failure_shape() {
         sut.resolve(Res::RetryElapsed {
             timer_id: round + 1,
         });
-        sut.resolve(settled(ADDR_A, vec![token(1, "MYSTERY", "5", None)], vec![], vec![]));
+        sut.resolve(settled(
+            ADDR_A,
+            vec![token(1, "MYSTERY", "5", None)],
+            vec![],
+            vec![],
+        ));
     }
     assert_eq!(sut.view().notice, Some(BalanceNotice::Unpriced));
 }
@@ -664,7 +723,12 @@ fn privacy_toggle_persists_masks_the_fiat_and_wins_the_hydrate_race() {
     let mut sut = booted(
         ADDR_A,
         None,
-        settled(ADDR_A, vec![token(1, "ETH", "5", Some(1.0))], vec![], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "5", Some(1.0))],
+            vec![],
+            vec![],
+        ),
     );
     assert_eq!(sut.view().display_total_usd, Some(5.0));
 
@@ -702,7 +766,12 @@ fn manual_pull_forces_past_the_ttl_and_drives_the_spinner() {
     let mut sut = booted(
         ADDR_A,
         None,
-        settled(ADDR_A, vec![token(1, "ETH", "5", Some(1.0))], vec![], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "5", Some(1.0))],
+            vec![],
+            vec![],
+        ),
     );
     // A user pull MUST re-hit RPC: force bypasses the shell's 5-min TTL.
     let ops = sut.dispatch(Event::RefreshRequested {
@@ -736,7 +805,12 @@ fn polls_never_run_backgrounded_but_focus_reloads() {
     let mut sut = booted(
         ADDR_A,
         None,
-        settled(ADDR_A, vec![token(1, "ETH", "5", Some(1.0))], vec![], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "5", Some(1.0))],
+            vec![],
+            vec![],
+        ),
     );
     sut.dispatch(Event::AppBackgrounded);
     // A poller tick while backgrounded: dropped, no operation.
@@ -778,7 +852,12 @@ fn fix_resolved_removes_the_chain_and_reloads() {
     let mut sut = booted(
         ADDR_A,
         None,
-        settled(ADDR_A, vec![token(1, "ETH", "5", Some(1.0))], vec![100, 56], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "5", Some(1.0))],
+            vec![100, 56],
+            vec![],
+        ),
     );
     let ops = sut.dispatch(Event::FixChainResolved { chain_id: 100 });
     assert_eq!(
@@ -790,7 +869,11 @@ fn fix_resolved_removes_the_chain_and_reloads() {
         }]
     );
     let view = sut.view();
-    assert_eq!(view.failed_chain_ids, vec![56], "only the fixed chain leaves");
+    assert_eq!(
+        view.failed_chain_ids,
+        vec![56],
+        "only the fixed chain leaves"
+    );
 }
 
 // ===========================================================================
@@ -802,7 +885,12 @@ fn switcher_paints_cache_before_refreshing_every_account() {
     let mut sut = booted(
         ADDR_A,
         None,
-        settled(ADDR_A, vec![token(1, "ETH", "100", Some(1.0))], vec![], vec![]),
+        settled(
+            ADDR_A,
+            vec![token(1, "ETH", "100", Some(1.0))],
+            vec![],
+            vec![],
+        ),
     );
     // consume the complete-settle cache write ack
     sut.resolve(Res::BalanceCacheWritten);
@@ -878,13 +966,10 @@ fn switcher_paints_cache_before_refreshing_every_account() {
     );
     let view = sut.view();
     assert!(view.switcher.loading, "B still refreshing");
-    assert!(view
-        .switcher
-        .balances
-        .contains(&BalanceCacheEntry {
-            address: ADDR_A.to_owned(),
-            usd: 120.0
-        }));
+    assert!(view.switcher.balances.contains(&BalanceCacheEntry {
+        address: ADDR_A.to_owned(),
+        usd: 120.0
+    }));
 
     // B's refresh fails: best effort — the row keeps its cached 55.
     sut.resolve(Res::BalanceCacheWritten);
@@ -894,13 +979,10 @@ fn switcher_paints_cache_before_refreshing_every_account() {
     });
     let view = sut.view();
     assert!(!view.switcher.loading);
-    assert!(view
-        .switcher
-        .balances
-        .contains(&BalanceCacheEntry {
-            address: ADDR_B.to_owned(),
-            usd: 55.0
-        }));
+    assert!(view.switcher.balances.contains(&BalanceCacheEntry {
+        address: ADDR_B.to_owned(),
+        usd: 55.0
+    }));
 
     // Closing is a plain dismiss.
     sut.dispatch(Event::SwitcherClosed);
@@ -928,11 +1010,7 @@ fn switcher_open_while_unknown_pokes_zero_verbatim() {
 /// A stray batch-read answer with no open pending must not pop the modal.
 #[test]
 fn cached_balances_without_a_pending_open_are_ignored() {
-    let mut sut = booted(
-        ADDR_A,
-        None,
-        settled(ADDR_A, vec![], vec![], vec![]),
-    );
+    let mut sut = booted(ADDR_A, None, settled(ADDR_A, vec![], vec![], vec![]));
     sut.resolve(Res::BalanceCacheWritten);
     // Nothing outstanding matches, so drive it as a dropped-op echo: open a
     // switcher, then switch accounts — the late answer must be dropped.

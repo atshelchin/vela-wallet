@@ -384,7 +384,10 @@ pub enum BalanceShellResult {
     },
     /// The fetch itself threw (`useHomeController.ts:367`) — keep last-known
     /// everything, just close the skeleton.
-    FetchErrored { address: String, pull: bool },
+    FetchErrored {
+        address: String,
+        pull: bool,
+    },
     /// A switcher row's assets; `None` = per-account best-effort failure
     /// (`useHomeController.ts:457-463`) — the row keeps its cached value.
     AccountAssetsFetched {
@@ -393,10 +396,17 @@ pub enum BalanceShellResult {
     },
     /// `None` = missing or expired — the hero keeps its skeleton
     /// (`useHomeController.ts:412-414` only commits non-null).
-    CachedTotalLoaded { address: String, usd: Option<f64> },
-    CachedBalancesLoaded { balances: Vec<BalanceCacheEntry> },
+    CachedTotalLoaded {
+        address: String,
+        usd: Option<f64>,
+    },
+    CachedBalancesLoaded {
+        balances: Vec<BalanceCacheEntry>,
+    },
     BalanceCacheWritten,
-    RetryElapsed { timer_id: u32 },
+    RetryElapsed {
+        timer_id: u32,
+    },
     PrivacyWritten,
 }
 
@@ -422,14 +432,19 @@ pub enum Event {
     /// state, paints the hero from cache, and starts a fetch — the port of
     /// `useHomeController.ts:399-416` plus the focus-effect reload. Bumps the
     /// account generation: every in-flight answer for the old account dies.
-    AccountChanged { address: String },
+    AccountChanged {
+        address: String,
+    },
     /// A refresh trigger. The shell feeds these for the 10-minute aggregate
     /// poll and the 10-second activity poll (`force: false, pull: false`),
     /// the pull gesture (`force: true, pull: true` — invariant ⑨: a user pull
     /// MUST re-hit RPC), and the detail sheet's retry (`force: true,
     /// pull: false`). A non-forced tick while backgrounded is dropped — the
     /// `isAppActive()` gate (`useHomeController.ts:375, 383`).
-    RefreshRequested { force: bool, pull: bool },
+    RefreshRequested {
+        force: bool,
+        pull: bool,
+    },
     /// Mid-fetch stream: the accumulated, USD-sorted snapshot of every chain
     /// that has finished so far — exactly what `onProgress` delivers
     /// (`useHomeController.ts:324-331`). Chains not in the snapshot keep
@@ -451,16 +466,22 @@ pub enum Event {
     PrivacyToggled,
     /// The shell's boot-time read of `vela.balanceHidden`. First-write-wins
     /// against [`Event::PrivacyToggled`] (`use-balance-privacy.ts:25-33`).
-    PrivacyHydrated { hidden: bool },
+    PrivacyHydrated {
+        hidden: bool,
+    },
     /// The RPC-fix modal saved a working endpoint for this chain — drop it
     /// from the failed set and reload (`HomeScreen.tsx:337-340, 363-366`).
-    FixChainResolved { chain_id: u32 },
+    FixChainResolved {
+        chain_id: u32,
+    },
     /// The account switcher was tapped open. `addresses` is the full roster
     /// (context the caller holds — the session machine owns accounts). The
     /// ≤1-account tap-copies-address branch stays in the shell (clipboard).
     /// Cache first, refresh after: the modal must show numbers the instant it
     /// opens (invariant ⑩, `useHomeController.ts:470-479`).
-    SwitcherOpened { addresses: Vec<String> },
+    SwitcherOpened {
+        addresses: Vec<String>,
+    },
     SwitcherClosed,
     /// Internal: an effect resolved. `attempt` is the account generation
     /// captured when the request was made; an older attempt belongs to a
@@ -670,7 +691,8 @@ impl App for BalanceDashboard {
         let total = display_total(model);
         // Nothing known yet → skeleton, never a fake $0 (invariant ②,
         // `useHomeController.ts:186-188`).
-        let unknown = model.tokens.is_empty() && model.cached_total.is_none() && !model.bootstrapped;
+        let unknown =
+            model.tokens.is_empty() && model.cached_total.is_none() && !model.bootstrapped;
         let notice = if partial && model.notice_allowed {
             Some(if model.failed_chain_ids.is_empty() {
                 BalanceNotice::Unpriced
@@ -694,7 +716,11 @@ impl App for BalanceDashboard {
             .collect();
         BalanceView {
             address: model.address.clone(),
-            display_total_usd: if model.hidden || unknown { None } else { Some(total) },
+            display_total_usd: if model.hidden || unknown {
+                None
+            } else {
+                Some(total)
+            },
             balance_unknown: unknown,
             balance_partial: partial,
             notice,
@@ -768,7 +794,14 @@ fn begin_fetch(model: &mut Model, force: bool, pull: bool) -> Command<BalanceEff
     if pull {
         model.pending_pulls = model.pending_pulls.saturating_add(1);
     }
-    request(model, BalanceOperation::FetchTokens { address, force, pull })
+    request(
+        model,
+        BalanceOperation::FetchTokens {
+            address,
+            force,
+            pull,
+        },
+    )
 }
 
 /// The streaming merge (`useHomeController.ts:326-330`): chains present in

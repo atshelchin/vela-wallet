@@ -17,19 +17,19 @@ use std::collections::VecDeque;
 
 use crux_core::{Core, Request};
 use support::DomainDriver;
-use vela_core::app::fee_policy::{to_base_units, FeeAssetView, FeeCall, FeeEstimateView, FeeTier};
+use vela_core::app::fee_policy::{to_base_units, FeeAssetView, FeeEstimateView, FeeTier};
 use vela_core::app::money::{DenominatedAmount, TokenPrice};
 use vela_core::app::send::{
     build_multi_token_calls, build_split_calls, is_valid_address, recipients_are_valid,
-    sum_split_base_units, Event, ReentryLock, Send, SendAccountRef,
-    SendAddNetworkOutcome, SendAlertKind, SendAmountWarning, SendChainInfo, SendDisplayContext,
-    SendEstimateFailure, SendFeeOutcome, SendHapticKind, SendHoldReason, SendLockError,
-    SendOpenParams, SendOperation as Op, SendReceiptKind, SendReceiptOutcome, SendReceiptStatus,
+    sum_split_base_units, Event, ReentryLock, Send, SendAccountRef, SendAddNetworkOutcome,
+    SendAlertKind, SendAmountWarning, SendChainInfo, SendDisplayContext, SendEstimateFailure,
+    SendFeeOutcome, SendHapticKind, SendHoldReason, SendLockError, SendOpenParams,
+    SendOperation as Op, SendReceiptKind, SendReceiptOutcome, SendReceiptStatus,
     SendRecipientDraft, SendScan, SendShellResult as Res, SendStage, SendSubmitFailure,
     SendTimerTag, SendToken, SendTokenMeta, SendTreasuryAsset, SendTreasuryProbe,
-    SendTreasuryStatus, SendTxErrorKey, SendTxStatus, SendUnitIssue, SendView, BATCH_MAX_RECIPIENTS,
+    SendTreasuryStatus, SendTxErrorKey, SendTxStatus, SendUnitIssue, SendView,
+    BATCH_MAX_RECIPIENTS,
 };
-use vela_core::app::SplitEffect;
 
 type Sut = DomainDriver<Send>;
 
@@ -314,10 +314,23 @@ fn set_recipient(sut: &mut Sut, addr: &str) {
 fn continue_to_confirm(sut: &mut Sut, fee: FeeEstimateView) {
     let ops = sut.dispatch(Event::Continue);
     assert!(
-        matches!(ops.as_slice(), [Op::EstimateFee { .. }, Op::ProbeTreasury { .. }, Op::StartTimer { ms: 15_000, tag: SendTimerTag::EstimateTimeout }]),
+        matches!(
+            ops.as_slice(),
+            [
+                Op::EstimateFee { .. },
+                Op::ProbeTreasury { .. },
+                Op::StartTimer {
+                    ms: 15_000,
+                    tag: SendTimerTag::EstimateTimeout
+                }
+            ]
+        ),
         "pre-check trio expected, got {ops:?}"
     );
-    assert!(sut.resolve(fee_ok(fee)).is_empty(), "waits for the treasury");
+    assert!(
+        sut.resolve(fee_ok(fee)).is_empty(),
+        "waits for the treasury"
+    );
     let probes = sut.resolve(covered());
     // Entering confirm starts the risk/sim probes (recipient-dependent).
     sut.drop_oldest(); // the 15s timer never fires in this run
@@ -458,8 +471,14 @@ fn token_units(
 /// "697.35007" — 5000 CNY paid out as if it were 5000 USD.
 #[test]
 fn a_figure_is_never_converted_by_another_currencys_price() {
-    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(7.17), "USD"), "0");
-    assert_eq!(token_units("5000", Some("USD"), Some(1.0), 6, Some(7.17), "CNY"), "0");
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, Some(7.17), "USD"),
+        "0"
+    );
+    assert_eq!(
+        token_units("5000", Some("USD"), Some(1.0), 6, Some(7.17), "CNY"),
+        "0"
+    );
     // Same currency on both halves: the conversion happens.
     assert_eq!(
         token_units("5000", Some("CNY"), Some(1.0), 6, Some(7.17), "CNY"),
@@ -469,13 +488,19 @@ fn a_figure_is_never_converted_by_another_currencys_price() {
 
 #[test]
 fn resolve_token_amount_passes_token_mode_through_untouched() {
-    assert_eq!(token_units("1.5", None, Some(2000.0), 18, Some(1.0), "USD"), "1.5");
+    assert_eq!(
+        token_units("1.5", None, Some(2000.0), 18, Some(1.0), "USD"),
+        "1.5"
+    );
     // …and keeps passing it through when nothing can price the token, because
     // a token-denominated figure needs no conversion at all.
     assert_eq!(token_units("1.5", None, None, 18, Some(1.0), "USD"), "1.5");
     assert_eq!(token_units("1.5", None, Some(0.0), 18, None, "USD"), "1.5");
     // Not even a price quoted in a currency the figure has never heard of.
-    assert_eq!(token_units("1.5", None, Some(2000.0), 18, Some(7.17), "CNY"), "1.5");
+    assert_eq!(
+        token_units("1.5", None, Some(2000.0), 18, Some(7.17), "CNY"),
+        "1.5"
+    );
 }
 
 /// An unpriced TOKEN is the same refusal as an unpriceable CURRENCY: both are
@@ -487,8 +512,14 @@ fn resolve_token_amount_passes_token_mode_through_untouched() {
 /// `self.value` when the price is absent and every assertion here flips to "7".
 #[test]
 fn resolve_token_amount_refuses_an_unpriced_token_in_fiat_mode() {
-    assert_eq!(token_units("7", Some("USD"), None, 18, Some(1.0), "USD"), "0");
-    assert_eq!(token_units("7", Some("USD"), Some(0.0), 18, Some(1.0), "USD"), "0");
+    assert_eq!(
+        token_units("7", Some("USD"), None, 18, Some(1.0), "USD"),
+        "0"
+    );
+    assert_eq!(
+        token_units("7", Some("USD"), Some(0.0), 18, Some(1.0), "USD"),
+        "0"
+    );
     assert_eq!(
         token_units("7", Some("USD"), Some(f64::NAN), 18, Some(1.0), "USD"),
         "0"
@@ -498,12 +529,24 @@ fn resolve_token_amount_refuses_an_unpriced_token_in_fiat_mode() {
 #[test]
 fn resolve_token_amount_divides_fiat_by_the_display_price() {
     // $70 at $7/token → 10 tokens.
-    assert_eq!(token_units("70", Some("USD"), Some(7.0), 18, Some(1.0), "USD"), "10");
+    assert_eq!(
+        token_units("70", Some("USD"), Some(7.0), 18, Some(1.0), "USD"),
+        "10"
+    );
     // Display rate 2: 70 fiat = $35 → 5 tokens.
-    assert_eq!(token_units("70", Some("XXX"), Some(7.0), 18, Some(2.0), "XXX"), "5");
+    assert_eq!(
+        token_units("70", Some("XXX"), Some(7.0), 18, Some(2.0), "XXX"),
+        "5"
+    );
     // Garbage / non-positive fiat → '0'.
-    assert_eq!(token_units("abc", Some("USD"), Some(7.0), 18, Some(1.0), "USD"), "0");
-    assert_eq!(token_units("", Some("USD"), Some(7.0), 18, Some(1.0), "USD"), "0");
+    assert_eq!(
+        token_units("abc", Some("USD"), Some(7.0), 18, Some(1.0), "USD"),
+        "0"
+    );
+    assert_eq!(
+        token_units("", Some("USD"), Some(7.0), 18, Some(1.0), "USD"),
+        "0"
+    );
 }
 
 /// An unknown display rate converts NOTHING in fiat mode — and costs token
@@ -522,17 +565,29 @@ fn resolve_token_amount_divides_fiat_by_the_display_price() {
 #[test]
 fn resolve_token_amount_refuses_an_unknown_display_rate() {
     // 5000 CNY of USDT, with nothing able to price CNY.
-    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, None, "CNY"), "0");
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, None, "CNY"),
+        "0"
+    );
     // A source that answered nonsense is no better than one that failed.
-    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(0.0), "CNY"), "0");
-    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(-7.17), "CNY"), "0");
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, Some(0.0), "CNY"),
+        "0"
+    );
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, Some(-7.17), "CNY"),
+        "0"
+    );
     assert_eq!(
         token_units("5000", Some("CNY"), Some(1.0), 6, Some(f64::NAN), "CNY"),
         "0"
     );
 
     // What the fallback used to pay: the fiat figure, one token for one yuan.
-    assert_eq!(token_units("5000", Some("CNY"), Some(1.0), 6, Some(1.0), "CNY"), "5000");
+    assert_eq!(
+        token_units("5000", Some("CNY"), Some(1.0), 6, Some(1.0), "CNY"),
+        "5000"
+    );
     // And what it is actually worth once CNY can be priced.
     assert_eq!(
         token_units("5000", Some("CNY"), Some(1.0), 6, Some(7.17), "CNY"),
@@ -542,7 +597,10 @@ fn resolve_token_amount_refuses_an_unknown_display_rate() {
     // TOKEN mode never reads the rate: sending 5 USDT still works with no
     // rate at all. Blocking the conversion must not block the send screen.
     assert_eq!(token_units("5", None, Some(1.0), 6, None, "CNY"), "5");
-    assert_eq!(token_units("0.25", None, Some(2000.0), 18, None, "CNY"), "0.25");
+    assert_eq!(
+        token_units("0.25", None, Some(2000.0), 18, None, "CNY"),
+        "0.25"
+    );
 }
 
 #[test]
@@ -556,10 +614,16 @@ fn recipients_are_valid_needs_address_and_positive_amount_each() {
     assert!(!recipients_are_valid(&[]));
     assert!(recipients_are_valid(&[row(RECIPIENT, "1.5")]));
     // Trimmed address is fine; bad address or zero amount is not.
-    assert!(recipients_are_valid(&[row(&format!(" {RECIPIENT} "), "0.1")]));
+    assert!(recipients_are_valid(&[row(
+        &format!(" {RECIPIENT} "),
+        "0.1"
+    )]));
     assert!(!recipients_are_valid(&[row("0x123", "1")]));
     assert!(!recipients_are_valid(&[row(RECIPIENT, "0")]));
-    assert!(!recipients_are_valid(&[row(RECIPIENT, "1"), row(RECIPIENT_B, "")]));
+    assert!(!recipients_are_valid(&[
+        row(RECIPIENT, "1"),
+        row(RECIPIENT_B, "")
+    ]));
 }
 
 #[test]
@@ -616,7 +680,9 @@ fn is_valid_address_is_the_exact_regex() {
     assert!(is_valid_address(RECIPIENT));
     assert!(!is_valid_address(&RECIPIENT[..41]));
     assert!(!is_valid_address(&format!("{RECIPIENT} ")));
-    assert!(!is_valid_address("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"));
+    assert!(!is_valid_address(
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ));
 }
 
 /// The reentry-lock contract (issue #91), ported verbatim.
@@ -734,7 +800,14 @@ fn preselected_multi_hand_off_lands_in_multi_select_and_warms_an_estimate() {
     assert!(matches!(ops.as_slice(), [Op::LoadAccountCredential { .. }]));
     let ops = sut.resolve(credential(Some(PK)));
     assert!(
-        matches!(ops.as_slice(), [Op::EstimateFee { tx: None, batch: None, .. }]),
+        matches!(
+            ops.as_slice(),
+            [Op::EstimateFee {
+                tx: None,
+                batch: None,
+                ..
+            }]
+        ),
         "rough warm estimate: {ops:?}"
     );
     assert!(sut.resolve(fee_ok(native_fee(1, 1_000))).is_empty());
@@ -816,7 +889,11 @@ fn locked_unknown_token_without_metadata_is_the_token_exception() {
 #[test]
 fn locked_native_request_synthesizes_a_zero_balance_placeholder() {
     let mut sut = Sut::new();
-    sut.dispatch(open_event(locked_params(None, Some("1000000000000000000"), "137")));
+    sut.dispatch(open_event(locked_params(
+        None,
+        Some("1000000000000000000"),
+        "137",
+    )));
     sut.resolve(loaded(vec![eth("2")])); // no POL held
     let view = sut.view();
     let tok = view.selected_token.expect("synthetic native");
@@ -995,7 +1072,10 @@ fn max_native_is_string_exact_against_the_reserve() {
         to_base_units("1.234567891234567891", 18).expect("balance parses")
     );
     assert_eq!(view.amount_fiat_code, None, "Max always fills token units");
-    assert_eq!(view.amount_warning, None, "its own fill never trips the gate");
+    assert_eq!(
+        view.amount_warning, None,
+        "its own fill never trips the gate"
+    );
 }
 
 #[test]
@@ -1019,7 +1099,14 @@ fn max_without_a_quote_estimates_on_demand_and_falls_back_to_full_balance() {
     select_eth(&mut sut);
     let ops = sut.dispatch(Event::TapMax);
     assert!(
-        matches!(ops.as_slice(), [Op::EstimateFee { tx: None, batch: None, .. }]),
+        matches!(
+            ops.as_slice(),
+            [Op::EstimateFee {
+                tx: None,
+                batch: None,
+                ..
+            }]
+        ),
         "rough on-demand estimate: {ops:?}"
     );
     // Estimation failed — full balance; the pre-check still warns later.
@@ -1080,7 +1167,10 @@ fn an_unpriceable_display_currency_closes_fiat_input_but_not_the_send() {
     // The door will not open.
     sut.dispatch(Event::ToggleFiatInput);
     let view = sut.view();
-    assert_eq!(view.amount_fiat_code, None, "no rate, no fiat-denominated input");
+    assert_eq!(
+        view.amount_fiat_code, None,
+        "no rate, no fiat-denominated input"
+    );
     assert_eq!(view.amount, "1", "and the typed amount is left alone");
 
     // Token mode is untouched: 1 ETH is still 1 ETH, and it is still the
@@ -1088,9 +1178,7 @@ fn an_unpriceable_display_currency_closes_fiat_input_but_not_the_send() {
     assert_eq!(view.token_amount, "1");
 
     // Someone already inside fiat mode when the rate vanished can leave.
-    sut.dispatch(Event::DisplayChanged {
-        display: display(),
-    });
+    sut.dispatch(Event::DisplayChanged { display: display() });
     sut.dispatch(Event::ToggleFiatInput);
     assert_eq!(sut.view().amount_fiat_code.as_deref(), Some("USD"));
     sut.dispatch(Event::DisplayChanged {
@@ -1100,7 +1188,11 @@ fn an_unpriceable_display_currency_closes_fiat_input_but_not_the_send() {
     // ETH at all, rather than 2000 ETH at a defaulted rate of 1.
     assert_eq!(sut.view().token_amount, "0");
     sut.dispatch(Event::ToggleFiatInput);
-    assert_eq!(sut.view().amount_fiat_code, None, "leaving is always allowed");
+    assert_eq!(
+        sut.view().amount_fiat_code,
+        None,
+        "leaving is always allowed"
+    );
 }
 
 /// **Leaving fiat mode without a rate does not smuggle the fiat digits out
@@ -1177,9 +1269,7 @@ fn a_figure_typed_in_one_currency_is_not_resolved_at_another_currencys_rate() {
     assert_eq!(sut.view().token_amount, "697.35007");
 
     // The display currency becomes USD while a CNY figure is on the field.
-    sut.dispatch(Event::DisplayChanged {
-        display: display(),
-    });
+    sut.dispatch(Event::DisplayChanged { display: display() });
     assert_eq!(
         sut.view().amount_fiat_code.as_deref(),
         Some("USD"),
@@ -1240,10 +1330,22 @@ fn a_conversion_row_that_cannot_be_pressed_says_why() {
     });
 
     let view = sut.view();
-    assert!(view.denom_toggle_shown, "a priced token still offers the row");
-    assert!(!view.denom_toggle_enabled, "but there is no CNY rate to enter");
-    assert_eq!(view.token_amount, "10", "the token figure resolves perfectly…");
-    assert_eq!(view.amount_warning, None, "…so nothing else on the screen speaks");
+    assert!(
+        view.denom_toggle_shown,
+        "a priced token still offers the row"
+    );
+    assert!(
+        !view.denom_toggle_enabled,
+        "but there is no CNY rate to enter"
+    );
+    assert_eq!(
+        view.token_amount, "10",
+        "the token figure resolves perfectly…"
+    );
+    assert_eq!(
+        view.amount_warning, None,
+        "…so nothing else on the screen speaks"
+    );
     assert_eq!(
         view.denom_toggle_reason,
         Some(SendUnitIssue {
@@ -1469,7 +1571,11 @@ fn split_preview_estimate_and_signed_batch_use_the_same_calls() {
     });
     let ops = sut.dispatch(Event::Continue);
     let estimate_batch = match &ops[0] {
-        Op::EstimateFee { batch: Some(batch), tx: None, .. } => batch.clone(),
+        Op::EstimateFee {
+            batch: Some(batch),
+            tx: None,
+            ..
+        } => batch.clone(),
         other => panic!("expected batched estimate, got {other:?}"),
     };
     assert!(sut.resolve(fee_ok(native_fee(1, 1_000))).is_empty());
@@ -1510,9 +1616,14 @@ fn changing_the_network_filter_clears_the_selection() {
         token_id: eth("2").id(),
     });
     assert_eq!(sut.view().multi_selected_ids.len(), 1);
-    sut.dispatch(Event::SetMultiNetwork { chain_id: Some(137) });
+    sut.dispatch(Event::SetMultiNetwork {
+        chain_id: Some(137),
+    });
     let view = sut.view();
-    assert!(view.multi_selected_ids.is_empty(), "⑪: a batch is one chain");
+    assert!(
+        view.multi_selected_ids.is_empty(),
+        "⑪: a batch is one chain"
+    );
     assert_eq!(view.multi_chain_id, Some(137));
 }
 
@@ -1529,7 +1640,7 @@ fn toggle_all_selects_only_valuable_tokens_and_toggles_off_again() {
     };
     let mut sut = boot(vec![eth("2"), usdc("5"), spam.clone(), unpriced.clone()]);
     sut.dispatch(Event::SetMultiNetwork { chain_id: Some(1) });
-    let all_on_screen: Vec<String> = vec![eth("2"), usdc("5"), spam, unpriced]
+    let all_on_screen: Vec<String> = [eth("2"), usdc("5"), spam, unpriced]
         .iter()
         .map(|t| t.id())
         .collect();
@@ -1564,7 +1675,9 @@ fn toggle_all_sweeps_only_the_rows_the_picker_is_showing() {
         "a filtered picker never sweeps what it is hiding"
     );
     // A second tap over the same narrowed list clears only that row.
-    sut.dispatch(Event::ToggleMultiToken { token_id: eth("2").id() });
+    sut.dispatch(Event::ToggleMultiToken {
+        token_id: eth("2").id(),
+    });
     sut.dispatch(Event::ToggleAllMultiTokens {
         visible_ids: vec![usdc("5").id()],
     });
@@ -1619,12 +1732,17 @@ fn multi_select_reserves_the_fee_asset_identically_in_preview_and_signature() {
     let view = sut.view();
     // ⑪: the preview shows the EXACT reserved amounts.
     assert_eq!(view.multi_specs.len(), 2);
-    assert_eq!(view.multi_specs[0].amount, "1.5", "native net of prefund reserve");
+    assert_eq!(
+        view.multi_specs[0].amount, "1.5",
+        "native net of prefund reserve"
+    );
     assert_eq!(view.multi_specs[1].amount, "5");
 
     let ops = sut.dispatch(Event::Continue);
     let estimate_batch = match &ops[0] {
-        Op::EstimateFee { batch: Some(batch), .. } => batch.clone(),
+        Op::EstimateFee {
+            batch: Some(batch), ..
+        } => batch.clone(),
         other => panic!("expected batch estimate, got {other:?}"),
     };
     // The estimate prices the RAW legs (no circular fee dependency).
@@ -1754,7 +1872,11 @@ fn estimate_failure_surfaces_and_never_advances_with_a_fabricated_preview() {
         }]
     );
     let view = sut.view();
-    assert_eq!(view.stage, SendStage::EnterDetails, "② never a fake preview");
+    assert_eq!(
+        view.stage,
+        SendStage::EnterDetails,
+        "② never a fake preview"
+    );
     assert!(!view.estimating_gas);
     assert!(view.fee.is_none());
     // A late treasury answer for the failed run changes nothing.
@@ -1767,7 +1889,10 @@ fn estimate_failure_surfaces_and_never_advances_with_a_fabricated_preview() {
 fn estimate_timeout_stays_put_and_a_late_quote_still_lands_ported_verbatim() {
     let mut sut = Flex::new();
     sut.dispatch(open_event(SendOpenParams::default()));
-    sut.resolve_where(|op| matches!(op, Op::FetchTokens { .. }), loaded(vec![eth("2")]));
+    sut.resolve_where(
+        |op| matches!(op, Op::FetchTokens { .. }),
+        loaded(vec![eth("2")]),
+    );
     sut.dispatch(Event::SelectToken {
         token_id: eth("2").id(),
     });
@@ -1802,7 +1927,11 @@ fn estimate_timeout_stays_put_and_a_late_quote_still_lands_ported_verbatim() {
         }]
     );
     let view = sut.view();
-    assert_eq!(view.stage, SendStage::EnterDetails, "② timeout never advances");
+    assert_eq!(
+        view.stage,
+        SendStage::EnterDetails,
+        "② timeout never advances"
+    );
     assert!(!view.estimating_gas);
     // The raced-out treasury answer is dropped…
     let ops = sut.resolve_where(|op| matches!(op, Op::ProbeTreasury { .. }), low_float());
@@ -1815,7 +1944,11 @@ fn estimate_timeout_stays_put_and_a_late_quote_still_lands_ported_verbatim() {
         fee_ok(native_fee(1, 1_000)),
     );
     assert!(sut.view().fee.is_some());
-    assert_eq!(sut.view().stage, SendStage::EnterDetails, "still no advance");
+    assert_eq!(
+        sut.view().stage,
+        SendStage::EnterDetails,
+        "still no advance"
+    );
 }
 
 #[test]
@@ -1836,7 +1969,14 @@ fn a_depleted_treasury_opens_the_bootstrap_sheet_instead_of_confirm() {
     // Retry from the sheet re-runs the whole pre-confirm flow.
     let ops = sut.dispatch(Event::RetryAfterBootstrap);
     assert!(
-        matches!(ops.as_slice(), [Op::EstimateFee { .. }, Op::ProbeTreasury { .. }, Op::StartTimer { .. }]),
+        matches!(
+            ops.as_slice(),
+            [
+                Op::EstimateFee { .. },
+                Op::ProbeTreasury { .. },
+                Op::StartTimer { .. }
+            ]
+        ),
         "{ops:?}"
     );
 }
@@ -2096,9 +2236,7 @@ fn a_currency_commit_under_the_confirm_page_disarms_the_slide_and_says_why() {
     assert!(sut.view().can_confirm, "a resolvable figure is signable");
 
     // The display currency commits to USD while the review page is open.
-    sut.dispatch(Event::DisplayChanged {
-        display: display(),
-    });
+    sut.dispatch(Event::DisplayChanged { display: display() });
     let view = sut.view();
     assert_eq!(view.stage, SendStage::Confirm, "still on the page");
     assert_eq!(view.amount, "", "the reviewed figure could not come across");
@@ -2284,10 +2422,11 @@ fn a_receipt_shows_the_signed_amount_and_no_later_rate_can_restate_it() {
     assert_eq!(receipt.usd_value, 69.735007);
 
     // …and neither does a different currency with a perfectly good rate.
-    sut.dispatch(Event::DisplayChanged {
-        display: display(),
-    });
-    assert_eq!(sut.view().receipt.expect("receipt view").amount, "69.735007");
+    sut.dispatch(Event::DisplayChanged { display: display() });
+    assert_eq!(
+        sut.view().receipt.expect("receipt view").amount,
+        "69.735007"
+    );
 }
 
 #[test]
@@ -2362,7 +2501,10 @@ fn a_definitive_failure_stamps_the_receipt_but_never_unsubmits_the_payment() {
     let view = sut.view();
     assert_eq!(view.tx_status, SendTxStatus::Confirmed);
     assert_eq!(view.tx_error, None);
-    assert_eq!(view.receipt.expect("receipt").status, SendReceiptStatus::Failed);
+    assert_eq!(
+        view.receipt.expect("receipt").status,
+        SendReceiptStatus::Failed
+    );
 }
 
 #[test]
@@ -2380,7 +2522,10 @@ fn a_confirmed_hash_lights_the_explorer_link() {
     });
     let view = sut.view();
     assert_eq!(view.tx_hash.as_deref(), Some("0xtx"));
-    assert_eq!(view.receipt.expect("receipt").status, SendReceiptStatus::Confirmed);
+    assert_eq!(
+        view.receipt.expect("receipt").status,
+        SendReceiptStatus::Confirmed
+    );
 }
 
 #[test]
@@ -2521,7 +2666,10 @@ fn a_native_estimate_survives_leaving_confirm() {
     sut.dispatch(Event::Back);
     let view = sut.view();
     assert_eq!(view.stage, SendStage::EnterDetails);
-    assert!(view.fee.is_some(), "native quote keeps gating the amount form");
+    assert!(
+        view.fee.is_some(),
+        "native quote keeps gating the amount form"
+    );
 }
 
 #[test]
@@ -2621,7 +2769,10 @@ fn an_untargeted_full_request_relocks_the_whole_flow() {
         },
     });
     // `router.replace` = a fresh locked mount: the token list reloads.
-    assert!(matches!(ops.as_slice(), [Op::FetchTokens { .. }]), "{ops:?}");
+    assert!(
+        matches!(ops.as_slice(), [Op::FetchTokens { .. }]),
+        "{ops:?}"
+    );
     assert!(sut.view().locked);
     let ops = sut.resolve(loaded(vec![eth("2"), usdc("5")]));
     assert!(matches!(ops.as_slice(), [Op::ResolveIdentity { .. }]));
@@ -2798,7 +2949,10 @@ fn a_locked_request_cannot_become_a_split_or_a_batch() {
         ],
     });
     let view = sut.view();
-    assert!(!view.split_mode, "an import cannot re-target a locked request");
+    assert!(
+        !view.split_mode,
+        "an import cannot re-target a locked request"
+    );
     assert_eq!(view.recipient, RECIPIENT);
     assert_eq!(view.amount, "1.5", "and the pinned amount survives it");
 }
@@ -2846,7 +3000,11 @@ fn identity_and_risk_results_are_dropped_when_the_recipient_moved_on() {
         }),
     });
     assert!(ops.is_empty());
-    assert_eq!(sut.view().recipient_identity, None, "stale identity dropped");
+    assert_eq!(
+        sut.view().recipient_identity,
+        None,
+        "stale identity dropped"
+    );
     // The current one lands.
     sut.resolve(Res::IdentityResolved {
         identity: Some(vela_core::app::send::SendRecipientIdentity {

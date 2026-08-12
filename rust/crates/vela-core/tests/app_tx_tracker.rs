@@ -160,7 +160,9 @@ fn timeout_never_marks_records_failed() {
     assert_eq!(entry_status(&sut), TrackStatus::AcceptedNotLanded);
     assert!(sut.view().entries[0].polling, "still reconciling");
 
-    assert!(sut.resolve(receipt_pending(T0 + WAIT_WINDOW_MS + 800.0)).is_empty());
+    assert!(sut
+        .resolve(receipt_pending(T0 + WAIT_WINDOW_MS + 800.0))
+        .is_empty());
     assert_eq!(sut.outstanding(), vec![], "no patch was issued anywhere");
 }
 
@@ -356,7 +358,11 @@ fn same_hash_shares_one_throttled_receipt_request() {
         chain_id: CHAIN,
     });
     assert_eq!(ops, vec![Op::Now], "joined the in-flight request");
-    assert!(sut.resolve(Res::Clock { now_ms: T0 + 1_100.0 }).is_empty());
+    assert!(sut
+        .resolve(Res::Clock {
+            now_ms: T0 + 1_100.0
+        })
+        .is_empty());
 
     // The request completes; the cooldown counts from completion.
     assert!(sut.resolve(receipt_pending(T0 + 1_200.0)).is_empty());
@@ -377,21 +383,34 @@ fn reconcile_sweep_is_throttled_and_single_flight() {
     // Sweep still in flight: a resume asks for nothing more.
     let ops = sut.dispatch(Event::AppResumed);
     assert_eq!(ops, vec![Op::Now]);
-    assert!(sut.resolve(Res::Clock { now_ms: T0 + 1_000.0 }).is_empty());
+    assert!(sut
+        .resolve(Res::Clock {
+            now_ms: T0 + 1_000.0
+        })
+        .is_empty());
 
     assert!(sut
-        .resolve(Res::RecordsLoaded { records: vec![], now_ms: T0 + 1_500.0 })
+        .resolve(Res::RecordsLoaded {
+            records: vec![],
+            now_ms: T0 + 1_500.0
+        })
         .is_empty());
 
     // Within 12s of the last run: throttled.
     let ops = sut.dispatch(Event::HomeFocused);
     assert_eq!(ops, vec![Op::Now]);
-    assert!(sut.resolve(Res::Clock { now_ms: T0 + 5_000.0 }).is_empty());
+    assert!(sut
+        .resolve(Res::Clock {
+            now_ms: T0 + 5_000.0
+        })
+        .is_empty());
 
     // Past it: a new sweep.
     let ops = sut.dispatch(Event::HomeFocused);
     assert_eq!(ops, vec![Op::Now]);
-    let ops = sut.resolve(Res::Clock { now_ms: T0 + 12_500.0 });
+    let ops = sut.resolve(Res::Clock {
+        now_ms: T0 + 12_500.0,
+    });
     assert_eq!(ops, vec![Op::LoadPendingTxs]);
 }
 
@@ -449,7 +468,9 @@ fn recovery_merges_into_the_live_entry_never_a_second_one() {
 
     let ops = sut.dispatch(Event::HomeFocused);
     assert_eq!(ops, vec![Op::Now]);
-    let ops = sut.resolve(Res::Clock { now_ms: T0 + 13_000.0 });
+    let ops = sut.resolve(Res::Clock {
+        now_ms: T0 + 13_000.0,
+    });
     // The sweep starts, and the tracked entry's own polls come due with it.
     assert_eq!(ops, vec![Op::LoadPendingTxs, poll_receipt(), poll_status()]);
 
@@ -490,7 +511,9 @@ fn sweep_never_resurrects_a_confirmed_entry() {
 
     let ops = sut.dispatch(Event::HomeFocused);
     assert_eq!(ops, vec![Op::Now]);
-    let ops = sut.resolve(Res::Clock { now_ms: T0 + 20_000.0 });
+    let ops = sut.resolve(Res::Clock {
+        now_ms: T0 + 20_000.0,
+    });
     assert_eq!(ops, vec![Op::LoadPendingTxs]);
     let ops = sut.resolve(Res::RecordsLoaded {
         records: vec![TrackPendingRecord {
@@ -524,7 +547,10 @@ fn all_unreachable_window_is_reported_as_unknown_not_pending() {
     assert_eq!(ops, vec![Op::Now, poll_receipt()]);
     assert!(sut.resolve(Res::Clock { now_ms: T0 }).is_empty());
     assert!(sut
-        .resolve(Res::ReceiptUnreachable { user_op_hash: HASH.to_owned(), now_ms: T0 + 400.0 })
+        .resolve(Res::ReceiptUnreachable {
+            user_op_hash: HASH.to_owned(),
+            now_ms: T0 + 400.0
+        })
         .is_empty());
 
     let ops = tick(&mut sut, T0 + WAIT_WINDOW_MS + 200.0);
@@ -618,7 +644,11 @@ fn abort_keeps_tracking_and_a_late_receipt_still_confirms() {
     let mut sut = Sut::new();
     submitted(&mut sut);
 
-    assert!(sut.dispatch(Event::Abort { user_op_hash: HASH.to_owned() }).is_empty());
+    assert!(sut
+        .dispatch(Event::Abort {
+            user_op_hash: HASH.to_owned()
+        })
+        .is_empty());
 
     // 3s cadence no longer applies…
     assert_eq!(tick(&mut sut, T0 + 4_000.0), vec![]);

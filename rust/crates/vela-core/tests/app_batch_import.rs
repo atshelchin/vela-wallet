@@ -12,9 +12,10 @@ mod support;
 
 use support::DomainDriver;
 use vela_core::app::batch_import::{
-    interpret_rows, parse_recipient_table_text, BatchFileContent, BatchImport, BatchOperation as Op,
-    BatchParseError, BatchParseReason, BatchParseResult, BatchParsedRow, BatchRateStatus,
-    BatchShellResult as Res, BatchToken, BatchUnit, Event, BATCH_MAX_RECIPIENTS, TEMPLATE_CSV,
+    interpret_rows, parse_recipient_table_text, BatchFileContent, BatchImport,
+    BatchOperation as Op, BatchParseError, BatchParseReason, BatchParseResult, BatchParsedRow,
+    BatchRateStatus, BatchShellResult as Res, BatchToken, BatchUnit, Event, BATCH_MAX_RECIPIENTS,
+    TEMPLATE_CSV,
 };
 
 type Sut = DomainDriver<BatchImport>;
@@ -72,7 +73,10 @@ fn tab_delimited_tsv() {
         .iter()
         .map(|r| (r.address.clone(), r.raw_amount.clone()))
         .collect();
-    assert_eq!(got, vec![(a(), "5000".to_owned()), (b(), "3000".to_owned())]);
+    assert_eq!(
+        got,
+        vec![(a(), "5000".to_owned()), (b(), "3000".to_owned())]
+    );
 }
 
 #[test]
@@ -243,7 +247,11 @@ fn digits_inside_a_text_cell_are_not_an_amount_so_the_row_errors() {
 
 #[test]
 fn english_header_pins_roles_for_digit_only_employee_ids() {
-    let res = parse(&format!("name,address,amount\n1001,{},5000\n1002,{},5000", a(), b()));
+    let res = parse(&format!(
+        "name,address,amount\n1001,{},5000\n1002,{},5000",
+        a(),
+        b()
+    ));
     assert!(res.errors.is_empty());
     assert_eq!(
         res.rows,
@@ -262,11 +270,19 @@ fn chinese_header_pins_roles() {
 
 #[test]
 fn headered_row_with_unparseable_amount_cell_is_a_no_amount_error() {
-    let res = parse(&format!("name,address,amount\nAlice,{},abc\n123123,{},5", a(), b()));
+    let res = parse(&format!(
+        "name,address,amount\nAlice,{},abc\n123123,{},5",
+        a(),
+        b()
+    ));
     assert_eq!(res.rows, vec![row(2, Some("123123"), &b(), "5")]);
     assert_eq!(
         res.errors,
-        vec![err(1, &format!("Alice , {} , abc", a()), BatchParseReason::NoAmount)]
+        vec![err(
+            1,
+            &format!("Alice , {} , abc", a()),
+            BatchParseReason::NoAmount
+        )]
     );
 }
 
@@ -300,7 +316,10 @@ fn mixed_order_paste_still_resolves_per_row() {
         .iter()
         .map(|r| (r.address.clone(), r.raw_amount.clone()))
         .collect();
-    assert_eq!(got, vec![(a(), "5000".to_owned()), (b(), "3000".to_owned())]);
+    assert_eq!(
+        got,
+        vec![(a(), "5000".to_owned()), (b(), "3000".to_owned())]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -312,13 +331,21 @@ fn a_two_column_amount_first_row_does_not_decide_a_three_column_row() {
     let res = parse(&format!("5000,{}\n123123,{},0.01", a(), b()));
     assert_eq!(
         res.rows,
-        vec![row(1, None, &a(), "5000"), row(2, Some("123123"), &b(), "0.01")]
+        vec![
+            row(1, None, &a(), "5000"),
+            row(2, Some("123123"), &b(), "0.01")
+        ]
     );
 }
 
 #[test]
 fn a_tie_between_shapes_never_resolves_to_the_leftmost_name_column() {
-    let res = parse(&format!("Alice,{},5000\n3000,{}\n123123,{},0.01", a(), b(), c()));
+    let res = parse(&format!(
+        "Alice,{},5000\n3000,{}\n123123,{},0.01",
+        a(),
+        b(),
+        c()
+    ));
     let got: Vec<_> = res
         .rows
         .iter()
@@ -326,13 +353,22 @@ fn a_tie_between_shapes_never_resolves_to_the_leftmost_name_column() {
         .collect();
     assert_eq!(
         got,
-        vec![(Some("Alice"), "5000"), (None, "3000"), (Some("123123"), "0.01")]
+        vec![
+            (Some("Alice"), "5000"),
+            (None, "3000"),
+            (Some("123123"), "0.01")
+        ]
     );
 }
 
 #[test]
 fn a_blank_amount_cell_errors_instead_of_paying_the_digit_only_name() {
-    let res = parse(&format!("1001,{},\n1002,{},0.01\n1003,{},0.01", a(), b(), c()));
+    let res = parse(&format!(
+        "1001,{},\n1002,{},0.01\n1003,{},0.01",
+        a(),
+        b(),
+        c()
+    ));
     let got: Vec<_> = res
         .rows
         .iter()
@@ -341,13 +377,21 @@ fn a_blank_amount_cell_errors_instead_of_paying_the_digit_only_name() {
     assert_eq!(got, vec![(Some("1002"), "0.01"), (Some("1003"), "0.01")]);
     assert_eq!(
         res.errors,
-        vec![err(1, &format!("1001 , {} , ", a()), BatchParseReason::NoAmount)]
+        vec![err(
+            1,
+            &format!("1001 , {} , ", a()),
+            BatchParseReason::NoAmount
+        )]
     );
 }
 
 #[test]
 fn a_currency_suffixed_amount_is_still_found_next_to_a_digit_only_name() {
-    let res = parse(&format!("Alice,{},5000 USDT\n123123,{},0.01 USDT", a(), b()));
+    let res = parse(&format!(
+        "Alice,{},5000 USDT\n123123,{},0.01 USDT",
+        a(),
+        b()
+    ));
     let got: Vec<_> = res
         .rows
         .iter()
@@ -374,14 +418,14 @@ fn exotic_name_amount_address_order_resolves_from_the_table() {
 #[test]
 fn numeric_looking_cells_are_rejected_as_amounts() {
     for cell in [
-        "Team 2024", // a capitalized word before digits
-        "Bob 007",   // a name with a numeric suffix
-        "3M",        // a single trailing letter is not a currency code
-        "1e5",       // scientific notation used to pay 15
-        "1.00E+05",  // Excel scientific rendering used to pay 1.0005
+        "Team 2024",  // a capitalized word before digits
+        "Bob 007",    // a name with a numeric suffix
+        "3M",         // a single trailing letter is not a currency code
+        "1e5",        // scientific notation used to pay 15
+        "1.00E+05",   // Excel scientific rendering used to pay 1.0005
         "2026-08-05", // a date used to pay 20,260,805
-        "0x123",     // a truncated address used to pay 123
-        "1,23",      // an ambiguous European decimal comma
+        "0x123",      // a truncated address used to pay 123
+        "1,23",       // an ambiguous European decimal comma
     ] {
         let res = parse(&format!("{};{}", cell, a()));
         assert!(res.rows.is_empty(), "{cell} must not become a payment");
@@ -436,7 +480,11 @@ fn workbook_matrix_interprets_like_text() {
     );
     assert_eq!(
         res.errors,
-        vec![err(3, &format!("Carol , {} , ", c()), BatchParseReason::NoAmount)]
+        vec![err(
+            3,
+            &format!("Carol , {} , ", c()),
+            BatchParseReason::NoAmount
+        )]
     );
 }
 
@@ -802,9 +850,7 @@ fn switching_from_usd_to_cny_cannot_pay_the_fiat_figure_one_for_one() {
     });
     assert_eq!(sut.view().rate_input, "1");
 
-    let payroll: Vec<String> = (0..20)
-        .map(|i| format!("0x{:040x},5000", i + 1))
-        .collect();
+    let payroll: Vec<String> = (0..20).map(|i| format!("0x{:040x},5000", i + 1)).collect();
     paste(&mut sut, payroll.join("\n"));
     assert_eq!(sut.view().recipient_count, 20);
     assert!(sut.view().can_apply);
@@ -849,7 +895,10 @@ fn reset_to_auto_after_a_switch_cannot_resurrect_the_old_currencys_rate() {
     sut.dispatch(Event::SetFiatCode {
         code: "EUR".to_owned(),
     });
-    assert!(!sut.view().rate_edited, "the pick returns the mirror to auto");
+    assert!(
+        !sut.view().rate_edited,
+        "the pick returns the mirror to auto"
+    );
     assert_eq!(sut.view().rate_input, "");
     sut.dispatch(Event::ResetRateToAuto);
     assert_eq!(sut.view().rate_input, "", "still nothing to mirror");
@@ -882,7 +931,11 @@ fn switching_away_and_back_re_admits_the_rate_that_was_always_cnys() {
             code: "CNY".to_owned()
         }]
     );
-    assert_eq!(sut.view().rate_input, "7.2", "CNY per USDT, as it always was");
+    assert_eq!(
+        sut.view().rate_input,
+        "7.2",
+        "CNY per USDT, as it always was"
+    );
     assert_eq!(sut.view().rate_status, BatchRateStatus::Loading);
     // The in-flight EUR answer belongs to a currency the sheet has left: it
     // neither prices CNY nor ends CNY's load.
@@ -1021,7 +1074,11 @@ fn fiat_mode_without_a_positive_rate_cannot_apply() {
     let mut sut = rated(unpriced("1000"), 7.2);
     let view = sut.view();
     assert!(!view.priced);
-    assert_eq!(view.unit, BatchUnit::Token, "unpriced defaults to token unit");
+    assert_eq!(
+        view.unit,
+        BatchUnit::Token,
+        "unpriced defaults to token unit"
+    );
 
     sut.dispatch(Event::SetUnit {
         unit: BatchUnit::Fiat,
@@ -1071,7 +1128,11 @@ fn unit_switch_reinterprets_the_same_paste() {
         text: "8".to_owned(),
     });
     paste(&mut sut, format!("{},80", a()));
-    assert_eq!(sut.view().preview[0].token_amount, "10", "¥80 at 8 = 10 USDT");
+    assert_eq!(
+        sut.view().preview[0].token_amount,
+        "10",
+        "¥80 at 8 = 10 USDT"
+    );
 
     sut.dispatch(Event::SetUnit {
         unit: BatchUnit::Token,
@@ -1109,7 +1170,11 @@ fn reopening_resets_everything() {
     assert!(view.preview.is_empty());
     assert!(view.recipients.is_empty());
     assert!(!view.rate_edited);
-    assert_eq!(view.rate_status, BatchRateStatus::Loading, "rate cleared too");
+    assert_eq!(
+        view.rate_status,
+        BatchRateStatus::Loading,
+        "rate cleared too"
+    );
     assert!(!view.applied);
     assert!(!view.can_apply);
 }
@@ -1299,6 +1364,12 @@ fn apply_hands_over_capped_converted_recipients() {
     assert_eq!(view.recipients[1].address, b());
     assert_eq!(view.recipients[1].amount, "1000");
 
-    assert!(sut.dispatch(Event::Apply).is_empty(), "apply is pure hand-off");
-    assert!(sut.view().applied, "the shell seeds send and closes the sheet");
+    assert!(
+        sut.dispatch(Event::Apply).is_empty(),
+        "apply is pure hand-off"
+    );
+    assert!(
+        sut.view().applied,
+        "the shell seeds send and closes the sheet"
+    );
 }

@@ -354,9 +354,7 @@ impl Catalog {
                     return Lookup::Missing;
                 }
                 match (offsets.get(id), offsets.get(id + 1)) {
-                    (Some(s), Some(e)) => {
-                        blob.get(s..e).map_or(Lookup::Missing, Lookup::Value)
-                    }
+                    (Some(s), Some(e)) => blob.get(s..e).map_or(Lookup::Missing, Lookup::Value),
                     _ => Lookup::Missing,
                 }
             }

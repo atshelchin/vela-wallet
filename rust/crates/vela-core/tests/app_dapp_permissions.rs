@@ -72,13 +72,17 @@ fn fresh() -> Sut {
             now_ms: T0,
         })
         .is_empty());
-    assert!(sut.dispatch(Event::ChainChanged { chain_id: 8453 }).is_empty());
+    assert!(sut
+        .dispatch(Event::ChainChanged { chain_id: 8453 })
+        .is_empty());
     sut
 }
 
 /// Navigate `sut` to `url` and answer the grant read with `stored`.
 fn navigate(sut: &mut Sut, url: &str, origin: &str, stored: Option<DpermGrant>) {
-    let ops = sut.dispatch(Event::NavigationStarted { url: url.to_owned() });
+    let ops = sut.dispatch(Event::NavigationStarted {
+        url: url.to_owned(),
+    });
     assert_eq!(
         ops,
         vec![
@@ -122,8 +126,12 @@ fn ready_granted(address: &str) -> Sut {
 /// approve it, draining the five approve operations.
 fn connected() -> Sut {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
-    let ops = sut.dispatch(Event::ConsentApproved { now_ms: T0 + 1_000.0 });
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
+    let ops = sut.dispatch(Event::ConsentApproved {
+        now_ms: T0 + 1_000.0,
+    });
     assert_eq!(ops.len(), 5, "write, record, respond, two page events");
     for _ in 0..5 {
         assert!(sut.resolve(Res::Ack).is_empty());
@@ -143,8 +151,7 @@ fn iframe_sees_disconnected_view_without_a_store_read() {
     let ops = sut.dispatch(provider("i1", "eth_accounts", OTHER, false));
     assert_eq!(ops, vec![accounts("i1", &[])]);
     assert!(
-        !sut
-            .outstanding()
+        !sut.outstanding()
             .iter()
             .any(|op| matches!(op, Op::ReadGrant { .. })),
         "no ReadGrant for a subframe"
@@ -178,7 +185,12 @@ fn iframe_forwarded_method_rejected_4100() {
 #[test]
 fn cold_load_trusts_the_grant() {
     let mut sut = Sut::new();
-    navigate(&mut sut, "https://dapp.example/swap", ORIGIN, Some(grant(A1)));
+    navigate(
+        &mut sut,
+        "https://dapp.example/swap",
+        ORIGIN,
+        Some(grant(A1)),
+    );
     assert_eq!(sut.view().connected_address.as_deref(), Some(A1));
 
     let ops = sut.dispatch(provider("c1", "eth_accounts", ORIGIN, true));
@@ -194,7 +206,12 @@ fn empty_account_list_also_trusts_the_grant() {
             addresses: Some(Vec::new()),
         })
         .is_empty());
-    navigate(&mut sut, "https://dapp.example/swap", ORIGIN, Some(grant(A1)));
+    navigate(
+        &mut sut,
+        "https://dapp.example/swap",
+        ORIGIN,
+        Some(grant(A1)),
+    );
     let ops = sut.dispatch(provider("c2", "eth_accounts", ORIGIN, true));
     assert_eq!(ops, vec![accounts("c2", &[A1])]);
 }
@@ -235,7 +252,12 @@ fn http_origin_sut(url: &str, origin: &str) -> Sut {
 #[test]
 fn public_http_signing_blocked_4100() {
     let mut sut = http_origin_sut("http://insecure.example/dapp", "http://insecure.example");
-    let ops = sut.dispatch(provider("s1", "eth_sendTransaction", "http://insecure.example", true));
+    let ops = sut.dispatch(provider(
+        "s1",
+        "eth_sendTransaction",
+        "http://insecure.example",
+        true,
+    ));
     assert_eq!(ops, vec![err("s1", 4100, Reason::InsecureOrigin)]);
 }
 
@@ -292,8 +314,8 @@ fn insecure_origin_classification_table() {
     for origin in [
         "http://dapp.example",
         "http://10.0.0.1.evil.com",
-        "http://999.1.1.1",   // not a valid quad → hostname → public
-        "http://172.32.0.1",  // just past the 172.16–31 private block
+        "http://999.1.1.1",  // not a valid quad → hostname → public
+        "http://172.32.0.1", // just past the 172.16–31 private block
         "not a url",
         "",
     ] {
@@ -324,12 +346,19 @@ fn insecure_origin_classification_table() {
 #[test]
 fn same_origin_connects_merge_into_one_sheet() {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
-    assert!(sut.dispatch(provider("r2", "wallet_requestPermissions", ORIGIN, true)).is_empty());
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
+    assert!(sut
+        .dispatch(provider("r2", "wallet_requestPermissions", ORIGIN, true))
+        .is_empty());
 
     let consent = sut.view().consent.expect("one sheet");
     assert_eq!(consent.origin, ORIGIN);
-    assert_eq!(consent.methods, vec!["eth_requestAccounts", "wallet_requestPermissions"]);
+    assert_eq!(
+        consent.methods,
+        vec!["eth_requestAccounts", "wallet_requestPermissions"]
+    );
 
     // Approve answers BOTH, each with its method-appropriate result — and
     // each id exactly once (⑩).
@@ -353,7 +382,9 @@ fn same_origin_connects_merge_into_one_sheet() {
 #[test]
 fn colliding_second_origin_rejected_4001() {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
 
     // A main-frame connect from another origin parks on its grant read, then
     // hits the busy sheet.
@@ -381,7 +412,9 @@ fn colliding_second_origin_rejected_4001() {
 #[test]
 fn navigation_settles_consent_with_4900_never_4001() {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
 
     // Reload (same origin): everything in flight settles as unknown-pending.
     let ops = sut.dispatch(Event::NavigationStarted {
@@ -415,7 +448,9 @@ fn navigation_settles_consent_with_4900_never_4001() {
 #[test]
 fn user_rejection_is_4001() {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
     let ops = sut.dispatch(Event::ConsentRejected);
     assert_eq!(ops, vec![err("r1", 4001, Reason::UserRejected)]);
     assert!(sut.view().consent.is_none());
@@ -445,7 +480,9 @@ fn same_origin_reload_does_not_reread_the_grant() {
 #[test]
 fn late_approve_after_navigation_responds_nothing_and_leaks_nothing() {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
 
     let ops = sut.dispatch(Event::NavigationStarted {
         url: "https://dapp.example/next".to_owned(),
@@ -456,7 +493,9 @@ fn late_approve_after_navigation_responds_nothing_and_leaks_nothing() {
 
     // The tap raced the navigation and lost: no respond, no WriteGrant, no
     // accountsChanged into the new document.
-    let ops = sut.dispatch(Event::ConsentApproved { now_ms: T0 + 2_000.0 });
+    let ops = sut.dispatch(Event::ConsentApproved {
+        now_ms: T0 + 2_000.0,
+    });
     assert!(ops.is_empty());
     assert!(sut.view().connected_address.is_none());
 
@@ -476,7 +515,10 @@ fn switching_accounts_while_unconnected_emits_nothing() {
         address: A2.to_owned(),
         now_ms: T0 + 100.0,
     });
-    assert!(ops.is_empty(), "no accountsChanged to a never-connected page");
+    assert!(
+        ops.is_empty(),
+        "no accountsChanged to a never-connected page"
+    );
 }
 
 #[test]
@@ -600,8 +642,12 @@ fn granted_address_presence_check_is_case_insensitive() {
 #[test]
 fn approve_writes_grant_saves_record_then_announces() {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
-    let ops = sut.dispatch(Event::ConsentApproved { now_ms: T0 + 1_000.0 });
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
+    let ops = sut.dispatch(Event::ConsentApproved {
+        now_ms: T0 + 1_000.0,
+    });
     assert_eq!(
         ops,
         vec![
@@ -748,9 +794,17 @@ fn parked_requests_share_one_read_and_all_get_answered() {
     assert!(sut.resolve(Res::Ack).is_empty());
 
     // Two requests before the read resolves: both park, no second read.
-    assert!(sut.dispatch(provider("o1", "eth_accounts", OTHER, true)).is_empty());
-    assert!(sut.dispatch(provider("o2", "eth_accounts", OTHER, true)).is_empty());
-    assert_eq!(sut.outstanding().len(), 1, "exactly one ReadGrant in flight");
+    assert!(sut
+        .dispatch(provider("o1", "eth_accounts", OTHER, true))
+        .is_empty());
+    assert!(sut
+        .dispatch(provider("o2", "eth_accounts", OTHER, true))
+        .is_empty());
+    assert_eq!(
+        sut.outstanding().len(),
+        1,
+        "exactly one ReadGrant in flight"
+    );
 
     let ops = sut.resolve(Res::GrantRead {
         origin: OTHER.to_owned(),
@@ -794,7 +848,9 @@ fn stale_grant_read_after_close_is_dropped() {
 #[test]
 fn browser_close_settles_consent_with_4900() {
     let mut sut = ready();
-    assert!(sut.dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true)).is_empty());
+    assert!(sut
+        .dispatch(provider("r1", "eth_requestAccounts", ORIGIN, true))
+        .is_empty());
     let ops = sut.dispatch(Event::BrowserClosed);
     assert_eq!(
         ops,
@@ -870,7 +926,12 @@ fn popup_pinned_address_must_match_the_grant() {
 // rule, so the projection has to be asserted, not assumed.
 // ---------------------------------------------------------------------------
 
-fn popup(method: &str, grant: Option<DpermGrant>, addresses: Option<&[&str]>, pinned: Option<&str>) -> Event {
+fn popup(
+    method: &str,
+    grant: Option<DpermGrant>,
+    addresses: Option<&[&str]>,
+    pinned: Option<&str>,
+) -> Event {
     Event::PopupRequest {
         method: method.to_owned(),
         grant,
@@ -884,7 +945,10 @@ fn popup(method: &str, grant: Option<DpermGrant>, addresses: Option<&[&str]>, pi
 /// window; this core is asked the question and nothing else.
 fn ask(sut: &mut Sut, event: Event) -> DpermPopupView {
     let ops = sut.dispatch(event);
-    assert!(ops.is_empty(), "a popup question asks the shell for nothing");
+    assert!(
+        ops.is_empty(),
+        "a popup question asks the shell for nothing"
+    );
     sut.view().popup.expect("a popup verdict")
 }
 
@@ -903,7 +967,10 @@ fn popup_event_refuses_an_unconnected_origin() {
     assert!(verdict.granted.is_empty());
 
     // …and the connect methods do not leak one either: they ask the user.
-    let verdict = ask(&mut sut, popup("eth_requestAccounts", None, Some(&[A1]), None));
+    let verdict = ask(
+        &mut sut,
+        popup("eth_requestAccounts", None, Some(&[A1]), None),
+    );
     assert_eq!(verdict.outcome, DpermPopupOutcome::Consent);
 }
 
@@ -914,7 +981,12 @@ fn popup_event_forwards_the_granted_address_not_the_active_account() {
     let mut sut = Sut::new();
     let verdict = ask(
         &mut sut,
-        popup("eth_sendTransaction", Some(grant(A1)), Some(&[A2, A1]), None),
+        popup(
+            "eth_sendTransaction",
+            Some(grant(A1)),
+            Some(&[A2, A1]),
+            None,
+        ),
     );
     assert_eq!(
         verdict.outcome,
@@ -926,7 +998,12 @@ fn popup_event_forwards_the_granted_address_not_the_active_account() {
     // A grant whose account was deleted from the wallet exposes nothing.
     let verdict = ask(
         &mut sut,
-        popup("eth_sendTransaction", Some(grant(A3)), Some(&[A1, A2]), None),
+        popup(
+            "eth_sendTransaction",
+            Some(grant(A3)),
+            Some(&[A1, A2]),
+            None,
+        ),
     );
     assert_eq!(
         verdict.outcome,
@@ -971,7 +1048,12 @@ fn popup_event_refuses_a_stale_pinned_address() {
     let upper = A1.to_uppercase().replace("0X", "0x");
     let verdict = ask(
         &mut sut,
-        popup("personal_sign", Some(grant(A1)), Some(&[A1, A2]), Some(&upper)),
+        popup(
+            "personal_sign",
+            Some(grant(A1)),
+            Some(&[A1, A2]),
+            Some(&upper),
+        ),
     );
     assert_eq!(
         verdict.outcome,
@@ -988,7 +1070,12 @@ fn popup_event_connect_on_a_granted_origin_answers_without_a_prompt() {
     let mut sut = Sut::new();
     let verdict = ask(
         &mut sut,
-        popup("eth_requestAccounts", Some(grant(A1)), Some(&[A1, A2]), None),
+        popup(
+            "eth_requestAccounts",
+            Some(grant(A1)),
+            Some(&[A1, A2]),
+            None,
+        ),
     );
     assert_eq!(
         verdict.outcome,
@@ -1000,7 +1087,12 @@ fn popup_event_connect_on_a_granted_origin_answers_without_a_prompt() {
     );
     let verdict = ask(
         &mut sut,
-        popup("wallet_requestPermissions", Some(grant(A1)), Some(&[A1, A2]), None),
+        popup(
+            "wallet_requestPermissions",
+            Some(grant(A1)),
+            Some(&[A1, A2]),
+            None,
+        ),
     );
     assert_eq!(
         verdict.outcome,
@@ -1080,7 +1172,11 @@ fn origin_of_normalizes_like_the_url_constructor() {
     );
     assert_eq!(origin_of(""), None);
     assert_eq!(origin_of("not a url"), None);
-    assert_eq!(origin_of("javascript:alert(1)"), None, "non-http(s) never becomes an origin");
+    assert_eq!(
+        origin_of("javascript:alert(1)"),
+        None,
+        "non-http(s) never becomes an origin"
+    );
 }
 
 #[test]

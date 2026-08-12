@@ -206,34 +206,146 @@ const NATIVE_SYMBOLS: [(u32, &str); 12] = [
 
 /// Address → protocol name/owner (`local-descriptors.ts KNOWN_CONTRACTS`).
 const KNOWN_CONTRACTS: [(&str, &str, &str); 28] = [
-    ("0x7a250d5630b4cf539739df2c5dacb4c659f2488d", "Uniswap V2 Router", "Uniswap"),
-    ("0xe592427a0aece92de3edee1f18e0157c05861564", "Uniswap V3 Router", "Uniswap"),
-    ("0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45", "Uniswap V3 Router 2", "Uniswap"),
-    ("0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad", "Uniswap Universal Router", "Uniswap"),
-    ("0x66a9893cc07d91d95644aedd05d03f95e1dba8af", "Uniswap Universal Router", "Uniswap"),
-    ("0x1111111254eeb25477b68fb85ed929f73a960582", "1inch Router (V5)", "1inch"),
-    ("0x111111125421ca6dc452d289314280a0f8842a65", "1inch Router (V6)", "1inch"),
-    ("0x000000000022d473030f116ddee9f6b43ac78ba3", "Permit2", "Uniswap"),
-    ("0x00000000000000adc04c56bf30ac9d3c0aaf14dc", "Seaport 1.5", "OpenSea"),
-    ("0x0000000000000068f116a894984e2db1123eb395", "Seaport 1.6", "OpenSea"),
-    ("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", "Wrapped Ether", "WETH"),
-    ("0x4200000000000000000000000000000000000006", "Wrapped Ether", "WETH"),
-    ("0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2", "Aave V3 Pool", "Aave"),
-    ("0xae7ab96520de3a18e5e111b5eaab095312d7fe84", "Lido (stETH)", "Lido"),
-    ("0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0", "Wrapped stETH", "Lido"),
-    ("0xdef1c0ded9bec7f1a1670819833240f027b25eff", "0x Exchange Proxy", "0x"),
-    ("0x9008d19f58aabd9ed0d60971565aa8510560ab41", "CoW Protocol", "CoW"),
-    ("0xe66b31678d6c16e9ebf358268a790b763c133750", "Coinbase Smart Wallet", "Coinbase"),
-    ("0x10ed43c718714eb63d5aa57b78b54704e256024e", "PancakeSwap V2 Router", "PancakeSwap"),
-    ("0x1b81d678ffb9c0263b24a97847620c99d213eb14", "PancakeSwap V3 Router", "PancakeSwap"),
-    ("0x13f4ea83d0bd40e75c8222255bc855a974568dd4", "PancakeSwap Smart Router", "PancakeSwap"),
-    ("0xd9c500dff816a1da21a48a732d3498bf09dc9aeb", "PancakeSwap Universal Router", "PancakeSwap"),
-    ("0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f", "SushiSwap Router", "SushiSwap"),
-    ("0xba12222222228d8ba445958a75a0704d566bf2c8", "Balancer Vault", "Balancer"),
-    ("0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae", "LI.FI", "LI.FI"),
-    ("0x6131b5fae19ea4f9d964eac0408e4408b66337b5", "KyberSwap Router", "KyberSwap"),
-    ("0x1111111254fb6c44bac0bed2854e76f90643097d", "1inch Router (V4)", "1inch"),
-    ("0x9008d19f58aabd9ed0d60971565aa8510560ab42", "CoW Protocol", "CoW"),
+    (
+        "0x7a250d5630b4cf539739df2c5dacb4c659f2488d",
+        "Uniswap V2 Router",
+        "Uniswap",
+    ),
+    (
+        "0xe592427a0aece92de3edee1f18e0157c05861564",
+        "Uniswap V3 Router",
+        "Uniswap",
+    ),
+    (
+        "0x68b3465833fb72a70ecdf485e0e4c7bd8665fc45",
+        "Uniswap V3 Router 2",
+        "Uniswap",
+    ),
+    (
+        "0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad",
+        "Uniswap Universal Router",
+        "Uniswap",
+    ),
+    (
+        "0x66a9893cc07d91d95644aedd05d03f95e1dba8af",
+        "Uniswap Universal Router",
+        "Uniswap",
+    ),
+    (
+        "0x1111111254eeb25477b68fb85ed929f73a960582",
+        "1inch Router (V5)",
+        "1inch",
+    ),
+    (
+        "0x111111125421ca6dc452d289314280a0f8842a65",
+        "1inch Router (V6)",
+        "1inch",
+    ),
+    (
+        "0x000000000022d473030f116ddee9f6b43ac78ba3",
+        "Permit2",
+        "Uniswap",
+    ),
+    (
+        "0x00000000000000adc04c56bf30ac9d3c0aaf14dc",
+        "Seaport 1.5",
+        "OpenSea",
+    ),
+    (
+        "0x0000000000000068f116a894984e2db1123eb395",
+        "Seaport 1.6",
+        "OpenSea",
+    ),
+    (
+        "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+        "Wrapped Ether",
+        "WETH",
+    ),
+    (
+        "0x4200000000000000000000000000000000000006",
+        "Wrapped Ether",
+        "WETH",
+    ),
+    (
+        "0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2",
+        "Aave V3 Pool",
+        "Aave",
+    ),
+    (
+        "0xae7ab96520de3a18e5e111b5eaab095312d7fe84",
+        "Lido (stETH)",
+        "Lido",
+    ),
+    (
+        "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0",
+        "Wrapped stETH",
+        "Lido",
+    ),
+    (
+        "0xdef1c0ded9bec7f1a1670819833240f027b25eff",
+        "0x Exchange Proxy",
+        "0x",
+    ),
+    (
+        "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
+        "CoW Protocol",
+        "CoW",
+    ),
+    (
+        "0xe66b31678d6c16e9ebf358268a790b763c133750",
+        "Coinbase Smart Wallet",
+        "Coinbase",
+    ),
+    (
+        "0x10ed43c718714eb63d5aa57b78b54704e256024e",
+        "PancakeSwap V2 Router",
+        "PancakeSwap",
+    ),
+    (
+        "0x1b81d678ffb9c0263b24a97847620c99d213eb14",
+        "PancakeSwap V3 Router",
+        "PancakeSwap",
+    ),
+    (
+        "0x13f4ea83d0bd40e75c8222255bc855a974568dd4",
+        "PancakeSwap Smart Router",
+        "PancakeSwap",
+    ),
+    (
+        "0xd9c500dff816a1da21a48a732d3498bf09dc9aeb",
+        "PancakeSwap Universal Router",
+        "PancakeSwap",
+    ),
+    (
+        "0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f",
+        "SushiSwap Router",
+        "SushiSwap",
+    ),
+    (
+        "0xba12222222228d8ba445958a75a0704d566bf2c8",
+        "Balancer Vault",
+        "Balancer",
+    ),
+    (
+        "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae",
+        "LI.FI",
+        "LI.FI",
+    ),
+    (
+        "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+        "KyberSwap Router",
+        "KyberSwap",
+    ),
+    (
+        "0x1111111254fb6c44bac0bed2854e76f90643097d",
+        "1inch Router (V4)",
+        "1inch",
+    ),
+    (
+        "0x9008d19f58aabd9ed0d60971565aa8510560ab42",
+        "CoW Protocol",
+        "CoW",
+    ),
 ];
 
 // ---------------------------------------------------------------------------
@@ -285,7 +397,10 @@ pub enum ClearProbe {
 pub enum ClearShellResult {
     /// Body text on HTTP 200, `None` on !ok / timeout / network error —
     /// exactly the outcomes `fetchWithTimeout` collapsed to `null`.
-    DescriptorFetched { path: String, json: Option<String> },
+    DescriptorFetched {
+        path: String,
+        json: Option<String>,
+    },
     /// `rpc_error`: the RPC answered with an error object (a revert).
     /// `result: None` with `rpc_error: false`: threw / unreachable / no result.
     RpcAnswer {
@@ -296,9 +411,15 @@ pub enum ClearShellResult {
         rpc_error: bool,
     },
     /// Candidate signatures, most-likely first, deduped.
-    SelectorCandidates { sigs: Vec<String> },
-    TimedOut { token: u32 },
-    Clock { now_ms: f64 },
+    SelectorCandidates {
+        sigs: Vec<String>,
+    },
+    TimedOut {
+        token: u32,
+    },
+    Clock {
+        now_ms: f64,
+    },
 }
 
 impl Operation for ClearOperation {
@@ -730,7 +851,10 @@ enum Req {
         value: Option<String>,
         chain_id: u32,
     },
-    Typed { typed: Value, chain_id: u32 },
+    Typed {
+        typed: Value,
+        chain_id: u32,
+    },
 }
 
 impl Req {
@@ -780,6 +904,9 @@ enum TypedNext {
 }
 
 #[derive(Clone, Debug)]
+// The shared `Await` prefix IS the meaning: every variant is this machine
+// parked on one outstanding request. Naming them otherwise loses that.
+#[allow(clippy::enum_variant_names)]
 enum Step {
     AwaitClock,
     AwaitContractDescriptor,
@@ -789,7 +916,9 @@ enum Step {
         selector: String,
         timer: u32,
     },
-    AwaitErcFallback { index: usize },
+    AwaitErcFallback {
+        index: usize,
+    },
     AwaitSelectorSigs,
     /// On-chain `decimals()` prefetch for unknown tokens.
     AwaitWarm {
@@ -1182,9 +1311,7 @@ fn absorb_cache_facts(model: &mut Model, result: &ClearShellResult) {
                 if word != "0x" {
                     if let Some(d) = quantity_as_small_uint(word) {
                         if d <= 36 {
-                            model
-                                .decimals_cache
-                                .insert(std_key(*chain_id, to), d);
+                            model.decimals_cache.insert(std_key(*chain_id, to), d);
                         }
                     }
                 }
@@ -1226,9 +1353,13 @@ fn record_supports(model: &mut Model, chain_id: u32, to: &str, verdict: Option<b
     }
     if let (Some(a), Some(b)) = (entry.is721, entry.is1155) {
         if b == Some(true) {
-            model.token_standard_cache.insert(key, TokenStandard::Erc1155);
+            model
+                .token_standard_cache
+                .insert(key, TokenStandard::Erc1155);
         } else if a == Some(true) {
-            model.token_standard_cache.insert(key, TokenStandard::Erc721);
+            model
+                .token_standard_cache
+                .insert(key, TokenStandard::Erc721);
         } else if a == Some(false) && b == Some(false) {
             model.token_standard_cache.insert(key, TokenStandard::Erc20);
         }
@@ -1412,7 +1543,11 @@ fn tx_begin(model: &mut Model, run: Run) -> Command<ClearSigningEffect, Event> {
     tx_continue(model, run, TxNext::AfterLocal)
 }
 
-fn tx_continue(model: &mut Model, mut run: Run, next: TxNext) -> Command<ClearSigningEffect, Event> {
+fn tx_continue(
+    model: &mut Model,
+    mut run: Run,
+    next: TxNext,
+) -> Command<ClearSigningEffect, Event> {
     match next {
         // 1. Contract-specific descriptor — wins over generic interfaces.
         TxNext::AfterLocal => {
@@ -1451,9 +1586,7 @@ fn tx_continue(model: &mut Model, mut run: Run, next: TxNext) -> Command<ClearSi
 
 fn contract_descriptor_path(req: &Req) -> String {
     match req {
-        Req::Tx {
-            to, chain_id, ..
-        } => format!(
+        Req::Tx { to, chain_id, .. } => format!(
             "/erc7730/calldata/eip155-{chain_id}/{}.json",
             to.as_deref().unwrap_or_default()
         ),
@@ -1473,7 +1606,9 @@ fn resolve_token_standard(
     selector: &str,
 ) -> Command<ClearSigningEffect, Event> {
     let kind = match selector {
-        s if s == SEL_SAFE_TRANSFER_1155 || s == SEL_SAFE_BATCH_1155 => Some(TokenStandard::Erc1155),
+        s if s == SEL_SAFE_TRANSFER_1155 || s == SEL_SAFE_BATCH_1155 => {
+            Some(TokenStandard::Erc1155)
+        }
         s if s == SEL_SAFE_TRANSFER_721 || s == SEL_SAFE_TRANSFER_721_DATA => {
             Some(TokenStandard::Erc721)
         }
@@ -1634,7 +1769,7 @@ fn typed_entry_lookup(model: &mut Model, run: Run) -> Command<ClearSigningEffect
     let entry = descriptor.and_then(|descriptor| {
         let type_hash = typed_data_type_hash(typed)?;
         let bare = descriptor.get(&type_hash).cloned();
-        let prefixed = descriptor.get(&format!("0x{type_hash}")).cloned();
+        let prefixed = descriptor.get(format!("0x{type_hash}")).cloned();
         bare.or(prefixed).filter(value_is_truthy)
     });
 
@@ -1732,7 +1867,11 @@ fn collect_deps(ty: &str, types: &Value, deps: &mut BTreeSet<String>) {
 /// The `/\[\d*\]$/` strip — one trailing array suffix.
 fn strip_array_suffix(ty: &str) -> &str {
     if let Some(open) = ty.rfind('[') {
-        if ty.ends_with(']') && ty[open + 1..ty.len() - 1].bytes().all(|b| b.is_ascii_digit()) {
+        if ty.ends_with(']')
+            && ty[open + 1..ty.len() - 1]
+                .bytes()
+                .all(|b| b.is_ascii_digit())
+        {
             return &ty[..open];
         }
     }
@@ -1921,7 +2060,10 @@ fn finish_calldata(
         return None;
     };
     let ctx = calldata_context(&run.req, matched_sig);
-    let format = descriptor.get("display")?.get("formats")?.get(matched_sig)?;
+    let format = descriptor
+        .get("display")?
+        .get("formats")?
+        .get(matched_sig)?;
     let field_defs = format
         .get("fields")
         .and_then(Value::as_array)
@@ -1941,7 +2083,7 @@ fn finish_calldata(
         // sign, never a half-truth (`clear-signing.ts:587-590`).
         return None;
     }
-    let partial = declared_visible > 0 && fields.len() < (declared_visible + 1) / 2;
+    let partial = declared_visible > 0 && fields.len() < declared_visible.div_ceil(2);
 
     let intent = format
         .get("intent")
@@ -2009,7 +2151,10 @@ fn finish_eip712(
         return None;
     };
     let ctx = eip712_context(typed);
-    let format = descriptor.get("display")?.get("formats")?.get(matched_sig)?;
+    let format = descriptor
+        .get("display")?
+        .get("formats")?
+        .get(matched_sig)?;
     let field_defs = format
         .get("fields")
         .and_then(Value::as_array)
@@ -2027,7 +2172,7 @@ fn finish_eip712(
     if fields.is_empty() {
         return None;
     }
-    let partial = declared_visible > 0 && fields.len() < (declared_visible + 1) / 2;
+    let partial = declared_visible > 0 && fields.len() < declared_visible.div_ceil(2);
 
     let primary = typed
         .get("primaryType")
@@ -2153,11 +2298,7 @@ fn humanize_fn_name(name: &str) -> String {
     let spaced = spaced.trim();
     let mut chars = spaced.chars();
     match chars.next() {
-        Some(first) => format!(
-            "{}{}",
-            first.to_uppercase(),
-            chars.as_str().to_lowercase()
-        ),
+        Some(first) => format!("{}{}", first.to_uppercase(), chars.as_str().to_lowercase()),
         None => name.to_owned(),
     }
 }
@@ -2201,7 +2342,12 @@ fn build_best_effort_fields(tree: &abi::AbiValue, locale: &ClearLocale) -> Vec<C
 
 fn pretty_type(ty: &str) -> String {
     if ty.starts_with("address") {
-        return if ty.ends_with("[]") { "Addresses" } else { "Address" }.to_owned();
+        return if ty.ends_with("[]") {
+            "Addresses"
+        } else {
+            "Address"
+        }
+        .to_owned();
     }
     // A bare integer in a best-effort decode is NOT necessarily an amount
     // (deadline, min-out, index…) — the neutral "Value", never "Amount".
@@ -2266,12 +2412,9 @@ fn build_deploy_result(to: Option<&str>, data: &str) -> ClearSignResult {
                 let salt = primitives::from_hex(&hex[..64]).ok();
                 let init_code = primitives::from_hex(&hex[64..]).ok();
                 if let (Some(salt), Some(init_code)) = (salt, init_code) {
-                    predicted = primitives::create2_address(
-                        to,
-                        &salt,
-                        &primitives::keccak256(&init_code),
-                    )
-                    .ok();
+                    predicted =
+                        primitives::create2_address(to, &salt, &primitives::keccak256(&init_code))
+                            .ok();
                 }
             }
         }
@@ -2416,10 +2559,7 @@ fn calldata_context(req: &Req, matched_sig: &str) -> Ctx {
     entries.push((
         "@".to_owned(),
         Ctx::Map(vec![
-            (
-                "to".to_owned(),
-                Ctx::Str(to.clone().unwrap_or_default()),
-            ),
+            ("to".to_owned(), Ctx::Str(to.clone().unwrap_or_default())),
             (
                 "value".to_owned(),
                 Ctx::Str(value.clone().unwrap_or_else(|| "0x0".to_owned())),
@@ -2483,7 +2623,11 @@ fn resolve_path(path: &str, ctx: &Ctx) -> Option<Ctx> {
                     let sliced = if start < 0 {
                         js_slice(body, start * 2, None)
                     } else {
-                        js_slice(body, start * 2, Some(end.unwrap_or((body.len() / 2) as i64) * 2))
+                        js_slice(
+                            body,
+                            start * 2,
+                            Some(end.unwrap_or((body.len() / 2) as i64) * 2),
+                        )
                     };
                     current = Ctx::Str(format!("0x{sliced}"));
                 }
@@ -2680,7 +2824,8 @@ fn resolve_fields(
             .and_then(|p| resolve_path(p, ctx));
         let params = def.get("params").cloned().unwrap_or(Value::Null);
 
-        let Some(formatted) = format_field(model, run, raw.as_ref(), &format, &params, ctx, metadata)
+        let Some(formatted) =
+            format_field(model, run, raw.as_ref(), &format, &params, ctx, metadata)
         else {
             continue;
         };
@@ -2783,7 +2928,10 @@ fn format_token_amount(
         }
     }
     if token_addr.is_none() {
-        if let Some(Ctx::Str(vc)) = ctx.get("@").and_then(|at| at.get("verifyingContract")).cloned()
+        if let Some(Ctx::Str(vc)) = ctx
+            .get("@")
+            .and_then(|at| at.get("verifyingContract"))
+            .cloned()
         {
             if is_hex_address_shape(&vc) {
                 token_addr = Some(vc);
@@ -2792,7 +2940,10 @@ fn format_token_amount(
     }
 
     // Native-currency sentinel addresses drop the token reference.
-    if let Some(native_refs) = params.get("nativeCurrencyAddress").and_then(Value::as_array) {
+    if let Some(native_refs) = params
+        .get("nativeCurrencyAddress")
+        .and_then(Value::as_array)
+    {
         for ref_path in native_refs {
             let Some(ref_path) = ref_path.as_str() else {
                 continue;
@@ -2966,10 +3117,7 @@ fn format_nft_name(raw: Option<&Ctx>, locale: &ClearLocale) -> Option<Formatted>
 fn format_unit(raw: Option<&Ctx>, params: &Value, locale: &ClearLocale) -> Option<Formatted> {
     let raw = raw?;
     let num = dec_to_f64(&to_bigint(Some(raw)));
-    let decimals = params
-        .get("decimals")
-        .and_then(Value::as_u64)
-        .unwrap_or(0) as u32;
+    let decimals = params.get("decimals").and_then(Value::as_u64).unwrap_or(0) as u32;
     let base = params.get("base").and_then(Value::as_str).unwrap_or("");
     let prefix = params
         .get("prefix")
@@ -3107,8 +3255,10 @@ fn infer_field_roles(fields: Vec<ClearSignField>, intent: &str) -> Vec<ClearSign
             f.role = if f.format == "tokenAmount" || f.format == "amount" {
                 if contains_any(&label, &["receive", "output", "min", "return", "get"]) {
                     ClearFieldRole::ReceiveAmount
-                } else if contains_any(&label, &["send", "pay", "input", "deposit", "spend", "stake"])
-                {
+                } else if contains_any(
+                    &label,
+                    &["send", "pay", "input", "deposit", "spend", "stake"],
+                ) {
                     ClearFieldRole::SendAmount
                 } else if contains_any(&i, &["withdraw", "redeem", "unstake", "claim"])
                     || contains_any(&label, &["withdraw", "redeem"])
@@ -3342,7 +3492,11 @@ fn project_blind_typed(typed_data_json: &str) -> ClearBlindTyped {
     };
     let domain = raw.domain.filter(is_truthy);
     ClearBlindTyped {
-        primary_type: raw.primary_type.filter(is_truthy).as_ref().map(js_scalar_string),
+        primary_type: raw
+            .primary_type
+            .filter(is_truthy)
+            .as_ref()
+            .map(js_scalar_string),
         has_domain: domain.is_some(),
         domain_name: domain
             .as_ref()
@@ -3689,19 +3843,14 @@ fn siwe_host(value: Option<&str>) -> Option<String> {
         Some(rest) => rest,
         None => value,
     };
-    let authority = rest
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or_default();
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
     // Userinfo before the LAST '@' — matching WHATWG (and letting
     // "trusted.org@evil.com" resolve to evil.com, the attack this catches).
     let host_port = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     let host = if host_port.starts_with('[') {
         // IPv6 literal keeps its brackets, port after ']' drops.
-        match host_port.find(']') {
-            Some(end) => host_port.get(..=end).unwrap_or_default(),
-            None => return None,
-        }
+        let end = host_port.find(']')?;
+        host_port.get(..=end).unwrap_or_default()
     } else {
         match host_port.rsplit_once(':') {
             Some((h, port)) if port.bytes().all(|b| b.is_ascii_digit()) => h,
@@ -3711,7 +3860,11 @@ fn siwe_host(value: Option<&str>) -> Option<String> {
     };
     let host = host.to_lowercase();
     let host = host.strip_suffix('.').unwrap_or(&host).to_owned();
-    if host.is_empty() || host.chars().any(|c| c.is_whitespace() || "@/\\?#:".contains(c)) {
+    if host.is_empty()
+        || host
+            .chars()
+            .any(|c| c.is_whitespace() || "@/\\?#:".contains(c))
+    {
         return None;
     }
     Some(host)
@@ -3815,9 +3968,7 @@ fn selector_of(data: &str) -> String {
 }
 
 fn is_hex_address_shape(s: &str) -> bool {
-    s.len() == 42
-        && s.starts_with("0x")
-        && s[2..].bytes().all(|b| b.is_ascii_hexdigit())
+    s.len() == 42 && s.starts_with("0x") && s[2..].bytes().all(|b| b.is_ascii_hexdigit())
 }
 
 fn is_falsy(v: &Ctx) -> bool {
@@ -3919,7 +4070,10 @@ fn seaport_descriptor() -> Value {
     let entry = json!({ "intent": "Buy NFT", "fields": fields });
     let mut formats = serde_json::Map::new();
     formats.insert(format!("fulfillBasicOrder({tuple})"), entry.clone());
-    formats.insert(format!("fulfillBasicOrder_efficient_6GL6yc({tuple})"), entry);
+    formats.insert(
+        format!("fulfillBasicOrder_efficient_6GL6yc({tuple})"),
+        entry,
+    );
     json!({
         "metadata": { "contractName": "Seaport", "owner": "OpenSea", "constants": { "native": "0x0000000000000000000000000000000000000000" } },
         "display": { "formats": Value::Object(formats) },
@@ -4113,9 +4267,8 @@ fn local_descriptor(addr: &str) -> Option<Value> {
                 },
             },
         }),
-        "0x00000000000000adc04c56bf30ac9d3c0aaf14dc" | "0x0000000000000068f116a894984e2db1123eb395" => {
-            seaport_descriptor()
-        }
+        "0x00000000000000adc04c56bf30ac9d3c0aaf14dc"
+        | "0x0000000000000068f116a894984e2db1123eb395" => seaport_descriptor(),
         _ => return None,
     })
 }
@@ -4570,10 +4723,7 @@ fn value_is_truthy(v: &Value) -> bool {
 // ---------------------------------------------------------------------------
 
 /// Issue operations whose answers must match the current attempt.
-fn requests(
-    model: &Model,
-    operations: Vec<ClearOperation>,
-) -> Command<ClearSigningEffect, Event> {
+fn requests(model: &Model, operations: Vec<ClearOperation>) -> Command<ClearSigningEffect, Event> {
     let attempt = model.attempt;
     let mut commands: Vec<Command<ClearSigningEffect, Event>> = operations
         .into_iter()

@@ -40,10 +40,7 @@ const NOW_ISO: &str = "2026-08-09T12:00:00.000Z";
 // Fixtures
 // ---------------------------------------------------------------------------
 
-fn store_loaded(
-    customs: Vec<NetCustomNetwork>,
-    overrides: Vec<NetNetworkConfig>,
-) -> Res {
+fn store_loaded(customs: Vec<NetCustomNetwork>, overrides: Vec<NetNetworkConfig>) -> Res {
     Res::StoreLoaded {
         custom_networks: customs,
         network_configs: overrides,
@@ -129,7 +126,12 @@ fn select_and_resolve(sut: &mut Sut, data: NetRawChainData) -> Vec<Op> {
         chain_id: NEW_CHAIN,
         keep_custom_rpc: false,
     });
-    assert_eq!(ops, vec![Op::FetchChainInfo { chain_id: NEW_CHAIN }]);
+    assert_eq!(
+        ops,
+        vec![Op::FetchChainInfo {
+            chain_id: NEW_CHAIN
+        }]
+    );
     sut.resolve(Res::ChainInfo {
         chain_id: NEW_CHAIN,
         data: Some(data),
@@ -139,7 +141,9 @@ fn select_and_resolve(sut: &mut Sut, data: NetRawChainData) -> Vec<Op> {
 /// Drive the fastest-RPC race: slow answers 80ms, fast answers 20ms.
 /// Returns the contract-check ops (11 × getCode + 1 × P256 call).
 fn resolve_race(sut: &mut Sut) -> Vec<Op> {
-    assert!(sut.resolve(probe(RPC_SLOW, Some(NEW_CHAIN), 80.0)).is_empty());
+    assert!(sut
+        .resolve(probe(RPC_SLOW, Some(NEW_CHAIN), 80.0))
+        .is_empty());
     sut.resolve(probe(RPC_FAST, Some(NEW_CHAIN), 20.0))
 }
 
@@ -461,7 +465,12 @@ fn the_typed_custom_rpc_is_probed_first_and_survives_recheck() {
         chain_id: NEW_CHAIN,
         keep_custom_rpc: true,
     });
-    assert_eq!(ops, vec![Op::FetchChainInfo { chain_id: NEW_CHAIN }]);
+    assert_eq!(
+        ops,
+        vec![Op::FetchChainInfo {
+            chain_id: NEW_CHAIN
+        }]
+    );
     let ops = sut.resolve(Res::ChainInfo {
         chain_id: NEW_CHAIN,
         data: Some(raw_chain()),
@@ -647,9 +656,7 @@ fn a_fully_provisioned_chain_saves_with_the_fastest_rpc() {
                 icon_label: "TST".to_owned(),
                 icon_color: "#888888".to_owned(),
                 icon_bg: "#F0F0F0".to_owned(),
-                logo_url: format!(
-                    "{DEFAULT_ETHEREUM_DATA_URL}/chainlogos/eip155-{NEW_CHAIN}.png"
-                ),
+                logo_url: format!("{DEFAULT_ETHEREUM_DATA_URL}/chainlogos/eip155-{NEW_CHAIN}.png"),
                 is_l2: false,
                 rpc_url: RPC_FAST.to_owned(),
                 explorer_url: "https://scan.example".to_owned(),
@@ -716,10 +723,7 @@ fn all_rpcs_failing_reads_unable_to_verify_not_incompatible() {
     // Checked — the Retry affordance — not the Error terminal.
     assert_eq!(view.wizard.phase, NetWizardPhase::Checked);
     let compat = view.wizard.compat.expect("inconclusive result present");
-    assert_eq!(
-        compat.rpc_failure,
-        Some(NetRpcFailureKind::AllProbesFailed)
-    );
+    assert_eq!(compat.rpc_failure, Some(NetRpcFailureKind::AllProbesFailed));
     assert!(!compat.compatible);
     assert_eq!(compat.p256_available, None, "never probed — no verdict");
     assert!(compat.contracts.iter().all(|c| !c.deployed));
@@ -770,7 +774,12 @@ fn the_scan_path_saves_a_compatible_chain_without_confirmation() {
         chain_id: NEW_CHAIN,
         now_iso: NOW_ISO.to_owned(),
     });
-    assert_eq!(ops, vec![Op::FetchChainInfo { chain_id: NEW_CHAIN }]);
+    assert_eq!(
+        ops,
+        vec![Op::FetchChainInfo {
+            chain_id: NEW_CHAIN
+        }]
+    );
     sut.resolve(Res::ChainInfo {
         chain_id: NEW_CHAIN,
         data: Some(raw_chain()),
@@ -877,7 +886,12 @@ const ETH_SCAN: &str = "https://etherscan.io";
 fn an_override_save_is_refused_when_the_rpc_reports_another_chain() {
     let mut sut = started();
     sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
-    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    answer_card_probes(
+        &mut sut,
+        "https://ethereum-rpc.publicnode.com",
+        Some(1),
+        ETH_SCAN,
+    );
     sut.dispatch(Event::OverrideFieldEdited {
         chain_id: 1,
         field: NetOverrideField::Rpc,
@@ -890,7 +904,8 @@ fn an_override_save_is_refused_when_the_rpc_reports_another_chain() {
     assert!(ops.is_empty(), "refused: nothing written, nothing flushed");
     let row = &sut.view().networks[0];
     assert_eq!(
-        row.rpc_chain_mismatch.map(|m| (m.expected_chain_id, m.reported_chain_id)),
+        row.rpc_chain_mismatch
+            .map(|m| (m.expected_chain_id, m.reported_chain_id)),
         Some((1, 137)),
         "the card carries what to say: expected 1, got 137"
     );
@@ -905,7 +920,12 @@ fn an_override_save_is_refused_when_the_rpc_reports_another_chain() {
 fn an_unverifiable_rpc_still_saves() {
     let mut sut = started();
     sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
-    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    answer_card_probes(
+        &mut sut,
+        "https://ethereum-rpc.publicnode.com",
+        Some(1),
+        ETH_SCAN,
+    );
     sut.dispatch(Event::OverrideFieldEdited {
         chain_id: 1,
         field: NetOverrideField::Rpc,
@@ -939,7 +959,12 @@ fn an_unverifiable_rpc_still_saves() {
 fn a_blur_before_the_verdict_is_held_until_the_probe_answers() {
     let mut sut = started();
     sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
-    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    answer_card_probes(
+        &mut sut,
+        "https://ethereum-rpc.publicnode.com",
+        Some(1),
+        ETH_SCAN,
+    );
     sut.dispatch(Event::OverrideFieldEdited {
         chain_id: 1,
         field: NetOverrideField::Rpc,
@@ -947,7 +972,10 @@ fn a_blur_before_the_verdict_is_held_until_the_probe_answers() {
     });
 
     let ops = sut.dispatch(Event::OverrideBlurred { chain_id: 1 });
-    assert!(ops.is_empty(), "the verdict is not in yet — nothing is written");
+    assert!(
+        ops.is_empty(),
+        "the verdict is not in yet — nothing is written"
+    );
     assert!(sut.view().networks[0].rpc_save_deferred);
 
     // The probe answers "chain 137" — the owed save resolves into a refusal.
@@ -971,13 +999,20 @@ fn a_blur_before_the_verdict_is_held_until_the_probe_answers() {
 fn a_held_save_commits_once_the_probe_agrees() {
     let mut sut = started();
     sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
-    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    answer_card_probes(
+        &mut sut,
+        "https://ethereum-rpc.publicnode.com",
+        Some(1),
+        ETH_SCAN,
+    );
     sut.dispatch(Event::OverrideFieldEdited {
         chain_id: 1,
         field: NetOverrideField::Rpc,
         value: "https://my-node.example".to_owned(),
     });
-    assert!(sut.dispatch(Event::OverrideBlurred { chain_id: 1 }).is_empty());
+    assert!(sut
+        .dispatch(Event::OverrideBlurred { chain_id: 1 })
+        .is_empty());
 
     let ops = sut.resolve(Res::Probed {
         url: "https://my-node.example".to_owned(),
@@ -1008,7 +1043,9 @@ fn a_held_save_commits_once_the_probe_agrees() {
 fn a_held_save_over_an_emptied_rpc_field_still_lands() {
     let mut sut = started();
     sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
-    assert!(sut.dispatch(Event::OverrideBlurred { chain_id: 1 }).is_empty());
+    assert!(sut
+        .dispatch(Event::OverrideBlurred { chain_id: 1 })
+        .is_empty());
     assert!(sut.view().networks[0].rpc_save_deferred);
 
     let ops = sut.dispatch(Event::OverrideFieldEdited {
@@ -1036,7 +1073,12 @@ fn a_held_save_over_an_emptied_rpc_field_still_lands() {
 fn editing_the_field_clears_a_previous_refusal() {
     let mut sut = started();
     sut.dispatch(Event::OverrideExpanded { chain_id: 1 });
-    answer_card_probes(&mut sut, "https://ethereum-rpc.publicnode.com", Some(1), ETH_SCAN);
+    answer_card_probes(
+        &mut sut,
+        "https://ethereum-rpc.publicnode.com",
+        Some(1),
+        ETH_SCAN,
+    );
     sut.dispatch(Event::OverrideFieldEdited {
         chain_id: 1,
         field: NetOverrideField::Rpc,
@@ -1165,7 +1207,10 @@ fn expanding_a_card_probes_rpc_and_explorer() {
         latency_ms: 90.0,
     });
     let row = &sut.view().networks[0];
-    assert_eq!(row.rpc_health, Some(NetProbeHealth::Ok { latency_ms: 42.0 }));
+    assert_eq!(
+        row.rpc_health,
+        Some(NetProbeHealth::Ok { latency_ms: 42.0 })
+    );
     assert_eq!(
         row.explorer_health,
         Some(NetProbeHealth::Ok { latency_ms: 90.0 })

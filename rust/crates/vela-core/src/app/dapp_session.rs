@@ -373,7 +373,9 @@ pub enum DsessEffect {
 #[cfg_attr(feature = "bindings", derive(TS), ts(rename = "DsessEvent"))]
 pub enum Event {
     /// Scan / paste / typed input. Classified in the core (invariant ⑨).
-    InputSubmitted { raw: String },
+    InputSubmitted {
+        raw: String,
+    },
     /// The user compared and accepted the 4-digit code (invariant ①).
     FingerprintConfirmed,
     FingerprintCancelled,
@@ -389,21 +391,38 @@ pub enum Event {
         wallet_pair: Option<DsessDappInfo>,
     },
     /// Transport phase events, keyed by handle. Stale refs are dropped.
-    TransportConnected { session_ref: u32 },
+    TransportConnected {
+        session_ref: u32,
+    },
     /// Terminal drop (remote-inject SSE loss, walletpair `closed`).
-    TransportDisconnected { session_ref: u32 },
+    TransportDisconnected {
+        session_ref: u32,
+    },
     /// Transport-level drop with the session still recoverable (walletpair).
-    TransportReconnecting { session_ref: u32 },
-    TransportError { session_ref: u32, message: String },
-    TimerFired { id: u32 },
+    TransportReconnecting {
+        session_ref: u32,
+    },
+    TransportError {
+        session_ref: u32,
+        message: String,
+    },
+    TimerFired {
+        id: u32,
+    },
     /// Mobile foreground (`AppState` → `active`).
-    AppForegrounded { backgrounded_ms: f64 },
+    AppForegrounded {
+        backgrounded_ms: f64,
+    },
     /// Web recovery signal (`online` OR tab became visible) — the 3s throttle
     /// lives here, which is why the epoch rides on the event.
-    NetworkOnline { now_ms: f64 },
+    NetworkOnline {
+        now_ms: f64,
+    },
     /// Wallet state changed (account/chain/name/accounts) — push while
     /// connected, exactly today's effect.
-    WalletChanged { chain_id: u32 },
+    WalletChanged {
+        chain_id: u32,
+    },
     #[serde(skip)]
     ShellCompleted {
         attempt: u64,
@@ -1174,7 +1193,8 @@ fn accept(model: &mut Model, result: DsessShellResult) -> Cmd {
                     // Reconnect resolved — now give the channel 8s to prove
                     // it is actually live (invariant ⑤).
                     let mut ops = Vec::new();
-                    let id = start_timer(model, &mut ops, DsessTimerKind::DropIfDead, DROP_IF_DEAD_MS);
+                    let id =
+                        start_timer(model, &mut ops, DsessTimerKind::DropIfDead, DROP_IF_DEAD_MS);
                     model.timers.drop_dead = Some((id, session_ref));
                     return finish(ops);
                 }
@@ -1306,7 +1326,10 @@ fn alloc_ref(model: &mut Model) -> u32 {
 fn start_timer(model: &mut Model, ops: &mut Vec<Cmd>, kind: DsessTimerKind, ms: u32) -> u32 {
     let id = model.next_timer;
     model.next_timer += 1;
-    ops.push(req(model.attempt, DsessOperation::StartTimer { id, kind, ms }));
+    ops.push(req(
+        model.attempt,
+        DsessOperation::StartTimer { id, kind, ms },
+    ));
     id
 }
 
@@ -1322,7 +1345,12 @@ fn set_status(model: &mut Model, ops: &mut Vec<Cmd>, status: DsessStatus) {
         ops.push(cancel_op(model.attempt, id));
     }
     if status == DsessStatus::Reconnecting {
-        let id = start_timer(model, &mut ops_slot(ops), DsessTimerKind::Stuck, RECONNECT_STUCK_MS);
+        let id = start_timer(
+            model,
+            ops_slot(ops),
+            DsessTimerKind::Stuck,
+            RECONNECT_STUCK_MS,
+        );
         model.timers.stuck = Some(id);
     }
 }
@@ -1413,7 +1441,12 @@ fn disconnect_current(model: &mut Model, ops: &mut Vec<Cmd>) {
 
 /// The `disconnected`-handler state change: every timer down, status
 /// `disconnected`, handle released. `session`/`dapp_info` survive.
-fn drop_live_transport(model: &mut Model, ops: &mut Vec<Cmd>, disconnect: bool, wipe_snapshot: bool) {
+fn drop_live_transport(
+    model: &mut Model,
+    ops: &mut Vec<Cmd>,
+    disconnect: bool,
+    wipe_snapshot: bool,
+) {
     if let Some(id) = model.timers.grace.take() {
         ops.push(cancel_op(model.attempt, id));
     }
@@ -1655,9 +1688,7 @@ fn parse_url(raw: &str) -> Option<ParsedUrl> {
         });
     };
 
-    let authority_end = after
-        .find(['/', '?', '#'])
-        .unwrap_or(after.len());
+    let authority_end = after.find(['/', '?', '#']).unwrap_or(after.len());
     let authority = &after[..authority_end];
     let (userinfo, host_port) = match authority.rfind('@') {
         Some(at) => (Some(authority[..at].to_owned()), &authority[at + 1..]),
@@ -1777,7 +1808,8 @@ fn percent_decode(text: &str) -> String {
             continue;
         }
         if byte == b'%' && index + 2 < bytes.len() {
-            if let (Some(high), Some(low)) = (hex_digit(bytes[index + 1]), hex_digit(bytes[index + 2]))
+            if let (Some(high), Some(low)) =
+                (hex_digit(bytes[index + 1]), hex_digit(bytes[index + 2]))
             {
                 out.push(high * 16 + low);
                 index += 3;
@@ -1825,7 +1857,7 @@ pub fn caip2_to_chain_id(caip2: &str) -> Option<u64> {
         return None;
     }
     let value: u64 = rest[..end].parse().ok()?;
-    if value < 1 || value > MAX_SAFE_INTEGER {
+    if !(1..=MAX_SAFE_INTEGER).contains(&value) {
         return None;
     }
     Some(value)

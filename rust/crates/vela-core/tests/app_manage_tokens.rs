@@ -39,9 +39,18 @@ fn usdc() -> MtokTokenMeta {
 
 fn networks() -> Vec<MtokNetwork> {
     vec![
-        MtokNetwork { chain_id: 8453, name: "Base".to_owned() },
-        MtokNetwork { chain_id: 1, name: "Ethereum".to_owned() },
-        MtokNetwork { chain_id: 42161, name: "Arbitrum".to_owned() },
+        MtokNetwork {
+            chain_id: 8453,
+            name: "Base".to_owned(),
+        },
+        MtokNetwork {
+            chain_id: 1,
+            name: "Ethereum".to_owned(),
+        },
+        MtokNetwork {
+            chain_id: 42161,
+            name: "Arbitrum".to_owned(),
+        },
     ]
 }
 
@@ -79,14 +88,27 @@ fn opened(existing: Vec<MtokCustomToken>) -> Sut {
 /// Open, type the address, probe all three networks.
 fn probing(existing: Vec<MtokCustomToken>) -> Sut {
     let mut sut = opened(existing);
-    assert!(sut.dispatch(Event::AddressInput { s: ADDR.to_owned() }).is_empty());
-    let ops = sut.dispatch(Event::DetectRequested { networks: networks() });
+    assert!(sut
+        .dispatch(Event::AddressInput { s: ADDR.to_owned() })
+        .is_empty());
+    let ops = sut.dispatch(Event::DetectRequested {
+        networks: networks(),
+    });
     assert_eq!(
         ops,
         vec![
-            Op::MulticallErc20Meta { chain_id: 8453, address: ADDR.to_owned() },
-            Op::MulticallErc20Meta { chain_id: 1, address: ADDR.to_owned() },
-            Op::MulticallErc20Meta { chain_id: 42161, address: ADDR.to_owned() },
+            Op::MulticallErc20Meta {
+                chain_id: 8453,
+                address: ADDR.to_owned()
+            },
+            Op::MulticallErc20Meta {
+                chain_id: 1,
+                address: ADDR.to_owned()
+            },
+            Op::MulticallErc20Meta {
+                chain_id: 42161,
+                address: ADDR.to_owned()
+            },
         ],
         "one probe per network, in parallel, address exactly as typed"
     );
@@ -126,9 +148,13 @@ fn start_is_single_shot() {
 #[test]
 fn invalid_address_never_probes() {
     let mut sut = opened(vec![]);
-    sut.dispatch(Event::AddressInput { s: "0xnot-an-address".to_owned() });
+    sut.dispatch(Event::AddressInput {
+        s: "0xnot-an-address".to_owned(),
+    });
     assert!(!sut.view().address_valid);
-    let ops = sut.dispatch(Event::DetectRequested { networks: networks() });
+    let ops = sut.dispatch(Event::DetectRequested {
+        networks: networks(),
+    });
     assert!(ops.is_empty(), "no probe for an invalid address");
 }
 
@@ -208,7 +234,9 @@ fn nothing_found_anywhere_raises_not_found() {
 #[test]
 fn detect_is_gated_while_a_probe_is_in_flight() {
     let mut sut = probing(vec![]);
-    let ops = sut.dispatch(Event::DetectRequested { networks: networks() });
+    let ops = sut.dispatch(Event::DetectRequested {
+        networks: networks(),
+    });
     assert!(ops.is_empty(), "no second probe while one runs");
 }
 
@@ -239,8 +267,12 @@ fn late_answers_for_a_superseded_address_are_dropped() {
 fn old_probe_answers_never_land_under_a_redetected_address() {
     const ADDR_B: &str = "0x1111111111111111111111111111111111111111";
     let mut sut = probing(vec![]); // probe #1, for ADDR — answers still owed
-    sut.dispatch(Event::AddressInput { s: ADDR_B.to_owned() });
-    let ops = sut.dispatch(Event::DetectRequested { networks: networks() });
+    sut.dispatch(Event::AddressInput {
+        s: ADDR_B.to_owned(),
+    });
+    let ops = sut.dispatch(Event::DetectRequested {
+        networks: networks(),
+    });
     assert_eq!(ops.len(), 3, "probe #2, for ADDR_B");
 
     // Probe #1's answers arrive now, echoing ADDR — all dropped, and the
@@ -249,7 +281,10 @@ fn old_probe_answers_never_land_under_a_redetected_address() {
     sut.resolve(resolved(1, Some(usdc())));
     sut.resolve(resolved(42161, Some(usdc())));
     let view = sut.view();
-    assert!(view.found.is_empty(), "ADDR metadata must not surface under ADDR_B");
+    assert!(
+        view.found.is_empty(),
+        "ADDR metadata must not surface under ADDR_B"
+    );
     assert!(view.detecting, "probe #2 is still owed its answers");
 
     // Probe #2's own answers land normally.
@@ -285,7 +320,11 @@ fn old_probe_answers_never_land_under_a_redetected_address() {
 fn save_rereads_storage_then_writes_then_invalidates() {
     let mut sut = detected();
     let ops = sut.dispatch(Event::SaveRequested { chain_id: 8453 });
-    assert_eq!(ops, vec![Op::ReadCustomTokens], "dedupe reads storage fresh");
+    assert_eq!(
+        ops,
+        vec![Op::ReadCustomTokens],
+        "dedupe reads storage fresh"
+    );
 
     let ops = sut.resolve(Res::CustomTokensLoaded { tokens: vec![] });
     let expected = MtokCustomToken {
@@ -297,7 +336,12 @@ fn save_rereads_storage_then_writes_then_invalidates() {
         decimals: 6,
         network_name: "Base".to_owned(),
     };
-    assert_eq!(ops, vec![Op::WriteCustomToken { token: expected.clone() }]);
+    assert_eq!(
+        ops,
+        vec![Op::WriteCustomToken {
+            token: expected.clone()
+        }]
+    );
     assert!(sut.view().saving);
 
     let ops = sut.resolve(Res::Saved);
@@ -323,7 +367,9 @@ fn save_of_an_already_stored_id_marks_added_without_writing() {
     let ops = sut.dispatch(Event::SaveRequested { chain_id: 8453 });
     assert_eq!(ops, vec![Op::ReadCustomTokens]);
     // The auto-add path stored the same id since our last read.
-    let ops = sut.resolve(Res::CustomTokensLoaded { tokens: vec![stored(8453, "USDC")] });
+    let ops = sut.resolve(Res::CustomTokensLoaded {
+        tokens: vec![stored(8453, "USDC")],
+    });
     assert!(ops.is_empty(), "never a duplicate write (invariant ①)");
     let view = sut.view();
     assert!(view.found[0].added);
@@ -403,7 +449,11 @@ fn delete_removes_after_confirmation_and_invalidates() {
     let mut sut = opened(vec![stored(8453, "USDC")]);
     let ops = sut.dispatch(Event::DeleteRequested { id: id.clone() });
     assert_eq!(ops, vec![Op::RemoveCustomToken { id: id.clone() }]);
-    assert_eq!(sut.view().custom_tokens.len(), 1, "row stays until confirmed");
+    assert_eq!(
+        sut.view().custom_tokens.len(),
+        1,
+        "row stays until confirmed"
+    );
 
     let ops = sut.resolve(Res::Removed { id });
     assert_eq!(ops, vec![Op::InvalidateTokenCache]);
@@ -429,7 +479,9 @@ fn delete_failure_keeps_the_row() {
 #[test]
 fn delete_of_an_unknown_id_is_ignored() {
     let mut sut = opened(vec![]);
-    let ops = sut.dispatch(Event::DeleteRequested { id: "8453_0xdead".to_owned() });
+    let ops = sut.dispatch(Event::DeleteRequested {
+        id: "8453_0xdead".to_owned(),
+    });
     assert!(ops.is_empty());
 }
 
@@ -451,9 +503,13 @@ fn deleted_token_still_reads_added_on_its_card() {
 
     let view = sut.view();
     assert!(view.custom_tokens.is_empty(), "the row is gone");
-    assert!(view.found[0].added, "but the card still reads added — verbatim");
     assert!(
-        sut.dispatch(Event::SaveRequested { chain_id: 8453 }).is_empty(),
+        view.found[0].added,
+        "but the card still reads added — verbatim"
+    );
+    assert!(
+        sut.dispatch(Event::SaveRequested { chain_id: 8453 })
+            .is_empty(),
         "and a re-add is blocked for the session — verbatim"
     );
 }

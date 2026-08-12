@@ -9,8 +9,7 @@ mod support;
 
 use support::DomainDriver;
 use vela_core::app::receive_watch::{
-    Event, ReceiveWatch, ReceiveWatchOperation as Op, ReceiveWatchShellResult as Res,
-    TokenSnapshot,
+    Event, ReceiveWatch, ReceiveWatchOperation as Op, ReceiveWatchShellResult as Res, TokenSnapshot,
 };
 
 type Sut = DomainDriver<ReceiveWatch>;
@@ -115,7 +114,10 @@ fn brand_new_token_counts_from_zero() {
     assert_eq!(view.deposits.len(), 1);
     assert_eq!(view.deposits[0].items[0].symbol, "DAI");
     assert!((view.deposits[0].items[0].amount - 5.0).abs() < 1e-9);
-    assert_eq!(view.deposits[0].items[0].usd, None, "unpriced stays unpriced");
+    assert_eq!(
+        view.deposits[0].items[0].usd, None,
+        "unpriced stays unpriced"
+    );
 }
 
 /// FR-010 — the false-positive guard: fewer tokens than baseline means a
@@ -210,7 +212,9 @@ fn watcher_stops_at_five_minutes() {
 fn fetch_failure_reschedules_silently() {
     let mut sut = baselined(vec![token("base_usdc", "USDC", 100.0, Some(1.0))]);
     tick(&mut sut, T0 + 3_000.0);
-    let ops = sut.resolve(Res::FetchFailed { now_ms: T0 + 3_500.0 });
+    let ops = sut.resolve(Res::FetchFailed {
+        now_ms: T0 + 3_500.0,
+    });
     assert_eq!(ops, vec![Op::Wait { ms: 3_000 }]);
     assert!(!sut.view().detected);
 }

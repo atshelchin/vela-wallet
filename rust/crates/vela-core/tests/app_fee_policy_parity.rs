@@ -135,7 +135,8 @@ fn run(case: &Case) -> Result<(), String> {
             serde_json::json!({ "amount": amount.to_string() })
         }
         "fee_row_insufficient" => {
-            let value = fee_row_insufficient(u128_of(input, "balance"), opt_u128_of(input, "amount"));
+            let value =
+                fee_row_insufficient(u128_of(input, "balance"), opt_u128_of(input, "amount"));
             serde_json::json!({ "value": value })
         }
         "tempo_expected_gas" => {
@@ -158,8 +159,8 @@ fn fee_policy_parity_corpus() {
     let path = corpus_path();
     let raw = fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("no fee-policy parity corpus at {} ({e})", path.display()));
-    let suite: SuiteFile =
-        serde_json::from_str(&raw).unwrap_or_else(|e| panic!("{}: bad schema: {e}", path.display()));
+    let suite: SuiteFile = serde_json::from_str(&raw)
+        .unwrap_or_else(|e| panic!("{}: bad schema: {e}", path.display()));
     assert_eq!(suite.suite, "fee-policy");
 
     // A corpus that silently shrank (bad merge, partial checkout) would make

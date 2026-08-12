@@ -296,6 +296,7 @@ impl DenominatedAmount {
     /// `price` must be quoted in whichever fiat currency is involved; a price
     /// for a different code is [`ConvertError::CurrencyMismatch`], not an
     /// approximation.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)] // NaN is not a positive amount
     pub fn convert(
         &self,
         target: &Denom,
@@ -359,6 +360,7 @@ impl DenominatedAmount {
     /// `replace(/\.?0+$/, '')` in [`Self::convert`]; the two have always
     /// differed for 0-decimal tokens and the difference is ported, not fixed
     /// here.
+    #[allow(clippy::neg_cmp_op_on_partial_ord)] // NaN resolves to "0", not to digits
     pub fn to_token_units(&self, price: Option<&TokenPrice>, token_decimals: u32) -> String {
         let Denom::Fiat(code) = &self.denom else {
             return self.value.clone();
@@ -377,6 +379,11 @@ impl DenominatedAmount {
 
 #[cfg(test)]
 mod tests {
+    // The crate denies `unwrap` because a core must never fail on its caller's
+    // behalf. Inside a test the panic IS the assertion, so it is allowed here
+    // and nowhere else in this module.
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
 
     #[test]

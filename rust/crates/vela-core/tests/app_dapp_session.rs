@@ -282,8 +282,14 @@ fn classify_normalizes_full_urls() {
 /// `localhost:8080` (scheme "localhost"!) — ported verbatim.
 #[test]
 fn classify_rejects_non_web_input() {
-    assert_eq!(classify_connect_input("javascript:alert(1)"), DsessInput::Invalid);
-    assert_eq!(classify_connect_input("localhost:8080"), DsessInput::Invalid);
+    assert_eq!(
+        classify_connect_input("javascript:alert(1)"),
+        DsessInput::Invalid
+    );
+    assert_eq!(
+        classify_connect_input("localhost:8080"),
+        DsessInput::Invalid
+    );
     assert_eq!(classify_connect_input("hello"), DsessInput::Invalid);
     assert_eq!(classify_connect_input("foo bar.com"), DsessInput::Invalid);
     assert_eq!(classify_connect_input(""), DsessInput::Invalid);
@@ -391,7 +397,11 @@ fn replacing_a_pending_pairing_releases_the_old_key() {
             },
         ]
     );
-    assert_eq!(sut.view().dapp_info, Some(dapp()), "old card until new prepare");
+    assert_eq!(
+        sut.view().dapp_info,
+        Some(dapp()),
+        "old card until new prepare"
+    );
     ack_housekeeping(&mut sut);
     let ops = sut.resolve(Res::WalletPairPrepared {
         fingerprint: "9999".to_owned(),
@@ -611,7 +621,10 @@ fn manual_reconnect_rearms_the_stuck_prompt() {
             },
         ]
     );
-    assert!(!sut.view().reconnect_stuck, "prompt cleared on manual retry");
+    assert!(
+        !sut.view().reconnect_stuck,
+        "prompt cleared on manual retry"
+    );
 }
 
 /// A manual reconnect with no live transport is a no-op (`if (!transport)
@@ -650,7 +663,11 @@ fn deadline_errors_without_tearing_down() {
     let view = sut.view();
     assert_eq!(view.error, Some(DsessError::ReconnectDeadline));
     assert_eq!(view.status, DsessStatus::Reconnecting, "status untouched");
-    assert_eq!(view.dapp_info, Some(dapp()), "session survives the deadline");
+    assert_eq!(
+        view.dapp_info,
+        Some(dapp()),
+        "session survives the deadline"
+    );
     assert_eq!(view.connection_type, Some(DsessConnectionType::WalletPair));
 }
 
@@ -863,12 +880,18 @@ fn network_online_while_down_recovers() {
 #[test]
 fn network_online_is_throttled_to_3s() {
     let mut sut = connected_walletpair();
-    let ops = sut.dispatch(Event::NetworkOnline { now_ms: 1_000_000.0 });
+    let ops = sut.dispatch(Event::NetworkOnline {
+        now_ms: 1_000_000.0,
+    });
     assert_eq!(ops, vec![Op::PingTransport { session_ref: 1 }]);
     ack_housekeeping(&mut sut);
-    let ops = sut.dispatch(Event::NetworkOnline { now_ms: 1_002_999.0 });
+    let ops = sut.dispatch(Event::NetworkOnline {
+        now_ms: 1_002_999.0,
+    });
     assert!(ops.is_empty(), "within the throttle window");
-    let ops = sut.dispatch(Event::NetworkOnline { now_ms: 1_003_000.0 });
+    let ops = sut.dispatch(Event::NetworkOnline {
+        now_ms: 1_003_000.0,
+    });
     assert_eq!(ops, vec![Op::PingTransport { session_ref: 1 }]);
 }
 
@@ -876,7 +899,9 @@ fn network_online_is_throttled_to_3s() {
 #[test]
 fn network_online_ignored_for_remote_inject() {
     let mut sut = connected_remote_inject();
-    let ops = sut.dispatch(Event::NetworkOnline { now_ms: 1_000_000.0 });
+    let ops = sut.dispatch(Event::NetworkOnline {
+        now_ms: 1_000_000.0,
+    });
     assert!(ops.is_empty());
 }
 
@@ -902,10 +927,10 @@ fn restore_prefers_remote_inject() {
         }]
     );
     assert!(
-        !sut
-            .outstanding()
-            .iter()
-            .any(|op| matches!(op, Op::RestoreWalletPair { .. } | Op::ClearWalletPairSnapshot)),
+        !sut.outstanding().iter().any(|op| matches!(
+            op,
+            Op::RestoreWalletPair { .. } | Op::ClearWalletPairSnapshot
+        )),
         "the walletpair snapshot is neither restored nor cleared"
     );
 }
@@ -1112,7 +1137,10 @@ fn restore_is_single_shot_and_never_clobbers() {
         wallet_pair: None,
     });
     assert!(ops.is_empty(), "a live session is never clobbered");
-    assert_eq!(sut.view().connection_type, Some(DsessConnectionType::WalletPair));
+    assert_eq!(
+        sut.view().connection_type,
+        Some(DsessConnectionType::WalletPair)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1139,8 +1167,7 @@ fn failed_counter_persist_never_produces_ciphertext() {
     );
     assert_eq!(sut.view().status, DsessStatus::Disconnected);
     assert!(
-        !sut
-            .outstanding()
+        !sut.outstanding()
             .iter()
             .any(|op| matches!(op, Op::PushWalletInfo { .. })),
         "no ciphertext-producing push after a failed persist"
@@ -1317,8 +1344,16 @@ fn chain_context_checks_typed_data_domains() {
 #[test]
 fn caip2_parse_quirks_ported_verbatim() {
     assert_eq!(caip2_to_chain_id("eip155:8453"), Some(8453));
-    assert_eq!(caip2_to_chain_id("eip155:5x"), Some(5), "parseInt semantics");
-    assert_eq!(caip2_to_chain_id("ZZZZZZ:7"), Some(7), "prefix never checked");
+    assert_eq!(
+        caip2_to_chain_id("eip155:5x"),
+        Some(5),
+        "parseInt semantics"
+    );
+    assert_eq!(
+        caip2_to_chain_id("ZZZZZZ:7"),
+        Some(7),
+        "prefix never checked"
+    );
     assert_eq!(caip2_to_chain_id("eip155:0"), None);
     assert_eq!(caip2_to_chain_id("eip155:"), None);
     assert_eq!(caip2_to_chain_id("short"), None);
@@ -1373,7 +1408,10 @@ fn explicit_disconnect_wipes_both_stores() {
 fn terminal_drop_keeps_session_and_dapp_info() {
     let mut sut = connected_remote_inject();
     let ops = sut.dispatch(Event::TransportDisconnected { session_ref: 1 });
-    assert!(ops.is_empty(), "the transport is already gone — no disconnect op");
+    assert!(
+        ops.is_empty(),
+        "the transport is already gone — no disconnect op"
+    );
     let view = sut.view();
     assert_eq!(view.status, DsessStatus::Disconnected);
     assert_eq!(view.connection_type, None);
@@ -1459,7 +1497,10 @@ fn fresh_remote_inject_failure_shows_error_without_disconnect() {
     let ops = sut.resolve(Res::RemoteInjectConnectFailed {
         message: "ECONNREFUSED".to_owned(),
     });
-    assert!(ops.is_empty(), "TS only nulls the ref — leak ported verbatim");
+    assert!(
+        ops.is_empty(),
+        "TS only nulls the ref — leak ported verbatim"
+    );
     let view = sut.view();
     assert_eq!(view.status, DsessStatus::Error);
     assert_eq!(

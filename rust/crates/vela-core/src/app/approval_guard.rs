@@ -351,7 +351,10 @@ pub enum Event {
     /// is decided here (`BatchCallsView.tsx:74-77`).
     BatchRecipientsResolved { recipients: Vec<Vec<String>> },
     #[serde(skip)]
-    ShellCompleted { attempt: u64, result: GuardShellResult },
+    ShellCompleted {
+        attempt: u64,
+        result: GuardShellResult,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -950,10 +953,7 @@ fn start_single(model: &mut Model, detected: GuardDetectedApproval, ops: &mut Ve
 
 /// The leg's identity for a preset press: its detection + the metadata its
 /// card is currently rendering with (decimals drive the re-seed).
-fn leg_context(
-    model: &Model,
-    index: u32,
-) -> Option<(GuardDetectedApproval, GuardTokenMetaView)> {
+fn leg_context(model: &Model, index: u32) -> Option<(GuardDetectedApproval, GuardTokenMetaView)> {
     let batch = model.batch.as_ref()?;
     let leg = batch.legs.get(index as usize)?;
     let detected = leg.detected.clone()?;
@@ -994,7 +994,11 @@ fn apply_preset(
     let card_reducing = detected.kind == GuardApprovalKind::DecreaseAllowance;
     let has_balance_cap = !card_reducing && balance.is_some_and(|b| !b.is_zero());
 
-    let Editor::Amount { mode: current, custom_text } = editor else {
+    let Editor::Amount {
+        mode: current,
+        custom_text,
+    } = editor
+    else {
         return Command::done();
     };
     match mode {
@@ -1339,8 +1343,8 @@ fn build_batch_view(model: &Model, batch: &BatchState) -> GuardBatchView {
             // A leg card carries no balance, so it never offers the Balance
             // chip — matching today's `<EditableApproveCard>` per leg, which
             // is mounted without `balanceRaw`.
-            let editor = approval
-                .and_then(|detected| derive_editor(&leg.editor, detected, &meta, None));
+            let editor =
+                approval.and_then(|detected| derive_editor(&leg.editor, detected, &meta, None));
             let choice = editor.as_ref().and_then(|e| e.choice.clone());
             GuardLegView {
                 to: leg.to.clone(),
@@ -1369,12 +1373,16 @@ fn build_batch_view(model: &Model, batch: &BatchState) -> GuardBatchView {
     let all_settled = !legs.iter().any(|leg| leg.needs_choice);
     // `!!to && fields.some(f => f.role === 'recipient' && f.address === to)`
     // — a leg whose token is being sent to the token's own contract.
-    let any_to_own_token = batch.legs.iter().zip(batch.recipients.iter()).any(|(leg, rs)| {
-        !leg.to.is_empty()
-            && rs
-                .iter()
-                .any(|recipient| recipient.eq_ignore_ascii_case(&leg.to))
-    });
+    let any_to_own_token = batch
+        .legs
+        .iter()
+        .zip(batch.recipients.iter())
+        .any(|(leg, rs)| {
+            !leg.to.is_empty()
+                && rs
+                    .iter()
+                    .any(|recipient| recipient.eq_ignore_ascii_case(&leg.to))
+        });
 
     GuardBatchView {
         legs,
@@ -1811,7 +1819,9 @@ pub fn rewrite_approval_params(
     detected: &GuardDetectedApproval,
     choice: &GuardChoice,
 ) -> Result<Value, GuardRewriteError> {
-    let arr = params.as_array().ok_or(GuardRewriteError::MalformedParams)?;
+    let arr = params
+        .as_array()
+        .ok_or(GuardRewriteError::MalformedParams)?;
 
     if method == "eth_sendTransaction" {
         let tx = arr.first().ok_or(GuardRewriteError::MalformedParams)?;
@@ -2083,7 +2093,11 @@ pub fn parse_token_amount(human: &str, decimals: u32) -> Option<U256> {
         frac_padded.push('0');
     }
     let whole_units = parse_dec_saturating(if whole.is_empty() { "0" } else { whole });
-    let frac_units = parse_dec_saturating(if frac_padded.is_empty() { "0" } else { &frac_padded });
+    let frac_units = parse_dec_saturating(if frac_padded.is_empty() {
+        "0"
+    } else {
+        &frac_padded
+    });
     let scale = U256::from(10u64)
         .checked_pow(U256::from(decimals))
         .unwrap_or(U256::MAX);
@@ -2252,7 +2266,7 @@ fn f64_to_big(f: f64) -> BigVal {
     let bits = a.to_bits();
     let exponent = ((bits >> 52) & 0x7ff) as i64 - 1075;
     let mantissa = (bits & ((1u64 << 52) - 1)) | (1u64 << 52);
-    if exponent < 0 || exponent >= 256 {
+    if !(0..256).contains(&exponent) {
         // ≥ 2^256 saturates (≥ every cap — same classification).
         return BigVal {
             neg,

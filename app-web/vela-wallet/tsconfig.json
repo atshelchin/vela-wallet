@@ -1,5 +1,43 @@
 {
 	"extends": "./.svelte-kit/tsconfig.json",
+	// SvelteKit writes its include/exclude inside `.svelte-kit/`, so the globs
+	// read `../src/**/*.ts`. TypeScript resolves those against the file that
+	// declares them; rolldown's tsconfig reader resolves them against THIS
+	// file, concludes `src/` is not covered, and keeps walking up — landing on
+	// the repo-root Expo tsconfig, whose `extends: expo/tsconfig.base` only
+	// resolves once the RN app's node_modules exists. Cloudflare Workers builds
+	// install this app alone, so the build died with "Tsconfig not found
+	// expo/tsconfig.base" on every one of its own .ts modules. Restating the
+	// same globs relative to this file stops the walk here, and has the
+	// transform read these compilerOptions rather than React Native's.
+	// Listing an explicit `exclude` overrides the default, so node_modules must
+	// be re-listed.
+	"include": [
+		".svelte-kit/ambient.d.ts",
+		".svelte-kit/env.d.ts",
+		".svelte-kit/non-ambient.d.ts",
+		".svelte-kit/types/**/$types.d.ts",
+		"vite.config.js",
+		"vite.config.ts",
+		"src/**/*.js",
+		"src/**/*.ts",
+		"src/**/*.svelte",
+		"test/**/*.js",
+		"test/**/*.ts",
+		"test/**/*.svelte",
+		"tests/**/*.js",
+		"tests/**/*.ts",
+		"tests/**/*.svelte"
+	],
+	"exclude": [
+		"node_modules/**",
+		"src/service-worker.js",
+		"src/service-worker/**/*.js",
+		"src/service-worker.ts",
+		"src/service-worker/**/*.ts",
+		"src/service-worker.d.ts",
+		"src/service-worker/**/*.d.ts"
+	],
 	"compilerOptions": {
 		"rewriteRelativeImportExtensions": true,
 		"allowJs": true,

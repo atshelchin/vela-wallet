@@ -3,8 +3,9 @@
 		/** Inline SVG markup produced by vela-core (`identiconSvgCircular`) at
 		 *  build time — never composed client-side (research.md D1). */
 		svg: string;
-		/** Diameter in px steps expressed via the icon token scale. */
-		size?: 'row' | 'header' | 'board';
+		/** Diameter in px steps expressed via the icon token scale.
+		 *  `hero`/`detail` are the spec-018 contact-detail avatars (64 mobile / 48 desktop). */
+		size?: 'row' | 'header' | 'board' | 'hero' | 'detail';
 		label?: string;
 	}
 
@@ -49,5 +50,15 @@
 	.board {
 		width: var(--size-emptyStateCircle);
 		height: var(--size-emptyStateCircle);
+	}
+
+	.hero {
+		width: var(--size-identiconHero);
+		height: var(--size-identiconHero);
+	}
+
+	.detail {
+		width: var(--size-identiconDetail);
+		height: var(--size-identiconDetail);
 	}
 </style>

@@ -139,8 +139,13 @@ for (let i = 1; i < PATHS.length; i++) {
 // + 18 wallet-home paths (spec 015: 14 leaves, 4 branches — componentsUi
 //   mainNav/dayGroup/commandBar/qrPlaceholder, networkFilter.pillAll,
 //   receive.addressLabel, history bare labels + name-only subtitles).
-if (PATHS.length !== 1312) fail(`expected 1312 paths (1234 leaf + 78 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1234) fail(`expected 1234 leaf paths, got ${leafSet.size}`);
+// + 21 contacts-UI leaves (spec 018: contacts.{manage,sectionContacts,
+//   countPeople,membersCount,allContacts,addMember,batchSend,batchSendHint,
+//   batchSendHintTitled,importFile,importAll,exportAll,importGroup,
+//   exportGroup,groupRename,moveGroup,recentActivity,viewAllActivity,
+//   deleteContact,actionQr,edit} — existing `contacts` branch, no new branches).
+if (PATHS.length !== 1333) fail(`expected 1333 paths (1255 leaf + 78 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1255) fail(`expected 1255 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 78) fail(`expected 78 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

@@ -10,32 +10,48 @@
 
 import SwiftUI
 
+/// The four destinations. Only 钱包 (spec 015) and 通讯录 (spec 018) have
+/// content; the other two remain inert selections.
+enum WalletTab: String, CaseIterable {
+    case wallet, contacts, explore, settings
+}
+
 struct WalletTabBar: View {
     @Environment(\.theme) private var theme
     @Environment(\.walletTextScale) private var textScale
 
     let tabs: TabsModel
+    /// Which destination reads as selected (solid glyph + accent).
+    var selected: WalletTab = .wallet
+    var onSelect: (WalletTab) -> Void = { _ in }
 
-    private var items: [(outline: LucideGlyph, fill: LucideGlyph, label: String, selected: Bool)] {
+    private var items: [(tab: WalletTab, outline: LucideGlyph, fill: LucideGlyph, label: String)] {
         [
-            (.navWalletOutline, .navWalletSolid, tabs.wallet, true),
-            (.navContactsOutline, .navContactsSolid, tabs.contacts, false),
-            (.navExploreOutline, .navExploreSolid, tabs.explore, false),
-            (.navSettingsOutline, .navSettingsSolid, tabs.settings, false),
+            (.wallet, .navWalletOutline, .navWalletSolid, tabs.wallet),
+            (.contacts, .navContactsOutline, .navContactsSolid, tabs.contacts),
+            (.explore, .navExploreOutline, .navExploreSolid, tabs.explore),
+            (.settings, .navSettingsOutline, .navSettingsSolid, tabs.settings),
         ]
     }
 
     var body: some View {
         HStack(spacing: Tokens.Space.s0) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                VStack(spacing: Tokens.Space.s4) {
-                    LucideIcon(item.selected ? item.fill : item.outline, size: LucideIconSize.tab)
-                    Text(verbatim: item.label)
-                        .typeRole(Typography.tab.scaled(textScale))
-                        .lineLimit(1)
+                let isSelected = item.tab == selected
+                Button {
+                    onSelect(item.tab)
+                } label: {
+                    VStack(spacing: Tokens.Space.s4) {
+                        LucideIcon(isSelected ? item.fill : item.outline, size: LucideIconSize.tab)
+                        Text(verbatim: item.label)
+                            .typeRole(Typography.tab.scaled(textScale))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(isSelected ? theme.accentBase : theme.fgSubtle)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                 }
-                .foregroundStyle(item.selected ? theme.accentBase : theme.fgSubtle)
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
             }
         }
         .padding(.top, Tokens.Space.s8)
@@ -50,9 +66,15 @@ struct WalletTabBar: View {
 }
 
 #Preview("Tab bar dark") {
-    WalletTabBar(tabs: TabsModel(wallet: "钱包", contacts: "通讯录", explore: "探索", settings: "设置"))
-        .background(Tokens.dark.bgBase.color)
-        .themed(.dark)
+    VStack(spacing: Tokens.Space.s24) {
+        WalletTabBar(tabs: TabsModel(wallet: "钱包", contacts: "通讯录", explore: "探索", settings: "设置"))
+        WalletTabBar(
+            tabs: TabsModel(wallet: "钱包", contacts: "通讯录", explore: "探索", settings: "设置"),
+            selected: .contacts
+        )
+    }
+    .background(Tokens.dark.bgBase.color)
+    .themed(.dark)
 }
 
 #Preview("Tab bar light") {

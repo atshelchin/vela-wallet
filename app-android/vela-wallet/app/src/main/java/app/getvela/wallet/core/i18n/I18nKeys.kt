@@ -188,4 +188,75 @@ object I18nKeys {
         const val QR_CAPTION = "componentsUi.qrPlaceholder.caption"
         const val COPY_ADDRESS = "componentsUi.identiconViewer.copyAddress"
     }
+
+    /**
+     * Contacts vocabulary (spec 018, contracts/i18n-keys.md — the normative key
+     * map). The 21 additions plus the two updated values already live in the
+     * corpus; keys shared with the wallet map are re-exported here so contacts
+     * code never reaches into [Wallet] for its own copy.
+     */
+    object Contacts {
+        // Page / section chrome.
+        const val TITLE = "contacts.title"
+        const val SECTION_GROUPS = "contacts.sectionGroups"
+        const val SECTION_CONTACTS = "contacts.sectionContacts"
+        const val MANAGE = "contacts.manage"
+        const val COUNT_PEOPLE = "contacts.countPeople"
+        const val GROUP_MEMBERS = "contacts.groupMembers"
+        const val MEMBERS_COUNT = "contacts.membersCount"
+        const val ALL_CONTACTS = "contacts.allContacts"
+        const val SEARCH_PLACEHOLDER = "contacts.searchPlaceholder"
+        const val NO_RESULTS = "contacts.noResults"
+
+        // Empty state.
+        const val EMPTY = "contacts.empty"
+        const val EMPTY_HINT = "contacts.emptyHint"
+        const val ADD_CONTACT = "contacts.addContact"
+
+        // Detail.
+        const val ADDRESS_LABEL = "contacts.addressLabel"
+        const val RECENT_ACTIVITY = "contacts.recentActivity"
+        const val VIEW_ALL_ACTIVITY = "contacts.viewAllActivity"
+        const val DELETE_CONTACT = "contacts.deleteContact"
+        const val ACTION_QR = "contacts.actionQr"
+        const val EDIT = "contacts.edit"
+        const val MOVE_GROUP = "contacts.moveGroup"
+
+        // Group detail.
+        const val ADD_MEMBER = "contacts.addMember"
+        const val BATCH_SEND = "contacts.batchSend"
+        const val BATCH_SEND_HINT = "contacts.batchSendHint"
+        const val BATCH_SEND_HINT_TITLED = "contacts.batchSendHintTitled"
+        const val GROUP_NEW = "contacts.groupNew"
+        const val GROUP_EDIT = "contacts.groupEdit"
+        const val GROUP_RENAME = "contacts.groupRename"
+        const val GROUP_DELETE = "contacts.groupDelete"
+
+        // Menus (add / import / export).
+        const val ADD_TITLE = "contacts.addTitle"
+        const val IMPORT_FILE = "contacts.importFile"
+        const val IMPORT_ALL = "contacts.importAll"
+        const val EXPORT_TITLE = "contacts.exportTitle"
+        const val EXPORT_ALL = "contacts.exportAll"
+        const val IMPORT_GROUP = "contacts.importGroup"
+        const val EXPORT_GROUP = "contacts.exportGroup"
+
+        // Destructive confirmation.
+        const val DELETE_TITLE = "contacts.deleteTitle"
+        const val DELETE_BODY = "contacts.deleteBody"
+        const val DELETE = "contacts.delete"
+        const val CANCEL = "contacts.cancel"
+
+        // Reused from the spec-015 map (same keys, no corpus change).
+        const val ACTION_SEND = "componentsUi.dock.send"
+        const val ACTION_RECEIVE = "componentsUi.dock.receive"
+        const val COPY_ADDRESS = "componentsUi.identiconViewer.copyAddress"
+        const val LABEL_SENT = "history.labelSent"
+        const val LABEL_RECEIVED = "history.labelReceived"
+        const val FILTER_ALL = "history.filterAll"
+        const val NAV_WALLET = "componentsUi.mainNav.wallet"
+        const val NAV_CONTACTS = "componentsUi.mainNav.contacts"
+        const val NAV_EXPLORE = "componentsUi.mainNav.explore"
+        const val NAV_SETTINGS = "componentsUi.mainNav.settings"
+    }
 }

@@ -3,6 +3,7 @@ package app.getvela.wallet.feature.wallet.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,12 +29,18 @@ import app.getvela.wallet.feature.wallet.EmptyStateModel
 /**
  * In-section empty state (spec vocabulary #11): 56dp sunken circle with an
  * outline icon, title, caption (mock H2).
+ *
+ * Spec 018 extends it with an optional [content] slot below the caption — the
+ * contacts C3/DC3 CTA pair (accent 添加联系人 + outline 从文件导入). The slot is
+ * the whole extension: there is still exactly one empty-state implementation
+ * (SC-006).
  */
 @Composable
 fun EmptyState(
     icon: ImageVector,
     model: EmptyStateModel,
     modifier: Modifier = Modifier,
+    content: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val colors = VelaTheme.colors
     Column(
@@ -73,5 +80,9 @@ fun EmptyState(
             fontSize = VelaTextSize.base,
             textAlign = TextAlign.Center,
         )
+        if (content != null) {
+            Spacer(modifier = Modifier.height(VelaSpacing.xl3))
+            content()
+        }
     }
 }

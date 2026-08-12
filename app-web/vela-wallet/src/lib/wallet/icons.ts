@@ -131,7 +131,19 @@ export type UtilityIconId =
 	| 'refresh-cw'
 	| 'check'
 	| 'inbox'
-	| 'wallet';
+	| 'wallet'
+	// spec 018 additions (specs/018-contacts-ui/contracts/icons.json)
+	| 'user-round-plus'
+	| 'users-round'
+	| 'folder-plus'
+	| 'download'
+	| 'upload'
+	| 'pencil'
+	| 'trash-2'
+	| 'ellipsis'
+	| 'qr-code'
+	| 'plus'
+	| 'chevron-left';
 
 export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 	'arrow-down-left': {
@@ -254,7 +266,104 @@ export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 			},
 			{ tag: 'path', d: 'M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4' }
 		]
-	}
+	},
+	'user-round-plus': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M2 21a8 8 0 0 1 13.292-6' },
+			{ tag: 'circle', cx: '10', cy: '8', r: '5' },
+			{ tag: 'path', d: 'M19 16v6' },
+			{ tag: 'path', d: 'M22 19h-6' }
+		]
+	},
+	'users-round': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M18 21a8 8 0 0 0-16 0' },
+			{ tag: 'circle', cx: '10', cy: '8', r: '5' },
+			{ tag: 'path', d: 'M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3' }
+		]
+	},
+	'folder-plus': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M12 10v6' },
+			{ tag: 'path', d: 'M9 13h6' },
+			{
+				tag: 'path',
+				d: 'M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'
+			}
+		]
+	},
+	download: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M12 15V3' },
+			{ tag: 'path', d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' },
+			{ tag: 'path', d: 'm7 10 5 5 5-5' }
+		]
+	},
+	upload: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M12 3v12' },
+			{ tag: 'path', d: 'm17 8-5-5-5 5' },
+			{ tag: 'path', d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }
+		]
+	},
+	pencil: {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z'
+			},
+			{ tag: 'path', d: 'm15 5 4 4' }
+		]
+	},
+	'trash-2': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M10 11v6' },
+			{ tag: 'path', d: 'M14 11v6' },
+			{ tag: 'path', d: 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6' },
+			{ tag: 'path', d: 'M3 6h18' },
+			{ tag: 'path', d: 'M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2' }
+		]
+	},
+	ellipsis: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '1' },
+			{ tag: 'circle', cx: '19', cy: '12', r: '1' },
+			{ tag: 'circle', cx: '5', cy: '12', r: '1' }
+		]
+	},
+	'qr-code': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '5', height: '5', x: '3', y: '3', rx: '1' },
+			{ tag: 'rect', width: '5', height: '5', x: '16', y: '3', rx: '1' },
+			{ tag: 'rect', width: '5', height: '5', x: '3', y: '16', rx: '1' },
+			{ tag: 'path', d: 'M21 16h-3a2 2 0 0 0-2 2v3' },
+			{ tag: 'path', d: 'M21 21v.01' },
+			{ tag: 'path', d: 'M12 7v3a2 2 0 0 1-2 2H7' },
+			{ tag: 'path', d: 'M3 12h.01' },
+			{ tag: 'path', d: 'M12 3h.01' },
+			{ tag: 'path', d: 'M12 16v.01' },
+			{ tag: 'path', d: 'M16 12h1' },
+			{ tag: 'path', d: 'M21 12v.01' },
+			{ tag: 'path', d: 'M12 21v-1' }
+		]
+	},
+	plus: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M5 12h14' },
+			{ tag: 'path', d: 'M12 5v14' }
+		]
+	},
+	'chevron-left': { style: 'stroke', elements: [{ tag: 'path', d: 'm15 18-6-6 6-6' }] }
 };
 
 export function navIcon(id: NavIconId, selected: boolean): IconDef {

@@ -14,6 +14,9 @@ struct WalletSectionHeader: View {
 
     let title: String
     let action: String
+    /// Trailing chevron. Off for read-only trailing values such as the
+    /// contacts 联系人 / 8 位 header (spec 018 mock C1).
+    var chevron: Bool = true
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -25,8 +28,10 @@ struct WalletSectionHeader: View {
                 Text(verbatim: action)
                     .typeRole(Typography.label.scaled(textScale))
                     .foregroundStyle(theme.fgMuted)
-                LucideIcon(.chevronRight, size: LucideIconSize.smallChevron)
-                    .foregroundStyle(theme.fgMuted)
+                if chevron {
+                    LucideIcon(.chevronRight, size: LucideIconSize.smallChevron)
+                        .foregroundStyle(theme.fgMuted)
+                }
             }
         }
     }

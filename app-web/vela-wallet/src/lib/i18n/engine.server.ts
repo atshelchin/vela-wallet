@@ -17,6 +17,7 @@ import './wasm-init.server';
 import { FALLBACK_LOCALE, type Locale } from './locales';
 import { FEATURE_SLUGS, FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
 import type { WalletMessages } from '$lib/wallet/messages';
+import type { ContactsMessages } from '$lib/contacts/messages';
 
 /** Generated runtime catalogs (gen-i18n.mjs stage 4), one per locale. */
 const CATALOGS = import.meta.glob('../../../../../public/i18n/*.json', {
@@ -159,6 +160,72 @@ export function resolveWalletMessages(locale: Locale): WalletMessages {
 			nativeToken: k('addToken.labelNativeToken')
 		},
 		close: k('componentsUi.identiconViewer.close')
+	};
+}
+
+/** The serializable strings the contacts screens render (spec 018, D3). */
+export function resolveContactsMessages(locale: Locale): ContactsMessages {
+	activate(locale);
+	const k = (key: string) => t(locale, key);
+	return {
+		title: k('contacts.title'),
+		searchPlaceholder: k('contacts.searchPlaceholder'),
+		sectionGroups: k('contacts.sectionGroups'),
+		sectionContacts: k('contacts.sectionContacts'),
+		manage: k('contacts.manage'),
+		allContacts: k('contacts.allContacts'),
+		countPeople: k('contacts.countPeople'),
+		groupMembers: k('contacts.groupMembers'),
+		membersCount: k('contacts.membersCount'),
+		groupNew: k('contacts.groupNew'),
+		groupEdit: k('contacts.groupEdit'),
+		groupRename: k('contacts.groupRename'),
+		groupDelete: k('contacts.groupDelete'),
+		moveGroup: k('contacts.moveGroup'),
+		addMember: k('contacts.addMember'),
+		addContact: k('contacts.addContact'),
+		addTitle: k('contacts.addTitle'),
+		edit: k('contacts.edit'),
+		empty: k('contacts.empty'),
+		emptyHint: k('contacts.emptyHint'),
+		noResults: k('contacts.noResults'),
+		batchSend: k('contacts.batchSend'),
+		batchSendHint: k('contacts.batchSendHint'),
+		batchSendHintTitled: k('contacts.batchSendHintTitled'),
+		importFile: k('contacts.importFile'),
+		importAll: k('contacts.importAll'),
+		importGroup: k('contacts.importGroup'),
+		exportTitle: k('contacts.exportTitle'),
+		exportAll: k('contacts.exportAll'),
+		exportGroup: k('contacts.exportGroup'),
+		recentActivity: k('contacts.recentActivity'),
+		viewAllActivity: k('contacts.viewAllActivity'),
+		addressLabel: k('contacts.addressLabel'),
+		copyAddress: k('componentsUi.identiconViewer.copyAddress'),
+		send: k('componentsUi.dock.send'),
+		receive: k('componentsUi.dock.receive'),
+		actionQr: k('contacts.actionQr'),
+		deleteContact: k('contacts.deleteContact'),
+		delete: k('contacts.delete'),
+		deleteTitle: k('contacts.deleteTitle'),
+		deleteBody: k('contacts.deleteBody'),
+		cancel: k('contacts.cancel'),
+		activity: {
+			sent: k('history.labelSent'),
+			received: k('history.labelReceived'),
+			yesterday: k('componentsUi.dayGroup.yesterday'),
+			all: k('history.filterAll')
+		},
+		shell: {
+			navWallet: k('componentsUi.mainNav.wallet'),
+			navContacts: k('componentsUi.mainNav.contacts'),
+			navExplore: k('componentsUi.mainNav.explore'),
+			navSettings: k('componentsUi.mainNav.settings'),
+			networksTitle: k('settingsModals.network.modalTitle'),
+			commandBarPlaceholder: k('componentsUi.commandBar.placeholder'),
+			allNetworks: k('componentsUi.networkFilter.allNetworks'),
+			close: k('componentsUi.identiconViewer.close')
+		}
 	};
 }
 

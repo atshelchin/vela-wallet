@@ -25,6 +25,13 @@ import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 import app.getvela.wallet.feature.wallet.ActionsModel
 
+/** One equal-width action card: glyph above label. */
+data class ActionButtonItem(
+    val icon: ImageVector,
+    val label: String,
+    val onClick: () -> Unit = {},
+)
+
 /**
  * 收款 / 转账 / 扫码 dock (spec vocabulary #6): three equal raised cards,
  * icon above label. Taps have no destination yet (spec assumption).
@@ -37,28 +44,38 @@ fun ActionButtonRow(
     onSend: () -> Unit = {},
     onScan: () -> Unit = {},
 ) {
+    ActionButtonRow(
+        items = listOf(
+            ActionButtonItem(VelaIcons.ArrowDownLeft, actions.receive, onReceive),
+            ActionButtonItem(VelaIcons.ArrowUpRight, actions.send, onSend),
+            ActionButtonItem(VelaIcons.ScanLine, actions.scan, onScan),
+        ),
+        modifier = modifier,
+    )
+}
+
+/**
+ * Item-driven form of the same dock — spec 018 reuses it for the contact
+ * detail's 转账 / 收款 / 二维码 cards (spec vocabulary #11 "[reuse] the 015
+ * component with new items"), so there is still one card implementation.
+ */
+@Composable
+fun ActionButtonRow(
+    items: List<ActionButtonItem>,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(VelaSpacing.lg),
     ) {
-        ActionCard(
-            icon = VelaIcons.ArrowDownLeft,
-            label = actions.receive,
-            onClick = onReceive,
-            modifier = Modifier.weight(1f),
-        )
-        ActionCard(
-            icon = VelaIcons.ArrowUpRight,
-            label = actions.send,
-            onClick = onSend,
-            modifier = Modifier.weight(1f),
-        )
-        ActionCard(
-            icon = VelaIcons.ScanLine,
-            label = actions.scan,
-            onClick = onScan,
-            modifier = Modifier.weight(1f),
-        )
+        items.forEach { item ->
+            ActionCard(
+                icon = item.icon,
+                label = item.label,
+                onClick = item.onClick,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 }
 

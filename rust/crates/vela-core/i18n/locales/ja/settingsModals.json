@@ -4,6 +4,7 @@
       "modalTitle": "ネットワーク",
       "chainId": "チェーン {{chainId}}",
       "fieldRpcUrl": "RPC URL",
+      "rpcChainMismatch": "保存しませんでした — この RPC はチェーン {{reported}} と応答しましたが、このネットワークはチェーン {{expected}} です。これまでのエンドポイントをそのまま使用します。",
       "fieldExplorer": "エクスプローラー",
       "fieldBundler": "BUNDLER",
       "removeTitle": "ネットワークを削除",

@@ -303,3 +303,42 @@ describe('handleSendCalls (EIP-5792 wallet_sendCalls)', () => {
     expect(rpcCallMock).not.toHaveBeenCalledWith('eth_getUserOperationReceipt', expect.anything(), expect.anything());
   });
 });
+
+// ── who owns the never-unlimited gate ───────────────────────────────────────
+// The mandate is enforced exactly ONCE per submit. On web the Rust core runs it
+// in `proceed_submit` before it asks the shell to sign, so the shell passes
+// `'core'` and this module must not re-decide it. Native (and every other
+// caller) omits the argument and keeps the TypeScript guard — Hermes has no
+// WebAssembly, so there is no core to defer to there.
+
+describe('handleSendCalls — never-unlimited guard ownership', () => {
+  // approve(address,uint256) with an unbounded amount: the shape the guard exists for.
+  const UNLIMITED_APPROVE =
+    '0x095ea7b3' +
+    '000000000000000000000000cafebabecafebabecafebabecafebabecafebabe' +
+    'f'.repeat(64);
+  const approveBatch = () =>
+    req([{ chainId: '0x1', calls: [{ to: '0xtoken', value: '0x0', data: UNLIMITED_APPROVE }] }]);
+
+  test('default (native, and any caller that says nothing): refuses the unbounded leg here', async () => {
+    sendContractCallMock.mockResolvedValue({ userOpHash: '0xshould-not-happen' });
+    await expect(
+      handleSendCalls(approveBatch(), ACCOUNT, SAFE, 1),
+    ).rejects.toMatchObject({ name: 'UnlimitedApprovalError' });
+    expect(sendContractCallMock).not.toHaveBeenCalled();
+  });
+
+  test("guardOwner 'core': defers to the core's already-made refusal instead of deciding twice", async () => {
+    sendContractCallMock.mockResolvedValue({ userOpHash: '0xhash-core-guarded' });
+    const id = await handleSendCalls(
+      approveBatch(), ACCOUNT, SAFE, 1, undefined, undefined, 'core',
+    );
+    expect(id).toBe('0xhash-core-guarded');
+  });
+
+  test("an explicit 'ts' owner is still guarded (the flag can only ever move the gate, never remove it)", async () => {
+    await expect(
+      handleSendCalls(approveBatch(), ACCOUNT, SAFE, 1, undefined, undefined, 'ts'),
+    ).rejects.toMatchObject({ name: 'UnlimitedApprovalError' });
+  });
+});

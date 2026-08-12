@@ -28,6 +28,8 @@
     "warnInsufficientForGas": "Недостаточно {{sym}} для покрытия суммы и комиссии за газ",
     "warnInsufficientGas": "Недостаточно {{sym}} для оплаты комиссии за газ",
     "warnNeedGas": "Для оплаты комиссии за газ нужен {{sym}}",
+    "warnCannotConvert": "Сейчас не получается пересчитать {{code}} в {{symbol}} — переключитесь на {{symbol}}, чтобы ввести сумму.",
+    "denomToggleNoRate": "Сейчас нет курса {{code}} — введите сумму в {{symbol}}.",
     "confirmTitle": "Подтверждение",
     "walletFallbackName": "Кошелёк",
     "fromLabel": "Откуда",

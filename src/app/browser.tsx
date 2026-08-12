@@ -36,7 +36,7 @@ import {
 import { WebViewTransport, type WalletWebViewBridge } from '@/services/webview-transport';
 import { coerceBrowserUrl } from '@/services/dapp-transport';
 import { faviconForHost } from '@/services/favicon';
-import { recordBrowserVisit } from '@/services/browser-history';
+import { useBrowserHistory } from '@/hooks/use-browser-history';
 import { buildConnectionRecord } from '@/services/dapp-history';
 import { saveTransaction } from '@/services/storage';
 import { getGrant, resolveGranted, revokeGrant, setGrant, shouldDropGrant, type DAppGrant } from '@/services/dapp-permissions';
@@ -92,6 +92,10 @@ export default function BrowserScreen() {
 
   const webRef = useRef<WalletWebViewHandle>(null);
   const originRef = useRef<string>('');
+
+  // Recently-opened dApps. Native keeps the TypeScript store; web dispatches
+  // into the `browser_history` core, which owns the dedupe/cap/fallback rules.
+  const { recordVisit } = useBrowserHistory();
 
   // The bridge is owned HERE so local (connect/state) responses bypass the
   // transport's pending-id gate; only forwarded requests go through the transport.
@@ -322,7 +326,7 @@ export default function BrowserScreen() {
       // Fires on load-finish and again when the favicon resolves, so the entry ends
       // up with the best title + favicon we saw.
       if (n.url && !n.loading && !n.error) {
-        void recordBrowserVisit({ url: n.url, title: n.title, favicon: n.favicon }, Date.now());
+        recordVisit({ url: n.url, title: n.title, favicon: n.favicon });
       }
 
       // A fresh document load (reload or cross-origin) starts. SPA pushState does
@@ -356,7 +360,7 @@ export default function BrowserScreen() {
         }
       }
     },
-    [transport, bridge, incomingRequest, isSubmitting, rejectRequest, refreshGrant, setConsentBoth],
+    [transport, bridge, incomingRequest, isSubmitting, rejectRequest, refreshGrant, setConsentBoth, recordVisit],
   );
 
   // --- render ---------------------------------------------------------------

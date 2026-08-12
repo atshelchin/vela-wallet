@@ -291,8 +291,11 @@ export function parseRecipientTableText(text: string): ParseResult {
   return interpretRows(lines.map((l) => splitCsvLine(l, delim)));
 }
 
-/** Read an .xlsx/.xls workbook's first sheet into a cell matrix via lazy SheetJS. */
-async function parseWorkbook(bytes: Uint8Array): Promise<string[][]> {
+/** Read an .xlsx/.xls workbook's first sheet into a cell matrix via lazy SheetJS.
+ *  Exported because the web shell hands the matrix straight to the Rust
+ *  `batch_import` core (which owns the interpretation), while native keeps
+ *  using `parseRecipientTable` below — one SheetJS call site for both. */
+export async function readWorkbookMatrix(bytes: Uint8Array): Promise<string[][]> {
   const XLSX = await import('xlsx');
   const wb = XLSX.read(bytes, { type: 'array' });
   const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -317,5 +320,5 @@ export async function parseRecipientTable(
     return parseRecipientTableText(input);
   }
   const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input;
-  return interpretRows(await parseWorkbook(bytes));
+  return interpretRows(await readWorkbookMatrix(bytes));
 }

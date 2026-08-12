@@ -73,10 +73,21 @@
   "signOut": {
    "button": "Keluar",
    "title": "Keluar",
-   "desc": "Data dompet Anda tetap tersimpan di perangkat ini. Masuk kembali kapan saja dengan passkey Anda (Face ID / sidik jari).",
-   "warning": "Kunci publik Anda belum disinkronkan ke server. Keluar sekarang dapat membuat pemulihan di perangkat lain gagal.",
+   "desc": "Perangkat ini akan keluar dari status masuk. Dompetnya sendiri tidak dihapus — passkey Anda tetap tersimpan di Face ID / sidik jari.",
+   "keeps": "Pilih “Saya sudah punya dompet” untuk masuk lagi dengan passkey yang sama: alamatnya tetap sama, dan riwayat transaksi, kontak, token serta pengaturan Anda masih ada.",
+   "warning": "Kunci publik Anda belum sampai ke server sinkronisasi. Aplikasi akan mencoba lagi saat dibuka berikutnya, tetapi sebelum berhasil Anda mungkin tidak bisa masuk di perangkat lain — juga di perangkat ini jika aplikasinya dihapus.",
    "anyway": "Tetap Keluar",
    "cancel": "Batal"
+  },
+  "eraseDevice": {
+   "title": "Hapus Perangkat Ini",
+   "subtitle": "Hapus semua yang disimpan Vela di sini",
+   "desc": "Semua yang disimpan Vela di perangkat ini akan dihapus. Tidak ada cadangan dan tidak bisa dibatalkan.",
+   "loses": "Anda kehilangan: riwayat transaksi, kontak dan grup, riwayat penjelajahan, izin dApp, token dan jaringan khusus, pengaturan RPC dan endpoint, serta semua preferensi.",
+   "keeps": "Anda tidak kehilangan dompetnya. Passkey Anda tetap di Face ID / sidik jari — pilih “Saya sudah punya dompet” dan alamat yang sama kembali, hanya tanpa riwayat.",
+   "confirm": "Hapus Semuanya",
+   "cancel": "Batal",
+   "failed": "Penghapusan tidak selesai. Sebagian data masih ada di perangkat ini dan Anda masih masuk — coba lagi."
   },
   "formatNote": {
    "system": "Sistem",
@@ -200,6 +211,8 @@
   "warnInsufficientForGas": "{{sym}} tidak cukup untuk menutup jumlah + biaya gas",
   "warnInsufficientGas": "{{sym}} tidak cukup untuk biaya gas",
   "warnNeedGas": "Anda membutuhkan {{sym}} untuk membayar biaya gas",
+  "warnCannotConvert": "Saat ini {{code}} tidak bisa dikonversi ke {{symbol}} — beralihlah ke {{symbol}} untuk memasukkan jumlah.",
+  "denomToggleNoRate": "Belum ada kurs {{code}} saat ini — masukkan jumlah dalam {{symbol}}.",
   "confirmTitle": "Konfirmasi",
   "walletFallbackName": "Dompet",
   "fromLabel": "Dari",
@@ -1239,6 +1252,7 @@
    "modalTitle": "Jaringan",
    "chainId": "Chain {{chainId}}",
    "fieldRpcUrl": "URL RPC",
+   "rpcChainMismatch": "Tidak disimpan — RPC ini melaporkan Chain {{reported}}, padahal jaringan ini adalah Chain {{expected}}. Endpoint sebelumnya masih dipakai.",
    "fieldExplorer": "EXPLORER",
    "fieldBundler": "BUNDLER",
    "removeTitle": "Hapus Jaringan",

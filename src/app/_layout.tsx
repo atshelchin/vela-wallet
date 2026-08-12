@@ -210,6 +210,18 @@ export default function RootLayout() {
         setReady(true);
       });
 
+    // Re-drive passkey index registrations the last run could not finish. This
+    // is the ONE path on which the D10 index-upload decision table runs in
+    // TypeScript on WEB too — the Rust `create_wallet` machine only covers the
+    // run that created the wallet, and everything after it is this call. The
+    // two copies of that table are held together by
+    // `src/__tests__/services/public-key-upload-parity.test.ts`; keep it green
+    // rather than trusting the comments in `public-key-upload.ts`.
+    //
+    // Fire-and-forget on purpose: a pending entry means the key is not yet
+    // resolvable by walletRef, so the bundler cannot sponsor gas for it (issue
+    // #89) — but nothing here may delay or fail the boot. Errors are swallowed
+    // because the entry survives, and the next cold start tries again.
     hasPendingUploads()
       .then((has) => {
         if (has) {

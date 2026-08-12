@@ -20,8 +20,7 @@ import { ConnectionFlowStates } from '@/components/ConnectionFlowStates';
 import { useDAppConnection } from '@/models/dapp-connection';
 import { useWallet, shortAddress } from '@/models/wallet-state';
 import { chainName } from '@/models/network';
-import { parseRemoteInjectURL, coerceBrowserUrl } from '@/services/dapp-transport';
-import { isWalletPairURI } from '@/services/walletpair-transport';
+import { classifyConnectEntry } from '@/services/connect-entry';
 import { showAlert } from '@/services/platform';
 import { color, text, inter, space, radius, font, createStyles } from '@/constants/theme';
 import {
@@ -43,28 +42,30 @@ export default function ConnectScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [linkInput, setLinkInput] = useState('');
 
+  // Auto-detect: WalletPair URI vs Remote Inject URL vs a plain web address.
+  // The decision itself is NOT made here — `classifyConnectEntry` is the single
+  // classifier (the Rust core's on web, the ported TypeScript on native), so
+  // this screen only performs the side effect the verdict names. Order still
+  // matters and still lives in one place: a remote-inject link IS an https URL,
+  // so the browser branch may only win after the relay parse declined.
   const handleConnect = useCallback((data: string) => {
-    const trimmed = data.trim();
-
-    // Auto-detect: WalletPair URI vs Remote Inject URL
-    if (isWalletPairURI(trimmed)) {
-      connectToWalletPair(trimmed);
-      return;
-    }
-
-    const parsed = parseRemoteInjectURL(trimmed);
-    if (!parsed) {
-      // Not a pairing link but a web address (full URL or a bare host like
-      // app.uniswap.org) → open the in-app dApp browser.
-      const browserUrl = coerceBrowserUrl(trimmed);
-      if (browserUrl) {
-        router.push({ pathname: '/browser', params: { url: browserUrl } });
+    const entry = classifyConnectEntry(data);
+    switch (entry.kind) {
+      case 'walletpair':
+        connectToWalletPair(entry.uri);
         return;
-      }
-      showAlert(t('connect.list.invalidLinkTitle'), t('connect.list.invalidLinkBody'));
-      return;
+      case 'remote-inject':
+        connectToBridge(entry.session);
+        return;
+      case 'browser':
+        // A web address (full URL or a bare host like app.uniswap.org) → open
+        // the in-app dApp browser.
+        router.push({ pathname: '/browser', params: { url: entry.url } });
+        return;
+      case 'invalid':
+        showAlert(t('connect.list.invalidLinkTitle'), t('connect.list.invalidLinkBody'));
+        return;
     }
-    connectToBridge(parsed);
   }, [connectToBridge, connectToWalletPair, router, t]);
 
   const handleScan = useCallback((data: string) => {

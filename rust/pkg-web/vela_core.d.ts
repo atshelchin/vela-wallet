@@ -45,6 +45,25 @@ export interface IdenticonParams {
 }
 
 /**
+ * One stable\'s DEX quotes for 1 native coin, as the shell decodes them out of
+ * the multicall. Each stable is its own group because its own `decimals()`
+ * normalizes the amount — USDC (6) and DAI (18) must never be compared under
+ * one shared scale.
+ */
+export interface NativeQuoteGroup {
+    /**
+     * Successful quote outputs in THIS stable\'s base units, as decimal
+     * strings (failed calls are simply absent).
+     */
+    amountsOut: string[];
+    /**
+     * This stable\'s `decimals()` read; `null` = the read failed, and the core
+     * applies its own `DEFAULT_QUOTE_DECIMALS`.
+     */
+    quoteDecimals: number | undefined;
+}
+
+/**
  * Per-call translation options, shaped so a TS caller writes the i18next object
  * literal verbatim — `{ count: 3, name: \'Alice\' }`. The reserved names are typed;
  * everything else falls into `vars` through `#[serde(flatten)]`.
@@ -105,12 +124,28 @@ export interface TOptions extends Map<string, VarValue> {
 }
 
 /**
+ * The chosen price and the rung of the ladder it came from. `source` is the
+ * `NativePriceSource` variant name; `\"none\"` when nothing could price.
+ */
+export interface NativePriceChoice {
+    price: number | undefined;
+    source: string;
+}
+
+/**
  * The resolve state after a language change.
  */
 export interface LanguageState {
     language: string;
     resolvedLanguage: string | undefined;
     languages: string[];
+}
+
+/**
+ * Wrapper so the group list crosses the boundary as one value.
+ */
+export interface NativeQuoteGroups {
+    groups: NativeQuoteGroup[];
 }
 
 /**
@@ -162,9 +197,156 @@ export interface SafeAddressInfo {
 
 
 /**
- * Creating a wallet: register → prove signing → derive → sync → save.
+ * r" The activity feed: dedupe, batch folding, tombstones, celebrations.
+ */
+export class ActivityFeedCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Never-unlimited approval guard and allowance editor.
+ */
+export class ApprovalGuardCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Balance aggregation & display policy (per active account).
+ */
+export class BalanceDashboardCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Payroll batch import: table interpretation, fiat conversion, caps.
+ */
+export class BatchImportCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Browser history policy.
+ */
+export class BrowserHistoryCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Clear-signing resolution pipeline and message risk verdicts.
+ */
+export class ClearSigningCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The address book: manual + history-derived merge, tombstones, groups.
+ */
+export class ContactsCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Creating a wallet: register → prove signing → derive → sync → save.
  */
 export class CreateWalletCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Per-origin grants + browser consent.
+ */
+export class DappPermissionsCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" dApp connection lifecycle: pairing, fingerprint confirmation,
+ * r" reconnect policy and the timer discipline behind it.
+ */
+export class DappSessionCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The display currency: atomic code+rate pair, first-launch region seed,
+ * r" user-choice-wins.
+ */
+export class DisplayCurrencyCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Safari extension account snapshot + Universal Link TTL.
+ */
+export class ExtCacheCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Fee quoting + reserve math (spec 017 wave A): tier pricing, in-band
+ * r" quotes, sign-what-was-displayed guards.
+ */
+export class FeePolicyCore {
     free(): void;
     [Symbol.dispose](): void;
     dispatch(event_json: string): string;
@@ -216,9 +398,135 @@ export class I18n {
 }
 
 /**
- * Signing in with an existing passkey, including on-device recovery.
+ * r" Signing in with an existing passkey, including on-device recovery.
  */
 export class LoginCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Manual custom-token management.
+ */
+export class ManageTokensCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Network & endpoint configuration: add-network wizard, overrides,
+ * r" service endpoints, provider keys.
+ */
+export class NetworkAdminCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Payment requests: the acknowledge gate, the EIP-681/pay-link builder,
+ * r" and the strict `/pay` validator.
+ */
+export class PaymentRequestCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Deposit detection on the Receive screen: phased polling, baseline
+ * r" diff, false-positive guards.
+ */
+export class ReceiveWatchCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" RPC/bundler endpoint pool decisions: scoring, cooldowns, bans.
+ */
+export class RpcPoolCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The whole Send flow: three modes, the step machine, EIP-681 locked
+ * r" requests, Max/fiat math, the treasury pre-check and the sign→submit
+ * r" lifecycle behind a single-flight re-entry lock.
+ */
+export class SendCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The wallet session truth source: accounts, active index, boot restore.
+ */
+export class SessionCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The dApp signing approval lifecycle.
+ */
+export class SignRequestCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" The token trust model: transfer allowlists, auto-add admission,
+ * r" asymmetric simulation trust.
+ */
+export class TokenTrustCore {
+    free(): void;
+    [Symbol.dispose](): void;
+    dispatch(event_json: string): string;
+    constructor();
+    resolve_effect(effect_id: bigint, result_json: string): string;
+    view(): string;
+}
+
+/**
+ * r" Post-submit transaction lifecycle / reconciliation.
+ */
+export class TxTrackerCore {
     free(): void;
     [Symbol.dispose](): void;
     dispatch(event_json: string): string;
@@ -233,9 +541,20 @@ export function abiEncodeBytes32(data: Uint8Array): Uint8Array;
 
 export function abiEncodeUint256(value_hex: string): Uint8Array;
 
+/**
+ * The deepest pool across ALL stable quotes — `best_native_dex_price`, which
+ * folds `best_group_price` over each group.
+ */
+export function bestNativeDexPrice(groups: NativeQuoteGroups): number | undefined;
+
 export function canonicalizeSignature(sig: string): string;
 
 export function checksumAddress(address_hex: string): string;
+
+/**
+ * The source ladder and its sanity band — `choose_native_price`.
+ */
+export function chooseNativePrice(dex?: number | null, chainlink_local?: number | null, chainlink_eth?: number | null): NativePriceChoice;
 
 export function computeSafeAddress(x: Uint8Array, y: Uint8Array): SafeAddressInfo;
 
@@ -339,27 +658,99 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_activityfeedcore_free: (a: number, b: number) => void;
+    readonly __wbg_approvalguardcore_free: (a: number, b: number) => void;
+    readonly __wbg_balancedashboardcore_free: (a: number, b: number) => void;
+    readonly __wbg_batchimportcore_free: (a: number, b: number) => void;
+    readonly __wbg_browserhistorycore_free: (a: number, b: number) => void;
+    readonly __wbg_clearsigningcore_free: (a: number, b: number) => void;
+    readonly __wbg_contactscore_free: (a: number, b: number) => void;
     readonly __wbg_createwalletcore_free: (a: number, b: number) => void;
+    readonly __wbg_dapppermissionscore_free: (a: number, b: number) => void;
+    readonly __wbg_dappsessioncore_free: (a: number, b: number) => void;
+    readonly __wbg_displaycurrencycore_free: (a: number, b: number) => void;
+    readonly __wbg_extcachecore_free: (a: number, b: number) => void;
+    readonly __wbg_feepolicycore_free: (a: number, b: number) => void;
     readonly __wbg_i18n_free: (a: number, b: number) => void;
     readonly __wbg_logincore_free: (a: number, b: number) => void;
+    readonly __wbg_managetokenscore_free: (a: number, b: number) => void;
+    readonly __wbg_networkadmincore_free: (a: number, b: number) => void;
+    readonly __wbg_paymentrequestcore_free: (a: number, b: number) => void;
+    readonly __wbg_receivewatchcore_free: (a: number, b: number) => void;
+    readonly __wbg_rpcpoolcore_free: (a: number, b: number) => void;
+    readonly __wbg_sendcore_free: (a: number, b: number) => void;
+    readonly __wbg_sessioncore_free: (a: number, b: number) => void;
+    readonly __wbg_signrequestcore_free: (a: number, b: number) => void;
+    readonly __wbg_tokentrustcore_free: (a: number, b: number) => void;
+    readonly __wbg_txtrackercore_free: (a: number, b: number) => void;
     readonly abiEncodeAddress: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeBytes32: (a: number, b: number) => [number, number, number, number];
     readonly abiEncodeUint256: (a: number, b: number) => [number, number, number, number];
+    readonly activityfeedcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly activityfeedcore_new: () => number;
+    readonly activityfeedcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly activityfeedcore_view: (a: number) => [number, number, number, number];
+    readonly approvalguardcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly approvalguardcore_new: () => number;
+    readonly approvalguardcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly approvalguardcore_view: (a: number) => [number, number, number, number];
+    readonly balancedashboardcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly balancedashboardcore_new: () => number;
+    readonly balancedashboardcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly balancedashboardcore_view: (a: number) => [number, number, number, number];
+    readonly batchimportcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly batchimportcore_new: () => number;
+    readonly batchimportcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly batchimportcore_view: (a: number) => [number, number, number, number];
+    readonly bestNativeDexPrice: (a: any) => [number, number];
+    readonly browserhistorycore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly browserhistorycore_new: () => number;
+    readonly browserhistorycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly browserhistorycore_view: (a: number) => [number, number, number, number];
     readonly canonicalizeSignature: (a: number, b: number) => [number, number, number, number];
     readonly checksumAddress: (a: number, b: number) => [number, number, number, number];
+    readonly chooseNativePrice: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
+    readonly clearsigningcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly clearsigningcore_new: () => number;
+    readonly clearsigningcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly clearsigningcore_view: (a: number) => [number, number, number, number];
     readonly computeSafeAddress: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly computeSelector: (a: number, b: number) => [number, number, number, number];
     readonly computeSplitterAddress: (a: number, b: number) => [number, number, number, number];
+    readonly contactscore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly contactscore_new: () => number;
+    readonly contactscore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly contactscore_view: (a: number) => [number, number, number, number];
     readonly create2Address: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number, number];
     readonly createwalletcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly createwalletcore_new: () => number;
     readonly createwalletcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly createwalletcore_view: (a: number) => [number, number, number, number];
+    readonly dapppermissionscore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly dapppermissionscore_new: () => number;
+    readonly dapppermissionscore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly dapppermissionscore_view: (a: number) => [number, number, number, number];
+    readonly dappsessioncore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly dappsessioncore_new: () => number;
+    readonly dappsessioncore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly dappsessioncore_view: (a: number) => [number, number, number, number];
     readonly decodeCalldata: (a: number, b: number, c: number, d: number) => [number, number, number];
     readonly derSignatureToRawLowS: (a: number, b: number) => [number, number, number, number];
+    readonly displaycurrencycore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly displaycurrencycore_new: () => number;
+    readonly displaycurrencycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly displaycurrencycore_view: (a: number) => [number, number, number, number];
     readonly encodeSplitterDeployCall: (a: number, b: number) => [number, number, number, number];
     readonly encodeType: (a: number, b: number) => [number, number, number, number];
+    readonly extcachecore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly extcachecore_new: () => number;
+    readonly extcachecore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly extcachecore_view: (a: number) => [number, number, number, number];
     readonly extractAttestationPublicKey: (a: number, b: number) => [number, number, number];
+    readonly feepolicycore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly feepolicycore_new: () => number;
+    readonly feepolicycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly feepolicycore_view: (a: number) => [number, number, number, number];
     readonly fromBase64Url: (a: number, b: number) => [number, number, number, number];
     readonly fromHex: (a: number, b: number) => [number, number, number, number];
     readonly functionSelector: (a: number, b: number) => [number, number, number, number];
@@ -393,14 +784,54 @@ export interface InitOutput {
     readonly logincore_new: () => number;
     readonly logincore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly logincore_view: (a: number) => [number, number, number, number];
+    readonly managetokenscore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly managetokenscore_new: () => number;
+    readonly managetokenscore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly managetokenscore_view: (a: number) => [number, number, number, number];
     readonly matchSelector: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly networkadmincore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly networkadmincore_new: () => number;
+    readonly networkadmincore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly networkadmincore_view: (a: number) => [number, number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];
+    readonly paymentrequestcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly paymentrequestcore_new: () => number;
+    readonly paymentrequestcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly paymentrequestcore_view: (a: number) => [number, number, number, number];
+    readonly receivewatchcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly receivewatchcore_new: () => number;
+    readonly receivewatchcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly receivewatchcore_view: (a: number) => [number, number, number, number];
     readonly recoverPublicKeyFromAssertions: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
+    readonly rpcpoolcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly rpcpoolcore_new: () => number;
+    readonly rpcpoolcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly rpcpoolcore_view: (a: number) => [number, number, number, number];
     readonly safeProxyRuntimeCode: () => [number, number, number, number];
+    readonly sendcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly sendcore_new: () => number;
+    readonly sendcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly sendcore_view: (a: number) => [number, number, number, number];
+    readonly sessioncore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly sessioncore_new: () => number;
+    readonly sessioncore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly sessioncore_view: (a: number) => [number, number, number, number];
     readonly sha256: (a: number, b: number) => [number, number];
+    readonly signrequestcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly signrequestcore_new: () => number;
+    readonly signrequestcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly signrequestcore_view: (a: number) => [number, number, number, number];
     readonly toBase64Url: (a: number, b: number) => [number, number];
     readonly toHex: (a: number, b: number, c: number) => [number, number];
     readonly toQuantity: (a: number, b: number) => [number, number, number, number];
+    readonly tokentrustcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly tokentrustcore_new: () => number;
+    readonly tokentrustcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly tokentrustcore_view: (a: number) => [number, number, number, number];
+    readonly txtrackercore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly txtrackercore_new: () => number;
+    readonly txtrackercore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
+    readonly txtrackercore_view: (a: number) => [number, number, number, number];
     readonly validateClientData: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number];
     readonly webauthnSigningHash: (a: number, b: number, c: number, d: number) => [number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;

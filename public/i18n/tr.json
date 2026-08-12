@@ -73,10 +73,21 @@
   "signOut": {
    "button": "Çıkış Yap",
    "title": "Çıkış Yap",
-   "desc": "Cüzdan verileriniz bu cihazda kalır. Geçiş anahtarınızla (Face ID / parmak izi) istediğiniz zaman tekrar giriş yapabilirsiniz.",
-   "warning": "Açık anahtarınız henüz sunucuyla eşitlenmedi. Şimdi çıkış yapmanız, diğer cihazlarda kurtarmayı engelleyebilir.",
+   "desc": "Bu cihazda oturum kapanacak. Cüzdanın kendisi silinmez — geçiş anahtarınız Face ID / parmak izinde kalır.",
+   "keeps": "“Zaten bir cüzdanım var” seçeneğiyle aynı geçiş anahtarını kullanarak yeniden giriş yapın: adres aynı kalır, işlem geçmişiniz, kişileriniz, tokenlarınız ve ayarlarınız da yerinde durur.",
+   "warning": "Açık anahtarınız henüz eşitleme sunucusuna ulaşmadı. Uygulama bir sonraki açılışta yeniden deneyecek, ancak başarılı olana kadar başka bir cihazda giriş yapamayabilirsiniz — uygulamayı kaldırırsanız bu cihazda da.",
    "anyway": "Yine de Çıkış Yap",
    "cancel": "İptal"
+  },
+  "eraseDevice": {
+   "title": "Bu Cihazı Temizle",
+   "subtitle": "Vela'nın burada sakladığı her şeyi sil",
+   "desc": "Vela'nın bu cihazda sakladığı her şey silinir. Yedeği yoktur ve geri alınamaz.",
+   "loses": "Kaybedecekleriniz: işlem geçmişi, kişiler ve gruplar, gezinme geçmişi, dApp izinleri, özel tokenlar ve ağlar, RPC ve uç nokta ayarları ve tüm tercihler.",
+   "keeps": "Cüzdanı kaybetmezsiniz. Geçiş anahtarınız Face ID / parmak izinde kalır — “Zaten bir cüzdanım var” deyin, aynı adres geri gelir, yalnızca geçmişi boş olur.",
+   "confirm": "Her Şeyi Sil",
+   "cancel": "İptal",
+   "failed": "Temizleme tamamlanmadı. Bu cihazda hâlâ veri var ve oturumunuz açık — lütfen tekrar deneyin."
   },
   "formatNote": {
    "system": "Sistem",
@@ -200,6 +211,8 @@
   "warnInsufficientForGas": "Tutar + gas ücretlerini karşılamak için {{sym}} yetersiz",
   "warnInsufficientGas": "Gas ücretleri için {{sym}} yetersiz",
   "warnNeedGas": "Gas ücretlerini ödemek için {{sym}} gerekiyor",
+  "warnCannotConvert": "{{code}} şu anda {{symbol}} birimine çevrilemiyor — tutarı girmek için {{symbol}} birimine geçin.",
+  "denomToggleNoRate": "Şu anda {{code}} kuru yok — tutarı {{symbol}} birimiyle girin.",
   "confirmTitle": "Onayla",
   "walletFallbackName": "Cüzdan",
   "fromLabel": "Gönderen",
@@ -1239,6 +1252,7 @@
    "modalTitle": "Ağlar",
    "chainId": "Zincir {{chainId}}",
    "fieldRpcUrl": "RPC URL",
+   "rpcChainMismatch": "Kaydedilmedi — bu RPC Zincir {{reported}} bildiriyor, oysa bu ağ Zincir {{expected}}. Önceki uç nokta kullanılmaya devam ediyor.",
    "fieldExplorer": "GEZGİN",
    "fieldBundler": "BUNDLER",
    "removeTitle": "Ağı Kaldır",

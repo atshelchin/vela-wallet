@@ -73,10 +73,21 @@
     "signOut": {
       "button": "Sair",
       "title": "Sair",
-      "desc": "Os dados da sua carteira ficam neste dispositivo. Você pode entrar de novo a qualquer momento com sua passkey (Face ID / impressão digital).",
-      "warning": "Sua chave pública ainda não foi sincronizada com o servidor. Sair agora pode impedir a recuperação em outros dispositivos.",
+      "desc": "Este dispositivo deixará de estar conectado. A carteira em si não é apagada — sua passkey continua no Face ID / impressão digital.",
+      "keeps": "Escolha “Já tenho uma carteira” para entrar de novo com a mesma passkey: o endereço é o mesmo, e seu histórico, contatos, tokens e configurações continuam aqui.",
+      "warning": "Sua chave pública ainda não chegou ao servidor de sincronização. O app tentará de novo na próxima abertura, mas até dar certo você pode não conseguir entrar em outro dispositivo — nem aqui, se desinstalar o app.",
       "anyway": "Sair mesmo assim",
       "cancel": "Cancelar"
+    },
+    "eraseDevice": {
+      "title": "Apagar este dispositivo",
+      "subtitle": "Exclui tudo o que a Vela guardou aqui",
+      "desc": "Tudo o que a Vela guardou neste dispositivo é apagado. Não há backup nem como desfazer.",
+      "loses": "Você perde: histórico de transações, contatos e grupos, histórico de navegação, permissões de dApps, tokens e redes personalizados, configurações de RPC e endpoints, e todas as preferências.",
+      "keeps": "Você não perde a carteira. Sua passkey continua no Face ID / impressão digital — escolha “Já tenho uma carteira” e o mesmo endereço volta, só que sem histórico.",
+      "confirm": "Apagar tudo",
+      "cancel": "Cancelar",
+      "failed": "A limpeza não terminou. Ainda há dados neste dispositivo e você continua conectado — tente de novo."
     },
     "formatNote": {
       "system": "Sistema",

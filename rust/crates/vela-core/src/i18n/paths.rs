@@ -3,12 +3,12 @@
 //! The SHARED key-path table: every dotted path in the corpus, sorted, interned
 //! once for all 15 locales. Regenerate with `node scripts/gen-i18n.mjs`.
 //!
-//! 1333 paths = 1255 leaf + 78 branch. Repeated per locale these key bytes
-//! would cost 522915 bytes; interned once they cost 36285.
+//! 1346 paths = 1267 leaf + 79 branch. Repeated per locale these key bytes
+//! would cost 527700 bytes; interned once they cost 36624.
 
 /// Every path in the corpus, strictly sorted. Lookup is a binary search here, then
 /// an O(1) index into the active locale's value table.
-pub(crate) static PATHS: [&str; 1333] = [
+pub(crate) static PATHS: [&str; 1346] = [
     "about",
     "about.footer",
     "about.linkGitHub",
@@ -1108,6 +1108,7 @@ pub(crate) static PATHS: [&str; 1333] = [
     "send.confirmSendBtn",
     "send.confirmTitle",
     "send.continueBtn",
+    "send.denomToggleNoRate",
     "send.estFeeLabel",
     "send.estimatingFee",
     "send.feeTokenLabel",
@@ -1185,6 +1186,7 @@ pub(crate) static PATHS: [&str; 1333] = [
     "send.walletDeployedNo",
     "send.walletDeployedYes",
     "send.walletFallbackName",
+    "send.warnCannotConvert",
     "send.warnInsufficientForGas",
     "send.warnInsufficientGas",
     "send.warnNeedGas",
@@ -1215,6 +1217,15 @@ pub(crate) static PATHS: [&str; 1333] = [
     "settings.developer.clearSigningTitle",
     "settings.developer.treasurySubtitle",
     "settings.developer.treasuryTitle",
+    "settings.eraseDevice",
+    "settings.eraseDevice.cancel",
+    "settings.eraseDevice.confirm",
+    "settings.eraseDevice.desc",
+    "settings.eraseDevice.failed",
+    "settings.eraseDevice.keeps",
+    "settings.eraseDevice.loses",
+    "settings.eraseDevice.subtitle",
+    "settings.eraseDevice.title",
     "settings.feedback",
     "settings.feedback.subtitle",
     "settings.feedback.title",
@@ -1243,6 +1254,7 @@ pub(crate) static PATHS: [&str; 1333] = [
     "settings.signOut.button",
     "settings.signOut.cancel",
     "settings.signOut.desc",
+    "settings.signOut.keeps",
     "settings.signOut.title",
     "settings.signOut.warning",
     "settings.title",
@@ -1299,6 +1311,7 @@ pub(crate) static PATHS: [&str; 1333] = [
     "settingsModals.network.removeCancel",
     "settingsModals.network.removeConfirm",
     "settingsModals.network.removeTitle",
+    "settingsModals.network.rpcChainMismatch",
     "settingsModals.rpcProviders",
     "settingsModals.rpcProviders.activeNetworks",
     "settingsModals.rpcProviders.checkKey",
@@ -1348,7 +1361,7 @@ pub(crate) static PATHS: [&str; 1333] = [
 /// A branch is a distinct lookup outcome, not a miss: `t("home")` must return the
 /// byte-exact diagnostic `key 'home (en)' returned an object instead of string.`,
 /// which a flat map could never distinguish from an absent key.
-pub(crate) static IS_BRANCH: [u8; 167] = [
+pub(crate) static IS_BRANCH: [u8; 169] = [
     0x01, 0x00, 0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00,
     0x14, 0x12, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x21, 0xa0, 0x00, 0x08, 0x00, 0x00, 0x00,
@@ -1357,13 +1370,13 @@ pub(crate) static IS_BRANCH: [u8; 167] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x02, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00,
     0x00, 0x00, 0x01, 0x20, 0x00, 0xc0, 0x49, 0x92, 0x84, 0x00, 0x10, 0x00, 0x40, 0x00, 0x00, 0x00,
-    0x00, 0x04, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x20, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x30, 0x05, 0x08, 0x42, 0x42, 0x80, 0x20, 0x60, 0x08, 0x00, 0x00, 0x01, 0x10,
-    0x01, 0x04, 0x10, 0x08, 0x20, 0x08, 0x00,
+    0x00, 0x04, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0xc0, 0x14, 0x20, 0x08, 0x01, 0x12, 0x02, 0x04, 0x01, 0x86, 0x00, 0x00, 0x10,
+    0x00, 0x11, 0x80, 0x00, 0x02, 0x01, 0x04, 0x01, 0x00,
 ];
 
 /// Number of entries in [`PATHS`]. Value tables carry `N_PATHS + 1` offsets.
-pub(crate) const N_PATHS: usize = 1333;
+pub(crate) const N_PATHS: usize = 1346;
 
 /// Index of `path` in [`PATHS`], or `None`.
 pub(crate) fn path_id(path: &str) -> Option<usize> {

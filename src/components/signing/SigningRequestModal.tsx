@@ -7,15 +7,40 @@ import { useDAppConnection } from '@/models/dapp-connection';
 import { useWallet } from '@/models/wallet-state';
 import { BundlerFundingView } from '@/components/ui/BundlerFundingModal';
 import { requestChainId as reqChainId, requestDApp } from '@/models/dapp-request-routing';
+import { performSwipeDismiss } from './swipe-dismiss';
 import { SigningSheet } from './SigningSheet';
 
 export function SigningRequestModal() {
   const {
     incomingRequest, isSigning, isSubmitting, signError, pendingOpHash, chainId, dappInfo,
+    confirmGateOpen,
     approveRequest, rejectRequest, dismissRequest,
     fundingNeeded, handleFundingComplete, handleFundingCancel,
   } = useDAppConnection();
   const { activeAccount } = useWallet();
+
+  // Swipe-dismiss routing. What a swipe MEANS is a rule, not a rendering
+  // decision, so it does not live in this file: on web the `sign_request` core
+  // routes it (`SignEvent::SwipeDismissed`), on native `swipe-dismiss.ts` holds
+  // the documented port. Both answer the same three questions this component
+  // only supplies the facts for. Declared above the early return so the hook
+  // order is unconditional.
+  const onSwipeDismiss = React.useCallback(
+    () =>
+      performSwipeDismiss(
+        {
+          fundingNeeded: !!fundingNeeded,
+          signError: !!signError,
+          pendingOpHash: !!pendingOpHash,
+          isSubmitting,
+        },
+        { reject: rejectRequest, dismiss: dismissRequest, fundingCancel: handleFundingCancel },
+      ),
+    [
+      fundingNeeded, signError, pendingOpHash, isSubmitting,
+      rejectRequest, dismissRequest, handleFundingCancel,
+    ],
+  );
 
   if (!incomingRequest) return null;
 
@@ -31,15 +56,10 @@ export function SigningRequestModal() {
     // (pendingOpHash), the tx is committed → DISMISS (op proceeds, real result
     // delivered), never reject — a "cancelled" tx must not still broadcast + send a
     // contradictory success (BUG-2). Only a pre-submit swipe rejects (4001).
+    // That verdict is `onSwipeDismiss` above; this file does not re-derive it.
     <AppModal
       visible={true}
-      onClose={
-        fundingNeeded
-          ? handleFundingCancel
-          : signError || pendingOpHash || isSubmitting
-            ? dismissRequest
-            : rejectRequest
-      }
+      onClose={onSwipeDismiss}
     >
       {fundingNeeded ? (
         <BundlerFundingView
@@ -61,6 +81,7 @@ export function SigningRequestModal() {
           isSigning={isSigning}
           signError={signError}
           pendingOpHash={pendingOpHash}
+          confirmGateOpen={confirmGateOpen}
           onApprove={approveRequest}
           onReject={rejectRequest}
           onDismiss={dismissRequest}

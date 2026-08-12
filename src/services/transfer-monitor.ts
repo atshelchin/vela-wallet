@@ -27,15 +27,21 @@ import { poolRpcCall, getLogsRangeCap } from '@/services/rpc-pool';
 import { fetchChainTokens } from '@/services/chain-tokens';
 import { loadCustomTokens } from '@/services/storage';
 
-/** keccak256("Transfer(address,address,uint256)") */
-const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+/**
+ * keccak256("Transfer(address,address,uint256)").
+ *
+ * Also declared in `token_trust.rs` (which is what web's scan and its net-delta
+ * derivation use) and in `sim-assets.ts`. Hermes has no wasm so none of the
+ * copies can go; `core-table-parity.test.ts` is the gate that keeps them equal.
+ */
+export const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 
 /**
  * Contract-address sentinels that mark a log as a *native* (ETH/gas) transfer
  * under EIP-7708. The exact magic address is still being finalised across
  * clients, so we match a small set and treat everything else as ERC-20.
  */
-const NATIVE_LOG_ADDRESSES = new Set<string>([
+export const NATIVE_LOG_ADDRESSES = new Set<string>([
   '0xfffffffffffffffffffffffffffffffffffffffe', // EIP-7708 native-transfer log emitter
   '0x0000000000000000000000000000000000000000',
   '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
@@ -51,7 +57,7 @@ const NATIVE_LOG_ADDRESSES = new Set<string>([
  * id, so there's no checkpoint to maintain. The trade-off is no catch-up after a
  * long background — anything older than the window is reflected in balances.
  */
-const LIVE_SCAN_BLOCKS = 100;
+export const LIVE_SCAN_BLOCKS = 100;
 
 export interface IncomingTransfer {
   /** Stable id: `${chainId}-${txHash}-${logIndex}`. */

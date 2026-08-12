@@ -1,7 +1,7 @@
 import { ContactAvatar } from '@/components/contacts/ContactAvatar';
 import { RecipientTrust } from '@/components/contacts/RecipientTrust';
 import { RecipientTypeBadge } from '@/components/contacts/RecipientTypeBadge';
-import { MultiRecipientEditor, recipientsAreValid } from '@/components/send/MultiRecipientEditor';
+import { MultiRecipientEditor } from '@/components/send/MultiRecipientEditor';
 import { TokenLogo } from '@/components/TokenLogo';
 import { AmountText } from '@/components/ui/AmountText';
 import { AutoGrowTextInput } from '@/components/ui/AutoGrowTextInput';
@@ -21,41 +21,44 @@ import { ArrowUpDown, BookUser, Check, Copy, FileUp, Plus, ScanLine } from 'luci
 import React from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { SendController } from './useSendController';
+import type { SendController } from './send-controller-types';
 
 export function EnterDetailsStep({ c }: { c: SendController }) {
   const {
     t,
-    params,
+    prefilledRecipient,
     locked,
     amountLocked,
     dc,
     formatUsd,
-    setStep,
     selectedToken,
-    setSelectedToken,
+    changeToken,
     recipient,
     setRecipient,
     amount,
     setAmount,
     splitMode,
-    setSplitMode,
     recipients,
-    setRecipients,
-    setPickerTarget,
+    splitOverBalance,
     multiSelectMode,
-    setShowScanner,
+    openScanner,
     copiedContract,
     setCopiedContract,
     estimatingGas,
     inputInUsd,
-    setInputInUsd,
-    setShowContactPicker,
-    setShowBatchImport,
+    amountFiatCode,
+    denomToggleShown,
+    denomToggleEnabled,
+    denomToggleReason,
+    tokenAmount,
+    toggleFiatInput,
+    openContactPicker,
+    openBatchImport,
     amountWarning,
     recipientIdentity,
     recipientRisk,
     amountInputRef,
+    canContinue,
     enterSplitMode,
     handleRecipientsChange,
     pickedTokens,
@@ -68,9 +71,22 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
     const balance = tokenBalanceDouble(selectedToken);
     const logos = tokenLogoURLs(selectedToken);
     const chain = chainName(tokenChainId(selectedToken));
-    // Fiat-input mode is denominated in the user's display currency, not USD.
-    const fiatPrice = (selectedToken.priceUsd ?? 0) * dc.rate; // 1 token in display currency
-    const fiatDecimals = ZERO_DECIMAL_CODES.has(dc.code) ? 0 : 2;
+    // Fiat-input mode is denominated in the currency the FIGURE was typed in —
+    // `amountFiatCode`, straight from the controller — and not in whatever
+    // `dc.code` happens to be this frame. Those two differ for exactly one
+    // instant (a display-currency commit landing under a typed figure), and
+    // that instant is when this screen used to lie: it had only a boolean, so
+    // it printed a number typed in USD with a CNY label beside it.
+    //
+    // The ⇅ row below no longer computes its own conversion either: it reads the
+    // controller's `tokenAmount`, which is the very string the signature is
+    // built from. A screen may not advertise an answer its own button would not
+    // produce — this row used to print "⇅ 5000 USDC" under "5000 CNY" while the
+    // controller held '0', and the one action it offered would have made the
+    // lie true. (The old expression divided by the fiat price with a `|| 1`
+    // fallback: an implicit rate of 1 on the display side of the very screen
+    // that refuses one on the money side.)
+    const fiatDecimals = ZERO_DECIMAL_CODES.has(amountFiatCode ?? dc.code) ? 0 : 2;
 
     return (
       <ScrollView style={styles.stepContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -81,7 +97,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               Multi-select hides it. */}
           {!multiSelectMode && (
           <View style={styles.heroBlock}>
-            <Pressable style={styles.heroRow} disabled={locked} onPress={() => { setStep('select-token'); setSelectedToken(null); setAmount(''); setInputInUsd(false); setSplitMode(false); setRecipients([]); }}>
+            <Pressable style={styles.heroRow} disabled={locked} onPress={changeToken}>
               <TokenLogo symbol={selectedToken.symbol} logoUrls={logos} chain={tokenBadgeNetwork(selectedToken)} size={44} />
               <View style={styles.heroIdentity}>
                 <Text style={styles.heroSymbol}>{selectedToken.symbol}</Text>
@@ -152,7 +168,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               </View>
               {amount || amountLocked ? (
                 <Text style={[styles.unitLabel, { fontSize: Math.max(amountFontSize(amount || '0') * 0.7, 16) }]}>
-                  {inputInUsd ? dc.code : selectedToken.symbol}
+                  {amountFiatCode ?? selectedToken.symbol}
                 </Text>
               ) : (
                 <Pressable onPress={handleMaxAmount} hitSlop={8} style={styles.maxBtn}>
@@ -160,34 +176,39 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
                 </Pressable>
               )}
             </View>
-            {/* Conversion toggle row — below the input, like ↕ 0.0113 ETH */}
-            {selectedToken.priceUsd != null && selectedToken.priceUsd > 0 ? (
+            {/* Conversion toggle row — below the input, like ↕ 0.0113 ETH.
+                Shown and enabled by the controller, not by a second reading of
+                `priceUsd` here: the core refused to enter fiat without a rate
+                for the display currency while this row rendered on `priceUsd`
+                alone, so the control looked live and swallowed the tap. It is
+                visibly disabled now, and it stays on screen while the figure is
+                fiat even for an unpriced token — leaving is the only way out of
+                a mode whose amount can no longer resolve. */}
+            {denomToggleShown ? (
               <Pressable
-                onPress={() => {
-                  const val = parseFloat(amount || '0');
-                  if (val > 0 && fiatPrice > 0) {
-                    if (inputInUsd) {
-                      setAmount((val / fiatPrice).toFixed(selectedToken.decimals).replace(/\.?0+$/, ''));
-                    } else {
-                      setAmount((val * fiatPrice).toFixed(fiatDecimals));
-                    }
-                  }
-                  setInputInUsd(!inputInUsd);
-                }}
+                onPress={toggleFiatInput}
+                disabled={!denomToggleEnabled}
                 hitSlop={8}
-                style={styles.conversionRow}
+                style={[styles.conversionRow, !denomToggleEnabled && styles.conversionRowDisabled]}
               >
                 <ArrowUpDown size={14} color={color.fg.muted} strokeWidth={2.5} />
                 <Text style={styles.conversionText}>
                   {amount
                     ? inputInUsd
-                      ? `${(parseFloat(amount || '0') / (fiatPrice || 1)).toFixed(Math.min(selectedToken.decimals, 8)).replace(/\.?0+$/, '')} ${selectedToken.symbol}`
+                      ? `${parseFloat(tokenAmount || '0').toFixed(Math.min(selectedToken.decimals, 8)).replace(/\.?0+$/, '')} ${selectedToken.symbol}`
                       : formatUsd(parseFloat(amount || '0') * (selectedToken.priceUsd ?? 0))
                     : inputInUsd
                       ? `0 ${selectedToken.symbol}`
                       : formatUsd(0)}
                 </Text>
               </Pressable>
+            ) : null}
+            {/* The dimming said "no"; this says why. It is the one branch the
+                amount warning cannot reach — the figure is in token units and
+                resolves perfectly, so nothing else on this screen has any
+                reason to speak. */}
+            {denomToggleShown && denomToggleReason ? (
+              <Text style={styles.conversionDisabledReason}>{denomToggleReason}</Text>
             ) : null}
           </Pressable>
           {amountWarning ? (
@@ -209,15 +230,23 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               onChangeText={(t) => setRecipient(t)}
               autoCapitalize="none"
               autoCorrect={false}
-              editable={!params.prefilledRecipient}
+              // Read-only for a prefilled recipient. This prop is the SCREEN's
+              // half of the rule; the other half now lives with the machine
+              // that builds the call — `send.rs::view_recipient_locked` refuses
+              // `SetRecipient` for a LOCKED request, the same way it already
+              // refused `SetAmount` for a locked amount. Note the two
+              // conditions differ on purpose: an unlocked prefill (a contact
+              // tapped "Send") is read-only here but re-settable there, because
+              // `changeToken` clears and restores it.
+              editable={!prefilledRecipient}
               blurOnSubmit
               returnKeyType="done"
             />
-            {!params.prefilledRecipient && (
+            {!prefilledRecipient && (
               <View style={styles.inputIcons}>
                 {/* Scan in-flow (one tap) — plain icon, no container. */}
                 <Pressable
-                  onPress={() => setShowScanner(true)}
+                  onPress={openScanner}
                   hitSlop={8}
                   style={styles.addrActionBtn}
                   accessibilityRole="button"
@@ -227,7 +256,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
                 </Pressable>
                 {/* Address book / recent recipients. */}
                 <Pressable
-                  onPress={() => { setPickerTarget(null); setShowContactPicker(true); }}
+                  onPress={() => openContactPicker(null)}
                   hitSlop={8}
                   style={styles.addrActionBtn}
                   accessibilityRole="button"
@@ -252,14 +281,21 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
           )}
 
           {/* Send this token to several people at once → split mode, or import a
-              payroll table (fiat → token) in one go. */}
-          {!locked && !params.prefilledRecipient && (
+              payroll table (fiat → token) in one go.
+
+              Hidden — not disabled — for a locked request: one scanned EIP-681
+              request pays one payee, and `send.rs` now refuses `EnterSplitMode`
+              / `SeedSplitRecipients` while locked, so the mode cannot be
+              reached through any other door either. Removing the affordance
+              rather than dimming it is why a silent refusal underneath is safe:
+              there is no lit control here to press and have nothing happen. */}
+          {!locked && !prefilledRecipient && (
             <View style={styles.splitEntryRow}>
               <Pressable onPress={enterSplitMode} style={styles.addRecipientEntry}>
                 <Plus size={16} color={color.accent.base} strokeWidth={2.5} />
                 <Text style={styles.addRecipientEntryText}>{t('send.addRecipient', { defaultValue: 'Add recipient' })}</Text>
               </Pressable>
-              <Pressable onPress={() => setShowBatchImport(true)} style={styles.addRecipientEntry} testID="send-batch-import">
+              <Pressable onPress={openBatchImport} style={styles.addRecipientEntry} testID="send-batch-import">
                 <FileUp size={16} color={color.accent.base} strokeWidth={2.5} />
                 <Text style={styles.addRecipientEntryText}>{t('send.batchImport', { defaultValue: 'Import list' })}</Text>
               </Pressable>
@@ -274,10 +310,10 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
               tokenSymbol={selectedToken.symbol}
               decimals={selectedToken.decimals}
               priceUsd={selectedToken.priceUsd}
-              balance={selectedToken.balance}
+              overBalance={splitOverBalance}
               formatUsd={formatUsd}
-              onPickContact={(id) => { setPickerTarget(id); setShowContactPicker(true); }}
-              onImport={() => setShowBatchImport(true)}
+              onPickContact={(id) => openContactPicker(id)}
+              onImport={openBatchImport}
               maxRecipients={BATCH_MAX_RECIPIENTS}
             />
           )}
@@ -347,7 +383,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
                 returnKeyType="done"
               />
               <View style={styles.inputIcons}>
-                <Pressable onPress={() => { setPickerTarget(null); setShowContactPicker(true); }} hitSlop={8} style={styles.addrActionBtn}>
+                <Pressable onPress={() => openContactPicker(null)} hitSlop={8} style={styles.addrActionBtn}>
                   <BookUser size={22} color={color.fg.muted} strokeWidth={2} />
                 </Pressable>
               </View>
@@ -369,7 +405,7 @@ export function EnterDetailsStep({ c }: { c: SendController }) {
             onPress={handleContinue}
             loading={estimatingGas}
             style={styles.continueBtn}
-            disabled={(splitMode ? !recipientsAreValid(recipients) : multiSelectMode ? (!isValidAddress(recipient) || pickedTokens.length === 0) : (!recipient || !amount)) || estimatingGas || (locked && !!amountWarning)}
+            disabled={!canContinue}
           />
         </Animated.View>
       </ScrollView>

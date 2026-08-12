@@ -204,3 +204,13 @@ pub enum Effect {
     Render(RenderOperation),
     Shell(ShellOperation),
 }
+
+impl super::SplitEffect for Effect {
+    type Op = ShellOperation;
+    fn into_shell(self) -> Option<crux_core::Request<ShellOperation>> {
+        match self {
+            Effect::Render(_) => None,
+            Effect::Shell(request) => Some(request),
+        }
+    }
+}

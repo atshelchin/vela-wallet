@@ -28,6 +28,7 @@ import { useDisplayCurrency } from '@/hooks/use-display-currency';
 import { chainName, tokenBadgeNetwork } from '@/models/network';
 import { tokenBalanceDouble, tokenChainId, tokenLogoURLs, tokenUsdValue, type APIToken } from '@/models/types';
 import { formatTokenAmount } from '@/services/locale-format';
+import { isNarrowingHoldings, narrowHoldings } from '@/services/token-list-filter';
 
 interface Props {
   /** Live holdings, streamed by HomeScreen — shared, not re-fetched. */
@@ -81,18 +82,13 @@ export function HoldingsList({
     });
   };
 
-  const chainFiltered = selectedChainId != null
-    ? tokens.filter((tk) => tokenChainId(tk) === selectedChainId)
-    : tokens;
-  const q = tokenSearch.trim().toLowerCase();
-  const filteredTokens = q
-    ? chainFiltered.filter((tk) =>
-        tk.symbol.toLowerCase().includes(q) ||
-        tk.name.toLowerCase().includes(q) ||
-        tk.network.toLowerCase().includes(q) ||
-        chainName(tokenChainId(tk)).toLowerCase().includes(q))
-    : chainFiltered;
-  const isFiltering = q.length > 0 || selectedChainId != null;
+  // Chain chip, then search. Both are the SHELL's rules — `services/token-list-filter.ts`
+  // records why (the core owns which tokens are held and their order; narrowing a
+  // list on screen owns nothing) and why the Activity tab's chain chip having a
+  // core `ChainFilterChanged` is not the inconsistency it looks like. That module
+  // is also where these predicates are tested, since jest renders no components.
+  const filteredTokens = narrowHoldings(tokens, selectedChainId, tokenSearch);
+  const isFiltering = isNarrowingHoldings(selectedChainId, tokenSearch);
 
   const renderListHeader = () => (
     <View>

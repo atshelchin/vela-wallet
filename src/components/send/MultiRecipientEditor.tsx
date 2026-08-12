@@ -20,7 +20,7 @@ import { RecipientTrust } from '@/components/contacts/RecipientTrust';
 import { RecipientTypeBadge } from '@/components/contacts/RecipientTypeBadge';
 import { color, text, inter, space, radius, createStyles } from '@/constants/theme';
 import { sumSplitBaseUnits } from '@/services/batch-send';
-import { toBaseUnits, fromBaseUnits } from '@/services/eip681';
+import { fromBaseUnits } from '@/services/eip681';
 import { useLocalePrefs, numberSeparators, parseLocaleNumber } from '@/services/locale-format';
 
 export interface RecipientDraft {
@@ -36,10 +36,17 @@ const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
 
 // Monotonic, collision-free ids for recipient rows (host seeds the first row
 // with this too). No Date.now/random needed — a process counter is enough.
+//
+// The `s` marks the SHELL as the minter. On web the `send` core seeds rows from
+// its own `rcpt_{n}` counter (a deterministic port of this one) which this
+// module cannot see, and two independent counters sharing one namespace would
+// eventually hand two rows the same id — a duplicate React key, and a contact
+// picker that fills both of them. Ids are opaque everywhere they are read (React
+// keys and `pickerTarget` equality), so the prefix is free.
 let _seq = 0;
 export function makeRecipientId(): string {
   _seq += 1;
-  return `rcpt_${_seq}`;
+  return `rcpt_s${_seq}`;
 }
 
 /** Clamp free text to a valid token amount (digits + a single dot, capped decimals). */
@@ -65,8 +72,10 @@ interface Props {
   tokenSymbol: string;
   decimals: number;
   priceUsd?: number | null;
-  /** Token balance (human string) for the over-balance check. */
-  balance: string;
+  /** The rows' total exceeds the balance. Decided by the owner of the `Continue`
+   *  refusal (the core on web, the controller on native) and only rendered here,
+   *  so the red total and the refusal can never disagree. */
+  overBalance: boolean;
   formatUsd: (n: number) => string;
   /** Open the host's contact picker to fill the row with this id. */
   onPickContact: (id: string) => void;
@@ -76,7 +85,7 @@ interface Props {
 }
 
 export function MultiRecipientEditor({
-  recipients, onChange, tokenSymbol, decimals, priceUsd, balance, formatUsd, onPickContact, onImport, maxRecipients = 20,
+  recipients, onChange, tokenSymbol, decimals, priceUsd, overBalance, formatUsd, onPickContact, onImport, maxRecipients = 20,
 }: Props) {
   const { t } = useTranslation();
   useLocalePrefs(); // re-render on number-format change
@@ -90,8 +99,6 @@ export function MultiRecipientEditor({
   };
 
   const totalBase = sumSplitBaseUnits(recipients, decimals);
-  const balanceBase = toBaseUnits(balance || '0', decimals);
-  const overBalance = totalBase > balanceBase;
   const totalHuman = fromBaseUnits(totalBase, decimals);
   const totalUsd = priceUsd ? parseFloat(totalHuman) * priceUsd : 0;
 

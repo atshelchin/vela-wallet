@@ -73,10 +73,21 @@
   "signOut": {
    "button": "退出登录",
    "title": "退出登录",
-   "desc": "您的钱包数据将保留在本设备上。随时可用通行密钥（Face ID / 指纹）重新登录。",
-   "warning": "您的公钥尚未同步到服务器。现在退出可能导致无法在其他设备上恢复。",
+   "desc": "本设备将退出登录状态。钱包本身不会被删除——通行密钥仍保存在 Face ID / 指纹中。",
+   "keeps": "选择「我已有钱包」用该通行密钥重新登录：地址不变，交易记录、联系人、代币和各项设置也都还在。",
+   "warning": "您的公钥尚未同步到服务器。下次启动会自动重试，但在成功之前，您可能无法在其他设备上登录——如果卸载了应用，这台设备也一样。",
    "anyway": "仍然退出",
    "cancel": "取消"
+  },
+  "eraseDevice": {
+   "title": "清理数据",
+   "subtitle": "删除 Vela 存在这台设备上的一切",
+   "desc": "Vela 存在这台设备上的所有内容都会被删除。没有备份，也无法撤销。",
+   "loses": "将失去：交易记录、联系人与分组、浏览历史、dApp 授权、自定义代币与网络、RPC 与端点设置，以及全部偏好设置。",
+   "keeps": "不会失去钱包本身。通行密钥仍保存在 Face ID / 指纹中——选择「我已有钱包」即可找回同一个地址，只是记录清空了。",
+   "confirm": "全部清除",
+   "cancel": "取消",
+   "failed": "清理未完成。这台设备上仍有数据，登录状态也保持不变——请再试一次。"
   },
   "formatNote": {
    "system": "系统",
@@ -203,6 +214,8 @@
   "warnInsufficientForGas": "{{sym}} 余额不足以支付金额及 Gas 费",
   "warnInsufficientGas": "{{sym}} 余额不足以支付 Gas 费",
   "warnNeedGas": "您需要 {{sym}} 来支付 Gas 费",
+  "warnCannotConvert": "暂时无法把 {{code}} 换算成 {{symbol}} — 请切换到 {{symbol}} 输入金额。",
+  "denomToggleNoRate": "暂时没有 {{code}} 汇率 — 请用 {{symbol}} 输入金额。",
   "sameFeeTokenTitle": "{{symbol}} 余额不足以完成这笔转账",
   "sameFeeTokenBody": "发送 {{amount}} 加网络费 {{fee}}，共需 {{total}} {{symbol}}；当前余额为 {{balance}}。",
   "sameFeeTokenMax": "最多可发送 {{amount}} {{symbol}}。",
@@ -1249,6 +1262,7 @@
    "modalTitle": "网络",
    "chainId": "链 {{chainId}}",
    "fieldRpcUrl": "RPC URL",
+   "rpcChainMismatch": "未保存——该 RPC 报告的是链 {{reported}}，而此网络是链 {{expected}}。仍在使用之前的节点地址。",
    "fieldExplorer": "区块浏览器",
    "fieldBundler": "打包器",
    "removeTitle": "移除网络",

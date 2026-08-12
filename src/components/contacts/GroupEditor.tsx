@@ -2,8 +2,13 @@
  * GroupEditor — create or edit a contact group (e.g. "Payroll"). A group is a
  * named set of saved contacts that can be picked wholesale as the recipients of a
  * split send. Membership is a simple multi-select over the saved address book.
+ *
+ * Purely presentational: the member pool and both writes are handed down by
+ * `ContactsManager`, so the group ledger has a single owner per platform (the
+ * TypeScript service on native, the `contacts` Rust machine on web — spec 017).
+ * Two writers to `vela.contactGroups` would clobber each other.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft, Trash2, Check, Search } from 'lucide-react-native';
@@ -12,31 +17,26 @@ import { ContactAvatar } from '@/components/contacts/ContactAvatar';
 import { shortAddr } from '@/models/types';
 import { hapticSuccess, hapticLight } from '@/services/platform';
 import {
-  getSavedContacts, saveGroup, deleteGroup, contactDisplayName, matchesQuery,
-  type Contact, type ContactGroup,
+  contactDisplayName, matchesQuery,
+  type Contact, type ContactGroup, type SaveGroupInput,
 } from '@/services/contacts';
 import { scaleFont, color, text, inter, space, radius, font, createStyles } from '@/constants/theme';
 
-export function GroupEditor({ editing, onBack, onSaved }: {
+export function GroupEditor({ editing, saved: contacts, onSaveGroup, onDeleteGroup, onBack, onSaved }: {
   editing: ContactGroup | null;
+  /** The saved address book to pick members from. `null` = still loading. */
+  saved: Contact[] | null;
+  onSaveGroup: (input: SaveGroupInput) => Promise<void>;
+  onDeleteGroup: (id: string) => Promise<void>;
   onBack: () => void;
   onSaved: () => void;
 }) {
   const { t } = useTranslation();
   const [name, setName] = useState(editing?.name ?? '');
   const [selected, setSelected] = useState<Set<string>>(new Set(editing?.members ?? []));
-  const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [query, setQuery] = useState('');
   const [saving, setSaving] = useState(false);
   const isEdit = !!editing;
-
-  useEffect(() => {
-    let cancelled = false;
-    getSavedContacts()
-      .then((l) => { if (!cancelled) setContacts(l); })
-      .catch(() => { if (!cancelled) setContacts([]); });
-    return () => { cancelled = true; };
-  }, []);
 
   const filtered = useMemo(
     () => (contacts ?? []).filter((c) => matchesQuery(c, query)),
@@ -58,7 +58,7 @@ export function GroupEditor({ editing, onBack, onSaved }: {
   const onSave = async () => {
     if (!canSave) return;
     setSaving(true);
-    await saveGroup({ id: editing?.id, name: name.trim(), members: [...selected] });
+    await onSaveGroup({ id: editing?.id, name: name.trim(), members: [...selected] });
     hapticSuccess();
     onSaved();
   };
@@ -66,7 +66,7 @@ export function GroupEditor({ editing, onBack, onSaved }: {
   const onDelete = async () => {
     if (!editing) return;
     setSaving(true);
-    await deleteGroup(editing.id);
+    await onDeleteGroup(editing.id);
     hapticSuccess();
     onSaved();
   };

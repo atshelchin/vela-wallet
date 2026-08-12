@@ -27,6 +27,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as AppGroup from '@/modules/app-group';
 import { getAllNetworksSync } from '@/models/network';
+// Type-only (erased at build): the web path hands this module a snapshot the
+// `ext_cache` machine already decided. Native never constructs one.
+import type { ExtSnapshot } from '@/services/wallet-state-core/generated/ExtSnapshot';
 
 export const ACCOUNT_FILE = 'vela.ext.account.json';
 
@@ -66,13 +69,20 @@ export async function getUniversalLinkVerified(): Promise<boolean> {
   return ts > 0 && Date.now() - ts < UL_TTL_MS && Date.now() - ts >= 0;
 }
 
-/** Record (fresh timestamp) that a getvela.app UL resolved to the app on this device. */
-export async function markUniversalLinkVerified(): Promise<void> {
+/** Persist an attestation timestamp verbatim. Storage only — the clock and the
+ *  decision to attest belong to the caller (on web, the `ext_cache` machine
+ *  supplies the `now_ms` it ruled on). */
+export async function setUniversalLinkVerifiedAt(ts: number): Promise<void> {
   try {
-    await AsyncStorage.setItem(UL_VERIFIED_KEY, String(Date.now()));
+    await AsyncStorage.setItem(UL_VERIFIED_KEY, String(ts));
   } catch {
     /* storage unavailable — stay unverified (extension keeps using the scheme) */
   }
+}
+
+/** Record (fresh timestamp) that a getvela.app UL resolved to the app on this device. */
+export async function markUniversalLinkVerified(): Promise<void> {
+  await setUniversalLinkVerifiedAt(Date.now());
 }
 
 // The wallet has no global "current network" (it is intentionally multi-chain),
@@ -174,6 +184,41 @@ export async function writeAccountCache(input: {
     const ulVerifiedAt = await getUniversalLinkVerifiedAt();
     const ulVerified = ulVerifiedAt > 0 && Date.now() - ulVerifiedAt < UL_TTL_MS && Date.now() - ulVerifiedAt >= 0;
     await AppGroup.writeFile(ACCOUNT_FILE, JSON.stringify(buildAccountCache({ ...input, ulVerified, ulVerifiedAt })));
+  } catch (e) {
+    console.log('[account-sync] write failed', e);
+  }
+}
+
+/**
+ * Write a snapshot the `ext_cache` machine has already ruled on (web path).
+ *
+ * Decides NOTHING: the projection, the chain id, the TTL verdict and the
+ * `updatedAt` clock arrive already settled from Rust
+ * (`rust/crates/vela-core/src/app/ext_cache.rs`). This function only merges the
+ * shell-owned network catalog, spells the file's keys, and writes — the exact
+ * split the machine's module docs describe. No-op off iOS, and it swallows I/O
+ * errors like `writeAccountCache` does.
+ */
+export async function writeExtSnapshot(snapshot: ExtSnapshot): Promise<void> {
+  if (!AppGroup.isSupportedSync()) return;
+  try {
+    const cache: ExtAccountCache = {
+      address: snapshot.address,
+      name: snapshot.name,
+      // The core's `ExtAccount` IS `{ name, address }` (invariant ① is
+      // structural in Rust); re-projecting here keeps the belt-and-braces the
+      // TS path has always had, so a future field on that type still cannot
+      // reach the world-readable file by accident.
+      accounts: snapshot.accounts.map((a) => ({ name: a.name, address: a.address })),
+      chainId: snapshot.chain_id,
+      chains: buildChainsMap(),
+      updatedAt: snapshot.updated_at_ms,
+      ulVerified: snapshot.ul_verified,
+      ulVerifiedAt: snapshot.ul_verified_at_ms,
+      theme: snapshot.theme,
+      locale: snapshot.locale,
+    };
+    await AppGroup.writeFile(ACCOUNT_FILE, JSON.stringify(cache));
   } catch (e) {
     console.log('[account-sync] write failed', e);
   }

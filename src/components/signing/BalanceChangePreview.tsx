@@ -21,6 +21,7 @@ import { shortAddr, tokenLogoURLsByAddress } from '@/models/types';
 import { nativeSymbol, nativeCoinLogoURL } from '@/models/network';
 import { formatTokenAmount } from '@/services/sim-assets';
 import { useLocalePrefs, numberSeparators } from '@/services/locale-format';
+import { simCorroboratedByHero, type HeroFlow } from '@/services/sim-corroboration';
 import type { AssetChange, AssetSimResult } from '@/services/tx-simulation';
 import { scaleFont, color, text, inter, space, radius, createStyles } from '@/constants/theme';
 
@@ -29,11 +30,13 @@ import { scaleFont, color, text, inter, space, radius, createStyles } from '@/co
  * "−1,000 USDC · 无其他变动". Returns null for a degraded/reverting/underfunded
  * sim (those are surfaced loudly by the component, not as a calm detail row).
  * `noChange` = the sim ran and confirmed nothing moved; `corroborated` = every
- * simulated change is exactly a declared hero flow (so "no other changes" holds).
+ * simulated change is exactly a declared hero flow (so "no other changes" holds),
+ * asked of `simCorroboratedByHero` — the ONE statement of that rule (it used to
+ * be written out here and again in the component below).
  */
 export function summariseSimResult(
   result: AssetSimResult | null,
-  heroFlows: { token?: string; dir: 'out' | 'in' }[],
+  heroFlows: HeroFlow[],
   sep: { group: string; decimal: string; indian?: boolean },
 ): { parts: string[]; corroborated: boolean; noChange: boolean } | null {
   if (!result || !result.ok || result.underfundedNative) return null;
@@ -45,15 +48,7 @@ export function summariseSimResult(
       ? `${c.delta > 0n ? '+' : '−'}? ${c.symbol ?? '?'}`
       : `${c.delta > 0n ? '+' : '−'}${formatTokenAmount(c.delta, c.decimals ?? 18, 6, sep)}${c.symbol ? ` ${c.symbol}` : ''}`,
   );
-  const corroborated =
-    heroFlows.length > 0 &&
-    !changes.some((c) => c.unverified) &&
-    changes.every((c) =>
-      heroFlows.some((h) =>
-        h.token === (c.token?.toLowerCase() ?? undefined) && (h.dir === 'out' ? c.delta < 0n : c.delta > 0n),
-      ),
-    );
-  return { parts, corroborated, noChange: false };
+  return { parts, corroborated: simCorroboratedByHero(changes, heroFlows), noChange: false };
 }
 
 export function BalanceChangePreview({ result, chainId, selfTransfer, heroFlows = [], hideReassurance = false }: {
@@ -76,7 +71,7 @@ export function BalanceChangePreview({ result, chainId, selfTransfer, heroFlows 
       swapped-token identity mismatch, or an unverified-decimals caution can never
       hide behind the checkmark. Any unmatched movement expands the full list.
       Approvals / permits / batches pass [] (they never corroborate a balance move). */
-  heroFlows?: { token?: string; dir: 'out' | 'in' }[];
+  heroFlows?: HeroFlow[];
 }) {
   const { t } = useTranslation();
   if (!result) return null;
@@ -130,19 +125,11 @@ export function BalanceChangePreview({ result, chainId, selfTransfer, heroFlows 
   }
 
   // Collapse to a quiet ✓ ONLY when the simulation is pure corroboration of the
-  // decoded hero: every change maps to a same-token, same-direction hero flow and
-  // none is unverified. A count budget would let an undeclared outflow, a swapped
-  // output token, or an unverified-decimals caution hide behind the ✓ — this checks
-  // identity + direction per change instead, so any unmatched movement expands below.
-  const corroborated =
-    heroFlows.length > 0 &&
-    !changes!.some((c) => c.unverified) &&
-    changes!.every((c) =>
-      heroFlows.some((h) =>
-        h.token === (c.token?.toLowerCase() ?? undefined) &&
-        (h.dir === 'out' ? c.delta < 0n : c.delta > 0n),
-      ),
-    );
+  // decoded hero. The rule itself — identity + direction per change, never a
+  // count budget — is stated once in `services/sim-corroboration.ts`, which also
+  // records WHY it is the shell's and not a core's (no core holds a simulation)
+  // and is where its tests live, since jest renders no components.
+  const corroborated = simCorroboratedByHero(changes!, heroFlows);
   if (!underfunded && corroborated) {
     if (hideReassurance) return null; // shown as a factual "模拟结果" row in 技术细节
     return (

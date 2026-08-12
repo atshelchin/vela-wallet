@@ -4,6 +4,7 @@
       "modalTitle": "Netzwerke",
       "chainId": "Chain {{chainId}}",
       "fieldRpcUrl": "RPC-URL",
+      "rpcChainMismatch": "Nicht gespeichert — dieser RPC meldet Chain {{reported}}, dieses Netzwerk ist aber Chain {{expected}}. Der bisherige Endpunkt bleibt in Verwendung.",
       "fieldExplorer": "EXPLORER",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Netzwerk entfernen",

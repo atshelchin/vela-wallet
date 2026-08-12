@@ -12,6 +12,29 @@
  *
  * This module is intentionally framework-free (no React / app-state imports) so
  * it can be unit-tested in isolation and reused from any layer.
+ *
+ * ── Who owns these rules ────────────────────────────────────────────────────
+ * The `ethereum:` URI grammar stays HERE, in the shell, and that is deliberate
+ * even though the *builder* also exists in Rust (`payment_request.rs`):
+ *
+ *   · Hermes has no WebAssembly, so native must run a TypeScript parser no
+ *     matter what the core does. A Rust parser could only ever be a second
+ *     implementation, not the single owner — and this file is shared by both
+ *     platforms, so today there is exactly ONE parse of `ethereum:` in the
+ *     product and therefore no drift between iOS/Android and web.
+ *   · Everything a parse *decides* is already core-owned: whether a scan locks
+ *     the Send screen, whether a chainless request may lock at all, and how
+ *     base units become a displayed figure all live in `send.rs`
+ *     (`scan_resolved` / `resolve_locked_request`). This function only
+ *     tokenizes; it never picks a chain, an amount unit, or a default.
+ *   · The untrusted *link* surface — `/pay?to=…&amount=…`, the one that
+ *     misparsed hex and crashed on `1e18` — was moved to the core on purpose
+ *     (`validate_pay_query`) and stays there.
+ *
+ * What the core-side builder duplicates (`build_eip681`, `build_pay_link`,
+ * `to_base_units`) is pinned against this file by
+ * `src/__tests__/services/eip681-core-parity.test.ts`, which drives the REAL
+ * Rust machine. Change one side of the round trip and that test goes red.
  */
 
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -135,7 +158,13 @@ export function parseEIP681(input: string): EIP681Request | null {
     // ERC-20: target is the token contract, recipient is the `address` param.
     const recipient = (params.address || '').trim();
     if (!isHexAddress(target) || !isHexAddress(recipient)) return null;
-    const amountRaw = params.uint256 ?? params.value;
+    // `uint256` ONLY. In a `/transfer` URI, EIP-681's `value` is the ether sent
+    // *along with the call*, not the token argument — reading it as token base
+    // units mixed two different units and two different decimals: a URI saying
+    // "attach 1 ETH" (value=1e18) prefilled a LOCKED send of 10^12 USDC. A
+    // request that names no `uint256` names no amount, and an open amount is
+    // typed by the user on a field that stays editable.
+    const amountRaw = params.uint256;
     return {
       chainId,
       recipient,
@@ -144,6 +173,16 @@ export function parseEIP681(input: string): EIP681Request | null {
       isNative: false,
     };
   }
+
+  // Any OTHER function call is not a payment we can honour. It used to fall
+  // through to the native branch below, where `target` — the contract the call
+  // was addressed to — became the *recipient*: `ethereum:<token>@1/approve?…`
+  // opened a locked Send of the chain's native coin to the token contract, i.e.
+  // a burn dressed up as the payment the user thought they scanned. Declining
+  // is not a dead end: every caller already has a path for an unrecognized
+  // string (the scanner explains with `home.invalidQr*`, the Send screen drops
+  // it into an editable recipient field).
+  if (functionName) return null;
 
   // Native payment: target is the recipient. Accept only real addresses — ENS
   // resolution is out of scope and the send flow needs a 0x recipient anyway.

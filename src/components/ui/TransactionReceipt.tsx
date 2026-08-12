@@ -15,7 +15,12 @@ import { color, createStyles, font, inter, radius, space, text } from '@/constan
 import { chainName, getAllNetworksSync, explorerTxURL } from '@/models/network';
 import { formatBalance, shortAddr } from '@/models/types';
 import { fetchWithTimeout, NET_TIMEOUTS } from '@/services/net';
-import { pollUserOpReceipt, USER_OP_RECEIPT_POLL_INTERVAL_MS } from '@/services/tx-reconciler';
+import { useTxSettlement } from '@/hooks/use-tx-settlement';
+// Wording only: the "we re-check every N seconds" hint. The shared 3 s receipt
+// cooldown this names is the same one the core's executor goes through
+// (`requestUserOpReceipt`), and it is the core's `RECEIPT_POLL_INTERVAL_MS`.
+// Importing the number is not a cadence decision — nothing here schedules.
+import { USER_OP_RECEIPT_POLL_INTERVAL_MS } from '@/services/tx-reconciler';
 import { formatFiat } from '@/services/currency';
 import { formatDateTime, useLocalePrefs } from '@/services/locale-format';
 import { copyToClipboard, hapticLight, hapticSuccess, openBrowser, showAlert } from '@/services/platform';
@@ -110,6 +115,13 @@ interface BatchView {
  * We keep checking after it reaches zero because a submitted UserOp can still land. */
 const CONFIRMATION_COUNTDOWN_SECONDS = 60;
 
+/**
+ * This screen owns no stored records — the send controller persisted them and
+ * handed their ids to `tx_tracker` before the receipt ever rendered, so the
+ * receipt joins that entry rather than claiming records of its own.
+ */
+const NO_RECORDS: string[] = [];
+
 function formatCountdown(seconds: number): string {
   return `00:${String(Math.max(0, seconds)).padStart(2, '0')}`;
 }
@@ -137,9 +149,22 @@ function normalizeReceipt(p: Pick<Props, 'transfers' | 'batchKind' | 'amount' | 
   };
 }
 
-/** Format a USD value into the receipt's display currency. */
+/**
+ * Format a USD value into the receipt's display currency.
+ *
+ * DISPLAY ONLY — the receipt's money-moving numbers are `amount`/`symbol`,
+ * which are token-denominated and never pass through here. The fallback is
+ * deliberately a TRIPLE rather than three independent `??`s: with no usable
+ * rate, the code and the symbol degrade to USD along with it, so a "¥" can
+ * never end up in front of an unconverted USD figure. That pairing is the same
+ * rule `currency.ts::shownCurrency` enforces, and it is why this `1` is a
+ * rendering choice about USD rather than an invented CNY rate. Nothing derived
+ * from this string may enter a conversion, a signature or a submit.
+ */
 function fiat(usd: number, p: { rate?: number; currencyCode?: string; currencySymbol?: string }): string {
-  return formatFiat(usd * (p.rate ?? 1), p.currencyCode ?? 'USD', p.currencySymbol ?? '$');
+  const rate = p.rate;
+  if (rate == null || !Number.isFinite(rate) || rate <= 0) return formatFiat(usd, 'USD', '$');
+  return formatFiat(usd * rate, p.currencyCode ?? 'USD', p.currencySymbol ?? '$');
 }
 
 // ---------------------------------------------------------------------------
@@ -567,17 +592,32 @@ export function TransactionReceipt(props: Props) {
   const displayToName = recipientIdentity?.name ?? toName;
 
   // The send is already accepted by the bundler when this renders; the on-chain
-  // hash may still be resolving. While it is, poll the bundler ourselves and
-  // converge the status — otherwise the receipt could sit on "confirming" forever
-  // if the parent's waitForTxHash timed out or the screen was torn down. Local
-  // resolution wins over the (possibly stale) props.
-  const [liveStatus, setLiveStatus] = useState<'submitted' | 'confirmed' | 'failed' | null>(null);
-  const [liveTxHash, setLiveTxHash] = useState<string | null>(null);
-  const effTxHash = liveTxHash || txHash || '';
+  // hash may still be resolving. Converging it is `tx_tracker`'s job (spec
+  // 016/017 — its module doc names this component's old self-poll as one of the
+  // three pollers it replaces): the core owns the cadence, the 120 s window and
+  // the verdict, and the send machine's own `ReceiptUpdate` comes from the very
+  // same entry. Reading it here keeps the stamp converging even if the parent's
+  // wait timed out, WITHOUT a second opinion — the hook answers `null` for
+  // every non-verdict (unreachable / fee-held / accepted-but-not-landed), so a
+  // core state of "still in flight" can never overrule the props.
+  //
+  // Native has no wasm, so the same hook keeps the TypeScript poll there;
+  // `nativeMaxAttempts` is that loop's budget and `nativePersist: false`
+  // preserves this screen's rule that it never writes a record.
+  const propSettle = status ?? (txHash ? 'confirmed' : 'submitted');
+  const settlement = useTxSettlement({
+    active: propSettle === 'submitted',
+    userOpHash,
+    chainId,
+    recordIds: NO_RECORDS,
+    nativeMaxAttempts: 60,
+    nativePersist: false,
+  });
+  const effTxHash = settlement.txHash || txHash || '';
   // A prominent status stamp tells the user plainly whether it's still settling,
   // confirmed, or failed — while submitted we hide the (broken) explorer link / QR
   // and show a "confirming" hint instead.
-  const settle = liveStatus ?? status ?? (effTxHash ? 'confirmed' : 'submitted');
+  const settle = settlement.status ?? propSettle;
   const pending = settle === 'submitted';
   const failed = settle === 'failed';
   const explorerUrl = explorerTxURL(chainId, effTxHash);
@@ -604,29 +644,6 @@ export function TransactionReceipt(props: Props) {
     const timer = setInterval(updateCountdown, 250);
     return () => clearInterval(timer);
   }, [pending, userOpHash]);
-
-  useEffect(() => {
-    if (settle !== 'submitted' || !userOpHash) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    let attempts = 0;
-    const tick = async () => {
-      if (cancelled) return;
-      attempts++;
-      const r = await pollUserOpReceipt(userOpHash, chainId);
-      if (cancelled) return;
-      if (r && (r.confirmed || r.failed)) {
-        setLiveStatus(r.failed ? 'failed' : 'confirmed');
-        if (r.txHash) setLiveTxHash(r.txHash);
-        return; // final — stop polling
-      }
-      if (attempts < 60) timer = setTimeout(tick, USER_OP_RECEIPT_POLL_INTERVAL_MS);
-    };
-    // The background send waiter may already have made the initial request. Wait for the next
-    // shared three-second slot instead of immediately issuing a duplicate receipt RPC.
-    timer = setTimeout(tick, USER_OP_RECEIPT_POLL_INTERVAL_MS);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [settle, userOpHash, chainId]);
 
   const recipientsSummary = t('componentsTx.receipt.recipientsCount', { n: batch?.items.length ?? 0 });
   const assetsSummary = t('componentsTx.receipt.assetsCount', { n: batch?.items.length ?? 0 });

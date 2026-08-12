@@ -20,10 +20,8 @@ import { SectionLabel } from '@/components/ui/SectionLabel';
 import { Divider } from '@/components/ui/DetailRow';
 import { ContactAvatar } from '@/components/contacts/ContactAvatar';
 import { shortAddr, isAddress } from '@/models/types';
-import {
-  getAllContacts, sortContacts, matchesQuery, contactDisplayName, saveContact,
-  getGroups, type Contact, type ContactGroup,
-} from '@/services/contacts';
+import { matchesQuery, contactDisplayName, type Contact, type ContactGroup } from '@/services/contacts';
+import { useContactsBook } from '@/hooks/use-contacts-book';
 import { color, text, inter, space, radius, font, createStyles } from '@/constants/theme';
 import { hapticLight } from '@/services/platform';
 
@@ -47,23 +45,17 @@ export function ContactPicker({ visible, onClose, onSelect, onSelectGroup, onSca
 }) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
-  const [contacts, setContacts] = useState<Contact[] | null>(null);
-  const [groups, setGroups] = useState<ContactGroup[]>([]);
+  const book = useContactsBook(myAddress);
+  const contacts = book.contacts;
+  // An empty group can't be sent to, so it isn't offered.
+  const groups = useMemo(() => book.groups.filter((g) => g.members.length > 0), [book.groups]);
 
+  const refresh = book.refresh;
   useEffect(() => {
     if (!visible) return;
     setQuery('');
-    let cancelled = false;
-    getAllContacts(myAddress)
-      .then((list) => { if (!cancelled) setContacts(sortContacts(list)); })
-      .catch(() => { if (!cancelled) setContacts([]); });
-    if (onSelectGroup) {
-      getGroups()
-        .then((g) => { if (!cancelled) setGroups(g.filter((x) => x.members.length > 0)); })
-        .catch(() => { if (!cancelled) setGroups([]); });
-    }
-    return () => { cancelled = true; };
-  }, [visible, myAddress, onSelectGroup]);
+    refresh();
+  }, [visible, refresh]);
 
   const filtered = useMemo(
     () => (contacts ?? []).filter((c) => matchesQuery(c, query)),
@@ -156,7 +148,7 @@ export function ContactPicker({ visible, onClose, onSelect, onSelectGroup, onSca
               </View>
               <Pressable
                 hitSlop={12}
-                onPress={(e) => { e.stopPropagation?.(); saveContact({ address: typedAddr }).then(() => pick(typedAddr)); }}
+                onPress={(e) => { e.stopPropagation?.(); book.save({ address: typedAddr }).then(() => pick(typedAddr)); }}
                 accessibilityRole="button"
                 accessibilityLabel={t('contacts.saveToContacts')}
               >

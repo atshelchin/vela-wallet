@@ -108,6 +108,15 @@ export function TokenSelector({ tokens, loading, onSelect, onAddChanged, hideTot
   const filteredTotal = filtered.reduce((s, tok) => s + tokenUsdValue(tok), 0);
   // Sweep multi-select only switches on once a specific network is chosen — a
   // single batch UserOp is one chain, so "all networks" can't be swept at once.
+  //
+  // Ownership: everything above this line is DISPLAY — search, category chips,
+  // the sort order, and `chainFilter` itself are "which rows to show", they
+  // decide nothing about money and they stay in the shell. What they must not
+  // be is the only thing holding an invariant up, so "a batch is one chain"
+  // also lives in `send.rs`: `SetMultiNetwork` clears the pick, and both
+  // `toggle_multi_token` and `toggle_all_multi` refuse a token off the filtered
+  // chain. This flag decides whether the checkboxes are drawn; the core decides
+  // what a tap on one means.
   const sweepActive = !!multiSelect && chainFilter != null;
 
   const CATEGORIES: { key: TokenCategory; label: string }[] = [

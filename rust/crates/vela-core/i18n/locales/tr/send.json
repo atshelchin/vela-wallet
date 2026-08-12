@@ -28,6 +28,8 @@
     "warnInsufficientForGas": "Tutar + gas ücretlerini karşılamak için {{sym}} yetersiz",
     "warnInsufficientGas": "Gas ücretleri için {{sym}} yetersiz",
     "warnNeedGas": "Gas ücretlerini ödemek için {{sym}} gerekiyor",
+    "warnCannotConvert": "{{code}} şu anda {{symbol}} birimine çevrilemiyor — tutarı girmek için {{symbol}} birimine geçin.",
+    "denomToggleNoRate": "Şu anda {{code}} kuru yok — tutarı {{symbol}} birimiyle girin.",
     "confirmTitle": "Onayla",
     "walletFallbackName": "Cüzdan",
     "fromLabel": "Gönderen",

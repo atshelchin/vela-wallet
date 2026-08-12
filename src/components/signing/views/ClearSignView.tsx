@@ -41,21 +41,44 @@ export function ClearSignView({ cs, simConfident, walletAddress }: {
   const hasRecipient = recipients.length > 0 || spenders.length > 0;
 
   // Sending a token TO its own contract address burns it irreversibly — a classic
-  // costly fat-finger. Flag when a recipient equals the contract being called.
+  // costly fat-finger. This is a SAFETY RULE, not a layout decision, so it is not
+  // decided here: `cs.toOwnToken` is `clear_signing::to_own_token`, the single-call
+  // twin of the batch rule `approval_guard::any_to_own_token` that `BatchCallsView`
+  // reads as `batch.anyToOwnToken`. One machine, so a burn cannot warn in a batch
+  // and stay silent on the single send — which is the far more common entry point.
+  //
+  // The `??` tail is the NATIVE fallback and nothing else: Hermes has no
+  // WebAssembly, so `services/clear-signing.ts` resolves the request there and
+  // states no verdict (`toOwnToken` is absent, never `false`). It is the exact
+  // predicate that shipped, kept byte-for-byte so native behaviour is unchanged.
   const sendingToTokenContract =
-    !!cs.contractAddress &&
-    recipients.some(f => f.address && f.address === cs.contractAddress);
+    cs.toOwnToken ??
+    (!!cs.contractAddress &&
+      recipients.some(f => f.address && f.address === cs.contractAddress));
 
   // Unified 5-zone order: Zone 1 (intent + ONE hero) → Zone 2 (counterparty) →
   // Zone 3 (all warnings, danger→caution) → detail. Warnings never sit above the
   // hero; instead the hero itself carries risk weight so an alert below the fold is
-  // never the sole signal (safety invariants A3/A5): a descriptor-unlimited grant
-  // tints the amount danger, and an unverified/best-effort/partial decode without a
-  // confident sim tints it caution.
-  const heroDanger = cs.fields.some(f => f.warning);
-  const heroCaution = (cs.bestEffort || cs.partial || cs.fields.some(f => f.unverified)) && !simConfident;
+  // never the sole signal (safety invariants A3/A5).
+  //
+  // The weight it carries is the ADJUDICATED risk — `cs.risk`, the same grade the
+  // eyebrow and `intentColor` already read — and not a second ladder. There used to
+  // be one here (`fields.some(f => f.warning)` for danger, plus a bestEffort /
+  // partial / unverified clause gated on `simConfident` for caution). It was
+  // provably the same screen and could only ever diverge:
+  //   • `assess_risk` returns `danger` IFF some field carries `warning` — the same
+  //     predicate, restated (`clear_signing.rs::assess_risk`, `clear-signing.ts`
+  //     `assessRisk`; both platforms).
+  //   • bestEffort ⇒ risk is `caution` by construction; partial and unverified floor
+  //     risk at caution. So every input of the old caution clause already implied
+  //     `cs.risk !== 'normal'`, and in the non-danger branch that means exactly
+  //     `cs.risk === 'caution'` — which the old expression ORed in anyway. The
+  //     `simConfident` gate could therefore never change the tint, only look like it
+  //     might; the calmer best-effort WORDING it really governs is in Zone 3 below.
+  // Dropping it also stops the hero from losing `expired`, which the old clause
+  // omitted and only `cs.risk` ever carried.
   const sendVariant: 'send' | 'caution' | 'danger' =
-    heroDanger ? 'danger' : (heroCaution || cs.risk === 'caution') ? 'caution' : 'send';
+    cs.risk === 'danger' ? 'danger' : cs.risk === 'caution' ? 'caution' : 'send';
 
   // Plain-language one-liner under the hero — the novice's first read. Names the
   // recipient (descriptor name → ENS → short address, resolved async & cached).
@@ -177,7 +200,13 @@ export function ClearSignView({ cs, simConfident, walletAddress }: {
             compact={!!summary}
             // Sending a token to its own contract burns it — turn the recipient row
             // itself red so Zone 2 contradicts the benign read, not just a Zone-3 banner.
-            warning={sendingToTokenContract && !!f.address && f.address === cs.contractAddress}
+            // WHICH row is a layout question (the verdict above already said there is
+            // one); the address compare is case-insensitive so it agrees with the
+            // adjudicator and cannot leave a flagged result with no red row.
+            warning={
+              sendingToTokenContract && !!f.address && !!cs.contractAddress
+              && f.address.toLowerCase() === cs.contractAddress.toLowerCase()
+            }
           />
         );
       })}
@@ -196,7 +225,11 @@ export function ClearSignView({ cs, simConfident, walletAddress }: {
       {sendingToTokenContract && (
         <WarningBanner severity="danger" text={t('componentsUi.signing.tokenToContractWarning')} />
       )}
-      {heroDanger && (
+      {/* The direct fact, not the grade: this banner names an UNLIMITED grant, so
+          it reads the field flag that means exactly that. (Today `cs.risk ===
+          'danger'` is the same set; if the core ever grades something else danger,
+          this banner must not start claiming it is an unlimited approval.) */}
+      {cs.fields.some(f => f.warning) && (
         <WarningBanner severity="danger" text={t('componentsUi.signing.unlimitedWarning')} />
       )}
       {/* Only banner the expiry when it ISN'T already shown on a visible field row

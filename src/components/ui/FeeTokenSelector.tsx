@@ -4,13 +4,15 @@
  * ("本次消耗", the emphasis) plus how much of it you hold ("余额"). Used by BOTH the Send confirm
  * slide and the dApp GasFeeCard (via GasFeeCard) so the two can't drift.
  *
- * Presentational only: it never loads options or re-quotes. The parent runs
- * useInBandFeeTokenOptions, owns the selection, and applies the selected quote on `onSelect`.
- * While that update is in flight the parent passes `busy` — the tapped row spins, the rest dim and block taps
- * (which also serialises rapid taps, so no stale-asset race).
+ * Presentational only, and now literally so: it never loads options, re-quotes,
+ * or decides anything about a row. Each row arrives with its cost and its
+ * balance<fee verdict already made — by `fee_policy` on web, by the card's own
+ * `calculateInBandFeeAmount` / `feeRowInsufficient` on native. It used to call
+ * `feeRowInsufficient` itself while the card called it too, so one screen ran
+ * the same gate in two places.
  *
- * The bundler's address-only quote supplies each row's balance and USD price in one response.
- * The parent applies the shared gas × gas-price formula to derive each row's exact amount.
+ * While a selection update is in flight the parent passes `busy` — the tapped row spins, the rest
+ * dim and block taps (which also serialises rapid taps, so no stale-asset race).
  *
  * Design: de-boxed (open rows under a hairline, no card), real token logos, and a selected accent
  * check only (the app's picker convention, e.g. CurrencySheet) — no filled tint.
@@ -23,17 +25,15 @@ import { Check } from 'lucide-react-native';
 import { TokenLogo } from '@/components/TokenLogo';
 import { color, createStyles, font, inter, space, text } from '@/constants/theme';
 import { formatTokenAmount, useLocalePrefs } from '@/services/locale-format';
-import type { FeeTokenOption } from '@/hooks/use-inband-fee-tokens';
+import type { FeeSelectorRow } from '@/hooks/fee-card-types';
 
 interface FeeTokenSelectorProps {
-  /** Fee-asset options from useInBandFeeTokenOptions (native + held stables). */
-  options: FeeTokenOption[];
+  /** Fee-asset rows (native + held stables), each with its cost and gate decided. */
+  rows: FeeSelectorRow[];
   /** Current selection: null = native, else a stablecoin contract (case-insensitive). */
   selected: string | null;
   /** The parent applies the selected quote; the selector only signals intent. */
   onSelect: (contract: string | null) => void;
-  /** Exact current fee in an option's base units, calculated from the shared gas basis. */
-  feeAmountFor: (option: FeeTokenOption) => bigint | null;
   /** A parent-owned selection update is in flight — rows dim + block taps; the tapped row spins. */
   busy?: boolean;
 }
@@ -48,7 +48,7 @@ function fmtCost(units: number | null): string | null {
   return formatTokenAmount(units, { compact: true });
 }
 
-export function FeeTokenSelector({ options, selected, onSelect, feeAmountFor, busy = false }: FeeTokenSelectorProps) {
+export function FeeTokenSelector({ rows, selected, onSelect, busy = false }: FeeTokenSelectorProps) {
   const { t } = useTranslation();
   useLocalePrefs();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -61,17 +61,16 @@ export function FeeTokenSelector({ options, selected, onSelect, feeAmountFor, bu
   return (
     <View style={styles.container}>
       <Text style={styles.header}>{t('componentsUi.gas.feeToken')}</Text>
-      {options.map((opt) => {
+      {rows.map((opt) => {
         const k = keyOf(opt.contract);
         const active = k === selectedKey;
         const holdings = Number(opt.balance) / 10 ** opt.decimals;
-        const feeAmount = feeAmountFor(opt);
-        const costUnits = feeAmount === null ? null : Number(feeAmount) / 10 ** opt.decimals;
+        const costUnits = opt.amount === null ? null : Number(opt.amount) / 10 ** opt.decimals;
         const costLabel = fmtCost(costUnits);
         // A coin that can't cover the fee (notably the native coin at 0 balance) is SHOWN for
-        // context but not selectable — paying gas in it would only produce a doomed op. It's
-        // insufficient when held ≤ 0, or held < the fee it would cost.
-        const insufficient = feeAmount === null || opt.balance < feeAmount;
+        // context but not selectable — paying gas in it would only produce a doomed op. The
+        // verdict is the parent's; this row only dims and blocks on it.
+        const insufficient = opt.insufficient;
         const pending = busy && pendingKey === k;
         return (
           <Pressable

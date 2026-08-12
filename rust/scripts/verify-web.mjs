@@ -15,13 +15,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { loadShippedCore } from './load-wasm-node.mjs';
+
 const RUST_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const VECTORS_DIR = join(RUST_DIR, 'crates', 'vela-core', 'tests', 'vectors');
 
-const { initSync, ...wasm } = await import(join(RUST_DIR, 'pkg-web', 'vela_core.js'));
-const { WASM_BASE64 } = await import(join(RUST_DIR, 'pkg-web', 'vela_core_bg.base64.js'));
-
-initSync({ module: Buffer.from(WASM_BASE64, 'base64') });
+const wasm = await loadShippedCore();
 
 const hex = (bytes) => '0x' + Buffer.from(bytes).toString('hex');
 const bytes = (s) => Buffer.from(s.startsWith('0x') ? s.slice(2) : s, 'hex');

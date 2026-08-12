@@ -73,10 +73,21 @@
   "signOut": {
    "button": "Esci",
    "title": "Esci",
-   "desc": "I dati del tuo wallet restano su questo dispositivo. Puoi accedere di nuovo in qualsiasi momento con la tua passkey (Face ID / impronta digitale).",
-   "warning": "La tua chiave pubblica non è ancora stata sincronizzata con il server. Se esci ora, il recupero su altri dispositivi potrebbe non essere possibile.",
+   "desc": "Questo dispositivo non sarà più connesso. Il wallet non viene eliminato: la tua passkey resta in Face ID / impronta digitale.",
+   "keeps": "Scegli «Ho già un wallet» per accedere di nuovo con la stessa passkey: ritrovi lo stesso indirizzo e restano al loro posto cronologia, contatti, token e impostazioni.",
+   "warning": "La tua chiave pubblica non è ancora arrivata al server di sincronizzazione. L'app riproverà al prossimo avvio, ma finché non riesce potresti non riuscire ad accedere da un altro dispositivo — né da qui, se disinstalli l'app.",
    "anyway": "Esci comunque",
    "cancel": "Annulla"
+  },
+  "eraseDevice": {
+   "title": "Cancella questo dispositivo",
+   "subtitle": "Elimina tutto ciò che Vela ha salvato qui",
+   "desc": "Tutto ciò che Vela ha salvato su questo dispositivo viene eliminato. Non esiste un backup né un modo per annullare.",
+   "loses": "Perdi: cronologia delle transazioni, contatti e gruppi, cronologia di navigazione, autorizzazioni dApp, token e reti personalizzati, impostazioni RPC e degli endpoint e ogni preferenza.",
+   "keeps": "Non perdi il wallet. La tua passkey resta in Face ID / impronta digitale: scegli «Ho già un wallet» e ritrovi lo stesso indirizzo, solo senza cronologia.",
+   "confirm": "Cancella tutto",
+   "cancel": "Annulla",
+   "failed": "La cancellazione non è stata completata. Sul dispositivo ci sono ancora dati e l'accesso è ancora attivo: riprova."
   },
   "formatNote": {
    "system": "Sistema",
@@ -200,6 +211,8 @@
   "warnInsufficientForGas": "{{sym}} insufficiente per coprire l'importo e le commissioni di gas",
   "warnInsufficientGas": "{{sym}} insufficiente per le commissioni di gas",
   "warnNeedGas": "Ti serve {{sym}} per pagare le commissioni di gas",
+  "warnCannotConvert": "Al momento non è possibile convertire {{code}} in {{symbol}}: passa a {{symbol}} per inserire l'importo.",
+  "denomToggleNoRate": "Nessun tasso {{code}} al momento: inserisci l'importo in {{symbol}}.",
   "confirmTitle": "Conferma",
   "walletFallbackName": "Wallet",
   "fromLabel": "Da",
@@ -1242,6 +1255,7 @@
    "modalTitle": "Reti",
    "chainId": "Rete {{chainId}}",
    "fieldRpcUrl": "URL RPC",
+   "rpcChainMismatch": "Non salvato: questo RPC dichiara la Rete {{reported}}, ma questa rete è la Rete {{expected}}. Continua a essere usato l'endpoint precedente.",
    "fieldExplorer": "EXPLORER",
    "fieldBundler": "BUNDLER",
    "removeTitle": "Rimuovi rete",

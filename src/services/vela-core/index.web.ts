@@ -17,7 +17,7 @@
 // (`__wbg_init`), which resolves a module path we deliberately removed.
 import { initSync } from '../../../rust/pkg-web/vela_core.js';
 import * as wasm from '../../../rust/pkg-web/vela_core.js';
-import { WASM_BASE64 } from '../../../rust/pkg-web/vela_core_bg.base64.js';
+import { WASM_URL } from '../../../rust/pkg-web/vela_core_wasm_url.js';
 
 import {
   keccak256 as legacyKeccak256,
@@ -101,19 +101,22 @@ export {
 export { setDiffEnabled, isDiffEnabled, getMismatches, clearMismatches } from './diff-harness';
 
 // ---------------------------------------------------------------------------
-// Initialization (synchronous, fail-loud)
+// Initialization (spec 017 D7 route: async fetch in browsers, sync in Node)
 // ---------------------------------------------------------------------------
+//
+// The module ships as a fingerprinted asset in `public/` (it outgrew the
+// embedded-base64 budget at 2.9 MB). Two environments, two guarantees:
+//
+// - **Browser**: `coreReady` fetches and initializes the module; the app
+//   entry (`index.js` → `src/boot-web.js`) awaits it BEFORE requiring
+//   expo-router, so every module in the app graph — including ones that call
+//   the core at import time — still sees an initialized core.
+// - **Node** (jest, verify-web.mjs, expo export's static-render pass): the
+//   harness reads the asset from disk and plants the bytes on
+//   `globalThis.__VELA_WASM_BYTES__` before this module loads; init stays
+//   synchronous at import, exactly the old guarantee.
 
-function decodeBase64(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
-  return out;
-}
-
-try {
-  initSync({ module: decodeBase64(WASM_BASE64) });
-} catch (e) {
+function failLoud(e: unknown): never {
   // A core that fails to load must never degrade into "computes nothing":
   // addresses, signatures and decoded calldata all flow through it.
   throw new Error(
@@ -122,6 +125,96 @@ try {
     }). The wallet cannot compute addresses or signatures without it.`,
   );
 }
+
+/**
+ * The module bytes, for a Node runtime evaluating this web bundle.
+ *
+ * Two such runtimes exist and both are load-bearing: jest (which plants the
+ * bytes in `jest.setup.js`) and Expo's static-render pass, which executes the
+ * web bundle in Node — with `output: "static"` that happens on every dev-server
+ * request and during `expo export`. The render pass plants nothing, so we read
+ * the asset ourselves.
+ *
+ * `process.getBuiltinModule` rather than `require('node:fs')`: metro resolves
+ * static requires at build time and would fail the browser bundle on a Node
+ * builtin. This is a runtime lookup that simply does not exist in a browser.
+ */
+function nodeWasmBytes(): Uint8Array | undefined {
+  const planted = (globalThis as { __VELA_WASM_BYTES__?: Uint8Array }).__VELA_WASM_BYTES__;
+  if (planted) return planted;
+
+  const proc = (globalThis as { process?: { getBuiltinModule?: (id: string) => unknown; cwd?: () => string } })
+    .process;
+  const getBuiltin = proc?.getBuiltinModule;
+  if (typeof getBuiltin !== 'function' || typeof proc?.cwd !== 'function') return undefined;
+  try {
+    const fs = getBuiltin('node:fs') as { readFileSync(p: string): Uint8Array };
+    const path = getBuiltin('node:path') as { join(...parts: string[]): string };
+    return fs.readFileSync(path.join(proc.cwd(), 'public', WASM_URL.replace(/^\//, '')));
+  } catch {
+    // Falls through to the loud failure below — a Node runtime that cannot
+    // read the asset must not proceed with an uninitialized core.
+    return undefined;
+  }
+}
+
+const plantedBytes = typeof document === 'undefined' ? nodeWasmBytes() : undefined;
+
+let initialized = false;
+
+/**
+ * Throw unless the module is initialized.
+ *
+ * For the other web modules that reach the wasm directly (`src/i18n/index.web.ts`
+ * builds its own `I18n` engine). They are only ever evaluated inside the app
+ * graph, which the entry gates behind `coreReady` — so this is an assertion,
+ * not a race: if it ever fires, something imported the app graph without the
+ * gate, and a clear message beats wasm-bindgen's null-pointer panic.
+ */
+export function assertCoreInitialized(): void {
+  if (!initialized) {
+    throw new Error(
+      'vela-core: the WebAssembly module is not initialized yet. The web entry (index.web.js) must await `coreReady` before loading the app graph.',
+    );
+  }
+}
+
+/** Resolves once the core is initialized. The web entry awaits this. */
+export const coreReady: Promise<void> = (() => {
+  if (plantedBytes) {
+    try {
+      initSync({ module: plantedBytes });
+      initialized = true;
+    } catch (e) {
+      failLoud(e);
+    }
+    return Promise.resolve();
+  }
+  if (typeof document === 'undefined') {
+    // Node, and `nodeWasmBytes()` found nothing: no relative URL can be
+    // fetched here, and a silently unready core would surface later as a
+    // wasm-bindgen null-pointer panic far from the cause.
+    failLoud(
+      new Error(
+        `could not read public${WASM_URL} from ${String(
+          (globalThis as { process?: { cwd?: () => string } }).process?.cwd?.() ?? 'the working directory',
+        )}. Run \`npm run build:wasm\`, or plant the bytes on globalThis.__VELA_WASM_BYTES__.`,
+      ),
+    );
+  }
+  return fetch(WASM_URL)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`fetch ${WASM_URL} → ${response.status}`);
+      }
+      return response.arrayBuffer();
+    })
+    .then((bytes) => {
+      initSync({ module: bytes });
+      initialized = true;
+    })
+    .catch((e) => failLoud(e));
+})();
 
 export const CORE_BACKEND: 'rust-wasm' | 'legacy-ts' = 'rust-wasm';
 

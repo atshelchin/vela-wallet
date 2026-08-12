@@ -73,10 +73,21 @@
     "signOut": {
       "button": "Sign Out",
       "title": "Sign Out",
-      "desc": "Your wallet data stays on this device. Sign back in anytime with your passkey (Face ID / fingerprint).",
-      "warning": "Your public key hasn't been synced to the server yet. Signing out now may prevent recovery on other devices.",
+      "desc": "This device stops being signed in. The wallet itself is not deleted — your passkey stays in Face ID / fingerprint.",
+      "keeps": "Choose “I already have a wallet” to sign back in with that passkey: the same address returns, and your history, contacts, tokens and settings are still here.",
+      "warning": "Your public key has not reached the sync server yet. It will be retried on the next launch, but until it succeeds you may not be able to sign in on another device — or here, if you remove the app.",
       "anyway": "Sign Out Anyway",
       "cancel": "Cancel"
+    },
+    "eraseDevice": {
+      "title": "Erase This Device",
+      "subtitle": "Delete everything Vela stored here",
+      "desc": "Everything Vela has stored on this device is deleted. There is no backup and no undo.",
+      "loses": "You lose: transaction history, contacts and groups, browsing history, dApp permissions, custom tokens and networks, RPC and endpoint settings, and every preference.",
+      "keeps": "You do not lose the wallet. Your passkey stays in Face ID / fingerprint — choose “I already have a wallet” and the same address comes back, empty of history.",
+      "confirm": "Erase Everything",
+      "cancel": "Cancel",
+      "failed": "The erase did not finish. Some data is still on this device and you are still signed in — try again."
     },
     "formatNote": {
       "system": "System",

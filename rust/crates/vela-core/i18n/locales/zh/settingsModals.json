@@ -4,6 +4,7 @@
       "modalTitle": "网络",
       "chainId": "链 {{chainId}}",
       "fieldRpcUrl": "RPC URL",
+      "rpcChainMismatch": "未保存——该 RPC 报告的是链 {{reported}}，而此网络是链 {{expected}}。仍在使用之前的节点地址。",
       "fieldExplorer": "区块浏览器",
       "fieldBundler": "打包器",
       "removeTitle": "移除网络",

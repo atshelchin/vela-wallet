@@ -14,15 +14,12 @@ import { styles } from './SendScreen.styles';
 import { shortAddr } from './send-utils';
 import { chainName, nativeSymbol, tokenBadgeNetwork } from '@/models/network';
 import { formatBalance, isNativeToken, tokenBalanceDouble, tokenChainId, tokenId, tokenLogoURLs, type APIToken } from '@/models/types';
-import * as Passkey from '@/modules/passkey';
-import { sumSplitBaseUnits } from '@/services/batch-send';
 import { fromBaseUnits } from '@/services/eip681';
-import { resolveTokenAmount } from '@/services/fiat-convert';
 import { AlertCircle, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import type { SendController } from './useSendController';
+import type { SendController } from './send-controller-types';
 
 /** X button that appears after 3 seconds — gives biometric time to pop up before showing cancel. */
 function TxCancelButton({ onCancel }: { onCancel: () => void }) {
@@ -44,33 +41,25 @@ export function ConfirmStep({ c }: { c: SendController }) {
     t,
     activeAccount,
     address,
-    dc,
     formatUsd,
     tokens,
     selectedToken,
     recipient,
-    amount,
     splitMode,
     recipients,
     multiSelectMode,
     sending,
-    setSending,
     feeEstimate,
-    setFeeEstimate,
+    feeCard,
     estimatingGas,
-    sendLock,
-    sendCancelledRef,
-    mountedRef,
     txStatus,
-    setTxStatus,
     txError,
-    setTxError,
-    inputInUsd,
+    confirmAmount,
+    canConfirm,
+    confirmAmountIssue,
     gasFeeToken,
-    setGasFeeToken,
     feeBusy,
-    setFeeBusy,
-    prefetchedAccount,
+    publicKeyHex,
     recipientIdentity,
     recipientRisk,
     sim,
@@ -79,16 +68,22 @@ export function ConfirmStep({ c }: { c: SendController }) {
     sameAssetFeeIssue,
     handleEditAmount,
     handleConfirm,
+    cancelSigning,
+    retryAfterError,
+    onFeeTokenChange,
+    onFeeUpdate,
+    onFeeBusyChange,
   } = c;
 
     if (!selectedToken) return null;
-    const tokenAmount = resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate);
-    const singleAmountNum = parseFloat(tokenAmount || '0');
-    // In split mode the headline amount is the sum across all recipients.
-    const splitTotalNum = splitMode
-      ? parseFloat(fromBaseUnits(sumSplitBaseUnits(recipients, selectedToken.decimals), selectedToken.decimals))
-      : 0;
-    const amountNum = splitMode ? splitTotalNum : singleAmountNum;
+    // `confirmAmount` is the controller's — on web it is the CORE's own figure:
+    // for a 1→1 send the resolution the signed transfer is built from, for a
+    // SPLIT the very `sumSplitBaseUnits` total the over-balance gate, the
+    // same-asset fee ceiling and `buildSplitCalls` read. Summing the rows here
+    // put a second, independently derived number under the user's thumb — and
+    // `toBaseUnits` threw mid-render on a row the core merely declines, which
+    // is a white confirm page. '' (unresolvable) prints as zero.
+    const amountNum = parseFloat(confirmAmount || '0');
     const usdAmount = amountNum * (selectedToken.priceUsd ?? 0);
     const logos = tokenLogoURLs(selectedToken);
     const chain = chainName(tokenChainId(selectedToken));
@@ -296,23 +291,32 @@ export function ConfirmStep({ c }: { c: SendController }) {
               native formatting stays. Tap to pick the fee asset when this chain
               offers a choice. */}
           {/* Estimated fee + fee-asset selector — the shared GasFeeCard (same
-              component the dApp signing sheet uses). It owns the collapsed row,
-              the expand, and the per-asset re-quote; this screen just owns the
-              gasFeeToken selection + feeEstimate it threads into submit. It collapses to a
-              read-only fee line whenever the relay does not offer another fee asset. */}
+              component the dApp signing sheet uses). It owns the collapsed row
+              and the expand; it collapses to a read-only fee line whenever the
+              relay does not offer another fee asset.
+
+              WEB: `feeCard` is the screen's `fee_policy` session, and the card
+              renders it. Nothing on this screen re-prices — the chip switch and
+              the refresh are events on the same machine that answered the send
+              core's own `EstimateFee`, so they operate on the REAL calls being
+              confirmed. (The native props below still describe a dummy transfer:
+              the card used to re-estimate with no `tx`, which is why a chip
+              switch there prices a 68-byte placeholder rather than this send.
+              That is the pre-existing native path, untouched here.) */}
           {activeAccount && (
             <GasFeeCard
+              controller={feeCard}
               feeEstimate={feeEstimate}
               estimating={estimatingGas}
               nativeSymbol={sym}
               nativeUsdPrice={nativePrice}
               safeAddress={activeAccount.address}
               chainId={tokenChainId(selectedToken)}
-              publicKeyHex={prefetchedAccount.current?.publicKeyHex}
+              publicKeyHex={publicKeyHex}
               gasFeeToken={gasFeeToken}
-              onFeeTokenChange={setGasFeeToken}
-              onFeeUpdate={(fee) => { if (mountedRef.current) setFeeEstimate(fee); }}
-              onBusyChange={setFeeBusy}
+              onFeeTokenChange={onFeeTokenChange}
+              onFeeUpdate={onFeeUpdate}
+              onBusyChange={onFeeBusyChange}
             />
           )}
 
@@ -342,6 +346,17 @@ export function ConfirmStep({ c }: { c: SendController }) {
             </View>
           )}
 
+          {/* The money on this page can stop resolving while the page is open:
+              a display-currency commit re-denominates the amount field and the
+              figure the user reviewed is gone. `canConfirm` refuses that now —
+              this is the sentence that goes with the refusal, so the dead
+              slider is never dead in silence. */}
+          {confirmAmountIssue && !feeIssue && txStatus === 'idle' && (
+            <Text style={styles.confirmAmountIssue} accessibilityRole="alert">
+              {confirmAmountIssue}
+            </Text>
+          )}
+
           {txStatus === 'idle' && (
             // Every send is a deliberate slide-to-confirm — a stray tap can't fire
             // a payment. A risky destination (never sent here before, or a contract)
@@ -359,7 +374,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
                 hint={t('componentsUi.signing.slideToConfirm', { defaultValue: 'Slide to confirm' })}
                 onConfirm={handleConfirm}
                 loading={sending}
-                disabled={estimatingGas || feeBusy}
+                disabled={!canConfirm}
                 style={styles.confirmBtn}
               />
             )
@@ -378,21 +393,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
                      t('send.txSubmitting')}
                   </Text>
                   {(txStatus === 'preparing' || txStatus === 'signing') && (
-                    <TxCancelButton onCancel={() => {
-                      // Signal the in-flight executeTransaction too: during the
-                      // Phase-2 grant await there is no passkey prompt to abort
-                      // yet — without the ref, the flow would resurrect a
-                      // passkey prompt (or a funding sheet) AFTER this cancel.
-                      sendCancelledRef.current = true;
-                      // Release the re-entry lock so a retry starts (instead of
-                      // silently no-op'ing until the cancelled promise settles);
-                      // cancel() also invalidates that promise's stale finally so
-                      // it won't clear the retry's lock (issue #91).
-                      sendLock.cancel();
-                      Passkey.cancelSign();
-                      setTxStatus('idle');
-                      setSending(false);
-                    }} />
+                    <TxCancelButton onCancel={cancelSigning} />
                   )}
                 </View>
               )}
@@ -406,7 +407,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
                 <View style={styles.txStatusActions}>
                   <Pressable
                     style={styles.txRetryBtn}
-                    onPress={() => { setTxStatus('idle'); setTxError(null); }}
+                    onPress={retryAfterError}
                   >
                     <Text style={styles.txRetryBtnText}>{t('send.txRetryBtn')}</Text>
                   </Pressable>

@@ -20,10 +20,16 @@ let wasm: WasmModule;
 
 beforeAll(async () => {
   wasm = (await import('../../../rust/pkg-web/vela_core.js')) as WasmModule;
-  const { WASM_BASE64 } = (await import('../../../rust/pkg-web/vela_core_bg.base64.js')) as {
-    WASM_BASE64: string;
+  // The module ships as a fingerprinted asset in public/ (spec 017 D7 route),
+  // so the test reads the same bytes a browser fetches.
+  const { WASM_URL } = (await import('../../../rust/pkg-web/vela_core_wasm_url.js')) as {
+    WASM_URL: string;
   };
-  wasm.initSync({ module: Buffer.from(WASM_BASE64, 'base64') });
+  const { readFileSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  wasm.initSync({
+    module: readFileSync(join(__dirname, '../../../public', WASM_URL.replace(/^\//, ''))),
+  });
 });
 
 function newEngine(): CatalogEngine {

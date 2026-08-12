@@ -9,34 +9,25 @@ import { VelaButton } from '@/components/ui/VelaButton';
 import { fadeIn, fadeInDown } from '@/constants/entering';
 import { color, createStyles, font, inter, leading, radius, space, text } from '@/constants/theme';
 import { useSafeRouter } from '@/hooks/use-safe-router';
-import { chainName, explorerBaseURL } from '@/models/network';
+import { explorerBaseURL } from '@/models/network';
 import { useAllNetworks } from '@/hooks/use-networks';
-import { formatBalance, tokenBalanceDouble, tokenChainId, tokenId, type APIToken } from '@/models/types';
+import { useReceiveRequest } from '@/hooks/use-receive-request';
+import { useReceiveWatch } from '@/hooks/use-receive-watch';
 import { useWallet } from '@/models/wallet-state';
-import { hapticLight, hapticSuccess, isAppActive, openBrowser, showAlert } from '@/services/platform';
+import { hapticLight, openBrowser, showAlert } from '@/services/platform';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
 import { composeShareBlob, saveReceiveCard } from '@/services/share-card';
-import { fetchTokens } from '@/services/wallet-api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ArrowLeft, Check, Copy, ExternalLink, ImageDown, ShieldAlert } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 
-// Aggressive polling: 3s for first 1 min, then 60s for next 4 min, then stop
-const FAST_INTERVAL_MS = 3_000;
-const SLOW_INTERVAL_MS = 60_000;
-const FAST_PHASE_MS = 1 * 60_000;
-const TOTAL_LISTEN_MS = 5 * 60_000;
-
 // QR quiet zone must stay literal white in BOTH color schemes — scanners need
 // the contrast, and every bg.* token darkens in dark mode.
 const QR_QUIET_ZONE = '#FFFFFF';
 // Deposit "landed" dot; item rows indent past it to align under the time label.
 const DEPOSIT_DOT_SIZE = 6;
-// The warning gate shows once per account, then decays to a one-line reminder.
-const warnedStorageKey = (address: string) => `vela.receiveWarned.${address}`;
 
 export default function ReceiveScreen() {
   const { t } = useTranslation();
@@ -46,28 +37,27 @@ export default function ReceiveScreen() {
   const accountName = activeAccount?.name ?? 'Wallet';
   const networks = useAllNetworks();
 
-  const [depositDetected, setDepositDetected] = useState(false);
-  interface DepositEntry { time: string; items: { symbol: string; amount: string; network: string; usd: string | null }[] }
-  const [deposits, setDeposits] = useState<DepositEntry[]>([]);
-  const previousTokens = useRef<APIToken[] | null>(null);
+  // Deposit detection + the acknowledge gate + the request builder are all
+  // controller-owned (spec 016): the web controllers are driven by the
+  // portable Rust machines, native keeps the moved TypeScript logic.
+  //
+  // That now includes every judgement about WHAT this screen hands out. The
+  // tab, the QR's content, the clipboard payload and the two permissions the
+  // anti-poisoning gate grants are single facts read from the controller —
+  // this file used to re-decide each of them, once per surface.
+  const { detected: depositDetected, deposits } = useReceiveWatch(address || undefined);
+  const rr = useReceiveRequest(address || undefined);
+  const {
+    warned,
+    acknowledge: acknowledgeWarning,
+    mode,
+    setMode,
+    qrPayload,
+    copyPayload,
+    canCopy,
+    canSave,
+  } = rr;
   const { copied, copy } = useCopyFeedback(2000);
-
-  // Per-account acknowledge flag: null = loading (keep the QR covered so first
-  // visits never flash it), false = show the gate, true = one-line reminder.
-  const [warned, setWarned] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (!address) return;
-    let cancelled = false;
-    setWarned(null);
-    AsyncStorage.getItem(warnedStorageKey(address))
-      .then((v) => { if (!cancelled) setWarned(v === '1'); })
-      .catch(() => { if (!cancelled) setWarned(false); });
-    return () => { cancelled = true; };
-  }, [address]);
-  const acknowledgeWarning = useCallback(() => {
-    setWarned(true);
-    if (address) AsyncStorage.setItem(warnedStorageKey(address), '1').catch(() => {});
-  }, [address]);
 
   // Entrances play once (design language rule 10) — never replay on tab switch.
   const hasEntered = useRef(false);
@@ -76,9 +66,13 @@ export default function ReceiveScreen() {
   // Tapped network in the supported-networks strip → reveals its name + chain ID.
   const [selectedNet, setSelectedNet] = useState<string | null>(null);
 
-  // Address vs EIP-681 payment-request mode.
-  const [mode, setMode] = useState<'address' | 'request'>('address');
-  const [request, setRequest] = useState<{ qrValue: string; summary: string; payLink: string }>({ qrValue: '', summary: '', payLink: '' });
+  // The request itself is the controller's; only the summary SENTENCE is
+  // composed here (words are the shell's job).
+  const summary = useMemo(() => (
+    rr.hasAmount
+      ? t('receive.request.summaryAmount', { amount: rr.amount, symbol: rr.asset.symbol, network: rr.asset.networkName })
+      : t('receive.request.summaryOpen', { symbol: rr.asset.symbol, network: rr.asset.networkName })
+  ), [rr.hasAmount, rr.amount, rr.asset.symbol, rr.asset.networkName, t]);
   const [savingImage, setSavingImage] = useState(false);
   const cardRef = useRef<View>(null);
   // Web only: the most recent pre-rendered share image, so Save can hand it to
@@ -86,81 +80,15 @@ export default function ReceiveScreen() {
   const shareBlobRef = useRef<{ model: ShareCardModel; blob: Blob } | null>(null);
 
   const isRequest = mode === 'request';
-  const qrValue = isRequest ? (request.qrValue || address) : address;
-
-  // Deposit detection polling — quietly watches for incoming transfers while
-  // this screen is open and surfaces them as they land (no persistent status).
-  useEffect(() => {
-    if (!address) return;
-    previousTokens.current = null;
-    const startTime = Date.now();
-    let timerId: ReturnType<typeof setTimeout>;
-
-    const checkDeposit = async () => {
-      if (!isAppActive()) return;
-      try {
-        const tokens = await fetchTokens(address, { forceRefresh: true });
-
-        if (previousTokens.current !== null) {
-          // Guard: a smaller token set than baseline means a chain likely
-          // failed — skip comparison to avoid false positives.
-          if (tokens.length < previousTokens.current.length) {
-            scheduleNext();
-            return;
-          }
-
-          // Diff: find tokens whose balance increased vs baseline.
-          const prevMap = new Map(previousTokens.current.map(tk => [tokenId(tk), tokenBalanceDouble(tk)]));
-          const changes: DepositEntry['items'] = [];
-          for (const tk of tokens) {
-            const prevBal = prevMap.get(tokenId(tk)) ?? 0;
-            const curBal = tokenBalanceDouble(tk);
-            if (curBal > prevBal) {
-              const diff = curBal - prevBal;
-              changes.push({
-                symbol: tk.symbol,
-                amount: formatBalance(diff),
-                network: chainName(tokenChainId(tk)),
-                usd: tk.priceUsd ? `$${(diff * tk.priceUsd).toFixed(2)}` : null,
-              });
-            }
-          }
-
-          if (changes.length > 0) {
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            setDepositDetected(true);
-            setDeposits(prev => [{ time, items: changes }, ...prev]);
-            hapticSuccess();
-            previousTokens.current = tokens;
-          }
-        } else {
-          // First fetch — record initial baseline.
-          previousTokens.current = tokens;
-        }
-      } catch {}
-
-      scheduleNext();
-    };
-
-    const scheduleNext = () => {
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= TOTAL_LISTEN_MS) return;
-      const interval = elapsed < FAST_PHASE_MS ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
-      timerId = setTimeout(checkDeposit, interval);
-    };
-
-    checkDeposit();
-    return () => { clearTimeout(timerId); };
-  }, [address]);
 
   const copyValue = useCallback(() => {
-    // In request mode we copy the public payment LINK (a web page that bridges
-    // to the Vela web wallet / other wallets), not the raw ethereum: URI.
-    const value = isRequest ? request.payLink : address;
-    if (!value) return;
+    // In request mode the payload is the public payment LINK (a web page that
+    // bridges to the Vela web wallet / other wallets), never the raw ethereum:
+    // URI — a rule that lives with the builder, not with this button.
+    if (!copyPayload) return;
     hapticLight();
-    copy(value);
-  }, [isRequest, request.payLink, address, copy]);
+    copy(copyPayload);
+  }, [copyPayload, copy]);
 
   const truncatedAddress = address
     ? `${address.slice(0, 8)}...${address.slice(-6)}`
@@ -173,18 +101,20 @@ export default function ReceiveScreen() {
       ? {
           variant: 'request',
           name: accountName,
-          qrValue: request.qrValue || address || '',
+          // The same payload the on-screen QR shows — one destination, so a
+          // shared card can never encode something the screen didn't.
+          qrValue: qrPayload,
           address: address || '',
-          summary: request.summary,
+          summary,
         }
       : {
           variant: 'address',
           name: accountName,
-          qrValue: address || '',
+          qrValue: qrPayload,
           address: address || '',
           networks: networks.map((n) => ({ label: n.iconLabel, name: n.displayName, color: n.iconColor, bg: n.iconBg, logoURL: n.logoURL })),
         }
-  ), [isRequest, accountName, request.qrValue, request.summary, address, networks]);
+  ), [isRequest, accountName, qrPayload, summary, address, networks]);
 
   const shareFileName = `vela-${isRequest ? 'request' : 'address'}-${(address || '').slice(0, 10)}`;
 
@@ -220,7 +150,7 @@ export default function ReceiveScreen() {
   // Save-image button — sits right under the copy button inside the QR card,
   // so it serves both Address and Request modes. Secondary action: muted icon +
   // ink label (accent is reserved for the copy action on each tab).
-  const saveDisabled = savingImage || warned !== true;
+  const saveDisabled = savingImage || !canSave;
   const saveButton = (
     <Pressable
       style={[styles.saveBtn, savingImage && styles.saveBtnBusy]}
@@ -274,8 +204,8 @@ export default function ReceiveScreen() {
             <View style={styles.qrCard}>
               {/* QR — keeps its own white quiet-zone frame (required to scan) */}
               <View style={styles.qrBorder}>
-                {qrValue ? (
-                  <QRCode value={qrValue} size={200} />
+                {qrPayload ? (
+                  <QRCode value={qrPayload} size={200} />
                 ) : (
                   <View style={styles.qrPlaceholder}>
                     <Text style={styles.qrPlaceholderText}>{t('receive.noAddress')}</Text>
@@ -300,7 +230,7 @@ export default function ReceiveScreen() {
               {/* Big, easy-to-tap copy button — THE accent action of each tab
                   (address tab: copy address; request tab: copy payment link) */}
               <Pressable
-                onPress={warned === true ? copyValue : undefined}
+                onPress={canCopy ? copyValue : undefined}
                 style={styles.copyBtn}
                 accessibilityRole="button"
                 accessibilityLabel={isRequest ? t('receive.copyRequestLink') : t('receive.a11yCopyAddress')}
@@ -372,7 +302,7 @@ export default function ReceiveScreen() {
         <Animated.View entering={hasEntered.current ? undefined : fadeInDown(200, 400)}>
           {isRequest ? (
             /* Request builder */
-            address ? <ReceiveRequestControls recipient={address} onChange={setRequest} /> : null
+            address ? <ReceiveRequestControls controller={rr} /> : null
           ) : (
             /* Supported networks — a wrapped logo strip, names live in the a11y label */
             <>

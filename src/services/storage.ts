@@ -559,11 +559,56 @@ export async function deleteConnectionEvents(address: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Clear All (for logout)
+// Clearing
 // ---------------------------------------------------------------------------
 
-export async function clearAll(): Promise<void> {
-  for (const key of Object.values(KEYS)) {
-    await AsyncStorage.removeItem(key);
-  }
+/**
+ * Drop this module's in-memory caches back to their defaults and wake their
+ * subscribers.
+ *
+ * Only `eraseDeviceData()` (`services/erase-device.ts`) may call this. All
+ * three caches are read SYNCHRONOUSLY during render — `getLocalePrefs()`
+ * formats every number and date, `getEthereumDataURL()` and friends pick the
+ * host for the next request, `getRpcProviderKeys()` builds each chain's
+ * endpoint list — so an erase that only cleared the disk would keep serving
+ * the erased values (including the provider API keys, which are credentials)
+ * for the rest of the process.
+ *
+ * Explicitly NOT part of signing out: those preferences are still on disk and
+ * still the user's, and resetting them would visibly re-theme and re-format an
+ * app that merely lost its account list.
+ */
+export function resetStorageCaches(): void {
+  _endpointsCache = { ...DEFAULT_SERVICE_ENDPOINTS };
+  _localePrefsCache = { ...DEFAULT_LOCALE_PREFS };
+  _rpcProvidersCache = {};
+  notifyLocaleListeners();
+  notifyRpcProviderListeners();
+}
+
+/**
+ * Sign out of this device: forget the account list and which account was
+ * active, and nothing else.
+ *
+ * Those two keys are what "signed in" *is*. Everything else this module stores
+ * — transaction history, custom tokens, custom networks, per-network overrides,
+ * service endpoints, RPC provider keys, price source, locale preferences —
+ * belongs to the ACCOUNT, not to the session, and survives on purpose: signing
+ * in again resolves the same passkey → the same public key → the same derived
+ * Safe address, so every address-keyed record lines back up with no migration
+ * and no reconciliation. (The same holds for the keys other modules own:
+ * contacts, groups, browser history, `vela.perm.*` dApp grants, receive
+ * confirmations.) Erasing all of that is a different, deliberate action —
+ * `eraseDeviceData()` in `services/erase-device.ts`, which scans the whole
+ * `vela.` namespace rather than any list kept here — and signing out is not it.
+ *
+ * `vela.pendingUploads` is excluded for a second, independent reason: a record
+ * there is a public key the index service has never confirmed. `retryPendingUploads()`
+ * re-sends it on the next launch without needing an account list, but a deleted
+ * record can never be retried — and that credential then cannot be found at
+ * login, turning "recoverable" into "possibly ruined".
+ */
+export async function clearSignedInWallet(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.accounts);
+  await AsyncStorage.removeItem(KEYS.activeAccountIndex);
 }

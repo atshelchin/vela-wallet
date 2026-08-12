@@ -15,9 +15,6 @@ import { EnterDetailsStep } from './EnterDetailsStep';
 import { useSendController } from './useSendController';
 import { tokenChainId, tokenLogoURLs } from '@/models/types';
 import { BATCH_MAX_RECIPIENTS } from '@/services/batch-send';
-import { saveContact } from '@/services/contacts';
-import { parseEIP681 } from '@/services/eip681';
-import { resolveTokenAmount } from '@/services/fiat-convert';
 import { AlertCircle, ArrowLeft, Globe, X } from 'lucide-react-native';
 import React from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
@@ -43,12 +40,11 @@ export default function SendScreen() {
     loading,
     selectedToken,
     recipient,
-    setRecipient,
-    amount,
     pickerTarget,
-    multiSelect,
+    multiSelectChainId,
     showScanner,
-    setShowScanner,
+    closeScanner,
+    handleScan,
     txStatus,
     txHash,
     userOpHash,
@@ -57,14 +53,16 @@ export default function SendScreen() {
     receiptFailed,
     feeHeld,
     feeRejected,
-    inputInUsd,
+    receiptAmount,
+    receiptUsdValue,
     treasuryBootstrap,
-    setTreasuryBootstrap,
-    handleConfirm,
+    dismissTreasurySheet,
+    retryAfterBootstrap,
     showContactPicker,
-    setShowContactPicker,
+    closeContactPicker,
     showBatchImport,
-    setShowBatchImport,
+    closeBatchImport,
+    openScanner,
     recipientIdentity,
     handleAddNetwork,
     refreshTokens,
@@ -72,6 +70,8 @@ export default function SendScreen() {
     applyPickedAddress,
     handleSelectToken,
     handleBack,
+    handleDone,
+    saveReceiptContact,
     tokenMultiSelect,
   } = c;
 
@@ -83,7 +83,7 @@ export default function SendScreen() {
         loading={loading}
         onSelect={handleSelectToken}
         onAddChanged={refreshTokens}
-        initialChainId={multiSelect.chainId}
+        initialChainId={multiSelectChainId}
         multiSelect={tokenMultiSelect}
       />
     </Animated.View>
@@ -149,24 +149,24 @@ export default function SendScreen() {
           fromName={activeAccount?.name}
           to={recipient}
           toName={recipientIdentity?.name}
-          amount={resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate)}
+          amount={receiptAmount}
           symbol={selectedToken.symbol}
           chainId={tokenChainId(selectedToken)}
           txHash={txHash ?? ''}
           userOpHash={userOpHash ?? undefined}
           logoUrls={tokenLogoURLs(selectedToken)}
-          usdValue={parseFloat(resolveTokenAmount(amount, inputInUsd, selectedToken.priceUsd, selectedToken.decimals, dc.rate)) * (selectedToken.priceUsd ?? 0)}
-          rate={dc.rate}
-          currencyCode={dc.code}
-          currencySymbol={dc.symbol}
+          usdValue={receiptUsdValue}
+          rate={dc.shown.rate}
+          currencyCode={dc.shown.code}
+          currencySymbol={dc.shown.symbol}
           timestamp={new Date()}
           recipientIdentity={recipientIdentity}
           transfers={receiptTransfers ?? undefined}
           batchKind={receiptKind ?? undefined}
           status={receiptFailed ? 'failed' : (txHash ? 'confirmed' : 'submitted')}
           holdReason={feeRejected ? 'fee-rejected' : feeHeld ? 'fee-hold' : undefined}
-          onDone={() => router.back()}
-          onSaveContact={receiptKind === 'split' ? undefined : () => saveContact({ address: recipient, name: recipientIdentity?.name, resolvedName: recipientIdentity?.name })}
+          onDone={handleDone}
+          onSaveContact={receiptKind === 'split' ? undefined : saveReceiptContact}
         />
       ) : (
         <>
@@ -178,30 +178,8 @@ export default function SendScreen() {
 
       <QRScanner
         visible={showScanner}
-        onScan={(data) => {
-          setShowScanner(false);
-          const req = parseEIP681(data);
-          // Per-row scan in split mode — just take the address; a full-request
-          // re-lock would blow away the other recipients.
-          if (pickerTarget) {
-            applyPickedAddress(req?.recipient ?? data);
-            return;
-          }
-          // A full EIP-681 request re-opens Send locked; otherwise just take the address.
-          if (req && req.chainId != null) {
-            const p: Record<string, string> = {
-              prefilledRecipient: req.recipient,
-              prefilledChainId: String(req.chainId),
-              locked: '1',
-            };
-            if (req.tokenAddress) p.prefilledTokenAddress = req.tokenAddress;
-            if (req.amountBaseUnits != null) p.prefilledAmountBase = req.amountBaseUnits.toString();
-            router.replace({ pathname: '/send', params: p });
-            return;
-          }
-          setRecipient(req?.recipient ?? data);
-        }}
-        onClose={() => setShowScanner(false)}
+        onScan={handleScan}
+        onClose={closeScanner}
       />
 
       {/* Relayer float depleted on this network — community bootstrap ask
@@ -210,34 +188,24 @@ export default function SendScreen() {
       <TreasuryBootstrapSheet
         visible={!!treasuryBootstrap}
         status={treasuryBootstrap}
-        onClose={() => setTreasuryBootstrap(null)}
-        onRetry={() => {
-          setTreasuryBootstrap(null);
-          // This sheet can now open from the amount screen. After funding the
-          // relayer, return through the normal pre-confirm flow rather than
-          // submitting directly from enter-details.
-          if (step === 'enter-details') {
-            void c.handleContinue();
-          } else {
-            void handleConfirm();
-          }
-        }}
+        onClose={dismissTreasurySheet}
+        onRetry={retryAfterBootstrap}
       />
 
       <ContactPicker
         visible={showContactPicker}
-        onClose={() => setShowContactPicker(false)}
+        onClose={closeContactPicker}
         onSelect={(addr) => applyPickedAddress(addr)}
         onSelectGroup={locked || pickerTarget ? undefined : (addrs) =>
           seedSplitRecipients(addrs.map((a) => ({ id: makeRecipientId(), address: a, amount: '' })))}
-        onScan={locked ? undefined : () => setShowScanner(true)}
+        onScan={locked ? undefined : openScanner}
         myAddress={address}
       />
 
       {selectedToken && (
         <BatchImportSheet
           visible={showBatchImport}
-          onClose={() => setShowBatchImport(false)}
+          onClose={closeBatchImport}
           token={selectedToken}
           currencyCode={dc.code}
           currencySymbol={dc.symbol}

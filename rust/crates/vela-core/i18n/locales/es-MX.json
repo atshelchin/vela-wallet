@@ -73,10 +73,21 @@
     "signOut": {
       "button": "Cerrar sesión",
       "title": "Cerrar sesión",
-      "desc": "Los datos de tu billetera se quedan en este dispositivo. Vuelve a iniciar sesión cuando quieras con tu passkey (Face ID / huella).",
-      "warning": "Tu llave pública aún no se ha sincronizado con el servidor. Si cierras sesión ahora, podrías no poder recuperarla en otros dispositivos.",
+      "desc": "Este dispositivo dejará de tener la sesión iniciada. La billetera no se borra: tu passkey sigue en Face ID / huella.",
+      "keeps": "Elige “Ya tengo una billetera” para volver a entrar con esa misma passkey: recuperas la misma dirección, y tu historial, contactos, tokens y ajustes siguen aquí.",
+      "warning": "Tu llave pública todavía no llegó al servidor de sincronización. Se reintentará al abrir la app de nuevo, pero hasta que lo logre podrías no poder iniciar sesión en otro dispositivo, ni aquí si desinstalas la app.",
       "anyway": "Cerrar sesión de todos modos",
       "cancel": "Cancelar"
+    },
+    "eraseDevice": {
+      "title": "Borrar este dispositivo",
+      "subtitle": "Elimina todo lo que Vela guardó aquí",
+      "desc": "Se borra todo lo que Vela guardó en este dispositivo. No hay respaldo ni forma de deshacerlo.",
+      "loses": "Pierdes: historial de transacciones, contactos y grupos, historial de navegación, permisos de dApps, tokens y redes personalizados, ajustes de RPC y endpoints, y todas las preferencias.",
+      "keeps": "No pierdes la billetera. Tu passkey sigue en Face ID / huella: elige “Ya tengo una billetera” y vuelve la misma dirección, solo que sin historial.",
+      "confirm": "Borrar todo",
+      "cancel": "Cancelar",
+      "failed": "El borrado no terminó. Todavía hay datos en este dispositivo y tu sesión sigue iniciada; inténtalo de nuevo."
     },
     "formatNote": {
       "system": "Sistema",

@@ -4,6 +4,7 @@
       "modalTitle": "Redes",
       "chainId": "Chain {{chainId}}",
       "fieldRpcUrl": "RPC URL",
+      "rpcChainMismatch": "Não salvo: este RPC informa a Chain {{reported}}, mas esta rede é a Chain {{expected}}. O endpoint anterior continua em uso.",
       "fieldExplorer": "EXPLORER",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Remover rede",

@@ -1,38 +1,24 @@
 /**
- * Adding a custom EVM network by chain ID.
+ * Adding a custom EVM network by chain ID — NATIVE.
  *
  * Factors the ChainInfo → CustomNetwork conversion + persistence shared by the
  * "Add network" tab in AddTokenPanel and the EIP-681 scan recovery flow in
  * SendScreen (when a scanned request names a network Vela doesn't yet support).
+ *
+ * `add-network.web.ts` is the web twin: there this flow runs through the
+ * `network_admin` core, so the scan path and the Settings wizard share ONE
+ * duplicate-chain gate (the two TypeScript implementations had diverged — this
+ * one never checked). Native behaviour below is unchanged.
  */
 import { refreshCustomNetworks } from '@/models/network';
-import type { CompatibilityResult, CustomNetwork } from '@/models/types';
-import { fetchChainInfo, type ChainInfo } from '@/services/chain-registry';
+import type { CompatibilityResult } from '@/models/types';
+import { chainInfoToCustomNetwork, type AddNetworkResult } from '@/services/add-network-record';
+import { fetchChainInfo } from '@/services/chain-registry';
 import { checkNetworkCompatibility } from '@/services/network-checker';
-import { getBundlerServiceURL, saveCustomNetwork } from '@/services/storage';
+import { saveCustomNetwork } from '@/services/storage';
 
-/** Convert resolved chain metadata + the chosen RPC into a CustomNetwork record. */
-export function chainInfoToCustomNetwork(info: ChainInfo, bestRpcUrl?: string | null): CustomNetwork {
-  return {
-    id: `custom-${info.chainId}`,
-    displayName: info.name,
-    chainId: info.chainId,
-    iconLabel: (info.nativeCurrency?.symbol ?? 'ETH').slice(0, 4),
-    iconColor: '#888888',
-    iconBg: '#F0F0F0',
-    logoURL: info.logoURL ?? '',
-    isL2: false,
-    rpcURL: bestRpcUrl ?? info.rpcUrl ?? '',
-    explorerURL: info.explorerUrl ?? '',
-    bundlerURL: `${getBundlerServiceURL()}/${info.chainId}`,
-    nativeSymbol: info.nativeCurrency?.symbol ?? 'ETH',
-    addedAt: new Date().toISOString(),
-  };
-}
-
-export type AddNetworkResult =
-  | { ok: true; network: CustomNetwork }
-  | { ok: false; reason: 'not-found' | 'not-compatible'; error?: string };
+export { chainInfoToCustomNetwork };
+export type { AddNetworkResult };
 
 /**
  * Resolve a chain ID against the chain registry, verify ERC-4337 / P256

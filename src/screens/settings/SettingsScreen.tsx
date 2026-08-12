@@ -18,24 +18,25 @@ import { TEXT_SCALE_LEVELS, useTextScale } from '@/constants/text-scale';
 import { color, createStyles, font, inter, radius, scaleFont, shadow, space, text, useStyles } from '@/constants/theme';
 import { useAvatarStyle } from '@/hooks/use-avatar-style';
 import { useCopyFeedback } from '@/hooks/use-copy-feedback';
+import type { EndpointHealth, NetworkCardView, ServiceHealth } from '@/hooks/network-admin-controller-types';
+import { useAddNetworkWizard, useNetworkEditor, useServiceEndpoints } from '@/hooks/use-network-admin';
+import { useEraseDevice } from '@/hooks/use-erase-device';
+import { useSessionSignOut } from '@/hooks/use-session-signout';
+import { useSettingsCurrency } from '@/hooks/use-settings-currency';
 import { LANGUAGE_NATIVE_NAMES, SUPPORTED_LANGUAGES, type AppLanguage, type LanguagePreference } from '@/i18n';
 import { useLanguagePreference } from '@/i18n/language';
-import type { Network } from '@/models/network';
-import { DEFAULT_NETWORKS, explorerAddressURL, getAllNetworks, getAllNetworksSync, refreshCustomNetworks } from '@/models/network';
-import type { CompatibilityResult, CustomNetwork, LocalePrefs, NetworkConfig, ServiceEndpoints } from '@/models/types';
+import { explorerAddressURL, getAllNetworksSync } from '@/models/network';
+import type { LocalePrefs, ServiceEndpoints } from '@/models/types';
 import { DEFAULT_SERVICE_ENDPOINTS, isNativeToken, tokenChainId } from '@/models/types';
 import { shortAddress, useWallet } from '@/models/wallet-state';
 import { setAvatarStyle, type AvatarStyle } from '@/services/avatar-style';
-import { clearBundlerCache } from '@/services/bundler-service';
-import { fetchChainInfo, searchChains, type ChainSearchResult } from '@/services/chain-registry';
-import { currencyMeta, formatFiat, getCurrencyCode, getRate, loadCurrency, setCurrency } from '@/services/currency';
+import { currencyMeta, formatFiat } from '@/services/currency';
 import { formatWeiToEth as formatEth } from '@/services/format-eth';
 import { dateFormatOptions, numberFormatOptions, timeFormatOptions, type FormatOption } from '@/services/locale-format';
 import { fetchWithTimeout, NET_TIMEOUTS } from '@/services/net';
-import { checkNetworkCompatibility } from '@/services/network-checker';
 import { hapticLight, openBrowser, showAlert } from '@/services/platform';
-import { getBuiltinBundlerUrl, invalidateAllPools, poolRpcCall, refreshPool } from '@/services/rpc-pool';
-import { getBundlerServiceURL, getLocalePrefs, hasPendingUploads, loadCustomNetworks, loadLocalePrefs, loadNetworkConfigs, loadServiceEndpoints, removeCustomNetwork, saveCustomNetwork, saveLocalePrefs, saveNetworkConfig, saveServiceEndpoints } from '@/services/storage';
+import { getBuiltinBundlerUrl, poolRpcCall } from '@/services/rpc-pool';
+import { getLocalePrefs, loadLocalePrefs, loadServiceEndpoints, saveLocalePrefs } from '@/services/storage';
 import { isTempoChain, TEMPO_DEFAULT_FEE_TOKEN } from '@/services/tempo';
 import { fetchTokens } from '@/services/wallet-api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -90,66 +91,6 @@ function SettingsRow({ s, icon: Icon, title, subtitle, showDivider = true, onPre
   );
 }
 
-type EndpointHealth = { status: 'checking' | 'ok' | 'error'; latencyMs?: number };
-
-async function checkEndpointHealth(url: string, type: 'rpc' | 'explorer' | 'bundler'): Promise<EndpointHealth> {
-  if (!url) return { status: 'error' };
-  const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-  try {
-    if (type === 'rpc') {
-      if (url.startsWith('wss://') || url.startsWith('ws://')) {
-        // WebSocket RPC: open connection, send eth_chainId, wait for response
-        return await new Promise<EndpointHealth>((resolve) => {
-          const ws = new WebSocket(url);
-          const done = (result: EndpointHealth) => { try { ws.close(); } catch {} clearTimeout(timeout); resolve(result); };
-          ws.onopen = () => { ws.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] })); };
-          ws.onmessage = (e) => { try { const d = JSON.parse(e.data); if (d.result) done({ status: 'ok', latencyMs: Date.now() - start }); else done({ status: 'error' }); } catch { done({ status: 'error' }); } };
-          ws.onerror = () => done({ status: 'error' });
-          controller.signal.addEventListener('abort', () => done({ status: 'error' }));
-        });
-      }
-      // HTTPS RPC: send eth_chainId, check for valid JSON-RPC response
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (!res.ok) return { status: 'error' };
-      const json = await res.json();
-      if (json.result) return { status: 'ok', latencyMs: Date.now() - start };
-      return { status: 'error' };
-    } else if (type === 'bundler') {
-      // Bundler: may require API key, just check if server responds (even 401/403 means reachable)
-      await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_chainId', params: [] }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      // Any HTTP response means the server is reachable
-      return { status: 'ok', latencyMs: Date.now() - start };
-    } else {
-      // Explorer: it's a website, not a JSON API — it sends no CORS headers (and
-      // usually sits behind Cloudflare), so on web a normal fetch is blocked and
-      // every explorer falsely reads "offline". Use no-cors: the opaque response
-      // can't be inspected, but the request still goes out, so "resolved without
-      // throwing" == host reachable. That's the only honest liveness signal we can
-      // get for a cross-origin site, and it matches the bundler check above.
-      await fetch(url, { method: 'GET', mode: 'no-cors', signal: controller.signal, redirect: 'follow' });
-      clearTimeout(timeout);
-      return { status: 'ok', latencyMs: Date.now() - start };
-    }
-  } catch {
-    clearTimeout(timeout);
-    return { status: 'error' };
-  }
-}
-
 function HealthBadge({ health }: { health: EndpointHealth }) {
   const { t } = useTranslation();
   if (health.status === 'checking') {
@@ -175,56 +116,31 @@ const healthStyles = createStyles(() => ({
   text: { fontSize: text.sm, ...inter.medium },
 }));
 
-function NetworkConfigCard({ s, network, savedConfig, onSave, onDelete }: {
-  s: S; network: Network; savedConfig?: NetworkConfig;
-  onSave: (config: NetworkConfig) => void; onDelete?: () => void;
+/**
+ * One network's card. The drafts, the health probes and the save (bundler
+ * preserved) all live in the controller now — `use-network-admin.ts` on native,
+ * the `network_admin` core on web. Expansion is the only state left here: it is
+ * pure UI, and it is what tells the controller to start probing.
+ */
+function NetworkConfigCard({ s, card, onExpand, onCollapse, onChangeRpc, onChangeExplorer, onSave, onDelete }: {
+  s: S; card: NetworkCardView;
+  onExpand: () => void; onCollapse: () => void;
+  onChangeRpc: (value: string) => void; onChangeExplorer: (value: string) => void;
+  onSave: () => void; onDelete?: () => void;
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const [rpcURL, setRpcURL] = useState(savedConfig?.rpcURL ?? network.rpcURL);
-  const [explorerURL, setExplorerURL] = useState(savedConfig?.explorerURL ?? network.explorerURL);
-  const [healths, setHealths] = useState<[EndpointHealth, EndpointHealth]>([
-    { status: 'checking' }, { status: 'checking' },
-  ]);
+  const network = card.network;
 
-  // Re-seed the inputs whenever the saved config arrives or changes. The parent
-  // loads savedConfig asynchronously, so on the first render it can still be
-  // undefined — and the fallback (the built-in default) now differs from a saved
-  // URL only by its query string. Without this sync a saved
-  // "…publicnode.com/?apikey=X" rendered as the bare default, so the user's key
-  // appeared to vanish on every reload (localStorage still held it).
-  useEffect(() => {
-    setRpcURL(savedConfig?.rpcURL ?? network.rpcURL);
-    setExplorerURL(savedConfig?.explorerURL ?? network.explorerURL);
-  }, [savedConfig?.rpcURL, savedConfig?.explorerURL, network.rpcURL, network.explorerURL]);
-
-  // The bundler isn't editable per-network: the one configured in Service
-  // Endpoints applies to every chain (the pool appends `/<chainId>`). Preserve
-  // whatever was already saved so we never clobber a custom network's bundler.
-  const handleSave = useCallback(() => {
-    onSave({
-      chainId: network.chainId,
-      rpcURL,
-      explorerURL,
-      bundlerURL: savedConfig?.bundlerURL ?? network.bundlerURL,
-    });
-  }, [network.chainId, network.bundlerURL, rpcURL, explorerURL, savedConfig?.bundlerURL, onSave]);
-
-  // Run health checks when expanded
-  useEffect(() => {
-    if (!expanded) return;
-    setHealths([{ status: 'checking' }, { status: 'checking' }]);
-    const fields: [string, 'rpc' | 'explorer'][] = [[rpcURL, 'rpc'], [explorerURL, 'explorer']];
-    fields.forEach(([url, type], i) => {
-      checkEndpointHealth(url, type).then(h => {
-        setHealths(prev => { const next = [...prev] as typeof prev; next[i] = h; return next; });
-      });
-    });
-  }, [expanded, rpcURL, explorerURL]);
+  const toggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next) onExpand(); else onCollapse();
+  };
 
   return (
     <VelaCard style={s.networkCard}>
-      <Pressable style={s.networkHeader} onPress={() => setExpanded(!expanded)}>
+      <Pressable style={s.networkHeader} onPress={toggle}>
         <ChainLogo label={network.iconLabel} color={network.iconColor} bgColor={network.iconBg} logoURL={network.logoURL} size={36} />
         <View style={s.networkHeaderText}>
           <Text style={s.networkName}>{network.displayName}</Text>
@@ -241,18 +157,31 @@ function NetworkConfigCard({ s, network, savedConfig, onSave, onDelete }: {
         <View style={s.networkFields}>
           <View style={s.dividerFull} />
           {([
-            ['settingsModals.network.fieldRpcUrl', rpcURL, setRpcURL],
-            ['settingsModals.network.fieldExplorer', explorerURL, setExplorerURL],
+            ['settingsModals.network.fieldRpcUrl', card.rpcURL, onChangeRpc],
+            ['settingsModals.network.fieldExplorer', card.explorerURL, onChangeExplorer],
           ] as const).map(([labelKey, val, setter], i) => {
             const label = t(labelKey);
             return (
               <View key={labelKey} style={s.configField}>
                 <View style={s.configLabelRow}>
                   <Text style={s.configLabel}>{label}</Text>
-                  <HealthBadge health={healths[i]} />
+                  <HealthBadge health={card.healths[i]} />
                 </View>
-                <TextInput style={s.configInput} value={val} onChangeText={setter} onBlur={handleSave}
+                <TextInput style={s.configInput} value={val} onChangeText={setter} onBlur={onSave}
                   autoCapitalize="none" autoCorrect={false} placeholder={label} placeholderTextColor={color.fg.subtle} />
+                {/* The RPC field only: a save refused because the endpoint
+                    answered as another chain. It names both ids because a
+                    vaguer message ("invalid RPC") would send the user hunting
+                    for a typo that isn't there. Undefined on native, whose
+                    controller keeps the historic ungated save (FR-202). */}
+                {i === 0 && card.rpcMismatch && (
+                  <Text style={s.configMismatch}>
+                    {t('settingsModals.network.rpcChainMismatch', {
+                      reported: card.rpcMismatch.reportedChainId,
+                      expected: card.rpcMismatch.expectedChainId,
+                    })}
+                  </Text>
+                )}
               </View>
             );
           })}
@@ -274,38 +203,22 @@ function NetworkConfigCard({ s, network, savedConfig, onSave, onDelete }: {
 
 function NetworkEditorModal({ s, visible, onClose }: { s: S; visible: boolean; onClose: () => void }) {
   const { t } = useTranslation();
-  const [savedConfigs, setSavedConfigs] = useState<NetworkConfig[]>([]);
-  const [allNetworks, setAllNetworks] = useState<Network[]>(DEFAULT_NETWORKS);
-  const [customIds, setCustomIds] = useState<Set<string>>(new Set());
+  const editor = useNetworkEditor();
+  const open = editor.open;
 
   useEffect(() => {
     if (!visible) return;
-    loadNetworkConfigs().then(setSavedConfigs);
-    getAllNetworks().then(setAllNetworks);
-    loadCustomNetworks().then(cn => setCustomIds(new Set(cn.map(c => c.id))));
-  }, [visible]);
+    open();
+  }, [visible, open]);
 
-  const handleSave = useCallback(async (config: NetworkConfig) => {
-    await saveNetworkConfig(config);
-    setSavedConfigs(await loadNetworkConfigs());
-    // Flush caches so new endpoints take effect immediately
-    refreshPool(config.chainId);
-    clearBundlerCache(config.chainId);
-  }, []);
-
-  const handleDelete = useCallback(async (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     showAlert(t('settingsModals.network.removeTitle'), t('settingsModals.network.removeBody'), [
       { text: t('settingsModals.network.removeCancel'), style: 'cancel' },
-      { text: t('settingsModals.network.removeConfirm'), style: 'destructive', onPress: async () => {
-        await removeCustomNetwork(id);
-        await refreshCustomNetworks();
-        // Drop the removed chain's cached endpoint list so nothing keeps querying it.
-        invalidateAllPools();
-        setAllNetworks(await getAllNetworks());
-        setCustomIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+      { text: t('settingsModals.network.removeConfirm'), style: 'destructive', onPress: () => {
+        editor.remove(id);
       }},
     ]);
-  }, [t]);
+  }, [t, editor]);
 
   return (
     <AppModal visible={visible} onClose={onClose}>
@@ -315,11 +228,14 @@ function NetworkEditorModal({ s, visible, onClose }: { s: S; visible: boolean; o
           <Pressable onPress={onClose} hitSlop={8}><X size={22} color={color.fg.base} strokeWidth={2} /></Pressable>
         </View>
         <ScrollView style={s.modalScroll} contentContainerStyle={s.networkScrollContent} keyboardShouldPersistTaps="handled">
-          {allNetworks.map((network) => (
-            <NetworkConfigCard key={network.id} s={s} network={network}
-              savedConfig={savedConfigs.find((c) => c.chainId === network.chainId)}
-              onSave={handleSave}
-              onDelete={customIds.has(network.id) ? () => handleDelete(network.id) : undefined} />
+          {editor.cards.map((card) => (
+            <NetworkConfigCard key={card.network.id} s={s} card={card}
+              onExpand={() => editor.expand(card.network.chainId)}
+              onCollapse={() => editor.collapse(card.network.chainId)}
+              onChangeRpc={(value) => editor.setRpcURL(card.network.chainId, value)}
+              onChangeExplorer={(value) => editor.setExplorerURL(card.network.chainId, value)}
+              onSave={() => editor.save(card.network.chainId)}
+              onDelete={card.isCustom ? () => handleDelete(card.network.id) : undefined} />
           ))}
         </ScrollView>
       </View>
@@ -330,84 +246,6 @@ function NetworkEditorModal({ s, visible, onClose }: { s: S; visible: boolean; o
 // ---------------------------------------------------------------------------
 // Endpoint Editor Modal
 // ---------------------------------------------------------------------------
-
-type ServiceHealth = {
-  status: 'checking' | 'ok' | 'not_https' | 'unreachable' | 'invalid_response';
-  latencyMs?: number;
-  detail?: string;
-};
-
-const SERVICE_IDENTITY: Record<string, string> = {
-  data: 'ethereum-data',
-  passkey: 'webauthn-p256-publickey-index',
-  bundler: 'vela-relay',
-};
-
-async function checkServiceEndpointHealth(
-  url: string, type: 'data' | 'passkey' | 'bundler' | 'fiat',
-): Promise<ServiceHealth> {
-  if (!url) return { status: 'unreachable', detail: 'Empty URL' };
-
-  // 1. HTTPS check (allow http for localhost / 127.0.0.1 during development)
-  const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(url);
-  if (!url.startsWith('https://') && !isLocalhost) {
-    return { status: 'not_https', detail: 'HTTPS required' };
-  }
-
-  // Fiat-rate provider: third-party (no /api/health) — GET the URL itself and
-  // validate it returns a USD-based `{ rates: {...} }` map.
-  if (type === 'fiat') {
-    const start = Date.now();
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    try {
-      const res = await fetch(url.trim().replace(/[\r\n]/g, ''), { method: 'GET', signal: controller.signal });
-      clearTimeout(timeout);
-      const latencyMs = Date.now() - start;
-      if (!res.ok) return { status: 'unreachable', latencyMs, detail: `HTTP ${res.status}` };
-      const data = await res.json();
-      // Accept Frankfurter v2's array shape or an object `{rates:{…}}` (open.er-api / v1).
-      const n = Array.isArray(data)
-        ? data.length
-        : (data?.rates && typeof data.rates === 'object' ? Object.keys(data.rates).length : 0);
-      if (!n) return { status: 'invalid_response', latencyMs, detail: 'No rates returned' };
-      return { status: 'ok', latencyMs, detail: `${n} currencies` };
-    } catch {
-      clearTimeout(timeout);
-      return { status: 'unreachable', detail: 'Connection failed' };
-    }
-  }
-
-  // 2. Connectivity + 3. Response validation via /api/health
-  const base = url.trim().replace(/[\r\n]/g, '').replace(/\/$/, '');
-  const expected = SERVICE_IDENTITY[type];
-  const start = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-  try {
-    console.log(`[HealthCheck] ${type} → GET ${base}/api/health?_t=${start}`);
-    const res = await fetch(
-      `${base}/api/health?_t=${start}`,
-      { method: 'GET', signal: controller.signal },
-    );
-    clearTimeout(timeout);
-    const latencyMs = Date.now() - start;
-    console.log(`[HealthCheck] ${type} → HTTP ${res.status}, ${latencyMs}ms`);
-    if (!res.ok) return { status: 'unreachable', latencyMs, detail: `HTTP ${res.status}` };
-    const text = await res.text();
-    console.log(`[HealthCheck] ${type} → body: ${text}`);
-    const json = JSON.parse(text);
-    if (json.service !== expected || json.status !== 'ok') {
-      console.log(`[HealthCheck] ${type} → INVALID: expected service="${expected}", got service="${json.service}" status="${json.status}"`);
-      return { status: 'invalid_response', latencyMs, detail: `Not a valid ${expected} service` };
-    }
-    return { status: 'ok', latencyMs };
-  } catch (e: any) {
-    clearTimeout(timeout);
-    console.log(`[HealthCheck] ${type} → CATCH: ${e?.message ?? e}`);
-    return { status: 'unreachable', detail: 'Connection failed' };
-  }
-}
 
 function ServiceHealthBadge({ health }: { health: ServiceHealth }) {
   const { t } = useTranslation();
@@ -429,42 +267,24 @@ function ServiceHealthBadge({ health }: { health: ServiceHealth }) {
   );
 }
 
+/** Field labels, in render order. The values, the probes and the cleaning rules
+ *  all come from the controller. */
+const ENDPOINT_LABELS: { key: keyof ServiceEndpoints; labelKey: string; hintKey: string }[] = [
+  { key: 'ethereumDataURL', labelKey: 'settingsModals.endpoints.chainDataLabel', hintKey: 'settingsModals.endpoints.chainDataHint' },
+  { key: 'passkeyIndexURL', labelKey: 'settingsModals.endpoints.passkeyLabel', hintKey: 'settingsModals.endpoints.passkeyHint' },
+  { key: 'bundlerServiceURL', labelKey: 'settingsModals.endpoints.bundlerLabel', hintKey: 'settingsModals.endpoints.bundlerHint' },
+  { key: 'fiatRatesURL', labelKey: 'settingsModals.endpoints.fiatLabel', hintKey: 'settingsModals.endpoints.fiatHint' },
+];
+
 function EndpointEditorModal({ s, visible, onClose }: { s: S; visible: boolean; onClose: () => void }) {
   const { t } = useTranslation();
-  const [endpoints, setEndpoints] = useState<ServiceEndpoints>({ ...DEFAULT_SERVICE_ENDPOINTS });
-  const [healths, setHealths] = useState<Record<string, ServiceHealth>>({});
-  const [refreshCount, setRefreshCount] = useState(0);
+  const endpoints = useServiceEndpoints();
+  const open = endpoints.open;
 
-  useEffect(() => { if (visible) loadServiceEndpoints().then(setEndpoints); }, [visible]);
-
-  // Health checks on open and manual refresh
   useEffect(() => {
     if (!visible) return;
-    const keys = ['ethereumDataURL', 'passkeyIndexURL', 'bundlerServiceURL', 'fiatRatesURL'] as const;
-    const types = ['data', 'passkey', 'bundler', 'fiat'] as const;
-    setHealths(Object.fromEntries(keys.map(k => [k, { status: 'checking' as const }])));
-    keys.forEach((key, i) => {
-      checkServiceEndpointHealth(endpoints[key], types[i]).then(h => {
-        setHealths(prev => ({ ...prev, [key]: h }));
-      });
-    });
-  }, [visible, refreshCount]);
-
-  const handleSave = useCallback(async (field: keyof ServiceEndpoints, value: string) => {
-    const clean = value.trim().replace(/[\r\n]/g, '');
-    const updated = { ...endpoints, [field]: clean };
-    setEndpoints(updated);
-    await saveServiceEndpoints(updated);
-    invalidateAllPools();
-    setRefreshCount(c => c + 1);
-  }, [endpoints]);
-
-  const fields: { key: keyof ServiceEndpoints; labelKey: string; hintKey: string; healthType: 'data' | 'passkey' | 'bundler' | 'fiat' }[] = [
-    { key: 'ethereumDataURL', labelKey: 'settingsModals.endpoints.chainDataLabel', hintKey: 'settingsModals.endpoints.chainDataHint', healthType: 'data' },
-    { key: 'passkeyIndexURL', labelKey: 'settingsModals.endpoints.passkeyLabel', hintKey: 'settingsModals.endpoints.passkeyHint', healthType: 'passkey' },
-    { key: 'bundlerServiceURL', labelKey: 'settingsModals.endpoints.bundlerLabel', hintKey: 'settingsModals.endpoints.bundlerHint', healthType: 'bundler' },
-    { key: 'fiatRatesURL', labelKey: 'settingsModals.endpoints.fiatLabel', hintKey: 'settingsModals.endpoints.fiatHint', healthType: 'fiat' },
-  ];
+    open();
+  }, [visible, open]);
 
   return (
     <AppModal visible={visible} onClose={onClose}>
@@ -475,7 +295,7 @@ function EndpointEditorModal({ s, visible, onClose }: { s: S; visible: boolean; 
             <Pressable onPress={() => openBrowser('https://github.com/atshelchin/vela-wallet#self-deploy-service-endpoints')} hitSlop={8} style={s.refreshBtn}>
               <ExternalLink size={18} color={color.fg.muted} strokeWidth={2} />
             </Pressable>
-            <Pressable onPress={() => setRefreshCount(c => c + 1)} hitSlop={8} style={s.refreshBtn}>
+            <Pressable onPress={() => endpoints.refresh()} hitSlop={8} style={s.refreshBtn}>
               <RefreshCw size={18} color={color.fg.muted} strokeWidth={2} />
             </Pressable>
             <Pressable onPress={onClose} hitSlop={8}><X size={22} color={color.fg.base} strokeWidth={2} /></Pressable>
@@ -483,30 +303,33 @@ function EndpointEditorModal({ s, visible, onClose }: { s: S; visible: boolean; 
         </View>
         <ScrollView style={s.modalScroll} contentContainerStyle={s.epScrollContent} keyboardShouldPersistTaps="handled">
           <Text style={s.epDescription}>{t('settingsModals.endpoints.description')}</Text>
-          {fields.map(({ key, labelKey, hintKey }) => (
-            <VelaCard key={key} style={s.epCard}>
-              <View style={s.epCardHeader}>
-                <View style={s.epCardHeaderLeft}>
-                  <Text style={s.epCardLabel}>{t(labelKey, { defaultValue: labelKey })}</Text>
-                  <Text style={s.epCardHint}>{t(hintKey, { defaultValue: hintKey })}</Text>
+          {ENDPOINT_LABELS.map(({ key, labelKey, hintKey }) => {
+            const field = endpoints.fields.find(f => f.key === key);
+            return (
+              <VelaCard key={key} style={s.epCard}>
+                <View style={s.epCardHeader}>
+                  <View style={s.epCardHeaderLeft}>
+                    <Text style={s.epCardLabel}>{t(labelKey, { defaultValue: labelKey })}</Text>
+                    <Text style={s.epCardHint}>{t(hintKey, { defaultValue: hintKey })}</Text>
+                  </View>
+                  <ServiceHealthBadge health={field?.health ?? { status: 'checking' }} />
                 </View>
-                <ServiceHealthBadge health={healths[key] ?? { status: 'checking' }} />
-              </View>
-              <View style={s.epCardDivider} />
-              <AutoGrowTextInput
-                style={s.endpointInput}
-                minHeight={56}
-                value={endpoints[key]}
-                onChangeText={(v) => setEndpoints({ ...endpoints, [key]: v })}
-                onBlur={() => handleSave(key, endpoints[key])}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder={DEFAULT_SERVICE_ENDPOINTS[key]}
-                placeholderTextColor={color.fg.subtle}
-              />
-            </VelaCard>
-          ))}
-          <Pressable style={s.resetEndpointsBtn} onPress={() => { setEndpoints({ ...DEFAULT_SERVICE_ENDPOINTS }); saveServiceEndpoints({ ...DEFAULT_SERVICE_ENDPOINTS }); setRefreshCount(c => c + 1); }}>
+                <View style={s.epCardDivider} />
+                <AutoGrowTextInput
+                  style={s.endpointInput}
+                  minHeight={56}
+                  value={field?.value ?? ''}
+                  onChangeText={(v) => endpoints.setValue(key, v)}
+                  onBlur={() => endpoints.save(key)}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder={DEFAULT_SERVICE_ENDPOINTS[key]}
+                  placeholderTextColor={color.fg.subtle}
+                />
+              </VelaCard>
+            );
+          })}
+          <Pressable style={s.resetEndpointsBtn} onPress={() => endpoints.resetToDefaults()}>
             <Text style={s.resetEndpointsText}>{t('settingsModals.endpoints.resetToDefaults')}</Text>
           </Pressable>
         </ScrollView>
@@ -569,110 +392,36 @@ const VELA_CHAIN_SETUP_URL = 'https://biubiu.tools/apps/vela-wallet-chain-setup'
 
 function AddNetworkModal({ s, visible, onClose, onAdded }: { s: S; visible: boolean; onClose: () => void; onAdded: () => void }) {
   const { t } = useTranslation();
-  const [query, setQuery] = useState('');
-  const [suggestions, setSuggestions] = useState<ChainSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [selectedChainId, setSelectedChainId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [chainInfo, setChainInfo] = useState<Awaited<ReturnType<typeof fetchChainInfo>> | null>(null);
-  const [compatResult, setCompatResult] = useState<CompatibilityResult | null>(null);
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [customRpc, setCustomRpc] = useState('');
-  const searchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wizard = useAddNetworkWizard();
+  const {
+    query, suggestions, searching, loading, saving, error, chainInfo,
+    compat: compatResult, selectedChainId, customRpc, addedChainId,
+  } = wizard;
+  const handleQueryChange = wizard.setQuery;
+  const handleSelect = wizard.select;
+  const reset = wizard.reset;
 
-  const reset = () => {
-    setQuery(''); setSuggestions([]); setSelectedChainId(null);
-    setChainInfo(null); setCompatResult(null); setError(''); setCustomRpc('');
-  };
+  // `handleAdd`'s old tail — `onAdded(); reset(); onClose();` — now keys off the
+  // controller reporting a new saved chain, because the save itself moved into
+  // the machine. While the sheet is closed the marker is only tracked, so a
+  // network added elsewhere never pops this modal.
+  const lastAdded = React.useRef(addedChainId);
+  useEffect(() => {
+    if (!visible) { lastAdded.current = addedChainId; return; }
+    if (addedChainId === lastAdded.current) return;
+    lastAdded.current = addedChainId;
+    onAdded();
+    reset();
+    onClose();
+  }, [visible, addedChainId, onAdded, onClose, reset]);
 
-  // Debounced search
-  const handleQueryChange = (text: string) => {
-    setQuery(text);
-    setSelectedChainId(null);
-    setChainInfo(null);
-    setCompatResult(null);
-    setError('');
-
-    if (searchTimer.current) clearTimeout(searchTimer.current);
-    if (!text.trim()) { setSuggestions([]); return; }
-
-    searchTimer.current = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const results = await searchChains(text);
-        setSuggestions(results);
-      } catch {} finally { setSearching(false); }
-    }, 300);
-  };
-
-  // Select a chain from suggestions
-  const handleSelect = async (chainId: number, keepCustomRpc = false) => {
-    setSelectedChainId(chainId);
-    setSuggestions([]);
-    setLoading(true);
-    setError('');
-    setChainInfo(null);
-    setCompatResult(null);
-    if (!keepCustomRpc) setCustomRpc('');
-
-    // Check if already exists
-    const existing = DEFAULT_NETWORKS.find(n => n.chainId === chainId);
-    const custom = await loadCustomNetworks();
-    if (existing || custom.find(n => n.chainId === chainId)) {
-      setError(`This network is already added`);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const info = await fetchChainInfo(chainId);
-      if (!info) { setError(`Chain ${chainId} not found`); setLoading(false); return; }
-      setChainInfo(info);
-      setQuery(info.name);
-
-      const rpcs = [
-        ...(customRpc.trim() ? [customRpc.trim()] : []),
-        ...(info.rpcUrls.length > 0 ? info.rpcUrls : info.rpcUrl ? [info.rpcUrl] : []),
-      ];
-      if (rpcs.length > 0) {
-        const compat = await checkNetworkCompatibility(rpcs, chainId);
-        setCompatResult(compat);
-      } else {
-        setError('No RPC endpoint available for this network');
-      }
-    } catch (e: any) {
-      setError(e.message ?? 'Check failed');
-    } finally { setLoading(false); }
-  };
-
-  const handleAdd = async () => {
-    if (!chainInfo || !compatResult?.compatible) return;
-    setSaving(true);
-    try {
-      const network: CustomNetwork = {
-        id: `custom-${chainInfo.chainId}`,
-        displayName: chainInfo.name,
-        chainId: chainInfo.chainId,
-        iconLabel: chainInfo.nativeCurrency.symbol.slice(0, 4),
-        iconColor: '#888888',
-        iconBg: '#F0F0F0',
-        logoURL: chainInfo.logoURL,
-        isL2: false,
-        rpcURL: compatResult.bestRpcUrl ?? chainInfo.rpcUrl, // Use the fastest RPC
-        explorerURL: chainInfo.explorerUrl,
-        bundlerURL: `${getBundlerServiceURL()}/${chainInfo.chainId}`,
-        nativeSymbol: chainInfo.nativeCurrency.symbol,
-        addedAt: new Date().toISOString(),
-      };
-      await saveCustomNetwork(network);
-      await refreshCustomNetworks();
-      onAdded();
-      reset();
-      onClose();
-    } catch (e: any) { setError(e.message ?? 'Failed to save'); }
-    finally { setSaving(false); }
-  };
+  // A closed sheet holds no wizard state. Free on native (the state lived in this
+  // component and died with it); explicit on web, where the machine is resident
+  // and would otherwise re-open on a half-finished search.
+  useEffect(() => {
+    if (visible) return;
+    reset();
+  }, [visible, reset]);
 
   return (
     <AppModal visible={visible} onClose={() => { reset(); onClose(); }}>
@@ -740,7 +489,7 @@ function AddNetworkModal({ s, visible, onClose, onAdded }: { s: S; visible: bool
             <VelaCard style={s.addNetResult}>
               <Text style={s.addNetResultName}>{chainInfo.name}</Text>
               <Text style={s.addNetResultDetail}>{t('settingsModals.addNetwork.chainIdLabel', { chainId: chainInfo.chainId })}</Text>
-              <Text style={s.addNetResultDetail}>{t('settingsModals.addNetwork.nativeLabel', { symbol: chainInfo.nativeCurrency.symbol })}</Text>
+              <Text style={s.addNetResultDetail}>{t('settingsModals.addNetwork.nativeLabel', { symbol: chainInfo.nativeSymbol })}</Text>
               {chainInfo.isTestnet && <Text style={s.addNetTestnet}>{t('settingsModals.addNetwork.testnet')}</Text>}
             </VelaCard>
           )}
@@ -752,7 +501,7 @@ function AddNetworkModal({ s, visible, onClose, onAdded }: { s: S; visible: bool
               <TextInput
                 style={s.configInput}
                 value={customRpc}
-                onChangeText={setCustomRpc}
+                onChangeText={wizard.setCustomRpc}
                 placeholder={t('settingsModals.addNetwork.customRpcPlaceholder')}
                 placeholderTextColor={color.fg.subtle}
                 autoCapitalize="none"
@@ -827,7 +576,7 @@ function AddNetworkModal({ s, visible, onClose, onAdded }: { s: S; visible: bool
           )}
 
           {compatResult?.compatible && (
-            <VelaButton title={t('settingsModals.addNetwork.addNetworkBtn')} onPress={handleAdd} variant="accent" loading={saving} style={s.checkBtn} />
+            <VelaButton title={t('settingsModals.addNetwork.addNetworkBtn')} onPress={wizard.add} variant="accent" loading={saving} style={s.checkBtn} />
           )}
           {compatResult && !compatResult.compatible && !compatResult.rpcFailed && (
             <View>
@@ -1100,6 +849,25 @@ function TextScaleSlider({ s, currentIndex, onChangeIndex }: {
 
 // ---------------------------------------------------------------------------
 // Treasury (Developer Options)
+//
+// Reachable only behind the 6-tap `dev_unlocked` latch (see `devUnlocked`
+// below), and the audience is whoever operates the sponsor treasury. Everything
+// in this block — the "needs funding" threshold and the fiat figures beside the
+// balances — is DISPLAY ONLY and stays in the shell on purpose (spec 017
+// no_core_owns_it):
+//
+//   - `gasPrice × 10M gas` is a staffing heuristic ("enough to sponsor ~15-20
+//     new users"), not a protocol quantity. It is never signed, never sent and
+//     never persisted; it decides one warning triangle and one hint line.
+//   - the USD figures go through `Number(bigint) / 1e18 × price`, which is a
+//     double and openly so. That is admissible HERE and only here, because the
+//     number leaves the function as pixels. It must not be copied into any path
+//     that converts, signs or stores a value — those already have owners
+//     (`money.rs`, `fee_policy.rs`), and a 256-bit rule exists there for the
+//     reason `4a2fc3e` records.
+//
+// Building a core for it would put a dev-tools heuristic in the same place as
+// the fee rules and invite exactly the copying the paragraph above forbids.
 // ---------------------------------------------------------------------------
 
 type TreasuryBalance = { chainId: number; name: string; explorerURL: string; balance: string; wei: bigint; recommended: string; recommendedWei: bigint; usd: number | null; loading: boolean };
@@ -1340,7 +1108,11 @@ async function fetchTreasuryBalance(address: string, chainId: number): Promise<{
     ]);
     const wei = BigInt((balRes.result as string) ?? '0x0');
     const gasPrice = BigInt((gasPriceRes.result as string) ?? '0x0');
-    // Recommended: gasPrice × 10M gas — enough to sponsor ~15-20 new users
+    // Recommended: gasPrice × 10M gas — enough to sponsor ~15-20 new users.
+    // Computed in 256 bits and kept in wei; only the rendering divides. A
+    // gasPrice the node could not answer stays 0n, which makes the threshold
+    // 0n — the `wei === 0n && recommendedWei === 0n` arm of `needsFunding`
+    // reads that as "unknown, warn" rather than as "funded".
     const recommendedWei = gasPrice * 10_000_000n;
     return {
       formatted: formatEth(wei),
@@ -1367,7 +1139,7 @@ function formatPathUsd(units: bigint): string {
 
 export default function SettingsScreen() {
   const styles = useStyles(styleFactory);
-  const { state, dispatch, activeAccount } = useWallet();
+  const { state, activeAccount } = useWallet();
   const router = useRouter();
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
@@ -1380,16 +1152,12 @@ export default function SettingsScreen() {
   const [fmtPicker, setFmtPicker] = useState<null | 'number' | 'date' | 'time'>(null);
   useEffect(() => { loadLocalePrefs().then(setLocalePrefs); }, []);
   // Display currency (E06) — the app-wide preference; screens pick the change up
-  // on focus via useDisplayCurrency. Warm the rate here so Home paints converted
-  // values immediately on return instead of a USD-magnitude flash.
-  const [currencyCode, setCurrencyCode] = useState(getCurrencyCode());
+  // on focus via useDisplayCurrency. The controller pair owns it (native:
+  // today's `loadCurrency`/`setCurrency` verbatim, rate warmed on pick; web: the
+  // `display_currency` core, so the first-launch region seed has exactly one
+  // implementation instead of racing the core's).
+  const { code: currencyCode, pick: pickCurrency } = useSettingsCurrency();
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
-  useEffect(() => { loadCurrency().then(setCurrencyCode); }, []);
-  const pickCurrency = async (code: string) => {
-    await setCurrency(code);
-    setCurrencyCode(code);
-    getRate(code).catch(() => {});
-  };
   const applyLocale = async (patch: Partial<LocalePrefs>) => {
     const next = { ...localePrefs, ...patch };
     setLocalePrefs(next);
@@ -1400,9 +1168,16 @@ export default function SettingsScreen() {
   const [showTreasury, setShowTreasury] = useState(false);
   const [devUnlocked, setDevUnlocked] = useState(false);
   useEffect(() => { AsyncStorage.getItem('dev_unlocked').then(v => { if (v === '1') setDevUnlocked(true); }); }, []);
-  const [showSignOut, setShowSignOut] = useState(false);
-  const [pendingSync, setPendingSync] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  // Sign-out is a sequence, not a modal flag: the pending-upload check runs
+  // first and the dialog only exists once it has answered, so no unwarned
+  // logout path is reachable. The controller pair owns it (native: today's
+  // handlers verbatim; web: the Rust session machine).
+  const signOut = useSessionSignOut();
+  // Erase-this-device: the destructive twin of sign-out, and a different
+  // controller on purpose — it clears the whole `vela.` namespace rather than
+  // the two keys that constitute a session, so nothing about it should share
+  // state with the row above it.
+  const eraseDevice = useEraseDevice();
   const { levelIndex: currentScaleIndex, setIndex: setScaleIndex } = useTextScale();
   const { preference: colorPref, setPreference: setColorPref } = useColorSchemePreference();
   const avatarStyle = useAvatarStyle();
@@ -1413,15 +1188,8 @@ export default function SettingsScreen() {
   const accountName = activeAccount?.name ?? 'No Wallet';
   const address = activeAccount?.address ?? state.address;
 
-  const handleOpenSignOut = async () => {
-    const pending = await hasPendingUploads();
-    setPendingSync(pending);
-    setShowSignOut(true);
-  };
-
   const handleSignOut = () => {
-    setSigningOut(true);
-    dispatch({ type: 'LOGOUT' });
+    signOut.confirm();
     router.replace('/');
   };
 
@@ -1581,12 +1349,33 @@ export default function SettingsScreen() {
         <Animated.View entering={fadeInDown(225, 300)}>
           <Pressable
             style={styles.logoutButton}
-            onPress={handleOpenSignOut}
+            onPress={signOut.open}
             accessibilityRole="button"
             accessibilityLabel={t('settings.signOut.button')}
           >
             <LogOutIcon size={16} color={color.fg.muted} />
             <Text style={styles.logoutText}>{t('settings.signOut.button')}</Text>
+          </Pressable>
+        </Animated.View>
+
+        {/* Erase this device — NOT a second sign-out, and styled so it cannot be
+            mistaken for one. Sign-out above is an open, quiet, unboxed row in
+            body ink because it is routine and fully reversible; this one is
+            boxed, hairlined in the error colour, sits below a rule and carries
+            a subtitle, because it is neither. The two are never adjacent
+            look-alikes the thumb can confuse. */}
+        <Animated.View entering={fadeInDown(250, 300)} style={styles.eraseZone}>
+          <Pressable
+            style={styles.eraseButton}
+            onPress={eraseDevice.open}
+            accessibilityRole="button"
+            accessibilityLabel={t('settings.eraseDevice.title')}
+          >
+            <Trash2 size={16} color={color.error.base} strokeWidth={2} />
+            <View style={styles.eraseButtonLabel}>
+              <Text style={styles.eraseButtonTitle}>{t('settings.eraseDevice.title')}</Text>
+              <Text style={styles.eraseButtonSubtitle}>{t('settings.eraseDevice.subtitle')}</Text>
+            </View>
           </Pressable>
         </Animated.View>
       </ScrollView>
@@ -1611,17 +1400,24 @@ export default function SettingsScreen() {
       <TreasuryModal visible={showTreasury} onClose={() => setShowTreasury(false)} />
 
       {/* Sign Out Confirmation */}
-      <AppModal visible={showSignOut} onClose={() => setShowSignOut(false)}>
+      <AppModal visible={signOut.visible} onClose={signOut.dismiss}>
         <View style={styles.signOutModal}>
           <View style={styles.signOutIconWrap}>
             <LogOutIcon size={24} color={color.error.base} strokeWidth={2} />
           </View>
           <Text style={styles.signOutTitle}>{t('settings.signOut.title')}</Text>
+          {/* Two paragraphs, in this order on purpose: what the action does,
+              then what it leaves alone. Signing out drops the stored account
+              list and nothing else, so the wallet — and everything keyed to its
+              address — comes back with the passkey. */}
           <Text style={styles.signOutDesc}>
             {t('settings.signOut.desc')}
           </Text>
+          <Text style={styles.signOutKeeps}>
+            {t('settings.signOut.keeps')}
+          </Text>
 
-          {pendingSync && (
+          {signOut.pendingSync && (
             <View style={styles.signOutWarning}>
               <AlertTriangle size={16} color={color.warning.base} strokeWidth={2} />
               <Text style={styles.signOutWarningText}>
@@ -1633,14 +1429,61 @@ export default function SettingsScreen() {
           {/* Destructive commit = error, never accent. VelaButton has no
               destructive variant, so signOutBtn overrides the accent bg. */}
           <VelaButton
-            title={pendingSync ? t('settings.signOut.anyway') : t('settings.signOut.button')}
+            title={signOut.pendingSync ? t('settings.signOut.anyway') : t('settings.signOut.button')}
             onPress={handleSignOut}
             variant="accent"
-            loading={signingOut}
+            loading={signOut.signingOut}
             style={styles.signOutBtn}
           />
-          <Pressable style={styles.signOutCancel} onPress={() => setShowSignOut(false)}>
+          <Pressable style={styles.signOutCancel} onPress={signOut.dismiss}>
             <Text style={styles.signOutCancelText}>{t('settings.signOut.cancel')}</Text>
+          </Pressable>
+        </View>
+      </AppModal>
+
+      {/* Erase confirmation. The three paragraphs are ordered the way the
+          decision is actually made: what the action does, then the itemised
+          list of what it takes (a vague "all data" is what makes a destructive
+          confirmation useless), then — last, so it is the thing still on screen
+          above the button — what it does NOT take, because "the wallet is gone"
+          is the fear this dialog has to answer, and it is false. */}
+      <AppModal visible={eraseDevice.visible} onClose={eraseDevice.dismiss}>
+        <View style={styles.eraseModal}>
+          <View style={styles.eraseIconWrap}>
+            <Trash2 size={24} color={color.error.base} strokeWidth={2} />
+          </View>
+          <Text style={styles.eraseTitle}>{t('settings.eraseDevice.title')}</Text>
+          <Text style={styles.eraseDesc}>
+            {t('settings.eraseDevice.desc')}
+          </Text>
+          <View style={styles.eraseLosesBox}>
+            <AlertTriangle size={16} color={color.error.base} strokeWidth={2} />
+            <Text style={styles.eraseLosesText}>
+              {t('settings.eraseDevice.loses')}
+            </Text>
+          </View>
+          <Text style={styles.eraseKeeps}>
+            {t('settings.eraseDevice.keeps')}
+          </Text>
+
+          {/* Shown only after an attempt that did not finish. The user is still
+              signed in and the data is still here; saying so is the whole
+              point of not navigating away. */}
+          {eraseDevice.failed && (
+            <Text style={styles.eraseFailed}>
+              {t('settings.eraseDevice.failed')}
+            </Text>
+          )}
+
+          <VelaButton
+            title={t('settings.eraseDevice.confirm')}
+            onPress={eraseDevice.confirm}
+            variant="accent"
+            loading={eraseDevice.erasing}
+            style={styles.eraseBtn}
+          />
+          <Pressable style={styles.eraseCancel} onPress={eraseDevice.dismiss}>
+            <Text style={styles.eraseCancelText}>{t('settings.eraseDevice.cancel')}</Text>
           </Pressable>
         </View>
       </AppModal>
@@ -1693,6 +1536,33 @@ const styleFactory = () => ({
   logoutButton: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: space.xl, gap: space.md },
   logoutText: { fontSize: text.lg, ...inter.semibold, color: color.fg.base },
 
+  // Erase this device — the one boxed, error-tinted control on the screen. The
+  // rule above it separates it from sign-out so the two never read as a pair of
+  // equivalent "leave" actions; everything else here (hairline, soft error fill,
+  // left-aligned title + subtitle) is chosen to look unlike every other row.
+  eraseZone: { marginTop: space.md, paddingTop: space['2xl'], borderTopWidth: 1, borderTopColor: color.border.base },
+  eraseButton: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: space.lg,
+    paddingVertical: space.xl, paddingHorizontal: space.xl,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: color.error.base, backgroundColor: color.error.soft,
+  },
+  eraseButtonLabel: { flex: 1, gap: space.xs },
+  eraseButtonTitle: { fontSize: text.base, ...inter.semibold, color: color.error.base },
+  eraseButtonSubtitle: { fontSize: text.sm, ...inter.regular, color: color.fg.muted, lineHeight: 18 },
+
+  // Erase confirmation modal
+  eraseModal: { padding: space['3xl'], paddingTop: space['2xl'], alignItems: 'center' as const },
+  eraseIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: color.error.soft, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: space.xl },
+  eraseTitle: { fontSize: text.xl, ...inter.bold, color: color.fg.base, marginBottom: space.md },
+  eraseDesc: { fontSize: text.base, ...inter.regular, color: color.fg.muted, textAlign: 'center' as const, lineHeight: 22, marginBottom: space.xl },
+  eraseLosesBox: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: space.md, backgroundColor: color.error.soft, borderRadius: radius.lg, padding: space.xl, marginBottom: space.xl, width: '100%' as const },
+  eraseLosesText: { flex: 1, fontSize: text.sm, ...inter.medium, color: color.error.base, lineHeight: 20 },
+  eraseKeeps: { fontSize: text.sm, ...inter.regular, color: color.fg.subtle, textAlign: 'center' as const, lineHeight: 20, marginBottom: space.xl },
+  eraseFailed: { fontSize: text.sm, ...inter.medium, color: color.error.base, textAlign: 'center' as const, lineHeight: 20, marginBottom: space.xl },
+  eraseBtn: { width: '100%' as const, marginBottom: space.lg, backgroundColor: color.error.base },
+  eraseCancel: { paddingVertical: space.lg },
+  eraseCancelText: { fontSize: text.base, ...inter.semibold, color: color.fg.muted },
+
   // Theme / avatar pickers — SegmentedToggle rows, inset to match SettingsRow
   pickerRow: { paddingVertical: space.lg, paddingHorizontal: space.xl },
   avatarPreviewCircle: {
@@ -1736,6 +1606,9 @@ const styleFactory = () => ({
   configLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const },
   configLabel: { fontSize: text.xs, ...inter.semibold, color: color.fg.subtle, letterSpacing: 1, textTransform: 'uppercase' as const },
   configInput: { fontSize: text.sm, fontWeight: '500' as const, fontFamily: font.mono, color: color.fg.base, padding: space.lg, backgroundColor: color.bg.sunken, borderRadius: radius.lg, borderWidth: 1, borderColor: color.border.base },
+  // A refused save, not a failed probe: warning, not error — the endpoint is
+  // alive (its badge stays green), it is simply not this network's.
+  configMismatch: { fontSize: text.sm, ...inter.medium, color: color.warning.base, lineHeight: 20 },
 
   // Endpoint Editor
   epScrollContent: { padding: space.xl, paddingBottom: space['5xl'] },
@@ -1785,7 +1658,9 @@ const styleFactory = () => ({
   signOutModal: { padding: space['3xl'], paddingTop: space['2xl'], alignItems: 'center' as const },
   signOutIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: color.error.soft, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: space.xl },
   signOutTitle: { fontSize: text.xl, ...inter.bold, color: color.fg.base, marginBottom: space.md },
-  signOutDesc: { fontSize: text.base, ...inter.regular, color: color.fg.muted, textAlign: 'center' as const, lineHeight: 22, marginBottom: space.xl },
+  signOutDesc: { fontSize: text.base, ...inter.regular, color: color.fg.muted, textAlign: 'center' as const, lineHeight: 22, marginBottom: space.md },
+  // The reassurance half: same column, one step quieter than the statement above it.
+  signOutKeeps: { fontSize: text.sm, ...inter.regular, color: color.fg.subtle, textAlign: 'center' as const, lineHeight: 20, marginBottom: space.xl },
   signOutWarning: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: space.md, backgroundColor: color.warning.soft, borderRadius: radius.lg, padding: space.xl, marginBottom: space.xl, width: '100%' as const },
   signOutWarningText: { flex: 1, fontSize: text.sm, ...inter.medium, color: color.warning.base, lineHeight: 20 },
   // backgroundColor overrides VelaButton's accent — destructive commit is error-colored.

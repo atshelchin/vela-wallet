@@ -7,12 +7,17 @@
 //!   paid for **once** across all 15 locales. Key bytes repeated per locale cost
 //!   460,471; interned once, 32,173. A 14.8x collapse, and the only reason
 //!   `ja` + `en` fits SC-005's 135,345-byte budget at a measured 121,528.
-//! - A **per-locale** value blob with a dense `u16` offset array and a presence
+//! - A **per-locale** value blob with a dense offset array and a presence
 //!   bitmap, either `&'static` behind a cargo feature or heap-built from host JSON.
 //!
 //! `u16` offsets rather than `usize`: the 64-bit table came to 135,992, which is
-//! 647 bytes *over* budget. Every locale's value blob is under 64 KiB (the largest,
-//! `ru`, is 57,701), and the generator asserts that rather than truncating.
+//! 647 bytes *over* budget; `u16` lands `ja` + `en` at 131,168 on every pointer
+//! width. The width is chosen PER LOCALE ([`StaticOffsets`]) rather than once for
+//! the corpus, because pinning all fifteen to the narrowest common width made the
+//! largest locale a corpus-wide ceiling: `ru` reached 65,115 of the 65,535 bytes a
+//! `u16` offset can address, so the next sentence added to it would have failed the
+//! build for every language. `ru` is emitted `u32` and costs 2,648 bytes more;
+//! `ja` and `en` — the two SC-005 measures — are untouched.
 //!
 //! Lookup is one binary search over the shared path table plus an O(1) index —
 //! measured 21.1 ns hot with **zero** allocations, which leaves essentially the
@@ -90,13 +95,57 @@ pub(crate) struct OwnedValues {
     extra_branches: Vec<String>,
 }
 
+/// A compiled-in offset array, at whichever width that locale's blob needs.
+///
+/// Generated code names the variant (`scripts/gen-i18n.mjs` emits
+/// `[u16; N]` or `[u32; N]` and the matching constructor), so the choice is made
+/// once, from the measured blob size, and can never disagree with the array it
+/// describes. Reading goes through [`Self::get`], which widens to `usize` — no
+/// call site sees the difference.
+///
+/// `allow(dead_code)`: the DEFAULT feature set is zero locales — which is what
+/// the wasm build and `cargo check` compile — so `i18n_catalogs::embedded` has
+/// every arm cfg'd out and neither variant is ever constructed there. The
+/// alternative is a `cfg(any(feature = "i18n-en", ... × 15))` that has to be
+/// edited whenever a locale is added, which fails in the direction of silence.
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
+pub(crate) enum StaticOffsets {
+    U16(&'static [u16]),
+    U32(&'static [u32]),
+}
+
+impl StaticOffsets {
+    fn len(self) -> usize {
+        match self {
+            Self::U16(o) => o.len(),
+            Self::U32(o) => o.len(),
+        }
+    }
+
+    /// Bytes one entry occupies — the SC-005 instrument's per-locale term.
+    fn width(self) -> usize {
+        match self {
+            Self::U16(_) => 2,
+            Self::U32(_) => 4,
+        }
+    }
+
+    fn get(self, index: usize) -> Option<usize> {
+        match self {
+            Self::U16(o) => o.get(index).map(|&v| v as usize),
+            Self::U32(o) => o.get(index).map(|&v| v as usize),
+        }
+    }
+}
+
 /// The value storage backing a catalog.
 #[derive(Debug)]
 pub(crate) enum Values {
     /// Compiled in behind a per-locale cargo feature. Costs no heap.
     Static {
         blob: &'static str,
-        offsets: &'static [u16],
+        offsets: StaticOffsets,
         present: &'static [u8],
     },
     /// Parsed at runtime from host JSON. Interned against the **shared** path
@@ -272,7 +321,7 @@ impl Catalog {
                 blob,
                 offsets,
                 present,
-            } => blob.len() + offsets.len() * 2 + present.len(),
+            } => blob.len() + offsets.len() * offsets.width() + present.len(),
             Values::Owned(o) => {
                 o.blob.len()
                     + o.offsets.len() * 4
@@ -305,9 +354,7 @@ impl Catalog {
                     return Lookup::Missing;
                 }
                 match (offsets.get(id), offsets.get(id + 1)) {
-                    (Some(&s), Some(&e)) => blob
-                        .get(s as usize..e as usize)
-                        .map_or(Lookup::Missing, Lookup::Value),
+                    (Some(s), Some(e)) => blob.get(s..e).map_or(Lookup::Missing, Lookup::Value),
                     _ => Lookup::Missing,
                 }
             }

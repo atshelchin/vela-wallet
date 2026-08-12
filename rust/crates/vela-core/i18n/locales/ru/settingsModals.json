@@ -4,6 +4,7 @@
       "modalTitle": "Сети",
       "chainId": "Сеть {{chainId}}",
       "fieldRpcUrl": "RPC URL",
+      "rpcChainMismatch": "Не сохранено — этот RPC сообщает Сеть {{reported}}, а это Сеть {{expected}}. Продолжает использоваться прежний адрес.",
       "fieldExplorer": "ОБОЗРЕВАТЕЛЬ",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Удалить сеть",

@@ -17,6 +17,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { loadShippedCore } from './load-wasm-node.mjs';
+
 const RUST_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const LEGACY_FILE = join(RUST_DIR, 'target', 'bench-legacy.json');
 
@@ -28,9 +30,7 @@ if (!existsSync(LEGACY_FILE)) {
 }
 const legacy = JSON.parse(readFileSync(LEGACY_FILE, 'utf8'));
 
-const { initSync, ...wasm } = await import(join(RUST_DIR, 'pkg-web', 'vela_core.js'));
-const { WASM_BASE64 } = await import(join(RUST_DIR, 'pkg-web', 'vela_core_bg.base64.js'));
-initSync({ module: Buffer.from(WASM_BASE64, 'base64') });
+const wasm = await loadShippedCore();
 
 const bytes = (s) => Buffer.from(s.startsWith('0x') ? s.slice(2) : s, 'hex');
 

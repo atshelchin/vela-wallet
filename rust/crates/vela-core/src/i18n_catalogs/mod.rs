@@ -38,39 +38,106 @@ pub(crate) mod zh_tw;
 
 /// The compiled-in table for `lang`, if its feature is enabled.
 ///
-/// Returns `(blob, offsets, present)`.
-pub(crate) fn embedded(lang: &str) -> Option<(&'static str, &'static [u16], &'static [u8])> {
+/// Returns `(blob, offsets, present)`. The offset width is per locale — see
+/// `StaticOffsets` and the residency-budget note in catalog.rs.
+pub(crate) fn embedded(
+    lang: &str,
+) -> Option<(
+    &'static str,
+    crate::i18n::catalog::StaticOffsets,
+    &'static [u8],
+)> {
     match lang {
         #[cfg(feature = "i18n-en")]
-        "en" => Some((en::BLOB, &en::OFFSETS, &en::PRESENT)),
+        "en" => Some((
+            en::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&en::OFFSETS),
+            &en::PRESENT,
+        )),
         #[cfg(feature = "i18n-zh")]
-        "zh" => Some((zh::BLOB, &zh::OFFSETS, &zh::PRESENT)),
+        "zh" => Some((
+            zh::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&zh::OFFSETS),
+            &zh::PRESENT,
+        )),
         #[cfg(feature = "i18n-zh-tw")]
-        "zh-TW" => Some((zh_tw::BLOB, &zh_tw::OFFSETS, &zh_tw::PRESENT)),
+        "zh-TW" => Some((
+            zh_tw::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&zh_tw::OFFSETS),
+            &zh_tw::PRESENT,
+        )),
         #[cfg(feature = "i18n-zh-hk")]
-        "zh-HK" => Some((zh_hk::BLOB, &zh_hk::OFFSETS, &zh_hk::PRESENT)),
+        "zh-HK" => Some((
+            zh_hk::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&zh_hk::OFFSETS),
+            &zh_hk::PRESENT,
+        )),
         #[cfg(feature = "i18n-ja")]
-        "ja" => Some((ja::BLOB, &ja::OFFSETS, &ja::PRESENT)),
+        "ja" => Some((
+            ja::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&ja::OFFSETS),
+            &ja::PRESENT,
+        )),
         #[cfg(feature = "i18n-ko")]
-        "ko" => Some((ko::BLOB, &ko::OFFSETS, &ko::PRESENT)),
+        "ko" => Some((
+            ko::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&ko::OFFSETS),
+            &ko::PRESENT,
+        )),
         #[cfg(feature = "i18n-vi")]
-        "vi" => Some((vi::BLOB, &vi::OFFSETS, &vi::PRESENT)),
+        "vi" => Some((
+            vi::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&vi::OFFSETS),
+            &vi::PRESENT,
+        )),
         #[cfg(feature = "i18n-id")]
-        "id" => Some((id::BLOB, &id::OFFSETS, &id::PRESENT)),
+        "id" => Some((
+            id::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&id::OFFSETS),
+            &id::PRESENT,
+        )),
         #[cfg(feature = "i18n-tr")]
-        "tr" => Some((tr::BLOB, &tr::OFFSETS, &tr::PRESENT)),
+        "tr" => Some((
+            tr::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&tr::OFFSETS),
+            &tr::PRESENT,
+        )),
         #[cfg(feature = "i18n-es-mx")]
-        "es-MX" => Some((es_mx::BLOB, &es_mx::OFFSETS, &es_mx::PRESENT)),
+        "es-MX" => Some((
+            es_mx::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&es_mx::OFFSETS),
+            &es_mx::PRESENT,
+        )),
         #[cfg(feature = "i18n-pt-br")]
-        "pt-BR" => Some((pt_br::BLOB, &pt_br::OFFSETS, &pt_br::PRESENT)),
+        "pt-BR" => Some((
+            pt_br::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&pt_br::OFFSETS),
+            &pt_br::PRESENT,
+        )),
         #[cfg(feature = "i18n-fr")]
-        "fr" => Some((fr::BLOB, &fr::OFFSETS, &fr::PRESENT)),
+        "fr" => Some((
+            fr::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&fr::OFFSETS),
+            &fr::PRESENT,
+        )),
         #[cfg(feature = "i18n-de")]
-        "de" => Some((de::BLOB, &de::OFFSETS, &de::PRESENT)),
+        "de" => Some((
+            de::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&de::OFFSETS),
+            &de::PRESENT,
+        )),
         #[cfg(feature = "i18n-ru")]
-        "ru" => Some((ru::BLOB, &ru::OFFSETS, &ru::PRESENT)),
+        "ru" => Some((
+            ru::BLOB,
+            crate::i18n::catalog::StaticOffsets::U32(&ru::OFFSETS),
+            &ru::PRESENT,
+        )),
         #[cfg(feature = "i18n-it")]
-        "it" => Some((it::BLOB, &it::OFFSETS, &it::PRESENT)),
+        "it" => Some((
+            it::BLOB,
+            crate::i18n::catalog::StaticOffsets::U16(&it::OFFSETS),
+            &it::PRESENT,
+        )),
         _ => None,
     }
 }

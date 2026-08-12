@@ -109,6 +109,12 @@ export function AccountSwitcherModal({
 
         <ScrollView contentContainerStyle={styles.list}>
           <SectionLabel style={styles.sectionLabel}>{title}</SectionLabel>
+          {/* `index` is the account's ORIGINAL position, not the display one —
+              `sortAccountsByBalance` carries it through the balance reorder, and on
+              web `state.accounts` is the session view's rows in row order, so it is
+              exactly the `SessionAccountRow.index` the core's SwitchAccount expects
+              (spec 017 invariant ⑦). Dispatching `pos` would switch to whatever
+              account happens to be richest. */}
           {ordered.map(({ account, index }, pos) => {
             const isActive = index === state.activeAccountIndex;
             const bal = bals.get(account.address);

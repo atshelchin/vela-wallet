@@ -31,7 +31,7 @@ import { useWallet } from '@/models/wallet-state';
 import { useDAppConnection } from '@/models/dapp-connection';
 import { color, space, text, inter, createStyles } from '@/constants/theme';
 import { useColorSchemePreference } from '@/constants/color-scheme';
-import { signAccountIndex } from '@/models/dapp-request-routing';
+import { reconcileGrantedAccount } from '@/services/dapp-account-reconcile';
 import { onExtensionSign } from '@/services/extension-sign-bus';
 import { ExtensionBridgeTransport } from '@/services/extension-bridge-transport';
 import { hapticSuccess, hapticWarning, hapticSelection } from '@/services/platform';
@@ -123,12 +123,20 @@ export function ExtensionSignController(): React.ReactElement {
           return;
         }
         // §12.1.6 reconcile: sign from the account the origin was GRANTED, not
-        // whatever is active. Switch to it before the user approves.
-        const idx = signAccountIndex(accountsRef.current, activeIdxRef.current, transport.requestAddress);
-        if (idx !== activeIdxRef.current) {
-          V('reconcile', rid, `switch ${activeIdxRef.current}->${idx}`);
-          dispatch({ type: 'SWITCH_ACCOUNT', index: idx });
-        }
+        // whatever is active. Switch to it before the user approves. ONE writer:
+        // native dispatches here, web lets the `sign_request` core do it from
+        // `RequestArrived.granted_address` (against the session's own row
+        // indices) and gates the approval surface on the ack — which the core
+        // gives only after the switch is verified to have landed in that domain.
+        // The signer it then signs with is its own `accounts[active_index]`, so
+        // neither path reads the signer back out of React (§12.1.6 step 2).
+        reconcileGrantedAccount(
+          accountsRef.current, activeIdxRef.current, transport.requestAddress,
+          (index) => {
+            V('reconcile', rid, `switch ${activeIdxRef.current}->${index}`);
+            dispatch({ type: 'SWITCH_ACCOUNT', index });
+          },
+        );
         setPhase('signing'); // the global SigningRequestModal is now rendering over home
         V('connected', rid, `origin=${transport.requestOrigin}`);
       })

@@ -4,6 +4,7 @@
       "modalTitle": "Reti",
       "chainId": "Rete {{chainId}}",
       "fieldRpcUrl": "URL RPC",
+      "rpcChainMismatch": "Non salvato: questo RPC dichiara la Rete {{reported}}, ma questa rete è la Rete {{expected}}. Continua a essere usato l'endpoint precedente.",
       "fieldExplorer": "EXPLORER",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Rimuovi rete",

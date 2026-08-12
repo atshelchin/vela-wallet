@@ -1,12 +1,15 @@
 import { Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
-import { useWallet } from '@/models/wallet-state';
+import { useSessionRoute } from '@/hooks/use-session-route';
 import { color, createStyles } from '@/constants/theme';
 
 export default function Index() {
-  const { state } = useWallet();
+  // The session decides what is ALLOWED; this screen only performs it
+  // (spec 017 invariant ⑧). `loading` is not "no wallet" — it means storage is
+  // unread and NO redirect judgment may be made yet.
+  const route = useSessionRoute();
 
-  if (state.isLoading) {
+  if (route === 'loading') {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={color.accent.base} />
@@ -14,7 +17,7 @@ export default function Index() {
     );
   }
 
-  if (state.hasWallet) {
+  if (route === 'wallet') {
     return <Redirect href="/(tabs)/wallet" />;
   }
   return <Redirect href="/onboarding" />;

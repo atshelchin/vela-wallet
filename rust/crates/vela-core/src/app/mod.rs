@@ -36,9 +36,41 @@ use crate::safe;
 use crate::types::{ClientDataKind, WebAuthnAssertion};
 use crate::webauthn;
 
+pub mod activity_feed;
+pub mod approval_guard;
+pub mod balance_dashboard;
+pub mod batch_import;
+pub mod browser_history;
+pub mod clear_signing;
+pub mod contacts;
 pub mod create_wallet;
+pub mod dapp_permissions;
+pub mod dapp_session;
+pub mod display_currency;
+pub mod ext_cache;
+pub mod fee_policy;
 pub mod login;
+pub mod manage_tokens;
+pub mod money;
+pub mod network_admin;
+pub mod payment_request;
+pub mod receive_watch;
+pub mod rpc_pool;
+pub mod send;
+pub mod session;
 pub mod shell;
+pub mod sign_request;
+pub mod token_trust;
+pub mod tx_tracker;
+
+/// Implemented by every per-domain effect enum (spec 016) so product-agnostic
+/// plumbing — the wasm bridge, the test driver — can split shell requests
+/// from renders without knowing the domain. Three lines per machine; the
+/// bridge and driver are written once.
+pub trait SplitEffect {
+    type Op: crux_core::capability::Operation;
+    fn into_shell(self) -> Option<crux_core::Request<Self::Op>>;
+}
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;

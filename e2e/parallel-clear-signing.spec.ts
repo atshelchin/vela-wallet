@@ -7,6 +7,12 @@
  * rejectable. Depth: spot-checks the key intents (Send, the never-unlimited spending-cap,
  * blind-sign warning, SIWE phishing mismatch, plain message).
  *
+ * Interaction drift (16282b0, post-dating this spec): the sheet has NO Reject
+ * button anymore — the footer is a single SlideToConfirmButton and dismissing
+ * the sheet (Escape on web) IS the reject path (AppModal onClose →
+ * rejectRequest → 4001). Sheet-open is detected via the slide track
+ * (sheetConfirmTrack); rejection goes through rejectSheet.
+ *
  * One connection is shared across the whole file (serial) so the 25 scenarios run fast.
  */
 import { test, expect, type Page } from '@playwright/test';
@@ -14,7 +20,7 @@ import { startRelay } from './support/relay';
 import {
   RELAY_PORT, type Relay,
   stubWalletNetwork, openWalletConnect, connectWallet, openTestDapp,
-  request, clickSheetButton,
+  request, sheetConfirmTrack, rejectSheet,
 } from './support/parallel';
 import { CLEAR_SIGNING_SCENARIOS } from '../src/screens/settings/clear-signing-scenarios';
 
@@ -43,8 +49,8 @@ test.afterAll(async () => { await ctx?.close().catch(() => {}); await relay?.sto
 /** Fire a scenario, wait for its signing sheet, reject it, and return the response. */
 async function fireAndReject(sc: { request: { method: string; params: unknown[] } }) {
   return request(dapp, sc.request.method, sc.request.params, async () => {
-    await expect(wallet.getByText('Reject', { exact: true })).toBeVisible({ timeout: 20_000 });
-    await clickSheetButton(wallet, 'Reject');
+    await expect(sheetConfirmTrack(wallet)).toBeVisible({ timeout: 20_000 });
+    await rejectSheet(wallet);
   });
 }
 
@@ -61,8 +67,12 @@ test('every clear-signing scenario renders through the real flow and is rejectab
 test('ERC-20 transfer clear-signs as a Send', async () => {
   const sc = CLEAR_SIGNING_SCENARIOS.find((s) => s.id === 'erc20-transfer')!;
   await request(dapp, sc.request.method, sc.request.params, async () => {
-    await expect(wallet.getByText(/Send/i).first()).toBeVisible({ timeout: 20_000 });
-    await clickSheetButton(wallet, 'Reject');
+    // The slide track's label proves the decoded intent: local-descriptors.ts
+    // resolves erc20 transfer to intent 'Send' → "Confirm Send"
+    // (componentsUi.signing.confirmIntentLabel). A bare /Send/i would collide
+    // with Home's own Send button behind the sheet.
+    await expect(wallet.getByRole('button', { name: /^Confirm Send$/ })).toBeVisible({ timeout: 20_000 });
+    await rejectSheet(wallet);
   });
 });
 
@@ -70,15 +80,30 @@ test('an unlimited ERC-20 approve surfaces the spending-cap editor', async () =>
   const sc = CLEAR_SIGNING_SCENARIOS.find((s) => s.id === 'erc20-approve')!;
   await request(dapp, sc.request.method, sc.request.params, async () => {
     await expect(wallet.getByText('Spending cap')).toBeVisible({ timeout: 20_000 });
-    await clickSheetButton(wallet, 'Reject');
+    await rejectSheet(wallet);
   });
 });
 
 test('a genuinely blind transaction shows the Unknown / blind-sign warning', async () => {
   const sc = CLEAR_SIGNING_SCENARIOS.find((s) => s.id === 'blind-tx')!;
   await request(dapp, sc.request.method, sc.request.params, async () => {
-    await expect(wallet.getByText(/Unknown|Unable to decode|blind|not.*decoded/i).first()).toBeVisible({ timeout: 20_000 });
-    await clickSheetButton(wallet, 'Reject');
+    // The blind surface adapts (b968190/f4eb833): with a confident simulation it
+    // reads calm ("Contract interaction" + "couldn't read this contract's details"),
+    // without one it stays the red "Unknown" + "Unable to decode", and a 4-byte match
+    // downgrades to the best-effort caution. clear-signing.spec.ts:219 was widened for
+    // this at the time; this parallel copy was missed, and kept passing only because
+    // the pre-crux sheet flashed the red variant for ~200ms before the simulation
+    // landed — this assertion caught that transient in 83ms rather than the end state.
+    // The crux sheet resolves through surface:'loading' instead of flashing a warning
+    // it may immediately retract, so the flash is gone; the settled surface is
+    // byte-identical to the pre-crux one (verified against bfcbab3 at 300ms/1s/3s).
+    // Assert whichever variant the live resolution produced — all three carry the
+    // not-verified warning.
+    await expect(
+      wallet.getByText(/Unknown|Unable to decode|blind|not.*decoded|Decoded from the function signature|couldn't read this contract's details/i)
+        .filter({ visible: true }).first(),
+    ).toBeVisible({ timeout: 20_000 });
+    await rejectSheet(wallet);
   });
 });
 
@@ -86,15 +111,19 @@ test('a SIWE message with a mismatched domain is flagged', async () => {
   const sc = CLEAR_SIGNING_SCENARIOS.find((s) => s.id === 'siwe-phish')!;
   await request(dapp, sc.request.method, sc.request.params, async () => {
     // The message claims app.uniswap.org but the request origin is the test dApp.
-    await expect(wallet.getByText(/uniswap\.org/i).first()).toBeVisible({ timeout: 20_000 });
-    await clickSheetButton(wallet, 'Reject');
+    await expect(
+      wallet.getByText(/uniswap\.org/i).filter({ visible: true }).first(),
+    ).toBeVisible({ timeout: 20_000 });
+    await rejectSheet(wallet);
   });
 });
 
 test('a plain personal_sign shows the decoded message', async () => {
   const sc = CLEAR_SIGNING_SCENARIOS.find((s) => s.id === 'personal-sign')!;
   await request(dapp, sc.request.method, sc.request.params, async () => {
-    await expect(wallet.getByText(/OpenSea/i).first()).toBeVisible({ timeout: 20_000 });
-    await clickSheetButton(wallet, 'Reject');
+    await expect(
+      wallet.getByText(/OpenSea/i).filter({ visible: true }).first(),
+    ).toBeVisible({ timeout: 20_000 });
+    await rejectSheet(wallet);
   });
 });

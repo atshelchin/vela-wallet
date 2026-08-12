@@ -4,6 +4,7 @@
       "modalTitle": "Ağlar",
       "chainId": "Zincir {{chainId}}",
       "fieldRpcUrl": "RPC URL",
+      "rpcChainMismatch": "Kaydedilmedi — bu RPC Zincir {{reported}} bildiriyor, oysa bu ağ Zincir {{expected}}. Önceki uç nokta kullanılmaya devam ediyor.",
       "fieldExplorer": "GEZGİN",
       "fieldBundler": "BUNDLER",
       "removeTitle": "Ağı Kaldır",

@@ -51,7 +51,10 @@ export async function stubWalletNetwork(page: Page, _relayPort = RELAY_PORT): Pr
 export async function enterParallel(page: Page): Promise<void> {
   await page.goto('/parallel');
   await expect(page.getByTestId('parallel-space-badge')).toBeVisible({ timeout: 25_000 });
-  await expect(page.getByText('Parallel One').first()).toBeVisible({ timeout: 20_000 });
+  // `.filter({ visible: true })`: the /parallel → home redirect leaves the previous
+  // navigation screen mounted in the DOM (display:none) on web, so a bare `.first()`
+  // can resolve to the hidden duplicate Home and never become visible.
+  await expect(page.getByText('Parallel One').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 });
 }
 
 /**
@@ -63,14 +66,22 @@ export async function openWalletConnect(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle').catch(() => {});
   // The PARALLEL SPACE badge proves the mode is armed (fixed passkey + fixture wallet).
   await expect(page.getByTestId('parallel-space-badge')).toBeVisible({ timeout: 25_000 });
-  // Home → Connections tab → the inline paste field.
-  await page.getByText('Connections', { exact: true }).first().click();
-  await expect(page.getByPlaceholder(/Paste/i)).toBeVisible({ timeout: 20_000 });
+  // Home → Connections tab → the inline paste field. Visible-filtered for the same
+  // reason as enterParallel: a hidden duplicate Home screen also has this tab.
+  await page.getByText('Connections', { exact: true }).filter({ visible: true }).first().click();
+  await expect(connectInput(page)).toBeVisible({ timeout: 20_000 });
+}
+
+/** The Connections tab's inline connect field. Placeholder copy per 073787e
+ *  ("connect-input clarity"): "walletpair link or web address" — the older
+ *  "Paste …" wording is gone. */
+function connectInput(page: Page) {
+  return page.getByPlaceholder(/walletpair link/i);
 }
 
 /** Paste a relay connect URL and wait for the connected dApp card to appear. */
 export async function connectWallet(page: Page, connectUrl: string): Promise<void> {
-  const input = page.getByPlaceholder(/Paste/i);
+  const input = connectInput(page);
   await input.fill(connectUrl);
   await input.press('Enter');
   // The connected card in the Connections tab shows the dApp's relay metadata name.
@@ -105,6 +116,29 @@ export async function requestInstant(dapp: Page, method: string, params: unknown
 /** Click a signing-sheet button by its exact English label. */
 export async function clickSheetButton(wallet: Page, label: string): Promise<void> {
   await wallet.getByText(label, { exact: true }).last().click();
+}
+
+/**
+ * The signing sheet's confirm affordance — the SlideToConfirmButton track
+ * (role=button, labeled with the resolved verb: "Sign" / "Confirm" /
+ * "Confirm <intent>" / "Approve" / "Approve All" / "Revoke"). Since 16282b0
+ * the footer is this single slide track — there is no Reject button — so its
+ * presence is the "sheet is open" marker. `.last()`: a re-rendering sheet can
+ * briefly overlap its predecessor in the portal.
+ */
+export function sheetConfirmTrack(wallet: Page) {
+  return wallet.getByRole('button', { name: /^(Sign|Confirm|Approve|Revoke)/ }).last();
+}
+
+/**
+ * Reject the open signing sheet by DISMISSING it: since 16282b0 there is no
+ * Reject button — closing the sheet is the reject path (web: Escape via
+ * useWebDialog → AppModal onClose → rejectRequest → error 4001). Waits for the
+ * sheet to unmount so a subsequent request can't latch onto the old sheet.
+ */
+export async function rejectSheet(wallet: Page): Promise<void> {
+  await wallet.keyboard.press('Escape');
+  await expect(sheetConfirmTrack(wallet)).toBeHidden({ timeout: 10_000 });
 }
 
 /**

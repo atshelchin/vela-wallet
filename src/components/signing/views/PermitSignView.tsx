@@ -11,6 +11,7 @@ import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { color } from '@/constants/theme';
 import { type DetectedApproval, formatTokenAmount as formatRawTokenAmount } from '@/services/approval-guard';
+import type { ApprovalTokenMeta } from '@/hooks/approval-guard-controller-types';
 import { useLocalePrefs, numberSeparators } from '@/services/locale-format';
 import { type ClearSignResult } from '@/services/clear-signing';
 import { shortAddr, tokenLogoURLsByAddress } from '@/models/types';
@@ -22,9 +23,13 @@ import { IntentHeader } from '../IntentHeader';
 import { WarningBanner } from '../WarningBanner';
 import { SummaryLine } from '../SummaryLine';
 
-export function PermitSignView({ approval, meta, clearSign }: {
+export function PermitSignView({ approval, meta, expired, decimalsUnverified, clearSign }: {
   approval: DetectedApproval;
-  meta: { symbol: string; decimals: number; verified: boolean } | null;
+  meta: ApprovalTokenMeta;
+  /** The permit's deadline has passed — the guard's clock, not this render's. */
+  expired: boolean;
+  /** A bounded permit scales by unverified decimals — the guard's verdict. */
+  decimalsUnverified: boolean;
   clearSign: ClearSignResult | null;
 }) {
   const { t } = useTranslation();
@@ -32,13 +37,10 @@ export function PermitSignView({ approval, meta, clearSign }: {
   useLocalePrefs();
   const sep = numberSeparators();
 
-  const symbol = meta?.symbol ?? '…';
-  const decimals = meta?.decimals ?? 18;
+  const symbol = meta.symbol;
+  const decimals = meta.decimals;
   const logoUrls = approval.tokenAddress ? tokenLogoURLsByAddress(chainId, approval.tokenAddress) : undefined;
   const dangerous = approval.isUnbounded && !approval.isReducing;
-
-  const deadlineSec = approval.deadline ? Number(approval.deadline) : 0;
-  const expired = deadlineSec > 0 && deadlineSec < Math.floor(Date.now() / 1000);
 
   const verb = approval.isReducing
     ? t('componentsUi.signingApprove.verbRevoke')
@@ -100,7 +102,7 @@ export function PermitSignView({ approval, meta, clearSign }: {
 
       {/* A bounded permit shows a scaled amount from meta.decimals — if that wasn't
           verified on-chain, flag it (its on-chain-approve sibling already does). */}
-      {!approval.isBooleanGrant && !approval.isUnbounded && !meta?.verified && (
+      {decimalsUnverified && (
         <WarningBanner severity="caution" text={t('componentsUi.signingApprove.decimalsUnverified')} />
       )}
 

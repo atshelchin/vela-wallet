@@ -15,8 +15,8 @@ import type { AppLanguage } from '@/i18n';
 import { getAllNetworksSync, type Network } from '@/models/network';
 import { buildBugReportURL } from '@/services/feedback';
 import { openBrowser, showAlert } from '@/services/platform';
-import { probeRpcChainId, refreshPool } from '@/services/rpc-pool';
-import { getNetworkConfig, saveNetworkConfig } from '@/services/storage';
+import { saveRpcFix } from '@/services/rpc-fix';
+import { getNetworkConfig } from '@/services/storage';
 import { AlertTriangle, ExternalLink, Wifi, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -116,37 +116,37 @@ export function RpcFixForm({
     return () => { active = false; };
   }, [chainId]);
 
+  // The gate, the write and the cache flush all belong to `saveRpcFix` — on web
+  // that is the `network_admin` core, the single writer of `vela.networkConfig`,
+  // which refuses ONLY a confirmed wrong-chain answer and saves an endpoint it
+  // could not verify. Refusing the unverifiable would strand the user here: this
+  // form is reached because their current endpoint is dead, and a browser tab
+  // cannot probe half the endpoints that would actually work. All this component
+  // does with the verdict is choose which sentence to show.
   const handleSave = async () => {
     if (!fixUrl.trim()) return;
     const url = fixUrl.trim();
     setSaving(true);
     try {
-      // Validate before saving — a recovery flow that cheerfully stores a dead or
-      // wrong-chain URL (and reports "saved") is worse than no validation at all.
-      const reportedChainId = await probeRpcChainId(url);
-      if (reportedChainId === null) {
-        showAlert(t('assets.errorTitle'), t('assets.rpcFixUnreachable'));
-        return;
+      const outcome = await saveRpcFix(chainId, url);
+      switch (outcome.kind) {
+        case 'saved':
+          onResolved?.(chainId);
+          onClose();
+          return;
+        case 'wrong-chain':
+          showAlert(t('assets.errorTitle'), t('assets.rpcFixWrongChain', { expected: outcome.expected, actual: outcome.actual }));
+          return;
+        case 'unreachable':
+          showAlert(t('assets.errorTitle'), t('assets.rpcFixUnreachable'));
+          return;
+        case 'failed':
+          showAlert(t('assets.errorTitle'), t('assets.errorSaveRpc'));
+          return;
       }
-      if (reportedChainId !== chainId) {
-        showAlert(t('assets.errorTitle'), t('assets.rpcFixWrongChain', { expected: chainId, actual: reportedChainId }));
-        return;
-      }
-      // Preserve any explorer/bundler the user already customized in Settings:
-      // saveNetworkConfig replaces the whole entry by chainId, so falling back to
-      // the built-in defaults here would silently clobber those overrides.
-      const saved = await getNetworkConfig(chainId);
-      const net = getAllNetworksSync().find(n => n.chainId === chainId);
-      await saveNetworkConfig({
-        chainId,
-        rpcURL: url,
-        explorerURL: saved?.explorerURL ?? net?.explorerURL ?? '',
-        bundlerURL: saved?.bundlerURL ?? net?.bundlerURL ?? '',
-      });
-      await refreshPool(chainId);
-      onResolved?.(chainId);
-      onClose();
     } catch {
+      // `saveRpcFix` is total on both platforms; this keeps the pre-existing
+      // guarantee that a surprise leaves the user a sentence, not a dead button.
       showAlert(t('assets.errorTitle'), t('assets.errorSaveRpc'));
     } finally {
       setSaving(false);

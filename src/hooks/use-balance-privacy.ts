@@ -1,5 +1,10 @@
 /**
- * useBalancePrivacy — the app-wide persisted "hide amounts" flag.
+ * useBalancePrivacy — the app-wide persisted "hide amounts" flag. NATIVE.
+ *
+ * `use-balance-privacy.web.ts` is the web twin: there the `balance_dashboard`
+ * core owns the flag, the persisted byte and the hydrate race, and this store's
+ * model would be a second writer of the same decision. Hermes has no wasm, so
+ * iOS/Android keep everything below.
  *
  * One module-level store (useSyncExternalStore) so every surface that shows
  * money — hero, activity feed, holdings, account switcher, receipt toast —

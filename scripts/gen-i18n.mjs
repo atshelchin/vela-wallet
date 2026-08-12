@@ -131,7 +131,7 @@ const IS_BRANCH = PATHS.map((p) => (branchSet.has(p) ? 1 : 0));
 for (let i = 1; i < PATHS.length; i++) {
   if (PATHS[i] <= PATHS[i - 1]) fail(`path table is not strictly sorted at ${i}: ${PATHS[i - 1]} >= ${PATHS[i]}`);
 }
-// 1312 = 1205 (spec 004 baseline) + 13 desktop-onboarding leaves (spec 007)
+// 1323 = 1205 (spec 004 baseline) + 13 desktop-onboarding leaves (spec 007)
 // + 25 welcomeWeb paths (spec 006: 16 leaves, 9 branches)
 // + 2 in-band fee-hold leaves (spec 013: send.txHeldFees, send.txRejectedFees)
 // + 49 onboarding-flow-UI paths (spec 014: onboarding.common branch + its 37
@@ -139,14 +139,36 @@ for (let i = 1; i < PATHS.length; i++) {
 // + 18 wallet-home paths (spec 015: 14 leaves, 4 branches — componentsUi
 //   mainNav/dayGroup/commandBar/qrPlaceholder, networkFilter.pillAll,
 //   receive.addressLabel, history bare labels + name-only subtitles).
+// + 2 settings-domain leaves (spec 017: settings.signOut.keeps — what a
+//   sign-out does NOT take with it — and settingsModals.network.rpcChainMismatch
+//   — the RPC override refused for serving another chain).
+// + 9 erase-this-device paths (spec 017: the `settings.eraseDevice` branch and
+//   its 8 leaves — the destructive counterpart to sign-out, whose copy has to
+//   name what is lost and what is not).
+// + 1 send leaf (spec 017: send.warnCannotConvert — a fiat figure the screen
+//   cannot restate in token units. `Continue` refuses it and the ⇅ row reads
+//   `0 SYM`; before this key nothing on the screen said why, and the grep for
+//   an existing amount/rate string turned up none that fit — `batchRateFailed`
+//   and `batchNoPrice` both send you to a manual-rate field this screen has
+//   not got).
+// + 1 send leaf (spec 017: send.denomToggleNoRate — the ⇄ row shown but
+//   inert, which is the one branch `warnCannotConvert` cannot cover: the
+//   figure is in TOKEN units and resolves fine, so no amount warning fires,
+//   and `warnCannotConvert`'s "switch to {{symbol}}" would tell the user to go
+//   where they already are. The refusal was visible (the row dims); the reason
+//   was not.
 // + 21 contacts-UI leaves (spec 018: contacts.{manage,sectionContacts,
 //   countPeople,membersCount,allContacts,addMember,batchSend,batchSendHint,
 //   batchSendHintTitled,importFile,importAll,exportAll,importGroup,
 //   exportGroup,groupRename,moveGroup,recentActivity,viewAllActivity,
 //   deleteContact,actionQr,edit} — existing `contacts` branch, no new branches).
-if (PATHS.length !== 1333) fail(`expected 1333 paths (1255 leaf + 78 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1255) fail(`expected 1255 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 78) fail(`expected 78 branch paths, got ${branchSet.size}`);
+// Merged 017 + 018: the base's 1234 leaf + 78 branch, plus 017's 12 leaves
+// and its one `settings.eraseDevice` branch, plus 018's 21 contacts leaves
+// and no new branch. The three checks below are the arithmetic's witness —
+// they fail loudly rather than let a merge invent a corpus.
+if (PATHS.length !== 1346) fail(`expected 1346 paths (1267 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1267) fail(`expected 1267 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {
@@ -227,6 +249,8 @@ function flatten(obj, prefix, out) {
 
 mkdirSync(CATALOG_DIR, { recursive: true });
 const stats = [];
+/** locale -> 2 or 4, the byte width its OFFSETS array is emitted at. */
+const OFFSET_WIDTHS = new Map();
 
 for (const lng of LOCALES) {
   const flat = flatten(bundles[lng], '', new Map());
@@ -245,18 +269,32 @@ for (const lng of LOCALES) {
   }
 
   const blobBytes = Buffer.byteLength(blob, 'utf8');
-  // u16 offsets, not u32: u32 puts 64-bit ja+en at 135,992 — 647 bytes OVER the
-  // SC-005 budget — while u16 lands it at 131,168 on every pointer width. Fail
-  // loudly rather than truncate; a wrapped offset would slice a value in half.
-  if (blobBytes >= 65_536) {
-    fail(`${lng}: value blob is ${blobBytes} bytes, which does not fit u16 offsets. ` +
-         `Widen Offset to u32 in catalog.rs AND re-check the SC-005 residency budget.`);
+  // Offset width is chosen PER LOCALE, not once for the corpus. u16 everywhere
+  // was the original call because u32 everywhere puts 64-bit ja+en at 135,992 —
+  // 647 bytes OVER the SC-005 budget — while u16 lands it at 131,168 on every
+  // pointer width. That reasoning is about ja+en, the two locales SC-005
+  // measures, and it still holds: they stay u16 and the budget is untouched.
+  //
+  // What it never covered is `ru`, whose blob passed 64 KiB when spec 017 added
+  // the erase-this-device copy (65,115 bytes before it, 420 to spare). Pinning
+  // every locale to the widest one's need is what forced that choice; picking
+  // per locale costs the 2,648 extra bytes only where they are needed — and the
+  // only build that compiles a catalog in at all is the desktop app, which
+  // takes `i18n-all` precisely because it has no size budget. The web build
+  // compiles ZERO locales (runtime JSON, FR-015) and React Native reads
+  // `src/i18n/resources.ts`, so neither ships these arrays.
+  //
+  // Still fail loudly past u32: a wrapped offset would slice a value in half.
+  const offsetWidth = blobBytes >= 65_536 ? 4 : 2;
+  if (blobBytes >= 4_294_967_296) {
+    fail(`${lng}: value blob is ${blobBytes} bytes, which does not fit u32 offsets.`);
   }
   if (offsets.length !== PATHS.length + 1) fail(`${lng}: expected ${PATHS.length + 1} offsets, got ${offsets.length}`);
 
   const presentBitmap = packBits(present);
   const leafCount = present.reduce((a, b) => a + b, 0);
-  stats.push({ lng, leafCount, blobBytes, tableBytes: blobBytes + offsets.length * 2 + presentBitmap.length });
+  stats.push({ lng, leafCount, blobBytes, tableBytes: blobBytes + offsets.length * offsetWidth + presentBitmap.length });
+  OFFSET_WIDTHS.set(lng, offsetWidth);
 
   writeFileSync(join(CATALOG_DIR, `${modOf(lng)}.rs`), `//! ${GENERATED_BY}
 //!
@@ -269,8 +307,9 @@ for (const lng of LOCALES) {
 pub(super) static BLOB: &str = ${rustStr(blob)};
 
 /// \`BLOB[OFFSETS[i]..OFFSETS[i + 1]]\` is the value for \`PATHS[i]\`, when present.
-/// \`u16\` is deliberate — see the residency budget note in catalog.rs.
-pub(super) static OFFSETS: [u16; ${offsets.length}] = [
+/// The width is per locale — \`u16\` while the blob fits 64 KiB, \`u32\` beyond it.
+/// See the residency-budget note in catalog.rs.
+pub(super) static OFFSETS: [u${offsetWidth * 8}; ${offsets.length}] = [
 ${(() => { const l = []; for (let i = 0; i < offsets.length; i += 16) l.push('    ' + offsets.slice(i, i + 16).join(', ') + ','); return l.join('\n'); })()}
 ];
 
@@ -294,10 +333,17 @@ ${LOCALES.map((l) => `#[cfg(feature = "${featureOf(l)}")]\npub(crate) mod ${modO
 
 /// The compiled-in table for \`lang\`, if its feature is enabled.
 ///
-/// Returns \`(blob, offsets, present)\`.
-pub(crate) fn embedded(lang: &str) -> Option<(&'static str, &'static [u16], &'static [u8])> {
+/// Returns \`(blob, offsets, present)\`. The offset width is per locale — see
+/// \`StaticOffsets\` and the residency-budget note in catalog.rs.
+pub(crate) fn embedded(
+    lang: &str,
+) -> Option<(
+    &'static str,
+    crate::i18n::catalog::StaticOffsets,
+    &'static [u8],
+)> {
     match lang {
-${LOCALES.map((l) => `        #[cfg(feature = "${featureOf(l)}")]\n        "${l}" => Some((${modOf(l)}::BLOB, &${modOf(l)}::OFFSETS, &${modOf(l)}::PRESENT)),`).join('\n')}
+${LOCALES.map((l) => `        #[cfg(feature = "${featureOf(l)}")]\n        "${l}" => Some((\n            ${modOf(l)}::BLOB,\n            crate::i18n::catalog::StaticOffsets::U${OFFSET_WIDTHS.get(l) * 8}(&${modOf(l)}::OFFSETS),\n            &${modOf(l)}::PRESENT,\n        )),`).join('\n')}
         _ => None,
     }
 }

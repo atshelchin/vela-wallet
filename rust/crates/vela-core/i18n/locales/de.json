@@ -73,10 +73,21 @@
     "signOut": {
       "button": "Abmelden",
       "title": "Abmelden",
-      "desc": "Ihre Wallet-Daten bleiben auf diesem Gerät. Melden Sie sich jederzeit wieder mit Ihrem Passkey an (Face ID / Fingerabdruck).",
-      "warning": "Ihr öffentlicher Schlüssel wurde noch nicht mit dem Server synchronisiert. Wenn Sie sich jetzt abmelden, ist eine Wiederherstellung auf anderen Geräten möglicherweise nicht möglich.",
+      "desc": "Dieses Gerät ist danach nicht mehr angemeldet. Die Wallet selbst wird nicht gelöscht — Ihr Passkey bleibt in Face ID / Fingerabdruck.",
+      "keeps": "Wählen Sie „Ich habe bereits eine Wallet“, um sich mit demselben Passkey wieder anzumelden: Sie erhalten dieselbe Adresse zurück, und Verlauf, Kontakte, Token und Einstellungen sind weiterhin da.",
+      "warning": "Ihr öffentlicher Schlüssel hat den Sync-Server noch nicht erreicht. Beim nächsten Start wird es erneut versucht, aber bis dahin können Sie sich auf anderen Geräten möglicherweise nicht anmelden — und auch hier nicht, wenn Sie die App entfernen.",
       "anyway": "Trotzdem abmelden",
       "cancel": "Abbrechen"
+    },
+    "eraseDevice": {
+      "title": "Dieses Gerät löschen",
+      "subtitle": "Löscht alles, was Vela hier gespeichert hat",
+      "desc": "Alles, was Vela auf diesem Gerät gespeichert hat, wird gelöscht. Es gibt keine Sicherung und kein Zurück.",
+      "loses": "Sie verlieren: Transaktionsverlauf, Kontakte und Gruppen, Browserverlauf, dApp-Berechtigungen, eigene Token und Netzwerke, RPC- und Endpunkt-Einstellungen sowie sämtliche Präferenzen.",
+      "keeps": "Die Wallet verlieren Sie nicht. Ihr Passkey bleibt in Face ID / Fingerabdruck — wählen Sie „Ich habe bereits eine Wallet“, und dieselbe Adresse kommt zurück, nur ohne Verlauf.",
+      "confirm": "Alles löschen",
+      "cancel": "Abbrechen",
+      "failed": "Das Löschen wurde nicht abgeschlossen. Auf diesem Gerät liegen noch Daten und Sie sind weiterhin angemeldet — bitte erneut versuchen."
     },
     "formatNote": {
       "system": "System",

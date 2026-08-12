@@ -12,6 +12,7 @@ import { scaleFont, color, text, inter, space, radius, font, motion, createStyle
 import { useColorSchemePreference, type ColorSchemePreference } from '@/constants/color-scheme';
 import { AppModal } from '@/components/ui/AppModal';
 import { SectionLabel } from '@/components/ui/SectionLabel';
+import { isAdmissibleEndpoint, isLocalhostHttp } from '@/services/endpoint-admission';
 import { loadServiceEndpoints, saveServiceEndpoints } from '@/services/storage';
 import { DEFAULT_SERVICE_ENDPOINTS } from '@/models/types';
 import type { ServiceEndpoints } from '@/models/types';
@@ -21,7 +22,21 @@ import { hapticLight } from '@/services/platform';
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // ---------------------------------------------------------------------------
-// Service endpoint health check (same logic as SettingsScreen)
+// Service endpoint health check — ONBOARDING's own, and deliberately so.
+//
+// Settings' endpoint editor is core-driven (`network_admin`, via
+// `useServiceEndpoints`). This screen cannot be: the endpoint must be editable
+// before a wallet exists, and moving onboarding onto that machine would change
+// what iOS/Android do — their twin probes all four fields on different timings
+// — in a release whose rule is that native behaviour does not move.
+//
+// So one copy stays here, and the part that must NOT differ is shared instead
+// of re-typed: the transport rule (`@/services/endpoint-admission`), which is
+// pinned to the core's wording by `endpoint-admission.test.ts`. What is left
+// local is genuinely local — a single 10 s probe of ONE field, answering "is
+// the server I am editing alive right now". That is a different question from
+// the core's `login` probe (3 attempts, 2 s apart, deciding whether to force
+// this sheet open at all), and merging the two would change native sign-in.
 // ---------------------------------------------------------------------------
 
 type ServiceHealth = {
@@ -40,7 +55,13 @@ async function checkServiceEndpointHealth(
   url: string, type: 'data' | 'passkey' | 'bundler',
 ): Promise<ServiceHealth> {
   if (!url) return { status: 'unreachable', detail: 'Empty URL' };
-  if (!url.startsWith('https://')) return { status: 'not_https', detail: 'HTTPS required' };
+  // Same transport rule as the save gate below, so the dot beside the field can
+  // never disagree with what was actually written. The loopback carve-out is
+  // the core's (`network_admin.rs::is_localhost_http`) — before it was shared,
+  // this screen marked a local index server red while Settings probed it.
+  if (!url.startsWith('https://') && !isLocalhostHttp(url)) {
+    return { status: 'not_https', detail: 'HTTPS required' };
+  }
 
   const base = url.trim().replace(/[\r\n]/g, '').replace(/\/$/, '');
   const expected = SERVICE_IDENTITY[type];
@@ -107,6 +128,23 @@ export function OnboardingSettingsModal({ visible, onClose, unreachable }: { vis
 
   const handleSave = useCallback(async (value: string) => {
     const clean = value.trim().replace(/[\r\n]/g, '');
+    // The admission gate. This endpoint decides where every passkey public key
+    // is uploaded AND where sign-in on a fresh device looks one up — and that
+    // lookup is trusted verbatim to derive the wallet address (`login.rs`), so
+    // a plain-`http://` or attacker-supplied index chooses the account the user
+    // lands in. A coloured dot is not a gate; refusing the write is.
+    //
+    // Refusing is not a dead end, which is the other half of the job: the typed
+    // text stays in the field so it can be corrected, the dot says why using
+    // the states the health check already renders, the previously stored (or
+    // default) endpoint keeps working so sign-in still functions, and "Reset to
+    // default" restores a known-good value in one tap.
+    if (!isAdmissibleEndpoint(clean)) {
+      setHealth(clean
+        ? { status: 'not_https', detail: 'HTTPS required' }
+        : { status: 'unreachable', detail: 'Empty URL' });
+      return;
+    }
     const updated = { ...endpoints, passkeyIndexURL: clean };
     setEndpoints(updated);
     await saveServiceEndpoints(updated);

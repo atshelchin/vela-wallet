@@ -30,7 +30,7 @@ import {
 } from '@/services/activity';
 import { getAccountBalance, getAccountBalances, setAccountBalance } from '@/services/balance-cache';
 import { currencyMeta } from '@/services/currency';
-import { coerceBrowserUrl, parseRemoteInjectURL } from '@/services/dapp-transport';
+import { classifyConnectEntry } from '@/services/connect-entry';
 import { parseEIP681 } from '@/services/eip681';
 import { useLocalePrefs } from '@/services/locale-format';
 import { copyToClipboard, hapticLight, hapticSuccess, isAppActive, showAlert } from '@/services/platform';
@@ -39,9 +39,9 @@ import { getRateLimitedChains } from '@/services/rpc-pool';
 import { deleteConnectionEvents, deleteTransaction, type LocalTransaction } from '@/services/storage';
 import { reconcilePendingTransactions } from '@/services/tx-reconciler';
 import { fetchTokens } from '@/services/wallet-api';
-import { isWalletPairURI } from '@/services/walletpair-transport';
 
 import { styles } from './HomeScreen.styles';
+import type { BalanceNoticeKind } from './home-controller-types';
 
 const AUTO_REFRESH_MS = 10 * 60 * 1000;
 const LIVE_POLL_MS = 10 * 1000;
@@ -162,7 +162,10 @@ export function useHomeController() {
   // Display currency — set in Settings › Localization; re-read on focus by the
   // hook, so a change over there lands here without a remount.
   const dc = useDisplayCurrency();
-  const currency = currencyMeta(dc.code);
+  // `dc.shown.code`: the currency the fiat figures are ACTUALLY rendered in.
+  // It is the chosen one whenever it can be priced, and USD when it cannot —
+  // taken together with `dc.shown.rate`, never paired by hand.
+  const currency = currencyMeta(dc.shown.code);
 
   // --- balance: derive from streamed tokens, with cache fallback + partial detection ---
   // Never show a confidently-wrong smaller number. If a chain's RPC failed or a
@@ -186,6 +189,25 @@ export function useHomeController() {
   // Nothing known yet: no live tokens, no cached total, first fetch still in
   // flight → show a skeleton, never a fake "0" that later jumps to the real value.
   const balanceUnknown = !hasLiveData && cachedTotal == null && !bootstrapped;
+  // Which notice line is due. Failed chains are transient ("still updating" is
+  // honest — a retry can fix it); a held token with no price source is not going
+  // to resolve on its own, so promising an update would lie. Decided here rather
+  // than in `HomeScreen` so the rule has exactly one writer per platform (on web
+  // it is `balance_dashboard.rs`'s `BalanceNotice`); the screen only maps the
+  // answer to a copy key. Same expression, same result as before.
+  const notice: BalanceNoticeKind | null = !noticeAllowed
+    ? null
+    : failedChainIds.length > 0 ? 'still-updating' : 'unpriced';
+  // The "fix your RPC" banner's chains: failed MINUS rate-limited. A rate limit
+  // lifts on its own, so nagging the user to swap RPC would be wrong; their
+  // balance quietly stays on cache.
+  const bannerChainIds = useMemo(
+    () => failedChainIds.filter((id) => !rateLimitedChainIds.includes(id)),
+    [failedChainIds, rateLimitedChainIds],
+  );
+  // Assets-tab skeleton: a cached total says there IS money, but no holding has
+  // streamed in yet.
+  const holdingsLoading = tokens.length === 0 && (cachedTotal ?? 0) > 0;
 
   // The feed's amount strings are formatted at load time and cached in state, so
   // a number-format change doesn't re-run the adapter. Re-derive the feed when
@@ -482,26 +504,27 @@ export function useHomeController() {
   // Returns true if `data` was a recognized pairing link and a connection was
   // kicked off. We surface the whole pairing flow (fingerprint → connected)
   // inline on the Connections tab rather than pushing a separate screen.
+  // The five-way decision is `classifyConnectEntry`'s (one classifier for the
+  // whole app — see `services/connect-entry.ts`); this hook only performs the
+  // side effect each verdict names.
   const connectFromUri = useCallback((data: string): boolean => {
-    const trimmed = data.trim();
-    if (isWalletPairURI(trimmed)) {
-      connectToWalletPair(trimmed);
-      setTab('connections');
-      return true;
+    const entry = classifyConnectEntry(data);
+    switch (entry.kind) {
+      case 'walletpair':
+        connectToWalletPair(entry.uri);
+        setTab('connections');
+        return true;
+      case 'remote-inject':
+        connectToBridge(entry.session);
+        setTab('connections');
+        return true;
+      case 'browser':
+        // Any remaining web address (full URL or bare host) → the in-app browser.
+        router.push({ pathname: '/browser', params: { url: entry.url } });
+        return true;
+      case 'invalid':
+        return false;
     }
-    const bridge = parseRemoteInjectURL(trimmed);
-    if (bridge) {
-      connectToBridge(bridge);
-      setTab('connections');
-      return true;
-    }
-    // Any remaining web address (full URL or bare host) → open the in-app browser.
-    const browserUrl = coerceBrowserUrl(trimmed);
-    if (browserUrl) {
-      router.push({ pathname: '/browser', params: { url: browserUrl } });
-      return true;
-    }
-    return false;
   }, [connectToWalletPair, connectToBridge, router]);
 
   const onScan = useCallback((data: string) => {
@@ -624,18 +647,21 @@ export function useHomeController() {
     showNetSheet, setShowNetSheet, connected, activity,
     // balance hero
     dc, currency, hidden, toggleHidden, displayTotal, balancePartial, balanceUnknown,
-    noticeAllowed, failedChainIds, rateLimitedChainIds, unpricedTokens,
+    notice, failedChainIds, rateLimitedChainIds, bannerChainIds, unpricedTokens,
     balanceScaleStyle, hasEntered,
     // balance-detail + rpc-fix
     showBalanceDetail, setShowBalanceDetail, fixChainId, setFixChainId, setFailedChainIds,
     // tokens / assets
-    tokens, cachedTotal,
+    tokens, cachedTotal, holdingsLoading,
     // activity feed
     activityFeed, aliasMap, newItemId, chainFor, openDetail,
     // refresh
     refreshing, onRefresh, refreshStatus, listContentStyle, loadData,
-    // receipt toast
-    receipt,
+    // receipt toast — withheld while privacy hides amounts (the glow, the
+    // haptic and the balance pulse still play). Gated here, not in the screen,
+    // so the suppression has one writer per platform; on web the core withholds
+    // the toast outright and this twin must not decide it a second time.
+    receipt: hidden ? null : receipt,
     // connections
     connEvents, confirmDisconnect, onPasteConnect, clearConnEvents, deleteConnEvent, eventTx, setEventTx,
     // scanner

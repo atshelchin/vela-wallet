@@ -412,11 +412,21 @@ mod i18n_props {
                     "{lng}::{key} resolved to {got:?}"
                 );
             }
-            // Every compiled-in blob must fit the u16 offsets the generator asserts.
+            // A growth guard, no longer a correctness proxy. The offset width is
+            // chosen PER LOCALE by the generator (`u16` while the blob fits
+            // 64 KiB, `u32` past it), so a locale over 64 KiB is legal — `ru`
+            // became one when spec 017 added the erase-this-device copy, and
+            // pinning the corpus to the narrowest common width was what made the
+            // largest locale everyone's ceiling. What must still fail loudly is a
+            // corpus that doubled unnoticed; 128 KiB is close to twice today's
+            // largest (`ru`, 71,637), and only the desktop build compiles these
+            // arrays in at all. That every key still renders byte-for-byte in
+            // every locale is proved exhaustively, not sampled, by
+            // `i18n_exhaustive_corpus` in conformance.rs.
             if let Ok(c) = Catalog::embedded(lng) {
                 assert!(
-                    c.resident_bytes() < 65_536 + 4_096,
-                    "{lng}: {} resident bytes — the value blob must fit u16 offsets",
+                    c.resident_bytes() < 131_072,
+                    "{lng}: {} resident bytes — the corpus grew unexpectedly",
                     c.resident_bytes()
                 );
             }

@@ -103,6 +103,26 @@ function resolveTime(key: TimeFormatKey): Exclude<TimeFormatKey, 'auto'> {
   return key === 'auto' ? detectTime() : key;
 }
 
+/**
+ * The user's presets with `auto` already resolved to a concrete one.
+ *
+ * `auto` detection reads `Intl`, which is a shell capability — a portable core
+ * that formats numbers/dates (the clear-signing machine does) must be handed
+ * the resolved conventions rather than the word "auto".
+ */
+export function resolvedFormatKeys(): {
+  number: Exclude<NumberFormatKey, 'auto'>;
+  date: Exclude<DateFormatKey, 'auto'>;
+  time: Exclude<TimeFormatKey, 'auto'>;
+} {
+  const prefs = getLocalePrefs();
+  return {
+    number: resolveNumber(prefs.numberFormat),
+    date: resolveDate(prefs.dateFormat),
+    time: resolveTime(prefs.timeFormat),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Number
 // ---------------------------------------------------------------------------

@@ -28,6 +28,8 @@
     "warnInsufficientForGas": "金額とガス代の合計で {{sym}} が不足しています",
     "warnInsufficientGas": "ガス代の支払いに必要な {{sym}} が不足しています",
     "warnNeedGas": "ガス代の支払いに {{sym}} が必要です",
+    "warnCannotConvert": "現在 {{code}} を {{symbol}} に換算できません。{{symbol}} に切り替えて金額を入力してください。",
+    "denomToggleNoRate": "現在 {{code}} のレートがありません。金額は {{symbol}} で入力してください。",
     "confirmTitle": "確認",
     "walletFallbackName": "ウォレット",
     "fromLabel": "送金元",

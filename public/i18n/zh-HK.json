@@ -73,10 +73,21 @@
   "signOut": {
    "button": "登出",
    "title": "登出",
-   "desc": "你的錢包數據會保留在此裝置上。你隨時可以使用通行密鑰（Face ID／指紋）重新登入。",
-   "warning": "你的公鑰尚未同步至伺服器。現在登出可能導致無法在其他裝置上復原。",
+   "desc": "此裝置會登出。錢包本身不會被刪除——你的通行密鑰仍然保存在 Face ID／指紋中。",
+   "keeps": "選擇「我已有錢包」用同一把通行密鑰重新登入：地址不變，交易紀錄、聯絡人、代幣與各項設定亦全部保留。",
+   "warning": "你的公鑰尚未同步至伺服器。下次啟動會自動重試，但在成功之前，你可能無法在其他裝置上登入——若移除此 App，這部裝置亦一樣。",
    "anyway": "仍然登出",
    "cancel": "取消"
+  },
+  "eraseDevice": {
+   "title": "清除資料",
+   "subtitle": "刪除 Vela 留喺呢部裝置上嘅一切",
+   "desc": "Vela 存喺呢部裝置上嘅所有內容都會被刪除。冇備份，亦冇得復原。",
+   "loses": "會失去：交易紀錄、聯絡人同群組、瀏覽紀錄、dApp 授權、自訂代幣同網絡、RPC 同端點設定，以及所有偏好設定。",
+   "keeps": "唔會失去錢包本身。你嘅通行密鑰仍然保存喺 Face ID／指紋入面——揀「我已有錢包」就可以攞返同一個地址，只係紀錄清空咗。",
+   "confirm": "全部清除",
+   "cancel": "取消",
+   "failed": "清除未完成。呢部裝置上仲有資料，你亦仍然處於登入狀態——請再試一次。"
   },
   "formatNote": {
    "system": "系統",
@@ -200,6 +211,8 @@
   "warnInsufficientForGas": "{{sym}} 不足以支付金額及 Gas 費",
   "warnInsufficientGas": "{{sym}} 不足以支付 Gas 費",
   "warnNeedGas": "你需要 {{sym}} 來支付 Gas 費",
+  "warnCannotConvert": "暫時無法將 {{code}} 換算成 {{symbol}} — 請切換至 {{symbol}} 輸入金額。",
+  "denomToggleNoRate": "暫時沒有 {{code}} 匯率 — 請用 {{symbol}} 輸入金額。",
   "confirmTitle": "確認",
   "walletFallbackName": "錢包",
   "fromLabel": "由",
@@ -1239,6 +1252,7 @@
    "modalTitle": "網絡",
    "chainId": "Chain {{chainId}}",
    "fieldRpcUrl": "RPC URL",
+   "rpcChainMismatch": "未儲存——該 RPC 回報的是 Chain {{reported}}，但此網絡是 Chain {{expected}}。仍然使用之前的節點地址。",
    "fieldExplorer": "區塊鏈瀏覽器",
    "fieldBundler": "BUNDLER",
    "removeTitle": "移除網絡",

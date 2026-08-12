@@ -29,10 +29,24 @@ import {
   saveCustomToken,
   loadCustomTokens,
   removeCustomToken,
-  clearAll,
+  clearSignedInWallet,
+  resetStorageCaches,
+  savePendingUpload,
+  loadPendingUploads,
+  saveActiveAccountIndex,
+  loadActiveAccountIndex,
+  saveServiceEndpoints,
+  saveLocalePrefs,
+  saveRpcProviders,
+  getEthereumDataURL,
+  getLocalePrefs,
+  getRpcProviderKeys,
+  subscribeLocalePrefs,
+  subscribeRpcProviders,
   type LocalTransaction,
 } from '@/services/storage';
 import type { StoredAccount } from '@/models/types';
+import { DEFAULT_LOCALE_PREFS, DEFAULT_SERVICE_ENDPOINTS } from '@/models/types';
 
 const makeAccount = (id: string, name: string = 'Test'): StoredAccount => ({
   id,
@@ -296,20 +310,85 @@ describe('storage - custom tokens', () => {
   });
 });
 
-describe('storage - clearAll', () => {
-  test('clears all local storage', async () => {
-    await saveAccount(makeAccount('test'));
+describe('storage - resetStorageCaches', () => {
+  /**
+   * `clearAll()` used to live here and is gone: it walked a hand-maintained
+   * list of the eleven keys THIS module happens to own, which is why it never
+   * covered contacts, groups, browser history, `vela.perm.*` or a single
+   * preference key. Erasing a device is now a namespace scan in
+   * `services/erase-device.ts`, tested there; what remains here is the piece
+   * that only this module can do — dropping the caches it reads synchronously
+   * during render, which no amount of deleting keys would touch.
+   */
+  test('endpoints, locale prefs and provider keys go back to their defaults', async () => {
+    await saveServiceEndpoints({ ...DEFAULT_SERVICE_ENDPOINTS, ethereumDataURL: 'https://example.invalid' });
+    await saveLocalePrefs({ ...DEFAULT_LOCALE_PREFS, numberFormat: 'indian' });
+    await saveRpcProviders({ alchemy: 'secret-key' });
+    expect(getEthereumDataURL()).toBe('https://example.invalid');
+    expect(getLocalePrefs().numberFormat).toBe('indian');
+    expect(getRpcProviderKeys()).toEqual({ alchemy: 'secret-key' });
+
+    resetStorageCaches();
+
+    expect(getEthereumDataURL()).toBe(DEFAULT_SERVICE_ENDPOINTS.ethereumDataURL);
+    expect(getLocalePrefs()).toEqual(DEFAULT_LOCALE_PREFS);
+    expect(getRpcProviderKeys()).toEqual({});
+  });
+
+  test('subscribers are woken, so a live screen cannot keep rendering erased prefs', () => {
+    const localeListener = jest.fn();
+    const providerListener = jest.fn();
+    const unsubLocale = subscribeLocalePrefs(localeListener);
+    const unsubProviders = subscribeRpcProviders(providerListener);
+
+    resetStorageCaches();
+
+    expect(localeListener).toHaveBeenCalled();
+    expect(providerListener).toHaveBeenCalled();
+    unsubLocale();
+    unsubProviders();
+  });
+});
+
+describe('storage - clearSignedInWallet', () => {
+  /**
+   * Sign-out's scope IS the decision (spec 017), so it is asserted key by key
+   * rather than by "storage is empty". Two things must go, and two very
+   * different things must stay:
+   *
+   *   - the outbox, because a pending record is a public key the index service
+   *     never confirmed — deleting it means the retry never happens and that
+   *     credential can never be found at login again;
+   *   - everything account-owned, because the address is derived from the
+   *     passkey, so signing back in lands on the same Safe and every
+   *     address-keyed record lines back up untouched.
+   */
+  test('drops the account list and the active index, and nothing else', async () => {
+    await saveAccount(makeAccount('a'));
+    await saveAccount(makeAccount('b'));
+    await saveActiveAccountIndex(1);
+    await savePendingUpload({
+      id: 'cred-1', name: 'One', publicKeyHex: '04' + '11'.repeat(64),
+      attestationObjectHex: '00', createdAt: '2026-01-01T00:00:00.000Z',
+    });
     await saveTransaction({
       id: 'tx1', userOpHash: '0x1', txHash: '0x1',
       from: '0x1', to: '0x2', value: '1', symbol: 'ETH',
       decimals: 18, chainId: 1, timestamp: 1000, status: 'confirmed',
     });
+    await saveCustomToken({
+      id: '1_0xtoken', chainId: 1, contractAddress: '0xtoken',
+      symbol: 'TKN', name: 'Token', decimals: 18, networkName: 'eth-mainnet',
+    });
 
-    await clearAll();
+    await clearSignedInWallet();
 
-    const accounts = await loadAccounts();
-    const txs = await loadTransactions();
-    expect(accounts).toHaveLength(0);
-    expect(txs).toHaveLength(0);
+    expect(await loadAccounts()).toHaveLength(0);
+    expect(await loadActiveAccountIndex()).toBe(0);
+    // The outbox survives — it is a retry queue, not user data.
+    expect(await loadPendingUploads()).toHaveLength(1);
+    // Account-owned records survive; they come back with the passkey.
+    expect(await loadTransactions()).toHaveLength(1);
+    expect(await loadCustomTokens()).toHaveLength(1);
   });
 });

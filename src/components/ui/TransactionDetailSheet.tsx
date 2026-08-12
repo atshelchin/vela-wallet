@@ -7,7 +7,7 @@
  * are hidden. Content sits directly on the page — grouped by space + a
  * <SectionLabel> + hairline <Divider>, not boxed in cards.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronRight, Copy, X } from 'lucide-react-native';
@@ -19,7 +19,7 @@ import { TxStatusBadge } from '@/components/ui/TxStatusBadge';
 import { ChainLogo } from '@/components/ChainLogo';
 import { TokenLogo } from '@/components/TokenLogo';
 import { chainName, getAllNetworksSync, explorerTxURL, explorerAddressURL } from '@/models/network';
-import { updateTransaction, type LocalTransaction } from '@/services/storage';
+import { type LocalTransaction } from '@/services/storage';
 import { ContactAvatar } from '@/components/contacts/ContactAvatar';
 import { RecipientTypeBadge } from '@/components/contacts/RecipientTypeBadge';
 import { RecipientName } from '@/components/contacts/RecipientName';
@@ -27,7 +27,7 @@ import { shortAddress } from '@/models/wallet-state';
 import { copyToClipboard, openBrowser } from '@/services/platform';
 import { formatFiat, type Currency } from '@/services/currency';
 import { txUsdValue, type ActivityBatch } from '@/services/activity';
-import { pollUserOpReceipt, USER_OP_RECEIPT_POLL_INTERVAL_MS } from '@/services/tx-reconciler';
+import { useTxSettlement } from '@/hooks/use-tx-settlement';
 import { formatDateTime, formatTokenAmount, useLocalePrefs } from '@/services/locale-format';
 import { color, createStyles, font, inter, radius, space, text } from '@/constants/theme';
 
@@ -46,6 +46,9 @@ interface Props {
   onResolved?: () => void;
 }
 
+/** Stable identity for "this row has no stored records" — see `useTxSettlement`. */
+const NO_RECORDS: string[] = [];
+
 /** Returns a translation key (or raw intent string) for the operation label. */
 function operationLabelKey(tx: LocalTransaction): string {
   switch (tx.type) {
@@ -61,48 +64,33 @@ export function TransactionDetailSheet({ visible, tx, batch, alias, rate, curren
   useLocalePrefs(); // re-render when number/date/time format changes
   const [copied, setCopied] = useState<string | null>(null);
 
-  // A transaction the user opens may still be 'pending'. Rather than show a stale
-  // badge until the next Home reconcile sweep, poll the bundler while the sheet is
-  // open and converge the displayed status live (and persist it so the feed agrees).
-  const [liveStatus, setLiveStatus] = useState<LocalTransaction['status'] | null>(null);
-  const [liveTxHash, setLiveTxHash] = useState<string | null>(null);
-  const targetKey = batch ? `b:${batch.userOpHash}` : tx ? `t:${tx.id}` : '';
+  // A transaction the user opens may still be 'pending' — but converging it is
+  // NOT this sheet's judgement to make. `tx_tracker` (spec 016/017) names this
+  // sheet's old self-poll as one of the pollers it replaces: it owns the
+  // cadence, the seven-state verdict (three of which are honest "unknown"s) and
+  // the single atomic record patch. The sheet only READS a verdict here — a
+  // non-verdict (unreachable / fee-held / accepted-but-not-landed) leaves the
+  // stored status exactly as it was, and nothing on this screen writes storage.
+  //
+  // Native keeps the TypeScript poller behind the same hook (Hermes has no
+  // WebAssembly); `nativeMaxAttempts` / `nativePersist` are its parameters and
+  // have no reader on web.
+  const userOpHash = batch?.userOpHash || tx?.userOpHash;
+  const chainId = batch?.chainId ?? tx?.chainId;
+  const baseStatus = batch?.status ?? tx?.status;
+  const recordIds = batch?.ids ?? (tx ? [tx.id] : NO_RECORDS);
+  const settlement = useTxSettlement({
+    active: visible && baseStatus === 'pending',
+    userOpHash,
+    chainId,
+    recordIds,
+    nativeMaxAttempts: 40,
+    nativePersist: true,
+    onResolved,
+  });
 
-  useEffect(() => {
-    setLiveStatus(null);
-    setLiveTxHash(null);
-    if (!visible) return;
-    const userOpHash = batch?.userOpHash || tx?.userOpHash;
-    const chainId = batch?.chainId ?? tx?.chainId;
-    const baseStatus = batch?.status ?? tx?.status;
-    const ids = batch?.ids ?? (tx ? [tx.id] : []);
-    if (!userOpHash || !chainId || baseStatus !== 'pending') return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    let attempts = 0;
-    const tick = async () => {
-      if (cancelled) return;
-      attempts++;
-      const r = await pollUserOpReceipt(userOpHash, chainId);
-      if (cancelled) return;
-      if (r && (r.confirmed || r.failed)) {
-        const next: LocalTransaction['status'] = r.failed ? 'failed' : 'confirmed';
-        setLiveStatus(next);
-        if (r.txHash) setLiveTxHash(r.txHash);
-        await Promise.all(ids.map((id) => updateTransaction(id, { status: next, ...(r.txHash ? { txHash: r.txHash } : {}) }).catch(() => {})));
-        onResolved?.();
-        return; // final — stop polling
-      }
-      if (attempts < 40) timer = setTimeout(tick, USER_OP_RECEIPT_POLL_INTERVAL_MS);
-    };
-    timer = setTimeout(tick, USER_OP_RECEIPT_POLL_INTERVAL_MS);
-    return () => { cancelled = true; clearTimeout(timer); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, targetKey]);
-
-  const effStatus: LocalTransaction['status'] = liveStatus ?? batch?.status ?? tx?.status ?? 'pending';
-  const effTxHash = liveTxHash ?? batch?.txHash ?? tx?.txHash ?? '';
+  const effStatus: LocalTransaction['status'] = settlement.status ?? batch?.status ?? tx?.status ?? 'pending';
+  const effTxHash = settlement.txHash ?? batch?.txHash ?? tx?.txHash ?? '';
 
   const copy = (key: string, value: string) => {
     copyToClipboard(value);

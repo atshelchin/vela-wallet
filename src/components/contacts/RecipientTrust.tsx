@@ -17,30 +17,29 @@
  * Renders nothing until (and unless) there's a name to show. Safe to drop anywhere
  * a recipient address is displayed.
  *
+ * The saved-contact half of the signal comes from {@link useRecipientTrust} — the
+ * TypeScript address book on native, the shared `contacts` Rust ledger on web
+ * (spec 017). Which words appear stays here; who is trusted does not.
+ *
  * Variants:
  *   - default  — inline line with the source tag ("Vela User" / "ENS"), for the
  *                Send address-entry step.
  *   - compact  — a small pill, for dense per-recipient rows.
  *   - prominent — a bold name, for the confirm step's "To" block.
  */
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { BadgeCheck, UserRound } from 'lucide-react-native';
-import { getSavedContact, contactDisplayName, updateContact } from '@/services/contacts';
-import { resolveRecipientIdentity, type RecipientIdentity } from '@/services/recipient-identity';
+import type { RecipientIdentity } from '@/services/recipient-identity';
 import { useRecipientIdentity } from '@/hooks/use-recipient-identity';
+import { useRecipientTrust } from '@/hooks/use-contacts-book';
 import { color, text, inter, space, radius, createStyles } from '@/constants/theme';
-
-interface Meta {
-  name: string;
-  /** Saved AND starred — the only state that earns the green check. */
-  favorite: boolean;
-}
 
 export function RecipientTrust({
   address,
   identity,
+  chainId,
   compact,
   prominent,
   nameOnly,
@@ -49,6 +48,12 @@ export function RecipientTrust({
   /** Already-resolved live identity, to skip a duplicate lookup and to name a
    *  saved-but-unnamed contact. */
   identity?: RecipientIdentity | null;
+  /** The chain this recipient is being paid on. Callers that know it (the send
+   *  steps, the receipt) should pass it: on web it lets the core inspect the
+   *  address — resolving its identity and writing that name onto a saved-but-
+   *  unnamed contact, which native does inline. Omitting it only skips that
+   *  write-back; the trust signal itself never depends on a chain. */
+  chainId?: number;
   compact?: boolean;
   prominent?: boolean;
   /** Render JUST the name (no leading trust icon) — for callers that show the trust
@@ -56,43 +61,22 @@ export function RecipientTrust({
   nameOnly?: boolean;
 }) {
   const { t } = useTranslation();
-  const [meta, setMeta] = useState<Meta | null>(null);
+  // The saved-contact half of the signal. `null` = not saved (or not yet
+  // looked up — the two have always rendered the same); a `''` name means saved
+  // without one, which falls through to the live identity below.
+  const trust = useRecipientTrust(address, identity ?? null, chainId);
   // Live identity (Vela/passkey › ENS/name-service), cached + shared, so a name shows even
   // when the caller (e.g. the split recipient list) passes only an address.
   const resolvedIdentity = useRecipientIdentity(address, identity ?? undefined);
 
-  useEffect(() => {
-    setMeta(null);
-    if (!address) return;
-    let cancelled = false;
-    getSavedContact(address)
-      .then((c) => {
-        if (cancelled || !c) return;
-        const stored = contactDisplayName(c);
-        if (stored) { setMeta({ name: stored, favorite: !!c.favorite }); return; }
-        // Saved without a name: show whatever identity we already have (or a
-        // generic label), then upgrade to a live-resolved identity and cache it
-        // back so the picker and future renders show the real name.
-        setMeta({ name: identity?.name || t('contacts.savedContact'), favorite: !!c.favorite });
-        if (!identity?.name) {
-          resolveRecipientIdentity(address)
-            .then((id) => {
-              if (cancelled || !id?.name) return;
-              setMeta({ name: id.name, favorite: !!c.favorite });
-              updateContact(address, { resolvedName: id.name, resolvedSource: id.source }).catch(() => {});
-            })
-            .catch(() => {});
-        }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [address, identity, t]);
-
-  // Contact name wins over the live identity; fall back to the live identity for a
+  // Contact name wins over the live identity; a saved contact always shows
+  // *something* (a generic label at worst); fall back to the live identity for a
   // recipient who isn't saved (e.g. a Vela user you've never sent to).
-  const name = meta?.name || resolvedIdentity?.name;
+  const name = trust
+    ? (trust.name || resolvedIdentity?.name || t('contacts.savedContact'))
+    : resolvedIdentity?.name;
   if (!name) return null;
-  const favorite = !!meta?.favorite;
+  const favorite = !!trust?.favorite;
 
   const iconSize = compact ? 12 : prominent ? 16 : 14;
   const Icon = favorite ? BadgeCheck : UserRound;

@@ -1,17 +1,22 @@
 /**
- * Global dApp connection context.
+ * Global dApp connection context — NATIVE.
  *
  * Lives at the root layout level so the SSE connection persists across screens.
  * Manages:
  *   - Remote-inject bridge connection (SSE + POST)
  *   - Incoming signing requests (surfaced as a global modal)
  *   - Session persistence to AsyncStorage for auto-reconnect
+ *
+ * The shared declarations (context, hook, status vocabulary, session storage)
+ * live in `dapp-connection-shape.ts`; `dapp-connection.web.tsx` is the web twin
+ * whose signing half is driven by the Rust `sign_request` machine. Hermes has no
+ * WebAssembly, so this file is the implementation on iOS/Android and is
+ * deliberately unchanged in behaviour.
  */
 import React, {
-  createContext, useContext, useCallback, useEffect, useRef, useState,
+  useCallback, useEffect, useRef, useState,
   type ReactNode,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useWallet } from '@/models/wallet-state';
 import {
   RemoteInjectTransport,
@@ -46,150 +51,32 @@ import {
 import { nativeSymbol } from '@/models/network';
 import type { BLEIncomingRequest } from '@/models/types';
 import { responseTransport, requestChainId as reqChainId, requestDApp } from '@/models/dapp-request-routing';
+import {
+  DAppConnectionContext,
+  RECONNECT_GRACE_MS,
+  clearSession,
+  loadSession,
+  saveSession,
+  type ApproveRequestOptions,
+  type ConnectionType,
+  type ConnectionStatus,
+  type ExtensionSignMeta,
+} from './dapp-connection-shape';
 
-// ---------------------------------------------------------------------------
-// Storage keys
-// ---------------------------------------------------------------------------
-
-const STORAGE_KEY = 'vela.remoteInjectSession';
-
-/**
- * Grace window before an automatic reconnect is surfaced in the UI. A relay blip
- * — the dApp momentarily blurring/reloading, a `channel_not_found` while it
- * re-establishes its own socket — usually self-heals within ~1s, so we keep the
- * connection shown as active for this long and only flip to "Reconnecting…" if it
- * hasn't recovered by then. Manual "Reconnect now" taps bypass this (the user
- * pressed it and wants immediate feedback).
- */
-const RECONNECT_GRACE_MS = 4000;
-
-export async function saveSession(session: RemoteInjectSession): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-}
-
-export async function loadSession(): Promise<RemoteInjectSession | null> {
-  try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-export async function clearSession(): Promise<void> {
-  await AsyncStorage.removeItem(STORAGE_KEY);
-}
-
-// ---------------------------------------------------------------------------
-// Context shape
-// ---------------------------------------------------------------------------
-
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
-export type ConnectionType = 'remote-inject' | 'walletpair' | null;
-
-interface DAppConnectionContextValue {
-  /** Current connection status. */
-  status: ConnectionStatus;
-  /** Error message (when status === 'error'). */
-  errorMessage: string | null;
-  /** The current session (if any). */
-  session: RemoteInjectSession | null;
-  /** DApp metadata (name, url, icon) from the relay session. */
-  dappInfo: DAppInfo | null;
-  /** Current incoming signing request (shown in global modal). */
-  incomingRequest: BLEIncomingRequest | null;
-  /** Whether a signing operation is in progress. */
-  isSigning: boolean;
-  /** True once the passkey/submit phase has STARTED (past the gas pre-check). At
-   *  this point the tx is committed — a swipe-dismiss must dismiss (the op proceeds),
-   *  never reject, or a "cancelled" tx would still broadcast (BUG-2 submit window). */
-  isSubmitting: boolean;
-  /** Last signing error message. */
-  signError: string | null;
-  /** UserOp hash once a tx is submitted, while awaiting the on-chain receipt. */
-  pendingOpHash: string | null;
-  /** Current chain ID for the bridge connection. */
-  chainId: number;
-  /** Which transport is active. */
-  connectionType: ConnectionType;
-  /** 4-digit fingerprint pending user verification (WalletPair only). */
-  pendingFingerprint: string | null;
-  /** Connect to a remote-inject bridge. */
-  connectToBridge: (session: RemoteInjectSession) => Promise<void>;
-  /** Connect via WalletPair pairing URI. */
-  connectToWalletPair: (uri: string) => Promise<void>;
-  /** Confirm the WalletPair fingerprint and complete connection. */
-  confirmFingerprint: () => Promise<void>;
-  /** Cancel a pending WalletPair fingerprint verification. */
-  cancelFingerprint: () => void;
-  /** Disconnect from the current bridge. */
-  disconnectBridge: () => void;
-  /**
-   * Begin a Safari-extension sign: install a one-shot ExtensionBridgeTransport
-   * into the transient sign slot (never clobbers a live WalletPair/bridge session)
-   * and render the real SigningRequestModal for it. Used only by src/app/sign.tsx.
-   */
-  beginExtensionSign: (transport: DAppTransport) => void;
-  /** Force an immediate reconnect of the active session ("Reconnect now"). */
-  reconnect: () => void;
-  /** True once an auto-reconnect has dragged on long enough to prompt the user. */
-  reconnectStuck: boolean;
-  /**
-   * Approve the current incoming request. For transactions the modal passes the
-   * quoted maxFeePerGas plus the raw bundler gas cost (for the funding
-   * pre-check), the selected fee asset (gasFeeToken: null = native, else a
-   * whitelisted stablecoin on in-band chains) and, for edited approvals, the
-   * rewritten (capped) params.
-   */
-  approveRequest: (opts?: { maxFeePerGas?: bigint; bundlerCostWei?: bigint; gasFeeToken?: string | null; quotedFee?: { amount: bigint; recipient: string }; paramsOverride?: any[] }) => Promise<void>;
-  /** Reject the current incoming request. */
-  rejectRequest: () => void;
-  /** Dismiss the modal after an error (response already sent). */
-  dismissRequest: () => void;
-  /** Switch chain for the bridge connection. */
-  switchChain: (chainId: number) => void;
-  /** Bundler funding needed (gas account underfunded during dApp tx). */
-  fundingNeeded: FundingNeeded | null;
-  /** Called when user has funded the gas account. Retries the pending request. */
-  handleFundingComplete: () => void;
-  /** Called when user cancels funding. Rejects the pending request. */
-  handleFundingCancel: () => void;
-}
-
-const DAppConnectionContext = createContext<DAppConnectionContextValue>({
-  status: 'disconnected',
-  errorMessage: null,
-  session: null,
-  dappInfo: null,
-  incomingRequest: null,
-  isSigning: false,
-  isSubmitting: false,
-  signError: null,
-  pendingOpHash: null,
-  chainId: 1,
-  connectionType: null,
-  pendingFingerprint: null,
-  connectToBridge: async () => {},
-  connectToWalletPair: async () => {},
-  confirmFingerprint: async () => {},
-  cancelFingerprint: () => {},
-  disconnectBridge: () => {},
-  beginExtensionSign: () => {},
-  reconnect: () => {},
-  reconnectStuck: false,
-  approveRequest: async () => {},
-  rejectRequest: () => {},
-  dismissRequest: () => {},
-  switchChain: () => {},
-  fundingNeeded: null,
-  handleFundingComplete: () => {},
-  handleFundingCancel: () => {},
-});
-
-export function useDAppConnection() {
-  return useContext(DAppConnectionContext);
-}
+export {
+  DAppConnectionContext,
+  useDAppConnection,
+  saveSession,
+  loadSession,
+  clearSession,
+} from './dapp-connection-shape';
+export type {
+  ConnectionStatus,
+  ConnectionType,
+  ApproveRequestOptions,
+  ExtensionSignMeta,
+  DAppConnectionContextValue,
+} from './dapp-connection-shape';
 
 // ---------------------------------------------------------------------------
 // Provider
@@ -602,7 +489,9 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   // 'disconnected' that clears just its own slot — NEVER incomingRequest, NEVER
   // transportRef. Deliberately not wireTransport(), whose 'disconnected' handler
   // would null transportRef + clear incomingRequest mid-sign.
-  const beginExtensionSign = useCallback((transport: DAppTransport) => {
+  // `meta` (the popup entry's granted address) is web-only: on native the
+  // §12.1.6 reconcile stays with the caller (`dapp-account-reconcile.ts`).
+  const beginExtensionSign = useCallback((transport: DAppTransport, _meta?: ExtensionSignMeta) => {
     transport.on('request', (id, method, params, origin) => {
       let host = origin;
       try { host = new URL(origin).host || origin; } catch { /* keep origin */ }
@@ -620,7 +509,7 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   }, [handleIncoming]);
 
   // --- Approve ---
-  const approveRequest = useCallback(async (opts?: { maxFeePerGas?: bigint; bundlerCostWei?: bigint; gasFeeToken?: string | null; quotedFee?: { amount: bigint; recipient: string }; paramsOverride?: any[]; assetSim?: AssetSimResult | null; intent?: string }) => {
+  const approveRequest = useCallback(async (opts?: ApproveRequestOptions) => {
     const base = incomingRequest;
     const account = activeAccountRef.current;
     if (!base || !account) return;
@@ -1049,6 +938,11 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
 
   const value = React.useMemo(() => ({
     status, errorMessage, session, dappInfo,
+    // NATIVE has no `sign_request` machine (no WebAssembly on Hermes): the
+    // reject/approve lifecycle is this provider's own refs, and there is no
+    // separate reconcile ack to wait on, so this gate is always open and the
+    // sheet's confirm is governed by the approval guard alone — today's rule.
+    confirmGateOpen: true,
     incomingRequest, isSigning, isSubmitting, signError, pendingOpHash, chainId,
     connectionType, pendingFingerprint,
     connectToBridge, connectToWalletPair, confirmFingerprint, cancelFingerprint,

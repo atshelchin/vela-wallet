@@ -173,7 +173,10 @@ const HELP = [
   '  vela.help()                     show this help',
   '',
   '  Chain IDs: 1 Ethereum · 56 BNB · 137 Polygon · 42161 Arbitrum · 10 Optimism · 8453 Base · 43114 Avalanche · 100 Gnosis',
-  '  Also available: velaSimulateReceipt(amount, token), velaVoiceTest(amount, token)',
+  // `velaSimulateReceipt` was installed by the web branch of the Home
+  // controller; spec 017 G10 moved that screen onto the `activity_feed` core,
+  // which has no event that injects a fake row, so the hook is gone.
+  '  Also available: velaVoiceTest(amount, token)',
 ].join('\n');
 
 type ChainArg = number | 'all';

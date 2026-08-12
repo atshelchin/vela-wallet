@@ -1,10 +1,18 @@
 # Vela Wallet
 
-A self-custodial smart wallet for EVM networks, built with React Native and Expo.
+A self-custodial smart wallet for EVM networks.
 
 Vela Wallet uses ERC-4337 account abstraction with WebAuthn (passkey) authentication — no seed phrases, no private keys to manage.
 
-Runs on **iOS**, **Android**, and **Web** from a single codebase.
+The React Native + Expo codebase runs on **iOS** and **Android**. The **web** build now comes from the SvelteKit shell in [app-web/vela-wallet](app-web/vela-wallet/README.md), and **desktop** is a separate native client.
+
+> ### 🚧 Migrating off Expo
+>
+> Vela is moving away from React Native and Expo. The Expo app in [src/](src/) is what ships today, and it is not going anywhere yet: nothing has been deleted, every command in this README still works, and it remains the app that holds real funds.
+>
+> Next to it, the wallet is being rebuilt as **one shared Rust core plus one native shell per platform** — SwiftUI on iOS, Jetpack Compose on Android, SvelteKit on the web, gpui on desktop. The two architectures live side by side in this repo while the move happens, screen by screen.
+>
+> What the new one is, why it exists, and how far it has got: [The new architecture](#the-new-architecture).
 
 ## Features
 
@@ -19,7 +27,7 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
 - **Cross-device recovery** — Passkeys sync through the platform provider (iCloud Keychain on iOS, Google Password Manager on Android). Wallet metadata backs up via iCloud Key-Value Store (iOS) and Android Auto Backup.
 - **Fully self-hostable** — All four backend services (chain data, passkey index, bundler, currency rates) are published on GitHub and can be self-deployed.
 
-## Architecture
+## Architecture (the Expo app, shipping today)
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -52,7 +60,80 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
 └─────────────────────────────────────────────┘
 ```
 
-## Get Started
+## The new architecture
+
+### Why we are leaving Expo
+
+Two structural problems that no amount of care inside the React Native codebase fixes:
+
+- **The code that must not be wrong existed several times over.** Keccak-256 was hand-rolled twice — TypeScript and a parallel Swift copy — alongside SHA-256, a dynamic ABI decoder and P-256 curve math on BigInt. Counterfactual Safe address derivation was maintained in three places, including byte-matched constants in the bundler repo. A divergence in any copy silently loses funds or makes the signing sheet lie about what is being approved. ([rust/README.md](rust/README.md))
+- **The rules that guard your money lived inside React components.** Rules bought with incidents — a passkey must *prove* it can sign before anything persists, a cancelled verification must resume from the signature instead of minting a second passkey — sat in `useState` cells and mutable refs, untestable without a browser. One send controller alone holds ~40 state cells whose ordering is maintained by comments and discipline. ([specs/011](specs/011-crux-onboarding-state/spec.md), [specs/016](specs/016-crux-wallet-state/spec.md))
+
+So the computation and the rules move down into one Rust crate, and each platform gets a shell that renders it with that platform's own UI toolkit — not a cross-platform runtime pretending to be four.
+
+```
+┌────────────────┬────────────────┬────────────────┬────────────────┐
+│  iOS           │  Android       │  Web           │  Desktop       │
+│  SwiftUI       │  Compose       │  SvelteKit     │  gpui (Rust)   │
+│  app-ios/      │  app-android/  │  app-web/      │  app-desktop/  │
+└───────┬────────┴───────┬────────┴───────┬────────┴───────┬────────┘
+        │ UniFFI/Swift   │ UniFFI/Kotlin  │ wasm-bindgen   │ crate dep
+        └────────────────┴───────┬────────┴────────────────┘
+                                 ▼
+          ┌──────────────────────────────────────────────┐
+          │  vela-core  (rust/crates/vela-core)          │
+          │  ┌────────────────────────────────────────┐  │
+          │  │ Crux state machines — business rules   │  │
+          │  │ send · sign_request · fee_policy ·     │  │
+          │  │ rpc_pool · dapp_session · contacts · … │  │
+          │  ├────────────────────────────────────────┤  │
+          │  │ primitives · abi · eip712 · safe ·     │  │
+          │  │ webauthn · identicon · i18n (15 locs)  │  │
+          │  └────────────────────────────────────────┘  │
+          │  pure, deterministic — no I/O, no network    │
+          └──────────────────────────────────────────────┘
+```
+
+### What lives in the core
+
+- **Deterministic computation, zero I/O**: hex/base64url/quantity, keccak256, sha256, EIP-55, CREATE2, runtime calldata decoding, `eth_signTypedData_v4` digests, counterfactual Safe and splitter addresses, WebAuthn COSE/DER handling and two-assertion public-key recovery, account identicons, and the i18n engine with all 15 locale catalogs compiled in.
+- **Business state as [Crux](https://github.com/redbadger/crux) machines**: the core owns every decision. A shell translates input into Events, executes the effects the core asks for (passkey ceremony, storage, RPC), hands the results back, and renders the ViewModel it gets. Rules become testable without a browser, a device, or a network.
+- **No hand-rolled primitives, ever**: hashing, curve math, ABI coding and CBOR come from alloy-core, sha2, p256/ecdsa and ciborium/coset, at pinned versions.
+
+One implementation reaches four surfaces: UniFFI generates the Swift and Kotlin bindings, `vela-core-wasm` produces the committed web artifact in `rust/pkg-web`, and the desktop client depends on the crate directly.
+
+### The shells
+
+| Platform | Directory | Stack | Run it |
+| --- | --- | --- | --- |
+| iOS | [app-ios/VelaWallet](app-ios/VelaWallet) | SwiftUI + VelaCoreKit (SPM package wrapping the xcframework) | open `VelaWallet.xcodeproj`, ⌘R |
+| Android | [app-android/vela-wallet](app-android/vela-wallet) | Kotlin + Jetpack Compose | `./gradlew :app:installDebug` |
+| Web | [app-web/vela-wallet](app-web/vela-wallet/README.md) | SvelteKit 2 / Svelte 5 on Cloudflare Workers | `pnpm install && pnpm dev` |
+| Desktop | [app-desktop/vela-wallet](app-desktop/vela-wallet/README.md) | Rust + [gpui](https://github.com/zed-industries/zed) | `cargo run` |
+
+### One source of truth for everything shared
+
+The four shells are only worth having if they cannot drift apart. Each shared asset has exactly one origin, a generator, and a CI gate that regenerates it and fails on a non-empty diff:
+
+| Shared asset | Source of truth | Generated into |
+| --- | --- | --- |
+| Translations (15 locales) | `rust/crates/vela-core/i18n/locales/` | compiled-in Rust catalogs, `public/i18n/`, `src/i18n/resources.ts` (`npm run gen:i18n`) |
+| Design tokens | [docs/design-tokens.json](docs/design-tokens.json) (Penpot DTCG export) | `tokens.css` / `tokens.ts` for web, `Tokens.swift` for iOS — literals are test-banned in product UI |
+| Behavior | conformance corpus extracted from the TypeScript implementations | replayed through Rust, the Kotlin bindings, the Swift bindings and the shipped web artifact |
+| App icons | [design/icon/](design/icon/) | every platform's icon set (see [App icons](#app-icons)) |
+
+Two parity suites compare the Rust ports against the JavaScript the app still ships: the full 17,115 locale/key cross-product plus 50,000 fuzzed option bundles for i18n, and every address literal in the repo plus 200,000 random seeds for identicons.
+
+### Where it stands
+
+- **Shipping**: the Expo app. All wallet functionality — RPC pool, ERC-4337 signing and submission, dApp connect, portfolio, pricing — runs there.
+- **Already served by the core**: in the Expo **web** build, onboarding (create + sign in) and a growing set of wallet-state machines drive the real screens through wasm — the `.web.ts` controllers in `src/`. On iOS and Android the TypeScript path still runs, because Hermes has no WebAssembly: the same rules, two engines, held together by the conformance corpus. Those machines are what the SvelteKit shell picks up as it takes over the web target.
+- **Built in the new shells**: onboarding, wallet home and contacts, on all four platforms, against fixture data (specs [014](specs/014-onboarding-flow-ui/), [015](specs/015-wallet-home-ui/), [018](specs/018-contacts-ui/)). They already take their translations and identicons from the core — `Loc.swift`, `I18nRuntime.kt`, the build-time wasm engine on web — but not yet its state machines: the `crux` feature is compiled out of the UniFFI builds, so iOS and Android link the computation layer only. Nothing in these shells touches a network, a passkey or the bundler yet.
+- **Not started**: the send, signing and dApp surfaces in the new shells, and the cutover of any platform's store build.
+
+Feature specs, plans and delivery reports live in [specs/](specs/), numbered in the order they landed.
+
+## Get Started (the Expo app)
 
 1. Install dependencies
 
@@ -68,6 +149,8 @@ Runs on **iOS**, **Android**, and **Web** from a single codebase.
    # Web
    npx expo start --web
    ```
+
+The new native shells build and run independently of this — see [The shells](#the-shells) for the per-platform commands, and [rust/README.md](rust/README.md) for the shared core they all link against.
 
 ## Platform Support
 
@@ -128,29 +211,20 @@ otherwise fail silently — iOS rejecting alpha, Android's 66.7% safe zone,
 Windows resolving the icon by resource id. The details are in the desktop
 README under [Icons](app-desktop/vela-wallet/README.md#icons).
 
-## Build for Web (Cloudflare Pages)
+## Build for Web (Cloudflare Workers)
 
-1. Build the static web bundle
+The web build comes from [app-web/vela-wallet](app-web/vela-wallet/README.md) — the SvelteKit shell, deployed as the Cloudflare Worker `vela-wallet-web`:
 
-   ```bash
-   npm run build:web
-   ```
+```bash
+cd app-web/vela-wallet
+pnpm install
+pnpm build      # tokens drift check + worker types + prerender all 15 locales
+pnpm preview    # wrangler dev of the built worker on :4173
+```
 
-   Output goes to `dist/`.
-2. Deploy with Wrangler CLI
+`pnpm build` runs the vela-core wasm i18n engine in Node to prerender each `/{locale}` page, so no translation runtime and no wasm reach the deployed Worker. Cloudflare builds the same command from the repo; CI runs it too, so a broken build fails the PR rather than the deploy.
 
-   ```bash
-   npx wrangler pages deploy dist --project-name vela-wallet
-   ```
-
-   Or connect your GitHub repo in the [Cloudflare Dashboard](https://dash.cloudflare.com) → Pages → Create a project:
-
-
-   | Setting              | Value                 |
-   | ---------------------- | ----------------------- |
-   | Build command        | `npm run build:web`   |
-   | Output directory     | `dist`                |
-   | Environment variable | `NODE_VERSION` = `20` |
+The Expo web bundle (`npm run build:web` → `dist/`, deployed to Cloudflare Pages) is no longer the production web build and is no longer built in CI. The command still exists while the Expo app does.
 
 ## Self-Deploy Service Endpoints
 
@@ -224,7 +298,7 @@ Without the extension, each environment uses its own rpId and maintains independ
 ### Setup
 
 1. Open `chrome://extensions/` and enable **Developer mode**.
-2. Click **Load unpacked** and select the `chrome-ext-webauthn-proxy/` directory.
+2. Click **Load unpacked** and select the `app-browser-extension/chrome-ext-webauthn-proxy/` directory.
 3. Grant the requested permissions when prompted.
 4. Navigate to your dev/preview URL — the extension activates automatically.
 

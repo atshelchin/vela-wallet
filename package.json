@@ -11,7 +11,7 @@
     "web": "expo start --web",
     "build:web": "npx expo export --platform web && node ./scripts/fix-cf-pages-assets.js",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint",
+    "lint": "eslint src",
     "test:unit": "jest --ci",
     "dump:vectors": "jest --ci --config scripts/dump-vectors/jest.config.js --testPathIgnorePatterns '\\.bench\\.test\\.ts$' && node scripts/dump-vectors/identicon.dump.mjs && node scripts/dump-vectors/i18n.dump.mjs",
     "gen:i18n": "node scripts/gen-i18n.mjs",

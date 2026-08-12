@@ -75,7 +75,7 @@ npx expo run:android --variant release              # Android Release 变体;无
 ## getvela.app 子项目(官网 + API)
 
 ```bash
-cd getvela.app
+cd app-web/getvela.app
 bun install
 cp .dev.vars.example .dev.vars   # 若无 example,手工创建;需 ALCHEMY_API_KEY / PIMLICO_API_KEY(本地才需要)
 bun run dev                      # SvelteKit dev

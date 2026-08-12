@@ -64,5 +64,5 @@ Detected deposits appear in the activity feed (D08) and home (D01). No push noti
 ## 10. Source anchors
 
 - `src/services/transfer-monitor.ts:38-221` — log polling + EIP-7708 + allowlist.
-- `getvela.app/src/routes/roadmap/+page.svelte` — "See every coin you receive" (🚧).
+- `app-web/getvela.app/src/routes/roadmap/+page.svelte` — "See every coin you receive" (🚧).
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clue 64.

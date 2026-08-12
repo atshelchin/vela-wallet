@@ -31,7 +31,7 @@
   // and app-desktop Rust — none of them contains TypeScript for tsc to find.
   "exclude": [
     "node_modules",
-    "getvela.app",
+    "app-web/getvela.app",
     "app-web/vela-wallet",
     "packages/safe-recovery-extension",
     "dist",

@@ -1924,7 +1924,7 @@
    "reason": "Separate recovery-extension surface outside the app; out of scope for this design source."
   },
   {
-   "surface": "chrome-ext-webauthn-proxy",
+   "surface": "app-browser-extension/chrome-ext-webauthn-proxy",
    "reason": "Dev-tooling browser extension living in the repo; not an app surface."
   },
   {

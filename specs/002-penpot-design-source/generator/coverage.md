@@ -160,7 +160,7 @@ Pinned to git revision **`ffe7209`** (branch `002-penpot-design-source`), genera
 | BundlerFundingModal standalone wrapper | Dead code — zero imports of the AppModal wrapper; only the BundlerFundingView content-swap inside SigningRequestModal is live (02 D9 ⚠, 07 §11.2). Boarded as O/bundler-funding. |
 | Safari Web Extension UI (targets/safari, packages/safari-extension) | Separate extension target outside the RN app; not covered by inventory 02–08. The in-app halves (S/safari-extension guide, O/extension-sign-controller) ARE boarded. |
 | safe-recovery-extension (packages/safe-recovery-extension) | Separate recovery-extension surface outside the app; out of scope for this design source. |
-| chrome-ext-webauthn-proxy | Dev-tooling browser extension living in the repo; not an app surface. |
+| app-browser-extension/chrome-ext-webauthn-proxy | Dev-tooling browser extension living in the repo; not an app surface. |
 | MockSigningModal (ClearSigningTestScreen harness modal) | Hosts the production SigningSheet with mock data — identical to O/signing-sheet by mandate (07 §3.4); the scenario list itself is S/clear-signing-test/default. |
 | SigningReplaySheet | Thin AppModal wrapper — boarded as O/signing-sheet/replay-settled and /replay-in-flight (07 §3.3, 02 D16). |
 | IdenticonViewerProvider | Behavioral host only, no visuals (02 D12); the sheet is boarded as O/identicon-viewer. |

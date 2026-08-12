@@ -10,7 +10,7 @@
 
 ## 1. Summary
 
-An open-source **Chrome extension** (`chrome-ext-webauthn-proxy/`, v1.3.0) proxies
+An open-source **Chrome extension** (`app-browser-extension/chrome-ext-webauthn-proxy/`, v1.3.0) proxies
 `navigator.credentials` so that localhost / preview domains can share the `getvela.app` rpId. It is
 both a **developer tool** and a **disaster-recovery escape hatch**: if the `getvela.app` domain ever
 changes or is lost, users can still reach their passkeys by pinning the original rpId. This pre-empts
@@ -60,6 +60,6 @@ Extension popup shows current rpId + a grant-access prompt when needed. Document
 
 ## 10. Source anchors
 
-- `chrome-ext-webauthn-proxy/manifest.json` and extension source (v1.3.0).
+- `app-browser-extension/chrome-ext-webauthn-proxy/manifest.json` and extension source (v1.3.0).
 - `README.md:163-219` — proxy setup & notes.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 21, 22; memory `reference_webauthn_proxy_extension`.

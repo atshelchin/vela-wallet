@@ -31,8 +31,8 @@
 | 1 | `allowBackup="true"`(钱包惯例应为 false;AsyncStorage 虽无私钥但含账户/历史元数据) | `AndroidManifest.xml:20`;checklist B2 | ✅ 已改 false(manifest + app.json 同步);若日后上 cloud-sync 需重新评估 |
 | 2 | 已部署钱包 nonce 获取失败回退 `0x0` 提交 → 浪费 passkey 弹窗 + 晦涩 AA25 错误 | `safe-transaction.ts:476,486`(修复前) | ✅ 已改为签名前快速失败(可重试错误文案) |
 | 3 | **无 CI**:`.github/` 仅 issue 模板,一切门禁靠手跑 | 目录实查 | ✅ 已添加 `.github/workflows/ci.yml`(app: tsc/lint/jest/build:web;site: svelte-check)。E2E 暂留本地,待跑稳后进 CI。**未验证**:workflow 需 push 后首跑确认 |
-| 4 | getvela.app API 代理(bundler/wallet/nft/transactions)带服务端 Alchemy/Pimlico key,无速率限制,CORS 只防浏览器 | `getvela.app/src/hooks.server.ts`(自述"curl 可达");各 +server.ts 无 rate limit(bug-report 除外) | ⬜ 未修。控制措施:Cloudflare 侧配 WAF/rate-limit 规则(运维操作,见 06);key 消耗有提供商侧上限告警可兜底 |
-| 5 | `/api/proxy` SSRF 黑名单有缺口(十进制 IP、IPv6-mapped、169.254、DNS rebinding) | `getvela.app/src/routes/api/proxy/+server.ts:5-30` | ⬜ 未修。Workers 运行时无内网/元数据服务可打,实际影响=开放代理滥用;与 P2-4 一并用 CF 规则控 |
+| 4 | getvela.app API 代理(bundler/wallet/nft/transactions)带服务端 Alchemy/Pimlico key,无速率限制,CORS 只防浏览器 | `app-web/getvela.app/src/hooks.server.ts`(自述"curl 可达");各 +server.ts 无 rate limit(bug-report 除外) | ⬜ 未修。控制措施:Cloudflare 侧配 WAF/rate-limit 规则(运维操作,见 06);key 消耗有提供商侧上限告警可兜底 |
+| 5 | `/api/proxy` SSRF 黑名单有缺口(十进制 IP、IPv6-mapped、169.254、DNS rebinding) | `app-web/getvela.app/src/routes/api/proxy/+server.ts:5-30` | ⬜ 未修。Workers 运行时无内网/元数据服务可打,实际影响=开放代理滥用;与 P2-4 一并用 CF 规则控 |
 | 6 | 公钥索引服务是跨设备恢复单点(独立仓库,本审计范围外) | `src/services/public-key-index.ts`;memory: CF Worker+D1+DO | ⬜ 文档化(见 06/08):需确认 D1 备份策略 |
 | 7 | bundler 错误文案跨仓库字符串耦合 | `bundler-service.ts:367-385` ↔ vela-relay handlers.ts | ⬜ 已有单测钉住钱包侧;改文案须两仓同步(03/07 已写明) |
 
@@ -68,7 +68,7 @@
 | `npx jest recipient-table`(xlsx 升级后) | ✅ 16/16 |
 | `npm run build:web` | ✅ exit 0,dist ~11MB,CF Pages 资产修正 OK(依赖变更后重建复验) |
 | `npx playwright test` | ✅ **62 通过 / 1 跳过 / 0 失败**(2.5 分钟;修复前 61/1/1)——在全部代码与依赖变更之后跑的最终轮 |
-| `cd getvela.app && bun run check` | ✅ 0 errors / 4 CSS warnings(650 文件) |
+| `cd app-web/getvela.app && bun run check` | ✅ 0 errors / 4 CSS warnings(650 文件) |
 | `npm audit` | ✅ critical/high/low 归零;剩 11 moderate 全在 @expo/* 构建工具链(修复前 1 critical + 2 high + 14 moderate + 1 low) |
 | config plugin 离线验证 | ✅ `plugins/with-release-signing.js` 对原始模板 6/6 断言 + 幂等;`npx expo config --type prebuild` 解析成功 |
 | 原生 iOS/Android 构建 | ❌ **本审计未执行 = 未验证**(需 Xcode/模拟器长流程+真机 passkey);依据 `docs/NATIVE-LAUNCH-CHECKLIST.md` D 节清单执行,git 历史显示 2026-07-01 有 native 修复轮 |

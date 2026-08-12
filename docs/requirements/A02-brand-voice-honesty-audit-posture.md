@@ -60,6 +60,6 @@ Feedback is a quiet Settings row → prefilled GitHub bug report (N04), not a na
 
 ## 10. Source anchors
 
-- `getvela.app/src/content/docs/whitepaper.md`, `getvela.app/src/content/blog/vela-is-in-alpha.md`.
+- `app-web/getvela.app/src/content/docs/whitepaper.md`, `app-web/getvela.app/src/content/blog/vela-is-in-alpha.md`.
 - `docs/store-submission/privacy-and-review.md`.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — guardrails + clues 2, 9, 10, 16, 93, 94.

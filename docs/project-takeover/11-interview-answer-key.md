@@ -1318,10 +1318,10 @@
 **代码证据**:
 - `docs/project-takeover/06-operations-runbook.md:48-56` — 密钥与凭据清单表:三枚 Worker secret、Android keystore、Apple 证书、p256-index key,含位置与轮换列
 - `docs/project-takeover/05-deployment-runbook.md:48` — 生产密钥命令:wrangler secret put ALCHEMY_API_KEY / PIMLICO_API_KEY / GITHUB_BUG_TOKEN
-- `getvela.app/src/routes/api/bundler/+server.ts:14-16` — 从 env 读 ALCHEMY_API_KEY / PIMLICO_API_KEY / BUNDLER_PROVIDER
-- `getvela.app/src/routes/api/bundler/+server.ts:55-58` — Pimlico URL 直接拼 ?apikey=,key 缺失时 buildUrl 返回 null
-- `getvela.app/src/routes/api/bug-report/+server.ts:5-11` — 注释:PAT 永不到客户端,只存于 CF secret;未配置返回 503 not_configured
-- `getvela.app/src/routes/api/bug-report/+server.ts:78-81` — 无 token 时的 503 分支实现
+- `app-web/getvela.app/src/routes/api/bundler/+server.ts:14-16` — 从 env 读 ALCHEMY_API_KEY / PIMLICO_API_KEY / BUNDLER_PROVIDER
+- `app-web/getvela.app/src/routes/api/bundler/+server.ts:55-58` — Pimlico URL 直接拼 ?apikey=,key 缺失时 buildUrl 返回 null
+- `app-web/getvela.app/src/routes/api/bug-report/+server.ts:5-11` — 注释:PAT 永不到客户端,只存于 CF secret;未配置返回 503 not_configured
+- `app-web/getvela.app/src/routes/api/bug-report/+server.ts:78-81` — 无 token 时的 503 分支实现
 - `src/services/bug-report.ts:142-148` — 客户端拿到 503 not_configured 后静默走 fallbackUrl
 - `docs/project-takeover/14-human-progress.md:9` — 全系统凭据盘点明文:getvela.app 3 枚 secret + bundler EOA 私钥(bundler EOA 属独立仓库)
 - `docs/project-takeover/06-operations-runbook.md:60` — 灾难恢复:用户资金非托管,服务全灭不影响资金所有权(反驳的"半真"部分)
@@ -1408,7 +1408,7 @@
 - `src/services/safe-transaction.ts:1470` — getBundlerGasQuote 定义(bundler 报价权威的落点;06 手册写 1464 已微过期)
 - `src/services/bundler-service.ts:367` — parseBundlerUnderfunded(第一嫌疑的检测点)
 - `docs/project-takeover/05-deployment-runbook.md:51` — API 发布后必须在钱包做一次小额估算确认 /api/bundler
-- `getvela.app/src/routes/api/` — 8 条路由(bundler/wallet/nft/transactions/exchange-rate/bug-report/og/proxy)同住一个 Worker,Worker 挂=全灭
+- `app-web/getvela.app/src/routes/api/` — 8 条路由(bundler/wallet/nft/transactions/exchange-rate/bug-report/og/proxy)同住一个 Worker,Worker 挂=全灭
 
 **常见错误**:
 - 【受训者原错】通用排障套话:"先看日志、重启服务、检查网络"——没有一步是本项目特异的。
@@ -1438,18 +1438,18 @@
 3. 照抄到 bundler 的问题一:阈值完全不适用——bug report 一人 5 次/10 分钟合理,但钱包正常使用(估算、gas 报价、发送、重试)对 /api/bundler 的调用频率远高于此,照抄=把正常用户限死在发送流程里。
 4. 照抄的问题二:客户端行为不同——bug-report 客户端对任何失败都有 fallbackUrl 优雅降级,而 bundler 调用失败直接表现为估算/发送失败,429 会被用户感知为"发不出交易"(正好制造 Q5 那种半夜工单)。
 5. 08 手册推荐:Cloudflare WAF rate-limiting rules(纯运维配置,不改代码)+ Alchemy/Pimlico 提供商用量告警;B3 验收=CF 规则生效+压测确认限流+提供商告警配置截图。
-6. 若仍改代码,触点:getvela.app/src/routes/api/bundler/+server.ts(及 wallet/nft/transactions 三条),阈值必须基于钱包真实调用频率实测而非照抄;客户端侧要确认发送/估算路径对 429 的呈现是可理解的错误而非静默失败。
-7. 验证序列:cd getvela.app && bun run check(0 errors,这也是 CI site job 的门禁)→ 本地 .dev.vars 起 dev 环境,用钱包的 vela.serviceEndpoints 指向本地/预发部署,完整走一遍估算+发送确认不误伤 → 压测确认限流生效。
-8. 发布与回滚:cd getvela.app && bun run deploy;发布后立刻在钱包做一次小额估算(不需提交)确认 /api/bundler 正常(05 手册硬性要求);坏了 wrangler rollback。
+6. 若仍改代码,触点:app-web/getvela.app/src/routes/api/bundler/+server.ts(及 wallet/nft/transactions 三条),阈值必须基于钱包真实调用频率实测而非照抄;客户端侧要确认发送/估算路径对 429 的呈现是可理解的错误而非静默失败。
+7. 验证序列:cd app-web/getvela.app && bun run check(0 errors,这也是 CI site job 的门禁)→ 本地 .dev.vars 起 dev 环境,用钱包的 vela.serviceEndpoints 指向本地/预发部署,完整走一遍估算+发送确认不误伤 → 压测确认限流生效。
+8. 发布与回滚:cd app-web/getvela.app && bun run deploy;发布后立刻在钱包做一次小额估算(不需提交)确认 /api/bundler 正常(05 手册硬性要求);坏了 wrangler rollback。
 9. CORS 不是防护:hooks.server.ts 只对浏览器生效,curl 不受限——注释原文 "the real protection is each route's own rate-limit/token",所以 B3 才成立。
 
 **代码证据**:
 - `docs/project-takeover/08-open-issues.md:37-39` — B3 原文:四代理无限流(bug-report 有);建议 CF WAF rules+用量告警;验收含压测与截图
-- `getvela.app/src/routes/api/bug-report/+server.ts:26-29` — MAX_BODY_CHARS=16000、RATE_LIMIT=5、RATE_WINDOW_MS=10 分钟
-- `getvela.app/src/routes/api/bug-report/+server.ts:40-55` — in-memory limiter 实现与 "isolate 不共享,KV/DO 才是 production upgrade" 注释
-- `getvela.app/src/routes/api/bug-report/+server.ts:83-91` — getClientAddress 降级与 429 rate_limited 返回
+- `app-web/getvela.app/src/routes/api/bug-report/+server.ts:26-29` — MAX_BODY_CHARS=16000、RATE_LIMIT=5、RATE_WINDOW_MS=10 分钟
+- `app-web/getvela.app/src/routes/api/bug-report/+server.ts:40-55` — in-memory limiter 实现与 "isolate 不共享,KV/DO 才是 production upgrade" 注释
+- `app-web/getvela.app/src/routes/api/bug-report/+server.ts:83-91` — getClientAddress 降级与 429 rate_limited 返回
 - `src/services/bug-report.ts:142-151` — 客户端把任何非 2xx(含 429)转为 ok:false+fallbackUrl,天然优雅降级(bundler 调用没有这层)
-- `getvela.app/src/hooks.server.ts:9-13` — 注释明确:CORS 挡不住 curl,真正防护是各路由自己的 rate-limit/token
+- `app-web/getvela.app/src/hooks.server.ts:9-13` — 注释明确:CORS 挡不住 curl,真正防护是各路由自己的 rate-limit/token
 - `docs/project-takeover/05-deployment-runbook.md:47-51` — getvela.app 发布/回滚序列与"发布后小额估算确认 /api/bundler"的硬性 smoke
 - `docs/project-takeover/06-operations-runbook.md:7` — 告警建议:/api/bundler 5xx 率、Alchemy/Pimlico 用量阈值
 - `.github/workflows/ci.yml:46-47` — bun run check 是 site job 门禁,改动必须过它

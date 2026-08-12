@@ -8,7 +8,7 @@
 | 单元        | 产物                     | 目标                                 | 命令                                                                 |
 | ------------- | -------------------------- | -------------------------------------- | ---------------------------------------------------------------------- |
 | Web 钱包    | `dist/`(静态)            | Cloudflare Pages(wallet.getvela.app,git-connected) | merge 进 main → CF Pages 自动执行 `npm run build:web`(本地跑它仅作验证,无手动上传路径) |
-| 官网+API    | `.svelte-kit/cloudflare` | Cloudflare Workers(getvela.app)      | `cd getvela.app && bun run deploy`                                   |
+| 官网+API    | `.svelte-kit/cloudflare` | Cloudflare Workers(getvela.app)      | `cd app-web/getvela.app && bun run deploy`                                   |
 | iOS App     | .ipa                     | App Store Connect                    | `eas build -p ios --profile production`(EAS 托管证书;Xcode Archive 为后备) |
 | Android App | .aab                     | Google Play                          | `eas build -p android --profile production`(EAS 托管 keystore;本地 gradlew 为后备,见下) |
 
@@ -23,7 +23,7 @@ npx jest --ci             # 必须全绿(78 套件;网络套件默认 skip)
 npm run build:web         # 必须 exit 0
 npx playwright test       # 必须全绿(需本机 Chrome;~2.5 分钟)
 npm audit                 # critical/high 必须为 0(当前基线:11 moderate,全在 expo 工具链)
-cd getvela.app && bun run check   # 0 errors
+cd app-web/getvela.app && bun run check   # 0 errors
 ```
 
 发布 checklist 附加项:
@@ -49,7 +49,7 @@ cd getvela.app && bun run check   # 0 errors
 
 ## 官网/API 发布(getvela.app)
 
-1. `cd getvela.app && bun run deploy`
+1. `cd app-web/getvela.app && bun run deploy`
 2. 生产密钥(只需一次/轮换时):`wrangler secret put ALCHEMY_API_KEY / PIMLICO_API_KEY / GITHUB_BUG_TOKEN`
 3. Smoke:`curl -s https://getvela.app/api/exchange-rate?...`;`curl -s https://getvela.app/.well-known/apple-app-site-association`
 4. 回滚:`wrangler rollback` 或重发上一个 commit 的构建
@@ -63,7 +63,7 @@ cd getvela.app && bun run check   # 0 errors
 
 1. `eas build -p android --profile production` → 选择让 EAS 生成 keystore(项目已接 EAS,projectId 在 app.json)
 2. Play Console 注册 + 上传首个 AAB + Play App Signing 开启(EAS keystore 自动成为 upload key)
-3. 取**两枚 SHA-256** 写入 `getvela.app/src/routes/.well-known/assetlinks.json/+server.ts` 并部署官网:
+3. 取**两枚 SHA-256** 写入 `app-web/getvela.app/src/routes/.well-known/assetlinks.json/+server.ts` 并部署官网:
    - app signing cert:Play Console → App Signing 页(Google 重签名后的正式证书)
    - upload cert:`eas credentials`(Android → keystore → 显示指纹;内部测试轨道装的是这把签的)
 4. Google Statement List Tester 验证 assetlinks

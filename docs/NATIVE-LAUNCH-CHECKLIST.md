@@ -43,7 +43,7 @@ Digital Asset Links verification → `createCredential`/`getCredential` throw �
    open **Play Console → Test and release → App integrity → App signing key
    certificate** and copy the **SHA-256**.
 3. Put that SHA-256 (and the upload key's SHA-256) into
-   `getvela.app/src/routes/.well-known/assetlinks.json/+server.ts`
+   `app-web/getvela.app/src/routes/.well-known/assetlinks.json/+server.ts`
    `sha256_cert_fingerprints`. The current `A3:8E:36:FE:…` "Release keystore"
    value corresponds to no keystore in this repo — replace/augment it.
 4. Redeploy getvela.app, then verify with Google's

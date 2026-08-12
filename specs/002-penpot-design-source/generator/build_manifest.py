@@ -626,7 +626,7 @@ exclusions = [
    "reason": "Separate extension target outside the RN app; not covered by inventory 02–08. The in-app halves (S/safari-extension guide, O/extension-sign-controller) ARE boarded."},
   {"surface": "safe-recovery-extension (packages/safe-recovery-extension)",
    "reason": "Separate recovery-extension surface outside the app; out of scope for this design source."},
-  {"surface": "chrome-ext-webauthn-proxy",
+  {"surface": "app-browser-extension/chrome-ext-webauthn-proxy",
    "reason": "Dev-tooling browser extension living in the repo; not an app surface."},
   {"surface": "MockSigningModal (ClearSigningTestScreen harness modal)",
    "reason": "Hosts the production SigningSheet with mock data — identical to O/signing-sheet by mandate (07 §3.4); the scenario list itself is S/clear-signing-test/default."},

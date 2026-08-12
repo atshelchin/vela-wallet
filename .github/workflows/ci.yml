@@ -1,11 +1,22 @@
 # Minimal CI gate — mirrors the local checks documented in
 # docs/project-takeover/02-local-development.md.
 #
-# Deployment coupling (since 2026-07-02): merging to main auto-deploys the web
-# wallet via Cloudflare Pages git integration (→ wallet.getvela.app). These two
-# jobs are the merge gate — branch protection requires both green before merge.
-# CF Pages builds independently of this workflow: a CF build failure shows in
-# the CF dashboard, NOT here (CI green ≠ deployed).
+# Expo wind-down (2026-08-12): CI no longer runs Expo at all. The app is
+# migrating off React Native + Expo onto vela-core plus one native shell per
+# platform (README → "The new architecture"), so:
+#   - the two EAS workflows that existed only to feed the Expo dev client
+#     (expo-preview.yml, expo-merged.yml) and .github/expo-preview-guide.md are
+#     deleted — nothing else read the EXPO_TOKEN secret, so it can be revoked;
+#   - the lint gate calls ESLint directly instead of through `expo lint`;
+#   - the web build gate is the SvelteKit app (`web` job), not `expo export`.
+# The Expo sources under src/ are still typechecked, linted and tested here —
+# they are still the shipping native app. Only the Expo TOOLCHAIN is gone.
+#
+# Deployment coupling: the web wallet deploys from Cloudflare's own build of
+# app-web/vela-wallet (Workers app `vela-wallet-web`), which runs independently
+# of this workflow — a CF build failure shows in the CF dashboard, NOT here
+# (CI green ≠ deployed). The `web` job runs the same `pnpm build`, so a broken
+# build fails the PR instead of surfacing only after merge.
 #
 # Deliberately NOT included:
 #   - Playwright E2E: boots a Metro dev server + fixture relay; run locally via
@@ -13,7 +24,7 @@
 #     once it has a proven-stable record on a runner.
 #   - price-query real-RPC suite: opt-in only (RUN_NETWORK_TESTS=1) — it depends
 #     on third-party public RPC availability, not on our code.
-#   - getvela.app: separate bun/SvelteKit project, checked in its own job below.
+#   - app-web/getvela.app: separate bun/SvelteKit project, own job below.
 name: CI
 
 on:
@@ -42,8 +53,13 @@ jobs:
           npm run build --prefix packages/safe-recovery-extension
       - name: Build HTTPS wallet SDK
         run: npm run build --prefix packages/vela-sdk
+      # ESLint with the flat config in eslint.config.js, over `src` — the same
+      # 991 files the old CLI wrapper covered, minus the wrapper. The cap is a
+      # ceiling on pre-existing warning debt (566 today), not a target; what
+      # this gate actually enforces is 0 errors, which includes the legacy-import
+      # quarantine rules in eslint.config.js.
       - name: Lint
-        run: npx expo lint -- --max-warnings=10000
+        run: npx eslint src --max-warnings=10000
       - name: Unit tests
         run: npx jest --ci
       # The conformance corpus is extracted from the TypeScript implementations,
@@ -117,14 +133,46 @@ jobs:
       # boundary, because JSON has no syntax for Infinity).
       - name: i18n parity (Rust core vs the shipped JS library)
         run: node scripts/verify-i18n-parity.mjs
-      - name: Web production build
-        run: npm run build:web
 
+  # The web wallet: app-web/vela-wallet (SvelteKit → Cloudflare Workers). This
+  # replaces the old `expo export --platform web` gate.
+  #
+  # Its own pnpm workspace, so pnpm is set up BEFORE setup-node (`cache: pnpm`
+  # needs the binary to resolve the store path) and the version comes from that
+  # app's `packageManager` field rather than being pinned twice.
+  #
+  # `pnpm build` is not just vite: it re-checks the generated design tokens
+  # against docs/design-tokens.json and regenerates the Worker types, then
+  # prerenders every locale page by running the vela-core wasm i18n engine in
+  # Node. So this job also fails on a token drift or a corpus/artifact mismatch
+  # that only shows up at build time.
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app-web/vela-wallet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app-web/vela-wallet/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app-web/vela-wallet/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Build (tokens drift + worker types + prerender all locales)
+        run: pnpm run build
+
+  # The marketing site + API worker, moved under app-web/ with the rest of the
+  # web surfaces (2026-08-12). It deploys by hand (`bun run deploy`), so nothing
+  # outside this path needed updating — but the runbook command changed with it.
   site:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: getvela.app
+        working-directory: app-web/getvela.app
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

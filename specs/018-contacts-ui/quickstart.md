@@ -77,6 +77,22 @@ npm run gen:i18n && npm run lint:i18n && npm run verify:i18n
 cd rust && cargo test -p vela-core --features i18n-all
 ```
 
+**Two root-level gates the four platform sweeps do NOT cover** — spec 018's
+CI failed on both before they were added here:
+
+```bash
+npm run dump:vectors                       # conformance vectors pin every string
+npx jest src/__tests__/i18n/               # resources-generated.test.ts pins the
+                                           #   TOTAL leaf count (18,543 after 018)
+npm run build:wasm                         # rust/pkg-web is a COMMITTED artifact
+node rust/scripts/build-web.mjs --check     #   built from vela-core, whose i18n
+                                           #   catalogs are compiled in — any
+                                           #   corpus edit makes it stale
+```
+
+Green per-platform gates do not imply a green repo: the leaf-count pin lives
+in the root RN app's jest suite, and the wasm bundle is checked in.
+
 ## Review walkthrough (SC-001)
 
 Open each state next to its mock in `design/contacts/`:

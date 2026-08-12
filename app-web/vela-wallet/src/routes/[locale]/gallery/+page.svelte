@@ -15,13 +15,30 @@
 	import TabBar from '$lib/wallet/ui/TabBar.svelte';
 	import WalletHeader from '$lib/wallet/ui/WalletHeader.svelte';
 	import { UTILITY_ICONS } from '$lib/wallet/icons';
+	import ActionMenuSheet from '$lib/contacts/ui/ActionMenuSheet.svelte';
+	import AddressBlock from '$lib/contacts/ui/AddressBlock.svelte';
+	import AlphaIndexRail from '$lib/contacts/ui/AlphaIndexRail.svelte';
+	import ContactRow from '$lib/contacts/ui/ContactRow.svelte';
+	import ContextMenu from '$lib/contacts/ui/ContextMenu.svelte';
+	import DropdownMenu from '$lib/contacts/ui/DropdownMenu.svelte';
+	import EmptyStateCTA from '$lib/contacts/ui/EmptyStateCTA.svelte';
+	import GhostAddRow from '$lib/contacts/ui/GhostAddRow.svelte';
+	import GroupChips from '$lib/contacts/ui/GroupChips.svelte';
+	import GroupRail from '$lib/contacts/ui/GroupRail.svelte';
+	import GroupRow from '$lib/contacts/ui/GroupRow.svelte';
+	import PinnedCTABar from '$lib/contacts/ui/PinnedCTABar.svelte';
+	import SearchHeader from '$lib/contacts/ui/SearchHeader.svelte';
 	import Controls from './Controls.svelte';
 
 	let { data } = $props();
 
 	const locale = $derived(toLocale(page.params.locale ?? '') ?? 'en');
 	const m = $derived(data.messages);
+	const cm = $derived(data.contactsMessages);
 	const h1s = $derived(data.models.h1s);
+	const c = $derived(data.contacts);
+	const alice = $derived(c.list?.sections[0].contacts[0]);
+	const ahao = $derived(c.list?.sections[0].contacts[1]);
 </script>
 
 <svelte:head>
@@ -41,6 +58,12 @@
 				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
 			{/each}
 			{#each data.desktopStates as state (state)}
+				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
+			{/each}
+			{#each data.contactsMobileStates as state (state)}
+				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
+			{/each}
+			{#each data.contactsDesktopStates as state (state)}
 				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
 			{/each}
 		</div>
@@ -173,6 +196,152 @@
 			</div>
 		</section>
 	{/if}
+
+	<!-- Spec 018: the contacts list-management vocabulary. -->
+	<section id="gallery-section-contacts-identicon">
+		<h2>Contacts · Identicon (canon seeds)</h2>
+		<div class="board">
+			{#each c.board as cell (cell.seed)}
+				<figure id="gallery-contacts-identicon-{cell.seed}">
+					<Identicon svg={cell.svg} size="board" label={cell.seed} />
+					<figcaption>{cell.seed}</figcaption>
+				</figure>
+			{/each}
+		</div>
+	</section>
+
+	{#if c.list !== undefined && alice !== undefined && ahao !== undefined}
+		{@const list = c.list}
+		<section id="gallery-section-contacts-rows">
+			<h2>ContactRow · GroupRow · GhostAddRow</h2>
+			<div class="cell" id="gallery-contacts-contactrow-default">
+				<ContactRow contact={alice} />
+			</div>
+			<div class="cell" id="gallery-contacts-contactrow-hover">
+				<ContactRow contact={alice} hover />
+			</div>
+			<div class="cell" id="gallery-contacts-contactrow-selected">
+				<ContactRow contact={alice} selected />
+			</div>
+			<div class="cell" id="gallery-contacts-contactrow-revealed">
+				<ContactRow contact={ahao} revealed actions={list.swipeActions} />
+			</div>
+			<div class="cell" id="gallery-contacts-contactrow-truncated">
+				<ContactRow contact={list.sections[1].contacts[0]} />
+			</div>
+			{#if c.group !== undefined}
+				<div class="cell" id="gallery-contacts-contactrow-member">
+					<ContactRow contact={c.group.group.members[0]} />
+				</div>
+			{/if}
+			<div class="cell" id="gallery-contacts-grouprow-default">
+				<GroupRow group={list.groups[0]} />
+			</div>
+			{#if c.group !== undefined}
+				<div class="cell" id="gallery-contacts-ghostaddrow-default">
+					<GhostAddRow label={c.group.addMember} />
+				</div>
+			{/if}
+		</section>
+
+		<section id="gallery-section-contacts-rail">
+			<h2>GroupRail · AlphaIndexRail · SearchField</h2>
+			<div class="cell row" id="gallery-contacts-grouprail-default">
+				<GroupRail rail={c.rail} />
+				<GroupRail rail={c.railDrop} />
+			</div>
+			<div class="cell row tall" id="gallery-contacts-indexrail-idle">
+				<AlphaIndexRail
+					letters={list.indexLetters}
+					available={list.sections.map((s) => s.letter)}
+				/>
+				<AlphaIndexRail
+					letters={list.indexLetters}
+					available={list.sections.map((s) => s.letter)}
+					bubble="H"
+				/>
+			</div>
+			<div class="cell" id="gallery-contacts-search-idle">
+				<SearchHeader search={list.search} clearLabel={cm.cancel} />
+			</div>
+			{#if c.filtered !== undefined}
+				<div class="cell" id="gallery-contacts-search-filtering">
+					<SearchHeader search={c.filtered.search} clearLabel={cm.cancel} />
+				</div>
+			{/if}
+			<div class="cell" id="gallery-contacts-search-desktop">
+				<SearchHeader
+					search={{ placeholder: cm.searchPlaceholder, shortcut: '⌘F' }}
+					layout="desktop"
+					clearLabel={cm.cancel}
+				/>
+			</div>
+		</section>
+	{/if}
+
+	{#if c.detail !== undefined}
+		{@const detail = c.detail}
+		<section id="gallery-section-contacts-detail">
+			<h2>GroupChips · AddressBlock · RecentActivity</h2>
+			<div class="cell" id="gallery-contacts-groupchips-default">
+				<GroupChips chips={detail.chips} addLabel={detail.addChipLabel} />
+			</div>
+			<div class="cell" id="gallery-contacts-addressblock-mobile">
+				<AddressBlock address={detail.address} />
+			</div>
+			<div class="cell" id="gallery-contacts-addressblock-desktop">
+				<AddressBlock address={detail.address} layout="desktop" />
+			</div>
+			<div class="cell" id="gallery-contacts-recentactivity-default">
+				<SectionHeader title={detail.activityTitle} action={detail.activityAction} />
+				{#each detail.rows as row, i (i)}
+					<ActivityRow {row} />
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	<section id="gallery-section-contacts-menus">
+		<h2>DropdownMenu · ContextMenu · ActionMenuSheet</h2>
+		<div class="cell row" id="gallery-contacts-dropdownmenu-header">
+			<DropdownMenu menu={c.menus.header} inline />
+		</div>
+		<div class="cell row" id="gallery-contacts-contextmenu-group">
+			<ContextMenu menu={c.menus.groupContext} inline />
+			<ContextMenu menu={c.menus.contactContext} inline />
+		</div>
+		<div class="cell sheet-cell" id="gallery-contacts-actionmenusheet-add">
+			<ActionMenuSheet menu={c.menus.add} />
+		</div>
+		<div class="cell sheet-cell" id="gallery-contacts-actionmenusheet-group">
+			<ActionMenuSheet menu={c.menus.group} />
+		</div>
+		{#if c.confirm !== undefined}
+			<div class="cell sheet-cell" id="gallery-contacts-actionmenusheet-confirm">
+				<ActionMenuSheet confirm={c.confirm} />
+			</div>
+		{/if}
+	</section>
+
+	<section id="gallery-section-contacts-empty">
+		<h2>EmptyStateCTA · PinnedCTABar</h2>
+		{#if c.empty !== undefined}
+			<div class="cell" id="gallery-contacts-emptystatecta-empty">
+				<EmptyStateCTA empty={c.empty} />
+			</div>
+			<div class="cell" id="gallery-contacts-emptystatecta-desktop">
+				<EmptyStateCTA empty={c.empty} layout="desktop" />
+			</div>
+		{/if}
+		<div class="cell" id="gallery-contacts-emptystatecta-search">
+			<EmptyStateCTA empty={c.searchEmpty} icon="search" />
+		</div>
+		{#if c.group !== undefined}
+			<div class="cell" id="gallery-contacts-pinnedctabar-default">
+				<PinnedCTABar label={c.group.cta} caption={c.group.ctaCaption} />
+			</div>
+		{/if}
+	</section>
 </main>
 
 <style>
@@ -257,5 +426,19 @@
 	.cell.frameless {
 		padding: 0;
 		overflow: hidden;
+	}
+
+	/* Overlay components need a positioned, clipped host to sit inside. */
+	.cell.sheet-cell {
+		position: relative;
+		height: calc(var(--layout-frameH) / 2);
+		padding: 0;
+		overflow: hidden;
+		background: var(--color-bg-base);
+	}
+
+	.cell.tall {
+		align-items: stretch;
+		min-height: calc(var(--layout-frameH) / 2);
 	}
 </style>

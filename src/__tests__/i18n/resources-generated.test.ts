@@ -74,11 +74,11 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 18,408 leaves across 15 locales', () => {
+  it('carries the whole corpus — 18,723 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
-    // 18,378 = 16,817 original, plus the 16 CLDR `many` forms FR-017 added to
+    // 18,723 = 16,817 original, plus the 16 CLDR `many` forms FR-017 added to
     // fr/it/es-MX/pt-BR (without them MODE A selects `many`, misses, and falls
     // through to English at large counts), plus the 195 desktop-onboarding
     // strings spec 007 added (13 `onboarding.welcome.*` keys × 15 locales),
@@ -103,9 +103,16 @@ describe('generated i18n resources', () => {
     // token units — and `send.denomToggleNoRate` — the ⇄ row shown but inert,
     // the one branch the first key cannot cover, since there the figure is in
     // TOKEN units and resolves fine so nothing else on the screen speaks).
+    // the 315 contacts-UI strings spec 018 added (21 `contacts.*` keys × 15
+    // locales: manage, sectionContacts, countPeople, membersCount,
+    // allContacts, addMember, batchSend + its two hint variants,
+    // importFile/importAll/exportAll, importGroup/exportGroup, groupRename,
+    // moveGroup, recentActivity, viewAllActivity, deleteContact, actionQr,
+    // edit).
     // The number moving is the point; it should only ever move deliberately.
+    // 18,723 = 18,228 at the 017/018 merge base, plus 017's 180 and 018's 315.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(18_408);
+    expect(total).toBe(18_723);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

@@ -126,6 +126,10 @@ struct RootView: View {
             // Spec 015's wallet-home gallery; the spec 014 onboarding-state
             // gallery is OnboardingGalleryScreen behind VELA_GALLERY=1.
             GalleryScreen(loc: loc)
+        case .contacts:
+            ContactsStateHost(state: .c1, loc: loc)
+        case .contactsGallery:
+            ContactsGalleryScreen(loc: loc)
         case nil:
             NavigationStack(path: path) {
                 WelcomeScreen(model: model)
@@ -150,17 +154,21 @@ struct RootView: View {
     }
 }
 
-/// `VELA_PAGE` launch override (spec 015 research D4) — same idiom as
-/// `VELA_THEME`/`VELA_LANG`: `wallet` mounts the fixture-driven home,
-/// `gallery` the preview gallery; unset keeps the Welcome flow. Never part
-/// of production navigation (FR-004).
+/// `VELA_PAGE` launch override (spec 015 research D4, extended by spec 018
+/// research D1) — same idiom as `VELA_THEME`/`VELA_LANG`: `wallet` mounts
+/// the fixture-driven home, `gallery` the wallet preview gallery,
+/// `contacts` the contacts home, `contacts-gallery` the contacts preview
+/// gallery; unset keeps the Welcome flow. Never part of production
+/// navigation (FR-004).
 enum PageOverride {
-    enum Page { case wallet, gallery }
+    enum Page { case wallet, gallery, contacts, contactsGallery }
 
     static let page: Page? = {
         switch ProcessInfo.processInfo.environment["VELA_PAGE"] {
         case "wallet": .wallet
         case "gallery": .gallery
+        case "contacts": .contacts
+        case "contacts-gallery": .contactsGallery
         default: nil
         }
     }()

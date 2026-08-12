@@ -157,8 +157,17 @@ for (let i = 1; i < PATHS.length; i++) {
 //   and `warnCannotConvert`'s "switch to {{symbol}}" would tell the user to go
 //   where they already are. The refusal was visible (the row dims); the reason
 //   was not.
-if (PATHS.length !== 1325) fail(`expected 1325 paths (1246 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1246) fail(`expected 1246 leaf paths, got ${leafSet.size}`);
+// + 21 contacts-UI leaves (spec 018: contacts.{manage,sectionContacts,
+//   countPeople,membersCount,allContacts,addMember,batchSend,batchSendHint,
+//   batchSendHintTitled,importFile,importAll,exportAll,importGroup,
+//   exportGroup,groupRename,moveGroup,recentActivity,viewAllActivity,
+//   deleteContact,actionQr,edit} — existing `contacts` branch, no new branches).
+// Merged 017 + 018: the base's 1234 leaf + 78 branch, plus 017's 12 leaves
+// and its one `settings.eraseDevice` branch, plus 018's 21 contacts leaves
+// and no new branch. The three checks below are the arithmetic's witness —
+// they fail loudly rather than let a merge invent a corpus.
+if (PATHS.length !== 1346) fail(`expected 1346 paths (1267 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1267) fail(`expected 1267 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

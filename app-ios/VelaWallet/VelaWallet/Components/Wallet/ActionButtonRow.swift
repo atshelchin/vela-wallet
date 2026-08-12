@@ -9,17 +9,38 @@
 
 import SwiftUI
 
+/// One card of the row: glyph above label. Spec 018 reuses the component
+/// with its own items (转账 / 收款 / 二维码) instead of a second row type.
+struct ActionCardItem: Identifiable {
+    let id = UUID()
+    let icon: LucideGlyph
+    let label: String
+}
+
 struct ActionButtonRow: View {
     @Environment(\.theme) private var theme
     @Environment(\.walletTextScale) private var textScale
 
-    let model: ActionsModel
+    let items: [ActionCardItem]
+
+    init(items: [ActionCardItem]) {
+        self.items = items
+    }
+
+    /// Wallet home (spec 015): 收款 / 转账 / 扫码.
+    init(model: ActionsModel) {
+        self.items = [
+            ActionCardItem(icon: .arrowDownLeft, label: model.receive),
+            ActionCardItem(icon: .arrowUpRight, label: model.send),
+            ActionCardItem(icon: .scanLine, label: model.scan),
+        ]
+    }
 
     var body: some View {
         HStack(spacing: Tokens.Space.s12) {
-            card(icon: .arrowDownLeft, label: model.receive)
-            card(icon: .arrowUpRight, label: model.send)
-            card(icon: .scanLine, label: model.scan)
+            ForEach(items) { item in
+                card(icon: item.icon, label: item.label)
+            }
         }
     }
 

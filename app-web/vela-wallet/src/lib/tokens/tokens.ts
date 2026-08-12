@@ -2,6 +2,9 @@
 
 export const BREAKPOINT_DESKTOP = 1280;
 
+/** Spec 018: below this width the desktop third column overlays the list. */
+export const BREAKPOINT_CONTACTS_OVERLAY = 1120;
+
 export const CONTROL = { sm: 36, md: 44, lg: 52 } as const;
 
 export const FONT_UI = "'Plus Jakarta Sans', 'Noto Sans SC', system-ui, sans-serif";

@@ -3,6 +3,8 @@
 	import { toLocale } from '$lib/i18n/locales';
 	import WalletDesktop from '$lib/wallet/WalletDesktop.svelte';
 	import WalletHome from '$lib/wallet/WalletHome.svelte';
+	import ContactsDesktop from '$lib/contacts/ContactsDesktop.svelte';
+	import ContactsHome from '$lib/contacts/ContactsHome.svelte';
 	import Controls from '../Controls.svelte';
 
 	let { data } = $props();
@@ -11,6 +13,8 @@
 	const state = $derived(page.params.state ?? '');
 	/** H1s reviews the full scroll content, so its frame grows with content. */
 	const expanded = $derived(state === 'h1s');
+	/** dc2n is pinned to a 1024 stage so the <1120 overlay mode is visible. */
+	const narrowStage = $derived(state === 'dc2n');
 </script>
 
 <svelte:head>
@@ -25,6 +29,16 @@
 		<div class="frame" class:expanded>
 			<WalletHome model={data.model} />
 		</div>
+	</div>
+{:else if data.kind === 'contacts-mobile'}
+	<div class="stage">
+		<div class="frame">
+			<ContactsHome model={data.model} />
+		</div>
+	</div>
+{:else if data.kind === 'contacts-desktop'}
+	<div class="desktop-stage" class:narrow={narrowStage}>
+		<ContactsDesktop model={data.model} />
 	</div>
 {:else}
 	<div class="desktop-stage">
@@ -61,5 +75,12 @@
 	.desktop-stage {
 		height: 100dvh;
 		min-width: var(--breakpoint-desktop);
+	}
+
+	/* 800 + 216 + 8 = 1024: the narrow stage that shows the overlay column. */
+	.desktop-stage.narrow {
+		min-width: 0;
+		width: calc(var(--layout-maxContentWidth) + var(--layout-contactsRailW) + var(--space-md));
+		border-inline-end: var(--border-hairline) solid var(--color-border-strong);
 	}
 </style>

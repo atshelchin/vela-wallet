@@ -5,14 +5,19 @@
 	interface Props {
 		title: string;
 		action?: string;
+		/** Plain non-interactive trailing text (spec 018 C1: 联系人 · 8 位). */
+		note?: string;
 		onaction?: () => void;
 	}
 
-	let { title, action, onaction }: Props = $props();
+	let { title, action, note, onaction }: Props = $props();
 </script>
 
 <header class="section">
 	<h2>{title}</h2>
+	{#if note !== undefined}
+		<span class="note">{note}</span>
+	{/if}
 	{#if action !== undefined}
 		<button type="button" onclick={onaction}>
 			{action}
@@ -53,5 +58,10 @@
 
 	button:hover {
 		color: var(--color-fg-base);
+	}
+
+	.note {
+		font-size: calc(var(--text-base) * var(--text-scale, 1));
+		color: var(--color-fg-subtle);
 	}
 </style>

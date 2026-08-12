@@ -22,12 +22,16 @@ import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 /**
  * Section header (spec vocabulary #7): bold title + trailing text action with
  * chevron (全部 › / 添加 ›).
+ *
+ * Spec 018 adds [showChevron] so the same header renders a plain trailing
+ * count (联系人 · 8 位, mock C1) without a second implementation (SC-006).
  */
 @Composable
 fun SectionHeader(
     title: String,
     action: String,
     modifier: Modifier = Modifier,
+    showChevron: Boolean = true,
     onAction: () -> Unit = {},
 ) {
     val colors = VelaTheme.colors
@@ -55,12 +59,14 @@ fun SectionHeader(
                 fontWeight = VelaFontWeight.medium,
                 fontSize = VelaTextSize.base,
             )
-            Icon(
-                imageVector = VelaIcons.ChevronRight,
-                contentDescription = null,
-                tint = colors.fgMuted,
-                modifier = Modifier.size(VelaIconSize.sm),
-            )
+            if (showChevron) {
+                Icon(
+                    imageVector = VelaIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.fgMuted,
+                    modifier = Modifier.size(VelaIconSize.sm),
+                )
+            }
         }
     }
 }

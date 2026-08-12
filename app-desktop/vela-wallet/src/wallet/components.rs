@@ -18,7 +18,10 @@ use super::fixtures::{
     StatusKind,
 };
 
-fn icon_img(
+/// Tinted glyph at a logical size. `pub(crate)` so the contacts module
+/// (spec 018) composes its rows from the same rasterization path instead of
+/// growing a second one (SC-006).
+pub(crate) fn icon_img(
     icons: &mut IconCache,
     icon: Icon,
     solid: bool,

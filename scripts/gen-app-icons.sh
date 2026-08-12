@@ -31,7 +31,7 @@ icon_src="$repo_root/design/icon"
 images="$repo_root/assets/images"
 ios_iconset="$repo_root/app-ios/VelaWallet/VelaWallet/Assets.xcassets/AppIcon.appiconset"
 android_res="$repo_root/app-android/vela-wallet/app/src/main/res"
-site_static="$repo_root/getvela.app/static"
+site_static="$repo_root/app-web/getvela.app/static"
 
 tile_color="#f46d50"   # must match the <rect> fill in design/icon/app-icon.svg
 svg_px=68              # the SVGs' intrinsic size, for the density calculation

@@ -8,9 +8,9 @@
  * Cloudflare Worker, which cannot compile wasm from bytes. The e2e suite
  * asserts the built `_worker.js` contains no `WASM_BASE64`.
  *
- * Loading mirrors `src/i18n/index.web.ts` (RN web): the wasm is
- * base64-embedded and `initSync`'d at import; catalogs are statically imported
- * raw, so resolution is synchronous and immune to the working directory.
+ * Loading mirrors `src/i18n/index.web.ts` (RN web): the wasm is read from the
+ * committed `public/` asset and `initSync`'d at import (`wasm-init.server.ts`);
+ * catalogs are statically imported raw, so resolution is synchronous.
  */
 import { I18n as WasmI18n } from '../../../../../rust/pkg-web/vela_core.js';
 import './wasm-init.server';

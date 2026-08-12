@@ -23,15 +23,12 @@ import { useClearSigning } from '@/hooks/use-clear-signing';
 import { color } from '@/constants/theme';
 import { GasFeeCard } from '@/components/ui/GasFeeCard';
 import { useApprovalGuard } from '@/hooks/use-approval-guard';
+import { useSigningFee } from '@/hooks/use-signing-fee';
 import { fetchChainlinkPrices, resolveChainlinkPrice } from '@/services/price-service';
 import { findAccountByCredentialId } from '@/services/storage';
 import { simulateAssetChanges, type AssetSimResult } from '@/services/tx-simulation';
 import { BalanceChangePreview } from './BalanceChangePreview';
-import {
-  estimateTransactionFee,
-  rawBundlerGasCost,
-  type TransactionFeeEstimate,
-} from '@/services/safe-transaction';
+import { rawBundlerGasCost } from '@/services/safe-transaction';
 import { Shield, AlertTriangle, Pen } from 'lucide-react-native';
 import { styles, localizeIntent, SigningChainContext } from './signing-core';
 import { DAppBanner, SigningAccountRow } from './DAppBanner';
@@ -116,21 +113,12 @@ export function SigningSheet({
 }: SigningSheetProps) {
   const { t } = useTranslation();
 
-  // Gas estimation state (for eth_sendTransaction only). Speed tiers are gone —
-  // every estimate/submit runs at 'fast'. The user's remaining choice is the fee
-  // ASSET (null = native, else a whitelisted stablecoin) on in-band chains;
-  // GasFeeCard loads the options, this sheet owns the selection so the approve
-  // path submits exactly what was quoted.
-  const [gasFeeToken, setGasFeeToken] = useState<string | null>(null);
-  const [feeEstimate, setFeeEstimate] = useState<TransactionFeeEstimate | null>(null);
-  const [estimatingGas, setEstimatingGas] = useState(false);
-  // Explicit flag (vs inferring from null feeEstimate) so the confirm guard doesn't
-  // flicker in the frame before estimation starts.
-  const [gasEstimateFailed, setGasEstimateFailed] = useState(false);
-  // GasFeeCard fires this while it re-quotes internally (fee-asset switch / refresh),
-  // so confirm stays disabled until the displayed quote settles (the internal re-quote
-  // doesn't touch estimatingGas).
-  const [feeBusy, setFeeBusy] = useState(false);
+  // The fee half lives in `useSigningFee` — one hook, two implementations. On
+  // web it is a live `fee_policy` session that owns the quote, the fee-asset
+  // options, the selection, the TTL and the confirm gate; on native it is the
+  // TypeScript estimate this sheet used to run inline, moved verbatim. Speed
+  // tiers are gone — every estimate/submit runs at 'fast'.
+  //
   // An undeployed Safe's estimate must use the initCode from its persisted
   // passkey, exactly as the operation we later sign does.
   const [publicKeyHex, setPublicKeyHex] = useState<string | undefined>();
@@ -250,13 +238,12 @@ export function SigningSheet({
   // and both gate confirm.
   const resolving = clear.resolving || batchPassPending(batchKey, batchPass);
 
-  // Estimate gas + simulate when a new request comes in. Descriptor resolution
-  // is the controller's — this effect owns only the live-only work.
+  // Simulate the inner Safe→target call when a new request comes in: revert
+  // pre-check + net balance changes. Descriptor resolution is the controller's,
+  // and the gas quote is `useSigningFee`'s — this effect owns only the
+  // simulation now, which is why it no longer touches any fee state.
   useEffect(() => {
     if (!incomingRequest) {
-      setFeeEstimate(null);
-      setGasFeeToken(null);
-      setGasEstimateFailed(false);
       setSim(null);
       return;
     }
@@ -266,32 +253,11 @@ export function SigningSheet({
     // the current one's state after it's been replaced.
     let cancelled = false;
     setSim(null);
-    // A new request starts back at the native fee asset (the estimates below
-    // are made without a token, so the displayed quote matches the selection).
-    setGasFeeToken(null);
 
     if (method === 'eth_sendTransaction' && params?.[0]) {
-      // Estimate gas fee — against the REAL tx so the displayed fee and
-      // the funding pre-check reflect this contract call/deploy, not a dummy transfer.
       // Skipped in read-only replay: a historical signature isn't about to be sent.
+      // simFromOverride is a test-harness stand-in only; production uses the signer.
       if (activeAccount?.address && !readOnly && publicKeyLoaded) {
-        setEstimatingGas(true);
-        setGasEstimateFailed(false);
-        estimateTransactionFee(activeAccount.address, chainId, 'fast', {
-          to: params[0].to, value: params[0].value, data: params[0].data,
-        }, undefined, undefined, publicKeyHex)
-          .then((f) => {
-            if (!cancelled) { setFeeEstimate(f); setGasEstimateFailed(false); }
-          })
-          .catch(() => {
-            if (cancelled) return;
-            setFeeEstimate(null);
-            setGasEstimateFailed(true);
-          })
-          .finally(() => { if (!cancelled) setEstimatingGas(false); });
-
-        // Simulate the inner Safe→target call: revert pre-check + net balance changes.
-        // simFromOverride is a test-harness stand-in only; production uses the signer.
         simulateAssetChanges(
           simFromOverride ?? activeAccount.address,
           [{ to: params[0].to, data: params[0].data, value: params[0].value }],
@@ -312,6 +278,40 @@ export function SigningSheet({
     const p = incomingRequest?.method === 'eth_sendTransaction' ? incomingRequest.params?.[0] : undefined;
     return p ? { to: p.to, value: p.value, data: p.data } : undefined;
   }, [incomingRequest]);
+  const batchCallsForEstimate = useMemo(() => {
+    if (incomingRequest?.method !== 'wallet_sendCalls') return null;
+    const calls = incomingRequest.params?.[0]?.calls;
+    if (!Array.isArray(calls) || calls.length === 0) return null;
+    return calls.map((c: any) => ({ to: c.to, value: c.value, data: c.data }));
+  }, [incomingRequest]);
+
+  // --- The fee (the quote, the asset picker, and the confirm gate) ---
+  // One hook, two implementations: a live `fee_policy` session on web, the
+  // TypeScript estimate this sheet used to run inline on native. Either way the
+  // sheet reads a settled quote and a single "may this arm" boolean; it decides
+  // neither.
+  const fee = useSigningFee({
+    tx: txForEstimate ?? null,
+    batchCalls: batchCallsForEstimate,
+    chainId,
+    account: activeAccount?.address,
+    publicKeyHex,
+    publicKeyLoaded,
+    readOnly,
+    // The identity of what is being PRICED — the calls included, not just the
+    // id. `incomingRequest` is already content-addressed upstream
+    // (`sign-resident.web.ts` only replaces it when `JSON.stringify(view.request)`
+    // changes), so keying on the id and method alone would be strictly weaker
+    // than the object identity this replaced: two requests that reuse an id
+    // with different params would reuse the first one's quote, and the sheet
+    // would sign one operation's fee for another.
+    requestKey: incomingRequest
+      ? `${incomingRequest.id}:${chainId}:${incomingRequest.method}:${
+          JSON.stringify(batchCallsForEstimate ?? txForEstimate ?? null)}`
+      : null,
+  });
+  const feeEstimate = fee.estimate;
+  const gasEstimateFailed = fee.failed;
 
   // Resolve each leg of an EIP-5792 batch (intent per call).
   //
@@ -346,7 +346,9 @@ export function SigningSheet({
     return () => { cancelled = true; };
   }, [batchInput, resolveCall]);
 
-  // The bundle's live-only work: net balance changes + the gas estimate.
+  // The bundle's live-only work: net balance changes. The bundle's gas quote is
+  // `useSigningFee`'s, against the same MultiSend of every call that
+  // `sendBatchCalls` submits.
   useEffect(() => {
     if (incomingRequest?.method !== 'wallet_sendCalls') return;
     const calls = incomingRequest.params?.[0]?.calls;
@@ -362,22 +364,6 @@ export function SigningSheet({
       simulateAssetChanges(simFromOverride ?? activeAccount.address, simCalls, chainId)
         .then((r) => { if (!cancelled) setSim(r); })
         .catch(() => { if (!cancelled) setSim(null); });
-
-      // Gas fee for the WHOLE bundle — a batch is an on-chain UserOp; estimate against
-      // the same MultiSend of every call that sendBatchCalls submits.
-      setEstimatingGas(true);
-      setGasEstimateFailed(false);
-      estimateTransactionFee(
-        activeAccount.address, chainId, 'fast', undefined, simCalls, undefined,
-        publicKeyHex,
-      )
-        .then((f) => { if (!cancelled) { setFeeEstimate(f); setGasEstimateFailed(false); } })
-        .catch(() => {
-          if (cancelled) return;
-          setFeeEstimate(null);
-          setGasEstimateFailed(true);
-        })
-        .finally(() => { if (!cancelled) setEstimatingGas(false); });
     }
     return () => { cancelled = true; };
   }, [
@@ -581,8 +567,10 @@ export function SigningSheet({
       // Raw bundler cost (tier markup removed) drives the funding pre-check.
       bundlerCostWei: feeEstimate ? rawBundlerGasCost(feeEstimate) : undefined,
       // The fee asset the user picked in the gas card (null = native) — routed
-      // through to the in-band send path so gas is settled in that token.
-      gasFeeToken,
+      // through to the in-band send path so gas is settled in that token. It
+      // comes from the same source as `feeEstimate`, so the asset and the
+      // amount cannot be one quote apart.
+      gasFeeToken: fee.feeToken,
       // In-band: sign EXACTLY the displayed fee (amount + recipient) — displayed = signed.
       quotedFee: feeEstimate?.inBand && feeEstimate.feeRecipient
         ? {
@@ -607,8 +595,10 @@ export function SigningSheet({
   // approval left un-chosen, no batch leg left unsettled).
   const confirmDisabled =
     resolving
-    || (isTx && (estimatingGas || gasEstimateFailed))
-    || ((isTx || isBatch) && feeBusy)
+    // The fee's own gate. On native this is the same three-flag expression that
+    // sat here; on web it is `fee_policy`'s `confirm_fee_ready`, the single
+    // boolean the machine publishes for exactly this AND.
+    || fee.blocksConfirm
     || !guard.confirmAllowed
     || !confirmGateOpen;
 
@@ -674,22 +664,15 @@ export function SigningSheet({
             heroFlows={heroFlows}
           />
 
-          {/* Gas fee card — for an on-chain tx OR a batch (both cost gas), live only. */}
+          {/* Gas fee card — for an on-chain tx OR a batch (both cost gas), live
+              only. The prop bag is the fee controller's, so which twin of the
+              card is mounted and which half of its props it reads are one
+              decision, made once, in one place. */}
           {(isTx || isBatch) && activeAccount?.address && !readOnly && publicKeyLoaded && (
             <GasFeeCard
-              feeEstimate={feeEstimate}
-              estimating={estimatingGas}
+              {...fee.cardProps}
               nativeSymbol={nativeSymbol(chainId)}
               nativeUsdPrice={nativeUsdPrice}
-              safeAddress={activeAccount.address}
-              chainId={chainId}
-              publicKeyHex={publicKeyHex}
-              tx={isBatch ? undefined : txForEstimate}
-              batchCalls={isBatch ? params?.[0]?.calls : undefined}
-              gasFeeToken={gasFeeToken}
-              onFeeTokenChange={setGasFeeToken}
-              onFeeUpdate={(f) => { setFeeEstimate(f); setGasEstimateFailed(false); }}
-              onBusyChange={setFeeBusy}
             />
           )}
 

@@ -55,6 +55,7 @@ import type { TextInput } from 'react-native';
 import { type RecipientDraft } from '@/components/send/MultiRecipientEditor';
 import { type ReceiptTransfer } from '@/components/ui/TransactionReceipt';
 import { useDisplayCurrency } from '@/hooks/use-display-currency';
+import { useFeeQuote } from '@/hooks/use-fee-quote.web';
 import { useSafeRouter } from '@/hooks/use-safe-router';
 import { chainName } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
@@ -72,6 +73,7 @@ import { setSendTrackerSink } from '@/services/wallet-state-core/send-executor.w
 import { trackSubmitted } from '@/services/wallet-state-core/tx-tracker-resident.web';
 import { createSendSession, type SendSession } from '@/services/wallet-state-core/send-session';
 import {
+  feeKey,
   indexTokens,
   rememberFee,
   resolveFee,
@@ -327,11 +329,24 @@ export function useSendController(): SendController {
   const amountInputRef = useRef<TextInput>(null);
   const projector = useRef<Projector>(newProjector());
 
+  // ── the fee ───────────────────────────────────────────────────────────────
+  // ONE live `fee_policy` session for this screen, and the only producer of a
+  // fee on it. The send core's `EstimateFee` is answered by it (through the
+  // `feeQuote` port), and the confirm slide's card renders it — so the quote
+  // the pre-check gates on, the quote on screen and the quote that is signed
+  // are one object. Before this, the executor called `estimateTransactionFee`
+  // and the card re-quoted and re-priced on top of the result; the four pulled
+  // attempts at this integration all died on that seam.
+  const fee = useFeeQuote();
+  /** The last estimate handed to the core through the port — not re-forwarded. */
+  const portAnswered = useRef<string | null>(null);
+  const lastForwarded = useRef<string | null>(null);
+
   // The React-side facts the ports need, re-read (never captured) so the session
   // outlives every re-render without going stale.
-  const live = useRef({ t, router, activeAccount });
+  const live = useRef({ t, router, activeAccount, requestQuote: fee.requestQuote });
   useEffect(() => {
-    live.current = { t, router, activeAccount };
+    live.current = { t, router, activeAccount, requestQuote: fee.requestQuote };
   });
 
   // ── wording (needs `t`, so it is derived at render, never stored) ─────────
@@ -560,6 +575,29 @@ export function useSendController(): SendController {
         },
         alert,
         close: () => live.current.router.back(),
+        feeQuote: async (request) => {
+          const outcome = await live.current.requestQuote(request);
+          switch (outcome.kind) {
+            case 'ok':
+              // Remember what the port answered with, so the forwarding effect
+              // below does not hand the core the same estimate a second time
+              // and re-run the confirm probes it already ran.
+              portAnswered.current = feeKey(outcome.estimate);
+              return { type: 'ok', estimate: outcome.estimate };
+            case 'failed':
+              // `FeeFailure` and `SendEstimateFailure` share their five
+              // variants by construction — the send vocabulary is the fee
+              // vocabulary plus a timeout. No mapping, no lossy `other`.
+              return { type: 'failed', kind: outcome.failure };
+            case 'context_unavailable':
+            case 'abandoned':
+              // No quote was produced. The core drops an answer whose pipeline
+              // has moved on, and refuses to advance to confirm on one that
+              // has not (invariant ②) — either way it never fabricates a
+              // preview, which is what a wrong `ok` here would make it do.
+              return { type: 'failed', kind: 'estimate_failed' };
+          }
+        },
       },
     });
     return p.session;
@@ -693,9 +731,81 @@ export function useSendController(): SendController {
   );
 
   const onFeeUpdate = useCallback(
-    (fee: TransactionFeeEstimate) => dispatch({ type: 'fee_updated', estimate: rememberFee(fee) }),
+    (estimate: TransactionFeeEstimate) =>
+      dispatch({ type: 'fee_updated', estimate: rememberFee(estimate) }),
     [dispatch],
   );
+
+  // ── the fee session → the send core ───────────────────────────────────────
+  // One direction only. The fee machine decides; the send machine is told. What
+  // it is told is exactly what the card is rendering, because both read the
+  // same view.
+  //
+  // A quote the `feeQuote` port already answered with is NOT re-sent: the core
+  // has it, and `FeeUpdated` re-runs the confirm probes, so a duplicate would
+  // re-simulate on every settle. Only the card's own changes — a chip switch,
+  // a refresh, a TTL requote — arrive this way.
+  const feeView = fee.view;
+  const feePending = fee.pending;
+  const feeAsked = fee.asked;
+  useEffect(() => {
+    const settled = feeView.fee;
+    if (!settled) return;
+    const key = feeKey(settled);
+    if (key === portAnswered.current || key === lastForwarded.current) return;
+    lastForwarded.current = key;
+    dispatch({ type: 'fee_updated', estimate: settled });
+  }, [feeView.fee, dispatch]);
+
+  // The asset the quote is denominated in, and whether one is being produced.
+  // Both are read off the same view as the amount, so `submit_user_op` can
+  // never be handed a token from one quote and an amount from another. Guarded
+  // on `asked` so a screen that never priced anything does not build a send
+  // session just to tell it nothing changed.
+  useEffect(() => {
+    if (!feeAsked) return;
+    dispatch({ type: 'choose_fee_token', token: feeView.fee_token });
+  }, [feeAsked, feeView.fee_token, dispatch]);
+  useEffect(() => {
+    if (!feeAsked) return;
+    // DERIVED, never latched: every transition of the machine's own busy flag
+    // dispatches, including back to false, so a superseded or abandoned run
+    // cannot leave the confirm slide permanently disabled.
+    dispatch({ type: 'fee_busy_changed', busy: feeView.busy || feePending });
+  }, [feeAsked, feeView.busy, feePending, dispatch]);
+
+  // ── the send flow → the fee session ───────────────────────────────────────
+  // The two facts `fee_policy` cannot observe for itself.
+  //
+  // Leaving confirm drops the fee-asset choice and any stale ERC-20 estimate
+  // (invariant ⑥) — without it, the reserve math downstream would read the
+  // `totalWei = 0` an ERC-20 quote carries as "gas is free".
+  // Both fire on the TRANSITION only, never on the current value. Both events
+  // bump the machine's attempt counter and abandon whatever is in flight, so a
+  // "still not on confirm" or "still this chain" re-dispatch would cancel the
+  // very quote it was reacting to — the Max and warm-up estimates run while the
+  // screen sits on `enter_details`, and the first `QuoteRequested` lands
+  // one render before either of these effects first sees a value.
+  const { leaveConfirm: feeLeaveConfirm, chainChanged: feeChainChanged } = fee;
+  const stage = view.stage;
+  const previousStage = useRef<typeof stage | null>(null);
+  useEffect(() => {
+    const was = previousStage.current;
+    previousStage.current = stage;
+    if (was === 'confirm' && stage !== 'confirm') feeLeaveConfirm();
+  }, [stage, feeLeaveConfirm]);
+
+  // A quote belongs to the network it was calculated on (invariant ①). The core
+  // hides it behind its own chain guard rather than deleting it, which is what
+  // makes a late old-chain answer harmless instead of poisonous.
+  const previousChainId = useRef<number | null>(null);
+  useEffect(() => {
+    const was = previousChainId.current;
+    previousChainId.current = selectedChainId;
+    if (was !== null && selectedChainId !== null && was !== selectedChainId) {
+      feeChainChanged(selectedChainId);
+    }
+  }, [selectedChainId, feeChainChanged]);
 
   const saveReceiptContact = useCallback(() => {
     const name = view.recipient_identity?.name ?? undefined;
@@ -845,6 +955,11 @@ export function useSendController(): SendController {
     feeBusy: view.fee_busy,
     gasFeeToken: view.gas_fee_token,
     publicKeyHex,
+    // The card renders the fee machine's view directly. `feeEstimate` above
+    // stays for the screen's own reads (the reserve warning, the receipt) and
+    // is the SAME quote — it reached the core through the port this session
+    // answered.
+    feeCard: fee,
     sameAssetFeeIssue: snapshot.sameAssetFeeIssue,
     multiTokenSpecs,
     sending: view.sending,

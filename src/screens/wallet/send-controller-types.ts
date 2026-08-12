@@ -40,6 +40,7 @@ import type { MultiTokenSpec } from '@/services/batch-send';
 import type { TreasuryStatus } from '@/services/bundler-service';
 import type { RecipientIdentity } from '@/services/recipient-identity';
 import type { RecipientRisk } from '@/services/recipient-risk';
+import type { FeeCardController } from '@/hooks/fee-card-types';
 import type { TransactionFeeEstimate } from '@/services/safe-transaction';
 import type { AssetSimResult } from '@/services/tx-simulation';
 
@@ -212,6 +213,16 @@ export interface SendController {
   gasFeeToken: string | null;
   /** Lets `GasFeeCard` build a real initCode for an undeployed Safe. */
   publicKeyHex: string | undefined;
+  /**
+   * WEB only: the `fee_policy` session this screen's quote lives in, rendered
+   * by `GasFeeCard.web.tsx`.
+   *
+   * Native leaves it undefined and its card keeps the TypeScript path — Hermes
+   * has no WebAssembly. On web this is the single producer of a fee on the Send
+   * flow: the same session answers the core's `EstimateFee`, so the confirm
+   * slide cannot show one number while the pre-check gated on another.
+   */
+  feeCard?: FeeCardController;
   sameAssetFeeIssue: SameAssetFeeIssue | null;
   multiTokenSpecs: (chainId: number) => MultiTokenSpec[];
   sending: boolean;

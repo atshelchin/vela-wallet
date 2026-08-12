@@ -120,6 +120,9 @@ import type { ClearSignField, ClearSignResult } from '@/services/clear-signing';
 import type { Currency } from '@/services/currency';
 import type { AssetSimResult } from '@/services/tx-simulation';
 import type { FeeTokenOption } from '@/hooks/use-inband-fee-tokens';
+import type { FeeCardController, FeeSelectorRow } from '@/hooks/fee-card-types';
+import { feeRowInsufficient } from '@/services/safe-transaction';
+import type { FeeView } from '@/services/wallet-state-core/generated/FeeView';
 import type { LocalTransaction } from '@/services/storage';
 
 // =============================================================================
@@ -195,6 +198,49 @@ const FEE_OPTIONS = [feeOptNative, feeOptUSDC, feeOptUSDT];
 /** Fixed per-asset cost for this "transaction" — native 0.00048 BNB, stables ≈ $0.48. */
 const feeAmountFor = (o: FeeTokenOption): bigint | null =>
   o.asset === 'native' ? 480000000000000n : 480000000000000000n;
+
+/**
+ * An inert `fee_policy` view for the two reproducible GasFeeCard states. The
+ * card is web-only here (`GasFeeCard.web.tsx`), and on web it renders the
+ * machine's projection — so the gallery states are states of that projection,
+ * not of the props the native twin reads.
+ */
+const feeCardFixture = (
+  view: Partial<FeeView>,
+  flags: { pending?: boolean; asked?: boolean } = {},
+): FeeCardController => ({
+  view: {
+    busy: false, failed: null, fee: null, stale: false,
+    fee_token: null, options: [], confirm_fee_ready: false,
+    ...view,
+  },
+  pending: flags.pending ?? false,
+  asked: flags.asked ?? flags.pending ?? false,
+  selectAsset: () => {},
+  requote: () => {},
+});
+
+/**
+ * The selector takes rows with their cost and gate already decided (the card
+ * decides them now, from `fee_policy` on web and the TS helpers on native).
+ * These fixtures keep producing the values the pinned cells always rendered.
+ */
+const feeRows = (
+  options: FeeTokenOption[],
+  amountFor: (o: FeeTokenOption) => bigint | null = feeAmountFor,
+): FeeSelectorRow[] =>
+  options.map((o) => {
+    const amount = amountFor(o);
+    return {
+      symbol: o.symbol,
+      contract: o.contract,
+      decimals: o.decimals,
+      balance: o.balance,
+      logoUrls: o.logoUrls,
+      amount,
+      insufficient: feeRowInsufficient(o.balance, amount),
+    };
+  });
 
 const txSend: LocalTransaction = {
   id: 'gallery-send-1', userOpHash: UOP_HASH, txHash: TX_HASH, from: ME, to: FRIEND,
@@ -1053,25 +1099,25 @@ function DesignGalleryScreen() {
           onMeasure={measure}
         >
           <Cell id="gallery-feetokenselector-default" label="FeeTokenSelector · USDC selected, native insufficient (0 BNB)">
-            <FeeTokenSelector options={FEE_OPTIONS} selected={feeSel} onSelect={setFeeSel} feeAmountFor={feeAmountFor} />
+            <FeeTokenSelector rows={feeRows(FEE_OPTIONS)} selected={feeSel} onSelect={setFeeSel} />
           </Cell>
           <Cell id="gallery-feetokenselector-native" label="FeeTokenSelector · native selected">
             <FeeTokenSelector
-              options={[{ ...feeOptNative, balance: 40_000000000000000n, usdBalance: '24.50' }, feeOptUSDC]}
+              rows={feeRows([{ ...feeOptNative, balance: 40_000000000000000n, usdBalance: '24.50' }, feeOptUSDC])}
               selected={null}
               onSelect={() => {}}
-              feeAmountFor={feeAmountFor}
             />
           </Cell>
           <Cell id="gallery-feetokenselector-busy" label="FeeTokenSelector · busy=true (rows dim, taps blocked)">
-            <FeeTokenSelector options={FEE_OPTIONS} selected={USDC_BSC} onSelect={() => {}} feeAmountFor={feeAmountFor} busy />
+            <FeeTokenSelector rows={feeRows(FEE_OPTIONS)} selected={USDC_BSC} onSelect={() => {}} busy />
           </Cell>
           <Cell id="gallery-feetokenselector-noquote" label="FeeTokenSelector · feeAmountFor returns null (— cost, all insufficient)">
-            <FeeTokenSelector options={FEE_OPTIONS} selected={USDC_BSC} onSelect={() => {}} feeAmountFor={() => null} />
+            <FeeTokenSelector rows={feeRows(FEE_OPTIONS, () => null)} selected={USDC_BSC} onSelect={() => {}} />
           </Cell>
 
           <Cell id="gallery-gasfeecard-estimating" label="GasFeeCard · estimating=true feeEstimate=null">
             <GasFeeCard
+              controller={feeCardFixture({ busy: true }, { pending: true })}
               feeEstimate={null}
               estimating
               nativeSymbol="BNB"
@@ -1083,6 +1129,7 @@ function DesignGalleryScreen() {
           </Cell>
           <Cell id="gallery-gasfeecard-failed" label="GasFeeCard · estimation failed (tap to retry)">
             <GasFeeCard
+              controller={feeCardFixture({ failed: 'estimate_failed' }, { asked: true })}
               feeEstimate={null}
               estimating={false}
               nativeSymbol="BNB"

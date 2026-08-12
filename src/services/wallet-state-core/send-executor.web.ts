@@ -41,7 +41,6 @@ import { hapticError, hapticSuccess } from '@/services/platform';
 import { resolveRecipientIdentity } from '@/services/recipient-identity';
 import { resolveRecipientRisk } from '@/services/recipient-risk';
 import {
-  estimateTransactionFee,
   sendBatchCalls,
   UserOpFeeHoldError,
   UserOpRejectedError,
@@ -62,7 +61,6 @@ import type { SendShellResult } from './generated/SendShellResult';
 import type { SendTxRecord } from './generated/SendTxRecord';
 import {
   fromWireAmount,
-  rememberFee,
   toSendToken,
   toShellCall,
   type SendEffect,
@@ -112,8 +110,8 @@ export function setSendTrackerSink(sink: ((handoff: SendTrackerHandoff) => void)
   trackerSink = sink;
 }
 
-/** The 'fast' tier — speed tiers are gone; every estimate and submit runs at it. */
-const TIER = 'fast' as const;
+// The 'fast' tier moved with the quote: `use-fee-quote.web.ts` states it once,
+// for both surfaces, where the `QuoteRequested` that carries it is built.
 
 /** The chain registry snapshot the core validates locked requests against. */
 function chainInfos(): SendChainInfo[] {
@@ -235,16 +233,30 @@ export function createSendExecutor(ports: SendShellPorts) {
       }
 
       case 'estimate_fee': {
-        const fee = await estimateTransactionFee(
-          operation.account,
-          operation.chain_id,
-          TIER,
-          operation.tx ? toShellCall(operation.tx) : undefined,
-          operation.batch ? operation.batch.map(toShellCall) : undefined,
-          operation.gas_fee_token,
-          operation.public_key_hex ?? undefined,
-        );
-        return { type: 'fee_estimated', outcome: { type: 'ok', estimate: rememberFee(fee) } };
+        // Asked of the screen's live `fee_policy` session, NOT of
+        // `estimateTransactionFee`. That is the whole point: the number this
+        // pre-check gates on and the number the fee card shows are the same
+        // object, produced once, by the machine that owns the rules. See
+        // `SendShellPorts.feeQuote`.
+        //
+        // The fee leg is deliberately not built here — `fee_policy` appends its
+        // own, to the recipient its own quote named, so the simulated operation
+        // is the submitted one.
+        return {
+          type: 'fee_estimated',
+          outcome: await ports.feeQuote({
+            chainId: operation.chain_id,
+            account: operation.account,
+            // A batch takes precedence only when it HAS legs — `estimateTransactionFee`
+            // required `batchCalls.length > 0` for the same reason, and an
+            // empty one would otherwise silence the single call beside it.
+            calls: operation.batch && operation.batch.length > 0
+              ? operation.batch
+              : operation.tx ? [operation.tx] : [],
+            feeToken: operation.gas_fee_token,
+            publicKeyHex: operation.public_key_hex ?? undefined,
+          }),
+        };
       }
 
       case 'probe_treasury': {

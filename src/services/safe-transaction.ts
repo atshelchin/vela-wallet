@@ -777,6 +777,201 @@ export async function estimateTransactionFee(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Core-driven seams — the I/O the web `fee_policy` machine asks for
+// ---------------------------------------------------------------------------
+//
+// Everything in this section exists so `vela-core/src/app/fee_policy.rs` can
+// make the decisions `estimateTransactionFee` above makes in TypeScript. Native
+// (Hermes, no WebAssembly) keeps the function above; web drives the core
+// through `services/wallet-state-core/fee-executor.web.ts`.
+//
+// The rule all four share: they report RAW OBSERVATIONS, never verdicts.
+// `getGasPrices` derives a price and falls back to 5 gwei; `getBundlerGasQuote`
+// rejects a degenerate zero quote and substitutes the chain price for a missing
+// `networkFeePerGas`. Those are rules the core also holds (`resolve_gas_price`,
+// `accept_bundler_quote`), so handing the core their OUTPUT would apply each
+// rule twice and leave neither side owning it — the exact dual-decider shape
+// this migration exists to remove. These readers stop at the wire.
+
+/** The three chain price signals, unjudged. `null` = the read failed or was skipped. */
+export interface RawGasSignals {
+  ethGasPrice: string | null;
+  baseFee: string | null;
+  priorityFee: string | null;
+}
+
+/**
+ * `eth_gasPrice` ∥ latest block's `baseFeePerGas` ∥ `eth_maxPriorityFeePerGas`,
+ * as decimal strings. Deliberately UNCACHED, unlike `getGasPrices`: the core
+ * asks for these once per quote run, and the run that matters most is the one
+ * behind the refresh affordance, which wants a fresh read by definition.
+ *
+ * A present tip result — even `0x0`, which every OP-stack L2 returns — is a real
+ * measurement and comes back as `"0"`; a failed or skipped read comes back
+ * `null`. The core reads that distinction as `tip_measured`, so collapsing the
+ * two here would silently change the derived gas price.
+ */
+export async function fetchRawGasSignals(
+  chainId: number,
+  wantTip: boolean,
+): Promise<RawGasSignals> {
+  const [gasPriceRes, blockRes, tipRes] = await Promise.all([
+    rpcCall('eth_gasPrice', [], chainId).catch(() => null),
+    rpcCall('eth_getBlockByNumber', ['latest', false], chainId).catch(() => null),
+    wantTip
+      ? rpcCall('eth_maxPriorityFeePerGas', [], chainId).catch(() => null)
+      : Promise.resolve(null),
+  ]);
+  const decimal = (value: unknown): string | null =>
+    typeof value === 'string' ? parseHexUInt64(value).toString() : null;
+  return {
+    ethGasPrice: decimal(gasPriceRes?.result),
+    baseFee: decimal(blockRes?.result?.baseFeePerGas),
+    priorityFee: decimal(tipRes?.result),
+  };
+}
+
+/** One `pimlico_getUserOperationGasPrice` tier, unjudged. Decimal strings. */
+export interface RawBundlerQuote {
+  maxFeePerGas: string;
+  /** `null` when a generic bundler omits the Vela extension field. */
+  networkFeePerGas: string | null;
+  relayerFeePerGas: string | null;
+}
+
+/**
+ * The bundler's quote as it arrived. `null` means the method is unsupported or
+ * the transport failed — "no quote", the only judgement left here, and only
+ * because an absent response is not a number.
+ *
+ * A zero `maxFeePerGas` is NOT filtered out the way `getBundlerGasQuote` filters
+ * it: that rejection is `accept_bundler_quote`'s. The `vela.zeroGasQuote` fault
+ * seam therefore still reaches the core, which is the point of keeping it.
+ */
+export async function fetchRawBundlerQuote(
+  chainId: number,
+  tier: GasTier,
+): Promise<RawBundlerQuote | null> {
+  let resp;
+  try {
+    resp = await rpcCall('pimlico_getUserOperationGasPrice', [], chainId);
+  } catch (err) {
+    console.log(
+      '[Gas] Bundler gas-price quote unavailable:',
+      err instanceof Error ? err.message : String(err),
+    );
+    return null;
+  }
+  if (gasQuoteShouldZero(chainId)) {
+    resp = { result: { [tier]: { maxFeePerGas: '0x0', maxPriorityFeePerGas: '0x0', networkFeePerGas: '0x0', relayerFeePerGas: '0x0' } } };
+  }
+  const t = resp.result?.[tier];
+  if (resp.error || !t?.maxFeePerGas) return null;
+  const decimal = (value: unknown): string | null =>
+    typeof value === 'string' ? parseHexUInt64(value).toString() : null;
+  return {
+    maxFeePerGas: parseHexUInt64(t.maxFeePerGas as string).toString(),
+    networkFeePerGas: decimal(t.networkFeePerGas),
+    relayerFeePerGas: decimal(t.relayerFeePerGas),
+  };
+}
+
+export type UserOpGasSimulation =
+  | { kind: 'estimated'; verificationGasLimit: bigint; callGasLimit: bigint; preVerificationGas: bigint }
+  | { kind: 'context_unavailable' }
+  | { kind: 'simulation_failed' };
+
+/**
+ * Simulate the operation the core built — the user's calls plus the fee leg it
+ * already appended — and return the bundler's RAW gas limits.
+ *
+ * The ×1.5 padding, the 300k/2M/100k floors, the `+10_000` on
+ * preVerificationGas, the L2 static adders and the 1 KiB calldata cliff that
+ * decides whether a failed simulation is fatal are all `fee_policy`'s
+ * (`accept_gas_outcome`). Applying any of them here would re-open the split.
+ *
+ * The two outcomes below are facts, not verdicts:
+ *   - `context_unavailable` — the shell could not build a TRUTHFUL dummy op.
+ *     A failed nonce read is not permission to simulate as nonce 0, and an
+ *     undeployed account without its passkey cannot build the initCode the
+ *     submitted op will carry. `estimateTransactionFee` throws in both cases.
+ *   - `simulation_failed` — the op was truthful and the bundler refused it.
+ */
+export async function simulateUserOpGas(params: {
+  chainId: number;
+  account: string;
+  deployed: boolean;
+  /** The core's calls. `value` is hex (0x optional), `data` is 0x-hex. */
+  calls: { to: string; value: string; data: string }[];
+  publicKeyHex?: string;
+}): Promise<UserOpGasSimulation> {
+  const { chainId, account, deployed, calls, publicKeyHex } = params;
+
+  let nonce: string;
+  let initCode: Uint8Array;
+  try {
+    if (deployed) {
+      nonce = await getNonce(account, chainId);
+      initCode = new Uint8Array(0);
+    } else {
+      if (!publicKeyHex) return { kind: 'context_unavailable' };
+      nonce = '0x0';
+      initCode = buildInitCode(publicKeyHex);
+    }
+  } catch {
+    return { kind: 'context_unavailable' };
+  }
+
+  // Submission always wraps the calls in a MultiSend, so the estimate does too —
+  // byte-identical to what `sendUserOpInBand` builds, which is why the core's
+  // `multisend_execute_calldata_len` can measure the same payload it prices.
+  const callData = buildMultiSendExecuteCallData(
+    calls.map((call) => ({
+      to: call.to,
+      value: stripHexPrefix(call.value) || '0',
+      data: call.data && call.data !== '0x' ? fromHex(stripHexPrefix(call.data)) : new Uint8Array(0),
+    })),
+  );
+
+  try {
+    const est = await estimateGas(
+      {
+        sender: account,
+        nonce,
+        initCode,
+        callData,
+        // The values REQUESTED from the estimator; the answer replaces them.
+        verificationGasLimit: deployed ? VERIFICATION_GAS_DEPLOYED : VERIFICATION_GAS_UNDEPLOYED,
+        callGasLimit: CALL_GAS_LIMIT,
+        preVerificationGas: PRE_VERIFICATION_GAS,
+        // Match the signed op's settlement semantics: every Vela UserOp pays
+        // maxFeePerGas = 0 and is reimbursed in band.
+        maxFeePerGas: 0n,
+        maxPriorityFeePerGas: 0n,
+        paymasterAndData: new Uint8Array(0),
+        signature: buildDummySignature(),
+      },
+      chainId,
+    );
+    return { kind: 'estimated', ...est };
+  } catch (err) {
+    console.log(
+      '[FeeEstimate] Bundler estimation unavailable:',
+      err instanceof Error ? err.message : String(err),
+    );
+    return { kind: 'simulation_failed' };
+  }
+}
+
+/**
+ * Whether the Safe exists on chain. Exported for the `fee_policy` session,
+ * which must state `deployed` on `QuoteRequested` before the core will price
+ * anything. Throws on an INDETERMINATE read — see the guard inside; a caller
+ * that cannot answer must not ask the core to price a guess.
+ */
+export { isDeployed as accountIsDeployed };
+
 // formatWeiToEth was duplicated byte-for-byte across 4+ files; it now lives in
 // ./format-eth and is re-exported here to keep the public API (and its tests) stable.
 export { formatWeiToEth } from './format-eth';

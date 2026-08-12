@@ -268,10 +268,11 @@ not. And playwright's `retries: 1` reports fail-then-pass as "flaky" with a
 zero exit code, so a deterministic regression can read as a known flake;
 re-measure with `--retries=0`.
 
-## `fee_policy` — the core's money math is fixed; the web wiring is deliberately NOT landed
+## `fee_policy` — the core's money math is fixed; the web wiring was pulled four times, then landed
 
 `fee_policy` was the last machine with zero construction sites on web. Wiring
-it was attempted and **pulled**, on purpose. What landed is the core half.
+it was attempted and **pulled**, on purpose, four times. What landed first was
+the core half; the wiring is recorded at the end of this section.
 
 **The bug that made it worth doing anyway.** `calculate_in_band_fee_amount`
 evaluated `ceil_div(mul(mul(native_amount, native_usd), fee_unit), …)` in u128
@@ -335,6 +336,105 @@ tree whose jest suites were all green — the committed wasm had been built from
 an intermediate source state that no longer existed. Green tests over a stale
 artifact prove nothing about the source. Run the provenance check before
 believing a wasm-backed suite.
+
+### Round 5 — the wiring landed, exactly as the paragraph above prescribed
+
+One live session per fee-showing surface, and it is the **only** producer of a
+`TransactionFeeEstimate` on web. The three writers are gone:
+
+| was | now |
+| --- | --- |
+| `send-executor.web.ts`'s `estimate_fee` → `estimateTransactionFee` | `ports.feeQuote` → the screen's session |
+| `GasFeeCard`'s re-quote, chip switch, affordability auto-default and option loader | `GasFeeCard.web.tsx` renders `FeeView`; it owns no arithmetic |
+| `SigningSheet`'s two `estimateTransactionFee` calls | `use-signing-fee.web.ts` → one `QuoteRequested` |
+
+Shape: `fee-executor.web.ts` (six operations, six existing service calls),
+`fee-session.web.ts`, and `use-fee-quote.web.ts`, which holds the session and
+answers the `send` core's `EstimateFee` from it. `GasFeeCard` split into a
+platform pair rather than growing a branch — native is byte-identical.
+
+**The readers had to be rewritten to stop at the wire.** `getGasPrices` derives
+a price and falls back to 5 gwei; `getBundlerGasQuote` rejects a degenerate zero
+quote and substitutes the chain price for a missing `networkFeePerGas`. Those
+are rules `resolve_gas_price` and `accept_bundler_quote` also hold, so feeding
+the core their OUTPUT would have applied each rule twice with neither side
+owning it — the same shape in a new place. `fetchRawGasSignals` /
+`fetchRawBundlerQuote` / `simulateUserOpGas` report observations only; the ×1.5
+padding, the gas floors, the 1 KiB calldata cliff and the L2 adders all stay in
+`accept_gas_outcome`.
+
+**The confirm screen's dummy-transfer defect closed structurally, not by
+threading props.** `ConfirmStep` rendered `GasFeeCard` with no `tx` and no
+`batchCalls`, so a chip switch there re-priced a 68-byte placeholder while the
+send core had quoted the real operation. The card no longer re-prices at all —
+the chip switch is `SelectFeeAsset` on the session that already holds the real
+calls — so there is nothing left to pass. Native still has this defect and is
+deliberately untouched.
+
+**One behaviour change, stated.** The signing sheet's confirm gate was
+`(isTx && (estimating || failed)) || ((isTx || isBatch) && feeBusy)` — a
+contract call was gated on its estimate, a **batch was not**, so a batch could
+arm its slider over a fee that had not settled. Web now asks the core's
+`confirm_fee_ready`, which is one gate for both (invariant ⑦). Native keeps the
+old expression verbatim.
+
+**What the wiring layer cost, again.** `jest.config.js` is `testEnvironment:
+'node'` matching only `*.test.ts`, so no test renders a component or runs a
+hook — and the one defect this round produced lived exactly there.
+`EffectLoop.start` commits the core's PRISTINE view before dispatching, and that
+view (`busy: false, fee: null, failed: null`) is byte-identical to "the run
+finished with nothing". Settling the request on the first non-busy view
+therefore answered **every first quote** with "no fee", which the `send` core
+reads as a refused estimate — Send never reached confirm. Every unit gate was
+green; `e2e/send-high-risk.spec.ts` caught it. A request is now judged against
+the view its own dispatch produced, and `fee-policy-wired.test.ts` pins the fact
+the bug depended on.
+
+**A self-review of the merged result found five more, and this is the record.**
+Every prior round was verified and then refuted by an independent read, so the
+wiring was re-read adversarially before it was called done. What that found —
+all in the untested layer, none in the core:
+
+- **A superseded question answered with the previous question's fee.** When the
+  shell refuses to ask the core (an indeterminate `eth_getCode`), the core was
+  never told the question changed, so its own chain guard cannot help — it still
+  believes the earlier request is live and keeps publishing that quote. On the
+  signing sheet `confirm_fee_ready` stayed true, so the approve path would sign
+  the previous operation's fee for this one. A request that never reached the
+  core now masks the view entirely; every derived value falls to "no quote".
+- **A weaker request key than the object identity it replaced.** `incomingRequest`
+  is already content-addressed upstream (`sign-resident.web.ts` swaps it only
+  when `JSON.stringify(view.request)` changes), so keying the quote on
+  `id:chain:method` was a narrowing: two requests reusing an id with different
+  params would reuse the first quote. The key carries the calls now. The comment
+  justifying the narrow key asserted the opposite of the truth — again, the
+  comment is where the violation was.
+- **Digits from one asset, label from another.** The card derived `feeUnits` and
+  `feeSym` through two independent `??` chains, so a selected row that supplies
+  a symbol but no amount pairs its label with the next source's number. Both are
+  read from one `denom` now, and an asset that cannot be priced reports NO
+  amount rather than borrowing one. **The native twin has the same shape** and
+  was left alone under FR-202.
+- **A cancelled timer reported as an elapsed one.** `StartTtl` resolved
+  `ttl_elapsed` on abort. Harmless only because the core happens to ignore it
+  outside `Quoted` — not a property to depend on. It rejects while aborted now,
+  which is the effect loop's own contract for "answer nothing".
+- **An empty batch silencing the call beside it.** `batch ?? [tx]` passes a
+  present-but-empty batch through, where `estimateTransactionFee` required
+  `length > 0`. Length-checked.
+
+**Verification.** cargo 1071/1071 · typecheck · lint 0 errors · jest 2493 in 196
+suites (+12 in the new `fee-policy-wired.test.ts`, which replays the shared
+corpus **through the wired path** — the 126-DAI case above, produced by the real
+core over the real executor) · `verify:wasm` 42,015 conformance cases ·
+`build-web.mjs --check` · both drift gates · `cargo tree -p vela-core-uniffi`
+crux-free · full e2e `--retries=0`: **69 passed, 0 failed** after the review
+round. The run before it was 68/1, the one failure being
+`parallel-send.spec.ts:17`'s known "Add Token" 5s-timeout flake — measured
+interleaved against a baseline worktree at `7924258`, **5/6 on both**, failing
+and passing on the same rounds. It passed on the clean run, which is what a
+load-dependent timeout does and why the interleaved baseline is the only thing
+that settles it.
 
 ## The coverage audit, and what handing judgements back to the cores exposed
 
@@ -448,10 +548,30 @@ either story.
 
 ## Still open
 
-- **`parallel-send.spec.ts:22`'s "Add Token" assertion** carries the default 5s
+- **`parallel-send.spec.ts:23`'s "Add Token" assertion** carries the default 5s
   timeout while the two assertions around it use 25s, so it loses a race with
-  token loading about a third of the time. Aligning it is an `e2e/` edit and
-  therefore an owner call, like the `parallel-clear-signing` regex was.
+  token loading. Aligning it is an `e2e/` edit and therefore an owner call, like
+  the `parallel-clear-signing` regex was. Rate is load-dependent, not fixed: the
+  earlier measurement put it at 2 in 6, the `fee_policy` wiring round measured 5
+  in 6 — **identically on HEAD and on a `7924258` baseline, failing and passing
+  on the same interleaved rounds**, which is what settles that it is the timeout
+  and not the change under test.
+- **Two native defects the web work exposed and deliberately did not touch**
+  (FR-202; both are real on iOS and Android):
+  1. `ConfirmStep` renders `GasFeeCard` with no `tx`/`batchCalls`, so a chip
+     switch or a refresh on the Send confirm slide estimates a 68-byte
+     placeholder rather than the send being confirmed. Web closed this
+     structurally — the card no longer re-prices at all.
+  2. `GasFeeCard.tsx` derives its displayed amount and its symbol through two
+     independent `??` chains, so a selected row with a symbol but no amount
+     pairs that label with another asset's digits. Web reads both from one
+     source. Fixing either means giving the native controller the same
+     single-writer shape — a change with its own risk assessment.
+- **The wiring layer still has no test environment.** `jest.config.js` is
+  `testEnvironment: 'node'` matching only `*.test.ts`, so no hook or component
+  is ever exercised. Both rounds that shipped a defect into `src/` shipped it
+  there. `fee-policy-wired.test.ts` works around it by driving the real session
+  without React; a hook-level environment would be the actual fix.
 - **Native has no e2e.** Sign-out's native behaviour changed in this branch
   and `ext_cache`'s real surface is iOS-only; both want a device pass
   (`e2e/safari/run_matrix.py`).

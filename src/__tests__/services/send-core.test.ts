@@ -76,13 +76,22 @@ type SubmitArgs = {
   quotedFee: { amount: bigint; recipient: string } | undefined;
 };
 const submits: SubmitArgs[] = [];
+/**
+ * What `EstimateFee` asks the shell for.
+ *
+ * This is the `feeQuote` PORT, not `estimateTransactionFee`: on web the
+ * operation is answered by the screen's live `fee_policy` session, so the port
+ * is the real production seam and the right place to observe the request from.
+ * `tier` is no longer visible here — it is stated once, for both fee surfaces,
+ * where the `QuoteRequested` that carries it is built — and `value` crosses as
+ * the decimal base-unit string the core states, not as hex (the hex codec moved
+ * with the estimate, into `fee-executor.web.ts`).
+ */
 type EstimateArgs = {
-  from: string;
   chainId: number;
-  tier: string;
-  tx: any;
-  batch: any;
-  gasFeeToken: string | null | undefined;
+  account: string;
+  calls: { to: string; value: string; data: string }[];
+  feeToken: string | null;
   publicKeyHex: string | undefined;
 };
 const estimates: EstimateArgs[] = [];
@@ -100,19 +109,6 @@ class FakeRejectedError extends Error {}
 
 jest.mock('@/services/safe-transaction', () => ({
   prefetchForSend: jest.fn(),
-  estimateTransactionFee: (
-    from: string,
-    chainId: number,
-    tier: string,
-    tx: any,
-    batch: any,
-    gasFeeToken: any,
-    publicKeyHex: any,
-  ) => {
-    const args = { from, chainId, tier, tx, batch, gasFeeToken, publicKeyHex };
-    estimates.push(args);
-    return estimateImpl(args);
-  },
   sendBatchCalls: (
     from: string,
     calls: any,
@@ -179,7 +175,7 @@ import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
 import { loadTransactions } from '@/services/storage';
 import { createSendSession } from '@/services/wallet-state-core/send-session.web';
-import { _resetFeeRegistry } from '@/services/wallet-state-core/send-types';
+import { _resetFeeRegistry, rememberFee } from '@/services/wallet-state-core/send-types';
 import type { SendAlertKind } from '@/services/wallet-state-core/generated/SendAlertKind';
 import type { SendEvent } from '@/services/wallet-state-core/generated/SendEvent';
 import type { SendView } from '@/services/wallet-state-core/generated/SendView';
@@ -273,6 +269,16 @@ function open(params: Partial<Extract<SendEvent, { type: 'open' }>['params']> = 
       },
       alert: (kind) => alerts.push(kind),
       close: () => {},
+      feeQuote: async (request) => {
+        estimates.push(request);
+        try {
+          return { type: 'ok' as const, estimate: rememberFee(await estimateImpl(request)) };
+        } catch {
+          // The live session answers a refusal as a typed variant, never a
+          // rejection — the shared effect loop's contract.
+          return { type: 'failed' as const, kind: 'estimate_failed' as const };
+        }
+      },
     },
   });
   holder.session = session;
@@ -370,15 +376,20 @@ describe('send core (web shell)', () => {
     const app = track(await reachConfirm(TOKEN, '25'));
     expect(app.latest().stage).toBe('confirm');
     const estimate = estimates.at(-1)!;
+    // The key that builds the initCode rides on the REQUEST, so it belongs to
+    // the account this quote is for — not to a session-level mirror.
     expect(estimate.publicKeyHex).toBe(PUBKEY);
-    expect(estimate.tier).toBe('fast');
     // An ERC-20 transfer is priced as the real calldata, not a native dummy.
-    expect(estimate.tx.to.toLowerCase()).toBe(USDC.toLowerCase());
-    expect(estimate.tx.data.startsWith('0xa9059cbb')).toBe(true);
-    // 25 USDC at 6 decimals = 25_000_000 = 0x17d7840 — HEX, never the decimal
-    // string the core states base units in.
-    expect(estimate.tx.value).toBe('0x0');
-    expect(estimate.tx.data.endsWith((25_000_000).toString(16).padStart(64, '0'))).toBe(true);
+    expect(estimate.calls).toHaveLength(1);
+    expect(estimate.calls[0].to.toLowerCase()).toBe(USDC.toLowerCase());
+    expect(estimate.calls[0].data.startsWith('0xa9059cbb')).toBe(true);
+    // Base units as the DECIMAL string the core states them in; the hex codec
+    // the MultiSend builder needs lives past this seam, in the fee executor.
+    expect(estimate.calls[0].value).toBe('0');
+    expect(estimate.calls[0].data.endsWith((25_000_000).toString(16).padStart(64, '0'))).toBe(true);
+    // The fee leg is NOT here: `fee_policy` appends its own, to the recipient
+    // its own quote named, so the simulated op is the submitted one.
+    expect(estimate.calls.some((call) => call.to === FEE_RECIPIENT)).toBe(false);
   });
 
   it('signs EXACTLY the fee the confirm screen displayed (invariant ①)', async () => {

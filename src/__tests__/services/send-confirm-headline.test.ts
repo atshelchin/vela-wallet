@@ -139,6 +139,10 @@ function open(tokens: APIToken[]) {
       receiptUpdate: () => {},
       alert: () => {},
       close: () => {},
+      // The fee seam. `EstimateFee` is answered by the screen's live
+      // `fee_policy` session in production; this suite is not about the
+      // quote, so it refuses one — the same answer a failed estimate gives.
+      feeQuote: async () => ({ type: 'failed' as const, kind: 'estimate_failed' as const }),
     },
   });
   holder.session = session;

@@ -22,6 +22,7 @@ import type { FeeAssetView } from './generated/FeeAssetView';
 import type { FeeCall } from './generated/FeeCall';
 import type { FeeEstimateView } from './generated/FeeEstimateView';
 import type { SendAlertKind } from './generated/SendAlertKind';
+import type { SendFeeOutcome } from './generated/SendFeeOutcome';
 import type { SendOperation } from './generated/SendOperation';
 import type { SendReceiptOutcome } from './generated/SendReceiptOutcome';
 import type { SendToken } from './generated/SendToken';
@@ -74,6 +75,39 @@ export interface SendShellPorts {
   alert(kind: SendAlertKind): void;
   /** `router.back()` out of the Send flow. */
   close(): void;
+  /**
+   * Price an operation, and answer with the settled quote.
+   *
+   * `EstimateFee` used to be one call to `estimateTransactionFee` here, while
+   * the confirm screen's fee card ran its own quote and its own per-asset math
+   * on top. Two writers of one number — the shape four attempts at this
+   * integration foundered on. The operation is now asked of the SAME live
+   * `fee_policy` session the card renders, so the quote the core pre-checks
+   * against, the quote on screen and the quote that is signed are one object
+   * with one owner.
+   *
+   * A port rather than a service import because that session belongs to the
+   * React tree: it is created by the screen, disposed with it, and must not be
+   * reachable from a module.
+   */
+  feeQuote(request: SendFeeQuoteRequest): Promise<SendFeeOutcome>;
+}
+
+/** What `EstimateFee` asks for, in the shell's own vocabulary. */
+export interface SendFeeQuoteRequest {
+  chainId: number;
+  account: string;
+  /** The real calls, WITHOUT the fee leg — `fee_policy` appends its own. */
+  calls: FeeCall[];
+  /** `null` = native. A quote parameter: it changes the operation being priced. */
+  feeToken: string | null;
+  /**
+   * The passkey public key `LoadAccountCredential` read for THIS account, so the
+   * initCode the simulation builds is the one the submitted op will carry.
+   * Carried on the request rather than mirrored on the session: one fact, one
+   * copy, and it cannot go stale across an account switch.
+   */
+  publicKeyHex: string | undefined;
 }
 
 export type SendSessionOptions = SessionOptions<SendView> & {

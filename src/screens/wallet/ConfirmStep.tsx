@@ -50,6 +50,7 @@ export function ConfirmStep({ c }: { c: SendController }) {
     multiSelectMode,
     sending,
     feeEstimate,
+    feeCard,
     estimatingGas,
     txStatus,
     txError,
@@ -290,12 +291,21 @@ export function ConfirmStep({ c }: { c: SendController }) {
               native formatting stays. Tap to pick the fee asset when this chain
               offers a choice. */}
           {/* Estimated fee + fee-asset selector — the shared GasFeeCard (same
-              component the dApp signing sheet uses). It owns the collapsed row,
-              the expand, and the per-asset re-quote; this screen just owns the
-              gasFeeToken selection + feeEstimate it threads into submit. It collapses to a
-              read-only fee line whenever the relay does not offer another fee asset. */}
+              component the dApp signing sheet uses). It owns the collapsed row
+              and the expand; it collapses to a read-only fee line whenever the
+              relay does not offer another fee asset.
+
+              WEB: `feeCard` is the screen's `fee_policy` session, and the card
+              renders it. Nothing on this screen re-prices — the chip switch and
+              the refresh are events on the same machine that answered the send
+              core's own `EstimateFee`, so they operate on the REAL calls being
+              confirmed. (The native props below still describe a dummy transfer:
+              the card used to re-estimate with no `tx`, which is why a chip
+              switch there prices a 68-byte placeholder rather than this send.
+              That is the pre-existing native path, untouched here.) */}
           {activeAccount && (
             <GasFeeCard
+              controller={feeCard}
               feeEstimate={feeEstimate}
               estimating={estimatingGas}
               nativeSymbol={sym}

@@ -1,5 +1,10 @@
 /**
- * Reusable gas fee display + fee-asset selector.
+ * Reusable gas fee display + fee-asset selector — NATIVE.
+ *
+ * Hermes has no WebAssembly, so iOS and Android keep the TypeScript fee math
+ * below. `GasFeeCard.web.tsx` is the web twin: it renders the `fee_policy`
+ * machine's view and owns none of this. Both render the same words and the same
+ * `FeeTokenSelector` rows; only the source of the numbers differs.
  *
  * Shared by SendScreen (native transfers, ERC-20) and SigningRequestModal
  * (dApp contract calls). Shows:
@@ -27,10 +32,10 @@ import {
   estimateTransactionFee,
   feeRowInsufficient,
   refreshGasPrice,
-  type TransactionFeeEstimate,
 } from '@/services/safe-transaction';
 import { isTempoChain, tempoReimbursement } from '@/services/tempo';
 import { useInBandFeeTokenOptions, type FeeTokenOption } from '@/hooks/use-inband-fee-tokens';
+import type { GasFeeCardProps } from '@/hooks/fee-card-types';
 import { FeeTokenSelector } from './FeeTokenSelector';
 
 // ---------------------------------------------------------------------------
@@ -48,45 +53,28 @@ function formatFeeAmount(units: number, sep: { group: string; decimal: string; i
 // Props
 // ---------------------------------------------------------------------------
 
-interface GasFeeCardProps {
-  /** Current fee estimate (null while loading). */
-  feeEstimate: TransactionFeeEstimate | null;
-  /** Whether fee estimation is in progress. */
-  estimating: boolean;
-  /** Native token symbol (e.g. "POL", "ETH"). */
-  nativeSymbol: string;
-  /** Native token price in USD (for fiat display). */
-  nativeUsdPrice: number;
-  /** Safe wallet address (for re-estimation + the in-band probe). */
-  safeAddress: string;
-  /** Chain ID. */
-  chainId: number;
-  /** Passkey public key used to construct initCode for an undeployed Safe. */
-  publicKeyHex?: string;
-  /** The real tx being signed — passed so fee-asset change/refresh re-estimates
-   *  the actual call (dApp tx), not a dummy transfer. Omit for simple transfers. */
-  tx?: { to: string; value?: string; data?: string };
-  /** An EIP-5792 batch's calls — estimate against the whole MultiSend. */
-  batchCalls?: { to: string; value?: string; data?: string }[];
-  /** Selected fee asset: null = native, else a whitelisted stablecoin contract.
-   *  Controlled by the parent so the submit path uses exactly what was quoted. */
-  gasFeeToken?: string | null;
-  /** Called when the user picks a fee asset (the card re-estimates itself). */
-  onFeeTokenChange?: (token: string | null) => void;
-  /** Called when fee estimate is updated (after refresh or fee-asset change). */
-  onFeeUpdate: (fee: TransactionFeeEstimate) => void;
-  /** Fires while the card updates its fee calculation (fee-asset switch / refresh), so the
-   *  parent can gate its confirm button — the internal update doesn't touch the
-   *  parent's `estimating` flag. */
-  onBusyChange?: (busy: boolean) => void;
-}
+// `GasFeeCardProps` is declared once, in `@/hooks/fee-card-types`, and
+// implemented twice. `controller` is the web twin's whole input and is ignored
+// here; everything this file reads is on the native half of that interface.
+//
+// The props it reads, in the words they had when they lived here:
+//   feeEstimate    current fee estimate (null while loading)
+//   estimating     whether fee estimation is in progress
+//   publicKeyHex   builds the initCode for an undeployed Safe
+//   tx             the REAL tx being signed, so a fee-asset change/refresh
+//                  re-estimates the actual call and not a dummy transfer
+//   batchCalls     an EIP-5792 batch — estimate against the whole MultiSend
+//   gasFeeToken    the selection, owned by the parent so the submit path uses
+//                  exactly what was quoted
+//   onBusyChange   fires while the card re-quotes internally, so the parent can
+//                  gate confirm (the internal update doesn't touch `estimating`)
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
 export function GasFeeCard({
-  feeEstimate, estimating, nativeSymbol: sym, nativeUsdPrice,
+  feeEstimate = null, estimating = false, nativeSymbol: sym, nativeUsdPrice,
   safeAddress, chainId, publicKeyHex, tx, batchCalls, gasFeeToken = null, onFeeTokenChange, onFeeUpdate, onBusyChange,
 }: GasFeeCardProps) {
   const [expanded, setExpanded] = useState(false);
@@ -193,7 +181,7 @@ export function GasFeeCard({
       const fee = await estimateTransactionFee(
         safeAddress, chainId, 'fast', tx, batchCalls, gasFeeToken, publicKeyHex,
       );
-      onFeeUpdate(fee);
+      onFeeUpdate?.(fee);
     } catch { /* ignore */ }
     setBusy(false);
   }, [chainId, safeAddress, publicKeyHex, tx, batchCalls, gasFeeToken, refreshing, onFeeUpdate, setBusy]);
@@ -213,7 +201,7 @@ export function GasFeeCard({
       );
       const amount = option ? feeAmountForOption(option) : null;
       if (feeEstimate?.inBand && option && amount !== null) {
-        onFeeUpdate({
+        onFeeUpdate?.({
           ...feeEstimate,
           totalWei: option.contract === null ? amount : 0n,
           feeRecipient: option.recipient,
@@ -227,7 +215,7 @@ export function GasFeeCard({
         const fee = await estimateTransactionFee(
           safeAddress, chainId, 'fast', tx, batchCalls, contract, publicKeyHex,
         );
-        onFeeUpdate(fee);
+        onFeeUpdate?.(fee);
       }
     } catch {
       onFeeTokenChange?.(prev); // error → revert; the user can re-tap or refresh
@@ -321,10 +309,23 @@ export function GasFeeCard({
           each with its balance + ≈fiat. Shared with the Send confirm slide. */}
       {expanded && selectable && feeEstimate && (
         <FeeTokenSelector
-          options={feeTokenOptions!}
+          rows={feeTokenOptions!.map((opt) => {
+            // The two values the selector used to derive for itself. Same
+            // helpers, same arguments — it just no longer runs the gate a
+            // second time on a screen that had already run it.
+            const amount = feeAmountForOption(opt);
+            return {
+              symbol: opt.symbol,
+              contract: opt.contract,
+              decimals: opt.decimals,
+              balance: opt.balance,
+              logoUrls: opt.logoUrls,
+              amount,
+              insufficient: feeRowInsufficient(opt.balance, amount),
+            };
+          })}
           selected={selectedFeeToken}
           onSelect={handleFeeTokenSelect}
-          feeAmountFor={feeAmountForOption}
           busy={refreshing}
         />
       )}

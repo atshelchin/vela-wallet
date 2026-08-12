@@ -62,5 +62,5 @@ Onboarding (C01) and About/Settings explain recovery = OS passkey sync + its lim
 
 ## 10. Source anchors
 
-- `getvela.app/src/content/docs/recovery.md`, `getvela.app/src/routes/+page.svelte:1191-1198` (one-passkey constraint).
+- `app-web/getvela.app/src/content/docs/recovery.md`, `app-web/getvela.app/src/routes/+page.svelte:1191-1198` (one-passkey constraint).
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 7, 31, 94.

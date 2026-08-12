@@ -62,5 +62,5 @@ Transparent to the user — they just see the best available rendering (I01). "A
 ## 10. Source anchors
 
 - `src/services/clear-signing.ts:293` — cascade.
-- `getvela.app/src/routes/roadmap/+page.svelte` — "Wider clear-signing coverage" (🚧).
+- `app-web/getvela.app/src/routes/roadmap/+page.svelte` — "Wider clear-signing coverage" (🚧).
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clue 66.

@@ -104,9 +104,9 @@ env-gated dev-mode). Contract test-locked (unit + popup specs).
 
 **Remaining to actually light it up on device:**
 1. **Host the AASA.** Served DYNAMICALLY by a SvelteKit endpoint in this repo —
-   `getvela.app/src/routes/.well-known/apple-app-site-association/+server.ts`
+   `app-web/getvela.app/src/routes/.well-known/apple-app-site-association/+server.ts`
    (→ Cloudflare Worker `getvela`), today `webcredentials` only. Add an `applinks` block
-   to the SAME `json({...})` (keep `webcredentials`), then `cd getvela.app && bun run deploy`.
+   to the SAME `json({...})` (keep `webcredentials`), then `cd app-web/getvela.app && bun run deploy`.
    Verify: `curl -s https://getvela.app/.well-known/apple-app-site-association` shows both
    blocks, `200`, `application/json`, no redirect.
    ```ts

@@ -60,5 +60,5 @@ Product surface stays small enough that the home screen (D01) can be activity-fi
 
 ## 10. Source anchors
 
-- `getvela.app/src/routes/+page.svelte` — positioning & "does less" framing.
+- `app-web/getvela.app/src/routes/+page.svelte` — positioning & "does less" framing.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 1, 2, 8, 11, 13, 14, 15.

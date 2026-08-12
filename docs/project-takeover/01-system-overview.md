@@ -19,7 +19,7 @@ Vela Wallet 是一个 **passkey(P-256/WebAuthn)签名的 ERC-4337 智能合约�
 | App 框架 | Expo + React Native + expo-router | expo ~55.0.17, RN 0.83.6, React 19.2.0 | `package.json` |
 | 语言 | TypeScript strict | ~5.9.2 | `tsconfig.json` |
 | Web 部署 | 静态导出 → Cloudflare Pages | `expo export --platform web` | `package.json` scripts, `scripts/fix-cf-pages-assets.js` |
-| 站点/API 后端 | SvelteKit on Cloudflare Workers(仓库内子项目) | SvelteKit ^2.50, wrangler 4.x, **bun** 管理 | `getvela.app/wrangler.jsonc` |
+| 站点/API 后端 | SvelteKit on Cloudflare Workers(仓库内子项目) | SvelteKit ^2.50, wrangler 4.x, **bun** 管理 | `app-web/getvela.app/wrangler.jsonc` |
 | 密码学 | 平台 passkey(Secure Enclave / Credential Manager / navigator.credentials),私钥永不进 JS | — | `src/modules/passkey/index.ts` |
 | 链上账户 | Safe v1.4.1 + Safe4337Module + WebAuthn Signer + EntryPoint v0.7 | 合约地址硬编码(全链统一 CREATE2) | `src/services/safe-address.ts:19-28` |
 | 单元测试 | Jest + ts-jest(node env) | 79 套件 / 1022 用例 | `jest.config.js` |
@@ -44,7 +44,7 @@ getvela.app/         独立 SvelteKit 子项目:官网 + API 代理(bundler/bug-
 modules/vela-passkey/  原生模块源码(Swift/Kotlin),经 plugins/with-native-modules.js 注入
 modules/vela-cloud-sync/ iOS iCloud KV(未接线,见 08-open-issues)
 android/ ios/        原生工程(**不入库**,.gitignore:42-43 忽略;prebuild 生成物,持久化改动必须走 config plugin,见 plugins/)
-chrome-ext-webauthn-proxy/  独立开发工具(passkey rpId 代理插件),不参与 App 构建
+app-browser-extension/chrome-ext-webauthn-proxy/  独立开发工具(passkey rpId 代理插件),不参与 App 构建
 e2e/                 Playwright 测试
 docs/                设计/需求/测试/上架文档(较全,见各文件)
 ```
@@ -55,7 +55,7 @@ docs/                设计/需求/测试/上架文档(较全,见各文件)
 |---|---|---|
 | vela-relay(**独立仓库**) | 自营 4337 bundler,gas 报价权威 | `src/services/bundler-service.ts`;错误文案字符串耦合见 `parseBundlerUnderfunded` |
 | p256-index.getvela.app(**独立仓库** biubiu-projects) | 公钥索引(跨设备恢复),CF Worker + D1 + DO 队列 | `src/services/public-key-index.ts` |
-| getvela.app/api/* | Alchemy/Pimlico 代理、bug-report GitHub 代理 | `getvela.app/src/routes/api/` |
+| getvela.app/api/* | Alchemy/Pimlico 代理、bug-report GitHub 代理 | `app-web/getvela.app/src/routes/api/` |
 | 公共 RPC 池 | 每链多端点评分/封禁/故障转移 | `src/services/rpc-pool.ts` |
 | WalletPair relay | dApp 连接 WebSocket 中继 | `src/services/walletpair-transport.ts` |
 | Chainlink / DEX quoter | 价格 | `src/services/wallet-api.ts` |

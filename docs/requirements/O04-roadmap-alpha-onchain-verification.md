@@ -61,5 +61,5 @@ Roadmap lives at `getvela.app/roadmap`; About (N01) carries status + verificatio
 
 ## 10. Source anchors
 
-- `getvela.app/src/routes/+page.svelte:92-206` (on-chain counter), `getvela.app/src/routes/roadmap/+page.svelte`.
+- `app-web/getvela.app/src/routes/+page.svelte:92-206` (on-chain counter), `app-web/getvela.app/src/routes/roadmap/+page.svelte`.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 9, 16, 93.

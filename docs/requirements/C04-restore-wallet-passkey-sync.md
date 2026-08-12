@@ -62,5 +62,5 @@ Onboarding offers "Create" vs "I already have a Vela wallet." The latter authent
 ## 10. Source anchors
 
 - `src/modules/passkey/index.ts`, `src/services/safe-address.ts` — auth + deterministic derivation.
-- `getvela.app/src/routes/roadmap/+page.svelte` — "Sync across all your devices" (🔜).
+- `app-web/getvela.app/src/routes/roadmap/+page.svelte` — "Sync across all your devices" (🔜).
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 6, 7, 31.

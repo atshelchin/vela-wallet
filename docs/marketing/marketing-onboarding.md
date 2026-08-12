@@ -133,7 +133,7 @@
 
 ## 五、给她的工具与资源
 
-- **事实库**:`docs/CONTENT-SOURCE-100-CLUES.md`(产品声明唯一出处)+ whitepaper(`getvela.app/src/content/docs/whitepaper.md`)
+- **事实库**:`docs/CONTENT-SOURCE-100-CLUES.md`(产品声明唯一出处)+ whitepaper(`app-web/getvela.app/src/content/docs/whitepaper.md`)
 - **演示台**:`/clear-signing-test` 场景页(20+ 签名场景,截图/录屏素材源)、parallel space(演示可用,**fixture 地址绝不能收真钱**,见 docs/PARALLEL-SPACE.md)
 - **AI 协作**:可以用 Claude Code 起草(本仓库已有全部营销文档做上下文),但红线清单对 AI 产出**同样适用且更要严查**——AI 会编造产品事实,这个仓库的历史教训是"每个声明都要能指出代码/文档出处"
 - **她的第一本外部读物**:无需买课,把 why-we-charge.md 和 leads 文档"〇、先读"精读三遍,胜过通用营销课(通用课教的增长黑客大半在 distribution-plan §四的"不做"清单里)

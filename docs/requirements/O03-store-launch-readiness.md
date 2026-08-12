@@ -62,4 +62,4 @@ Uses `docs/store-submission/` copy + privacy/review docs. No "beta" fear banners
 ## 10. Source anchors
 
 - `docs/store-submission/privacy-and-review.md`, `docs/store-submission/store-listing-copy.md`, `app.json`, `android/`, `ios/`.
-- memory `project_store_launch_readiness`; `getvela.app/src/routes/roadmap/+page.svelte` (native apps 🔜); clue 35.
+- memory `project_store_launch_readiness`; `app-web/getvela.app/src/routes/roadmap/+page.svelte` (native apps 🔜); clue 35.

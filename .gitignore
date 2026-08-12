@@ -55,3 +55,4 @@ specs/002-penpot-design-source/screenshots/
 specs/002-penpot-design-source/dom-dumps/
 specs/002-penpot-design-source/dom-dumps/cells/
 specs/002-penpot-design-source/generator/assets/library.json
+.vscode

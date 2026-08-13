@@ -20,7 +20,7 @@
  * - **F2/F3/F4** — the response goes to the transport that OWNS the request,
  *   and sign/display/history use the request's own chain and dApp identity.
  * - **§12.1.6** — the granted account is switched FIRST and the approval
- *   surface only opens on the ack (see `sign-resident.web.ts`).
+ *   surface only opens on the ack (see `sign-resident.ts`).
  *
  * What moved into `dapp_session`, and is therefore also GONE from this file:
  * the transport refs, the relay session state, and every timer the connection
@@ -41,16 +41,16 @@
  *
  * The core holds numeric handles and a phase; every key, counter and encrypted
  * snapshot stays in the shell's transport objects
- * (`src/services/wallet-state-core/dsess-executor.web.ts`, which also documents
+ * (`src/services/wallet-state-core/dsess-executor.ts`, which also documents
  * the single deliberate divergence: the backoff is arbitrated by the core and
  * executed by `WalletPairTransport`'s own identical ladder).
  *
  * What stays here is the read-only RPC routing, the extension-sign slot, and
  * the wiring between the two cores — unchanged from native.
  *
- * `dapp-connection.tsx` is the native counterpart (Hermes has no wasm) and
- * `dapp-connection-shape.ts` holds everything both share; a `.web` file must
- * never value-import its own base file.
+ * `dapp-connection-shape.ts` holds the shared shapes — split when this file
+ * was half of a platform pair, kept because the shape module has importers of
+ * its own.
  */
 import React, {
   useCallback, useEffect, useMemo, useRef, useState,
@@ -122,7 +122,7 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   // The ENTIRE connection half, as one projection of the `dapp_session` core.
   // Pushed, never read from the module during render: the resident is the app's
   // most mutable state and an untracked render-time read would be cached
-  // forever by the React Compiler (`wallet-state.web.ts`).
+  // forever by the React Compiler (`wallet-state.ts`).
   const [conn, setConn] = useState<DsessProjection>(dsessProjection);
   useEffect(() => {
     const unsubscribe = subscribeDsess(setConn);

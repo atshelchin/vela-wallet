@@ -2,9 +2,10 @@
  * Platform-neutral types for the `balance_dashboard` core (spec 017, group G10).
  *
  * Standalone, and NOT folded into `types.ts`, for the reason that file states
- * for itself: the native stub (`balance-session.ts`) needs these declarations,
- * and importing them from a `.web` module would drag the web-only service graph
- * into the native bundle. One module per machine also keeps the parallel
+ * for itself: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it. One module per machine also keeps the parallel
  * integration waves off each other's files.
  */
 
@@ -18,8 +19,8 @@ export type BalanceEffect = { id: number; operation: BalanceOperation };
 
 /**
  * The persisted "hide amounts" byte. Declared here — the graph's leaf — so the
- * boot-time read (`balance-resident.web.ts`), the core's `WritePrivacy` write
- * (`balance-executor.web.ts`) and the native store (`use-balance-privacy.ts`)
+ * boot-time read (`balance-resident.ts`), the core's `WritePrivacy` write
+ * (`balance-executor.ts`) and the native store (`use-balance-privacy.ts`)
  * all name the same key without importing one another.
  */
 export const BALANCE_PRIVACY_KEY = 'vela.balanceHidden';

@@ -31,11 +31,11 @@
 ## 任务 D-02:修复小缺陷(lint 债务)
 
 - **对应单元**:U0
-- **需求描述**:当前 `npx expo lint` 基线为 0 errors / 167 warnings(04 号文档)。挑选**至少 10 条、横跨至少 3 个文件**的 warning 修复,warning 类型至少覆盖两种。
+- **需求描述**:当前 `npm run lint`(= `eslint src`;2026-08-12 起 expo lint 退役)保持 0 errors,warning 基线以当日 CI 输出为准。挑选**至少 10 条、横跨至少 3 个文件**的 warning 修复,warning 类型至少覆盖两种。
 - **上下文边界**:`src/` 全目录;可看 ESLint 规则官方文档。
 - **限制条件**:不得用 eslint-disable 注释或改配置文件来"消除"warning;不得改变任何运行时行为;每个文件的修改单独 commit,message 说明改了什么、为什么安全。
 - **验收标准**:
-  - `npx expo lint` warning 总数比基线减少 ≥10,errors 保持 0;
+  - `npm run lint` warning 总数比基线减少 ≥10,errors 保持 0;
   - `npx tsc --noEmit` exit 0;`npx jest --ci` 全绿(78 套件);
   - 口述:任选其中 2 处修改,说明"如果我改错了,用户会看到什么症状、哪个测试会先红"。
 - **预计用时**:1 小时
@@ -48,7 +48,7 @@
 - **限制条件**:不得改动签名与编码逻辑本身;校验必须在弹出 passkey 之前拦截;批量模式(split/sweep/payroll)中出现自身地址时同样生效;其余 12 个语言的键可先复制英文占位并在 commit message 中注明。
 - **验收标准**:
   - 新增单元测试覆盖:命中自身地址(单笔)、命中自身地址(批量其中一行)、不命中三种情形,全绿;
-  - `npx tsc --noEmit`、`npx expo lint`(0 errors)、`npx jest --ci` 全绿;
+  - `npx tsc --noEmit`、`npm run lint`(0 errors)、`npx jest --ci` 全绿;
   - parallel space 手测:自转触发提示、他转不触发,各截图一张;
   - 口述:dApp 发起的交易会不会走到你的校验?该不该走?(答案须有代码依据);
   - 口述:i18n 键的深度限制是什么,你的新键为什么合规。

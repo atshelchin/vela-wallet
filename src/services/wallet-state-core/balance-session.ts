@@ -5,8 +5,6 @@
  * Importing `@/services/vela-core` first is load-bearing: its web entry runs
  * `initSync` on the fetched module at import time, so the wasm is initialised
  * before the core is constructed here.
- *
- * `balance-session.ts` is the native counterpart and throws.
  */
 
 import '@/services/vela-core';

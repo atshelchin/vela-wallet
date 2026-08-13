@@ -61,5 +61,5 @@ No direct UI; produces the fields the signing sheet (I01) labels and the approva
 
 ## 10. Source anchors
 
-- `src/services/abi-decode.ts`, `src/services/eip712.ts`, `src/services/clear-signing.ts:826`.
+- `rust/crates/vela-core/src/abi.rs`, `rust/crates/vela-core/src/eip712.rs` (via the facade), `src/services/clear-signing.ts:826`.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clue 72.

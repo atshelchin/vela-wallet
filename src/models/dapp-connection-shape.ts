@@ -4,14 +4,13 @@
  * vocabulary, the context value type, the React context, `useDAppConnection()`
  * and the remote-inject session storage helpers.
  *
- * Split out of `dapp-connection.tsx` for exactly one reason (the
- * `wallet-state-shape.ts` reason): on web the signing half of the provider is
- * driven by the Rust `sign_request` machine
+ * Split out of `dapp-connection.tsx` in the platform-pair days (the
+ * `wallet-state-shape.ts` reason): the signing half of the provider is driven
+ * by the Rust `sign_request` machine
  * (`rust/crates/vela-core/src/app/sign_request.rs`) instead of five synchronous
- * refs, so `dapp-connection.web.tsx` exists — and a `.web` file must NEVER
- * value-import its own base file (Metro resolves that specifier back to itself
- * and the module recurses at init, taking the whole app down; learned in 016).
- * Both platform variants import this neutral module instead, so there is
+ * refs, and the pair's `.web` half could never value-import its own base file
+ * (Metro resolved that specifier back to itself and recursed at init; learned
+ * in 016). The pair is gone; the split stays, so there is
  * exactly ONE `DAppConnectionContext` object in any bundle and
  * `useDAppConnection()` is literally the same function on both.
  *

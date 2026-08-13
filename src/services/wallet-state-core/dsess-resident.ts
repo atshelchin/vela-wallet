@@ -4,7 +4,7 @@
  * A dApp connection outlives every screen: the relay session survives
  * navigation, a reconnect episode keeps counting while the user is on Home, and
  * a page reload must pick up whatever the last process left connected. So the
- * core is a module-level singleton, the `session-resident.web.ts` pattern the
+ * core is a module-level singleton, the `session-resident.ts` pattern the
  * integration plan mandates for resident machines — created once, never
  * disposed, and told to restore exactly where the provider's mount-time
  * auto-reconnect effect used to run.
@@ -18,25 +18,24 @@
  *   — those identities feed `useMemo` dependency lists across the connect and
  *   home surfaces, and pushing a finished value is the only safe way to give
  *   React module state under the React Compiler (an untracked module read
- *   during render is cached forever; see `src/models/wallet-state.web.ts`).
+ *   during render is cached forever; see `src/models/wallet-state.ts`).
  * - **A first frame identical to today's.** `INITIAL_VIEW` mirrors the core's
  *   pristine projection: disconnected, no session, chain 1 (`useState(1)`).
  * - **The two cross-machine bridges the provider used to make by hand.** A
  *   wired transport becomes `sign_request`'s durable transport, and a dropped
  *   one becomes its owner-aware `transport_dropped`. They are imported
- *   directly, not injected, exactly as `tx-tracker-resident.web.ts` imports the
+ *   directly, not injected, exactly as `tx-tracker-resident.ts` imports the
  *   three residents it hands off to — so they cannot be missing at the moment a
  *   socket dies.
  *
  * Nothing here is read during render by anything but the lazy `useState`
  * initialiser the provider mounts with; every later value arrives by
  * subscription (the module-level-read trap documented in
- * `src/models/wallet-state.web.ts` applies to the whole codebase, and this
+ * `src/models/wallet-state.ts` applies to the whole codebase, and this
  * module holds the app's single most mutable state).
  *
- * Imported by explicit `.web` specifier on every side: `tsc` resolves a
- * `.web.ts` file's own imports to the base `.ts` variant, so a bare specifier
- * would type-check against a native module that does not exist.
+ * (In the platform-pair days this file had to be imported by explicit `.web`
+ * specifier — a relic the pair collapse removed; imports are bare now.)
  */
 
 import { router } from 'expo-router';

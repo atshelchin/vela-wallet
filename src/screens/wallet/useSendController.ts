@@ -3,11 +3,7 @@
  * Rust state machine that owns this screen (spec 017, group G12:
  * `rust/crates/vela-core/src/app/send.rs`).
  *
- * `useSendController.ts` is the native counterpart and is untouched apart from
- * the semantic handlers this contract added (FR-202: native behaviour is
- * byte-identical — every one of them inlines exactly what the view used to do).
- *
- * This twin owns no product rules. Everything that decides *whether money may
+ * This controller owns no product rules. Everything that decides *whether money may
  * move* is the core's: the three modes, the step machine, EIP-681 locked-request
  * resolution, the live amount validation, the string-exact Max math, the
  * same-asset fee ceiling, the 15 s estimate ∥ treasury pre-check, the single
@@ -19,7 +15,7 @@
  *
  * - **Nothing reads a module-level mutable during render.** The view is
  *   projected ONCE per commit (in `onView`) and pushed into a single state cell
- *   together with everything derived from it — the `wallet-state.web.ts`
+ *   together with everything derived from it — the `wallet-state.ts`
  *   discipline, learned from an account-less wallet that still showed an address
  *   because React Compiler cached a render-time read of a module variable.
  * - **One writer per fact.** The screen and both step components name intents

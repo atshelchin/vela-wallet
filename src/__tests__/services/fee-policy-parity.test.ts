@@ -1,10 +1,10 @@
 /**
  * Fee-policy DRIFT GATE — the TypeScript half.
  *
- * Five fee decisions exist twice on purpose and cannot be de-duplicated: iOS and
- * Android run Hermes, which has no WebAssembly, so THIS copy is what native
- * actually executes, while web executes the Rust core
- * (`rust/crates/vela-core/src/app/fee_policy.rs`). Neither copy may be deleted —
+ * Five fee decisions exist twice: the app executes the Rust core
+ * (`rust/crates/vela-core/src/app/fee_policy.rs`), and the TypeScript copy
+ * survives from the retired Expo-native path until the remaining native-only
+ * code goes. While both exist neither may drift —
  * so instead both replay one shared oracle, and a change to either side that the
  * other does not follow turns exactly one of the two suites red:
  *

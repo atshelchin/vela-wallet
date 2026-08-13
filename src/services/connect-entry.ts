@@ -14,12 +14,12 @@
  * `PrepareWalletPair` / `ConnectRemoteInject` / `OpenBrowser` / `AlertInvalidLink`,
  * one per branch, each already carrying the parsed, normalized payload the
  * caller needs (the trimmed URI, the four relay fields, the coerced URL).
- * Reading it back off a throwaway core is the `validate-pay.web.ts` /
- * `dperm-popup.web.ts` pattern: construct, dispatch once, read the verdict,
+ * Reading it back off a throwaway core is the `validate-pay.ts` /
+ * `dperm-popup.ts` pattern: construct, dispatch once, read the verdict,
  * free.
  *
  * Throwaway is the point — this core is NOT the app's resident session
- * (`dsess-resident.web.ts`) and must never become it. Nothing here is executed:
+ * (`dsess-resident.ts`) and must never become it. Nothing here is executed:
  * the returned effects are dropped on the floor and the instance is freed, so
  * classifying a string can neither open a socket nor disturb a live connection.
  * A pristine model makes exactly one shell request for each of the four
@@ -42,7 +42,7 @@ import type { DsessOperation } from '@/services/wallet-state-core/generated/Dses
 /**
  * What one connect input turned out to be. Mirrors the core's `DsessInput`
  * (`rust/crates/vela-core/src/app/dapp_session.rs`) one variant for one variant
- * — the web twin returns the core's own answer mapped into this shape.
+ * — this module returns the core's own answer mapped into this shape.
  */
 export type ConnectEntry =
   /** A WalletPair pairing URI, trimmed exactly as the transports expect it. */

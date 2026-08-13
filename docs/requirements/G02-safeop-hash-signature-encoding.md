@@ -62,5 +62,5 @@ No direct UI beyond the biometric prompt; the signing sheet (I01) shows the deco
 ## 10. Source anchors
 
 - `src/services/safe-transaction.ts:869-916` (SafeOp hash), `:982-1123` (signature encoding, clientDataFields).
-- `src/services/attestation-parser.ts:51-122` (`derSignatureToRaw`, low-s).
+- `rust/crates/vela-core/src/webauthn.rs` (`derSignatureToRawLowS`, via the facade).
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 40, 41, 42, 44.

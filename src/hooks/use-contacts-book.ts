@@ -8,7 +8,7 @@
  * view is translated into the `Contact`/`ContactGroup` shapes the components
  * already render.
  *
- * **One module-level session**, like `use-display-currency.web.ts`: the book is
+ * **One module-level session**, like `use-display-currency.ts`: the book is
  * shared across screens (the management sheet, the recipient picker, every
  * recipient trust line), so a per-mount core would give each surface its own
  * ledger and let two of them clobber each other's writes.
@@ -141,7 +141,7 @@ export function saveContactThroughCore(input: SaveContactInput): void {
 
 /**
  * The saved contact for ONE address, from OUTSIDE the React tree — the read
- * behind `services/saved-contact.web.ts`.
+ * behind `services/saved-contact.ts`.
  *
  * `getSavedContact` (contacts.ts:253) re-read the store on every call, and four
  * surfaces still called it on web (the recipient name, the trust badge, the

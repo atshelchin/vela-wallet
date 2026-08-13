@@ -11,7 +11,7 @@
  * projects, and words the copy the core deliberately does not carry.
  *
  * ONE module-level session is shared by every mount and by the Send screen's
- * scan recovery — see `wallet-state-core/network-admin-resident.web.ts`.
+ * scan recovery — see `wallet-state-core/network-admin-resident.ts`.
  */
 import { useCallback, useEffect, useState } from 'react';
 

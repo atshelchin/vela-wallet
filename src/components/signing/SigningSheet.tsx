@@ -300,7 +300,7 @@ export function SigningSheet({
     readOnly,
     // The identity of what is being PRICED — the calls included, not just the
     // id. `incomingRequest` is already content-addressed upstream
-    // (`sign-resident.web.ts` only replaces it when `JSON.stringify(view.request)`
+    // (`sign-resident.ts` only replaces it when `JSON.stringify(view.request)`
     // changes), so keying on the id and method alone would be strictly weaker
     // than the object identity this replaced: two requests that reuse an id
     // with different params would reuse the first one's quote, and the sheet

@@ -60,5 +60,5 @@ Registration failure screen explains the provider is incompatible and suggests t
 
 ## 10. Source anchors
 
-- `src/services/public-key-upload.ts:36-59`, `src/services/webauthn-verify.ts:29-65` — compatibility prefix check + rejection.
+- `src/services/public-key-upload.ts:36-59`, `rust/crates/vela-core/src/webauthn.rs` (`validateClientData`) — compatibility prefix check + rejection.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clue 48.

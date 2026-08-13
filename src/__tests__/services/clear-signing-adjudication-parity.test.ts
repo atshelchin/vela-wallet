@@ -1,8 +1,9 @@
 // The message adjudication exists TWICE on purpose, and this pins the two together.
 //
-// Web runs the Rust `clear_signing` machine; iOS/Android cannot (Hermes has no
-// WebAssembly) and run `services/clear-signing-adjudication.ts` instead. Neither
-// copy can be deleted — so the thing to remove is not the duplication but the
+// The app runs the Rust `clear_signing` machine;
+// `services/clear-signing-adjudication.ts` survives from the retired
+// Expo-native path and is due to go with the rest of the native-only code.
+// Until that cut lands, the thing to remove is not the duplication but the
 // DRIFT. Same spirit as `approval-guard-parity.test.ts`.
 //
 // A red test here means the two platforms would disagree about a PHISHING

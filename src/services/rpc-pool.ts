@@ -13,12 +13,9 @@
  * there. This file owns exactly two things the core cannot have: the fetch,
  * and the promise the caller is waiting on.
  *
- * Native is untouched (FR-202): `rpc-pool.ts` keeps its TypeScript pool, and
- * metro picks this twin only for web. The pieces both need — endpoint
- * collection, the range-cap parser, the single-URL probe — are imported from
- * `rpc-pool-endpoints.ts`, NOT from `rpc-pool.ts`: a `.web.ts` that
- * value-imports its own base file resolves back to itself and takes the app
- * down.
+ * Endpoint collection, the range-cap parser and the single-URL probe live in
+ * `rpc-pool-endpoints.ts` — split out when this file had a TypeScript twin,
+ * kept split because they are pure and have importers of their own.
  *
  * Deliberate differences from the native module, each also listed in the
  * integration notes:
@@ -247,7 +244,7 @@ function abandonInFlight(error: unknown): void {
 // ---------------------------------------------------------------------------
 
 /**
- * ONE module-level session, the `use-display-currency.web.ts` pattern and the
+ * ONE module-level session, the `use-display-currency.ts` pattern and the
  * one the integration plan mandates for resident machines. It is not a screen's
  * state: the ban map, the per-endpoint stats and the fastest-RPC winners are
  * facts about the network that every caller in the app shares.

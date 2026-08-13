@@ -1,8 +1,8 @@
 // The spending-cap editor exists TWICE on purpose, and this pins the two together.
 //
-// Web runs the Rust `approval_guard` machine; iOS/Android cannot (Hermes has no
-// WebAssembly) and run `services/approval-guard-editor.ts` instead. Neither copy
-// can be deleted — so the thing to remove is not the duplication but the DRIFT.
+// The app runs the Rust `approval_guard` machine; `services/approval-guard-editor.ts` survives from the retired
+// Expo-native path and is due to go with the rest of the native-only code.
+// Until that cut lands, the thing to remove is not the duplication but the DRIFT.
 //
 // A red test here means one platform would grant what the other refuses: relax
 // the TS derivation alone and native starts signing an unbounded approve web

@@ -7,7 +7,7 @@
  * costs a network round trip per counterparty), the first-pass backlog gate that
  * stops an existing backlog from celebrating, and the toast generation that
  * makes a superseded timer inert. So it is a module-level singleton, the
- * `session-resident.web.ts` pattern.
+ * `session-resident.ts` pattern.
  *
  * Reference stability, for the same reason the balance resident needs it: the
  * feed is a `FlatList` and `HomeScreen`'s header carries one-shot entrance
@@ -15,9 +15,8 @@
  * rows themselves change — so an alias resolving, a toast expiring or a
  * best-effort delete settling does not re-render the whole table.
  *
- * Imported by explicit `.web` specifier on every side: `tsc` resolves a
- * `.web.ts` file's own imports to the base `.ts` variant, so a bare specifier
- * would type-check against a native module that does not exist.
+ * (In the platform-pair days this file had to be imported by explicit `.web`
+ * specifier — a relic the pair collapse removed; imports are bare now.)
  */
 
 import { createActivityFeedSession } from '@/services/wallet-state-core/feed-session';
@@ -135,7 +134,7 @@ export function subscribeActivityFeed(listener: (view: FeedView) => void): () =>
  * celebrates those (`useHomeController.ts:284-295`). Deciding *that* they
  * converged is `tx_tracker`'s job, not this machine's: its executor calls this
  * with the number of records its `UpdateTxRecords` just patched
- * (`tx-tracker-executor.web.ts`). The TypeScript `reconcileFeedPending` that
+ * (`tx-tracker-executor.ts`). The TypeScript `reconcileFeedPending` that
  * stood in for it — and with it web's second caller of
  * `reconcilePendingTransactions` — is gone; native still runs that reconciler
  * from `useHomeController.ts`.

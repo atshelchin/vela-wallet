@@ -12,7 +12,7 @@ things I can't do for you because they need your **Apple/Google accounts**, a
 
 | Fix | Where |
 |-----|-------|
-| Hermes polyfills: `crypto.getRandomValues` + `btoa/atob` + `Buffer` | `src/polyfills.ts` (+ `.web.ts` no-op), loaded first in `src/app/_layout.tsx` |
+| Hermes polyfills: `crypto.getRandomValues` + `btoa/atob` + `Buffer` | 历史条目（2026-08-13）：native 版 polyfills 随 Expo-native 路径退役，`src/polyfills.ts` 现为 no-op；native 启动改由 `app-ios/` / `app-android/` 承担 |
 | Android passkey `register()` JSON now escaped (`JSONObject`/`JSONArray`) | `modules/vela-passkey/android/.../VelaPasskeyModule.kt` |
 | QR scanner Android hardware-Back dismiss (`onRequestClose`) | `src/components/QRScanner.tsx` |
 | Android keyboard avoidance (`behavior` no longer `'height'`) + `softwareKeyboardLayoutMode: resize` | `src/components/ui/ScreenContainer.tsx`, `app.json` |

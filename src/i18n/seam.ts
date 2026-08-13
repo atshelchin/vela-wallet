@@ -16,7 +16,7 @@
  * *called*, not that the answer is right.
  *
  * This file is platform-neutral `.ts` on purpose (same reasoning as
- * `catalog-store.ts`): jest resolves no `.web.ts`, so logic that lives in the
+ * `catalog-store.ts`): jest resolves no `.ts`, so logic that lives in the
  * platform-split file is invisible to CI.
  */
 

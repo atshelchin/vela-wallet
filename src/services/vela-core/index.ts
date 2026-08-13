@@ -107,7 +107,7 @@ let initialized = false;
 /**
  * Throw unless the module is initialized.
  *
- * For the other web modules that reach the wasm directly (`src/i18n/index.web.ts`
+ * For the other web modules that reach the wasm directly (`src/i18n/index.ts`
  * builds its own `I18n` engine). They are only ever evaluated inside the app
  * graph, which the entry gates behind `coreReady` — so this is an assertion,
  * not a race: if it ever fires, something imported the app graph without the

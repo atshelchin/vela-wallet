@@ -30,9 +30,9 @@ import { loadCustomTokens } from '@/services/storage';
 /**
  * keccak256("Transfer(address,address,uint256)").
  *
- * Also declared in `token_trust.rs` (which is what web's scan and its net-delta
- * derivation use) and in `sim-assets.ts`. Hermes has no wasm so none of the
- * copies can go; `core-table-parity.test.ts` is the gate that keeps them equal.
+ * Also declared in `token_trust.rs` (which is what the scan and its net-delta
+ * derivation use) and in `sim-assets.ts` — each copy still has callers, so none
+ * can go alone; `core-table-parity.test.ts` keeps them equal.
  */
 export const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 

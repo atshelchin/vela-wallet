@@ -233,8 +233,8 @@ export function createSignExecutor(ports: SignShellPorts) {
             // over every `wallet_sendCalls` leg before it emitted this effect, and
             // refuses by failing the inflight request. Letting the TS copy decide
             // it again would put one safety mandate in two implementations that
-            // nothing keeps in step. Native never reaches this `.web.ts` module and
-            // so keeps its own TS guard (Hermes has no wasm) — see SubmitGuardOwner.
+            // nothing keeps in step. Callers outside the core-driven path keep
+            // the TS guard — see SubmitGuardOwner.
             'core',
           );
           return {

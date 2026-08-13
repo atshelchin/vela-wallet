@@ -3,10 +3,8 @@
  * (spec 017, `rust/crates/vela-core/src/app/dapp_session.rs`).
  *
  * Importing `@/services/vela-core` first is load-bearing: its web entry runs
- * `initSync` on the base64-embedded module at import time, so the wasm is
+ * `initSync` at import time, so the wasm is
  * initialised before the core is constructed here.
- *
- * `dsess-session.ts` is the native counterpart and throws.
  */
 
 import '@/services/vela-core';

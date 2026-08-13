@@ -21,7 +21,7 @@ Vela Wallet 是一个 **passkey(P-256/WebAuthn)签名的 ERC-4337 智能合约�
 | Web 部署 | 静态导出 → Cloudflare Pages | `expo export --platform web` | `package.json` scripts, `scripts/fix-cf-pages-assets.js` |
 | 站点/API 后端 | SvelteKit on Cloudflare Workers(仓库内子项目) | SvelteKit ^2.50, wrangler 4.x, **bun** 管理 | `app-web/getvela.app/wrangler.jsonc` |
 | 密码学 | 平台 passkey(Secure Enclave / Credential Manager / navigator.credentials),私钥永不进 JS | — | `src/modules/passkey/index.ts` |
-| 链上账户 | Safe v1.4.1 + Safe4337Module + WebAuthn Signer + EntryPoint v0.7 | 合约地址硬编码(全链统一 CREATE2) | `src/services/safe-address.ts:19-28` |
+| 链上账户 | Safe v1.4.1 + Safe4337Module + WebAuthn Signer + EntryPoint v0.7 | 合约地址硬编码(全链统一 CREATE2) | `src/services/vela-core/safe-constants.ts`（2026-08 迁自 safe-address.ts） |
 | 单元测试 | Jest + ts-jest(node env) | 79 套件 / 1022 用例 | `jest.config.js` |
 | E2E | Playwright(chromium,parallel-space fixture) | 15 spec | `playwright.config.ts`, `e2e/` |
 

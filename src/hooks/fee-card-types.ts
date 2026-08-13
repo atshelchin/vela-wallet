@@ -1,14 +1,13 @@
 /**
  * The contract between a fee-showing surface and `GasFeeCard` — platform-neutral.
  *
- * Standalone (not exported from a `.web` module) for the reason the other
- * controller-type files state: `tsc` resolves a `.web.ts` file's imports to the
- * base `.ts` variant, so a shared declaration that lived beside the web
- * implementation would drag the wasm graph into the native bundle.
+ * Standalone for the reason the other
+ * controller-type files state — a declaration module keeps the wasm graph out
+ * of anything that must not load it.
  *
- * Only web has a controller. `GasFeeCard.web.tsx` renders one; `GasFeeCard.tsx`
- * (native) ignores it and keeps the TypeScript fee math, because Hermes has no
- * WebAssembly.
+ * `GasFeeCard.tsx` renders the controller; the fee judgements behind it are
+ * `fee_policy`'s. (The card's TypeScript-fee-math twin retired with the
+ * Expo-native path.)
  */
 
 import type { TransactionFeeEstimate } from '@/services/safe-transaction';
@@ -73,7 +72,7 @@ export interface FeeSelectorRow {
 /**
  * `GasFeeCard`'s props — ONE interface, two implementations.
  *
- * The split runs down the middle of this type. `GasFeeCard.web.tsx` reads
+ * The split runs down the middle of this type. `GasFeeCard.tsx` reads
  * `controller` and ignores everything under "native"; `GasFeeCard.tsx` reads
  * the native half and ignores `controller`. Declaring it once is what lets the
  * two shared call sites (`ConfirmStep`, `SigningSheet`) render one element on

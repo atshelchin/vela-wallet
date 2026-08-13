@@ -1,11 +1,11 @@
 // The native-coin price rules exist TWICE on purpose, and this pins the two
 // together.
 //
-// Web runs the Rust `balance_dashboard` kernels (`best_group_price`,
+// The app runs the Rust `balance_dashboard` kernels (`best_group_price`,
 // `best_native_dex_price`, `choose_native_price`) through
-// `services/native-price.web.ts`; iOS/Android cannot (Hermes has no
-// WebAssembly) and run `services/native-price.ts` instead. Neither copy can be
-// deleted — so the thing to remove is not the duplication but the DRIFT.
+// `services/native-price.ts`; the TypeScript statement of the same rules
+// survives from the retired Expo-native path until the native-only code goes.
+// Until then, the thing to remove is not the duplication but the DRIFT.
 //
 // A red test here means one platform would price the user's WHOLE WALLET
 // differently from the other: this is the number the home hero shows and the

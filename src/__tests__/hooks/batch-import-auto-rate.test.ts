@@ -35,7 +35,7 @@
  * `tokenPriceInFiat(token.priceUsd, usdFiatRate ?? 0)` in `use-batch-import.ts`,
  * and every "refuses" case returns 1 instead of 0 — while the sibling
  * `batch-import-rate-guard.test.ts` reports `can_apply: true` for the same
- * unpriceable CNY batch on the web twin.
+ * unpriceable CNY batch on the core path.
  */
 import { autoPricePerToken, type FiatRateQuote } from '@/hooks/batch-import-controller-types';
 import { tokenPriceInFiat } from '@/services/fiat-convert';

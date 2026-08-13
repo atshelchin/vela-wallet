@@ -5,14 +5,12 @@
  * (currency.ts:128-152) when no preference is stored: read the device region,
  * price the candidate, and persist it only if a real rate resolved. The
  * `display_currency` core implements that same rule for web — and
- * `SettingsScreen.tsx:1135` still called `loadCurrency()` from a screen with no
- * `.web` fork, so on web BOTH ran, both writing `vela.displayCurrency`, with the
+ * `SettingsScreen.tsx:1135` still called `loadCurrency()` from a screen with
+ * no platform fork, so BOTH ran, both writing `vela.displayCurrency`, with the
  * outcome decided by whichever rate landed last.
  *
- * The row now reads `useSettingsCurrency`, whose web half talks to the core. The
- * assertions below are what keeps a direct call from creeping back in: every
- * module that still reaches into `services/currency`'s preference API must be a
- * native-only file (a `.ts` with a `.web.ts` twin).
+ * The row now reads `useSettingsCurrency`, which talks to the core. The
+ * assertions below are what keeps a direct call from creeping back in.
  */
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';

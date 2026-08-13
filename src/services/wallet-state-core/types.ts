@@ -1,10 +1,10 @@
 /**
  * Platform-neutral types for the wallet-state cores (spec 016).
  *
- * Separate from `executors.web.ts` on purpose: the native stub (`session.ts`)
- * needs these declarations, and importing them from a `.web` module would drag
- * the web-only service graph into the native bundle — where the wasm cannot
- * load at all. Same split as `onboarding-core/types.ts`.
+ * Separate from `executors.ts` on purpose: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it. Same split as `onboarding-core/types.ts`.
  */
 
 import type { CurrencyOperation } from './generated/CurrencyOperation';

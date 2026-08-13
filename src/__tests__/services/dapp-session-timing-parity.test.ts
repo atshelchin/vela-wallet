@@ -9,7 +9,7 @@
  * where FR-202 forbids any behaviour change, so neither copy can be deleted —
  * the transport's ladder is what actually reconnects (the core arbitrates,
  * the transport executes, deliberately, so two writers never race one relay
- * channel; the reasoning is in `dsess-executor.web.ts`'s divergence note and
+ * channel; the reasoning is in `dsess-executor.ts`'s divergence note and
  * the BUG-5/6 history).
  *
  * That arrangement is only safe while the two sides are numerically identical,

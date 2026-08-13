@@ -42,7 +42,7 @@ export async function executeBatchOperation(effect: BatchEffect): Promise<BatchS
       // true, because the core's guardrail had been answered a lie.
       // `null` is the honest observation ("no source can price it"); the core
       // turns it into Failed → empty rate → `can_apply = false`. Same choice as
-      // the display-currency executor (`executors.web.ts::resolve_rate`).
+      // the display-currency executor (`executors.ts::resolve_rate`).
       const rate = await resolveRate(operation.code);
       return { type: 'rate_resolved', code: operation.code, rate };
     }

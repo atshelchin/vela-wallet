@@ -1,7 +1,7 @@
 /**
  * The web popup's approve half — WEB, and the CORE's answer.
  *
- * `dperm-popup.web.ts` moved the popup's QUESTION into `dapp_permissions`
+ * `dperm-popup.ts` moved the popup's QUESTION into `dapp_permissions`
  * (may this origin be answered, from which address). Everything after the user
  * pressed Connect stayed in TypeScript, and it had already drifted from the
  * core that owns it: `consent_approved` authors `WriteGrant` +
@@ -13,7 +13,7 @@
  *
  * So the shell stopped authoring the approve. It now seeds the core with the
  * facts it observed and reads the operations back as the verdict — the
- * `connect-entry.web.ts` pattern ("the operation IS the answer"), on a throwaway
+ * `connect-entry.ts` pattern ("the operation IS the answer"), on a throwaway
  * core, constructed and freed inside one call:
  *
  * ```text

@@ -77,7 +77,7 @@ the account is "created on-chain" until the first tx — it is *counterfactual* 
 
 ## 10. Source anchors
 
-- `src/services/safe-address.ts:21-28` — canonical contract set; `:75-208` — salt/initCodeHash; `:220` — address compute; `:34-54` — runtime-bytecode slice.
-- `src/services/eth-crypto.ts:110-146,231` — hand-rolled keccak + encoding.
-- `src/services/attestation-parser.ts:23-45` — COSE P-256 key extraction.
+- `src/services/vela-core/safe-constants.ts` — canonical contract set + runtime-bytecode slice; `rust/crates/vela-core/src/safe.rs` — salt/initCodeHash + address compute.
+- `rust/crates/vela-core/src/primitives.rs` — keccak + encoding (audited crates since PR #168).
+- `rust/crates/vela-core/src/webauthn.rs` — COSE P-256 key extraction.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 6, 36, 38, 47.

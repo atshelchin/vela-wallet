@@ -11,7 +11,7 @@
  * `useSendController`'s `tokenUnitsFor(token)` divides
  * a fiat-denominated send amount by (`useSendController.ts`), and the one
  * `display: { rate: dc.rate }` carries into the Rust send core
- * (`useSendController.web.ts`). Typing "5000" with the amount field in CNY
+ * (`useSendController.ts`). Typing "5000" with the amount field in CNY
  * bought 5000 whole USDT instead of ~698: the batch importer's ~7x payout, one
  * screen over, with the confirm slider armed.
  *

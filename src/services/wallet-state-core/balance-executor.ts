@@ -34,7 +34,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { chainName, networkId } from '@/models/network';
 import { tokenChainId, type APIToken } from '@/models/types';
 import { getAccountBalance, getAccountBalances, setAccountBalance } from '@/services/balance-cache';
-// `@/services/rpc-pool` resolves to `rpc-pool.web.ts` on web, whose
+// `@/services/rpc-pool` resolves to `rpc-pool.ts` on web, whose
 // `getRateLimitedChains()` IS the `RpcPoolView` projection (G8 landed it): the
 // classification snapshot the core asks for now comes from the rpc_pool machine,
 // with the dev fault-injection sets folded in exactly as before.
@@ -151,7 +151,7 @@ export function createBalanceExecutor(stream: BalanceStreamSink) {
       case 'write_privacy':
         // Straight to the byte. The other masking surfaces (HoldingsList,
         // BalanceDetailSheet, AccountSwitcherModal) read `hidden` off the core's
-        // own view through `use-balance-privacy.web.ts`, so there is no second
+        // own view through `use-balance-privacy.ts`, so there is no second
         // in-memory flag to keep in step — and no second hydrate race.
         await AsyncStorage.setItem(BALANCE_PRIVACY_KEY, operation.hidden ? '1' : '0');
         return { type: 'privacy_written' };

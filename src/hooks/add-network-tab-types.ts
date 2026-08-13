@@ -2,11 +2,11 @@
  * The shape the "Add network" tab of {@link AddTokenPanel} renders from, on
  * every platform.
  *
- * A standalone module for the same reason `network-admin-controller-types.ts`
- * is one: a platform pair (`use-add-network-tab.ts` / `.web.ts`) must never
- * import its own base file — on web Metro resolves that specifier back to the
- * `.web.ts` variant itself, and a self-referential re-export recurses at module
- * init. Both variants import from here instead.
+ * A standalone module from the days this controller was a platform pair:
+ * the pair could not import its own base file (Metro resolved it back to
+ * the `.web.ts` half and recursed at module init), so both halves imported
+ * from here. The pair is gone; the module stays as the one place the
+ * contract the screens compile against is declared.
  *
  * The controller carries no worded copy: the panel keeps the exact `t()` keys it
  * has always rendered, so switching platforms cannot move a single byte of

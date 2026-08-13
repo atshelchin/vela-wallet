@@ -1,9 +1,10 @@
 /**
  * Platform-neutral types for the `dapp_session` core (spec 017, group G11).
  *
- * Standalone for the reason `sign-types.ts` states for itself: the native stub
- * (`dsess-session.ts`) needs these declarations, and importing them from a
- * `.web` module would drag the web-only service graph into the native bundle.
+ * Standalone for the reason `sign-types.ts` states for itself: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  *
  * This module is also where the WORDS for the core's two semantic watchdogs
  * live. The core owns the *fact* ("the 120 s join watchdog fired", "the 60 s
@@ -15,7 +16,7 @@
  * - `reconnect_deadline` — `walletpair-transport.ts:366`'s `emit('error', ...)`.
  *
  * The second one matters more than it looks: on web the WalletPair transport
- * keeps its OWN 60 s deadline (see `dsess-executor.web.ts`'s divergence note),
+ * keeps its OWN 60 s deadline (see `dsess-executor.ts`'s divergence note),
  * so both the transport's `error` event and the core's `deadline` timer can
  * describe the same episode. Making them the same sentence makes the double
  * report idempotent instead of a flicker between two wordings.

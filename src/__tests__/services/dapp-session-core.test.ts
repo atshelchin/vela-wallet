@@ -21,7 +21,7 @@
 // `session_ref` → transport table, the wiring, `setTimeout`, and the one
 // deliberate divergence (a `backoff` reconnect is arbitrated by the core and
 // executed by `WalletPairTransport`'s own identical ladder — see
-// `dsess-executor.web.ts`). So each timer is asserted where it is observable
+// `dsess-executor.ts`). So each timer is asserted where it is observable
 // from outside: the delay the core armed, the frame before it fires, and the
 // frame after — over the real executor, with a fake clock.
 
@@ -149,9 +149,9 @@ jest.mock('@/services/walletpair-transport', () => ({
   isWalletPairURI: (raw: string) => raw.trimStart().startsWith('walletpair:'),
 }));
 
-// Load-bearing (see browser-history-core.test.ts): jest lists no `.web.ts` in
-// `moduleFileExtensions`, so the web entry must be imported by explicit path
-// for `initSync` to run on the planted wasm bytes before the core is built.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { createDappSession } from '@/services/wallet-state-core/dsess-session';
 import { remoteInjectLink } from '@/services/wallet-state-core/dsess-executor';
@@ -794,7 +794,7 @@ describe('dapp_session · the backoff ladder', () => {
     await flush();
     // The transport owns its own identical ladder, so the shell must NOT open a
     // second socket for the same channel when the core's backoff fires
-    // (BUG-5/6). The documented divergence in `dsess-executor.web.ts`.
+    // (BUG-5/6). The documented divergence in `dsess-executor.ts`.
     await advance(1_000);
     expect(transport.reconnects).toBe(0);
     // A MANUAL reconnect still calls through for real.

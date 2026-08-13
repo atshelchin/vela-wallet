@@ -10,7 +10,7 @@
  * - `dapp_permissions.rs::decide_browser_request` is reached only through
  *   `DpermEvent::provider_request`, which NO shell dispatches — the one live
  *   consumer of that core is the popup's `popup_request`
- *   (`wallet-state-core/dperm-popup.web.ts`). It is authored, tested and
+ *   (`wallet-state-core/dperm-popup.ts`). It is authored, tested and
  *   currently unexecuted.
  *
  * That is the hazard worth guarding: an unexecuted rule that LOOKS like the

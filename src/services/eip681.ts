@@ -17,11 +17,10 @@
  * The `ethereum:` URI grammar stays HERE, in the shell, and that is deliberate
  * even though the *builder* also exists in Rust (`payment_request.rs`):
  *
- *   · Hermes has no WebAssembly, so native must run a TypeScript parser no
- *     matter what the core does. A Rust parser could only ever be a second
- *     implementation, not the single owner — and this file is shared by both
- *     platforms, so today there is exactly ONE parse of `ethereum:` in the
- *     product and therefore no drift between iOS/Android and web.
+ *   · A Rust parser could only ever be a second implementation, not the
+ *     single owner (the decision predates the native retirement, when Hermes
+ *     had no wasm and needed this parser regardless). There is exactly ONE
+ *     parse of `ethereum:` in the product, so there is nothing to drift.
  *   · Everything a parse *decides* is already core-owned: whether a scan locks
  *     the Send screen, whether a chainless request may lock at all, and how
  *     base units become a displayed figure all live in `send.rs`

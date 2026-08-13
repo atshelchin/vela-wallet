@@ -1,9 +1,8 @@
 // "Select all valuable" decides which assets get emptied out of a wallet in one
-// tap. That predicate exists TWICE and neither copy can be deleted: web runs the
-// Rust `send` machine, iOS/Android cannot (Hermes has no WebAssembly) and run
-// `services/batch-send.ts`'s `isMultiSelectable(tok, true)` through
-// `use-token-multi-select.ts`. So the thing to remove is not the duplication but
-// the DRIFT.
+// tap. That predicate exists TWICE: the app runs the Rust `send` machine, and
+// `services/batch-send.ts`'s `isMultiSelectable(tok, true)` survives from the
+// retired Expo-native path through `use-token-multi-select.ts`. Until it goes,
+// the thing to remove is not the duplication but the DRIFT.
 //
 // A red test here means one platform would sweep an asset the other leaves
 // behind — a spam airdrop dragged into a signed MultiSend, or a real holding
@@ -62,9 +61,9 @@ jest.mock('@/services/tx-simulation', () => ({
   serializeAssetSim: (sim: unknown) => sim,
 }));
 
-// Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
-// `@/services/vela-core` resolves the NATIVE index and the wasm is never
-// initialized. The explicit web entry runs `initSync` on the planted bytes.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';

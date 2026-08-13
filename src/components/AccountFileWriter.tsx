@@ -11,7 +11,7 @@
  * empty cache until their next in-app account switch.
  *
  * All of that lives in the controller pair `use-ext-cache.ts` (native, today's
- * TypeScript verbatim) / `use-ext-cache.web.ts` (web, the portable Rust machine
+ * TypeScript verbatim) / `use-ext-cache.ts` (web, the portable Rust machine
  * `rust/crates/vela-core/src/app/ext_cache.rs`). This component only reads the
  * contexts and hands them over — the theme/language preferences ride the cache
  * so the extension UI matches the app, and re-writing on their change keeps

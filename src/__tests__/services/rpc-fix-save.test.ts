@@ -36,9 +36,9 @@ jest.mock('@/services/bundler-service', () => ({
   clearBundlerCache: (chainId: number) => clearBundlerCache(chainId),
 }));
 
-// Same reason as `network-admin-core.test.ts`: jest lists no `.web.ts` in
-// `moduleFileExtensions`, so the wasm must be initialised through the explicit
-// web entry before any core is constructed.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { rpcFixVerdict, saveRpcFix } from '@/services/rpc-fix';
 import type { NetNetworkRow } from '@/services/wallet-state-core/generated/NetNetworkRow';

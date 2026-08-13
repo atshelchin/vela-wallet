@@ -12,9 +12,9 @@
  * dozens of components (`state.hasWallet`, `state.address`, `activeAccount`),
  * and after a JSON boundary views arrive asynchronously. So:
  *
- * - The session is app-resident (`session-resident.web.ts`), booted once per
+ * - The session is app-resident (`session-resident.ts`), booted once per
  *   process, and its view is mirrored into local state — the 016
- *   `use-display-currency.web.ts` pattern.
+ *   `use-display-currency.ts` pattern.
  * - The first frame is `INITIAL_STATE` field for field, because the core's own
  *   pristine projection is (loading, no wallet, empty address).
  * - The mirrored view object only changes when the session actually changed
@@ -26,7 +26,7 @@
  * flag is local state here — the same nothing it has been, since no live call
  * site dispatches it.
  *
- * Imports of the shape module are deliberate: a `.web.ts` must NEVER
+ * Imports of the shape module are deliberate: a `.ts` must NEVER
  * value-import its own base file (Metro resolves it back to itself).
  */
 import React, { useCallback, useEffect, useMemo, useState, type Dispatch } from 'react';

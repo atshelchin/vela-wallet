@@ -5,9 +5,6 @@
  * Importing `@/services/vela-core` first is load-bearing: its web entry runs
  * `initSync` on the fetched module at import time, so the wasm is initialised
  * before the core is constructed here.
- *
- * `session-session.ts` is the native counterpart and throws. Note this is NOT
- * `session.web.ts` (the 016 trio's factory module) — one file per machine.
  */
 
 import '@/services/vela-core';

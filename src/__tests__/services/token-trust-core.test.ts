@@ -24,9 +24,9 @@ jest.mock('@/services/rpc-pool', () => ({
 jest.mock('@/services/token-metadata', () => ({ resolveTokenMetadata: jest.fn() }));
 jest.mock('@/services/wallet-api', () => ({ clearTokenCache: jest.fn() }));
 
-// Load-bearing (see browser-history-core.test.ts): jest lists no `.web.ts` in
-// `moduleFileExtensions`, so the web entry must be imported by explicit path
-// for `initSync` to run on the planted wasm bytes before the core is built.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { poolRpcCall } from '@/services/rpc-pool';
 import { resolveTokenMetadata } from '@/services/token-metadata';

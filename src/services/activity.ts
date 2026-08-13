@@ -155,9 +155,9 @@ function formatUsd(n: number): string {
  *
  * Copied verbatim in `activity_feed.rs`'s `STABLE_SYMBOLS`, which is what web
  * re-judges the same record with at render time (this table decides the `usd`
- * string written at ingest — see `incomingToRecord`). Hermes has no wasm, so
- * neither copy can go; `src/__tests__/services/core-table-parity.test.ts` is the
- * gate that turns a one-sided edit red.
+ * string written at ingest — see `incomingToRecord`); both copies run on the
+ * same records, so neither can go alone.
+ * `src/__tests__/services/core-table-parity.test.ts` turns a one-sided edit red.
  */
 export const STABLE_SYMBOLS = new Set([
   'USDT', 'USDT0', 'USDC', 'USDC.E', 'DAI', 'BUSD', 'TUSD', 'FDUSD', 'USDE', 'PYUSD', 'USDP', 'GUSD', 'LUSD', 'FRAX', 'USDD',

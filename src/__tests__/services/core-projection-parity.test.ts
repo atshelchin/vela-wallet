@@ -2,9 +2,9 @@
  * Executable drift gates for two rules the web app still evaluates in
  * TypeScript even though the Rust core owns its own copy.
  *
- * Neither copy can be deleted: Hermes has no WebAssembly, so the TypeScript is
- * iOS/Android's only implementation, and the core's copy is what the web app is
- * built on. What CAN be done is pin them to each other — and here the oracle is
+ * Neither copy can be deleted while both still run — the TypeScript survives
+ * from the retired native path and still has callers of its own, and the core's
+ * copy is what the app is built on. What CAN be done is pin them to each other — and here the oracle is
  * not a regex over Rust source but the real wasm core, driven through the same
  * web shell the app uses.
  *
@@ -59,9 +59,9 @@ jest.mock('@/services/recipient-identity', () => ({
 }));
 jest.mock('@/services/platform', () => ({ hapticSuccess: () => {} }));
 
-// Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
-// `@/services/vela-core` resolves the NATIVE index and the wasm is never
-// initialized. Importing the web entry by explicit path first runs `initSync`.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { filterFeedRowsByChain } from '@/screens/wallet/feed-chain-filter';
 import { sortAndFilterHoldings } from '@/services/wallet-api';

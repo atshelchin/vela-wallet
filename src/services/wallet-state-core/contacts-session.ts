@@ -2,12 +2,9 @@
  * Constructs the `contacts` core and wires it to the web shell — WEB entry.
  *
  * Importing `@/services/vela-core` first is load-bearing: its web entry runs
- * `initSync` on the base64-embedded module at import time, so the wasm is
+ * `initSync` at import time, so the wasm is
  * initialised before the core is constructed here. (Metro resolves that facade
- * to `index.web.ts` in this bundle.)
- *
- * `contacts-session.ts` is the native counterpart and throws: Hermes has no
- * WebAssembly, so the mobile app keeps its TypeScript address book.
+ * to `index.ts` in this bundle.)
  */
 
 import '@/services/vela-core';

@@ -3,15 +3,14 @@
  *
  * The machine is the app-lifetime mirror of four AsyncStorage keys, and it has
  * two entry points that must share a ledger: the Settings surfaces
- * (`use-network-admin.web.ts`) and the EIP-681 scan recovery
- * (`services/add-network.web.ts`). A session per surface would be two mirrors of
+ * (`use-network-admin.ts`) and the EIP-681 scan recovery
+ * (`services/add-network.ts`). A session per surface would be two mirrors of
  * the same keys, free to drift — and the duplicate-chain gate that the core now
  * owns for BOTH callers would be reading the wrong ledger. Hence a module-level
- * singleton, the `use-display-currency.web.ts` pattern.
+ * singleton, the `use-display-currency.ts` pattern.
  *
- * Imported by explicit `.web` specifier on both sides: `tsc` resolves a
- * `.web.ts` file's own imports to the base `.ts` variant, so a bare specifier
- * here would type-check against a native module that does not exist.
+ * (In the platform-pair days this file had to be imported by explicit `.web`
+ * specifier — a relic the pair collapse removed; imports are bare now.)
  */
 
 import { subscribeNetworks } from '@/models/network';
@@ -58,7 +57,7 @@ export function ensureNetworkAdmin() {
     // never overwrite a record it did not see. This used to be load-bearing —
     // the Add-Token panel's "Add network" tab wrote `vela.customNetworks`
     // through the TypeScript service on web, beside this machine — and is now a
-    // belt: that tab goes through `use-add-network-tab.web.ts` and this core
+    // belt: that tab goes through `use-add-network-tab.ts` and this core
     // (spec 017), leaving only our OWN writes to notify through here, which is a
     // redundant read, never a write, so it cannot loop.
     subscribeNetworks(() => {

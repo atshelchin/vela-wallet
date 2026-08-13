@@ -17,7 +17,7 @@
  * nothing new" — the record keeps whatever it already said. That is invariant ①
  * of the machine: a timeout, an unreachable bundler or an op the bundler
  * accepted but has not landed is NEVER a failure, and must never be persisted
- * as one. It is the same narrowing `tx-tracker-resident.web.ts`'s `outcomeOf`
+ * as one. It is the same narrowing `tx-tracker-resident.ts`'s `outcomeOf`
  * applies for the send screen, kept exhaustive with no `default` for the same
  * reason: a new verdict in the core must break this build rather than default
  * into silence on a money surface.
@@ -89,9 +89,9 @@ export interface TxSettlementRequest {
    */
   recordIds: readonly string[];
   /**
-   * NATIVE ONLY — the self-poll's retry budget (Hermes has no WebAssembly, so
-   * iOS/Android keep the TypeScript poller this hook wraps). The web
-   * implementation ignores it: cadence and deadlines are the core's.
+   * Unread — the retired native poller's retry budget. The implementation
+   * ignores it: cadence and deadlines are the core's. Goes when the remaining
+   * native-only code retires.
    */
   nativeMaxAttempts: number;
   /**

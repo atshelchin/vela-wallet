@@ -782,9 +782,10 @@ export async function estimateTransactionFee(
 // ---------------------------------------------------------------------------
 //
 // Everything in this section exists so `vela-core/src/app/fee_policy.rs` can
-// make the decisions `estimateTransactionFee` above makes in TypeScript. Native
-// (Hermes, no WebAssembly) keeps the function above; web drives the core
-// through `services/wallet-state-core/fee-executor.web.ts`.
+// make the decisions `estimateTransactionFee` above makes in TypeScript — the
+// app drives the core through `services/wallet-state-core/fee-executor.ts`.
+// (The TS function above survives from the retired native path; it still has
+// callers of its own.)
 //
 // The rule all four share: they report RAW OBSERVATIONS, never verdicts.
 // `getGasPrices` derives a price and falls back to 5 gwei; `getBundlerGasQuote`

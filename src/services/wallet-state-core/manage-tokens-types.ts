@@ -2,9 +2,10 @@
  * Platform-neutral types for the `manage_tokens` core (spec 017, group G2).
  *
  * Standalone, and NOT folded into `types.ts`, for the reason that file states
- * for itself: the native stub (`manage-tokens-session.ts`) needs these
- * declarations, and importing them from a `.web` module would drag the
- * web-only service graph into the native bundle. Keeping one module per
+ * for itself: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it. Keeping one module per
  * machine also keeps the parallel integration waves from editing one file.
  */
 

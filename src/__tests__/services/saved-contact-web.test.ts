@@ -9,7 +9,7 @@
 // STALE NEGATIVE (a contact saved through the core rendering as "unknown", i.e.
 // the anti-poisoning check silently off).
 //
-// `services/saved-contact.web.ts` routes them at the core instead. What is
+// `services/saved-contact.ts` routes them at the core instead. What is
 // asserted here is that seam: the answer comes from the core's ledger, honours
 // its "manual means saved" rule, and honours its deletion tombstone.
 

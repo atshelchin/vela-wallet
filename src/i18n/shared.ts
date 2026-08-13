@@ -199,7 +199,7 @@ export async function setLanguagePreference(pref: LanguagePreference): Promise<A
  *
  * A NO-OP on native, and deliberately still exported there: `_layout.tsx` is a
  * single platform-shared file, so it must be able to call this unconditionally.
- * The web counterpart in `index.web.ts` installs the real thing.
+ * The web counterpart in `index.ts` installs the real thing.
  */
 export function installI18nConsole(): void {
   /* native runs plain i18next — nothing to inspect */

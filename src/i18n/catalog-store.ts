@@ -2,15 +2,14 @@
  * Catalog acquisition, caching and lifecycle for the Rust i18n engine (spec
  * 005-web-i18n-adoption, contracts/web-i18n-seam.md §3).
  *
- * **Deliberately a plain `.ts`, not `.web.ts`.** `jest.config.js:23` lists no
- * `.web.ts` in `moduleFileExtensions`, so anything living in `index.web.ts` is
+ * **Deliberately a plain `.ts`, not `.ts`.** `jest.config.js:23` lists no
+ * `.ts` in `moduleFileExtensions`, so anything living in `index.ts` is
  * invisible to every runner in CI. Everything here — the fetch, the validation,
  * the cache, the race guard, the rollback — is therefore testable today with no
- * config change. `index.web.ts` keeps only what genuinely needs the platform
- * split, which is the wasm import itself.
+ * config change. `index.ts` keeps only the wasm import itself.
  *
- * The engine is INJECTED for the same reason: importing the wasm module here
- * would drag it onto native, where Hermes has no WebAssembly at all.
+ * The engine is INJECTED for the same reason: a module that never touches the
+ * wasm needs no wasm to be tested.
  *
  * The one constraint everything below exists to serve: the engine holds exactly
  * **one** non-`en` catalog slot (`mod.rs:280` — `load_catalog` is

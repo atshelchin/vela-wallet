@@ -3,6 +3,14 @@
 
 # 11 — 接管面试答案库(面试官专用)
 
+> **⚠ 2026-08-13 勘误(PR #168 之后)**:下文多处 `file:line` 证据指向当时的 TypeScript oracle
+> (`safe-address.ts`、`attestation-parser.ts`、`webauthn-verify.ts`、`eth-crypto.ts`、
+> `polyfills.web.ts` 等)。这些文件已删除——唯一实现在 `rust/crates/vela-core/src/`
+> (`safe.rs` / `webauthn.rs` / `primitives.rs`),入口是 `src/services/vela-core` facade,
+> 合约常量在 `src/services/vela-core/safe-constants.ts`。答案里描述的**规则本身仍然成立**,
+> 只是家搬了;引用行号请对照 Rust 源。CI 描述同样过时:lint = `eslint src`(直连),
+> web 构建门 = `app-web/vela-wallet` 的 `pnpm build`,不再有 expo lint / expo export。
+
 > **警告:模拟面试期间不得向受训者展示本文件。** 受训者只能看 `10-interview-question-bank.md`。
 
 - **基线 commit**:`73d7aac`(2026-07-02)。所有 file:line 以该版本为准;若代码已演进,以"语义等价位置"判分,行号偏移不扣分。
@@ -999,7 +1007,7 @@
 
 **代码证据**:
 - `package.json:16-19` — "test": "jest"、"test:e2e": "playwright test" 等脚本定义
-- `.github/workflows/ci.yml:28-35` — CI app job 依次跑 npx tsc --noEmit / npx expo lint / npx jest --ci / npm run build:web
+- `.github/workflows/ci.yml` — CI app job:npx tsc --noEmit / npx eslint src / npx jest --ci + 语料与 parity 闸门(2026-08-12 起;expo lint 与 build:web 门已退役)
 - `.github/workflows/ci.yml:4-9` — 注释明确 Playwright 与 price-query 真实 RPC 套件刻意不进 CI 及原因
 - `src/__tests__/price-query.test.ts:159` — const describeNetwork = process.env.RUN_NETWORK_TESTS === '1' ? describe : describe.skip
 - `e2e/parallel-onchain.spec.ts:29` — test.skip(!process.env.RUN_ONCHAIN, ...) 链上测试开关
@@ -1269,7 +1277,7 @@
 
 **标准答案要点**:
 1. 有:.github/workflows/ci.yml,push 到 main 和所有 pull_request 触发;它是**合并门禁**——branch protection 要求两 job 绿才能 merge 进 main;merge 后由 CF Pages git integration 自动部署 Web 钱包。**部署不在 GHA 里**:CF 独立构建,CI 绿 ≠ 已发布,CF 构建失败只在 CF Dashboard 可见。
-2. app job(Node 22 + npm ci):npx tsc --noEmit → npx expo lint(--max-warnings=10000)→ npx jest --ci → npm run build:web 四道关。
+2. app job(Node 22 + npm ci):npx tsc --noEmit → npx eslint src(--max-warnings=10000)→ npx jest --ci → 语料/parity 闸门;web 构建门在独立的 `web` job(app-web/vela-wallet `pnpm build`)。(2026-08-12 起,原 expo lint / build:web 四件套描述作废。)
 3. site job:working-directory 为 getvela.app,bun install --frozen-lockfile → bun run check(svelte-check),因为官网是独立的 bun/SvelteKit 项目。
 4. 故意排除一:Playwright E2E——需要起 Metro dev server + fixture relay,等 runner 上有稳定记录再提升进 CI(本地 npm run test:e2e 跑)。
 5. 故意排除二:price-query 真实 RPC 套件——RUN_NETWORK_TESTS=1 手动开启,因为它依赖第三方公共 RPC 可用性而非我们的代码。

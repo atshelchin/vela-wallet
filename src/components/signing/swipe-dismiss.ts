@@ -22,10 +22,9 @@
  * is `''` — falsy — so a bundler failure with an empty message already graded
  * as "reject" in the shell while the core graded it "dismiss".
  *
- * Imported by explicit `.web` specifier is NOT possible here (the component is
- * platform-neutral), so this file is reached only through Metro's `.web`
- * resolution — and it must never import `./swipe-dismiss`, which Metro would
- * resolve straight back to this file.
+ * A relic rule from the platform-pair days survives here on purpose: nothing
+ * may import `./swipe-dismiss` from this file — Metro would resolve it straight
+ * back to this file.
  */
 import { dispatchSign } from '@/services/wallet-state-core/sign-resident';
 import type { SwipeDismissFacts, SwipeDismissHandlers } from './swipe-dismiss-types';

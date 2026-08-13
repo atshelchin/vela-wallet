@@ -7,9 +7,8 @@
  * 1. `hooks/use-dapp-signing.ts` `isSigningMethod` — the LOOSE predicate
  *    (`eth_sendTransaction`, `wallet_sendCalls`, `personal_sign`, `eth_sign`,
  *    or any method whose name CONTAINS `signTypedData`). It is the fork in
- *    `dapp-connection(.web).tsx`: signing goes to the approval sheet,
- *    everything else to the read-only RPC gate. Hermes has no wasm, so on
- *    iOS/Android this is the only copy there is.
+ *    `dapp-connection.tsx`: signing goes to the approval sheet, everything
+ *    else to the read-only RPC gate.
  * 2. `sign_request.rs::is_signing_method` — the same loose predicate, re-run by
  *    the core at `on_request_arrived` as its own backstop. On web BOTH 1 and 2
  *    execute for every inbound request; the shell's call cannot move into the

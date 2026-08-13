@@ -1,10 +1,11 @@
 /**
  * The shape the Send controller returns on every platform.
  *
- * A standalone module for the same reason `home-controller-types.ts` is one: a
- * platform pair (`useSendController.ts` / `.web.ts`) must never import its own
- * base file — on web Metro resolves that specifier back to the `.web.ts` variant
- * itself, and a self-referential re-export recurses at module init.
+ * A standalone module from the days this controller was a platform pair:
+ * the pair could not import its own base file (Metro resolved it back to
+ * the `.web.ts` half and recursed at module init), so both halves imported
+ * from here. The pair is gone; the module stays as the one place the
+ * contract the screens compile against is declared.
  *
  * `SendScreen`, `EnterDetailsStep` and `ConfirmStep` are typed against THIS
  * interface rather than against `ReturnType<typeof useSendController>`, which is
@@ -214,13 +215,11 @@ export interface SendController {
   /** Lets `GasFeeCard` build a real initCode for an undeployed Safe. */
   publicKeyHex: string | undefined;
   /**
-   * WEB only: the `fee_policy` session this screen's quote lives in, rendered
-   * by `GasFeeCard.web.tsx`.
-   *
-   * Native leaves it undefined and its card keeps the TypeScript path — Hermes
-   * has no WebAssembly. On web this is the single producer of a fee on the Send
-   * flow: the same session answers the core's `EstimateFee`, so the confirm
-   * slide cannot show one number while the pre-check gated on another.
+   * The `fee_policy` session this screen's quote lives in, rendered by
+   * `GasFeeCard.tsx` — the single producer of a fee on the Send flow: the same
+   * session answers the core's `EstimateFee`, so the confirm slide cannot show
+   * one number while the pre-check gated on another. (Optional only because the
+   * retired native path left it undefined; no current caller does.)
    */
   feeCard?: FeeCardController;
   sameAssetFeeIssue: SameAssetFeeIssue | null;

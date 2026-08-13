@@ -38,7 +38,7 @@ import '@/services/vela-core';
 import { getChainRpcUrl, poolBundlerCall, poolRpcCall, refreshPool } from '@/services/rpc-pool';
 import { collectRpcUrls, NEVER_BANNED } from '@/services/rpc-pool-endpoints';
 
-// `rpc-pool.web.ts` holds ONE module-level session (it is the app's pool, not a
+// `rpc-pool.ts` holds ONE module-level session (it is the app's pool, not a
 // screen's), so bans and wrong-chain memory carry across tests in this file. A
 // chain per test is the isolation — sharing one would let a ban from an earlier
 // test pass a later assertion for the wrong reason.

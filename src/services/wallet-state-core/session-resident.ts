@@ -6,8 +6,8 @@
  * wallet session is the account truth source every money flow sits on, it is
  * read synchronously from dozens of components through `useWallet()`, and its
  * boot restore must run ONCE per process — not once per mount. So the core is a
- * module-level singleton, the `use-display-currency.web.ts` /
- * `network-admin-resident.web.ts` pattern, and `Boot` is dispatched exactly
+ * module-level singleton, the `use-display-currency.ts` /
+ * `network-admin-resident.ts` pattern, and `Boot` is dispatched exactly
  * once (the core makes a second `Boot` inert anyway).
  *
  * Two properties this module owes its consumers:
@@ -26,9 +26,8 @@
  *   invalidates every `[state.accounts]` dependency the way a fresh JSON parse
  *   would. (Under the reducer, `SWITCH_ACCOUNT` kept the same array.)
  *
- * Imported by explicit `.web` specifier on every side: `tsc` resolves a
- * `.web.ts` file's own imports to the base `.ts` variant, so a bare specifier
- * would type-check against a native module that does not exist.
+ * (In the platform-pair days this file had to be imported by explicit `.web`
+ * specifier — a relic the pair collapse removed; imports are bare now.)
  */
 
 import { createWalletSession } from './session-session';

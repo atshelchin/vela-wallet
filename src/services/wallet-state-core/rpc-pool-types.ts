@@ -2,9 +2,10 @@
  * Platform-neutral types for the `rpc_pool` core (spec 017, group G8).
  *
  * Standalone, and NOT folded into `types.ts` (016's three machines), for the
- * reason that file states for itself: the native stub
- * (`rpc-pool-session.ts`) needs these declarations, and importing them from a
- * `.web` module would drag the web-only service graph into the native bundle.
+ * reason that file states for itself: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  * One module per machine also keeps parallel integration waves off each
  * other's files.
  */
@@ -24,7 +25,7 @@ export type RpcPoolEffect = { id: number; operation: RpcOperation };
  * The core is a pure router: it decides *which URL next and why* and carries
  * no JSON-RPC params and no response bodies. Everything the shell must hold
  * between `CallRequested` and `Conclude` is reached through this handle, which
- * `rpc-pool.web.ts` owns and the executor only reads/writes — that keeps the
+ * `rpc-pool.ts` owns and the executor only reads/writes — that keeps the
  * executor free of module-level mutable state and makes it drivable from a
  * test with its own registry.
  */

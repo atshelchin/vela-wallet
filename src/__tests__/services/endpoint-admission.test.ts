@@ -9,8 +9,8 @@
 //
 // The rule exists twice: `network_admin.rs::is_localhost_http` (what the core
 // applies on the Settings path) and `endpoint-admission.ts` (what onboarding
-// and iOS/Android apply). Neither copy can go — onboarding predates any wallet
-// and Hermes has no wasm — so the assertion below reads BOTH, in the same
+// applies). Neither copy can go — onboarding predates any wallet, so it cannot
+// wait for a core — and the assertion below reads BOTH, in the same
 // spirit as `core-table-parity.test.ts`: the Rust file as text, the values
 // compared, never the formatting.
 //

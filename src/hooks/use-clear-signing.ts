@@ -16,8 +16,7 @@
  * resolves one request at a time and supersedes anything in flight, so a second
  * mounted surface sharing it would cancel the first one's resolution. Batch legs
  * get their own throwaway sessions for the same reason.
- *
- * `use-clear-signing.ts` is the native twin, on the TypeScript services.
+
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
@@ -134,7 +133,7 @@ export function useClearSigning(
   );
 
   /**
-   * `useLayoutEffect`, not `useEffect` — the same reason `use-approval-guard.web.ts`
+   * `useLayoutEffect`, not `useEffect` — the same reason `use-approval-guard.ts`
    * gives, and it has to be the same or the two halves of one sheet disagree
    * about what frame they are on.
    *

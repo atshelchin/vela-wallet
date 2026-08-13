@@ -25,7 +25,7 @@
  *   1. the feed's filter is COUPLED to a derivation the core owns — a date
  *      header must disappear when every item under it filters away — so it
  *      could not be separated from the row projection;
- *   2. the feed's chain filter has a native twin running the same machine, so
+ *   2. the feed's chain filter has a core-side statement of the same rule, so
  *      there is something to drift against. Holdings has no core-side filter
  *      at all, so there is no second statement of this rule anywhere and
  *      nothing to pin.

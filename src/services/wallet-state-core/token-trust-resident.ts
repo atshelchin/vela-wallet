@@ -5,7 +5,7 @@
  * trusted-token set it builds is shared by the receive scanner, the auto-add
  * admission and the sign-sheet preview, and the whole point of unifying them
  * is that they see ONE set. So a single module-level session is created on
- * first use and never disposed — the `use-display-currency.web.ts` pattern,
+ * first use and never disposed — the `use-display-currency.ts` pattern,
  * scaled up.
  *
  * This module owns no rules. It is the shell half of the machine:

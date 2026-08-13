@@ -88,7 +88,7 @@
 Safe 智能合约钱包需要链上部署才存在。若创建钱包 = 立刻部署,每条链都要花一笔 gas,12+ 链成本不可接受,且没人替新用户垫付。
 
 **决策**
-创建钱包只做本地 CREATE2 地址推导(`src/services/safe-address.ts:192-210`,`computeSafeAddress`,工厂/单例/模块地址全链统一硬编码 `safe-address.ts:19-28`),Safe 不部署;首笔交易时经 UserOp 的 initCode 由 EntryPoint 完成部署(03 号文档流程 1 步骤 3、流程 2)。
+创建钱包只做本地 CREATE2 地址推导(`vela-core` facade `computeAddress` → `rust/crates/vela-core/src/safe.rs`,工厂/单例/模块地址全链统一硬编码于 `src/services/vela-core/safe-constants.ts`;2026-08 前在 `safe-address.ts`),Safe 不部署;首笔交易时经 UserOp 的 initCode 由 EntryPoint 完成部署(03 号文档流程 1 步骤 3、流程 2)。
 
 **理由**
 - 创建零成本、零延迟、离线可完成;地址在所有 EVM 链上一致(CREATE2 确定性),"一个 passkey = 一个全链地址"的产品叙事得以成立。

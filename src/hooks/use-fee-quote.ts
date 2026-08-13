@@ -20,9 +20,6 @@
  * account is deployed, which passkey builds its initCode, and the promise
  * plumbing that lets the `send` core's `EstimateFee` operation be answered by a
  * live machine instead of a one-shot call.
- *
- * `use-fee-quote.ts` is the native counterpart and is never constructed:
- * Hermes has no wasm, so iOS/Android keep `estimateTransactionFee`.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';

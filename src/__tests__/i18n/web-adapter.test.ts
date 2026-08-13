@@ -4,7 +4,7 @@
  * TWO THINGS ABOUT THIS FILE ARE LOAD-BEARING AND EASY TO GET WRONG.
  *
  * 1. It imports the web module by EXPLICIT PATH. A bare `@/i18n` resolves
- *    `index.ts` — the native file — because `jest.config.js` lists no `.web.ts`
+ *    `index.ts` — the native file — because `jest.config.js` lists no `.ts`
  *    in `moduleFileExtensions`. Import it the obvious way and this whole suite
  *    silently tests plain i18next against plain i18next.
  *

@@ -4,13 +4,19 @@ A self-custodial smart wallet for EVM networks.
 
 Vela Wallet uses ERC-4337 account abstraction with WebAuthn (passkey) authentication — no seed phrases, no private keys to manage.
 
-The React Native + Expo codebase runs on **iOS** and **Android**. The **web** build now comes from the SvelteKit shell in [app-web/vela-wallet](app-web/vela-wallet/README.md), and **desktop** is a separate native client.
+The React Native + Expo codebase in [src/](src/) is the wallet that holds real funds today, running as a **web app**. Its iOS/Android runtime retired with the shared-core de-duplication (PR #168): the correctness core is Rust now, and Hermes cannot run it — native platforms are being rebuilt in [app-ios/](app-ios/) and [app-android/](app-android/). The onboarding-first SvelteKit shell lives in [app-web/vela-wallet](app-web/vela-wallet/README.md), and **desktop** is a separate native client.
 
 > ### 🚧 Migrating off Expo
 >
-> Vela is moving away from React Native and Expo. The Expo app in [src/](src/) is what ships today, and it is not going anywhere yet: nothing has been deleted, every command in this README still works, and it remains the app that holds real funds.
+> Vela is moving away from React Native and Expo, and the move has reached stage two.
 >
-> Next to it, the wallet is being rebuilt as **one shared Rust core plus one native shell per platform** — SwiftUI on iOS, Jetpack Compose on Android, SvelteKit on the web, gpui on desktop. The two architectures live side by side in this repo while the move happens, screen by screen.
+> **Stage 1 (done):** Expo left the automation — CI gates ESLint, the unit suite and the SvelteKit build directly; the EAS preview workflows are gone.
+>
+> **Stage 2 (done, PR #168):** one implementation. The TypeScript copy of the correctness core (hashing, ABI, EIP-712, Safe addresses, WebAuthn) and the 66 native/web controller pairs are deleted; `vela-core` (Rust) is the only implementation, reached through wasm. This is also the moment the Expo app stopped being able to run on iOS/Android — Hermes has no WebAssembly, and there is deliberately no TypeScript fallback left for it.
+>
+> **Stage 3 (not started):** retire the remaining native-only modules (passkey/BLE native code, config plugins, EAS config) once the native rebuilds in `app-ios/` / `app-android/` are ready to take over.
+>
+> Meanwhile the wallet is being rebuilt as **one shared Rust core plus one native shell per platform** — SwiftUI on iOS, Jetpack Compose on Android, SvelteKit on the web, gpui on desktop.
 >
 > What the new one is, why it exists, and how far it has got: [The new architecture](#the-new-architecture).
 
@@ -27,12 +33,11 @@ The React Native + Expo codebase runs on **iOS** and **Android**. The **web** bu
 - **Cross-device recovery** — Passkeys sync through the platform provider (iCloud Keychain on iOS, Google Password Manager on Android). Wallet metadata backs up via iCloud Key-Value Store (iOS) and Android Auto Backup.
 - **Fully self-hostable** — All four backend services (chain data, passkey index, bundler, currency rates) are published on GitHub and can be self-deployed.
 
-## Architecture (the Expo app, shipping today)
+## Architecture (the Expo web app, shipping today)
 
 ```
 ┌─────────────────────────────────────────────┐
-│  React Native + Expo Router                 │
-│  (iOS / Android / Web)                      │
+│  React Native + Expo Router (web)           │
 ├─────────────────────────────────────────────┤
 │  Native Modules                             │
 │  ┌──────────┐ ┌──────────┐ ┌─────────────┐ │
@@ -127,7 +132,7 @@ Two parity suites compare the Rust ports against the JavaScript the app still sh
 ### Where it stands
 
 - **Shipping**: the Expo app. All wallet functionality — RPC pool, ERC-4337 signing and submission, dApp connect, portfolio, pricing — runs there.
-- **Already served by the core**: in the Expo **web** build, onboarding (create + sign in) and a growing set of wallet-state machines drive the real screens through wasm — the `.web.ts` controllers in `src/`. On iOS and Android the TypeScript path still runs, because Hermes has no WebAssembly: the same rules, two engines, held together by the conformance corpus. Those machines are what the SvelteKit shell picks up as it takes over the web target.
+- **Already served by the core**: in the shipping web app, onboarding (create + sign in) and the wallet-state machines drive the real screens through wasm — the crux controllers in `src/`. Since PR #168 that is the only engine: the TypeScript twin of every rule is deleted, and the conformance corpus those twins were extracted from lives on as frozen goldens replayed against Rust, Kotlin, Swift and the web artifact. These machines are what the SvelteKit shell picks up as it takes over the web target.
 - **Built in the new shells**: onboarding, wallet home and contacts, on all four platforms, against fixture data (specs [014](specs/014-onboarding-flow-ui/), [015](specs/015-wallet-home-ui/), [018](specs/018-contacts-ui/)). They already take their translations and identicons from the core — `Loc.swift`, `I18nRuntime.kt`, the build-time wasm engine on web — but not yet its state machines: the `crux` feature is compiled out of the UniFFI builds, so iOS and Android link the computation layer only. Nothing in these shells touches a network, a passkey or the bundler yet.
 - **Not started**: the send, signing and dApp surfaces in the new shells, and the cutover of any platform's store build.
 
@@ -143,19 +148,19 @@ Feature specs, plans and delivery reports live in [specs/](specs/), numbered in 
 2. Start the app
 
    ```bash
-   # iOS / Android
-   npx expo start
-
-   # Web
    npx expo start --web
    ```
+
+   (`npm run ios` / `npm run android` still exist but produce a non-functional app: since PR #168 the correctness core is wasm-only and Hermes cannot load it. Native builds come back via `app-ios/` and `app-android/`.)
 
 The new native shells build and run independently of this — see [The shells](#the-shells) for the per-platform commands, and [rust/README.md](rust/README.md) for the shared core they all link against.
 
 ## Platform Support
 
+The iOS/Android columns are **historical** as of PR #168 — they describe the platform adapters the Expo app used while its native runtime existed. The native module code they name is still in the tree (stage 3 removes it); only the Web column describes something that runs.
 
-| Feature            | iOS                      | Android                     | Web                         |
+
+| Feature            | iOS (historical)         | Android (historical)        | Web                         |
 | -------------------- | -------------------------- | ----------------------------- | ----------------------------- |
 | Passkey (WebAuthn) | Native (ASAuthorization) | Native (Credential Manager) | `navigator.credentials` API |
 | Cloud Sync         | iCloud Key-Value Store   | SharedPreferences + Auto Backup | IndexedDB (local only)      |

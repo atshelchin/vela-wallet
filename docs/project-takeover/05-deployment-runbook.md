@@ -18,7 +18,7 @@
 
 ```bash
 npx tsc --noEmit          # 必须 exit 0
-npx expo lint             # 必须 0 errors
+npm run lint              # 必须 0 errors(= eslint src;2026-08-12 起 expo lint 退役)
 npx jest --ci             # 必须全绿(78 套件;网络套件默认 skip)
 npm run build:web         # 必须 exit 0
 npx playwright test       # 必须全绿(需本机 Chrome;~2.5 分钟)

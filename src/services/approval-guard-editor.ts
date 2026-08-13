@@ -1,10 +1,10 @@
 /**
- * The spending-cap editor's rules, in TypeScript — the NATIVE half of the
- * never-unlimited mandate.
- *
- * Hermes has no WebAssembly, so iOS/Android cannot run `approval_guard`
- * (`rust/crates/vela-core/src/app/approval_guard.rs`). These functions are its
- * line-for-line twin for the editor: which editor a detected approval mounts
+ * The spending-cap editor's rules, in TypeScript — the half of the
+ * never-unlimited mandate written for the retired Expo-native path (Hermes had
+ * no WebAssembly), due to go with the rest of the native-only code. These
+ * functions are `approval_guard`'s
+ * (`rust/crates/vela-core/src/app/approval_guard.rs`) line-for-line twin for
+ * the editor: which editor a detected approval mounts
  * with, what a preset press re-seeds, and — the one that matters — the mode →
  * choice derivation, where `choice === null` is what keeps the confirm control
  * disabled.

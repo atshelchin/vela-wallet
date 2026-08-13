@@ -61,5 +61,5 @@ Entered from Create Wallet (C02). Copy avoids "backup your phrase" language enti
 ## 10. Source anchors
 
 - `src/modules/passkey/index.ts` — WebAuthn registration + rpId.
-- `src/services/attestation-parser.ts:23-45` — COSE key extraction; `src/services/webauthn-verify.ts:29-65` — compatibility check.
+- `rust/crates/vela-core/src/webauthn.rs` — COSE key extraction + compatibility check (via the `vela-core` facade).
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 1, 3, 46, 48.

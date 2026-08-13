@@ -3,14 +3,14 @@
  *
  * `AddTokenPanel` reached `/add-token` and the Send screen's token sheet, and
  * it called `checkNetworkCompatibility` (AddTokenPanel.tsx:87) and
- * `saveCustomNetwork` (:103) itself. It has no `.web` fork, so on web those ran
+ * `saveCustomNetwork` (:103) itself. It had no platform fork, so those ran
  * beside the `network_admin` core that the Settings wizard and the EIP-681 scan
  * path already went through: a second implementation of "may this chain enter
  * the wallet", with its own dedup, its own candidate assembly and no shared
  * ledger. A chain the core would have refused could be added here.
  *
- * The tab's logic now lives in the `use-add-network-tab` pair — TypeScript on
- * native (Hermes has no wasm, FR-202), the core on web. This test is what keeps
+ * The tab's logic now lives in `use-add-network-tab`, on the core. This test
+ * is what keeps
  * a future edit from quietly putting a writer back into the component: a
  * component that has no platform fork must not name the TypeScript checker or
  * the TypeScript network saver at all.

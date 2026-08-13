@@ -5,7 +5,7 @@
 //     every web RPC call: a `range_cap` verdict means "request-specific, keep
 //     the endpoint healthy", anything else routes into ban / failover / answer.
 //   • TypeScript — `getLogsRangeCap` (`rpc-pool-endpoints.ts:213`), still called
-//     by `token-trust-executor.web.ts:140` to turn the SAME error object into
+//     by `token-trust-executor.ts:140` to turn the SAME error object into
 //     the `token_trust` core's `RangeCapped{cap}` / `Failed` axis, because
 //     `poolRpcCall` hands the caller the raw body and not the core's verdict.
 //
@@ -80,7 +80,7 @@ function jsonResponse(body: object, status = 200) {
   };
 }
 
-/** A fresh core per scenario, with the minimum registry `rpc-pool.web.ts` provides. */
+/** A fresh core per scenario, with the minimum registry `rpc-pool.ts` provides. */
 function open() {
   const faults: unknown[] = [];
   let view: RpcPoolView = { failed_chains: [], rate_limited_chains: [], banned: [] };
@@ -220,7 +220,7 @@ describe('eth_getLogs range-cap wording: the Rust pool vs the TypeScript classif
       const core = await coreVerdict(error);
       const ts = getLogsRangeCap(error);
       // Stated as booleans as well as numbers: this is the branch
-      // `token-trust-executor.web.ts:146` takes (`RangeCapped` vs `Failed`),
+      // `token-trust-executor.ts:146` takes (`RangeCapped` vs `Failed`),
       // and it is the one that decides whether a received token is scanned for
       // at all.
       expect([name, core !== null]).toEqual([name, ts !== null]);
@@ -250,7 +250,7 @@ describe('the seam that keeps both copies reachable', () => {
   test('a range cap resolves the caller with the raw body, so the TS half still has to classify', async () => {
     // This is WHY the duplication exists rather than being deleted: the pool's
     // verdict carries `max_span`, but `poolRpcCall` resolves with the endpoint
-    // body, so `token-trust-executor.web.ts` only ever sees `error` again.
+    // body, so `token-trust-executor.ts` only ever sees `error` again.
     const seeds = await collectRpcUrls(CHAIN, NEVER_BANNED);
     const error: RpcError = { code: -32000, message: 'eth_getLogs is limited to a 1000 block range' };
     mockFetch.mockResolvedValue(jsonResponse({ jsonrpc: '2.0', id: 1, error }));

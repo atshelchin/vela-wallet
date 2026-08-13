@@ -15,7 +15,7 @@
 //     the operation's result; they are dispatched separately, and a sink wired
 //     to the wrong session would simply never arrive.
 //   - The classification snapshot taken at settle. `rate_limited_chain_ids` now
-//     comes from the rpc_pool machine's view (`rpc-pool.web.ts`), and the whole
+//     comes from the rpc_pool machine's view (`rpc-pool.ts`), and the whole
 //     point of it is that the "fix your RPC" banner stays quiet for a limit that
 //     lifts on its own.
 //
@@ -42,10 +42,9 @@ jest.mock('@/services/wallet-api', () => ({
   fetchTokens: (...args: unknown[]) => fetchTokensMock(...args),
 }));
 
-// Load-bearing, and easy to get wrong: jest lists no `.web.ts` in
-// `moduleFileExtensions`, so a bare `@/services/vela-core` resolves the NATIVE
-// index and the wasm is never initialized. Importing the web entry by explicit
-// path first runs `initSync` on the planted bytes.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { toApiToken } from '@/services/wallet-state-core/balance-executor';
 import * as resident from '@/services/wallet-state-core/balance-resident';
@@ -341,7 +340,7 @@ describe('balance_dashboard core (web shell)', () => {
     expect(h.latest().display_total_usd).toBeNull();
     // The core's `WritePrivacy` is the ONE writer of this byte on web; the three
     // other masking surfaces (holdings, balance detail, switcher) read `hidden`
-    // off this same view through `use-balance-privacy.web.ts`.
+    // off this same view through `use-balance-privacy.ts`.
     expect(mockStorage.get(PRIVACY_KEY)).toBe('1');
 
     // A hydrate that lands after the tap must not undo it.

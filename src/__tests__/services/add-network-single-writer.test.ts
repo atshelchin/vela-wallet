@@ -47,10 +47,10 @@ describe('one add-network implementation per platform', () => {
 
   test('nothing outside the controller and its own module writes custom networks', () => {
     // `services/add-network.ts` is the scan path; `storage.ts` defines the writer.
-    // The controller used to be on this list; it now asks the core instead,
-    // which the sibling test above pins. What is left is the scan path and the
-    // writer itself.
-    const writers = ['services/add-network.ts', 'services/storage.ts'];
+    // Both the controller and the scan path used to be on this list; both ask
+    // the core now, which the sibling test above pins. `storage.ts` is the only
+    // module left that writes a custom network, which is the whole point.
+    const writers = ['services/storage.ts'];
     for (const file of writers) expect(code(read(file))).toMatch(/saveCustomNetwork/);
   });
 });

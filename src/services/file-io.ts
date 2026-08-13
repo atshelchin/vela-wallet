@@ -1,7 +1,9 @@
 /**
- * file-io (web) — DOM implementation of the file pick/save surface. Pick uses a
+ * file-io — DOM implementation of the file pick/save surface. Pick uses a
  * transient hidden <input type=file> (Playwright can drive it via setInputFiles);
- * save streams a Blob through a download anchor. Mirrors `file-io.ts` exactly.
+ * save streams a Blob through a download anchor. The Android SAF / iOS
+ * share-sheet half of what used to be a platform pair retired with the Expo
+ * native path; this is the whole surface now.
  */
 export interface PickedFile {
   name: string;

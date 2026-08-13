@@ -24,6 +24,22 @@ export const GET: RequestHandler = async () => {
 					'BE:1E:CA:F3:B4:69:20:3F:37:7F:6A:7F:C3:63:2E:86:D5:ED:7D:3E:C8:16:82:CA:C5:6C:94:6E:D1:78:99:21'
 				]
 			}
+		},
+		{
+			// Passkey 调试台 (app-passkeys-demo). Lets methods 1 & 2 (system Credential
+			// Manager) use rpId=getvela.app without "RP ID cannot be validated".
+			relation: [
+				'delegate_permission/common.handle_all_urls',
+				'delegate_permission/common.get_login_creds'
+			],
+			target: {
+				namespace: 'android_app',
+				package_name: 'app.getvela.app_passkeys_demo',
+				sha256_cert_fingerprints: [
+					// Debug keystore (~/.android/debug.keystore) that signs app-debug.apk
+					'24:EA:D0:02:B2:AD:B1:D1:B4:9E:FC:B9:63:EB:9E:BC:22:60:76:6E:A5:0C:0B:57:BA:D3:DD:78:1B:0A:4A:B0'
+				]
+			}
 		}
 	]);
 };

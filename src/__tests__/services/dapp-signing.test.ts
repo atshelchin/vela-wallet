@@ -14,8 +14,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 jest.mock('@/modules/passkey', () => ({}));
 
 import { isSigningMethod, extractRequestChainId, resolveChainId, pickTypedDataParam } from '@/hooks/use-dapp-signing';
-import { keccak256 } from '@/services/eth-crypto';
-import { fromHex, toHex } from '@/services/hex';
+import { keccak256 } from '@/services/vela-core';
+import { fromHex, toHex } from '@/services/vela-core';
 
 function computePersonalSignHash(msgBytes: Uint8Array): Uint8Array {
   const prefix = new TextEncoder().encode(`\x19Ethereum Signed Message:\n${msgBytes.length}`);

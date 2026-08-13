@@ -36,7 +36,7 @@ import {
   INSTANT_READONLY_METHODS,
   isSigningMethod,
 } from '@/hooks/use-dapp-signing';
-import { SAFE_PROXY_RUNTIME_CODE } from '@/services/safe-address';
+import { SAFE_PROXY_RUNTIME_CODE } from '@/services/vela-core';
 
 const OWN = '0xAccount0000000000000000000000000000000001';
 const CHAIN = 137;

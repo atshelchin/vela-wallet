@@ -37,7 +37,7 @@ jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
 const mockFetch = jest.fn();
 global.fetch = mockFetch as any;
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
 import { getChainRpcUrl, poolBundlerCall, poolRpcCall, refreshPool } from '@/services/rpc-pool.web';
 import { collectRpcUrls, NEVER_BANNED } from '@/services/rpc-pool-endpoints';

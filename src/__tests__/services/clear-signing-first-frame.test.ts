@@ -42,7 +42,7 @@ jest.mock('@/services/storage', () => ({
 // Load-bearing (see clear-signing-core.test.ts): jest lists no `.web.ts` in
 // `moduleFileExtensions`, so the web entry has to be imported by explicit path
 // for `initSync` to run before a core is constructed.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { executeClearOperation } from '@/services/wallet-state-core/clear-executor.web';
 import { createClearSigningSession } from '@/services/wallet-state-core/clear-session.web';
 import type { ClearSigningEvent } from '@/services/wallet-state-core/generated/ClearSigningEvent';

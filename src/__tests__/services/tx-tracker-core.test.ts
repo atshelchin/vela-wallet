@@ -42,7 +42,7 @@ jest.mock('@/services/rpc-adapter', () => ({
 // Load-bearing (see browser-history-core.test.ts): jest lists no `.web.ts` in
 // `moduleFileExtensions`, so the web entry must be imported by explicit path
 // for `initSync` to run on the planted wasm bytes before the core is built.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { loadTransactions, saveTransactions, type LocalTransaction } from '@/services/storage';
 import { _resetUserOpReceiptPollCache } from '@/services/tx-reconciler';
 import { createTxTrackerSession } from '@/services/wallet-state-core/tx-tracker-session.web';

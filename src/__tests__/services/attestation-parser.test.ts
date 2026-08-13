@@ -2,8 +2,8 @@
  * Tests for attestation parser — DER signature conversion and CBOR parsing.
  * Test vectors match iOS AttestationParser tests.
  */
-import { derSignatureToRaw, extractPublicKey } from '@/services/attestation-parser';
-import { toHex, fromHex } from '@/services/hex';
+import { derSignatureToRaw, extractPublicKey } from '@/services/vela-core';
+import { toHex, fromHex } from '@/services/vela-core';
 
 describe('derSignatureToRaw', () => {
   test('converts standard DER signature to raw 64 bytes', () => {

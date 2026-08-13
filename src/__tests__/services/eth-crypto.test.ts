@@ -2,8 +2,8 @@
  * Tests for EthCrypto — Keccak-256, ABI encoding, EIP-55 checksums.
  * Test vectors match iOS EthCryptoTests.swift and Android EthCryptoTest.kt.
  */
-import { keccak256, keccak256Hex, abiEncodeAddress, abiEncodeUint256, abiEncodeUint256Hex, abiEncodeBytes32, functionSelector, checksumAddress, create2Address } from '@/services/eth-crypto';
-import { toHex, fromHex } from '@/services/hex';
+import { keccak256, keccak256Hex, abiEncodeAddress, abiEncodeUint256, abiEncodeUint256Hex, abiEncodeBytes32, functionSelector, checksumAddress, create2Address } from '@/services/vela-core';
+import { toHex, fromHex } from '@/services/vela-core';
 
 // MARK: - Keccak-256
 

@@ -58,7 +58,7 @@ jest.mock('@/services/tx-simulation', () => ({
   serializeAssetSim: (sim: unknown) => sim,
 }));
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
 // The exact pair `ConfirmStep` used to call, and that native still calls.

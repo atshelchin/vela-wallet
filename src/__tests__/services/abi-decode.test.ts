@@ -10,7 +10,7 @@ import {
   computeSelector,
   decodeCalldata,
   matchSelector,
-} from '@/services/abi-decode';
+} from '@/services/vela-core';
 
 // ---------------------------------------------------------------------------
 // Signature parsing

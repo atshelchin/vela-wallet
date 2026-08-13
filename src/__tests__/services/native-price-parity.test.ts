@@ -20,7 +20,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
 import {
   DEFAULT_QUOTE_DECIMALS,

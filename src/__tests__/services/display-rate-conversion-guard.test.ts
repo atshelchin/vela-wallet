@@ -79,7 +79,7 @@ jest.mock('@/services/wallet-state-core/session', () =>
 );
 
 // Initialise the wasm module before the resident session constructs a core.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import {
   ensureDisplayCurrency,
   subscribeDisplayCurrency,

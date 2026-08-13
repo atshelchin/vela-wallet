@@ -46,7 +46,7 @@ jest.mock('@/services/wallet-state-core/sign-resident.web', () => ({
   setSignTrackerSink: (sink: unknown) => signSink(sink),
 }));
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { _resetUserOpReceiptPollCache } from '@/services/tx-reconciler';
 import {
   dispatchTxTracker,

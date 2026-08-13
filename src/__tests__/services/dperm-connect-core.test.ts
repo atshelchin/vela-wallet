@@ -34,7 +34,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { planPopupConnect, popupCloseSettlement } from '@/services/wallet-state-core/dperm-connect.web';
 import { decidePopupRequest } from '@/services/wallet-state-core/dperm-popup.web';
 import { dpermRejectMessage, toWireGrant } from '@/services/wallet-state-core/dperm-types';

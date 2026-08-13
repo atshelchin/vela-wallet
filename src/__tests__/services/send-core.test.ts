@@ -170,7 +170,7 @@ jest.mock('@/services/platform', () => ({
 // `moduleFileExtensions`, so a bare `@/services/vela-core` resolves the NATIVE
 // index and the wasm is never initialized. Importing the web entry by explicit
 // path first runs `initSync` on the planted bytes.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
 import { loadTransactions } from '@/services/storage';

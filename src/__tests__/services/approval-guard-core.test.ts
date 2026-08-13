@@ -30,7 +30,7 @@ jest.mock('@/services/token-reads', () => ({
 // index and the wasm is never initialized (metro resolves the same specifier
 // to `index.web.ts`, which is why the session module imports it bare).
 // Importing the web entry by explicit path first runs `initSync`.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { createApprovalGuardSession } from '@/services/wallet-state-core/guard-session.web';
 import type { GuardView } from '@/services/wallet-state-core/generated/GuardView';
 

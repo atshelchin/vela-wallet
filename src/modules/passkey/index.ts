@@ -269,7 +269,7 @@ async function webRegister(userName: string): Promise<PasskeyRegistrationResult>
           { type: 'public-key', alg: -7 },
         ],
         authenticatorSelection: {
-          authenticatorAttachment: 'platform',
+          // authenticatorAttachment: 'platform',
           residentKey: 'required',
           // WebAuthn L2 §5.4.4: RPs SHOULD set this iff residentKey is
           // 'required'. Clients that only honor the L1 boolean would otherwise

@@ -43,7 +43,7 @@ jest.mock('@/services/wallet-state-core/contacts-session', () =>
 
 // Same reason as every other core test: the wasm only initialises through the
 // explicit web entry, which jest will not pick by extension.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { saveContactThroughCore } from '@/hooks/use-contacts-book.web';
 import { savedContactFor } from '@/services/saved-contact.web';
 

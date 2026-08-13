@@ -87,7 +87,7 @@ jest.mock('@/services/wallet-state-core/session-resident.web', () => ({
 // Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
 // `@/services/vela-core` resolves the NATIVE index and the wasm is never
 // initialized. Importing the web entry by explicit path runs `initSync` first.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import {
   bindSignRequest,
   dispatchSign,

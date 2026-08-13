@@ -37,7 +37,7 @@ jest.mock('@/services/storage', () => ({
   getEthereumDataURL: () => 'https://data.example',
 }));
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { isPossibleDisguisedTransaction } from '@/services/decode-sign-message';
 import { createClearSigningSession } from '@/services/wallet-state-core/clear-session.web';
 import type { ClearMessageView } from '@/services/wallet-state-core/generated/ClearMessageView';

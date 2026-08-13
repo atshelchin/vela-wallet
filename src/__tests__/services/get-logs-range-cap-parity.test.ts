@@ -57,7 +57,7 @@ global.fetch = mockFetch as unknown as typeof fetch;
 
 // The wasm only initialises through the explicit web entry (same reason as
 // every other core test).
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
 import {
   collectRpcUrls,

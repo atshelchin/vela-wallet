@@ -63,9 +63,9 @@ jest.mock('@/services/rpc-adapter', () => ({
 
 import { handlePersonalSign, handleSignTypedData, handleGenericSign, isSigningMethod } from '@/hooks/use-dapp-signing';
 import { extractClientDataFields, buildEip1271Signature, computeSafeMessageHash } from '@/services/safe-transaction';
-import { derSignatureToRaw } from '@/services/attestation-parser';
-import { fromHex, toHex } from '@/services/hex';
-import { keccak256 } from '@/services/eth-crypto';
+import { derSignatureToRaw } from '@/services/vela-core';
+import { fromHex, toHex } from '@/services/vela-core';
+import { keccak256 } from '@/services/vela-core';
 import type { Account } from '@/models/types';
 
 const SAFE_ADDRESS = '0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c';

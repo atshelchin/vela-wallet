@@ -18,7 +18,7 @@
  * transcribed into a snapshot someone could regenerate without looking at the
  * other side.
  */
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { PaymentRequestCore } from '../../../rust/pkg-web/vela_core.js';
 
 import { buildEIP681, buildPayLink, toBaseUnits, parseEIP681 } from '@/services/eip681';

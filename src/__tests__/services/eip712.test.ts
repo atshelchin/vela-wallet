@@ -2,8 +2,8 @@
  * Tests for EIP-712 Typed Data Hashing.
  * Validates against the example from EIP-712 specification.
  */
-import { hashTypedData, type TypedData } from '@/services/eip712';
-import { toHex } from '@/services/hex';
+import { hashTypedData, type TypedData } from '@/services/vela-core';
+import { toHex } from '@/services/vela-core';
 
 describe('EIP-712', () => {
   // The canonical EIP-712 example from the spec

@@ -30,7 +30,7 @@ import {
 } from '@/services/public-key-upload';
 import * as PublicKeyIndex from '@/services/public-key-index';
 import { loadPendingUploads, removePendingUpload } from '@/services/storage';
-import { toHex } from '@/services/hex';
+import { toHex } from '@/services/vela-core';
 
 const createRecord = PublicKeyIndex.createRecord as jest.Mock;
 const queryRecord = PublicKeyIndex.queryRecord as jest.Mock;

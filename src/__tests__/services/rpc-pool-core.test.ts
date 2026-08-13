@@ -57,7 +57,7 @@ global.fetch = mockFetch as any;
 // index and the wasm is never initialized (metro resolves the same specifier to
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
 import { collectRpcUrls, NEVER_BANNED, type RPCResponse } from '@/services/rpc-pool-endpoints';
 import { createRpcPoolSession } from '@/services/wallet-state-core/rpc-pool-session.web';

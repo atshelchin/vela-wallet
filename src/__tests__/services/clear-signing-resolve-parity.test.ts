@@ -31,7 +31,7 @@ jest.mock('@/services/storage', () => ({
   getEthereumDataURL: () => 'https://data.example',
 }));
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import {
   clearDescriptorCache,
   clearTokenStandardCache,

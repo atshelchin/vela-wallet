@@ -38,7 +38,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   }),
 }));
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 // The REAL native builders — the ones `use-receive-request.ts` calls.
 import { buildEIP681, buildPayLink } from '@/services/eip681';
 import { createPaymentRequestSession } from '@/services/wallet-state-core/session.web';

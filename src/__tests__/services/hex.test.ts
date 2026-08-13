@@ -1,7 +1,7 @@
 /**
  * Tests for hex encoding/decoding utilities.
  */
-import { toHex, fromHex, addHexPrefix, stripHexPrefix, concatBytes, toBase64Url, fromBase64Url, toQuantity } from '@/services/hex';
+import { toHex, fromHex, addHexPrefix, stripHexPrefix, concatBytes, toBase64Url, fromBase64Url, toQuantity } from '@/services/vela-core';
 
 describe('toHex', () => {
   test('empty array → empty string', () => {

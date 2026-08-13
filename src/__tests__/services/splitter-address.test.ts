@@ -12,9 +12,9 @@ import {
   VELA_SPLITTER_SALT,
   computeSplitterAddress,
   encodeSplitterDeployCall,
-} from '@/services/safe-address';
-import { abiEncodeAddress, create2Address, keccak256 } from '@/services/eth-crypto';
-import { concatBytes, fromHex, toHex } from '@/services/hex';
+} from '@/services/vela-core';
+import { abiEncodeAddress, create2Address, keccak256 } from '@/services/vela-core';
+import { concatBytes, fromHex, toHex } from '@/services/vela-core';
 
 const TREASURY_A = '0x1111111111111111111111111111111111111111';
 const SPLITTER_A = '0x3979be163bFb74Dce66F8E0839577807C2197226';

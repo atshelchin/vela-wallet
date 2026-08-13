@@ -2,9 +2,9 @@
  * Tests for Safe address computation.
  * Test vectors match iOS SafeAddressTests.swift and Android SafeAddressComputerTest.kt.
  */
-import { computeAddress, parsePublicKey, calculateSaltNonce, encodeSetupData, SAFE_PROXY_RUNTIME_CODE, PROXY_CREATION_CODE } from '@/services/safe-address';
-import { keccak256 } from '@/services/eth-crypto';
-import { toHex } from '@/services/hex';
+import { computeAddress, parsePublicKey, calculateSaltNonce, encodeSetupData, SAFE_PROXY_RUNTIME_CODE, PROXY_CREATION_CODE } from '@/services/vela-core';
+import { keccak256 } from '@/services/vela-core';
+import { toHex } from '@/services/vela-core';
 
 // Test public key (matches iOS/Android test vectors)
 const TEST_PUBLIC_KEY = '04a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90b1c2d3e4f50617283940a1b2c3d4e5f6b1c2d3e4f50617283940a1b2c3d4e5f6';

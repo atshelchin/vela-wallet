@@ -13,7 +13,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-import { identiconSvgCircular, normalizeIdenticonSeed } from '@/services/identicon';
+import { identiconSvgCircular, normalizeIdenticonSeed } from '@/services/vela-core';
 
 interface VectorCase {
   name: string;

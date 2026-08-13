@@ -62,7 +62,7 @@ jest.mock('@/services/wallet-state-core/contacts-session', () =>
 );
 
 // The wasm only initialises through the explicit web entry.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
 import { createContactsSession } from '@/services/wallet-state-core/contacts-session.web';
 import type { ContactsView } from '@/services/wallet-state-core/generated/ContactsView';

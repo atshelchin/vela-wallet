@@ -31,7 +31,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // index and the wasm is never initialized (metro resolves the same specifier to
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
-import { computeAddress } from '@/services/vela-core/index.web';
+import { computeAddress } from '@/services/vela-core';
 import { createWalletSession } from '@/services/wallet-state-core/session-session.web';
 import * as resident from '@/services/wallet-state-core/session-resident.web';
 import type { SessionView } from '@/services/wallet-state-core/generated/SessionView';

@@ -1,10 +1,10 @@
 /**
  * Platform-neutral types for the onboarding cores.
  *
- * Separate from `executor.web.ts` on purpose: the native stub (`session.ts`)
- * needs these declarations, and importing them from a `.web` module would drag
- * the web-only service graph into the native bundle — where the wasm cannot
- * load at all.
+ * Separate from `executor.ts` on purpose: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  */
 
 import type { CompletionMode } from './generated/CompletionMode';

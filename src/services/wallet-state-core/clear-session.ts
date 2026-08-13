@@ -14,8 +14,6 @@
  * re-fetches a descriptor its sibling leg already had. That costs a request; it
  * cannot change a verdict, because every cached fact is a definitive one the
  * core would re-derive identically.
- *
- * `clear-session.ts` is the native counterpart and throws.
  */
 
 import '@/services/vela-core';

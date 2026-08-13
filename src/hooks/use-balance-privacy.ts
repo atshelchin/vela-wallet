@@ -2,11 +2,9 @@
  * useBalancePrivacy — WEB. A mirror of `balance_dashboard`'s `hidden`, and
  * nothing else.
  *
- * `use-balance-privacy.ts` is the native counterpart: on Hermes there is no
- * wasm, so that module keeps the whole model — the persisted byte, the
- * first-write-wins hydrate race, the in-memory flag. On web all three belong to
- * the core (`balance_dashboard.rs`: `privacy_touched`, `Event::PrivacyToggled`,
- * `Event::PrivacyHydrated`), and `balance-resident.web.ts` performs the ONE
+ * The whole model — the persisted byte, the first-write-wins hydrate race,
+ * the in-memory flag — belongs to the core (`balance_dashboard.rs`: `privacy_touched`, `Event::PrivacyToggled`,
+ * `Event::PrivacyHydrated`), and `balance-resident.ts` performs the ONE
  * boot-time read that feeds it.
  *
  * Before this split the web app hydrated twice — once into the core, once into
@@ -34,10 +32,10 @@ import { BALANCE_PRIVACY_KEY } from '@/services/wallet-state-core/balance-types'
 /**
  * Persist the byte without going through the core.
  *
- * Kept only because the native module exports it and the platform pair must
- * agree on a shape; on web the core's `WritePrivacy` operation is the writer and
- * calls straight into AsyncStorage, so nothing in the app calls this. It writes
- * the same key, so a caller that appears later cannot invent a second one.
+ * Kept from the retired platform pair's shared shape; the core's
+ * `WritePrivacy` operation is the writer and calls straight into AsyncStorage,
+ * so nothing in the app calls this. It writes the same key, so a caller that
+ * appears later cannot invent a second one.
  */
 export function setBalanceHidden(next: boolean): void {
   AsyncStorage.setItem(BALANCE_PRIVACY_KEY, next ? '1' : '0').catch(() => {});

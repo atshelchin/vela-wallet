@@ -2,9 +2,8 @@
  * The approval-detection + spending-cap-editor controller, as the signing
  * components see it (spec 017, audit items ⑪–⑳).
  *
- * Platform-neutral on purpose: `use-approval-guard.web.ts` projects the Rust
- * `approval_guard` machine into this shape and `use-approval-guard.ts`
- * reproduces it on Hermes (no WebAssembly there), so `SigningSheet`,
+ * `use-approval-guard.ts` projects the Rust `approval_guard` machine into
+ * this shape, so `SigningSheet`,
  * `ApprovalView`, `PermitSignView`, `BatchCallsView` and
  * `EditableApproveCard` render ONE shape and decide nothing.
  *

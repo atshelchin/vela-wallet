@@ -5,7 +5,7 @@
  * root-level `<SigningRequestModal>`, a Safari-extension sign arrives while the
  * user is anywhere in the app, and the same-session settled-rid registry (⑧: a
  * rid never signs twice) must survive navigation. So the core is a module-level
- * singleton, the `session-resident.web.ts` pattern.
+ * singleton, the `session-resident.ts` pattern.
  *
  * Three things this module owes its consumers:
  *
@@ -18,13 +18,12 @@
  *   network round trips. The effect loop commits a view after every dispatch
  *   AND every effect resolution, so equal views are dropped here and the
  *   projected request/funding objects are rebuilt only when they actually
- *   changed (`session-resident.web.ts`'s account-array rule, same reason).
+ *   changed (`session-resident.ts`'s account-array rule, same reason).
  * - **A first frame identical to today's.** `INITIAL_VIEW` mirrors the core's
  *   pristine projection: no request, nothing signing, no error.
  *
- * Imported by explicit `.web` specifier on every side: `tsc` resolves a
- * `.web.ts` file's own imports to the base `.ts` variant, so a bare specifier
- * would type-check against a native module that does not exist.
+ * (In the platform-pair days this file had to be imported by explicit `.web`
+ * specifier — a relic the pair collapse removed; imports are bare now.)
  */
 
 import { createSignRequestSession } from '@/services/wallet-state-core/sign-session';

@@ -2,9 +2,10 @@
  * Platform-neutral types and wire codecs for the `clear_signing` core (spec
  * 017 — `rust/crates/vela-core/src/app/clear_signing.rs`).
  *
- * Standalone for the reason `send-types.ts` states: the native stub
- * (`clear-session.ts`) needs these declarations, and importing them from a
- * `.web` module would drag the web-only service graph into the native bundle.
+ * Standalone for the reason `send-types.ts` states: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  *
  * What lives here is ONLY translation, never judgment:
  *

@@ -9,10 +9,10 @@
  * only when the source threw — the sheet's "Rate unavailable — enter one
  * manually" hint was dead UI for the case it exists for. `resolveRate` keeps
  * the `null`, which is the observation the core classifies (the same choice
- * `executors.web.ts::resolve_rate` already made for the display currency).
+ * `executors.ts::resolve_rate` already made for the display currency).
  *
  * This drives the REAL Rust core through the real web session. Swap
- * `resolveRate` back to `getRate` in `batch-import-executor.web.ts` and the
+ * `resolveRate` back to `getRate` in `batch-import-executor.ts` and the
  * unpriceable case flips from `failed` to `ok` — three assertions below go red.
  *
  * The gap this file used to pin as KNOWN is now CLOSED. `Failed` blocks Apply:

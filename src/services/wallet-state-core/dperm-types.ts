@@ -2,9 +2,11 @@
  * Platform-neutral types and copy for the `dapp_permissions` core (spec 017,
  * group G11).
  *
- * Standalone for the reason `sign-types.ts` states: the native stub
- * (`dperm-popup.ts`) needs these declarations, and importing them from a `.web`
- * module would drag the web-only wasm graph into the native bundle.
+ * Standalone for the reason `sign-types.ts` states:
+ * the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  */
 
 import type { DpermGrant } from './generated/DpermGrant';

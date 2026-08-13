@@ -20,7 +20,7 @@
  *
  * Every INPUT is already owned somewhere else, and none of it is decided here:
  *   - "is this a saved contact" → `savedContactFor`, which on web is the
- *     `contacts` Rust ledger (`saved-contact.web.ts` → the one resident session)
+ *     `contacts` Rust ledger (`saved-contact.ts` → the one resident session)
  *     and on native the TypeScript address book. What counts as saved, the
  *     lower-cased key and the deletion tombstones are all the core's.
  *   - "is this a Vela account" / "does it have a name" → the recipient-identity

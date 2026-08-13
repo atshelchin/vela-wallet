@@ -1,11 +1,11 @@
 /**
  * The shapes the Receive/Pay controllers return on every platform.
  *
- * A standalone module for the same reason `onboarding-controller-types.ts` is
- * one: a platform pair (`use-x.ts` / `use-x.web.ts`) must never import its own
- * base file — on web, Metro resolves that specifier back to the `.web.ts`
- * variant itself, and a self-referential re-export recurses at module init.
- * Both variants import from here instead.
+ * A standalone module from the days this controller was a platform pair:
+ * the pair could not import its own base file (Metro resolved it back to
+ * the `.web.ts` half and recursed at module init), so both halves imported
+ * from here. The pair is gone; the module stays as the one place the
+ * contract the screens compile against is declared.
  */
 
 // ---------------------------------------------------------------------------

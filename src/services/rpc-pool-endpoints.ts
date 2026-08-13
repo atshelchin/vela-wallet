@@ -2,11 +2,9 @@
  * Endpoint COLLECTION and the shell-side pure helpers of the RPC pool — the
  * half that is identical on every platform (spec 017, group G8).
  *
- * Split out of `rpc-pool.ts` so the web twin (`rpc-pool.web.ts`, which routes
- * every call through the Rust `rpc_pool` core) and the native implementation
- * can share ONE copy. A `.web.ts` must never value-import its own base file —
- * metro resolves that specifier back to the `.web` module and the app dies in
- * an import cycle — so anything both halves need lives here instead.
+ * Split out of `rpc-pool.ts` in the platform-pair days so the two halves
+ * could share one copy. The pair is gone; the split stays because everything
+ * here is pure and has importers of its own.
  *
  * What is here is deliberately *not* decision-making: building each chain's
  * candidate list from config, probing a single URL, parsing a provider's

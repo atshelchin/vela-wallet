@@ -97,7 +97,7 @@ export function useExtCache(input: ExtCacheInputs): void {
     session.current = loop;
     // The session machine's `ClearExtensionCache` operation lands as this
     // core's `session_ended`. Registered rather than imported so the two cores
-    // stay unaware of each other; see `session-ext-cache-bridge.web.ts` for why
+    // stay unaware of each other; see `session-ext-cache-bridge.ts` for why
     // nothing emits it today.
     registerExtCacheEnder(() => loop.dispatch({ type: 'session_ended' }));
     return () => {

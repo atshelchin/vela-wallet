@@ -23,7 +23,7 @@
  * - **`prefetchForSend` cache warming** is the shell's (the core says so); it
  *   runs from the controller on token selection, not from an operation.
  * - **The `tx_tracker` seam.** `TrackSubmitted` is the hand-off point, and on web
- *   it is now taken: `useSendController.web.ts` installs a sink before it builds
+ *   it is now taken: `useSendController.ts` installs a sink before it builds
  *   the session, so the receipt wait below is the NO-SINK path only (a session
  *   built without one — the send core's own test harness). See
  *   `setSendTrackerSink`.
@@ -74,7 +74,7 @@ import {
  * (invariant ⑥'s ordering half), carrying the op hash, the record ids it belongs
  * to and the chain. Deciding what happens to that op next — the receipt poll,
  * the record patch on a dropped op, the reconcile — is `tx_tracker`'s job, and
- * `useSendController.web.ts` installs the sink that gives it to that machine:
+ * `useSendController.ts` installs the sink that gives it to that machine:
  *
  * ```ts
  * setSendTrackerSink((handoff) => trackSubmitted(
@@ -110,7 +110,7 @@ export function setSendTrackerSink(sink: ((handoff: SendTrackerHandoff) => void)
   trackerSink = sink;
 }
 
-// The 'fast' tier moved with the quote: `use-fee-quote.web.ts` states it once,
+// The 'fast' tier moved with the quote: `use-fee-quote.ts` states it once,
 // for both surfaces, where the `QuoteRequested` that carries it is built.
 
 /** The chain registry snapshot the core validates locked requests against. */

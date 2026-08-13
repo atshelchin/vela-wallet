@@ -1,9 +1,9 @@
 /**
  * DRIFT GATE for the index-upload decision table, which exists TWICE.
  *
- * Web onboarding runs `create_wallet.rs`'s `Syncing` machine. iOS/Android
- * cannot (Hermes has no WebAssembly) and run `services/public-key-upload.ts` —
- * and so does WEB, on every cold start: `_layout.tsx` calls
+ * Onboarding runs `create_wallet.rs`'s `Syncing` machine — and
+ * `services/public-key-upload.ts` still runs TOO, on every cold start:
+ * `_layout.tsx` calls
  * `retryPendingUploads()` unconditionally, which re-walks the whole table in
  * TypeScript for every entry the core left pending. The core's machine only
  * covers the one run that created the wallet; every retry after that is this

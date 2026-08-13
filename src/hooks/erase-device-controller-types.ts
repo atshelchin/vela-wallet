@@ -1,11 +1,11 @@
 /**
  * Shared shape for the "erase this device" controller pair (spec 017).
  *
- * A standalone module for the same reason `session-controller-types.ts` is
- * one: a platform pair (`use-erase-device.ts` / `.web.ts`) must never
- * value-import its own base file — on web, Metro resolves that specifier back
- * to the `.web.ts` variant itself and the import recurses at module init.
- * Both variants import the shape from here.
+ * A standalone module from the days this controller was a platform pair:
+ * the pair could not import its own base file (Metro resolved it back to
+ * the `.web.ts` half and recursed at module init), so both halves imported
+ * from here. The pair is gone; the module stays as the one place the
+ * contract the screens compile against is declared.
  */
 
 /**

@@ -8,8 +8,7 @@
  * dedupe, the cap, the balance gate and the rate mirror are decided (and
  * tested) in Rust; the shell keeps the file picker, SheetJS, the rate source,
  * haptics and all locale formatting.
- *
- * The native twin (`use-batch-import.ts`) keeps the TypeScript implementation.
+
  */
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

@@ -5,9 +5,8 @@
  * wallet popup and hand it a request over `postMessage`. The Rust core has a
  * NEIGHBOURING rule — `dapp_permissions::is_insecure_public_origin` — that
  * decides whether an origin may SIGN in the native in-app browser. Two rules,
- * two subjects, no shared owner: the popup is web-only (Hermes has no wasm and
- * there is no popup transport on native), so neither can be deleted and neither
- * is a copy of the other.
+ * two subjects, no shared owner: neither is a copy of the other, so neither
+ * can be deleted.
  *
  * What MUST hold between them is containment, and that is what this asserts,
  * against the REAL core over the real wasm — not a TypeScript restatement of
@@ -22,7 +21,7 @@
  * mistaken for a fix.
  *
  * Load-bearing import order, same as `dperm-popup-core.test.ts`: jest lists no
- * `.web.ts` in `moduleFileExtensions`, so the web entry must be imported by
+ * `.ts` in `moduleFileExtensions`, so the web entry must be imported by
  * explicit path first to run `initSync` on the planted wasm bytes.
  */
 import '@/services/vela-core';

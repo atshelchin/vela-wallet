@@ -235,7 +235,7 @@ describe('fee_policy is wired into the web shell', () => {
     // non-busy view therefore answers EVERY first quote with "no fee", and the
     // `send` core reads that as a refused estimate and never reaches confirm.
     //
-    // `use-fee-quote.web.ts` judges a request against the view its own dispatch
+    // `use-fee-quote.ts` judges a request against the view its own dispatch
     // produced, never against this one. This test is what makes that reasoning
     // checkable: if `start` ever stops publishing a pre-dispatch view, the
     // guard becomes dead code and someone should know.

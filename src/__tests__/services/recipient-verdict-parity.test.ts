@@ -6,9 +6,8 @@
 //     `ContactRecipientView { saved, verified, display_name, is_contract,
 //     first_interaction }` on every `inspect_recipient`.
 //   • TypeScript — `getSavedContact` (`services/contacts.ts:253`) +
-//     `resolveRecipientRisk` (`services/recipient-risk.ts:75`), which is what
-//     iOS/Android run (Hermes has no WebAssembly) and what the web shell still
-//     calls for the wallet-vs-contract half (`ContractBar.tsx:66`,
+//     `resolveRecipientRisk` (`services/recipient-risk.ts:75`), which the
+//     shell still calls for the wallet-vs-contract half (`ContractBar.tsx:66`,
 //     `useSendController.ts:569`).
 //
 // Neither copy can be deleted, so what has to be prevented is DRIFT. Each field

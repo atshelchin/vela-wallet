@@ -112,10 +112,9 @@ jest.mock('@/hooks/use-dapp-signing', () => ({
   },
 }));
 
-// Load-bearing, and easy to get wrong: jest lists no `.web.ts` in
-// `moduleFileExtensions`, so a bare `@/services/vela-core` resolves the NATIVE
-// index and the wasm is never initialized. Importing the web entry by explicit
-// path first runs `initSync` on the planted bytes.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { createSignRequestSession } from '@/services/wallet-state-core/sign-session';
 import { loadTransactions, type LocalTransaction } from '@/services/storage';

@@ -4,8 +4,7 @@
  * `rust/crates/vela-core/src/app/balance_dashboard.rs` and
  * `.../activity_feed.rs`).
  *
- * `useHomeController.ts` is the native counterpart and is untouched (FR-202).
- * This twin owns no product rules. Everything that decides *what number the hero
+ * This controller owns no product rules. Everything that decides *what number the hero
  * may show* — the streamed per-chain merge, `max(live, cached)`, the
  * complete-results-only cache write, the three silent force-retries before the
  * "still updating" notice, the rate-limited exclusion from the fix-your-RPC

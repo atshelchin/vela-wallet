@@ -1,12 +1,11 @@
 /**
  * useTxSettlement — WEB. A mirror of one `tx_tracker` entry, and nothing else.
  *
- * `use-tx-settlement.ts` is the native counterpart: on Hermes there is no wasm,
- * so that module keeps the whole poller — the 3 s loop, the 40/60 attempt
- * budget, the write-back. On web all three belong to the core
- * (`rust/crates/vela-core/src/app/tx_tracker.rs`), whose module doc names the
- * two surfaces this hook serves as pollers it *replaces*, and
- * `tx-tracker-resident.web.ts` is the one app-resident machine that runs it.
+ * The poller itself — the 3 s loop, the attempt budget, the write-back —
+ * belongs to the core (`rust/crates/vela-core/src/app/tx_tracker.rs`), whose
+ * module doc names the two surfaces this hook serves as pollers it *replaces*;
+ * `tx-tracker-resident.ts` is the one app-resident machine that runs it. (A
+ * TypeScript poller for Hermes retired with the Expo-native path.)
  *
  * Three things move out of the surfaces by using this:
  *

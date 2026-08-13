@@ -14,9 +14,7 @@
  * a BATCH only on "re-quoting", so a batch could arm its slider over a fee that
  * had not settled. `fee_policy` publishes one gate for both
  * (invariant ⑦), and the machine is where that judgement belongs.
- *
- * `use-signing-fee.ts` is the native counterpart and keeps the TypeScript path
- * verbatim — Hermes has no WebAssembly.
+
  */
 
 import { useEffect } from 'react';

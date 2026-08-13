@@ -47,10 +47,9 @@ export function ClearSignView({ cs, simConfident, walletAddress }: {
   // reads as `batch.anyToOwnToken`. One machine, so a burn cannot warn in a batch
   // and stay silent on the single send — which is the far more common entry point.
   //
-  // The `??` tail is the NATIVE fallback and nothing else: Hermes has no
-  // WebAssembly, so `services/clear-signing.ts` resolves the request there and
-  // states no verdict (`toOwnToken` is absent, never `false`). It is the exact
-  // predicate that shipped, kept byte-for-byte so native behaviour is unchanged.
+  // The `??` tail covers a resolution that states no verdict (`toOwnToken`
+  // absent, never `false`) — the shape the retired native resolver produced.
+  // It is the exact predicate that shipped, kept byte-for-byte.
   const sendingToTokenContract =
     cs.toOwnToken ??
     (!!cs.contractAddress &&

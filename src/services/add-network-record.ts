@@ -2,13 +2,11 @@
  * The ChainInfo → CustomNetwork conversion, and the result vocabulary of
  * "add a network by chain id".
  *
- * Split out of `add-network.ts` for one reason: that module is now a platform
- * pair (`add-network.web.ts` routes the scan path through the `network_admin`
- * core so it shares the wizard's duplicate-chain gate), and a `.web` variant may
- * never import its own base file — Metro resolves that specifier back to itself.
- * Both variants import this leaf instead, so `chainInfoToCustomNetwork` stays a
- * single implementation and every existing `@/services/add-network` import keeps
- * working unchanged.
+ * Split out of `add-network.ts` in the platform-pair days, when its `.web`
+ * half (which routes the scan path through the `network_admin` core, so it
+ * shares the wizard's duplicate-chain gate) could not import its own base
+ * file. The pair is gone; the leaf stays, so `chainInfoToCustomNetwork` is a
+ * single implementation with a stable import path.
  */
 import type { CustomNetwork } from '@/models/types';
 import type { ChainInfo } from '@/services/chain-registry';

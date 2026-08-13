@@ -1,7 +1,7 @@
 /**
  * The ONE resident `display_currency` session — WEB.
  *
- * Extracted verbatim out of `hooks/use-display-currency.web.ts`, which owned it
+ * Extracted verbatim out of `hooks/use-display-currency.ts`, which owned it
  * privately, because a second surface now needs the same session: the Settings
  * currency row. That row used to call `loadCurrency()` / `setCurrency()`
  * directly (SettingsScreen.tsx:1135-1139), which on web meant the TypeScript

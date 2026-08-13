@@ -343,10 +343,10 @@ export async function handleGenericSign(
  * Which layer owns the never-unlimited submit guard for one call into
  * {@link handleDAppRequest} / {@link handleSendCalls}.
  *
- * `'ts'` — the DEFAULT, and the only value native ever gets: `enforceNoUnlimited`
- * runs right here, at the submit chokepoint, exactly as it always has. Hermes has
- * no WebAssembly, so on iOS/Android this TypeScript copy IS the guard; it can
- * never be deleted.
+ * `'ts'` — the DEFAULT: `enforceNoUnlimited` runs right here, at the submit
+ * chokepoint, exactly as it always has, for every caller that is not the
+ * core-driven signing path. (It was also the retired Expo-native path's only
+ * guard.)
  *
  * `'core'` — the Rust core already ran its own `enforce_no_unlimited` over this
  * exact request (the single request AND every batch leg) inside `proceed_submit`
@@ -356,8 +356,8 @@ export async function handleGenericSign(
  * safety call twice out of two separately-maintained implementations — the exact
  * drift hazard this seam exists to remove. On web the core owns the gate.
  *
- * Only `services/wallet-state-core/sign-executor.web.ts` may pass `'core'`: it is
- * the sole handler of that effect and it is a `.web.ts` module, so no native
+ * Only `services/wallet-state-core/sign-executor.ts` may pass `'core'`: it is
+ * the sole handler of that effect and it is a `.ts` module, so no native
  * bundle can reach it. The default is the *guarded* value on purpose — a caller
  * that says nothing stays guarded, so forgetting this argument can never open a
  * hole on either platform.

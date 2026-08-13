@@ -2,9 +2,10 @@
  * Platform-neutral types for the web popup's APPROVE half — the second door
  * into the `dapp_permissions` core (spec 017, group G11).
  *
- * Standalone for the same reason `dperm-types.ts` is: the native stub
- * (`dperm-connect.ts`) needs these declarations, and importing them from a
- * `.web` module would drag the web-only wasm graph into the native bundle.
+ * Standalone for the same reason `dperm-types.ts` is: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  *
  * `dperm-types.ts` covers the popup's QUESTION (`decide_popup_request`); this
  * covers what happens after the user presses Connect, which the core owns

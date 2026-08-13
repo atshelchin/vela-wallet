@@ -1,15 +1,16 @@
 /**
  * What the RPC recovery banner's "save a working endpoint" step can end as.
  *
- * A standalone module for the reason `network-admin-controller-types.ts` is one:
- * `rpc-fix.ts` / `rpc-fix.web.ts` are a platform pair, and a `.web.ts` that
- * imports its own base specifier resolves back to itself under Metro and
- * recurses at module init. Both variants import the vocabulary from here.
+ * A standalone module from the days this controller was a platform pair:
+ * the pair could not import its own base file (Metro resolved it back to
+ * the `.web.ts` half and recursed at module init), so both halves imported
+ * from here. The pair is gone; the module stays as the one place the
+ * contract the screens compile against is declared.
  *
  * The vocabulary is deliberately a verdict, not a boolean. "Saved" and "refused
  * because the endpoint proved it serves another chain" are different outcomes
  * with different copy, and "could not reach it" is NOT a third refusal — see
- * `rpc-fix.web.ts`.
+ * `rpc-fix.ts`.
  */
 
 export type RpcFixOutcome =

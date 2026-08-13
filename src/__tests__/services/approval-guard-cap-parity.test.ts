@@ -2,10 +2,10 @@
  * The never-unlimited CAPS, checked against the Rust core byte for byte.
  *
  * Two numbers carry the whole "unlimited can never leave the wallet" invariant,
- * and they exist twice on purpose: the Rust core enforces the mandate on web,
- * while `services/approval-guard.ts` enforces it on iOS/Android (Hermes has no
- * WebAssembly, so the TypeScript copy is the only guard there). Neither copy can
- * be deleted — so the thing to remove is not the duplication but the *drift*.
+ * and they exist twice: the Rust core enforces the mandate on the core-driven
+ * signing path, while `services/approval-guard.ts` enforces it for every other
+ * caller (see `SubmitGuardOwner` in `use-dapp-signing.ts`). While both exist,
+ * the thing to remove is not the duplication but the *drift*.
  *
  * A red test here means one platform would now refuse an approval the other
  * waves through: raise the TS cap alone and native starts signing grants web

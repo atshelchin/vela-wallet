@@ -13,8 +13,8 @@
 //   - the core's payloads track the tab now that the tab reaches it, and
 //   - they equal what the screen used to compute, so connecting them changed
 //     no destination on screen — and
-//   - they equal what the NATIVE builders (`buildEIP681` / `buildPayLink`)
-//     produce, since iOS/Android keep the TypeScript twin.
+//   - they equal what the TypeScript builders (`buildEIP681` / `buildPayLink`)
+//     produce — the surviving statement of the rule outside the core.
 
 // `expo-localization` ships untransformed ESM and rides in on the shared
 // executor barrel; nothing below asserts on it.

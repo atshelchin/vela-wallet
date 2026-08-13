@@ -21,7 +21,7 @@ describe('Hermes polyfill wiring (P0#1)', () => {
     expect(firstImport).toContain('@/polyfills');
   });
 
-  it('polyfills.web.ts is a no-op so native-only deps stay out of the web bundle', () => {
+  it('polyfills.ts is a no-op so native-only deps stay out of the web bundle', () => {
     const web = read('src/polyfills.ts');
     expect(web).not.toContain("import 'react-native-get-random-values'");
   });

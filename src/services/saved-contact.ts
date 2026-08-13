@@ -6,9 +6,9 @@
  *
  * This file owns no rules: what counts as saved (`source: 'manual'`), the
  * lower-casing of the key and the deletion tombstones are the core's. The
- * explicit `.web` import path is the same one `useSendController.web.ts` uses
- * for `saveContactThroughCore` — the session lives in the hook module because
- * that is where the React surfaces subscribe to it.
+ * import path is the same one `useSendController.ts` uses for
+ * `saveContactThroughCore` — the session lives in the hook module because that
+ * is where the React surfaces subscribe to it.
  */
 import { savedContactThroughCore } from '@/hooks/use-contacts-book';
 import { isAddress } from '@/models/types';

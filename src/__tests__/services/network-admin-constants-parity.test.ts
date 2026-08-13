@@ -2,9 +2,9 @@
  * Drift gate — the `network_admin` admission constants exist in more than one
  * place ON PURPOSE, so this test is what keeps the copies identical.
  *
- * Hermes has no WebAssembly, so `services/network-checker.ts` stays native's
- * only implementation of the compatibility check while the Rust core is web's
- * (spec 017, FR-202). Neither copy can be deleted; what can happen is that one
+ * `services/network-checker.ts` is the TypeScript implementation of the
+ * compatibility check, surviving from the retired Expo-native path beside the
+ * Rust core's (spec 017). While both exist, what can happen is that one
  * is edited and the other is not — and these particular values decide whether a
  * chain may enter the wallet at all. A chain admitted against a table missing an
  * entry is a chain that can accept deposits the wallet can never sign out of
@@ -15,7 +15,7 @@
  *
  *   1. `services/network-checker.ts`                       — native's checker
  *   2. `rust/crates/vela-core/src/app/network_admin.rs`    — web's core
- *   3. `wallet-state-core/network-admin-executor.web.ts`   — the P256 `eth_call`
+ *   3. `wallet-state-core/network-admin-executor.ts`   — the P256 `eth_call`
  *      payload, which the core cannot carry across the wire (it is baked into
  *      the request the shell makes) and therefore hand-copies.
  *

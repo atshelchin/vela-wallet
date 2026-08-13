@@ -3,10 +3,10 @@
  * the same on every platform: the state type, the action vocabulary, the pure
  * reducer, the React context, `useWallet()` and `shortAddress()`.
  *
- * Split out of `wallet-state.ts` for exactly one reason: on web the provider is
+ * Split out of `wallet-state.ts` in the platform-pair days: the provider is
  * driven by the Rust `session` machine
  * (`rust/crates/vela-core/src/app/session.rs`) instead of the reducer + two
- * effects, so `wallet-state.web.ts` exists — and a `.web.ts` must NEVER
+ * effects, and the pair's `.web` half could NEVER
  * value-import its own base file (Metro resolves that specifier back to itself
  * and the module recurses at init, taking the whole app down; learned in 016).
  * Both platform variants import this neutral module instead, so there is

@@ -72,9 +72,9 @@ export function TransactionDetailSheet({ visible, tx, batch, alias, rate, curren
   // non-verdict (unreachable / fee-held / accepted-but-not-landed) leaves the
   // stored status exactly as it was, and nothing on this screen writes storage.
   //
-  // Native keeps the TypeScript poller behind the same hook (Hermes has no
-  // WebAssembly); `nativeMaxAttempts` / `nativePersist` are its parameters and
-  // have no reader on web.
+  // `nativeMaxAttempts` / `nativePersist` were the retired TypeScript poller's
+  // parameters and have no reader; they go when the remaining native-only code
+  // retires.
   const userOpHash = batch?.userOpHash || tx?.userOpHash;
   const chainId = batch?.chainId ?? tx?.chainId;
   const baseStatus = batch?.status ?? tx?.status;

@@ -1,9 +1,9 @@
 /**
  * Drift gates for the tables and constants that exist TWICE — once in the Rust
- * core (which is what web executes) and once in TypeScript (which is what
- * iOS/Android execute, since Hermes has no WebAssembly).
+ * core and once in TypeScript that survives from the retired native path with
+ * live callers of its own.
  *
- * Neither copy can be deleted, so the only defence against a one-sided edit is
+ * Until the TS copies retire, the only defence against a one-sided edit is
  * an assertion that reads both. Same shape as the `SUPPORTED_LANGUAGES` gate in
  * `i18n/web-adapter.test.ts`: the Rust file is parsed as text (a table literal
  * is exactly what a regex is good at), and the values — never the formatting —

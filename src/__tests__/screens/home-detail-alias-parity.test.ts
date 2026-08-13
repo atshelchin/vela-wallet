@@ -42,9 +42,9 @@ jest.mock('@/services/recipient-identity', () => ({
 
 jest.mock('@/services/platform', () => ({ hapticSuccess: () => {} }));
 
-// Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
-// `@/services/vela-core` resolves the NATIVE index and the wasm is never
-// initialized. Importing the web entry by explicit path first runs `initSync`.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { createActivityFeedSession } from '@/services/wallet-state-core/feed-session';
 import type { FeedItem } from '@/services/wallet-state-core/generated/FeedItem';
@@ -105,7 +105,7 @@ function open() {
 const items = (view: FeedView): FeedItem[] =>
   view.rows.flatMap((row) => (row.type === 'item' ? [row.item] : []));
 
-/** The shell's projection, verbatim from `useHomeController.web.ts`. */
+/** The shell's projection, verbatim from `useHomeController.ts`. */
 const aliasById = (view: FeedView) => {
   const map = new Map<string, string>();
   for (const item of items(view)) if (item.alias) map.set(item.id, item.alias);

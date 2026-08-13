@@ -2,16 +2,11 @@
  * The contract between the onboarding screens and whichever implementation is
  * driving them.
  *
- * Two implementations exist per flow, and they must stay interchangeable:
- *
- * - `use-*.web.ts` — the portable Rust state machine, via wasm
- * - `use-*.ts`     — the TypeScript path, unchanged, for iOS/Android (Hermes
- *                    has no WebAssembly)
- *
- * Both are typed against these declarations, so a divergence is a compile error
- * rather than a platform-specific runtime surprise. The screens import the
- * hooks by their base name; metro picks `.web.ts` on web, `tsc` and native
- * resolve the base file.
+ * One implementation exists per flow — the portable Rust state machine, via
+ * wasm. (A TypeScript twin for Hermes existed until the Expo-native path
+ * retired.) The hooks are typed against these declarations so a drift between
+ * a controller and its screens is a compile error rather than a runtime
+ * surprise.
  *
  * Note the shape carries **i18n keys**, not sentences: the state machine emits
  * semantic variants and the screen renders them, so the copy is chosen in one

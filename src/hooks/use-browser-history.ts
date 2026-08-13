@@ -8,7 +8,7 @@
  * what the core projects.
  *
  * ONE module-level session is shared by every mount, the
- * `use-display-currency.web.ts` pattern. The machine is a mirror of the store
+ * `use-display-currency.ts` pattern. The machine is a mirror of the store
  * hydrated once at `Start` ("re-reading mid-session could only replay what this
  * core already wrote"), which is only true while a single core owns the key —
  * and this history is written from the browser route while it is read from the

@@ -1,7 +1,8 @@
 // The DESCRIPTOR RESOLUTION exists twice, and this pins the screens it produces.
 //
-// Web runs the Rust `clear_signing` machine; iOS/Android cannot (Hermes has no
-// WebAssembly) and keep `services/clear-signing.ts`. Every string compared here
+// The app runs the Rust `clear_signing` machine; `services/clear-signing.ts`
+// survives from the retired Expo-native path with callers of its own (the
+// descriptor fetch). Every string compared here
 // is rendered verbatim on a signing surface, so a drift is not a refactor
 // nit — it is one platform showing a different amount, a different recipient or
 // a different risk colour than the other for the same calldata.

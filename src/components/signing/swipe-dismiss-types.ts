@@ -1,11 +1,11 @@
 /**
- * The swipe-dismiss seam's SHAPE — the part that is the same on every platform.
+ * The swipe-dismiss seam's SHAPE.
  *
- * Split out for the `dapp-connection-shape.ts` reason: `swipe-dismiss.web.ts`
- * must never import `swipe-dismiss.ts` (Metro resolves a `.web` file's own
- * specifier back to itself — infinite recursion at module init, learned in
- * 016), so the two variants share types through this neutral third module and
- * nothing else.
+ * Split out for the `dapp-connection-shape.ts` reason, back when
+ * `swipe-dismiss.ts` was half of a platform pair that could not import its own
+ * base file (Metro resolved the specifier back to itself — infinite recursion
+ * at module init, learned in 016). The pair is gone; the types keep their own
+ * module.
  *
  * No rule lives here. This file is types only.
  */

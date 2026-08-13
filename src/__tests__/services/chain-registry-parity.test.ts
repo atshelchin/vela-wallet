@@ -2,12 +2,11 @@
  * Drift gate — the chain-document parsing rules exist twice ON PURPOSE.
  *
  * `services/chain-registry.ts:75-194` (`parseChainData` and its three
- * extractors) is native's only implementation, because Hermes has no
- * WebAssembly; `parse_chain_data` in
- * `rust/crates/vela-core/src/app/network_admin.rs` is web's, and it is not
- * unreachable TypeScript either — `rpc-pool-endpoints.ts:115` still calls
- * `fetchChainInfo` on every platform to build a chain's endpoint list. Both run
- * on web, on the same documents. Neither can be deleted (FR-202), so what this
+ * extractors) is the TypeScript implementation, and it is not unreachable —
+ * `rpc-pool-endpoints.ts:115` still calls `fetchChainInfo` to build a chain's
+ * endpoint list; `parse_chain_data` in
+ * `rust/crates/vela-core/src/app/network_admin.rs` is the core's. Both run on
+ * the same documents, so neither can drift alone — which is what this
  * test buys is that neither can be edited alone.
  *
  * The rules are load-bearing in a way that is invisible when they diverge:
@@ -42,9 +41,9 @@ jest.mock('@/services/rpc-pool', () => ({
 }));
 jest.mock('@/services/bundler-service', () => ({ clearBundlerCache: jest.fn() }));
 
-// Load-bearing (see `network-admin-core.test.ts`): jest lists no `.web.ts` in
-// `moduleFileExtensions`, so the web entry must be imported by explicit path
-// first or the wasm is never initialised.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { fetchChainInfo, type ChainInfo } from '@/services/chain-registry';
 import { createNetworkAdminSession } from '@/services/wallet-state-core/network-admin-session';

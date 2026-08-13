@@ -1,11 +1,11 @@
 /**
  * Platform-neutral types for the `batch_import` core (spec 017, group G5).
  *
- * Separate from `batch-import-executor.web.ts` for the same reason
- * `types.ts` is separate from `executors.web.ts`: the native stub
- * (`batch-import-session.ts`) needs these declarations, and importing them
- * from a `.web` module would drag the web-only service graph (file pickers,
- * SheetJS) into the native bundle — where the wasm cannot load at all.
+ * Separate from `batch-import-executor.ts` for the same reason
+ * `types.ts` is separate from `executors.ts`: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  */
 
 import type { BatchOperation } from './generated/BatchOperation';

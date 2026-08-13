@@ -1,10 +1,11 @@
 /**
  * The EIP-681 BUILDER exists twice on purpose, and this pins the two together.
  *
- * Web drives the Rust `payment_request` machine (`use-receive-request.web.ts`);
- * iOS/Android cannot — Hermes has no WebAssembly — and run the TypeScript
- * `buildEIP681` / `buildPayLink` in `services/eip681.ts` instead. Neither copy
- * can be deleted, so the thing to remove is not the duplication but the DRIFT.
+ * The app drives the Rust `payment_request` machine
+ * (`use-receive-request.ts`); the TypeScript `buildEIP681` / `buildPayLink` in
+ * `services/eip681.ts` survive from the retired native path with callers of
+ * their own. Until they go, the thing to remove is not the duplication but the
+ * DRIFT.
  *
  * It matters more here than in most twins because the two directions of this
  * format live on opposite sides of the boundary: the core BUILDS the URI a

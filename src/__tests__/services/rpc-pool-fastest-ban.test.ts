@@ -48,7 +48,7 @@ import '@/services/vela-core';
 import { getChainRpcUrl, poolBundlerCall, poolRpcCall } from '@/services/rpc-pool';
 import { collectRpcUrls, NEVER_BANNED } from '@/services/rpc-pool-endpoints';
 
-// The chain from the reproduction. `rpc-pool.web.ts` holds ONE module-level
+// The chain from the reproduction. `rpc-pool.ts` holds ONE module-level
 // session, so bans and race winners carry across tests in this file — a chain
 // per test is the isolation.
 const CHAIN = 10;

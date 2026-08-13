@@ -2,8 +2,8 @@
  * The shape the Home controller returns.
  *
  * This module was split out to keep a platform PAIR
- * (`useHomeController.ts` / `.web.ts`) from importing its own base file, which
- * Metro resolves back to the `.web.ts` variant and recurses at module init.
+ * (`useHomeController.ts` / `.ts`) from importing its own base file, which
+ * Metro resolves back to the `.ts` variant and recurses at module init.
  * That pair is gone — there is one controller now — but the split still earns
  * its keep for the second reason it always had: the explicit `HomeController`
  * annotation on the controller's return type is what stands between a forgotten

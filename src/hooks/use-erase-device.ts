@@ -6,7 +6,7 @@
  *
  * On web the wallet state, the activity feed, balances, contacts, token trust,
  * the RPC pool and the dApp session are app-resident cores
- * (`*-resident.web.ts`), each holding its own copy of what was just deleted
+ * (`*-resident.ts`), each holding its own copy of what was just deleted
  * for the life of the process. A `router.replace('/')` would land on
  * onboarding with every one of those still populated — an "erased" device that
  * can still print the transaction history. A document reload is the only thing

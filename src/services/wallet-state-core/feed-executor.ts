@@ -23,7 +23,7 @@
  * `loadActivityTransactions` both fall through to "neither send nor receive"),
  * so dropping it is the same nothing — and inventing a `kind` for it would be a
  * lie the core would act on. Numeric fields are coerced fail-closed for the same
- * reason `session-executor.web.ts` clamps its index: `loadTransactions()` is an
+ * reason `session-executor.ts` clamps its index: `loadTransactions()` is an
  * unvalidated JSON parse, and a `chain_id` serde could not accept would fault
  * the core into a feed that never loads.
  *
@@ -163,7 +163,7 @@ export function createFeedExecutor(
       case 'scan_incoming_transfers':
         // `syncReceivedTransfers` runs the whole discovery + persist pipeline
         // (token admission via the `token_trust` core on web, through
-        // `incoming-transfers.web.ts`) and already answers 0 on any failure.
+        // `incoming-transfers.ts`) and already answers 0 on any failure.
         return { type: 'sync_completed', new_count: asCount(await scanOnce(operation.address)) };
       case 'delete_tx_record':
         await deleteTransaction(operation.id);

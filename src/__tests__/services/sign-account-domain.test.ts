@@ -84,9 +84,9 @@ jest.mock('@/services/wallet-state-core/session-resident', () => ({
   walletSessionView: () => ({ active_index: mockSession.active }),
 }));
 
-// Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
-// `@/services/vela-core` resolves the NATIVE index and the wasm is never
-// initialized. Importing the web entry by explicit path runs `initSync` first.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import {
   bindSignRequest,

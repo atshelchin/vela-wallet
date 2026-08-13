@@ -1,11 +1,10 @@
 /**
- * The NATIVE identicon path, replayed against the shared conformance corpus.
+ * The JS identicon library, replayed against the shared conformance corpus.
  *
- * On iOS/Android the app runs Hermes, which has no WebAssembly, so the JS library
- * — not the Rust core — is what actually draws avatars there until the native
- * rewrite adopts the Kotlin/Swift bindings. That makes this surface just as
- * load-bearing as the wasm one, and it deserves the same oracle rather than a
- * hand-written snapshot: the vectors below are the exact ones `cargo test` and
+ * The facade draws avatars through the Rust core now; the pinned JS library
+ * (`identicons-esm`) remains the ORACLE the corpus regenerates from, so this
+ * surface still deserves the real vectors rather than a hand-written
+ * snapshot: the vectors below are the exact ones `cargo test` and
  * `verify-web.mjs` replay (specs/003-rust-identicon).
  *
  * A red test here means web and native would draw the same account differently.

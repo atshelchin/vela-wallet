@@ -8,10 +8,9 @@
  * confirms the stored key, a key mismatch treated as failure, the pending entry
  * cleared only once the wallet reference resolves (issue #89) — also lives in
  * `rust/crates/vela-core/src/app/create_wallet.rs`, which is what drives web
- * onboarding now. This file still runs on iOS/Android (Hermes has no
- * WebAssembly) and on every platform for `retryPendingUploads()` at launch —
- * `_layout.tsx` calls it on every cold start, web included, so this table is
- * live on the platform the core also runs on.
+ * onboarding now. This file still runs for `retryPendingUploads()` at launch —
+ * `_layout.tsx` calls it on every cold start — so this table is live on the
+ * same platform the core runs on.
  *
  * Change the Rust table and this one together, or the platforms drift. The
  * shared source of truth is the table in

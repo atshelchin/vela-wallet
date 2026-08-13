@@ -201,9 +201,8 @@ const feeAmountFor = (o: FeeTokenOption): bigint | null =>
 
 /**
  * An inert `fee_policy` view for the two reproducible GasFeeCard states. The
- * card is web-only here (`GasFeeCard.web.tsx`), and on web it renders the
- * machine's projection — so the gallery states are states of that projection,
- * not of the props the native twin reads.
+ * card renders the machine's projection, so the gallery states are states of
+ * that projection.
  */
 const feeCardFixture = (
   view: Partial<FeeView>,

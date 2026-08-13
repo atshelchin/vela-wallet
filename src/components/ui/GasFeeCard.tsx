@@ -1,10 +1,9 @@
 /**
- * Gas fee display + fee-asset selector — WEB.
+ * Gas fee display + fee-asset selector.
  *
- * The native twin (`GasFeeCard.tsx`) loads its own fee-asset options, derives
- * each row's cost with `calculateInBandFeeAmount` / `tempoReimbursement`, runs
- * the balance<fee gate, auto-defaults to the first affordable asset and calls
- * `estimateTransactionFee` twice. This file does none of that. Every one of
+ * The retired native twin loaded its own fee-asset options, derived each row's
+ * cost, ran the balance<fee gate, auto-defaulted to the first affordable asset
+ * and called `estimateTransactionFee` twice. This file does none of that. Every one of
  * those judgements is `fee_policy`'s (`rust/crates/vela-core/src/app/fee_policy.rs`),
  * projected into `FeeView`, and this component turns that view into pixels.
  *
@@ -42,7 +41,7 @@ import { FeeTokenSelector } from './FeeTokenSelector';
 // Helpers — formatting only
 // ---------------------------------------------------------------------------
 
-/** Token fee amount in the user's number format. Byte-identical to the native twin. */
+/** Token fee amount in the user's number format. */
 function formatFeeAmount(units: number, sep: { group: string; decimal: string; indian?: boolean }): string {
   if (units === 0) return '0';
   if (units < 0.0001) return `< 0${sep.decimal}0001`;
@@ -115,7 +114,7 @@ export function GasFeeCard({
   // As soon as the machine reports there is a choice, reveal it instead of
   // leaving it hidden behind the compact gas row. Reset only for a different
   // account/chain, so a user can still collapse it while reviewing the same
-  // transaction. Pure UI memory — the native twin does exactly this.
+  // transaction. Pure UI memory.
   const didRevealOptionsRef = useRef(false);
   useEffect(() => {
     didRevealOptionsRef.current = false;
@@ -158,7 +157,7 @@ export function GasFeeCard({
   const feeUnits = denom.units;
   const feeSym = denom.symbol;
 
-  // DISPLAY ONLY, and the native twin says the same thing at the same place:
+  // DISPLAY ONLY:
   // `feeUsd` never leaves this component — it decides `showFiat` and one
   // formatted string. The number that is quoted, signed and reimbursed is
   // `feeUnits` in `feeSym`, which is token-denominated. The middle arm below is
@@ -240,8 +239,8 @@ export function GasFeeCard({
         </View>
       </Pressable>
 
-      {/* Expanded fee-asset picker — one row per asset (native + held stables),
-          each with its balance + cost. Shared with the native twin. */}
+      {/* Expanded fee-asset picker — one row per asset (native coin + held
+          stables), each with its balance + cost. */}
       {expanded && selectable && quoteShown && (
         <FeeTokenSelector
           rows={options.map((option) => toSelectorRow(chainId, option))}
@@ -255,7 +254,7 @@ export function GasFeeCard({
 }
 
 // ---------------------------------------------------------------------------
-// Styles — byte-identical to the native twin's; the two render one design
+// Styles
 // ---------------------------------------------------------------------------
 
 const styles = createStyles(() => ({

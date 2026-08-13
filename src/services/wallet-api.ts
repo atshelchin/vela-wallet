@@ -20,9 +20,8 @@ import { fetchWithTimeout, NET_TIMEOUTS } from './net';
 import { poolRpcCall, getFailedRpcChains } from './rpc-pool';
 import { priceShouldNull } from './dev/fault-injection';
 import { fetchChainTokens, pickQuoteToken, type ChainTokenData } from './chain-tokens';
-// The platform seam for the native-coin price rules (spec 017 wave C): web
-// resolves to `native-price.web.ts` and the CORE decides; iOS/Android resolve
-// to `native-price.ts`, the TypeScript twin, because Hermes has no wasm.
+// The native-coin price rules (spec 017 wave C): `native-price.ts` asks the
+// CORE to decide.
 import {
   bestNativeDexPrice,
   chooseNativePrice,
@@ -62,12 +61,12 @@ const NATIVE_CHAINLINK_FEEDS: Record<number, string> = {
 // `sortAndFilterHoldings` is ALSO implemented in `rust/crates/vela-core/src/
 // app/balance_dashboard.rs` (`sort_by_usd_desc` + the
 // `token_balance_double(...) > 0.0` merge filter) — the core re-applies it on
-// web, and Hermes has no wasm so this file stays native's only
-// implementation.
+// web. This TypeScript statement of the rule survives from the retired native
+// path until the remaining native-only code goes.
 //
 // The native-COIN pricing rules used to sit here too. They now live behind the
-// `@/services/native-price` seam: on web that resolves to `native-price.web.ts`
-// and the RULES are executed by the core (`best_group_price`,
+// `@/services/native-price` seam, where the RULES are executed by the core
+// (`best_group_price`,
 // `best_native_dex_price`, `choose_native_price`, which were dead code on every
 // platform until spec 017 wave C); on iOS/Android it resolves to
 // `native-price.ts`, the TypeScript twin. `src/__tests__/services/

@@ -5,7 +5,7 @@
  * `popup_request` requests no shell operation (the popup owns its own grant
  * I/O, its own window and its own transport), so no effect loop is needed:
  * construct a core, dispatch once, read the typed verdict, free it — the
- * `validate-pay.web.ts` pattern.
+ * `validate-pay.ts` pattern.
  *
  * Why this exists at all: `decide_popup_request` was authored, tested and
  * exported, and executed nowhere. A rule that LOOKS like the source of truth

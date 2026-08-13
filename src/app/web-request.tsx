@@ -202,7 +202,7 @@ export default function WebRequestScreen(): React.ReactElement {
       // screen's: whether a never-connected origin may be answered at all, WHICH
       // address the grant exposes (the grant's own, never the active account),
       // and whether a pinned address still matches it. The shell keeps only the
-      // grant I/O and the words. See `dperm-popup.web.ts`.
+      // grant I/O and the words. See `dperm-popup.ts`.
       const grant = await getGrant(peer.origin);
       const verdict = decidePopupRequest({
         method: peer.request.method,

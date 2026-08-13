@@ -1,10 +1,10 @@
 /**
- * The NATIVE mirror of the `clear_signing` core's pure adjudications: the
+ * The TypeScript mirror of the `clear_signing` core's pure adjudications: the
  * personal_sign / eth_sign verdict and the blind typed-data projection.
  *
- * Web runs the Rust machine; iOS/Android cannot (Hermes has no WebAssembly) and
- * run this instead. Neither copy can be deleted — so the thing to remove is not
- * the duplication but the DRIFT, which is what
+ * Written for the retired Expo-native path (Hermes had no WebAssembly); due to
+ * go with the rest of the native-only code. Until that cut lands the thing to
+ * prevent is DRIFT, which is what
  * `__tests__/services/clear-signing-adjudication-parity.test.ts` pins.
  *
  * A divergence here is a security bug, not a cosmetic one: these functions

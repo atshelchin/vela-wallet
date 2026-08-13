@@ -5,7 +5,7 @@
  * flight outlives every screen: a send's receipt lands while the user is in the
  * browser tab, a dApp tx confirms after its sheet closed, and a page reload must
  * pick up whatever the last process left `pending`. So it is a module-level
- * singleton, the `session-resident.web.ts` pattern — created once, never
+ * singleton, the `session-resident.ts` pattern — created once, never
  * disposed, and started with an `AppResumed` sweep that IS the cross-restart
  * recovery (invariant ⑥).
  *
@@ -13,10 +13,10 @@
  *
  * | was | now |
  * | --- | --- |
- * | `send-executor.web.ts`'s `waitForReceipt` fallback (`useSendController.ts:1045-1070`) | `trackSubmitted` + the outcome listener below |
- * | `feed-resident.web.ts`'s `reconcileFeedPending` (`tx-reconciler.ts`) | `HomeFocused` → `LoadPendingTxs` |
- * | `dapp-connection.web.tsx`'s `resumedRef` startup scan | `startTxTracker()` → the same sweep |
- * | `sign-executor.web.ts`'s `autoAddFromReceipt` | `NotifyConfirmed` → `token_trust` |
+ * | `send-executor.ts`'s `waitForReceipt` fallback (`useSendController.ts:1045-1070`) | `trackSubmitted` + the outcome listener below |
+ * | `feed-resident.ts`'s `reconcileFeedPending` (`tx-reconciler.ts`) | `HomeFocused` → `LoadPendingTxs` |
+ * | `dapp-connection.tsx`'s `resumedRef` startup scan | `startTxTracker()` → the same sweep |
+ * | `sign-executor.ts`'s `autoAddFromReceipt` | `NotifyConfirmed` → `token_trust` |
  *
  * Two shell responsibilities the core deliberately refuses:
  *
@@ -32,11 +32,10 @@
  *
  * Nothing here is read during render — this module is never a React dependency,
  * and the send controller receives outcomes by callback (the module-level-read
- * trap in `wallet-state.web.ts` applies to the whole codebase).
+ * trap in `wallet-state.ts` applies to the whole codebase).
  *
- * Imported by explicit `.web` specifier on every side: `tsc` resolves a
- * `.web.ts` file's own imports to the base `.ts` variant, so a bare specifier
- * would type-check against a native module that does not exist.
+ * (In the platform-pair days this file had to be imported by explicit `.web`
+ * specifier — a relic the pair collapse removed; imports are bare now.)
  */
 
 import { notifyFeedReconciled } from '@/services/wallet-state-core/feed-resident';

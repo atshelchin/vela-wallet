@@ -4,11 +4,7 @@
  * Importing `@/services/vela-core` first is load-bearing: its web entry owns
  * the module's initialization (the D7 route — fetched in a browser, read from
  * disk in Node, and gated by `coreReady` before the app graph loads), so the
- * wasm is ready before the core is constructed here. (Metro resolves that
- * facade to `index.web.ts` in this bundle.)
- *
- * `batch-import-session.ts` is the native counterpart and throws: Hermes has no
- * WebAssembly, so the mobile app keeps its TypeScript controller.
+ * wasm is ready before the core is constructed here.
  */
 
 import '@/services/vela-core';

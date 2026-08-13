@@ -6,7 +6,7 @@
  * Safari extension's account snapshot", and `ExtCacheEvent::session_ended` is
  * the ext-cache machine's ear for it. The two cores must not import each other,
  * and the ext-cache session is owned by `<AccountFileWriter/>`'s controller
- * (`use-ext-cache.web.ts`) rather than by a module-level singleton, so the
+ * (`use-ext-cache.ts`) rather than by a module-level singleton, so the
  * controller registers its live session here and the session executor calls it.
  *
  * A registry, not a policy: WHETHER logout clears the cache is decided in Rust
@@ -21,7 +21,7 @@
 let ender: (() => void) | null = null;
 
 /**
- * Called by `use-ext-cache.web.ts` on mount (with its dispatcher) and on
+ * Called by `use-ext-cache.ts` on mount (with its dispatcher) and on
  * unmount (with `null`). Last mount wins — the writer is a singleton at the
  * app root, and React 19 StrictMode's double-mount frees the first core before
  * building the second.

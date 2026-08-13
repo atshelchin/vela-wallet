@@ -9,19 +9,17 @@
  * cross-stable max, the (0.5, 2.0) sanity band against Chainlink and the
  * source ladder are all read out of Rust.
  *
- * Pure kernels, so this is `connect-entry.web.ts`'s "ask and read the verdict"
+ * Pure kernels, so this is `connect-entry.ts`'s "ask and read the verdict"
  * shape without even a throwaway core: two synchronous function calls.
  * Importing `@/services/vela-core` first is load-bearing — its web entry
  * initialises the wasm module at import time, so these calls need no async
  * gate (which matters: the caller is deep inside a per-chain multicall
  * decode).
  *
- * `native-price.ts` is the iOS/Android twin (Hermes has no WebAssembly) and
- * carries the same rules in TypeScript. Only TYPES are imported from it —
- * importing its values here would make the web bundle run the copy this file
- * exists to replace, and there is no `DEFAULT_QUOTE_DECIMALS` on this side at
- * all because the core applies its own. The two are pinned together by
- * `src/__tests__/services/native-price-parity.test.ts`.
+ * The retired Expo-native path carried the same rules in TypeScript;
+ * `src/__tests__/services/native-price-parity.test.ts` still pins the surviving
+ * TS statement of them against the core until it retires too. There is no
+ * `DEFAULT_QUOTE_DECIMALS` here because the core applies its own.
  */
 
 import '@/services/vela-core';

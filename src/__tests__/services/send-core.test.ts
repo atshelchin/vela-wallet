@@ -85,7 +85,7 @@ const submits: SubmitArgs[] = [];
  * `tier` is no longer visible here — it is stated once, for both fee surfaces,
  * where the `QuoteRequested` that carries it is built — and `value` crosses as
  * the decimal base-unit string the core states, not as hex (the hex codec moved
- * with the estimate, into `fee-executor.web.ts`).
+ * with the estimate, into `fee-executor.ts`).
  */
 type EstimateArgs = {
   chainId: number;
@@ -166,10 +166,9 @@ jest.mock('@/services/platform', () => ({
   showAlert: jest.fn(),
 }));
 
-// Load-bearing, and easy to get wrong: jest lists no `.web.ts` in
-// `moduleFileExtensions`, so a bare `@/services/vela-core` resolves the NATIVE
-// index and the wasm is never initialized. Importing the web entry by explicit
-// path first runs `initSync` on the planted bytes.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';

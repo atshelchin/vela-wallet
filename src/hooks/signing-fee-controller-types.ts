@@ -1,9 +1,11 @@
 /**
  * The contract between `SigningSheet` and its fee half — platform-neutral.
  *
- * Standalone for the reason the other `*-controller-types.ts` files state: the
- * native implementation needs these declarations, and importing them from a
- * `.web` module would drag the wasm graph into the native bundle.
+ * Standalone for the reason the other `*-controller-types.ts` files state:
+ * the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  */
 
 import type { TransactionFeeEstimate } from '@/services/safe-transaction';

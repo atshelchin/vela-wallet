@@ -3,8 +3,8 @@
 // and matches `*.test.ts` only, so no component renders here — these cover the
 // mechanism the wiring stands on, one level below React.
 //
-// 1. FIRST FRAME. `use-clear-signing.web.ts` dispatches from a `useLayoutEffect`
-//    (as `use-approval-guard.web.ts` already did) so the first committed view
+// 1. FIRST FRAME. `use-clear-signing.ts` dispatches from a `useLayoutEffect`
+//    (as `use-approval-guard.ts` already did) so the first committed view
 //    lands before the browser paints. That is only worth anything if the core
 //    answers `start()` SYNCHRONOUSLY — otherwise the sheet still paints one
 //    frame with `surface: 'none'`, every `clear.surface` branch misses, and a
@@ -39,9 +39,9 @@ jest.mock('@/services/storage', () => ({
   getEthereumDataURL: () => 'https://data.example',
 }));
 
-// Load-bearing (see clear-signing-core.test.ts): jest lists no `.web.ts` in
-// `moduleFileExtensions`, so the web entry has to be imported by explicit path
-// for `initSync` to run before a core is constructed.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { executeClearOperation } from '@/services/wallet-state-core/clear-executor';
 import { createClearSigningSession } from '@/services/wallet-state-core/clear-session';

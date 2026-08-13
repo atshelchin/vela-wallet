@@ -305,11 +305,10 @@ describe('handleSendCalls (EIP-5792 wallet_sendCalls)', () => {
 });
 
 // ── who owns the never-unlimited gate ───────────────────────────────────────
-// The mandate is enforced exactly ONCE per submit. On web the Rust core runs it
-// in `proceed_submit` before it asks the shell to sign, so the shell passes
-// `'core'` and this module must not re-decide it. Native (and every other
-// caller) omits the argument and keeps the TypeScript guard — Hermes has no
-// WebAssembly, so there is no core to defer to there.
+// The mandate is enforced exactly ONCE per submit. On the core-driven path the
+// Rust core runs it in `proceed_submit` before it asks the shell to sign, so
+// the shell passes `'core'` and this module must not re-decide it. Every other
+// caller omits the argument and keeps the TypeScript guard.
 
 describe('handleSendCalls — never-unlimited guard ownership', () => {
   // approve(address,uint256) with an unbounded amount: the shape the guard exists for.

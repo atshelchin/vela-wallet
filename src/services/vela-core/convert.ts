@@ -2,7 +2,7 @@
  * Shape conversions between the Rust core's FFI types and the legacy TypeScript
  * API the app already calls.
  *
- * Platform-neutral on purpose: `index.web.ts` (wasm) is only bundled for web,
+ * Platform-neutral on purpose: `index.ts` (wasm) is only bundled for web,
  * so this is where the conversion logic can be unit-tested under jest/node.
  * Every function here is pure.
  */

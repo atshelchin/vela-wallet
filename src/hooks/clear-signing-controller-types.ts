@@ -1,5 +1,5 @@
 /**
- * The contract `use-clear-signing.ts` (native) and `use-clear-signing.web.ts`
+ * The contract `use-clear-signing.ts` (native) and `use-clear-signing.ts`
  * (web, Rust-driven) both satisfy — the signing sheet's parse pipeline and
  * message adjudication.
  *

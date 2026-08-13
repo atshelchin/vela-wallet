@@ -3,9 +3,10 @@
  * to be wired).
  *
  * Standalone rather than folded into `types.ts`, for the reason that file
- * states for itself: the native stub (`fee-session.ts`) needs these
- * declarations, and importing them from a `.web` module would drag the web-only
- * service graph into the native bundle.
+ * states for itself: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  */
 
 import type { FeeOperation } from './generated/FeeOperation';

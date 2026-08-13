@@ -2,7 +2,7 @@
  * The one `balance_dashboard` core the web app has — WEB only, and APP-RESIDENT.
  *
  * The integration plan mandates the module-level singleton for this machine
- * (`use-display-currency.web.ts` / `network-admin-resident.web.ts` pattern), and
+ * (`use-display-currency.ts` / `network-admin-resident.ts` pattern), and
  * the machine's own contract requires it: the silent-retry budget, the partial
  * grace timer, the last-known-good total and the privacy hydrate are facts about
  * the *account*, not about a mounted screen. A per-mount session would restart
@@ -24,9 +24,8 @@
  *   `entering=` animation on every re-render (design language rule 10: an
  *   entrance animation must never replay).
  *
- * Imported by explicit `.web` specifier on every side: `tsc` resolves a
- * `.web.ts` file's own imports to the base `.ts` variant, so a bare specifier
- * would type-check against a native module that does not exist.
+ * (In the platform-pair days this file had to be imported by explicit `.web`
+ * specifier — a relic the pair collapse removed; imports are bare now.)
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,7 +39,7 @@ import type { APIToken } from '@/models/types';
 
 /**
  * The persisted privacy byte. On web this module is the ONLY hydrate: the core
- * owns the first-write-wins race, and `use-balance-privacy.web.ts` mirrors the
+ * owns the first-write-wins race, and `use-balance-privacy.ts` mirrors the
  * core's `hidden` rather than reading the key a second time.
  */
 const PRIVACY_KEY = BALANCE_PRIVACY_KEY;

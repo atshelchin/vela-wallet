@@ -2,9 +2,10 @@
  * Platform-neutral types and pure wire codecs for the `send` core (spec 017,
  * group G12 — `rust/crates/vela-core/src/app/send.rs`).
  *
- * Standalone for the reason `sign-types.ts` states: the native stub
- * (`send-session.ts`) needs these declarations, and importing them from a
- * `.web` module would drag the web-only service graph into the native bundle.
+ * Standalone for the reason `sign-types.ts` states: the retired native stub needed these declarations without
+ * the web service graph behind them. The stub is gone; the split stays
+ * because the vocabulary has importers of its own and keeps the wasm graph
+ * out of anything that must not load it.
  *
  * The codecs live here rather than in the executor because BOTH sides need
  * them: the executor puts an estimate on the wire, and the controller takes one

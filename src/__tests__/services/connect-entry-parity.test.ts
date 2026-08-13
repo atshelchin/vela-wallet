@@ -2,12 +2,11 @@
  * The five-way connect-entry classification, TypeScript ↔ Rust core, over the
  * real wasm.
  *
- * The rule exists twice and neither copy can be deleted: `dapp_session.rs`'s
- * `classify_connect_input` decides it on web (the shell stopped deciding — see
- * `services/connect-entry.web.ts`), while `services/connect-entry.ts` is the
- * only implementation iOS/Android have, because Hermes has no WebAssembly and
- * FR-202 forbids changing native behaviour. So the thing to remove is not the
- * duplication but the DRIFT.
+ * `dapp_session.rs`'s `classify_connect_input` decides the rule (the shell
+ * stopped deciding — see `services/connect-entry.ts`). The TypeScript
+ * classifier this file replays survived the native retirement as the fixture
+ * table's second reader; until it goes with the rest of the native-only code,
+ * the thing to remove is not the duplication but the DRIFT.
  *
  * What a red test here means, concretely: one platform routes a string
  * somewhere the other does not. Loosen the browser fallback on one side and a
@@ -47,10 +46,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-// Load-bearing, and easy to get wrong: jest lists no `.web.ts` in
-// `moduleFileExtensions`, so a bare `@/services/vela-core` resolves the NATIVE
-// index and the wasm is never initialized. Importing the web entry by explicit
-// path first runs `initSync` on the planted bytes.
+// Importing the facade first is load-bearing: `@/services/vela-core` runs
+// `initSync` on the planted wasm bytes at import time, so the core is
+// initialised before anything below constructs a session.
 import '@/services/vela-core';
 import { classifyConnectEntry as classifyOnNative, type ConnectEntry } from '@/services/connect-entry';
 import { classifyConnectEntry as classifyInCore } from '@/services/connect-entry';

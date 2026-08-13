@@ -343,7 +343,7 @@ describe('EIP-1271 contract signature format', () => {
   describe('Permit2 EIP-712 hash computation', () => {
     test('Vela hashTypedData matches Permit2 on-chain hash (verified via cast)', () => {
       // This typed data matches a real Uniswap Permit2 request on Polygon
-      const { hashTypedData } = require('@/services/eip712');
+      const { hashTypedData } = require('@/services/vela-core');
       const typedData = {
         types: {
           PermitSingle: [

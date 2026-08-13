@@ -16,7 +16,10 @@ jest.mock('@/services/public-key-index', () => ({
   queryRecord: jest.fn(),
   queryByWalletRef: jest.fn(),
 }));
-jest.mock('@/services/safe-address', () => ({ computeAddress: () => '0x' + '5a'.repeat(20) }));
+jest.mock('@/services/vela-core', () => ({
+  ...jest.requireActual('@/services/vela-core'),
+  computeAddress: () => '0x' + '5a'.repeat(20),
+}));
 jest.mock('@/services/storage', () => ({
   loadPendingUploads: jest.fn(),
   removePendingUpload: jest.fn(async () => {}),

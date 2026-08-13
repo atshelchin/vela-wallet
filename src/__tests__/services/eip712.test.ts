@@ -256,7 +256,17 @@ describe('EIP-712', () => {
       domain: { name: 'Test' },
       message: { val: 'something' },
     };
-    expect(() => hashTypedData(data)).toThrow('Unsupported EIP-712 type');
+    // The facade replaces the core's text with the sentence a person should
+    // read and keeps the machine-readable code on the error, so assert the code
+    // rather than the copy — otherwise this test breaks every time the wording
+    // is improved, which is exactly when it should stay quiet.
+    expect(() => hashTypedData(data)).toThrow();
+    try {
+      hashTypedData(data);
+    } catch (e) {
+      expect((e as Error & { coreCode?: string }).coreCode).toBe('Eip712Parse');
+      expect(String((e as Error).cause)).toContain('missing type in type resolution: tuple');
+    }
   });
 
   test('circular type references do not cause infinite loop', () => {

@@ -33,10 +33,10 @@ describe('parsePublicKey', () => {
     expect(y.length).toBe(32);
   });
 
-  test('returns empty for invalid input', () => {
-    const { x, y } = parsePublicKey('invalid');
-    expect(x.length).toBe(0);
-    expect(y.length).toBe(0);
+  test('refuses invalid input instead of returning empty coordinates', () => {
+    // Empty x/y was the oracle's silent failure mode — a caller that skipped the
+    // length check would derive an address from nothing. The core throws.
+    expect(() => parsePublicKey('invalid')).toThrow();
   });
 });
 

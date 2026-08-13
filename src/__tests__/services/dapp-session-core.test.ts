@@ -152,9 +152,9 @@ jest.mock('@/services/walletpair-transport', () => ({
 // Load-bearing (see browser-history-core.test.ts): jest lists no `.web.ts` in
 // `moduleFileExtensions`, so the web entry must be imported by explicit path
 // for `initSync` to run on the planted wasm bytes before the core is built.
-import '@/services/vela-core/index.web';
-import { createDappSession } from '@/services/wallet-state-core/dsess-session.web';
-import { remoteInjectLink } from '@/services/wallet-state-core/dsess-executor.web';
+import '@/services/vela-core';
+import { createDappSession } from '@/services/wallet-state-core/dsess-session';
+import { remoteInjectLink } from '@/services/wallet-state-core/dsess-executor';
 import { dsessErrorMessage } from '@/services/wallet-state-core/dsess-types';
 import type { DsessEvent } from '@/services/wallet-state-core/generated/DsessEvent';
 import type { DsessView } from '@/services/wallet-state-core/generated/DsessView';

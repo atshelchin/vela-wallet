@@ -21,8 +21,8 @@ jest.mock('@/services/token-reads', () => ({
   readErc20Balance: jest.fn(async () => null),
 }));
 
-import '@/services/vela-core/index.web';
-import { createApprovalGuardSession } from '@/services/wallet-state-core/guard-session.web';
+import '@/services/vela-core';
+import { createApprovalGuardSession } from '@/services/wallet-state-core/guard-session';
 import type { GuardView } from '@/services/wallet-state-core/generated/GuardView';
 import type { GuardEvent } from '@/services/wallet-state-core/generated/GuardEvent';
 

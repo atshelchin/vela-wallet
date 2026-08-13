@@ -62,18 +62,30 @@ jobs:
         run: npx eslint src --max-warnings=10000
       - name: Unit tests
         run: npx jest --ci
-      # The conformance corpus is extracted from the TypeScript implementations,
-      # so it is only trustworthy while it still MATCHES them. Re-deriving it and
-      # requiring a zero diff is the only check that catches the oracle drifting
-      # away from the committed vectors — and the only one that notices cases
-      # disappearing from inside a vector file (the per-runner suite-set pin sees
-      # a lost FILE, not a lost case). This works because the dump is byte-stable:
-      # no timestamp, no git sha, WebAuthn assertion inputs pinned.
-      - name: Conformance corpus matches the TypeScript oracle
+      # Half of this gate retired with the TypeScript oracle it compared against.
+      #
+      # primitives/abi/eip712/safe/webauthn.json were extracted from the
+      # quarantined TS implementations. Those are deleted — the Rust core is the
+      # only implementation now — so those vectors are FROZEN goldens with no
+      # generator: still replayed through Rust, the Kotlin and Swift bindings and
+      # the shipped web artifact, but no longer re-derivable. Changing one is a
+      # deliberate act that must be argued in the PR, not a regenerate-and-commit.
+      #
+      # identicon*.json and i18n*.json keep their oracles (the identicons-esm and
+      # i18next packages, pinned in package-lock), so they keep this gate: an
+      # unnoticed dependency bump that redrew every avatar or moved a plural rule
+      # would otherwise pass a fully green suite, because the corpus regenerates
+      # with it. The dump is byte-stable — no timestamp, no git sha.
+      - name: Regenerable corpus still matches its npm oracles
         run: |
           npm run dump:vectors
-          git diff --exit-code -- rust/crates/vela-core/tests/vectors \
-            || { echo "::error::The corpus no longer matches the TypeScript it was extracted from. Re-run 'npm run dump:vectors' and review the diff: a changed expectation means either a TS behavior change (intentional? document it in contracts/core-api.md) or oracle drift."; exit 1; }
+          git diff --exit-code -- rust/crates/vela-core/tests/vectors/identicon.json \
+                                  rust/crates/vela-core/tests/vectors/identicon-bulk.json \
+                                  rust/crates/vela-core/tests/vectors/i18n-behaviour.json \
+                                  rust/crates/vela-core/tests/vectors/i18n-exhaustive.json \
+                                  rust/crates/vela-core/tests/vectors/i18n-plural.json \
+                                  rust/crates/vela-core/tests/vectors/i18n-plural-legacy.json \
+            || { echo "::error::The identicon/i18n vectors no longer match the packages they were extracted from — identicons-esm or i18next moved under us. Treat a redrawn avatar or a changed plural as a release blocker, not a chore: review the diff and confirm the bump was intended."; exit 1; }
       # The identicon artwork table is GENERATED from the pinned identicons-esm
       # package (specs/003-rust-identicon FR-009). Regenerating and requiring a
       # zero diff is what catches the dependency drifting away from the avatars

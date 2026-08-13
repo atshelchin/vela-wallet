@@ -25,7 +25,7 @@
  * `.web.ts` in `moduleFileExtensions`, so the web entry must be imported by
  * explicit path first to run `initSync` on the planted wasm bytes.
  */
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { DappPermissionsCore } from '../../../rust/pkg-web/vela_core.js';
 
 import { isAllowedWebDAppOrigin } from '@/services/web-popup-transport';

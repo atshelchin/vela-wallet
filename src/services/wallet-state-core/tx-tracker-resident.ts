@@ -39,10 +39,10 @@
  * would type-check against a native module that does not exist.
  */
 
-import { notifyFeedReconciled } from '@/services/wallet-state-core/feed-resident.web';
-import { setSignTrackerSink } from '@/services/wallet-state-core/sign-resident.web';
-import { notifyReceiptLogsConfirmed } from '@/services/wallet-state-core/token-trust-resident.web';
-import { createTxTrackerSession } from '@/services/wallet-state-core/tx-tracker-session.web';
+import { notifyFeedReconciled } from '@/services/wallet-state-core/feed-resident';
+import { setSignTrackerSink } from '@/services/wallet-state-core/sign-resident';
+import { notifyReceiptLogsConfirmed } from '@/services/wallet-state-core/token-trust-resident';
+import { createTxTrackerSession } from '@/services/wallet-state-core/tx-tracker-session';
 
 import type { SendReceiptOutcome } from './generated/SendReceiptOutcome';
 import type { TrackEntryView } from './generated/TrackEntryView';

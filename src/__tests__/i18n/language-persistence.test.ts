@@ -20,6 +20,12 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
     removeItem: jest.fn((k: string) => { mockStore.delete(k); return Promise.resolve(); }),
   },
 }));
+// `@/i18n` reads GIT_COMMIT for its diagnostics `buildId`, and that module
+// imports expo-constants → expo-modules-core → react-native, none of which jest
+// parses (ESM, then Flow). Transforming that chain to obtain one string is the
+// wrong trade — this test cares about persistence, not the build stamp. It only
+// became reachable when the native i18n twin went away.
+jest.mock('@/constants/build-info', () => ({ APP_VERSION: '0.0.0', GIT_COMMIT: 'test' }));
 // Device locale resolves to English (so 'auto' → 'en').
 jest.mock('expo-localization', () => ({
   getLocales: () => [{ languageCode: 'en', languageTag: 'en-US', regionCode: 'US' }],

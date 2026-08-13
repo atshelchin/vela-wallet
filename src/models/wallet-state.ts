@@ -1,23 +1,51 @@
 /**
- * Wallet state management using React Context — NATIVE.
- * Matches iOS WalletState.swift.
+ * Wallet state — WEB, driven by the portable Rust state machine
+ * (spec 017, `rust/crates/vela-core/src/app/session.rs`).
  *
- * The shape (state type, actions, reducer, context, `useWallet`,
- * `shortAddress`) lives in `wallet-state-shape.ts` and is re-exported here, so
- * every existing `@/models/wallet-state` import is unchanged. What is
- * platform-specific is exactly the provider: this one runs the reducer plus its
- * two effects (startup restore + index persistence); on web
- * (`wallet-state.web.ts`) the same three values come out of the Rust `session`
- * machine instead. Native behaviour below is byte-for-byte what it was.
+ * This file owns no rules. The reducer's six cases, the startup restore with
+ * its address migration and index clamp, and the "never persist while loading"
+ * guard are all in Rust now; what is left here is a projection of the core's
+ * `SessionView` onto the exact `WalletState` shape the app has always read, and
+ * a translation of the action vocabulary onto the core's events.
+ *
+ * The contract this file must not break: `useWallet()` is read SYNCHRONOUSLY by
+ * dozens of components (`state.hasWallet`, `state.address`, `activeAccount`),
+ * and after a JSON boundary views arrive asynchronously. So:
+ *
+ * - The session is app-resident (`session-resident.web.ts`), booted once per
+ *   process, and its view is mirrored into local state — the 016
+ *   `use-display-currency.web.ts` pattern.
+ * - The first frame is `INITIAL_STATE` field for field, because the core's own
+ *   pristine projection is (loading, no wallet, empty address).
+ * - The mirrored view object only changes when the session actually changed
+ *   (the resident drops equal views), so `state.accounts` / `activeAccount`
+ *   keep the reference stability every `useEffect` dependency list assumes.
+ *
+ * `SET_CONNECTED` stays shell-side: the core declares the browser connection
+ * out of scope on purpose (it belongs to the dapp-connection machine), so the
+ * flag is local state here — the same nothing it has been, since no live call
+ * site dispatches it.
+ *
+ * Imports of the shape module are deliberate: a `.web.ts` must NEVER
+ * value-import its own base file (Metro resolves it back to itself).
  */
-import { computeAddress } from '@/services/vela-core';
-import React, { useReducer, useEffect } from 'react';
-import { loadAccounts, saveAccount, loadActiveAccountIndex, saveActiveAccountIndex } from '@/services/storage';
+import React, { useCallback, useEffect, useMemo, useState, type Dispatch } from 'react';
+
 import {
-  INITIAL_STATE,
   WalletContext,
-  walletReducer,
+  type WalletAction,
+  type WalletState,
 } from './wallet-state-shape';
+import {
+  dispatchWalletSession,
+  ensureWalletSession,
+  subscribeWalletSession,
+  walletSessionAccounts,
+  walletSessionView,
+} from '@/services/wallet-state-core/session-resident';
+import { toCoreAccount } from '@/services/wallet-state-core/session-executor';
+import type { SessionView } from '@/services/wallet-state-core/generated/SessionView';
+import type { StoredAccount } from '@/models/types';
 
 export {
   INITIAL_STATE,
@@ -28,54 +56,114 @@ export {
 } from './wallet-state-shape';
 export type { WalletState, WalletAction, WalletContextValue } from './wallet-state-shape';
 
+/**
+ * A non-negative safe integer, or nothing. `SwitchAccount.index` and
+ * `CompletionMode::SetWallet.active_index` are `usize` on the wire: a negative
+ * would be a serde fault (a core-level error, not a user one), and the TS
+ * reducer treated a negative index as the same no-op an out-of-range one is —
+ * so it fails closed here instead of crossing.
+ */
+function wireIndex(index: number): number | null {
+  return Number.isSafeInteger(index) && index >= 0 ? index : null;
+}
+
 // MARK: - Provider Component
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(walletReducer, INITIAL_STATE);
-  const activeAccount = state.accounts[state.activeAccountIndex];
+  // View AND its projected accounts in ONE state cell. Reading the projection
+  // from the resident during render made it invisible to React Compiler, which
+  // cached the first (empty) result while `address` kept updating — an
+  // account-less wallet that still showed an address.
+  const [snapshot, setSnapshot] = useState<{ view: SessionView; accounts: StoredAccount[] }>(
+    () => ({ view: walletSessionView(), accounts: walletSessionAccounts() }),
+  );
+  const view = snapshot.view;
+  // Out of the core's scope by design — see the header note.
+  const [isConnectedToBrowser, setConnected] = useState(false);
 
-  // Restore wallet state from storage on mount, fixing any bad addresses
   useEffect(() => {
-    Promise.all([loadAccounts(), loadActiveAccountIndex()])
-      .then(async ([accounts, savedIndex]) => {
-        if (accounts.length > 0) {
-          // Migrate: fix accounts that have credentialId as address
-          for (const acct of accounts) {
-            if (!acct.publicKeyHex) continue;
-            try {
-              const correct = computeAddress(acct.publicKeyHex);
-              if (acct.address !== correct) {
-                console.log(`[wallet] Migrating address for ${acct.name}: ${acct.address.slice(0, 10)} → ${correct.slice(0, 10)}`);
-                acct.address = correct;
-                await saveAccount(acct);
-              }
-            } catch (err) {
-              console.error(`[wallet] Address migration failed for ${acct.name}:`, err);
-              // Keep existing address rather than corrupting storage
-            }
-          }
-          // Clamp saved index to valid range
-          const activeIndex = savedIndex < accounts.length ? savedIndex : 0;
-          dispatch({ type: 'SET_WALLET', accounts, activeIndex });
-        } else {
-          dispatch({ type: 'LOADED_EMPTY' });
-        }
-      })
-      .catch(() => {
-        dispatch({ type: 'LOADED_EMPTY' });
-      });
+    const unsubscribe = subscribeWalletSession((nextView, nextAccounts) => {
+      setSnapshot({ view: nextView, accounts: nextAccounts });
+    });
+    // Boots the restore on first mount; inert on every later one (the session
+    // outlives this component, and the core makes a second Boot inert too).
+    ensureWalletSession();
+    // Catch up on anything committed between the initial render and here.
+    setSnapshot({ view: walletSessionView(), accounts: walletSessionAccounts() });
+    return unsubscribe;
   }, []);
 
-  // Persist active account index whenever it changes
-  useEffect(() => {
-    if (!state.isLoading && state.hasWallet) {
-      saveActiveAccountIndex(state.activeAccountIndex);
+  const dispatch = useCallback<Dispatch<WalletAction>>((action) => {
+    switch (action.type) {
+      case 'SET_WALLET': {
+        // The onboarding hand-off, forwarded whole: `CompletionMode` is the one
+        // vocabulary the create_wallet / login machines already speak, and the
+        // session core unifies SET_WALLET and ADD_ACCOUNT behind it.
+        const active = wireIndex(action.activeIndex ?? 0) ?? 0;
+        dispatchWalletSession({
+          type: 'account_established',
+          mode: {
+            type: 'set_wallet',
+            accounts: action.accounts.map(toCoreAccount),
+            active_index: active,
+          },
+        });
+        return;
+      }
+      case 'ADD_ACCOUNT':
+        dispatchWalletSession({
+          type: 'account_established',
+          mode: { type: 'add_account', account: toCoreAccount(action.account) },
+        });
+        return;
+      case 'SWITCH_ACCOUNT': {
+        const index = wireIndex(action.index);
+        // Out of range is a WHOLE no-op in the core too (invariant ①).
+        if (index === null) return;
+        dispatchWalletSession({ type: 'switch_account', index });
+        return;
+      }
+      case 'SET_CONNECTED':
+        setConnected(action.connected);
+        return;
+      case 'LOADED_EMPTY':
+        // The restore outcome is the core's to decide; nothing dispatches this.
+        return;
+      case 'LOGOUT':
+        // Effective only while the confirm dialog the core opened is up, which
+        // is exactly where the settings screen calls it from (invariant ⑤ —
+        // there is no unwarned logout path). Memory-only, as today.
+        dispatchWalletSession({ type: 'sign_out_confirmed' });
+        return;
     }
-  }, [state.activeAccountIndex, state.isLoading, state.hasWallet]);
+  }, []);
+
+  const state = useMemo<WalletState>(
+    () => ({
+      hasWallet: view.has_wallet,
+      // Derived in the core from `accounts[active_index]`, so it can never
+      // disagree with the active account (invariant ①).
+      address: view.address,
+      isConnectedToBrowser,
+      // The rows arrive in original order carrying their original index
+      // (invariant ⑦), so position === `row.index` and the switcher's
+      // `sortAccountsByBalance` still hands back exactly what SWITCH_ACCOUNT
+      // expects after a balance reorder. Reference-stable while the accounts
+      // themselves are unchanged, so switching the active account does not
+      // invalidate every `[state.accounts]` dependency — the reducer's
+      // `SWITCH_ACCOUNT` kept the same array too.
+      accounts: snapshot.accounts,
+      activeAccountIndex: view.active_index,
+      isLoading: view.loading,
+    }),
+    [view, isConnectedToBrowser],
+  );
+
+  const activeAccount = state.accounts[state.activeAccountIndex];
 
   const value = React.useMemo(
     () => ({ state, dispatch, activeAccount }),
-    [state, activeAccount],
+    [state, dispatch, activeAccount],
   );
 
   return React.createElement(WalletContext.Provider, { value }, children);

@@ -42,8 +42,8 @@ jest.mock('@/services/rpc-adapter', () => ({
 // index and the wasm is never initialized (metro resolves the same specifier to
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
-import '@/services/vela-core/index.web';
-import { createManageTokensSession } from '@/services/wallet-state-core/manage-tokens-session.web';
+import '@/services/vela-core';
+import { createManageTokensSession } from '@/services/wallet-state-core/manage-tokens-session';
 import type { MtokView } from '@/services/wallet-state-core/generated/MtokView';
 
 const KEY = 'vela.customTokens';

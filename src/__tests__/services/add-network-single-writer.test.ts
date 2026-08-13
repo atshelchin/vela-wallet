@@ -37,30 +37,20 @@ describe('one add-network implementation per platform', () => {
   });
 
   test('the web controller reaches the core, never the TypeScript services', () => {
-    const web = code(read('hooks/use-add-network-tab.web.ts'));
-    expect(web).toMatch(/network-admin-resident\.web/);
+    const web = code(read('hooks/use-add-network-tab.ts'));
+    expect(web).toMatch(/network-admin-resident/);
     expect(web).not.toMatch(/services\/network-checker/);
     expect(web).not.toMatch(/services\/chain-registry/);
     // The registry read and the persist are the executor's, behind the core.
     expect(web).not.toMatch(/saveCustomNetwork|fetchChainInfo|searchChains/);
   });
 
-  test('the native controller keeps today’s TypeScript path verbatim', () => {
-    // FR-202: native behaviour is unchanged, so the checker/saver must still be
-    // exactly where they were — just moved out of the component.
-    const native = code(read('hooks/use-add-network-tab.ts'));
-    expect(native).toMatch(/checkNetworkCompatibility/);
-    expect(native).toMatch(/saveCustomNetwork/);
-  });
-
-  test('nothing outside the native controller and its own module writes custom networks', () => {
-    // `services/add-network.ts` is the scan path's native half (it has a `.web`
-    // twin that goes through the core); `storage.ts` defines the writer.
-    const writers = [
-      'hooks/use-add-network-tab.ts',
-      'services/add-network.ts',
-      'services/storage.ts',
-    ];
+  test('nothing outside the controller and its own module writes custom networks', () => {
+    // `services/add-network.ts` is the scan path; `storage.ts` defines the writer.
+    // Both the controller and the scan path used to be on this list; both ask
+    // the core now, which the sibling test above pins. `storage.ts` is the only
+    // module left that writes a custom network, which is the whole point.
+    const writers = ['services/storage.ts'];
     for (const file of writers) expect(code(read(file))).toMatch(/saveCustomNetwork/);
   });
 });

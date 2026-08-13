@@ -486,7 +486,11 @@ describe('ERC-7730 Clear Signing', () => {
 
     it('renders ERC-721 safeTransferFrom(...,bytes) as NFT without an ERC-165 probe', async () => {
       // 0xb88d4fde is ERC-721-only — no on-chain call needed.
-      const data = '0xb88d4fde' + pad(FROM) + pad(TO) + pad((42n).toString(16)) + pad('a0') + pad('0');
+      // The `bytes` offset is 0x80: four head words, so the length word starts at
+      // byte 128. The fixture used to say 0xa0, which points one word past the
+      // end — the old TypeScript decoder tolerated it, the Rust core does not,
+      // and neither would a real encoder ever emit it.
+      const data = '0xb88d4fde' + pad(FROM) + pad(TO) + pad((42n).toString(16)) + pad('80') + pad('0');
       const r = await resolveTransaction(BAYC, data, '0x0', 1);
       expect(r).not.toBeNull();
       expect(r!.intent).toBe('Transfer NFT');

@@ -1,115 +1,100 @@
 /**
- * The signing sheet's fee half — NATIVE (and the shared TypeScript
- * implementation the mobile app keeps).
+ * The signing sheet's fee half — WEB, driven by the portable Rust state machine
+ * (spec 017, `rust/crates/vela-core/src/app/fee_policy.rs`).
  *
- * Extracted verbatim from `SigningSheet.tsx`'s request effect (spec 017): the
- * `eth_sendTransaction` estimate against the REAL tx, the `wallet_sendCalls`
- * estimate against the whole MultiSend, the native-asset reset on a new
- * request, and the three flags the confirm gate reads. Nothing about it
- * changed; it moved so the web twin could replace it wholesale.
+ * This file owns no rules. The two `estimateTransactionFee` calls it replaces
+ * (`SigningSheet.tsx:280` for a contract call, `:370` for a `wallet_sendCalls`
+ * batch) each produced a fee the card then went on to patch locally; both are
+ * now one `QuoteRequested` on one live session, and the number that comes back
+ * is the number the sheet displays, gates on and submits.
  *
- * Hermes has no WebAssembly, so this stays the mobile path. `use-signing-fee.web.ts`
- * drives the Rust `fee_policy` machine instead; both expose
- * `SigningFeeController`.
+ * The confirm gate is the core's `confirm_fee_ready` rather than the three
+ * flags the sheet used to combine. That is a real change and a deliberate one:
+ * the TypeScript expression gated a contract call on "estimating or failed" but
+ * a BATCH only on "re-quoting", so a batch could arm its slider over a fee that
+ * had not settled. `fee_policy` publishes one gate for both
+ * (invariant ⑦), and the machine is where that judgement belongs.
+ *
+ * `use-signing-fee.ts` is the native counterpart and keeps the TypeScript path
+ * verbatim — Hermes has no WebAssembly.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
-import { estimateTransactionFee, type TransactionFeeEstimate } from '@/services/safe-transaction';
+import { useFeeQuote } from './use-fee-quote';
 import type { SigningFeeController, SigningFeeInput } from './signing-fee-controller-types';
+import type { FeeCall } from '@/services/wallet-state-core/generated/FeeCall';
+
+/**
+ * A shell call onto the core's wire. `value` is hex from the dApp and decimal
+ * on the wire; `data` stays 0x-hex. Getting this backwards does not fail
+ * loudly — it prices a different operation than the one being signed.
+ */
+function toCoreCall(call: { to: string; value?: string; data?: string }): FeeCall {
+  let value = '0';
+  try {
+    value = BigInt(call.value ?? '0').toString();
+  } catch {
+    // A malformed value is not a number this wallet will sign; pricing it as
+    // zero keeps the quote honest about the gas and lets the submit path
+    // refuse the call on its own terms, exactly as `toShellCall` does.
+    value = '0';
+  }
+  return { to: call.to, value, data: call.data && call.data !== '0x' ? call.data : '0x' };
+}
 
 export function useSigningFee(input: SigningFeeInput): SigningFeeController {
   const {
     tx, batchCalls, chainId, account, publicKeyHex, publicKeyLoaded, readOnly, requestKey,
   } = input;
 
-  // The user's remaining choice is the fee ASSET (null = native, else a
-  // whitelisted stablecoin). The card loads the options; this owns the
-  // selection so the approve path submits exactly what was quoted.
-  const [gasFeeToken, setGasFeeToken] = useState<string | null>(null);
-  const [feeEstimate, setFeeEstimate] = useState<TransactionFeeEstimate | null>(null);
-  const [estimatingGas, setEstimatingGas] = useState(false);
-  // Explicit flag (vs inferring from a null estimate) so the confirm guard
-  // doesn't flicker in the frame before estimation starts.
-  const [gasEstimateFailed, setGasEstimateFailed] = useState(false);
-  // The card fires this while it re-quotes internally (fee-asset switch /
-  // refresh), so confirm stays disabled until the displayed quote settles —
-  // the internal re-quote doesn't touch `estimatingGas`.
-  const [feeBusy, setFeeBusy] = useState(false);
-
-  const costsGas = tx !== null || (batchCalls !== null && batchCalls.length > 0);
-
-  useEffect(() => {
-    if (requestKey === null) {
-      setFeeEstimate(null);
-      setGasFeeToken(null);
-      setGasEstimateFailed(false);
-      return;
-    }
-    // A new request starts back at the native fee asset (the estimate below is
-    // made without a token, so the displayed quote matches the selection).
-    setGasFeeToken(null);
-    if (!costsGas || !account || readOnly || !publicKeyLoaded) return;
-
-    // Guard the async estimate so a slower previous request can't overwrite the
-    // current one's state after it has been replaced.
-    let cancelled = false;
-    setEstimatingGas(true);
-    setGasEstimateFailed(false);
-    // A batch is an on-chain UserOp: estimate against the same MultiSend of
-    // every call that `sendBatchCalls` submits. Otherwise the REAL tx, so the
-    // displayed fee and the funding pre-check reflect this contract call or
-    // deploy and not a dummy transfer.
-    const useBatch = batchCalls !== null && batchCalls.length > 0;
-    estimateTransactionFee(
-      account,
-      chainId,
-      'fast',
-      useBatch ? undefined : tx ?? undefined,
-      useBatch ? batchCalls : undefined,
-      undefined,
-      publicKeyHex,
-    )
-      .then((fee) => { if (!cancelled) { setFeeEstimate(fee); setGasEstimateFailed(false); } })
-      .catch(() => {
-        if (cancelled) return;
-        setFeeEstimate(null);
-        setGasEstimateFailed(true);
-      })
-      .finally(() => { if (!cancelled) setEstimatingGas(false); });
-    return () => { cancelled = true; };
-    // `requestKey` stands in for the request object the effect used to key on;
-    // `tx`/`batchCalls` are derived from it and would only add identity churn.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, chainId, account, publicKeyHex, publicKeyLoaded, readOnly]);
-
-  const onFeeUpdate = useCallback((fee: TransactionFeeEstimate) => {
-    setFeeEstimate(fee);
-    setGasEstimateFailed(false);
-  }, []);
+  const fee = useFeeQuote();
+  const { requestQuote } = fee;
 
   const useBatch = batchCalls !== null && batchCalls.length > 0;
-  const isTx = !useBatch && tx !== null;
+  const costsGas = useBatch || tx !== null;
+  /**
+   * The effect's own precondition, named once and reused by the gate below.
+   *
+   * A fee that is never requested must not block confirm — a read-only replay
+   * has no fee and is not about to send one, and gating it would be a guard
+   * that traps the user rather than one that protects them. The old expression
+   * gated on `estimatingGas`/`gasEstimateFailed`, both of which stay false when
+   * no estimate is made, so this reproduces that and does not widen it.
+   */
+  const willQuote = costsGas && !!account && !readOnly && publicKeyLoaded;
 
+  useEffect(() => {
+    if (requestKey === null || !willQuote || !account) return;
+    // The fee token is a QUOTE PARAMETER, and a new request starts back at
+    // native — the same reset `SigningSheet.tsx:271` did, expressed as the
+    // parameter it always was rather than as a `setState` beside the estimate.
+    void requestQuote({
+      chainId,
+      account,
+      calls: useBatch ? batchCalls.map(toCoreCall) : tx ? [toCoreCall(tx)] : [],
+      feeToken: null,
+      publicKeyHex,
+    });
+    // `requestKey` carries the CALLS, so it changes whenever what is priced
+    // changes; `tx`/`batchCalls` are derived from the same request object and
+    // listing them too would only add identity churn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestKey, chainId, account, publicKeyHex, willQuote, requestQuote]);
+
+  const { view, pending, asked } = fee;
   return {
     cardProps: {
       safeAddress: account ?? '',
       chainId,
-      feeEstimate,
-      estimating: estimatingGas,
-      publicKeyHex,
-      tx: useBatch ? undefined : tx ?? undefined,
-      batchCalls: useBatch ? batchCalls : undefined,
-      gasFeeToken,
-      onFeeTokenChange: setGasFeeToken,
-      onFeeUpdate,
-      onBusyChange: setFeeBusy,
+      controller: fee,
     },
-    estimate: feeEstimate,
-    feeToken: gasFeeToken,
-    // `SigningSheet.tsx:610-611`, verbatim — including the asymmetry that a
-    // batch is NOT gated by `estimating`/`failed`, only by a re-quote.
-    blocksConfirm: (isTx && (estimatingGas || gasEstimateFailed)) || ((isTx || useBatch) && feeBusy),
-    failed: gasEstimateFailed,
+    estimate: fee.estimate,
+    feeToken: view.fee_token,
+    // The core's single gate, widened over the account-context read that
+    // precedes the dispatch so the slider cannot arm in the frame before the
+    // machine starts.
+    blocksConfirm: willQuote && (pending || !view.confirm_fee_ready),
+    failed: asked && !pending && !view.busy && (view.failed != null || view.fee === null),
   };
 }

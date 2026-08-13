@@ -16,10 +16,10 @@ import {
   buildMockRegistration,
   fixtureByCredentialId,
 } from '@/services/dev/passkey-fixture';
-import { computeAddress } from '@/services/safe-address';
-import { verifySafeWebAuthn } from '@/services/webauthn-verify';
-import { derSignatureToRaw, extractPublicKey } from '@/services/attestation-parser';
-import { fromHex, toHex, concatBytes, stripHexPrefix } from '@/services/hex';
+import { computeAddress } from '@/services/vela-core';
+import { verifySafeWebAuthn } from '@/services/vela-core';
+import { derSignatureToRaw, extractPublicKey } from '@/services/vela-core';
+import { fromHex, toHex, concatBytes, stripHexPrefix } from '@/services/vela-core';
 
 describe('parallel-space passkey fixtures', () => {
   it('reveals a stable set of fixture accounts (addresses to fund)', () => {

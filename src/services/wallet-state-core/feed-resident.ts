@@ -20,8 +20,8 @@
  * would type-check against a native module that does not exist.
  */
 
-import { createActivityFeedSession } from '@/services/wallet-state-core/feed-session.web';
-import { walletSessionAccounts } from '@/services/wallet-state-core/session-resident.web';
+import { createActivityFeedSession } from '@/services/wallet-state-core/feed-session';
+import { walletSessionAccounts } from '@/services/wallet-state-core/session-resident';
 import type { FeedEvent } from './generated/FeedEvent';
 import type { FeedRow } from './generated/FeedRow';
 import type { FeedView } from './generated/FeedView';

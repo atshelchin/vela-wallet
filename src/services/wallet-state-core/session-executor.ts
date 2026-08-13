@@ -32,7 +32,7 @@ import {
   saveAccount,
   saveActiveAccountIndex,
 } from '@/services/storage';
-import { endExtCacheSession } from '@/services/wallet-state-core/session-ext-cache-bridge.web';
+import { endExtCacheSession } from '@/services/wallet-state-core/session-ext-cache-bridge';
 
 /**
  * A stored record in the core's vocabulary.

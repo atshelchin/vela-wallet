@@ -1,27 +1,39 @@
 /**
- * `approval_guard` core session — NATIVE entry point, and deliberately
- * unavailable.
+ * Constructs the `approval_guard` core and wires it to the web shell — WEB
+ * entry (spec 017, `rust/crates/vela-core/src/app/approval_guard.rs`).
  *
- * React Native runs on Hermes, which has no WebAssembly. iOS and Android keep
- * the TypeScript controller (`src/hooks/use-approval-guard.ts`) and never
- * import this module at runtime.
+ * Importing `@/services/vela-core` first is load-bearing: its web entry runs
+ * `initSync` on the base64-embedded module at import time, so the wasm is
+ * initialised before the core is constructed here.
  *
- * It exists so the platform pair resolves: `tsc` has no `moduleSuffixes`
- * configured, so it type-checks `.web.ts` files but resolves *their* imports
- * to the base `.ts` variant. Same shape as `session.ts`.
+ * `guard-session.ts` is the native counterpart and throws.
  */
 
+import '@/services/vela-core';
+import { ApprovalGuardCore } from '../../../rust/pkg-web/vela_core.js';
+
+import { createJsonWasmShell } from '@/services/crux/json-wasm-shell';
 import type { EffectLoop } from '@/services/crux/effect-loop';
+
+import { createGuardExecutor, guardOperationFailure } from '@/services/wallet-state-core/guard-executor';
 import type { GuardEvent } from './generated/GuardEvent';
-import type { ApprovalGuardSessionOptions } from './guard-types';
+import type { GuardShellResult } from './generated/GuardShellResult';
+import type { GuardView } from './generated/GuardView';
+import type { ApprovalGuardSessionOptions, GuardEffect } from './guard-types';
 
 export type ApprovalGuardSession = EffectLoop<GuardEvent>;
 
-const UNAVAILABLE =
-  'wallet-state-core is web-only: this runtime has no WebAssembly. Native uses the TypeScript controllers.';
-
 export function createApprovalGuardSession(
-  _options: ApprovalGuardSessionOptions,
+  options: ApprovalGuardSessionOptions,
 ): ApprovalGuardSession {
-  throw new Error(UNAVAILABLE);
+  const execute = createGuardExecutor();
+  return createJsonWasmShell<GuardView, GuardEvent, GuardEffect, GuardShellResult>(
+    new ApprovalGuardCore(),
+    {
+      onView: options.onView,
+      execute,
+      toFailure: guardOperationFailure,
+      onError: options.onError,
+    },
+  );
 }

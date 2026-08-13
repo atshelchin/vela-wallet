@@ -21,8 +21,32 @@
  * 500-key full-tree remount goes from 0.84 ms to 1.93 ms: about 7% of a frame.
  * Always-on in development is affordable.
  */
-import { fingerprint } from '@/services/vela-core/diff-harness';
 import type { AdapterTOptions, SeamDispatch } from './seam';
+
+/**
+ * Stable, comparable rendering of any value (incl. bigint / bytes).
+ *
+ * Was shared with the core facade's own harness; that one went when the legacy
+ * TypeScript path it compared against was deleted, so this is now its only home.
+ */
+function fingerprint(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'bigint') return `${value}n`;
+  if (value instanceof Uint8Array) {
+    let hex = '0x';
+    for (const b of value) hex += b.toString(16).padStart(2, '0');
+    return hex;
+  }
+  if (Array.isArray(value)) return `[${value.map(fingerprint).join(',')}]`;
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => `${k}:${fingerprint(v)}`);
+    return `{${entries.join(',')}}`;
+  }
+  return String(value);
+}
 
 export type HarnessMode = 'off' | 'first-seen' | 'every';
 

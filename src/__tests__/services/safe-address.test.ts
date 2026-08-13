@@ -2,9 +2,9 @@
  * Tests for Safe address computation.
  * Test vectors match iOS SafeAddressTests.swift and Android SafeAddressComputerTest.kt.
  */
-import { computeAddress, parsePublicKey, calculateSaltNonce, encodeSetupData, SAFE_PROXY_RUNTIME_CODE, PROXY_CREATION_CODE } from '@/services/safe-address';
-import { keccak256 } from '@/services/eth-crypto';
-import { toHex } from '@/services/hex';
+import { computeAddress, parsePublicKey, calculateSaltNonce, encodeSetupData, SAFE_PROXY_RUNTIME_CODE, PROXY_CREATION_CODE } from '@/services/vela-core';
+import { keccak256 } from '@/services/vela-core';
+import { toHex } from '@/services/vela-core';
 
 // Test public key (matches iOS/Android test vectors)
 const TEST_PUBLIC_KEY = '04a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90b1c2d3e4f50617283940a1b2c3d4e5f6b1c2d3e4f50617283940a1b2c3d4e5f6';
@@ -33,10 +33,10 @@ describe('parsePublicKey', () => {
     expect(y.length).toBe(32);
   });
 
-  test('returns empty for invalid input', () => {
-    const { x, y } = parsePublicKey('invalid');
-    expect(x.length).toBe(0);
-    expect(y.length).toBe(0);
+  test('refuses invalid input instead of returning empty coordinates', () => {
+    // Empty x/y was the oracle's silent failure mode — a caller that skipped the
+    // length check would derive an address from nothing. The core throws.
+    expect(() => parsePublicKey('invalid')).toThrow();
   });
 });
 

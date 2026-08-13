@@ -1,25 +1,33 @@
 /**
- * `fee_policy` core session — NATIVE entry point, and deliberately unavailable.
+ * Constructs the `fee_policy` core and wires it to the web shell — WEB entry
+ * (spec 017, `rust/crates/vela-core/src/app/fee_policy.rs`).
  *
- * React Native runs on Hermes, which has no WebAssembly. iOS and Android keep
- * `estimateTransactionFee` in `services/safe-transaction.ts` — which is also
- * the reference side of the TS↔Rust parity corpus — and never import this
- * module at runtime.
+ * Importing `@/services/vela-core` first is load-bearing: its web entry runs
+ * `initSync` on the module at import time, so the wasm is initialised before
+ * the core is constructed here.
  *
- * It exists so the platform pair resolves: `tsc` has no `moduleSuffixes`
- * configured, so it type-checks `.web.ts` files but resolves *their* imports to
- * the base `.ts` variant. Same shape as `balance-session.ts`.
+ * `fee-session.ts` is the native counterpart and throws.
  */
 
+import '@/services/vela-core';
+import { FeePolicyCore } from '../../../rust/pkg-web/vela_core.js';
+
+import { createJsonWasmShell } from '@/services/crux/json-wasm-shell';
 import type { EffectLoop } from '@/services/crux/effect-loop';
+
+import { createFeeExecutor, feeOperationFailure } from './fee-executor';
 import type { FeeEvent } from './generated/FeeEvent';
-import type { FeeSessionOptions } from './fee-types';
+import type { FeeShellResult } from './generated/FeeShellResult';
+import type { FeeView } from './generated/FeeView';
+import type { FeeEffect, FeeSessionOptions } from './fee-types';
 
 export type FeeSession = EffectLoop<FeeEvent>;
 
-const UNAVAILABLE =
-  'wallet-state-core is web-only: this runtime has no WebAssembly. Native uses the TypeScript controllers.';
-
-export function createFeeSession(_options: FeeSessionOptions): FeeSession {
-  throw new Error(UNAVAILABLE);
+export function createFeeSession(options: FeeSessionOptions): FeeSession {
+  return createJsonWasmShell<FeeView, FeeEvent, FeeEffect, FeeShellResult>(new FeePolicyCore(), {
+    onView: options.onView,
+    execute: createFeeExecutor(options),
+    toFailure: feeOperationFailure,
+    onError: options.onError,
+  });
 }

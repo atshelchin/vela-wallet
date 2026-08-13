@@ -1,63 +1,43 @@
 /**
- * What a swipe-dismiss of the signing sheet MEANS — NATIVE.
+ * What a swipe-dismiss of the signing sheet MEANS — WEB.
  *
- * Native (Hermes, no WebAssembly) has no `sign_request` core, so the rule is
- * evaluated here, in TypeScript. This file is a deliberate, documented PORT of
- * `rust/crates/vela-core/src/app/sign_request.rs::swipe_action` and must stay
- * one; `swipe-dismiss.web.ts` does not use it at all — web asks the core.
+ * Nothing is decided here. The `sign_request` core already models this exact
+ * question as `SignView.swipe_action` / `SignEvent::SwipeDismissed`
+ * (`sign_request.rs::swipe_action`, dispatched in `update`), so the shell's job
+ * is to report the gesture and let the machine route it — the same relationship
+ * `rejectRequest` / `dismissRequest` / `handleFundingCancel` already have with
+ * `reject_tapped` / `dismiss_tapped` / `funding_cancelled`.
  *
- * The rule, and why it is a rule rather than a preference:
+ * INVARIANT (no test can assert this — nothing here renders): the handlers and
+ * facts this function is given are IGNORED on web, on purpose. Re-deriving the
+ * verdict from projected booleans is how the two halves drift: the core's
+ * "committed" set is `Stage::{Submitting, PersistingResult, ReactiveSponsoring}`
+ * plus `sign_error`/`pending_op_hash`, and the shell only ever saw a flattened
+ * `isSubmitting` boolean. A `Stage` added in Rust would extend the core's set
+ * and leave the TypeScript ternary answering 4001 past the commitment point —
+ * BUG-2, the dApp told the user refused while the op still broadcasts.
  *
- *   funding up            → cancel the pending request (matches the funding
- *                           view's own "取消" button; BUG-1's in-sheet swap
- *                           means a swipe here IS a funding cancel)
- *   error / submitted /   → DISMISS. The tx is committed. Answering 4001 here
- *   submitting              tells the dApp the user refused while the very
- *                           same op still broadcasts and later reports success
- *                           — a contradiction the dApp cannot reconcile
- *                           (docs/KNOWN-BUGS.md BUG-2).
- *   otherwise             → REJECT (4001). Nothing has been committed yet, so
- *                           closing the sheet IS the refusal.
+ * It is not purely hypothetical today either: the shell's `signError` is the
+ * FORMATTED string, and `signErrorMessage({kind:'submit_failed', detail:''})`
+ * is `''` — falsy — so a bundler failure with an empty message already graded
+ * as "reject" in the shell while the core graded it "dismiss".
  *
- * The return type is the CORE's `SignSwipeAction` (a generated, type-only
- * import — erased at build, so no wasm reaches the native bundle). That is the
- * drift gate this seam can actually have: if the core ever grows a fifth
- * meaning, `swipeAction`'s `switch` stops being exhaustive and `tsc` fails
- * here instead of the two halves silently disagreeing.
+ * Imported by explicit `.web` specifier is NOT possible here (the component is
+ * platform-neutral), so this file is reached only through Metro's `.web`
+ * resolution — and it must never import `./swipe-dismiss`, which Metro would
+ * resolve straight back to this file.
  */
-import type { SignSwipeAction } from '@/services/wallet-state-core/generated/SignSwipeAction';
+import { dispatchSign } from '@/services/wallet-state-core/sign-resident';
 import type { SwipeDismissFacts, SwipeDismissHandlers } from './swipe-dismiss-types';
 
 /**
- * Grade a swipe. Pure, total, and the only place the native ternary lives.
- *
- * `'none'` is never produced: `SigningRequestModal` returns `null` when there
- * is no request, so the sheet that could be swiped does not exist — which is
- * exactly the branch the core answers `None` for (`model.pending.is_none()`).
- * It stays in the union so the switch below has to keep handling it.
+ * Report the gesture. The core answers it with its own `reject` / `dismiss` /
+ * `funding_cancel` — the very functions `reject_tapped` / `dismiss_tapped` /
+ * `funding_cancelled` run — or with nothing at all when no request is pending.
  */
-export function swipeAction(facts: SwipeDismissFacts): SignSwipeAction {
-  if (facts.fundingNeeded) return 'funding_cancel';
-  if (facts.signError || facts.pendingOpHash || facts.isSubmitting) return 'dismiss';
-  return 'reject';
-}
-
-/** Run the graded action. Called from an event handler, never during render. */
 export function performSwipeDismiss(
-  facts: SwipeDismissFacts,
-  handlers: SwipeDismissHandlers,
+  _facts: SwipeDismissFacts,
+  _handlers: SwipeDismissHandlers,
 ): void {
-  switch (swipeAction(facts)) {
-    case 'funding_cancel':
-      handlers.fundingCancel();
-      return;
-    case 'dismiss':
-      handlers.dismiss();
-      return;
-    case 'reject':
-      handlers.reject();
-      return;
-    case 'none':
-      return;
-  }
+  dispatchSign({ type: 'swipe_dismissed' });
 }

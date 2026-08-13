@@ -18,7 +18,7 @@ import {
   deriveChainGasPrice, sameAssetFeeLimit,
 } from '@/services/safe-transaction';
 import type { GasTier, TransactionFeeEstimate } from '@/services/safe-transaction';
-import { functionSelector } from '@/services/eth-crypto';
+import { functionSelector } from '@/services/vela-core';
 
 /** Uint8Array → lowercase hex (no 0x), for golden-vector assertions. */
 const hex = (u: Uint8Array) => Array.from(u).map((b) => b.toString(16).padStart(2, '0')).join('');

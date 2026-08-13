@@ -63,9 +63,9 @@ jest.mock('@/services/rpc-adapter', () => ({
 
 import { handlePersonalSign, handleSignTypedData, handleGenericSign, isSigningMethod } from '@/hooks/use-dapp-signing';
 import { extractClientDataFields, buildEip1271Signature, computeSafeMessageHash } from '@/services/safe-transaction';
-import { derSignatureToRaw } from '@/services/attestation-parser';
-import { fromHex, toHex } from '@/services/hex';
-import { keccak256 } from '@/services/eth-crypto';
+import { derSignatureToRaw } from '@/services/vela-core';
+import { fromHex, toHex } from '@/services/vela-core';
+import { keccak256 } from '@/services/vela-core';
 import type { Account } from '@/models/types';
 
 const SAFE_ADDRESS = '0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c';
@@ -343,7 +343,7 @@ describe('EIP-1271 contract signature format', () => {
   describe('Permit2 EIP-712 hash computation', () => {
     test('Vela hashTypedData matches Permit2 on-chain hash (verified via cast)', () => {
       // This typed data matches a real Uniswap Permit2 request on Polygon
-      const { hashTypedData } = require('@/services/eip712');
+      const { hashTypedData } = require('@/services/vela-core');
       const typedData = {
         types: {
           PermitSingle: [

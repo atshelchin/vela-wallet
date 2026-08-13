@@ -37,7 +37,7 @@ const read = (path: string) => readFileSync(resolve(ROOT, path), 'utf8');
 const POPUP_PATH = 'src/app/web-request.tsx';
 const SIGNING_PATH = 'src/hooks/use-dapp-signing.ts';
 const SIGN_REQUEST_PATH = 'rust/crates/vela-core/src/app/sign_request.rs';
-const RESIDENT_PATH = 'src/services/wallet-state-core/sign-resident.web.ts';
+const RESIDENT_PATH = 'src/services/wallet-state-core/sign-resident.ts';
 
 const popup = read(POPUP_PATH);
 const signing = read(SIGNING_PATH);

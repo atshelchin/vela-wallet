@@ -52,7 +52,7 @@ describe('web i18n adapter', () => {
   let KEYS: string[];
 
   beforeAll(async () => {
-    web = await import('@/i18n/index.web');
+    web = await import('@/i18n/index');
     i18n = web.default;
 
     // A SECOND, untouched i18next over the same resources: the oracle for
@@ -335,13 +335,12 @@ describe('web i18n adapter', () => {
     }
   });
 
-  it('exposes the same surface as the native module, plus web-only diagnostics', async () => {
-    const native = await import('@/i18n');
-    const extra = Object.keys(web).filter((k) => !(k in native));
-    // Additive only: anything the native module has, the web module must have,
-    // or a shared import breaks on one platform and not the other.
-    const missing = Object.keys(native).filter((k) => !(k in web));
-    expect(missing).toEqual([]);
-    expect(extra.sort()).toEqual(['I18N_BACKEND', 'i18nDiagnostics']);
+  it('exposes the diagnostics surface the web console commands rely on', () => {
+    // This used to diff the web module against its native twin — additive only,
+    // so a shared import could not break on one platform. There is one module
+    // now, so what is worth pinning is that the web-only surface is still there:
+    // `installI18nConsole` reaches for both, and a rename would only show up as
+    // a console command that quietly does nothing.
+    expect(Object.keys(web)).toEqual(expect.arrayContaining(['I18N_BACKEND', 'i18nDiagnostics']));
   });
 });

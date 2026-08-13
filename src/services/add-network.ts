@@ -1,39 +1,124 @@
 /**
- * Adding a custom EVM network by chain ID — NATIVE.
+ * Adding a custom EVM network by chain ID — WEB, through the `network_admin`
+ * core.
  *
- * Factors the ChainInfo → CustomNetwork conversion + persistence shared by the
- * "Add network" tab in AddTokenPanel and the EIP-681 scan recovery flow in
- * SendScreen (when a scanned request names a network Vela doesn't yet support).
+ * The point of routing this path through the core is invariant ①: today the
+ * Settings wizard refuses a chain that is already added and this path does not —
+ * the two TypeScript implementations diverged. The core is the single
+ * implementation of that gate, and `AddByChainIdRequested` runs the same
+ * resolve → probe → verify → save pipeline the wizard runs, so both entry points
+ * agree by construction.
  *
- * `add-network.web.ts` is the web twin: there this flow runs through the
- * `network_admin` core, so the scan path and the Settings wizard share ONE
- * duplicate-chain gate (the two TypeScript implementations had diverged — this
- * one never checked). Native behaviour below is unchanged.
+ * Nothing here decides anything: it dispatches one event and translates the
+ * view transitions the core produces back into `AddNetworkResult`. The session
+ * is the shared resident one, so the ledger this gate reads is the same ledger
+ * the Settings modal writes.
  */
-import { refreshCustomNetworks } from '@/models/network';
-import type { CompatibilityResult } from '@/models/types';
+import type { CustomNetwork } from '@/models/types';
 import { chainInfoToCustomNetwork, type AddNetworkResult } from '@/services/add-network-record';
-import { fetchChainInfo } from '@/services/chain-registry';
-import { checkNetworkCompatibility } from '@/services/network-checker';
-import { saveCustomNetwork } from '@/services/storage';
+import { getEthereumDataURL } from '@/services/storage';
+import type { NetNetworkRow } from '@/services/wallet-state-core/generated/NetNetworkRow';
+import type { NetView } from '@/services/wallet-state-core/generated/NetView';
+import {
+  dispatchNetworkAdmin,
+  ensureNetworkAdmin,
+  networkAdminView,
+  subscribeNetworkAdmin,
+} from '@/services/wallet-state-core/network-admin-resident';
 
 export { chainInfoToCustomNetwork };
 export type { AddNetworkResult };
 
 /**
- * Resolve a chain ID against the chain registry, verify ERC-4337 / P256
- * compatibility, and persist it as a custom network. Refreshes the in-memory
- * network cache so synchronous lookups (networkForChainId) see it immediately.
+ * The core drops every mutation until its stores are read (mutating a ledger
+ * that is not the ledger would fabricate state), and a dropped event emits no
+ * view — so waiting for `loaded` is what keeps this promise from hanging. The
+ * read always concludes: an unreadable store still answers, empty.
  */
+function whenLoaded(): Promise<void> {
+  ensureNetworkAdmin();
+  if (networkAdminView().loaded) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const unsubscribe = subscribeNetworkAdmin((view) => {
+      if (!view.loaded) return;
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+
+function toCustomNetwork(row: NetNetworkRow, addedAt: string): CustomNetwork {
+  return {
+    id: row.id,
+    displayName: row.display_name,
+    chainId: row.chain_id,
+    // The icon policy the core's `build_custom_network` applied to this record.
+    iconLabel: row.native_symbol.slice(0, 4),
+    iconColor: '#888888',
+    iconBg: '#F0F0F0',
+    logoURL: `${getEthereumDataURL()}/chainlogos/eip155-${row.chain_id}.png`,
+    isL2: false,
+    rpcURL: row.rpc_url,
+    explorerURL: row.explorer_url,
+    bundlerURL: row.bundler_url,
+    nativeSymbol: row.native_symbol,
+    addedAt,
+  };
+}
+
+function savedRow(view: NetView, chainId: number): NetNetworkRow | undefined {
+  return view.networks.find((row) => row.chain_id === chainId && row.is_custom);
+}
+
 export async function addCustomNetworkByChainId(chainId: number): Promise<AddNetworkResult> {
-  const info = await fetchChainInfo(chainId);
-  if (!info) return { ok: false, reason: 'not-found' };
+  await whenLoaded();
+  const nowIso = new Date().toISOString();
 
-  const compat: CompatibilityResult = await checkNetworkCompatibility(info.rpcUrls, chainId);
-  if (!compat.compatible) return { ok: false, reason: 'not-compatible', error: compat.error };
+  return new Promise<AddNetworkResult>((resolve) => {
+    const unsubscribe = subscribeNetworkAdmin((view) => {
+      const wizard = view.wizard;
 
-  const network = chainInfoToCustomNetwork(info, compat.bestRpcUrl);
-  await saveCustomNetwork(network);
-  await refreshCustomNetworks();
-  return { ok: true, network };
+      if (wizard.phase === 'error' && wizard.error) {
+        unsubscribe();
+        switch (wizard.error.type) {
+          case 'not_found':
+            resolve({ ok: false, reason: 'not-found' });
+            return;
+          case 'already_added': {
+            // The gate this path never had. The chain is present either way, so
+            // the caller's "retry now that it exists" is the honest answer; a
+            // built-in chain is present too and simply has no custom record.
+            const row = savedRow(view, chainId);
+            resolve(
+              row
+                ? { ok: true, network: toCustomNetwork(row, nowIso) }
+                : { ok: false, reason: 'not-compatible' },
+            );
+            return;
+          }
+          default:
+            // `not_compatible`, and `no_rpc_endpoint` which the auto path cannot
+            // reach. The core does not project the per-contract verdict on this
+            // path, so the caller words the failure itself.
+            resolve({ ok: false, reason: 'not-compatible' });
+            return;
+        }
+      }
+
+      // Success: the wizard resets to idle and the record joins the ledger.
+      if (wizard.phase === 'idle') {
+        const row = savedRow(view, chainId);
+        if (row) {
+          unsubscribe();
+          resolve({ ok: true, network: toCustomNetwork(row, nowIso) });
+        }
+      }
+    });
+
+    dispatchNetworkAdmin({
+      type: 'add_by_chain_id_requested',
+      chain_id: chainId,
+      now_iso: nowIso,
+    });
+  });
 }

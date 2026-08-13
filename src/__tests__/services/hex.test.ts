@@ -1,7 +1,7 @@
 /**
  * Tests for hex encoding/decoding utilities.
  */
-import { toHex, fromHex, addHexPrefix, stripHexPrefix, concatBytes, toBase64Url, fromBase64Url, toQuantity } from '@/services/hex';
+import { toHex, fromHex, addHexPrefix, stripHexPrefix, concatBytes, toBase64Url, fromBase64Url, toQuantity } from '@/services/vela-core';
 
 describe('toHex', () => {
   test('empty array → empty string', () => {
@@ -106,9 +106,15 @@ describe('toQuantity — canonical JSON-RPC quantity (no leading zeros)', () => 
     expect(toQuantity(1000000000000000000n)).toBe('0xde0b6b3a7640000');
   });
 
-  test('garbage / negative → 0x0 (never throws)', () => {
-    expect(toQuantity('not-hex')).toBe('0x0');
-    expect(toQuantity(-5)).toBe('0x0');
+  // The TypeScript oracle answered '0x0' here: BigInt() threw internally and the
+  // catch swallowed it, and negatives clamped. vela-core refuses both instead
+  // (contracts/core-api.md, divergences `toQuantity/garbage-input` and
+  // `toQuantity/negative-input`) — FR-004: a parse failure must never yield a
+  // default value, because a malformed quantity forwarded from a dApp is
+  // malformed, not zero.
+  test('garbage / negative are refused, not coerced to 0x0', () => {
+    expect(() => toQuantity('not-hex')).toThrow();
+    expect(() => toQuantity(-5)).toThrow();
   });
 });
 

@@ -20,7 +20,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
 import {
   DEFAULT_QUOTE_DECIMALS,
@@ -31,7 +31,7 @@ import {
 import {
   bestNativeDexPrice as coreBestNativeDexPrice,
   chooseNativePrice as coreChooseNativePrice,
-} from '@/services/native-price.web';
+} from '@/services/native-price';
 
 const BALANCE_DASHBOARD_RS = readFileSync(
   resolve(__dirname, '../../..', 'rust/crates/vela-core/src/app/balance_dashboard.rs'),

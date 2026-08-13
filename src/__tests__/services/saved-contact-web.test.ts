@@ -33,19 +33,15 @@ jest.mock('@/services/rpc-pool', () => ({
   poolRpcCall: jest.fn(async () => ({ jsonrpc: '2.0', id: 1, result: '0x' })),
 }));
 
-// jest lists no `.web.ts` in `moduleFileExtensions`, so the bare specifier the
-// hook module imports (metro resolves it to the web variant) lands on the native
-// stub, which throws "web-only". Point it at the real web session, exactly as
-// metro does.
-jest.mock('@/services/wallet-state-core/contacts-session', () =>
-  require('@/services/wallet-state-core/contacts-session.web'),
-);
+// The redirect that used to live here pointed the native module at the real
+// web session. There is one module now, so mocking it to itself is what a
+// stack overflow looks like — the import below already gets the real thing.
 
 // Same reason as every other core test: the wasm only initialises through the
 // explicit web entry, which jest will not pick by extension.
-import '@/services/vela-core/index.web';
-import { saveContactThroughCore } from '@/hooks/use-contacts-book.web';
-import { savedContactFor } from '@/services/saved-contact.web';
+import '@/services/vela-core';
+import { saveContactThroughCore } from '@/hooks/use-contacts-book';
+import { savedContactFor } from '@/services/saved-contact';
 
 const CONTACTS_KEY = 'vela.contacts';
 

@@ -39,8 +39,8 @@ jest.mock('@/services/bundler-service', () => ({
 // Same reason as `network-admin-core.test.ts`: jest lists no `.web.ts` in
 // `moduleFileExtensions`, so the wasm must be initialised through the explicit
 // web entry before any core is constructed.
-import '@/services/vela-core/index.web';
-import { rpcFixVerdict, saveRpcFix } from '@/services/rpc-fix.web';
+import '@/services/vela-core';
+import { rpcFixVerdict, saveRpcFix } from '@/services/rpc-fix';
 import type { NetNetworkRow } from '@/services/wallet-state-core/generated/NetNetworkRow';
 
 const CONFIG_KEY = 'vela.networkConfig';

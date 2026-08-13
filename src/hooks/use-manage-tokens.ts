@@ -1,134 +1,160 @@
 /**
- * Manual custom-token management — NATIVE controller.
+ * Manual custom-token management — WEB, driven by the portable Rust state
+ * machine (spec 017, `rust/crates/vela-core/src/app/manage_tokens.rs`).
  *
- * Today's logic, moved verbatim out of `components/ui/AddTokenPanel.tsx`
- * (spec 017): Hermes has no WebAssembly, so iOS/Android keep the TypeScript
- * implementation. The web variant (`use-manage-tokens.web.ts`) is driven by
- * the portable Rust machine (`rust/crates/vela-core/src/app/manage_tokens.rs`);
- * the dedupe key, the admission gate and the cache-invalidation rule are
- * documented — and tested — there.
+ * This file owns no rules. It builds one core session per mounted panel,
+ * forwards keystrokes/taps as events, and renders whatever the core projects.
+ * The dedupe key, the `!name || !symbol` admission gate, the fresh
+ * read-before-write and the cache-invalidation decision are decided (and
+ * tested) in Rust.
  *
- * Only the ERC-20 tab lives here. The custom-NETWORK tab is `network_admin`'s
- * and stays in the panel untouched.
+ * Two things stay here because they are shell concerns:
+ *
+ * - the **network registry snapshot**: `getAllNetworksSync()` is the shell's
+ *   (defaults + custom networks), so it rides on `detect_requested` rather
+ *   than being reachable from the core;
+ * - the **alerts**: `not_found` and `save_error` are one-shot alert flags in
+ *   the view, so this fires `showAlert` on their rising edge only. The copy is
+ *   byte-identical to the panel's.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { getAllNetworksSync } from '@/models/network';
-import { isAddress, type CustomToken } from '@/models/types';
-import { fetchErc20Meta } from '@/services/erc20-meta';
-import { hapticSuccess, showAlert } from '@/services/platform';
-import { loadCustomTokens, removeCustomToken, saveCustomToken } from '@/services/storage';
+import { useWallet } from '@/models/wallet-state';
+import { showAlert } from '@/services/platform';
+import { createManageTokensSession } from '@/services/wallet-state-core/manage-tokens-session';
+import type { MtokNetwork } from '@/services/wallet-state-core/generated/MtokNetwork';
+import type { MtokView } from '@/services/wallet-state-core/generated/MtokView';
 
-import type { FoundTokenView, ManageTokensController } from './manage-tokens-controller-types';
+import type { ManageTokensController } from './manage-tokens-controller-types';
 
-/** A found card before the session's "added" flag is folded in. */
-type FoundMeta = Omit<FoundTokenView, 'added'>;
+const EMPTY: MtokView = {
+  input_address: '',
+  address_valid: false,
+  detecting: false,
+  found: [],
+  saving: false,
+  custom_tokens: [],
+  not_found: false,
+  save_error: false,
+};
+
+/**
+ * The registry as the core's `u32` chain id can carry it. Wire
+ * representability only — a row that cannot be serialised would make the
+ * `detect_requested` dispatch throw and the button do nothing at all.
+ */
+function networkSnapshot(): MtokNetwork[] {
+  const out: MtokNetwork[] = [];
+  for (const network of getAllNetworksSync()) {
+    if (!Number.isInteger(network.chainId) || network.chainId < 0 || network.chainId > 4_294_967_295) {
+      continue;
+    }
+    out.push({ chain_id: network.chainId, name: network.displayName });
+  }
+  return out;
+}
 
 export function useManageTokens(onChanged?: () => void): ManageTokensController {
   const { t } = useTranslation();
+  const { state } = useWallet();
+  const [view, setView] = useState<MtokView>(EMPTY);
+  const session = useRef<ReturnType<typeof createManageTokensSession> | null>(null);
 
-  const [contractAddress, setContractAddress] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [foundTokens, setFoundTokens] = useState<FoundMeta[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [addedTokenIds, setAddedTokenIds] = useState<Set<string>>(new Set());
+  // Read through refs so the session outlives an account switch or a new
+  // `onChanged` identity — rebuilding it would wipe the form mid-flow.
+  const account = useRef(state.address);
+  account.current = state.address;
+  const changed = useRef(onChanged);
+  changed.current = onChanged;
 
-  // Already-added custom tokens (manage + delete).
-  const [customTokens, setCustomTokens] = useState<CustomToken[]>([]);
-  const refreshCustom = () => { loadCustomTokens().then(setCustomTokens).catch(() => {}); };
-  useEffect(() => { refreshCustom(); }, []);
+  useEffect(() => {
+    const loop = createManageTokensSession({
+      account: () => account.current,
+      onInvalidated: () => changed.current?.(),
+      onView: setView,
+      onError: (error) => console.error('[manage-tokens] core fault:', error),
+    });
+    session.current = loop;
+    loop.start({ type: 'start' });
+    // Also covers React 19 StrictMode's development double-mount: the first
+    // core is freed before the second is built.
+    return () => {
+      loop.dispose();
+      session.current = null;
+    };
+  }, []);
 
-  const handleDelete = async (id: string) => {
-    await removeCustomToken(id);
-    hapticSuccess();
-    refreshCustom();
-    onChanged?.();
-  };
-
-  const isValidAddress = isAddress(contractAddress);
-
-  const fetchTokenMetadata = async () => {
-    if (!isValidAddress) return;
-
-    setLoading(true);
-    setFoundTokens([]);
-
-    // Query all networks in parallel
-    const allNetworks = getAllNetworksSync();
-    const results = await Promise.allSettled(
-      allNetworks.map(async (network) => {
-        const meta = await fetchErc20Meta(network.chainId, contractAddress);
-        if (!meta) return null;
-        return { chainId: network.chainId, networkName: network.displayName, ...meta };
-      }),
-    );
-
-    const found: FoundMeta[] = [];
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) found.push(r.value);
-    }
-
-    if (found.length === 0) {
+  // One-shot alerts, on the rising edge. The core clears each flag on the next
+  // input or probe, which re-arms the edge exactly as re-tapping does today.
+  const alerted = useRef({ notFound: false, saveError: false });
+  useEffect(() => {
+    if (view.not_found && !alerted.current.notFound) {
       showAlert(t('addToken.notFoundTitle'), t('addToken.notFoundMessage'));
     }
-    setFoundTokens(found);
-    setLoading(false);
-  };
-
-  const handleSave = async (chainId: number) => {
-    const token = foundTokens.find((f) => f.chainId === chainId);
-    if (!token) return;
-    const tokenId = `${token.chainId}_${contractAddress.toLowerCase()}`;
-
-    // Check if already added
-    if (addedTokenIds.has(tokenId)) return;
-    const existing = await loadCustomTokens();
-    if (existing.some(ct => ct.id === tokenId)) {
-      setAddedTokenIds(prev => new Set(prev).add(tokenId));
-      return;
+    alerted.current.notFound = view.not_found;
+  }, [view.not_found, t]);
+  useEffect(() => {
+    if (view.save_error && !alerted.current.saveError) {
+      showAlert(t('addToken.errorTitle'), t('addToken.errorSaveToken'));
     }
+    alerted.current.saveError = view.save_error;
+  }, [view.save_error, t]);
 
-    setSaving(true);
-    try {
-      await saveCustomToken({
-        id: tokenId,
-        chainId: token.chainId,
-        contractAddress: contractAddress.toLowerCase(),
+  const setAddress = useCallback((value: string) => {
+    session.current?.dispatch({ type: 'address_input', s: value });
+  }, []);
+
+  const detect = useCallback(() => {
+    session.current?.dispatch({ type: 'detect_requested', networks: networkSnapshot() });
+  }, []);
+
+  const save = useCallback((chainId: number) => {
+    session.current?.dispatch({ type: 'save_requested', chain_id: chainId });
+  }, []);
+
+  const remove = useCallback((id: string) => {
+    session.current?.dispatch({ type: 'delete_requested', id });
+  }, []);
+
+  const found = useMemo(
+    () =>
+      view.found.map((card) => ({
+        chainId: card.chain_id,
+        networkName: card.network_name,
+        name: card.name,
+        symbol: card.symbol,
+        decimals: card.decimals,
+        added: card.added,
+      })),
+    [view.found],
+  );
+
+  const customTokens = useMemo(
+    () =>
+      view.custom_tokens.map((token) => ({
+        id: token.id,
+        chainId: token.chain_id,
+        contractAddress: token.contract_address,
         symbol: token.symbol,
         name: token.name,
         decimals: token.decimals,
-        networkName: token.networkName,
-      });
-      hapticSuccess();
-      setAddedTokenIds(prev => new Set(prev).add(tokenId));
-      refreshCustom();
-      onChanged?.();
-    } catch {
-      showAlert(t('addToken.errorTitle'), t('addToken.errorSaveToken'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const setAddress = (value: string) => {
-    setContractAddress(value);
-    setFoundTokens([]);
-  };
+        networkName: token.network_name,
+      })),
+    [view.custom_tokens],
+  );
 
   return {
-    address: contractAddress,
+    address: view.input_address,
     setAddress,
-    addressValid: isValidAddress,
-    detecting: loading,
-    detect: fetchTokenMetadata,
-    found: foundTokens.map((token) => ({
-      ...token,
-      added: addedTokenIds.has(`${token.chainId}_${contractAddress.toLowerCase()}`),
-    })),
-    saving,
-    save: handleSave,
+    addressValid: view.address_valid,
+    detecting: view.detecting,
+    detect,
+    found,
+    saving: view.saving,
+    save,
     customTokens,
-    remove: handleDelete,
+    remove,
   };
 }

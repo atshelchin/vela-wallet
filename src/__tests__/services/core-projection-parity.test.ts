@@ -62,12 +62,12 @@ jest.mock('@/services/platform', () => ({ hapticSuccess: () => {} }));
 // Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
 // `@/services/vela-core` resolves the NATIVE index and the wasm is never
 // initialized. Importing the web entry by explicit path first runs `initSync`.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { filterFeedRowsByChain } from '@/screens/wallet/feed-chain-filter';
 import { sortAndFilterHoldings } from '@/services/wallet-api';
-import { toBalanceToken } from '@/services/wallet-state-core/balance-executor.web';
-import { createBalanceSession } from '@/services/wallet-state-core/balance-session.web';
-import { createActivityFeedSession } from '@/services/wallet-state-core/feed-session.web';
+import { toBalanceToken } from '@/services/wallet-state-core/balance-executor';
+import { createBalanceSession } from '@/services/wallet-state-core/balance-session';
+import { createActivityFeedSession } from '@/services/wallet-state-core/feed-session';
 import type { BalanceView } from '@/services/wallet-state-core/generated/BalanceView';
 import type { FeedView } from '@/services/wallet-state-core/generated/FeedView';
 import type { APIToken } from '@/models/types';

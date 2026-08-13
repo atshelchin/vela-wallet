@@ -16,7 +16,10 @@ jest.mock('@/services/public-key-index', () => ({
   queryRecord: jest.fn(),
   queryByWalletRef: jest.fn(),
 }));
-jest.mock('@/services/safe-address', () => ({ computeAddress: () => '0x' + '5a'.repeat(20) }));
+jest.mock('@/services/vela-core', () => ({
+  ...jest.requireActual('@/services/vela-core'),
+  computeAddress: () => '0x' + '5a'.repeat(20),
+}));
 jest.mock('@/services/storage', () => ({
   loadPendingUploads: jest.fn(),
   removePendingUpload: jest.fn(async () => {}),
@@ -30,7 +33,7 @@ import {
 } from '@/services/public-key-upload';
 import * as PublicKeyIndex from '@/services/public-key-index';
 import { loadPendingUploads, removePendingUpload } from '@/services/storage';
-import { toHex } from '@/services/hex';
+import { toHex } from '@/services/vela-core';
 
 const createRecord = PublicKeyIndex.createRecord as jest.Mock;
 const queryRecord = PublicKeyIndex.queryRecord as jest.Mock;

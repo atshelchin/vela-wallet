@@ -1,55 +1,59 @@
 /**
- * useBalancePrivacy — the app-wide persisted "hide amounts" flag. NATIVE.
+ * useBalancePrivacy — WEB. A mirror of `balance_dashboard`'s `hidden`, and
+ * nothing else.
  *
- * `use-balance-privacy.web.ts` is the web twin: there the `balance_dashboard`
- * core owns the flag, the persisted byte and the hydrate race, and this store's
- * model would be a second writer of the same decision. Hermes has no wasm, so
- * iOS/Android keep everything below.
+ * `use-balance-privacy.ts` is the native counterpart: on Hermes there is no
+ * wasm, so that module keeps the whole model — the persisted byte, the
+ * first-write-wins hydrate race, the in-memory flag. On web all three belong to
+ * the core (`balance_dashboard.rs`: `privacy_touched`, `Event::PrivacyToggled`,
+ * `Event::PrivacyHydrated`), and `balance-resident.web.ts` performs the ONE
+ * boot-time read that feeds it.
  *
- * One module-level store (useSyncExternalStore) so every surface that shows
- * money — hero, activity feed, holdings, account switcher, receipt toast —
- * masks together; a leak in one surface defeats the mask everywhere else.
+ * Before this split the web app hydrated twice — once into the core, once into
+ * the native store — and applied the "a toggle that races the read wins" rule on
+ * both sides. Two writers of one decision is exactly the drift this seam exists
+ * to remove; the surfaces that mask together (hero, holdings, balance detail,
+ * account switcher, receipt toast) now read one answer.
  *
- * Persisted because the threat model is handing the phone over: someone who
- * hides before doing so must not get silently reset to visible on relaunch.
- * A user toggle always wins over the async hydrate (no race: hydrate commits
- * only while the store is still untouched).
+ * `getSnapshot` reads the resident's last committed view, which is the
+ * `useSyncExternalStore` contract, not a render-time read of mutable module
+ * state: it is only ever consulted through the store, and every mutation is
+ * announced through `subscribe`.
  */
 import { useCallback, useSyncExternalStore } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = 'vela.balanceHidden';
+import {
+  balanceView,
+  dispatchBalance,
+  ensureBalanceDashboard,
+  subscribeBalanceDashboard,
+} from '@/services/wallet-state-core/balance-resident';
+import { BALANCE_PRIVACY_KEY } from '@/services/wallet-state-core/balance-types';
 
-let _hidden = false;
-let _touched = false; // set by hydrate OR a user toggle — whichever lands first wins
-let _hydrateStarted = false;
-const subs = new Set<() => void>();
-
-function emit() { subs.forEach((fn) => fn()); }
-
-function hydrate() {
-  if (_hydrateStarted) return;
-  _hydrateStarted = true;
-  AsyncStorage.getItem(KEY).then((v) => {
-    if (_touched) return; // a toggle raced the read — the user's tap wins
-    _touched = true;
-    if (v === '1') { _hidden = true; emit(); }
-  }).catch(() => {});
-}
-
+/**
+ * Persist the byte without going through the core.
+ *
+ * Kept only because the native module exports it and the platform pair must
+ * agree on a shape; on web the core's `WritePrivacy` operation is the writer and
+ * calls straight into AsyncStorage, so nothing in the app calls this. It writes
+ * the same key, so a caller that appears later cannot invent a second one.
+ */
 export function setBalanceHidden(next: boolean): void {
-  _touched = true;
-  _hidden = next;
-  AsyncStorage.setItem(KEY, next ? '1' : '0').catch(() => {});
-  emit();
+  AsyncStorage.setItem(BALANCE_PRIVACY_KEY, next ? '1' : '0').catch(() => {});
 }
 
 export function useBalancePrivacy(): { hidden: boolean; toggle: () => void } {
   const hidden = useSyncExternalStore(
-    (cb) => { subs.add(cb); hydrate(); return () => { subs.delete(cb); }; },
-    () => _hidden,
-    () => _hidden,
+    (cb) => {
+      // Mirrors the native store's `hydrate()` on first subscribe: the resident
+      // is idempotent and performs the single boot-time read.
+      ensureBalanceDashboard();
+      return subscribeBalanceDashboard(cb);
+    },
+    () => balanceView().hidden,
+    () => balanceView().hidden,
   );
-  const toggle = useCallback(() => setBalanceHidden(!_hidden), []);
+  const toggle = useCallback(() => { dispatchBalance({ type: 'privacy_toggled' }); }, []);
   return { hidden, toggle };
 }

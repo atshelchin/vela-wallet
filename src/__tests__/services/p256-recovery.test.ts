@@ -7,11 +7,11 @@
  */
 
 import { createHash, webcrypto } from 'node:crypto';
-import { sha256 } from '@/services/sha256';
+import { sha256 } from '@/services/vela-core';
 import {
   recoverPublicKeyFromAssertions,
   type RecoverableAssertion,
-} from '@/services/p256-recovery';
+} from '@/services/vela-core';
 
 // ---------------------------------------------------------------------------
 // Helpers

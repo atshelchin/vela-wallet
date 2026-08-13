@@ -116,7 +116,7 @@ describe('parallel-space service', () => {
     await enterParallelSpace();
     const assertion = await Passkey.sign('0x' + 'ab'.repeat(32), FIXTURE_ACCOUNTS[1].id);
     expect(assertion.credentialId).toBe(FIXTURE_ACCOUNTS[1].id);
-    const { verifySafeWebAuthn } = await import('@/services/webauthn-verify');
+    const { verifySafeWebAuthn } = await import('@/services/vela-core');
     expect(verifySafeWebAuthn(assertion).ok).toBe(true);
   });
 });

@@ -72,7 +72,7 @@ const mockSession = {
   active: 0,
   switches: [] as number[],
 };
-jest.mock('@/services/wallet-state-core/session-resident.web', () => ({
+jest.mock('@/services/wallet-state-core/session-resident', () => ({
   dispatchWalletSession: (event: { type: string; index?: number }) => {
     if (event.type !== 'switch_account') return;
     const index = event.index ?? -1;
@@ -87,14 +87,14 @@ jest.mock('@/services/wallet-state-core/session-resident.web', () => ({
 // Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
 // `@/services/vela-core` resolves the NATIVE index and the wasm is never
 // initialized. Importing the web entry by explicit path runs `initSync` first.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import {
   bindSignRequest,
   dispatchSign,
   registerSignTransport,
   setSignAccounts,
   signRequestView,
-} from '@/services/wallet-state-core/sign-resident.web';
+} from '@/services/wallet-state-core/sign-resident';
 import type { DAppTransport } from '@/services/dapp-transport';
 import type { SignEvent } from '@/services/wallet-state-core/generated/SignEvent';
 

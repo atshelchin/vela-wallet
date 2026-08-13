@@ -34,8 +34,8 @@ jest.mock('@/services/currency', () => ({
 }));
 
 // Initialise the wasm module before the session constructs a core from it.
-import '@/services/vela-core/index.web';
-import { createBatchImportSession } from '@/services/wallet-state-core/batch-import-session.web';
+import '@/services/vela-core';
+import { createBatchImportSession } from '@/services/wallet-state-core/batch-import-session';
 import type { BatchToken } from '@/services/wallet-state-core/generated/BatchToken';
 import type { BatchView } from '@/services/wallet-state-core/generated/BatchView';
 
@@ -186,18 +186,9 @@ function resetEffectDeps(file: string, marker: string): string[] {
 }
 
 describe('only an open resets — a price arriving is not an open', () => {
-  it('native’s reset does not depend on the token or its price', () => {
-    const deps = resetEffectDeps('use-batch-import.ts', 'setOpenState(freshBatchOpen(');
-    // `priced` used to be here. A background refresh pricing the token flipped
-    // it false→true, re-ran the effect, and emptied `rawText` mid-paste with no
-    // message at all. It now reaches the effect through `pricedRef`.
-    expect(deps).not.toContain('priced');
-    expect(deps).not.toContain('token');
-    expect(deps).toContain('visible');
-  });
 
   it('web’s dispatch of `open` does not either — the twins agree', () => {
-    const deps = resetEffectDeps('use-batch-import.web.ts', "type: 'open',");
+    const deps = resetEffectDeps('use-batch-import.ts', "type: 'open',");
     expect(deps).not.toContain('priced');
     expect(deps).not.toContain('token');
     expect(deps).toContain('visible');

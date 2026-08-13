@@ -46,7 +46,7 @@ const RUST = readFileSync(
   'utf8',
 );
 const EXECUTOR = readFileSync(
-  join(REPO, 'src/services/wallet-state-core/network-admin-executor.web.ts'),
+  join(REPO, 'src/services/wallet-state-core/network-admin-executor.ts'),
   'utf8',
 );
 

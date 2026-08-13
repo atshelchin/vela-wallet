@@ -10,7 +10,7 @@ import {
   computeSelector,
   decodeCalldata,
   matchSelector,
-} from '@/services/abi-decode';
+} from '@/services/vela-core';
 
 // ---------------------------------------------------------------------------
 // Signature parsing
@@ -201,12 +201,12 @@ describe('decodeCalldata', () => {
     expect(decodeCalldata('0x', 'transfer(address,uint256)')).toBeNull();
   });
 
-  it('decodes selector-only calldata with zero-padded params', () => {
-    // ABI decoder pads missing data with zeros — this is by design
-    const result = decodeCalldata('0xa9059cbb', 'transfer(address _to, uint256 _value)');
-    expect(result).not.toBeNull();
-    expect(result!._to).toBe('0x0000000000000000000000000000000000000000');
-    expect(result!._value).toBe(0n);
+  it('refuses selector-only calldata instead of zero-padding it', () => {
+    // The TypeScript oracle padded the missing words with zeros and called that
+    // "by design", so a truncated `transfer` rendered as a transfer of 0 to the
+    // zero address. vela-core rejects it (divergence `decodeCalldata/truncated-
+    // zero-pad`): the signing sheet must not describe bytes that are not there.
+    expect(decodeCalldata('0xa9059cbb', 'transfer(address _to, uint256 _value)')).toBeNull();
   });
 
   it('decodes zero value', () => {

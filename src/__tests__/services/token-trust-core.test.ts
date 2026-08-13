@@ -27,11 +27,11 @@ jest.mock('@/services/wallet-api', () => ({ clearTokenCache: jest.fn() }));
 // Load-bearing (see browser-history-core.test.ts): jest lists no `.web.ts` in
 // `moduleFileExtensions`, so the web entry must be imported by explicit path
 // for `initSync` to run on the planted wasm bytes before the core is built.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { poolRpcCall } from '@/services/rpc-pool';
 import { resolveTokenMetadata } from '@/services/token-metadata';
 import { clearTokenCache } from '@/services/wallet-api';
-import { createTokenTrustSession } from '@/services/wallet-state-core/token-trust-session.web';
+import { createTokenTrustSession } from '@/services/wallet-state-core/token-trust-session';
 import type { TrustView } from '@/services/wallet-state-core/generated/TrustView';
 import type { CustomToken } from '@/models/types';
 

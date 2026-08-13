@@ -56,8 +56,8 @@ jest.mock('@/services/bundler-service', () => ({
   fetchBundlerAccountInfo: jest.fn(async () => null),
 }));
 
-import '@/services/vela-core/index.web';
-import { createFeeSession } from '@/services/wallet-state-core/fee-session.web';
+import '@/services/vela-core';
+import { createFeeSession } from '@/services/wallet-state-core/fee-session';
 import type { FeeView } from '@/services/wallet-state-core/generated/FeeView';
 
 // ---------------------------------------------------------------------------

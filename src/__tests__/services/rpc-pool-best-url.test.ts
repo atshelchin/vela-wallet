@@ -26,20 +26,16 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // make the candidate list non-deterministic.
 jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async () => null) }));
 
-// Stand in for metro's platform resolution, which jest does not do: `.web.ts` is
-// not in `moduleFileExtensions`, so `rpc-pool.web.ts`'s bare session import would
-// otherwise resolve to the native stub that throws. Redirects to the REAL web
-// session — no double.
-jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session.web'),
-);
+// The redirect that used to live here pointed the native module at the real
+// web session. There is one module now, so mocking it to itself is what a
+// stack overflow looks like — the import below already gets the real thing.
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as any;
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
-import { getChainRpcUrl, poolBundlerCall, poolRpcCall, refreshPool } from '@/services/rpc-pool.web';
+import { getChainRpcUrl, poolBundlerCall, poolRpcCall, refreshPool } from '@/services/rpc-pool';
 import { collectRpcUrls, NEVER_BANNED } from '@/services/rpc-pool-endpoints';
 
 // `rpc-pool.web.ts` holds ONE module-level session (it is the app's pool, not a

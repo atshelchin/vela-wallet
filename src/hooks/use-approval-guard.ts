@@ -1,379 +1,299 @@
 /**
- * Approval detection + the never-unlimited spending-cap editor — NATIVE.
+ * Approval detection + the never-unlimited spending-cap editor — WEB, driven
+ * by the portable Rust state machine (spec 017,
+ * `rust/crates/vela-core/src/app/approval_guard.rs`).
  *
- * Hermes has no WebAssembly, so iOS/Android cannot run the `approval_guard`
- * Rust machine; this is the TypeScript twin of `use-approval-guard.web.ts`,
- * built on the same `services/approval-guard` primitives the native submit
- * guard already uses. It exists so the signing COMPONENTS are identical on
- * both platforms: they render one controller shape and decide nothing.
+ * This file owns no rules. It builds one core session per signing request,
+ * forwards taps/keystrokes as events, and PROJECTS whatever the core decided
+ * into the shape the signing components render. The eight approval shapes,
+ * `isUnbounded`/`isBooleanGrant`/`isReducing`/`editable`, the mode → choice
+ * derivation (including "unbounded starts with no choice" and "a custom amount
+ * ≥ cap derives none plus an error"), the boolean card's deliberate tap, the
+ * per-leg batch gating, the increaseAllowance resulting total and the
+ * confirm-time re-encode are all decided (and tested) in Rust.
  *
- * Every rule below is a line-for-line port of what the components used to do
- * inline — `SigningSheet`'s metadata/batch effects, `ApprovalView`'s allowance
- * and balance reads, `EditableApproveCard`'s mode → choice derivation and its
- * "a grant-all preselects nothing" rule, `BatchCallsView`'s per-leg gating —
- * so native behaviour is unchanged by the migration. The Rust machine
- * (`rust/crates/vela-core/src/app/approval_guard.rs`) is the specification of
- * record; `rust/crates/vela-core/tests/app_approval_guard.rs` and
- * `src/__tests__/services/approval-guard-parity.test.ts` pin the two together.
+ * Two things stay here because they are shell concerns:
  *
- * Editor text is stored CANONICAL (ASCII digits, '.' decimal): the card
- * localizes it for display and hands back `parseLocaleNumber`'d text, exactly
- * as the core's contract requires, so the two platforms parse identically.
+ * - the **words**: `blockReason` is a semantic enum on the wire and the
+ *   English sentences live below, byte-identical to the ones
+ *   `services/approval-guard.ts` produces on native, so the two platforms
+ *   cannot drift;
+ * - the **wire codec**: the core speaks snake_case and decimal strings (JS
+ *   number precision loss is exactly the bug it avoids); components speak the
+ *   `DetectedApproval` shape and `bigint`.
+ *
+ * `useLayoutEffect`, not `useEffect`: detection used to be a synchronous
+ * `useMemo`, so the sheet painted the approval surface on its very first
+ * frame. A layout effect keeps that — the core's first view lands before the
+ * browser paints, so no blind-transaction frame flashes underneath.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import type { BLEIncomingRequest } from '@/models/types';
-import {
-  detectApproval, rewriteApprovalParams,
-  type ApprovalChoice,
-} from '@/services/approval-guard';
-import {
-  applyPreset, deriveEditor, fallbackMeta, initEditor, legGrantsBroad, legNeedsChoice,
-  legShowsEditor, IDLE_META, LOADING_META,
-  type EditorSlot,
-} from '@/services/approval-guard-editor';
-import { resolveTokenMetadata } from '@/services/token-metadata';
-import { readErc20Allowance, readErc20Balance } from '@/services/token-reads';
+import type { ApprovalKind, DetectedApproval } from '@/services/approval-guard';
+import { createApprovalGuardSession } from '@/services/wallet-state-core/guard-session';
+import type { GuardChoice } from '@/services/wallet-state-core/generated/GuardChoice';
+import type { GuardDetectedApproval } from '@/services/wallet-state-core/generated/GuardDetectedApproval';
+import type { GuardEditorMode } from '@/services/wallet-state-core/generated/GuardEditorMode';
+import type { GuardEditorView } from '@/services/wallet-state-core/generated/GuardEditorView';
+import type { GuardTokenMetaView } from '@/services/wallet-state-core/generated/GuardTokenMetaView';
+import type { GuardView } from '@/services/wallet-state-core/generated/GuardView';
 
 import type {
-  ApprovalBatchState, ApprovalChoiceView, ApprovalEditorMode,
-  ApprovalGuardController, ApprovalGuardInput, ApprovalGuardSurface, ApprovalIncreaseTotal,
-  ApprovalLegState, ApprovalTokenMeta,
+  ApprovalChoiceView, ApprovalEditorMode, ApprovalEditorState, ApprovalGuardController,
+  ApprovalGuardInput, ApprovalGuardSurface, ApprovalLegState, ApprovalTokenMeta,
 } from './approval-guard-controller-types';
 
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
+const EMPTY_VIEW: GuardView = {
+  surface: 'none',
+  detected: null,
+  meta: { symbol: '…', decimals: 18, verified: false, loading: false },
+  editor: null,
+  confirm_allowed: true,
+  rewritten_params_json: null,
+  increase_total: null,
+  decimals_unverified: false,
+  expired: false,
+  batch: null,
+};
 
+// --- wire codec -------------------------------------------------------------
 
-function toServiceChoice(choice: ApprovalChoiceView): ApprovalChoice {
-  return choice.type === 'amount' ? { type: 'amount', amountRaw: choice.amountRaw } : { type: choice.type };
+const KIND: Record<GuardDetectedApproval['kind'], ApprovalKind> = {
+  erc20_approve: 'erc20-approve',
+  increase_allowance: 'increaseAllowance',
+  decrease_allowance: 'decreaseAllowance',
+  set_approval_for_all: 'setApprovalForAll',
+  erc2612_permit: 'erc2612-permit',
+  dai_permit: 'dai-permit',
+  permit2_single: 'permit2-single',
+  permit2_batch: 'permit2-batch',
+};
+
+/**
+ * The two block sentences, verbatim from `services/approval-guard.ts` (which
+ * is still the native guard). The core carries the REASON; the words are the
+ * shell's, on both platforms, from one place each.
+ */
+const BLOCK_REASON: Record<NonNullable<GuardDetectedApproval['block_reason']>, string> = {
+  off_chain_permit:
+    "Off-chain permit — the dApp submits its own amount on-chain, so the wallet can't cap it. To limit spending, use an on-chain approval instead.",
+  dai_permit_full_balance: 'DAI permit grants full-balance access; sign as requested or reject.',
+};
+
+const MODE_TO_WIRE: Record<ApprovalEditorMode, GuardEditorMode> = {
+  requested: 'requested',
+  balance: 'balance',
+  custom: 'custom',
+  revoke: 'revoke',
+  grant: 'grant',
+};
+
+function toBig(value: string | null | undefined): bigint | undefined {
+  if (value === null || value === undefined) return undefined;
+  try {
+    return BigInt(value);
+  } catch {
+    return undefined;
+  }
 }
 
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
+function toApproval(detected: GuardDetectedApproval | null): DetectedApproval | null {
+  if (!detected) return null;
+  return {
+    kind: KIND[detected.kind],
+    tokenAddress: detected.token_address ?? undefined,
+    spender: detected.spender,
+    amountRaw: toBig(detected.amount_raw),
+    amountBits: detected.amount_bits === 160 ? 160 : detected.amount_bits === 256 ? 256 : undefined,
+    isUnbounded: detected.is_unbounded,
+    isBooleanGrant: detected.is_boolean_grant,
+    isReducing: detected.is_reducing,
+    editable: detected.editable,
+    blockReason: detected.block_reason ? BLOCK_REASON[detected.block_reason] : undefined,
+    deadline: toBig(detected.deadline),
+    locus:
+      detected.locus.type === 'calldata_word'
+        ? { type: 'calldata-word', wordIndex: detected.locus.word_index }
+        : { type: 'typed-path', path: detected.locus.path },
+  };
+}
 
-type MetaMap = Map<string, ApprovalTokenMeta>;
+function toChoice(choice: GuardChoice | null): ApprovalChoiceView | null {
+  if (!choice) return null;
+  if (choice.type === 'amount') {
+    const amountRaw = toBig(choice.amount_raw);
+    return amountRaw === undefined ? null : { type: 'amount', amountRaw };
+  }
+  return choice.type === 'revoke' ? { type: 'revoke' } : { type: 'grant' };
+}
+
+function toMeta(meta: GuardTokenMetaView): ApprovalTokenMeta {
+  return {
+    symbol: meta.symbol,
+    decimals: meta.decimals,
+    verified: meta.verified,
+    loading: meta.loading,
+  };
+}
+
+function toEditor(editor: GuardEditorView | null): ApprovalEditorState | null {
+  if (!editor) return null;
+  return {
+    mode: editor.mode,
+    customText: editor.custom_text,
+    error:
+      editor.error === 'invalid_amount'
+        ? 'invalid-amount'
+        : editor.error === 'unlimited_disabled'
+          ? 'unlimited-disabled'
+          : null,
+    choice: toChoice(editor.choice),
+    displayAmountRaw: toBig(editor.display_amount_raw) ?? null,
+    requestedFinite: editor.requested_finite,
+    hasBalanceCap: editor.has_balance_cap,
+  };
+}
+
+const SURFACE: Record<GuardView['surface'], ApprovalGuardSurface> = {
+  none: 'none',
+  permit_sign: 'permit-sign',
+  approval_editor: 'approval-editor',
+  batch: 'batch',
+};
+
+/** `u32` on the wire; a chain id outside it cannot be serialised at all. */
+function asU32(value: number): number {
+  return Number.isInteger(value) && value >= 0 && value <= 4_294_967_295 ? value : 0;
+}
 
 export function useApprovalGuard(input: ApprovalGuardInput): ApprovalGuardController {
-  const request: BLEIncomingRequest | null = input.request ?? null;
-  const { chainId, walletAddress } = input;
-  const readOnly = input.readOnly ?? false;
-  const method = request?.method ?? '';
-  const params = request?.params;
+  const [view, setView] = useState<GuardView>(EMPTY_VIEW);
+  const session = useRef<ReturnType<typeof createApprovalGuardSession> | null>(null);
 
-  // A request's identity for every reset below. `id` alone is not enough: the
-  // harness replays scenarios that reuse it.
-  const requestKey = useMemo(() => {
+  const method = input.request?.method ?? '';
+  const paramsJson = useMemo(() => {
     try {
-      return `${request?.id ?? ''}|${method}|${JSON.stringify(params ?? [])}|${chainId}|${readOnly}`;
+      return JSON.stringify(input.request?.params ?? []);
     } catch {
-      return `${request?.id ?? ''}|${method}|${chainId}|${readOnly}`;
+      return '[]';
     }
-  }, [request?.id, method, params, chainId, readOnly]);
+  }, [input.request]);
+  const chainId = input.chainId;
+  const walletAddress = input.walletAddress;
+  const readOnly = input.readOnly ?? false;
 
-  const approval = useMemo(
-    () => (request ? detectApproval(request.method, request.params) : null),
-    [request],
-  );
-
-  const calls: any[] | null = useMemo(() => {
-    if (method !== 'wallet_sendCalls') return null;
-    const raw = params?.[0]?.calls;
-    return Array.isArray(raw) && raw.length > 0 ? raw : null;
-  }, [method, params]);
-
-  const legApprovals = useMemo(
-    () =>
-      calls
-        ? calls.map((c: any) => detectApproval('eth_sendTransaction', [{ to: c.to, data: c.data, value: c.value }]))
-        : null,
-    [calls],
-  );
-
-  // --- reads ---------------------------------------------------------------
-
-  const [meta, setMeta] = useState<{ key: string; value: ApprovalTokenMeta } | null>(null);
-  useEffect(() => {
-    const token = approval?.tokenAddress;
-    if (!token) return;
-    let cancelled = false;
-    const fallback = fallbackMeta(token);
-    resolveTokenMetadata(chainId, [token])
-      .then((map) => {
-        if (cancelled) return;
-        const m = map.get(token.toLowerCase());
-        setMeta({
-          key: requestKey,
-          value: m
-            ? { symbol: m.symbol, decimals: m.decimals, verified: true, loading: false }
-            : fallback,
-        });
-      })
-      .catch(() => { if (!cancelled) setMeta({ key: requestKey, value: fallback }); });
-    return () => { cancelled = true; };
-  }, [approval?.tokenAddress, chainId, requestKey]);
-
-  const [allowance, setAllowance] = useState<{ key: string; value: bigint | null } | null>(null);
-  useEffect(() => {
-    if (approval?.kind !== 'increaseAllowance' || !walletAddress || !approval.tokenAddress) return;
-    let cancelled = false;
-    readErc20Allowance(chainId, approval.tokenAddress, walletAddress, approval.spender)
-      .then((a) => { if (!cancelled) setAllowance({ key: requestKey, value: a }); })
-      .catch(() => { if (!cancelled) setAllowance({ key: requestKey, value: null }); });
-    return () => { cancelled = true; };
-  }, [approval?.kind, approval?.tokenAddress, approval?.spender, walletAddress, chainId, requestKey]);
-
-  const [balance, setBalance] = useState<{ key: string; value: bigint | null } | null>(null);
-  useEffect(() => {
-    // Fires for every calldata approval except NFT grants — including
-    // decreaseAllowance, where the preset is then suppressed.
-    if (!approval?.tokenAddress || !walletAddress) return;
-    if (approval.locus.type !== 'calldata-word' || approval.kind === 'setApprovalForAll') return;
-    let cancelled = false;
-    readErc20Balance(chainId, approval.tokenAddress, walletAddress)
-      .then((b) => { if (!cancelled) setBalance({ key: requestKey, value: b }); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [approval?.tokenAddress, approval?.kind, approval?.locus.type, walletAddress, chainId, requestKey]);
-
-  const [batchMeta, setBatchMeta] = useState<{ key: string; value: MetaMap } | null>(null);
-  const batchTokens = useMemo(
-    () =>
-      legApprovals
-        ? Array.from(new Set(legApprovals.map((a) => a?.tokenAddress?.toLowerCase()).filter(Boolean) as string[]))
-        : [],
-    [legApprovals],
-  );
-  const batchTokensKey = batchTokens.join(',');
-  useEffect(() => {
-    if (batchTokens.length === 0) return;
-    let cancelled = false;
-    resolveTokenMetadata(chainId, batchTokens)
-      .then((map) => {
-        if (cancelled) return;
-        const out: MetaMap = new Map();
-        for (const tk of batchTokens) {
-          const m = map.get(tk);
-          out.set(tk, m
-            ? { symbol: m.symbol, decimals: m.decimals, verified: true, loading: false }
-            : fallbackMeta(tk));
-        }
-        setBatchMeta({ key: requestKey, value: out });
-      })
-      // The WHOLE read failing leaves an empty map: legs render …/18/unverified.
-      .catch(() => { if (!cancelled) setBatchMeta({ key: requestKey, value: new Map() }); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [batchTokensKey, chainId, requestKey]);
-
-  const [recipients, setRecipients] = useState<{ key: string; value: string[][] } | null>(null);
-  const reportBatchRecipients = useCallback(
-    (value: string[][]) => setRecipients({ key: requestKey, value }),
-    [requestKey],
-  );
-
-  // --- editor state --------------------------------------------------------
-  //
-  // Only OVERRIDES are stored. The mount state is derived from the detection,
-  // so a new request needs no reset effect (and can never render one frame of
-  // the previous request's choice).
-  const [edits, setEdits] = useState<{
-    key: string;
-    single: EditorSlot | undefined;
-    legs: Record<number, EditorSlot>;
-  }>({ key: '', single: undefined, legs: {} });
-
-  const liveEdits = edits.key === requestKey ? edits : null;
-
-  const effectiveMeta: ApprovalTokenMeta = approval?.tokenAddress
-    ? (meta && meta.key === requestKey ? meta.value : LOADING_META)
-    : IDLE_META;
-  const effectiveBalance = balance && balance.key === requestKey ? balance.value : null;
-
-  const singleSlot: EditorSlot =
-    liveEdits && liveEdits.single !== undefined ? liveEdits.single : initEditor(approval);
-
-  const editor = useMemo(
-    () => (approval ? deriveEditor(singleSlot, approval, effectiveMeta, effectiveBalance) : null),
-    [singleSlot, approval, effectiveMeta, effectiveBalance],
-  );
-
-  const mutateSingle = useCallback((next: (slot: EditorSlot) => EditorSlot) => {
-    setEdits((prev) => {
-      const base = prev.key === requestKey ? prev : { key: requestKey, single: undefined, legs: {} };
-      const current = base.single !== undefined ? base.single : initEditor(approval);
-      return { ...base, key: requestKey, single: next(current) };
+  useLayoutEffect(() => {
+    if (!method) {
+      setView(EMPTY_VIEW);
+      return;
+    }
+    const loop = createApprovalGuardSession({
+      onView: setView,
+      onError: (error) => console.error('[approval-guard] core fault:', error),
     });
-  }, [requestKey, approval]);
-
-  const mutateLeg = useCallback((index: number, next: (slot: EditorSlot) => EditorSlot) => {
-    setEdits((prev) => {
-      const base = prev.key === requestKey ? prev : { key: requestKey, single: undefined, legs: {} };
-      const detected = legApprovals?.[index] ?? null;
-      const current = base.legs[index] !== undefined
-        ? base.legs[index]
-        : (legShowsEditor(!readOnly, detected) ? initEditor(detected) : null);
-      return { ...base, key: requestKey, legs: { ...base.legs, [index]: next(current) } };
+    session.current = loop;
+    loop.start({
+      type: 'approval_detected',
+      method,
+      params_json: paramsJson,
+      chain_id: asU32(chainId),
+      wallet_address: walletAddress ?? null,
+      read_only: readOnly,
+      // The core owns no clock; deadline classification is the shell's `now`,
+      // captured once per request exactly as `Date.now()` was read inline.
+      now_ms: Date.now(),
     });
-  }, [requestKey, legApprovals, readOnly]);
+    // Also covers React 19 StrictMode's development double-mount: the first
+    // core is freed before the second is built.
+    return () => {
+      loop.dispose();
+      session.current = null;
+    };
+  }, [method, paramsJson, chainId, walletAddress, readOnly]);
 
   const selectPreset = useCallback((mode: ApprovalEditorMode) => {
-    if (!approval) return;
-    mutateSingle((slot) => applyPreset(slot, approval, effectiveMeta, effectiveBalance, mode));
-  }, [approval, effectiveMeta, effectiveBalance, mutateSingle]);
+    session.current?.dispatch({ type: 'preset_selected', mode: MODE_TO_WIRE[mode] });
+  }, []);
   const setCustomText = useCallback((text: string) => {
-    mutateSingle((slot) => (slot?.kind === 'amount' ? { ...slot, customText: text } : slot));
-  }, [mutateSingle]);
+    session.current?.dispatch({ type: 'custom_amount_changed', text });
+  }, []);
   const chooseGrant = useCallback(() => {
-    mutateSingle((slot) => (slot?.kind === 'boolean' ? { ...slot, selected: 'grant' } : slot));
-  }, [mutateSingle]);
+    session.current?.dispatch({ type: 'grant_deliberately_chosen' });
+  }, []);
   const chooseRevoke = useCallback(() => {
-    mutateSingle((slot) => (slot?.kind === 'boolean' ? { ...slot, selected: 'revoke' } : slot));
-  }, [mutateSingle]);
-
-  // --- batch projection ----------------------------------------------------
-
-  const effectiveBatchMeta: MetaMap | null =
-    batchMeta && batchMeta.key === requestKey ? batchMeta.value : null;
-
-  const batch: ApprovalBatchState | null = useMemo(() => {
-    if (!calls || !legApprovals) return null;
-    const editable = !readOnly;
-    const legs: ApprovalLegState[] = calls.map((call: any, i: number) => {
-      const ap = legApprovals[i];
-      const token = ap?.tokenAddress?.toLowerCase();
-      const resolved = token ? effectiveBatchMeta?.get(token) : undefined;
-      const legMeta: ApprovalTokenMeta =
-        resolved ?? (batchTokens.length > 0 && !effectiveBatchMeta ? LOADING_META : IDLE_META);
-      const stored = liveEdits?.legs[i];
-      const slot: EditorSlot = stored !== undefined
-        ? stored
-        : (legShowsEditor(editable, ap) ? initEditor(ap) : null);
-      // A leg card carries no balance, so it never offers the Balance chip.
-      const legEditor = ap ? deriveEditor(slot, ap, legMeta, null) : null;
-      const choice = legEditor?.choice ?? null;
-      return {
-        to: call?.to ?? '',
-        approval: ap,
-        meta: legMeta,
-        editor: legEditor,
-        choice,
-        needsEditor: legShowsEditor(editable, ap),
-        needsChoice: legNeedsChoice(ap, choice),
-        grantsBroad: legGrantsBroad(ap, choice),
-      };
-    });
-    const rows = recipients && recipients.key === requestKey ? recipients.value : [];
-    return {
-      legs,
-      anyUncapped: editable
-        ? legs.some((leg) => leg.grantsBroad)
-        : legs.some((leg) => leg.approval?.isUnbounded && !leg.approval.isReducing && !leg.approval.isBooleanGrant),
-      anyToOwnToken: legs.some((leg, i) => {
-        const to = leg.to?.toLowerCase();
-        return !!to && (rows[i] ?? []).some((r) => r?.toLowerCase() === to);
-      }),
-      allSettled: !legs.some((leg) => leg.needsChoice),
-    };
-  }, [calls, legApprovals, readOnly, effectiveBatchMeta, batchTokens.length, liveEdits, recipients, requestKey]);
+    session.current?.dispatch({ type: 'revoke_chosen' });
+  }, []);
 
   const selectLegPreset = useCallback((index: number, mode: ApprovalEditorMode) => {
-    const ap = legApprovals?.[index];
-    if (!ap) return;
-    const legMeta = batch?.legs[index]?.meta ?? IDLE_META;
-    mutateLeg(index, (slot) => applyPreset(slot, ap, legMeta, null, mode));
-  }, [legApprovals, batch, mutateLeg]);
+    session.current?.dispatch({ type: 'leg_preset_selected', index, mode: MODE_TO_WIRE[mode] });
+  }, []);
   const setLegCustomText = useCallback((index: number, text: string) => {
-    mutateLeg(index, (slot) => (slot?.kind === 'amount' ? { ...slot, customText: text } : slot));
-  }, [mutateLeg]);
+    session.current?.dispatch({ type: 'leg_custom_amount_changed', index, text });
+  }, []);
   const chooseLegGrant = useCallback((index: number) => {
-    mutateLeg(index, (slot) => (slot?.kind === 'boolean' ? { ...slot, selected: 'grant' } : slot));
-  }, [mutateLeg]);
+    session.current?.dispatch({ type: 'leg_grant_deliberately_chosen', index });
+  }, []);
   const chooseLegRevoke = useCallback((index: number) => {
-    mutateLeg(index, (slot) => (slot?.kind === 'boolean' ? { ...slot, selected: 'revoke' } : slot));
-  }, [mutateLeg]);
+    session.current?.dispatch({ type: 'leg_revoke_chosen', index });
+  }, []);
+  const reportBatchRecipients = useCallback((recipients: string[][]) => {
+    session.current?.dispatch({ type: 'batch_recipients_resolved', recipients });
+  }, []);
 
-  // --- verdicts ------------------------------------------------------------
-
-  const surface: ApprovalGuardSurface = batch
-    ? 'batch'
-    : !approval
-      ? 'none'
-      : approval.locus.type === 'typed-path'
-        ? 'permit-sign'
-        : 'approval-editor';
-
-  const choice = editor?.choice ?? null;
-
-  const increaseTotal: ApprovalIncreaseTotal | null = useMemo(() => {
-    if (approval?.kind !== 'increaseAllowance') return null;
-    // The row appears only once the read RESOLVED (either way).
-    if (!allowance || allowance.key !== requestKey) return null;
-    if (choice?.type === 'revoke') return { current: null, increment: 0n, total: 0n };
-    const increment = choice?.type === 'amount' ? choice.amountRaw : (approval.amountRaw ?? 0n);
-    return allowance.value !== null
-      ? { current: allowance.value, increment, total: allowance.value + increment }
-      : { current: null, increment, total: null };
-  }, [approval, allowance, requestKey, choice]);
-
-  const rewrittenParams = useMemo(() => {
-    if (batch) {
-      if (!Array.isArray(params?.[0]?.calls)) return null;
-      let changed = false;
-      const newCalls = params[0].calls.map((c: any, i: number) => {
-        const leg = batch.legs[i];
-        if (leg?.approval?.editable && leg.choice) {
-          try {
-            const [rw] = rewriteApprovalParams(
-              'eth_sendTransaction',
-              [{ to: c.to, data: c.data, value: c.value }],
-              leg.approval,
-              toServiceChoice(leg.choice),
-            );
-            changed = true;
-            return { ...c, data: rw.data };
-          } catch { return c; }
-        }
-        return c;
-      });
-      return changed ? [{ ...params[0], calls: newCalls }, ...params.slice(1)] : null;
+  const projected = useMemo(() => {
+    const legs: ApprovalLegState[] | null = view.batch
+      ? view.batch.legs.map((leg) => ({
+          to: leg.to,
+          approval: toApproval(leg.approval),
+          meta: toMeta(leg.meta),
+          editor: toEditor(leg.editor),
+          choice: toChoice(leg.choice),
+          needsEditor: leg.needs_editor,
+          needsChoice: leg.needs_choice,
+          grantsBroad: leg.grants_broad,
+        }))
+      : null;
+    let rewrittenParams: any[] | null = null;
+    if (view.rewritten_params_json) {
+      try {
+        const parsed = JSON.parse(view.rewritten_params_json);
+        rewrittenParams = Array.isArray(parsed) ? parsed : null;
+      } catch {
+        rewrittenParams = null;
+      }
     }
-    if (!approval?.editable || !choice || !params) return null;
-    // Fail CLOSED: a rewrite error leaves params untouched for the submit
-    // guard to refuse.
-    try {
-      return rewriteApprovalParams(method, params, approval, toServiceChoice(choice));
-    } catch {
-      return null;
-    }
-  }, [batch, approval, choice, method, params]);
-
-  const deadlineSec = approval?.deadline ? Number(approval.deadline) : 0;
-  const expired = deadlineSec > 0 && deadlineSec < Math.floor(Date.now() / 1000);
-
-  // Unverified decimals are flagged on the amount editor always, and on the
-  // permit surface only for a bounded amount; the boolean card scales no
-  // amount, so it has no warning to show.
-  const decimalsUnverified =
-    surface === 'approval-editor'
-      ? singleSlot?.kind === 'amount' && !effectiveMeta.verified
-      : surface === 'permit-sign'
-        ? !!approval && !approval.isBooleanGrant && !approval.isUnbounded && !effectiveMeta.verified
-        : false;
+    const increment = toBig(view.increase_total?.increment);
+    return {
+      surface: SURFACE[view.surface],
+      approval: toApproval(view.detected),
+      meta: toMeta(view.meta),
+      editor: toEditor(view.editor),
+      confirmAllowed: view.confirm_allowed,
+      rewrittenParams,
+      increaseTotal:
+        view.increase_total && increment !== undefined
+          ? {
+              current: toBig(view.increase_total.current) ?? null,
+              increment,
+              total: toBig(view.increase_total.total) ?? null,
+            }
+          : null,
+      decimalsUnverified: view.decimals_unverified,
+      expired: view.expired,
+      batch:
+        view.batch && legs
+          ? {
+              legs,
+              anyUncapped: view.batch.any_uncapped,
+              anyToOwnToken: view.batch.any_to_own_token,
+              allSettled: view.batch.all_settled,
+            }
+          : null,
+    };
+  }, [view]);
 
   return {
-    surface,
-    approval: batch ? null : approval,
-    meta: batch ? { ...IDLE_META, loading: batchTokens.length > 0 && !effectiveBatchMeta } : effectiveMeta,
-    editor,
-    confirmAllowed: batch ? batch.allSettled : !(!!approval?.editable && !choice),
-    rewrittenParams,
-    increaseTotal,
-    decimalsUnverified,
-    expired: batch ? false : expired,
-    batch,
+    ...projected,
     selectPreset,
     setCustomText,
     chooseGrant,

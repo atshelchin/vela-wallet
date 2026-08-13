@@ -58,13 +58,13 @@ jest.mock('@/services/tx-simulation', () => ({
   serializeAssetSim: (sim: unknown) => sim,
 }));
 
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
 // The exact pair `ConfirmStep` used to call, and that native still calls.
 import { sumSplitBaseUnits } from '@/services/batch-send';
 import { fromBaseUnits } from '@/services/eip681';
-import { createSendSession } from '@/services/wallet-state-core/send-session.web';
+import { createSendSession } from '@/services/wallet-state-core/send-session';
 import type { SendEvent } from '@/services/wallet-state-core/generated/SendEvent';
 import type { SendRecipientDraft } from '@/services/wallet-state-core/generated/SendRecipientDraft';
 import type { SendView } from '@/services/wallet-state-core/generated/SendView';

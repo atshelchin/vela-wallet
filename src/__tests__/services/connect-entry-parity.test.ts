@@ -51,9 +51,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // `moduleFileExtensions`, so a bare `@/services/vela-core` resolves the NATIVE
 // index and the wasm is never initialized. Importing the web entry by explicit
 // path first runs `initSync` on the planted bytes.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { classifyConnectEntry as classifyOnNative, type ConnectEntry } from '@/services/connect-entry';
-import { classifyConnectEntry as classifyInCore } from '@/services/connect-entry.web';
+import { classifyConnectEntry as classifyInCore } from '@/services/connect-entry';
 
 const RI_PATH = 'https://relay.example.com/s/sess123?n=NONCE&k=SECRET';
 const RI_QUERY = 'https://relay.example.com/bridge?session=abc&n=N1&k=K1';

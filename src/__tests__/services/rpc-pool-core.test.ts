@@ -41,13 +41,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // endpoints and make the sweeps non-deterministic.
 jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async () => null) }));
 
-// Stand in for metro's platform resolution, which jest does not do (no `.web.ts`
-// in `moduleFileExtensions`): `rpc-pool.web.ts` imports the session bare, and on
-// web that is the wasm-backed module, not the native stub that throws. This
-// redirects to the REAL web session — no double, no stub.
-jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session.web'),
-);
+// The redirect that used to live here pointed the native module at the real
+// web session. There is one module now, so mocking it to itself is what a
+// stack overflow looks like — the import below already gets the real thing.
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as any;
@@ -57,11 +53,11 @@ global.fetch = mockFetch as any;
 // index and the wasm is never initialized (metro resolves the same specifier to
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 
 import { collectRpcUrls, NEVER_BANNED, type RPCResponse } from '@/services/rpc-pool-endpoints';
-import { createRpcPoolSession } from '@/services/wallet-state-core/rpc-pool-session.web';
-import { readStoredBans } from '@/services/wallet-state-core/rpc-pool-executor.web';
+import { createRpcPoolSession } from '@/services/wallet-state-core/rpc-pool-session';
+import { readStoredBans } from '@/services/wallet-state-core/rpc-pool-executor';
 import type { RpcCallVerdict } from '@/services/wallet-state-core/generated/RpcCallVerdict';
 import type { RpcKind } from '@/services/wallet-state-core/generated/RpcKind';
 import type { RpcPoolView } from '@/services/wallet-state-core/generated/RpcPoolView';
@@ -386,7 +382,7 @@ describe('rpc-pool.web public surface', () => {
   // One module instance for the whole file (the session is a module-level
   // singleton by design), so these use distinct chains and never ban anything.
    
-  const pool = require('@/services/rpc-pool.web') as typeof import('@/services/rpc-pool.web');
+  const pool = require('@/services/rpc-pool') as typeof import('@/services/rpc-pool');
 
   test('a successful call resolves with the JSON body the chosen endpoint returned', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ jsonrpc: '2.0', id: 1, result: '0xabc' }));

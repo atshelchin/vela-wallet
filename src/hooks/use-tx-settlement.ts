@@ -1,32 +1,59 @@
 /**
- * useTxSettlement — NATIVE. The TypeScript self-poll the two receipt surfaces
- * have always run, moved behind one seam and otherwise unchanged.
+ * useTxSettlement — WEB. A mirror of one `tx_tracker` entry, and nothing else.
  *
- * React Native runs on Hermes, which has no WebAssembly, so iOS and Android
- * keep every TypeScript poller `tx_tracker` unified on web (`waitForReceipt`,
- * `tx-reconciler.ts`, and this one). The loop below is the union of what
- * `TransactionReceipt.tsx` and `TransactionDetailSheet.tsx` each had inline:
- * first attempt one shared 3 s slot after mount, a bounded retry budget
- * (`nativeMaxAttempts` — 60 for the receipt, 40 for the detail sheet), stop on
- * the first definitive receipt, and — for the detail sheet only
- * (`nativePersist`) — write the verdict back to the records it belongs to.
+ * `use-tx-settlement.ts` is the native counterpart: on Hermes there is no wasm,
+ * so that module keeps the whole poller — the 3 s loop, the 40/60 attempt
+ * budget, the write-back. On web all three belong to the core
+ * (`rust/crates/vela-core/src/app/tx_tracker.rs`), whose module doc names the
+ * two surfaces this hook serves as pollers it *replaces*, and
+ * `tx-tracker-resident.web.ts` is the one app-resident machine that runs it.
  *
- * Nothing here classifies anything the RPC layer did not: `pollUserOpReceipt`
- * resolves non-null ONLY for a definitive receipt that named a transaction
- * hash, so `r.failed` is the bundler's `success === false`, not a timeout.
+ * Three things move out of the surfaces by using this:
  *
- * `use-tx-settlement.web.ts` is the web counterpart: there the core owns the
- * poll, the deadlines and the write, and this file is never loaded.
+ * 1. **The verdict.** The core decides; [`verdictOf`] only translates its seven
+ *    states into the two words storage has. `unreachable`,
+ *    `accepted_not_landed` and `fee_held` answer `null` — the surface learns
+ *    nothing and shows what the record already said (invariant ①: a timeout is
+ *    never a failure).
+ * 2. **The write.** Nothing here touches storage. `UpdateTxRecords` is the
+ *    core's single atomic write port (`storage.updateTransactions`, one
+ *    read-modify-write for every sibling of a batch) and it is also what makes
+ *    a confirmation reach `token_trust` with the authentic receipt logs. A
+ *    surface that flipped the record itself would silently take the op out of
+ *    `LoadPendingTxs`' filter (`status !== 'pending'` ⇒ skipped) and the core
+ *    would never see it again.
+ * 3. **The cadence.** No timer lives here. The resident's dumb 3 s tick plus
+ *    Home focus / visibility resumes drive the machine; every throttle, the
+ *    120 s window and the 24 h abandon line are the core's.
+ *
+ * `trackSubmitted` is the handoff, and is documented-idempotent: a second
+ * consumer of a hash already tracked joins the SAME entry, the same in-flight
+ * request and the same 3 s cooldown, merging its record ids in. So a detail
+ * sheet opened on a pending row costs no extra bundler traffic even while the
+ * send screen is watching the same op.
+ *
+ * A closing surface deliberately does NOT dispatch `Abort`: the same hash may
+ * still be the send screen's, and `Abort` slows that entry to the reconcile
+ * cadence. Tracking is app-resident precisely so it outlives every screen.
+ *
+ * `getSnapshot` reads the resident's last committed view, which is the
+ * `useSyncExternalStore` contract, not a render-time read of mutable module
+ * state: it is only ever consulted through the store, and every mutation is
+ * announced through `subscribe`.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 
-import { pollUserOpReceipt, USER_OP_RECEIPT_POLL_INTERVAL_MS } from '@/services/tx-reconciler';
-import { updateTransaction } from '@/services/storage';
+import {
+  ensureTxTracker,
+  subscribeTxTracker,
+  trackSubmitted,
+  txTrackerView,
+} from '@/services/wallet-state-core/tx-tracker-resident';
 import {
   NO_SETTLEMENT,
+  verdictOf,
   type TxSettlement,
   type TxSettlementRequest,
-  type TxVerdict,
 } from './tx-settlement-types';
 
 export {
@@ -37,86 +64,47 @@ export {
   type TxVerdict,
 } from './tx-settlement-types';
 
-interface Target {
-  hash: string;
-  chainId: number;
-  ids: string[];
-}
-
 export function useTxSettlement(request: TxSettlementRequest): TxSettlement {
-  const { active, userOpHash, chainId, recordIds, nativeMaxAttempts, nativePersist, onResolved } =
-    request;
-  const [settlement, setSettlement] = useState<TxSettlement>(NO_SETTLEMENT);
+  const { active, userOpHash, chainId, recordIds, onResolved } = request;
+  // The core keys every entry by the lowercased hash (`receiptPollKey`), so two
+  // surfaces that case it differently still meet at one entry.
+  const key = active && userOpHash && chainId ? userOpHash.toLowerCase() : '';
+  const idsKey = recordIds.join(',');
 
-  // The callback is a render-fresh closure; keeping it in a ref (written from
-  // an effect, never during render) stops a new identity from restarting the
-  // poll and losing the attempt budget.
+  // Hand the op over. Idempotent by hash in the core, so this is safe to
+  // re-run: it merges the ids this surface knows about into whatever entry the
+  // send screen, the sign sheet or the recovery sweep already created.
+  useEffect(() => {
+    if (!key || !chainId) return;
+    trackSubmitted(key, idsKey ? idsKey.split(',') : [], chainId);
+  }, [key, chainId, idsKey]);
+
+  const view = useSyncExternalStore(
+    (cb) => {
+      // Mirrors every other resident consumer: construction is idempotent, and
+      // the boot `AppResumed` sweep IS the cross-restart recovery.
+      ensureTxTracker();
+      return subscribeTxTracker(cb);
+    },
+    txTrackerView,
+    txTrackerView,
+  );
+
+  const settlement = useMemo(
+    () => (key ? verdictOf(view.entries.find((entry) => entry.user_op_hash === key)) : NO_SETTLEMENT),
+    [view, key],
+  );
+
+  // Tell the feed once, when a verdict lands. The core already announced the
+  // patch through `feedReconciled`; this is only the caller's own refresh.
   const resolvedRef = useRef(onResolved);
   useEffect(() => {
     resolvedRef.current = onResolved;
   });
-
-  // One value identity per tracked op, so a parent re-render never restarts a
-  // live poll: `recordIds` is usually a fresh array literal (`[tx.id]`).
-  const idsKey = recordIds.join(',');
-  const identity = userOpHash && chainId ? `${userOpHash}|${chainId}|${idsKey}` : '';
-  const target = useMemo<Target | null>(
-    () =>
-      active && userOpHash && chainId
-        ? { hash: userOpHash, chainId, ids: idsKey ? idsKey.split(',') : [] }
-        : null,
-    [active, userOpHash, chainId, idsKey],
-  );
-
-  // Reset on a new OP, never merely on the gate closing. A definitive receipt
-  // is a fact about the op, not about the surface that happened to see it —
-  // the same reason the core drops an aborted entry to the reconcile cadence
-  // instead of forgetting it. (The detail sheet's inline loop used to clear on
-  // every close; the receipt's never cleared at all. Clearing only on identity
-  // change keeps both, because a cleared-while-hidden verdict was never
-  // observable: the sheet re-reads the record it just persisted.)
+  const status = settlement.status;
   useEffect(() => {
-    setSettlement(NO_SETTLEMENT);
-  }, [identity]);
-
-  useEffect(() => {
-    if (!target) return;
-
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    let attempts = 0;
-    const tick = async () => {
-      if (cancelled) return;
-      attempts++;
-      const r = await pollUserOpReceipt(target.hash, target.chainId);
-      if (cancelled) return;
-      if (r && (r.confirmed || r.failed)) {
-        const status: TxVerdict = r.failed ? 'failed' : 'confirmed';
-        setSettlement({ status, txHash: r.txHash ?? null });
-        if (nativePersist) {
-          await Promise.all(
-            target.ids.map((id) =>
-              updateTransaction(id, {
-                status,
-                ...(r.txHash ? { txHash: r.txHash } : {}),
-              }).catch(() => {}),
-            ),
-          );
-        }
-        resolvedRef.current?.();
-        return; // final — stop polling
-      }
-      if (attempts < nativeMaxAttempts) timer = setTimeout(tick, USER_OP_RECEIPT_POLL_INTERVAL_MS);
-    };
-    // The background send waiter may already have made the initial request.
-    // Wait for the next shared three-second slot instead of immediately issuing
-    // a duplicate receipt RPC.
-    timer = setTimeout(tick, USER_OP_RECEIPT_POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [target, nativeMaxAttempts, nativePersist]);
+    if (status) resolvedRef.current?.();
+  }, [status]);
 
   return settlement;
 }

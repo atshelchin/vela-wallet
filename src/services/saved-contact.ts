@@ -1,19 +1,22 @@
 /**
- * "Is this address a saved contact, and what is it called?" — NATIVE.
+ * "Is this address a saved contact, and what is it called?" — WEB, answered by
+ * the portable Rust state machine (spec 017,
+ * `rust/crates/vela-core/src/app/contacts.rs`) through the one resident session
+ * every contacts surface already shares.
  *
- * One address, one answer, asked by four surfaces: the recipient name, the
- * recipient trust badge, the signing panel's address identity and the signing
- * summary line. Hermes has no WebAssembly, so native keeps reading the
- * TypeScript store (`services/contacts.ts`).
- *
- * The web twin (`saved-contact.web.ts`) asks the `contacts` core instead. Until
- * it existed, those four surfaces read the TypeScript store on web while the
- * core owned the same ledger — so a contact saved through the core (the
- * receipt's "save contact", the address book sheet) or hidden by its deletion
- * tombstone could disagree with the green check next to the recipient.
+ * This file owns no rules: what counts as saved (`source: 'manual'`), the
+ * lower-casing of the key and the deletion tombstones are the core's. The
+ * explicit `.web` import path is the same one `useSendController.web.ts` uses
+ * for `saveContactThroughCore` — the session lives in the hook module because
+ * that is where the React surfaces subscribe to it.
  */
-import { getSavedContact, type Contact } from '@/services/contacts';
+import { savedContactThroughCore } from '@/hooks/use-contacts-book';
+import { isAddress } from '@/models/types';
+import type { Contact } from '@/services/contacts';
 
 export function savedContactFor(address: string): Promise<Contact | null> {
-  return getSavedContact(address);
+  // `getSavedContact`'s own guard (contacts.ts:254), kept so a malformed address
+  // resolves to "not saved" instead of waiting on the ledger.
+  if (!isAddress(address)) return Promise.resolve(null);
+  return savedContactThroughCore(address);
 }

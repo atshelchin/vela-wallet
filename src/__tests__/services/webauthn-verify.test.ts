@@ -8,8 +8,8 @@
  * an incompatible provider (e.g. field-reordered clientDataJSON) must be
  * rejected with a human-readable reason rather than silently passing through.
  */
-import { verifySafeWebAuthn } from '@/services/webauthn-verify';
-import { toHex } from '@/services/hex';
+import { verifySafeWebAuthn } from '@/services/vela-core';
+import { toHex } from '@/services/vela-core';
 import type { PasskeyAssertionResult } from '@/modules/passkey';
 
 const REQUIRED_PREFIX = '{"type":"webauthn.get","challenge":"';
@@ -85,7 +85,9 @@ describe('verifySafeWebAuthn', () => {
       const truncated = `${REQUIRED_PREFIX}aGVsbG8"`;
       const res = verifySafeWebAuthn(assertion(truncated, authDataHex(UV)));
       expect(res.ok).toBe(false);
-      expect(res.reason).toBe('clientDataJSON does not end with }');
+      // The core prefixes its reasons ('invalid WebAuthn client data: …'); the
+      // reason itself is what this pins, not the sentence it is wrapped in.
+      expect(res.reason).toContain('clientDataJSON does not end with }');
     });
   });
 
@@ -93,7 +95,7 @@ describe('verifySafeWebAuthn', () => {
     test('authenticatorData shorter than 33 bytes → rejected', () => {
       const res = verifySafeWebAuthn(assertion(validClientData, authDataHex(UV, 20)));
       expect(res.ok).toBe(false);
-      expect(res.reason).toBe('authenticatorData too short');
+      expect(res.reason).toContain('authenticatorData too short');
     });
 
     test('UV flag not set (UP only) → rejected with flags in reason', () => {

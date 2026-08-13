@@ -25,7 +25,36 @@ export interface CoreErrorShape {
 
 export type { DecodedValue } from './convert';
 
-/** Legacy re-exports so call sites need only one import site. */
-export type { AbiParam } from '@/services/abi-decode';
-export type { TypedData, TypedDataField } from '@/services/eip712';
-export type { VerifyResult } from '@/services/webauthn-verify';
+/** Parsed Solidity signature parameter — "address _to", tuple components nested. */
+export interface AbiParam {
+  type: string;
+  name: string;
+  components?: AbiParam[];
+}
+
+/** EIP-712 typed data as received from dApps. */
+export interface TypedData {
+  types: Record<string, TypedDataField[]>;
+  primaryType: string;
+  domain: Record<string, any>;
+  message: Record<string, any>;
+}
+
+export interface TypedDataField {
+  name: string;
+  type: string;
+}
+
+/** Outcome of checking a WebAuthn assertion against the Safe signer contract. */
+export interface VerifyResult {
+  ok: boolean;
+  /** Human-readable reason on failure */
+  reason?: string;
+}
+
+/** The subset of WebAuthn assertion fields public-key recovery needs (hex-encoded). */
+export interface RecoverableAssertion {
+  signatureHex: string;
+  authenticatorDataHex: string;
+  clientDataJSONHex: string;
+}

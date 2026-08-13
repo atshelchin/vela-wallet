@@ -1,109 +1,101 @@
 /**
- * Receive-screen request controller (acknowledge gate + EIP-681 builder) —
- * NATIVE.
+ * Receive-screen request controller — WEB, driven by the portable Rust state
+ * machine (spec 016, `rust/crates/vela-core/src/app/payment_request.rs`).
  *
- * Today's logic, moved verbatim from `ReceiveScreen.tsx` (the per-account
- * warning gate) and `ReceiveRequestControls.tsx` (amount sanitation + request
- * building) for spec 016. Hermes has no WebAssembly, so iOS/Android keep this
- * TypeScript implementation; the web variant is driven by the portable Rust
- * machine (`rust/crates/vela-core/src/app/payment_request.rs`), where every
- * rule is documented and tested.
+ * This file owns no rules. It creates one core session per account, forwards
+ * picks/keystrokes as events, and renders whatever the core projects: the
+ * acknowledge gate, the sanitized amount, the EIP-681 URI and the pay-link.
+ * `payLinkBase()` (the shell's origin probe) is passed in at start — the core
+ * never touches `window.location`.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { buildEIP681, buildPayLink } from '@/services/eip681';
+import { payLinkBase } from '@/services/eip681';
+import { createPaymentRequestSession } from '@/services/wallet-state-core/session';
+import type { PaymentRequestView } from '@/services/wallet-state-core/generated/PaymentRequestView';
 
-import { DEFAULT_ASSET_FACTS, type ReceiveMode, type ReceiveRequestController, type RequestAssetFacts } from './receive-controller-types';
-
-// The warning gate shows once per account, then decays to a one-line reminder.
-const warnedStorageKey = (address: string) => `vela.receiveWarned.${address}`;
-
-export function sanitizeAmount(text: string, maxDecimals: number): string {
-  const cleaned = text.replace(/[^0-9.]/g, '');
-  if ((cleaned.match(/\./g) || []).length > 1) return text.slice(0, -1);
-  const [i, f] = cleaned.split('.');
-  if (f != null && f.length > maxDecimals) return `${i}.${f.slice(0, maxDecimals)}`;
-  return cleaned;
-}
+import type { ReceiveMode, ReceiveRequestController, RequestAssetFacts } from './receive-controller-types';
 
 export function useReceiveRequest(address: string | undefined): ReceiveRequestController {
-  // Per-account acknowledge flag.
-  const [warned, setWarned] = useState<boolean | null>(null);
+  const [view, setView] = useState<PaymentRequestView | null>(null);
+  const session = useRef<ReturnType<typeof createPaymentRequestSession> | null>(null);
+
   useEffect(() => {
     if (!address) return;
-    let cancelled = false;
-    setWarned(null);
-    AsyncStorage.getItem(warnedStorageKey(address))
-      .then((v) => { if (!cancelled) setWarned(v === '1'); })
-      .catch(() => { if (!cancelled) setWarned(false); });
-    return () => { cancelled = true; };
+    setView(null);
+    const loop = createPaymentRequestSession({
+      onView: setView,
+      onError: (error) => console.error('[receive-request] core fault:', error),
+    });
+    session.current = loop;
+    loop.start({
+      type: 'start',
+      account: address,
+      recipient: address,
+      base_url: payLinkBase(),
+    });
+    return () => {
+      loop.dispose();
+      session.current = null;
+    };
   }, [address]);
+
   const acknowledge = useCallback(() => {
-    setWarned(true);
-    if (address) AsyncStorage.setItem(warnedStorageKey(address), '1').catch(() => {});
-  }, [address]);
-
-  // Builder state. `mode` moved here from `ReceiveScreen`'s own `useState`
-  // unchanged — the payload rules below are derived from it, so it belongs
-  // beside them (the web twin keeps it in the core for the same reason).
-  const [mode, setMode] = useState<ReceiveMode>('address');
-  const [asset, setAsset] = useState<RequestAssetFacts>(DEFAULT_ASSET_FACTS);
-  const [amount, setAmount] = useState('');
-
-  const pickAsset = useCallback((facts: RequestAssetFacts) => {
-    setAsset(facts);
-    setAmount((a) => sanitizeAmount(a, facts.decimals)); // re-clamp precision
+    session.current?.dispatch({ type: 'acknowledge' });
   }, []);
 
-  const setAmountText = useCallback(
-    (text: string) => setAmount(sanitizeAmount(text, asset.decimals)),
-    [asset.decimals],
-  );
+  const pickAsset = useCallback((facts: RequestAssetFacts) => {
+    session.current?.dispatch({
+      type: 'asset_picked',
+      chain_id: facts.chainId,
+      token_address: facts.tokenAddress,
+      symbol: facts.symbol,
+      decimals: facts.decimals,
+      network_name: facts.networkName,
+    });
+  }, []);
 
-  const { qrValue, payLink, hasAmount } = useMemo(() => {
-    if (!address) return { qrValue: '', payLink: '', hasAmount: false };
-    return {
-      qrValue: buildEIP681({
-        recipient: address,
-        chainId: asset.chainId,
-        tokenAddress: asset.tokenAddress,
-        decimals: asset.decimals,
-        amount,
-      }),
-      payLink: buildPayLink({
-        recipient: address,
-        chainId: asset.chainId,
-        tokenAddress: asset.tokenAddress,
-        amount,
-        symbol: asset.symbol,
-        decimals: asset.decimals,
-        networkName: asset.networkName,
-      }),
-      hasAmount: !!amount && parseFloat(amount) > 0,
-    };
-  }, [address, asset, amount]);
+  const setAmountText = useCallback((text: string) => {
+    session.current?.dispatch({ type: 'amount_changed', text });
+  }, []);
+
+  // The tab is a core fact because the payloads below are derived from it.
+  // Until this was dispatched the core's `mode` was permanently `Address`, so
+  // `qr_value` and `copy_payload` answered with the bare address in request
+  // mode — right-looking fields nobody could safely read.
+  const setMode = useCallback((mode: ReceiveMode) => {
+    session.current?.dispatch({ type: 'mode_changed', mode });
+  }, []);
 
   return {
     recipient: address ?? '',
-    warned,
+    // Loading (null) until the core has read the per-account flag.
+    warned: view == null || view.gate_loading ? null : view.acknowledged,
     acknowledge,
-    asset,
+    asset: view
+      ? {
+          chainId: view.asset.chain_id,
+          tokenAddress: view.asset.token_address,
+          symbol: view.asset.symbol,
+          decimals: view.asset.decimals,
+          networkName: view.asset.network_name,
+        }
+      : { chainId: 1, tokenAddress: null, symbol: 'ETH', decimals: 18, networkName: 'Ethereum' },
     pickAsset,
-    amount,
+    amount: view?.amount ?? '',
     setAmountText,
-    qrValue,
-    payLink,
-    hasAmount,
+    qrValue: view?.eip681_uri ?? '',
+    payLink: view?.pay_link ?? '',
+    hasAmount: view?.has_amount ?? false,
 
-    // `ReceiveScreen.tsx:73/78` verbatim, only relocated: the screen used to
-    // pick these per surface, which is how the same tab could hand a different
-    // destination to the QR, the share card and the clipboard.
-    mode,
+    // Before the first view lands (and while no address exists) the screen is
+    // covered by the acknowledge gate — `warned` is null there — so these
+    // conservative defaults are never what the user is looking at.
+    mode: view?.mode ?? 'address',
     setMode,
-    qrPayload: mode === 'request' ? (qrValue || address || '') : (address || ''),
-    copyPayload: mode === 'request' ? payLink : (address || ''),
-    canCopy: warned === true,
-    canSave: warned === true,
+    qrPayload: view?.qr_value ?? '',
+    copyPayload: view?.copy_payload ?? '',
+    canCopy: view?.can_copy ?? false,
+    canSave: view?.can_save ?? false,
   };
 }

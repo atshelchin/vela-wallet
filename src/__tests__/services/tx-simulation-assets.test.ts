@@ -46,6 +46,13 @@ beforeEach(() => {
   mockPool.mockReset();
 });
 
+
+  // Three cases lived here that pinned the NATIVE enrichment's internals — which
+  // addresses reached the JS metadata resolver, and how a JS-side trust set
+  // graded them. `enrichDeltas` dispatches `sim_deltas_computed` to the core
+  // now, so those decisions are `app_token_trust.rs`'s and are covered by it and
+  // by token-trust-core.test.ts. What stays here is the engine plumbing, which
+  // is still the shell's.
 describe('simulateAssetChanges', () => {
   test('rpc engine: enriches native + known + unknown ERC-20', async () => {
     mockRpcSim.mockResolvedValue({
@@ -70,17 +77,6 @@ describe('simulateAssetChanges', () => {
     expect(mockTevmSim).not.toHaveBeenCalled();
   });
 
-  test('only ERC-20 addresses are sent to the metadata resolver', async () => {
-    mockRpcSim.mockResolvedValue({
-      ok: true,
-      deltas: [
-        { kind: 'native', token: undefined, delta: 1n },
-        { kind: 'erc20', token: USDC, delta: 2n },
-      ],
-    });
-    await simulateAssetChanges(USER, [{ to: USDC, data: '0x01' }], 1);
-    expect(mockMeta).toHaveBeenCalledWith(1, [USDC]);
-  });
 
   test('falls back to the Tevm engine when rpc returns null', async () => {
     mockRpcSim.mockResolvedValue(null);
@@ -105,15 +101,6 @@ describe('simulateAssetChanges', () => {
     expect(r!.changes).toEqual([{ kind: 'erc20', token: SPOOF, delta: 1_000_000n, unverified: true }]);
   });
 
-  test('a SENT token renders its amount even when not in the trusted set', async () => {
-    // Outflows can't be spoofed to understate, so sent amounts show with metadata.
-    mockRpcSim.mockResolvedValue({ ok: true, deltas: [{ kind: 'erc20', token: UNKNOWN, delta: -42n }] });
-    mockMeta.mockResolvedValue(new Map([[UNKNOWN, { symbol: 'TKN', decimals: 18 }]]));
-    mockChainTokens.mockResolvedValue(null);
-
-    const r = await simulateAssetChanges(USER, [{ to: UNKNOWN, data: '0x01' }], 1);
-    expect(r!.changes).toEqual([{ kind: 'erc20', token: UNKNOWN, delta: -42n, symbol: 'TKN', decimals: 18 }]);
-  });
 
   test('a RECEIVED token the user already holds is trusted (amount shown)', async () => {
     const HELD = '0x' + 'ab'.repeat(20);
@@ -188,13 +175,6 @@ describe('simulateAssetChanges', () => {
     expect(await simulateAssetChanges(USER, [{ to: USDC, data: '0x01' }], 1)).toBeNull();
   });
 
-  test('metadata lookup failure → ERC-20 flagged unverified, never throws', async () => {
-    mockRpcSim.mockResolvedValue({ ok: true, deltas: [{ kind: 'erc20', token: USDC, delta: 9n }] });
-    mockMeta.mockRejectedValue(new Error('rpc down'));
-
-    const r = await simulateAssetChanges(USER, [{ to: USDC, data: '0x01' }], 1);
-    expect(r!.changes).toEqual([{ kind: 'erc20', token: USDC, delta: 9n, unverified: true }]);
-  });
 
   test('empty calls / missing target → null, no engine consulted', async () => {
     expect(await simulateAssetChanges(USER, [], 1)).toBeNull();

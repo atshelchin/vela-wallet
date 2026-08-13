@@ -65,12 +65,12 @@ jest.mock('@/services/tx-simulation', () => ({
 // Load-bearing: jest lists no `.web.ts` in `moduleFileExtensions`, so a bare
 // `@/services/vela-core` resolves the NATIVE index and the wasm is never
 // initialized. The explicit web entry runs `initSync` on the planted bytes.
-import '@/services/vela-core/index.web';
+import '@/services/vela-core';
 import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
 // The REAL native predicate — the one `use-token-multi-select.ts` calls.
 import { selectAllValuable } from '@/services/batch-send';
-import { createSendSession } from '@/services/wallet-state-core/send-session.web';
+import { createSendSession } from '@/services/wallet-state-core/send-session';
 import type { SendEvent } from '@/services/wallet-state-core/generated/SendEvent';
 import type { SendView } from '@/services/wallet-state-core/generated/SendView';
 

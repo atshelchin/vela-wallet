@@ -2,8 +2,8 @@
  * Tests for attestation parser — DER signature conversion and CBOR parsing.
  * Test vectors match iOS AttestationParser tests.
  */
-import { derSignatureToRaw, extractPublicKey } from '@/services/attestation-parser';
-import { toHex, fromHex } from '@/services/hex';
+import { derSignatureToRaw, extractPublicKey } from '@/services/vela-core';
+import { toHex, fromHex } from '@/services/vela-core';
 
 describe('derSignatureToRaw', () => {
   test('converts standard DER signature to raw 64 bytes', () => {
@@ -25,17 +25,14 @@ describe('derSignatureToRaw', () => {
     expect(toHex(raw!.slice(32))).toBe('22'.repeat(32));
   });
 
-  test('strips leading zero bytes from r and s', () => {
-    // DER with leading zero (signed integer representation)
-    const r = new Uint8Array(32).fill(0xAA);
-    const s = new Uint8Array(32).fill(0x11); // low-s value (< n/2)
-    const der = new Uint8Array([
-      0x30, 0x46, // SEQUENCE, length 70
-      0x02, 0x21, // INTEGER, length 33
-      0x00, ...r, // leading zero + 32 bytes
-      0x02, 0x21, // INTEGER, length 33
-      0x00, ...s, // leading zero + 32 bytes
-    ]);
+  // A leading zero is REQUIRED when the high bit is set (DER integers are
+  // signed) and FORBIDDEN when it is not. Real authenticators emit the former
+  // constantly, and the core accepts it — this is the shape production depends
+  // on, so it is pinned first.
+  test('accepts the required leading zero on a high-bit-set r', () => {
+    const r = new Uint8Array(32).fill(0xAA); // high bit set → must be padded
+    const s = new Uint8Array(32).fill(0x11); // high bit clear → must NOT be
+    const der = new Uint8Array([0x30, 0x45, 0x02, 0x21, 0x00, ...r, 0x02, 0x20, ...s]);
 
     const raw = derSignatureToRaw(der);
     expect(raw).not.toBeNull();
@@ -44,24 +41,27 @@ describe('derSignatureToRaw', () => {
     expect(toHex(raw!.slice(32))).toBe('11'.repeat(32));
   });
 
-  test('pads short r or s values to 32 bytes', () => {
-    // Short r (31 bytes)
-    const r = new Uint8Array(31).fill(0xCC);
-    const s = new Uint8Array(32).fill(0xDD);
-    const der = new Uint8Array([
-      0x30, 0x43, // SEQUENCE
-      0x02, 0x1F, // INTEGER, length 31
-      ...r,
-      0x02, 0x20, // INTEGER, length 32
-      ...s,
-    ]);
+  // The oracle re-encoded whatever it was handed: it stripped zeros that should
+  // not have been there and left-padded integers that were malformed. Both
+  // shapes are refused now — a signature that does not parse is not a signature
+  // to normalize, and quietly repairing one hides where it came from.
+  test('refuses a leading zero that DER does not allow', () => {
+    const r = new Uint8Array(32).fill(0xAA);
+    const s = new Uint8Array(32).fill(0x11);
+    // s over-padded although its high bit is clear
+    const der = new Uint8Array([0x30, 0x46, 0x02, 0x21, 0x00, ...r, 0x02, 0x21, 0x00, ...s]);
+    // The facade answers `null` rather than throwing here — a malformed
+    // signature is an expected input on this path, not an exception.
+    expect(derSignatureToRaw(der)).toBeNull();
+  });
 
-    const raw = derSignatureToRaw(der);
-    expect(raw).not.toBeNull();
-    expect(raw!.length).toBe(64);
-    // r should be left-padded with one zero
-    expect(raw![0]).toBe(0x00);
-    expect(toHex(raw!.slice(1, 32))).toBe('cc'.repeat(31));
+  test('refuses a short r rather than left-padding it', () => {
+    const r = new Uint8Array(31).fill(0xCC); // high bit set, no leading zero
+    const s = new Uint8Array(32).fill(0xDD);
+    const der = new Uint8Array([0x30, 0x43, 0x02, 0x1f, ...r, 0x02, 0x20, ...s]);
+    // The facade answers `null` rather than throwing here — a malformed
+    // signature is an expected input on this path, not an exception.
+    expect(derSignatureToRaw(der)).toBeNull();
   });
 
   test('returns null for invalid DER', () => {

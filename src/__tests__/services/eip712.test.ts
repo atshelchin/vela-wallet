@@ -265,7 +265,7 @@ describe('EIP-712', () => {
       hashTypedData(data);
     } catch (e) {
       expect((e as Error & { coreCode?: string }).coreCode).toBe('Eip712Parse');
-      expect(String((e as Error).cause)).toContain('missing type in type resolution: tuple');
+      expect(JSON.stringify((e as Error).cause)).toContain('missing type in type resolution: tuple');
     }
   });
 

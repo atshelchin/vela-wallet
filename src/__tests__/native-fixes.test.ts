@@ -22,7 +22,7 @@ describe('Hermes polyfill wiring (P0#1)', () => {
   });
 
   it('polyfills.web.ts is a no-op so native-only deps stay out of the web bundle', () => {
-    const web = read('src/polyfills.web.ts');
+    const web = read('src/polyfills.ts');
     expect(web).not.toContain("import 'react-native-get-random-values'");
   });
 
@@ -133,13 +133,13 @@ describe('batch/split send carries the recipient name to the address book (issue
     expect(src).toMatch(/makeRecipientId\(\)[\s\S]*?name: r\.name/);
   });
 
-  it('the split-send path sets toName so deriveFromHistory can surface it', () => {
-    // The send-build logic moved from SendScreen.tsx into the extracted controller.
+  it('the split-send path carries toName so deriveFromHistory can surface it', () => {
+    // The rule itself now lives in `send.rs` (`to_name` on the built line), so
+    // what the shell owes is the mapping — it must not drop the name the core
+    // resolved. (contacts.test.ts already proves a persisted toName becomes the
+    // auto-contact's resolvedName.)
     const src = read('src/screens/wallet/useSendController.ts');
-    // The split-mode lines map (recipients.map) must set toName from the draft
-    // name — mirroring the single/multiSelect branches. (contacts.test.ts already
-    // proves a persisted toName becomes the auto-contact's resolvedName.)
-    expect(src).toContain('toName: r.name?.trim() || undefined');
+    expect(src).toContain('toName: line.to_name');
   });
 });
 

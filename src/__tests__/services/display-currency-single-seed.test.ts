@@ -39,21 +39,14 @@ describe('one first-launch currency seed per platform', () => {
     expect(screen).toMatch(/useSettingsCurrency/);
   });
 
-  test('every remaining caller is native-only — it has a web twin', () => {
-    for (const file of PREFERENCE_CALLERS) {
-      expect(code(read(file))).toMatch(/loadCurrency|setCurrency/);
-      expect(existsSync(join(SRC, file.replace(/\.ts$/, '.web.ts')))).toBe(true);
-    }
-  });
-
-  test('the web controller reaches the core, not the TypeScript preference', () => {
-    const web = code(read('hooks/use-settings-currency.web.ts'));
+  test('the controller reaches the core, not the TypeScript preference', () => {
+    const web = code(read('hooks/use-settings-currency.ts'));
     expect(web).toMatch(/display-currency-resident\.web/);
     expect(web).not.toMatch(/loadCurrency|setCurrency|getCurrencyCode/);
   });
 
   test('web has one resident display-currency session, shared by both surfaces', () => {
-    for (const file of ['hooks/use-display-currency.web.ts', 'hooks/use-settings-currency.web.ts']) {
+    for (const file of ['hooks/use-display-currency.ts', 'hooks/use-settings-currency.ts']) {
       const web = code(read(file));
       expect(web).toMatch(/display-currency-resident\.web/);
       // A second `createDisplayCurrencySession` would give the row its own

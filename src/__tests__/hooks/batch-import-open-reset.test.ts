@@ -197,7 +197,7 @@ describe('only an open resets — a price arriving is not an open', () => {
   });
 
   it('web’s dispatch of `open` does not either — the twins agree', () => {
-    const deps = resetEffectDeps('use-batch-import.web.ts', "type: 'open',");
+    const deps = resetEffectDeps('use-batch-import.ts', "type: 'open',");
     expect(deps).not.toContain('priced');
     expect(deps).not.toContain('token');
     expect(deps).toContain('visible');

@@ -41,13 +41,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // endpoints and make the sweeps non-deterministic.
 jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async () => null) }));
 
-// Stand in for metro's platform resolution, which jest does not do (no `.web.ts`
-// in `moduleFileExtensions`): `rpc-pool.web.ts` imports the session bare, and on
-// web that is the wasm-backed module, not the native stub that throws. This
-// redirects to the REAL web session — no double, no stub.
-jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session'),
-);
+// The redirect that used to live here pointed the native module at the real
+// web session. There is one module now, so mocking it to itself is what a
+// stack overflow looks like — the import below already gets the real thing.
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as any;

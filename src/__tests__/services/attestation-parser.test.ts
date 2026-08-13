@@ -50,14 +50,18 @@ describe('derSignatureToRaw', () => {
     const s = new Uint8Array(32).fill(0x11);
     // s over-padded although its high bit is clear
     const der = new Uint8Array([0x30, 0x46, 0x02, 0x21, 0x00, ...r, 0x02, 0x21, 0x00, ...s]);
-    expect(() => derSignatureToRaw(der)).toThrow();
+    // The facade answers `null` rather than throwing here — a malformed
+    // signature is an expected input on this path, not an exception.
+    expect(derSignatureToRaw(der)).toBeNull();
   });
 
   test('refuses a short r rather than left-padding it', () => {
     const r = new Uint8Array(31).fill(0xCC); // high bit set, no leading zero
     const s = new Uint8Array(32).fill(0xDD);
     const der = new Uint8Array([0x30, 0x43, 0x02, 0x1f, ...r, 0x02, 0x20, ...s]);
-    expect(() => derSignatureToRaw(der)).toThrow();
+    // The facade answers `null` rather than throwing here — a malformed
+    // signature is an expected input on this path, not an exception.
+    expect(derSignatureToRaw(der)).toBeNull();
   });
 
   test('returns null for invalid DER', () => {

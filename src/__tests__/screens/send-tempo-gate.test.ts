@@ -5,7 +5,7 @@ import { resolve } from 'path';
 
 const src = readFileSync(resolve(__dirname, '../../..', 'src/screens/wallet/useSendController.ts'), 'utf8');
 const screenSrc = readFileSync(resolve(__dirname, '../../..', 'src/screens/wallet/SendScreen.tsx'), 'utf8');
-const webSrc = readFileSync(resolve(__dirname, '../../..', 'src/screens/wallet/useSendController.web.ts'), 'utf8');
+const webSrc = readFileSync(resolve(__dirname, '../../..', 'src/screens/wallet/useSendController.ts'), 'utf8');
 
 describe('SendScreen checks only the relayer treasury', () => {
   it('opens the treasury bootstrap sheet from the amount screen before confirm', () => {

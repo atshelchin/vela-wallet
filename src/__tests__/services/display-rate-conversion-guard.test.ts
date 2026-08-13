@@ -70,13 +70,9 @@ jest.mock('@/services/currency', () => ({
   getRate: async (code: string) => (await resolveRate(code)) ?? 1,
 }));
 
-// Stand in for metro's platform resolution, which jest does not do: `.web.ts`
-// is not in `moduleFileExtensions`, so the resident's bare session import would
-// resolve to the native stub that throws. Redirects to the REAL web session —
-// no double, so the assertions below run against the SHIPPED wasm.
-jest.mock('@/services/wallet-state-core/session', () =>
-  require('@/services/wallet-state-core/session'),
-);
+// The redirect that used to live here pointed the native module at the real
+// web session. There is one module now, so mocking it to itself is what a
+// stack overflow looks like — the import below already gets the real thing.
 
 // Initialise the wasm module before the resident session constructs a core.
 import '@/services/vela-core';

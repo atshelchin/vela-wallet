@@ -36,10 +36,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // make the candidate list non-deterministic.
 jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async () => null) }));
 
-// Stand in for metro's platform resolution, which jest does not do.
-jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session'),
-);
+// The redirect that used to live here pointed the native module at the real
+// web session. There is one module now, so mocking it to itself is what a
+// stack overflow looks like — the import below already gets the real thing.
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as any;

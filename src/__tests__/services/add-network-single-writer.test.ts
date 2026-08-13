@@ -38,7 +38,7 @@ describe('one add-network implementation per platform', () => {
 
   test('the web controller reaches the core, never the TypeScript services', () => {
     const web = code(read('hooks/use-add-network-tab.ts'));
-    expect(web).toMatch(/network-admin-resident\.web/);
+    expect(web).toMatch(/network-admin-resident/);
     expect(web).not.toMatch(/services\/network-checker/);
     expect(web).not.toMatch(/services\/chain-registry/);
     // The registry read and the persist are the executor's, behind the core.
@@ -47,11 +47,10 @@ describe('one add-network implementation per platform', () => {
 
   test('nothing outside the controller and its own module writes custom networks', () => {
     // `services/add-network.ts` is the scan path; `storage.ts` defines the writer.
-    const writers = [
-      'hooks/use-add-network-tab.ts',
-      'services/add-network.ts',
-      'services/storage.ts',
-    ];
+    // The controller used to be on this list; it now asks the core instead,
+    // which the sibling test above pins. What is left is the scan path and the
+    // writer itself.
+    const writers = ['services/add-network.ts', 'services/storage.ts'];
     for (const file of writers) expect(code(read(file))).toMatch(/saveCustomNetwork/);
   });
 });

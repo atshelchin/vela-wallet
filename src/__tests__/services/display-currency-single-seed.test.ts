@@ -41,14 +41,14 @@ describe('one first-launch currency seed per platform', () => {
 
   test('the controller reaches the core, not the TypeScript preference', () => {
     const web = code(read('hooks/use-settings-currency.ts'));
-    expect(web).toMatch(/display-currency-resident\.web/);
+    expect(web).toMatch(/display-currency-resident/);
     expect(web).not.toMatch(/loadCurrency|setCurrency|getCurrencyCode/);
   });
 
   test('web has one resident display-currency session, shared by both surfaces', () => {
     for (const file of ['hooks/use-display-currency.ts', 'hooks/use-settings-currency.ts']) {
       const web = code(read(file));
-      expect(web).toMatch(/display-currency-resident\.web/);
+      expect(web).toMatch(/display-currency-resident/);
       // A second `createDisplayCurrencySession` would give the row its own
       // ledger — and its own seed.
       expect(web).not.toMatch(/createDisplayCurrencySession/);

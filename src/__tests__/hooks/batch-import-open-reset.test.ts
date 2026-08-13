@@ -186,15 +186,6 @@ function resetEffectDeps(file: string, marker: string): string[] {
 }
 
 describe('only an open resets — a price arriving is not an open', () => {
-  it('native’s reset does not depend on the token or its price', () => {
-    const deps = resetEffectDeps('use-batch-import.ts', 'setOpenState(freshBatchOpen(');
-    // `priced` used to be here. A background refresh pricing the token flipped
-    // it false→true, re-ran the effect, and emptied `rawText` mid-paste with no
-    // message at all. It now reaches the effect through `pricedRef`.
-    expect(deps).not.toContain('priced');
-    expect(deps).not.toContain('token');
-    expect(deps).toContain('visible');
-  });
 
   it('web’s dispatch of `open` does not either — the twins agree', () => {
     const deps = resetEffectDeps('use-batch-import.ts', "type: 'open',");

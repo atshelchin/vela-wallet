@@ -9,11 +9,14 @@ const controller = readFileSync(resolve(root, 'src/screens/wallet/useSendControl
 const confirm = readFileSync(resolve(root, 'src/screens/wallet/ConfirmStep.tsx'), 'utf8');
 
 describe('same fee-token transfer guard', () => {
-  test('calculates a final same-asset fee ceiling and refuses to submit above it', () => {
-    expect(controller).toContain('const sameAssetFeeIssue =');
-    expect(controller).toContain('sameAssetFeeLimit(');
-    expect(controller).toContain('if (sameAssetFeeIssue)');
-    expect(controller).toContain('handleEditAmount();');
+  test('carries the core’s same-asset ceiling breach through to the view', () => {
+    // The ceiling itself is `fee_policy::same_asset_fee_limit`, decided in
+    // `send.rs` — the shell used to recompute it and must not start again. What
+    // it owes is the mapping: every field of the core's issue, unmodified, so
+    // the confirm step can show the exact recovery.
+    expect(controller).toContain('sameAssetFeeIssue: SameAssetFeeIssue | null');
+    expect(controller).toContain('maxTransferAmount: BigInt(issue.max_transfer_amount');
+    expect(controller).not.toMatch(/sameAssetFeeLimit\(/);
   });
 
   test('shows the exact recovery and replaces the send slide with an edit action', () => {

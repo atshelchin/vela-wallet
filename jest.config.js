@@ -27,11 +27,7 @@ module.exports = {
   // ts-jest's CommonJS resolution cannot load it. Transform it through babel
   // instead of excluding it: the identicon path is real code that the native app
   // runs, and stubbing it in tests would hide regressions rather than surface them.
-  // `expo-constants` (and the `expo-modules-core` it imports) ship ESM only, and
-  // the i18n entry reaches them through `constants/build-info.ts`. That used to
-  // be the native module's business; with one i18n module every suite that
-  // touches translations parses them, so they transform here like the others.
-  transformIgnorePatterns: ['/node_modules/(?!identicons-esm|@nimiq/utils|expo-constants|expo-modules-core)'],
+  transformIgnorePatterns: ['/node_modules/(?!identicons-esm|@nimiq/utils)'],
   extensionsToTreatAsEsm: [],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'mjs', 'json', 'node'],
   transform: {

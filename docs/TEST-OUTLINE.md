@@ -68,10 +68,10 @@
 | 文件 | 职责 | 类型 | 覆盖 |
 |------|------|------|------|
 | `modules/passkey/index.ts` | 统一 WebAuthn（iOS/Android 原生 + web credentials） | [IO:D6] | ⚠️ |
-| `services/attestation-parser.ts` | 解 CBOR attestation，抽 P-256 (x,y)，DER→r‖s | [纯] | ✅ |
-| `services/webauthn-verify.ts` | Safe WebAuthn 断言兼容性检查（clientDataJSON、UV flag） | [纯] | ✅（新增 webauthn-verify.test.ts） |
-| `services/safe-address.ts` | 由 P-256 公钥确定性推导 Safe 地址、CREATE2 salt、MultiSend 编码 | [纯] | ✅ |
-| `services/eth-crypto.ts` | keccak-256、ABI 编码、CREATE2、EIP-55 checksum | [纯] | ✅ |
+| ~~`services/attestation-parser.ts`~~ → `vela-core` (`webauthn.rs`，经 facade) | 解 CBOR attestation，抽 P-256 (x,y)，DER→r‖s | [纯] | ✅（PR #168 起测试打 facade/wasm） |
+| ~~`services/webauthn-verify.ts`~~ → `vela-core` (`webauthn.rs`，经 facade) | Safe WebAuthn 断言兼容性检查（clientDataJSON、UV flag） | [纯] | ✅（PR #168 起测试打 facade/wasm） |
+| ~~`services/safe-address.ts`~~ → `vela-core` (`safe.rs`) + `vela-core/safe-constants.ts`（合约常量） | 由 P-256 公钥确定性推导 Safe 地址、CREATE2 salt、MultiSend 编码 | [纯] | ✅（PR #168 起测试打 facade/wasm） |
+| ~~`services/eth-crypto.ts`~~ → `vela-core` (`primitives.rs`) | keccak-256、ABI 编码、CREATE2、EIP-55 checksum | [纯] | ✅（PR #168 起测试打 facade/wasm） |
 | `services/accounts.ts` | 账户按余额排序、总额聚合 | [纯] | ✅ |
 | `services/public-key-upload.ts` | 上传编排（校验[纯] + 建记录[IO] + 验证为准） | [纯]+[IO:D3] | ✅（新增 public-key-upload.test.ts 四象限） |
 | `services/public-key-index.ts` | p256-index 客户端（跨设备恢复） | [IO:D3] | ⚠️ 集成 |
@@ -82,7 +82,7 @@
 | `services/safe-transaction.ts` | 构建/签名 ERC-4337 UserOp、gas 估算、Tempo 稳定币结算 | [纯]+[IO:D1/D2] | ✅ |
 | `services/batch-send.ts` | split（1→N）/ multiSelect（N→1）编码，MultiSend 批量 | [纯] | ✅ |
 | `services/bundler-service.ts` | gas 账户查询、赞助资格、充值建议、underfunded 解析 | [IO:D2] | ✅ |
-| `services/eip712.ts` | EIP-712 typed-data 哈希 | [纯] | ✅ |
+| ~~`services/eip712.ts`~~ → `vela-core` (`eip712.rs`) | EIP-712 typed-data 哈希 | [纯] | ✅（PR #168 起测试打 facade/wasm） |
 | `services/siwe.ts` | EIP-191 SIWE 签名 | [纯] | ✅ |
 
 ### M3 — 交易安全与可读化（Clear Signing / Safety）

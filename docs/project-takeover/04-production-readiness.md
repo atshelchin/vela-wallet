@@ -63,7 +63,7 @@
 | 命令 | 结果 |
 |---|---|
 | `npx tsc --noEmit` | ✅ exit 0(修复前 exit 2 / 52 错) |
-| `npx expo lint` | ✅ 0 errors / 167 warnings(修复前 3 errors) |
+| `npm run lint`(= `eslint src`；2026-08-12 起 expo lint 退役) | ✅ 0 errors(warning 基线随重构变动,以 CI 为准) |
 | `npx jest --ci` | ✅ 78/78 套件、1007 通过 + 15 skip(price-query 套件 opt-in;修复前 1 失败/非确定性) |
 | `npx jest recipient-table`(xlsx 升级后) | ✅ 16/16 |
 | `npm run build:web` | ✅ exit 0,dist ~11MB,CF Pages 资产修正 OK(依赖变更后重建复验) |

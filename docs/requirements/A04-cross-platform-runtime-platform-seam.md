@@ -32,7 +32,7 @@ than crashing or no-op-ing invisibly.
 - **FR-1** — `platform.ts` is the **one** module that branches on `Platform.OS`, exposing: alert, clipboard, openURL, in-app browser, app-active/foreground state.
 - **FR-2** — Web fallbacks: alert → in-app modal (A05/M04 `AppAlert`); clipboard → `navigator.clipboard`; openURL → `window.open`.
 - **FR-3** — Screens and services consume the seam, not raw platform APIs; new platform-specific behavior is added to the seam, not inline.
-- **FR-4** — Platform-variant files (`*.web.tsx`) are limited to genuinely divergent UI (e.g. color scheme, animated icon) and stay in sync with their native counterparts.
+- **FR-4** — ~~Platform-variant files (`*.web.tsx`) are limited to genuinely divergent UI and stay in sync with their native counterparts.~~ (Obsolete 2026-08-13: the platform pairs were collapsed to one implementation in PR #168; no `.web` variant exists.)
 
 ## 5. Non-functional requirements
 
@@ -61,5 +61,5 @@ Web haptics are no-ops (M04); web modals slide up as CSS portals (M04 `AppModal`
 ## 10. Source anchors
 
 - `src/services/platform.ts` — the single platform seam.
-- `src/hooks/use-color-scheme.web.ts`, `src/components/animated-icon.web.tsx` — sanctioned web variants.
+- `src/hooks/use-color-scheme.ts`, `src/components/animated-icon.tsx` — formerly the sanctioned `.web` variants; sole implementations since PR #168.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 15, 82.

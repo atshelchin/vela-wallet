@@ -8,7 +8,7 @@
 |---|--------|---------|-------------|
 | D1 | 项目目的/商业模型/核心用户流程 | L4 | 01-system-overview.md, WHITEPAPER.md |
 | D2 | 代码结构与模块边界 | L4 | src/ 布局, 01 仓库布局节 |
-| D3 | 密码学身份链（passkey→P-256→Safe 地址） | L5 | src/modules/passkey/, services/attestation-parser.ts, safe-address.ts, public-key-upload.ts |
+| D3 | 密码学身份链（passkey→P-256→Safe 地址） | L5 | src/modules/passkey/, rust/crates/vela-core/src/{webauthn.rs,safe.rs}（经 src/services/vela-core facade）, public-key-upload.ts |
 | D4 | 交易提交链（sendUserOp / 4337 / bundler） | L5 | services/safe-transaction.ts, bundler-service.ts, tempo.ts |
 | D5 | dApp 连接与签名安全（SigningSheet / approval-guard / clear-signing / 模拟） | L5 | hooks/use-dapp-signing.ts, services/approval-guard.ts, clear-signing.ts, tx-simulation.ts, sim-engine-rpc.ts |
 | D6 | 链上读地基（rpc-pool / wallet-api / 余额缓存） | L4 | services/rpc-pool.ts, wallet-api.ts, balance-cache.ts |
@@ -35,7 +35,7 @@ D9 依赖 D2；D10 依赖 D4+D5；D11 依赖 D8+D9；D12 依赖 D4+D6；D13 最�
 按投入产出排序（先读完这些，剩下的可按需查）：
 
 1. **`src/services/safe-transaction.ts`**（全文）— 整个产品的心脏：MultiSend 编码、sendUserOp 十步链、SafeOp EIP-712 hash、签名格式转换。读懂它 = 读懂 4337 + Safe + 本项目手写 ABI 风格。
-2. **`src/services/safe-address.ts`** — CREATE2 counterfactual 地址推导；解释了"为什么没部署也能收款"。
+2. **`rust/crates/vela-core/src/safe.rs`（经 `src/services/vela-core` facade）** — CREATE2 counterfactual 地址推导；解释了"为什么没部署也能收款"。(2026-08 前在 `src/services/safe-address.ts`。)
 3. **`src/hooks/use-dapp-signing.ts`** — dApp 方法路由 + 两道 enforceNoUnlimited 兜底（:322/:367）；安全承诺落点。
 4. **`src/services/approval-guard.ts`** — detect/rewrite/enforce 三件套；所有 approval 形态。
 5. **`src/services/rpc-pool.ts`** — 7 级端点优先、评分、两级封禁、错误分类；所有链上读的地基。

@@ -62,6 +62,6 @@ No direct UI. Surfaces indirectly as counterfactual addresses (B07) and as the "
 
 ## 10. Source anchors
 
-- `src/services/safe-address.ts:21-28` (contract set), `:120` (RIP-7212 verifiers).
-- `src/services/eth-crypto.ts:110-146`, `src/services/attestation-parser.ts:23-45` — keccak + CBOR.
+- `src/services/vela-core/safe-constants.ts` (contract set), `rust/crates/vela-core/src/safe.rs` (RIP-7212 verifiers).
+- `rust/crates/vela-core/src/primitives.rs`, `rust/crates/vela-core/src/webauthn.rs` — keccak + CBOR (audited crates since PR #168).
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 4, 36, 45, 46.

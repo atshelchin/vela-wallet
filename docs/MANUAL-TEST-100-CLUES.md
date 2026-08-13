@@ -206,7 +206,7 @@
 - **怎么测**：1) 创建并成功验证一个钱包，记录成功屏幕上显示的地址（如 0x1234...）。2) 完成后进入钱包主页。3) 切换到不同的链（Settings > 选择Arbitrum/Optimism/Polygon等）。4) 进入 Wallet 标签页，查看账户地址。5) 在 Assets 标签页中再次查看。6) 返回 Settings，依次切换另外3条链，每次记录地址。7) 与第一次创建时的地址对比。
 - **预期结果**：所有链上显示的账户地址完全相同，与创建时的地址一致。地址前缀为 0x，后跟40个十六进制字符。
 - **边界/异常**：如果重启应用，地址仍应一致；从本地存储恢复账户后地址应幂等。
-- **源码参考**：`src/screens/onboarding/CreateWalletScreen.tsx:116, src/services/safe-address.ts (computeAddress)`
+- **源码参考**：`src/screens/onboarding/CreateWalletScreen.tsx:116`，`vela-core` facade `computeAddress`（`rust/crates/vela-core/src/safe.rs`）
 
 ### 18. 首次创建钱包-Passkey生物识别仪式
 
@@ -236,7 +236,7 @@
 - **怎么测**：开发工具验证（Web）：1) 创建钱包 Eve。2) 在浏览器 DevTools 中监听并记录完整的 attestation object 十六进制。3) 手动运行 extractPublicKey() 来解析，验证 x, y 长度均为32字节。4) 验证地址计算：publicKey = '04' + x + y，再调用 computeAddress()，得到的地址应与屏幕显示一致。5) 对多个不同设备的 Passkey（若可用）重复验证。
 - **预期结果**：Passkey 完成后，公钥正确提取（不为 null）；地址计算稳定幂等；地址格式为有效的 20 字节以太坊地址。
 - **边界/异常**：如果 attestation object 畸形或不包含公钥（attest flag 未设），系统应显示"Failed to extract public key from attestation"错误。
-- **源码参考**：`src/screens/onboarding/CreateWalletScreen.tsx:107-116, src/services/attestation-parser.ts:23-45`
+- **源码参考**：`src/screens/onboarding/CreateWalletScreen.tsx:107-116`，`rust/crates/vela-core/src/webauthn.rs`（COSE 提取，经 facade `extractPublicKey`）
 
 ### 21. pending→confirmed 对账及持久化
 
@@ -1005,7 +1005,7 @@
 - **怎么测**：1) 新创建钱包，Safe 未在链上部署(如新增 Scroll 后)；2) dApp 调用 eth_getCode(walletAddress)；3) 钱包应返回 Safe proxy runtime code("0x608060..." 开头)，非"0x"；4) dApp 识别为合约并请求签名；5) 用户签名后 Safe 自动在 bundler 交易中部署。
 - **预期结果**：eth_getCode(wallet_addr) 返回 SAFE_PROXY_RUNTIME_CODE(非空、非"0x")；缓存在 deployedSelfCode Map 中以避免重复查询；已部署的钱包返回真实链上代码。
 - **边界/异常**：其他地址的 eth_getCode 应正常转发到 RPC；查询出错应 fallback 到 runtime code；同一地址/链多次查询应使用缓存。
-- **源码参考**：`src/hooks/use-dapp-signing.ts:492-508, src/services/safe-address.ts(SAFE_PROXY_RUNTIME_CODE)`
+- **源码参考**：`src/hooks/use-dapp-signing.ts:492-508`，`src/services/vela-core/safe-constants.ts`（`SAFE_PROXY_RUNTIME_CODE`）
 
 ### 88. 连接历史中的已确认交易点击后显示只读重放签名界面
 

@@ -59,5 +59,5 @@ One biometric prompt → home. Optional account naming (C03) can follow or be de
 ## 10. Source anchors
 
 - `src/screens/onboarding/CreateWalletScreen.tsx`.
-- `src/services/safe-address.ts`, `src/modules/passkey/index.ts`.
+- `vela-core` facade + `rust/crates/vela-core/src/safe.rs`, `src/modules/passkey/index.ts`.
 - `docs/CONTENT-SOURCE-100-CLUES.md` — clues 1, 6, 48.

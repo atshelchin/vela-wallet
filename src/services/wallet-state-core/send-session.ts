@@ -1,24 +1,37 @@
 /**
- * `send` core session — NATIVE entry point, and deliberately unavailable.
+ * Constructs the `send` core and wires it to the web shell — WEB entry
+ * (spec 017, `rust/crates/vela-core/src/app/send.rs`).
  *
- * React Native runs on Hermes, which has no WebAssembly. iOS and Android keep
- * the whole Send flow inside `src/screens/wallet/useSendController.ts` and never
- * import this module at runtime.
+ * Importing `@/services/vela-core` first is load-bearing: its web entry runs
+ * `initSync` on the fetched module at import time, so the wasm is initialised
+ * before the core is constructed here.
  *
- * It exists so the platform pair resolves: `tsc` has no `moduleSuffixes`
- * configured, so it type-checks `.web.ts` files but resolves *their* imports to
- * the base `.ts` variant. Same shape as `sign-session.ts`.
+ * `send-session.ts` is the native counterpart and throws.
  */
 
+import '@/services/vela-core';
+import { SendCore } from '../../../rust/pkg-web/vela_core.js';
+
+import { createJsonWasmShell } from '@/services/crux/json-wasm-shell';
 import type { EffectLoop } from '@/services/crux/effect-loop';
+
+import { createSendExecutor } from '@/services/wallet-state-core/send-executor';
 import type { SendEvent } from './generated/SendEvent';
-import type { SendSessionOptions } from './send-types';
+import type { SendShellResult } from './generated/SendShellResult';
+import type { SendView } from './generated/SendView';
+import type { SendEffect, SendSessionOptions } from './send-types';
 
 export type SendSession = EffectLoop<SendEvent>;
 
-const UNAVAILABLE =
-  'wallet-state-core is web-only: this runtime has no WebAssembly. Native uses the TypeScript controllers.';
-
-export function createSendSession(_options: SendSessionOptions): SendSession {
-  throw new Error(UNAVAILABLE);
+export function createSendSession(options: SendSessionOptions): SendSession {
+  const executor = createSendExecutor(options.ports);
+  return createJsonWasmShell<SendView, SendEvent, SendEffect, SendShellResult>(
+    new SendCore(),
+    {
+      onView: options.onView,
+      execute: (effect, signal) => executor.execute(effect, signal),
+      toFailure: (effect, error) => executor.toFailure(effect, error),
+      onError: options.onError,
+    },
+  );
 }

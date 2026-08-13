@@ -1,28 +1,23 @@
 /**
- * §12.1.6 — reconcile the active account to the one the origin was GRANTED,
- * before the approval surface can be acted on. NATIVE implementation.
+ * §12.1.6 — WEB: deliberately nothing.
  *
- * Two entries need this and must not each grow their own copy: the Safari
- * extension hand-off (`ExtensionSignController`) and the web popup entry
- * (`web-request.tsx`). Both used to call `signAccountIndex` + dispatch inline,
- * which is a second writer of the same fact — and the index they computed came
- * from `useWallet().accounts`, a DIFFERENT list from the one the consumer
- * indexes into on web. A mismatched index is a silent whole no-op there, and a
- * silent no-op here means signing from the wrong account.
+ * The `sign_request` core owns the granted-account reconcile on web. It reads
+ * `RequestArrived.granted_address`, resolves the index against the SESSION's own
+ * rows (`walletSessionAccounts()` — one list, one index domain), emits
+ * `SwitchActiveAccount`, and keeps `confirm_gate_open` false until the shell
+ * acks it. Dispatching a second `SWITCH_ACCOUNT` from a caller would be a second
+ * writer computing the same index from a possibly different list — exactly the
+ * failure §12.1.6 exists to prevent.
  *
- * On web the `sign_request` core owns this (it emits `SwitchActiveAccount` from
- * `RequestArrived.granted_address`, against the session's own row indices, and
- * gates the approval surface on the ack), so `dapp-account-reconcile.web.ts` is
- * an intentional no-op. Native keeps the dispatch, byte-identically.
+ * The parameters are kept so the two platform variants are call-compatible; the
+ * base module (`dapp-account-reconcile.ts`) is what `tsc` type-checks callers
+ * against.
  */
-import { signAccountIndex } from '@/models/dapp-request-routing';
-
 export function reconcileGrantedAccount(
-  accounts: { address: string }[],
-  activeIndex: number,
-  grantedAddress: string | undefined | null,
-  switchAccount: (index: number) => void,
+  _accounts: { address: string }[],
+  _activeIndex: number,
+  _grantedAddress: string | undefined | null,
+  _switchAccount: (index: number) => void,
 ): void {
-  const next = signAccountIndex(accounts, activeIndex, grantedAddress);
-  if (next !== activeIndex) switchAccount(next);
+  /* the core does it */
 }

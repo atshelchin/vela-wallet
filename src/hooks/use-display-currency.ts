@@ -1,24 +1,24 @@
 /**
- * useDisplayCurrency — the chosen display currency + its USD→fiat rate, for any
- * screen that shows fiat values. Refreshes on focus so changing the currency on
- * one screen reflects everywhere. `fmt(usd)` converts a USD amount into the
- * selected currency, honouring the localized number format + decimal rules.
+ * useDisplayCurrency — WEB, driven by the portable Rust state machine
+ * (spec 016, `rust/crates/vela-core/src/app/display_currency.rs`).
  *
- * Two uses, one number, and they do NOT get the same treatment when the rate is
- * unknown (see `services/fiat-rate-quote.ts`):
- *   - DISPLAY (`fmt`) may degrade. An unpriceable currency shows the honest USD
- *     figure rather than a blank card — and rather than a yuan sign in front of
- *     a number that was never converted.
- *   - CONVERSION (`rate`) may not. It is `null` until a rate is known, because
- *     the send screen divides a fiat-denominated amount by exactly this number,
- *     and a defaulted 1 there is a ~7x mispayment behind a green button — the
- *     single-send twin of the batch importer's refusal to quote a rate it
- *     cannot vouch for.
+ * This file owns no rules. One module-level session — now
+ * `wallet-state-core/display-currency-resident.web.ts`, so the Settings
+ * currency row can share it — is used by every mount, the same sharing today's
+ * module-level `_committed` pair provided, so all money-showing surfaces render
+ * the same atomically-committed {code, rate} pair and the first-launch seed runs
+ * once, not once per screen. The public shape is identical to the native hook.
  */
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import { currencyMeta, formatFiat, loadCurrency, resolveQuote, shownCurrency } from '@/services/currency';
-import { convertibleRate, type FiatRateQuote } from '@/services/fiat-rate-quote';
+
+import { currencyMeta, formatFiat, shownCurrency } from '@/services/currency';
+import {
+  displayCurrencyPair,
+  ensureDisplayCurrency,
+  subscribeDisplayCurrency,
+  type DisplayCurrencyPair,
+} from '@/services/wallet-state-core/display-currency-resident';
 
 export interface DisplayCurrency {
   code: string;
@@ -45,36 +45,26 @@ export interface DisplayCurrency {
   fmt: (usd: number) => string;
 }
 
-// Last committed code+quote PAIR, shared across hook instances. A fresh mount
-// (e.g. a tab pane) must never pair the stored code with the rate-1 default —
-// ¥12 instead of ¥1,860 — so until some instance has committed a real pair,
-// everyone renders the consistent USD/1.
-let _committed: { code: string; quote: FiatRateQuote | null } | null = null;
-
 export function useDisplayCurrency(): DisplayCurrency {
-  const [pair, setPair] = useState(() => _committed ?? { code: 'USD', quote: { code: 'USD', rate: 1 } });
+  const [pair, setPair] = useState<DisplayCurrencyPair>(displayCurrencyPair);
 
-  useFocusEffect(useCallback(() => {
-    let alive = true;
-    // Commit code + rate together: flipping the code while the old rate is still
-    // applied would render a wrong-magnitude value for a frame (huge for IDR/KRW).
-    // `resolveQuote`, NOT `getRate`: `getRate` ends in `?? 1`, which is
-    // indistinguishable from "the rate really is 1" and is what let an
-    // unpriceable currency reach the send screen as a multiplier.
-    loadCurrency().then(async (c) => {
-      const quote = await resolveQuote(c);
-      if (!alive) return;
-      _committed = { code: c, quote };
-      setPair(_committed);
-    });
-    return () => { alive = false; };
-  }, []));
+  useFocusEffect(
+    useCallback(() => {
+      const unsubscribe = subscribeDisplayCurrency(setPair);
+      // Focus refresh: the core coalesces these while a read is in flight.
+      ensureDisplayCurrency();
+      setPair(displayCurrencyPair());
+      return unsubscribe;
+    }, []),
+  );
 
-  const { code, quote } = pair;
-  // The rate is unwrapped only through the guard, so a quote fetched for
-  // another currency can never be used as this one's multiplier.
-  const rate = convertibleRate(quote, code);
+  // The core already commits code and rate together and never labels one
+  // currency's rate with another's, so `pair.rate` needs no re-validation here
+  // — it needs only to keep its `null`, which is the whole point of it.
+  const { code, rate } = pair;
   const meta = currencyMeta(code);
+  // Display degrades to the honest USD figure rather than putting a ¥ in front
+  // of a number nothing converted. Shared with the native twin.
   const shown = shownCurrency(code, rate);
   return {
     code,

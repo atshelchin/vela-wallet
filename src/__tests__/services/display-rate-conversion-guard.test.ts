@@ -75,7 +75,7 @@ jest.mock('@/services/currency', () => ({
 // resolve to the native stub that throws. Redirects to the REAL web session —
 // no double, so the assertions below run against the SHIPPED wasm.
 jest.mock('@/services/wallet-state-core/session', () =>
-  require('@/services/wallet-state-core/session.web'),
+  require('@/services/wallet-state-core/session'),
 );
 
 // Initialise the wasm module before the resident session constructs a core.
@@ -84,7 +84,7 @@ import {
   ensureDisplayCurrency,
   subscribeDisplayCurrency,
   type DisplayCurrencyPair,
-} from '@/services/wallet-state-core/display-currency-resident.web';
+} from '@/services/wallet-state-core/display-currency-resident';
 
 const CNY_PER_USD = 7.17;
 const USDT_PRICE_USD = 1;

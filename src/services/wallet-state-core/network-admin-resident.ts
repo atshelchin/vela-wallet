@@ -16,7 +16,7 @@
 
 import { subscribeNetworks } from '@/models/network';
 
-import { createNetworkAdminSession } from './network-admin-session.web';
+import { createNetworkAdminSession } from './network-admin-session';
 import type { NetEvent } from './generated/NetEvent';
 import type { NetView } from './generated/NetView';
 

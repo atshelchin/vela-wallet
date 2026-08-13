@@ -28,7 +28,7 @@ jest.mock('@/services/storage', () => ({
 
 import '@/services/vela-core';
 import { adjudicateMessage, projectBlindTyped } from '@/services/clear-signing-adjudication';
-import { createClearSigningSession } from '@/services/wallet-state-core/clear-session.web';
+import { createClearSigningSession } from '@/services/wallet-state-core/clear-session';
 import type { ClearBlindTyped } from '@/services/wallet-state-core/generated/ClearBlindTyped';
 import type { ClearMessageView } from '@/services/wallet-state-core/generated/ClearMessageView';
 import type { ClearSigningEvent } from '@/services/wallet-state-core/generated/ClearSigningEvent';

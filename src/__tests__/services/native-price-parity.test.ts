@@ -31,7 +31,7 @@ import {
 import {
   bestNativeDexPrice as coreBestNativeDexPrice,
   chooseNativePrice as coreChooseNativePrice,
-} from '@/services/native-price.web';
+} from '@/services/native-price';
 
 const BALANCE_DASHBOARD_RS = readFileSync(
   resolve(__dirname, '../../..', 'rust/crates/vela-core/src/app/balance_dashboard.rs'),

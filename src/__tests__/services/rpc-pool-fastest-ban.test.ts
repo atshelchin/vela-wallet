@@ -38,7 +38,7 @@ jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async ()
 
 // Stand in for metro's platform resolution, which jest does not do.
 jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session.web'),
+  require('@/services/wallet-state-core/rpc-pool-session'),
 );
 
 const mockFetch = jest.fn();
@@ -46,7 +46,7 @@ global.fetch = mockFetch as any;
 
 import '@/services/vela-core';
 
-import { getChainRpcUrl, poolBundlerCall, poolRpcCall } from '@/services/rpc-pool.web';
+import { getChainRpcUrl, poolBundlerCall, poolRpcCall } from '@/services/rpc-pool';
 import { collectRpcUrls, NEVER_BANNED } from '@/services/rpc-pool-endpoints';
 
 // The chain from the reproduction. `rpc-pool.web.ts` holds ONE module-level

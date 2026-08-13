@@ -31,7 +31,7 @@ let web: any;
 let i18n: any;
 
 beforeAll(async () => {
-  web = await import('@/i18n/index.web');
+  web = await import('@/i18n/index');
   i18n = web.default;
 });
 

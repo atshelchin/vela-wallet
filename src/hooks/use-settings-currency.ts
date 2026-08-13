@@ -1,32 +1,55 @@
 /**
- * The Settings display-currency row — NATIVE controller.
+ * The Settings display-currency row — WEB, driven by the portable Rust state
+ * machine (spec 016, `rust/crates/vela-core/src/app/display_currency.rs`).
  *
- * Today's three lines, moved verbatim out of `SettingsScreen.tsx:1133-1140`.
- * Hermes has no WebAssembly, so iOS/Android keep the TypeScript implementation
- * in `services/currency.ts` — including its first-launch region seed.
+ * This file owns no rules. It reads the same resident session every
+ * money-showing surface renders from, and reports the user's pick to it as
+ * `UserChose` — which is where "persist first, price second, and never let a
+ * late seed overwrite an explicit choice" is decided.
  *
- * The web variant is driven by the `display_currency` core, which is the point:
- * `loadCurrency()` runs `seedFromDeviceLocale()`, so calling it from this screen
- * on web put a SECOND first-launch seed (and a second writer of
- * `vela.displayCurrency`) next to the core's (spec 017).
+ * Before this existed the screen called `loadCurrency()` and `setCurrency()`
+ * straight from `services/currency.ts`, so on web the TypeScript first-launch
+ * seed (`seedFromDeviceLocale`, currency.ts:128-152) ran beside the core's seed
+ * — two implementations of the same first-launch rule, both writing
+ * `vela.displayCurrency`, resolvable only by whichever rate landed last.
+ *
+ * The one thing that stays here is the OPTIMISTIC code: the core's view carries
+ * the last *committed* {code, rate} pair, so it keeps reporting the old currency
+ * until the new rate resolves. The row and the picker's checkmark moved the
+ * instant the user tapped, and they still do.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { getCurrencyCode, getRate, loadCurrency, setCurrency } from '@/services/currency';
+import {
+  dispatchDisplayCurrency,
+  displayCurrencyPair,
+  ensureDisplayCurrency,
+  subscribeDisplayCurrency,
+  type DisplayCurrencyPair,
+} from '@/services/wallet-state-core/display-currency-resident';
 
 import type { SettingsCurrencyController } from './settings-currency-controller-types';
 
 export function useSettingsCurrency(): SettingsCurrencyController {
-  const [code, setCode] = useState(getCurrencyCode());
-  useEffect(() => { loadCurrency().then(setCode); }, []);
+  const [pair, setPair] = useState<DisplayCurrencyPair>(displayCurrencyPair);
+  /** The tapped code, until the core commits it (or a different one). */
+  const [chosen, setChosen] = useState<string | null>(null);
 
-  const pick = async (next: string) => {
-    await setCurrency(next);
-    setCode(next);
-    // Warm the rate so Home paints converted values immediately on return
-    // instead of a USD-magnitude flash.
-    getRate(next).catch(() => {});
-  };
+  useEffect(() => {
+    const unsubscribe = subscribeDisplayCurrency(setPair);
+    ensureDisplayCurrency();
+    setPair(displayCurrencyPair());
+    return unsubscribe;
+  }, []);
 
-  return { code, pick };
+  useEffect(() => {
+    if (chosen !== null && pair.code === chosen) setChosen(null);
+  }, [pair.code, chosen]);
+
+  const pick = useCallback((next: string) => {
+    setChosen(next);
+    dispatchDisplayCurrency({ type: 'user_chose', code: next });
+  }, []);
+
+  return { code: chosen ?? pair.code, pick };
 }

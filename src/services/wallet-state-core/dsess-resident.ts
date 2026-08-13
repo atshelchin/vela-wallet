@@ -45,18 +45,18 @@ import {
   dispatchSign,
   setSignDurableTransport,
   signTransportId,
-} from '@/services/wallet-state-core/sign-resident.web';
+} from '@/services/wallet-state-core/sign-resident';
 import {
   createDappSession,
   type DappSessionCoreSession,
-} from '@/services/wallet-state-core/dsess-session.web';
+} from '@/services/wallet-state-core/dsess-session';
 import {
   fromWireDapp,
   fromWireSession,
   remoteInjectLink,
   toWireDapp,
   toWireSession,
-} from '@/services/wallet-state-core/dsess-executor.web';
+} from '@/services/wallet-state-core/dsess-executor';
 import { dsessErrorMessage, type DsessWalletInfo } from '@/services/wallet-state-core/dsess-types';
 
 import { loadSession } from '@/models/dapp-connection-shape';

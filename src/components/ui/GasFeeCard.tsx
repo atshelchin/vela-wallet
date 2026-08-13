@@ -1,90 +1,103 @@
 /**
- * Reusable gas fee display + fee-asset selector — NATIVE.
+ * Gas fee display + fee-asset selector — WEB.
  *
- * Hermes has no WebAssembly, so iOS and Android keep the TypeScript fee math
- * below. `GasFeeCard.web.tsx` is the web twin: it renders the `fee_policy`
- * machine's view and owns none of this. Both render the same words and the same
- * `FeeTokenSelector` rows; only the source of the numbers differs.
+ * The native twin (`GasFeeCard.tsx`) loads its own fee-asset options, derives
+ * each row's cost with `calculateInBandFeeAmount` / `tempoReimbursement`, runs
+ * the balance<fee gate, auto-defaults to the first affordable asset and calls
+ * `estimateTransactionFee` twice. This file does none of that. Every one of
+ * those judgements is `fee_policy`'s (`rust/crates/vela-core/src/app/fee_policy.rs`),
+ * projected into `FeeView`, and this component turns that view into pixels.
  *
- * Shared by SendScreen (native transfers, ERC-20) and SigningRequestModal
- * (dApp contract calls). Shows:
- *   - Collapsed: "Est. Fee ~0.0012 POL ≈ $0.003" (+ a refresh affordance)
- *   - Expanded: fee-asset chips (native + whitelisted stables) on in-band
- *     chains with a DEX. Speed tiers are gone — every estimate runs at 'fast' —
- *     and the technical gas rows are gone with them.
+ * That is the whole fix. The four earlier attempts at this integration left the
+ * card patching estimates locally while the core also decided them, so one
+ * number had two writers and every review found the next place they disagreed
+ * (`specs/017-crux-wallet-state-complete/integration-plan.md`). There is now
+ * nothing here that could disagree: no arithmetic on money, no gate, no default.
  *
- * The card OWNS the fee-asset option loading (the bundler's all-asset quote);
- * the selected token itself is controlled by the parent (`gasFeeToken` +
- * `onFeeTokenChange`) so the approve/submit path sends exactly what was quoted.
- * Tempo uses the same fee-asset UI. Its special transaction envelope stays in the
- * service layer, where it belongs.
+ * What stays in the shell, on purpose:
+ *   - number and fiat FORMATTING (locale separators, the display currency)
+ *   - expand / collapse, and the auto-reveal when a choice exists
+ *   - the token LOGOS: `FeeOptionView` carries no `logo_urls`, and
+ *     `nativeLogoURLs` / `tokenLogoURLsByAddress` are `(chain, address)` master
+ *     data — the same category as the chain registry, which the core also
+ *     deliberately does not hold.
+ *   - the WORDS. The core reports semantic `FeeFailure` variants; every one of
+ *     them renders the single existing "estimate failed" string, byte-identical
+ *     to native, because e2e locates this row by its visible text.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { ChevronDown, ChevronUp, RefreshCw } from 'lucide-react-native';
 import { color, createStyles, inter, space, text } from '@/constants/theme';
 import { useDisplayCurrency } from '@/hooks/use-display-currency';
+import { nativeLogoURLs, tokenLogoURLsByAddress } from '@/models/types';
 import { useLocalePrefs, numberSeparators, formatNumber } from '@/services/locale-format';
-import {
-  calculateInBandFeeAmount,
-  estimateTransactionFee,
-  feeRowInsufficient,
-  refreshGasPrice,
-} from '@/services/safe-transaction';
-import { isTempoChain, tempoReimbursement } from '@/services/tempo';
-import { useInBandFeeTokenOptions, type FeeTokenOption } from '@/hooks/use-inband-fee-tokens';
-import type { GasFeeCardProps } from '@/hooks/fee-card-types';
+import type { FeeSelectorRow, GasFeeCardProps } from '@/hooks/fee-card-types';
+import type { FeeOptionView } from '@/services/wallet-state-core/generated/FeeOptionView';
 import { FeeTokenSelector } from './FeeTokenSelector';
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helpers — formatting only
 // ---------------------------------------------------------------------------
 
-/** Token fee amount in the user's number format (decimal mark + grouping). */
+/** Token fee amount in the user's number format. Byte-identical to the native twin. */
 function formatFeeAmount(units: number, sep: { group: string; decimal: string; indian?: boolean }): string {
   if (units === 0) return '0';
   if (units < 0.0001) return `< 0${sep.decimal}0001`;
   return formatNumber(units, { maximumFractionDigits: 4 });
 }
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
+/** A base-unit decimal string as a display number. `null`/malformed → null, never NaN. */
+function toUnits(base: string | null | undefined, decimals: number): number | null {
+  if (base == null) return null;
+  const value = Number(base);
+  return Number.isFinite(value) ? value / 10 ** decimals : null;
+}
 
-// `GasFeeCardProps` is declared once, in `@/hooks/fee-card-types`, and
-// implemented twice. `controller` is the web twin's whole input and is ignored
-// here; everything this file reads is on the native half of that interface.
-//
-// The props it reads, in the words they had when they lived here:
-//   feeEstimate    current fee estimate (null while loading)
-//   estimating     whether fee estimation is in progress
-//   publicKeyHex   builds the initCode for an undeployed Safe
-//   tx             the REAL tx being signed, so a fee-asset change/refresh
-//                  re-estimates the actual call and not a dummy transfer
-//   batchCalls     an EIP-5792 batch — estimate against the whole MultiSend
-//   gasFeeToken    the selection, owned by the parent so the submit path uses
-//                  exactly what was quoted
-//   onBusyChange   fires while the card re-quotes internally, so the parent can
-//                  gate confirm (the internal update doesn't touch `estimating`)
+function toSelectorRow(chainId: number, option: FeeOptionView): FeeSelectorRow {
+  return {
+    symbol: option.symbol,
+    contract: option.contract,
+    decimals: option.decimals,
+    balance: (() => {
+      try {
+        return BigInt(option.balance);
+      } catch {
+        return 0n;
+      }
+    })(),
+    logoUrls: option.contract === null
+      ? nativeLogoURLs(chainId, option.symbol)
+      : tokenLogoURLsByAddress(chainId, option.contract),
+    amount: (() => {
+      if (option.amount == null) return null;
+      try {
+        return BigInt(option.amount);
+      } catch {
+        return null;
+      }
+    })(),
+    insufficient: option.insufficient,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Component
+//
+// `GasFeeCardProps` is declared once in `@/hooks/fee-card-types` and
+// implemented twice. This twin reads `controller` and nothing else: the core
+// owns the estimate, the selection, the busy flag and the re-quote, and the
+// parent reads them from the same session this card renders — so there is no
+// `onFeeUpdate` to fire and no `feeEstimate` prop to trust.
 // ---------------------------------------------------------------------------
 
 export function GasFeeCard({
-  feeEstimate = null, estimating = false, nativeSymbol: sym, nativeUsdPrice,
-  safeAddress, chainId, publicKeyHex, tx, batchCalls, gasFeeToken = null, onFeeTokenChange, onFeeUpdate, onBusyChange,
+  controller, nativeSymbol: sym, nativeUsdPrice, safeAddress, chainId,
 }: GasFeeCardProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  // Set the internal update flag AND notify the parent (which gates its confirm button).
-  const setBusy = useCallback((b: boolean) => {
-    setRefreshing(b);
-    onBusyChange?.(b);
-  }, [onBusyChange]);
-  // Fee-asset options: null = no selector (legacy chain, Tempo, or unavailable quote).
 
   // Region format: fiat in the chosen display currency (€/¥/…) + the number
   // format's grouping/decimal marks, matching the amounts everywhere else.
@@ -92,178 +105,97 @@ export function GasFeeCard({
   useLocalePrefs();
   const sep = numberSeparators();
 
-  // Fee-asset options — native + held whitelisted stables — from the shared all-asset quote
-  // loader used by the Send confirm slide too, so the two surfaces cannot drift.
-  const feeTokenOptions = useInBandFeeTokenOptions(chainId, safeAddress, true);
+  const view = controller?.view;
+  const options = view?.options ?? [];
+  const fee = view?.fee ?? null;
+  // `pending` widens `view.busy` over the account-context read that precedes
+  // the dispatch, so the first frame reads "estimating", never "failed".
+  const busy = (view?.busy ?? false) || (controller?.pending ?? false);
 
-  // There is no longer a separate per-token request to make after this quote. As soon as it
-  // tells us that the Safe has a choice, reveal that choice instead of leaving it hidden behind
-  // the compact gas row. Reset only for a different account/chain, so a user can still collapse
-  // it themselves while reviewing the same transaction.
+  // As soon as the machine reports there is a choice, reveal it instead of
+  // leaving it hidden behind the compact gas row. Reset only for a different
+  // account/chain, so a user can still collapse it while reviewing the same
+  // transaction. Pure UI memory — the native twin does exactly this.
   const didRevealOptionsRef = useRef(false);
   useEffect(() => {
     didRevealOptionsRef.current = false;
     setExpanded(false);
   }, [chainId, safeAddress]);
   useEffect(() => {
-    if (!didRevealOptionsRef.current && (feeTokenOptions?.length ?? 0) > 1) {
+    if (!didRevealOptionsRef.current && options.length > 1) {
       didRevealOptionsRef.current = true;
       setExpanded(true);
     }
-  }, [feeTokenOptions]);
+  }, [options.length]);
 
-  // The address-only in-band quote carries balances and USD prices for every asset. The shared
-  // gas basis derives exact amounts once it is ready; the estimate fallback keeps first render stable.
-  const erc20Fee = feeEstimate?.feeAsset?.kind === 'erc20' ? feeEstimate.feeAsset : null;
-  // Tempo's default is an ERC-20 fee token, not a synthetic native USD balance. Keep it
-  // visibly selected even before the relay publishes additional Tempo fee-token choices.
-  const selectedFeeToken = gasFeeToken ?? (isTempoChain(chainId) ? erc20Fee?.token ?? null : null);
-  const selectedOption = feeTokenOptions?.find(
-    (o) => (o.contract?.toLowerCase() ?? null) === (selectedFeeToken?.toLowerCase() ?? null),
-  );
-  const nativeOption = feeTokenOptions?.find((o) => o.asset === 'native');
-  const feeAmountForOption = useCallback((option: FeeTokenOption): bigint | null => {
-    if (!feeEstimate?.inBand) return null;
-    if (isTempoChain(chainId)) {
-      // Tempo's outer 0x76 is protocol-specific, but its fee is still a normal USD TIP-20
-      // amount derived from the same gas basis shown to the user.
-      return option.asset === 'erc20'
-        ? tempoReimbursement(feeEstimate.totalGas, feeEstimate.networkFeePerGas, option.decimals)
-        : null;
-    }
-    if (!nativeOption) return null;
-    return calculateInBandFeeAmount(
-      feeEstimate.totalGas,
-      feeEstimate.networkFeePerGas,
-      option,
-      nativeOption,
-    );
-  }, [chainId, feeEstimate, nativeOption]);
-  const erc20Symbol = erc20Fee
-    ? (feeTokenOptions?.find((o) => o.contract?.toLowerCase() === erc20Fee.token.toLowerCase())?.symbol
-      ?? erc20Fee.symbol
-      ?? `${erc20Fee.token.slice(0, 6)}…`)
-    : null;
-  const selectedFeeAmount = selectedOption ? feeAmountForOption(selectedOption) : null;
-  const quoteUnits = selectedOption && selectedFeeAmount !== null
-    ? Number(selectedFeeAmount) / 10 ** selectedOption.decimals
-    : null;
-  const feeUnits = quoteUnits ?? (erc20Fee
-    ? Number(erc20Fee.amount) / 10 ** erc20Fee.decimals
-    : feeEstimate ? Number(feeEstimate.totalWei) / 1e18 : 0);
-  // A native-price feed is optional: gas can still be paid and displayed in the native
-  // asset without a USD conversion. Prefer the wallet's price fallback when available.
+  const selected = options.find((option) => option.selected) ?? null;
+  const erc20Fee = fee?.fee_asset.type === 'erc20' ? fee.fee_asset : null;
+
+  // The displayed amount AND the unit it is in, from ONE source.
   //
-  // DISPLAY ONLY. `feeUsd` never leaves this component — it decides `showFiat`
-  // and one formatted string, and the number that is quoted, signed and
-  // reimbursed is `feeUnits` in `feeSym`, which is token-denominated. The
-  // `erc20Fee ? feeUnits : …` arm is therefore a rendering convenience for an
-  // unpriced fee asset (the whitelist is stablecoins, so ≈1:1), not a rate:
-  // nothing derived from it may enter a conversion, a gate or a submit. If this
-  // value ever needs to gate anything, take the missing price as a refusal —
-  // see `fiat-convert.ts::TokenPrice`.
-  const selectedUsdPrice = selectedOption?.usdPrice === null || selectedOption?.usdPrice === undefined
+  // Written as a single choice rather than two `??` chains on purpose. The
+  // obvious shape — units falling through to the next source while the symbol
+  // falls through independently — can pair digits from one asset with the label
+  // of another the moment a source supplies a symbol but no amount. That is the
+  // money-unit defect this branch spent six rounds on
+  // (`money.rs`: an amount carries the unit it is in). An asset that cannot be
+  // priced therefore reports NO amount; it never borrows one.
+  const denom: { units: number | null; symbol: string; usdPrice: number | null } =
+    selected
+      ? {
+          units: toUnits(selected.amount, selected.decimals),
+          symbol: selected.symbol,
+          usdPrice: selected.usd_price == null ? null : Number(selected.usd_price),
+        }
+      : erc20Fee
+        ? {
+            units: toUnits(erc20Fee.amount, erc20Fee.decimals),
+            symbol: erc20Fee.symbol ?? `${erc20Fee.token.slice(0, 6)}…`,
+            usdPrice: null,
+          }
+        : { units: fee ? toUnits(fee.total_wei, 18) : null, symbol: sym, usdPrice: nativeUsdPrice };
+
+  const feeUnits = denom.units;
+  const feeSym = denom.symbol;
+
+  // DISPLAY ONLY, and the native twin says the same thing at the same place:
+  // `feeUsd` never leaves this component — it decides `showFiat` and one
+  // formatted string. The number that is quoted, signed and reimbursed is
+  // `feeUnits` in `feeSym`, which is token-denominated. The middle arm below is
+  // a rendering convenience for an unpriced fee asset (the whitelist is
+  // stablecoins, so ≈1:1), not a rate: nothing derived from it may enter a
+  // conversion, a gate or a submit.
+  const feeUsd = feeUnits === null
     ? null
-    : Number(selectedOption.usdPrice);
-  const feeUsd = selectedUsdPrice !== null && Number.isFinite(selectedUsdPrice)
-    ? feeUnits * selectedUsdPrice
-    : erc20Fee ? feeUnits : feeUnits * nativeUsdPrice;
-  const feeSym = selectedOption?.symbol ?? (erc20Fee ? erc20Symbol : sym);
-  // Show fiat only when it renders as a meaningful non-zero (formatFiat rounds to
-  // 2 dp) — below that the native amount is the honest primary.
-  const showFiat = feeUsd >= 0.005;
+    : denom.usdPrice !== null && Number.isFinite(denom.usdPrice)
+      ? feeUnits * denom.usdPrice
+      : erc20Fee ? feeUnits : null;
+  // Show fiat only when it renders as a meaningful non-zero (2 dp) — below that
+  // the token amount is the honest primary.
+  const showFiat = feeUsd !== null && feeUsd >= 0.005;
 
-  const handleRefresh = useCallback(async () => {
-    if (refreshing) return;
-    setBusy(true);
-    try {
-      await refreshGasPrice(chainId);
-      const fee = await estimateTransactionFee(
-        safeAddress, chainId, 'fast', tx, batchCalls, gasFeeToken, publicKeyHex,
-      );
-      onFeeUpdate?.(fee);
-    } catch { /* ignore */ }
-    setBusy(false);
-  }, [chainId, safeAddress, publicKeyHex, tx, batchCalls, gasFeeToken, refreshing, onFeeUpdate, setBusy]);
-
-  const handleFeeTokenSelect = useCallback(async (contract: string | null) => {
-    const prev = gasFeeToken ?? null;
-    if ((prev?.toLowerCase() ?? null) === (contract?.toLowerCase() ?? null)) return;
-    // The selected asset's exact amount is derived from the shared gas basis, so the display can
-    // switch immediately while confirm remains gated through this state update.
-    onFeeTokenChange?.(contract);
-    setBusy(true);
-    try {
-      // One response already includes every selectable asset's recipient, balance, and USD price.
-      // Selecting a chip recalculates locally — no per-token balance, metadata, or price request.
-      const option = feeTokenOptions?.find(
-        (o) => (o.contract?.toLowerCase() ?? null) === (contract?.toLowerCase() ?? null),
-      );
-      const amount = option ? feeAmountForOption(option) : null;
-      if (feeEstimate?.inBand && option && amount !== null) {
-        onFeeUpdate?.({
-          ...feeEstimate,
-          totalWei: option.contract === null ? amount : 0n,
-          feeRecipient: option.recipient,
-          feeAsset: option.contract === null
-            ? { kind: 'native' }
-            : { kind: 'erc20', token: option.contract, decimals: option.decimals, amount },
-        });
-      } else {
-        // A quote may have expired while this sheet remained open. Fall back to a full estimate;
-        // its quote call still returns all assets in one response.
-        const fee = await estimateTransactionFee(
-          safeAddress, chainId, 'fast', tx, batchCalls, contract, publicKeyHex,
-        );
-        onFeeUpdate?.(fee);
-      }
-    } catch {
-      onFeeTokenChange?.(prev); // error → revert; the user can re-tap or refresh
-    }
-    setBusy(false);
-  }, [safeAddress, chainId, publicKeyHex, tx, batchCalls, gasFeeToken, feeEstimate, feeTokenOptions, feeAmountForOption, onFeeTokenChange, onFeeUpdate, setBusy]);
-
-  // Auto-default the fee asset to one the user can actually pay with. The selection starts at
-  // native (gasFeeToken=null), but if the native coin can't cover the fee — notably a 0-balance
-  // account (which is common now that gas is paid in a held stablecoin) — that row is
-  // non-selectable, so leaving it selected is a dead-end. Pre-select the first AFFORDABLE option
-  // instead. Runs at most once per (chain, account); a user's later manual pick is never overridden.
-  const didAutoDefaultRef = useRef(false);
-  useEffect(() => { didAutoDefaultRef.current = false; }, [chainId, safeAddress]);
-  useEffect(() => {
-    if (didAutoDefaultRef.current) return;
-    if (!feeTokenOptions || feeTokenOptions.length === 0) return;
-    // Exactly the selector rows' own gate, negated — one rule, one place.
-    const affordable = (o: FeeTokenOption): boolean =>
-      !feeRowInsufficient(o.balance, feeAmountForOption(o));
-    const selKey = selectedFeeToken?.toLowerCase() ?? null;
-    const current = feeTokenOptions.find((o) => (o.contract?.toLowerCase() ?? null) === selKey);
-    if (current && affordable(current)) { didAutoDefaultRef.current = true; return; } // current is fine
-    const pick = feeTokenOptions.find(affordable);
-    if (pick) {
-      didAutoDefaultRef.current = true;
-      handleFeeTokenSelect(pick.contract);
-    }
-  }, [feeTokenOptions, selectedFeeToken, feeAmountForOption, handleFeeTokenSelect]);
-
-  const { t } = useTranslation();
-
+  /** There is a quote AND it can be stated in a unit. Anything less is not a fee. */
+  const quoteShown = fee !== null && feeUnits !== null;
   // Estimation finished with no result — a dead-end unless we offer a retry.
-  const failed = !estimating && !refreshing && !feeEstimate;
+  // `asked` is what separates that from a machine nobody has asked yet: both
+  // project `fee: null`, and only the surface knows which it is looking at.
+  const failed = (controller?.asked ?? false) && !busy && (view?.failed != null || !quoteShown);
   // Only offer the expand affordance when there is actually a choice to make.
-  const selectable = !!feeTokenOptions && feeTokenOptions.length > 1;
+  const selectable = options.length > 1;
+
+  const refresh = () => controller?.requote();
 
   return (
     <>
       {/* Collapsed toggle row — tap to expand the fee-asset picker, or to retry
           when estimation failed */}
       <Pressable
-        onPress={failed ? handleRefresh : selectable ? () => setExpanded(!expanded) : undefined}
+        onPress={failed ? refresh : selectable ? () => setExpanded(!expanded) : undefined}
         style={styles.toggleRow}
       >
         <View style={styles.toggleLabelCol}>
           <Text style={styles.toggleLabel}>{t('componentsUi.gas.estFee')}</Text>
-          {selectable && feeEstimate && (
+          {selectable && quoteShown && (
             <Text style={styles.toggleLabelSub}>{t('componentsUi.gas.paidWith', { symbol: feeSym })}</Text>
           )}
         </View>
@@ -272,13 +204,16 @@ export function GasFeeCard({
             {/* Token-first: the precise amount from the selected quote leads; the quote-supplied
                 USD price produces the quiet approximation below. */}
             <Text style={[styles.toggleValue, failed && styles.toggleValueFailed]}>
-              {feeEstimate
+              {/* An amount is shown only when there IS one in a stated unit. A
+                  quote whose selected asset cannot be priced reads as the
+                  failure it is, rather than as `~0` of something. */}
+              {quoteShown
                 ? `~${formatFeeAmount(feeUnits, sep)} ${feeSym}`
-                : (estimating || refreshing)
+                : busy
                   ? t('componentsUi.gas.estimating')
                   : t('componentsUi.gas.estimateFailed')}
             </Text>
-            {!failed && feeEstimate && showFiat && (
+            {!failed && quoteShown && showFiat && feeUsd !== null && (
               <Text style={styles.toggleSub}>≈ {dc.fmt(feeUsd)}</Text>
             )}
           </View>
@@ -286,16 +221,16 @@ export function GasFeeCard({
             <RefreshCw size={16} color={color.warning.base} strokeWidth={2} />
           ) : (
             <>
-              {feeEstimate && !estimating && (
-                <Pressable onPress={handleRefresh} hitSlop={8} style={styles.refreshBtn}>
-                  {refreshing ? (
+              {quoteShown && (
+                <Pressable onPress={refresh} hitSlop={8} style={styles.refreshBtn}>
+                  {busy ? (
                     <ActivityIndicator size={14} color={color.fg.muted} />
                   ) : (
                     <RefreshCw size={14} color={color.fg.muted} strokeWidth={2} />
                   )}
                 </Pressable>
               )}
-              {selectable && feeEstimate && !estimating ? (
+              {selectable && quoteShown && !busy ? (
                 expanded
                   ? <ChevronUp size={16} color={color.fg.subtle} strokeWidth={2} />
                   : <ChevronDown size={16} color={color.fg.subtle} strokeWidth={2} />
@@ -306,27 +241,13 @@ export function GasFeeCard({
       </Pressable>
 
       {/* Expanded fee-asset picker — one row per asset (native + held stables),
-          each with its balance + ≈fiat. Shared with the Send confirm slide. */}
-      {expanded && selectable && feeEstimate && (
+          each with its balance + cost. Shared with the native twin. */}
+      {expanded && selectable && quoteShown && (
         <FeeTokenSelector
-          rows={feeTokenOptions!.map((opt) => {
-            // The two values the selector used to derive for itself. Same
-            // helpers, same arguments — it just no longer runs the gate a
-            // second time on a screen that had already run it.
-            const amount = feeAmountForOption(opt);
-            return {
-              symbol: opt.symbol,
-              contract: opt.contract,
-              decimals: opt.decimals,
-              balance: opt.balance,
-              logoUrls: opt.logoUrls,
-              amount,
-              insufficient: feeRowInsufficient(opt.balance, amount),
-            };
-          })}
-          selected={selectedFeeToken}
-          onSelect={handleFeeTokenSelect}
-          busy={refreshing}
+          rows={options.map((option) => toSelectorRow(chainId, option))}
+          selected={view?.fee_token ?? null}
+          onSelect={(contract) => controller?.selectAsset(contract)}
+          busy={busy}
         />
       )}
     </>
@@ -334,7 +255,7 @@ export function GasFeeCard({
 }
 
 // ---------------------------------------------------------------------------
-// Styles
+// Styles — byte-identical to the native twin's; the two render one design
 // ---------------------------------------------------------------------------
 
 const styles = createStyles(() => ({

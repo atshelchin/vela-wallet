@@ -31,7 +31,7 @@ jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async ()
 // otherwise resolve to the native stub that throws. Redirects to the REAL web
 // session — no double.
 jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session.web'),
+  require('@/services/wallet-state-core/rpc-pool-session'),
 );
 
 const mockFetch = jest.fn();
@@ -39,7 +39,7 @@ global.fetch = mockFetch as any;
 
 import '@/services/vela-core';
 
-import { getChainRpcUrl, poolBundlerCall, poolRpcCall, refreshPool } from '@/services/rpc-pool.web';
+import { getChainRpcUrl, poolBundlerCall, poolRpcCall, refreshPool } from '@/services/rpc-pool';
 import { collectRpcUrls, NEVER_BANNED } from '@/services/rpc-pool-endpoints';
 
 // `rpc-pool.web.ts` holds ONE module-level session (it is the app's pool, not a

@@ -1,56 +1,307 @@
-import { fromHex, toHex } from '@/services/vela-core';
-import { makeRecipientId, recipientsAreValid, type RecipientDraft } from '@/components/send/MultiRecipientEditor';
-import { type ReceiptTransfer } from '@/components/ui/TransactionReceipt';
-import { amountToWeiHex, balanceToWei, canCoverNativeTransfer, encErc20Transfer, isValidAddress, synthErc20Token, synthNativeToken } from './send-utils';
-import { useDisplayCurrency } from '@/hooks/use-display-currency';
-import { useSafeRouter } from '@/hooks/use-safe-router';
-import { useTokenMultiSelect } from '@/hooks/use-token-multi-select';
-import { chainName, nativeSymbol, networkForChainId } from '@/models/network';
-import { isNativeToken, tokenBalanceDouble, tokenChainId, tokenId, tokenLogoURLs, tokenUsdValue, type APIToken } from '@/models/types';
-import { useWallet } from '@/models/wallet-state';
-import * as Passkey from '@/modules/passkey';
-import { addCustomNetworkByChainId } from '@/services/add-network';
-import { buildMultiTokenCalls, buildSplitCalls, maxNativeSendable, reserveFeeToken, reserveNativeGas, sumSplitBaseUnits, toMultiTokenSpecs } from '@/services/batch-send';
-import { probeTreasury, parseBundlerUnderfunded, type TreasuryStatus } from '@/services/bundler-service';
-import { saveContact } from '@/services/contacts';
-import { ZERO_DECIMAL_CODES } from '@/services/currency';
-import { fromBaseUnits, parseEIP681, toBaseUnits } from '@/services/eip681';
-import { DenominatedAmount, TokenPrice, TOKEN_DENOM, fiatDenom, type Denom } from '@/services/fiat-convert';
-import { useLocalePrefs } from '@/services/locale-format';
-import { hapticError, hapticSuccess, showAlert } from '@/services/platform';
-import { resolveRecipientIdentity, type RecipientIdentity } from '@/services/recipient-identity';
-import { resolveRecipientRisk, type RecipientRisk } from '@/services/recipient-risk';
-import { createReentryLock } from '@/services/reentry-lock';
-import {
-  estimateTransactionFee,
-  prefetchForSend,
-  sameAssetFeeLimit,
-  sendBatchCalls,
-  sendERC20,
-  sendNative,
-  UserOpFeeHoldError,
-  UserOpRejectedError,
-  type TransactionFeeEstimate,
-} from '@/services/safe-transaction';
-import { findAccountByCredentialId, saveTransactions, updateTransactions } from '@/services/storage';
-import { resolveTokenMetadata } from '@/services/token-metadata';
-import { simulateAssetChanges, type AssetSimResult } from '@/services/tx-simulation';
-import { clearTokenCache, fetchTokens } from '@/services/wallet-api';
+/**
+ * All Send-flow state, refs, effects and handlers — WEB, driven by the portable
+ * Rust state machine that owns this screen (spec 017, group G12:
+ * `rust/crates/vela-core/src/app/send.rs`).
+ *
+ * `useSendController.ts` is the native counterpart and is untouched apart from
+ * the semantic handlers this contract added (FR-202: native behaviour is
+ * byte-identical — every one of them inlines exactly what the view used to do).
+ *
+ * This twin owns no product rules. Everything that decides *whether money may
+ * move* is the core's: the three modes, the step machine, EIP-681 locked-request
+ * resolution, the live amount validation, the string-exact Max math, the
+ * same-asset fee ceiling, the 15 s estimate ∥ treasury pre-check, the single
+ * -flight re-entry lock with its generation tokens, the pre-sign cancel
+ * checkpoints, and the Submitted → ClearTokenCache → PersistTxRecords →
+ * TrackSubmitted ordering. What is left here is rendering and wording.
+ *
+ * ### Two rules this file exists to obey
+ *
+ * - **Nothing reads a module-level mutable during render.** The view is
+ *   projected ONCE per commit (in `onView`) and pushed into a single state cell
+ *   together with everything derived from it — the `wallet-state.web.ts`
+ *   discipline, learned from an account-less wallet that still showed an address
+ *   because React Compiler cached a render-time read of a module variable.
+ * - **One writer per fact.** The screen and both step components name intents
+ *   only; there is no second copy of `txStatus`, the fee quote or the re-entry
+ *   lock to drift from the core's.
+ *
+ * ### Deliberate, visible differences from the native controller
+ *
+ * - **"Select all valuable" stays scoped to what the picker is showing.**
+ *   `TokenSelector` hands its own search/category-filtered list to
+ *   `onToggleAll`, and sweeping tokens the user cannot see is a fund-safety
+ *   regression — so the shell states that SCOPE (`visible_ids`) and the core's
+ *   `ToggleAllMultiTokens` does the rest: which of those rows are worth
+ *   sweeping (`is_valuable`) and whether the master row toggles on or off. The
+ *   picker's tick reads `multi_valuable_ids` the same way. No predicate about
+ *   money lives on this side; native keeps `use-token-multi-select.ts` and
+ *   `send-sweep-scope-parity.test.ts` pins the two together.
+ * - **A scanned EIP-681 request re-locks the flow in place, not through the
+ *   router.** The core's `ScanResolved` re-runs `Open` itself, so there is no
+ *   `router.replace` and the address bar keeps the URL the screen was opened
+ *   with (a hard refresh then loses the lock, exactly as an unscanned visit
+ *   would).
+ * - **Tapping the token hero keeps the recipient.** `Back` from enter-details
+ *   clears it; the hero row never did. The shell re-asserts the recipient it had
+ *   so the two agree, which costs one extra identity resolution.
+ */
 import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TextInput } from 'react-native';
-import type { ExtendsSendController } from './send-controller-types';
+import type { TFunction } from 'i18next';
+import type { TextInput } from 'react-native';
 
-type Step = 'select-token' | 'enter-details' | 'confirm';
-type TxStatus = 'idle' | 'preparing' | 'signing' | 'submitting' | 'confirming' | 'confirmed' | 'error';
+import { type RecipientDraft } from '@/components/send/MultiRecipientEditor';
+import { type ReceiptTransfer } from '@/components/ui/TransactionReceipt';
+import { useDisplayCurrency } from '@/hooks/use-display-currency';
+import { useFeeQuote } from '@/hooks/use-fee-quote';
+import { useSafeRouter } from '@/hooks/use-safe-router';
+import { chainName } from '@/models/network';
+import { tokenId, type APIToken } from '@/models/types';
+import { useWallet } from '@/models/wallet-state';
+import { type MultiTokenSpec } from '@/services/batch-send';
+import { type TreasuryStatus } from '@/services/bundler-service';
+import { saveContactThroughCore } from '@/hooks/use-contacts-book';
+import { ZERO_DECIMAL_CODES } from '@/services/currency';
+import { parseEIP681 } from '@/services/eip681';
+import { useLocalePrefs } from '@/services/locale-format';
+import { showAlert } from '@/services/platform';
+import { prefetchForSend, type TransactionFeeEstimate } from '@/services/safe-transaction';
+import { deserializeAssetSim, type AssetSimResult } from '@/services/tx-simulation';
+import { setSendTrackerSink } from '@/services/wallet-state-core/send-executor';
+import { trackSubmitted } from '@/services/wallet-state-core/tx-tracker-resident';
+import { createSendSession, type SendSession } from '@/services/wallet-state-core/send-session';
+import {
+  feeKey,
+  indexTokens,
+  rememberFee,
+  resolveFee,
+  sendTokenId,
+  synthApiToken,
+} from '@/services/wallet-state-core/send-types';
+import type { SendAlertKind } from '@/services/wallet-state-core/generated/SendAlertKind';
+import type { SendAmountWarning } from '@/services/wallet-state-core/generated/SendAmountWarning';
+import type { SendEvent } from '@/services/wallet-state-core/generated/SendEvent';
+import type { SendRecipientDraft } from '@/services/wallet-state-core/generated/SendRecipientDraft';
+import type { SendToken } from '@/services/wallet-state-core/generated/SendToken';
+import type { SendView } from '@/services/wallet-state-core/generated/SendView';
+
+import type {
+  SameAssetFeeIssue,
+  SendController,
+  SendLockError,
+  SendStep,
+  SendTokenMultiSelect,
+} from './send-controller-types';
+
+// ---------------------------------------------------------------------------
+// The projection pushed with every committed view
+// ---------------------------------------------------------------------------
+
+interface SendSnapshot {
+  view: SendView;
+  tokens: APIToken[];
+  selectedToken: APIToken | null;
+  pickedTokens: APIToken[];
+  recipients: RecipientDraft[];
+  multiSpecs: MultiTokenSpec[];
+  fee: TransactionFeeEstimate | null;
+  sim: AssetSimResult | null;
+  sameAssetFeeIssue: SameAssetFeeIssue | null;
+  receiptTransfers: ReceiptTransfer[] | null;
+  treasuryBootstrap: TreasuryStatus | null;
+}
+
+/** The core's own pristine projection — the frame before the first commit. */
+const INITIAL_VIEW: SendView = {
+  stage: 'select_token',
+  loading: true,
+  locked: false,
+  amount_locked: false,
+  lock_error: null,
+  resolving_lock: false,
+  adding_network: false,
+  add_network_msg: null,
+  tokens: [],
+  selected_token: null,
+  recipient: '',
+  amount: '',
+  amount_fiat_code: null,
+  denom_toggle_shown: false,
+  denom_toggle_enabled: false,
+  denom_toggle_reason: null,
+  confirm_amount_issue: null,
+  token_amount: '',
+  confirm_amount: '',
+  split_mode: false,
+  recipients: [],
+  split_over_balance: false,
+  picker_target: null,
+  multi_select_mode: false,
+  multi_selected_ids: [],
+  multi_valuable_ids: [],
+  multi_chain_id: null,
+  multi_specs: [],
+  show_scanner: false,
+  show_contact_picker: false,
+  show_batch_import: false,
+  estimating_gas: false,
+  fee_busy: false,
+  fee: null,
+  gas_fee_token: null,
+  amount_warning: null,
+  same_asset_fee_issue: null,
+  can_continue: false,
+  can_confirm: false,
+  sending: false,
+  tx_status: 'idle',
+  tx_error: null,
+  tx_hash: null,
+  user_op_hash: null,
+  receipt: null,
+  treasury_bootstrap: null,
+  recipient_identity: null,
+  recipient_risk: null,
+  sim_json: null,
+};
+
+const EMPTY_SNAPSHOT: SendSnapshot = {
+  view: INITIAL_VIEW,
+  tokens: [],
+  selectedToken: null,
+  pickedTokens: [],
+  recipients: [],
+  multiSpecs: [],
+  fee: null,
+  sim: null,
+  sameAssetFeeIssue: null,
+  receiptTransfers: null,
+  treasuryBootstrap: null,
+};
 
 /**
- * All Send-flow state, refs, effects, and handlers. Extracted verbatim from
- * SendScreen so the screen file holds only view wiring. Returns everything the
- * step views and the screen shell consume.
+ * The nav bar is the only thing that still reads `step` once a lock surface is
+ * up, and a locked request always carries a prefilled recipient — so the TS
+ * controller's `hasPreselection` had already put it on `enter-details` (a back
+ * arrow, not a close ✕) before either lock surface rendered.
  */
-export function useSendController() {
+const STEP_OF: Record<SendView['stage'], SendStep> = {
+  lock_error: 'enter-details',
+  lock_resolving: 'enter-details',
+  receipt: 'confirm',
+  select_token: 'select-token',
+  enter_details: 'enter-details',
+  confirm: 'confirm',
+};
+
+/**
+ * The per-view projector. Everything it caches is keyed on the STRUCTURE of the
+ * slice it came from, so an unrelated view change (a fee re-quote, a spinner)
+ * hands back the same array identity — `TokenSelector` and
+ * `MultiRecipientEditor` both key their rows off it.
+ */
+interface Projector {
+  session: SendSession | null;
+  started: boolean;
+  openKey: string | null;
+  /** The FULL `APIToken` rows the API returned, by `tokenId()`. */
+  index: Map<string, APIToken>;
+  /** Placeholders the core minted itself (locked requests), by wire identity. */
+  synth: Map<string, APIToken>;
+  viewKey: string;
+  tokensKey: string;
+  tokens: APIToken[];
+  selectedKey: string;
+  selectedToken: APIToken | null;
+  pickedKey: string;
+  pickedTokens: APIToken[];
+  recipientsKey: string;
+  recipients: RecipientDraft[];
+  specsKey: string;
+  multiSpecs: MultiTokenSpec[];
+  transfersKey: string;
+  receiptTransfers: ReceiptTransfer[] | null;
+  treasuryKey: string;
+  treasuryBootstrap: TreasuryStatus | null;
+  simKey: string;
+  sim: AssetSimResult | null;
+}
+
+function newProjector(): Projector {
+  return {
+    session: null,
+    started: false,
+    openKey: null,
+    index: new Map(),
+    synth: new Map(),
+    viewKey: '',
+    tokensKey: '',
+    tokens: [],
+    selectedKey: '',
+    selectedToken: null,
+    pickedKey: '',
+    pickedTokens: [],
+    recipientsKey: '',
+    recipients: [],
+    specsKey: '',
+    multiSpecs: [],
+    transfersKey: '',
+    receiptTransfers: null,
+    treasuryKey: '',
+    treasuryBootstrap: null,
+    simKey: '',
+    sim: null,
+  };
+}
+
+function toDraft(row: SendRecipientDraft): RecipientDraft {
+  return {
+    id: row.id,
+    address: row.address,
+    amount: row.amount,
+    ...(row.name != null ? { name: row.name } : {}),
+  };
+}
+
+function toWireDraft(row: RecipientDraft): SendRecipientDraft {
+  return {
+    id: row.id,
+    address: row.address,
+    amount: row.amount,
+    name: row.name ?? null,
+  };
+}
+
+function toSpec(spec: SendView['multi_specs'][number]): MultiTokenSpec {
+  return { tokenAddress: spec.token_address, decimals: spec.decimals, amount: spec.amount };
+}
+
+/**
+ * The core reports a semantic warning and a symbol; the words are the shell's,
+ * and every one of them is the string `useSendController.ts:326-398` produced
+ * for the same situation — including the `'gas token'` fallback.
+ */
+function wordWarning(t: TFunction, warning: SendAmountWarning): string {
+  switch (warning.type) {
+    case 'not_enough_token':
+      return t('send.warnNotEnoughToken', { symbol: warning.symbol });
+    case 'insufficient_for_gas':
+      return t('send.warnInsufficientForGas', { sym: warning.symbol ?? '' });
+    case 'need_gas':
+      return t('send.warnNeedGas', { sym: warning.symbol ?? 'gas token' });
+    case 'cannot_convert':
+      // The digits are fine; the FACTOR is missing. Names the way out, which
+      // `denom_toggle_shown` guarantees is on screen.
+      return t('send.warnCannotConvert', { code: warning.code, symbol: warning.symbol });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Controller
+// ---------------------------------------------------------------------------
+
+export function useSendController(): SendController {
   const { t } = useTranslation();
   useLocalePrefs(); // re-render when the number format changes
   const router = useSafeRouter();
@@ -58,1631 +309,727 @@ export function useSendController() {
     preselectedSymbol?: string;
     preselectedNetwork?: string;
     prefilledRecipient?: string;
-    // EIP-681 scan: lock the whole request (recipient + chain + token + amount).
     prefilledChainId?: string;
     prefilledTokenAddress?: string;
     prefilledAmountBase?: string;
     locked?: string;
-    // Multi-token hand-off: comma-joined tokenId()s land Send in multiSelect
-    // mode. (No in-app producer since the Home assets sheet was retired; kept
-    // as a param entry into the sweep flow.)
     preselectedMulti?: string;
   }>();
-  const locked = params.locked === '1';
-  // The amount is only fixed when the request actually specified one; an
-  // "open" request (token but no amount) still lets the sender choose.
-  const amountLocked = locked && !!params.prefilledAmountBase;
   const { activeAccount, state } = useWallet();
   const address = activeAccount?.address ?? state.address;
   const dc = useDisplayCurrency();
-  const formatUsd = dc.fmt;
+  const fiatDecimals = ZERO_DECIMAL_CODES.has(dc.code) ? 0 : 2;
 
-  const hasPreselection = !!(params.prefilledRecipient || params.preselectedMulti || (params.preselectedSymbol && params.preselectedNetwork));
-  const [step, setStep] = useState<Step>(hasPreselection ? 'enter-details' : 'select-token');
-  // Synchronous mirror of `step` for guards inside long-running async flows
-  // (the Phase-2 sponsorship grant can take ~20s — the user may back out of
-  // the confirm screen meanwhile, and a passkey prompt must NOT resurrect).
-  const stepRef = useRef(step);
-  useEffect(() => { stepRef.current = step; }, [step]);
-
-  // EIP-681 locked-request resolution + the exceptions it can hit.
-  type LockError =
-    | { kind: 'network'; chainId: number }
-    | { kind: 'token' }
-    | null;
-  const [lockError, setLockError] = useState<LockError>(null);
-  const [lockRetry, setLockRetry] = useState(0);
-  const [resolvingLock, setResolvingLock] = useState(locked);
-  const [addingNetwork, setAddingNetwork] = useState(false);
-  const [addNetworkMsg, setAddNetworkMsg] = useState<string | null>(null);
-  const [tokens, setTokens] = useState<APIToken[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedToken, setSelectedToken] = useState<APIToken | null>(null);
-  const [recipient, setRecipient] = useState('');
-  // The typed figure AND the unit it is counted in, as one value. They used to
-  // be `amount: string` + `inputInUsd: boolean`, and that pair is exactly how
-  // the last defect was written: flip the boolean, leave the digits, and a
-  // figure typed in CNY became a figure of USDC without anything multiplying by
-  // anything. `DenominatedAmount`'s unit is private, so from here it can only
-  // change through `convert`, which restates the digits or refuses.
-  // Twin of `send.rs`'s `Model.amount`.
-  const [storedAmount, setTypedAmount] = useState<DenominatedAmount>(() => DenominatedAmount.token(''));
-  /**
-   * The figure as this render must read it — the stored one re-denominated
-   * into the currency now on screen. Twin of
-   * `send.rs::redenominate_to_display`.
-   *
-   * A display-currency commit can land under a screen that already has a
-   * figure on it: the shell boots on a placeholder `{code:'USD', rate:1}` and
-   * replaces it once AsyncStorage and the FX/Chainlink round trip answer. The
-   * figure keeps its own code, which is what stops it being relabelled — but
-   * left alone it also becomes permanently unresolvable, because
-   * `toTokenUnits` refuses a price quoted in another currency AND `withValue`
-   * preserves the stale unit, so **retyping could not fix it**. Continue stayed
-   * lit on an amount that could only ever raise `alertInvalidAmount`.
-   *
-   * The digits cannot come across (this screen has no CNY↔USD cross rate, and
-   * inventing one is the defect the whole area exists to forbid), so the FIGURE
-   * is dropped and the CURRENCY is adopted. The MODE is untouched: typing in
-   * tokens or in money is the user's choice, unmade only at ⇄.
-   *
-   * Derived during RENDER, not in an effect, so this controller and the core's
-   * synchronous `display_changed` agree on every frame rather than on all but
-   * one.
-   */
-  const typedAmount =
-    storedAmount.fiatCode !== null && storedAmount.fiatCode !== dc.code
-      ? DenominatedAmount.fiat('', dc.code)
-      : storedAmount;
-  const amount = typedAmount.value;
-  /** The amount text field: retype the FIGURE, keep the unit. */
-  const setAmount = useCallback(
-    // `typedAmount`, never the stored figure: retyping must not inherit a
-    // currency that is no longer on screen — that is what made the trap
-    // unrecoverable.
-    (next: string) => setTypedAmount(typedAmount.withValue(next)), [typedAmount]);
-  /** Fill in token units — for callers that produce a token figure outright
-   *  (Max, a split row, a locked request's base units, a reset). */
-  const setTokenAmount = useCallback(
-    (next: string) => setTypedAmount(DenominatedAmount.token(next)), []);
-  // ① split mode (一币多人): one token → many recipients, each its own amount,
-  // settled in one UserOp via sendBatchCalls. Off by default — single sends keep
-  // their exact existing flow. `pickerTarget` = the row id the contact picker fills
-  // (null ⇒ the single-mode recipient field).
-  const [splitMode, setSplitMode] = useState(false);
-  const [recipients, setRecipients] = useState<RecipientDraft[]>([]);
-  const [pickerTarget, setPickerTarget] = useState<string | null>(null);
-  // ② multiSelect (多币一人 / 清空): many tokens on ONE chain → one recipient, full
-  // balance each, in a single MultiSend UserOp. Selection state lives in the
-  // shared hook. `multiSelectMode` = we're in the
-  // multiSelect enter-details/confirm flow (set when a multi-selection is confirmed).
-  const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const multiSelect = useTokenMultiSelect();
-  const [sending, setSending] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
+  const [snapshot, setSnapshot] = useState<SendSnapshot>(EMPTY_SNAPSHOT);
+  // Pure local UI, owned by nothing else: the "copied" tick on the contract row.
   const [copiedContract, setCopiedContract] = useState(false);
-  const [feeEstimate, setFeeEstimate] = useState<TransactionFeeEstimate | null>(null);
-  // A quote is valid only for the network on which it was calculated. This protects the
-  // amount form while a user switches assets/networks or an earlier async quote resolves late.
-  const selectedFeeEstimate = selectedToken && feeEstimate?.chainId === tokenChainId(selectedToken)
-    ? feeEstimate
-    : null;
-  const [estimatingGas, setEstimatingGas] = useState(false);
-  // Single-flight re-entry lock with a generation token. A cancelled send
-  // releases it immediately (so a retry isn't a silent no-op) while the cancelled
-  // promise's stale `end()` must not clear a newer send's lock (issue #91).
-  const sendLock = useRef(createReentryLock()).current;
-  // Set by the confirm screen's cancel button; checked after every pre-sign
-  // await in executeTransaction (mirrors dapp-connection's signCancelledRef).
-  const sendCancelledRef = useRef(false);
-  // Guards UI state updates that run after an `await` in the submit flow, so a
-  // user who navigates away mid-send doesn't trigger updates on an unmounted
-  // screen. Persistence (DB writes) still runs regardless — only UI is gated.
-  const mountedRef = useRef(true);
-  useEffect(() => () => { mountedRef.current = false; }, []);
-  const [txStatus, setTxStatus] = useState<TxStatus>('idle');
-  const [txHash, setTxHash] = useState<string | null>(null);
-  // The submitted UserOp hash — passed to the receipt so it can self-poll the
-  // bundler and converge its status even if the parent's waitForTxHash times out.
-  const [userOpHash, setUserOpHash] = useState<string | null>(null);
-  const [txError, setTxError] = useState<string | null>(null);
-  // Batch-send receipt: the per-line breakdown shown on the confirmed receipt for
-  // split (1 token → N recipients) / multiSelect (N tokens → 1 recipient). null for
-  // a plain single send (which uses the scalar amount/symbol props instead).
-  const [receiptTransfers, setReceiptTransfers] = useState<ReceiptTransfer[] | null>(null);
-  const [receiptKind, setReceiptKind] = useState<'split' | 'multiSelect' | null>(null);
-  // Set when the background on-chain poll reports a definitive failure, so the
-  // receipt shows a clear "Failed" stamp instead of staying "Submitted" forever.
-  const [receiptFailed, setReceiptFailed] = useState(false);
-  /**
-   * The money that was SIGNED, captured the instant the bundler accepted it.
-   *
-   * The receipt used to read `tokenUnitsFor(selectedToken)`, which re-runs the
-   * fiat↔token conversion against whatever display context is on screen NOW —
-   * a live computation about a fact that stopped being live when the calldata
-   * was signed. Change the display currency on a receipt and its token amount
-   * changed with it (and read `0` once the rate went away), so the number on a
-   * completed transfer could be one that was never in any signature. Something
-   * already on-chain is not the currency picker's to rewrite. Twin of
-   * `send.rs::receipt_signed`.
-   */
-  const [receiptSigned, setReceiptSigned] = useState<{ amount: string; priceUsd: number } | null>(null);
-  // The relay parked the op because network fees moved above the reimbursement the
-  // user signed. Not a failure: it stays queued and sends itself when fees settle.
-  const [feeHeld, setFeeHeld] = useState(false);
-  // The hold ran out of patience and the relay gave the op back. Nothing was sent.
-  const [feeRejected, setFeeRejected] = useState(false);
-  // Derived, never stored: the flag and the figure's unit are the same fact, so
-  // they cannot drift apart.
-  const inputInUsd = typedAmount.isFiat;
-  /**
-   * The unit the typed figure is counted in — `null` = the selected token's own
-   * units, otherwise the fiat code it was TYPED in, which is not necessarily
-   * `dc.code` (a display-currency commit can land under a screen that already
-   * has a figure on it). The screen renders this; it must never re-derive the
-   * unit from the display context. Twin of `SendView.amount_fiat_code`.
-   */
-  const amountFiatCode = typedAmount.fiatCode;
-  /**
-   * The token's unit price in the display currency, quoted in the currency it
-   * is actually quoted in. `null` whenever either factor is missing — never a
-   * defaulted 1 (see {@link TokenPrice.of}).
-   */
-  const displayPriceFor = useCallback(
-    (token: Pick<APIToken, 'priceUsd'>) => TokenPrice.of(token.priceUsd, dc.rate, dc.code),
-    [dc.rate, dc.code],
-  );
-  /**
-   * The typed figure resolved into token units — the ONE number every gate,
-   * every call builder and the confirm screen read.
-   *
-   * This is the whole of what the old free-function resolver did at nine
-   * separate call sites, minus the `const ANY = ''` that stood in for the
-   * currency at both ends and made the code comparison vacuous. Here
-   * the figure names the currency it was typed in and the price names the
-   * currency it is quoted in, so a figure that has outlived its rate resolves
-   * to '0' instead of being converted at somebody else's rate.
-   *
-   * Twin of `send.rs::model_token_amount`.
-   */
-  const tokenUnitsFor = useCallback(
-    (token: Pick<APIToken, 'priceUsd' | 'decimals'>) =>
-      typedAmount.toTokenUnits(displayPriceFor(token), token.decimals),
-    [typedAmount, displayPriceFor],
-  );
-  // Speed tiers are gone — every estimate/submit runs at 'fast'. What the user
-  // CAN choose (when the relay publishes alternatives) is the fee ASSET: null = native,
-  // else a whitelisted stablecoin contract. Options load when confirm opens; null means the
-  // active relay has no alternative to present.
-  const [gasFeeToken, setGasFeeToken] = useState<string | null>(null);
-  // Treasury bootstrap sheet (relayer float depleted on this network) — shown
-  // instead of the generic error/funding surface when the treasury reports
-  // bootstrapNeeded. See maybeShowTreasuryBootstrap.
-  const [treasuryBootstrap, setTreasuryBootstrap] = useState<TreasuryStatus | null>(null);
-  // GasFeeCard fires this while it re-quotes internally (fee-asset switch / refresh),
-  // so the confirm slide stays disabled until the displayed quote is settled.
-  const [feeBusy, setFeeBusy] = useState(false);
-  const [showContactPicker, setShowContactPicker] = useState(false);
-  const [showBatchImport, setShowBatchImport] = useState(false);
-  const [amountWarning, setAmountWarning] = useState<string | null>(null);
-  // Every chain settles gas in-band (native coin or a whitelisted stablecoin selected on
-  // the confirm screen), so the amount step must never require a separate native-gas balance.
-  const [recipientIdentity, setRecipientIdentity] = useState<RecipientIdentity | null>(null);
-  // Recipient-risk signals for the confirm step — "first time" (address-poisoning
-  // defense) + contract-vs-EOA. Best-effort, never a false alarm. Same signals the
-  // dApp signing sheet shows; plain transfers deserve the same protection.
-  const [recipientRisk, setRecipientRisk] = useState<RecipientRisk | null>(null);
-  // Balance-change simulation for the confirm step (null = unknown / not run).
-  const [sim, setSim] = useState<AssetSimResult | null>(null);
-
-  // Prefetch account credential + webauthn module while user reviews confirm screen
+  // The `prefetchedAccount.current?.publicKeyHex` mirror `GasFeeCard` reads —
+  // pushed by the executor, never read from a module during render.
+  const [publicKeyHex, setPublicKeyHex] = useState<string | undefined>(undefined);
   const amountInputRef = useRef<TextInput>(null);
-  const prefetchedAccount = useRef<{ publicKeyHex: string } | null>(null);
-  const webauthnModuleRef = useRef<typeof import('@/services/vela-core') | null>(null);
+  const projector = useRef<Projector>(newProjector());
 
-  // Resolve a locked EIP-681 request against the loaded token list. Sets the
-  // exact token (held, or a synthetic zero-balance placeholder), recipient and
-  // amount — or surfaces an unsupported-network / unknown-token exception.
-  const resolveLockedRequest = async (allTokens: APIToken[]) => {
-    setResolvingLock(true);
-    try {
-      const chainId = parseInt(params.prefilledChainId ?? '', 10);
-      if (!Number.isFinite(chainId)) { setLockError(null); return; }
-      if (!networkForChainId(chainId)) { setLockError({ kind: 'network', chainId }); return; }
+  // ── the fee ───────────────────────────────────────────────────────────────
+  // ONE live `fee_policy` session for this screen, and the only producer of a
+  // fee on it. The send core's `EstimateFee` is answered by it (through the
+  // `feeQuote` port), and the confirm slide's card renders it — so the quote
+  // the pre-check gates on, the quote on screen and the quote that is signed
+  // are one object. Before this, the executor called `estimateTransactionFee`
+  // and the card re-quoted and re-priced on top of the result; the four pulled
+  // attempts at this integration all died on that seam.
+  const fee = useFeeQuote();
+  /** The last estimate handed to the core through the port — not re-forwarded. */
+  const portAnswered = useRef<string | null>(null);
+  const lastForwarded = useRef<string | null>(null);
 
-      const wantAddr = params.prefilledTokenAddress?.toLowerCase();
-      let tok: APIToken | null = allTokens.find((tk) =>
-        tokenChainId(tk) === chainId &&
-        (wantAddr ? (!isNativeToken(tk) && tk.tokenAddress?.toLowerCase() === wantAddr) : isNativeToken(tk))
-      ) ?? null;
-
-      if (!tok) {
-        if (!wantAddr) {
-          tok = synthNativeToken(chainId);
-        } else {
-          const meta = await resolveTokenMetadata(chainId, [wantAddr]);
-          const m = meta.get(wantAddr);
-          if (!m) { setLockError({ kind: 'token' }); return; }
-          tok = synthErc20Token(chainId, params.prefilledTokenAddress!, m.symbol, m.decimals);
-        }
-      }
-
-      setLockError(null);
-      setSelectedToken(tok);
-      setRecipient(params.prefilledRecipient ?? '');
-      if (params.prefilledAmountBase) {
-        try { setTokenAmount(fromBaseUnits(BigInt(params.prefilledAmountBase), tok.decimals)); } catch {}
-      }
-      setStep('enter-details');
-    } finally {
-      setResolvingLock(false);
-    }
-  };
-
-  // "Add this network" recovery when a scanned request names an unsupported chain.
-  const handleAddNetwork = async (chainId: number) => {
-    setAddingNetwork(true);
-    setAddNetworkMsg(null);
-    try {
-      const result = await addCustomNetworkByChainId(chainId);
-      if (result.ok) {
-        setLockError(null);
-        setLockRetry((n) => n + 1); // re-run resolution now that the chain exists
-      } else {
-        setAddNetworkMsg(result.reason === 'not-found' ? t('send.lock.netNotFound') : (result.error || t('send.lock.netNotCompatible')));
-      }
-    } catch {
-      setAddNetworkMsg(t('send.lock.netAddError'));
-    } finally {
-      setAddingNetwork(false);
-    }
-  };
-
+  // The React-side facts the ports need, re-read (never captured) so the session
+  // outlives every re-render without going stale.
+  const live = useRef({ t, router, activeAccount, requestQuote: fee.requestQuote });
   useEffect(() => {
-    if (!address) return;
-    setLoading(true);
-    fetchTokens(address, {
-      onProgress: (partial) => {
-        const nonZero = partial.filter((t) => tokenBalanceDouble(t) > 0);
-        nonZero.sort((a, b) => tokenUsdValue(b) - tokenUsdValue(a));
-        setTokens(nonZero);
-        setLoading(false); // Show tokens as soon as first chain responds
-      },
-    })
-      .then((result) => {
-        const nonZero = result.filter((t) => tokenBalanceDouble(t) > 0);
-        nonZero.sort((a, b) => tokenUsdValue(b) - tokenUsdValue(a));
-        setTokens(nonZero);
+    live.current = { t, router, activeAccount, requestQuote: fee.requestQuote };
+  });
 
-        if (locked) {
-          // Match against the full list (incl. zero-balance known tokens) for
-          // the exact requested token; fall back to a synthetic placeholder.
-          resolveLockedRequest(result);
+  // ── wording (needs `t`, so it is derived at render, never stored) ─────────
+  const alert = useCallback(
+    (kind: SendAlertKind) => {
+      // `live.current.t`, not the captured `t`: the ports close over this
+      // callback once, and a language change after that must still word the
+      // alert in the language the user is now reading.
+      const tr = live.current.t;
+      switch (kind.type) {
+        case 'invalid_address':
+          showAlert(tr('send.alertInvalidAddressTitle'), tr('send.alertInvalidAddressBody'));
           return;
-        }
-
-        // Multi-token hand-off via params → land in multiSelect mode.
-        if (params.preselectedMulti) {
-          const wanted = new Set(params.preselectedMulti.split(','));
-          const picked = nonZero.filter((tk) => wanted.has(tokenId(tk)));
-          if (picked.length > 0) {
-            multiSelect.selectTokens(picked);
-            setMultiSelectMode(true);
-            setSelectedToken(picked[0]);
-            setStep('enter-details');
-            if (activeAccount) {
-              const chainId = tokenChainId(picked[0]);
-              prefetchForSend(activeAccount.address, chainId);
-              findAccountByCredentialId(activeAccount.id).then((s) => {
-                prefetchedAccount.current = s ?? null;
-                return estimateTransactionFee(
-                  activeAccount.address, chainId, 'fast', undefined, undefined, gasFeeToken, s?.publicKeyHex,
-                );
-              })
-                .then((f) => { if (mountedRef.current) setFeeEstimate(f); })
-                .catch(() => {});
-              import('@/services/vela-core').then((m) => { webauthnModuleRef.current = m; });
-            }
-          }
+        case 'invalid_amount':
+          showAlert(tr('send.alertInvalidAmountTitle'), tr('send.alertInvalidAmountBody'));
           return;
-        }
-
-        if (params.preselectedSymbol && params.preselectedNetwork) {
-          const match = nonZero.find(
-            (t) => t.symbol === params.preselectedSymbol && t.network === params.preselectedNetwork
+        case 'insufficient_balance':
+          showAlert(
+            tr('send.alertInsufficientBalanceTitle'),
+            kind.warning
+              ? wordWarning(tr, kind.warning)
+              : tr('send.alertInsufficientBalanceBody', {
+                  defaultValue: 'The total exceeds your balance.',
+                }),
           );
-          if (match) {
-            setSelectedToken(match);
-            setStep('enter-details');
-          }
-        } else if (params.prefilledRecipient && nonZero.length > 0) {
-          // Quick-send from scan: auto-select highest-value token, prefill recipient
-          setSelectedToken(nonZero[0]);
-          setRecipient(params.prefilledRecipient);
-          setStep('enter-details');
-        }
-      })
-      .catch(() => showAlert(t('common.error'), t('send.alertLoadTokensError')))
-      .finally(() => setLoading(false));
-  }, [address, params.preselectedSymbol, params.preselectedNetwork, params.preselectedMulti, lockRetry]);
-
-  // Re-pull balances after the user adds/removes a custom token in the sheet,
-  // so it shows up (or disappears) without a manual page refresh.
-  const refreshTokens = () => {
-    if (!address) return;
-    clearTokenCache(address);
-    fetchTokens(address)
-      .then((result) => {
-        const nonZero = result.filter((tk) => tokenBalanceDouble(tk) > 0);
-        nonZero.sort((a, b) => tokenUsdValue(b) - tokenUsdValue(a));
-        setTokens(nonZero);
-      })
-      .catch(() => {});
-  };
-
-  // Compute real-time amount warnings
-  useEffect(() => {
-    if (!selectedToken || !amount) {
-      setAmountWarning(null);
-      return;
-    }
-
-    const tokenAmount = tokenUnitsFor(selectedToken);
-    const amountNum = parseFloat(tokenAmount || '0');
-    if (isNaN(amountNum) || amountNum <= 0) {
-      // Typed digits that resolve to nothing are not "no amount" — they are an
-      // amount whose FACTOR is missing (no rate for the display currency, or no
-      // price for the token). Continue refuses it either way; this is the
-      // sentence that says so, and it names the way out (the ⇄ row, which
-      // `denomToggleShown` keeps reachable for exactly this reason).
-      // Twin of `send.rs`'s `SendAmountWarning::CannotConvert`.
-      const code = typedAmount.fiatCode;
-      setAmountWarning(
-        code !== null && typedAmount.numeric > 0
-          ? t('send.warnCannotConvert', { code, symbol: selectedToken.symbol })
-          : null,
-      );
-      return;
-    }
-
-    const chainId = tokenChainId(selectedToken);
-    const sym = nativeSymbol(chainId);
-
-    if (isNativeToken(selectedToken)) {
-      // Native token: check amount + gas > balance
-      const balanceWei = balanceToWei(selectedToken.balance, selectedToken.decimals);
-      const amountWei = BigInt('0x' + amountToWeiHex(tokenAmount, selectedToken.decimals));
-      if (amountWei > balanceWei) {
-        setAmountWarning(t('send.warnNotEnoughToken', { symbol: selectedToken.symbol }));
-        return;
-      }
-      // Also check if gas can be covered (use cached estimate if available)
-      if (selectedFeeEstimate) {
-        // totalWei is already the fully marked-up, reviewed in-band reimbursement.
-        // Reserving it once keeps this gate consistent with the amount signed at confirmation.
-        const reserveWei = selectedFeeEstimate.totalWei;
-        if (!canCoverNativeTransfer(amountWei, balanceWei, reserveWei)) {
-          setAmountWarning(t('send.warnInsufficientForGas', { sym }));
           return;
-        }
-      }
-    } else {
-      // ERC-20: check token balance
-      const tokenBal = tokenBalanceDouble(selectedToken);
-      if (amountNum > tokenBal) {
-        setAmountWarning(t('send.warnNotEnoughToken', { symbol: selectedToken.symbol }));
-        return;
-      }
-      // An ERC-20 fee asset is handled exactly like any other token: when it is being sent,
-      // reserve its fee; otherwise ensure the separate fee-token balance can cover it. This
-      // applies to every in-band network, including Tempo, without naming a special token.
-      const feeAsset = selectedFeeEstimate?.feeAsset;
-      if (feeAsset?.kind === 'erc20') {
-        const isFeeToken = selectedToken.tokenAddress?.toLowerCase() === feeAsset.token.toLowerCase();
-        if (isFeeToken) {
-          const balanceUnits = balanceToWei(selectedToken.balance, selectedToken.decimals);
-          const sendUnits = BigInt('0x' + amountToWeiHex(tokenAmount, selectedToken.decimals));
-          if (sendUnits + feeAsset.amount > balanceUnits) {
-            setAmountWarning(t('send.warnInsufficientForGas', { sym: feeAsset.symbol ?? selectedToken.symbol }));
-            return;
-          }
-        } else {
-          const feeToken = tokens.find(
-            tk => tk.tokenAddress?.toLowerCase() === feeAsset.token.toLowerCase() && tokenChainId(tk) === chainId,
+        case 'split_over_balance':
+          showAlert(
+            tr('send.alertInsufficientBalanceTitle'),
+            tr('send.alertInsufficientBalanceBody', {
+              defaultValue: 'The total exceeds your balance.',
+            }),
           );
-          const feeBalance = feeToken ? balanceToWei(feeToken.balance, feeToken.decimals) : 0n;
-          if (feeBalance < feeAsset.amount) {
-            setAmountWarning(t('send.warnNeedGas', { sym: feeAsset.symbol ?? feeToken?.symbol ?? 'gas token' }));
-            return;
-          }
-        }
-      }
-      // The selected fee asset is rechecked against the final confirmation quote. Only the
-      // transferred-token balance and an already-known ERC-20 fee balance gate this step.
-      setAmountWarning(null);
-      return;
-    }
-
-    setAmountWarning(null);
-  }, [tokenUnitsFor, typedAmount, amount, selectedToken, tokens, selectedFeeEstimate, t]);
-
-  // Resolve recipient identity (passkey index → ENS) when a valid address is entered
-  useEffect(() => {
-    setRecipientIdentity(null);
-    if (!/^0x[0-9a-fA-F]{40}$/.test(recipient)) return;
-
-    let cancelled = false;
-    resolveRecipientIdentity(recipient)
-      .then((id) => { if (!cancelled) setRecipientIdentity(id); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [recipient]);
-
-  // Simulate the send (revert pre-check + net balance changes) once the user
-  // reaches the confirm step — same surface the dApp signing sheet shows.
-  // Best-effort: any failure leaves `sim` null and confirm shows nothing extra.
-  useEffect(() => {
-    const okSingle = !splitMode && !multiSelectMode && isValidAddress(recipient);
-    const okSplit = splitMode && recipientsAreValid(recipients);
-    const okMulti = multiSelectMode && isValidAddress(recipient) && pickedTokens.length > 0;
-    if (step !== 'confirm' || !selectedToken || !activeAccount || (!okSingle && !okSplit && !okMulti)) {
-      setSim(null);
-      return;
-    }
-    let cancelled = false;
-    setSim(null);
-    try {
-      const chainId = tokenChainId(selectedToken);
-      // One call (single) or N calls (split/multiSelect) — the sim sums them into one
-      // net-balance preview, the same surface a batch UserOp produces on-chain.
-      let calls: { to: string; value?: string; data?: string }[];
-      if (multiSelectMode) {
-        calls = buildMultiTokenCalls(recipient.trim(), multiTokenSpecs(chainId));
-      } else if (splitMode) {
-        calls = buildSplitCalls(
-          { tokenAddress: isNativeToken(selectedToken) ? null : selectedToken.tokenAddress, decimals: selectedToken.decimals },
-          recipients.map((r) => ({ address: r.address.trim(), amount: r.amount })),
-        );
-      } else {
-        const tokenAmount = tokenUnitsFor(selectedToken);
-        const weiHex = amountToWeiHex(tokenAmount, selectedToken.decimals);
-        calls = [isNativeToken(selectedToken)
-          ? { to: recipient, value: '0x' + weiHex }
-          : { to: selectedToken.tokenAddress!, data: encErc20Transfer(recipient, weiHex) }];
-      }
-      simulateAssetChanges(activeAccount.address, calls, chainId)
-        .then((r) => { if (!cancelled) setSim(r); })
-        .catch(() => { if (!cancelled) setSim(null); });
-    } catch {
-      /* malformed amount → no sim */
-    }
-    return () => { cancelled = true; };
-  }, [step, selectedToken, recipient, tokenUnitsFor, activeAccount, splitMode, recipients, multiSelectMode, multiSelect.selectedIds, feeEstimate]);
-
-  // Recipient-risk on the confirm step: "first time" (address-poisoning defense)
-  // + contract-vs-EOA. Drives the first-time/contract tags by the To row and
-  // whether the confirm CTA upgrades to a deliberate hold-to-confirm. Best-effort.
-  useEffect(() => {
-    setRecipientRisk(null);
-    if (step !== 'confirm' || !selectedToken || !isValidAddress(recipient)) return;
-    let cancelled = false;
-    resolveRecipientRisk(tokenChainId(selectedToken), recipient)
-      .then((r) => { if (!cancelled) setRecipientRisk(r); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [step, selectedToken, recipient]);
-
-  // Leaving confirm resets the fee-asset choice (next entry re-quotes in native) and clears a
-  // stale erc20 estimate (totalWei=0n) so the gas-reserve/warning math downstream never reads 0.
-  useEffect(() => {
-    if (step !== 'confirm') {
-      setGasFeeToken(null);
-      setFeeEstimate((fe) => (fe?.feeAsset?.kind === 'erc20' ? null : fe));
-    }
-  }, [step]);
-
-  // Resolve the bootstrap state without changing the UI. The send preflight uses
-  // this so the relayer-funding sheet is presented at the same "before sending"
-  // point as the personal gas-account funding sheet — including on in-band
-  // chains, which otherwise skip the latter gate entirely.
-  const getTreasuryBootstrap = async (chainId: number): Promise<TreasuryStatus | null> => {
-    try {
-      if (!activeAccount) return null;
-      // The bundler's treasury endpoint is the authority (works for ANY chain the bundler serves,
-      // incl. custom / local nets — no isInBandChain gate that mislabels them). A low-float
-      // treasury returns its status; a legacy/uncovered chain 404s (no relayer treasury) → fall
-      // through so the normal self-fund deposit path is preserved. Transient errors never route.
-      const probe = await probeTreasury(chainId);
-      if (probe.kind === 'low-float') return probe.status;
-    } catch { /* fall back to the caller's default surface */ }
-    return null;
-  };
-
-  // Relayer float depleted → offer the community bootstrap sheet instead of a
-  // dead-end error/funding surface. Returns true when the sheet was shown.
-  const maybeShowTreasuryBootstrap = async (chainId: number): Promise<boolean> => {
-    const status = await getTreasuryBootstrap(chainId);
-    if (status && mountedRef.current) {
-      setTreasuryBootstrap(status);
-      return true;
-    }
-    return false;
-  };
-
-  // ── ① split-mode (一币多人) helpers ─────────────────────────────────────────
-  // Enter split mode seeded with the current single recipient (amount in token
-  // units) + one empty row; a converted amount keeps continuity from the hero.
-  const enterSplitMode = () => {
-    if (!selectedToken) return;
-    const tokenAmt = tokenUnitsFor(selectedToken);
-    const rowAmount = amount ? tokenAmt : '';
-    setRecipients([
-      { id: makeRecipientId(), address: recipient, amount: rowAmount },
-      { id: makeRecipientId(), address: '', amount: '' },
-    ]);
-    // Split rows are token-denominated, so the single-send figure follows them
-    // into token units — RESTATED through the same resolution the first row
-    // got, not merely re-labelled.
-    setTokenAmount(rowAmount);
-    setSplitMode(true);
-  };
-
-  // A batch import (payroll table) or a whole-group pick seeds split mode directly
-  // with the resolved recipient rows — same submission path as a hand-built split.
-  const seedSplitRecipients = (rows: RecipientDraft[]) => {
-    if (rows.length === 0) return;
-    // The imported rows replace the single-send figure outright; nothing is left
-    // to restate, so the field goes empty in token units.
-    setTokenAmount('');
-    setRecipients(rows);
-    setSplitMode(true);
-    setShowBatchImport(false);
-    setShowContactPicker(false);
-  };
-
-  // Removing the last extra recipient drops back to the familiar single-send UI,
-  // carrying the remaining row's address/amount with it.
-  const handleRecipientsChange = (next: RecipientDraft[]) => {
-    if (next.length <= 1) {
-      setRecipient(next[0]?.address ?? '');
-      // A split row's amount is token-denominated by construction.
-      setTokenAmount(next[0]?.amount ?? '');
-      setSplitMode(false);
-      setRecipients([]);
-      return;
-    }
-    setRecipients(next);
-  };
-
-  // Route a picked/scanned address to the split row that opened the picker, or to
-  // the single-mode recipient field when none is targeted.
-  const applyPickedAddress = (addr: string) => {
-    if (pickerTarget) {
-      setRecipients((prev) => prev.map((r) => (r.id === pickerTarget ? { ...r, address: addr } : r)));
-    } else {
-      setRecipient(addr);
-    }
-  };
-
-  // ── ② multiSelect (多币一人 / 清空) ─────────────────────────────────────────────────
-  // Selection logic lives in the shared `multiSelect` hook; here we just react to a
-  // confirmed selection. Multi-select is gated on a chosen network (TokenSelector
-  // only shows checkboxes once one is picked), so selection is always one chain.
-  const pickedTokens = multiSelect.selectedTokens(tokens);
-
-  // The exact per-token amounts a multiSelect submits. Reserve whichever asset pays the
-  // displayed fee — native or ERC-20 — so the preview and signed MultiSend stay identical.
-  const multiTokenSpecs = (chainId: number) => {
-    const specs = toMultiTokenSpecs(pickedTokens);
-    const chainFeeEstimate = feeEstimate?.chainId === chainId ? feeEstimate : null;
-    if (chainFeeEstimate?.feeAsset?.kind === 'erc20') {
-      // Reserve 2× because a sweep contains more sub-calls than its initial fee quote and can
-      // also deploy the Safe. The final signed fee still uses the reviewed quote.
-      return reserveFeeToken(specs, chainFeeEstimate.feeAsset.token, chainFeeEstimate.feeAsset.amount * 2n);
-    }
-    return reserveNativeGas(specs, chainFeeEstimate?.totalWei ?? 0n);
-  };
-
-  // The final fee is learned only after the user advances to confirmation. If that fee is paid
-  // in the very token being sent, a previously valid amount can become unpayable. Surface a
-  // precise, editable ceiling on the confirmation step instead of allowing a guaranteed failed
-  // UserOperation to reach the passkey/relay.
-  const sameAssetFeeIssue = (() => {
-    if (!selectedToken || multiSelectMode || !selectedFeeEstimate) return null;
-    try {
-      const transferAmount = splitMode
-        ? sumSplitBaseUnits(recipients, selectedToken.decimals)
-        : toBaseUnits(tokenUnitsFor(selectedToken), selectedToken.decimals);
-      const balance = balanceToWei(selectedToken.balance, selectedToken.decimals);
-      const limit = sameAssetFeeLimit(
-        selectedFeeEstimate,
-        isNativeToken(selectedToken) ? null : selectedToken.tokenAddress ?? null,
-        balance,
-      );
-      if (!limit || transferAmount <= limit.maxTransferAmount) return null;
-      return {
-        symbol: selectedToken.symbol,
-        transferAmount,
-        balance,
-        feeAmount: limit.feeAmount,
-        maxTransferAmount: limit.maxTransferAmount,
-      };
-    } catch {
-      // Input validation owns malformed half-typed amounts; never turn a formatting issue into
-      // a false financial warning on the confirmation page.
-      return null;
-    }
-  })();
-
-  // Confirmed selection → advance. ONE token is a normal amount-send (not a
-  // full-balance multiSelect); TWO+ is a multiSelect. The first token carries chain/gas context.
-  const confirmSelection = () => {
-    const selected = multiSelect.selectedTokens(tokens);
-    if (selected.length === 0) return;
-    if (selected.length === 1) {
-      handleSelectToken(selected[0]);
-      return;
-    }
-    setMultiSelectMode(true);
-    setSelectedToken(selected[0]);
-    setStep('enter-details');
-    if (activeAccount) {
-      const chainId = tokenChainId(selected[0]);
-      prefetchForSend(activeAccount.address, chainId);
-      findAccountByCredentialId(activeAccount.id).then((s) => {
-        prefetchedAccount.current = s ?? null;
-        return estimateTransactionFee(
-          activeAccount.address, chainId, 'fast', undefined, undefined, gasFeeToken, s?.publicKeyHex,
-        );
-      })
-        .then((f) => { if (mountedRef.current) setFeeEstimate(f); })
-        .catch(() => {});
-      import('@/services/vela-core').then((m) => { webauthnModuleRef.current = m; });
-      // Warm a gas estimate so the detail list can show the native line net of
-      // its reserve right away (not just at confirm).
-    }
-  };
-
-
-  const handleSelectToken = (token: APIToken) => {
-    setMultiSelectMode(false); // single-token path — normal amount-send, not a multiSelect
-    setFeeEstimate(null); // A prior network's quote must never gate this token's amount.
-    setSelectedToken(token);
-    setStep('enter-details');
-
-    // Start prefetching RPC data + bundler info as soon as token is selected.
-    // User will spend several seconds filling in recipient + amount — plenty of
-    // time for these to complete and warm the caches.
-    if (activeAccount) {
-      const chainId = tokenChainId(token);
-      prefetchForSend(activeAccount.address, chainId);
-      findAccountByCredentialId(activeAccount.id).then(s => { prefetchedAccount.current = s ?? null; });
-      import('@/services/vela-core').then(m => { webauthnModuleRef.current = m; });
-    }
-  };
-
-  const handleContinue = async () => {
-    if (multiSelectMode) {
-      if (!isValidAddress(recipient)) {
-        showAlert(t('send.alertInvalidAddressTitle'), t('send.alertInvalidAddressBody'));
-        return;
-      }
-      if (pickedTokens.length === 0) return;
-    } else if (splitMode) {
-      if (!recipientsAreValid(recipients)) {
-        showAlert(t('send.alertInvalidAddressTitle'), t('send.alertInvalidAddressBody'));
-        return;
-      }
-      if (selectedToken) {
-        const totalBase = sumSplitBaseUnits(recipients, selectedToken.decimals);
-        const balBase = toBaseUnits(selectedToken.balance || '0', selectedToken.decimals);
-        if (totalBase > balBase) {
-          showAlert(t('send.alertInsufficientBalanceTitle'), t('send.alertInsufficientBalanceBody', { defaultValue: 'The total exceeds your balance.' }));
           return;
-        }
-      }
-    } else {
-      if (!isValidAddress(recipient)) {
-        showAlert(t('send.alertInvalidAddressTitle'), t('send.alertInvalidAddressBody'));
-        return;
-      }
-      const tokenAmount = tokenUnitsFor(selectedToken!);
-      const amountNum = parseFloat(tokenAmount);
-      if (isNaN(amountNum) || amountNum <= 0) {
-        showAlert(t('send.alertInvalidAmountTitle'), t('send.alertInvalidAmountBody'));
-        return;
-      }
-      if (amountWarning) {
-        showAlert(t('send.alertInsufficientBalanceTitle'), amountWarning);
-        return;
-      }
-    }
-
-    // Jump to confirm screen immediately — load gas estimate in background
-    if (selectedToken && activeAccount) {
-      const chainId = tokenChainId(selectedToken);
-
-      // Ensure prefetch is running (may already be cached from token selection)
-      prefetchForSend(activeAccount.address, chainId);
-      let storedForEstimate: { publicKeyHex: string } | null;
-      try {
-        storedForEstimate = prefetchedAccount.current
-          ?? await findAccountByCredentialId(activeAccount.id)
-          ?? null;
-      } catch {
-        showAlert(
-          t('send.alertEstimateFailedTitle'),
-          t('send.alertAccountUnavailableBody'),
-        );
-        return;
-      }
-      prefetchedAccount.current = storedForEstimate ?? null;
-      if (!storedForEstimate?.publicKeyHex) {
-        showAlert(
-          t('send.alertEstimateFailedTitle'),
-          t('send.alertAccountUnavailableBody'),
-        );
-        return;
-      }
-      if (!webauthnModuleRef.current) {
-        import('@/services/vela-core').then(m => { webauthnModuleRef.current = m; });
-      }
-
-      // Estimate gas + check the relayer treasury BEFORE advancing to confirm.
-      // A depleted relayer opens TreasuryBootstrapSheet here, replacing the
-      // personal gas-account funding sheet entirely.
-      setEstimatingGas(true);
-      setFeeEstimate(null);
-
-      try {
-        // The account context and estimate are mandatory. A timeout is surfaced
-        // as an error; never continue with a fabricated UserOperation preview.
-        // The REAL call for the charge basis: in-band displayed = signed, so this
-        // estimate must price the actual send, not the padded rough model (which
-        // over-charged ~8× on Arbitrum). Build the ACTUAL send/batch shape so in-band pricing
-        // (estimateInBandBasisGas) sees the real calldata; the fee-reserve amounts don't affect
-        // the gas SHAPE, so batch modes use the raw transfer legs (no circular fee dependency).
-        let estTx: { to: string; value?: string; data?: string } | undefined;
-        let estBatch: { to: string; value?: string; data?: string }[] | undefined;
-        try {
-          if (multiSelectMode) {
-            estBatch = buildMultiTokenCalls(recipient.trim(), toMultiTokenSpecs(pickedTokens));
-          } else if (splitMode) {
-            estBatch = buildSplitCalls(
-              { tokenAddress: isNativeToken(selectedToken!) ? null : selectedToken!.tokenAddress, decimals: selectedToken!.decimals },
-              recipients.map((r) => ({ address: r.address.trim(), amount: r.amount })),
-            );
-          } else if (selectedToken && amount && isValidAddress(recipient)) {
-            const tokenAmt = tokenUnitsFor(selectedToken);
-            const weiHex = amountToWeiHex(tokenAmt, selectedToken.decimals);
-            estTx = isNativeToken(selectedToken)
-              ? { to: recipient.trim(), value: weiHex }
-              : { to: selectedToken.tokenAddress!, data: encErc20Transfer(recipient.trim(), weiHex) };
-          }
-        } catch {
-          // A half-typed amount/recipient → fall back to the rough basis for this estimate.
-          estTx = undefined;
-          estBatch = undefined;
-        }
-        const preCheck = async (): Promise<TreasuryStatus | null> => {
-          const [fee, bootstrapStatus] = await Promise.all([
-            estimateTransactionFee(
-              activeAccount!.address, chainId, 'fast', estTx, estBatch, gasFeeToken,
-              storedForEstimate.publicKeyHex,
-            ),
-            // Do not inspect the user's personal gas account. The sole send
-            // gate is the relayer treasury, and a low float replaces the old
-            // "发送前，还差一步" sheet at this exact point in the flow.
-            getTreasuryBootstrap(chainId),
-          ]);
-          setFeeEstimate(fee);
-          return bootstrapStatus;
-        };
-        const timeout = new Promise<never>((_, reject) => setTimeout(
-          () => reject(new Error('Could not estimate gas in time. Please try again.')), 15_000,
-        ));
-        const bootstrapStatus = await Promise.race([preCheck(), timeout]);
-        if (bootstrapStatus && mountedRef.current) {
-          setTreasuryBootstrap(bootstrapStatus);
-          setEstimatingGas(false);
+        case 'load_tokens_failed':
+          showAlert(tr('common.error'), tr('send.alertLoadTokensError'));
           return;
-        }
-      } catch (err) {
-        setEstimatingGas(false);
-        showAlert(
-          t('send.alertEstimateFailedTitle'),
-          err instanceof Error ? err.message : t('send.alertEstimateFailedBody'),
-        );
-        return;
-      }
-
-      setEstimatingGas(false);
-      setStep('confirm');
-    } else {
-      setStep('confirm');
-    }
-  };
-
-  const handleMaxAmount = async () => {
-    if (!selectedToken) return;
-    // Max always fills in token units. Every exit below writes a token figure;
-    // the ones that await an estimate leave the field blank meanwhile rather
-    // than letting the previous fiat digits sit under a token label.
-    setTokenAmount('');
-
-    // For native tokens (ETH, BNB, etc.), reserve gas for the EntryPoint prefund.
-    // The Safe must hold: transferAmount + prefund, so max = balance - prefund.
-    // The quote's in-band margin has already been included in totalWei.
-    if (isNativeToken(selectedToken) && activeAccount) {
-      try {
-        const chainId = tokenChainId(selectedToken);
-        const fee = selectedFeeEstimate ?? await estimateTransactionFee(
-          activeAccount.address, chainId, 'fast', undefined, undefined, gasFeeToken,
-          prefetchedAccount.current?.publicKeyHex,
-        );
-        // Use string-based conversion to avoid floating-point precision loss
-        const balanceWei = balanceToWei(selectedToken.balance, selectedToken.decimals);
-        // totalWei already includes the in-band gas margin shown to the user.
-        const reserveWei = fee.totalWei;
-        // String-exact `balance − reserve` (no float precision loss). Matches
-        // reserveNativeGas in batch-send.ts, so
-        // amountWei + reserveWei === balanceWei exactly and the "insufficient for
-        // gas" pre-check no longer trips on its own Max fill. Returns '0' when the
-        // balance can't cover the gas reserve.
-        setTokenAmount(maxNativeSendable(balanceWei, reserveWei, selectedToken.decimals));
-        return;
-      } catch {
-        // Estimation failed — fall through to full balance (tx may fail but user sees the error)
-      }
-    }
-
-    // ERC-20 Max when the fee is paid in that SAME token: leave a reserve behind for the
-    // in-band reimbursement. This is asset-based rather than network-based, so the rule is
-    // identical for Tempo and ordinary EVM in-band sends.
-    if (activeAccount && selectedToken.tokenAddress) {
-      try {
-        const chainId = tokenChainId(selectedToken);
-        const fee = selectedFeeEstimate ?? await estimateTransactionFee(
-          activeAccount.address, chainId, 'fast', undefined, undefined, gasFeeToken,
-          prefetchedAccount.current?.publicKeyHex,
-        );
-        if (fee.feeAsset?.kind === 'erc20' && fee.feeAsset.token.toLowerCase() === selectedToken.tokenAddress.toLowerCase()) {
-          // Reserve 1.5× the quoted fee (+50% for the send-time re-quote drift the 2× gate absorbs).
-          const reserve = (fee.feeAsset.amount * 3n) / 2n;
-          const balUnits = balanceToWei(selectedToken.balance, selectedToken.decimals);
-          setTokenAmount(balUnits > reserve ? fromBaseUnits(balUnits - reserve, selectedToken.decimals) : '0');
-          return;
-        }
-      } catch {
-        // Estimation failed — fall through to full balance (the pre-check still warns).
-      }
-    }
-
-    // Gas is paid in native or a separate ERC-20 fee asset, so the full balance is sendable.
-    setTokenAmount(selectedToken.balance || '0');
-  };
-
-  /** Return from a blocked confirmation to the exact amount form, retaining every other choice. */
-  const handleEditAmount = () => {
-    setTxStatus('idle');
-    setTxError(null);
-    setStep('enter-details');
-    // The amount field is mounted only after the step update. A small defer makes the recovery
-    // action feel direct on mobile and web without changing the entered recipient/token.
-    setTimeout(() => amountInputRef.current?.focus(), 100);
-  };
-
-  const handleConfirm = async () => {
-    if (!selectedToken || !activeAccount) return;
-    // A fee re-quote can turn a previously valid amount into an unpayable same-token send.
-    // Never let the slide reach signing in that state; the confirmation UI gives the user the
-    // actionable "Edit amount" recovery instead.
-    if (sameAssetFeeIssue) {
-      handleEditAmount();
-      return;
-    }
-    // …and the same for a figure that stopped resolving: a display-currency
-    // commit can empty the field while this page is open, and `toBaseUnits('0')`
-    // is a perfectly valid 0n, so the submit path would have encoded a
-    // zero-value transfer and asked for a passkey over it. `canConfirm` disables
-    // the slider, but a disabled control is a suggestion — this is the refusal.
-    // Twin of `send.rs::slide_confirm`.
-    if (!confirmAmountOk) {
-      handleEditAmount();
-      return;
-    }
-    // Tap haptic fires on the one-tap VelaButton; the hold-to-confirm path
-    // provides its own (Medium on press + Success on completion).
-
-    // The relayer treasury was checked before entering the confirm screen.
-    // Proceed directly to transaction execution.
-    await executeTransaction();
-  };
-
-  const executeTransaction = async () => {
-    if (!selectedToken || !activeAccount) return;
-    // Synchronous re-entry lock: `sending` is async React state, so a rapid
-    // second slide in the same tick would start a concurrent submit. The
-    // Phase-2 grant await widens that window to ~20s — guard on a ref.
-    const sendGen = sendLock.begin();
-    if (sendGen === null) return; // a send is already in flight
-    sendCancelledRef.current = false;
-    setSending(true);
-    setTxStatus('preparing');
-    setTxHash(null);
-    setUserOpHash(null);
-    setTxError(null);
-    setReceiptFailed(false);
-    setReceiptSigned(null);
-    setFeeHeld(false);
-    setFeeRejected(false);
-    try {
-      const chainId = tokenChainId(selectedToken);
-
-      // Use prefetched account if available, otherwise fetch now
-      const stored = prefetchedAccount.current ?? await findAccountByCredentialId(activeAccount.id);
-      if (!stored?.publicKeyHex) {
-        throw new Error(t('send.txErrorPublicKey'));
-      }
-
-      const signFn = async (challenge: Uint8Array) => {
-        setTxStatus('signing');
-        const challengeHex = toHex(challenge);
-        const assertion = await Passkey.sign(challengeHex, activeAccount.id);
-
-        // Use prefetched module if available, otherwise dynamic import
-        const webauthnMod = webauthnModuleRef.current ?? await import('@/services/vela-core');
-        const compat = webauthnMod.verifySafeWebAuthn(assertion);
-        if (!compat.ok) {
-          throw new Error(
-            'Your device\'s identity provider is not compatible with Vela Wallet. ' +
-            'Please switch to Google Password Manager.\n\n' + compat.reason,
+        case 'estimate_failed':
+          showAlert(
+            tr('send.alertEstimateFailedTitle'),
+            // The 15 s race's rejection message was never localized; every other
+            // refusal used the generic body (the raw service message the core
+            // deliberately no longer carries — invariant ⑮).
+            kind.kind === 'timeout'
+              ? 'Could not estimate gas in time. Please try again.'
+              : tr('send.alertEstimateFailedBody'),
           );
-        }
-
-        return {
-          signature: fromHex(assertion.signatureHex),
-          authenticatorData: fromHex(assertion.authenticatorDataHex),
-          clientDataJSON: fromHex(assertion.clientDataJSONHex),
-        };
-      };
-
-      // Recheck immediately before signing to cover the rare race where the
-      // relayer float falls below its floor after the send-page preflight.
-      if (await maybeShowTreasuryBootstrap(chainId)) {
-        setSending(false);
-        setTxStatus('idle');
-        return;
+          return;
+        case 'account_unavailable':
+          showAlert(tr('send.alertEstimateFailedTitle'), tr('send.alertAccountUnavailableBody'));
       }
-
-      setTxStatus('submitting');
-      const currentFeeEstimate = feeEstimate?.chainId === chainId ? feeEstimate : null;
-      const maxFee = currentFeeEstimate?.maxFeePerGas;
-      // In-band: sign EXACTLY the fee the confirm slide displayed (amount + recipient).
-      // The bundler's 2×-real-cost gate rejects a stale quote loudly; we then re-quote
-      // and the user re-confirms a NEW number — never a silent display/charge mismatch.
-      const quotedFee = currentFeeEstimate?.inBand && currentFeeEstimate.feeRecipient
-        ? {
-            amount: currentFeeEstimate.feeAsset?.kind === 'erc20' ? currentFeeEstimate.feeAsset.amount : currentFeeEstimate.totalWei,
-            recipient: currentFeeEstimate.feeRecipient,
-          }
-        : undefined;
-
-      // One send line per output (single = 1, split = N recipients, multiSelect = N
-      // tokens). split/multiSelect submit as a single Safe MultiSend UserOp — one
-      // signature, one gas. Each line carries its own token so multiSelect's mixed-token
-      // activity records (symbol/decimals/usd) are correct per line.
-      let result;
-      let lines: { to: string; toName?: string; amount: string; symbol: string; decimals: number; priceUsd: number; logoUrls?: string[] }[];
-      if (multiSelectMode) {
-        // Reserved specs = the exact amounts sent (native minus gas). Activity
-        // lines are derived from them so each record shows what actually moved.
-        const specs = multiTokenSpecs(chainId);
-        if (specs.length === 0) {
-          throw new Error(t('send.multiSendNoFundsAfterGas', { defaultValue: 'Not enough to cover gas after the reserve.' }));
-        }
-        const calls = buildMultiTokenCalls(recipient.trim(), specs);
-        result = await sendBatchCalls(activeAccount.address, calls, chainId, stored.publicKeyHex, signFn, maxFee, gasFeeToken, quotedFee);
-        lines = specs.map((spec) => {
-          const tk = pickedTokens.find((t) => (isNativeToken(t) ? null : t.tokenAddress) === spec.tokenAddress)!;
-          return { to: recipient.trim(), toName: recipientIdentity?.name, amount: spec.amount, symbol: tk.symbol, decimals: tk.decimals, priceUsd: tk.priceUsd ?? 0, logoUrls: tokenLogoURLs(tk) };
-        });
-      } else if (splitMode) {
-        const calls = buildSplitCalls(
-          { tokenAddress: isNativeToken(selectedToken) ? null : selectedToken.tokenAddress, decimals: selectedToken.decimals },
-          recipients.map((r) => ({ address: r.address.trim(), amount: r.amount })),
-        );
-        result = await sendBatchCalls(activeAccount.address, calls, chainId, stored.publicKeyHex, signFn, maxFee, gasFeeToken, quotedFee);
-        lines = recipients.map((r) => ({ to: r.address.trim(), toName: r.name?.trim() || undefined, amount: r.amount, symbol: selectedToken!.symbol, decimals: selectedToken!.decimals, priceUsd: selectedToken!.priceUsd ?? 0, logoUrls: tokenLogoURLs(selectedToken!) }));
-      } else {
-        const tokenAmount = tokenUnitsFor(selectedToken);
-        const weiHex = amountToWeiHex(tokenAmount, selectedToken.decimals);
-        if (isNativeToken(selectedToken)) {
-          result = await sendNative(activeAccount.address, recipient, weiHex, chainId, stored.publicKeyHex, signFn, maxFee, gasFeeToken, quotedFee);
-        } else {
-          result = await sendERC20(activeAccount.address, selectedToken.tokenAddress!, recipient, weiHex, chainId, stored.publicKeyHex, signFn, maxFee, gasFeeToken, quotedFee);
-        }
-        lines = [{ to: recipient, toName: recipientIdentity?.name, amount: tokenAmount, symbol: selectedToken.symbol, decimals: selectedToken.decimals, priceUsd: selectedToken.priceUsd ?? 0, logoUrls: tokenLogoURLs(selectedToken) }];
-      }
-
-      // Feed the receipt the per-line breakdown for batch sends so it renders
-      // "30 USDC → 3 recipients" / "3 assets → Bob" instead of a single (NaN) amount.
-      // A plain single send stays null and uses the scalar amount/symbol props.
-      if (multiSelectMode || splitMode) {
-        setReceiptTransfers(lines.map((ln) => ({
-          to: ln.to,
-          toName: ln.toName,
-          amount: ln.amount,
-          symbol: ln.symbol,
-          logoUrls: ln.logoUrls ?? [],
-          usdValue: (parseFloat(ln.amount || '0') || 0) * ln.priceUsd,
-        })));
-        setReceiptKind(multiSelectMode ? 'multiSelect' : 'split');
-      } else {
-        setReceiptTransfers(null);
-        setReceiptKind(null);
-      }
-      // The signature is now a fact. Freeze the money it moved (and the price it
-      // moved at); the receipt reads THIS and never converts again.
-      setReceiptSigned(lines[0] ? { amount: lines[0].amount, priceUsd: lines[0].priceUsd } : null);
-
-      // Bundler accepted the UserOp — treat the payment as sent right now (we
-      // have the userOpHash). The on-chain tx hash resolves in the background to
-      // light up the explorer link; a slow/failed receipt poll must NOT turn a
-      // submitted payment into an error.
-      if (mountedRef.current) setUserOpHash(result.userOpHash);
-      setTxStatus('confirmed');
-      hapticSuccess(); // payment accepted by the bundler — distinct success buzz
-      setSending(false);
-      clearTokenCache(activeAccount.address);
-
-      // One activity record per recipient. In a batch they share the userOpHash,
-      // so each gets a distinct id (`<hash>-<i>`) to show as its own history line
-      // and be patched independently when the on-chain hash lands. USD is captured
-      // now so non-stablecoin sends (e.g. BNB) still render a fiat amount later.
-      const ts = Math.floor(Date.now() / 1000);
-      const records = lines.map((ln, i) => {
-        const usd = parseFloat(ln.amount || '0') * ln.priceUsd;
-        return {
-          id: lines.length > 1 ? `${result.userOpHash}-${i}` : result.userOpHash,
-          userOpHash: result.userOpHash,
-          txHash: '',
-          from: activeAccount!.address,
-          to: ln.to,
-          toName: ln.toName,
-          value: ln.amount,
-          symbol: ln.symbol,
-          decimals: ln.decimals,
-          logoUrls: ln.logoUrls,
-          chainId,
-          timestamp: ts,
-          status: 'pending' as const,
-          type: 'send' as const,
-          usd: usd > 0 ? '$' + usd.toFixed(2) : undefined,
-        };
-      });
-      // Persist ALL siblings in one atomic write. A per-record Promise.all would
-      // race the read-modify-write and silently drop every sibling but one — which
-      // collapsed a batch send to a single line in Activity.
-      const recordIds = records.map((rec) => rec.id);
-      const pendingWrites = saveTransactions(records).catch(() => {});
-
-      // Resolve the on-chain hash in the background and flip every record to
-      // 'confirmed' (awaiting the pending writes first so the patches find them).
-      // A definitive drop/revert flips them to 'failed' so the receipt stamp and
-      // the feed both show the real outcome; a transient/timeout stays 'pending'.
-      result.waitForTxHash()
-        .then(async (hash) => {
-          if (mountedRef.current) setTxHash(hash);
-          await pendingWrites;
-          await updateTransactions(recordIds, { txHash: hash, status: 'confirmed' }).catch(() => {});
-        })
-        .catch(async (err) => {
-          // The relay is holding the op until network fees fit what the user signed.
-          // It is still queued and sends itself, so the record stays pending — only
-          // the wording changes, from "confirming" to "waiting for fees".
-          if (err instanceof UserOpFeeHoldError) {
-            if (mountedRef.current) setFeeHeld(true);
-            return;
-          }
-          // Definitive failure (relay refusal / op dropped / reverted) vs. a slow or
-          // unreachable poll. Only the former is a real failure; the latter stays
-          // pending (reconciled later).
-          const rejected = err instanceof UserOpRejectedError;
-          if (!rejected && !/dropped from the network|reverted|failed/i.test(err?.message ?? '')) return;
-          if (mountedRef.current) {
-            setReceiptFailed(true);
-            if (rejected) setFeeRejected(true);
-          }
-          await pendingWrites;
-          await updateTransactions(recordIds, { status: 'failed' }).catch(() => {});
-        });
-
-    } catch (error: any) {
-      // Wording-tolerant detection — the bundler has reworded this error before
-      // (legacy "...bundler EOA" → current "...bundler gas account ... Deposit to:").
-      const underfunded = parseBundlerUnderfunded(error?.message);
-      if (error?.code === 'PASSKEY_CANCELLED') {
-        setTxStatus('idle');
-      } else if (/gas relayer is unavailable/i.test(error?.message ?? '')
-          && await maybeShowTreasuryBootstrap(tokenChainId(selectedToken!))) {
-        // The in-band path found no usable relayer float AND the treasury says
-        // it needs a bootstrap: the community bootstrap sheet is the honest ask —
-        // a generic "try again" would loop forever. A transient relayer blip
-        // (no bootstrapNeeded) falls through to the generic error below.
-        setTxStatus('idle');
-      } else if (underfunded) {
-        // Never open the personal gas-account top-up sheet from a reactive
-        // bundler error. Recheck only the relayer treasury: if it is depleted,
-        // show the bootstrap sheet; otherwise leave the request as an ordinary
-        // failed send rather than asking the user to fund their own gas bucket.
-        const chainId = tokenChainId(selectedToken!);
-        if (await maybeShowTreasuryBootstrap(chainId)) {
-          setTxStatus('idle');
-        } else {
-          setTxError(t('send.txErrorBundlerFund'));
-          setTxStatus('error'); hapticError();
-        }
-      } else {
-        // Never surface a raw RPC/library exception on the money-flow confirm
-        // screen — it's unlocalized and jargon-filled. Log it for diagnostics and
-        // show a calm, actionable, localized message instead.
-        console.warn('[send] unhandled tx error:', error?.message ?? String(error));
-        setTxError(t('send.txErrorGeneric'));
-        setTxStatus('error'); hapticError();
-      }
-    } finally {
-      // Release only if this is still the current send. A cancelled send already
-      // released the lock (and bumped the generation), so this stale finally must
-      // not clear a newer in-flight send's lock or its spinner (issue #91).
-      if (sendLock.end(sendGen)) setSending(false);
-    }
-  };
-
-  const handleBack = () => {
-    if (step === 'confirm') {
-      // Don't go back while transaction is in progress
-      if (txStatus !== 'idle' && txStatus !== 'confirmed' && txStatus !== 'error') return;
-      setTxStatus('idle');
-      setTxHash(null);
-      setTxError(null);
-      setStep('enter-details');
-    } else if (step === 'enter-details') {
-      if (multiSelectMode) {
-        // Back to the multi-select picker, preserving the multiSelect selection.
-        setStep('select-token');
-      } else {
-        setSelectedToken(null);
-        setTokenAmount('');
-        setRecipient('');
-        setSplitMode(false);
-        setRecipients([]);
-        setStep('select-token');
-      }
-    } else {
-      router.back();
-    }
-  };
-
-  // ── Intents the views used to spell out inline ───────────────────────────
-  // Every one of these is the exact statement list that lived in SendScreen /
-  // EnterDetailsStep / ConfirmStep, moved here unchanged so both platforms name
-  // an intent instead of writing this controller's state from outside (spec 017
-  // G12; native behaviour is byte-identical).
-
-  /**
-   * The ⇄ conversion toggle (was EnterDetailsStep.tsx:165-176).
-   *
-   * The whole operation is one `DenominatedAmount.convert`, and it cannot be
-   * written any other way from here: the figure's unit is private, so "flip the
-   * label, keep the digits" — the defect this replaces — is not expressible.
-   * What is left is deciding what an UNCONVERTIBLE figure should become, and
-   * only two answers are honest:
-   *
-   * - Entering fiat mode commits the user to typing money in the display
-   *   currency. With no price for that currency there is nothing to divide by,
-   *   so the door stays shut and the typed token amount is left alone.
-   * - Leaving is always allowed, because a currency can go unpriceable while a
-   *   fiat figure is already typed and trapping someone in a mode whose amount
-   *   can never resolve is its own bug. But the figure does NOT come along:
-   *   5000 CNY is not 5000 USDC and there is no rate to say what it is, so the
-   *   field is emptied. Empty is the one state that claims nothing —
-   *   `canContinue` already refuses it and the ⇅ row already reads `0 SYM`.
-   *
-   * A blank or zero figure crosses units with no rate at all (zero is zero in
-   * every unit), so an untouched screen is never stuck.
-   *
-   * Twin of `send.rs::toggle_fiat_input`.
-   */
-  const toggleFiatInput = () => {
-    if (!selectedToken) return;
-    const price = displayPriceFor(selectedToken);
-    const target: Denom = typedAmount.isFiat ? TOKEN_DENOM : fiatDenom(dc.code);
-    if (target.kind === 'fiat' && !price) return; // the door into fiat stays shut
-    const fiatDecimals = ZERO_DECIMAL_CODES.has(dc.code) ? 0 : 2;
-    const converted = typedAmount.convert(target, price, selectedToken.decimals, fiatDecimals);
-    // Unconvertible on the way OUT of fiat: leave the mode, drop the figure.
-    // Never carry the digits across the unit boundary.
-    setTypedAmount(converted ?? DenominatedAmount.token(''));
-  };
-
-  /**
-   * Whether the ⇄ row is offered, and whether pressing it would do anything.
-   *
-   * Decided here, in the same sentence as the refusal above, because they used
-   * to be decided in two places: `toggleFiatInput` returned early with no price
-   * for the display currency, while `EnterDetailsStep` rendered the row on
-   * `priceUsd > 0` alone. The control looked live and swallowed the tap — no
-   * mode change, no message, no disabled state. It is disabled now.
-   *
-   * `denomToggleShown` also keeps the row up whenever the figure is already
-   * fiat, even for a token that has lost its price: leaving is the only way out
-   * of a mode whose amount can no longer resolve, and the exit used to vanish
-   * with the price. Twin of `send.rs::denom_toggle`.
-   */
-  const denomToggleShown = !!selectedToken
-    && ((selectedToken.priceUsd != null && selectedToken.priceUsd > 0) || typedAmount.isFiat);
-  const denomToggleEnabled = !!selectedToken
-    && (typedAmount.isFiat || !!displayPriceFor(selectedToken));
-  /**
-   * And WHY it is inert. Dimming the row closed half the hole: the refusal
-   * became visible, the reason did not — and this is the one branch
-   * `warnCannotConvert` cannot cover. A priced token whose display currency has
-   * no rate leaves the figure in TOKEN units, which resolves perfectly, so no
-   * amount warning fires; the row simply sat there at 40% opacity saying
-   * nothing. Twin of `send.rs::denom_toggle_reason`.
-   */
-  const denomToggleReason = denomToggleShown && !denomToggleEnabled && selectedToken
-    ? t('send.denomToggleNoRate', { code: typedAmount.fiatCode ?? dc.code, symbol: selectedToken.symbol })
-    : null;
-
-  /** Tapping the token hero — back to the picker, KEEPING the recipient. */
-  const changeToken = () => {
-    setStep('select-token');
-    setSelectedToken(null);
-    setTokenAmount('');
-    setSplitMode(false);
-    setRecipients([]);
-  };
-
-  const openScanner = () => setShowScanner(true);
-  const closeScanner = () => setShowScanner(false);
-  const openContactPicker = (target: string | null) => {
-    setPickerTarget(target);
-    setShowContactPicker(true);
-  };
-  const closeContactPicker = () => setShowContactPicker(false);
-  const openBatchImport = () => setShowBatchImport(true);
-  const closeBatchImport = () => setShowBatchImport(false);
-
-  /** A raw scan payload (was SendScreen.tsx:181-203). */
-  const handleScan = (data: string) => {
-    setShowScanner(false);
-    const req = parseEIP681(data);
-    // Per-row scan in split mode — just take the address; a full-request
-    // re-lock would blow away the other recipients.
-    if (pickerTarget) {
-      applyPickedAddress(req?.recipient ?? data);
-      return;
-    }
-    // A full EIP-681 request re-opens Send locked; otherwise just take the address.
-    if (req && req.chainId != null) {
-      const p: Record<string, string> = {
-        prefilledRecipient: req.recipient,
-        prefilledChainId: String(req.chainId),
-        locked: '1',
-      };
-      if (req.tokenAddress) p.prefilledTokenAddress = req.tokenAddress;
-      if (req.amountBaseUnits != null) p.prefilledAmountBase = req.amountBaseUnits.toString();
-      router.replace({ pathname: '/send', params: p });
-      return;
-    }
-    setRecipient(req?.recipient ?? data);
-  };
-
-  /** The confirm screen's ✕ during preparing/signing (was ConfirmStep.tsx:381-395). */
-  const cancelSigning = () => {
-    // Signal the in-flight executeTransaction too: during the Phase-2 grant
-    // await there is no passkey prompt to abort yet — without the ref, the flow
-    // would resurrect a passkey prompt (or a funding sheet) AFTER this cancel.
-    sendCancelledRef.current = true;
-    // Release the re-entry lock so a retry starts (instead of silently
-    // no-op'ing until the cancelled promise settles); cancel() also invalidates
-    // that promise's stale finally so it won't clear the retry's lock (#91).
-    sendLock.cancel();
-    Passkey.cancelSign();
-    setTxStatus('idle');
-    setSending(false);
-  };
-
-  const retryAfterError = () => {
-    setTxStatus('idle');
-    setTxError(null);
-  };
-
-  const onFeeTokenChange = (token: string | null) => setGasFeeToken(token);
-  const onFeeUpdate = (fee: TransactionFeeEstimate) => {
-    if (mountedRef.current) setFeeEstimate(fee);
-  };
-  const onFeeBusyChange = (busy: boolean) => setFeeBusy(busy);
-
-  const dismissTreasurySheet = () => setTreasuryBootstrap(null);
-  /** After funding the relayer, return through the step-appropriate flow. */
-  const retryAfterBootstrap = () => {
-    setTreasuryBootstrap(null);
-    // This sheet can now open from the amount screen. After funding the relayer,
-    // return through the normal pre-confirm flow rather than submitting directly
-    // from enter-details.
-    if (step === 'enter-details') {
-      void handleContinue();
-    } else {
-      void handleConfirm();
-    }
-  };
-
-  const handleDone = () => router.back();
-  const saveReceiptContact = () => {
-    void saveContact({
-      address: recipient,
-      name: recipientIdentity?.name,
-      resolvedName: recipientIdentity?.name,
-    });
-  };
-
-  /**
-   * The resolved amount every confirm-page number is built from (was
-   * ConfirmStep.tsx:80). Web gets this from the core instead, which is the
-   * point: one resolution, shared by the display and the signature.
-   */
-  const tokenAmount = selectedToken ? tokenUnitsFor(selectedToken) : '';
-
-  /**
-   * The confirm page's ONE headline figure (was ConfirmStep.tsx:83-88, moved
-   * here verbatim so the page reads a single controller fact on both
-   * platforms). Native behaviour is unchanged down to the throw: a split row
-   * `toBaseUnits` refuses raises from this render exactly as it raised from
-   * ConfirmStep's. Web takes the same field from the core instead, where an
-   * unresolvable row answers '' rather than throwing.
-   */
-  const confirmAmount = !selectedToken
-    ? ''
-    : splitMode
-      ? fromBaseUnits(sumSplitBaseUnits(recipients, selectedToken.decimals), selectedToken.decimals)
-      : tokenAmount;
-
-  /**
-   * The Continue button's gate (was EnterDetailsStep.tsx:372, negated), plus
-   * the one condition it never had: the figure must actually RESOLVE.
-   *
-   * `!amount` alone lit the button on an amount that could never become base
-   * units — a fiat figure with no rate resolves to '0', so Continue was armed
-   * on a number `handleContinue` was guaranteed to reject with
-   * `alertInvalidAmount`, again and again, with nothing on screen to explain
-   * it. The gate now asks the very string the signature is built from, which
-   * is also the string the ⇅ row prints. Twin of `send.rs`'s `can_continue`.
-   */
-  const canContinue = !(
-    (splitMode
-      ? !recipientsAreValid(recipients)
-      : multiSelectMode
-        ? !isValidAddress(recipient) || pickedTokens.length === 0
-        : !recipient || !amount || !(parseFloat(tokenAmount || '0') > 0)) ||
-    estimatingGas ||
-    (locked && !!amountWarning)
+    },
+    [],
   );
 
-  /**
-   * The confirm slide's gate (was ConfirmStep.tsx:357, negated) — plus the
-   * amount question it never asked.
-   *
-   * Everything here was about the FEE and the pipeline; the money itself was
-   * never re-examined after Continue. But the confirm page is a page someone
-   * can sit on, and a display-currency commit landing underneath re-denominates
-   * the field to empty (the `storedAmount.fiatCode !== dc.code` rule above),
-   * leaving the slider armed over a figure that resolves to nothing — a
-   * zero-value transfer, signable, with no warning anywhere. It now asks
-   * exactly what `canContinue` asks. The batch modes carry their money in
-   * `recipients`/`multiTokenSpecs`, not in the amount field, so they are exempt
-   * for the same reason `canContinue` exempts them. Twin of
-   * `send.rs::can_confirm`.
-   */
-  const confirmAmountOk = splitMode || multiSelectMode || parseFloat(tokenAmount || '0') > 0;
-  const canConfirm = txStatus === 'idle' && !estimatingGas && !feeBusy && !sameAssetFeeIssue
-    && confirmAmountOk;
-  /** …and the refusal is not allowed to be silent. Confirm step only — the
-   *  entry screen already has `amountWarning`. */
-  const confirmAmountIssue = step === 'confirm' && !confirmAmountOk && selectedToken
-    ? t('send.warnCannotConvert', { code: typedAmount.fiatCode ?? dc.code, symbol: selectedToken.symbol })
-    : null;
+  // ── the session ───────────────────────────────────────────────────────────
+  const resolveToken = useCallback((wire: SendToken): APIToken => {
+    const p = projector.current;
+    const known = p.index.get(sendTokenId(wire));
+    // The API row is authoritative for everything the core does not carry
+    // (name, logo) — but only while it still describes the same holding.
+    if (known && known.balance === wire.balance && known.decimals === wire.decimals) return known;
+    const key = JSON.stringify(wire);
+    const cached = p.synth.get(key);
+    if (cached) return cached;
+    const built = synthApiToken(wire);
+    if (p.synth.size > 64) p.synth.clear();
+    p.synth.set(key, built);
+    return built;
+  }, []);
 
-  /**
-   * The split editor's live over-balance hint (was MultiRecipientEditor.tsx:99-101,
-   * inlined here unchanged — including the `toBaseUnits` throw on a malformed
-   * row, which the editor would have raised from the same render).
-   */
-  const splitOverBalance = splitMode && !!selectedToken
-    && sumSplitBaseUnits(recipients, selectedToken.decimals)
-      > toBaseUnits(selectedToken.balance || '0', selectedToken.decimals);
+  const commit = useCallback(
+    (view: SendView) => {
+      const p = projector.current;
+      const viewKey = JSON.stringify(view);
+      if (viewKey === p.viewKey) return; // an unchanged view never re-renders
+      p.viewKey = viewKey;
 
-  // The receipt's scalar amount + fiat line (was SendScreen.tsx:152/158).
-  // READ, never re-derive: both come off the submit-time snapshot, which is the
-  // same discipline `receiptTransfers` has always had.
-  const receiptAmount = receiptSigned?.amount ?? '';
-  const receiptUsdValue = receiptSigned
-    ? Math.max(parseFloat(receiptSigned.amount) || 0, 0) * receiptSigned.priceUsd
-    : 0;
+      const tokensKey = JSON.stringify(view.tokens);
+      if (tokensKey !== p.tokensKey) {
+        p.tokensKey = tokensKey;
+        p.tokens = view.tokens.map(resolveToken);
+      }
+      const selectedKey = JSON.stringify(view.selected_token);
+      if (selectedKey !== p.selectedKey) {
+        p.selectedKey = selectedKey;
+        p.selectedToken = view.selected_token ? resolveToken(view.selected_token) : null;
+      }
+      const pickedKey = `${tokensKey}|${view.multi_selected_ids.join(',')}`;
+      if (pickedKey !== p.pickedKey) {
+        p.pickedKey = pickedKey;
+        const wanted = new Set(view.multi_selected_ids);
+        p.pickedTokens = p.tokens.filter((token) => wanted.has(tokenId(token)));
+      }
+      const recipientsKey = JSON.stringify(view.recipients);
+      if (recipientsKey !== p.recipientsKey) {
+        p.recipientsKey = recipientsKey;
+        p.recipients = view.recipients.map(toDraft);
+      }
+      const specsKey = JSON.stringify(view.multi_specs);
+      if (specsKey !== p.specsKey) {
+        p.specsKey = specsKey;
+        p.multiSpecs = view.multi_specs.map(toSpec);
+      }
+      const transfersKey = JSON.stringify(view.receipt);
+      if (transfersKey !== p.transfersKey) {
+        p.transfersKey = transfersKey;
+        // A plain single send keeps the scalar amount/symbol props (null here);
+        // only a batch renders the per-line breakdown.
+        p.receiptTransfers =
+          view.receipt && view.receipt.kind
+            ? view.receipt.transfers.map((line) => ({
+                to: line.to,
+                toName: line.to_name,
+                amount: line.amount,
+                symbol: line.symbol,
+                logoUrls: line.logo_urls,
+                usdValue: line.usd_value,
+              }))
+            : null;
+      }
+      const treasuryKey = JSON.stringify(view.treasury_bootstrap);
+      if (treasuryKey !== p.treasuryKey) {
+        p.treasuryKey = treasuryKey;
+        const status = view.treasury_bootstrap;
+        p.treasuryBootstrap = status
+          ? {
+              chainId: status.chain_id,
+              address: status.address,
+              asset: status.asset === 'path_usd' ? 'pathUSD' : 'native',
+              balance: BigInt(status.balance || '0'),
+              floor: BigInt(status.floor || '0'),
+              bootstrapNeeded: status.bootstrap_needed,
+            }
+          : null;
+      }
+      const simKey = view.sim_json ?? '';
+      if (simKey !== p.simKey) {
+        p.simKey = simKey;
+        let sim: AssetSimResult | null = null;
+        try {
+          if (view.sim_json) sim = deserializeAssetSim(JSON.parse(view.sim_json));
+        } catch {
+          sim = null; // a corrupt blob renders nothing extra, never a crash
+        }
+        p.sim = sim;
+      }
 
-  // Step 1: Select Token — delegated to the shared TokenSelector.
-  // Multi-select is built-in now: filter to a specific network and the picker
-  // shows checkboxes (one token = amount-send, two+ = multiSelect). No mode toggle.
-  const tokenMultiSelect = {
-    selectedIds: multiSelect.selectedIds,
-    onToggle: multiSelect.toggle,
-    onToggleAll: multiSelect.toggleAll,
-    isAllSelected: multiSelect.isAllSelected,
-    onNetworkChange: multiSelect.onNetworkChange,
-    onConfirm: confirmSelection,
-    confirmLabel: multiSelect.count === 1
-      ? t('send.continueBtn')
-      : t('send.multiSendContinue', { n: multiSelect.count, chain: multiSelect.chainId != null ? chainName(multiSelect.chainId) : '' }),
-    selectAllLabel: t('send.selectAllValuable', { defaultValue: 'Select all valuable' }),
-  };
+      const issue = view.same_asset_fee_issue;
+      setSnapshot({
+        view,
+        tokens: p.tokens,
+        selectedToken: p.selectedToken,
+        pickedTokens: p.pickedTokens,
+        recipients: p.recipients,
+        multiSpecs: p.multiSpecs,
+        fee: resolveFee(view.fee),
+        sim: p.sim,
+        sameAssetFeeIssue: issue
+          ? {
+              symbol: issue.symbol,
+              transferAmount: BigInt(issue.transfer_amount || '0'),
+              balance: BigInt(issue.balance || '0'),
+              feeAmount: BigInt(issue.fee_amount || '0'),
+              maxTransferAmount: BigInt(issue.max_transfer_amount || '0'),
+            }
+          : null,
+        receiptTransfers: p.receiptTransfers,
+        treasuryBootstrap: p.treasuryBootstrap,
+      });
+    },
+    [resolveToken],
+  );
+
+  const ensure = useCallback((): SendSession => {
+    const p = projector.current;
+    if (p.session) return p.session;
+    // The `tx_tracker` seam, installed here because this is where the receipt
+    // outcome has somewhere to go. It REPLACES the executor's own
+    // `waitForReceipt` fallback wholesale: the tracker owns the poll (sharing
+    // the one 3s-throttled `eth_getUserOperationReceipt` per hash with every
+    // other watcher), the record patch and the 24h abandon line, and hands back
+    // only the three verdicts `ReceiptUpdate` accepts — never a timeout.
+    // `handoff.submitted` is deliberately dropped: awaiting the bundler's own
+    // promise here would be a second, unthrottled poller for the same hash.
+    setSendTrackerSink((handoff) => {
+      trackSubmitted(handoff.userOpHash, handoff.recordIds, handoff.chainId, (outcome) => {
+        projector.current.session?.dispatch({
+          type: 'receipt_update',
+          user_op_hash: handoff.userOpHash,
+          outcome,
+        });
+      });
+    });
+    p.session = createSendSession({
+      onView: commit,
+      onError: (error) => console.error('[send] core fault:', error),
+      ports: {
+        tokensFetched: (tokens) => {
+          // Keep the originals so the picker renders the API's name/logo, and
+          // so a row's object identity survives every unrelated view change.
+          projector.current.index = indexTokens(tokens);
+        },
+        tokensPartial: (tokens) => {
+          projector.current.session?.dispatch({ type: 'tokens_partial', tokens });
+        },
+        credentialId: (forAddress) => {
+          const account = live.current.activeAccount;
+          // Fail closed: never sign with a credential that belongs to another
+          // account than the one the core built this batch for.
+          if (!account || account.address.toLowerCase() !== forAddress.toLowerCase()) return null;
+          return account.id;
+        },
+        credentialLoaded: (loaded) => {
+          if (loaded) setPublicKeyHex(loaded);
+        },
+        signingStarted: () => {
+          projector.current.session?.dispatch({ type: 'signing_started' });
+        },
+        receiptUpdate: (userOpHash, outcome) => {
+          projector.current.session?.dispatch({
+            type: 'receipt_update',
+            user_op_hash: userOpHash,
+            outcome,
+          });
+        },
+        alert,
+        close: () => live.current.router.back(),
+        feeQuote: async (request) => {
+          const outcome = await live.current.requestQuote(request);
+          switch (outcome.kind) {
+            case 'ok':
+              // Remember what the port answered with, so the forwarding effect
+              // below does not hand the core the same estimate a second time
+              // and re-run the confirm probes it already ran.
+              portAnswered.current = feeKey(outcome.estimate);
+              return { type: 'ok', estimate: outcome.estimate };
+            case 'failed':
+              // `FeeFailure` and `SendEstimateFailure` share their five
+              // variants by construction — the send vocabulary is the fee
+              // vocabulary plus a timeout. No mapping, no lossy `other`.
+              return { type: 'failed', kind: outcome.failure };
+            case 'context_unavailable':
+            case 'abandoned':
+              // No quote was produced. The core drops an answer whose pipeline
+              // has moved on, and refuses to advance to confirm on one that
+              // has not (invariant ②) — either way it never fabricates a
+              // preview, which is what a wrong `ok` here would make it do.
+              return { type: 'failed', kind: 'estimate_failed' };
+          }
+        },
+      },
+    });
+    return p.session;
+  }, [alert, commit]);
+
+  const dispatch = useCallback(
+    (event: SendEvent) => {
+      ensure().dispatch(event);
+    },
+    [ensure],
+  );
+
+  // `Open` carries everything the controller used to read from its hooks. The
+  // dependency list is `useSendController.ts:309`'s, plus the locked-request
+  // params, which the TS effect re-read implicitly through `lockRetry`.
+  const openKey = [
+    address,
+    params.preselectedSymbol ?? '',
+    params.preselectedNetwork ?? '',
+    params.preselectedMulti ?? '',
+    params.prefilledRecipient ?? '',
+    params.prefilledChainId ?? '',
+    params.prefilledTokenAddress ?? '',
+    params.prefilledAmountBase ?? '',
+    params.locked ?? '',
+    activeAccount?.id ?? '',
+  ].join('|');
+
+  useEffect(() => {
+    const session = ensure();
+    const p = projector.current;
+    const account = live.current.activeAccount;
+    const event: SendEvent = {
+      type: 'open',
+      account: account
+        ? { id: account.id, address: account.address, name: account.name ?? null }
+        : null,
+      params: {
+        preselected_symbol: params.preselectedSymbol ?? null,
+        preselected_network: params.preselectedNetwork ?? null,
+        prefilled_recipient: params.prefilledRecipient ?? null,
+        prefilled_chain_id: params.prefilledChainId ?? null,
+        prefilled_token_address: params.prefilledTokenAddress ?? null,
+        prefilled_amount_base: params.prefilledAmountBase ?? null,
+        locked: params.locked === '1',
+        preselected_multi: params.preselectedMulti ?? null,
+      },
+      display: { code: dc.code, rate: dc.rate, fiat_decimals: fiatDecimals },
+    };
+    if (!p.started) {
+      p.started = true;
+      p.openKey = openKey;
+      session.start(event);
+    } else if (p.openKey !== openKey) {
+      p.openKey = openKey;
+      session.dispatch(event);
+    }
+    // `dc` is deliberately absent: a currency change is `DisplayChanged`, not a
+    // remount — re-opening would throw away the amount the user is typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openKey, ensure]);
+
+  useEffect(
+    () => () => {
+      const p = projector.current;
+      p.session?.dispose();
+      p.session = null;
+      p.started = false;
+      p.openKey = null;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const p = projector.current;
+    if (!p.started) return;
+    p.session?.dispatch({
+      type: 'display_changed',
+      display: { code: dc.code, rate: dc.rate, fiat_decimals: fiatDecimals },
+    });
+  }, [dc.code, dc.rate, fiatDecimals]);
+
+  const view = snapshot.view;
+  const selectedToken = snapshot.selectedToken;
+  const selectedChainId = view.selected_token?.chain_id ?? null;
+
+  // Cache warming is the shell's job (the core says so): the user spends
+  // seconds on recipient + amount, which is plenty for these to land.
+  useEffect(() => {
+    if (!address || selectedChainId == null) return;
+    prefetchForSend(address, selectedChainId);
+  }, [address, selectedChainId]);
+
+  // ── intents ───────────────────────────────────────────────────────────────
+  const handleSelectToken = useCallback(
+    (token: APIToken) => dispatch({ type: 'select_token', token_id: tokenId(token) }),
+    [dispatch],
+  );
+
+  const changeToken = useCallback(() => {
+    const keep = snapshot.view.recipient;
+    dispatch({ type: 'back' });
+    // `Back` clears the recipient; the hero row never did (see the header note).
+    if (keep) dispatch({ type: 'set_recipient', recipient: keep });
+  }, [dispatch, snapshot.view.recipient]);
+
+  const handleEditAmount = useCallback(() => {
+    dispatch({ type: 'edit_amount' });
+    // The field is mounted only after the step update; the small defer is what
+    // makes the recovery feel direct (`useSendController.ts:857`).
+    setTimeout(() => amountInputRef.current?.focus(), 100);
+  }, [dispatch]);
+
+  const handleScan = useCallback(
+    (data: string) => {
+      const request = parseEIP681(data);
+      dispatch({
+        type: 'scan_resolved',
+        scan: request
+          ? {
+              type: 'request',
+              recipient: request.recipient,
+              chain_id: request.chainId ?? null,
+              token_address: request.tokenAddress ?? null,
+              amount_base_units: request.amountBaseUnits?.toString() ?? null,
+            }
+          : { type: 'text', data },
+      });
+    },
+    [dispatch],
+  );
+
+  const onFeeUpdate = useCallback(
+    (estimate: TransactionFeeEstimate) =>
+      dispatch({ type: 'fee_updated', estimate: rememberFee(estimate) }),
+    [dispatch],
+  );
+
+  // ── the fee session → the send core ───────────────────────────────────────
+  // One direction only. The fee machine decides; the send machine is told. What
+  // it is told is exactly what the card is rendering, because both read the
+  // same view.
+  //
+  // A quote the `feeQuote` port already answered with is NOT re-sent: the core
+  // has it, and `FeeUpdated` re-runs the confirm probes, so a duplicate would
+  // re-simulate on every settle. Only the card's own changes — a chip switch,
+  // a refresh, a TTL requote — arrive this way.
+  const feeView = fee.view;
+  const feePending = fee.pending;
+  const feeAsked = fee.asked;
+  useEffect(() => {
+    const settled = feeView.fee;
+    if (!settled) return;
+    const key = feeKey(settled);
+    if (key === portAnswered.current || key === lastForwarded.current) return;
+    lastForwarded.current = key;
+    dispatch({ type: 'fee_updated', estimate: settled });
+  }, [feeView.fee, dispatch]);
+
+  // The asset the quote is denominated in, and whether one is being produced.
+  // Both are read off the same view as the amount, so `submit_user_op` can
+  // never be handed a token from one quote and an amount from another. Guarded
+  // on `asked` so a screen that never priced anything does not build a send
+  // session just to tell it nothing changed.
+  useEffect(() => {
+    if (!feeAsked) return;
+    dispatch({ type: 'choose_fee_token', token: feeView.fee_token });
+  }, [feeAsked, feeView.fee_token, dispatch]);
+  useEffect(() => {
+    if (!feeAsked) return;
+    // DERIVED, never latched: every transition of the machine's own busy flag
+    // dispatches, including back to false, so a superseded or abandoned run
+    // cannot leave the confirm slide permanently disabled.
+    dispatch({ type: 'fee_busy_changed', busy: feeView.busy || feePending });
+  }, [feeAsked, feeView.busy, feePending, dispatch]);
+
+  // ── the send flow → the fee session ───────────────────────────────────────
+  // The two facts `fee_policy` cannot observe for itself.
+  //
+  // Leaving confirm drops the fee-asset choice and any stale ERC-20 estimate
+  // (invariant ⑥) — without it, the reserve math downstream would read the
+  // `totalWei = 0` an ERC-20 quote carries as "gas is free".
+  // Both fire on the TRANSITION only, never on the current value. Both events
+  // bump the machine's attempt counter and abandon whatever is in flight, so a
+  // "still not on confirm" or "still this chain" re-dispatch would cancel the
+  // very quote it was reacting to — the Max and warm-up estimates run while the
+  // screen sits on `enter_details`, and the first `QuoteRequested` lands
+  // one render before either of these effects first sees a value.
+  const { leaveConfirm: feeLeaveConfirm, chainChanged: feeChainChanged } = fee;
+  const stage = view.stage;
+  const previousStage = useRef<typeof stage | null>(null);
+  useEffect(() => {
+    const was = previousStage.current;
+    previousStage.current = stage;
+    if (was === 'confirm' && stage !== 'confirm') feeLeaveConfirm();
+  }, [stage, feeLeaveConfirm]);
+
+  // A quote belongs to the network it was calculated on (invariant ①). The core
+  // hides it behind its own chain guard rather than deleting it, which is what
+  // makes a late old-chain answer harmless instead of poisonous.
+  const previousChainId = useRef<number | null>(null);
+  useEffect(() => {
+    const was = previousChainId.current;
+    previousChainId.current = selectedChainId;
+    if (was !== null && selectedChainId !== null && was !== selectedChainId) {
+      feeChainChanged(selectedChainId);
+    }
+  }, [selectedChainId, feeChainChanged]);
+
+  const saveReceiptContact = useCallback(() => {
+    const name = view.recipient_identity?.name ?? undefined;
+    saveContactThroughCore({ address: view.recipient, name, resolvedName: name });
+  }, [view.recipient, view.recipient_identity]);
+
+  // ── multi-select wiring ───────────────────────────────────────────────────
+  const selectedIds = useMemo(
+    () => new Set(view.multi_selected_ids),
+    [view.multi_selected_ids],
+  );
+
+  // Which held assets the core would sweep. The shell only ever INTERSECTS
+  // this with the rows on screen; it never re-decides membership.
+  const valuableIds = useMemo(
+    () => new Set(view.multi_valuable_ids),
+    [view.multi_valuable_ids],
+  );
+
+  const tokenMultiSelect = useMemo<SendTokenMultiSelect>(
+    () => ({
+      selectedIds,
+      onToggle: (token) => dispatch({ type: 'toggle_multi_token', token_id: tokenId(token) }),
+      // The shell names the SCOPE — the rows the picker is showing — and the
+      // core decides the rest. It used to run `selectAllValuable` here, a
+      // second copy of `is_valuable` deciding which assets get swept.
+      onToggleAll: (visible) =>
+        dispatch({ type: 'toggle_all_multi_tokens', visible_ids: visible.map(tokenId) }),
+      // The master tick: the same intersection the event applies, so the
+      // checkbox can never claim a state the tap would not produce.
+      isAllSelected: (visible) => {
+        const valuable = visible.filter((token) => valuableIds.has(tokenId(token)));
+        return valuable.length > 0 && valuable.every((token) => selectedIds.has(tokenId(token)));
+      },
+      onNetworkChange: (chainId) => dispatch({ type: 'set_multi_network', chain_id: chainId }),
+      onConfirm: () => dispatch({ type: 'confirm_multi_selection' }),
+      confirmLabel:
+        selectedIds.size === 1
+          ? t('send.continueBtn')
+          : t('send.multiSendContinue', {
+              n: selectedIds.size,
+              chain: view.multi_chain_id != null ? chainName(view.multi_chain_id) : '',
+            }),
+      selectAllLabel: t('send.selectAllValuable', { defaultValue: 'Select all valuable' }),
+    }),
+    [dispatch, selectedIds, valuableIds, t, view.multi_chain_id],
+  );
+
+  // ── worded projections ────────────────────────────────────────────────────
+  const amountWarning = useMemo(
+    () => (view.amount_warning ? wordWarning(t, view.amount_warning) : null),
+    [view.amount_warning, t],
+  );
+
+  const addNetworkMsg = useMemo(() => {
+    const message = view.add_network_msg;
+    if (!message) return null;
+    if (message.type === 'net_not_found') return t('send.lock.netNotFound');
+    if (message.type === 'net_not_compatible') {
+      return message.detail || t('send.lock.netNotCompatible');
+    }
+    return t('send.lock.netAddError');
+  }, [view.add_network_msg, t]);
+
+  const txError = useMemo(() => {
+    if (!view.tx_error) return null;
+    return view.tx_error === 'bundler_fund'
+      ? t('send.txErrorBundlerFund')
+      : t('send.txErrorGeneric');
+  }, [view.tx_error, t]);
+
+  const lockError = useMemo<SendLockError>(() => {
+    const error = view.lock_error;
+    if (!error) return null;
+    return error.type === 'network' ? { kind: 'network', chainId: error.chain_id } : { kind: 'token' };
+  }, [view.lock_error]);
+
+  const multiTokenSpecs = useCallback(() => snapshot.multiSpecs, [snapshot.multiSpecs]);
 
   return {
     t,
     router,
-    params,
-    locked,
-    amountLocked,
+    locked: view.locked,
+    amountLocked: view.amount_locked,
+    prefilledRecipient: params.prefilledRecipient,
     activeAccount,
     state,
     address,
     dc,
-    formatUsd,
-    hasPreselection,
-    step,
-    setStep,
-    stepRef,
+    formatUsd: dc.fmt,
+
+    step: STEP_OF[view.stage],
     lockError,
-    setLockError,
-    lockRetry,
-    setLockRetry,
-    resolvingLock,
-    setResolvingLock,
-    addingNetwork,
-    setAddingNetwork,
+    resolvingLock: view.resolving_lock,
+    addingNetwork: view.adding_network,
     addNetworkMsg,
-    setAddNetworkMsg,
-    tokens,
-    setTokens,
-    loading,
-    setLoading,
+
+    tokens: snapshot.tokens,
+    loading: view.loading,
     selectedToken,
-    setSelectedToken,
-    recipient,
-    setRecipient,
-    amount,
-    setAmount,
-    splitMode,
-    setSplitMode,
-    recipients,
-    setRecipients,
-    pickerTarget,
-    setPickerTarget,
-    multiSelectMode,
-    setMultiSelectMode,
-    multiSelect,
-    sending,
-    setSending,
-    showScanner,
-    setShowScanner,
+    pickedTokens: snapshot.pickedTokens,
+    tokenMultiSelect,
+    multiSelectChainId: view.multi_chain_id,
+    multiSelectMode: view.multi_select_mode,
+
+    recipient: view.recipient,
+    amount: view.amount,
+    inputInUsd: view.amount_fiat_code !== null,
+    // The unit the core says the figure is counted in. The screen renders this
+    // and never re-derives it from `dc.code`.
+    amountFiatCode: view.amount_fiat_code,
+    denomToggleShown: view.denom_toggle_shown,
+    denomToggleEnabled: view.denom_toggle_enabled,
+    // The core decides WHEN each refusal applies and names the pair; the shell
+    // only owns the words. Twins of `useSendController.ts`.
+    denomToggleReason: view.denom_toggle_reason
+      ? t('send.denomToggleNoRate', {
+          code: view.denom_toggle_reason.code,
+          symbol: view.denom_toggle_reason.symbol,
+        })
+      : null,
+    confirmAmountIssue: view.confirm_amount_issue
+      ? t('send.warnCannotConvert', {
+          code: view.confirm_amount_issue.code,
+          symbol: view.confirm_amount_issue.symbol,
+        })
+      : null,
+    // The core's own resolution — the confirm page shows the string the signed
+    // batch is built from, never a second conversion of its own.
+    tokenAmount: view.token_amount,
+    // The split total is the core's too — the same `sum_split_base_units` the
+    // over-balance gate, the same-asset ceiling and `build_split_calls` read.
+    confirmAmount: view.confirm_amount,
+    splitMode: view.split_mode,
+    recipients: snapshot.recipients,
+    splitOverBalance: view.split_over_balance,
+    pickerTarget: view.picker_target,
+    amountWarning,
+    amountInputRef,
     copiedContract,
     setCopiedContract,
-    feeEstimate: selectedFeeEstimate,
-    setFeeEstimate,
-    estimatingGas,
-    setEstimatingGas,
-    sendLock,
-    sendCancelledRef,
-    mountedRef,
-    txStatus,
-    setTxStatus,
-    txHash,
-    setTxHash,
-    userOpHash,
-    setUserOpHash,
-    txError,
-    setTxError,
-    receiptTransfers,
-    setReceiptTransfers,
-    receiptKind,
-    setReceiptKind,
-    receiptFailed,
-    setReceiptFailed,
-    feeHeld,
-    feeRejected,
-    inputInUsd,
-    amountFiatCode,
-    denomToggleShown,
-    denomToggleEnabled,
-    denomToggleReason,
-    gasFeeToken,
-    setGasFeeToken,
-    treasuryBootstrap,
-    setTreasuryBootstrap,
-    feeBusy,
-    setFeeBusy,
-    showContactPicker,
-    setShowContactPicker,
-    showBatchImport,
-    setShowBatchImport,
-    amountWarning,
-    setAmountWarning,
-    recipientIdentity,
-    setRecipientIdentity,
-    recipientRisk,
-    setRecipientRisk,
-    sim,
-    setSim,
-    amountInputRef,
-    prefetchedAccount,
-    webauthnModuleRef,
-    resolveLockedRequest,
-    handleAddNetwork,
-    refreshTokens,
-    maybeShowTreasuryBootstrap,
-    enterSplitMode,
-    seedSplitRecipients,
-    handleRecipientsChange,
-    applyPickedAddress,
-    pickedTokens,
+    canContinue: view.can_continue,
+    canConfirm: view.can_confirm,
+
+    feeEstimate: snapshot.fee,
+    estimatingGas: view.estimating_gas,
+    feeBusy: view.fee_busy,
+    gasFeeToken: view.gas_fee_token,
+    publicKeyHex,
+    // The card renders the fee machine's view directly. `feeEstimate` above
+    // stays for the screen's own reads (the reserve warning, the receipt) and
+    // is the SAME quote — it reached the core through the port this session
+    // answered.
+    feeCard: fee,
+    sameAssetFeeIssue: snapshot.sameAssetFeeIssue,
     multiTokenSpecs,
-    sameAssetFeeIssue,
-    confirmSelection,
+    sending: view.sending,
+    txStatus: view.tx_status,
+    txError,
+    recipientIdentity: view.recipient_identity?.name
+      ? { name: view.recipient_identity.name, source: view.recipient_identity.source ?? '' }
+      : null,
+    recipientRisk: view.recipient_risk
+      ? {
+          isContract: view.recipient_risk.is_contract,
+          firstInteraction: view.recipient_risk.first_time ?? false,
+        }
+      : null,
+    sim: snapshot.sim,
+    treasuryBootstrap: snapshot.treasuryBootstrap,
+
+    txHash: view.tx_hash,
+    userOpHash: view.user_op_hash,
+    receiptTransfers: snapshot.receiptTransfers,
+    receiptKind: view.receipt?.kind
+      ? view.receipt.kind === 'multi_select'
+        ? 'multiSelect'
+        : 'split'
+      : null,
+    receiptFailed: view.receipt?.status === 'failed',
+    feeHeld: view.receipt?.hold_reason === 'fee_hold',
+    feeRejected: view.receipt?.hold_reason === 'fee_rejected',
+    receiptAmount: view.receipt?.amount ?? '',
+    receiptUsdValue: view.receipt?.usd_value ?? 0,
+
+    showScanner: view.show_scanner,
+    showContactPicker: view.show_contact_picker,
+    showBatchImport: view.show_batch_import,
+
+    setRecipient: (recipient) => dispatch({ type: 'set_recipient', recipient }),
+    setAmount: (amount) => dispatch({ type: 'set_amount', amount }),
+    toggleFiatInput: () => dispatch({ type: 'toggle_fiat_input' }),
+    handleMaxAmount: () => dispatch({ type: 'tap_max' }),
+    enterSplitMode: () => dispatch({ type: 'enter_split_mode' }),
+    seedSplitRecipients: (rows) =>
+      dispatch({ type: 'seed_split_recipients', recipients: rows.map(toWireDraft) }),
+    handleRecipientsChange: (rows) =>
+      dispatch({ type: 'recipients_changed', recipients: rows.map(toWireDraft) }),
+    applyPickedAddress: (picked) => dispatch({ type: 'picked_address', address: picked }),
     handleSelectToken,
-    handleContinue,
-    handleMaxAmount,
-    handleEditAmount,
-    handleConfirm,
-    executeTransaction,
-    handleBack,
-    tokenMultiSelect,
-    // The shared controller contract (spec 017 G12) — see the block above.
-    prefilledRecipient: params.prefilledRecipient,
-    multiSelectChainId: multiSelect.chainId,
-    publicKeyHex: prefetchedAccount.current?.publicKeyHex,
-    canContinue,
-    canConfirm,
-    confirmAmountIssue,
-    tokenAmount,
-    confirmAmount,
-    splitOverBalance,
-    receiptAmount,
-    receiptUsdValue,
-    toggleFiatInput,
     changeToken,
-    openScanner,
-    closeScanner,
+    handleBack: () => dispatch({ type: 'back' }),
+    handleContinue: () => dispatch({ type: 'continue' }),
+    handleEditAmount,
+    handleConfirm: () => dispatch({ type: 'slide_confirm' }),
+    cancelSigning: () => dispatch({ type: 'cancel_signing' }),
+    retryAfterError: () => dispatch({ type: 'retry_after_error' }),
+    handleAddNetwork: (chainId) => dispatch({ type: 'add_network_tapped', chain_id: chainId }),
+    refreshTokens: () => dispatch({ type: 'refresh_tokens' }),
+    openScanner: () => dispatch({ type: 'open_scanner' }),
+    closeScanner: () => dispatch({ type: 'close_scanner' }),
     handleScan,
-    openContactPicker,
-    closeContactPicker,
-    openBatchImport,
-    closeBatchImport,
-    cancelSigning,
-    retryAfterError,
-    onFeeTokenChange,
+    openContactPicker: (target) => dispatch({ type: 'open_contact_picker', target }),
+    closeContactPicker: () => dispatch({ type: 'close_contact_picker' }),
+    openBatchImport: () => dispatch({ type: 'open_batch_import' }),
+    closeBatchImport: () => dispatch({ type: 'close_batch_import' }),
+    onFeeTokenChange: (token) => dispatch({ type: 'choose_fee_token', token }),
     onFeeUpdate,
-    onFeeBusyChange,
-    dismissTreasurySheet,
-    retryAfterBootstrap,
-    handleDone,
+    onFeeBusyChange: (busy) => dispatch({ type: 'fee_busy_changed', busy }),
+    dismissTreasurySheet: () => dispatch({ type: 'dismiss_treasury_sheet' }),
+    retryAfterBootstrap: () => dispatch({ type: 'retry_after_bootstrap' }),
+    handleDone: () => dispatch({ type: 'done' }),
     saveReceiptContact,
   };
 }
 
-/**
- * The native controller's own return type, constrained to the shared contract:
- * dropping a field the screens read now fails THIS file's build instead of
- * silently handing `undefined` to a step component (spec 017 G12).
- */
-export type SendController = ExtendsSendController<ReturnType<typeof useSendController>>;
+export type { SendController } from './send-controller-types';

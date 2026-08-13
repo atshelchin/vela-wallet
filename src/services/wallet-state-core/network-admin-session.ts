@@ -1,27 +1,41 @@
 /**
- * `network_admin` core session — NATIVE entry point, and deliberately
- * unavailable.
+ * Constructs the `network_admin` core and wires it to the web shell — WEB entry
+ * (spec 017, `rust/crates/vela-core/src/app/network_admin.rs`).
  *
- * React Native runs on Hermes, which has no WebAssembly. iOS and Android keep
- * the TypeScript controllers (`use-network-admin.ts`, `services/add-network.ts`,
- * `services/network-checker.ts`) and never import this module at runtime.
+ * Importing `@/services/vela-core` first is load-bearing: its web entry runs
+ * `initSync` on the base64-embedded module at import time, so the wasm is
+ * initialised before the core is constructed here.
  *
- * It exists so the platform pair resolves: `tsc` has no `moduleSuffixes`
- * configured, so it type-checks `.web.ts` files but resolves *their* imports to
- * the base `.ts` variant. Same shape as `browser-history-session.ts`.
+ * `network-admin-session.ts` is the native counterpart and throws.
  */
 
+import '@/services/vela-core';
+import { NetworkAdminCore } from '../../../rust/pkg-web/vela_core.js';
+
+import { createJsonWasmShell } from '@/services/crux/json-wasm-shell';
 import type { EffectLoop } from '@/services/crux/effect-loop';
+
+import {
+  executeNetworkAdminOperation,
+  networkAdminOperationFailure,
+} from './network-admin-executor';
 import type { NetEvent } from './generated/NetEvent';
-import type { NetworkAdminSessionOptions } from './network-admin-types';
+import type { NetShellResult } from './generated/NetShellResult';
+import type { NetView } from './generated/NetView';
+import type { NetEffect, NetworkAdminSessionOptions } from './network-admin-types';
 
 export type NetworkAdminSession = EffectLoop<NetEvent>;
 
-const UNAVAILABLE =
-  'wallet-state-core is web-only: this runtime has no WebAssembly. Native uses the TypeScript controllers.';
-
 export function createNetworkAdminSession(
-  _options: NetworkAdminSessionOptions,
+  options: NetworkAdminSessionOptions,
 ): NetworkAdminSession {
-  throw new Error(UNAVAILABLE);
+  return createJsonWasmShell<NetView, NetEvent, NetEffect, NetShellResult>(
+    new NetworkAdminCore(),
+    {
+      onView: options.onView,
+      execute: executeNetworkAdminOperation,
+      toFailure: networkAdminOperationFailure,
+      onError: options.onError,
+    },
+  );
 }

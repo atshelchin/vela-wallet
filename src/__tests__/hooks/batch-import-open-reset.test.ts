@@ -35,7 +35,7 @@ jest.mock('@/services/currency', () => ({
 
 // Initialise the wasm module before the session constructs a core from it.
 import '@/services/vela-core';
-import { createBatchImportSession } from '@/services/wallet-state-core/batch-import-session.web';
+import { createBatchImportSession } from '@/services/wallet-state-core/batch-import-session';
 import type { BatchToken } from '@/services/wallet-state-core/generated/BatchToken';
 import type { BatchView } from '@/services/wallet-state-core/generated/BatchView';
 

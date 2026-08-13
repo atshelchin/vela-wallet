@@ -1,25 +1,48 @@
 /**
- * Wallet-state core sessions — NATIVE entry point, and deliberately
- * unavailable.
+ * Constructs wallet-state cores and wires them to the web shell — WEB entry.
  *
- * React Native runs on Hermes, which has no WebAssembly, so the wallet-state
- * machines cannot execute on iOS or Android. The mobile app keeps its
- * TypeScript implementations (`use-display-currency.ts`,
- * `use-receive-watch.ts`, `use-receive-request.ts`, `use-pay-request.ts`) and
- * never imports this module at runtime.
+ * Importing `@/services/vela-core` first is load-bearing: its web entry runs
+ * `initSync` on the base64-embedded module at import time, so the wasm is
+ * initialised before any core is constructed here. (Metro resolves that
+ * facade to `index.web.ts` in this bundle.)
  *
- * It exists so the platform pair resolves: `tsc` has no `moduleSuffixes`
- * configured, so it type-checks `.web.ts` files but resolves *their* imports
- * to the base `.ts` variant. Same shape as `onboarding-core/session.ts`.
+ * `session.ts` is the native counterpart and throws: Hermes has no
+ * WebAssembly, so the mobile app keeps its TypeScript controllers.
  */
 
+import '@/services/vela-core';
+import {
+  DisplayCurrencyCore,
+  PaymentRequestCore,
+  ReceiveWatchCore,
+} from '../../../rust/pkg-web/vela_core.js';
+
+import { createJsonWasmShell } from '@/services/crux/json-wasm-shell';
 import type { EffectLoop } from '@/services/crux/effect-loop';
+
+import {
+  createReceiveWatchExecutor,
+  currencyOperationFailure,
+  executeCurrencyOperation,
+  executePaymentRequestOperation,
+  paymentRequestOperationFailure,
+  receiveWatchOperationFailure,
+} from './executors';
 import type { CurrencyEvent } from './generated/CurrencyEvent';
+import type { CurrencyShellResult } from './generated/CurrencyShellResult';
+import type { CurrencyView } from './generated/CurrencyView';
 import type { PaymentRequestEvent } from './generated/PaymentRequestEvent';
+import type { PaymentRequestShellResult } from './generated/PaymentRequestShellResult';
+import type { PaymentRequestView } from './generated/PaymentRequestView';
 import type { ReceiveWatchEvent } from './generated/ReceiveWatchEvent';
+import type { ReceiveWatchShellResult } from './generated/ReceiveWatchShellResult';
+import type { ReceiveWatchView } from './generated/ReceiveWatchView';
 import type {
+  CurrencyEffect,
   CurrencySessionOptions,
+  PaymentRequestEffect,
   PaymentRequestSessionOptions,
+  ReceiveWatchEffect,
   ReceiveWatchSessionOptions,
 } from './types';
 
@@ -27,21 +50,46 @@ export type CurrencySession = EffectLoop<CurrencyEvent>;
 export type ReceiveWatchSession = EffectLoop<ReceiveWatchEvent>;
 export type PaymentRequestSession = EffectLoop<PaymentRequestEvent>;
 
-const UNAVAILABLE =
-  'wallet-state-core is web-only: this runtime has no WebAssembly. Native uses the TypeScript controllers.';
-
-export function createDisplayCurrencySession(_options: CurrencySessionOptions): CurrencySession {
-  throw new Error(UNAVAILABLE);
+export function createDisplayCurrencySession(options: CurrencySessionOptions): CurrencySession {
+  return createJsonWasmShell<CurrencyView, CurrencyEvent, CurrencyEffect, CurrencyShellResult>(
+    new DisplayCurrencyCore(),
+    {
+      onView: options.onView,
+      execute: executeCurrencyOperation,
+      toFailure: currencyOperationFailure,
+      onError: options.onError,
+    },
+  );
 }
 
 export function createReceiveWatchSession(
-  _options: ReceiveWatchSessionOptions,
+  options: ReceiveWatchSessionOptions,
 ): ReceiveWatchSession {
-  throw new Error(UNAVAILABLE);
+  return createJsonWasmShell<
+    ReceiveWatchView,
+    ReceiveWatchEvent,
+    ReceiveWatchEffect,
+    ReceiveWatchShellResult
+  >(new ReceiveWatchCore(), {
+    onView: options.onView,
+    execute: createReceiveWatchExecutor(options.address),
+    toFailure: receiveWatchOperationFailure,
+    onError: options.onError,
+  });
 }
 
 export function createPaymentRequestSession(
-  _options: PaymentRequestSessionOptions,
+  options: PaymentRequestSessionOptions,
 ): PaymentRequestSession {
-  throw new Error(UNAVAILABLE);
+  return createJsonWasmShell<
+    PaymentRequestView,
+    PaymentRequestEvent,
+    PaymentRequestEffect,
+    PaymentRequestShellResult
+  >(new PaymentRequestCore(), {
+    onView: options.onView,
+    execute: executePaymentRequestOperation,
+    toFailure: paymentRequestOperationFailure,
+    onError: options.onError,
+  });
 }

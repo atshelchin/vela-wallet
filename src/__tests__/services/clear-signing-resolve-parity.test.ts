@@ -38,7 +38,7 @@ import {
   resolveTransaction,
   type ClearSignResult,
 } from '@/services/clear-signing';
-import { createClearSigningSession } from '@/services/wallet-state-core/clear-session.web';
+import { createClearSigningSession } from '@/services/wallet-state-core/clear-session';
 import { toShellResult } from '@/services/wallet-state-core/clear-types';
 import type { ClearSigningView } from '@/services/wallet-state-core/generated/ClearSigningView';
 

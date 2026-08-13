@@ -53,7 +53,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // path first runs `initSync` on the planted bytes.
 import '@/services/vela-core';
 import { classifyConnectEntry as classifyOnNative, type ConnectEntry } from '@/services/connect-entry';
-import { classifyConnectEntry as classifyInCore } from '@/services/connect-entry.web';
+import { classifyConnectEntry as classifyInCore } from '@/services/connect-entry';
 
 const RI_PATH = 'https://relay.example.com/s/sess123?n=NONCE&k=SECRET';
 const RI_QUERY = 'https://relay.example.com/bridge?session=abc&n=N1&k=K1';

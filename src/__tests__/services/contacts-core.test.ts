@@ -40,7 +40,7 @@ jest.mock('@/services/rpc-pool', () => ({
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
 import '@/services/vela-core';
-import { createContactsSession } from '@/services/wallet-state-core/contacts-session.web';
+import { createContactsSession } from '@/services/wallet-state-core/contacts-session';
 import type { ContactsView } from '@/services/wallet-state-core/generated/ContactsView';
 
 const CONTACTS_KEY = 'vela.contacts';

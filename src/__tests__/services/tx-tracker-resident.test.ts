@@ -34,15 +34,15 @@ jest.mock('@/services/rpc-adapter', () => ({
 // The two hand-offs. Doubled so this test asserts the resident's wiring without
 // booting `activity_feed`, `token_trust` or `sign_request`.
 const feedReconciled = jest.fn();
-jest.mock('@/services/wallet-state-core/feed-resident.web', () => ({
+jest.mock('@/services/wallet-state-core/feed-resident', () => ({
   notifyFeedReconciled: (count: number) => feedReconciled(count),
 }));
 const receiptLogsConfirmed = jest.fn();
-jest.mock('@/services/wallet-state-core/token-trust-resident.web', () => ({
+jest.mock('@/services/wallet-state-core/token-trust-resident', () => ({
   notifyReceiptLogsConfirmed: (...args: unknown[]) => receiptLogsConfirmed(...(args as [])),
 }));
 const signSink = jest.fn();
-jest.mock('@/services/wallet-state-core/sign-resident.web', () => ({
+jest.mock('@/services/wallet-state-core/sign-resident', () => ({
   setSignTrackerSink: (sink: unknown) => signSink(sink),
 }));
 
@@ -53,7 +53,7 @@ import {
   trackSubmitted,
   txTrackerView,
   unwatchTxTracker,
-} from '@/services/wallet-state-core/tx-tracker-resident.web';
+} from '@/services/wallet-state-core/tx-tracker-resident';
 import type { SendReceiptOutcome } from '@/services/wallet-state-core/generated/SendReceiptOutcome';
 
 const CHAIN = 56;

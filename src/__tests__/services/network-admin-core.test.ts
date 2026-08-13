@@ -37,8 +37,8 @@ jest.mock('@/services/bundler-service', () => ({
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
 import '@/services/vela-core';
-import { addCustomNetworkByChainId } from '@/services/add-network.web';
-import { createNetworkAdminSession } from '@/services/wallet-state-core/network-admin-session.web';
+import { addCustomNetworkByChainId } from '@/services/add-network';
+import { createNetworkAdminSession } from '@/services/wallet-state-core/network-admin-session';
 import type { NetView } from '@/services/wallet-state-core/generated/NetView';
 
 const CUSTOM_KEY = 'vela.customNetworks';

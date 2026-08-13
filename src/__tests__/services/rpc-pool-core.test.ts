@@ -46,7 +46,7 @@ jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async ()
 // web that is the wasm-backed module, not the native stub that throws. This
 // redirects to the REAL web session — no double, no stub.
 jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session.web'),
+  require('@/services/wallet-state-core/rpc-pool-session'),
 );
 
 const mockFetch = jest.fn();
@@ -60,8 +60,8 @@ global.fetch = mockFetch as any;
 import '@/services/vela-core';
 
 import { collectRpcUrls, NEVER_BANNED, type RPCResponse } from '@/services/rpc-pool-endpoints';
-import { createRpcPoolSession } from '@/services/wallet-state-core/rpc-pool-session.web';
-import { readStoredBans } from '@/services/wallet-state-core/rpc-pool-executor.web';
+import { createRpcPoolSession } from '@/services/wallet-state-core/rpc-pool-session';
+import { readStoredBans } from '@/services/wallet-state-core/rpc-pool-executor';
 import type { RpcCallVerdict } from '@/services/wallet-state-core/generated/RpcCallVerdict';
 import type { RpcKind } from '@/services/wallet-state-core/generated/RpcKind';
 import type { RpcPoolView } from '@/services/wallet-state-core/generated/RpcPoolView';
@@ -386,7 +386,7 @@ describe('rpc-pool.web public surface', () => {
   // One module instance for the whole file (the session is a module-level
   // singleton by design), so these use distinct chains and never ban anything.
    
-  const pool = require('@/services/rpc-pool.web') as typeof import('@/services/rpc-pool.web');
+  const pool = require('@/services/rpc-pool') as typeof import('@/services/rpc-pool');
 
   test('a successful call resolves with the JSON body the chosen endpoint returned', async () => {
     mockFetch.mockResolvedValue(jsonResponse({ jsonrpc: '2.0', id: 1, result: '0xabc' }));

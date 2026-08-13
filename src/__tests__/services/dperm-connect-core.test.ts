@@ -35,8 +35,8 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 import '@/services/vela-core';
-import { planPopupConnect, popupCloseSettlement } from '@/services/wallet-state-core/dperm-connect.web';
-import { decidePopupRequest } from '@/services/wallet-state-core/dperm-popup.web';
+import { planPopupConnect, popupCloseSettlement } from '@/services/wallet-state-core/dperm-connect';
+import { decidePopupRequest } from '@/services/wallet-state-core/dperm-popup';
 import { dpermRejectMessage, toWireGrant } from '@/services/wallet-state-core/dperm-types';
 import type { PopupConnectQuestion } from '@/services/wallet-state-core/dperm-connect-types';
 import type { DAppGrant } from '@/services/dapp-permissions';

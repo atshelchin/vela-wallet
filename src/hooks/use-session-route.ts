@@ -1,16 +1,32 @@
 /**
- * The route guard's verdict — NATIVE, today's `src/app/index.tsx` verbatim.
+ * The route guard's verdict — WEB, read straight off the Rust `session`
+ * machine's view (spec 017, invariant ⑧: the core says what is ALLOWED, the
+ * shell decides when and how to navigate).
  *
- * Spinner while storage is unread, the wallet with a wallet, onboarding
- * without. On web (`use-session-route.web.ts`) the identical verdict comes out
- * of the Rust `session` machine's view instead of being re-derived here.
+ * Same three verdicts as native, from the same resident session the wallet
+ * context mirrors, so the guard and the wallet can never disagree about whether
+ * storage has been read.
  */
-import { useWallet } from '@/models/wallet-state';
+import { useEffect, useState } from 'react';
+
+import {
+  ensureWalletSession,
+  subscribeWalletSession,
+  walletSessionView,
+} from '@/services/wallet-state-core/session-resident';
+import type { SessionView } from '@/services/wallet-state-core/generated/SessionView';
 
 import type { SessionRouteName } from './session-controller-types';
 
 export function useSessionRoute(): SessionRouteName {
-  const { state } = useWallet();
-  if (state.isLoading) return 'loading';
-  return state.hasWallet ? 'wallet' : 'onboarding';
+  const [view, setView] = useState<SessionView>(walletSessionView);
+
+  useEffect(() => {
+    const unsubscribe = subscribeWalletSession(setView);
+    ensureWalletSession();
+    setView(walletSessionView());
+    return unsubscribe;
+  }, []);
+
+  return view.allowed_route;
 }

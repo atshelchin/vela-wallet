@@ -70,7 +70,7 @@ import { networkId } from '@/models/network';
 import { tokenId, type APIToken } from '@/models/types';
 // The REAL native predicate — the one `use-token-multi-select.ts` calls.
 import { selectAllValuable } from '@/services/batch-send';
-import { createSendSession } from '@/services/wallet-state-core/send-session.web';
+import { createSendSession } from '@/services/wallet-state-core/send-session';
 import type { SendEvent } from '@/services/wallet-state-core/generated/SendEvent';
 import type { SendView } from '@/services/wallet-state-core/generated/SendView';
 

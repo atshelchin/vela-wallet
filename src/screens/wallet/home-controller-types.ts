@@ -1,22 +1,18 @@
 /**
- * The shape the Home controller returns on every platform.
+ * The shape the Home controller returns.
  *
- * A standalone module for the same reason `browser-history-controller-types.ts`
- * is one: a platform pair (`useHomeController.ts` / `.web.ts`) must never import
- * its own base file — on web, Metro resolves that specifier back to the `.web.ts`
- * variant itself, and a self-referential re-export recurses at module init.
- *
- * The native controller keeps its own inline declarations (it is byte-frozen for
- * this wave — FR-202, native is untouched); this module carries the same shapes
- * plus the explicit `HomeController` contract, which the web twin declares as
- * its return type. That annotation is the only thing standing between a
- * forgotten field and a silent `undefined` in `HomeScreen`, since `tsc` resolves
- * the screen's import to the base variant and never compares the two.
+ * This module was split out to keep a platform PAIR
+ * (`useHomeController.ts` / `.web.ts`) from importing its own base file, which
+ * Metro resolves back to the `.web.ts` variant and recurses at module init.
+ * That pair is gone — there is one controller now — but the split still earns
+ * its keep for the second reason it always had: the explicit `HomeController`
+ * annotation on the controller's return type is what stands between a forgotten
+ * field and a silent `undefined` in `HomeScreen`.
  */
 
+import type { TFunction } from 'i18next';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { EdgeInsets } from 'react-native-safe-area-context';
-import type { useTranslation } from 'react-i18next';
 import type { useRouter } from 'expo-router';
 
 import type { DisplayCurrency } from '@/hooks/use-display-currency';
@@ -53,7 +49,18 @@ export type FeedRow =
 
 export interface HomeController {
   // identity / nav
-  t: ReturnType<typeof useTranslation>['t'];
+  /**
+   * Deliberately the concrete `TFunction` — the same call `send-controller-types.ts`
+   * documents. `ReturnType<typeof useTranslation>['t']` instantiates the generic
+   * hook with its parameters unresolved, and calling that with a literal key
+   * exceeds TypeScript's instantiation depth: `t('home.switchAccountTitle')` then
+   * widens to a detailed-result union that is not assignable to a `string` prop.
+   *
+   * It only started mattering when the native twin of this controller was
+   * deleted: that one had an INFERRED return type, so screens saw the concrete
+   * `t` and never met the generic form.
+   */
+  t: TFunction;
   router: ReturnType<typeof useRouter>;
   conn: ReturnType<typeof useDAppConnection>;
   state: WalletState;

@@ -72,7 +72,7 @@ const mockSession = {
   active: 0,
   switches: [] as number[],
 };
-jest.mock('@/services/wallet-state-core/session-resident.web', () => ({
+jest.mock('@/services/wallet-state-core/session-resident', () => ({
   dispatchWalletSession: (event: { type: string; index?: number }) => {
     if (event.type !== 'switch_account') return;
     const index = event.index ?? -1;
@@ -94,7 +94,7 @@ import {
   registerSignTransport,
   setSignAccounts,
   signRequestView,
-} from '@/services/wallet-state-core/sign-resident.web';
+} from '@/services/wallet-state-core/sign-resident';
 import type { DAppTransport } from '@/services/dapp-transport';
 import type { SignEvent } from '@/services/wallet-state-core/generated/SignEvent';
 

@@ -49,7 +49,7 @@ jest.mock('@/services/chain-registry', () => ({ fetchChainInfo: jest.fn(async ()
 // web pool imports lands on the native stub that throws. Point it at the real
 // web session, exactly as metro does.
 jest.mock('@/services/wallet-state-core/rpc-pool-session', () =>
-  require('@/services/wallet-state-core/rpc-pool-session.web'),
+  require('@/services/wallet-state-core/rpc-pool-session'),
 );
 
 const mockFetch = jest.fn();
@@ -65,7 +65,7 @@ import {
   NEVER_BANNED,
   type RPCResponse,
 } from '@/services/rpc-pool-endpoints';
-import { createRpcPoolSession } from '@/services/wallet-state-core/rpc-pool-session.web';
+import { createRpcPoolSession } from '@/services/wallet-state-core/rpc-pool-session';
 import type { RpcCallVerdict } from '@/services/wallet-state-core/generated/RpcCallVerdict';
 import type { RpcPoolView } from '@/services/wallet-state-core/generated/RpcPoolView';
 import type { RpcPoolCallRegistry } from '@/services/wallet-state-core/rpc-pool-types';

@@ -31,8 +31,8 @@
  * would type-check against a native module that does not exist.
  */
 
-import { createWalletSession } from './session-session.web';
-import { toStoredAccount } from './session-executor.web';
+import { createWalletSession } from './session-session';
+import { toStoredAccount } from './session-executor';
 import type { SessionEvent } from './generated/SessionEvent';
 import type { SessionView } from './generated/SessionView';
 import type { StoredAccount } from '@/models/types';

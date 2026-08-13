@@ -38,14 +38,14 @@ jest.mock('@/services/rpc-pool', () => ({
 // stub, which throws "web-only". Point it at the real web session, exactly as
 // metro does.
 jest.mock('@/services/wallet-state-core/contacts-session', () =>
-  require('@/services/wallet-state-core/contacts-session.web'),
+  require('@/services/wallet-state-core/contacts-session'),
 );
 
 // Same reason as every other core test: the wasm only initialises through the
 // explicit web entry, which jest will not pick by extension.
 import '@/services/vela-core';
-import { saveContactThroughCore } from '@/hooks/use-contacts-book.web';
-import { savedContactFor } from '@/services/saved-contact.web';
+import { saveContactThroughCore } from '@/hooks/use-contacts-book';
+import { savedContactFor } from '@/services/saved-contact';
 
 const CONTACTS_KEY = 'vela.contacts';
 

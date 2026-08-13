@@ -1,185 +1,228 @@
 /**
- * Signing-sheet parse pipeline + message adjudication — NATIVE controller.
+ * Signing-sheet parse pipeline + message adjudication — WEB, driven by the
+ * portable Rust state machine (spec 017,
+ * `rust/crates/vela-core/src/app/clear_signing.rs`).
  *
- * A thin wrapper over `services/clear-signing.ts`, `siwe.ts` and
- * `decode-sign-message.ts`, which stay the mobile implementation: Hermes has no
- * WebAssembly, so the Rust machine cannot run here (FR-202). Every call and
- * every branch below is the one `SigningSheet.tsx` made inline before this hook
- * existed, so iOS/Android behaviour is unchanged.
+ * This file owns no rules. The five-level decode fallback (local descriptor →
+ * contract ERC-7730 → ERC-165 disambiguation → ERC calldata fallbacks → 4-byte
+ * best effort → blind), the CREATE2/raw-create deployment read, the
+ * safe/normal/caution/danger grading with its partial/unverified/expired floors,
+ * the "never silently assume 18 decimals" rule, the SIWE domain-binding verdict,
+ * the hex-vs-text predicate, the dispatch order and the confirm semantics are
+ * all decided (and tested) in Rust. The shell fetches, calls, waits — and
+ * renders what the core projects.
  *
- * Two exceptions, both of which REMOVE a contradiction the sheet had with
- * itself, and both of which land identically on web (that is the point — the
- * two platforms must not disagree about a phishing verdict):
+ * ONE session per mounted sheet, not a module-level singleton: the machine
+ * resolves one request at a time and supersedes anything in flight, so a second
+ * mounted surface sharing it would cancel the first one's resolution. Batch legs
+ * get their own throwaway sessions for the same reason.
  *
- * 1. `nonPrintable` now comes from the canonical decode verdict
- *    (`decodeSignMessage`), not from `MessageSignView`'s second, ASCII-only
- *    regex. That regex flagged every message containing CJK or an emoji as
- *    "possibly a transaction in disguise" while the very same message rendered
- *    as perfectly readable text — a false alarm on a security surface, which
- *    teaches users to ignore the real one.
- * 2. The SIWE domain binding is adjudicated ONCE. It used to be computed
- *    separately for the warning haptic and for the red banner, so a change to
- *    either could make the buzz and the banner disagree.
- *
- * `use-clear-signing.web.ts` is the web twin, driven by the `clear_signing`
- * core, where the same two rules are the core's own.
+ * `use-clear-signing.ts` is the native twin, on the TypeScript services.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  resolveTransaction,
-  resolveTypedData,
-  type ClearSignResult,
-} from '@/services/clear-signing';
-import { adjudicateMessage, projectBlindTyped } from '@/services/clear-signing-adjudication';
+import type { ClearSignResult } from '@/services/clear-signing';
+import { resolvedFormatKeys } from '@/services/locale-format';
+import { createClearSigningSession } from '@/services/wallet-state-core/clear-session';
+import { toClearLocale, toShellResult } from '@/services/wallet-state-core/clear-types';
+import type { ClearSigningEvent } from '@/services/wallet-state-core/generated/ClearSigningEvent';
+import type { ClearSigningView } from '@/services/wallet-state-core/generated/ClearSigningView';
 
 import type {
   ClearCall,
-  ClearConfirm,
   ClearSigningController,
   ClearSigningRequest,
-  ClearSurface,
 } from './clear-signing-controller-types';
 
-// ---------------------------------------------------------------------------
-// Method classification — the sheet's own `method.includes(...)` tests
-// ---------------------------------------------------------------------------
+type ClearSigningSession = ReturnType<typeof createClearSigningSession>;
 
-type Kind = 'none' | 'tx-plain' | 'tx-call' | 'typed' | 'personal_sign' | 'eth_sign';
+/**
+ * The machine's own initial view, mirrored only until the session's first
+ * committed view arrives. A frozen literal, never a mutable module variable —
+ * render must not read state that can change under a memoized component.
+ */
+const INITIAL_VIEW: ClearSigningView = Object.freeze<ClearSigningView>({
+  resolving: false,
+  resolved: false,
+  result: null,
+  message: null,
+  surface: 'none',
+  confirm: { type: 'confirm' },
+  blind_typed: null,
+  danger_haptic: false,
+});
 
-function kindOf(request: ClearSigningRequest | null): Kind {
-  if (!request) return 'none';
-  const { method, params } = request;
-  if (method === 'eth_sendTransaction' && params?.[0]) {
-    const data = params[0].data;
-    return !data || data === '0x' ? 'tx-plain' : 'tx-call';
+const asString = (value: unknown): string => (typeof value === 'string' ? value : String(value ?? ''));
+
+/** A tx field on the wire: absent stays absent, anything else is coerced. */
+const asWire = (value: unknown): string | null =>
+  value == null ? null : typeof value === 'string' ? value : String(value);
+
+/** The typed payload as the core reads it: raw text if the dApp sent text. */
+function typedJson(raw: unknown): string {
+  if (typeof raw === 'string') return raw;
+  try {
+    // A payload that can't be serialized (cyclic) resolves blind, exactly as
+    // the sheet's `JSON.parse` try/catch did for one that can't be parsed.
+    return JSON.stringify(raw) ?? 'null';
+  } catch {
+    return 'null';
   }
-  if (method.includes('signTypedData') && params) return 'typed';
-  if (method === 'personal_sign' && params?.[0] !== undefined) return 'personal_sign';
-  if (method === 'eth_sign' && params) return 'eth_sign';
-  return 'none';
 }
 
-// ---------------------------------------------------------------------------
-// Controller
-// ---------------------------------------------------------------------------
+/** The request as one event. `cleared` covers every method this machine skips. */
+function toEvent(request: ClearSigningRequest | null, chainId: number): ClearSigningEvent {
+  if (!request) return { type: 'cleared' };
+  const { method, params } = request;
+  const requestOrigin = request.requestOrigin ?? null;
+
+  if (method === 'eth_sendTransaction' && params?.[0]) {
+    const tx = params[0];
+    return {
+      type: 'resolve_transaction',
+      to: asWire(tx.to),
+      data: asWire(tx.data),
+      value: asWire(tx.value),
+      chain_id: chainId,
+      locale: toClearLocale(resolvedFormatKeys()),
+    };
+  }
+  if (method.includes('signTypedData') && params) {
+    return {
+      type: 'resolve_typed_data',
+      typed_data_json: typedJson(params[1] ?? params[0]),
+      chain_id: chainId,
+      locale: toClearLocale(resolvedFormatKeys()),
+    };
+  }
+  if (method === 'personal_sign' && params?.[0] !== undefined) {
+    // The whole param list travels: WHICH one carries the signed bytes is the
+    // core's ruling, not the shell's.
+    return {
+      type: 'message_presented',
+      method: 'personal_sign',
+      params: params.map(asString),
+      request_origin: requestOrigin,
+    };
+  }
+  if (method === 'eth_sign' && params) {
+    return {
+      type: 'message_presented',
+      method: 'eth_sign',
+      params: params.map(asString),
+      request_origin: requestOrigin,
+    };
+  }
+  return { type: 'cleared' };
+}
 
 export function useClearSigning(
   request: ClearSigningRequest | null,
   chainId: number,
 ): ClearSigningController {
-  const kind = kindOf(request);
-  const [clearSign, setClearSign] = useState<ClearSignResult | null>(null);
-  const [resolving, setResolving] = useState(false);
+  const [view, setView] = useState<ClearSigningView>(INITIAL_VIEW);
+  const session = useRef<ClearSigningSession | null>(null);
+  const started = useRef(false);
 
-  useEffect(() => {
-    if (!request) {
-      setClearSign(null);
-      setResolving(false);
-      return;
+  useEffect(
+    () => () => {
+      session.current?.dispose();
+      session.current = null;
+      started.current = false;
+    },
+    [],
+  );
+
+  /**
+   * `useLayoutEffect`, not `useEffect` — the same reason `use-approval-guard.web.ts`
+   * gives, and it has to be the same or the two halves of one sheet disagree
+   * about what frame they are on.
+   *
+   * The core answers `message_presented` synchronously and marks a transaction
+   * `resolving` synchronously, so committing the first view before the browser
+   * paints reproduces what the pre-core sheet had when the surface was derived
+   * from props: frame one is already this request's surface. Under a passive
+   * effect frame one was `INITIAL_VIEW` (`surface: 'none'`), every
+   * `clear.surface` branch missed, and the sheet painted a generic
+   * "Signature request" fallback card — a calm, decoration-free frame in front
+   * of a request that had not been decoded yet — before swapping in the real
+   * (possibly red) surface.
+   *
+   * The session itself outlives the request on purpose: the machine supersedes
+   * whatever is in flight, and keeping it means its descriptor / ERC-165 /
+   * decimals caches survive from one request to the next.
+   */
+  useLayoutEffect(() => {
+    if (!session.current) {
+      session.current = createClearSigningSession({
+        onView: setView,
+        onError: (error) => console.error('[clear-signing] core fault:', error),
+      });
     }
-    const { method, params } = request;
-    if (method === 'eth_sendTransaction' && params?.[0]) {
-      setResolving(true);
-      resolveTransaction(params[0].to, params[0].data, params[0].value, chainId)
-        .then(setClearSign)
-        .catch(() => setClearSign(null))
-        .finally(() => setResolving(false));
-      return;
+    const event = toEvent(request, chainId);
+    if (started.current) {
+      session.current.dispatch(event);
+    } else {
+      started.current = true;
+      session.current.start(event);
     }
-    if (method.includes('signTypedData') && params) {
-      setResolving(true);
-      const typedDataRaw = params[1] ?? params[0];
-      try {
-        const typedData = typeof typedDataRaw === 'string' ? JSON.parse(typedDataRaw) : typedDataRaw;
-        resolveTypedData(typedData, chainId)
-          .then(setClearSign)
-          .catch(() => setClearSign(null))
-          .finally(() => setResolving(false));
-      } catch {
-        // Untrusted JSON that doesn't parse resolves blind.
-        setClearSign(null);
-        setResolving(false);
-      }
-      return;
-    }
-    setClearSign(null);
   }, [request, chainId]);
 
-  const message = useMemo(
-    () =>
-      request && (kind === 'personal_sign' || kind === 'eth_sign')
-        ? adjudicateMessage(kind, request.params ?? [], request.requestOrigin)
-        : null,
-    [request, kind],
+  const clearSign = useMemo(
+    () => (view.result ? toShellResult(view.result) : null),
+    [view.result],
   );
-  const blindTyped = useMemo(() => {
-    if (!request || kind !== 'typed') return null;
-    const params = request.params ?? [];
-    return projectBlindTyped(params[1] ?? params[0]);
-  }, [request, kind]);
 
+  /**
+   * One batch leg through the same pipeline, on its own session — the machine
+   * supersedes any in-flight run, so N legs cannot share one.
+   */
   const resolveCall = useCallback(
     (call: ClearCall, legChainId: number) =>
-      // `to` is absent only for a raw contract-creation leg, which the resolver
-      // reads as a deployment (never as a call to the zero address).
-      resolveTransaction(call.to as string, call.data, call.value, legChainId).catch(() => null),
+      new Promise<ClearSignResult | null>((resolve) => {
+        let leg: ClearSigningSession | null = null;
+        let settled = false;
+        const finish = (result: ClearSignResult | null) => {
+          if (settled) return;
+          settled = true;
+          resolve(result);
+          // After the dispatch that produced this view has fully unwound.
+          queueMicrotask(() => {
+            leg?.dispose();
+            leg = null;
+          });
+        };
+        leg = createClearSigningSession({
+          onView: (legView) => {
+            if (!legView.resolving && legView.resolved) {
+              finish(legView.result ? toShellResult(legView.result) : null);
+            }
+          },
+          onError: (error) => {
+            console.error('[clear-signing] leg fault:', error);
+            finish(null);
+          },
+        });
+        leg.start({
+          type: 'resolve_transaction',
+          to: asWire(call.to),
+          data: asWire(call.data),
+          value: asWire(call.value),
+          chain_id: legChainId,
+          locale: toClearLocale(resolvedFormatKeys()),
+        });
+      }),
     [],
   );
 
   return {
-    resolving,
+    resolving: view.resolving,
     clearSign,
-    message,
-    blindTyped,
-    surface: deriveSurface(kind, resolving, clearSign),
-    confirm: deriveConfirm(kind, clearSign),
-    dangerHaptic:
-      message?.danger_class === 'eth_sign' || message?.danger_class === 'siwe_phish',
+    message: view.message,
+    blindTyped: view.blind_typed,
+    surface: view.surface,
+    confirm: view.confirm,
+    dangerHaptic: view.danger_haptic,
     resolveCall,
   };
-}
-
-/**
- * Which surface renders. Resolution ALWAYS outranks a blind surface — the sheet
- * must never flash a red "Unknown" that a descriptor is about to replace.
- */
-function deriveSurface(kind: Kind, resolving: boolean, clearSign: ClearSignResult | null): ClearSurface {
-  if (resolving) return 'loading';
-  switch (kind) {
-    case 'none':
-      return 'none';
-    case 'eth_sign':
-      return 'eth_sign';
-    case 'personal_sign':
-      return 'message_sign';
-    case 'tx-plain':
-    case 'tx-call':
-      return clearSign ? 'clear_sign' : 'blind_transaction';
-    case 'typed':
-      return clearSign ? 'clear_sign' : 'blind_typed_data';
-  }
-}
-
-/** Confirm-button semantics, in the order `buttonLabel()` reads them. */
-function deriveConfirm(kind: Kind, clearSign: ClearSignResult | null): ClearConfirm {
-  if (clearSign) {
-    return clearSign.type === 'signature'
-      ? { type: 'sign' }
-      : { type: 'confirm_intent', intent: clearSign.intent };
-  }
-  switch (kind) {
-    case 'personal_sign':
-    case 'typed':
-      return { type: 'sign' };
-    // A plain native send reads "Confirm Send", matching its own eyebrow.
-    case 'tx-plain':
-      return { type: 'confirm_intent', intent: 'send' };
-    // Blind contract call, eth_sign, nothing presented: a neutral "Confirm",
-    // never "Approve" — that verb belongs only to an actual token approval.
-    case 'tx-call':
-    case 'eth_sign':
-    case 'none':
-      return { type: 'confirm' };
-  }
 }

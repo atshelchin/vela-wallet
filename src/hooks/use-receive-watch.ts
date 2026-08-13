@@ -1,98 +1,52 @@
 /**
- * Deposit detection while the Receive screen is open — NATIVE controller.
+ * Deposit detection — WEB, driven by the portable Rust state machine
+ * (spec 016, `rust/crates/vela-core/src/app/receive_watch.rs`).
  *
- * Today's logic, moved verbatim from `ReceiveScreen.tsx` (spec 016): Hermes
- * has no WebAssembly, so iOS/Android keep the TypeScript implementation. The
- * web variant (`use-receive-watch.web.ts`) is driven by the portable Rust
- * machine (`rust/crates/vela-core/src/app/receive_watch.rs`); the polling
- * cadence and diff rules are documented — and tested — there.
+ * This file owns no rules. It builds one core session per account, renders
+ * the entries the core projects, and formats them — amounts, USD, the local
+ * time — because formatting is the shell's job. The cadence, the baseline
+ * diff and the false-positive guards are decided (and tested) in Rust.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { chainName } from '@/models/network';
-import { formatBalance, tokenBalanceDouble, tokenChainId, tokenId, type APIToken } from '@/models/types';
-import { hapticSuccess, isAppActive } from '@/services/platform';
-import { fetchTokens } from '@/services/wallet-api';
+import { formatBalance } from '@/models/types';
+import { createReceiveWatchSession } from '@/services/wallet-state-core/session';
+import type { ReceiveWatchView } from '@/services/wallet-state-core/generated/ReceiveWatchView';
 
-import type { DepositItemView, DepositEntryView, ReceiveWatch } from './receive-controller-types';
+import type { DepositEntryView, ReceiveWatch } from './receive-controller-types';
 
-// Aggressive polling: 3s for first 1 min, then 60s for next 4 min, then stop
-const FAST_INTERVAL_MS = 3_000;
-const SLOW_INTERVAL_MS = 60_000;
-const FAST_PHASE_MS = 1 * 60_000;
-const TOTAL_LISTEN_MS = 5 * 60_000;
+const EMPTY: ReceiveWatchView = { detected: false, deposits: [] };
+
+function toEntryView(view: ReceiveWatchView): DepositEntryView[] {
+  return view.deposits.map((entry) => ({
+    // Same rendering as the native controller produces today.
+    time: new Date(entry.at_epoch_ms).toLocaleTimeString('en-US', { hour12: false }),
+    items: entry.items.map((item) => ({
+      symbol: item.symbol,
+      amount: formatBalance(item.amount),
+      network: chainName(item.chain_id),
+      usd: item.usd != null ? `$${item.usd.toFixed(2)}` : null,
+    })),
+  }));
+}
 
 export function useReceiveWatch(address: string | undefined): ReceiveWatch {
-  const [detected, setDetected] = useState(false);
-  const [deposits, setDeposits] = useState<DepositEntryView[]>([]);
-  const previousTokens = useRef<APIToken[] | null>(null);
+  const [view, setView] = useState<ReceiveWatchView>(EMPTY);
 
-  // Deposit detection polling — quietly watches for incoming transfers while
-  // this screen is open and surfaces them as they land (no persistent status).
   useEffect(() => {
     if (!address) return;
-    setDetected(false);
-    setDeposits([]);
-    previousTokens.current = null;
-    const startTime = Date.now();
-    let timerId: ReturnType<typeof setTimeout>;
-
-    const checkDeposit = async () => {
-      if (!isAppActive()) return;
-      try {
-        const tokens = await fetchTokens(address, { forceRefresh: true });
-
-        if (previousTokens.current !== null) {
-          // Guard: a smaller token set than baseline means a chain likely
-          // failed — skip comparison to avoid false positives.
-          if (tokens.length < previousTokens.current.length) {
-            scheduleNext();
-            return;
-          }
-
-          // Diff: find tokens whose balance increased vs baseline.
-          const prevMap = new Map(previousTokens.current.map(tk => [tokenId(tk), tokenBalanceDouble(tk)]));
-          const changes: DepositItemView[] = [];
-          for (const tk of tokens) {
-            const prevBal = prevMap.get(tokenId(tk)) ?? 0;
-            const curBal = tokenBalanceDouble(tk);
-            if (curBal > prevBal) {
-              const diff = curBal - prevBal;
-              changes.push({
-                symbol: tk.symbol,
-                amount: formatBalance(diff),
-                network: chainName(tokenChainId(tk)),
-                usd: tk.priceUsd ? `$${(diff * tk.priceUsd).toFixed(2)}` : null,
-              });
-            }
-          }
-
-          if (changes.length > 0) {
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
-            setDetected(true);
-            setDeposits(prev => [{ time, items: changes }, ...prev]);
-            hapticSuccess();
-            previousTokens.current = tokens;
-          }
-        } else {
-          // First fetch — record initial baseline.
-          previousTokens.current = tokens;
-        }
-      } catch {}
-
-      scheduleNext();
-    };
-
-    const scheduleNext = () => {
-      const elapsed = Date.now() - startTime;
-      if (elapsed >= TOTAL_LISTEN_MS) return;
-      const interval = elapsed < FAST_PHASE_MS ? FAST_INTERVAL_MS : SLOW_INTERVAL_MS;
-      timerId = setTimeout(checkDeposit, interval);
-    };
-
-    checkDeposit();
-    return () => { clearTimeout(timerId); };
+    setView(EMPTY);
+    const loop = createReceiveWatchSession({
+      address,
+      onView: setView,
+      onError: (error) => console.error('[receive-watch] core fault:', error),
+    });
+    loop.start({ type: 'start' });
+    // Also covers React 19 StrictMode's development double-mount: the first
+    // core is freed before the second is built.
+    return () => loop.dispose();
   }, [address]);
 
-  return { detected, deposits };
+  return { detected: view.detected, deposits: toEntryView(view) };
 }

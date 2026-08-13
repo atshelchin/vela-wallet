@@ -1,65 +1,97 @@
 /**
- * Global dApp connection context — NATIVE.
+ * Global dApp connection context — WEB, with BOTH halves driven by portable
+ * Rust state machines (spec 017): the signing half by
+ * `rust/crates/vela-core/src/app/sign_request.rs`, and the connection lifecycle
+ * by `rust/crates/vela-core/src/app/dapp_session.rs`.
  *
- * Lives at the root layout level so the SSE connection persists across screens.
- * Manages:
- *   - Remote-inject bridge connection (SSE + POST)
- *   - Incoming signing requests (surfaced as a global modal)
- *   - Session persistence to AsyncStorage for auto-reconnect
+ * What moved into the core, and is therefore GONE from this file: the five
+ * synchronous refs the approve path used to coordinate through
+ * (`approveInFlightRef`, `signCancelledRef`, `fundingRidRef`,
+ * `lastApproveOptsRef`, `incomingRequestRef`) and every rule they encoded —
  *
- * The shared declarations (context, hook, status vocabulary, session storage)
- * live in `dapp-connection-shape.ts`; `dapp-connection.web.tsx` is the web twin
- * whose signing half is driven by the Rust `sign_request` machine. Hermes has no
- * WebAssembly, so this file is the implementation on iOS/Android and is
- * deliberately unchanged in behaviour.
+ * - **BUG-2** — a reject during the ≤15 s gas pre-check aborts the pipeline
+ *   before it can submit, and past the commitment point a swipe is a *dismiss*,
+ *   never a 4001 that still broadcasts.
+ * - **BUG-3** — the approve pipeline is single-flight; a same-tick second tap
+ *   finds it occupied.
+ * - **the funding rid race** — a funding "Continue" replays the SAME request's
+ *   capped opts, and a late funding outcome never hijacks a newer request.
+ * - **§4** — the durable record precedes any result the dApp can poll.
+ * - **F2/F3/F4** — the response goes to the transport that OWNS the request,
+ *   and sign/display/history use the request's own chain and dApp identity.
+ * - **§12.1.6** — the granted account is switched FIRST and the approval
+ *   surface only opens on the ack (see `sign-resident.web.ts`).
+ *
+ * What moved into `dapp_session`, and is therefore also GONE from this file:
+ * the transport refs, the relay session state, and every timer the connection
+ * lifecycle used to hold by hand —
+ *
+ * - **the 4 s reconnect grace**, which a repeated blip must never extend (③);
+ * - **the 45 s stuck prompt** and the `reconnectNonce` that re-armed it;
+ * - **the 120 s join watchdog** for a relay that silently drops the join;
+ * - **the 60 s reconnect deadline**, the `min(1s·2ⁿ, 30s)` backoff ladder and
+ *   the 8 s `dropIfDead` that keeps a dead restored channel from looping on
+ *   every launch (BUG-5/6, invariant ⑤);
+ * - **the fingerprint gate** — a pairing becomes a session only through
+ *   `FingerprintConfirmed`, and cancelling or replacing one releases the
+ *   ephemeral X25519 key explicitly (① and ②);
+ * - **the counter-durability order** — a WalletPair push is issued only from
+ *   `CountersPersisted { ok: true }`, so no ciphertext is produced for a nonce
+ *   that is not durable yet (⑦).
+ *
+ * The core holds numeric handles and a phase; every key, counter and encrypted
+ * snapshot stays in the shell's transport objects
+ * (`src/services/wallet-state-core/dsess-executor.web.ts`, which also documents
+ * the single deliberate divergence: the backoff is arbitrated by the core and
+ * executed by `WalletPairTransport`'s own identical ladder).
+ *
+ * What stays here is the read-only RPC routing, the extension-sign slot, and
+ * the wiring between the two cores — unchanged from native.
+ *
+ * `dapp-connection.tsx` is the native counterpart (Hermes has no wasm) and
+ * `dapp-connection-shape.ts` holds everything both share; a `.web` file must
+ * never value-import its own base file.
  */
 import React, {
-  useCallback, useEffect, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
   type ReactNode,
 } from 'react';
 import { useWallet } from '@/models/wallet-state';
-import {
-  RemoteInjectTransport,
-  type DAppTransport,
-  type DAppInfo,
-  type RemoteInjectSession,
-} from '@/services/dapp-transport';
-import {
-  WalletPairTransport,
-  clearWalletPairSession,
-} from '@/services/walletpair-transport';
-import { isSigningMethod, handleDAppRequest, handleReadOnlyRPC, extractRequestChainId, assertChainSupported, INSTANT_READONLY_METHODS } from '@/hooks/use-dapp-signing';
+import type { DAppInfo, DAppTransport, RemoteInjectSession } from '@/services/dapp-transport';
+import { isSigningMethod, handleReadOnlyRPC, INSTANT_READONLY_METHODS } from '@/hooks/use-dapp-signing';
 import { gateReadOnly, readOnlyKey } from '@/services/readonly-rpc-gate';
-import { PasskeyErrorCode } from '@/modules/passkey';
-import { saveTransaction, updateTransaction, loadTransactions } from '@/services/storage';
-import { buildSigningRecord } from '@/services/dapp-history';
-import { rpcCall } from '@/services/rpc-adapter';
-import { autoAddReceivedTokens } from '@/services/token-autoadd';
-import { serializeAssetSim, type AssetSimResult } from '@/services/tx-simulation';
-import { waitForReceipt } from '@/services/safe-transaction';
+import { startTxTracker } from '@/services/wallet-state-core/tx-tracker-resident';
 import {
-  attemptSilentSponsorship,
-  fetchBundlerAccountInfo,
-  clearBundlerCache,
-  checkBundlerFunding,
-  parseBundlerUnderfunded,
-  recommendedFundingWei,
-  underfundedRequiredWei,
-  formatWei,
-  type FundingNeeded,
-} from '@/services/bundler-service';
-import { nativeSymbol } from '@/models/network';
-import type { BLEIncomingRequest } from '@/models/types';
-import { responseTransport, requestChainId as reqChainId, requestDApp } from '@/models/dapp-request-routing';
+  bindSignRequest,
+  dispatchSign,
+  registerSignTransport,
+  setSignAccounts,
+  setSignApproveExtras,
+  signRequestFunding,
+  signRequestPending,
+  signRequestView,
+  signTransportId,
+  subscribeSignRequest,
+  syncSignNetworks,
+} from '@/services/wallet-state-core/sign-resident';
+import {
+  connectDsessBridge,
+  connectDsessWalletPair,
+  dispatchDsess,
+  dsessDappInfo,
+  dsessDurableTransport,
+  dsessProjection,
+  restoreDsess,
+  setDsessRequestSink,
+  setDsessWalletInfoSource,
+  subscribeDsess,
+  type DsessProjection,
+} from '@/services/wallet-state-core/dsess-resident';
+import { signErrorMessage } from '@/services/wallet-state-core/sign-types';
+import type { SignView } from '@/services/wallet-state-core/generated/SignView';
 import {
   DAppConnectionContext,
-  RECONNECT_GRACE_MS,
-  clearSession,
-  loadSession,
-  saveSession,
   type ApproveRequestOptions,
-  type ConnectionType,
-  type ConnectionStatus,
   type ExtensionSignMeta,
 } from './dapp-connection-shape';
 
@@ -87,95 +119,94 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
   const address = activeAccount?.address ?? state.address;
   const accountName = activeAccount?.name ?? 'Wallet';
 
-  const [status, setStatus] = useState<ConnectionStatus>('disconnected');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [session, setSession] = useState<RemoteInjectSession | null>(null);
-  const [dappInfo, setDappInfo] = useState<DAppInfo | null>(null);
-  const [incomingRequest, setIncomingRequest] = useState<BLEIncomingRequest | null>(null);
-  // Synchronous mirror for guards inside long-running async recovery (the
-  // reactive silent-sponsorship attempt can take ~25s — the request on the
-  // sheet may have changed by the time it resolves).
-  const incomingRequestRef = useRef<BLEIncomingRequest | null>(null);
-  useEffect(() => { incomingRequestRef.current = incomingRequest; }, [incomingRequest]);
-  const [isSigning, setIsSigning] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [signError, setSignError] = useState<string | null>(null);
-  const [pendingOpHash, setPendingOpHash] = useState<string | null>(null);
-  const [chainId, setChainId] = useState(1);
-  const [connectionType, setConnectionType] = useState<ConnectionType>(null);
-  const [pendingFingerprint, setPendingFingerprint] = useState<string | null>(null);
-  const [fundingNeeded, setFundingNeeded] = useState<FundingNeeded | null>(null);
-  const [reconnectStuck, setReconnectStuck] = useState(false);
-  // Bumped on each manual "Reconnect now" so the stuck timer re-arms even though
-  // `status` stays 'reconnecting' (a same-value setState wouldn't re-run the effect).
-  const [reconnectNonce, setReconnectNonce] = useState(0);
-
-  // Holds the grace-window timer that debounces the "Reconnecting…" indicator, so
-  // a brief, self-healing reconnect never flickers the UI off "connected".
-  const reconnectGraceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearReconnectGrace = useCallback(() => {
-    if (reconnectGraceTimer.current) { clearTimeout(reconnectGraceTimer.current); reconnectGraceTimer.current = null; }
-  }, []);
-  // Don't let a pending grace timer fire setStatus after the provider unmounts.
-  useEffect(() => () => clearReconnectGrace(), [clearReconnectGrace]);
-
-  // If an auto-reconnect drags on (relay down / session expired), surface a
-  // manual-recovery prompt instead of spinning "Reconnecting…" forever.
+  // The ENTIRE connection half, as one projection of the `dapp_session` core.
+  // Pushed, never read from the module during render: the resident is the app's
+  // most mutable state and an untracked render-time read would be cached
+  // forever by the React Compiler (`wallet-state.web.ts`).
+  const [conn, setConn] = useState<DsessProjection>(dsessProjection);
   useEffect(() => {
-    if (status !== 'reconnecting') { setReconnectStuck(false); return; }
-    setReconnectStuck(false);
-    const timer = setTimeout(() => setReconnectStuck(true), 45_000);
-    return () => clearTimeout(timer);
-  }, [status, reconnectNonce]);
+    const unsubscribe = subscribeDsess(setConn);
+    // Catch up on anything committed between the initial render and here.
+    setConn(dsessProjection());
+    return unsubscribe;
+  }, []);
 
-  const transportRef = useRef<DAppTransport | null>(null);
-  /** Holds WalletPairTransport during fingerprint verification (before connect). */
-  const pendingWpTransportRef = useRef<WalletPairTransport | null>(null);
+  const {
+    status, session, dappInfo, connectionType, pendingFingerprint, reconnectStuck,
+  } = conn;
+
   /**
-   * Transient slot for a Safari-extension sign transport (beginExtensionSign).
-   * SEPARATE from transportRef so a live WalletPair/bridge session is NOT clobbered
-   * by an extension sign. Responses route per-request (incomingRequest.__transport),
-   * never through this ref, so concurrency can't misroute a signature.
+   * A Safari-extension / popup sign transport's own transport-level error.
+   * Kept apart from the connection error rather than sharing one slot: the
+   * core is the single writer of the session's error, and this one belongs to
+   * a transport the session does not own. The error card only renders under
+   * `status === 'error'`, which only a connection failure produces, so the
+   * connection's message wins when both exist.
+   */
+  const [extErrorMessage, setExtErrorMessage] = useState<string | null>(null);
+  const errorMessage = conn.errorMessage ?? extErrorMessage;
+
+  // The ENTIRE signing half, as one projection of the core.
+  const [signView, setSignView] = useState<SignView>(signRequestView);
+  useEffect(() => {
+    const unsubscribe = subscribeSignRequest(setSignView);
+    // Boots the resident with the supported-network snapshot. Until that lands
+    // every chain is unsupported (fail-closed), so it must precede any request.
+    syncSignNetworks();
+    // Catch up on anything committed between the initial render and here.
+    setSignView(signRequestView());
+    return unsubscribe;
+  }, []);
+
+  // The accounts snapshot, fed from the SESSION's own rows (on web
+  // `state.accounts` IS `walletSessionAccounts()`), so `SwitchActiveAccount.index`
+  // lands in the domain that consumes it — the §12.1.6 index-domain trap.
+  useEffect(() => {
+    setSignAccounts(state.accounts, state.activeAccountIndex);
+  }, [state.accounts, state.activeAccountIndex]);
+
+  const chainId = signView.global_chain_id;
+  const incomingRequest = signRequestPending();
+  const fundingNeeded = signRequestFunding();
+  const signError = signView.error ? signErrorMessage(signView.error) : null;
+
+  /**
+   * Transient slot for a Safari-extension / web-popup sign transport
+   * (beginExtensionSign). SEPARATE from the session's own transport so a live
+   * WalletPair/bridge session is NOT clobbered by an extension sign. Responses
+   * route per-request through the core's `transport_id` (F2), never through
+   * this ref.
    */
   const signTransportRef = useRef<DAppTransport | null>(null);
-  const lastApproveOptsRef = useRef<{ maxFeePerGas?: bigint; bundlerCostWei?: bigint; gasFeeToken?: string | null; quotedFee?: { amount: bigint; recipient: string }; paramsOverride?: any[]; assetSim?: AssetSimResult | null } | undefined>(undefined);
-  // The request id the pending funding view belongs to. lastApproveOptsRef is a
-  // single shared ref; without pinning the rid, a funding "Continue" could replay
-  // the OLD request's (capped) opts under a DIFFERENT request that has since taken
-  // the sheet — submitting the wrong params under the wrong id. handleFundingComplete
-  // bails if the current request no longer matches.
-  const fundingRidRef = useRef<string | null>(null);
-  // Fund-safety guards on the single submit path (approveRequest):
-  //  - approveInFlightRef: synchronous re-entrancy lock so a double-tap (Approve or
-  //    the funding "Continue") can't fire two concurrent approves → two submits
-  //    (BUG-3). isSigning is async React state, useless for a same-tick second tap.
-  //  - signCancelledRef: set by rejectRequest so a reject/swipe DURING an in-flight
-  //    approve (e.g. the ≤15s gas pre-check) aborts before submit — never a "rejected"
-  //    tx that still broadcasts + a contradictory success response (BUG-2).
-  const approveInFlightRef = useRef(false);
-  const signCancelledRef = useRef(false);
+  /** The per-transport facts a one-shot sign transport was installed with. */
+  const signMetaRef = useRef(new WeakMap<DAppTransport, ExtensionSignMeta>());
+
   const addressRef = useRef(address);
-  const chainIdRef = useRef(chainId);
   const accountNameRef = useRef(accountName);
   const accountsRef = useRef(state.accounts);
-  const activeAccountRef = useRef(activeAccount);
 
   useEffect(() => { addressRef.current = address; }, [address]);
-  useEffect(() => { chainIdRef.current = chainId; }, [chainId]);
   useEffect(() => { accountNameRef.current = accountName; }, [accountName]);
   useEffect(() => { accountsRef.current = state.accounts; }, [state.accounts]);
-  useEffect(() => { activeAccountRef.current = activeAccount; }, [activeAccount]);
 
-  // Push wallet info when account/chain changes while connected
+  // The wallet identity a `PushWalletInfo` is composed from. Read at push time
+  // from the refs above, exactly as the transport handlers read them.
   useEffect(() => {
-    if (status === 'connected' && transportRef.current?.connected) {
-      transportRef.current.pushWalletInfo({
-        address,
-        chainId,
-        name: accountName,
-        accounts: state.accounts.map(a => ({ name: a.name, address: a.address })),
-      });
-    }
+    setDsessWalletInfoSource(() => ({
+      address: addressRef.current,
+      name: accountNameRef.current,
+      accounts: accountsRef.current.map(a => ({ name: a.name, address: a.address })),
+    }));
+    return () => setDsessWalletInfoSource(null);
+  }, []);
+
+  // Push wallet info when account/chain changes while connected. The core
+  // decides whether anything goes out (`status === 'connected' &&
+  // transport.connected`) and, for WalletPair, sequences the counter persist
+  // ahead of it (⑦). The dependency list is the one this effect always had, so
+  // the same five changes still push.
+  useEffect(() => {
+    dispatchDsess({ type: 'wallet_changed', chain_id: chainId });
   }, [address, chainId, accountName, status, state.accounts]);
 
   // --- Handle incoming request ---
@@ -187,11 +218,17 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     meta?: { transport?: DAppTransport; chainId?: number; dapp?: DAppInfo },
   ) => {
     const addr = addressRef.current;
-    const cid = meta?.chainId ?? chainIdRef.current;
-    // The transport that OWNS this request. Responses MUST route here, never a
-    // shared transportRef — with a concurrent WalletPair session live, using
-    // transportRef would deliver an extension signature over the WP socket (F2).
-    const owner = meta?.transport ?? transportRef.current;
+    // The global chain, read from the core rather than a React-lagging mirror:
+    // `chainIdRef.current = nc` used to be assigned in the same synchronous turn
+    // as the switch, so a read arriving in the SAME transport batch already saw
+    // the new chain. `signRequestView()` is committed synchronously by the
+    // effect loop, so it keeps that property.
+    const cid = meta?.chainId ?? signRequestView().global_chain_id;
+    // The transport that OWNS this request. Responses MUST route here, never
+    // the session's durable transport — with a concurrent WalletPair session
+    // live, that would deliver an extension signature over the WP socket (F2).
+    // Read at REQUEST time, never in render.
+    const owner = meta?.transport ?? dsessDurableTransport();
 
     // `eth_accounts` may legitimately be empty, but `eth_requestAccounts` is an
     // authorization request. Do not try to serialize an absent account as an
@@ -202,75 +239,60 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (isSigningMethod(method)) {
-      // A fresh signing request supersedes any funding prompt left over from a
-      // prior request (e.g. one abandoned mid-pre-check) — the sheet swaps to the
-      // funding view on `fundingNeeded`, so a stale value would hijack this sheet.
-      setFundingNeeded(null);
-      if (meta?.chainId != null) {
-        // EXTENSION sign: chain is per-request (F4). Do NOT touch the global
-        // chainId — it is shared with any live WalletPair session. Validate, then
-        // stamp the owning transport + chain + identity on the request so the
-        // sheet, sign, response and history are fully self-contained (F2/F3/F4).
-        try {
-          assertChainSupported(meta.chainId);
-        } catch (err: any) {
-          owner?.sendResponse(id, undefined, { code: err.code ?? 4902, message: err.message ?? `Unsupported chain: ${meta.chainId}` });
-          return;
-        }
-        setIncomingRequest({ id, method, params, origin, __transport: meta.transport, __chainId: meta.chainId, __dapp: meta.dapp });
-        return;
-      }
-      // Ordinary bridge/WalletPair request — auto-switch the global chain to match
-      // an embedded request chainId (typedData.domain.chainId, tx.chainId, …).
-      const requestChainId = extractRequestChainId(method, params);
-      if (requestChainId != null && requestChainId !== chainIdRef.current) {
-        try {
-          assertChainSupported(requestChainId);
-        } catch (err: any) {
-          owner?.sendResponse(id, undefined, { code: err.code ?? 4902, message: err.message ?? `Unsupported chain: ${requestChainId}` });
-          return;
-        }
-        chainIdRef.current = requestChainId;
-        setChainId(requestChainId);
-      }
-      setIncomingRequest({ id, method, params, origin, __transport: meta?.transport });
-      return;
-    }
+    if (isSigningMethod(method) || method === 'wallet_switchEthereumChain') {
+      // `assertChainSupported` read the network list live at every call, so the
+      // core's fail-closed set is re-asserted here rather than once at boot.
+      syncSignNetworks();
+      const transportId = meta?.transport
+        ? registerSignTransport(meta.transport)
+        : signTransportId(dsessDurableTransport());
 
-    if (method === 'wallet_switchEthereumChain') {
-      const cp = params?.[0] as { chainId?: string } | undefined;
-      const nc = cp?.chainId
-        ? (cp.chainId.startsWith('0x') ? parseInt(cp.chainId, 16) : parseInt(cp.chainId, 10))
-        : NaN;
-      if (isNaN(nc)) {
-        // Missing/malformed chainId — don't report a phantom success.
-        owner?.sendResponse(id, undefined, { code: -32602, message: 'Invalid params: missing chainId' });
-        return;
-      }
-      try {
-        assertChainSupported(nc);
-      } catch (err: any) {
-        owner?.sendResponse(id, undefined, {
-          code: err.code ?? 4902,
-          message: err.message ?? `Unsupported chain: ${nc}`,
+      if (method === 'wallet_switchEthereumChain') {
+        const cp = params?.[0] as { chainId?: string } | undefined;
+        dispatchSign({
+          type: 'chain_switch_requested',
+          id,
+          transport_id: transportId,
+          chain_id_param: cp?.chainId ?? null,
         });
         return;
       }
-      // A pending signing confirmation tied to the previous (global) chain MUST
-      // be cancelled on a chain switch. Per-request extension signs carry their
-      // own __chainId and are self-contained, so they are left intact.
-      const priorPending = incomingRequestRef.current;
-      if (priorPending && priorPending.__chainId == null) {
-        responseTransport(priorPending, transportRef.current)?.sendResponse(
-          priorPending.id, undefined,
-          { code: 4001, message: 'Cancelled: the wallet switched chains' },
-        );
-        setIncomingRequest(null);
-      }
-      chainIdRef.current = nc;
-      setChainId(nc);
-      owner?.sendResponse(id, null);
+
+      // The sheet's stamps stay shell-side: the request's OWN identity only, so
+      // `requestDApp(request, dappInfo)` keeps falling back to the live session
+      // identity for an ordinary relay request, exactly as before.
+      bindSignRequest(id, transportId, meta?.dapp ?? null);
+      // What the RECORD is attributed to, resolved at arrival exactly as
+      // `requestDApp(request, dappInfo)?.name ?? request.origin` resolved it.
+      const identity = meta?.dapp ?? dsessDappInfo();
+      const granted =
+        signMetaRef.current.get(meta?.transport as DAppTransport)?.grantedAddress ??
+        (meta?.transport as { requestAddress?: string } | undefined)?.requestAddress ??
+        null;
+      dispatchSign({
+        type: 'request_arrived',
+        id,
+        method,
+        params_json: JSON.stringify(params ?? []),
+        origin,
+        transport_id: transportId,
+        // `__transport` truthy is what the owner-aware transport-drop clear
+        // tested (`dapp-connection.tsx:429`); every transport-sourced request
+        // carries one.
+        dedicated_transport: !!meta?.transport,
+        // EXTENSION / popup sign: chain is per-request (F4). An ordinary
+        // bridge/WalletPair request carries none and uses the global chain.
+        per_request_chain: meta?.chainId ?? null,
+        dapp: identity ? { name: identity.name, url: identity.url ?? null } : null,
+        granted_address: granted,
+        // The popup entry still runs its own 4100 pinned-address check before it
+        // ever builds a transport, so the core is never asked to repeat it.
+        requested_address: null,
+        // The payload TTL lives in `ExtensionBridgeTransport` (it refuses to emit
+        // a stale request at all), so nothing arrives here with a timestamp.
+        request_ts_ms: null,
+        now_ms: Date.now(),
+      });
       return;
     }
 
@@ -288,210 +310,75 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // --- Wire transport events (shared by both transport types) ---
-  const wireTransport = useCallback((transport: DAppTransport, type: ConnectionType) => {
-    transport.on('connected', () => {
-      // Recovered (possibly within the grace window) — cancel any pending
-      // "Reconnecting…" flip so a self-healing blip never showed at all.
-      clearReconnectGrace();
-      setStatus('connected');
-      setConnectionType(type);
-      transport.pushWalletInfo({
-        address: addressRef.current,
-        chainId: chainIdRef.current,
-        name: accountNameRef.current,
-        accounts: accountsRef.current.map(a => ({ name: a.name, address: a.address })),
-      });
+  // --- Where a live transport's requests go ---
+  // The `dapp_session` executor wires every transport it builds and forwards
+  // `request` here, stamped with the OWNING transport and its per-request chain
+  // (F2/F4). Installed before the restore effect below, which is the first
+  // thing that can create a transport.
+  useEffect(() => {
+    setDsessRequestSink((transport, id, method, params, origin, requestChainId) => {
+      handleIncoming(id, method, params as any[], origin, { transport, chainId: requestChainId });
     });
-
-    transport.on('disconnected', () => {
-      clearReconnectGrace();
-      setStatus('disconnected');
-      setConnectionType(null);
-      // Owner-aware: only clear a request THIS transport owns. Otherwise a terminal
-      // WalletPair/bridge drop would tear down a concurrent extension sign's modal
-      // (which lives in the same shared incomingRequest but is owned by the ext
-      // transport). Mirrors the per-request sendResponse routing. Fund-safe either
-      // way (no sendResponse fires here), but this keeps the sign UI on screen.
-      setIncomingRequest((prev) => (prev && prev.__transport && prev.__transport !== transport ? prev : null));
-      transportRef.current = null;
-    });
-
-    transport.on('reconnecting', () => {
-      // Transient disconnect — WalletPair is auto-reconnecting. Keep transport ref and
-      // dApp info intact. Don't flip the indicator immediately: hold "connected"
-      // for the grace window so a sub-second blip self-heals invisibly, and only
-      // surface "Reconnecting…" if it hasn't recovered by then. Already-pending
-      // timer is left to run (don't extend the window on repeated blips).
-      if (reconnectGraceTimer.current) return;
-      reconnectGraceTimer.current = setTimeout(() => {
-        reconnectGraceTimer.current = null;
-        setStatus('reconnecting');
-      }, RECONNECT_GRACE_MS);
-    });
-
-    // Stamp the OWNING transport on every inbound request so responses route back
-    // to it, not a shared ref (matters once a second transport — the extension
-    // sign slot — can be live at the same time; see F2).
-    transport.on('request', (id, method, params, origin, requestChainId) => {
-      handleIncoming(id, method, params, origin, { transport, chainId: requestChainId });
-    });
-
-    transport.on('error', (msg) => {
-      setErrorMessage(msg);
-    });
-
-    transportRef.current = transport;
-  }, [handleIncoming, clearReconnectGrace]);
-
-  // --- Disconnect any active transport ---
-  const disconnectCurrent = useCallback(() => {
-    clearReconnectGrace();
-    // A pairing awaiting fingerprint approval has not persisted a resumable
-    // snapshot, but it already owns an ephemeral X25519 key pair. Replacing it
-    // or disconnecting must release that key explicitly.
-    const pendingWalletPair = pendingWpTransportRef.current;
-    pendingWpTransportRef.current = null;
-    pendingWalletPair?.disconnect();
-    setPendingFingerprint(null);
-    if (transportRef.current) {
-      transportRef.current.disconnect();
-      transportRef.current = null;
-    }
-  }, [clearReconnectGrace]);
+    return () => setDsessRequestSink(null);
+  }, [handleIncoming]);
 
   // --- Connect (Remote Inject) ---
+  // Entry classification is the core's (invariant ⑨) and the Connect screen
+  // hands over an already-parsed session, so the resident re-serialises it into
+  // the canonical link the core's own parser reads back field-for-field.
   const connectToBridge = useCallback(async (sess: RemoteInjectSession) => {
-    disconnectCurrent();
-
-    setStatus('connecting');
-    setErrorMessage(null);
-    setSession(sess);
-
-    const transport = new RemoteInjectTransport(sess);
-    wireTransport(transport, 'remote-inject');
-
-    try {
-      await transport.connect();
-      const [info] = await Promise.all([
-        transport.fetchDAppInfo().catch(() => null),
-        saveSession(sess),
-      ]);
-      setDappInfo(info);
-    } catch (err: any) {
-      setStatus('error');
-      setErrorMessage(err.message ?? 'Connection failed');
-      transportRef.current = null;
-    }
-  }, [wireTransport, disconnectCurrent]);
+    connectDsessBridge(sess);
+  }, []);
 
   // --- Connect (WalletPair) ---
   const connectToWalletPair = useCallback(async (uri: string) => {
-    disconnectCurrent();
-
-    setStatus('connecting');
-    setErrorMessage(null);
-    setSession(null);
-
-    try {
-      const { fingerprint, dappInfo: info, transport } = WalletPairTransport.prepare(uri);
-      setPendingFingerprint(fingerprint);
-      setDappInfo(info);
-      pendingWpTransportRef.current = transport;
-      // Wait for user to call confirmFingerprint()
-    } catch (err: any) {
-      setStatus('error');
-      setErrorMessage(err.message ?? 'Failed to prepare WalletPair session');
-    }
-  }, [disconnectCurrent]);
+    connectDsessWalletPair(uri);
+  }, []);
 
   // --- Confirm fingerprint (WalletPair) ---
+  // Invariant ①: this event is the ONLY path to `ConfirmWalletPairJoin`. The
+  // 120 s join watchdog it may arm afterwards is the core's, keyed to the
+  // handle it watches, so a superseded pairing can never trip it.
   const confirmFingerprint = useCallback(async () => {
-    const transport = pendingWpTransportRef.current;
-    if (!transport) return;
-
-    setPendingFingerprint(null);
-    pendingWpTransportRef.current = null;
-
-    wireTransport(transport, 'walletpair');
-
-    try {
-      await transport.connect();
-
-      // If still not connected after confirmJoin resolved, start a timeout.
-      // The relay may silently drop the join message (e.g. CF Worker hibernation),
-      // leaving both sides stuck in waiting_accept with no transport-level error.
-      if (!transport.connected) {
-        const timeout = setTimeout(() => {
-          if (!transport.connected && transportRef.current === transport) {
-            setStatus('error');
-            setErrorMessage('Connection timed out. The relay may be unavailable — try scanning again.');
-            transport.disconnect();
-            transportRef.current = null;
-          }
-        }, 120_000);
-
-        // Clear timeout if connection succeeds before deadline
-        const unsub = transport.on('connected', () => {
-          clearTimeout(timeout);
-          unsub();
-        });
-      }
-    } catch (err: any) {
-      setStatus('error');
-      setErrorMessage(err.message ?? 'WalletPair connection failed');
-      // A failed confirmation must not leave a retry loop or join key behind.
-      transport.disconnect();
-      if (transportRef.current === transport) transportRef.current = null;
-    }
-  }, [wireTransport]);
+    dispatchDsess({ type: 'fingerprint_confirmed' });
+  }, []);
 
   // --- Cancel fingerprint verification ---
+  // Invariant ②: the core answers with an explicit `DisconnectTransport` for
+  // the pending handle — prepare() minted an X25519 pair the relay never
+  // accepted, and cancelling must release it.
   const cancelFingerprint = useCallback(() => {
-    // prepare() generated a wallet identity even though the relay has not yet
-    // accepted the join. Explicit cancellation must zero it as well.
-    pendingWpTransportRef.current?.disconnect();
-    pendingWpTransportRef.current = null;
-    setPendingFingerprint(null);
-    setStatus('disconnected');
-    setDappInfo(null);
-    setErrorMessage(null);
+    dispatchDsess({ type: 'fingerprint_cancelled' });
   }, []);
 
   // --- Disconnect ---
   const disconnectBridge = useCallback(() => {
-    disconnectCurrent();
-    setStatus('disconnected');
-    setConnectionType(null);
-    setSession(null);
-    setDappInfo(null);
-    setIncomingRequest(null);
-    clearSession();
-    clearWalletPairSession();
-  }, [disconnectCurrent]);
+    // Tears the session down and wipes BOTH stores; `errorMessage` is
+    // deliberately not cleared, exactly as before.
+    dispatchDsess({ type: 'disconnect_requested' });
+    // No response goes out — the same nothing `setIncomingRequest(null)` did.
+    dispatchSign({ type: 'dismiss_tapped' });
+  }, []);
 
   // --- Manual reconnect ("Reconnect now") ---
+  // Bypasses the 4 s grace window (invariant ③) and re-arms the 45 s stuck
+  // prompt even when the status was already 'reconnecting' — the
+  // `reconnectNonce` bump, now a rule inside the core.
   const reconnect = useCallback(() => {
-    const transport = transportRef.current;
-    if (!transport) return;
-    clearReconnectGrace(); // manual tap → show "Reconnecting…" now, don't wait out the grace
-    setStatus('reconnecting');
-    setReconnectStuck(false);
-    setReconnectNonce((n) => n + 1); // re-arm the stuck timer even if status was already 'reconnecting'
-    transport.reconnect?.().catch(() => { /* WalletPair keeps retrying; UI stays reconnecting */ });
-  }, [clearReconnectGrace]);
+    dispatchDsess({ type: 'manual_reconnect' });
+  }, []);
 
-  // --- Begin an extension sign (Safari extension → App Group) ---
+  // --- Begin an extension sign (Safari extension → App Group, or web popup) ---
   // Installs `transport` into the TRANSIENT signTransportRef, NOT transportRef, and
-  // does NOT call disconnectCurrent — so a live WalletPair/bridge session survives.
+  // does NOT call disconnectCurrent() — so a live WalletPair/bridge session survives.
   // It wires ONLY 'request' (stamping the owning transport + per-request chain +
-  // identity onto incomingRequest for F2/F3/F4) and a scoped, identity-guarded
-  // 'disconnected' that clears just its own slot — NEVER incomingRequest, NEVER
-  // transportRef. Deliberately not wireTransport(), whose 'disconnected' handler
-  // would null transportRef + clear incomingRequest mid-sign.
-  // `meta` (the popup entry's granted address) is web-only: on native the
-  // §12.1.6 reconcile stays with the caller (`dapp-account-reconcile.ts`).
-  const beginExtensionSign = useCallback((transport: DAppTransport, _meta?: ExtensionSignMeta) => {
+  // identity for F2/F3/F4) and a scoped, identity-guarded 'disconnected' that clears
+  // just its own slot — NEVER the sheet, NEVER transportRef. Deliberately not
+  // wireTransport(), whose 'disconnected' handler would null transportRef.
+  const beginExtensionSign = useCallback((transport: DAppTransport, meta?: ExtensionSignMeta) => {
+    // Registered BEFORE connect() so the request it emits can be bound to it.
+    registerSignTransport(transport);
+    if (meta) signMetaRef.current.set(transport, meta);
     transport.on('request', (id, method, params, origin) => {
       let host = origin;
       try { host = new URL(origin).host || origin; } catch { /* keep origin */ }
@@ -504,446 +391,113 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     transport.on('disconnected', () => {
       if (signTransportRef.current === transport) signTransportRef.current = null;
     });
-    transport.on('error', (msg) => setErrorMessage(msg));
+    transport.on('error', (msg) => setExtErrorMessage(msg));
     signTransportRef.current = transport;
   }, [handleIncoming]);
 
-  // --- Approve ---
+  // --- Approve / reject / dismiss / funding — one event each ---
+
   const approveRequest = useCallback(async (opts?: ApproveRequestOptions) => {
-    const base = incomingRequest;
-    const account = activeAccountRef.current;
-    if (!base || !account) return;
-
-    // Re-entrancy lock: a rapid second tap (Approve, or the funding "Continue")
-    // must not start a SECOND concurrent approve → two passkey prompts / two
-    // submits (BUG-3). isSigning is async React state — it hasn't flipped yet on a
-    // same-tick second tap — so guard on a synchronous ref. Released on every exit.
-    if (approveInFlightRef.current) return;
-    approveInFlightRef.current = true;
-    signCancelledRef.current = false; // fresh approve — not (yet) cancelled
-
-    // The modal may hand us rewritten params (e.g. an approval capped to a finite
-    // amount). Sign/submit/record THOSE, never the original unbounded request.
-    const request = opts?.paramsOverride ? { ...base, params: opts.paramsOverride } : base;
-
-    // The "what moved" preview the sheet just showed — persisted (JSON-safe) on the
-    // record so the Connections-panel replay can render it without re-simulating.
-    const assetChanges = opts?.assetSim ? serializeAssetSim(opts.assetSim) : undefined;
-
-    // Remember opts so a funding-driven retry resubmits the SAME (capped) request.
-    lastApproveOptsRef.current = opts;
-
-    // Per-request chain for an extension sign (F4): sign against the origin's
-    // granted chain, NOT the global provider chain (which a concurrent WalletPair
-    // session owns). Ordinary requests carry no __chainId → use the global chain.
-    const cid = reqChainId(base, chainIdRef.current);
-
-    // Immediate feedback: the gas pre-check below can take up to 15s and the sign
-    // is async — flip to the signing state the instant the user taps so Approve is
-    // never a silent dead zone (BUG-1 secondary). Cleared again below if we hand
-    // off to the funding view.
-    setIsSigning(true);
-    setSignError(null);
-    setPendingOpHash(null);
-
-    // Proactive gas-account pre-check — mirror the Send flow so funding is
-    // resolved BEFORE the passkey prompt + submit, not after a failed UserOp.
-    // Raced with a timeout so a slow RPC can't hang approval; on timeout/error
-    // we fall through to submit and the post-submit catch below is the safety
-    // net. Covers wallet_sendCalls too (EIP-5792 batches previously only hit
-    // the reactive path after a doomed submit).
-    if (request.method === 'eth_sendTransaction' || request.method === 'wallet_sendCalls') {
-      try {
-        const funding = await Promise.race([
-          checkBundlerFunding(cid, account.address, opts?.bundlerCostWei),
-          new Promise<FundingNeeded | null>(resolve => setTimeout(() => resolve(null), 15_000)),
-        ]);
-        if (funding) {
-          // Silent sponsorship first: the approve tap IS the commitment moment
-          // on the dApp path (the passkey prompt and submit follow immediately,
-          // so the grant starts recouping via the settlement split right away).
-          // Only a non-funded outcome surfaces any UI.
-          const silent = await attemptSilentSponsorship(funding);
-          if (signCancelledRef.current) {
-            setIsSigning(false);
-            approveInFlightRef.current = false;
-            return;
-          }
-          if (silent.outcome !== 'funded') {
-            // Hand off to the funding view — rendered IN-SHEET (BUG-1 primary),
-            // not stacked over the sheet. Drop the signing spinner; the request
-            // stays pending and handleFundingComplete retries it after top-up.
-            setIsSigning(false);
-            setFundingNeeded(
-              silent.outcome === 'confirming'
-                ? { ...funding, presentation: 'confirming' }
-                : { ...funding, presentation: 'topup', denialReason: silent.denialReason },
-            );
-            fundingRidRef.current = request.id; // pin funding to THIS request
-            approveInFlightRef.current = false; // released — the funding retry re-acquires
-            return;
-          }
-        }
-      } catch { /* proceed to submit */ }
-    }
-
-    // Abort if the user rejected / swipe-dismissed DURING the (async) gas pre-check:
-    // rejectRequest already sent 4001 and cleared the request, so submitting now
-    // would broadcast a "rejected" tx and send a contradictory success response for
-    // the same id (BUG-2). Checked here — after the only pre-submit await.
-    if (signCancelledRef.current) {
-      setIsSigning(false);
-      approveInFlightRef.current = false;
-      return;
-    }
-
-    // Entering the passkey/submit phase: the tx is now committed once the user
-    // authenticates. From here a swipe-dismiss must DISMISS (the op proceeds + its
-    // real result is delivered), never reject — else a "cancelled" tx would still
-    // broadcast + send a contradictory success (BUG-2 submit window). onClose reads
-    // this to route to dismissRequest. Reset in the finally.
-    setIsSubmitting(true);
-
-    // For eth_sendTransaction, the op is recorded 'pending' the moment the bundler
-    // accepts it (in onSubmitted) — BEFORE the long on-chain receipt wait — so the
-    // Connections panel shows it immediately and closing the sheet (or reloading
-    // the page) can't lose its status. We patch it to confirmed/failed below.
-    let pendingRecordId: string | null = null;
-    let pendingSave: Promise<void> = Promise.resolve();
-    // Captured in onSubmitted so the confirm step can fetch the AUTHENTIC receipt
-    // logs and silently list any token this tx delivered (see token-autoadd).
-    let submittedOpHash = '';
-    // Per-request dApp identity for an extension sign (F3) — the extension origin,
-    // never a concurrent WalletPair session's dappInfo.
-    const recordOrigin = requestDApp(base, dappInfo)?.name ?? request.origin ?? '';
-    try {
-      const result = await handleDAppRequest(
-        request, account, account.address, cid, opts?.maxFeePerGas,
-        // Surface the hash the moment the op is submitted so the modal can show
-        // "submitted, waiting for confirmation" — and persist it so the pending
-        // state survives the sheet closing.
-        (hash) => {
-          setPendingOpHash(hash);
-          submittedOpHash = hash;
-          const pending = buildSigningRecord({
-            method: request.method, params: request.params, result: '',
-            from: account.address, chainId: cid, dappOrigin: recordOrigin,
-            nowMs: Date.now(), status: 'pending', userOpHash: hash, assetChanges, intent: opts?.intent,
-          });
-          pendingRecordId = pending.id;
-          pendingSave = saveTransaction(pending).catch(e => console.warn('[DAppConnection] Failed to save pending record:', e));
-        },
-        // The fee asset the sheet quoted (null = native) — the in-band send path
-        // settles gas in this token.
-        opts?.gasFeeToken,
-        opts?.quotedFee,
-      );
-      // §4: the DURABLE, app-owned record must precede the result the extension
-      // polls, for EVERY method. eth_sendTransaction already persisted its pending
-      // record in onSubmitted (above) before this point; signatures/batches (no
-      // onSubmitted) are persisted HERE, before sendResponse, so the extension's
-      // result file never lands before Vela Activity has the record.
-      if (!pendingRecordId) {
-        const record = buildSigningRecord({
-          method: request.method,
-          params: request.params,
-          result,
-          from: account.address,
-          chainId: cid,
-          dappOrigin: recordOrigin,
-          nowMs: Date.now(),
-          assetChanges,
-          intent: opts?.intent,
-        });
-        await saveTransaction(record).catch(e => console.warn('[DAppConnection] Failed to save record:', e));
-      }
-
-      // Route the response to the transport that OWNS the request (per-request,
-      // F2) — never a shared transportRef that a concurrent WalletPair session
-      // could be sitting on.
-      responseTransport(base, transportRef.current)?.sendResponse(request.id, result);
-
-      // For txs, flip the already-persisted pending record to confirmed in place
-      // (same id) — never a second record, never a lost pending→confirmed race.
-      if (pendingRecordId) {
-        await pendingSave;
-        await updateTransaction(pendingRecordId, {
-          status: 'confirmed',
-          txHash: typeof result === 'string' ? result : '',
-        }).catch(e => console.warn('[DAppConnection] Failed to confirm record:', e));
-
-        // Silently list any token this tx delivered (e.g. a swap output), so it just
-        // appears on the next balance sync — no user action. Sourced from the
-        // AUTHENTIC receipt logs (never the spoofable sign-time sim). Detached so it
-        // never blocks closing the sheet; the tx-reconciler is the backstop if this
-        // races/fails. This path handles dApp swaps, which the reconciler skips once
-        // this confirm sets a txHash.
-        if (submittedOpHash) {
-          const opHash = submittedOpHash;
-          const from = account.address;
-          void (async () => {
-            try {
-              const res = await rpcCall('eth_getUserOperationReceipt', [opHash], cid);
-              const logs = (res.result as { receipt?: { logs?: any[] } } | null)?.receipt?.logs;
-              await autoAddReceivedTokens(from, cid, logs);
-            } catch { /* reconciler backstop */ }
-          })();
-        }
-      }
-
-      setIncomingRequest(null);
-      setPendingOpHash(null);
-    } catch (err: any) {
-      if (err?.code === PasskeyErrorCode.CANCELLED) {
-        // User cancelled passkey prompt — keep modal open, don't send error
-        setIsSigning(false);
-        return;
-      }
-
-      const msg = err.message ?? 'Signing failed';
-
-      // Gas account underfunded — open the funding modal instead of dumping the
-      // raw "Deposit to: 0x… required: …" error at the user (mirrors the Send
-      // flow's top-up UX). Detection is wording-tolerant; the deposit address and
-      // amounts are read from the bundler's message so we can still show the modal
-      // even if the follow-up account lookup fails.
-      const underfunded = parseBundlerUnderfunded(msg);
-      if (underfunded) {
-        console.log('[DAppConnection] Bundler needs funding');
-        setIsSigning(false);
-        try {
-          const addr = account.address;
-          clearBundlerCache(cid, addr);
-          const info = await fetchBundlerAccountInfo(cid, addr);
-          // Prefer live account info; fall back to the values parsed from the error.
-          const depositAddress = info?.depositAddress || underfunded.depositAddress;
-          if (depositAddress) {
-            const currentBalance = info?.spendableBalance ?? underfunded.spendableWei ?? 0n;
-            const thresholdWei = underfunded.requiredWei ?? currentBalance + 100_000_000_000_000n;
-            const recommendedWei = recommendedFundingWei(thresholdWei, currentBalance);
-            const nativeSym = info?.nativeSym ?? (underfunded.asset === 'pathUSD' ? 'pathUSD' : nativeSymbol(cid));
-            const funding: FundingNeeded = {
-              depositAddress,
-              safeAddress: addr,
-              chainId: cid,
-              nativeSym,
-              thresholdWei: underfundedRequiredWei(underfunded) ?? thresholdWei,
-              recommendedWei,
-              currentBalance,
-              recommendedFormatted: formatWei(recommendedWei),
-              currentFormatted: formatWei(currentBalance),
-            };
-            // The user may have rejected while the account lookup ran — a
-            // treasury grant must not fire for an abandoned request.
-            if (signCancelledRef.current) return;
-            // Try to heal silently before asking the user for anything (the
-            // typical reactive cause is a gas spike past the funded float).
-            // Success shows the sheet's confirming state, whose first poll
-            // flips to the funded beat and replays this request.
-            const silent = await attemptSilentSponsorship(funding, { force: true });
-            // The recovery took a while — only surface the funding sheet if
-            // the user hasn't rejected meanwhile (4001 already sent) and THIS
-            // request still owns the sheet; a late sheet over a NEWER request
-            // would cancel the wrong one (BUG-2 family).
-            if (signCancelledRef.current) return;
-            if (incomingRequestRef.current && incomingRequestRef.current.id !== request.id) {
-              // A new request took the slot — fall through to the generic
-              // error response for THIS request instead of hijacking the UI.
-              throw err;
-            }
-            setFundingNeeded(
-              silent.outcome === 'denied'
-                ? { ...funding, presentation: 'topup', denialReason: silent.denialReason }
-                : { ...funding, presentation: 'confirming' },
-            );
-            fundingRidRef.current = request.id; // pin funding to THIS request
-            return; // Don't send error to dApp — keep request pending
-          }
-        } catch { /* fall through to generic error */ }
-      }
-
-      console.error('[DAppConnection] Request failed:', msg);
-      // A terminal failure after the op was already submitted (e.g. dropped from
-      // the mempool / no receipt in time) — flip its persisted record to 'failed'
-      // so it doesn't linger as 'pending' forever in the Connections panel.
-      if (pendingRecordId) {
-        pendingSave
-          .then(() => updateTransaction(pendingRecordId!, { status: 'failed' }))
-          .catch(() => {});
-      }
-      setSignError(msg);
-      responseTransport(base, transportRef.current)?.sendResponse(request.id, undefined, { code: -32603, message: msg });
-      // Keep modal open so user can see the error — they dismiss manually
-    } finally {
-      approveInFlightRef.current = false; // release the re-entrancy lock on every exit
-      setIsSigning(false);
-      setIsSubmitting(false);
-    }
-  }, [incomingRequest]);
-
-  // --- Reject ---
-  const rejectRequest = useCallback(() => {
-    if (!incomingRequest) return;
-    // Signal any approve that's mid-flight (e.g. inside the ≤15s gas pre-check) to
-    // abort before it submits — otherwise a swipe/reject would 4001 the dApp while
-    // the tx still broadcasts + returns a success for the same id (BUG-2).
-    signCancelledRef.current = true;
-    responseTransport(incomingRequest, transportRef.current)?.sendResponse(incomingRequest.id, undefined, { code: 4001, message: 'User rejected' });
-    setIncomingRequest(null);
-    setSignError(null);
-    setPendingOpHash(null);
-    setFundingNeeded(null);
-  }, [incomingRequest]);
-
-  // --- Dismiss (after error, response already sent) ---
-  const dismissRequest = useCallback(() => {
-    setIncomingRequest(null);
-    setSignError(null);
-    setPendingOpHash(null);
-    setFundingNeeded(null);
+    // The "what moved" preview the sheet just showed. Not core state: it is a
+    // presentation blob the record stores for the Connections-panel replay, and
+    // the core would only be forwarding it.
+    setSignApproveExtras(opts?.assetSim ?? null);
+    dispatchSign({
+      type: 'approve_tapped',
+      opts: {
+        max_fee_per_gas: opts?.maxFeePerGas != null ? opts.maxFeePerGas.toString() : null,
+        bundler_cost_wei: opts?.bundlerCostWei != null ? opts.bundlerCostWei.toString() : null,
+        gas_fee_token: opts?.gasFeeToken ?? null,
+        quoted_fee: opts?.quotedFee
+          ? { amount: opts.quotedFee.amount.toString(), recipient: opts.quotedFee.recipient }
+          : null,
+        // The sheet quotes fee amount + recipient together, so the recipient it
+        // displays IS the collector it would be checked against; `null` keeps
+        // the floor half of the Tempo staleness guard and skips the tautology.
+        fee_collector: null,
+        params_override_json: opts?.paramsOverride ? JSON.stringify(opts.paramsOverride) : null,
+        intent: opts?.intent ?? null,
+      },
+    });
   }, []);
 
-  // --- Bundler funding complete → retry the pending request ---
-  const handleFundingComplete = useCallback(() => {
-    setFundingNeeded(null);
-    // Request-bind: only replay if the request that asked for funding is STILL the
-    // one on the sheet. If it changed (a new sign took the slot), the pinned opts
-    // (lastApproveOptsRef) belong to the old request — replaying them would submit
-    // the wrong params under the wrong id. Bail rather than mis-submit.
-    const pinnedRid = fundingRidRef.current;
-    fundingRidRef.current = null;
-    if (pinnedRid && incomingRequest && incomingRequest.id !== pinnedRid) return;
-    // Drop the cached (stale, underfunded) balance so the pre-check on retry reads
-    // the freshly-funded amount instead of re-prompting. Clear the REQUEST's chain
-    // (an extension sign may be on a different chain than the global one — F4);
-    // clearing the wrong chain would re-read the stale balance and loop funding.
-    const account = activeAccountRef.current;
-    const retryChainId = reqChainId(incomingRequest, chainIdRef.current);
-    if (account) clearBundlerCache(retryChainId, account.address);
-    // Retry approve with the SAME opts (esp. the capped paramsOverride) so funding
-    // never resubmits the original (possibly unbounded) request.
-    approveRequest(lastApproveOptsRef.current);
-  }, [approveRequest, incomingRequest]);
+  const rejectRequest = useCallback(() => {
+    dispatchSign({ type: 'reject_tapped' });
+  }, []);
 
-  // --- Bundler funding cancelled → reject the pending request ---
+  const dismissRequest = useCallback(() => {
+    dispatchSign({ type: 'dismiss_tapped' });
+  }, []);
+
+  const handleFundingComplete = useCallback(() => {
+    dispatchSign({ type: 'funding_complete_tapped' });
+  }, []);
+
   const handleFundingCancel = useCallback(() => {
-    setFundingNeeded(null);
-    if (incomingRequest) {
-      responseTransport(incomingRequest, transportRef.current)?.sendResponse(incomingRequest.id, undefined, { code: -32603, message: 'Gas account funding cancelled' });
-      setIncomingRequest(null);
-    }
-  }, [incomingRequest]);
+    dispatchSign({ type: 'funding_cancelled' });
+  }, []);
 
   // --- Switch chain ---
+  // The core is the single writer of the global chain: it validates support
+  // (fail-closed) and cancels a pending GLOBAL-chain sign with 4001 before the
+  // switch lands (invariant ⑥). The connected page hears about it through the
+  // pushWalletInfo effect above, which keys off the projected chainId.
   const switchChain = useCallback((newChainId: number) => {
-    setChainId(newChainId);
-    chainIdRef.current = newChainId;
-    if (transportRef.current?.connected) {
-      // Notify dApp of chain change via wallet info push
-      transportRef.current.pushWalletInfo({
-        address: addressRef.current,
-        chainId: newChainId,
-        name: accountNameRef.current,
-        accounts: accountsRef.current.map(a => ({ name: a.name, address: a.address })),
-      });
-    }
+    syncSignNetworks();
+    dispatchSign({
+      type: 'chain_switch_requested',
+      id: null,
+      transport_id: null,
+      chain_id_param: String(newChainId),
+    });
   }, []);
 
   // --- Auto-reconnect on mount ---
+  //
+  // The shell reads BOTH stores and reports what exists; the CORE picks
+  // remote-inject first (invariant ⑥), commits a restored relay session only on
+  // a successful connect, cleans a stale one up silently, and gives a restored
+  // WalletPair channel the 8 s `dropIfDead` window before it drops it AND wipes
+  // the snapshot (BUG-5/6, invariant ⑤). `RestoreLoaded` is single-shot in the
+  // core and refuses to run while anything is live, so a re-run of this effect
+  // can never clobber a session the user just made.
+  //
+  // No teardown: the resident owns its transports for the lifetime of the tab,
+  // which is what makes a connection survive navigation. The provider is
+  // mounted once at the root, so the old unmount-disconnect only ever ran on a
+  // hot reload.
   useEffect(() => {
     if (!state.hasWallet || state.isLoading) return;
-
-    // Try Remote Inject first, then WalletPair
-    (async () => {
-      const sess = await loadSession();
-      if (sess) {
-        // Try auto-reconnect — on failure, clear stale session silently
-        const transport = new RemoteInjectTransport(sess);
-        wireTransport(transport, 'remote-inject');
-        try {
-          await transport.connect();
-          setSession(sess);
-          const info = await transport.fetchDAppInfo().catch(() => null);
-          setDappInfo(info);
-          await saveSession(sess);
-        } catch {
-          // Stale session — clean up silently, don't show error
-          transport.disconnect();
-          transportRef.current = null;
-          await clearSession();
-        }
-        return;
-      }
-
-      // Try restoring a WalletPair session
-      try {
-        const wpTransport = await WalletPairTransport.restore();
-        if (wpTransport) {
-          wireTransport(wpTransport, 'walletpair');
-          const info = await wpTransport.fetchDAppInfo();
-          setDappInfo(info);
-          const dropIfDead = () => {
-            // A restored session whose channel is gone (the relay answers a join with
-            // `terminate: channel_not_found`) can NEVER come back. Left alone, the session
-            // treats it as the durable session and the snapshot restore-loops on every
-            // launch — and a live reconnect attempt to a dead channel collides with a
-            // fresh pairing on the relay (BUG-6, and a contributor to BUG-5). So if it
-            // isn't live shortly after the reconnect attempt, drop it AND clear the
-            // snapshot so the next launch starts clean.
-            if (transportRef.current === wpTransport && !wpTransport.connected) {
-              wpTransport.disconnect();
-              if (transportRef.current === wpTransport) transportRef.current = null;
-              clearWalletPairSession();
-            }
-          };
-          try {
-            await wpTransport.reconnect();
-            setTimeout(dropIfDead, 8000); // real reconnects settle well under this; dead channels 404 fast
-          } catch {
-            dropIfDead();
-          }
-        }
-      } catch {
-        // WalletPair restore failed — clean up
-        clearWalletPairSession();
-      }
-    })();
-
-    return () => {
-      transportRef.current?.disconnect();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    void restoreDsess();
   }, [state.hasWallet, state.isLoading]);
 
-  // --- Resume in-flight dApp txs left 'pending' (sheet closed / page reloaded
+  // --- Resume in-flight txs left 'pending' (sheet closed / page reloaded
   //     mid-confirmation) so their status still resolves instead of showing as
   //     forever-pending in the Connections panel. ---
-  const resumedRef = useRef(false);
+  //
+  // `tx_tracker` owns this now. Starting the resident here keeps the trigger
+  // exactly where the hand-rolled scan was (root provider, once the wallet is
+  // loaded) and also installs the `sign_request` hand-off, so a dApp tx is
+  // tracked from the moment the bundler accepts it. The scan itself is the
+  // core's `LoadPendingTxs` sweep: same 24h cutoff, same `dapp_tx` records —
+  // plus `send` records, and with the honest rule that an unreachable bundler
+  // is never a failure.
   useEffect(() => {
-    if (resumedRef.current || !state.hasWallet || state.isLoading) return;
-    resumedRef.current = true;
-    (async () => {
-      const txs = await loadTransactions().catch(() => []);
-      const cutoff = Math.floor(Date.now() / 1000) - 24 * 3600; // ignore ancient stuck ops
-      const pending = txs.filter(
-        (t) => t.status === 'pending' && (t.type ?? '') === 'dapp_tx' && !!t.userOpHash && t.timestamp >= cutoff,
-      );
-      for (const t of pending) {
-        waitForReceipt(t.userOpHash, t.chainId)
-          .then((txHash) => updateTransaction(t.id, { status: 'confirmed', txHash }))
-          .catch(() => { /* still unconfirmed or dropped — leave for the user to clear */ });
-      }
-    })();
+    if (!state.hasWallet || state.isLoading) return;
+    startTxTracker();
   }, [state.hasWallet, state.isLoading]);
 
-  const value = React.useMemo(() => ({
+  const value = useMemo(() => ({
     status, errorMessage, session, dappInfo,
-    // NATIVE has no `sign_request` machine (no WebAssembly on Hermes): the
-    // reject/approve lifecycle is this provider's own refs, and there is no
-    // separate reconcile ack to wait on, so this gate is always open and the
-    // sheet's confirm is governed by the approval guard alone — today's rule.
-    confirmGateOpen: true,
-    incomingRequest, isSigning, isSubmitting, signError, pendingOpHash, chainId,
+    incomingRequest,
+    isSigning: signView.is_signing,
+    isSubmitting: signView.is_submitting,
+    signError,
+    pendingOpHash: signView.pending_op_hash,
+    // §12.1.6 + invariant ⑦: the core's own gate, handed to the sheet so the
+    // confirm control reflects it instead of two gates and zero ANDs.
+    confirmGateOpen: signView.confirm_gate_open,
+    chainId,
     connectionType, pendingFingerprint,
     connectToBridge, connectToWalletPair, confirmFingerprint, cancelFingerprint,
     disconnectBridge, beginExtensionSign, reconnect, reconnectStuck,
@@ -951,7 +505,8 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     fundingNeeded, handleFundingComplete, handleFundingCancel,
   }), [
     status, errorMessage, session, dappInfo,
-    incomingRequest, isSigning, isSubmitting, signError, pendingOpHash, chainId,
+    incomingRequest, signView.is_signing, signView.is_submitting, signError,
+    signView.pending_op_hash, signView.confirm_gate_open, chainId,
     connectionType, pendingFingerprint,
     connectToBridge, connectToWalletPair, confirmFingerprint, cancelFingerprint,
     disconnectBridge, beginExtensionSign, reconnect, reconnectStuck,
@@ -959,9 +514,5 @@ export function DAppConnectionProvider({ children }: { children: ReactNode }) {
     fundingNeeded, handleFundingComplete, handleFundingCancel,
   ]);
 
-  return (
-    <DAppConnectionContext.Provider value={value}>
-      {children}
-    </DAppConnectionContext.Provider>
-  );
+  return React.createElement(DAppConnectionContext.Provider, { value }, children);
 }

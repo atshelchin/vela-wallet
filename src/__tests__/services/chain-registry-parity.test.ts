@@ -47,7 +47,7 @@ jest.mock('@/services/bundler-service', () => ({ clearBundlerCache: jest.fn() })
 // first or the wasm is never initialised.
 import '@/services/vela-core';
 import { fetchChainInfo, type ChainInfo } from '@/services/chain-registry';
-import { createNetworkAdminSession } from '@/services/wallet-state-core/network-admin-session.web';
+import { createNetworkAdminSession } from '@/services/wallet-state-core/network-admin-session';
 import type { NetChainInfo } from '@/services/wallet-state-core/generated/NetChainInfo';
 import type { NetView } from '@/services/wallet-state-core/generated/NetView';
 

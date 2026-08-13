@@ -45,8 +45,8 @@ import '@/services/vela-core';
 import {
   clearOperationFailure,
   executeClearOperation,
-} from '@/services/wallet-state-core/clear-executor.web';
-import { createClearSigningSession } from '@/services/wallet-state-core/clear-session.web';
+} from '@/services/wallet-state-core/clear-executor';
+import { createClearSigningSession } from '@/services/wallet-state-core/clear-session';
 import { toShellResult } from '@/services/wallet-state-core/clear-types';
 import type { ClearSigningEvent } from '@/services/wallet-state-core/generated/ClearSigningEvent';
 import type { ClearSigningView } from '@/services/wallet-state-core/generated/ClearSigningView';

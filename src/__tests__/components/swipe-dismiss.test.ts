@@ -4,29 +4,25 @@
 // after the commitment point tells the dApp the user refused while the very same
 // userOp still broadcasts and later reports success (docs/KNOWN-BUGS.md BUG-2).
 //
-// Two halves, and this file pins both:
+// This file used to pin BOTH halves: a hand-written native port of
+// `sign_request.rs::swipe_action`, graded over its entire 16-combination input
+// domain, and the web shell's obligation to grade NOTHING. The native port is
+// gone with the rest of the Hermes path, so `sign_request.rs` is now the only
+// implementation of the rule and the only place it needs grading.
 //
-//   - NATIVE (`swipe-dismiss.ts`) has no core — Hermes has no WebAssembly — so
-//     the rule is a hand-written port of `sign_request.rs::swipe_action`. The
-//     port is graded here over its ENTIRE input domain (16 combinations), which
-//     is small precisely because the facts are booleans.
-//   - WEB (`swipe-dismiss.web.ts`) must not grade anything. It reports the
-//     gesture to the core and the core routes it. The test that matters there
-//     is a NEGATIVE one: the handlers are never called, no matter what the
-//     facts say — a shell that "helpfully" short-circuits one branch is exactly
-//     the drift this seam exists to prevent.
+// What remains here is the half that still has a job: the NEGATIVE test. The
+// shell reports the gesture and the core routes it — a shell that "helpfully"
+// short-circuits one branch is exactly the drift this seam exists to prevent,
+// and no Rust test can catch that, because it is about what the shell does NOT do.
 
 import type { SignSwipeAction } from '@/services/wallet-state-core/generated/SignSwipeAction';
 import type { SwipeDismissFacts } from '@/components/signing/swipe-dismiss-types';
-import { performSwipeDismiss, swipeAction } from '@/components/signing/swipe-dismiss';
-// The WEB variant is imported by its explicit `.web` specifier — jest's resolver
-// has no platform extensions, and the base file is the native one.
-import * as web from '@/components/signing/swipe-dismiss.web';
+import { performSwipeDismiss } from '@/components/signing/swipe-dismiss';
 
 // The core resident is never loaded for real: it boots wasm, which jest's node
 // environment has no business doing to answer "did the shell dispatch?".
 const mockDispatchSign = jest.fn();
-jest.mock('@/services/wallet-state-core/sign-resident.web', () => ({
+jest.mock('@/services/wallet-state-core/sign-resident', () => ({
   dispatchSign: (...args: unknown[]) => mockDispatchSign(...args),
 }));
 
@@ -69,64 +65,14 @@ function expected(f: SwipeDismissFacts): SignSwipeAction {
   return 'reject';
 }
 
-describe('swipe-dismiss (native port of sign_request.rs::swipe_action)', () => {
-  it('grades every one of the 16 fact combinations the way the core does', () => {
-    for (const f of allFacts()) {
-      expect([JSON.stringify(f), swipeAction(f)]).toEqual([JSON.stringify(f), expected(f)]);
-    }
-  });
-
-  it('never answers 4001 once the request is committed', () => {
-    // The BUG-2 window itself: anything that says "committed" must dismiss.
-    for (const f of allFacts()) {
-      if (f.fundingNeeded) continue;
-      if (f.signError || f.pendingOpHash || f.isSubmitting) {
-        expect(swipeAction(f)).toBe('dismiss');
-      }
-    }
-  });
-
-  it('rejects only when nothing at all has been committed', () => {
-    expect(swipeAction(facts())).toBe('reject');
-    expect(allFacts().filter((f) => swipeAction(f) === 'reject')).toHaveLength(1);
-  });
-
-  it('lets the funding view own the swipe even past the commitment point', () => {
-    // The in-sheet funding swap (BUG-1) means the sheet on screen is the funding
-    // view; a swipe there is its "取消", not a verdict on the tx underneath.
-    expect(swipeAction(facts({ fundingNeeded: true, isSubmitting: true }))).toBe('funding_cancel');
-    expect(swipeAction(facts({ fundingNeeded: true, pendingOpHash: true }))).toBe('funding_cancel');
-    expect(swipeAction(facts({ fundingNeeded: true, signError: true }))).toBe('funding_cancel');
-  });
-
-  it('routes each verdict to the matching handler and nothing else', () => {
-    const cases: [SwipeDismissFacts, 'reject' | 'dismiss' | 'fundingCancel'][] = [
-      [facts(), 'reject'],
-      [facts({ isSubmitting: true }), 'dismiss'],
-      [facts({ pendingOpHash: true }), 'dismiss'],
-      [facts({ signError: true }), 'dismiss'],
-      [facts({ fundingNeeded: true }), 'fundingCancel'],
-    ];
-    for (const [f, want] of cases) {
-      const handlers = { reject: jest.fn(), dismiss: jest.fn(), fundingCancel: jest.fn() };
-      performSwipeDismiss(f, handlers);
-      const called = (Object.keys(handlers) as (keyof typeof handlers)[]).filter(
-        (k) => handlers[k].mock.calls.length > 0,
-      );
-      expect([JSON.stringify(f), called]).toEqual([JSON.stringify(f), [want]]);
-      expect(handlers[want]).toHaveBeenCalledTimes(1);
-    }
-  });
-});
-
-describe('swipe-dismiss.web (the core owns the verdict)', () => {
+describe('swipe-dismiss (the core owns the verdict)', () => {
   beforeEach(() => mockDispatchSign.mockClear());
 
   it('reports the gesture as `swipe_dismissed` and never grades it', () => {
     for (const f of allFacts()) {
       mockDispatchSign.mockClear();
       const handlers = { reject: jest.fn(), dismiss: jest.fn(), fundingCancel: jest.fn() };
-      web.performSwipeDismiss(f, handlers);
+      performSwipeDismiss(f, handlers);
       // Exactly one event, and it is the one the core models this question with.
       expect(mockDispatchSign.mock.calls).toEqual([[{ type: 'swipe_dismissed' }]]);
       // And NOT a single shell-side shortcut — this is the whole point.

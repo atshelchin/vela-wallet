@@ -1,52 +1,80 @@
 /**
- * Safari-extension account cache + Universal-Link attestation — NATIVE
- * controller.
+ * Safari-extension account cache + Universal-Link attestation — WEB, driven by
+ * the portable Rust state machine
+ * (spec 017, `rust/crates/vela-core/src/app/ext_cache.rs`).
  *
- * Today's logic, moved verbatim out of `<AccountFileWriter/>` (spec 017):
- * Hermes has no WebAssembly, so iOS/Android keep the TypeScript
- * implementation. The web variant (`use-ext-cache.web.ts`) is driven by the
- * portable Rust machine (`rust/crates/vela-core/src/app/ext_cache.rs`); the
- * TTL, the loading gate and the `{ name, address }` projection are decided —
- * and tested — there.
+ * This file owns no rules. It reports what the shell can observe — the wallet
+ * state, a foreground, a launch URL — and lets the core decide: whether the
+ * boot window is still loading (never clear), whether a write or a clear is
+ * due, which accounts survive the `{ name, address }` projection, whether a URL
+ * is the anchored `getvela.app/sign` Universal Link, and whether the
+ * attestation is still inside its 14-day TTL. Every one of those is tested in
+ * Rust.
  *
- * IMPORTANT lifecycle guards (unchanged):
- *  - Never treat the initial LOADING window as "logged out". WalletProvider boots
- *    with { isLoading:true, hasWallet:false } and only later restores accounts
- *    from AsyncStorage; clearing on loading would delete a logged-in user's cache
- *    (and a slow/failed restore would delete it permanently). We only clear once
- *    loading has resolved AND there is genuinely no wallet.
- *  - chainId is a STABLE default (not the volatile dApp-bridge chainId). The
- *    wallet has no global "current network"; each connected dApp picks/switches
- *    its own chain in the extension (per-origin). So this writer never depends on
- *    useDAppConnection().
+ * On web the whole surface is inert by design: the App Group operations no-op
+ * off iOS (`AppGroup.isSupportedSync`), so nothing is written and nothing is
+ * rendered. What DOES still run here — the attestation key and the extension
+ * sign bus — is exactly what the TypeScript component already ran on every
+ * platform, so web behaviour is unchanged.
  */
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import * as Linking from 'expo-linking';
 
+import type { Account } from '@/models/types';
 import {
-  writeAccountCache,
-  clearAccountCache,
-  markUniversalLinkVerified,
-  DEFAULT_EXT_CHAIN_ID,
-} from '@/services/app-group-account-sync';
-import { requestExtensionSign } from '@/services/extension-sign-bus';
+  createExtCacheSession,
+  type ExtCacheSession,
+} from '@/services/wallet-state-core/ext-cache-session';
+import type { Account as CoreAccount } from '@/services/wallet-state-core/generated/Account';
+import type { ExtCacheEvent } from '@/services/wallet-state-core/generated/ExtCacheEvent';
+import { registerExtCacheEnder } from '@/services/wallet-state-core/session-ext-cache-bridge';
 
 import type { ExtCacheInputs } from './ext-cache-controller-types';
 
-// The UL attestation probe rid (getvela.app/sign?rid=ul-selftest) — not a real sign.
-const UL_SELFTEST_RID = 'ul-selftest';
+/**
+ * The wallet's `Account` in the core's vocabulary. Handed over whole on
+ * purpose: invariant ① is structural in Rust (the snapshot's account type IS
+ * `{ name, address }`), so pre-trimming here would only hide a regression in
+ * the guarantee the core is tested for. `publicKeyHex` lives on `StoredAccount`
+ * and never reaches this context, so the key field is empty.
+ *
+ * Every field is defaulted because `loadAccounts()` is an unvalidated JSON
+ * parse of whatever is on disk: a legacy record missing `createdAt` would
+ * serialize as an absent key, and serde would reject the whole event as a core
+ * fault — silently costing the extension its cache. `|| ''` on the name is also
+ * what `buildAccountCache` has always done.
+ */
+function toCoreAccount(account: Account): CoreAccount {
+  return {
+    id: account.id ?? '',
+    name: account.name || '',
+    address: account.address ?? '',
+    public_key_hex: '',
+    created_at_iso: account.createdAt ?? '',
+  };
+}
 
-// A getvela.app /sign Universal Link resolving to the app PROVES the applinks
-// association is live on this device for THE EXACT PATH the extension launches
-// (`/sign`) — the one signal that lets it safely switch the sign hand-off from the
-// velawallet:// scheme to the UL. Scoped to /sign (not any getvela.app path) so
-// attestation proves precisely what the launch relies on; anchored to the exact
-// apex host so evil-getvela.app.com / getvela.app.evil.com / a path containing the
-// string can't spoof it.
-const GETVELA_SIGN_UL = /^https:\/\/getvela\.app\/sign(?:[/?#]|$)/i;
+function accountsChanged(input: ExtCacheInputs): ExtCacheEvent {
+  return {
+    type: 'accounts_changed',
+    is_loading: input.isLoading,
+    has_wallet: input.hasWallet,
+    accounts: input.accounts.map(toCoreAccount),
+    active: input.active ? toCoreAccount(input.active) : null,
+    // Raw preference string — the core normalizes by strict equality.
+    theme: input.theme,
+    locale: input.locale,
+  };
+}
 
 export function useExtCache(input: ExtCacheInputs): void {
+  const session = useRef<ExtCacheSession | null>(null);
+  const latest = useRef(input);
+  latest.current = input;
+
+  // The same primitives the native controller keys its write effect on, so the
+  // two platforms report on exactly the same edges.
   const isLoading = input.isLoading;
   const hasWallet = input.hasWallet;
   const address = input.active?.address ?? '';
@@ -55,65 +83,58 @@ export function useExtCache(input: ExtCacheInputs): void {
   const theme = input.theme;
   const locale = input.locale;
 
-  // Latest snapshot for the (registered-once) foreground handler.
-  const latest = useRef({ isLoading, hasWallet, address, name, accounts, theme, locale });
-  latest.current = { isLoading, hasWallet, address, name, accounts, theme, locale };
-
-  function sync(d: typeof latest.current) {
-    if (d.isLoading) return; // still restoring — neither write nor clear
-    if (!d.hasWallet || !d.address) {
-      void clearAccountCache(); // genuinely logged out → empty-state in the extension
-      return;
-    }
-    void writeAccountCache({
-      address: d.address,
-      name: d.name,
-      accounts: d.accounts.map((a) => ({ name: a.name, address: a.address })),
-      chainId: DEFAULT_EXT_CHAIN_ID,
-      theme: d.theme,
-      locale: d.locale,
-    });
-  }
-
-  // (a) write whenever loading resolves, the account set / active account changes,
-  //     OR the theme/language preference changes (so the cache stays app-matched).
+  // One session for this component's lifetime — it is mounted once, at the
+  // root, and outlives every screen. Declared before the reporting effect so
+  // that effect (which runs after, on the same mount) always finds it; the
+  // core's own first view is diagnostic, so there is nothing to `start`.
+  // Disposing on unmount also covers React 19 StrictMode's development
+  // double-mount: the first core is freed before the second is built.
   useEffect(() => {
-    sync(latest.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const loop = createExtCacheSession({
+      onView: () => {},
+      onError: (error) => console.error('[ext-cache] core fault:', error),
+    });
+    session.current = loop;
+    // The session machine's `ClearExtensionCache` operation lands as this
+    // core's `session_ended`. Registered rather than imported so the two cores
+    // stay unaware of each other; see `session-ext-cache-bridge.web.ts` for why
+    // nothing emits it today.
+    registerExtCacheEnder(() => loop.dispatch({ type: 'session_ended' }));
+    return () => {
+      registerExtCacheEnder(null);
+      session.current = null;
+      loop.dispose();
+    };
+  }, []);
+
+  // (a) Report on mount, whenever loading resolves, the account set / active
+  //     account changes, OR the theme/language preference changes. The core
+  //     rules on which of those means write, clear, or wait.
+  useEffect(() => {
+    session.current?.dispatch(accountsChanged(latest.current));
   }, [isLoading, hasWallet, address, name, accounts, theme, locale]);
 
-  // (b) write on every foreground.
+  // (b) Every foreground — §12.1.6: a user who installed the extension while
+  //     already logged in must not be left with an empty cache.
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (s) => {
-      if (s === 'active') sync(latest.current);
+      if (s === 'active') session.current?.dispatch({ type: 'foregrounded' });
     });
     return () => subscription.remove();
   }, []);
 
-  // (c) Universal-Link sign + attestation: if the app was opened (cold or warm) via a
-  // https://getvela.app/sign?rid UL, (1) drive the extension sign for that rid, and
-  // (2) mark UL verified. CRITICAL: expo-router maps only the velawallet:// scheme to
-  // the /sign route — the getvela.app DOMAIN is NOT a router prefix, so a UL launch
-  // would otherwise open the app to HOME and never show the sign sheet. This handler
-  // is the ONLY thing that routes a UL sign into the flow (via the same bus the
-  // /sign trampoline uses for the scheme path). ul-selftest is the attestation probe,
-  // not a real sign — skip driving a sign for it.
+  // (c) Every launch URL (cold or warm) is forwarded verbatim; the core owns
+  //     the anchored `https://getvela.app/sign` match, the rid extraction, the
+  //     `ul-selftest` probe exclusion and the attestation refresh — including
+  //     driving the extension sign through the same bus the `/sign` scheme
+  //     trampoline uses.
   useEffect(() => {
-    let mounted = true;
-    const onUrl = async (url: string | null) => {
-      if (!url || !GETVELA_SIGN_UL.test(url)) return;
-      let rid: string | null = null;
-      try { rid = new URL(url).searchParams.get('rid'); } catch { /* no rid */ }
-      if (rid && rid !== UL_SELFTEST_RID) requestExtensionSign(rid); // buffered if the controller isn't up yet
-      await markUniversalLinkVerified(); // fresh timestamp — also refreshes the TTL
-      if (mounted) sync(latest.current); // re-write; writeAccountCache re-reads the flag
+    const onUrl = (url: string | null) => {
+      if (!url) return;
+      session.current?.dispatch({ type: 'universal_link_opened', url, now_ms: Date.now() });
     };
     Linking.getInitialURL().then(onUrl).catch(() => {});
     const sub = Linking.addEventListener('url', ({ url }) => onUrl(url));
-    return () => {
-      mounted = false;
-      sub.remove();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => sub.remove();
   }, []);
 }

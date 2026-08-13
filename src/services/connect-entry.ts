@@ -1,35 +1,43 @@
 /**
- * The five-way connect-entry classification — NATIVE.
+ * The five-way connect-entry classification — WEB, and the CORE's answer.
  *
- * One scanned/pasted string, five outcomes: a WalletPair pairing URI, a
- * remote-inject connect link, a full http(s) URL, a bare host, or invalid. The
- * ORDER is load-bearing and always has been: a remote-inject link IS an
- * `https://` URL (it carries `n`+`k`), so the browser fallback may only run
- * once `parseRemoteInjectURL` returned null (docs/dapp-browser/ARCHITECTURE.md
- * §7).
+ * The rule (`walletpair:` URI → remote-inject link → full http(s) URL → bare
+ * host → invalid, in that order, because a remote-inject link is itself an
+ * https URL) lives in `rust/crates/vela-core/src/app/dapp_session.rs`
+ * (`classify_connect_input`, invariant ⑨). It used to live there *and* inline
+ * at both entry points: the shell classified, discarded its answer, handed the
+ * raw string to the resident, and the core classified a second time. Whichever
+ * copy the next edit landed on, the other one kept deciding.
  *
- * Why this module exists: the same three-step decision was written out by hand
- * at every entry point (`ConnectScreen.handleConnect`, `useHomeController`'s
- * `connectFromUri`) while the Rust core made the identical decision again in
- * `dapp_session.rs::classify_connect_input` — the shell classified, threw the
- * classification away, re-serialised, and the core classified a second time.
- * Two implementations of one rule is one implementation too many, so on web
- * this module's `.web.ts` twin asks the CORE and nothing here runs
- * (`connect-entry.web.ts`).
+ * So on web the shell stopped deciding. `Event::InputSubmitted` is the only
+ * door into the classifier, and the operation it asks for IS the verdict:
+ * `PrepareWalletPair` / `ConnectRemoteInject` / `OpenBrowser` / `AlertInvalidLink`,
+ * one per branch, each already carrying the parsed, normalized payload the
+ * caller needs (the trimmed URI, the four relay fields, the coerced URL).
+ * Reading it back off a throwaway core is the `validate-pay.web.ts` /
+ * `dperm-popup.web.ts` pattern: construct, dispatch once, read the verdict,
+ * free.
  *
- * On iOS/Android it stays exactly as it was: Hermes has no WebAssembly, so this
- * TypeScript body is the only implementation native has and it may not be
- * deleted (FR-202 — native behaviour is unchanged by spec 017). It is a
- * call-for-call move of the code that used to sit inline at the two entry
- * points, so the native decision is byte-for-byte the one it always made.
+ * Throwaway is the point — this core is NOT the app's resident session
+ * (`dsess-resident.web.ts`) and must never become it. Nothing here is executed:
+ * the returned effects are dropped on the floor and the instance is freed, so
+ * classifying a string can neither open a socket nor disturb a live connection.
+ * A pristine model makes exactly one shell request for each of the four
+ * branches (`disconnect_current` on an empty model asks for nothing and the
+ * disconnected → connecting transition arms no timer), and the scan below is
+ * written to tolerate extra bookkeeping operations anyway rather than assume
+ * position 0.
  *
- * `src/__tests__/services/connect-entry-parity.test.ts` pins this body against
- * the core's over the real wasm, so the two can never answer differently for
- * the same input.
+ * The connect surfaces still perform their own side effects (which tab to
+ * show, which alert copy to use, where to navigate) — this module answers WHAT
+ * the input is and nothing else.
  */
 
-import { coerceBrowserUrl, parseRemoteInjectURL, type RemoteInjectSession } from '@/services/dapp-transport';
-import { isWalletPairURI } from '@/services/walletpair-transport';
+import '@/services/vela-core';
+import { DappSessionCore } from '../../rust/pkg-web/vela_core.js';
+
+import type { RemoteInjectSession } from '@/services/dapp-transport';
+import type { DsessOperation } from '@/services/wallet-state-core/generated/DsessOperation';
 
 /**
  * What one connect input turned out to be. Mirrors the core's `DsessInput`
@@ -46,12 +54,44 @@ export type ConnectEntry =
   /** Not a pairing link and not a web address. */
   | { kind: 'invalid' };
 
+interface DispatchResult {
+  effects: { id: number; operation: DsessOperation }[];
+}
+
 export function classifyConnectEntry(raw: string): ConnectEntry {
-  const trimmed = raw.trim();
-  if (isWalletPairURI(trimmed)) return { kind: 'walletpair', uri: trimmed };
-  const session = parseRemoteInjectURL(trimmed);
-  if (session) return { kind: 'remote-inject', session };
-  const url = coerceBrowserUrl(trimmed);
-  if (url) return { kind: 'browser', url };
+  const core = new DappSessionCore();
+  let effects: { id: number; operation: DsessOperation }[];
+  try {
+    effects = (JSON.parse(core.dispatch(JSON.stringify({ type: 'input_submitted', raw }))) as DispatchResult).effects;
+  } finally {
+    core.free();
+  }
+
+  for (const { operation } of effects) {
+    switch (operation.type) {
+      case 'prepare_wallet_pair':
+        return { kind: 'walletpair', uri: operation.uri };
+      case 'connect_remote_inject':
+        return {
+          kind: 'remote-inject',
+          session: {
+            serverUrl: operation.session.server_url,
+            sessionId: operation.session.session_id,
+            nonce: operation.session.nonce,
+            secret: operation.session.secret,
+          },
+        };
+      case 'open_browser':
+        return { kind: 'browser', url: operation.url };
+      case 'alert_invalid_link':
+        return { kind: 'invalid' };
+      default:
+        // Bookkeeping the classification does not depend on — keep looking.
+        break;
+    }
+  }
+
+  // Unreachable: every `InputSubmitted` branch asks for one of the four above.
+  // Fail closed rather than let a caller read silence as a pairing link.
   return { kind: 'invalid' };
 }

@@ -117,7 +117,7 @@ jest.mock('@/hooks/use-dapp-signing', () => ({
 // index and the wasm is never initialized. Importing the web entry by explicit
 // path first runs `initSync` on the planted bytes.
 import '@/services/vela-core';
-import { createSignRequestSession } from '@/services/wallet-state-core/sign-session.web';
+import { createSignRequestSession } from '@/services/wallet-state-core/sign-session';
 import { loadTransactions, type LocalTransaction } from '@/services/storage';
 import type { DAppTransport } from '@/services/dapp-transport';
 import type { SignEvent } from '@/services/wallet-state-core/generated/SignEvent';

@@ -24,7 +24,7 @@
 // index and the wasm is never initialized. Importing the web entry by explicit
 // path first runs `initSync` on the planted bytes.
 import '@/services/vela-core';
-import { decidePopupRequest } from '@/services/wallet-state-core/dperm-popup.web';
+import { decidePopupRequest } from '@/services/wallet-state-core/dperm-popup';
 import { dpermRejectMessage, toWireGrant } from '@/services/wallet-state-core/dperm-types';
 import type { DAppGrant } from '@/services/dapp-permissions';
 

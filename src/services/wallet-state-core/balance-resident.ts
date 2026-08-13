@@ -31,8 +31,8 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { toApiToken } from '@/services/wallet-state-core/balance-executor.web';
-import { createBalanceSession } from '@/services/wallet-state-core/balance-session.web';
+import { toApiToken } from '@/services/wallet-state-core/balance-executor';
+import { createBalanceSession } from '@/services/wallet-state-core/balance-session';
 import { BALANCE_PRIVACY_KEY } from './balance-types';
 import type { BalanceEvent } from './generated/BalanceEvent';
 import type { BalanceView } from './generated/BalanceView';

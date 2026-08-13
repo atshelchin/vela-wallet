@@ -31,7 +31,7 @@ jest.mock('@/modules/app-group', () => ({
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
 import '@/services/vela-core';
-import { createExtCacheSession } from '@/services/wallet-state-core/ext-cache-session.web';
+import { createExtCacheSession } from '@/services/wallet-state-core/ext-cache-session';
 import { onExtensionSign } from '@/services/extension-sign-bus';
 import type { Account } from '@/services/wallet-state-core/generated/Account';
 import type { ExtCacheEvent } from '@/services/wallet-state-core/generated/ExtCacheEvent';

@@ -52,7 +52,7 @@ describe('web i18n adapter', () => {
   let KEYS: string[];
 
   beforeAll(async () => {
-    web = await import('@/i18n/index.web');
+    web = await import('@/i18n/index');
     i18n = web.default;
 
     // A SECOND, untouched i18next over the same resources: the oracle for

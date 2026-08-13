@@ -1,51 +1,64 @@
 /**
- * Sign-out confirmation — NATIVE, today's `SettingsScreen` handlers verbatim.
+ * Sign-out confirmation — WEB, driven by the Rust `session` machine
+ * (spec 017, `rust/crates/vela-core/src/app/session.rs`).
  *
- * `handleOpenSignOut` awaits `hasPendingUploads()` before opening the dialog,
- * and dies before `setShowSignOut(true)` if that read throws — so a failed
- * check simply never opens the dialog. Ported unchanged; on web
- * (`use-session-signout.web.ts`) the same sequence is the Rust `session`
- * machine's `SignOut → CheckPendingUploads → confirm dialog` path.
+ * This file owns no rules. `SignOut` runs the pending-upload check, the dialog
+ * exists only once that check has ANSWERED (invariant ⑤: no unwarned logout
+ * path is reachable), a check that throws leaves it closed, and
+ * `SignOutConfirmed` is inert unless the dialog is open. Logout now also ends
+ * the sign-in on disk (016 inventory open question 2, decided in 017): the core
+ * emits `ClearSignedInWallet` + `ClearExtensionCache`, which drop the stored
+ * account list and active index — and nothing else, because everything else
+ * belongs to the account and comes back with the passkey.
  *
- * One deliberate change from the original handler: the confirm also calls
- * `clearSignedInWallet()`. The `LOGOUT` reducer only ever cleared memory, so a
- * relaunch restored the session the user had just ended — and the dialog's copy
- * now states, in fifteen languages, that this device stops being signed in.
- * Copy that a platform does not honour is the defect, not the fix, so both
- * platforms end the sign-in on disk. The reducer itself is untouched.
+ * Native keeps its own `LOGOUT` reducer path unchanged (FR-202), so this
+ * behaviour is web-only for now.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
-import { useWallet } from '@/models/wallet-state';
-import { clearSignedInWallet, hasPendingUploads } from '@/services/storage';
+import {
+  dispatchWalletSession,
+  ensureWalletSession,
+  subscribeWalletSession,
+  walletSessionView,
+} from '@/services/wallet-state-core/session-resident';
+import type { SessionView } from '@/services/wallet-state-core/generated/SessionView';
 
 import type { SessionSignOutController } from './session-controller-types';
 
 export function useSessionSignOut(): SessionSignOutController {
-  const { dispatch } = useWallet();
-  const [visible, setVisible] = useState(false);
-  const [pendingSync, setPendingSync] = useState(false);
+  const [view, setView] = useState<SessionView>(walletSessionView);
   const [signingOut, setSigningOut] = useState(false);
+  // The warning outlives the dialog's 300ms web exit animation: the sheet keeps
+  // rendering after `visible` flips, and today's `pendingSync` state was never
+  // reset, so relabelling the button mid-dismiss would be a new flicker.
+  const [lastWarning, setLastWarning] = useState(false);
 
-  const open = useCallback(() => {
-    void (async () => {
-      const pending = await hasPendingUploads();
-      setPendingSync(pending);
-      setVisible(true);
-    })();
+  useEffect(() => {
+    const unsubscribe = subscribeWalletSession(setView);
+    ensureWalletSession();
+    setView(walletSessionView());
+    return unsubscribe;
   }, []);
 
-  const dismiss = useCallback(() => setVisible(false), []);
+  const warning = view.sign_out?.pending_upload_warning ?? null;
+  useEffect(() => {
+    if (warning !== null) setLastWarning(warning);
+  }, [warning]);
 
+  const open = useCallback(() => dispatchWalletSession({ type: 'sign_out' }), []);
+  const dismiss = useCallback(() => dispatchWalletSession({ type: 'sign_out_dismissed' }), []);
   const confirm = useCallback(() => {
     setSigningOut(true);
-    // Best effort and un-awaited, like the core's `ClearSignedInWallet`: the
-    // session is signed out in memory whatever the disk does, and the index
-    // persist effect is gated on `hasWallet`, so the LOGOUT below cannot write
-    // either key back after this.
-    void clearSignedInWallet();
-    dispatch({ type: 'LOGOUT' });
-  }, [dispatch]);
+    dispatchWalletSession({ type: 'sign_out_confirmed' });
+  }, []);
 
-  return { visible, pendingSync, signingOut, open, dismiss, confirm };
+  return {
+    visible: view.sign_out !== null,
+    pendingSync: warning ?? lastWarning,
+    signingOut,
+    open,
+    dismiss,
+    confirm,
+  };
 }

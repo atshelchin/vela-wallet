@@ -31,7 +31,7 @@ import '@/services/vela-core';
 import { poolRpcCall } from '@/services/rpc-pool';
 import { resolveTokenMetadata } from '@/services/token-metadata';
 import { clearTokenCache } from '@/services/wallet-api';
-import { createTokenTrustSession } from '@/services/wallet-state-core/token-trust-session.web';
+import { createTokenTrustSession } from '@/services/wallet-state-core/token-trust-session';
 import type { TrustView } from '@/services/wallet-state-core/generated/TrustView';
 import type { CustomToken } from '@/models/types';
 

@@ -58,13 +58,13 @@ jest.mock('@/services/rpc-pool', () => ({
 // session module imports (metro resolves it to the web variant) lands on the
 // native stub that throws. Point it at the real web session, as metro does.
 jest.mock('@/services/wallet-state-core/contacts-session', () =>
-  require('@/services/wallet-state-core/contacts-session.web'),
+  require('@/services/wallet-state-core/contacts-session'),
 );
 
 // The wasm only initialises through the explicit web entry.
 import '@/services/vela-core';
 
-import { createContactsSession } from '@/services/wallet-state-core/contacts-session.web';
+import { createContactsSession } from '@/services/wallet-state-core/contacts-session';
 import type { ContactsView } from '@/services/wallet-state-core/generated/ContactsView';
 
 import { clearContactsCache, contactDisplayName, getSavedContact } from '@/services/contacts';

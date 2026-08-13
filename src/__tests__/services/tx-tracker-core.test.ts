@@ -45,7 +45,7 @@ jest.mock('@/services/rpc-adapter', () => ({
 import '@/services/vela-core';
 import { loadTransactions, saveTransactions, type LocalTransaction } from '@/services/storage';
 import { _resetUserOpReceiptPollCache } from '@/services/tx-reconciler';
-import { createTxTrackerSession } from '@/services/wallet-state-core/tx-tracker-session.web';
+import { createTxTrackerSession } from '@/services/wallet-state-core/tx-tracker-session';
 import type { TrackEntryView } from '@/services/wallet-state-core/generated/TrackEntryView';
 import type { TrackView } from '@/services/wallet-state-core/generated/TrackView';
 import type { TrustReceiptLog } from '@/services/wallet-state-core/generated/TrustReceiptLog';

@@ -1,95 +1,95 @@
 /**
- * The simulation preview's asymmetric-trust judgment — NATIVE.
+ * The simulation preview's asymmetric-trust judgment — WEB, decided by the
+ * `token_trust` core (spec 017, `token_trust.rs::judge_delta`).
  *
- * Lifted verbatim out of `tx-simulation.ts:218-286` (`trustedReceiveSet` +
- * `enrichDeltas`) so the decision has a platform seam: native keeps this
- * TypeScript, web answers the same question from the `token_trust` core
- * (`sim-trust.web.ts`, spec 017 group G7). Nothing about the rule changed —
- * the same reads, the same order, the same fallbacks, so an iOS/Android
- * preview renders byte-identically to before the split.
+ * SECURITY BOUNDARY. The deltas passed here come from a sign-time
+ * `eth_simulateV1`/Tevm run and are attacker-influenceable by construction: a
+ * hostile dApp can synthesize a `Transfer(_, you, big)` and answer `symbol()`.
+ * They are dispatched as `sim_deltas_computed`, which in the core can reach a
+ * `WriteCustomToken` through no code path at all — the render-only half of the
+ * machine. The admission (auto-add) half is reachable ONLY from
+ * `receipt_logs_confirmed`. Never route a simulation through that event.
+ *
+ * The two facts the core needs to judge a *received* amount are pushed first,
+ * from the same two reads `trustedReceiveSet` does today: the chain registry's
+ * stables + wrapped native, and the tokens this account is cached as holding.
+ * Both are best-effort — missing facts shrink the trusted set, which pushes
+ * received tokens to `unverified`, the safe direction.
  */
 
 import { nativeSymbol } from '@/models/network';
-import { fetchChainTokens } from '@/services/chain-tokens';
-import { resolveTokenMetadata, type TokenMetadata } from '@/services/token-metadata';
-import { knownToken } from '@/services/tokens';
 import { getCachedHeldTokens } from '@/services/wallet-api';
+import {
+  judgeSimDeltas,
+  notifyHeldTokens,
+  primeRegistry,
+} from '@/services/wallet-state-core/token-trust-resident';
 import type { AssetDelta } from '@/services/sim-assets';
 import type { AssetChange } from '@/services/tx-simulation';
+import type { TrustAssetDelta } from '@/services/wallet-state-core/generated/TrustAssetDelta';
+import type { TrustSimJudgment } from '@/services/wallet-state-core/generated/TrustSimJudgment';
 
 /** Native coins use 18 decimals on every Vela-supported chain. */
 const NATIVE_DECIMALS = 18;
 
-/**
- * Per-chain set of token addresses we trust enough to render a *received*
- * amount with confidence:
- *   - the chain's canonical stablecoins + wrapped native (ethereum-data
- *     registry, cached), and
- *   - tokens the user already holds on this chain (read from the token cache).
- * The curated `knownToken` list is consulted separately at decision time.
- * Best-effort — an empty set (registry cold, no holdings) means every received
- * token falls back to unverified, which is the safe direction.
- */
-async function trustedReceiveSet(from: string, chainId: number): Promise<Set<string>> {
-  const set = new Set<string>();
-  try {
-    const data = await fetchChainTokens(chainId);
-    for (const s of data?.stables ?? []) {
-      if (s?.contract) set.add(s.contract.toLowerCase());
-    }
-    if (data?.wrappedNativeToken) set.add(data.wrappedNativeToken.toLowerCase());
-  } catch {
-    /* registry unreachable → rely on holdings + knownToken only */
-  }
-  for (const addr of getCachedHeldTokens(from, chainId)) set.add(addr);
-  return set;
+function toWireDelta(delta: AssetDelta): TrustAssetDelta {
+  return {
+    kind: delta.kind,
+    token: delta.token ?? null,
+    delta: delta.delta.toString(),
+  };
 }
 
 /**
- * Attach display metadata to raw deltas. Native uses the chain's symbol; ERC-20
- * symbol/decimals are resolved on-chain (batched, cached). Best-effort: a lookup
- * failure never throws.
- *
- * Trust, not just availability: simulation logs are unauthenticated, so a
- * hostile contract can emit a fake `Transfer(_, you, big)` from its own address
- * and even answer `symbol()`/`decimals()` to spoof a gain (a green
- * "+1,000,000 USDC" you never received). An *outflow* can't be understated this
- * way — the real token emits its own log — so sent amounts render whenever
- * metadata resolved. A *received* amount is only rendered with confidence when
- * the token is in the chain's trusted set; otherwise it falls back to the
- * `unverified` treatment (direction + caution, no attacker-controlled amount).
+ * One judgment back into the shape `BalanceChangePreview` renders. The symbol
+ * and decimals of the NATIVE row are the shell's vocabulary, exactly as
+ * `enrichDeltas` composed them; everything trust-related came from the core.
+ */
+function toAssetChange(judgment: TrustSimJudgment, chainId: number): AssetChange {
+  switch (judgment.type) {
+    case 'native':
+      return {
+        kind: 'native',
+        delta: BigInt(judgment.delta),
+        symbol: nativeSymbol(chainId),
+        decimals: NATIVE_DECIMALS,
+      };
+    case 'erc20_trusted':
+      return {
+        kind: 'erc20',
+        token: judgment.token,
+        delta: BigInt(judgment.delta),
+        symbol: judgment.symbol,
+        decimals: judgment.decimals,
+      };
+    case 'erc20_unverified':
+      return {
+        kind: 'erc20',
+        token: judgment.token ?? undefined,
+        delta: BigInt(judgment.delta),
+        unverified: true,
+      };
+  }
+}
+
+/**
+ * Judge and enrich one simulation's deltas. Order-preserving: the core answers
+ * one judgment per delta, in the order they were given.
  */
 export async function enrichDeltas(
   deltas: AssetDelta[],
   chainId: number,
   from: string,
 ): Promise<AssetChange[]> {
-  const erc20Addrs = deltas
-    .filter((d) => d.kind === 'erc20' && d.token)
-    .map((d) => d.token as string);
-
-  let meta = new Map<string, TokenMetadata>();
-  let trusted = new Set<string>();
-  if (erc20Addrs.length > 0) {
-    const hasReceive = deltas.some((d) => d.kind === 'erc20' && d.delta > 0n);
-    [meta, trusted] = await Promise.all([
-      resolveTokenMetadata(chainId, erc20Addrs).catch(() => new Map<string, TokenMetadata>()),
-      hasReceive ? trustedReceiveSet(from, chainId) : Promise.resolve(new Set<string>()),
-    ]);
+  const hasErc20 = deltas.some((d) => d.kind === 'erc20' && d.token);
+  // The same gate `enrichDeltas` applies to the trusted-set fetch today: a
+  // preview with no ERC-20 inflow never needed the registry, and this keeps
+  // the signing path from gaining a network read it did not have.
+  const hasReceive = deltas.some((d) => d.kind === 'erc20' && d.delta > 0n);
+  if (hasErc20 && hasReceive) {
+    await primeRegistry([chainId]);
+    notifyHeldTokens(from, chainId, getCachedHeldTokens(from, chainId));
   }
-
-  return deltas.map((d): AssetChange => {
-    if (d.kind === 'native') {
-      return { kind: 'native', delta: d.delta, symbol: nativeSymbol(chainId), decimals: NATIVE_DECIMALS };
-    }
-    const m = d.token ? meta.get(d.token) : undefined;
-    const received = d.delta > 0n;
-    // A received token is trustworthy if it's a curated known token, a chain
-    // stable/wrapped, or one the user already holds.
-    const isTrusted = !!d.token && (trusted.has(d.token) || !!knownToken(d.token));
-    const trustworthy = !!m && (!received || isTrusted);
-    return trustworthy
-      ? { kind: 'erc20', token: d.token, delta: d.delta, symbol: m!.symbol, decimals: m!.decimals }
-      : { kind: 'erc20', token: d.token, delta: d.delta, unverified: true };
-  });
+  const judgments = await judgeSimDeltas(from, chainId, deltas.map(toWireDelta));
+  return judgments.map((judgment) => toAssetChange(judgment, chainId));
 }

@@ -1,28 +1,41 @@
 /**
- * `token_trust` core session — NATIVE entry point, and deliberately
- * unavailable.
+ * Constructs the `token_trust` core and wires it to the web shell — WEB entry
+ * (spec 017, `rust/crates/vela-core/src/app/token_trust.rs`).
  *
- * React Native runs on Hermes, which has no WebAssembly. iOS and Android keep
- * the three TypeScript reports this machine unifies — `transfer-monitor.ts`,
- * `token-autoadd.ts` and `tx-simulation.ts`'s asymmetric trust judgment — and
- * never import this module at runtime.
+ * Importing `@/services/vela-core` first is load-bearing: its web entry runs
+ * `initSync` on the base64-embedded module at import time, so the wasm is
+ * initialised before the core is constructed here.
  *
- * It exists so the platform pair resolves: `tsc` has no `moduleSuffixes`
- * configured, so it type-checks `.web.ts` files but resolves *their* imports to
- * the base `.ts` variant. Same shape as `browser-history-session.ts`.
+ * `token-trust-session.ts` is the native counterpart and throws.
  */
 
+import '@/services/vela-core';
+import { TokenTrustCore } from '../../../rust/pkg-web/vela_core.js';
+
+import { createJsonWasmShell } from '@/services/crux/json-wasm-shell';
 import type { EffectLoop } from '@/services/crux/effect-loop';
+
+import {
+  executeTokenTrustOperation,
+  tokenTrustOperationFailure,
+} from './token-trust-executor';
 import type { TrustEvent } from './generated/TrustEvent';
-import type { TokenTrustSessionOptions } from './token-trust-types';
+import type { TrustShellResult } from './generated/TrustShellResult';
+import type { TrustView } from './generated/TrustView';
+import type { TrustEffect, TokenTrustSessionOptions } from './token-trust-types';
 
 export type TokenTrustSession = EffectLoop<TrustEvent>;
 
-const UNAVAILABLE =
-  'wallet-state-core is web-only: this runtime has no WebAssembly. Native uses the TypeScript controllers.';
-
 export function createTokenTrustSession(
-  _options: TokenTrustSessionOptions,
+  options: TokenTrustSessionOptions,
 ): TokenTrustSession {
-  throw new Error(UNAVAILABLE);
+  return createJsonWasmShell<TrustView, TrustEvent, TrustEffect, TrustShellResult>(
+    new TokenTrustCore(),
+    {
+      onView: options.onView,
+      execute: executeTokenTrustOperation,
+      toFailure: tokenTrustOperationFailure,
+      onError: options.onError,
+    },
+  );
 }

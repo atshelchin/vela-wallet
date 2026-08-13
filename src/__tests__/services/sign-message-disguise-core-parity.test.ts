@@ -39,7 +39,7 @@ jest.mock('@/services/storage', () => ({
 
 import '@/services/vela-core';
 import { isPossibleDisguisedTransaction } from '@/services/decode-sign-message';
-import { createClearSigningSession } from '@/services/wallet-state-core/clear-session.web';
+import { createClearSigningSession } from '@/services/wallet-state-core/clear-session';
 import type { ClearMessageView } from '@/services/wallet-state-core/generated/ClearMessageView';
 import type { ClearSigningView } from '@/services/wallet-state-core/generated/ClearSigningView';
 

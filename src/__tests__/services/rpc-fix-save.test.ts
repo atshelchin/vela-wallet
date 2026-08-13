@@ -40,7 +40,7 @@ jest.mock('@/services/bundler-service', () => ({
 // `moduleFileExtensions`, so the wasm must be initialised through the explicit
 // web entry before any core is constructed.
 import '@/services/vela-core';
-import { rpcFixVerdict, saveRpcFix } from '@/services/rpc-fix.web';
+import { rpcFixVerdict, saveRpcFix } from '@/services/rpc-fix';
 import type { NetNetworkRow } from '@/services/wallet-state-core/generated/NetNetworkRow';
 
 const CONFIG_KEY = 'vela.networkConfig';

@@ -47,9 +47,9 @@ jest.mock('@/services/wallet-api', () => ({
 // index and the wasm is never initialized. Importing the web entry by explicit
 // path first runs `initSync` on the planted bytes.
 import '@/services/vela-core';
-import { toApiToken } from '@/services/wallet-state-core/balance-executor.web';
-import * as resident from '@/services/wallet-state-core/balance-resident.web';
-import { createBalanceSession } from '@/services/wallet-state-core/balance-session.web';
+import { toApiToken } from '@/services/wallet-state-core/balance-executor';
+import * as resident from '@/services/wallet-state-core/balance-resident';
+import { createBalanceSession } from '@/services/wallet-state-core/balance-session';
 import type { BalanceToken } from '@/services/wallet-state-core/generated/BalanceToken';
 import type { BalanceView } from '@/services/wallet-state-core/generated/BalanceView';
 import type { APIToken } from '@/models/types';

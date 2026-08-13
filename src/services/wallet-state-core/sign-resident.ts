@@ -27,13 +27,13 @@
  * would type-check against a native module that does not exist.
  */
 
-import { createSignRequestSession } from '@/services/wallet-state-core/sign-session.web';
-import { fromWireWei } from '@/services/wallet-state-core/sign-executor.web';
+import { createSignRequestSession } from '@/services/wallet-state-core/sign-session';
+import { fromWireWei } from '@/services/wallet-state-core/sign-executor';
 import {
   dispatchWalletSession,
   walletSessionAccounts,
   walletSessionView,
-} from '@/services/wallet-state-core/session-resident.web';
+} from '@/services/wallet-state-core/session-resident';
 import { formatWei, type FundingNeeded } from '@/services/bundler-service';
 import { getAllNetworksSync } from '@/models/network';
 import type { AssetSimResult } from '@/services/tx-simulation';

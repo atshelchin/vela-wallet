@@ -234,6 +234,37 @@ pub fn compute_safe_address(x: &[u8], y: &[u8]) -> JsResult<SafeAddressInfo> {
         .map_err(err)
 }
 
+/// Multi-device Safe: `keys_xy` is a concatenation of 64-byte x‖y blocks,
+/// one per key — raw coordinates only, same byte convention as the
+/// single-key `computeSafeAddress`. NOT hex strings: a bare-hex form would be
+/// ambiguous for keys whose x starts with byte 0x04 (the SEC1-tag strip in
+/// `parsePublicKey`). Key 0 drives the shared signer; later keys become
+/// factory signer owners, their proxies deployed inside the setup MultiSend.
+#[wasm_bindgen(js_name = computeSafeAddressMulti)]
+pub fn compute_safe_address_multi(keys_xy: &[u8]) -> JsResult<SafeAddressInfo> {
+    if keys_xy.is_empty() || keys_xy.len() % 64 != 0 {
+        return Err(err(vela_core::CoreError::InvalidPublicKey(format!(
+            "expected a non-empty multiple of 64 bytes of x‖y blocks, got {}",
+            keys_xy.len()
+        ))));
+    }
+    let keys: Vec<vela_core::P256PublicKey> = keys_xy
+        .chunks(64)
+        .map(|block| vela_core::P256PublicKey {
+            x: block[..32].to_vec(),
+            y: block[32..].to_vec(),
+        })
+        .collect();
+    vela_core::safe::compute_safe_address_multi(&keys)
+        .map(Into::into)
+        .map_err(err)
+}
+
+#[wasm_bindgen(js_name = computeWebauthnSignerAddress)]
+pub fn compute_webauthn_signer_address(x: &[u8], y: &[u8]) -> JsResult<String> {
+    vela_core::safe::compute_webauthn_signer_address(x, y).map_err(err)
+}
+
 #[wasm_bindgen(js_name = computeSplitterAddress)]
 pub fn compute_splitter_address(treasury_hex: &str) -> JsResult<String> {
     vela_core::safe::compute_splitter_address(treasury_hex).map_err(err)

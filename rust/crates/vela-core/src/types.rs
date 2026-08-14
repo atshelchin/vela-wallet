@@ -16,7 +16,9 @@ pub struct P256PublicKey {
 pub struct SafeAddressInfo {
     /// EIP-55 checksummed counterfactual Safe address.
     pub address: String,
-    /// 32 bytes: keccak256(x32 ‖ y32).
+    /// 32 bytes: keccak256(x32 ‖ y32) — on the multi-owner path,
+    /// concatenated over all keys in CANONICAL order (keys[0] pinned, later
+    /// keys sorted by x‖y), not caller order.
     pub salt_nonce: Vec<u8>,
     /// Full Safe.setup calldata (MultiSend enableModules + signer configure).
     pub setup_data: Vec<u8>,

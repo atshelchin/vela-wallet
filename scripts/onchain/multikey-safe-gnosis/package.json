@@ -1,0 +1,14 @@
+{
+  "name": "multikey-safe-gnosis-e2e",
+  "private": true,
+  "type": "module",
+  "description": "On-chain e2e: multi-passkey Safe on Gnosis \u2014 compute address (vela-core wasm), fund, deploy via vela-relay with in-band gas settlement",
+  "scripts": {
+    "generate": "bun run src/generate.ts",
+    "status": "bun run src/status.ts",
+    "deploy": "bun run src/deploy.ts",
+    "send": "bun run src/send.ts",
+    "regress": "bun run src/regress.ts",
+    "limits": "bun run src/limits.ts"
+  }
+}

@@ -43,7 +43,7 @@ struct Case {
 /// or a partial checkout would make all four surfaces report "green" over a corpus
 /// that had silently shrunk — the precise false confidence this feature exists to
 /// prevent.
-const REQUIRED_SUITES: [&str; 11] = [
+const REQUIRED_SUITES: [&str; 12] = [
     "abi",
     "eip712",
     // `i18n-*` sorts before `identicon`: '1' is 0x31, 'd' is 0x64.
@@ -55,6 +55,8 @@ const REQUIRED_SUITES: [&str; 11] = [
     "identicon-bulk",
     "primitives",
     "safe",
+    // `safe` before `safe-multi`: a prefix sorts before its extension.
+    "safe-multi",
     "webauthn",
 ];
 
@@ -296,6 +298,39 @@ fn run_case(case: &Case) -> Result<(), String> {
                         "init_code_hash": hex_encode(&info.init_code_hash),
                     })
                 }),
+        ),
+        "compute_safe_address_multi" => {
+            let keys = input
+                .get("keys")
+                .and_then(Value::as_array)
+                .ok_or_else(|| "missing array input `keys`".to_owned())?
+                .iter()
+                .map(|k| {
+                    Ok(vela_core::P256PublicKey {
+                        x: in_bytes(k, "x")?,
+                        y: in_bytes(k, "y")?,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            check_object(
+                expect,
+                vela_core::safe::compute_safe_address_multi(&keys).map(|info| {
+                    serde_json::json!({
+                        "address": info.address,
+                        "salt_nonce": hex_encode(&info.salt_nonce),
+                        "setup_data": hex_encode(&info.setup_data),
+                        "init_code_hash": hex_encode(&info.init_code_hash),
+                    })
+                }),
+            )
+        }
+        "compute_webauthn_signer_address" => check_object(
+            expect,
+            vela_core::safe::compute_webauthn_signer_address(
+                &in_bytes(input, "x")?,
+                &in_bytes(input, "y")?,
+            )
+            .map(|address| serde_json::json!({ "address": address })),
         ),
         "compute_splitter_address" => check_string(
             expect,

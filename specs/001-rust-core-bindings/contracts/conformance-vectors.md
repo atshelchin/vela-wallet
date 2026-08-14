@@ -56,6 +56,7 @@ Shape-only TS asserts (`length == 32`) are NOT ported as vectors — dump replac
 - `checksum_address` idempotent; `to_quantity` idempotent; `normalize_s` idempotent
 - `decode_calldata` never panics on arbitrary bytes (returns Ok or CoreError); nesting depth bounded
 - recovery: for any deterministic-signed assertion pair over a random key, `recover_public_key_from_assertions` yields exactly that key
+- multi-passkey: one key ≡ `compute_safe_address` byte-identically; keys[1..] enumeration order immaterial; a duplicated key rejected wherever the copy lands; >`MAX_MULTI_KEYS` always rejected; total on arbitrary coordinate lengths
 
 ## Regeneration policy
 

@@ -433,3 +433,94 @@ mod i18n_props {
         }
     }
 }
+
+// --- safe: multi-passkey invariants ----------------------------------------
+
+fn arb_key() -> impl Strategy<Value = vela_core::P256PublicKey> {
+    (
+        proptest::array::uniform32(any::<u8>()),
+        proptest::array::uniform32(any::<u8>()),
+    )
+        .prop_map(|(x, y)| vela_core::P256PublicKey {
+            x: x.to_vec(),
+            y: y.to_vec(),
+        })
+}
+
+proptest! {
+    /// One key through the multi path is byte-identical to the legacy
+    /// single-key path — for ANY 32-byte coordinates, not just the vectors.
+    #[test]
+    fn multi_one_key_equals_single(key in arb_key()) {
+        let single = vela_core::safe::compute_safe_address(&key.x, &key.y).ok();
+        prop_assert!(single.is_some());
+        let multi = vela_core::safe::compute_safe_address_multi(std::slice::from_ref(&key)).ok();
+        prop_assert_eq!(single, multi);
+    }
+
+    /// keys[1..] enumeration order never moves the wallet: any rotation plus
+    /// end-swap of the rest yields the identical SafeAddressInfo.
+    #[test]
+    fn multi_rest_order_immaterial(
+        keys in proptest::collection::vec(arb_key(), 3..=8),
+        rot in any::<usize>(),
+    ) {
+        let mut keys = keys;
+        let first = keys.remove(0);
+        keys.sort_by(|a, b| a.x.cmp(&b.x).then_with(|| a.y.cmp(&b.y)));
+        keys.dedup_by(|a, b| a.x == b.x && a.y == b.y);
+        keys.retain(|k| !(k.x == first.x && k.y == first.y));
+        prop_assume!(keys.len() >= 2);
+
+        let mut ordered = vec![first.clone()];
+        ordered.extend(keys.iter().cloned());
+        let base = vela_core::safe::compute_safe_address_multi(&ordered).ok();
+        prop_assert!(base.is_some());
+
+        let len = keys.len();
+        keys.rotate_left(rot % len);
+        keys.swap(0, len - 1);
+        let mut permuted = vec![first];
+        permuted.extend(keys);
+        prop_assert_eq!(base, vela_core::safe::compute_safe_address_multi(&permuted).ok());
+    }
+
+    /// A duplicated key is rejected wherever the copy lands in caller order.
+    #[test]
+    fn multi_duplicates_always_rejected(
+        keys in proptest::collection::vec(arb_key(), 2..=6),
+        pick in any::<usize>(),
+        at in any::<usize>(),
+    ) {
+        let dup = keys[pick % keys.len()].clone();
+        let mut with_dup = keys;
+        let at = at % (with_dup.len() + 1);
+        with_dup.insert(at, dup);
+        prop_assert!(vela_core::safe::compute_safe_address_multi(&with_dup).is_err());
+    }
+
+    /// The cap is total: any list over MAX_MULTI_KEYS errs, valid or not.
+    #[test]
+    fn multi_cap_total(keys in proptest::collection::vec(arb_key(), 22..=25)) {
+        prop_assert!(vela_core::safe::compute_safe_address_multi(&keys).is_err());
+    }
+
+    /// Total function on adversarial coordinate lengths — Ok or CoreError,
+    /// never a panic.
+    #[test]
+    fn multi_total_on_arbitrary_coords(
+        coords in proptest::collection::vec(
+            (
+                proptest::collection::vec(any::<u8>(), 0..40),
+                proptest::collection::vec(any::<u8>(), 0..40),
+            ),
+            0..4,
+        )
+    ) {
+        let keys: Vec<vela_core::P256PublicKey> = coords
+            .into_iter()
+            .map(|(x, y)| vela_core::P256PublicKey { x, y })
+            .collect();
+        let _ = vela_core::safe::compute_safe_address_multi(&keys);
+    }
+}

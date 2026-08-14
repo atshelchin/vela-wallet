@@ -1676,6 +1676,13 @@ export function encodeErc20Transfer(to: string, amount: bigint): Uint8Array {
 // InitCode
 // ---------------------------------------------------------------------------
 
+/**
+ * SINGLE-KEY ONLY: this seam encodes the one-owner setup. Multi-passkey
+ * wallets (core `compute_safe_address_multi` / wasm `computeSafeAddressMulti`)
+ * produce a DIFFERENT setupData (extra owners + createSigner MultiSend legs)
+ * and therefore a different address — when multi wiring lands here, take
+ * saltNonce/setupData from that call instead of the per-key helpers below.
+ */
 export function buildInitCode(publicKeyHex: string): Uint8Array {
   const { x, y } = parsePublicKey(publicKeyHex);
   const setupData = encodeSetupData(x, y);

@@ -189,6 +189,26 @@ func runCase(_ fn: String, _ input: [String: Any]) throws -> Any? {
             "setup_data": hex(info.setupData),
             "init_code_hash": hex(info.initCodeHash),
         ]
+    case "compute_safe_address_multi":
+        guard let keysJson = input["keys"] as? [[String: Any]] else {
+            throw BadInput(detail: "missing array input `keys`")
+        }
+        let keys = try keysJson.map {
+            P256PublicKey(x: try data($0, "x"), y: try data($0, "y"))
+        }
+        let info = try computeSafeAddressMulti(keys: keys)
+        return [
+            "address": info.address,
+            "salt_nonce": hex(info.saltNonce),
+            "setup_data": hex(info.setupData),
+            "init_code_hash": hex(info.initCodeHash),
+        ]
+    case "compute_webauthn_signer_address":
+        return [
+            "address": try computeWebauthnSignerAddress(
+                x: try data(input, "x"),
+                y: try data(input, "y")),
+        ]
     case "compute_splitter_address":
         return try computeSplitterAddress(treasuryHex: try str(input, "treasury_hex"))
     case "encode_splitter_deploy_call":
@@ -468,7 +488,7 @@ let REQUIRED_SUITES = [
     "abi", "eip712",
     // `i18n-*` sorts before `identicon`: '1' is 0x31, 'd' is 0x64.
     "i18n-behaviour", "i18n-exhaustive", "i18n-plural", "i18n-plural-legacy",
-    "identicon", "identicon-bulk", "primitives", "safe", "webauthn",
+    "identicon", "identicon-bulk", "primitives", "safe", "safe-multi", "webauthn",
 ]
 
 /// Functions that exist in vela-core but are deliberately NOT on any binding surface

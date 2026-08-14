@@ -558,9 +558,21 @@ export function chooseNativePrice(dex?: number | null, chainlink_local?: number 
 
 export function computeSafeAddress(x: Uint8Array, y: Uint8Array): SafeAddressInfo;
 
+/**
+ * Multi-device Safe: `keys_xy` is a concatenation of 64-byte x‖y blocks,
+ * one per key — raw coordinates only, same byte convention as the
+ * single-key `computeSafeAddress`. NOT hex strings: a bare-hex form would be
+ * ambiguous for keys whose x starts with byte 0x04 (the SEC1-tag strip in
+ * `parsePublicKey`). Key 0 drives the shared signer; later keys become
+ * factory signer owners, their proxies deployed inside the setup MultiSend.
+ */
+export function computeSafeAddressMulti(keys_xy: Uint8Array): SafeAddressInfo;
+
 export function computeSelector(sig: string): string;
 
 export function computeSplitterAddress(treasury_hex: string): string;
+
+export function computeWebauthnSignerAddress(x: Uint8Array, y: Uint8Array): string;
 
 export function create2Address(deployer_hex: string, salt: Uint8Array, init_code_hash: Uint8Array): string;
 
@@ -715,8 +727,10 @@ export interface InitOutput {
     readonly clearsigningcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly clearsigningcore_view: (a: number) => [number, number, number, number];
     readonly computeSafeAddress: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly computeSafeAddressMulti: (a: number, b: number) => [number, number, number];
     readonly computeSelector: (a: number, b: number) => [number, number, number, number];
     readonly computeSplitterAddress: (a: number, b: number) => [number, number, number, number];
+    readonly computeWebauthnSignerAddress: (a: number, b: number, c: number, d: number) => [number, number, number, number];
     readonly contactscore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly contactscore_new: () => number;
     readonly contactscore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];

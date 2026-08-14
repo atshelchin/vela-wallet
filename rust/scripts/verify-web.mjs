@@ -117,6 +117,20 @@ const DISPATCH = {
   encode_type: (i) => wasm.encodeType(i.typed_data_json),
   parse_public_key: (i) => wasm.parsePublicKey(i.hex),
   compute_safe_address: (i) => wasm.computeSafeAddress(bytes(i.x), bytes(i.y)),
+  compute_safe_address_multi: (i) => {
+    // The wasm ABI takes flat 64-byte x‖y blocks — this packing IS the
+    // surface under test (a 31-byte coordinate is inexpressible here, which
+    // is why the corpus carries no multi bad-coordinate case).
+    const flat = new Uint8Array(i.keys.length * 64);
+    i.keys.forEach((k, idx) => {
+      flat.set(bytes(k.x), idx * 64);
+      flat.set(bytes(k.y), idx * 64 + 32);
+    });
+    return wasm.computeSafeAddressMulti(flat);
+  },
+  compute_webauthn_signer_address: (i) => ({
+    address: wasm.computeWebauthnSignerAddress(bytes(i.x), bytes(i.y)),
+  }),
   compute_splitter_address: (i) => wasm.computeSplitterAddress(i.treasury_hex),
   encode_splitter_deploy_call: (i) => hex(wasm.encodeSplitterDeployCall(i.treasury_hex)),
   safe_proxy_runtime_code: () => wasm.safeProxyRuntimeCode(),
@@ -238,6 +252,8 @@ const REQUIRED_SUITES = [
   'identicon-bulk',
   'primitives',
   'safe',
+  // `safe` before `safe-multi`: a prefix sorts before its extension.
+  'safe-multi',
   'webauthn',
 ];
 
@@ -410,6 +426,25 @@ const boundary = [];
     }
     if (got !== `[${want}]`) {
       boundary.push(`FR-024: interpolating {{v}} with ${want} gave ${JSON.stringify(got)}, want "[${want}]"`);
+    }
+  }
+}
+
+// multi-passkey flat-bytes ABI — length validation lives in the wasm shell,
+// so no corpus vector can reach it: the vector layer passes structured keys
+// and this script packs them. Empty and non-multiple-of-64 inputs must
+// reject with the InvalidPublicKey error shape, not truncate or accept.
+{
+  for (const len of [0, 65, 63, 128 + 1]) {
+    try {
+      wasm.computeSafeAddressMulti(new Uint8Array(len));
+      boundary.push(`multi flat-bytes: ${len}-byte input was accepted`);
+    } catch (err) {
+      if (err?.code !== 'InvalidPublicKey') {
+        boundary.push(
+          `multi flat-bytes: ${len}-byte input rejected with ${JSON.stringify(err?.code ?? String(err))}, want InvalidPublicKey`,
+        );
+      }
     }
   }
 }

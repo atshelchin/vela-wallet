@@ -136,6 +136,24 @@ fun runCase(fn: String, input: JSONObject): Any? = when (fn) {
             .put("setup_data", hex(it.setupData))
             .put("init_code_hash", hex(it.initCodeHash))
     }
+    "compute_safe_address_multi" -> {
+        val keysJson = input.getJSONArray("keys")
+        val keys = (0 until keysJson.length()).map { i ->
+            val k = keysJson.getJSONObject(i)
+            P256PublicKey(bytes(k.getString("x")), bytes(k.getString("y")))
+        }
+        computeSafeAddressMulti(keys).let {
+            JSONObject()
+                .put("address", it.address)
+                .put("salt_nonce", hex(it.saltNonce))
+                .put("setup_data", hex(it.setupData))
+                .put("init_code_hash", hex(it.initCodeHash))
+        }
+    }
+    "compute_webauthn_signer_address" -> JSONObject().put(
+        "address",
+        computeWebauthnSignerAddress(bytes(input.getString("x")), bytes(input.getString("y"))),
+    )
     "compute_splitter_address" -> computeSplitterAddress(input.getString("treasury_hex"))
     "encode_splitter_deploy_call" -> hex(encodeSplitterDeployCall(input.getString("treasury_hex")))
     "safe_proxy_runtime_code" -> safeProxyRuntimeCode()
@@ -253,7 +271,7 @@ val REQUIRED_SUITES = listOf(
     "abi", "eip712",
     // `i18n-*` sorts before `identicon`: '1' is 0x31, 'd' is 0x64.
     "i18n-behaviour", "i18n-exhaustive", "i18n-plural", "i18n-plural-legacy",
-    "identicon", "identicon-bulk", "primitives", "safe", "webauthn",
+    "identicon", "identicon-bulk", "primitives", "safe", "safe-multi", "webauthn",
 )
 
 /**

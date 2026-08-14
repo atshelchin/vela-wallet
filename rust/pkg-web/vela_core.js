@@ -2584,6 +2584,26 @@ export function computeSafeAddress(x, y) {
 }
 
 /**
+ * Multi-device Safe: `keys_xy` is a concatenation of 64-byte x‖y blocks,
+ * one per key — raw coordinates only, same byte convention as the
+ * single-key `computeSafeAddress`. NOT hex strings: a bare-hex form would be
+ * ambiguous for keys whose x starts with byte 0x04 (the SEC1-tag strip in
+ * `parsePublicKey`). Key 0 drives the shared signer; later keys become
+ * factory signer owners, their proxies deployed inside the setup MultiSend.
+ * @param {Uint8Array} keys_xy
+ * @returns {SafeAddressInfo}
+ */
+export function computeSafeAddressMulti(keys_xy) {
+    const ptr0 = passArray8ToWasm0(keys_xy, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.computeSafeAddressMulti(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * @param {string} sig
  * @returns {string}
  */
@@ -2630,6 +2650,34 @@ export function computeSplitterAddress(treasury_hex) {
         return getStringFromWasm0(ptr2, len2);
     } finally {
         wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * @param {Uint8Array} x
+ * @param {Uint8Array} y
+ * @returns {string}
+ */
+export function computeWebauthnSignerAddress(x, y) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passArray8ToWasm0(x, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passArray8ToWasm0(y, wasm.__wbindgen_malloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.computeWebauthnSignerAddress(ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
     }
 }
 

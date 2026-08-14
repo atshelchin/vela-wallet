@@ -122,6 +122,12 @@ impl From<vela_core::P256PublicKey> for P256PublicKey {
     }
 }
 
+impl From<P256PublicKey> for vela_core::P256PublicKey {
+    fn from(k: P256PublicKey) -> Self {
+        vela_core::P256PublicKey { x: k.x, y: k.y }
+    }
+}
+
 #[derive(Debug, Clone, uniffi::Record)]
 pub struct SafeAddressInfo {
     pub address: String,
@@ -300,6 +306,17 @@ pub fn parse_public_key(hex: String) -> Result<P256PublicKey, CoreError> {
 #[uniffi::export]
 pub fn compute_safe_address(x: Vec<u8>, y: Vec<u8>) -> Result<SafeAddressInfo, CoreError> {
     Ok(vela_core::safe::compute_safe_address(&x, &y)?.into())
+}
+
+#[uniffi::export]
+pub fn compute_safe_address_multi(keys: Vec<P256PublicKey>) -> Result<SafeAddressInfo, CoreError> {
+    let keys: Vec<vela_core::P256PublicKey> = keys.into_iter().map(Into::into).collect();
+    Ok(vela_core::safe::compute_safe_address_multi(&keys)?.into())
+}
+
+#[uniffi::export]
+pub fn compute_webauthn_signer_address(x: Vec<u8>, y: Vec<u8>) -> Result<String, CoreError> {
+    Ok(vela_core::safe::compute_webauthn_signer_address(&x, &y)?)
 }
 
 #[uniffi::export]

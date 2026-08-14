@@ -37,10 +37,10 @@ pub const WEBAUTHN_SIGNER_FACTORY: &str = "0x1d31F259eE307358a26dFb23EB365939E86
 pub const WEBAUTHN_SIGNER_SINGLETON: &str = "0x4E27b51350e6c2083EE19011120F50DAfEc5CA50";
 
 /// Hard cap on keys per multi-passkey Safe. Deployment cost is linear
-/// (~119k gas + ~220 setup bytes per extra key, measured on Gnosis): 21 keys
-/// ≈ 2.9M deploy gas, comfortably under the relay's ~10M simulation ceiling
+/// (~119k gas + ~220 setup bytes per extra key, measured on Gnosis): 7 keys
+/// ≈ 1.2M deploy gas, comfortably under the relay's ~10M simulation ceiling
 /// (~80 keys) while bounding worst-case initCode size for every consumer.
-pub const MAX_MULTI_KEYS: usize = 21;
+pub const MAX_MULTI_KEYS: usize = 7;
 
 /// RIP-7212 precompile address as the `P256.Verifiers` word (bare hex).
 /// One constant, two INDEPENDENTLY frozen uses — sharing it is convenience,
@@ -643,14 +643,15 @@ mod tests {
         Ok(())
     }
 
-    /// N=21 sits past the decimal/hex coincidence zone (N ≤ 9) where
-    /// `format!("{owner_count:x}")` feeding the hex-parsing
-    /// `abi_encode_uint256` is load-bearing: regressing it to decimal would
-    /// encode owners.length = 0x21 = 33 here — every ≥10-key address moves
-    /// and setup() reverts on-chain. Bare `is_ok()` cannot see that; these
-    /// byte pins do.
+    /// Full-cap pin: N = MAX_MULTI_KEYS freezes the largest reachable setup
+    /// encoding (address + bytes). Every reachable count now sits inside the
+    /// decimal/hex coincidence zone (N ≤ 9) of `format!("{owner_count:x}")`
+    /// feeding the hex-parsing `abi_encode_uint256`; if the cap ever rises
+    /// past 9 again, re-pin above the zone — at N ≥ 10 a decimal regression
+    /// moves every address and setup() reverts on-chain (the retired 21-key
+    /// pin existed for exactly that).
     #[test]
-    fn multi_21_key_layout_and_pin() -> Result<(), CoreError> {
+    fn multi_full_cap_layout_and_pin() -> Result<(), CoreError> {
         let keys: Vec<P256PublicKey> = (0..MAX_MULTI_KEYS as u8)
             .map(|i| {
                 let mut x = [0u8; 32];
@@ -665,19 +666,19 @@ mod tests {
             })
             .collect();
         let info = compute_safe_address_multi(&keys)?;
-        assert_eq!(info.address, "0xd9340DB231dB390c633EB10BF985a0836551906F");
+        assert_eq!(info.address, "0xc94f9367f7DD7cd5c8e790b59356093Bc6AA0365");
         assert_eq!(
             primitives::to_hex(keccak256(&info.setup_data).as_slice(), true),
-            "0x39ad58402e9991c9ed7c3c96435ade553295356a7fb8a05cf4a4092cf6b1627f"
+            "0x6a24ad2f51afa8858b15982512e94743a5c594a0f96e9d9210b5010ae360cfd0"
         );
-        // owners.length = 21 = 0x15; data offset = 0x120 + 21·0x20 = 0x3c0.
+        // owners.length = 7; data offset = 0x120 + 7·0x20 = 0x200.
         assert_eq!(
             word(&info.setup_data, 8),
-            primitives::abi_encode_uint256("0x15")?
+            primitives::abi_encode_uint256("0x7")?
         );
         assert_eq!(
             word(&info.setup_data, 3),
-            primitives::abi_encode_uint256("0x3c0")?
+            primitives::abi_encode_uint256("0x200")?
         );
         Ok(())
     }

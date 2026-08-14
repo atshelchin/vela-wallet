@@ -15,7 +15,7 @@ import {
   type UserOpFields,
 } from './userop';
 
-const NS = (process.env.N_LIST ?? '13').split(',').map(Number);
+const NS = (process.env.N_LIST ?? '7').split(',').map(Number);
 
 const quote = (await relayCall('vela_getInBandGasQuote', [
   { safeAddress: '0x' + '11'.repeat(20) },

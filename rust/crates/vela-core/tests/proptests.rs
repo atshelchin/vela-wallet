@@ -462,7 +462,7 @@ proptest! {
     /// end-swap of the rest yields the identical SafeAddressInfo.
     #[test]
     fn multi_rest_order_immaterial(
-        keys in proptest::collection::vec(arb_key(), 3..=8),
+        keys in proptest::collection::vec(arb_key(), 3..=vela_core::safe::MAX_MULTI_KEYS),
         rot in any::<usize>(),
     ) {
         let mut keys = keys;
@@ -501,7 +501,12 @@ proptest! {
 
     /// The cap is total: any list over MAX_MULTI_KEYS errs, valid or not.
     #[test]
-    fn multi_cap_total(keys in proptest::collection::vec(arb_key(), 22..=25)) {
+    fn multi_cap_total(
+        keys in proptest::collection::vec(
+            arb_key(),
+            vela_core::safe::MAX_MULTI_KEYS + 1..=vela_core::safe::MAX_MULTI_KEYS + 4,
+        )
+    ) {
         prop_assert!(vela_core::safe::compute_safe_address_multi(&keys).is_err());
     }
 

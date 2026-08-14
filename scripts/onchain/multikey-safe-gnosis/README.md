@@ -92,8 +92,10 @@ relay both simulates with the limits you pass (a low provisional OOGs the
 estimate itself for large wallets) and bottoms its verification number out
 at a floor, so its estimate is never used for verification.
 
-vela-core enforces `MAX_MULTI_KEYS = 21` (comfortably under every measured
-ceiling). Cap proof run: Safe `0x898cFE71FBB4A7fb03513Ca71d30beE838B60e9f`,
-21 owners + 20 signer proxies in one userOp **signed by key 20**, 2,749,568
-gas actual (simulation predicted 2.75M); 22 keys are rejected in core:
+vela-core enforces `MAX_MULTI_KEYS = 7` (~1.2M deploy gas, comfortably
+under every measured ceiling); over-cap key counts are rejected in core.
+Headroom proof run, recorded when the cap was 21: Safe
+`0x898cFE71FBB4A7fb03513Ca71d30beE838B60e9f`, 21 owners + 20 signer
+proxies in one userOp **signed by key 20**, 2,749,568 gas actual
+(simulation predicted 2.75M):
 https://gnosisscan.io/tx/0x1d6217e296f1530f91f5c7e59be165090db518063092dd7088c7802f6ddd3928

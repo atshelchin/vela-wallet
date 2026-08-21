@@ -90,16 +90,6 @@ pub enum ShellOperation {
     RemovePendingUpload {
         credential_id: String,
     },
-    /// Publish a public key to the index server.
-    IndexCreateRecord {
-        credential_id: String,
-        public_key_hex: String,
-        name: String,
-    },
-    /// Look a credential up in the index server.
-    IndexQueryRecord {
-        credential_id: String,
-    },
     /// Publish the wallet's key set as one possession-proven registry group.
     /// The executor runs the whole mechanism — one-time group key, server
     /// challenges, per-member signatures, proofs, register and task poll —
@@ -113,10 +103,6 @@ pub enum ShellOperation {
     /// skip a redundant re-publish (and its extra signature).
     RegistryQueryByPublicKey {
         public_key_hex: String,
-    },
-    /// Has the index server's on-chain reveal landed for this wallet yet?
-    IndexQueryByWalletRef {
-        address: String,
     },
     /// One health probe of the index server.
     ProbeIndexHealth,
@@ -186,11 +172,6 @@ pub enum ShellResult {
     StorageFailed {
         message: String,
     },
-    IndexCreated,
-    IndexRecord {
-        public_key_hex: String,
-        name: String,
-    },
     /// The registry publish landed on-chain (or the identical group was
     /// already there).
     RegistryPublished,
@@ -198,19 +179,12 @@ pub enum ShellResult {
     RegistryKeyStatus {
         registered: bool,
     },
-    /// The index server answered, and it has no record for this credential.
-    /// Distinct from `IndexFailed`: a *missing* record is recoverable on-device,
-    /// an unreachable server is not.
-    IndexMissing,
     IndexFailed {
         message: String,
         /// True when the request never reached the server (transport failure or
         /// abort). Only the shell can tell that from a 4xx, so this one bit of
         /// classification is delegated.
         network: bool,
-    },
-    WalletRef {
-        resolved: bool,
     },
     IndexHealth {
         ok: bool,

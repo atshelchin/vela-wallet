@@ -15,7 +15,6 @@
 import { toHex } from '@/services/vela-core';
 import * as Passkey from '@/modules/passkey';
 import { PasskeyError, PasskeyErrorCode } from '@/modules/passkey';
-import * as PublicKeyIndex from '@/services/public-key-index';
 import * as Registry from '@/services/public-key-registry';
 import { publishToRegistry } from '@/services/registry-publish';
 import {
@@ -81,10 +80,6 @@ function isTransportFailure(error: unknown): boolean {
   return !/^(Query|Create) failed:/.test(message(error));
 }
 
-function isNotFound(error: unknown): boolean {
-  return message(error).includes('404');
-}
-
 function passkeyFailure(error: unknown): ShellResult {
   if (error instanceof PasskeyError) {
     switch (error.code) {
@@ -120,9 +115,6 @@ export function operationFailure(effect: OnboardingEffect, error: unknown): Shel
     case 'remove_pending_upload':
       return { type: 'storage_failed', message: message(error) };
 
-    case 'index_create_record':
-    case 'index_query_record':
-    case 'index_query_by_wallet_ref':
     case 'registry_publish':
     case 'registry_query_by_public_key':
       return {
@@ -307,34 +299,6 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
       case 'remove_pending_upload':
         await removePendingUpload(operation.credential_id);
         return { type: 'pending_upload_removed' };
-
-      case 'index_create_record':
-        await PublicKeyIndex.createRecord({
-          rpId: Passkey.getRelyingPartyId(),
-          credentialId: operation.credential_id,
-          publicKey: operation.public_key_hex,
-          name: operation.name,
-        });
-        return { type: 'index_created' };
-
-      case 'index_query_record':
-        try {
-          const record = await PublicKeyIndex.queryRecord(
-            Passkey.getRelyingPartyId(),
-            operation.credential_id,
-          );
-          return { type: 'index_record', public_key_hex: record.publicKey, name: record.name ?? '' };
-        } catch (error) {
-          // A 404 is an answer, not a failure: the server is up and has no
-          // record, which is exactly the case on-device recovery exists for.
-          if (isNotFound(error)) return { type: 'index_missing' };
-          throw error;
-        }
-
-      case 'index_query_by_wallet_ref': {
-        const record = await PublicKeyIndex.queryByWalletRef(operation.address);
-        return { type: 'wallet_ref', resolved: record !== null };
-      }
 
       case 'registry_publish': {
         // The whole possession-proven publish — one-time group key, server

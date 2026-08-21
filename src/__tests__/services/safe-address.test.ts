@@ -147,3 +147,68 @@ describe('SAFE_PROXY_RUNTIME_CODE', () => {
     expect(SAFE_PROXY_RUNTIME_CODE.length).toBeGreaterThan(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Multi-key founding sets (release gate: N=1 is byte-identical to single-key)
+// ---------------------------------------------------------------------------
+
+import { computeAddressMulti, computeSafeAddressMulti, computeWebauthnSignerAddress } from '@/services/vela-core';
+
+// The pinned vectors from rust/crates/vela-core/src/safe.rs (multi_pinned_output_vectors).
+const MULTI_KEYS = [
+  '04' +
+    '8f9b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff0' +
+    '7a8b9cadbecfd0e1f20314253647586970818293a4b5c6d7e8f9010203040506',
+  '04' +
+    '0000000000000000000000000000000000000000000000000000000000000001' +
+    '0000000000000000000000000000000000000000000000000000000000000002',
+  '04' +
+    '04d2163f5c2c9a5a3f0e1d2c3b4a59687766554433221100ffeeddccbbaa9988' +
+    '1122334455667788990a0b0c0d0e0f102132435465768798a9bacbdcedfe0f21',
+];
+
+describe('computeSafeAddressMulti', () => {
+  test('N=1 is byte-identical to the single-key derivation (release gate)', () => {
+    const { address, saltNonce, setupData } = computeSafeAddressMulti([TEST_PUBLIC_KEY]);
+    expect(address).toBe(EXPECTED_ADDRESS);
+    const { x, y } = parsePublicKey(TEST_PUBLIC_KEY);
+    expect(toHex(saltNonce)).toBe(toHex(calculateSaltNonce(x, y)));
+    expect(toHex(setupData)).toBe(toHex(encodeSetupData(x, y)));
+    expect(computeAddressMulti([TEST_PUBLIC_KEY])).toBe(computeAddress(TEST_PUBLIC_KEY));
+  });
+
+  test('3-key founding set matches the pinned cross-layer vector', () => {
+    expect(computeAddressMulti(MULTI_KEYS)).toBe('0x5AF6Cd8689C013192e157826f7C4574d7C2f9446');
+  });
+
+  test('2-key founding set matches the pinned cross-layer vector', () => {
+    expect(computeAddressMulti([MULTI_KEYS[0], MULTI_KEYS[2]])).toBe(
+      '0xaBeF0bf37A03a2Af821Cf409a52eB9C01524b2E0',
+    );
+  });
+
+  test('keys[1..] order cannot move the address; the pin can', () => {
+    // The extra keys are canonically sorted inside, so swapping them is a
+    // no-op — but swapping the PINNED first key derives a different Safe.
+    expect(computeAddressMulti([MULTI_KEYS[0], MULTI_KEYS[2], MULTI_KEYS[1]])).toBe(
+      computeAddressMulti(MULTI_KEYS),
+    );
+    expect(computeAddressMulti([MULTI_KEYS[1], MULTI_KEYS[0], MULTI_KEYS[2]])).not.toBe(
+      computeAddressMulti(MULTI_KEYS),
+    );
+  });
+
+  test('duplicate founding keys are refused (undeployable address)', () => {
+    expect(() => computeAddressMulti([MULTI_KEYS[0], MULTI_KEYS[0]])).toThrow();
+  });
+});
+
+describe('computeWebauthnSignerAddress', () => {
+  test('is deterministic and differs per key', () => {
+    const a = computeWebauthnSignerAddress(MULTI_KEYS[0]);
+    const b = computeWebauthnSignerAddress(MULTI_KEYS[1]);
+    expect(a).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    expect(a).toBe(computeWebauthnSignerAddress(MULTI_KEYS[0]));
+    expect(a).not.toBe(b);
+  });
+});

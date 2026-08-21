@@ -31,6 +31,7 @@ fn acct(name: &str, address: &str) -> Account {
         // A sensitive-adjacent field the snapshot must NEVER carry.
         public_key_hex: "04deadbeefcafebabe".to_owned(),
         created_at_iso: "2026-08-05T00:00:00.000Z".to_owned(),
+        keys: Vec::new(),
     }
 }
 

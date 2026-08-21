@@ -37,6 +37,12 @@ jest.mock('@/services/safe-transaction', () => ({
   buildEip1271Signature: jest.fn(),
   extractClientDataFields: jest.fn(),
   computeSafeMessageHash: jest.fn(),
+  // Multi-key seam: a stored account projects its scalar key as the sole
+  // founding key, exactly like the real helper does for legacy records.
+  keySetOf: (account: any) => ({
+    keys: [{ credentialId: account.id, publicKeyHex: account.publicKeyHex }],
+  }),
+  signerAddressFor: () => '0x1111111111111111111111111111111111111111',
 }));
 
 jest.mock('@/models/network', () => ({

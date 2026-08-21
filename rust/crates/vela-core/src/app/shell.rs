@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration,
-    RegistryPublishMember,
+    RegistryPublishMember, RegistryUnitMember,
 };
 
 #[cfg(feature = "bindings")]
@@ -71,6 +71,12 @@ pub enum ShellOperation {
     /// `navigator.credentials.create()` — mint a passkey for this name.
     RegisterPasskey {
         name: String,
+        /// Credentials the authenticator must refuse to reuse
+        /// (`excludeCredentials`): the wallet's already-registered founding
+        /// keys, so a provider cannot silently replace one of them when the
+        /// user adds another key. Empty for the first key.
+        #[serde(default)]
+        exclude_credential_ids: Vec<String>,
     },
     /// `navigator.credentials.get()` against a known credential.
     SignProof {
@@ -103,6 +109,16 @@ pub enum ShellOperation {
     /// skip a redundant re-publish (and its extra signature).
     RegistryQueryByPublicKey {
         public_key_hex: String,
+    },
+    /// Fetch one registry group (Unit): its metadata blob and its founding
+    /// members. The only way a sibling device can reconstruct a multi-key
+    /// wallet's full key set — and with it the address.
+    ///
+    /// `u32`, not `u64`: the wire is JSON (see [`ShellOperation::Wait`]); the
+    /// shell rejects an id past `2^32` as an index failure instead of
+    /// truncating it.
+    RegistryQueryUnit {
+        unit_id: u32,
     },
     /// One health probe of the index server.
     ProbeIndexHealth,
@@ -178,6 +194,17 @@ pub enum ShellResult {
     /// The registry's answer to `RegistryQueryByPublicKey`.
     RegistryKeyStatus {
         registered: bool,
+        /// The ids of the groups (Units) this key is a founding member of,
+        /// ascending. Empty for a registered key predating groups.
+        #[serde(default)]
+        unit_ids: Vec<u32>,
+    },
+    /// The registry's answer to `RegistryQueryUnit`: the group's frozen
+    /// metadata blob plus its founding members in canonical founding order
+    /// (the ascending on-chain member order IS the founding order).
+    RegistryUnit {
+        metadata_hex: String,
+        members: Vec<RegistryUnitMember>,
     },
     IndexFailed {
         message: String,

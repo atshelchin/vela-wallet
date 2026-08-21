@@ -41,12 +41,14 @@ import { hapticError, hapticSuccess } from '@/services/platform';
 import { resolveRecipientIdentity } from '@/services/recipient-identity';
 import { resolveRecipientRisk } from '@/services/recipient-risk';
 import {
+  keySetOf,
   sendBatchCalls,
   UserOpFeeHoldError,
   UserOpRejectedError,
   type SubmitResult,
 } from '@/services/safe-transaction';
 import {
+  findAccountByAddress,
   findAccountByCredentialId,
   saveTransactions,
   updateTransactions,
@@ -299,11 +301,23 @@ export function createSendExecutor(ports: SendShellPorts) {
             // does not belong to the account the core built this batch for.
             throw new Error('No passkey credential for the active account');
           }
+          // A multi-key wallet signs with ANY of its founding keys: allow-list
+          // every credential and let the provider pick; the assertion's own
+          // credentialId then selects the signer address (r-field) and the
+          // full key set builds the (undeployed) initCode.
+          const stored = await findAccountByAddress(operation.account);
+          // Only a genuinely multi-key account changes shape here — a
+          // single-key wallet keeps the exact historical wire (and bytes).
+          const keySet =
+            stored?.keys && stored.keys.length > 1 ? keySetOf(stored) : null;
+          const allowIds = keySet
+            ? keySet.keys.map((key) => key.credentialId)
+            : credentialId;
           const signFn = async (challenge: Uint8Array) => {
             // The passkey sheet is opening — the core moves to 'signing' here,
             // exactly where `setTxStatus('signing')` sat.
             ports.signingStarted();
-            const assertion = await Passkey.sign(toHex(challenge), credentialId);
+            const assertion = await Passkey.sign(toHex(challenge), allowIds);
             const webauthn = await import('@/services/vela-core');
             const compat = webauthn.verifySafeWebAuthn(assertion);
             if (!compat.ok) {
@@ -317,6 +331,7 @@ export function createSendExecutor(ports: SendShellPorts) {
               signature: fromHex(assertion.signatureHex),
               authenticatorData: fromHex(assertion.authenticatorDataHex),
               clientDataJSON: fromHex(assertion.clientDataJSONHex),
+              credentialId: assertion.credentialId,
             };
           };
           // One call stays a single `executeUserOp` and N stay a MultiSend
@@ -326,7 +341,7 @@ export function createSendExecutor(ports: SendShellPorts) {
             operation.account,
             operation.calls.map(toShellCall),
             operation.chain_id,
-            operation.public_key_hex,
+            keySet ?? operation.public_key_hex,
             signFn,
             operation.max_fee_per_gas != null
               ? fromWireAmount(operation.max_fee_per_gas)

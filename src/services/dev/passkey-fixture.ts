@@ -21,7 +21,7 @@
  * Boundary: real space = real device passkeys. Parallel space = these fixtures.
  * Nothing else about the two environments differs.
  */
-import { computeAddress, concatBytes, fromHex, stripHexPrefix, toHex } from '@/services/vela-core';
+import { computeAddress, computeAddressMulti, concatBytes, fromHex, stripHexPrefix, toHex } from '@/services/vela-core';
 import { p256 } from '@noble/curves/p256';
 import { sha256 } from '@noble/hashes/sha256';
 import type { PasskeyAssertionResult, PasskeyRegistrationResult } from '@/modules/passkey';
@@ -83,6 +83,38 @@ export function fixtureByCredentialId(id: string | null | undefined): FixtureAcc
   return FIXTURE_ACCOUNTS.find(a => a.id.toLowerCase() === key);
 }
 
+/**
+ * The 3-key multi-passkey fixture wallet: ALL fixture keys founding one Safe,
+ * fixture #1 pinned as `keys[0]`. Its address is what a parallel-space
+ * multi-key creation must derive, and what a key-#2/#3 login must reconstruct.
+ */
+export const FIXTURE_MULTI_ADDRESS = computeAddressMulti(
+  FIXTURE_ACCOUNTS.map(a => a.publicKeyHex),
+);
+
+// ---------------------------------------------------------------------------
+// Registration cursor (multi-key onboarding in the parallel space)
+// ---------------------------------------------------------------------------
+
+let _registrationCursor = 0;
+
+/**
+ * The fixture account the NEXT mock `register()` should mint. Advances through
+ * {@link FIXTURE_ACCOUNTS} so a multi-key onboarding gets three distinct
+ * credentials instead of the same fixture three times (which the core would
+ * reject as a duplicate founding key).
+ */
+export function nextFixtureRegistration(): FixtureAccount {
+  const account = FIXTURE_ACCOUNTS[_registrationCursor % FIXTURE_ACCOUNTS.length];
+  _registrationCursor += 1;
+  return account;
+}
+
+/** Restart the cursor at fixture #1 — call when (re)installing the mock. */
+export function resetFixtureRegistrationCursor(): void {
+  _registrationCursor = 0;
+}
+
 // ---------------------------------------------------------------------------
 // Assertion builder (real WebAuthn signature over a fixture key)
 // ---------------------------------------------------------------------------
@@ -108,12 +140,25 @@ function base64url(bytes: Uint8Array): string {
 }
 
 export interface MockAssertionOptions {
-  /** Sign with a specific credential id (defaults to the primary fixture account). */
-  credentialId?: string | null;
+  /** Sign with a specific credential id, or pick the first fixture present in
+   *  an allow-list (defaults to the primary fixture account). */
+  credentialId?: string | string[] | null;
   /** Relying-party id whose hash goes into authenticatorData. */
   rpId?: string;
   /** Origin embedded in clientDataJSON. */
   origin?: string;
+}
+
+/** The fixture the allow-list (or single id) resolves to. */
+function resolveFixture(credentialId: string | string[] | null | undefined): FixtureAccount {
+  if (Array.isArray(credentialId)) {
+    for (const id of credentialId) {
+      const found = fixtureByCredentialId(id);
+      if (found) return found;
+    }
+    return FIXTURE_ACCOUNT;
+  }
+  return fixtureByCredentialId(credentialId ?? undefined) ?? FIXTURE_ACCOUNT;
 }
 
 /**
@@ -130,7 +175,7 @@ export function buildMockAssertion(
   challengeHex: string,
   opts: MockAssertionOptions = {},
 ): PasskeyAssertionResult {
-  const account = fixtureByCredentialId(opts.credentialId ?? undefined) ?? FIXTURE_ACCOUNT;
+  const account = resolveFixture(opts.credentialId);
   const rpId = opts.rpId ?? FIXTURE_RP_ID;
   const origin = opts.origin ?? `https://${rpId}`;
 
@@ -160,6 +205,7 @@ export function buildMockAssertion(
     signatureHex: toHex(sig.toDERRawBytes()),
     authenticatorDataHex: toHex(authenticatorData),
     clientDataJSONHex: toHex(clientDataBytes),
+    authenticatorAttachment: 'platform',
   };
 }
 
@@ -183,6 +229,8 @@ export function buildMockRegistration(opts: { credentialId?: string; rpId?: stri
     credentialId: account.id,
     attestationObjectHex: toHex(attestationObject),
     clientDataJSONHex: toHex(new TextEncoder().encode(clientDataJSON)),
+    authenticatorAttachment: 'platform',
+    transports: 'internal',
   };
 }
 

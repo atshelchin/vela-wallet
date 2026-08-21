@@ -9,4 +9,11 @@ import type { RegistryPublishMember } from "./RegistryPublishMember";
 /**
  * Everything below this line must be performed by a platform shell.
  */
-export type ShellOperation = { "type": "check_passkey_support" } | { "type": "register_passkey", name: string, } | { "type": "sign_proof", credential_id: string, purpose: ProofPurpose, } | { "type": "authenticate_passkey" } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, } | { "type": "registry_query_by_public_key", public_key_hex: string, } | { "type": "probe_index_health" } | { "type": "wait", ms: number, } | { "type": "prompt", kind: PromptKind, confirmable: boolean, } | { "type": "complete_onboarding", mode: CompletionMode, };
+export type ShellOperation = { "type": "check_passkey_support" } | { "type": "register_passkey", name: string, 
+/**
+ * Credentials the authenticator must refuse to reuse
+ * (`excludeCredentials`): the wallet's already-registered founding
+ * keys, so a provider cannot silently replace one of them when the
+ * user adds another key. Empty for the first key.
+ */
+exclude_credential_ids: Array<string>, } | { "type": "sign_proof", credential_id: string, purpose: ProofPurpose, } | { "type": "authenticate_passkey" } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, } | { "type": "registry_query_by_public_key", public_key_hex: string, } | { "type": "registry_query_unit", unit_id: number, } | { "type": "probe_index_health" } | { "type": "wait", ms: number, } | { "type": "prompt", kind: PromptKind, confirmable: boolean, } | { "type": "complete_onboarding", mode: CompletionMode, };

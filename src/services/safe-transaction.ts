@@ -6,7 +6,7 @@
 
 
 
-import { ENTRY_POINT, MULTI_SEND, SAFE_4337_MODULE, SAFE_PROXY_FACTORY, SAFE_SINGLETON, WEBAUTHN_SIGNER, abiEncodeAddress, abiEncodeBytes32, abiEncodeUint256, abiEncodeUint256Hex, calculateSaltNonce, concatBytes, derSignatureToRaw, encodeMultiSendTx, encodeSetupData, fromHex, functionSelector, keccak256, parsePublicKey, stripHexPrefix, toHex } from '@/services/vela-core';
+import { ENTRY_POINT, MULTI_SEND, SAFE_4337_MODULE, SAFE_PROXY_FACTORY, SAFE_SINGLETON, WEBAUTHN_SIGNER, abiEncodeAddress, abiEncodeBytes32, abiEncodeUint256, abiEncodeUint256Hex, calculateSaltNonce, computeSafeAddressMulti, computeWebauthnSignerAddress, concatBytes, derSignatureToRaw, encodeMultiSendTx, encodeSetupData, fromHex, functionSelector, keccak256, parsePublicKey, stripHexPrefix, toHex } from '@/services/vela-core';
 import { rpcCall } from './rpc-adapter';
 import {
   isFeeHold,
@@ -90,7 +90,82 @@ type SignFn = (challenge: Uint8Array) => Promise<{
   signature: Uint8Array;
   authenticatorData: Uint8Array;
   clientDataJSON: Uint8Array;
+  /** Which credential produced the assertion — a multi-key wallet's signer
+   *  identity. Absent ⇒ the wallet's first (shared-signer) key. */
+  credentialId?: string;
 }>;
+
+// ---------------------------------------------------------------------------
+// Wallet key set (multi-passkey)
+// ---------------------------------------------------------------------------
+
+/** One founding key of a wallet. */
+export interface WalletKey {
+  credentialId: string;
+  /** Uncompressed P-256 point, `04‖x‖y` hex. */
+  publicKeyHex: string;
+}
+
+/** The FULL founding key set, canonical founding order — `keys[0]` signs via
+ *  the shared `WEBAUTHN_SIGNER`, later keys via their own signer proxies. */
+export interface WalletKeySet {
+  keys: WalletKey[];
+}
+
+/** What the send/estimate entry points accept: the legacy single public key
+ *  hex, or the full key set. A bare string is exactly a one-key set whose
+ *  credential is unknown (irrelevant: one key always signs via the shared
+ *  signer, byte-identical to the historical path). */
+export type WalletSigner = string | WalletKeySet;
+
+/** The founding-order public keys of a signer. */
+function keyHexesOf(signer: WalletSigner): string[] {
+  return typeof signer === 'string' ? [signer] : signer.keys.map((key) => key.publicKeyHex);
+}
+
+/** All credential ids usable for a WebAuthn allow-list, founding order.
+ *  Empty for a legacy bare-hex signer (caller falls back to its own id). */
+export function credentialIdsOf(signer: WalletSigner): string[] {
+  return typeof signer === 'string' ? [] : signer.keys.map((key) => key.credentialId);
+}
+
+/** The full key set of a stored account; legacy records project their scalar
+ *  fields as the sole key. */
+export function keySetOf(account: {
+  id: string;
+  publicKeyHex: string;
+  keys?: { credentialId: string; publicKeyHex: string }[];
+}): WalletKeySet {
+  if (account.keys && account.keys.length > 0) {
+    return {
+      keys: account.keys.map((key) => ({
+        credentialId: key.credentialId,
+        publicKeyHex: key.publicKeyHex,
+      })),
+    };
+  }
+  return { keys: [{ credentialId: account.id, publicKeyHex: account.publicKeyHex }] };
+}
+
+/**
+ * The on-chain verifier the signature's `r` field must name for the key that
+ * signed: the shared `WEBAUTHN_SIGNER` for the first (pinned) key, the key's
+ * own counterfactual signer proxy for any later one. A one-key signer always
+ * uses the shared signer — byte-identical to the historical path. A multi-key
+ * signer with an unrecognized credential throws: encoding the wrong verifier
+ * would produce a signature the Safe can never accept.
+ */
+export function signerAddressFor(signer: WalletSigner, credentialId: string | null): string {
+  if (typeof signer === 'string' || signer.keys.length <= 1) return WEBAUTHN_SIGNER;
+  if (!credentialId) return WEBAUTHN_SIGNER;
+  const normalize = (id: string) => stripHexPrefix(id).toLowerCase();
+  const index = signer.keys.findIndex((key) => normalize(key.credentialId) === normalize(credentialId));
+  if (index < 0) {
+    throw new Error('Signing credential does not belong to this wallet');
+  }
+  if (index === 0) return WEBAUTHN_SIGNER;
+  return computeWebauthnSignerAddress(signer.keys[index].publicKeyHex);
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -102,7 +177,7 @@ export async function sendNative(
   to: string,
   valueWei: string,
   chainId: number,
-  publicKeyHex: string,
+  publicKeyHex: WalletSigner,
   signFn: SignFn,
   _maxFeeOverride?: bigint,
   // Pay gas in this whitelisted stablecoin (null/omitted = native).
@@ -129,7 +204,7 @@ export async function sendERC20(
   to: string,
   amountWei: string,
   chainId: number,
-  publicKeyHex: string,
+  publicKeyHex: WalletSigner,
   signFn: SignFn,
   _maxFeeOverride?: bigint,
   // Pay gas in this whitelisted stablecoin (null/omitted = native).
@@ -161,7 +236,7 @@ export async function sendContractCall(
   valueWei: string,
   data: Uint8Array,
   chainId: number,
-  publicKeyHex: string,
+  publicKeyHex: WalletSigner,
   signFn: SignFn,
   _maxFeeOverride?: bigint,
   // Pay gas in this whitelisted stablecoin (null/omitted = native).
@@ -183,7 +258,7 @@ export async function sendBatchCalls(
   from: string,
   calls: Array<{ to: string; value: string; data: string }>,
   chainId: number,
-  publicKeyHex: string,
+  publicKeyHex: WalletSigner,
   signFn: SignFn,
   // Retained for source compatibility with existing call sites. In-band UserOps
   // always sign zero native-fee fields, so no max-fee override is applicable.
@@ -578,8 +653,9 @@ export async function estimateTransactionFee(
   gasFeeToken?: string | null,
   // Required to construct the real initCode when this Safe is not yet deployed.
   // Without it we deliberately skip the live UserOp simulation rather than send
-  // a draft which cannot match the final operation.
-  publicKeyHex?: string,
+  // a draft which cannot match the final operation. A multi-key wallet passes
+  // its full key set — a single key would derive the WRONG initCode.
+  publicKeyHex?: WalletSigner,
 ): Promise<TransactionFeeEstimate> {
   // Tempo pays gas in a stablecoin, not the native coin — separate model. Forward the tx so a
   // dApp contract call is quoted off its REAL gas, not a transfer-sized default. The visible
@@ -648,7 +724,7 @@ export async function estimateTransactionFee(
   const estimateAccount = deployed
     ? { nonce, initCode: new Uint8Array(0) }
     : publicKeyHex
-      ? { nonce: '0x0', initCode: buildInitCode(publicKeyHex) }
+      ? { nonce: '0x0', initCode: buildInitCodeFor(publicKeyHex) }
       : null;
   if (!estimateAccount) {
     throw new Error('Could not load the passkey public key required to build the UserOperation initCode');
@@ -904,7 +980,7 @@ export async function simulateUserOpGas(params: {
   deployed: boolean;
   /** The core's calls. `value` is hex (0x optional), `data` is 0x-hex. */
   calls: { to: string; value: string; data: string }[];
-  publicKeyHex?: string;
+  publicKeyHex?: WalletSigner;
 }): Promise<UserOpGasSimulation> {
   const { chainId, account, deployed, calls, publicKeyHex } = params;
 
@@ -917,7 +993,7 @@ export async function simulateUserOpGas(params: {
     } else {
       if (!publicKeyHex) return { kind: 'context_unavailable' };
       nonce = '0x0';
-      initCode = buildInitCode(publicKeyHex);
+      initCode = buildInitCodeFor(publicKeyHex);
     }
   } catch {
     return { kind: 'context_unavailable' };
@@ -984,7 +1060,7 @@ async function sendUserOp(
   safeAddress: string,
   callData: Uint8Array,
   chainId: number,
-  publicKeyHex: string,
+  publicKeyHex: WalletSigner,
   signFn: SignFn,
   maxFeeOverride?: bigint,
 ): Promise<SubmitResult> {
@@ -1004,7 +1080,7 @@ async function sendUserOp(
   // Build initCode if needed
   const initCode: Uint8Array = deployed
     ? new Uint8Array(0)
-    : buildInitCode(publicKeyHex);
+    : buildInitCodeFor(publicKeyHex);
 
   // Use fetched nonce for deployed wallets, 0 for undeployed. A failed nonce fetch
   // is only tolerable for an undeployed wallet (its nonce IS 0); for a deployed one,
@@ -1124,6 +1200,7 @@ async function sendUserOp(
     clientDataFields,
     sigR,
     sigS,
+    signerAddressFor(publicKeyHex, assertion.credentialId ?? null),
   );
   userOp.signature = realSig;
 
@@ -1194,7 +1271,7 @@ async function sendUserOpTempo(
   innerCalls: MultiSendCall[],
   feeToken: string,
   chainId: number,
-  publicKeyHex: string,
+  publicKeyHex: WalletSigner,
   signFn: SignFn,
   quotedFee?: QuotedInBandFee,
 ): Promise<SubmitResult> {
@@ -1221,7 +1298,7 @@ async function sendUserOpTempo(
   if (deployed && nonceResult === null) {
     throw new Error('Could not fetch the account nonce — the network may be unstable. Please try again.');
   }
-  const initCode: Uint8Array = deployed ? new Uint8Array(0) : buildInitCode(publicKeyHex);
+  const initCode: Uint8Array = deployed ? new Uint8Array(0) : buildInitCodeFor(publicKeyHex);
   const nonce: string = deployed ? (nonceResult as string) : '0x0';
 
   // Static realistic-gas model — a floor/fallback for pricing the reimbursement.
@@ -1321,6 +1398,7 @@ async function sendUserOpTempo(
     clientDataFields,
     rawSig.slice(0, 32),
     rawSig.slice(32),
+    signerAddressFor(publicKeyHex, assertion.credentialId ?? null),
   );
 
   let userOpHash: string;
@@ -1425,7 +1503,7 @@ async function sendUserOpInBand(
   innerCalls: MultiSendCall[],
   gasFeeToken: string | null, // null = pay gas in native; else whitelisted stablecoin address
   chainId: number,
-  publicKeyHex: string,
+  publicKeyHex: WalletSigner,
   signFn: SignFn,
   /** The fee the confirm UI displayed (amount in the fee asset's own units +
    *  recipient). Signed VERBATIM — what the user saw is what executes. */
@@ -1444,7 +1522,7 @@ async function sendUserOpInBand(
   if (deployed && nonceResult === null) {
     throw new Error('Could not fetch the account nonce — the network may be unstable. Please try again.');
   }
-  const initCode: Uint8Array = deployed ? new Uint8Array(0) : buildInitCode(publicKeyHex);
+  const initCode: Uint8Array = deployed ? new Uint8Array(0) : buildInitCodeFor(publicKeyHex);
   const nonce: string = deployed ? (nonceResult as string) : '0x0';
 
   // The batch: the user's calls + one fee leg (native value or stablecoin transfer).
@@ -1540,6 +1618,7 @@ async function sendUserOpInBand(
     clientDataFields,
     rawSig.slice(0, 32),
     rawSig.slice(32),
+    signerAddressFor(publicKeyHex, assertion.credentialId ?? null),
   );
 
   let userOpHash: string;
@@ -1676,18 +1755,9 @@ export function encodeErc20Transfer(to: string, amount: bigint): Uint8Array {
 // InitCode
 // ---------------------------------------------------------------------------
 
-/**
- * SINGLE-KEY ONLY: this seam encodes the one-owner setup. Multi-passkey
- * wallets (core `compute_safe_address_multi` / wasm `computeSafeAddressMulti`)
- * produce a DIFFERENT setupData (extra owners + createSigner MultiSend legs)
- * and therefore a different address — when multi wiring lands here, take
- * saltNonce/setupData from that call instead of the per-key helpers below.
- */
-export function buildInitCode(publicKeyHex: string): Uint8Array {
-  const { x, y } = parsePublicKey(publicKeyHex);
-  const setupData = encodeSetupData(x, y);
-  const saltNonce = calculateSaltNonce(x, y);
-
+/** factory ‖ createProxyWithNonce(singleton, setupData, saltNonce) — shared by
+ *  the single-key and multi-key builders so the assembly cannot diverge. */
+function assembleInitCode(setupData: Uint8Array, saltNonce: Uint8Array): Uint8Array {
   // createProxyWithNonce(address singleton, bytes initializer, uint256 saltNonce)
   const selector = functionSelector(
     'createProxyWithNonce(address,bytes,uint256)',
@@ -1711,6 +1781,32 @@ export function buildInitCode(publicKeyHex: string): Uint8Array {
 
   const factoryBytes = fromHex(stripHexPrefix(SAFE_PROXY_FACTORY));
   return concatBytes(factoryBytes, createData);
+}
+
+/** The historical single-key initCode (one-owner setup). */
+export function buildInitCode(publicKeyHex: string): Uint8Array {
+  const { x, y } = parsePublicKey(publicKeyHex);
+  return assembleInitCode(encodeSetupData(x, y), calculateSaltNonce(x, y));
+}
+
+/**
+ * InitCode for a founding key set. One key delegates to {@link buildInitCode}
+ * (byte-identical); more take setupData/saltNonce from
+ * `computeSafeAddressMulti` — extra owners plus their signer proxies deployed
+ * inside the setup MultiSend.
+ */
+export function buildInitCodeForKeys(publicKeyHexes: string[]): Uint8Array {
+  if (publicKeyHexes.length === 0) {
+    throw new Error('A wallet has at least one founding key');
+  }
+  if (publicKeyHexes.length === 1) return buildInitCode(publicKeyHexes[0]);
+  const { setupData, saltNonce } = computeSafeAddressMulti(publicKeyHexes);
+  return assembleInitCode(setupData, saltNonce);
+}
+
+/** InitCode for whatever signer shape a call site carries. */
+export function buildInitCodeFor(signer: WalletSigner): Uint8Array {
+  return buildInitCodeForKeys(keyHexesOf(signer));
 }
 
 // ---------------------------------------------------------------------------
@@ -1869,10 +1965,14 @@ export function buildUserOpSignature(
   clientDataFields: string,
   sigR: Uint8Array,
   sigS: Uint8Array,
+  // The verifier the r-field names: the shared signer (default, = every
+  // single-key wallet and a multi-key wallet's first key), or the signing
+  // key's own proxy for a later founding key.
+  signerAddress: string = WEBAUTHN_SIGNER,
 ): Uint8Array {
   // Validity window: validAfter(6) + validUntil(6) = 12 bytes of zeros (4337 SafeModule only)
   const validityPadding = new Uint8Array(12);
-  const core = buildContractSignatureCore(authenticatorData, clientDataFields, sigR, sigS);
+  const core = buildContractSignatureCore(authenticatorData, clientDataFields, sigR, sigS, signerAddress);
   return concatBytes(validityPadding, core);
 }
 
@@ -1890,8 +1990,9 @@ export function buildEip1271Signature(
   clientDataFields: string,
   sigR: Uint8Array,
   sigS: Uint8Array,
+  signerAddress: string = WEBAUTHN_SIGNER,
 ): Uint8Array {
-  return buildContractSignatureCore(authenticatorData, clientDataFields, sigR, sigS);
+  return buildContractSignatureCore(authenticatorData, clientDataFields, sigR, sigS, signerAddress);
 }
 
 /** Shared core: r(32) + s(32) + v(1) + dataLength(32) + dynamicData */
@@ -1900,9 +2001,10 @@ function buildContractSignatureCore(
   clientDataFields: string,
   sigR: Uint8Array,
   sigS: Uint8Array,
+  signerAddress: string = WEBAUTHN_SIGNER,
 ): Uint8Array {
   // Contract signature header: r(32) + s(32) + v(1)
-  const rField = abiEncodeAddress(WEBAUTHN_SIGNER); // r = signer address
+  const rField = abiEncodeAddress(signerAddress); // r = signer address
   const sField = abiEncodeUint256(65n); // s = offset to dynamic data (after r+s+v)
   const vField = new Uint8Array([0x00]); // v = 0x00 = contract signature
 

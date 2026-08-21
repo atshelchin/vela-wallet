@@ -387,6 +387,56 @@ export function encodeSetupData(x: Uint8Array, y: Uint8Array): Uint8Array {
   return translated(() => bytesFromHex(wasm.computeSafeAddress(x, y).setup_data));
 }
 
+/** The flat `x‖y` 64-byte-block concatenation `computeSafeAddressMulti` takes. */
+function concatKeyBlocks(publicKeyHexes: string[]): Uint8Array {
+  const blocks = new Uint8Array(publicKeyHexes.length * 64);
+  publicKeyHexes.forEach((hex, index) => {
+    const key = wasm.parsePublicKey(hex);
+    blocks.set(bytesFromHex(key.x), index * 64);
+    blocks.set(bytesFromHex(key.y), index * 64 + 32);
+  });
+  return blocks;
+}
+
+/**
+ * The counterfactual Safe address (+ saltNonce/setupData) for a founding key
+ * set. `keys[0]` is the pinned shared-signer key; later keys get their own
+ * signer proxies deployed inside the setup MultiSend. For a single key this
+ * is byte-identical to `computeAddress`/`calculateSaltNonce`/`encodeSetupData`
+ * — the release-gated N=1 equivalence.
+ */
+export function computeSafeAddressMulti(publicKeyHexes: string[]): {
+  address: string;
+  saltNonce: Uint8Array;
+  setupData: Uint8Array;
+} {
+  return translated(() => {
+    const info = wasm.computeSafeAddressMulti(concatKeyBlocks(publicKeyHexes));
+    return {
+      address: info.address,
+      saltNonce: bytesFromHex(info.salt_nonce),
+      setupData: bytesFromHex(info.setup_data),
+    };
+  });
+}
+
+/** Multi-address shorthand mirroring `computeAddress`. */
+export function computeAddressMulti(publicKeyHexes: string[]): string {
+  return computeSafeAddressMulti(publicKeyHexes).address;
+}
+
+/**
+ * The counterfactual per-key WebAuthn signer proxy address — what a NON-first
+ * founding key uses as the signature's verifier (`r` field) in place of the
+ * shared `WEBAUTHN_SIGNER`.
+ */
+export function computeWebauthnSignerAddress(publicKeyHex: string): string {
+  return translated(() => {
+    const key = wasm.parsePublicKey(publicKeyHex);
+    return wasm.computeWebauthnSignerAddress(bytesFromHex(key.x), bytesFromHex(key.y));
+  });
+}
+
 export function computeSplitterAddress(treasury: string): string {
   return translated(() => wasm.computeSplitterAddress(treasury));
 }

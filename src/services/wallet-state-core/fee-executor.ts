@@ -24,8 +24,10 @@ import { fetchBundlerAccountInfo, fetchInBandGasQuotes } from '@/services/bundle
 import {
   fetchRawBundlerQuote,
   fetchRawGasSignals,
+  keySetOf,
   simulateUserOpGas,
 } from '@/services/safe-transaction';
+import { findAccountByAddress } from '@/services/storage';
 
 import type { FeeAssetQuote } from './generated/FeeAssetQuote';
 import type { FeeShellResult } from './generated/FeeShellResult';
@@ -128,7 +130,14 @@ export function createFeeExecutor(options: FeeSessionOptions) {
             value: decimalToHex(call.value),
             data: call.data,
           })),
-          publicKeyHex: options.publicKeyHex(),
+          // A multi-key wallet's initCode derives from ALL founding keys — the
+          // session's single mirrored key would price (and CREATE2-check)
+          // the wrong deployment for an undeployed Safe.
+          publicKeyHex: await (async () => {
+            const stored = await findAccountByAddress(operation.account);
+            if (stored?.keys && stored.keys.length > 1) return keySetOf(stored);
+            return options.publicKeyHex();
+          })(),
         });
         if (outcome.kind === 'estimated') {
           return {

@@ -9,7 +9,7 @@ import type { Account } from '@/models/types';
 import * as Passkey from '@/modules/passkey';
 import * as PublicKeyIndex from '@/services/public-key-index';
 import { rpcCall } from '@/services/rpc-adapter';
-import { sendContractCall, sendNative, buildEip1271Signature, extractClientDataFields, computeSafeMessageHash, type QuotedInBandFee } from '@/services/safe-transaction';
+import { sendContractCall, sendNative, buildEip1271Signature, extractClientDataFields, computeSafeMessageHash, keySetOf, signerAddressFor, type QuotedInBandFee, type WalletKeySet, type WalletSigner } from '@/services/safe-transaction';
 import { enforceNoUnlimited } from '@/services/approval-guard';
 import { findAccountByCredentialId } from '@/services/storage';
 import { getAllNetworksSync } from '@/models/network';
@@ -162,7 +162,10 @@ export function extractRequestChainId(method: string, params: any[]): number | u
  * validAfter(6) + validUntil(6) + signerAddr(32) + offset(32) + v=0x00(1) + dataLen(32) + dynamicData
  * where dynamicData = abi.encode(authenticatorData, clientDataFields, r, s)
  */
-function buildContractSignature(assertion: Passkey.PasskeyAssertionResult): string {
+function buildContractSignature(
+  assertion: Passkey.PasskeyAssertionResult,
+  signerAddress?: string,
+): string {
   const rawSig = derSignatureToRaw(fromHex(assertion.signatureHex));
   if (!rawSig) throw new Error('Failed to convert signature');
 
@@ -172,8 +175,28 @@ function buildContractSignature(assertion: Passkey.PasskeyAssertionResult): stri
   const sigR = rawSig.slice(0, 32);
   const sigS = rawSig.slice(32);
 
-  const sig = buildEip1271Signature(authenticatorData, clientDataFields, sigR, sigS);
+  const sig = buildEip1271Signature(authenticatorData, clientDataFields, sigR, sigS, signerAddress);
   return '0x' + toHex(sig);
+}
+
+/**
+ * A multi-key wallet's message signing: allow-list every founding credential,
+ * let the provider pick, and name the picked key's verifier in the signature.
+ * Legacy single-key accounts keep the exact historical path.
+ */
+async function signSafeMessage(
+  account: Account,
+  safeHashHex: string,
+): Promise<{ assertion: Passkey.PasskeyAssertionResult; signerAddress?: string }> {
+  const stored = await findAccountByCredentialId(account.id);
+  const keySet =
+    stored?.keys && stored.keys.length > 1 ? keySetOf(stored) : null;
+  const allowIds = keySet ? keySet.keys.map((key) => key.credentialId) : account.id;
+  const assertion = await Passkey.sign(safeHashHex, allowIds);
+  const signerAddress = keySet
+    ? signerAddressFor(keySet, assertion.credentialId)
+    : undefined;
+  return { assertion, signerAddress };
 }
 
 /**
@@ -216,8 +239,8 @@ export async function handlePersonalSign(
   const originalHash = keccak256(combined);
 
   const safeHash = computeSafeMessageHash(originalHash, chainId, safeAddress);
-  const assertion = await Passkey.sign(toHex(safeHash), account.id);
-  return buildContractSignature(assertion);
+  const { assertion, signerAddress } = await signSafeMessage(account, toHex(safeHash));
+  return buildContractSignature(assertion, signerAddress);
 }
 
 /**
@@ -240,8 +263,8 @@ export async function handleSignTypedData(
 
   const originalHash = hashTypedData(typedData);
   const safeHash = computeSafeMessageHash(originalHash, effectiveChainId, safeAddress);
-  const assertion = await Passkey.sign(toHex(safeHash), account.id);
-  return buildContractSignature(assertion);
+  const { assertion, signerAddress } = await signSafeMessage(account, toHex(safeHash));
+  return buildContractSignature(assertion, signerAddress);
 }
 
 /**
@@ -268,20 +291,27 @@ export async function handleSendTransaction(
   const valueHex = txDict.value ?? '0x0';
   const dataHex = txDict.data ?? '0x';
 
-  // Get public key
-  let publicKeyHex: string | undefined;
+  // Resolve the wallet's FULL key set (multi-key wallets sign with any
+  // founding key; the set also builds an undeployed Safe's initCode). Falls
+  // back to the legacy single-key index lookup for unknown accounts.
+  let walletSigner: WalletSigner | undefined;
   const stored = await findAccountByCredentialId(account.id);
-  publicKeyHex = stored?.publicKeyHex;
-
-  if (!publicKeyHex) {
+  if (stored) {
+    // Only a genuinely multi-key account changes shape here — a single-key
+    // wallet keeps the exact historical string form (and bytes).
+    walletSigner = stored.keys && stored.keys.length > 1 ? keySetOf(stored) : stored.publicKeyHex;
+  } else {
     const record = await PublicKeyIndex.queryRecord(Passkey.getRelyingPartyId(), account.id);
-    publicKeyHex = record.publicKey;
+    if (record.publicKey) walletSigner = record.publicKey;
   }
 
-  if (!publicKeyHex) throw new Error('Public key not found');
+  if (!walletSigner) throw new Error('Public key not found');
+  const publicKeyHex = walletSigner;
+  const keySet: WalletKeySet | null = typeof walletSigner === 'string' ? null : walletSigner;
+  const allowIds = keySet ? keySet.keys.map((key) => key.credentialId) : account.id;
 
   const signFn = async (challenge: Uint8Array) => {
-    const assertion = await Passkey.sign(toHex(challenge), account.id);
+    const assertion = await Passkey.sign(toHex(challenge), allowIds);
 
     const { verifySafeWebAuthn } = await import('@/services/vela-core');
     const compat = verifySafeWebAuthn(assertion);
@@ -296,6 +326,7 @@ export async function handleSendTransaction(
       signature: fromHex(assertion.signatureHex),
       authenticatorData: fromHex(assertion.authenticatorDataHex),
       clientDataJSON: fromHex(assertion.clientDataJSONHex),
+      credentialId: assertion.credentialId,
     };
   };
 
@@ -335,8 +366,8 @@ export async function handleGenericSign(
   const originalHash = keccak256(jsonBytes);
 
   const safeHash = computeSafeMessageHash(originalHash, chainId, safeAddress);
-  const assertion = await Passkey.sign(toHex(safeHash), account.id);
-  return buildContractSignature(assertion);
+  const { assertion, signerAddress } = await signSafeMessage(account, toHex(safeHash));
+  return buildContractSignature(assertion, signerAddress);
 }
 
 /**
@@ -449,20 +480,27 @@ export async function handleSendCalls(
     }
   }
 
-  // Get public key
-  let publicKeyHex: string | undefined;
+  // Resolve the wallet's FULL key set (multi-key wallets sign with any
+  // founding key; the set also builds an undeployed Safe's initCode). Falls
+  // back to the legacy single-key index lookup for unknown accounts.
+  let walletSigner: WalletSigner | undefined;
   const stored = await findAccountByCredentialId(account.id);
-  publicKeyHex = stored?.publicKeyHex;
-
-  if (!publicKeyHex) {
+  if (stored) {
+    // Only a genuinely multi-key account changes shape here — a single-key
+    // wallet keeps the exact historical string form (and bytes).
+    walletSigner = stored.keys && stored.keys.length > 1 ? keySetOf(stored) : stored.publicKeyHex;
+  } else {
     const record = await PublicKeyIndex.queryRecord(Passkey.getRelyingPartyId(), account.id);
-    publicKeyHex = record.publicKey;
+    if (record.publicKey) walletSigner = record.publicKey;
   }
 
-  if (!publicKeyHex) throw new Error('Public key not found');
+  if (!walletSigner) throw new Error('Public key not found');
+  const publicKeyHex = walletSigner;
+  const keySet: WalletKeySet | null = typeof walletSigner === 'string' ? null : walletSigner;
+  const allowIds = keySet ? keySet.keys.map((key) => key.credentialId) : account.id;
 
   const signFn = async (challenge: Uint8Array) => {
-    const assertion = await Passkey.sign(toHex(challenge), account.id);
+    const assertion = await Passkey.sign(toHex(challenge), allowIds);
 
     const { verifySafeWebAuthn } = await import('@/services/vela-core');
     const compat = verifySafeWebAuthn(assertion);
@@ -477,6 +515,7 @@ export async function handleSendCalls(
       signature: fromHex(assertion.signatureHex),
       authenticatorData: fromHex(assertion.authenticatorDataHex),
       clientDataJSON: fromHex(assertion.clientDataJSONHex),
+      credentialId: assertion.credentialId,
     };
   };
 

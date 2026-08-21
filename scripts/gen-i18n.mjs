@@ -166,8 +166,8 @@ for (let i = 1; i < PATHS.length; i++) {
 // and its one `settings.eraseDevice` branch, plus 018's 21 contacts leaves
 // and no new branch. The three checks below are the arithmetic's witness —
 // they fail loudly rather than let a merge invent a corpus.
-if (PATHS.length !== 1346) fail(`expected 1346 paths (1267 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1267) fail(`expected 1267 leaf paths, got ${leafSet.size}`);
+if (PATHS.length !== 1351) fail(`expected 1351 paths (1272 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1272) fail(`expected 1272 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

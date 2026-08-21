@@ -49,13 +49,24 @@ import { endExtCacheSession } from '@/services/wallet-state-core/session-ext-cac
  * hands over whatever a `SET_WALLET` / `ADD_ACCOUNT` dispatch carried — the
  * parallel-space fixtures, for one, are keyless `Account`s.
  */
-export function toCoreAccount(account: Account & { publicKeyHex?: string }): CoreAccount {
+export function toCoreAccount(
+  account: Account & { publicKeyHex?: string; keys?: StoredAccount['keys'] },
+): CoreAccount {
   return {
     id: account.id ?? '',
     name: account.name ?? '',
     address: account.address ?? '',
     public_key_hex: account.publicKeyHex ?? '',
     created_at_iso: account.createdAt ?? '',
+    // The FULL founding key set. Dropping it here is not just lossy — the
+    // core derives the address from ALL keys (invariant ②), so a multi-key
+    // account stripped to its scalar key would be "repaired" to the WRONG
+    // single-key Safe on every restore.
+    keys: (account.keys ?? []).map((key) => ({
+      credential_id: key.credentialId ?? '',
+      public_key_hex: key.publicKeyHex ?? '',
+      name: key.name ?? '',
+    })),
   };
 }
 
@@ -67,6 +78,11 @@ export function toStoredAccount(account: CoreAccount): StoredAccount {
     address: account.address,
     publicKeyHex: account.public_key_hex,
     createdAt: account.created_at_iso,
+    keys: (account.keys ?? []).map((key) => ({
+      credentialId: key.credential_id,
+      publicKeyHex: key.public_key_hex,
+      name: key.name,
+    })),
   };
 }
 

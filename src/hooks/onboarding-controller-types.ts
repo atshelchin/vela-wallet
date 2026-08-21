@@ -20,8 +20,18 @@
 
 import type { StatusI18nKey, SubmitLabelI18nKey } from '@/services/onboarding-core/copy';
 
-/** Which of the three create panels is showing. */
-export type CreateWalletStage = 'form' | 'sync_failed' | 'created';
+/** Which of the four create panels is showing. */
+export type CreateWalletStage = 'form' | 'add_keys' | 'sync_failed' | 'created';
+
+/** One row of the founding-key list on the add-keys panel. */
+export type CreateWalletKeyRow = {
+  /** Per-key label; row 0 carries the wallet name. */
+  name: string;
+  /** "platform" / "cross-platform" / "" — display hint only. */
+  authenticatorAttachment: string;
+  /** Comma-joined transports ("hybrid,internal") or "" — display hint only. */
+  transports: string;
+};
 
 export type CreateWalletController = {
   stage: CreateWalletStage;
@@ -43,10 +53,24 @@ export type CreateWalletController = {
   /** Raw server text for the bug report, shown behind a disclosure. */
   syncErrorDetail: string | null;
   canGoBack: boolean;
+  /** The drafted founding keys (1..=7), founding order. */
+  keys: CreateWalletKeyRow[];
+  /** One more key may be added (below the cap, nothing in flight). */
+  canAddKey: boolean;
+  /** The set may be frozen and published. */
+  canFinish: boolean;
 
   setName: (name: string) => void;
   toggleAck: (index: number) => void;
   submit: () => void;
+  /** Mint one more founding passkey with this label ("" ⇒ "Key N"). */
+  addKey: (name: string) => void;
+  /** Drop a drafted extra key (index ≥ 1; the first key is fixed). */
+  removeKey: (index: number) => void;
+  /** Relabel a drafted extra key (index ≥ 1). */
+  renameKey: (index: number, name: string) => void;
+  /** Freeze the founding set — derive the address and publish. */
+  finishKeys: () => void;
   startOver: () => void;
   retryUpload: () => void;
   enterWallet: () => void;

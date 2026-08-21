@@ -143,8 +143,12 @@ fn a_registered_candidate_enters_with_one_signature() {
     let mut sut = authenticated();
     sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
 
-    // The first candidate queried is the one the registry holds.
-    let next = sut.resolve(ShellResult::RegistryKeyStatus { registered: true });
+    // The first candidate queried is the one the registry holds — a legacy
+    // entry with no group, so the historical single-key resolution applies.
+    let next = sut.resolve(ShellResult::RegistryKeyStatus {
+        registered: true,
+        unit_ids: vec![],
+    });
     assert!(
         matches!(next.as_slice(), [ShellOperation::SaveAccount { .. }]),
         "a known candidate is saved directly — one signature; got {next:?}"
@@ -162,7 +166,10 @@ fn a_registered_candidate_enters_with_one_signature() {
 fn walk_to_recover_offer(sut: &mut Sut) {
     loop {
         match sut
-            .resolve(ShellResult::RegistryKeyStatus { registered: false })
+            .resolve(ShellResult::RegistryKeyStatus {
+                registered: false,
+                unit_ids: vec![],
+            })
             .as_slice()
         {
             [ShellOperation::RegistryQueryByPublicKey { .. }] => continue,
@@ -393,4 +400,208 @@ fn sign_in_while_busy_is_a_no_op() {
 
     assert_eq!(first.len(), 1);
     assert!(second.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Multi-key group reconstruction
+// ---------------------------------------------------------------------------
+
+use vela_core::app::RegistryUnitMember;
+use vela_core::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
+
+const CRED2: &str = "credential-2";
+
+/// The founding members of the two-key fixture wallet, founding order.
+fn unit_members() -> Vec<RegistryUnitMember> {
+    vec![
+        RegistryUnitMember {
+            credential_id: CRED.to_owned(),
+            public_key_hex: support::expected_public_key_hex(),
+            authenticator_attachment: "platform".to_owned(),
+            transports: "hybrid,internal".to_owned(),
+        },
+        RegistryUnitMember {
+            credential_id: CRED2.to_owned(),
+            public_key_hex: support::second_public_key_hex(),
+            authenticator_attachment: String::new(),
+            transports: String::new(),
+        },
+    ]
+}
+
+fn multi_address() -> String {
+    let keys = [
+        vela_core::safe::parse_public_key(&support::expected_public_key_hex()).unwrap(),
+        vela_core::safe::parse_public_key(&support::second_public_key_hex()).unwrap(),
+    ];
+    vela_core::safe::compute_safe_address_multi(&keys)
+        .unwrap()
+        .address
+}
+
+fn unit_metadata_hex() -> String {
+    RegistryMetadata {
+        version: REGISTRY_METADATA_VERSION,
+        address: multi_address(),
+        wallet_version: "safe-1.4.1".to_owned(),
+        key_names: vec!["Ann".to_owned(), "Backup".to_owned()],
+        created_at_iso: NOW.to_owned(),
+    }
+    .encode_hex()
+    .unwrap()
+}
+
+/// …→ the registered candidate belongs to a group: the unit fetch is next.
+fn fetching_unit() -> Sut {
+    let mut sut = authenticated();
+    sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    let next = sut.resolve(ShellResult::RegistryKeyStatus {
+        registered: true,
+        unit_ids: vec![7, 3], // the lowest id is the founding group
+    });
+    match next.as_slice() {
+        [ShellOperation::RegistryQueryUnit { unit_id }] => {
+            assert_eq!(*unit_id, 3, "the lowest unit id is the founding group");
+        }
+        other => panic!("expected the unit fetch, got {other:?}"),
+    }
+    sut
+}
+
+/// A grouped key is reconstructed from the FULL founding set: all members,
+/// the recorded multi-key address, names from the metadata blob.
+#[test]
+fn a_grouped_candidate_reconstructs_the_full_key_set() {
+    let mut sut = fetching_unit();
+    let next = sut.resolve(ShellResult::RegistryUnit {
+        metadata_hex: unit_metadata_hex(),
+        members: unit_members(),
+    });
+    match next.as_slice() {
+        [ShellOperation::SaveAccount { account }] => {
+            assert_eq!(account.address, multi_address());
+            assert_eq!(account.keys.len(), 2);
+            assert_eq!(account.id, CRED, "identity is the pinned first key");
+            assert_eq!(account.keys[1].credential_id, CRED2);
+            assert_eq!(account.keys[1].name, "Backup");
+            assert_eq!(account.public_key_hex, support::expected_public_key_hex());
+        }
+        other => panic!("expected the reconstructed save, got {other:?}"),
+    }
+}
+
+/// A server that reorders members cannot move the wallet: the pin is re-found
+/// by derivation against the recorded address.
+#[test]
+fn reconstruction_survives_shuffled_member_order() {
+    let mut sut = fetching_unit();
+    let mut shuffled = unit_members();
+    shuffled.reverse();
+    let next = sut.resolve(ShellResult::RegistryUnit {
+        metadata_hex: unit_metadata_hex(),
+        members: shuffled,
+    });
+    match next.as_slice() {
+        [ShellOperation::SaveAccount { account }] => {
+            assert_eq!(account.address, multi_address());
+            assert_eq!(
+                account.keys[0].credential_id, CRED,
+                "the pin is recovered by derivation, not trusted from fetch order"
+            );
+        }
+        other => panic!("expected the reconstructed save, got {other:?}"),
+    }
+}
+
+/// A unit whose members cannot recompute the recorded address is never
+/// persisted — nothing enters on a guess.
+#[test]
+fn a_group_that_does_not_derive_its_address_is_refused() {
+    let mut sut = fetching_unit();
+    let metadata_hex = RegistryMetadata {
+        version: REGISTRY_METADATA_VERSION,
+        address: "0x000000000000000000000000000000000000dEaD".to_owned(),
+        wallet_version: "safe-1.4.1".to_owned(),
+        key_names: vec!["Ann".to_owned(), "Backup".to_owned()],
+        created_at_iso: NOW.to_owned(),
+    }
+    .encode_hex()
+    .unwrap();
+    let next = sut.resolve(ShellResult::RegistryUnit {
+        metadata_hex,
+        members: unit_members(),
+    });
+    assert!(
+        matches!(
+            next.as_slice(),
+            [ShellOperation::Prompt {
+                kind: PromptKind::SignInFailed { .. },
+                ..
+            }]
+        ),
+        "a non-deriving group is a sign-in failure, never a save; got {next:?}"
+    );
+    assert!(!sut.view().busy);
+}
+
+/// The unit exists but could not be read: a multi-key address cannot be
+/// derived from one key, so the sign-in fails rather than guessing.
+#[test]
+fn a_failed_unit_fetch_fails_the_sign_in_instead_of_guessing() {
+    let mut sut = fetching_unit();
+    let next = sut.resolve(ShellResult::IndexFailed {
+        message: "offline".to_owned(),
+        network: true,
+    });
+    assert!(
+        matches!(
+            next.as_slice(),
+            [ShellOperation::Prompt {
+                kind: PromptKind::SignInFailed { .. },
+                ..
+            }]
+        ),
+        "no single-key fallback exists for a known group; got {next:?}"
+    );
+}
+
+/// A sibling credential of a locally stored multi-key wallet opens it
+/// directly — any founding key matches, not just the first.
+#[test]
+fn a_sibling_credential_matches_the_local_multikey_account() {
+    let mut sut = mounted();
+    sut.dispatch(Event::SignIn);
+    sut.resolve(ShellResult::PasskeySupport { supported: true });
+    // Authenticated with the SECOND founding key's credential.
+    sut.resolve(ShellResult::PasskeyAuthenticated {
+        assertion: support::assertion(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+
+    let account = vela_core::app::Account {
+        keys: vec![
+            vela_core::app::AccountKey {
+                credential_id: CRED.to_owned(),
+                public_key_hex: support::expected_public_key_hex(),
+                name: "Ann".to_owned(),
+            },
+            vela_core::app::AccountKey {
+                credential_id: CRED2.to_owned(),
+                public_key_hex: support::second_public_key_hex(),
+                name: "Backup".to_owned(),
+            },
+        ],
+        ..support::account(CRED, "Ann", &multi_address())
+    };
+    let next = sut.resolve(ShellResult::AccountsLoaded {
+        accounts: vec![account],
+    });
+    match next.as_slice() {
+        [ShellOperation::CompleteOnboarding {
+            mode: CompletionMode::SetWallet { active_index, .. },
+        }] => {
+            assert_eq!(*active_index, 0, "the sibling key opens the wallet locally");
+        }
+        other => panic!("expected immediate completion, got {other:?}"),
+    }
 }

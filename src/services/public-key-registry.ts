@@ -55,6 +55,14 @@ export interface RegistryProof {
 export interface RegistryMember {
   publicKey: string;
   attestation?: string;
+  /** WebAuthn credential id (hex), stored on the entry for local lookup.
+   *  Not part of any signed binding. */
+  credentialId?: string;
+  /** PublicKeyCredential response hints, stored on the entry for display
+   *  (not signed): the `authenticatorAttachment` token and the comma-joined
+   *  transports list. */
+  authenticatorAttachment?: string;
+  transports?: string;
   proof: RegistryProof;
 }
 
@@ -229,6 +237,65 @@ export async function queryByPublicKey(publicKey: string): Promise<KeyProfile> {
   const response = await fetchWithTimeout(url, {}, { timeoutMs: NET_TIMEOUTS.keyIndexRead });
   if (!response.ok) throw new Error(`Query failed: ${response.status}`);
   return (await response.json()) as KeyProfile;
+}
+
+/** One founding member of a group, as `/api/query?unitId=` returns it. */
+export interface UnitMember {
+  entryId: number;
+  publicKey: string;
+  attestation: string;
+  /** WebAuthn credential id (hex), as stored at registration. */
+  credentialId: string;
+  authenticatorAttachment?: string;
+  transports?: string;
+  createdAt?: number;
+}
+
+/** `/api/query?unitId=` — the group's frozen record, one page of its founding
+ *  members (ascending page order IS the canonical founding order), and the
+ *  discovery-only reference inbox. */
+export interface UnitDetail {
+  unit: {
+    unitId: number;
+    rpId: string;
+    /** The opaque metadata blob (hex) — vela wallets encode `RegistryMetadata`
+     *  (address, key_names, …) here. */
+    metadata: string;
+    groupPublicKey: string;
+    contentHash: string;
+    memberCount: number;
+    createdAt?: number;
+  };
+  members: { total: number; items: UnitMember[] };
+  references: { total: number; referenceIds: number[] };
+  page?: number;
+  pageSize?: number;
+}
+
+/** A vela wallet's founding set is capped at 7 keys; a larger group is not
+ *  ours and must never be reconstructed into an account. */
+const MAX_UNIT_MEMBERS = 7;
+
+/** The group's frozen record plus ALL its founding members, ascending
+ *  (= canonical founding) order. Throws on an unknown unit (404), a
+ *  non-wallet-sized group, or a page that does not hold every member. */
+export async function queryUnit(unitId: number): Promise<UnitDetail> {
+  const baseUrl = await getBaseUrl();
+  // `order=asc` = registration order = the canonical founding order the Safe
+  // address derivation pins (the server default is newest-first).
+  const url = `${baseUrl}/api/query?unitId=${encodeURIComponent(unitId)}&pageSize=${MAX_UNIT_MEMBERS}&order=asc`;
+  const response = await fetchWithTimeout(url, {}, { timeoutMs: NET_TIMEOUTS.keyIndexRead });
+  if (!response.ok) throw new Error(`Query failed: ${response.status}`);
+  const detail = (await response.json()) as UnitDetail;
+  const total = detail.members?.total ?? 0;
+  const items = detail.members?.items ?? [];
+  if (total > MAX_UNIT_MEMBERS) {
+    throw new Error(`Query failed: unit ${unitId} has ${total} members (cap ${MAX_UNIT_MEMBERS})`);
+  }
+  if (items.length !== total) {
+    throw new Error(`Query failed: unit ${unitId} page holds ${items.length} of ${total} members`);
+  }
+  return detail;
 }
 
 /** Health probe. Returns null on any transport failure (a down registry must

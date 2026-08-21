@@ -52,6 +52,9 @@ function toCoreAccount(account: Account): CoreAccount {
     address: account.address ?? '',
     public_key_hex: '',
     created_at_iso: account.createdAt ?? '',
+    // Deliberately empty, like the key above: the extension cache must never
+    // carry key material — display fields only.
+    keys: [],
   };
 }
 

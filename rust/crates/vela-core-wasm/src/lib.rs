@@ -420,7 +420,11 @@ pub fn group_public_key_from_seed(seed_hex: &str) -> JsResult<String> {
 /// Derive the one-time group key from a 32-byte seed and build its closing
 /// proof over the group's content-hash challenge.
 #[wasm_bindgen(js_name = buildGroupProof)]
-pub fn build_group_proof(seed_hex: &str, rp_id: &str, challenge_hex: &str) -> JsResult<GroupProofJs> {
+pub fn build_group_proof(
+    seed_hex: &str,
+    rp_id: &str,
+    challenge_hex: &str,
+) -> JsResult<GroupProofJs> {
     vela_core::registry_proof::build_group_proof(seed_hex, rp_id, challenge_hex)
         .map(Into::into)
         .map_err(err)

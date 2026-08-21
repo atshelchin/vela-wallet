@@ -4,4 +4,11 @@
  * A completed `navigator.credentials.create()`. Hex everywhere, matching the
  * existing `PasskeyRegistrationResult` contract.
  */
-export type Registration = { credential_id: string, attestation_object_hex: string, client_data_json_hex: string, };
+export type Registration = { credential_id: string, attestation_object_hex: string, client_data_json_hex: string, 
+/**
+ * PublicKeyCredential response hints (not in authData, not signed):
+ * the `authenticatorAttachment` token ("platform" / "cross-platform",
+ * or empty) and the `getTransports()` list joined with commas
+ * (e.g. "hybrid,internal", or empty). Stored on the entry for display.
+ */
+authenticator_attachment: string, transports: string, };

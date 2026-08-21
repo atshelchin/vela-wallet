@@ -29,6 +29,8 @@ import {
   FIXTURE_ADDRESSES,
   buildMockAssertion,
   buildMockRegistration,
+  nextFixtureRegistration,
+  resetFixtureRegistrationCursor,
 } from './passkey-fixture';
 
 // Storage keys. The account keys intentionally match storage.ts so the real signing
@@ -138,12 +140,21 @@ export function fixtureAccounts(): Account[] {
 
 /** Wire the fixed-key signer into the passkey module. Idempotent; flips the badge on. */
 export function installMockPasskey(): void {
+  resetFixtureRegistrationCursor();
+  // Sign with the rpId the app actually reports (localhost in dev, the real
+  // domain in prod) — a real authenticator hashes the CURRENT rpId, and the
+  // v2 registry verifies exactly that hash in every possession proof.
+  const rpId = Passkey.getRelyingPartyId();
   Passkey.__setPasskeyOverride({
     sign: async (challengeHex, credentialId) =>
-      buildMockAssertion(challengeHex, { credentialId }),
+      buildMockAssertion(challengeHex, { credentialId, rpId }),
     authenticate: async () =>
-      buildMockAssertion('0x' + '00'.repeat(32), { credentialId: FIXTURE_ACCOUNT.id }),
-    register: async () => buildMockRegistration({ credentialId: FIXTURE_ACCOUNT.id }),
+      buildMockAssertion('0x' + '00'.repeat(32), { credentialId: FIXTURE_ACCOUNT.id, rpId }),
+    // Each register() mints the NEXT fixture credential, so a multi-key
+    // onboarding founds the wallet on distinct keys — always returning
+    // fixture #1 would trip the core's duplicate-founding-key rejection.
+    register: async () =>
+      buildMockRegistration({ credentialId: nextFixtureRegistration().id, rpId }),
   });
   setActive(true);
 }

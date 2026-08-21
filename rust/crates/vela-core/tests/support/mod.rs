@@ -174,6 +174,41 @@ pub fn registration(credential_id: &str) -> Registration {
         credential_id: credential_id.to_owned(),
         attestation_object_hex: attestation_object_hex(),
         client_data_json_hex: hex_of(r#"{"type":"webauthn.create","challenge":"Y2hhbGxlbmdl"}"#),
+        authenticator_attachment: "platform".to_owned(),
+        transports: "hybrid,internal".to_owned(),
+    }
+}
+
+/// A second genuine P-256 curve point (x = 0x11…14 is the first x in that
+/// run whose y² is a quadratic residue), distinct from the conformance key.
+pub const SECOND_KEY_X: &str = "1111111111111111111111111111111111111111111111111111111111111114";
+pub const SECOND_KEY_Y: &str = "d8dd738ca691a327dd14c119194a3d96dbb93d2cb9edab12387669ec973cb024";
+
+/// The conformance attestation object with its COSE coordinates replaced by
+/// [`SECOND_KEY_X`]/[`SECOND_KEY_Y`] — extraction only decodes and validates
+/// the curve point, so multi-key tests get a DISTINCT founding key from a
+/// byte-identical CBOR shape.
+pub fn second_attestation_object_hex() -> String {
+    format!(
+        "a363666d74646e6f6e656761747453746d74a0686175746844617461590094\
+         a69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df349\
+         4500000001000000000000000000000000000000000010\
+         cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\
+         a5010203262001215820{SECOND_KEY_X}225820{SECOND_KEY_Y}"
+    )
+    .replace(char::is_whitespace, "")
+}
+
+/// The uncompressed second founding key, `04‖x‖y`.
+pub fn second_public_key_hex() -> String {
+    format!("04{SECOND_KEY_X}{SECOND_KEY_Y}")
+}
+
+/// A registration whose attestation carries the SECOND fixture key.
+pub fn second_registration(credential_id: &str) -> Registration {
+    Registration {
+        attestation_object_hex: second_attestation_object_hex(),
+        ..registration(credential_id)
     }
 }
 
@@ -211,6 +246,7 @@ fn assertion_from(value: &Value, credential_id: &str) -> Assertion {
             "Ann\0{}",
             "0f8fad5b-d9cb-469f-a165-70867728950e"
         ))),
+        authenticator_attachment: "platform".to_owned(),
     }
 }
 
@@ -225,6 +261,7 @@ pub fn account(id: &str, name: &str, address: &str) -> Account {
         address: address.to_owned(),
         public_key_hex: expected_public_key_hex(),
         created_at_iso: "2026-08-05T00:00:00.000Z".to_owned(),
+        keys: Vec::new(),
     }
 }
 

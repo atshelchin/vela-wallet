@@ -3,6 +3,7 @@ import type { Account } from "./Account";
 import type { Assertion } from "./Assertion";
 import type { FailureKind } from "./FailureKind";
 import type { Registration } from "./Registration";
+import type { RegistryUnitMember } from "./RegistryUnitMember";
 
 /**
  * What the shell observed. Failures arrive as *variants*, never as exceptions:
@@ -16,7 +17,12 @@ export type ShellResult = { "type": "passkey_support", supported: boolean, } | {
  * "something went wrong" alert. Absent for classified failures, whose
  * copy comes from the classification.
  */
-message: string | null, } | { "type": "accounts_loaded", accounts: Array<Account>, } | { "type": "account_saved" } | { "type": "pending_upload_saved" } | { "type": "pending_upload_removed" } | { "type": "storage_failed", message: string, } | { "type": "registry_published" } | { "type": "registry_key_status", registered: boolean, } | { "type": "index_failed", message: string, 
+message: string | null, } | { "type": "accounts_loaded", accounts: Array<Account>, } | { "type": "account_saved" } | { "type": "pending_upload_saved" } | { "type": "pending_upload_removed" } | { "type": "storage_failed", message: string, } | { "type": "registry_published" } | { "type": "registry_key_status", registered: boolean, 
+/**
+ * The ids of the groups (Units) this key is a founding member of,
+ * ascending. Empty for a registered key predating groups.
+ */
+unit_ids: Array<number>, } | { "type": "registry_unit", metadata_hex: string, members: Array<RegistryUnitMember>, } | { "type": "index_failed", message: string, 
 /**
  * True when the request never reached the server (transport failure or
  * abort). Only the shell can tell that from a 4xx, so this one bit of

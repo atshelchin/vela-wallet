@@ -159,64 +159,49 @@ function arm(pattern: string): string {
 const SYNCING = (step: string, result: string) =>
   `(Stage::Syncing(SyncStep::${step}), ShellResult::${result})`;
 
-describe('Rust side — the arms the TypeScript table mirrors', () => {
+// The core moved from the v1 create→confirm→walletRef retry table to the v2
+// possession-proven GROUP publish (`registry_publish` — one get per member,
+// server-side on-chain confirmation before `done`). The TypeScript table above
+// therefore no longer mirrors the core line-by-line: it survives ONLY as the
+// legacy retry path for v1 single-key pending records (`retryPendingUploads`),
+// and multi-member v2 records are explicitly skipped there (a group publish
+// needs one passkey prompt per member and can never run silently). What this
+// gate still pins on the Rust side is the publish machine's fund-safety
+// ordering — the reasons a red test here matters are unchanged.
+describe('Rust side — the v2 publish machine this file defers to', () => {
   test('the set of Syncing arms is exactly the one this gate covers', () => {
     // A one-sided ADDITION is the drift a per-row check cannot see: a new
-    // Confirming/CheckingWalletRef answer that TypeScript has never heard of.
+    // Syncing answer the retry story has never heard of.
     const heads = [...ARMS.keys()]
       .filter((k) => k.startsWith('(Stage::Syncing'))
       .sort();
     expect(heads).toEqual([
-      SYNCING('CheckingWalletRef', 'IndexFailed { .. }'),
-      SYNCING('CheckingWalletRef', 'WalletRef { resolved }'),
-      SYNCING('Confirming', 'IndexFailed { message, .. }'),
-      SYNCING('Confirming', 'IndexMissing'),
-      SYNCING('Confirming', 'IndexRecord { public_key_hex, .. }'),
-      SYNCING('Creating', 'IndexCreated'),
-      SYNCING('Creating', 'IndexFailed { message, .. }'),
+      SYNCING('Publishing', 'RegistryPublished'),
+      SYNCING('Publishing', 'IndexFailed { message, .. }'),
       SYNCING('RemovingPending', 'PendingUploadRemoved'),
       SYNCING('RemovingPending', 'StorageFailed { .. }'),
-      SYNCING('Waiting', 'Waited'),
     ].sort());
   });
 
-  test('a failed create is not yet a failure — it still goes to the query', () => {
-    expect(arm(SYNCING('Creating', 'IndexCreated'))).toContain('confirm_upload(model)');
-    const failed = arm(SYNCING('Creating', 'IndexFailed { message, .. }'));
-    expect(failed).toContain('model.sync.create_error = Some(message)');
-    expect(failed).toContain('confirm_upload(model)');
-  });
-
-  test('the stored record decides, compared case-insensitively', () => {
-    const body = arm(SYNCING('Confirming', 'IndexRecord { public_key_hex, .. }'));
-    expect(body).toContain('eq_ignore_ascii_case');
-    expect(body).toContain('check_wallet_ref(model)');
-    expect(body).toContain('retry_or_fail(');
-    expect(body).toContain(MISMATCH_MESSAGE);
-  });
-
-  test('a query that cannot answer is unconfirmed, preferring the create error', () => {
-    for (const result of ['IndexMissing', 'IndexFailed { message, .. }']) {
-      const body = arm(SYNCING('Confirming', result));
-      expect(body).toContain('model.sync.create_error');
-      expect(body).toMatch(/unwrap_or/);
-      expect(body).toContain('retry_or_fail(model, detail)');
-    }
-  });
-
-  test('the pending entry is cleared only on a RESOLVED wallet reference', () => {
-    const body = arm(SYNCING('CheckingWalletRef', 'WalletRef { resolved }'));
-    expect(body).toContain('if resolved {');
+  test('the pending record is cleared only after the publish LANDED', () => {
+    // `RegistryPublished` means the server confirmed the group on-chain (or
+    // found the identical group already there) — only then may the pending
+    // entry be dropped and the account saved (issue #89's ordering, v2 form).
+    const body = arm(SYNCING('Publishing', 'RegistryPublished'));
     expect(body).toContain('ShellOperation::RemovePendingUpload');
-    // The `else` — reveal not landed — keeps it and carries on.
-    expect(body).toContain('save_account(model)');
-    // An unanswerable walletRef check is likewise never a reason to clear.
-    const failed = arm(SYNCING('CheckingWalletRef', 'IndexFailed { .. }'));
-    expect(failed).toContain('save_account(model)');
+    expect(body).not.toContain('save_account(model)');
+  });
+
+  test('a failed publish keeps the pending record and offers retry, never entry', () => {
+    const failed = arm(SYNCING('Publishing', 'IndexFailed { message, .. }'));
+    expect(failed).toContain('Stage::SyncFailed');
+    expect(failed).toContain('sync.last_error');
     expect(failed).not.toContain('RemovePendingUpload');
+    expect(failed).not.toContain('save_account');
   });
 
   test('a failed local delete is not a failed registration', () => {
+    expect(arm(SYNCING('RemovingPending', 'PendingUploadRemoved'))).toContain('save_account(model)');
     expect(arm(SYNCING('RemovingPending', 'StorageFailed { .. }'))).toContain('save_account(model)');
   });
 });

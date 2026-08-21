@@ -28,7 +28,8 @@ use serde::{Deserialize, Serialize};
 
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
 use super::{
-    address_from_public_key_hex, Account, Assertion, FailureKind, PromptKind, RegistryPublishMember,
+    address_from_public_key_hex, Account, AccountKey, Assertion, FailureKind, PromptKind,
+    RegistryPublishMember,
 };
 use crate::error::CoreError;
 use crate::primitives;
@@ -89,6 +90,9 @@ pub enum Stage {
     /// One signature yields two candidate keys; we ask the registry which one
     /// it already knows before asking the user to sign a second time.
     MatchingKey,
+    /// The matched key belongs to a registry group — fetching its founding
+    /// members to reconstruct the (possibly multi-key) wallet.
+    FetchingUnit,
     /// Waiting for the user to accept or decline on-device recovery.
     AwaitingConsent,
     /// Waiting for the second signature that pins down the public key.
@@ -260,7 +264,7 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             };
             match accounts
                 .iter()
-                .position(|account| account.id == assertion.credential_id)
+                .position(|account| account.matches_credential(&assertion.credential_id))
             {
                 Some(active_index) => {
                     // Already known here: enter immediately, no server involved.
@@ -341,20 +345,72 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         // A candidate the registry already holds IS the real key — the false
         // candidate has no holder and can never be registered. Enter directly:
         // one signature, and no publish (it is already there).
-        (Stage::MatchingKey, ShellResult::RegistryKeyStatus { registered: true }) => {
-            match matched_account(model) {
-                Some(account) => begin_save(model, account),
-                None => offer_recovery(model),
+        (
+            Stage::MatchingKey,
+            ShellResult::RegistryKeyStatus {
+                registered: true,
+                unit_ids,
+            },
+        ) => {
+            // A key belonging to a group must be reconstructed from the FULL
+            // founding set — deriving from this key alone would produce the
+            // wrong address for any multi-key wallet. The lowest id is the
+            // founding group (multi-unit membership is an explicit non-goal).
+            match unit_ids.iter().min().copied() {
+                Some(unit_id) => {
+                    model.stage = Stage::FetchingUnit;
+                    request(model, ShellOperation::RegistryQueryUnit { unit_id })
+                }
+                // A registered key predating groups: the historical
+                // single-key resolution.
+                None => match matched_account(model) {
+                    Some(account) => begin_save(model, account),
+                    None => offer_recovery(model),
+                },
             }
         }
         // This candidate is unknown; try the next, or fall back to a second
         // signature once both are exhausted.
-        (Stage::MatchingKey, ShellResult::RegistryKeyStatus { registered: false }) => {
-            query_next_candidate(model)
-        }
+        (
+            Stage::MatchingKey,
+            ShellResult::RegistryKeyStatus {
+                registered: false, ..
+            },
+        ) => query_next_candidate(model),
         // The registry could not answer, so it cannot disambiguate the two
         // candidates — fall back to the second signature.
         (Stage::MatchingKey, ShellResult::IndexFailed { .. }) => offer_recovery(model),
+
+        // -- group reconstruction ----------------------------------------------
+        (
+            Stage::FetchingUnit,
+            ShellResult::RegistryUnit {
+                metadata_hex,
+                members,
+            },
+        ) => {
+            let Some(assertion) = model.assertion.clone() else {
+                return Command::done();
+            };
+            match reconstruct_account(&assertion, &metadata_hex, &members, &model.observed_at) {
+                // The group is already on-chain — no publish, just enter.
+                Some(account) => begin_save(model, account),
+                // The fetched members do not recompute to the recorded
+                // address. Nothing is persisted on a guess.
+                None => idle_with_prompt(
+                    model,
+                    PromptKind::SignInFailed {
+                        detail: "registry group does not match its address".to_owned(),
+                    },
+                ),
+            }
+        }
+        // The unit is known to exist but could not be read. A multi-key
+        // wallet's address CANNOT be derived from one key, so entering with a
+        // single-key guess would fund the wrong Safe — surface the failure.
+        (Stage::FetchingUnit, ShellResult::IndexFailed { message, .. }) => {
+            idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
+        }
 
         // -- publish before entering (option B) --------------------------------
         // Publish landed (or the identical group was already there): enter.
@@ -415,12 +471,18 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
 /// Build the account for a credential and a known public key.
 fn account_from_key(assertion: &Assertion, public_key_hex: &str, now_iso: &str) -> Option<Account> {
     let address = address_from_public_key_hex(public_key_hex).ok()?;
+    let name = account_name(assertion);
     Some(Account {
         id: assertion.credential_id.clone(),
-        name: account_name(assertion),
+        name: name.clone(),
         address,
         public_key_hex: public_key_hex.to_owned(),
         created_at_iso: now_iso.to_owned(),
+        keys: vec![AccountKey {
+            credential_id: assertion.credential_id.clone(),
+            public_key_hex: public_key_hex.to_owned(),
+            name,
+        }],
     })
 }
 
@@ -491,6 +553,102 @@ fn matched_account(model: &Model) -> Option<Account> {
     account_from_key(assertion, public_key_hex, &model.observed_at)
 }
 
+/// Rebuild the wallet from its registry group.
+///
+/// Recomputation is the authority, the metadata blob the cross-check: the
+/// address that is persisted MUST be derivable from the fetched members, or
+/// nothing is. The fetch order is the canonical founding order, so the
+/// straight derivation matches first try; if it does not (a server that
+/// reordered members), every member is tried as the pinned `keys[0]` — the
+/// only degree of freedom, since `compute_safe_address_multi` canonically
+/// orders the rest internally.
+fn reconstruct_account(
+    assertion: &Assertion,
+    metadata_hex: &str,
+    members: &[super::RegistryUnitMember],
+    now_iso: &str,
+) -> Option<Account> {
+    if members.is_empty()
+        || !members
+            .iter()
+            .any(|member| member.credential_id == assertion.credential_id)
+    {
+        // A group that does not even contain the signing credential is not
+        // this wallet, whatever the query said.
+        return None;
+    }
+    let metadata = RegistryMetadata::decode_hex(metadata_hex).ok()?;
+
+    let ordered = reorder_to_address(members, &metadata.address)?;
+
+    let name = assertion
+        .user_name()
+        .or_else(|| metadata.key_names.first().cloned())
+        .unwrap_or_else(|| FALLBACK_ACCOUNT_NAME.to_owned());
+    let keys: Vec<AccountKey> = ordered
+        .iter()
+        .enumerate()
+        .map(|(index, member)| AccountKey {
+            credential_id: member.credential_id.clone(),
+            public_key_hex: member.public_key_hex.clone(),
+            name: metadata
+                .key_names
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| format!("Key {}", index + 1)),
+        })
+        .collect();
+    let first = keys.first()?;
+    Some(Account {
+        id: first.credential_id.clone(),
+        name,
+        address: metadata.address.clone(),
+        public_key_hex: first.public_key_hex.clone(),
+        created_at_iso: if metadata.created_at_iso.is_empty() {
+            now_iso.to_owned()
+        } else {
+            metadata.created_at_iso.clone()
+        },
+        keys,
+    })
+}
+
+/// The founding order whose derivation equals `address`, or `None`. Tries the
+/// given order first, then each member as the pin.
+fn reorder_to_address<'a>(
+    members: &'a [super::RegistryUnitMember],
+    address: &str,
+) -> Option<Vec<&'a super::RegistryUnitMember>> {
+    let derives_to = |ordered: &[&super::RegistryUnitMember]| -> bool {
+        let hexes: Vec<String> = ordered
+            .iter()
+            .map(|member| member.public_key_hex.clone())
+            .collect();
+        super::address_from_public_key_hexes(&hexes)
+            .map(|derived| derived.eq_ignore_ascii_case(address))
+            .unwrap_or(false)
+    };
+
+    let as_fetched: Vec<&super::RegistryUnitMember> = members.iter().collect();
+    if derives_to(&as_fetched) {
+        return Some(as_fetched);
+    }
+    for pin in 0..members.len() {
+        let mut ordered: Vec<&super::RegistryUnitMember> = Vec::with_capacity(members.len());
+        ordered.push(&members[pin]);
+        ordered.extend(
+            members
+                .iter()
+                .enumerate()
+                .filter_map(|(index, member)| (index != pin).then_some(member)),
+        );
+        if derives_to(&ordered) {
+            return Some(ordered);
+        }
+    }
+    None
+}
+
 /// Offer the two-signature recovery — the second signature disambiguates the
 /// candidates the registry could not.
 fn offer_recovery(model: &mut Model) -> Command<Effect, Event> {
@@ -510,7 +668,14 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
     let Some(account) = model.pending.clone() else {
         return Command::done();
     };
-    match registry_publish_op(&account) {
+    // The authenticatorAttachment IS exposed on the login assertion (unlike the
+    // attestation object and transports), so carry it onto the published entry.
+    let attachment = model
+        .assertion
+        .as_ref()
+        .map(|assertion| assertion.authenticator_attachment.clone())
+        .unwrap_or_default();
+    match registry_publish_op(&account, &attachment) {
         Ok(operation) => {
             model.stage = Stage::Publishing;
             request(model, operation)
@@ -520,7 +685,10 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
 }
 
 /// Build the single-key registry publish operation for an account.
-fn registry_publish_op(account: &Account) -> Result<ShellOperation, CoreError> {
+fn registry_publish_op(
+    account: &Account,
+    authenticator_attachment: &str,
+) -> Result<ShellOperation, CoreError> {
     let metadata = RegistryMetadata {
         version: REGISTRY_METADATA_VERSION,
         address: account.address.clone(),
@@ -533,7 +701,12 @@ fn registry_publish_op(account: &Account) -> Result<ShellOperation, CoreError> {
         members: vec![RegistryPublishMember {
             credential_id: account.id.clone(),
             public_key_hex: account.public_key_hex.clone(),
+            // A recovered key carries no create()-time attestation object and no
+            // transports (getTransports() is create-only) — but its assertion
+            // DOES expose authenticatorAttachment, so that one is preserved.
             attestation_hex: String::new(),
+            authenticator_attachment: authenticator_attachment.to_owned(),
+            transports: String::new(),
         }],
     })
 }

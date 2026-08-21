@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 18,723 leaves across 15 locales', () => {
+  it('carries the whole corpus — 18,798 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -110,9 +110,10 @@ describe('generated i18n resources', () => {
     // moveGroup, recentActivity, viewAllActivity, deleteContact, actionQr,
     // edit).
     // The number moving is the point; it should only ever move deliberately.
-    // 18,723 = 18,228 at the 017/018 merge base, plus 017's 180 and 018's 315.
+    // 18,798 = 18,723 at the 018 base, plus multi-passkey onboarding's
+    // 5 keys × 15 locales = 75.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(18_723);
+    expect(total).toBe(18_798);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

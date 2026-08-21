@@ -40,6 +40,9 @@ const INITIAL_VIEW: CreateView = {
   address: null,
   sync_error_detail: null,
   can_go_back: true,
+  keys: [],
+  can_add_key: false,
+  can_finish: false,
 };
 
 function toStored(account: Account): StoredAccount {
@@ -49,6 +52,13 @@ function toStored(account: Account): StoredAccount {
     address: account.address,
     publicKeyHex: account.public_key_hex,
     createdAt: account.created_at_iso,
+    // `?? []` tolerates a stale wasm bundle from before the field existed —
+    // the mapping must never be the thing that crashes onboarding.
+    keys: (account.keys ?? []).map((key) => ({
+      credentialId: key.credential_id,
+      publicKeyHex: key.public_key_hex,
+      name: key.name,
+    })),
   };
 }
 
@@ -127,10 +137,21 @@ export function useCreateWallet(
       address: view.address,
       syncErrorDetail: view.sync_error_detail,
       canGoBack: view.can_go_back,
+      keys: (view.keys ?? []).map((key) => ({
+        name: key.name,
+        authenticatorAttachment: key.authenticator_attachment,
+        transports: key.transports,
+      })),
+      canAddKey: view.can_add_key ?? false,
+      canFinish: view.can_finish ?? false,
 
       setName: (name) => send({ type: 'name_changed', name }),
       toggleAck: (index) => send({ type: 'ack_toggled', index }),
       submit: () => send({ type: 'submit' }),
+      addKey: (name) => send({ type: 'add_key', name }),
+      removeKey: (index) => send({ type: 'remove_key', index }),
+      renameKey: (index, name) => send({ type: 'key_name_changed', index, name }),
+      finishKeys: () => send({ type: 'finish_keys' }),
       startOver: () => send({ type: 'start_over' }),
       retryUpload: () => send({ type: 'retry_upload' }),
       enterWallet: () => send({ type: 'enter_wallet' }),

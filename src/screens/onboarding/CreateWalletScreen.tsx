@@ -12,6 +12,7 @@ import { getAllNetworksSync } from '@/models/network';
 import { useCreateWallet } from '@/hooks/use-create-wallet';
 import {
   ArrowLeft, CheckCircle2, AlertTriangle, Loader, Copy, Check, Square, CheckSquare,
+  KeyRound, Plus, X,
 } from 'lucide-react-native';
 import { copyToClipboard, openBrowser } from '@/services/platform';
 
@@ -48,6 +49,7 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
 
   const created = flow.stage === 'created';
   const syncFailed = flow.stage === 'sync_failed';
+  const addKeys = flow.stage === 'add_keys';
   const statusText = flow.statusKey ? t(flow.statusKey) : '';
 
   return (
@@ -136,6 +138,71 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
               </>
             ) : null}
           </Animated.View>
+        ) : addKeys ? (
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Animated.View entering={fadeIn(0, 400)}>
+              <Text style={styles.label}>{t('onboarding.create.keysLabel')}</Text>
+
+              {/* The founding keys, in the order that pins the address. */}
+              <View style={styles.keyList}>
+                {flow.keys.map((key, i) => (
+                  <View key={i} style={[styles.keyRow, i > 0 && styles.keyRowDivider]}>
+                    <KeyRound size={18} color={color.fg.muted} strokeWidth={2} />
+                    {i === 0 ? (
+                      <Text style={styles.keyName} numberOfLines={1}>{key.name}</Text>
+                    ) : (
+                      <TextInput
+                        style={styles.keyNameInput}
+                        defaultValue={key.name}
+                        onEndEditing={(e) => flow.renameKey(i, e.nativeEvent.text)}
+                        returnKeyType="done"
+                        editable={!flow.busy}
+                      />
+                    )}
+                    {i > 0 && !flow.busy ? (
+                      <Pressable
+                        onPress={() => flow.removeKey(i)}
+                        hitSlop={8}
+                        accessibilityLabel={t('onboarding.create.removeKeyBtn')}
+                      >
+                        <X size={16} color={color.fg.subtle} strokeWidth={2} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+
+              {flow.canAddKey ? (
+                <Pressable style={styles.addKeyRow} onPress={() => flow.addKey('')} disabled={flow.busy}>
+                  <Plus size={16} color={color.accent.base} strokeWidth={2.5} />
+                  <Text style={styles.addKeyText}>{t('onboarding.create.addKeyBtn')}</Text>
+                </Pressable>
+              ) : null}
+
+              <Text style={styles.hint}>{t('onboarding.create.keysHint')}</Text>
+
+              {statusText ? (
+                <Animated.View style={styles.statusRow} entering={fadeIn(0, 200)}>
+                  <Loader size={14} color={color.info.base} />
+                  <Text style={styles.status}>{statusText}</Text>
+                </Animated.View>
+              ) : null}
+
+              <View style={styles.inlineBottom}>
+                <VelaButton
+                  title={t('onboarding.create.finishKeysBtn')}
+                  onPress={flow.finishKeys}
+                  disabled={!flow.canFinish}
+                  loading={flow.busy}
+                />
+                {flow.showStartOver ? (
+                  <Pressable style={styles.startOverLink} onPress={flow.startOver}>
+                    <Text style={styles.startOverText}>{t('onboarding.create.startOverBtn')}</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </Animated.View>
+          </ScrollView>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <Animated.View entering={fadeIn(0, 400)}>
@@ -453,6 +520,50 @@ const styles = createStyles(() => ({
     ...inter.medium,
     color: color.fg.muted,
     textDecorationLine: 'underline',
+  },
+
+  // Founding-key list (multi-passkey)
+  keyList: {
+    backgroundColor: color.bg.raised,
+    borderWidth: 1,
+    borderColor: color.border.base,
+    borderRadius: radius.xl,
+    paddingHorizontal: space['2xl'],
+  },
+  keyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.lg,
+    paddingVertical: space.xl,
+  },
+  keyRowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: color.border.base,
+  },
+  keyName: {
+    flex: 1,
+    fontSize: text.base,
+    ...inter.medium,
+    color: color.fg.base,
+  },
+  keyNameInput: {
+    flex: 1,
+    fontSize: text.base,
+    ...inter.regular,
+    color: color.fg.base,
+    padding: 0,
+  },
+  addKeyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    paddingVertical: space.xl,
+    paddingHorizontal: space.sm,
+  },
+  addKeyText: {
+    fontSize: text.base,
+    ...inter.semibold,
+    color: color.accent.base,
   },
 
   // Acknowledgment checklist

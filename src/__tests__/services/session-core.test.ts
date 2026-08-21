@@ -31,7 +31,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 // index and the wasm is never initialized (metro resolves the same specifier to
 // `index.web.ts`, which is why the session module imports it bare). Importing
 // the web entry by explicit path first runs `initSync` on the planted bytes.
-import { computeAddress } from '@/services/vela-core';
+import { computeAddress, computeAddressMulti } from '@/services/vela-core';
 import { createWalletSession } from '@/services/wallet-state-core/session-session';
 import * as resident from '@/services/wallet-state-core/session-resident';
 import type { SessionView } from '@/services/wallet-state-core/generated/SessionView';
@@ -48,6 +48,8 @@ type Stored = {
   address: string;
   publicKeyHex: string;
   createdAt: string;
+  /** Multi-passkey founding set; absent on legacy single-key records. */
+  keys?: { credentialId: string; publicKeyHex: string; name: string }[];
 };
 
 /** A stored record whose address already agrees with its public key. */
@@ -115,9 +117,11 @@ describe('session core (web shell)', () => {
     expect(view.address).toBe(b.address);
     // Every stored field survives the round trip — `id` is the passkey
     // credential id, and losing it would break signing, not just display.
+    // `keys: []` is the multi-passkey superset field — empty for a legacy
+    // single-key record, whose scalar fields remain the whole story.
     expect(view.accounts).toEqual([
-      { index: 0, account: { id: a.id, name: 'One', address: a.address, public_key_hex: a.publicKeyHex, created_at_iso: a.createdAt } },
-      { index: 1, account: { id: b.id, name: 'Two', address: b.address, public_key_hex: b.publicKeyHex, created_at_iso: b.createdAt } },
+      { index: 0, account: { id: a.id, name: 'One', address: a.address, public_key_hex: a.publicKeyHex, created_at_iso: a.createdAt, keys: [] } },
+      { index: 1, account: { id: b.id, name: 'Two', address: b.address, public_key_hex: b.publicKeyHex, created_at_iso: b.createdAt, keys: [] } },
     ]);
     expect(h.faults).toEqual([]);
     h.session.dispose();
@@ -134,9 +138,39 @@ describe('session core (web shell)', () => {
     const h = open();
     await settle();
     expect(h.latest().address).toBe(correct);
-    // Written back in the STORED (camelCase) shape, with every other field intact.
+    // Written back in the STORED (camelCase) shape, with every other field
+    // intact (`keys: []` is the multi-passkey superset field the round trip
+    // now always carries).
     const onDisk = readStored().find((r) => r.id === broken.id)!;
-    expect(onDisk).toEqual({ ...broken, address: correct });
+    expect(onDisk).toEqual({ ...broken, address: correct, keys: [] });
+    expect(h.faults).toEqual([]);
+    h.session.dispose();
+  });
+
+  test('a multi-key account survives the restore with its address intact', async () => {
+    // The live corruption this pins: a mapping that strips `keys` makes the
+    // core see a single-key account and "repair" its address to the WRONG
+    // single-key Safe on every boot. The full set must round-trip.
+    const keys = FIXTURE_ACCOUNTS.map((f, i) => ({
+      credentialId: f.id,
+      publicKeyHex: f.publicKeyHex,
+      name: i === 0 ? 'Multi' : `Key ${i + 1}`,
+    }));
+    const multiAddress = computeAddressMulti(keys.map((k) => k.publicKeyHex));
+    const multi = {
+      ...stored(0, 'Multi'),
+      address: multiAddress,
+      keys,
+    };
+    plant([multi], '0');
+
+    const h = open();
+    await settle();
+    expect(h.latest().address).toBe(multiAddress);
+    const onDisk = readStored();
+    expect(onDisk).toHaveLength(1);
+    expect(onDisk[0].address).toBe(multiAddress);
+    expect(onDisk[0].keys).toHaveLength(3);
     expect(h.faults).toEqual([]);
     h.session.dispose();
   });
@@ -223,7 +257,7 @@ describe('session core (web shell)', () => {
       type: 'account_established',
       mode: {
         type: 'set_wallet',
-        accounts: [{ id: fresh.id, name: fresh.name, address: fresh.address, public_key_hex: fresh.publicKeyHex, created_at_iso: fresh.createdAt }],
+        accounts: [{ id: fresh.id, name: fresh.name, address: fresh.address, public_key_hex: fresh.publicKeyHex, created_at_iso: fresh.createdAt, keys: [] }],
         active_index: 0,
       },
     });
@@ -363,10 +397,11 @@ describe('session resident (web)', () => {
     await settle();
 
     const first = resident.walletSessionAccounts();
-    // The shape the wallet context holds, with every stored field intact.
+    // The shape the wallet context holds, with every stored field intact
+    // (`keys: []` is the multi-passkey superset field, empty on legacy records).
     expect(first).toEqual([
-      { id: a.id, name: 'One', address: a.address, publicKeyHex: a.publicKeyHex, createdAt: a.createdAt },
-      { id: b.id, name: 'Two', address: b.address, publicKeyHex: b.publicKeyHex, createdAt: b.createdAt },
+      { id: a.id, name: 'One', address: a.address, publicKeyHex: a.publicKeyHex, createdAt: a.createdAt, keys: [] },
+      { id: b.id, name: 'Two', address: b.address, publicKeyHex: b.publicKeyHex, createdAt: b.createdAt, keys: [] },
     ]);
 
     const settled = seen.length;

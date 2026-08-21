@@ -46,6 +46,11 @@ function toStoredAccount(account: Account): StoredAccount {
     address: account.address,
     publicKeyHex: account.public_key_hex,
     createdAt: account.created_at_iso,
+    keys: (account.keys ?? []).map((key) => ({
+      credentialId: key.credential_id,
+      publicKeyHex: key.public_key_hex,
+      name: key.name,
+    })),
   };
 }
 
@@ -56,6 +61,13 @@ export function fromStoredAccount(account: StoredAccount): Account {
     address: account.address,
     public_key_hex: account.publicKeyHex,
     created_at_iso: account.createdAt,
+    // Legacy records have no keys array; the core's serde default tolerates
+    // an empty one and treats the scalar fields as the sole key.
+    keys: (account.keys ?? []).map((key) => ({
+      credential_id: key.credentialId,
+      public_key_hex: key.publicKeyHex,
+      name: key.name,
+    })),
   };
 }
 
@@ -117,6 +129,7 @@ export function operationFailure(effect: OnboardingEffect, error: unknown): Shel
 
     case 'registry_publish':
     case 'registry_query_by_public_key':
+    case 'registry_query_unit':
       return {
         type: 'index_failed',
         message: message(error),
@@ -234,13 +247,15 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         return { type: 'passkey_support', supported: await Passkey.isSupported() };
 
       case 'register_passkey': {
-        const registration = await Passkey.register(operation.name);
+        const registration = await Passkey.register(operation.name, operation.exclude_credential_ids);
         return {
           type: 'passkey_registered',
           registration: {
             credential_id: registration.credentialId,
             attestation_object_hex: registration.attestationObjectHex,
             client_data_json_hex: registration.clientDataJSONHex,
+            authenticator_attachment: registration.authenticatorAttachment,
+            transports: registration.transports,
           },
           now_iso: nowIso(),
         };
@@ -259,6 +274,7 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
             authenticator_data_hex: assertion.authenticatorDataHex,
             client_data_json_hex: assertion.clientDataJSONHex,
             user_id_hex: assertion.userIdHex ?? null,
+            authenticator_attachment: assertion.authenticatorAttachment,
           },
           now_iso: nowIso(),
         };
@@ -274,6 +290,7 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
             authenticator_data_hex: assertion.authenticatorDataHex,
             client_data_json_hex: assertion.clientDataJSONHex,
             user_id_hex: assertion.userIdHex ?? null,
+            authenticator_attachment: assertion.authenticatorAttachment,
           },
           now_iso: nowIso(),
         };
@@ -293,6 +310,16 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
           publicKeyHex: operation.record.public_key_hex,
           attestationObjectHex: operation.record.attestation_object_hex,
           createdAt: operation.record.created_at_iso,
+          authenticatorAttachment: operation.record.authenticator_attachment,
+          transports: operation.record.transports,
+          members: (operation.record.members ?? []).map((member) => ({
+            credentialId: member.credential_id,
+            name: member.name,
+            publicKeyHex: member.public_key_hex,
+            attestationObjectHex: member.attestation_object_hex,
+            authenticatorAttachment: member.authenticator_attachment,
+            transports: member.transports,
+          })),
         });
         return { type: 'pending_upload_saved' };
 
@@ -310,6 +337,8 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
             credentialId: member.credential_id,
             publicKeyHex: member.public_key_hex,
             attestationHex: member.attestation_hex,
+            authenticatorAttachment: member.authenticator_attachment,
+            transports: member.transports,
           })),
         });
         return { type: 'registry_published' };
@@ -317,7 +346,31 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
 
       case 'registry_query_by_public_key': {
         const profile = await Registry.queryByPublicKey(operation.public_key_hex);
-        return { type: 'registry_key_status', registered: profile.entry !== null };
+        // The core speaks u32 unit ids (JSON numbers); an id past 2^32 would
+        // truncate, so it fails the query instead — see the shell contract.
+        const unitIds = profile.groups?.unitIds ?? [];
+        if (unitIds.some((id) => !Number.isInteger(id) || id < 0 || id >= 2 ** 32)) {
+          throw new Error(`Query failed: unit id out of u32 range in ${JSON.stringify(unitIds)}`);
+        }
+        return {
+          type: 'registry_key_status',
+          registered: profile.entry !== null,
+          unit_ids: unitIds,
+        };
+      }
+
+      case 'registry_query_unit': {
+        const detail = await Registry.queryUnit(operation.unit_id);
+        return {
+          type: 'registry_unit',
+          metadata_hex: detail.unit.metadata,
+          members: detail.members.items.map((member) => ({
+            credential_id: member.credentialId,
+            public_key_hex: member.publicKey,
+            authenticator_attachment: member.authenticatorAttachment ?? '',
+            transports: member.transports ?? '',
+          })),
+        };
       }
 
       case 'probe_index_health':

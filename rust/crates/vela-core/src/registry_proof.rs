@@ -74,8 +74,9 @@ pub fn group_public_key_from_seed(seed_hex: &str) -> Result<String, CoreError> {
             seed.len()
         )));
     }
-    let signing = SigningKey::from_slice(&seed)
-        .map_err(|error| CoreError::RegistryProof(format!("seed is not a valid scalar: {error}")))?;
+    let signing = SigningKey::from_slice(&seed).map_err(|error| {
+        CoreError::RegistryProof(format!("seed is not a valid scalar: {error}"))
+    })?;
     Ok(primitives::to_hex(
         signing.verifying_key().to_sec1_point(false).as_bytes(),
         false,
@@ -97,11 +98,11 @@ pub fn build_group_proof(
             seed.len()
         )));
     }
-    let signing = SigningKey::from_slice(&seed)
-        .map_err(|error| CoreError::RegistryProof(format!("seed is not a valid scalar: {error}")))?;
+    let signing = SigningKey::from_slice(&seed).map_err(|error| {
+        CoreError::RegistryProof(format!("seed is not a valid scalar: {error}"))
+    })?;
     let verifying = signing.verifying_key();
-    let group_public_key_hex =
-        primitives::to_hex(verifying.to_sec1_point(false).as_bytes(), false);
+    let group_public_key_hex = primitives::to_hex(verifying.to_sec1_point(false).as_bytes(), false);
 
     let challenge = primitives::from_hex(challenge_hex)?;
     if challenge.len() != 32 {
@@ -156,8 +157,9 @@ pub fn build_member_proof(
 ) -> Result<RegistryProof, CoreError> {
     let authenticator_data = primitives::from_hex(authenticator_data_hex)?;
     let client_data_json_bytes = primitives::from_hex(client_data_json_hex)?;
-    let client_data_json = String::from_utf8(client_data_json_bytes)
-        .map_err(|error| CoreError::RegistryProof(format!("clientDataJSON is not UTF-8: {error}")))?;
+    let client_data_json = String::from_utf8(client_data_json_bytes).map_err(|error| {
+        CoreError::RegistryProof(format!("clientDataJSON is not UTF-8: {error}"))
+    })?;
 
     let type_index = client_data_json.find(TYPE_SUBSTRING).ok_or_else(|| {
         CoreError::RegistryProof("clientDataJSON has no \"type\":\"webauthn.get\"".to_owned())
@@ -249,10 +251,8 @@ mod tests {
             .map_err(|error| CoreError::RegistryProof(format!("bad pubkey: {error}")))?;
 
         let authenticator_data = primitives::from_hex(&built.proof.authenticator_data)?;
-        let digest = webauthn_signing_hash(
-            &authenticator_data,
-            built.proof.client_data_json.as_bytes(),
-        );
+        let digest =
+            webauthn_signing_hash(&authenticator_data, built.proof.client_data_json.as_bytes());
 
         let mut raw = primitives::from_hex(&built.proof.r)?;
         raw.extend_from_slice(&primitives::from_hex(&built.proof.s)?);
@@ -295,8 +295,7 @@ mod tests {
 
         // A field BEFORE "type" shifts the offsets off the canonical 23/1,
         // proving they are found in the authenticator's own JSON, not assumed.
-        let client_data_json =
-            r#"{"extra":"x","type":"webauthn.get","challenge":"AAAA","origin":"https://getvela.app"}"#;
+        let client_data_json = r#"{"extra":"x","type":"webauthn.get","challenge":"AAAA","origin":"https://getvela.app"}"#;
         let mut authenticator_data = Sha256::digest(RP_ID.as_bytes()).to_vec();
         authenticator_data.push(0x05);
         authenticator_data.extend_from_slice(&[0, 0, 0, 0]);
@@ -316,7 +315,10 @@ mod tests {
         let cdj = proof.client_data_json.as_bytes();
         assert!(cdj[proof.type_index as usize..].starts_with(br#""type":"webauthn.get""#));
         assert!(cdj[proof.challenge_index as usize..].starts_with(br#""challenge":""#));
-        assert_ne!(proof.type_index, 1, "the leading field must shift the offset");
+        assert_ne!(
+            proof.type_index, 1,
+            "the leading field must shift the offset"
+        );
 
         let mut raw = primitives::from_hex(&proof.r)?;
         raw.extend_from_slice(&primitives::from_hex(&proof.s)?);

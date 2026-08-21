@@ -22,6 +22,11 @@ export interface PublishMember {
   publicKeyHex: string;
   /** Empty, or 20 versioned attestation bytes (hex). */
   attestationHex?: string;
+  /** PublicKeyCredential response hints, stored on the entry for display
+   *  (not signed): the `authenticatorAttachment` token and the comma-joined
+   *  transports list. */
+  authenticatorAttachment?: string;
+  transports?: string;
 }
 
 export interface PublishArgs {
@@ -88,6 +93,9 @@ export async function publishToRegistry(args: PublishArgs): Promise<PublishResul
     memberProofs.push({
       publicKey: member.publicKeyHex,
       attestation: member.attestationHex,
+      credentialId: member.credentialId,
+      authenticatorAttachment: member.authenticatorAttachment,
+      transports: member.transports,
       proof,
     });
   }

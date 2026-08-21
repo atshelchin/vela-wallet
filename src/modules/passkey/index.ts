@@ -88,6 +88,15 @@ export interface PasskeyRegistrationResult {
   credentialId: string;
   attestationObjectHex: string;
   clientDataJSONHex: string;
+  /**
+   * PublicKeyCredential response hints — NOT part of authData and NOT signed.
+   * `authenticatorAttachment` is the WebAuthn token ("platform" /
+   * "cross-platform", or "" when the client omits it); `transports` is the
+   * `getTransports()` list joined with commas (e.g. "hybrid,internal").
+   * Stored on the registry entry for display only.
+   */
+  authenticatorAttachment: string;
+  transports: string;
 }
 
 export interface PasskeyAssertionResult {
@@ -96,6 +105,13 @@ export interface PasskeyAssertionResult {
   authenticatorDataHex: string;
   clientDataJSONHex: string;
   userIdHex?: string;
+  /**
+   * The `authenticatorAttachment` token, also exposed on an assertion's
+   * PublicKeyCredential ("platform" / "cross-platform", or "" when omitted).
+   * The attestation and transports are create()-only, but this survives a
+   * login — so a recovered wallet can still record it. Display only.
+   */
+  authenticatorAttachment: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,8 +183,11 @@ export function decodeUserNameFromHandle(userIdHex: string | undefined): string 
 // `if (__DEV__ && __override)` guard when bundled for release.
 
 export interface PasskeyOverride {
-  sign(challengeHex: string, credentialId?: string | null): Promise<PasskeyAssertionResult>;
-  register?(userName: string): Promise<PasskeyRegistrationResult>;
+  sign(
+    challengeHex: string,
+    credentialId?: string | string[] | null,
+  ): Promise<PasskeyAssertionResult>;
+  register?(userName: string, excludeCredentialIds?: string[]): Promise<PasskeyRegistrationResult>;
   authenticate?(): Promise<PasskeyAssertionResult>;
 }
 
@@ -199,9 +218,12 @@ export async function isSupported(): Promise<boolean> {
   try { return await VelaPasskey.isSupported(); } catch { return false; }
 }
 
-export async function register(userName: string): Promise<PasskeyRegistrationResult> {
-  if (__DEV__ && __override?.register) return __override.register(userName);
-  if (isWeb) return webRegister(userName);
+export async function register(
+  userName: string,
+  excludeCredentialIds: string[] = [],
+): Promise<PasskeyRegistrationResult> {
+  if (__DEV__ && __override?.register) return __override.register(userName, excludeCredentialIds);
+  if (isWeb) return webRegister(userName, excludeCredentialIds);
   assertNativeAvailable();
   try { return await VelaPasskey.register(userName); }
   catch (err) { throw normalizeError(err); }
@@ -218,14 +240,22 @@ export async function authenticate(): Promise<PasskeyAssertionResult> {
 /** Active AbortController for the current WebAuthn sign request (web only). */
 let _signAbortController: AbortController | null = null;
 
+/**
+ * Sign a challenge. `credentialId` may be one id, or a list — a multi-key
+ * wallet passes ALL its founding credentials and the provider lets the user
+ * pick; the returned assertion's `credentialId` identifies which key signed.
+ */
 export async function sign(
   challengeHex: string,
-  credentialId?: string | null,
+  credentialId?: string | string[] | null,
 ): Promise<PasskeyAssertionResult> {
   if (__DEV__ && __override) return __override.sign(challengeHex, credentialId ?? null);
   if (isWeb) return webSign(challengeHex, credentialId ?? null);
   assertNativeAvailable();
-  try { return await VelaPasskey.sign(challengeHex, credentialId ?? null); }
+  try {
+    const single = Array.isArray(credentialId) ? credentialId[0] ?? null : credentialId ?? null;
+    return await VelaPasskey.sign(challengeHex, single);
+  }
   catch (err) { throw normalizeError(err); }
 }
 
@@ -241,7 +271,10 @@ export function cancelSign(): void {
 // Web implementation (WebAuthn API)
 // ---------------------------------------------------------------------------
 
-async function webRegister(userName: string): Promise<PasskeyRegistrationResult> {
+async function webRegister(
+  userName: string,
+  excludeCredentialIds: string[] = [],
+): Promise<PasskeyRegistrationResult> {
   assertWebSupported();
   const userId = new TextEncoder().encode(encodeUserID(userName));
   const challenge = crypto.getRandomValues(new Uint8Array(32));
@@ -256,6 +289,18 @@ async function webRegister(userName: string): Promise<PasskeyRegistrationResult>
           displayName: userName,
         },
         challenge,
+        // A multi-key wallet registers each founding key separately; the
+        // provider must refuse to silently REPLACE one of the earlier keys —
+        // the Safe address depends on every one of them (InvalidStateError
+        // surfaces as a distinct message below).
+        ...(excludeCredentialIds.length > 0
+          ? {
+              excludeCredentials: excludeCredentialIds.map((id) => ({
+                type: 'public-key' as const,
+                id: hexToBuf(id) as BufferSource,
+              })),
+            }
+          : {}),
         // ES256 (P-256) ONLY — no RS256 fallback on purpose. The wallet's
         // on-chain verifier is the RIP-7212 P-256 precompile and two-signature
         // recovery is ECDSA math, so an RSA credential can never become a
@@ -303,10 +348,18 @@ async function webRegister(userName: string): Promise<PasskeyRegistrationResult>
     }
 
     const response = credential.response as AuthenticatorAttestationResponse;
+    // Browser-reported hints (not in authData): captured for display. Both are
+    // best-effort — `authenticatorAttachment` may be null and `getTransports`
+    // may be absent on older clients.
+    const attachment = credential.authenticatorAttachment ?? '';
+    const transports =
+      typeof response.getTransports === 'function' ? response.getTransports() : [];
     return {
       credentialId: bufToHex(credential.rawId),
       attestationObjectHex: bufToHex(response.attestationObject),
       clientDataJSONHex: bufToHex(response.clientDataJSON),
+      authenticatorAttachment: attachment,
+      transports: transports.join(','),
     };
   } catch (err) {
     throw normalizeWebError(err);
@@ -338,7 +391,7 @@ async function webAuthenticate(): Promise<PasskeyAssertionResult> {
 
 async function webSign(
   challengeHex: string,
-  credentialId: string | null,
+  credentialId: string | string[] | null,
 ): Promise<PasskeyAssertionResult> {
   assertWebSupported();
 
@@ -356,11 +409,14 @@ async function webSign(
     userVerification: 'required',
   };
 
-  if (credentialId) {
-    options.allowCredentials = [{
+  const allowIds = (Array.isArray(credentialId) ? credentialId : [credentialId]).filter(
+    (id): id is string => !!id,
+  );
+  if (allowIds.length > 0) {
+    options.allowCredentials = allowIds.map((id) => ({
       type: 'public-key',
-      id: hexToBuf(credentialId) as BufferSource,
-    }];
+      id: hexToBuf(id) as BufferSource,
+    }));
   }
 
   try {
@@ -388,6 +444,8 @@ function parseAssertionResponse(credential: PublicKeyCredential): PasskeyAsserti
     signatureHex: bufToHex(response.signature),
     authenticatorDataHex: bufToHex(response.authenticatorData),
     clientDataJSONHex: bufToHex(response.clientDataJSON),
+    // Present on the assertion's PublicKeyCredential (create-only fields are not).
+    authenticatorAttachment: credential.authenticatorAttachment ?? '',
   };
   if (response.userHandle && response.userHandle.byteLength > 0) {
     result.userIdHex = bufToHex(response.userHandle);
@@ -411,7 +469,12 @@ function normalizeWebError(err: unknown): PasskeyError {
     return new PasskeyError(PasskeyErrorCode.CANCELLED, 'User cancelled the operation');
   }
   if (e?.name === 'InvalidStateError') {
-    return new PasskeyError(PasskeyErrorCode.FAILED, 'Credential already exists');
+    // With excludeCredentials set this means the chosen authenticator already
+    // holds one of this wallet's founding keys — pick a different device.
+    return new PasskeyError(
+      PasskeyErrorCode.FAILED,
+      'This authenticator already holds one of this wallet’s keys',
+    );
   }
   return new PasskeyError(
     PasskeyErrorCode.FAILED,

@@ -12,4 +12,9 @@ public_key_hex: string,
 /**
  * Empty, or 20 versioned attestation bytes (hex).
  */
-attestation_hex: string, };
+attestation_hex: string, 
+/**
+ * Browser-reported display hints (not signed): the
+ * `authenticatorAttachment` token and the comma-joined transports list.
+ */
+authenticator_attachment: string, transports: string, };

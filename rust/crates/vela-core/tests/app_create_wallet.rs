@@ -32,9 +32,9 @@ fn filled(name: &str) -> Sut {
     sut
 }
 
-/// Form → registered passkey. The passkey's public key comes from the
-/// attestation directly, so registration flows straight into saving the
-/// pending record (no separate verification signature).
+/// Form → key 1 registered → the key list. The passkey's public key comes
+/// from the attestation directly (no separate verification signature); the
+/// set is frozen by `FinishKeys`.
 fn registered(name: &str) -> Sut {
     let mut sut = filled(name);
     sut.dispatch(Event::Submit);
@@ -46,9 +46,17 @@ fn registered(name: &str) -> Sut {
     sut
 }
 
-/// …→ pending record written → the registry publish (one get) in flight.
-fn uploading(name: &str) -> Sut {
+/// …→ set frozen: the pending-record write is in flight.
+fn finished(name: &str) -> Sut {
     let mut sut = registered(name);
+    sut.dispatch(Event::FinishKeys);
+    sut
+}
+
+/// …→ pending record written → the registry publish (one get per key) in
+/// flight.
+fn uploading(name: &str) -> Sut {
+    let mut sut = finished(name);
     sut.resolve(ShellResult::PendingUploadSaved);
     sut
 }
@@ -161,17 +169,29 @@ fn pending_record_is_written_before_the_first_upload() {
     let mut sut = filled("Ann");
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
-    // Registration flows straight into the pending record — no verify get.
+    // Registration lands on the key list; nothing is derived or persisted yet.
     let next = sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::registration(CRED),
         now_iso: NOW.to_owned(),
     });
+    assert!(
+        next.is_empty(),
+        "registration alone persists nothing; the set is not frozen"
+    );
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert_eq!(view.keys.len(), 1);
+    assert_eq!(view.keys[0].name, "Ann");
 
+    // Freezing the set derives and writes the pending record first.
+    let next = sut.dispatch(Event::FinishKeys);
     match next.as_slice() {
         [ShellOperation::SavePendingUpload { record }] => {
             assert_eq!(record.id, CRED);
             assert_eq!(record.public_key_hex, support::expected_public_key_hex());
             assert_eq!(record.created_at_iso, NOW);
+            assert_eq!(record.members.len(), 1, "one member per founding key");
+            assert_eq!(record.members[0].credential_id, CRED);
         }
         other => panic!("expected the pending record to be written first, got {other:?}"),
     }
@@ -184,13 +204,33 @@ fn pending_record_is_written_before_the_first_upload() {
 /// The pending record written, the possession-proven publish is the next step.
 #[test]
 fn the_pending_record_is_followed_by_the_registry_publish() {
-    let mut sut = registered("Ann");
+    let mut sut = finished("Ann");
     let next = sut.resolve(ShellResult::PendingUploadSaved);
 
     assert!(
         matches!(next.as_slice(), [ShellOperation::RegistryPublish { .. }]),
         "publishing runs before entry; got {next:?}"
     );
+}
+
+/// N=1 stays the historical single-key publish: one member, `key_names` is
+/// exactly the wallet name.
+#[test]
+fn a_single_key_wallet_publishes_the_historical_payload() {
+    let mut sut = finished("Ann");
+    let next = sut.resolve(ShellResult::PendingUploadSaved);
+
+    match next.as_slice() {
+        [ShellOperation::RegistryPublish { members, .. }] => {
+            assert_eq!(members.len(), 1);
+            assert_eq!(members[0].credential_id, CRED);
+            assert_eq!(
+                members[0].public_key_hex,
+                support::expected_public_key_hex()
+            );
+        }
+        other => panic!("expected the publish, got {other:?}"),
+    }
 }
 
 /// A published group clears the pending record, saves, and only then reveals
@@ -202,7 +242,10 @@ fn a_published_group_removes_the_pending_saves_and_reveals_the_address() {
 
     let next = sut.resolve(ShellResult::RegistryPublished);
     assert!(
-        matches!(next.as_slice(), [ShellOperation::RemovePendingUpload { .. }]),
+        matches!(
+            next.as_slice(),
+            [ShellOperation::RemovePendingUpload { .. }]
+        ),
         "a published group clears its pending record; got {next:?}"
     );
     assert!(sut.view().address.is_none());
@@ -349,4 +392,156 @@ fn submit_after_the_wallet_exists_is_refused() {
 fn retry_upload_is_ignored_unless_the_flow_is_sync_failed() {
     let mut sut = uploading("Ann");
     assert!(sut.dispatch(Event::RetryUpload).is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Multi-key founding set
+// ---------------------------------------------------------------------------
+
+const CRED2: &str = "credential-2";
+
+/// …→ two founding keys drafted, back at the key list.
+fn two_keys(name: &str) -> Sut {
+    let mut sut = registered(name);
+    let next = sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    match next.as_slice() {
+        [ShellOperation::RegisterPasskey {
+            exclude_credential_ids,
+            ..
+        }] => {
+            assert_eq!(
+                exclude_credential_ids.as_slice(),
+                [CRED.to_owned()],
+                "the provider must refuse to reuse founding credentials"
+            );
+        }
+        other => panic!("expected a second registration, got {other:?}"),
+    }
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    sut
+}
+
+/// The multi-key oracle: what the FULL founding set derives to.
+fn expected_multi_address() -> String {
+    let keys = [
+        vela_core::safe::parse_public_key(&support::expected_public_key_hex()).unwrap(),
+        vela_core::safe::parse_public_key(&support::second_public_key_hex()).unwrap(),
+    ];
+    vela_core::safe::compute_safe_address_multi(&keys)
+        .unwrap()
+        .address
+}
+
+/// A two-key wallet publishes both members in founding order and derives the
+/// address from the FULL set — never from keys[0] alone.
+#[test]
+fn a_two_key_wallet_publishes_both_members_and_the_multi_address() {
+    let mut sut = two_keys("Ann");
+    assert_eq!(sut.view().keys.len(), 2);
+    assert_eq!(sut.view().keys[1].name, "Backup");
+
+    let next = sut.dispatch(Event::FinishKeys);
+    match next.as_slice() {
+        [ShellOperation::SavePendingUpload { record }] => {
+            assert_eq!(
+                record.id, CRED,
+                "the pending record keys off the pinned first key"
+            );
+            assert_eq!(record.members.len(), 2);
+            assert_eq!(record.members[0].credential_id, CRED);
+            assert_eq!(record.members[1].credential_id, CRED2);
+            assert_eq!(record.members[1].name, "Backup");
+        }
+        other => panic!("expected the pending record, got {other:?}"),
+    }
+
+    let next = sut.resolve(ShellResult::PendingUploadSaved);
+    match next.as_slice() {
+        [ShellOperation::RegistryPublish { members, .. }] => {
+            assert_eq!(members.len(), 2, "one possession proof per founding key");
+            assert_eq!(members[0].credential_id, CRED);
+            assert_eq!(members[1].credential_id, CRED2);
+        }
+        other => panic!("expected the publish, got {other:?}"),
+    }
+
+    sut.resolve(ShellResult::RegistryPublished);
+    let requested = sut.resolve(ShellResult::PendingUploadRemoved);
+    match requested
+        .iter()
+        .find(|op| matches!(op, ShellOperation::SaveAccount { .. }))
+    {
+        Some(ShellOperation::SaveAccount { account }) => {
+            assert_eq!(account.address, expected_multi_address());
+            assert_eq!(account.keys.len(), 2);
+            assert_eq!(account.id, CRED);
+            assert_eq!(account.public_key_hex, support::expected_public_key_hex());
+        }
+        other => panic!("expected the account save, got {other:?}"),
+    }
+}
+
+/// Cancelling an ADDED key's ceremony keeps the existing drafts — the minted
+/// passkeys are real; only StartOver abandons them.
+#[test]
+fn cancelling_an_added_key_keeps_the_existing_drafts() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    let next = sut.resolve(ShellResult::PasskeyFailed {
+        kind: FailureKind::Cancelled,
+        message: None,
+    });
+    assert!(next.is_empty());
+
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert_eq!(view.keys.len(), 1, "key 1 survives the cancelled add");
+    assert_eq!(view.status, Some(StatusKey::SetupCancelled));
+}
+
+/// A drafted extra key can be removed; the pinned first key cannot.
+#[test]
+fn remove_key_drops_extras_but_never_the_first() {
+    let mut sut = two_keys("Ann");
+    assert!(sut.dispatch(Event::RemoveKey { index: 0 }).is_empty());
+    assert_eq!(sut.view().keys.len(), 2, "index 0 is not removable");
+
+    sut.dispatch(Event::RemoveKey { index: 1 });
+    assert_eq!(sut.view().keys.len(), 1);
+
+    // The set still freezes fine as a single key afterwards.
+    let next = sut.dispatch(Event::FinishKeys);
+    assert!(matches!(
+        next.as_slice(),
+        [ShellOperation::SavePendingUpload { .. }]
+    ));
+}
+
+/// A publish failure on a multi-key set keeps every draft and retries the
+/// FULL publish — all member proofs run again.
+#[test]
+fn a_failed_multi_publish_retries_every_member() {
+    let mut sut = two_keys("Ann");
+    sut.dispatch(Event::FinishKeys);
+    sut.resolve(ShellResult::PendingUploadSaved);
+    sut.resolve(ShellResult::IndexFailed {
+        message: "offline".to_owned(),
+        network: true,
+    });
+    assert_eq!(sut.view().stage, CreateStage::SyncFailed);
+
+    let requested = sut.dispatch(Event::RetryUpload);
+    match requested.as_slice() {
+        [ShellOperation::RegistryPublish { members, .. }] => {
+            assert_eq!(members.len(), 2);
+        }
+        other => panic!("expected the full republish, got {other:?}"),
+    }
 }

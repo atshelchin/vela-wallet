@@ -106,3 +106,40 @@ describe('parallel-space passkey fixtures', () => {
     expect(fixtureByCredentialId(null)).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Multi-key fixture wallet + registration cursor
+// ---------------------------------------------------------------------------
+
+import {
+  FIXTURE_MULTI_ADDRESS,
+  nextFixtureRegistration,
+  resetFixtureRegistrationCursor,
+} from '@/services/dev/passkey-fixture';
+import { computeAddressMulti } from '@/services/vela-core';
+
+describe('multi-key fixture wallet', () => {
+  it('derives the 3-key Safe from ALL fixture keys, fixture #1 pinned', () => {
+    expect(FIXTURE_MULTI_ADDRESS).toBe(
+      computeAddressMulti(FIXTURE_ACCOUNTS.map(a => a.publicKeyHex)),
+    );
+    // The multi wallet is a DIFFERENT Safe from any single-key fixture.
+    for (const a of FIXTURE_ACCOUNTS) {
+      expect(FIXTURE_MULTI_ADDRESS.toLowerCase()).not.toBe(a.address.toLowerCase());
+    }
+  });
+
+  // Golden lock: fund this address for opt-in multi-key on-chain tests; a
+  // derivation change must be a conscious edit here, never silent.
+  it('matches the frozen golden multi-key Safe address', () => {
+    expect(FIXTURE_MULTI_ADDRESS).toBe('0x88cCA0EeDbF2C4426110bbFc998F048689266894');
+  });
+
+  it('the registration cursor mints each fixture once, in order, and resets', () => {
+    resetFixtureRegistrationCursor();
+    const minted = [nextFixtureRegistration(), nextFixtureRegistration(), nextFixtureRegistration()];
+    expect(minted.map(a => a.id)).toEqual(FIXTURE_ACCOUNTS.map(a => a.id));
+    resetFixtureRegistrationCursor();
+    expect(nextFixtureRegistration().id).toBe(FIXTURE_ACCOUNTS[0].id);
+  });
+});

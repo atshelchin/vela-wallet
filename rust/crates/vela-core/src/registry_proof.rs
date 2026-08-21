@@ -63,6 +63,25 @@ pub struct GroupProof {
     pub proof: RegistryProof,
 }
 
+/// The uncompressed public key (`04‖x‖y` hex) of the one-time group key a
+/// 32-byte `seed_hex` derives. The shell needs this before it can request the
+/// group's challenge, which the contract binds to the group public key.
+pub fn group_public_key_from_seed(seed_hex: &str) -> Result<String, CoreError> {
+    let seed = primitives::from_hex(seed_hex)?;
+    if seed.len() != 32 {
+        return Err(CoreError::RegistryProof(format!(
+            "seed must be 32 bytes, got {}",
+            seed.len()
+        )));
+    }
+    let signing = SigningKey::from_slice(&seed)
+        .map_err(|error| CoreError::RegistryProof(format!("seed is not a valid scalar: {error}")))?;
+    Ok(primitives::to_hex(
+        signing.verifying_key().to_sec1_point(false).as_bytes(),
+        false,
+    ))
+}
+
 /// Derive the one-time group key from `seed_hex` (32 bytes) and build its
 /// content-hash closing proof for `rp_id` over `challenge_hex` (32 bytes).
 /// Deterministic in the seed; the seed's randomness is the shell's job.
@@ -193,6 +212,16 @@ mod tests {
             CHALLENGE,
         )?;
         assert_ne!(a.group_public_key_hex, other.group_public_key_hex);
+        Ok(())
+    }
+
+    #[test]
+    fn group_public_key_matches_the_full_proof() -> Result<(), CoreError> {
+        let from_seed = group_public_key_from_seed(SEED)?;
+        let from_proof = build_group_proof(SEED, RP_ID, CHALLENGE)?.group_public_key_hex;
+        assert_eq!(from_seed, from_proof);
+        assert!(from_seed.starts_with("04"));
+        assert!(group_public_key_from_seed("1122").is_err());
         Ok(())
     }
 

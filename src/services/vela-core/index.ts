@@ -477,6 +477,12 @@ export interface GroupProof {
   proof: RegistryProof;
 }
 
+/** The uncompressed public key (`04||x||y` hex) of the one-time group key a
+ *  32-byte seed (hex) derives — needed before requesting the group challenge. */
+export function groupPublicKeyFromSeed(seedHex: string): string {
+  return translated(() => wasm.groupPublicKeyFromSeed(seedHex));
+}
+
 /** Derive the one-time group key from a 32-byte seed (hex — the shell's
  *  `crypto.getRandomValues`) and build its closing proof over the group's
  *  content-hash challenge (hex). Throws on a bad seed/challenge. */

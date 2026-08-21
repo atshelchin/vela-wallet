@@ -410,6 +410,13 @@ pub struct RegistryMetadataInput {
     pub created_at_iso: String,
 }
 
+/// The uncompressed public key of the one-time group key a 32-byte seed
+/// derives — needed before requesting the group's challenge.
+#[wasm_bindgen(js_name = groupPublicKeyFromSeed)]
+pub fn group_public_key_from_seed(seed_hex: &str) -> JsResult<String> {
+    vela_core::registry_proof::group_public_key_from_seed(seed_hex).map_err(err)
+}
+
 /// Derive the one-time group key from a 32-byte seed and build its closing
 /// proof over the group's content-hash challenge.
 #[wasm_bindgen(js_name = buildGroupProof)]

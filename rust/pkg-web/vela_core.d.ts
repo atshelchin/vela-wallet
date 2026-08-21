@@ -640,6 +640,12 @@ export function fromHex(s: string): Uint8Array;
 
 export function functionSelector(signature: string): Uint8Array;
 
+/**
+ * The uncompressed public key of the one-time group key a 32-byte seed
+ * derives — needed before requesting the group's challenge.
+ */
+export function groupPublicKeyFromSeed(seed_hex: string): string;
+
 export function hashTypedData(typed_data_json: string): Uint8Array;
 
 /**
@@ -819,6 +825,7 @@ export interface InitOutput {
     readonly fromBase64Url: (a: number, b: number) => [number, number, number, number];
     readonly fromHex: (a: number, b: number) => [number, number, number, number];
     readonly functionSelector: (a: number, b: number) => [number, number, number, number];
+    readonly groupPublicKeyFromSeed: (a: number, b: number) => [number, number, number, number];
     readonly hashTypedData: (a: number, b: number) => [number, number, number, number];
     readonly i18nInterpolate: (a: number, b: number, c: number) => [number, number, number, number];
     readonly i18nPluralSuffix: (a: number, b: number, c: number) => [number, number];

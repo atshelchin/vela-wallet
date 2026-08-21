@@ -28,6 +28,7 @@ mod identicon_features;
 pub mod identicon_raster;
 pub mod l10n;
 pub mod primitives;
+pub mod registry_metadata;
 pub mod safe;
 pub mod types;
 pub mod webauthn;

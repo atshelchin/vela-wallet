@@ -27,8 +27,12 @@ use crux_core::{command::AbortHandle, render::render, App, Command};
 use serde::{Deserialize, Serialize};
 
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
-use super::{address_from_public_key_hex, Account, Assertion, FailureKind, PromptKind};
+use super::{
+    address_from_public_key_hex, Account, Assertion, FailureKind, PromptKind, RegistryPublishMember,
+};
+use crate::error::CoreError;
 use crate::primitives;
+use crate::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
 use crate::webauthn;
 
 #[cfg(feature = "bindings")]
@@ -41,6 +45,9 @@ const HEALTH_PROBE_GAP_MS: u32 = 2000;
 
 /// Fallback when a credential carries no name this app can trust.
 const FALLBACK_ACCOUNT_NAME: &str = "Wallet";
+
+/// The Safe deployment this wallet uses, recorded in the registry metadata.
+const WALLET_VERSION: &str = "safe-1.4.1";
 
 // ---------------------------------------------------------------------------
 // Events
@@ -79,11 +86,14 @@ pub enum Stage {
     CheckingSupport,
     Authenticating,
     LoadingAccounts,
-    QueryingIndex,
     /// Waiting for the user to accept or decline on-device recovery.
     AwaitingConsent,
     /// Waiting for the second signature that pins down the public key.
     Recovering,
+    /// Asking the registry whether the recovered key is already published.
+    CheckingRegistry,
+    /// Running the possession-proven publish before entering (option B).
+    Publishing,
     Saving,
     Completing,
 }
@@ -104,9 +114,6 @@ pub struct Model {
     observed_at: String,
     /// The account about to be persisted.
     pending: Option<Account>,
-    /// True when `pending` came from on-device recovery, which is the only case
-    /// that owes the index server a background heal.
-    recovered: bool,
     attempt: u64,
     health: Health,
     abort: Option<AbortHandle>,
@@ -209,7 +216,6 @@ fn sign_in(model: &mut Model) -> Command<Effect, Event> {
     model.attempt += 1;
     model.assertion = None;
     model.pending = None;
-    model.recovered = false;
     model.stage = Stage::CheckingSupport;
     request(model, ShellOperation::CheckPasskeySupport)
 }
@@ -262,11 +268,16 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                     )
                 }
                 None => {
-                    model.stage = Stage::QueryingIndex;
+                    // The registry cannot be looked up by credential id, so a
+                    // key unknown on this device goes straight to on-device
+                    // recovery — two signatures rebuild the public key, and
+                    // therefore the address, without any server.
+                    model.stage = Stage::AwaitingConsent;
                     request(
                         model,
-                        ShellOperation::IndexQueryRecord {
-                            credential_id: assertion.credential_id,
+                        ShellOperation::Prompt {
+                            kind: PromptKind::RecoverOffer,
+                            confirmable: true,
                         },
                     )
                 }
@@ -274,64 +285,6 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         }
         (Stage::LoadingAccounts, ShellResult::StorageFailed { message }) => {
             idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
-        }
-
-        // -- resolution: index -------------------------------------------------
-        (
-            Stage::QueryingIndex,
-            ShellResult::IndexRecord {
-                public_key_hex,
-                name,
-            },
-        ) => {
-            let Some(assertion) = model.assertion.clone() else {
-                return Command::done();
-            };
-            let address = match address_from_public_key_hex(&public_key_hex) {
-                Ok(address) => address,
-                Err(error) => {
-                    return idle_with_prompt(
-                        model,
-                        PromptKind::SignInFailed {
-                            detail: error.to_string(),
-                        },
-                    )
-                }
-            };
-            let account = Account {
-                id: assertion.credential_id.clone(),
-                name: if name.is_empty() {
-                    account_name(&assertion)
-                } else {
-                    name
-                },
-                address,
-                public_key_hex,
-                created_at_iso: model.observed_at.clone(),
-            };
-            begin_save(model, account, false)
-        }
-        // A *missing* record is not a dead end: the passkey itself can rebuild
-        // the wallet. An unreachable server is a different thing entirely and
-        // must not trigger recovery.
-        (Stage::QueryingIndex, ShellResult::IndexMissing) => {
-            model.stage = Stage::AwaitingConsent;
-            request(
-                model,
-                ShellOperation::Prompt {
-                    kind: PromptKind::RecoverOffer,
-                    confirmable: true,
-                },
-            )
-        }
-        (Stage::QueryingIndex, ShellResult::IndexFailed { message, network }) => {
-            if network {
-                model.health.unreachable = true;
-                model.stage = Stage::Idle;
-                render()
-            } else {
-                idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
-            }
         }
 
         // -- recovery ----------------------------------------------------------
@@ -362,7 +315,7 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 return Command::done();
             };
             match recover_account(&first, &second, &model.observed_at) {
-                Some(account) => begin_save(model, account, true),
+                Some(account) => begin_registry_check(model, account),
                 // The two signatures did not pin down exactly one key (or the
                 // bytes would not parse). Nothing is persisted on a guess.
                 None => idle_with_prompt(model, PromptKind::RecoverFailed),
@@ -376,33 +329,49 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             _ => idle_with_prompt(model, PromptKind::RecoverFailed),
         },
 
+        // -- publish before entering (option B) --------------------------------
+        // Already on-chain: no re-publish, no extra signature.
+        (Stage::CheckingRegistry, ShellResult::RegistryKeyStatus { registered: true }) => {
+            match model.pending.clone() {
+                Some(account) => begin_save(model, account),
+                None => Command::done(),
+            }
+        }
+        // Not yet on-chain: publish it before handing over the wallet.
+        (Stage::CheckingRegistry, ShellResult::RegistryKeyStatus { registered: false }) => {
+            begin_publish(model)
+        }
+        // Registry unreachable: cannot confirm, so do not block reaching the
+        // wallet — the recovered account is valid on its own.
+        (Stage::CheckingRegistry, ShellResult::IndexFailed { .. }) => match model.pending.clone() {
+            Some(account) => begin_save(model, account),
+            None => Command::done(),
+        },
+        // Publish landed (or the identical group was already there): enter.
+        (Stage::Publishing, ShellResult::RegistryPublished) => match model.pending.clone() {
+            Some(account) => begin_save(model, account),
+            None => Command::done(),
+        },
+        // Publish failed: the recovered wallet is still valid; enter anyway.
+        (Stage::Publishing, ShellResult::IndexFailed { .. }) => match model.pending.clone() {
+            Some(account) => begin_save(model, account),
+            None => Command::done(),
+        },
+
         // -- persistence and handover -----------------------------------------
+        // Publishing to the registry already happened before this point
+        // (option B), so save simply hands the wallet over.
         (Stage::Saving, ShellResult::AccountSaved) => {
             let Some(account) = model.pending.clone() else {
                 return Command::done();
             };
             model.stage = Stage::Completing;
-            let complete = request(
+            request(
                 model,
                 ShellOperation::CompleteOnboarding {
-                    mode: CompletionMode::AddAccount {
-                        account: account.clone(),
-                    },
+                    mode: CompletionMode::AddAccount { account },
                 },
-            );
-            if model.recovered {
-                // Heal the index behind the user's back. Fire-and-forget by
-                // construction: its result maps to an event that does nothing.
-                let heal = Command::request_from_shell(ShellOperation::IndexCreateRecord {
-                    credential_id: account.id,
-                    public_key_hex: account.public_key_hex,
-                    name: account.name,
-                })
-                .then_send(|_| Event::HealIgnored);
-                Command::all([complete, heal])
-            } else {
-                complete
-            }
+            )
         }
         (Stage::Saving, ShellResult::StorageFailed { message }) => {
             idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
@@ -460,11 +429,53 @@ fn account_name(assertion: &Assertion) -> String {
         .unwrap_or_else(|| FALLBACK_ACCOUNT_NAME.to_owned())
 }
 
-fn begin_save(model: &mut Model, account: Account, recovered: bool) -> Command<Effect, Event> {
+fn begin_save(model: &mut Model, account: Account) -> Command<Effect, Event> {
     model.pending = Some(account.clone());
-    model.recovered = recovered;
     model.stage = Stage::Saving;
     request(model, ShellOperation::SaveAccount { account })
+}
+
+/// After recovery, ask the registry whether this key is already published
+/// before deciding to publish (option B: publish precedes wallet entry).
+fn begin_registry_check(model: &mut Model, account: Account) -> Command<Effect, Event> {
+    let public_key_hex = account.public_key_hex.clone();
+    model.pending = Some(account);
+    model.stage = Stage::CheckingRegistry;
+    request(model, ShellOperation::RegistryQueryByPublicKey { public_key_hex })
+}
+
+/// Emit the possession-proven publish for the pending account. A metadata
+/// encoding failure never blocks reaching the wallet.
+fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
+    let Some(account) = model.pending.clone() else {
+        return Command::done();
+    };
+    match registry_publish_op(&account) {
+        Ok(operation) => {
+            model.stage = Stage::Publishing;
+            request(model, operation)
+        }
+        Err(_) => begin_save(model, account),
+    }
+}
+
+/// Build the single-key registry publish operation for an account.
+fn registry_publish_op(account: &Account) -> Result<ShellOperation, CoreError> {
+    let metadata = RegistryMetadata {
+        version: REGISTRY_METADATA_VERSION,
+        address: account.address.clone(),
+        wallet_version: WALLET_VERSION.to_owned(),
+        key_names: vec![account.name.clone()],
+        created_at_iso: account.created_at_iso.clone(),
+    };
+    Ok(ShellOperation::RegistryPublish {
+        metadata_hex: metadata.encode_hex()?,
+        members: vec![RegistryPublishMember {
+            credential_id: account.id.clone(),
+            public_key_hex: account.public_key_hex.clone(),
+            attestation_hex: String::new(),
+        }],
+    })
 }
 
 fn idle_with_prompt(model: &mut Model, prompt: PromptKind) -> Command<Effect, Event> {

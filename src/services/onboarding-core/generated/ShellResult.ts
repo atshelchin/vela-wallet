@@ -16,7 +16,7 @@ export type ShellResult = { "type": "passkey_support", supported: boolean, } | {
  * "something went wrong" alert. Absent for classified failures, whose
  * copy comes from the classification.
  */
-message: string | null, } | { "type": "accounts_loaded", accounts: Array<Account>, } | { "type": "account_saved" } | { "type": "pending_upload_saved" } | { "type": "pending_upload_removed" } | { "type": "storage_failed", message: string, } | { "type": "index_created" } | { "type": "index_record", public_key_hex: string, name: string, } | { "type": "index_missing" } | { "type": "index_failed", message: string, 
+message: string | null, } | { "type": "accounts_loaded", accounts: Array<Account>, } | { "type": "account_saved" } | { "type": "pending_upload_saved" } | { "type": "pending_upload_removed" } | { "type": "storage_failed", message: string, } | { "type": "index_created" } | { "type": "index_record", public_key_hex: string, name: string, } | { "type": "registry_published" } | { "type": "registry_key_status", registered: boolean, } | { "type": "index_missing" } | { "type": "index_failed", message: string, 
 /**
  * True when the request never reached the server (transport failure or
  * abort). Only the shell can tell that from a 4xx, so this one bit of

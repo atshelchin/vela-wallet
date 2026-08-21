@@ -16,7 +16,10 @@ use crux_core::macros::effect;
 use crux_core::render::RenderOperation;
 use serde::{Deserialize, Serialize};
 
-use super::{Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration};
+use super::{
+    Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration,
+    RegistryPublishMember,
+};
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -97,6 +100,20 @@ pub enum ShellOperation {
     IndexQueryRecord {
         credential_id: String,
     },
+    /// Publish the wallet's key set as one possession-proven registry group.
+    /// The executor runs the whole mechanism — one-time group key, server
+    /// challenges, per-member signatures, proofs, register and task poll —
+    /// and answers `RegistryPublished` or `IndexFailed`. `metadata_hex` is
+    /// the group's opaque blob, already encoded by the core.
+    RegistryPublish {
+        metadata_hex: String,
+        members: Vec<RegistryPublishMember>,
+    },
+    /// Is this public key already an entry in the registry? Lets a sign-in
+    /// skip a redundant re-publish (and its extra signature).
+    RegistryQueryByPublicKey {
+        public_key_hex: String,
+    },
     /// Has the index server's on-chain reveal landed for this wallet yet?
     IndexQueryByWalletRef {
         address: String,
@@ -173,6 +190,13 @@ pub enum ShellResult {
     IndexRecord {
         public_key_hex: String,
         name: String,
+    },
+    /// The registry publish landed on-chain (or the identical group was
+    /// already there).
+    RegistryPublished,
+    /// The registry's answer to `RegistryQueryByPublicKey`.
+    RegistryKeyStatus {
+        registered: bool,
     },
     /// The index server answered, and it has no record for this credential.
     /// Distinct from `IndexFailed`: a *missing* record is recoverable on-device,

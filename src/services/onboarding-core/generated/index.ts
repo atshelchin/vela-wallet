@@ -12,6 +12,7 @@ export * from './PendingUpload';
 export * from './PromptKind';
 export * from './ProofPurpose';
 export * from './Registration';
+export * from './RegistryPublishMember';
 export * from './ShellOperation';
 export * from './ShellResult';
 export * from './StatusKey';

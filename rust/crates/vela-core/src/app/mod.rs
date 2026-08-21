@@ -131,6 +131,18 @@ pub struct PendingUpload {
     pub created_at_iso: String,
 }
 
+/// One member passkey to include in a possession-proven registry publish, in
+/// canonical founding order. The executor signs each with its credential.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct RegistryPublishMember {
+    pub credential_id: String,
+    /// Uncompressed P-256 point, `04‖x‖y` hex.
+    pub public_key_hex: String,
+    /// Empty, or 20 versioned attestation bytes (hex).
+    pub attestation_hex: String,
+}
+
 /// How a ceremony failed. The **shell** reports the raw platform error; the
 /// classification is the core's, so both machines branch on the same vocabulary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

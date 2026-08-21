@@ -16,6 +16,8 @@ import { toHex } from '@/services/vela-core';
 import * as Passkey from '@/modules/passkey';
 import { PasskeyError, PasskeyErrorCode } from '@/modules/passkey';
 import * as PublicKeyIndex from '@/services/public-key-index';
+import * as Registry from '@/services/public-key-registry';
+import { publishToRegistry } from '@/services/registry-publish';
 import {
   loadAccounts,
   loadServiceEndpoints,
@@ -121,6 +123,8 @@ export function operationFailure(effect: OnboardingEffect, error: unknown): Shel
     case 'index_create_record':
     case 'index_query_record':
     case 'index_query_by_wallet_ref':
+    case 'registry_publish':
+    case 'registry_query_by_public_key':
       return {
         type: 'index_failed',
         message: message(error),
@@ -330,6 +334,26 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
       case 'index_query_by_wallet_ref': {
         const record = await PublicKeyIndex.queryByWalletRef(operation.address);
         return { type: 'wallet_ref', resolved: record !== null };
+      }
+
+      case 'registry_publish': {
+        // The whole possession-proven publish — one-time group key, server
+        // challenges, per-member signatures, proofs, register and poll.
+        await publishToRegistry({
+          rpId: Passkey.getRelyingPartyId(),
+          metadataHex: operation.metadata_hex,
+          members: operation.members.map((member) => ({
+            credentialId: member.credential_id,
+            publicKeyHex: member.public_key_hex,
+            attestationHex: member.attestation_hex,
+          })),
+        });
+        return { type: 'registry_published' };
+      }
+
+      case 'registry_query_by_public_key': {
+        const profile = await Registry.queryByPublicKey(operation.public_key_hex);
+        return { type: 'registry_key_status', registered: profile.entry !== null };
       }
 
       case 'probe_index_health':

@@ -6,13 +6,19 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
-	import { CONTRACT_ADDRESS, makeGnosisClient } from '$lib/chain';
-	import { fetchWalletPage, type WalletRecord } from '$lib/registry';
+	import { CONTRACT_ADDRESS, LEGACY_CONTRACT_ADDRESS, makeGnosisClient } from '$lib/chain';
+	import { fetchWalletPage, type RegistrySource, type WalletRecord } from '$lib/registry';
 	import type { PublicClient } from 'viem';
 
 	const SIZE_OPTIONS = [20, 50, 100] as const;
 	const DEFAULT_SIZE = 100;
-	const contractUrl = `https://gnosisscan.io/address/${CONTRACT_ADDRESS}`;
+	/** The current possession-proven registry is the default; the legacy
+	 *  server-signed index stays browsable for pre-migration wallets. */
+	const source = $derived<RegistrySource>(
+		page.url.searchParams.get('source') === 'legacy' ? 'legacy' : 'v2'
+	);
+	const contractAddr = $derived(source === 'legacy' ? LEGACY_CONTRACT_ADDRESS : CONTRACT_ADDRESS);
+	const contractUrl = $derived(`https://gnosisscan.io/address/${contractAddr}`);
 
 	// --- Live data ---
 	let client: PublicClient | null = null;
@@ -54,13 +60,14 @@
 		errorMsg = null;
 		expandedId = null;
 		try {
-			const res = await fetchWalletPage(ensureClient(), p, size, d);
+			const res = await fetchWalletPage(ensureClient(), p, size, d, source);
 			if (id !== reqId) return; // a newer request superseded this one
 			total = res.total;
 			records = res.records;
 			loaded = { page: p, desc: d, size };
-		} catch {
+		} catch (e) {
 			if (id !== reqId) return;
+			console.error('registry read failed', e);
 			errorMsg = 'Couldn’t reach the Gnosis network. Please try again.';
 			records = [];
 		} finally {
@@ -72,18 +79,24 @@
 		const p = currentPage;
 		const d = desc;
 		const size = pageSize;
+		source; // re-read when the registry source changes
+		total = null; // the count belongs to a source; clear it while switching
 		if (browser) load(p, d, size);
 	});
 
 	// --- Navigation (writes to the URL; the effect above reacts) ---
 	/** Query string for a page + order + size. All values are app-controlled, so no
 	 *  escaping is needed. Empty (clean URL) for the defaults (newest / page 1 / 100). */
-	function queryFor(p: number, newest: boolean, size: number): string {
+	function queryFor(p: number, newest: boolean, size: number, src: RegistrySource = source): string {
 		const parts: string[] = [];
+		if (src === 'legacy') parts.push('source=legacy');
 		if (!newest) parts.push('order=oldest');
 		if (size !== DEFAULT_SIZE) parts.push(`size=${size}`);
 		if (p > 1) parts.push(`page=${p}`);
 		return parts.length ? `?${parts.join('&')}` : '';
+	}
+	function setSource(src: RegistrySource) {
+		navTo(queryFor(1, desc, pageSize, src)); // a new source starts from page 1
 	}
 	function navTo(qs: string) {
 		// resolve() is applied to the route; the lint rule just can't trace it
@@ -111,7 +124,8 @@
 	 *  honest chain; the index also guards against a hostile RPC returning duplicate
 	 *  records, which would otherwise crash the keyed #each. */
 	function rowKey(r: WalletRecord, i: number): string {
-		return `${r.walletRef}:${r.credentialId}:${i}`;
+		const id = r.source === 'legacy' ? `${r.walletRef}:${r.credentialId}` : `unit:${r.unitId}`;
+		return `${r.source}:${id}:${i}`;
 	}
 	function toggle(id: string) {
 		expandedId = expandedId === id ? null : id;
@@ -176,17 +190,35 @@
 		<a class="back" href={resolve('/')}>← Home</a>
 		<h1>Wallet registry</h1>
 		<p class="lede">
-			When a Vela wallet is created, its passkey public key is uploaded to a public index on
-			Gnosis — a cache, not a dependency: if the upload fails the wallet still works, and the
-			key can be re-derived on-device from two passkey signatures. This
-			page reads the
-			<a href={contractUrl} target="_blank" rel="noopener">index contract</a>
+			When a Vela wallet is created, its passkey public key is written to a public registry on
+			Gnosis — a cache, not a dependency: if the write fails the wallet still works, and the key
+			can be re-derived on-device from two passkey signatures.
+			{#if source === 'v2'}
+				Vela moved to a new <strong>possession-proven</strong> registry: every entry now carries a
+				WebAuthn signature that proves the writer actually holds the passkey, so no server can
+				forge one. Each wallet is one immutable on-chain group of its founding passkeys.
+			{:else}
+				This is the <strong>legacy</strong> index — a server-signed store kept readable for wallets
+				created before the migration. New wallets are written to the current registry.
+			{/if}
+			This page reads the
+			<a href={contractUrl} target="_blank" rel="noopener">registry contract</a>
 			live from your browser — nothing here comes from Vela's servers. Don't trust us — verify.
 		</p>
 		<div class="reg-stat" aria-live="polite">
 			<span class="live-dot" class:on={total !== null && !errorMsg}></span>
 			<strong class="stat-number">{total === null ? '—' : total.toLocaleString()}</strong>
 			<span>wallets created on-chain</span>
+		</div>
+		<div class="seg source-seg" role="group" aria-label="Registry source">
+			<button class:active={source === 'v2'} aria-pressed={source === 'v2'} onclick={() => setSource('v2')}
+				>Current registry</button
+			>
+			<button
+				class:active={source === 'legacy'}
+				aria-pressed={source === 'legacy'}
+				onclick={() => setSource('legacy')}>Legacy index</button
+			>
 		</div>
 	</header>
 
@@ -279,19 +311,30 @@
 										</button>
 									</dd>
 								</div>
-								<div class="detail">
-									<dt>Passkey credential</dt>
-									<dd>
-										<code class="mono">{r.credentialId}</code>
-										<button
-											class="cp"
-											aria-label="Copy passkey credential ID"
-											onclick={() => copy(r.credentialId, `${rid}:c`)}
-										>
-											{copiedKey === `${rid}:c` ? 'Copied' : 'Copy'}
-										</button>
-									</dd>
-								</div>
+								{#if r.source === 'legacy'}
+									<div class="detail">
+										<dt>Passkey credential</dt>
+										<dd>
+											<code class="mono">{r.credentialId}</code>
+											<button
+												class="cp"
+												aria-label="Copy passkey credential ID"
+												onclick={() => copy(r.credentialId ?? '', `${rid}:c`)}
+											>
+												{copiedKey === `${rid}:c` ? 'Copied' : 'Copy'}
+											</button>
+										</dd>
+									</div>
+								{:else}
+									<div class="detail">
+										<dt>Group</dt>
+										<dd>
+											#{r.unitId} · {r.memberCount} passkey{r.memberCount === 1 ? '' : 's'}{r.walletVersion
+												? ` · ${r.walletVersion}`
+												: ''}
+										</dd>
+									</div>
+								{/if}
 								<div class="detail">
 									<dt>P-256 public key</dt>
 									<dd>
@@ -305,6 +348,12 @@
 										</button>
 									</dd>
 								</div>
+								{#if r.source === 'v2' && r.attestation && r.attestation !== '0x'}
+									<div class="detail">
+										<dt>Attestation</dt>
+										<dd><code class="mono wrap">{r.attestation}</code></dd>
+									</div>
+								{/if}
 								<div class="detail">
 									<dt>Relying party</dt>
 									<dd>{r.rpId}</dd>

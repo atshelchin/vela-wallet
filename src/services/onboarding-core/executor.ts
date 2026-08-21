@@ -171,7 +171,7 @@ async function probeIndexHealth(signal: AbortSignal): Promise<boolean> {
     });
     if (!response.ok) return false;
     const json = await response.json();
-    return json.service === 'webauthn-p256-publickey-index' && json.status === 'ok';
+    return Registry.isRegistryServiceIdentity(json.service) && json.status === 'ok';
   } catch {
     return false;
   } finally {

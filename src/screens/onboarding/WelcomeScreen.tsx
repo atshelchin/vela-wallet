@@ -13,6 +13,7 @@ import { useColorSchemePreference, type ColorSchemePreference } from '@/constant
 import { AppModal } from '@/components/ui/AppModal';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { isAdmissibleEndpoint, isLocalhostHttp } from '@/services/endpoint-admission';
+import { isRegistryServiceIdentity } from '@/services/public-key-registry';
 import { loadServiceEndpoints, saveServiceEndpoints } from '@/services/storage';
 import { DEFAULT_SERVICE_ENDPOINTS } from '@/models/types';
 import type { ServiceEndpoints } from '@/models/types';
@@ -74,7 +75,10 @@ async function checkServiceEndpointHealth(
     const latencyMs = Date.now() - start;
     if (!res.ok) return { status: 'unreachable', latencyMs, detail: `HTTP ${res.status}` };
     const json = JSON.parse(await res.text());
-    if (json.service !== expected || json.status !== 'ok') {
+    // The passkey index accepts both the legacy and v2 registry identities.
+    const identityOk =
+      type === 'passkey' ? isRegistryServiceIdentity(json.service) : json.service === expected;
+    if (!identityOk || json.status !== 'ok') {
       return { status: 'invalid_response', latencyMs, detail: `Not a valid ${expected} service` };
     }
     return { status: 'ok', latencyMs };

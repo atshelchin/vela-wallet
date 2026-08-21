@@ -31,6 +31,7 @@ import {
   buildMockRegistration,
   nextFixtureRegistration,
   resetFixtureRegistrationCursor,
+  setPreferredMockSigner,
 } from './passkey-fixture';
 
 // Storage keys. The account keys intentionally match storage.ts so the real signing
@@ -266,6 +267,15 @@ export function installParallelConsole(): void {
     },
     status: () => summary(),
     addresses: () => FIXTURE_ADDRESSES,
+    /** Prefer fixture N whenever a multi-key allow-list offers it — the mock's
+     *  stand-in for the provider's key picker. `signWith(null)` restores the
+     *  first-allowed default. */
+    signWith(index: number | null) {
+      setPreferredMockSigner(index);
+      const chosen = index != null ? FIXTURE_ACCOUNTS[index] : null;
+      console.log('[vela] mock signer preference:', chosen ? `${chosen.name} (#${index})` : 'default (first allowed)');
+      return summary();
+    },
     help() {
       console.log(
         '[vela.parallel] test environment (fixed passkey, everything else real)\n' +

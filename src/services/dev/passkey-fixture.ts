@@ -149,9 +149,30 @@ export interface MockAssertionOptions {
   origin?: string;
 }
 
+/**
+ * Which fixture a multi-credential allow-list picks. A real provider shows a
+ * picker; the mock defaults to the FIRST allowed fixture. Tests that need a
+ * NON-first founding key to sign (the per-key signer-proxy r-field path) set
+ * a preferred index via {@link setPreferredMockSigner} /
+ * `vela.parallel.signWith(n)`.
+ */
+let _preferredSigner: number | null = null;
+
+/** Prefer FIXTURE_ACCOUNTS[index] whenever an allow-list offers it; `null`
+ *  restores the first-allowed default. Dev/test only, like the whole module. */
+export function setPreferredMockSigner(index: number | null): void {
+  _preferredSigner = index;
+}
+
 /** The fixture the allow-list (or single id) resolves to. */
 function resolveFixture(credentialId: string | string[] | null | undefined): FixtureAccount {
   if (Array.isArray(credentialId)) {
+    if (_preferredSigner != null) {
+      const preferred = FIXTURE_ACCOUNTS[_preferredSigner];
+      if (preferred && credentialId.some(id => fixtureByCredentialId(id)?.id === preferred.id)) {
+        return preferred;
+      }
+    }
     for (const id of credentialId) {
       const found = fixtureByCredentialId(id);
       if (found) return found;

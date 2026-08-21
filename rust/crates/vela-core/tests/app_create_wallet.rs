@@ -9,7 +9,7 @@ mod support;
 
 use support::{Driver, NOW};
 use vela_core::app::create_wallet::{CreateStage, CreateWallet, Event, SubmitLabel};
-use vela_core::app::shell::{ProofPurpose, ShellOperation, ShellResult};
+use vela_core::app::shell::{ShellOperation, ShellResult};
 use vela_core::app::{FailureKind, StatusKey};
 
 const CRED: &str = "credential-1";
@@ -32,8 +32,10 @@ fn filled(name: &str) -> Sut {
     sut
 }
 
-/// Form → registered passkey → waiting for the proof signature.
-fn awaiting_proof(name: &str) -> Sut {
+/// Form → registered passkey. The passkey's public key comes from the
+/// attestation directly, so registration flows straight into saving the
+/// pending record (no separate verification signature).
+fn registered(name: &str) -> Sut {
     let mut sut = filled(name);
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
@@ -44,13 +46,9 @@ fn awaiting_proof(name: &str) -> Sut {
     sut
 }
 
-/// …→ proof signed → pending record written → first upload attempt in flight.
+/// …→ pending record written → the registry publish (one get) in flight.
 fn uploading(name: &str) -> Sut {
-    let mut sut = awaiting_proof(name);
-    sut.resolve(ShellResult::ProofSigned {
-        assertion: support::assertion(CRED),
-        now_iso: NOW.to_owned(),
-    });
+    let mut sut = registered(name);
     sut.resolve(ShellResult::PendingUploadSaved);
     sut
 }
@@ -118,32 +116,10 @@ fn cancelling_registration_persists_nothing() {
     assert!(!view.busy);
 }
 
-/// FR-007 — the rule that keeps a cancelled verification from minting a second
-/// passkey for the same wallet.
-#[test]
-fn cancelled_verification_resumes_at_the_signature_and_never_re_registers() {
-    let mut sut = awaiting_proof("Ann");
-    sut.resolve(ShellResult::PasskeyFailed {
-        kind: FailureKind::Cancelled,
-        message: None,
-    });
-
-    let view = sut.view();
-    assert_eq!(view.status, Some(StatusKey::VerifyCancelled));
-    assert_eq!(view.submit_label, SubmitLabel::FinishVerify);
-    assert!(view.show_start_over, "the escape hatch is offered");
-    assert!(!view.name_editable, "the name is fixed once a draft exists");
-
-    let requested = sut.dispatch(Event::Submit);
-    assert_eq!(
-        requested,
-        vec![ShellOperation::SignProof {
-            credential_id: CRED.to_owned(),
-            purpose: ProofPurpose::Verify,
-        }],
-        "resume signs again — it must never request RegisterPasskey"
-    );
-}
+// The old separate "verification" signature is gone: the register member
+// proof (a single get) is itself proof the passkey can sign, so a cancelled
+// publish resumes via RetryUpload — see
+// retry_upload_resumes_at_the_publish_never_at_registration.
 
 /// FR-006, issue #1 — a device-local credential would sign here and be invisible
 /// everywhere else, so the flow stops with nothing written.
@@ -174,36 +150,20 @@ fn non_discoverable_credential_aborts_without_persisting() {
     );
 }
 
-/// FR-009 — an incompatible provider is terminal, not resumable: retrying the
-/// same signature could never produce a Safe-acceptable response.
-#[test]
-fn incompatible_provider_discards_the_draft() {
-    let mut sut = awaiting_proof("Ann");
-    let next = sut.resolve(ShellResult::ProofSigned {
-        assertion: support::incompatible_assertion(CRED),
-        now_iso: NOW.to_owned(),
-    });
+// An incompatible provider is no longer caught by a separate verification
+// signature (create mints an ES256 key by construction); an unusable key
+// would fail the register member proof and land on the retry screen instead.
 
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::Prompt {
-            kind: vela_core::app::PromptKind::IncompatibleCreate,
-            ..
-        }]
-    ));
-    let view = sut.view();
-    assert_eq!(view.submit_label, SubmitLabel::Create);
-    assert!(!view.show_start_over, "there is nothing left to start over");
-    assert!(view.name_editable);
-}
-
-/// FR-010 — the pending record exists before the first upload, so an
-/// interrupted creation is retried on a later launch.
+/// FR-010 — the pending record exists before the publish, so an interrupted
+/// creation is retried.
 #[test]
 fn pending_record_is_written_before_the_first_upload() {
-    let mut sut = awaiting_proof("Ann");
-    let next = sut.resolve(ShellResult::ProofSigned {
-        assertion: support::assertion(CRED),
+    let mut sut = filled("Ann");
+    sut.dispatch(Event::Submit);
+    sut.resolve(ShellResult::PasskeySupport { supported: true });
+    // Registration flows straight into the pending record — no verify get.
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::registration(CRED),
         now_iso: NOW.to_owned(),
     });
 
@@ -224,11 +184,7 @@ fn pending_record_is_written_before_the_first_upload() {
 /// The pending record written, the possession-proven publish is the next step.
 #[test]
 fn the_pending_record_is_followed_by_the_registry_publish() {
-    let mut sut = awaiting_proof("Ann");
-    sut.resolve(ShellResult::ProofSigned {
-        assertion: support::assertion(CRED),
-        now_iso: NOW.to_owned(),
-    });
+    let mut sut = registered("Ann");
     let next = sut.resolve(ShellResult::PendingUploadSaved);
 
     assert!(

@@ -19,7 +19,7 @@
 use crux_core::{command::AbortHandle, render::render, App, Command};
 use serde::{Deserialize, Serialize};
 
-use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
+use super::shell::{CompletionMode, Effect, ShellOperation, ShellResult};
 use super::{
     address_from_public_key_hex, name_fits_user_handle, public_key_hex_from_attestation, Account,
     FailureKind, PendingUpload, PromptKind, RegistryPublishMember, StatusKey,
@@ -316,17 +316,10 @@ fn submit(model: &mut Model) -> Command<Effect, Event> {
     }
 
     if let Some(draft) = model.draft.clone() {
-        // Resume: the passkey already exists, only its signature is missing.
+        // Resume: the passkey already exists (never re-registered). Go straight
+        // to deriving and publishing — the publish's member proof is the get.
         model.attempt += 1;
-        model.stage = Stage::Verifying;
-        model.status = Some(StatusKey::VerifyingIdentity);
-        return request(
-            model,
-            ShellOperation::SignProof {
-                credential_id: draft.credential_id,
-                purpose: ProofPurpose::Verify,
-            },
-        );
+        return derive_and_persist_pending(model, draft.registered_at_iso);
     }
 
     let trimmed = model.name.trim();
@@ -416,20 +409,15 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             },
         ) => {
             model.draft = Some(Draft {
-                credential_id: registration.credential_id.clone(),
+                credential_id: registration.credential_id,
                 attestation_object_hex: registration.attestation_object_hex,
                 name: model.name.trim().to_owned(),
-                registered_at_iso: now_iso,
+                registered_at_iso: now_iso.clone(),
             });
-            model.stage = Stage::Verifying;
-            model.status = Some(StatusKey::VerifyingIdentity);
-            request(
-                model,
-                ShellOperation::SignProof {
-                    credential_id: registration.credential_id,
-                    purpose: ProofPurpose::Verify,
-                },
-            )
+            // No separate verification signature: the register member proof is
+            // itself a get() that proves the passkey can sign (and that the
+            // COSE public key matches the signing key). One get, not two.
+            derive_and_persist_pending(model, now_iso)
         }
         (Stage::Registering, ShellResult::PasskeyFailed { kind, message }) => match kind {
             FailureKind::Cancelled => {
@@ -443,33 +431,6 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             FailureKind::NotDiscoverable => fail_to_form(model, PromptKind::NotDiscoverable, None),
             FailureKind::NotSupported => fail_to_form(model, PromptKind::NotSupportedCreate, None),
             FailureKind::Other => fail_to_form(
-                model,
-                PromptKind::CreateFailed {
-                    detail: message.unwrap_or_default(),
-                },
-                None,
-            ),
-        },
-
-        // -- proof of signing ------------------------------------------------
-        (Stage::Verifying, ShellResult::ProofSigned { assertion, now_iso }) => {
-            if !assertion.is_safe_compatible() {
-                // Non-retryable: this provider's response format can never work
-                // with the Safe contracts, so the draft is discarded rather than
-                // left resumable.
-                model.draft = None;
-                return fail_to_form(model, PromptKind::IncompatibleCreate, None);
-            }
-            derive_and_persist_pending(model, now_iso)
-        }
-        (Stage::Verifying, ShellResult::PasskeyFailed { kind, message }) => match kind {
-            FailureKind::Cancelled => {
-                // Keep the draft: the next submit resumes at the signature.
-                model.stage = Stage::Form;
-                model.status = Some(StatusKey::VerifyCancelled);
-                render()
-            }
-            _ => fail_to_form(
                 model,
                 PromptKind::CreateFailed {
                     detail: message.unwrap_or_default(),

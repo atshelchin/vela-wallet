@@ -4,16 +4,17 @@
 //! Form ─submit─► CheckingSupport ─► Registering ─► Verifying ─► SavingPending
 //!   ▲                                                               │
 //!   │ cancel-at-verify KEEPS the draft (resume, never re-register)   ▼
-//!   └──────────────────────────────────────── Syncing{try≤3} ─► Saving ─► Created
+//!   └──────────────────── Syncing{publish → remove pending} ─► Saving ─► Created
 //! ```
 //!
-//! The ordering is the product. A wallet becomes real only after **two**
-//! independent proofs: the passkey produced a valid signature (a provider can
-//! report `create()` success and still have stored nothing — issue #1), and the
-//! index server confirms it holds the matching public key (a locally-saved but
-//! unsynced wallet is usable here and unrecoverable everywhere else). Until both
-//! hold, nothing is written and the address is never shown, so an unusable
-//! wallet can never be funded.
+//! The ordering is the product. The passkey must first produce a valid
+//! signature (a provider can report `create()` success and still have stored
+//! nothing — issue #1). The wallet is then published to the registry as a
+//! possession-proven group *before* it is entered (option B): the same key set
+//! that derives the address is the group's membership. A publish failure does
+//! not trap the user — the key is recoverable on-device from two signatures
+//! regardless of the registry — so it surfaces the retry screen while the
+//! passkey and its draft are kept.
 
 use crux_core::{command::AbortHandle, render::render, App, Command};
 use serde::{Deserialize, Serialize};
@@ -21,8 +22,10 @@ use serde::{Deserialize, Serialize};
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
 use super::{
     address_from_public_key_hex, name_fits_user_handle, public_key_hex_from_attestation, Account,
-    FailureKind, PendingUpload, PromptKind, StatusKey,
+    FailureKind, PendingUpload, PromptKind, RegistryPublishMember, StatusKey,
 };
+use crate::error::CoreError;
+use crate::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -31,8 +34,8 @@ use ts_rs::TS;
 /// business rule, not a UI decoration.
 pub const ACK_COUNT: usize = 4;
 
-/// Attempts allowed per upload run, matching today's `maxAttempts = 3`.
-const MAX_UPLOAD_TRIES: u8 = 3;
+/// The Safe deployment this wallet uses, recorded in the registry metadata.
+const WALLET_VERSION: &str = "safe-1.4.1";
 
 // ---------------------------------------------------------------------------
 // Events
@@ -119,12 +122,11 @@ pub struct SyncState {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SyncStep {
+    /// Running the possession-proven publish (option B: before entering).
     #[default]
-    Creating,
-    Confirming,
-    CheckingWalletRef,
+    Publishing,
+    /// Clearing the pending-upload record after a successful publish.
     RemovingPending,
-    Waiting,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -355,29 +357,15 @@ fn start_over(model: &mut Model) -> Command<Effect, Event> {
 }
 
 fn retry_upload(model: &mut Model) -> Command<Effect, Event> {
-    if model.stage != Stage::SyncFailed {
+    if model.stage != Stage::SyncFailed || model.prepared.is_none() {
         return Command::done();
     }
-    let Some(prepared) = model.prepared.clone() else {
-        return Command::done();
-    };
-    // Resumes at the upload — never at registration. The passkey is already
-    // proven; re-registering would mint a second one for the same wallet.
+    // Resumes at the publish — never at registration. The passkey is already
+    // proven; re-registering would mint a second one for the same wallet. The
+    // publish re-prompts for the member signature, which an explicit retry
+    // makes expected.
     model.attempt += 1;
-    model.sync = SyncState {
-        tries: 1,
-        ..SyncState::default()
-    };
-    model.stage = Stage::Syncing(SyncStep::Creating);
-    model.status = Some(StatusKey::SyncingKey);
-    request(
-        model,
-        ShellOperation::IndexCreateRecord {
-            credential_id: prepared.credential_id,
-            public_key_hex: prepared.public_key_hex,
-            name: prepared.name,
-        },
-    )
+    begin_publish(model)
 }
 
 fn enter_wallet(model: &mut Model) -> Command<Effect, Event> {
@@ -491,95 +479,34 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         },
 
         // -- pending record --------------------------------------------------
-        (Stage::SavingPending, ShellResult::PendingUploadSaved) => begin_upload(model),
+        (Stage::SavingPending, ShellResult::PendingUploadSaved) => begin_publish(model),
         (Stage::SavingPending, ShellResult::StorageFailed { message }) => {
             fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
         }
 
-        // -- index sync ------------------------------------------------------
-        (Stage::Syncing(SyncStep::Creating), ShellResult::IndexCreated) => {
-            model.sync.create_error = None;
-            confirm_upload(model)
-        }
-        (Stage::Syncing(SyncStep::Creating), ShellResult::IndexFailed { message, .. }) => {
-            // Not a failure yet. The stored record is the source of truth, and
-            // the write may have landed with its response lost — or the record
-            // may already exist from an earlier idempotent attempt.
-            model.sync.create_error = Some(message);
-            confirm_upload(model)
-        }
-        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexRecord { public_key_hex, .. }) => {
-            let expected = model
-                .prepared
-                .as_ref()
-                .map(|p| p.public_key_hex.clone())
-                .unwrap_or_default();
-            if public_key_hex.eq_ignore_ascii_case(&expected) {
-                model.sync.create_error = None;
-                check_wallet_ref(model)
-            } else {
-                retry_or_fail(
-                    model,
-                    "Server verification failed: public key mismatch".to_owned(),
-                )
-            }
-        }
-        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexMissing) => {
-            let detail = model
-                .sync
-                .create_error
-                .clone()
-                .unwrap_or_else(|| "Public key not found on the index server".to_owned());
-            retry_or_fail(model, detail)
-        }
-        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexFailed { message, .. }) => {
-            let detail = model.sync.create_error.clone().unwrap_or(message);
-            retry_or_fail(model, detail)
-        }
-        (Stage::Syncing(SyncStep::Waiting), ShellResult::Waited) => {
-            model.sync.tries += 1;
-            model.sync.create_error = None;
+        // -- registry publish (option B: publish before entering) ------------
+        // Published (or the identical group was already on-chain) → clear the
+        // pending record, then save and enter.
+        (Stage::Syncing(SyncStep::Publishing), ShellResult::RegistryPublished) => {
             let Some(prepared) = model.prepared.clone() else {
                 return Command::done();
             };
-            model.stage = Stage::Syncing(SyncStep::Creating);
+            model.stage = Stage::Syncing(SyncStep::RemovingPending);
             request(
                 model,
-                ShellOperation::IndexCreateRecord {
+                ShellOperation::RemovePendingUpload {
                     credential_id: prepared.credential_id,
-                    public_key_hex: prepared.public_key_hex,
-                    name: prepared.name,
                 },
             )
         }
-
-        // -- wallet-reference reveal ----------------------------------------
-        //
-        // The credential record existing is NOT the signal that the key is
-        // usable for gas sponsorship: the bundler resolves it by wallet
-        // reference, which lands after the index's async on-chain commit-reveal
-        // — minutes later, and sometimes stuck. Clearing the pending entry on
-        // credential confirmation alone abandoned those registrations (issue
-        // #89). Never block onboarding on it either: the credential is
-        // confirmed and the wallet is fully usable.
-        (Stage::Syncing(SyncStep::CheckingWalletRef), ShellResult::WalletRef { resolved }) => {
-            if resolved {
-                let Some(prepared) = model.prepared.clone() else {
-                    return Command::done();
-                };
-                model.stage = Stage::Syncing(SyncStep::RemovingPending);
-                request(
-                    model,
-                    ShellOperation::RemovePendingUpload {
-                        credential_id: prepared.credential_id,
-                    },
-                )
-            } else {
-                save_account(model)
-            }
-        }
-        (Stage::Syncing(SyncStep::CheckingWalletRef), ShellResult::IndexFailed { .. }) => {
-            save_account(model)
+        // Publish failed. There is no silent retry — the publish needs a
+        // passkey signature — so offer the retry screen. The pending record is
+        // kept, and the key stays recoverable on-device regardless.
+        (Stage::Syncing(SyncStep::Publishing), ShellResult::IndexFailed { message, .. }) => {
+            model.sync.last_error = Some(message);
+            model.stage = Stage::SyncFailed;
+            model.status = None;
+            render()
         }
         (Stage::Syncing(SyncStep::RemovingPending), ShellResult::PendingUploadRemoved) => {
             save_account(model)
@@ -668,69 +595,49 @@ fn derive_and_persist_pending(model: &mut Model, now_iso: String) -> Command<Eff
     )
 }
 
-fn begin_upload(model: &mut Model) -> Command<Effect, Event> {
+/// Run the possession-proven publish for the prepared wallet. A metadata
+/// encoding failure surfaces on the retry screen rather than blocking.
+fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
     let Some(prepared) = model.prepared.clone() else {
         return Command::done();
     };
-    model.sync = SyncState {
-        tries: 1,
-        ..SyncState::default()
-    };
-    model.stage = Stage::Syncing(SyncStep::Creating);
+    model.sync = SyncState::default();
     model.status = Some(StatusKey::SyncingKey);
-    request(
-        model,
-        ShellOperation::IndexCreateRecord {
-            credential_id: prepared.credential_id,
-            public_key_hex: prepared.public_key_hex,
-            name: prepared.name,
-        },
-    )
-}
-
-fn confirm_upload(model: &mut Model) -> Command<Effect, Event> {
-    let Some(prepared) = model.prepared.clone() else {
-        return Command::done();
-    };
-    model.stage = Stage::Syncing(SyncStep::Confirming);
-    request(
-        model,
-        ShellOperation::IndexQueryRecord {
-            credential_id: prepared.credential_id,
-        },
-    )
-}
-
-fn check_wallet_ref(model: &mut Model) -> Command<Effect, Event> {
-    let Some(prepared) = model.prepared.clone() else {
-        return Command::done();
-    };
-    model.stage = Stage::Syncing(SyncStep::CheckingWalletRef);
-    request(
-        model,
-        ShellOperation::IndexQueryByWalletRef {
-            address: prepared.address,
-        },
-    )
-}
-
-/// Another attempt, or give up and offer the retry screen. The waits mirror
-/// today's `1000 * attempt`: 1s after the first failure, 2s after the second.
-fn retry_or_fail(model: &mut Model, detail: String) -> Command<Effect, Event> {
-    if model.sync.tries < MAX_UPLOAD_TRIES {
-        let ms = 1000 * u32::from(model.sync.tries);
-        model.stage = Stage::Syncing(SyncStep::Waiting);
-        request(model, ShellOperation::Wait { ms })
-    } else {
-        model.sync.last_error = Some(detail);
-        model.stage = Stage::SyncFailed;
-        model.status = None;
-        render()
+    match registry_publish_op(&prepared) {
+        Ok(operation) => {
+            model.stage = Stage::Syncing(SyncStep::Publishing);
+            request(model, operation)
+        }
+        Err(error) => {
+            model.sync.last_error = Some(error.to_string());
+            model.stage = Stage::SyncFailed;
+            model.status = None;
+            render()
+        }
     }
 }
 
-/// The only place an account is ever written — reachable only once the index
-/// server has confirmed it holds the matching key.
+/// Build the single-key registry publish operation for a prepared wallet.
+fn registry_publish_op(prepared: &Prepared) -> Result<ShellOperation, CoreError> {
+    let metadata = RegistryMetadata {
+        version: REGISTRY_METADATA_VERSION,
+        address: prepared.address.clone(),
+        wallet_version: WALLET_VERSION.to_owned(),
+        key_names: vec![prepared.name.clone()],
+        created_at_iso: prepared.created_at_iso.clone(),
+    };
+    Ok(ShellOperation::RegistryPublish {
+        metadata_hex: metadata.encode_hex()?,
+        members: vec![RegistryPublishMember {
+            credential_id: prepared.credential_id.clone(),
+            public_key_hex: prepared.public_key_hex.clone(),
+            attestation_hex: String::new(),
+        }],
+    })
+}
+
+/// The only place an account is ever written — reachable only after the
+/// possession-proven publish has landed (or degraded to the retry screen).
 fn save_account(model: &mut Model) -> Command<Effect, Event> {
     let Some(prepared) = model.prepared.clone() else {
         return Command::done();

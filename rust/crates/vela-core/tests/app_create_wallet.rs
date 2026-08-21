@@ -55,13 +55,6 @@ fn uploading(name: &str) -> Sut {
     sut
 }
 
-fn confirmed_record() -> ShellResult {
-    ShellResult::IndexRecord {
-        public_key_hex: support::expected_public_key_hex(),
-        name: "Ann".to_owned(),
-    }
-}
-
 fn is_save_account(operation: &ShellOperation) -> bool {
     matches!(operation, ShellOperation::SaveAccount { .. })
 }
@@ -225,154 +218,39 @@ fn pending_record_is_written_before_the_first_upload() {
 }
 
 // ---------------------------------------------------------------------------
-// The index-sync decision table (data-model.md)
+// Registry publish (option B: publish before entering)
 // ---------------------------------------------------------------------------
 
-/// Row 1 — create ok, query ok, key matches ⇒ confirmed.
+/// The pending record written, the possession-proven publish is the next step.
 #[test]
-fn confirmed_upload_proceeds_to_the_wallet_reference_check() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    let next = sut.resolve(confirmed_record());
-
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::IndexQueryByWalletRef { .. }]
-    ));
-}
-
-/// Row 3 — the create call failed but the server holds the right key. This is
-/// the "already exists" and "write landed, response lost" case: the stored
-/// record is the source of truth, so it is a success.
-#[test]
-fn failed_create_is_forgiven_when_the_query_confirms_the_key() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexFailed {
-        message: "HTTP 500".to_owned(),
-        network: false,
+fn the_pending_record_is_followed_by_the_registry_publish() {
+    let mut sut = awaiting_proof("Ann");
+    sut.resolve(ShellResult::ProofSigned {
+        assertion: support::assertion(CRED),
+        now_iso: NOW.to_owned(),
     });
-    let next = sut.resolve(confirmed_record());
+    let next = sut.resolve(ShellResult::PendingUploadSaved);
 
     assert!(
-        matches!(
-            next.as_slice(),
-            [ShellOperation::IndexQueryByWalletRef { .. }]
-        ),
-        "a failed create must not fail the run when the key is confirmed stored"
+        matches!(next.as_slice(), [ShellOperation::RegistryPublish { .. }]),
+        "publishing runs before entry; got {next:?}"
     );
 }
 
-/// Row 2 — the server holds a *different* key. Parity with today: the attempt
-/// fails and is retried, and after three attempts the user gets the retry
-/// screen rather than a silently wrong wallet.
+/// A published group clears the pending record, saves, and only then reveals
+/// the address — the fund-safety ordering, now gated on the publish.
 #[test]
-fn a_stored_key_that_does_not_match_fails_the_attempt() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    let next = sut.resolve(ShellResult::IndexRecord {
-        public_key_hex: "04deadbeef".to_owned(),
-        name: "Ann".to_owned(),
-    });
-
-    assert!(
-        matches!(next.as_slice(), [ShellOperation::Wait { .. }]),
-        "a mismatch never proceeds to saving"
-    );
-}
-
-/// Row 5 — the query could not confirm, so the attempt is unresolved and retried.
-#[test]
-fn a_missing_record_retries_rather_than_saving() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    let next = sut.resolve(ShellResult::IndexMissing);
-
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::Wait { ms: 1000 }]
-    ));
-}
-
-/// FR-011 — three attempts, with the same 1s/2s backoff as today.
-#[test]
-fn upload_retries_exactly_three_times_with_increasing_waits() {
-    let mut sut = uploading("Ann");
-    let mut waits = Vec::new();
-
-    for _ in 0..3 {
-        sut.resolve(ShellResult::IndexFailed {
-            message: "offline".to_owned(),
-            network: true,
-        });
-        let next = sut.resolve(ShellResult::IndexMissing);
-        match next.as_slice() {
-            [ShellOperation::Wait { ms }] => {
-                waits.push(*ms);
-                sut.resolve(ShellResult::Waited);
-            }
-            [] => break,
-            other => panic!("unexpected operation between attempts: {other:?}"),
-        }
-    }
-
-    assert_eq!(
-        waits,
-        vec![1000, 2000],
-        "1s then 2s, then no fourth attempt"
-    );
-    let view = sut.view();
-    assert_eq!(view.stage, CreateStage::SyncFailed);
-    assert_eq!(view.sync_error_detail.as_deref(), Some("offline"));
-    assert!(
-        !view.can_go_back,
-        "the back arrow is hidden while sync-failed"
-    );
-}
-
-/// FR-013 — retry resumes at the upload. Re-registering would mint a second
-/// passkey for a wallet that already has one.
-#[test]
-fn retry_upload_resumes_at_the_upload_never_at_registration() {
-    let mut sut = uploading("Ann");
-    for _ in 0..3 {
-        sut.resolve(ShellResult::IndexFailed {
-            message: "offline".to_owned(),
-            network: true,
-        });
-        if let [ShellOperation::Wait { .. }] = sut.resolve(ShellResult::IndexMissing).as_slice() {
-            sut.resolve(ShellResult::Waited);
-        }
-    }
-    assert_eq!(sut.view().stage, CreateStage::SyncFailed);
-
-    let requested = sut.dispatch(Event::RetryUpload);
-    assert!(matches!(
-        requested.as_slice(),
-        [ShellOperation::IndexCreateRecord { .. }]
-    ));
-}
-
-// ---------------------------------------------------------------------------
-// Persistence ordering — the fund-safety invariant
-// ---------------------------------------------------------------------------
-
-/// FR-012 — the account is written only after the server confirms the key, and
-/// the address is shown only after that.
-#[test]
-fn the_account_is_saved_only_after_the_server_confirms_and_the_address_follows() {
+fn a_published_group_removes_the_pending_saves_and_reveals_the_address() {
     let mut sut = uploading("Ann");
     assert!(sut.view().address.is_none());
 
-    sut.resolve(ShellResult::IndexCreated);
-    assert!(sut.view().address.is_none());
-    sut.resolve(confirmed_record());
+    let next = sut.resolve(ShellResult::RegistryPublished);
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::RemovePendingUpload { .. }]),
+        "a published group clears its pending record; got {next:?}"
+    );
     assert!(sut.view().address.is_none());
 
-    let next = sut.resolve(ShellResult::WalletRef { resolved: true });
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::RemovePendingUpload { .. }]
-    ));
     let next = sut.resolve(ShellResult::PendingUploadRemoved);
     assert!(next.iter().any(is_save_account));
     assert!(
@@ -386,50 +264,55 @@ fn the_account_is_saved_only_after_the_server_confirms_and_the_address_follows()
     assert!(view.address.is_some());
 }
 
-/// Issue #89 — the credential record existing is not the signal to clear the
-/// pending entry; only the wallet-reference reveal is. Onboarding must not wait
-/// for it either.
+/// A publish failure has no silent retry (it needs a signature), so it surfaces
+/// the retry screen with the reason, keeping the passkey and its draft.
 #[test]
-fn an_unresolved_wallet_reference_keeps_the_pending_entry_and_still_completes() {
+fn a_failed_publish_shows_the_retry_screen() {
     let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
-    let next = sut.resolve(ShellResult::WalletRef { resolved: false });
 
-    assert!(
-        !next
-            .iter()
-            .any(|op| matches!(op, ShellOperation::RemovePendingUpload { .. })),
-        "the pending entry must survive so a later launch retries the reveal"
-    );
-    assert!(
-        next.iter().any(is_save_account),
-        "and the wallet still opens"
-    );
-}
-
-/// The wallet-reference check is best-effort: a failing index must not block a
-/// wallet whose key is already confirmed.
-#[test]
-fn a_failing_wallet_reference_check_does_not_block_the_wallet() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
     let next = sut.resolve(ShellResult::IndexFailed {
-        message: "index down".to_owned(),
+        message: "offline".to_owned(),
         network: true,
     });
+    assert!(next.is_empty() || next.iter().all(|op| !is_save_account(op)));
 
-    assert!(next.iter().any(is_save_account));
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::SyncFailed);
+    assert_eq!(view.sync_error_detail.as_deref(), Some("offline"));
+    assert!(
+        !view.can_go_back,
+        "the back arrow is hidden while sync-failed"
+    );
 }
+
+/// FR-013 — retry resumes at the publish. Re-registering would mint a second
+/// passkey for a wallet that already has one.
+#[test]
+fn retry_upload_resumes_at_the_publish_never_at_registration() {
+    let mut sut = uploading("Ann");
+    sut.resolve(ShellResult::IndexFailed {
+        message: "offline".to_owned(),
+        network: true,
+    });
+    assert_eq!(sut.view().stage, CreateStage::SyncFailed);
+
+    let requested = sut.dispatch(Event::RetryUpload);
+    assert!(matches!(
+        requested.as_slice(),
+        [ShellOperation::RegistryPublish { .. }]
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// Handover
+// ---------------------------------------------------------------------------
 
 /// FR-014 — entering the wallet is a state transition, not another ceremony.
 #[test]
 fn entering_the_wallet_requires_no_further_ceremony() {
     let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
-    sut.resolve(ShellResult::WalletRef { resolved: false });
+    sut.resolve(ShellResult::RegistryPublished);
+    sut.resolve(ShellResult::PendingUploadRemoved);
     sut.resolve(ShellResult::AccountSaved);
 
     let requested = sut.dispatch(Event::EnterWallet);
@@ -459,8 +342,8 @@ fn late_upload_result_after_start_over_is_ignored() {
     assert_eq!(view.submit_label, SubmitLabel::Create);
     assert!(view.name_editable);
 
-    // The upload that was in flight when the user gave up now comes back.
-    let next = sut.resolve(ShellResult::IndexCreated);
+    // The publish that was in flight when the user gave up now comes back.
+    let next = sut.resolve(ShellResult::RegistryPublished);
 
     assert!(
         next.is_empty(),
@@ -493,9 +376,8 @@ fn submit_while_busy_is_a_no_op() {
 #[test]
 fn submit_after_the_wallet_exists_is_refused() {
     let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
-    sut.resolve(ShellResult::WalletRef { resolved: false });
+    sut.resolve(ShellResult::RegistryPublished);
+    sut.resolve(ShellResult::PendingUploadRemoved);
     sut.resolve(ShellResult::AccountSaved);
     assert_eq!(sut.view().stage, CreateStage::Created);
 

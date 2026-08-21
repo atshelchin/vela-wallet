@@ -51,6 +51,8 @@ pub enum CoreError {
     I18nCatalogParse(String),
     #[error("registry metadata is invalid: {0}")]
     RegistryMetadata(String),
+    #[error("registry group proof could not be built: {0}")]
+    RegistryProof(String),
     #[error("internal invariant violated: {0}")]
     Internal(String),
 }
@@ -80,6 +82,7 @@ impl CoreError {
             CoreError::I18nCatalogUnavailable(_) => "I18nCatalogUnavailable",
             CoreError::I18nCatalogParse(_) => "I18nCatalogParse",
             CoreError::RegistryMetadata(_) => "RegistryMetadata",
+            CoreError::RegistryProof(_) => "RegistryProof",
             CoreError::Internal(_) => "Internal",
         }
     }

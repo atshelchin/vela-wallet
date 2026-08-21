@@ -249,6 +249,33 @@ pub fn recover_public_key_from_assertions(
     }))
 }
 
+/// The candidate P-256 public keys a SINGLE assertion could have been signed
+/// by — up to two on P-256, each re-verified against the signature. Exactly
+/// one is the credential's real key; the caller disambiguates (a second
+/// assertion, or — cheaper — whichever candidate the registry already knows,
+/// since the false candidate has no holder and can never be registered).
+/// Returned as `04‖x‖y` hex, no `0x`.
+pub fn recover_candidates(assertion: &WebAuthnAssertion) -> Result<Vec<String>, CoreError> {
+    let raw = der_signature_to_raw_low_s(&assertion.signature_der)?;
+    let keys = candidates(
+        &raw,
+        &webauthn_signing_hash(&assertion.authenticator_data, &assertion.client_data_json),
+    )?;
+    let mut out = Vec::with_capacity(keys.len());
+    for key in keys {
+        let bytes = key.to_sec1_point(false);
+        let bytes = bytes.as_bytes();
+        if bytes.len() != 65 {
+            return Err(CoreError::Internal(format!(
+                "unexpected SEC1 point length {}",
+                bytes.len()
+            )));
+        }
+        out.push(primitives::to_hex(bytes, false));
+    }
+    Ok(out)
+}
+
 /// All verifying keys that could have produced `raw_sig` over `prehash`.
 fn candidates(raw_sig: &[u8], prehash: &[u8]) -> Result<Vec<VerifyingKey>, CoreError> {
     let sig = Signature::from_slice(raw_sig)

@@ -86,12 +86,13 @@ pub enum Stage {
     CheckingSupport,
     Authenticating,
     LoadingAccounts,
+    /// One signature yields two candidate keys; we ask the registry which one
+    /// it already knows before asking the user to sign a second time.
+    MatchingKey,
     /// Waiting for the user to accept or decline on-device recovery.
     AwaitingConsent,
     /// Waiting for the second signature that pins down the public key.
     Recovering,
-    /// Asking the registry whether the recovered key is already published.
-    CheckingRegistry,
     /// Running the possession-proven publish before entering (option B).
     Publishing,
     Saving,
@@ -114,6 +115,11 @@ pub struct Model {
     observed_at: String,
     /// The account about to be persisted.
     pending: Option<Account>,
+    /// Candidate public keys from the first signature still to be checked
+    /// against the registry (`04‖x‖y` hex).
+    candidates: Vec<String>,
+    /// The candidate currently being queried.
+    querying: Option<String>,
     attempt: u64,
     health: Health,
     abort: Option<AbortHandle>,
@@ -216,6 +222,8 @@ fn sign_in(model: &mut Model) -> Command<Effect, Event> {
     model.attempt += 1;
     model.assertion = None;
     model.pending = None;
+    model.candidates = Vec::new();
+    model.querying = None;
     model.stage = Stage::CheckingSupport;
     request(model, ShellOperation::CheckPasskeySupport)
 }
@@ -268,18 +276,12 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                     )
                 }
                 None => {
-                    // The registry cannot be looked up by credential id, so a
-                    // key unknown on this device goes straight to on-device
-                    // recovery — two signatures rebuild the public key, and
-                    // therefore the address, without any server.
-                    model.stage = Stage::AwaitingConsent;
-                    request(
-                        model,
-                        ShellOperation::Prompt {
-                            kind: PromptKind::RecoverOffer,
-                            confirmable: true,
-                        },
-                    )
+                    // The registry cannot be looked up by credential id, but
+                    // one signature already yields two candidate keys — one
+                    // real, one with no holder. Whichever the registry knows
+                    // is the real one, so the common case (already published)
+                    // needs no second signature at all.
+                    begin_candidate_match(model)
                 }
             }
         }
@@ -315,7 +317,13 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 return Command::done();
             };
             match recover_account(&first, &second, &model.observed_at) {
-                Some(account) => begin_registry_check(model, account),
+                // Both candidates were already checked against the registry and
+                // neither was known, so the recovered key is unpublished: go
+                // straight to the publish, no redundant query.
+                Some(account) => {
+                    model.pending = Some(account);
+                    begin_publish(model)
+                }
                 // The two signatures did not pin down exactly one key (or the
                 // bytes would not parse). Nothing is persisted on a guess.
                 None => idle_with_prompt(model, PromptKind::RecoverFailed),
@@ -329,24 +337,26 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             _ => idle_with_prompt(model, PromptKind::RecoverFailed),
         },
 
-        // -- publish before entering (option B) --------------------------------
-        // Already on-chain: no re-publish, no extra signature.
-        (Stage::CheckingRegistry, ShellResult::RegistryKeyStatus { registered: true }) => {
-            match model.pending.clone() {
+        // -- one-signature match: which candidate does the registry know? -----
+        // A candidate the registry already holds IS the real key — the false
+        // candidate has no holder and can never be registered. Enter directly:
+        // one signature, and no publish (it is already there).
+        (Stage::MatchingKey, ShellResult::RegistryKeyStatus { registered: true }) => {
+            match matched_account(model) {
                 Some(account) => begin_save(model, account),
-                None => Command::done(),
+                None => offer_recovery(model),
             }
         }
-        // Not yet on-chain: publish it before handing over the wallet.
-        (Stage::CheckingRegistry, ShellResult::RegistryKeyStatus { registered: false }) => {
-            begin_publish(model)
+        // This candidate is unknown; try the next, or fall back to a second
+        // signature once both are exhausted.
+        (Stage::MatchingKey, ShellResult::RegistryKeyStatus { registered: false }) => {
+            query_next_candidate(model)
         }
-        // Registry unreachable: cannot confirm, so do not block reaching the
-        // wallet — the recovered account is valid on its own.
-        (Stage::CheckingRegistry, ShellResult::IndexFailed { .. }) => match model.pending.clone() {
-            Some(account) => begin_save(model, account),
-            None => Command::done(),
-        },
+        // The registry could not answer, so it cannot disambiguate the two
+        // candidates — fall back to the second signature.
+        (Stage::MatchingKey, ShellResult::IndexFailed { .. }) => offer_recovery(model),
+
+        // -- publish before entering (option B) --------------------------------
         // Publish landed (or the identical group was already there): enter.
         (Stage::Publishing, ShellResult::RegistryPublished) => match model.pending.clone() {
             Some(account) => begin_save(model, account),
@@ -402,6 +412,18 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Build the account for a credential and a known public key.
+fn account_from_key(assertion: &Assertion, public_key_hex: &str, now_iso: &str) -> Option<Account> {
+    let address = address_from_public_key_hex(public_key_hex).ok()?;
+    Some(Account {
+        id: assertion.credential_id.clone(),
+        name: account_name(assertion),
+        address,
+        public_key_hex: public_key_hex.to_owned(),
+        created_at_iso: now_iso.to_owned(),
+    })
+}
+
 /// Rebuild the wallet from two signatures by the same credential.
 fn recover_account(first: &Assertion, second: &Assertion, now_iso: &str) -> Option<Account> {
     let (a, b) = (first.to_core().ok()?, second.to_core().ok()?);
@@ -411,14 +433,7 @@ fn recover_account(first: &Assertion, second: &Assertion, now_iso: &str) -> Opti
         primitives::to_hex(&key.x, false),
         primitives::to_hex(&key.y, false)
     );
-    let address = address_from_public_key_hex(&public_key_hex).ok()?;
-    Some(Account {
-        id: first.credential_id.clone(),
-        name: account_name(first),
-        address,
-        public_key_hex,
-        created_at_iso: now_iso.to_owned(),
-    })
+    account_from_key(first, &public_key_hex, now_iso)
 }
 
 /// The name to show, from the credential's own user handle when the index has
@@ -435,13 +450,58 @@ fn begin_save(model: &mut Model, account: Account) -> Command<Effect, Event> {
     request(model, ShellOperation::SaveAccount { account })
 }
 
-/// After recovery, ask the registry whether this key is already published
-/// before deciding to publish (option B: publish precedes wallet entry).
-fn begin_registry_check(model: &mut Model, account: Account) -> Command<Effect, Event> {
-    let public_key_hex = account.public_key_hex.clone();
-    model.pending = Some(account);
-    model.stage = Stage::CheckingRegistry;
-    request(model, ShellOperation::RegistryQueryByPublicKey { public_key_hex })
+/// Recover the two candidate keys from the first signature and start checking
+/// them against the registry. If neither can even be recovered, fall back to
+/// the two-signature path.
+fn begin_candidate_match(model: &mut Model) -> Command<Effect, Event> {
+    let candidates = model
+        .assertion
+        .as_ref()
+        .and_then(|assertion| assertion.to_core().ok())
+        .and_then(|core| webauthn::recover_candidates(&core).ok())
+        .unwrap_or_default();
+    if candidates.is_empty() {
+        return offer_recovery(model);
+    }
+    model.candidates = candidates;
+    query_next_candidate(model)
+}
+
+/// Query the next untried candidate against the registry; when both are
+/// exhausted, offer the on-device (two-signature) recovery.
+fn query_next_candidate(model: &mut Model) -> Command<Effect, Event> {
+    if model.candidates.is_empty() {
+        return offer_recovery(model);
+    }
+    let candidate = model.candidates.remove(0);
+    model.querying = Some(candidate.clone());
+    model.stage = Stage::MatchingKey;
+    request(
+        model,
+        ShellOperation::RegistryQueryByPublicKey {
+            public_key_hex: candidate,
+        },
+    )
+}
+
+/// The account for the candidate the registry just confirmed it knows.
+fn matched_account(model: &Model) -> Option<Account> {
+    let assertion = model.assertion.as_ref()?;
+    let public_key_hex = model.querying.as_ref()?;
+    account_from_key(assertion, public_key_hex, &model.observed_at)
+}
+
+/// Offer the two-signature recovery — the second signature disambiguates the
+/// candidates the registry could not.
+fn offer_recovery(model: &mut Model) -> Command<Effect, Event> {
+    model.stage = Stage::AwaitingConsent;
+    request(
+        model,
+        ShellOperation::Prompt {
+            kind: PromptKind::RecoverOffer,
+            confirmable: true,
+        },
+    )
 }
 
 /// Emit the possession-proven publish for the pending account. A metadata

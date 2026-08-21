@@ -119,10 +119,10 @@ fn a_locally_known_credential_opens_the_wallet_without_the_index() {
     }
 }
 
-/// No local account: the registry cannot be looked up by credential id, so
-/// sign-in goes straight to the on-device recovery offer — no index query.
+/// No local account: one signature yields two candidate keys, and the registry
+/// is asked which one it knows — no second signature yet.
 #[test]
-fn no_local_account_goes_straight_to_recovery() {
+fn no_local_account_queries_the_candidate_keys() {
     let mut sut = authenticated();
 
     let next = sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
@@ -130,13 +130,49 @@ fn no_local_account_goes_straight_to_recovery() {
     assert!(
         matches!(
             next.as_slice(),
+            [ShellOperation::RegistryQueryByPublicKey { .. }]
+        ),
+        "a candidate key is checked against the registry first; got {next:?}"
+    );
+}
+
+/// A candidate the registry already knows IS the real key: enter with a single
+/// signature, no recovery prompt, no publish.
+#[test]
+fn a_registered_candidate_enters_with_one_signature() {
+    let mut sut = authenticated();
+    sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+
+    // The first candidate queried is the one the registry holds.
+    let next = sut.resolve(ShellResult::RegistryKeyStatus { registered: true });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::SaveAccount { .. }]),
+        "a known candidate is saved directly — one signature; got {next:?}"
+    );
+    let next = sut.resolve(ShellResult::AccountSaved);
+    assert!(
+        next.iter()
+            .any(|op| matches!(op, ShellOperation::CompleteOnboarding { .. })),
+        "the wallet opens"
+    );
+}
+
+/// Walk the one-signature candidate checks with "not registered" until the
+/// two-signature recovery offer appears.
+fn walk_to_recover_offer(sut: &mut Sut) {
+    loop {
+        match sut
+            .resolve(ShellResult::RegistryKeyStatus { registered: false })
+            .as_slice()
+        {
+            [ShellOperation::RegistryQueryByPublicKey { .. }] => continue,
             [ShellOperation::Prompt {
                 kind: PromptKind::RecoverOffer,
-                confirmable: true
-            }]
-        ),
-        "the index is never queried by credential id; got {next:?}"
-    );
+                ..
+            }] => break,
+            other => panic!("unexpected operation while matching candidates: {other:?}"),
+        }
+    }
 }
 
 /// FR-016 — compatibility is checked before anything is resolved or written.
@@ -168,18 +204,21 @@ fn an_incompatible_provider_stops_before_any_resolution() {
 // Recovery (FR-018, FR-019)
 // ---------------------------------------------------------------------------
 
-/// Declining the recovery offer leaves no trace.
+/// When neither candidate is known, declining the recovery offer leaves no
+/// trace.
 #[test]
 fn declining_recovery_persists_nothing() {
     let mut sut = authenticated();
     sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    walk_to_recover_offer(&mut sut);
 
     let next = sut.resolve(ShellResult::PromptAnswered { accepted: false });
     assert!(next.is_empty(), "declining asks for nothing");
     assert!(!sut.view().busy);
 }
 
-/// …→ recovery accepted, the second signature requested.
+/// …→ both candidates unknown → recovery accepted → the second signature
+/// requested.
 fn awaiting_second_signature(first: Assertion) -> Sut {
     let mut sut = mounted();
     sut.dispatch(Event::SignIn);
@@ -189,6 +228,7 @@ fn awaiting_second_signature(first: Assertion) -> Sut {
         now_iso: NOW.to_owned(),
     });
     sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    walk_to_recover_offer(&mut sut);
     let next = sut.resolve(ShellResult::PromptAnswered { accepted: true });
     assert_eq!(
         next,
@@ -208,26 +248,15 @@ fn accepted_recovery_publishes_then_enters() {
     let (first, second) = support::assertion_pair(CRED);
     let mut sut = awaiting_second_signature(first);
 
-    // The second signature pins down the real key; the wallet is queried
-    // against the registry before any publish.
+    // The second signature pins down the real key. Both candidates were
+    // already checked and unknown, so it publishes straight away — no query.
     let next = sut.resolve(ShellResult::ProofSigned {
         assertion: second,
         now_iso: NOW.to_owned(),
     });
-    match next.as_slice() {
-        [ShellOperation::RegistryQueryByPublicKey { public_key_hex }] => assert_eq!(
-            *public_key_hex,
-            support::expected_public_key_hex(),
-            "the key rebuilt from two signatures is the credential's real key"
-        ),
-        other => panic!("expected a registry query, got {other:?}"),
-    }
-
-    // Not yet on-chain → publish the possession-proven group.
-    let next = sut.resolve(ShellResult::RegistryKeyStatus { registered: false });
     assert!(
         matches!(next.as_slice(), [ShellOperation::RegistryPublish { .. }]),
-        "an unpublished key is registered before entry; got {next:?}"
+        "an unpublished recovered key is registered before entry; got {next:?}"
     );
 
     // Published → save the account and enter.
@@ -244,24 +273,6 @@ fn accepted_recovery_publishes_then_enters() {
     );
 }
 
-/// A key the registry already knows is entered without a re-publish (and
-/// without the extra signature a publish would need).
-#[test]
-fn an_already_registered_key_skips_the_publish() {
-    let (first, second) = support::assertion_pair(CRED);
-    let mut sut = awaiting_second_signature(first);
-    sut.resolve(ShellResult::ProofSigned {
-        assertion: second,
-        now_iso: NOW.to_owned(),
-    });
-
-    let next = sut.resolve(ShellResult::RegistryKeyStatus { registered: true });
-    assert!(
-        matches!(next.as_slice(), [ShellOperation::SaveAccount { .. }]),
-        "an already-registered key is saved directly; got {next:?}"
-    );
-}
-
 /// A publish that fails must not trap the user out of a wallet they have
 /// already recovered: it still saves and enters.
 #[test]
@@ -272,7 +283,6 @@ fn a_failed_publish_still_enters() {
         assertion: second,
         now_iso: NOW.to_owned(),
     });
-    sut.resolve(ShellResult::RegistryKeyStatus { registered: false });
 
     let next = sut.resolve_matching(
         |op| matches!(op, ShellOperation::RegistryPublish { .. }),

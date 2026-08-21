@@ -94,6 +94,10 @@ pub struct Prepared {
     pub public_key_hex: String,
     pub address: String,
     pub created_at_iso: String,
+    /// The 20-byte versioned attestation extracted from the attestation
+    /// object, or empty when it could not be extracted. Bound into the
+    /// registry member proof.
+    pub attestation_hex: String,
 }
 
 impl Prepared {
@@ -534,12 +538,17 @@ fn derive_and_persist_pending(model: &mut Model, now_iso: String) -> Command<Eff
         }
     };
 
+    // The attestation is best-effort: a passkey with no attested-credential
+    // data still registers, just without a stored attestation.
+    let attestation_hex =
+        crate::webauthn::extract_attestation(&draft.attestation_object_hex).unwrap_or_default();
     model.prepared = Some(Prepared {
         credential_id: draft.credential_id.clone(),
         name: draft.name.clone(),
         public_key_hex: public_key_hex.clone(),
         address,
         created_at_iso: now_iso.clone(),
+        attestation_hex,
     });
     model.stage = Stage::SavingPending;
     request(
@@ -592,7 +601,7 @@ fn registry_publish_op(prepared: &Prepared) -> Result<ShellOperation, CoreError>
         members: vec![RegistryPublishMember {
             credential_id: prepared.credential_id.clone(),
             public_key_hex: prepared.public_key_hex.clone(),
-            attestation_hex: String::new(),
+            attestation_hex: prepared.attestation_hex.clone(),
         }],
     })
 }

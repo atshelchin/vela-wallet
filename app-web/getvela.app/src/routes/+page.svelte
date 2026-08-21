@@ -64,8 +64,15 @@
 	];
 
 	const RPC_SOURCE = 'https://ethereum-data.awesometools.dev/chains/eip155-100.json';
-	const CONTRACT = '0xdd93420BD49baaBdFF4A363DdD300622Ae87E9c3';
-	const CALLDATA =
+	// Wallets created on-chain = the current possession-proven registry's group
+	// count PLUS the legacy index's count, so the number reflects the new
+	// contract without dropping the pre-migration wallets.
+	const CURRENT_CONTRACT = '0x5266DfF591B9F9EecfEdb8E7EfEf6c687854edaf';
+	// getTotalUnits() — the wallet (group) count on the current registry.
+	const CURRENT_CALLDATA = '0xa754a702';
+	const LEGACY_CONTRACT = '0xdd93420BD49baaBdFF4A363DdD300622Ae87E9c3';
+	// getTotalCredentialsByRpId("getvela.app") on the legacy index.
+	const LEGACY_CALLDATA =
 		'0x3ebcb2150000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000b67657476656c612e617070000000000000000000000000000000000000000000';
 
 	let rpcs = [...FALLBACK_RPCS];
@@ -93,7 +100,8 @@
 		}
 	}
 
-	async function fetchCount(): Promise<number | null> {
+	/** One `eth_call` returning a uint, with RPC failover. */
+	async function callUint(to: string, data: string): Promise<number | null> {
 		let attempts = 0;
 		while (attempts < rpcs.length) {
 			const rpc = rpcs[rpcIndex % rpcs.length];
@@ -106,7 +114,7 @@
 						jsonrpc: '2.0',
 						id: 1,
 						method: 'eth_call',
-						params: [{ to: CONTRACT, data: CALLDATA }, 'latest']
+						params: [{ to, data }, 'latest']
 					})
 				});
 				const json = await res.json();
@@ -119,6 +127,17 @@
 			rpcIndex++;
 		}
 		return null;
+	}
+
+	/** Wallets created on-chain = current registry groups + legacy index count.
+	 *  Both must answer; a single missing read fails the whole number rather than
+	 *  quietly under-reporting. */
+	async function fetchCount(): Promise<number | null> {
+		const current = await callUint(CURRENT_CONTRACT, CURRENT_CALLDATA);
+		if (current === null) return null;
+		const legacy = await callUint(LEGACY_CONTRACT, LEGACY_CALLDATA);
+		if (legacy === null) return null;
+		return current + legacy;
 	}
 
 	function animateCount(target: number) {

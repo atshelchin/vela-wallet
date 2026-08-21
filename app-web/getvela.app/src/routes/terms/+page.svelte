@@ -43,6 +43,15 @@
 			</li>
 			<li>We cannot reverse, cancel, or modify any blockchain transaction once submitted.</li>
 		</ul>
+		<p>
+			Creating a wallet publishes a <strong>public, permanent record</strong> to a smart contract on
+			the Gnosis blockchain: the wallet name you choose, your passkey's public key, your
+			authenticator's model (via its AAGUID) and WebAuthn flags, its credential id, and its
+			transport hints. This record is readable by anyone, cannot be edited or deleted, and is
+			required for cross-device sign-in and recovery — and, for a multi-passkey wallet, to
+			reconstruct the wallet's address at all. See the <a href="/privacy">Privacy Policy</a> for the
+			full list, and the <a href="/registry">registry</a> to browse exactly what is stored.
+		</p>
 	</section>
 
 	<section>

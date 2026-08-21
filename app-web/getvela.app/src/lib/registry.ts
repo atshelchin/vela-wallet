@@ -23,6 +23,23 @@ import {
 export type RegistrySource = 'v2' | 'legacy';
 
 /** One wallet, in a shape both registries map onto. */
+/** One founding passkey of a wallet (a group member entry), with its own
+ *  WebAuthn signals. A wallet has one to {@link MAX_MEMBERS} of these. */
+export interface MemberPasskey {
+	/** Immutable entry id in the registry. */
+	entryId?: number;
+	/** Uncompressed P-256 point, `0x04`-prefixed (65 bytes). */
+	publicKey: `0x${string}`;
+	/** The 20-byte versioned attestation, or `0x` when none was stored. */
+	attestation: `0x${string}`;
+	/** WebAuthn credential id, base64url-encoded for display (or empty). */
+	credentialId: string;
+	/** Browser-reported authenticatorAttachment ("platform" / "cross-platform"). */
+	authenticatorAttachment: string;
+	/** Browser-reported transports (e.g. "hybrid,internal"). */
+	transports: string;
+}
+
 export interface WalletRecord {
 	source: RegistrySource;
 	/** Relying-party id — always `getvela.app` for this registry. */
@@ -31,7 +48,8 @@ export interface WalletRecord {
 	name: string;
 	/** Checksummed Safe wallet address. */
 	walletAddress: `0x${string}`;
-	/** The (founding) member passkey public key, `0x04`-prefixed (65 bytes). */
+	/** The founding (first) member passkey public key, `0x04`-prefixed. Kept for
+	 *  row identity and the legacy index; v2 detail reads {@link members}. */
 	publicKey: `0x${string}`;
 	/** Creation time in unix milliseconds. */
 	createdAt: number;
@@ -45,10 +63,12 @@ export interface WalletRecord {
 	memberCount?: number;
 	/** Safe deployment version recorded in the metadata, e.g. `safe-1.4.1`. */
 	walletVersion?: string;
-	/** The founding member's 20-byte attestation, or `0x`. */
-	attestation?: `0x${string}`;
+	/** Every founding passkey of the wallet, in canonical order — a wallet may
+	 *  have more than one (multi-key wallets). */
+	members?: MemberPasskey[];
 
 	// legacy only -----------------------------------------------------------
+	/** The legacy record's WebAuthn credential id (base64url or raw). */
 	credentialId?: string;
 	walletRef?: `0x${string}`;
 }
@@ -70,6 +90,9 @@ function toMillis(createdAt: bigint): number {
 }
 
 // ── Current registry (v2) ───────────────────────────────────────────────────
+
+/** Mirrors the contract's MAX_MEMBERS: the most passkeys one wallet can have. */
+const MAX_MEMBERS = 7;
 
 /** The metadata blob a vela wallet writes into its group (see vela-core's
  *  `registry_metadata`). Fields are untrusted display text. */
@@ -107,6 +130,10 @@ interface RawUnit {
 interface RawEntry {
 	publicKey: `0x${string}`;
 	attestation: `0x${string}`;
+	/** Store-only WebAuthn signals (see the registry's Entry struct). */
+	credentialId: `0x${string}`;
+	authenticatorAttachment: `0x${string}`;
+	transports: `0x${string}`;
 	createdAt: bigint;
 }
 
@@ -126,8 +153,9 @@ async function fetchWalletPageV2(
 
 	if (unitIds.length === 0) return { total: Number(total), records: [] };
 
-	// One frozen record and one first-member read per group, all in flight
-	// together (the fallback client fans them across the RPC pool).
+	// One frozen record and ALL founding members per group, all in flight
+	// together (the fallback client fans them across the RPC pool). A wallet
+	// may have several passkeys, so read up to the contract's member cap.
 	const units = (await Promise.all(
 		unitIds.map((id) =>
 			client.readContract({
@@ -145,7 +173,7 @@ async function fetchWalletPageV2(
 				address: CONTRACT_ADDRESS,
 				abi: REGISTRY_ABI_V2,
 				functionName: 'getGroupMembers',
-				args: [id, 0n, 1n, false]
+				args: [id, 0n, BigInt(MAX_MEMBERS), false]
 			})
 		)
 	)) as unknown as [bigint, bigint[], RawEntry[]][];
@@ -153,24 +181,60 @@ async function fetchWalletPageV2(
 	const records: WalletRecord[] = unitIds.map((id, i) => {
 		const unit = units[i];
 		const meta = decodeMetadata(unit.metadata);
-		const member = memberPages[i]?.[2]?.[0];
+		const entryIds = memberPages[i]?.[1] ?? [];
+		const entries = memberPages[i]?.[2] ?? [];
+		const members: MemberPasskey[] = entries.map((e, mi) => ({
+			entryId: Number(entryIds[mi] ?? 0n),
+			publicKey: (e.publicKey ?? '0x') as `0x${string}`,
+			attestation: (e.attestation ?? '0x') as `0x${string}`,
+			credentialId: credentialIdToBase64url(e.credentialId),
+			authenticatorAttachment: decodeTextHint(e.authenticatorAttachment),
+			transports: decodeTextHint(e.transports)
+		}));
 		const address = meta.address ?? '0x0000000000000000000000000000000000000000';
 		return {
 			source: 'v2',
 			rpId: unit.rpId,
 			name: meta.name ?? '',
 			walletAddress: safeChecksum(address),
-			publicKey: (member?.publicKey ?? '0x') as `0x${string}`,
-			attestation: (member?.attestation ?? '0x') as `0x${string}`,
+			publicKey: (members[0]?.publicKey ?? '0x') as `0x${string}`,
 			createdAt: toMillis(unit.createdAt),
 			unitId: Number(id),
 			groupPublicKey: unit.groupPublicKey,
 			memberCount: Number(unit.memberCount),
-			walletVersion: meta.walletVersion
+			walletVersion: meta.walletVersion,
+			members
 		};
 	});
 
 	return { total: Number(total), records };
+}
+
+/** Decode a store-only text hint (authenticatorAttachment / transports) from
+ *  its on-chain bytes. Untrusted display text; never throws. */
+function decodeTextHint(value: `0x${string}` | undefined): string {
+	if (!value || value === '0x') return '';
+	try {
+		return hexToString(value);
+	} catch {
+		return '';
+	}
+}
+
+/** Render the WebAuthn credential id (on-chain raw bytes) as base64url — the
+ *  form authenticators and the WebAuthn API use. Never throws. */
+function credentialIdToBase64url(value: `0x${string}` | undefined): string {
+	if (!value || value === '0x') return '';
+	try {
+		const hex = value.slice(2);
+		let binary = '';
+		for (let i = 0; i < hex.length; i += 2) {
+			binary += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+		}
+		return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	} catch {
+		return '';
+	}
 }
 
 function safeChecksum(address: string): `0x${string}` {

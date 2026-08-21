@@ -19,8 +19,14 @@ import { gnosis } from 'viem/chains';
  * server wrote on the wallet's behalf. A vela wallet is one immutable "group"
  * (unit) here: its founding passkeys are the members, and its opaque metadata
  * blob carries the wallet address, name, and Safe version.
+ *
+ * Each entry also records the WebAuthn signals that identify the authenticator:
+ * the versioned attestation (AAGUID + authenticatorData flags), the credential
+ * id, and the browser-reported hints (authenticatorAttachment, transports).
+ * These are store-only display data — never part of any signed binding — so
+ * the wallet address a passkey derives is unaffected by them.
  */
-export const CONTRACT_ADDRESS = '0xEfc326155F24247c6417da006683d0fcB957Df55' as const;
+export const CONTRACT_ADDRESS = '0x5266DfF591B9F9EecfEdb8E7EfEf6c687854edaf' as const;
 
 /**
  * The legacy index (`WebAuthnP256PublicKeyIndex`): a server-signed store, kept
@@ -127,6 +133,11 @@ export const REGISTRY_ABI_V2 = [
 				components: [
 					{ name: 'publicKey', type: 'bytes' },
 					{ name: 'attestation', type: 'bytes' },
+					// Store-only WebAuthn signals captured at first sight (see the
+					// registry's Entry struct); order MUST mirror the contract.
+					{ name: 'credentialId', type: 'bytes' },
+					{ name: 'authenticatorAttachment', type: 'bytes' },
+					{ name: 'transports', type: 'bytes' },
 					{ name: 'createdAt', type: 'uint256' }
 				]
 			}

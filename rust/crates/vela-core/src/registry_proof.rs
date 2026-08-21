@@ -19,7 +19,14 @@ use ts_rs::TS;
 
 use crate::error::CoreError;
 use crate::primitives;
-use crate::webauthn::webauthn_signing_hash;
+use crate::webauthn::{der_signature_to_raw_low_s, webauthn_signing_hash};
+
+/// The clientDataJSON substrings the registry contract checks at
+/// `typeIndex` / `challengeIndex` (see `_verifyProof`). A member proof must
+/// point its offsets at exactly these, wherever the authenticator placed
+/// them.
+const TYPE_SUBSTRING: &str = r#""type":"webauthn.get""#;
+const CHALLENGE_SUBSTRING: &str = r#""challenge":""#;
 
 /// Byte offset of `"challenge":"` in the canonical clientDataJSON built here.
 pub const GROUP_PROOF_CHALLENGE_INDEX: u32 = 23;
@@ -117,10 +124,58 @@ pub fn build_group_proof(
     })
 }
 
+/// Assemble a member passkey's `RegistryProof` from its real WebAuthn
+/// assertion. The challenge/type offsets are found in the authenticator's
+/// own clientDataJSON (its layout is the authenticator's choice, so they
+/// cannot be assumed), and the DER signature is converted to a low-S raw
+/// `(r, s)`. `authenticator_data_hex` and `signature_der_hex` are hex (0x
+/// optional); `client_data_json_hex` is the hex of the raw JSON bytes.
+pub fn build_member_proof(
+    authenticator_data_hex: &str,
+    client_data_json_hex: &str,
+    signature_der_hex: &str,
+) -> Result<RegistryProof, CoreError> {
+    let authenticator_data = primitives::from_hex(authenticator_data_hex)?;
+    let client_data_json_bytes = primitives::from_hex(client_data_json_hex)?;
+    let client_data_json = String::from_utf8(client_data_json_bytes)
+        .map_err(|error| CoreError::RegistryProof(format!("clientDataJSON is not UTF-8: {error}")))?;
+
+    let type_index = client_data_json.find(TYPE_SUBSTRING).ok_or_else(|| {
+        CoreError::RegistryProof("clientDataJSON has no \"type\":\"webauthn.get\"".to_owned())
+    })?;
+    let challenge_index = client_data_json.find(CHALLENGE_SUBSTRING).ok_or_else(|| {
+        CoreError::RegistryProof("clientDataJSON has no \"challenge\" field".to_owned())
+    })?;
+
+    let der = primitives::from_hex(signature_der_hex)?;
+    let raw = der_signature_to_raw_low_s(&der)?;
+    if raw.len() != 64 {
+        return Err(CoreError::RegistryProof(format!(
+            "raw signature must be 64 bytes, got {}",
+            raw.len()
+        )));
+    }
+
+    Ok(RegistryProof {
+        authenticator_data: primitives::to_hex(&authenticator_data, false),
+        client_data_json,
+        // Offsets are byte positions; `str::find` returns a byte index and
+        // the substrings are ASCII, so the two coincide. u32 fits any real
+        // clientDataJSON.
+        challenge_index: challenge_index as u32,
+        type_index: type_index as u32,
+        r: primitives::to_hex(&raw[..32], true),
+        s: primitives::to_hex(&raw[32..], true),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use p256::ecdsa::{signature::hazmat::PrehashVerifier, VerifyingKey};
+    use p256::ecdsa::{
+        signature::hazmat::{PrehashSigner, PrehashVerifier},
+        VerifyingKey,
+    };
 
     const SEED: &str = "1122334455667788990011223344556677889900112233445566778899001122";
     const RP_ID: &str = "getvela.app";
@@ -194,6 +249,64 @@ mod tests {
     fn rejects_a_short_challenge() {
         let result = build_group_proof(SEED, RP_ID, "aabb");
         assert!(result.is_err(), "short challenge must be rejected");
+        if let Err(error) = result {
+            assert_eq!(error.code(), "RegistryProof");
+        }
+    }
+
+    fn signing_key() -> Result<SigningKey, CoreError> {
+        SigningKey::from_slice(&primitives::from_hex(SEED)?)
+            .map_err(|error| CoreError::RegistryProof(format!("{error}")))
+    }
+
+    #[test]
+    fn member_proof_finds_offsets_and_verifies() -> Result<(), CoreError> {
+        let signing = signing_key()?;
+        let verifying = signing.verifying_key();
+
+        // A field BEFORE "type" shifts the offsets off the canonical 23/1,
+        // proving they are found in the authenticator's own JSON, not assumed.
+        let client_data_json =
+            r#"{"extra":"x","type":"webauthn.get","challenge":"AAAA","origin":"https://getvela.app"}"#;
+        let mut authenticator_data = Sha256::digest(RP_ID.as_bytes()).to_vec();
+        authenticator_data.push(0x05);
+        authenticator_data.extend_from_slice(&[0, 0, 0, 0]);
+
+        let digest = webauthn_signing_hash(&authenticator_data, client_data_json.as_bytes());
+        let signature: Signature = signing
+            .sign_prehash(&digest)
+            .map_err(|error| CoreError::RegistryProof(format!("{error}")))?;
+        let der_hex = primitives::to_hex(signature.to_der().as_bytes(), false);
+
+        let proof = build_member_proof(
+            &primitives::to_hex(&authenticator_data, false),
+            &primitives::to_hex(client_data_json.as_bytes(), false),
+            &der_hex,
+        )?;
+
+        let cdj = proof.client_data_json.as_bytes();
+        assert!(cdj[proof.type_index as usize..].starts_with(br#""type":"webauthn.get""#));
+        assert!(cdj[proof.challenge_index as usize..].starts_with(br#""challenge":""#));
+        assert_ne!(proof.type_index, 1, "the leading field must shift the offset");
+
+        let mut raw = primitives::from_hex(&proof.r)?;
+        raw.extend_from_slice(&primitives::from_hex(&proof.s)?);
+        let sig = Signature::from_slice(&raw)
+            .map_err(|error| CoreError::RegistryProof(format!("{error}")))?;
+        verifying
+            .verify_prehash(&digest, &sig)
+            .map_err(|error| CoreError::RegistryProof(format!("verify: {error}")))?;
+        Ok(())
+    }
+
+    #[test]
+    fn member_proof_rejects_clientdata_without_a_challenge() {
+        let authenticator_data = primitives::to_hex(&[0u8; 37], false);
+        let cdj = primitives::to_hex(br#"{"type":"webauthn.get"}"#, false);
+        // A structurally-valid DER placeholder is never reached: the missing
+        // challenge field fails first.
+        let result = build_member_proof(&authenticator_data, &cdj, "3006020101020101");
+        assert!(result.is_err(), "no challenge field must be rejected");
         if let Err(error) = result {
             assert_eq!(error.code(), "RegistryProof");
         }

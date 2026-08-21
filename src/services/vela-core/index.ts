@@ -458,6 +458,54 @@ export function recoverPublicKeyFromAssertions(
   }
 }
 
+// ---------------------------------------------------------------------------
+// p256-index registry (group/member proofs + metadata blob)
+// ---------------------------------------------------------------------------
+
+/** A WebAuthn-shaped possession proof, as the registry contract verifies it. */
+export interface RegistryProof {
+  authenticatorData: string;
+  clientDataJSON: string;
+  challengeIndex: number;
+  typeIndex: number;
+  r: string;
+  s: string;
+}
+
+export interface GroupProof {
+  groupPublicKeyHex: string;
+  proof: RegistryProof;
+}
+
+/** Derive the one-time group key from a 32-byte seed (hex — the shell's
+ *  `crypto.getRandomValues`) and build its closing proof over the group's
+ *  content-hash challenge (hex). Throws on a bad seed/challenge. */
+export function buildGroupProof(seedHex: string, rpId: string, challengeHex: string): GroupProof {
+  return translated(() => wasm.buildGroupProof(seedHex, rpId, challengeHex));
+}
+
+/** Assemble a member passkey's proof from its real assertion (authenticator
+ *  data hex, clientDataJSON hex, DER signature hex). Throws on malformed
+ *  input. */
+export function buildMemberProof(
+  authenticatorDataHex: string,
+  clientDataJSONHex: string,
+  signatureDerHex: string,
+): RegistryProof {
+  return translated(() => wasm.buildMemberProof(authenticatorDataHex, clientDataJSONHex, signatureDerHex));
+}
+
+/** Encode the wallet's registry metadata blob to `0x`-hex (version supplied by
+ *  the core, bounded to the 2048-byte on-chain cap). Throws if oversize. */
+export function encodeRegistryMetadata(input: {
+  address: string;
+  walletVersion: string;
+  keyNames: string[];
+  createdAtIso: string;
+}): string {
+  return translated(() => wasm.encodeRegistryMetadata(input));
+}
+
 // --- identicon --------------------------------------------------------------
 // specs/003-rust-identicon. The core is byte-identical to the JS library it
 // replaces — 200,478 seeds verified by scripts/verify-identicon-parity.mjs — so

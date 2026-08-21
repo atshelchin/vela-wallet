@@ -45,6 +45,37 @@ export interface IdenticonParams {
 }
 
 /**
+ * Input for `encodeRegistryMetadata`; `version` is supplied by the core.
+ */
+export interface RegistryMetadataInput {
+    address: string;
+    walletVersion: string;
+    keyNames: string[];
+    createdAtIso: string;
+}
+
+/**
+ * Mirror of `registry_proof::GroupProof`.
+ */
+export interface GroupProofJs {
+    groupPublicKeyHex: string;
+    proof: RegistryProofJs;
+}
+
+/**
+ * Mirror of `registry_proof::RegistryProof` — the WebAuthn-shaped proof the
+ * registry contract verifies.
+ */
+export interface RegistryProofJs {
+    authenticatorData: string;
+    clientDataJSON: string;
+    challengeIndex: number;
+    typeIndex: number;
+    r: string;
+    s: string;
+}
+
+/**
  * One stable\'s DEX quotes for 1 native coin, as the shell decodes them out of
  * the multicall. Each stable is its own group because its own `decimals()`
  * normalizes the amount — USDC (6) and DAI (18) must never be compared under
@@ -547,6 +578,17 @@ export function abiEncodeUint256(value_hex: string): Uint8Array;
  */
 export function bestNativeDexPrice(groups: NativeQuoteGroups): number | undefined;
 
+/**
+ * Derive the one-time group key from a 32-byte seed and build its closing
+ * proof over the group's content-hash challenge.
+ */
+export function buildGroupProof(seed_hex: string, rp_id: string, challenge_hex: string): GroupProofJs;
+
+/**
+ * Assemble a member passkey's proof from its real WebAuthn assertion.
+ */
+export function buildMemberProof(authenticator_data_hex: string, client_data_json_hex: string, signature_der_hex: string): RegistryProofJs;
+
 export function canonicalizeSignature(sig: string): string;
 
 export function checksumAddress(address_hex: string): string;
@@ -579,6 +621,12 @@ export function create2Address(deployer_hex: string, salt: Uint8Array, init_code
 export function decodeCalldata(sig: string, calldata: Uint8Array): AbiValue;
 
 export function derSignatureToRawLowS(der: Uint8Array): Uint8Array;
+
+/**
+ * Encode the wallet's registry metadata blob to `0x`-hex, bounded to the
+ * contract's 2048-byte cap.
+ */
+export function encodeRegistryMetadata(input: RegistryMetadataInput): string;
 
 export function encodeSplitterDeployCall(treasury_hex: string): Uint8Array;
 
@@ -719,6 +767,8 @@ export interface InitOutput {
     readonly browserhistorycore_new: () => number;
     readonly browserhistorycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly browserhistorycore_view: (a: number) => [number, number, number, number];
+    readonly buildGroupProof: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
+    readonly buildMemberProof: (a: number, b: number, c: number, d: number, e: number, f: number) => [number, number, number];
     readonly canonicalizeSignature: (a: number, b: number) => [number, number, number, number];
     readonly checksumAddress: (a: number, b: number) => [number, number, number, number];
     readonly chooseNativePrice: (a: number, b: number, c: number, d: number, e: number, f: number) => any;
@@ -754,6 +804,7 @@ export interface InitOutput {
     readonly displaycurrencycore_new: () => number;
     readonly displaycurrencycore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly displaycurrencycore_view: (a: number) => [number, number, number, number];
+    readonly encodeRegistryMetadata: (a: any) => [number, number, number, number];
     readonly encodeSplitterDeployCall: (a: number, b: number) => [number, number, number, number];
     readonly encodeType: (a: number, b: number) => [number, number, number, number];
     readonly extcachecore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];

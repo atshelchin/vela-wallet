@@ -34,6 +34,7 @@ use super::{
 };
 use crate::error::CoreError;
 use crate::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
+use crate::registry_proof::RegistryProof;
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -78,6 +79,11 @@ pub enum Event {
         index: usize,
         name: String,
     },
+    /// Re-run a drafted key's creation-time membership confirmation — the
+    /// recovery for a cancelled or failed `SignMemberProof`.
+    ConfirmKey {
+        index: usize,
+    },
     /// Done adding keys — derive the address from the FULL set and publish.
     FinishKeys,
     /// Abandon the drafted passkeys and start from a clean form.
@@ -112,6 +118,15 @@ pub struct Draft {
     /// Browser-reported display hints from the create() credential.
     pub authenticator_attachment: String,
     pub transports: String,
+    /// Extracted at registration (the create() response carries the COSE
+    /// key), so a duplicate authenticator is caught the moment it appears.
+    pub public_key_hex: String,
+    /// The 20-byte versioned attestation, or empty.
+    pub attestation_hex: String,
+    /// The creation-time membership proof — collected right after the
+    /// registration, one `get()` per key, interleaved. `None` until signed
+    /// (or after a cancelled confirmation).
+    pub proof: Option<RegistryProof>,
 }
 
 /// One derived founding key, canonical founding order.
@@ -130,6 +145,8 @@ pub struct PreparedKey {
     /// Browser-reported display hints captured from the create() credential.
     pub authenticator_attachment: String,
     pub transports: String,
+    /// The creation-time membership proof.
+    pub proof: Option<RegistryProof>,
 }
 
 /// Derived from the drafts, not yet persisted anywhere. `keys[0]` is the
@@ -194,7 +211,13 @@ pub enum Stage {
     #[default]
     Form,
     CheckingSupport,
+    /// Minting the one-time software group key (shell randomness) — the
+    /// anchor every member's creation-time proof binds to.
+    GeneratingGroupKey,
     Registering,
+    /// A freshly registered key is confirming its membership (one `get()`
+    /// over the member-mode challenge) — interleaved, per key.
+    SigningKey,
     /// The key list between registration and derivation: add, relabel or
     /// remove founding keys, then `FinishKeys` freezes the set.
     AddKeys,
@@ -225,6 +248,13 @@ pub struct Model {
     /// The label of the registration currently in flight, claimed by the
     /// `PasskeyRegistered` result.
     registering_label: String,
+    /// The one-time group key the shell minted for this run. Every member's
+    /// creation-time proof binds to its public key; the seed closes the
+    /// group at publish. Cleared by StartOver.
+    group_seed_hex: Option<String>,
+    group_public_key_hex: Option<String>,
+    /// Which draft the in-flight `SignMemberProof` belongs to.
+    signing_index: Option<usize>,
     prepared: Option<Prepared>,
     sync: SyncState,
     stage: Stage,
@@ -264,6 +294,10 @@ pub struct CreateKeyRow {
     /// joined transports) — purely informational.
     pub authenticator_attachment: String,
     pub transports: String,
+    /// The key confirmed its group membership at creation. A `false` row
+    /// (cancelled confirmation) offers a per-row retry, and FinishKeys is
+    /// gated on every row being `true`.
+    pub confirmed: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -335,6 +369,7 @@ impl App for CreateWallet {
             Event::AddKey { name } => add_key(model, name),
             Event::RemoveKey { index } => remove_key(model, index),
             Event::KeyNameChanged { index, name } => key_name_changed(model, index, name),
+            Event::ConfirmKey { index } => confirm_key(model, index),
             Event::FinishKeys => finish_keys(model),
             Event::StartOver => start_over(model),
             Event::RetryUpload => retry_upload(model),
@@ -365,8 +400,9 @@ impl App for CreateWallet {
             Stage::SyncFailed => CreateStage::SyncFailed,
             Stage::Created | Stage::Completing => CreateStage::Created,
             Stage::AddKeys => CreateStage::AddKeys,
-            // A key i≥2 registration in flight keeps the key list on screen.
-            Stage::Registering if has_draft => CreateStage::AddKeys,
+            // An in-flight registration or membership confirmation keeps the
+            // key list on screen once it exists.
+            Stage::Registering | Stage::SigningKey if has_draft => CreateStage::AddKeys,
             _ => CreateStage::Form,
         };
 
@@ -405,10 +441,13 @@ impl App for CreateWallet {
                     name: draft.name.clone(),
                     authenticator_attachment: draft.authenticator_attachment.clone(),
                     transports: draft.transports.clone(),
+                    confirmed: draft.proof.is_some(),
                 })
                 .collect(),
             can_add_key: at_key_list && model.drafts.len() < crate::safe::MAX_MULTI_KEYS,
-            can_finish: at_key_list && has_draft,
+            can_finish: at_key_list
+                && has_draft
+                && model.drafts.iter().all(|draft| draft.proof.is_some()),
         }
     }
 }
@@ -515,43 +554,70 @@ fn key_name_changed(model: &mut Model, index: usize, name: String) -> Command<Ef
     render()
 }
 
-/// Freeze the founding set: extract every public key, derive the address from
-/// ALL of them, and write the pending-sync record — all before a single byte
-/// of account state exists.
+/// Kick off one draft's creation-time membership confirmation.
+fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> {
+    let (Some(group_public_key_hex), Some(draft)) = (
+        model.group_public_key_hex.clone(),
+        model.drafts.get(index).cloned(),
+    ) else {
+        return Command::done();
+    };
+    model.signing_index = Some(index);
+    model.stage = Stage::SigningKey;
+    model.status = Some(StatusKey::VerifyingIdentity);
+    request(
+        model,
+        ShellOperation::SignMemberProof {
+            credential_id: draft.credential_id,
+            public_key_hex: draft.public_key_hex,
+            attestation_hex: draft.attestation_hex,
+            group_public_key_hex,
+        },
+    )
+}
+
+/// Retry a drafted key's membership confirmation (its row's own recovery).
+fn confirm_key(model: &mut Model, index: usize) -> Command<Effect, Event> {
+    if model.stage != Stage::AddKeys || index >= model.drafts.len() {
+        return Command::done();
+    }
+    if model.drafts[index].proof.is_some() {
+        return Command::done(); // already confirmed — nothing to redo
+    }
+    model.attempt += 1;
+    begin_sign_member(model, index)
+}
+
+/// Freeze the founding set: every key already confirmed its membership at
+/// creation, so this derives the address from ALL of them and writes the
+/// pending-sync record — all before a single byte of account state exists.
 fn finish_keys(model: &mut Model) -> Command<Effect, Event> {
     if model.stage != Stage::AddKeys || model.drafts.is_empty() {
         return Command::done();
     }
+    // Every founding key must carry its creation-time proof: the publish
+    // replays them without a single prompt, so an unconfirmed draft would
+    // surface as a server rejection instead of a clear per-row state.
+    if model.drafts.iter().any(|draft| draft.proof.is_none()) {
+        return Command::done();
+    }
     model.attempt += 1;
 
-    model.status = Some(StatusKey::ExtractingKey);
-    let mut keys = Vec::with_capacity(model.drafts.len());
-    for draft in model.drafts.clone() {
-        let public_key_hex = match public_key_hex_from_attestation(&draft.attestation_object_hex) {
-            Ok(hex) => hex,
-            Err(error) => {
-                return fail_to_add_keys(
-                    model,
-                    PromptKind::CreateFailed {
-                        detail: error.to_string(),
-                    },
-                )
-            }
-        };
-        // The attestation is best-effort: a passkey with no attested-credential
-        // data still registers, just without a stored attestation.
-        let attestation_hex =
-            crate::webauthn::extract_attestation(&draft.attestation_object_hex).unwrap_or_default();
-        keys.push(PreparedKey {
+    let keys: Vec<PreparedKey> = model
+        .drafts
+        .clone()
+        .into_iter()
+        .map(|draft| PreparedKey {
             credential_id: draft.credential_id,
             name: draft.name,
-            public_key_hex,
+            public_key_hex: draft.public_key_hex,
             attestation_object_hex: draft.attestation_object_hex,
-            attestation_hex,
+            attestation_hex: draft.attestation_hex,
             authenticator_attachment: draft.authenticator_attachment,
             transports: draft.transports,
-        });
-    }
+            proof: draft.proof,
+        })
+        .collect();
 
     model.status = Some(StatusKey::ComputingAddress);
     let hexes: Vec<String> = keys.iter().map(|key| key.public_key_hex.clone()).collect();
@@ -617,6 +683,9 @@ fn start_over(model: &mut Model) -> Command<Effect, Event> {
     }
     model.drafts.clear();
     model.registering_label = String::new();
+    model.group_seed_hex = None;
+    model.group_public_key_hex = None;
+    model.signing_index = None;
     model.prepared = None;
     model.sync = SyncState::default();
     model.stage = Stage::Form;
@@ -666,22 +735,43 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         // -- support probe ---------------------------------------------------
         (Stage::CheckingSupport, ShellResult::PasskeySupport { supported }) => {
             if supported {
-                model.stage = Stage::Registering;
+                // The group key comes FIRST: every member's creation-time
+                // proof binds to its public key, so it must exist before the
+                // first registration.
+                model.stage = Stage::GeneratingGroupKey;
                 model.status = Some(StatusKey::SettingUpIdentity);
-                // Key 1's provider display name IS the wallet name (N=1 stays
-                // byte-identical to the single-key flow); its label too.
-                let name = model.name.trim().to_owned();
-                model.registering_label = name.clone();
-                request(
-                    model,
-                    ShellOperation::RegisterPasskey {
-                        name,
-                        exclude_credential_ids: Vec::new(),
-                    },
-                )
+                request(model, ShellOperation::GenerateGroupKey)
             } else {
                 fail_to_form(model, PromptKind::NotSupportedCreate, None)
             }
+        }
+
+        // -- group key ---------------------------------------------------------
+        (
+            Stage::GeneratingGroupKey,
+            ShellResult::GroupKeyGenerated {
+                seed_hex,
+                group_public_key_hex,
+            },
+        ) => {
+            model.group_seed_hex = Some(seed_hex);
+            model.group_public_key_hex = Some(group_public_key_hex);
+            model.stage = Stage::Registering;
+            model.status = Some(StatusKey::SettingUpIdentity);
+            // Key 1's provider display name IS the wallet name (N=1 stays
+            // byte-identical to the single-key flow); its label too.
+            let name = model.name.trim().to_owned();
+            model.registering_label = name.clone();
+            request(
+                model,
+                ShellOperation::RegisterPasskey {
+                    name,
+                    exclude_credential_ids: Vec::new(),
+                },
+            )
+        }
+        (Stage::GeneratingGroupKey, ShellResult::StorageFailed { message }) => {
+            fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
         }
 
         // -- registration ----------------------------------------------------
@@ -692,6 +782,40 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 now_iso,
             },
         ) => {
+            // Extract the public key NOW: a duplicate authenticator (same
+            // credential material behind a different id) is caught the moment
+            // it appears, not at FinishKeys.
+            model.status = Some(StatusKey::ExtractingKey);
+            let public_key_hex =
+                match public_key_hex_from_attestation(&registration.attestation_object_hex) {
+                    Ok(hex) => hex,
+                    Err(error) => {
+                        return fail_registration(
+                            model,
+                            PromptKind::CreateFailed {
+                                detail: error.to_string(),
+                            },
+                        )
+                    }
+                };
+            if model
+                .drafts
+                .iter()
+                .any(|draft| draft.public_key_hex.eq_ignore_ascii_case(&public_key_hex))
+            {
+                return fail_registration(
+                    model,
+                    PromptKind::CreateFailed {
+                        detail: "this authenticator already holds one of this wallet's keys"
+                            .to_owned(),
+                    },
+                );
+            }
+            // The attestation is best-effort: a passkey with no
+            // attested-credential data still registers.
+            let attestation_hex =
+                crate::webauthn::extract_attestation(&registration.attestation_object_hex)
+                    .unwrap_or_default();
             model.drafts.push(Draft {
                 credential_id: registration.credential_id,
                 attestation_object_hex: registration.attestation_object_hex,
@@ -699,14 +823,16 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 registered_at_iso: now_iso,
                 authenticator_attachment: registration.authenticator_attachment,
                 transports: registration.transports,
+                public_key_hex,
+                attestation_hex,
+                proof: None,
             });
-            // No separate verification signature: the register member proof is
-            // itself a get() that proves the passkey can sign (and that the
-            // COSE public key matches the signing key). One get per key, not
-            // two. The user reviews the set and freezes it with FinishKeys.
-            model.stage = Stage::AddKeys;
-            model.status = None;
-            render()
+            // Interleaved: the key confirms its group membership right here,
+            // while this authenticator is still "in hand" — the member
+            // challenge binds only (groupPublicKey, own attestation), so it
+            // exists before the rest of the set does. One create + one get
+            // per key, back to back; the publish then needs NO prompts.
+            begin_sign_member(model, model.drafts.len() - 1)
         }
         (Stage::Registering, ShellResult::PasskeyFailed { kind, message }) => match kind {
             FailureKind::Cancelled => {
@@ -733,6 +859,41 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 },
             ),
         },
+
+        // -- creation-time membership confirmation ----------------------------
+        (Stage::SigningKey, ShellResult::MemberProofSigned { proof }) => {
+            if let Some(index) = model.signing_index.take() {
+                if let Some(draft) = model.drafts.get_mut(index) {
+                    draft.proof = Some(proof);
+                }
+            }
+            model.stage = Stage::AddKeys;
+            model.status = None;
+            render()
+        }
+        (Stage::SigningKey, ShellResult::PasskeyFailed { kind, message }) => {
+            model.signing_index = None;
+            match kind {
+                // The key stays drafted, just unconfirmed — its row offers a
+                // per-key retry, and FinishKeys is gated on every proof.
+                FailureKind::Cancelled => {
+                    model.stage = Stage::AddKeys;
+                    model.status = Some(StatusKey::VerifyCancelled);
+                    render()
+                }
+                _ => fail_to_add_keys(
+                    model,
+                    PromptKind::CreateFailed {
+                        detail: message.unwrap_or_default(),
+                    },
+                ),
+            }
+        }
+        // The member-mode challenge could not be fetched (index/network).
+        (Stage::SigningKey, ShellResult::IndexFailed { message, .. }) => {
+            model.signing_index = None;
+            fail_to_add_keys(model, PromptKind::CreateFailed { detail: message })
+        }
 
         // -- pending record --------------------------------------------------
         (Stage::SavingPending, ShellResult::PendingUploadSaved) => begin_publish(model),
@@ -802,7 +963,9 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
     };
     model.sync = SyncState::default();
     model.status = Some(StatusKey::SyncingKey);
-    match registry_publish_op(&prepared) {
+    let group_seed_hex = model.group_seed_hex.clone().unwrap_or_default();
+    let group_public_key_hex = model.group_public_key_hex.clone().unwrap_or_default();
+    match registry_publish_op(&prepared, group_seed_hex, group_public_key_hex) {
         Ok(operation) => {
             model.stage = Stage::Syncing(SyncStep::Publishing);
             request(model, operation)
@@ -817,9 +980,14 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
 }
 
 /// Build the registry publish operation for a prepared wallet: one member per
-/// founding key, `key_names` in the same canonical founding order. For N=1
-/// this is exactly the historical single-key operation.
-fn registry_publish_op(prepared: &Prepared) -> Result<ShellOperation, CoreError> {
+/// founding key, `key_names` in the same canonical founding order, every
+/// member carrying its creation-time proof — the executor closes the group
+/// with the software key and registers, no prompts.
+fn registry_publish_op(
+    prepared: &Prepared,
+    group_seed_hex: String,
+    group_public_key_hex: String,
+) -> Result<ShellOperation, CoreError> {
     let metadata = RegistryMetadata {
         version: REGISTRY_METADATA_VERSION,
         address: prepared.address.clone(),
@@ -838,8 +1006,11 @@ fn registry_publish_op(prepared: &Prepared) -> Result<ShellOperation, CoreError>
                 attestation_hex: key.attestation_hex.clone(),
                 authenticator_attachment: key.authenticator_attachment.clone(),
                 transports: key.transports.clone(),
+                proof: key.proof.clone(),
             })
             .collect(),
+        group_seed_hex,
+        group_public_key_hex,
     })
 }
 

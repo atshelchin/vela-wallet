@@ -12,4 +12,10 @@ name: string,
  * Browser-reported display hints ("platform"/"cross-platform", comma-
  * joined transports) — purely informational.
  */
-authenticator_attachment: string, transports: string, };
+authenticator_attachment: string, transports: string, 
+/**
+ * The key confirmed its group membership at creation. A `false` row
+ * (cancelled confirmation) offers a per-row retry, and FinishKeys is
+ * gated on every row being `true`.
+ */
+confirmed: boolean, };

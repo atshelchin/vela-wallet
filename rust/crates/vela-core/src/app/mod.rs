@@ -233,6 +233,10 @@ pub struct RegistryPublishMember {
     pub authenticator_attachment: String,
     #[serde(default)]
     pub transports: String,
+    /// The possession proof collected AT CREATION (interleaved flow). Absent
+    /// on the login re-publish, whose executor signs the member live.
+    #[serde(default)]
+    pub proof: Option<crate::registry_proof::RegistryProof>,
 }
 
 /// One founding member of a registry group (Unit), as fetched back from the

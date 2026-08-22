@@ -15,6 +15,7 @@ export * from './PendingUploadMember';
 export * from './PromptKind';
 export * from './ProofPurpose';
 export * from './Registration';
+export * from './RegistryProof';
 export * from './RegistryPublishMember';
 export * from './RegistryUnitMember';
 export * from './ShellOperation';

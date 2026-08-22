@@ -32,16 +32,50 @@ fn filled(name: &str) -> Sut {
     sut
 }
 
-/// Form → key 1 registered → the key list. The passkey's public key comes
-/// from the attestation directly (no separate verification signature); the
-/// set is frozen by `FinishKeys`.
+const GROUP_SEED: &str = "5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed";
+const GROUP_KEY: &str = "04feedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed\
+feedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed01";
+
+fn group_key_generated() -> ShellResult {
+    ShellResult::GroupKeyGenerated {
+        seed_hex: GROUP_SEED.to_owned(),
+        group_public_key_hex: GROUP_KEY.to_owned(),
+    }
+}
+
+/// Form → group key minted → key 1 registered AND its membership confirmed
+/// (interleaved: one create + one get per key) → the key list. The set is
+/// frozen by `FinishKeys`, after which the publish needs NO prompts.
 fn registered(name: &str) -> Sut {
     let mut sut = filled(name);
     sut.dispatch(Event::Submit);
-    sut.resolve(ShellResult::PasskeySupport { supported: true });
-    sut.resolve(ShellResult::PasskeyRegistered {
+    let next = sut.resolve(ShellResult::PasskeySupport { supported: true });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::GenerateGroupKey]),
+        "the group key anchors every member proof, so it is minted first; got {next:?}"
+    );
+    let next = sut.resolve(group_key_generated());
+    assert!(matches!(
+        next.as_slice(),
+        [ShellOperation::RegisterPasskey { .. }]
+    ));
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::registration(CRED),
         now_iso: NOW.to_owned(),
+    });
+    match next.as_slice() {
+        [ShellOperation::SignMemberProof {
+            credential_id,
+            group_public_key_hex,
+            ..
+        }] => {
+            assert_eq!(credential_id, CRED);
+            assert_eq!(group_public_key_hex, GROUP_KEY);
+        }
+        other => panic!("registration flows straight into its membership get; got {other:?}"),
+    }
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k1"),
     });
     sut
 }
@@ -109,6 +143,7 @@ fn cancelling_registration_persists_nothing() {
     let mut sut = filled("Ann");
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(group_key_generated());
     let next = sut.resolve(ShellResult::PasskeyFailed {
         kind: FailureKind::Cancelled,
         message: None,
@@ -136,6 +171,7 @@ fn non_discoverable_credential_aborts_without_persisting() {
     let mut sut = filled("Ann");
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(group_key_generated());
     let next = sut.resolve(ShellResult::PasskeyFailed {
         kind: FailureKind::NotDiscoverable,
         message: None,
@@ -166,22 +202,14 @@ fn non_discoverable_credential_aborts_without_persisting() {
 /// creation is retried.
 #[test]
 fn pending_record_is_written_before_the_first_upload() {
-    let mut sut = filled("Ann");
-    sut.dispatch(Event::Submit);
-    sut.resolve(ShellResult::PasskeySupport { supported: true });
-    // Registration lands on the key list; nothing is derived or persisted yet.
-    let next = sut.resolve(ShellResult::PasskeyRegistered {
-        registration: support::registration(CRED),
-        now_iso: NOW.to_owned(),
-    });
-    assert!(
-        next.is_empty(),
-        "registration alone persists nothing; the set is not frozen"
-    );
+    let mut sut = registered("Ann");
+    // Registration + confirmation land on the key list; nothing is derived
+    // or persisted yet.
     let view = sut.view();
     assert_eq!(view.stage, CreateStage::AddKeys);
     assert_eq!(view.keys.len(), 1);
     assert_eq!(view.keys[0].name, "Ann");
+    assert!(view.keys[0].confirmed, "the interleaved get already ran");
 
     // Freezing the set derives and writes the pending record first.
     let next = sut.dispatch(Event::FinishKeys);
@@ -400,7 +428,7 @@ fn retry_upload_is_ignored_unless_the_flow_is_sync_failed() {
 
 const CRED2: &str = "credential-2";
 
-/// …→ two founding keys drafted, back at the key list.
+/// …→ two founding keys drafted AND confirmed, back at the key list.
 fn two_keys(name: &str) -> Sut {
     let mut sut = registered(name);
     let next = sut.dispatch(Event::AddKey {
@@ -419,9 +447,16 @@ fn two_keys(name: &str) -> Sut {
         }
         other => panic!("expected a second registration, got {other:?}"),
     }
-    sut.resolve(ShellResult::PasskeyRegistered {
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::second_registration(CRED2),
         now_iso: NOW.to_owned(),
+    });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::SignMemberProof { .. }]),
+        "each key confirms while its authenticator is in hand; got {next:?}"
+    );
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2"),
     });
     sut
 }
@@ -544,4 +579,107 @@ fn a_failed_multi_publish_retries_every_member() {
         }
         other => panic!("expected the full republish, got {other:?}"),
     }
+}
+
+
+// ---------------------------------------------------------------------------
+// Interleaved confirmation (create → sign, per key)
+// ---------------------------------------------------------------------------
+
+/// A cancelled membership get leaves the key DRAFTED but unconfirmed: its row
+/// offers a retry, and the set cannot be frozen until every key confirmed.
+#[test]
+fn a_cancelled_confirmation_gates_finish_and_retries_per_row() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    // The membership get for key 2 is cancelled.
+    let next = sut.resolve(ShellResult::PasskeyFailed {
+        kind: FailureKind::Cancelled,
+        message: None,
+    });
+    assert!(next.is_empty());
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert_eq!(view.keys.len(), 2, "the minted passkey stays drafted");
+    assert!(view.keys[0].confirmed);
+    assert!(!view.keys[1].confirmed);
+    assert!(!view.can_finish, "an unconfirmed key must gate the freeze");
+    assert!(
+        sut.dispatch(Event::FinishKeys).is_empty(),
+        "freezing with an unconfirmed key is refused"
+    );
+
+    // The row's own retry re-runs exactly that key's confirmation.
+    let next = sut.dispatch(Event::ConfirmKey { index: 1 });
+    match next.as_slice() {
+        [ShellOperation::SignMemberProof { credential_id, .. }] => {
+            assert_eq!(credential_id, CRED2);
+        }
+        other => panic!("expected the per-key confirmation retry, got {other:?}"),
+    }
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2-retry"),
+    });
+    let view = sut.view();
+    assert!(view.keys[1].confirmed);
+    assert!(view.can_finish);
+}
+
+/// Confirming an already-confirmed key is a no-op — no wasted prompt.
+#[test]
+fn confirming_a_confirmed_key_asks_for_nothing() {
+    let mut sut = registered("Ann");
+    assert!(sut.dispatch(Event::ConfirmKey { index: 0 }).is_empty());
+}
+
+/// A duplicate authenticator (same credential material behind a new id) is
+/// refused THE MOMENT it registers — not at FinishKeys.
+#[test]
+fn a_duplicate_founding_key_is_refused_at_registration() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    // The provider returns the SAME public key under a different credential.
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
+        registration: vela_core::app::Registration {
+            credential_id: CRED2.to_owned(),
+            ..support::registration(CRED)
+        },
+        now_iso: NOW.to_owned(),
+    });
+    assert!(
+        matches!(
+            next.as_slice(),
+            [ShellOperation::Prompt {
+                kind: vela_core::app::PromptKind::CreateFailed { .. },
+                ..
+            }]
+        ),
+        "a duplicate key is refused immediately; got {next:?}"
+    );
+    let view = sut.view();
+    assert_eq!(view.keys.len(), 1, "the duplicate was never drafted");
+    assert_eq!(view.stage, CreateStage::AddKeys);
+}
+
+/// StartOver abandons the group key too: the next run gets a fresh one, so a
+/// stale seed can never anchor a new wallet's proofs.
+#[test]
+fn start_over_mints_a_fresh_group_key() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::StartOver);
+    // Name and acks survive StartOver; only the drafts and group key reset.
+    sut.dispatch(Event::Submit);
+    let next = sut.resolve(ShellResult::PasskeySupport { supported: true });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::GenerateGroupKey]),
+        "a fresh run mints a fresh group key; got {next:?}"
+    );
 }

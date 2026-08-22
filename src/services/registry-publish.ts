@@ -27,6 +27,9 @@ export interface PublishMember {
    *  transports list. */
   authenticatorAttachment?: string;
   transports?: string;
+  /** The possession proof collected AT CREATION (interleaved onboarding).
+   *  When present the publish replays it — no prompt for this member. */
+  proof?: Registry.RegistryProof;
 }
 
 export interface PublishArgs {
@@ -36,6 +39,12 @@ export interface PublishArgs {
   metadataHex: string;
   /** The wallet's founding passkeys, in canonical founding order. */
   members: PublishMember[];
+  /** The one-time group key minted at onboarding start (interleaved flow).
+   *  Omitted ⇒ a fresh key is minted here (the legacy login re-publish).
+   *  Member proofs collected at creation are only valid under the SAME
+   *  group key, so the pair travels together. */
+  seedHex?: string;
+  groupPublicKey?: string;
 }
 
 export interface PublishResult {
@@ -56,14 +65,24 @@ function stripHex(value: string): string {
 export async function publishToRegistry(args: PublishArgs): Promise<PublishResult> {
   const { rpId, metadataHex, members } = args;
   if (members.length === 0) throw new Error('registry publish needs at least one member');
+  if (!!args.seedHex !== !!args.groupPublicKey) {
+    throw new Error('seedHex and groupPublicKey travel together');
+  }
 
-  // 1. One-time group key — the only randomness, and it stays in the shell.
-  const seed = new Uint8Array(32);
-  crypto.getRandomValues(seed);
-  const seedHex = VelaCore.toHex(seed);
-  const groupPublicKey = VelaCore.groupPublicKeyFromSeed(seedHex);
+  // 1. The one-time group key: echoed from onboarding (interleaved flow —
+  //    creation-time member proofs bind to it) or minted fresh here (login
+  //    re-publish). Either way the seed stays in the shell.
+  let seedHex = args.seedHex;
+  let groupPublicKey = args.groupPublicKey;
+  if (!seedHex || !groupPublicKey) {
+    const seed = new Uint8Array(32);
+    crypto.getRandomValues(seed);
+    seedHex = VelaCore.toHex(seed);
+    groupPublicKey = VelaCore.groupPublicKeyFromSeed(seedHex);
+  }
 
-  // 2. Server-derived challenges for the group and every member.
+  // 2. Server-derived challenges for the group (and any member still owing a
+  //    proof — none in the interleaved flow, every one on the legacy path).
   const challenge = await Registry.requestGroupChallenge({
     rpId,
     metadata: metadataHex,
@@ -74,22 +93,27 @@ export async function publishToRegistry(args: PublishArgs): Promise<PublishResul
     })),
   });
 
-  // 3. Each member signs its own challenge; the core assembles the proof from
-  //    the real assertion.
+  // 3. Replay each member's creation-time proof, or sign live for one that
+  //    has none. The member challenge binds only (groupPublicKey, own
+  //    attestation), so a proof collected at creation under this group key
+  //    is exactly the one the register call needs.
   const memberProofs: Registry.RegistryMember[] = [];
   for (const member of members) {
-    const derived = challenge.members.find(
-      (candidate) => candidate.publicKey.toLowerCase() === member.publicKeyHex.toLowerCase(),
-    );
-    if (!derived) {
-      throw new Error(`registry challenge is missing member ${member.publicKeyHex}`);
+    let proof = member.proof;
+    if (!proof) {
+      const derived = challenge.members.find(
+        (candidate) => candidate.publicKey.toLowerCase() === member.publicKeyHex.toLowerCase(),
+      );
+      if (!derived) {
+        throw new Error(`registry challenge is missing member ${member.publicKeyHex}`);
+      }
+      const assertion = await Passkey.sign(stripHex(derived.challenge), member.credentialId);
+      proof = VelaCore.buildMemberProof(
+        assertion.authenticatorDataHex,
+        assertion.clientDataJSONHex,
+        assertion.signatureHex,
+      );
     }
-    const assertion = await Passkey.sign(stripHex(derived.challenge), member.credentialId);
-    const proof = VelaCore.buildMemberProof(
-      assertion.authenticatorDataHex,
-      assertion.clientDataJSONHex,
-      assertion.signatureHex,
-    );
     memberProofs.push({
       publicKey: member.publicKeyHex,
       attestation: member.attestationHex,

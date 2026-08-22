@@ -12,7 +12,7 @@
  * keeps ownership of classification (FR-022).
  */
 
-import { toHex } from '@/services/vela-core';
+import { buildMemberProof, groupPublicKeyFromSeed, toHex } from '@/services/vela-core';
 import * as Passkey from '@/modules/passkey';
 import { PasskeyError, PasskeyErrorCode } from '@/modules/passkey';
 import * as Registry from '@/services/public-key-registry';
@@ -120,6 +120,21 @@ export function operationFailure(effect: OnboardingEffect, error: unknown): Shel
     case 'sign_proof':
     case 'authenticate_passkey':
       return passkeyFailure(error);
+
+    // Randomness cannot fail in practice; classify like storage so the core
+    // lands on the calm create-failed prompt rather than a passkey alert.
+    case 'generate_group_key':
+      return { type: 'storage_failed', message: message(error) };
+
+    // Mixed ceremony: the challenge fetch is an index call, the get() is a
+    // passkey ceremony — classify by what actually threw.
+    case 'sign_member_proof':
+      if (error instanceof PasskeyError) return passkeyFailure(error);
+      return {
+        type: 'index_failed',
+        message: message(error),
+        network: isTransportFailure(error),
+      };
 
     case 'load_accounts':
     case 'save_account':
@@ -261,6 +276,43 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         };
       }
 
+      case 'generate_group_key': {
+        // The one-time software group key — the only randomness in the flow,
+        // and it stays in the shell (the core only echoes it into the final
+        // publish).
+        const seed = new Uint8Array(32);
+        crypto.getRandomValues(seed);
+        const seedHex = toHex(seed);
+        return {
+          type: 'group_key_generated',
+          seed_hex: seedHex,
+          group_public_key_hex: groupPublicKeyFromSeed(seedHex),
+        };
+      }
+
+      case 'sign_member_proof': {
+        // Creation-time membership confirmation: fetch the member-mode
+        // challenge (binds only groupPublicKey + own attestation), run the
+        // get() against exactly this credential, assemble the proof in the
+        // core. The publish later replays it without another prompt.
+        const challenge = await Registry.requestMemberChallenge({
+          rpId: Passkey.getRelyingPartyId(),
+          groupPublicKey: operation.group_public_key_hex,
+          publicKey: operation.public_key_hex,
+          attestation: operation.attestation_hex,
+        });
+        const challengeHex = challenge.challenge.startsWith('0x')
+          ? challenge.challenge.slice(2)
+          : challenge.challenge;
+        const assertion = await Passkey.sign(challengeHex, operation.credential_id);
+        const proof = buildMemberProof(
+          assertion.authenticatorDataHex,
+          assertion.clientDataJSONHex,
+          assertion.signatureHex,
+        );
+        return { type: 'member_proof_signed', proof };
+      }
+
       case 'sign_proof': {
         const assertion = await Passkey.sign(
           challengeFor(operation.purpose),
@@ -333,12 +385,15 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         await publishToRegistry({
           rpId: Passkey.getRelyingPartyId(),
           metadataHex: operation.metadata_hex,
+          seedHex: operation.group_seed_hex || undefined,
+          groupPublicKey: operation.group_public_key_hex || undefined,
           members: operation.members.map((member) => ({
             credentialId: member.credential_id,
             publicKeyHex: member.public_key_hex,
             attestationHex: member.attestation_hex,
             authenticatorAttachment: member.authenticator_attachment,
             transports: member.transports,
+            proof: member.proof ?? undefined,
           })),
         });
         return { type: 'registry_published' };

@@ -212,6 +212,19 @@ pub fn second_registration(credential_id: &str) -> Registration {
     }
 }
 
+/// A creation-time membership proof. The core transports it opaquely (the
+/// registry verifies it), so a shaped dummy is faithful.
+pub fn member_proof(tag: &str) -> vela_core::registry_proof::RegistryProof {
+    vela_core::registry_proof::RegistryProof {
+        authenticator_data: format!("aa{}", hex_of(tag)),
+        client_data_json: hex_of(&format!("{{\"tag\":\"{tag}\"}}")),
+        challenge_index: 9,
+        type_index: 1,
+        r: "11".repeat(32),
+        s: "22".repeat(32),
+    }
+}
+
 /// Two genuine assertions from one credential over different challenges — the
 /// exact input two-signature recovery needs.
 pub fn assertion_pair(credential_id: &str) -> (Assertion, Assertion) {

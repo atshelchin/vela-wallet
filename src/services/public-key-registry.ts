@@ -183,6 +183,19 @@ export async function requestGroupChallenge(
   return postJson('/api/challenge', request, NET_TIMEOUTS.keyIndexRead, 'Challenge');
 }
 
+/** MEMBER-mode challenge: one passkey signing AT CREATION. The challenge
+ *  binds only (groupPublicKey, own attestation) — the contract's
+ *  `memberBindingFor` — so it exists before the rest of the founding set
+ *  does, which is what makes the interleaved create→confirm flow possible. */
+export async function requestMemberChallenge(request: {
+  rpId: string;
+  groupPublicKey: string;
+  publicKey: string;
+  attestation?: string;
+}): Promise<ChallengeValue> {
+  return postJson('/api/challenge', request, NET_TIMEOUTS.keyIndexRead, 'Challenge');
+}
+
 /** Submit a fully-proven register. Idempotent by content hash: the same unit
  *  resubmitted returns the same task id. */
 export async function register(request: RegistryRegisterRequest): Promise<RegisterAccepted> {

@@ -20,6 +20,7 @@ use super::{
     Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration,
     RegistryPublishMember, RegistryUnitMember,
 };
+use crate::registry_proof::RegistryProof;
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -83,6 +84,23 @@ pub enum ShellOperation {
         credential_id: String,
         purpose: ProofPurpose,
     },
+    /// Mint the one-time software group key for a wallet's registry group.
+    /// All randomness lives in the shell; the seed never touches the core's
+    /// serialized state beyond being echoed into the final publish.
+    GenerateGroupKey,
+    /// One founding passkey confirms its group membership AT CREATION: the
+    /// member challenge binds only (groupPublicKey, own attestation) — the
+    /// contract's `memberBindingFor` — so it exists before the rest of the
+    /// set does. The executor fetches the member-mode challenge, runs the
+    /// `get()`, and assembles the proof in the core.
+    SignMemberProof {
+        credential_id: String,
+        /// Uncompressed P-256 point, `04‖x‖y` hex.
+        public_key_hex: String,
+        /// Empty, or 20 versioned attestation bytes (hex).
+        attestation_hex: String,
+        group_public_key_hex: String,
+    },
     /// `navigator.credentials.get()` with no credential hint — "who are you?".
     AuthenticatePasskey,
     /// Read every locally stored account.
@@ -97,13 +115,19 @@ pub enum ShellOperation {
         credential_id: String,
     },
     /// Publish the wallet's key set as one possession-proven registry group.
-    /// The executor runs the whole mechanism — one-time group key, server
-    /// challenges, per-member signatures, proofs, register and task poll —
-    /// and answers `RegistryPublished` or `IndexFailed`. `metadata_hex` is
-    /// the group's opaque blob, already encoded by the core.
+    /// With `group_seed_hex` set (the interleaved create flow), the members
+    /// carry proofs collected at creation and the executor only closes the
+    /// group (software group proof) and registers — no prompts. With it
+    /// empty (the login re-publish), the executor runs the whole legacy
+    /// mechanism: fresh group key, challenges, one `get()` per member.
+    /// `metadata_hex` is the group's opaque blob, already encoded.
     RegistryPublish {
         metadata_hex: String,
         members: Vec<RegistryPublishMember>,
+        #[serde(default)]
+        group_seed_hex: String,
+        #[serde(default)]
+        group_public_key_hex: String,
     },
     /// Is this public key already an entry in the registry? Lets a sign-in
     /// skip a redundant re-publish (and its extra signature).
@@ -167,6 +191,17 @@ pub enum ShellResult {
     ProofSigned {
         assertion: Assertion,
         now_iso: String,
+    },
+    /// The one-time software group key the shell just minted.
+    GroupKeyGenerated {
+        seed_hex: String,
+        /// Uncompressed P-256 point, `04‖x‖y` hex (no `0x`).
+        group_public_key_hex: String,
+    },
+    /// A founding passkey's possession proof, assembled from its
+    /// creation-time `get()` over the member-mode challenge.
+    MemberProofSigned {
+        proof: RegistryProof,
     },
     PasskeyAuthenticated {
         assertion: Assertion,

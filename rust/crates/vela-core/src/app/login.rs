@@ -707,7 +707,13 @@ fn registry_publish_op(
             attestation_hex: String::new(),
             authenticator_attachment: authenticator_attachment.to_owned(),
             transports: String::new(),
+            // Legacy mode: the executor mints a fresh group key and signs
+            // this member live (one prompt) — recovery has no creation-time
+            // proof to replay.
+            proof: None,
         }],
+        group_seed_hex: String::new(),
+        group_public_key_hex: String::new(),
     })
 }
 

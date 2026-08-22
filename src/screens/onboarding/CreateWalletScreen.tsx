@@ -159,6 +159,17 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
                         editable={!flow.busy}
                       />
                     )}
+                    {key.confirmed ? (
+                      <Check size={16} color={color.success.base} strokeWidth={2.5} />
+                    ) : (
+                      <Pressable
+                        onPress={() => flow.confirmKey(i)}
+                        hitSlop={8}
+                        disabled={flow.busy}
+                      >
+                        <Text style={styles.confirmKeyText}>{t('onboarding.create.confirmKeyBtn')}</Text>
+                      </Pressable>
+                    )}
                     {i > 0 && !flow.busy ? (
                       <Pressable
                         onPress={() => flow.removeKey(i)}
@@ -564,6 +575,12 @@ const styles = createStyles(() => ({
     fontSize: text.base,
     ...inter.semibold,
     color: color.accent.base,
+  },
+  confirmKeyText: {
+    fontSize: text.sm,
+    ...inter.semibold,
+    color: color.accent.base,
+    textDecorationLine: 'underline',
   },
 
   // Acknowledgment checklist

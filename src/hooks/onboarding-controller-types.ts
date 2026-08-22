@@ -31,6 +31,9 @@ export type CreateWalletKeyRow = {
   authenticatorAttachment: string;
   /** Comma-joined transports ("hybrid,internal") or "" — display hint only. */
   transports: string;
+  /** The key confirmed its membership at creation; a false row (cancelled
+   *  confirmation) shows its own retry, and Continue stays disabled. */
+  confirmed: boolean;
 };
 
 export type CreateWalletController = {
@@ -69,6 +72,8 @@ export type CreateWalletController = {
   removeKey: (index: number) => void;
   /** Relabel a drafted extra key (index ≥ 1). */
   renameKey: (index: number, name: string) => void;
+  /** Retry an unconfirmed key's membership confirmation. */
+  confirmKey: (index: number) => void;
   /** Freeze the founding set — derive the address and publish. */
   finishKeys: () => void;
   startOver: () => void;

@@ -19,7 +19,7 @@ use vela_core::app::session::{
     Event, Session, SessionOperation as Op, SessionRoute, SessionShellResult as Res,
 };
 use vela_core::app::shell::CompletionMode;
-use vela_core::app::Account;
+use vela_core::app::{Account, AccountKey};
 
 type Sut = DomainDriver<Session>;
 
@@ -57,6 +57,43 @@ fn bad_key(id: &str, name: &str, address: &str) -> Account {
         public_key_hex: "zz-not-hex".to_owned(),
         ..support::account(id, name, address)
     }
+}
+
+/// A second founding key for multi-key fixtures. Shape-valid (parse only
+/// checks 04‖x‖y layout); the multi derivation treats it as keys[1].
+const SECOND_KEY_HEX: &str = "04\
+8f9b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff0\
+7a8b9cadbecfd0e1f20314253647586970818293a4b5c6d7e8f9010203040506";
+
+/// A two-key wallet whose scalar fields mirror keys[0], stored with `address`.
+fn multi(id: &str, name: &str, address: &str) -> Account {
+    Account {
+        keys: vec![
+            AccountKey {
+                credential_id: id.to_owned(),
+                public_key_hex: support::expected_public_key_hex(),
+                name: name.to_owned(),
+            },
+            AccountKey {
+                credential_id: format!("{id}-second"),
+                public_key_hex: SECOND_KEY_HEX.to_owned(),
+                name: "Key 2".to_owned(),
+            },
+        ],
+        ..support::account(id, name, address)
+    }
+}
+
+/// The address the two-key fixture set actually computes to.
+fn correct_multi_address() -> String {
+    let keys = [
+        vela_core::safe::parse_public_key(&support::expected_public_key_hex())
+            .expect("fixture key parses"),
+        vela_core::safe::parse_public_key(SECOND_KEY_HEX).expect("second key parses"),
+    ];
+    vela_core::safe::compute_safe_address_multi(&keys)
+        .expect("multi fixture address computes")
+        .address
 }
 
 /// Boot a machine through a full restore and ack every write it issued, so
@@ -239,6 +276,53 @@ fn migration_rewrites_a_wrong_address() {
     // The best-effort write acks are inert either way.
     assert!(sut.resolve(Res::AccountSaved).is_empty());
     assert!(sut.resolve(Res::ActiveIndexSaved).is_empty());
+    assert_eq!(sut.view().address, corrected);
+}
+
+/// Invariant ② on a multi-key account derives from ALL founding keys: a
+/// record already carrying its correct multi-key address is left untouched —
+/// in particular it is NOT rewritten to what keys[0] alone would compute
+/// (the exact corruption a single-key derivation here would cause).
+#[test]
+fn migration_leaves_a_correct_multikey_address_alone() {
+    let mut sut = Sut::new();
+    sut.dispatch(Event::Boot);
+    let multi_addr = correct_multi_address();
+    assert_ne!(
+        multi_addr,
+        correct_address(),
+        "fixture must distinguish multi from keys[0]-only derivation"
+    );
+    sut.resolve(Res::AccountsLoaded {
+        accounts: vec![multi("c1", "Ann", &multi_addr)],
+    });
+    let ops = sut.resolve(Res::ActiveIndexLoaded { index: 0 });
+    assert_eq!(
+        ops,
+        vec![Op::SaveActiveIndex { index: 0 }],
+        "no address write-back for a correct multi-key account"
+    );
+    assert_eq!(sut.view().address, multi_addr);
+}
+
+/// Invariant ② still repairs a multi-key account whose stored address is
+/// wrong — to the multi-key address, never the keys[0] one.
+#[test]
+fn migration_rewrites_a_wrong_multikey_address_to_the_multi_derivation() {
+    let mut sut = Sut::new();
+    sut.dispatch(Event::Boot);
+    sut.resolve(Res::AccountsLoaded {
+        accounts: vec![multi("c1", "Ann", ADDR_A)],
+    });
+    let ops = sut.resolve(Res::ActiveIndexLoaded { index: 0 });
+    let corrected = correct_multi_address();
+    match &ops[0] {
+        Op::SaveAccount { account } => {
+            assert_eq!(account.address, corrected);
+            assert_eq!(account.keys.len(), 2, "the key set survives the repair");
+        }
+        other => panic!("expected the multi write-back, got {other:?}"),
+    }
     assert_eq!(sut.view().address, corrected);
 }
 

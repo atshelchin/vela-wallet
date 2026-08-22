@@ -9,7 +9,7 @@ mod support;
 
 use support::{Driver, NOW};
 use vela_core::app::create_wallet::{CreateStage, CreateWallet, Event, SubmitLabel};
-use vela_core::app::shell::{ProofPurpose, ShellOperation, ShellResult};
+use vela_core::app::shell::{ShellOperation, ShellResult};
 use vela_core::app::{FailureKind, StatusKey};
 
 const CRED: &str = "credential-1";
@@ -32,34 +32,67 @@ fn filled(name: &str) -> Sut {
     sut
 }
 
-/// Form → registered passkey → waiting for the proof signature.
-fn awaiting_proof(name: &str) -> Sut {
+const GROUP_SEED: &str = "5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed5eed";
+const GROUP_KEY: &str = "04feedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed\
+feedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeedfeed01";
+
+fn group_key_generated() -> ShellResult {
+    ShellResult::GroupKeyGenerated {
+        seed_hex: GROUP_SEED.to_owned(),
+        group_public_key_hex: GROUP_KEY.to_owned(),
+    }
+}
+
+/// Form → group key minted → key 1 registered AND its membership confirmed
+/// (interleaved: one create + one get per key) → the key list. The set is
+/// frozen by `FinishKeys`, after which the publish needs NO prompts.
+fn registered(name: &str) -> Sut {
     let mut sut = filled(name);
     sut.dispatch(Event::Submit);
-    sut.resolve(ShellResult::PasskeySupport { supported: true });
-    sut.resolve(ShellResult::PasskeyRegistered {
+    let next = sut.resolve(ShellResult::PasskeySupport { supported: true });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::GenerateGroupKey]),
+        "the group key anchors every member proof, so it is minted first; got {next:?}"
+    );
+    let next = sut.resolve(group_key_generated());
+    assert!(matches!(
+        next.as_slice(),
+        [ShellOperation::RegisterPasskey { .. }]
+    ));
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::registration(CRED),
         now_iso: NOW.to_owned(),
     });
+    match next.as_slice() {
+        [ShellOperation::SignMemberProof {
+            credential_id,
+            group_public_key_hex,
+            ..
+        }] => {
+            assert_eq!(credential_id, CRED);
+            assert_eq!(group_public_key_hex, GROUP_KEY);
+        }
+        other => panic!("registration flows straight into its membership get; got {other:?}"),
+    }
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k1"),
+    });
     sut
 }
 
-/// …→ proof signed → pending record written → first upload attempt in flight.
+/// …→ set frozen: the pending-record write is in flight.
+fn finished(name: &str) -> Sut {
+    let mut sut = registered(name);
+    sut.dispatch(Event::FinishKeys);
+    sut
+}
+
+/// …→ pending record written → the registry publish (one get per key) in
+/// flight.
 fn uploading(name: &str) -> Sut {
-    let mut sut = awaiting_proof(name);
-    sut.resolve(ShellResult::ProofSigned {
-        assertion: support::assertion(CRED),
-        now_iso: NOW.to_owned(),
-    });
+    let mut sut = finished(name);
     sut.resolve(ShellResult::PendingUploadSaved);
     sut
-}
-
-fn confirmed_record() -> ShellResult {
-    ShellResult::IndexRecord {
-        public_key_hex: support::expected_public_key_hex(),
-        name: "Ann".to_owned(),
-    }
 }
 
 fn is_save_account(operation: &ShellOperation) -> bool {
@@ -110,6 +143,7 @@ fn cancelling_registration_persists_nothing() {
     let mut sut = filled("Ann");
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(group_key_generated());
     let next = sut.resolve(ShellResult::PasskeyFailed {
         kind: FailureKind::Cancelled,
         message: None,
@@ -125,32 +159,10 @@ fn cancelling_registration_persists_nothing() {
     assert!(!view.busy);
 }
 
-/// FR-007 — the rule that keeps a cancelled verification from minting a second
-/// passkey for the same wallet.
-#[test]
-fn cancelled_verification_resumes_at_the_signature_and_never_re_registers() {
-    let mut sut = awaiting_proof("Ann");
-    sut.resolve(ShellResult::PasskeyFailed {
-        kind: FailureKind::Cancelled,
-        message: None,
-    });
-
-    let view = sut.view();
-    assert_eq!(view.status, Some(StatusKey::VerifyCancelled));
-    assert_eq!(view.submit_label, SubmitLabel::FinishVerify);
-    assert!(view.show_start_over, "the escape hatch is offered");
-    assert!(!view.name_editable, "the name is fixed once a draft exists");
-
-    let requested = sut.dispatch(Event::Submit);
-    assert_eq!(
-        requested,
-        vec![ShellOperation::SignProof {
-            credential_id: CRED.to_owned(),
-            purpose: ProofPurpose::Verify,
-        }],
-        "resume signs again — it must never request RegisterPasskey"
-    );
-}
+// The old separate "verification" signature is gone: the register member
+// proof (a single get) is itself proof the passkey can sign, so a cancelled
+// publish resumes via RetryUpload — see
+// retry_upload_resumes_at_the_publish_never_at_registration.
 
 /// FR-006, issue #1 — a device-local credential would sign here and be invisible
 /// everywhere else, so the flow stops with nothing written.
@@ -159,6 +171,7 @@ fn non_discoverable_credential_aborts_without_persisting() {
     let mut sut = filled("Ann");
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(group_key_generated());
     let next = sut.resolve(ShellResult::PasskeyFailed {
         kind: FailureKind::NotDiscoverable,
         message: None,
@@ -181,198 +194,90 @@ fn non_discoverable_credential_aborts_without_persisting() {
     );
 }
 
-/// FR-009 — an incompatible provider is terminal, not resumable: retrying the
-/// same signature could never produce a Safe-acceptable response.
-#[test]
-fn incompatible_provider_discards_the_draft() {
-    let mut sut = awaiting_proof("Ann");
-    let next = sut.resolve(ShellResult::ProofSigned {
-        assertion: support::incompatible_assertion(CRED),
-        now_iso: NOW.to_owned(),
-    });
+// An incompatible provider is no longer caught by a separate verification
+// signature (create mints an ES256 key by construction); an unusable key
+// would fail the register member proof and land on the retry screen instead.
 
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::Prompt {
-            kind: vela_core::app::PromptKind::IncompatibleCreate,
-            ..
-        }]
-    ));
-    let view = sut.view();
-    assert_eq!(view.submit_label, SubmitLabel::Create);
-    assert!(!view.show_start_over, "there is nothing left to start over");
-    assert!(view.name_editable);
-}
-
-/// FR-010 — the pending record exists before the first upload, so an
-/// interrupted creation is retried on a later launch.
+/// FR-010 — the pending record exists before the publish, so an interrupted
+/// creation is retried.
 #[test]
 fn pending_record_is_written_before_the_first_upload() {
-    let mut sut = awaiting_proof("Ann");
-    let next = sut.resolve(ShellResult::ProofSigned {
-        assertion: support::assertion(CRED),
-        now_iso: NOW.to_owned(),
-    });
+    let mut sut = registered("Ann");
+    // Registration + confirmation land on the key list; nothing is derived
+    // or persisted yet.
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert_eq!(view.keys.len(), 1);
+    assert_eq!(view.keys[0].name, "Ann");
+    assert!(view.keys[0].confirmed, "the interleaved get already ran");
 
+    // Freezing the set derives and writes the pending record first.
+    let next = sut.dispatch(Event::FinishKeys);
     match next.as_slice() {
         [ShellOperation::SavePendingUpload { record }] => {
             assert_eq!(record.id, CRED);
             assert_eq!(record.public_key_hex, support::expected_public_key_hex());
             assert_eq!(record.created_at_iso, NOW);
+            assert_eq!(record.members.len(), 1, "one member per founding key");
+            assert_eq!(record.members[0].credential_id, CRED);
         }
         other => panic!("expected the pending record to be written first, got {other:?}"),
     }
 }
 
 // ---------------------------------------------------------------------------
-// The index-sync decision table (data-model.md)
+// Registry publish (option B: publish before entering)
 // ---------------------------------------------------------------------------
 
-/// Row 1 — create ok, query ok, key matches ⇒ confirmed.
+/// The pending record written, the possession-proven publish is the next step.
 #[test]
-fn confirmed_upload_proceeds_to_the_wallet_reference_check() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    let next = sut.resolve(confirmed_record());
+fn the_pending_record_is_followed_by_the_registry_publish() {
+    let mut sut = finished("Ann");
+    let next = sut.resolve(ShellResult::PendingUploadSaved);
 
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::IndexQueryByWalletRef { .. }]
-    ));
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::RegistryPublish { .. }]),
+        "publishing runs before entry; got {next:?}"
+    );
 }
 
-/// Row 3 — the create call failed but the server holds the right key. This is
-/// the "already exists" and "write landed, response lost" case: the stored
-/// record is the source of truth, so it is a success.
+/// N=1 stays the historical single-key publish: one member, `key_names` is
+/// exactly the wallet name.
 #[test]
-fn failed_create_is_forgiven_when_the_query_confirms_the_key() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexFailed {
-        message: "HTTP 500".to_owned(),
-        network: false,
-    });
-    let next = sut.resolve(confirmed_record());
+fn a_single_key_wallet_publishes_the_historical_payload() {
+    let mut sut = finished("Ann");
+    let next = sut.resolve(ShellResult::PendingUploadSaved);
 
+    match next.as_slice() {
+        [ShellOperation::RegistryPublish { members, .. }] => {
+            assert_eq!(members.len(), 1);
+            assert_eq!(members[0].credential_id, CRED);
+            assert_eq!(
+                members[0].public_key_hex,
+                support::expected_public_key_hex()
+            );
+        }
+        other => panic!("expected the publish, got {other:?}"),
+    }
+}
+
+/// A published group clears the pending record, saves, and only then reveals
+/// the address — the fund-safety ordering, now gated on the publish.
+#[test]
+fn a_published_group_removes_the_pending_saves_and_reveals_the_address() {
+    let mut sut = uploading("Ann");
+    assert!(sut.view().address.is_none());
+
+    let next = sut.resolve(ShellResult::RegistryPublished);
     assert!(
         matches!(
             next.as_slice(),
-            [ShellOperation::IndexQueryByWalletRef { .. }]
+            [ShellOperation::RemovePendingUpload { .. }]
         ),
-        "a failed create must not fail the run when the key is confirmed stored"
+        "a published group clears its pending record; got {next:?}"
     );
-}
-
-/// Row 2 — the server holds a *different* key. Parity with today: the attempt
-/// fails and is retried, and after three attempts the user gets the retry
-/// screen rather than a silently wrong wallet.
-#[test]
-fn a_stored_key_that_does_not_match_fails_the_attempt() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    let next = sut.resolve(ShellResult::IndexRecord {
-        public_key_hex: "04deadbeef".to_owned(),
-        name: "Ann".to_owned(),
-    });
-
-    assert!(
-        matches!(next.as_slice(), [ShellOperation::Wait { .. }]),
-        "a mismatch never proceeds to saving"
-    );
-}
-
-/// Row 5 — the query could not confirm, so the attempt is unresolved and retried.
-#[test]
-fn a_missing_record_retries_rather_than_saving() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    let next = sut.resolve(ShellResult::IndexMissing);
-
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::Wait { ms: 1000 }]
-    ));
-}
-
-/// FR-011 — three attempts, with the same 1s/2s backoff as today.
-#[test]
-fn upload_retries_exactly_three_times_with_increasing_waits() {
-    let mut sut = uploading("Ann");
-    let mut waits = Vec::new();
-
-    for _ in 0..3 {
-        sut.resolve(ShellResult::IndexFailed {
-            message: "offline".to_owned(),
-            network: true,
-        });
-        let next = sut.resolve(ShellResult::IndexMissing);
-        match next.as_slice() {
-            [ShellOperation::Wait { ms }] => {
-                waits.push(*ms);
-                sut.resolve(ShellResult::Waited);
-            }
-            [] => break,
-            other => panic!("unexpected operation between attempts: {other:?}"),
-        }
-    }
-
-    assert_eq!(
-        waits,
-        vec![1000, 2000],
-        "1s then 2s, then no fourth attempt"
-    );
-    let view = sut.view();
-    assert_eq!(view.stage, CreateStage::SyncFailed);
-    assert_eq!(view.sync_error_detail.as_deref(), Some("offline"));
-    assert!(
-        !view.can_go_back,
-        "the back arrow is hidden while sync-failed"
-    );
-}
-
-/// FR-013 — retry resumes at the upload. Re-registering would mint a second
-/// passkey for a wallet that already has one.
-#[test]
-fn retry_upload_resumes_at_the_upload_never_at_registration() {
-    let mut sut = uploading("Ann");
-    for _ in 0..3 {
-        sut.resolve(ShellResult::IndexFailed {
-            message: "offline".to_owned(),
-            network: true,
-        });
-        if let [ShellOperation::Wait { .. }] = sut.resolve(ShellResult::IndexMissing).as_slice() {
-            sut.resolve(ShellResult::Waited);
-        }
-    }
-    assert_eq!(sut.view().stage, CreateStage::SyncFailed);
-
-    let requested = sut.dispatch(Event::RetryUpload);
-    assert!(matches!(
-        requested.as_slice(),
-        [ShellOperation::IndexCreateRecord { .. }]
-    ));
-}
-
-// ---------------------------------------------------------------------------
-// Persistence ordering — the fund-safety invariant
-// ---------------------------------------------------------------------------
-
-/// FR-012 — the account is written only after the server confirms the key, and
-/// the address is shown only after that.
-#[test]
-fn the_account_is_saved_only_after_the_server_confirms_and_the_address_follows() {
-    let mut sut = uploading("Ann");
     assert!(sut.view().address.is_none());
 
-    sut.resolve(ShellResult::IndexCreated);
-    assert!(sut.view().address.is_none());
-    sut.resolve(confirmed_record());
-    assert!(sut.view().address.is_none());
-
-    let next = sut.resolve(ShellResult::WalletRef { resolved: true });
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::RemovePendingUpload { .. }]
-    ));
     let next = sut.resolve(ShellResult::PendingUploadRemoved);
     assert!(next.iter().any(is_save_account));
     assert!(
@@ -386,50 +291,55 @@ fn the_account_is_saved_only_after_the_server_confirms_and_the_address_follows()
     assert!(view.address.is_some());
 }
 
-/// Issue #89 — the credential record existing is not the signal to clear the
-/// pending entry; only the wallet-reference reveal is. Onboarding must not wait
-/// for it either.
+/// A publish failure has no silent retry (it needs a signature), so it surfaces
+/// the retry screen with the reason, keeping the passkey and its draft.
 #[test]
-fn an_unresolved_wallet_reference_keeps_the_pending_entry_and_still_completes() {
+fn a_failed_publish_shows_the_retry_screen() {
     let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
-    let next = sut.resolve(ShellResult::WalletRef { resolved: false });
 
-    assert!(
-        !next
-            .iter()
-            .any(|op| matches!(op, ShellOperation::RemovePendingUpload { .. })),
-        "the pending entry must survive so a later launch retries the reveal"
-    );
-    assert!(
-        next.iter().any(is_save_account),
-        "and the wallet still opens"
-    );
-}
-
-/// The wallet-reference check is best-effort: a failing index must not block a
-/// wallet whose key is already confirmed.
-#[test]
-fn a_failing_wallet_reference_check_does_not_block_the_wallet() {
-    let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
     let next = sut.resolve(ShellResult::IndexFailed {
-        message: "index down".to_owned(),
+        message: "offline".to_owned(),
         network: true,
     });
+    assert!(next.is_empty() || next.iter().all(|op| !is_save_account(op)));
 
-    assert!(next.iter().any(is_save_account));
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::SyncFailed);
+    assert_eq!(view.sync_error_detail.as_deref(), Some("offline"));
+    assert!(
+        !view.can_go_back,
+        "the back arrow is hidden while sync-failed"
+    );
 }
+
+/// FR-013 — retry resumes at the publish. Re-registering would mint a second
+/// passkey for a wallet that already has one.
+#[test]
+fn retry_upload_resumes_at_the_publish_never_at_registration() {
+    let mut sut = uploading("Ann");
+    sut.resolve(ShellResult::IndexFailed {
+        message: "offline".to_owned(),
+        network: true,
+    });
+    assert_eq!(sut.view().stage, CreateStage::SyncFailed);
+
+    let requested = sut.dispatch(Event::RetryUpload);
+    assert!(matches!(
+        requested.as_slice(),
+        [ShellOperation::RegistryPublish { .. }]
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// Handover
+// ---------------------------------------------------------------------------
 
 /// FR-014 — entering the wallet is a state transition, not another ceremony.
 #[test]
 fn entering_the_wallet_requires_no_further_ceremony() {
     let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
-    sut.resolve(ShellResult::WalletRef { resolved: false });
+    sut.resolve(ShellResult::RegistryPublished);
+    sut.resolve(ShellResult::PendingUploadRemoved);
     sut.resolve(ShellResult::AccountSaved);
 
     let requested = sut.dispatch(Event::EnterWallet);
@@ -459,8 +369,8 @@ fn late_upload_result_after_start_over_is_ignored() {
     assert_eq!(view.submit_label, SubmitLabel::Create);
     assert!(view.name_editable);
 
-    // The upload that was in flight when the user gave up now comes back.
-    let next = sut.resolve(ShellResult::IndexCreated);
+    // The publish that was in flight when the user gave up now comes back.
+    let next = sut.resolve(ShellResult::RegistryPublished);
 
     assert!(
         next.is_empty(),
@@ -493,9 +403,8 @@ fn submit_while_busy_is_a_no_op() {
 #[test]
 fn submit_after_the_wallet_exists_is_refused() {
     let mut sut = uploading("Ann");
-    sut.resolve(ShellResult::IndexCreated);
-    sut.resolve(confirmed_record());
-    sut.resolve(ShellResult::WalletRef { resolved: false });
+    sut.resolve(ShellResult::RegistryPublished);
+    sut.resolve(ShellResult::PendingUploadRemoved);
     sut.resolve(ShellResult::AccountSaved);
     assert_eq!(sut.view().stage, CreateStage::Created);
 
@@ -511,4 +420,360 @@ fn submit_after_the_wallet_exists_is_refused() {
 fn retry_upload_is_ignored_unless_the_flow_is_sync_failed() {
     let mut sut = uploading("Ann");
     assert!(sut.dispatch(Event::RetryUpload).is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Multi-key founding set
+// ---------------------------------------------------------------------------
+
+const CRED2: &str = "credential-2";
+
+/// …→ two founding keys drafted AND confirmed, back at the key list.
+fn two_keys(name: &str) -> Sut {
+    let mut sut = registered(name);
+    let next = sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    match next.as_slice() {
+        [ShellOperation::RegisterPasskey {
+            exclude_credential_ids,
+            ..
+        }] => {
+            assert_eq!(
+                exclude_credential_ids.as_slice(),
+                [CRED.to_owned()],
+                "the provider must refuse to reuse founding credentials"
+            );
+        }
+        other => panic!("expected a second registration, got {other:?}"),
+    }
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::SignMemberProof { .. }]),
+        "each key confirms while its authenticator is in hand; got {next:?}"
+    );
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2"),
+    });
+    sut
+}
+
+/// The multi-key oracle: what the FULL founding set derives to.
+fn expected_multi_address() -> String {
+    let keys = [
+        vela_core::safe::parse_public_key(&support::expected_public_key_hex()).unwrap(),
+        vela_core::safe::parse_public_key(&support::second_public_key_hex()).unwrap(),
+    ];
+    vela_core::safe::compute_safe_address_multi(&keys)
+        .unwrap()
+        .address
+}
+
+/// A two-key wallet publishes both members in founding order and derives the
+/// address from the FULL set — never from keys[0] alone.
+#[test]
+fn a_two_key_wallet_publishes_both_members_and_the_multi_address() {
+    let mut sut = two_keys("Ann");
+    assert_eq!(sut.view().keys.len(), 2);
+    assert_eq!(sut.view().keys[1].name, "Backup");
+
+    let next = sut.dispatch(Event::FinishKeys);
+    match next.as_slice() {
+        [ShellOperation::SavePendingUpload { record }] => {
+            assert_eq!(
+                record.id, CRED,
+                "the pending record keys off the pinned first key"
+            );
+            assert_eq!(record.members.len(), 2);
+            assert_eq!(record.members[0].credential_id, CRED);
+            assert_eq!(record.members[1].credential_id, CRED2);
+            assert_eq!(record.members[1].name, "Backup");
+        }
+        other => panic!("expected the pending record, got {other:?}"),
+    }
+
+    let next = sut.resolve(ShellResult::PendingUploadSaved);
+    match next.as_slice() {
+        [ShellOperation::RegistryPublish { members, .. }] => {
+            assert_eq!(members.len(), 2, "one possession proof per founding key");
+            assert_eq!(members[0].credential_id, CRED);
+            assert_eq!(members[1].credential_id, CRED2);
+        }
+        other => panic!("expected the publish, got {other:?}"),
+    }
+
+    sut.resolve(ShellResult::RegistryPublished);
+    let requested = sut.resolve(ShellResult::PendingUploadRemoved);
+    match requested
+        .iter()
+        .find(|op| matches!(op, ShellOperation::SaveAccount { .. }))
+    {
+        Some(ShellOperation::SaveAccount { account }) => {
+            assert_eq!(account.address, expected_multi_address());
+            assert_eq!(account.keys.len(), 2);
+            assert_eq!(account.id, CRED);
+            assert_eq!(account.public_key_hex, support::expected_public_key_hex());
+        }
+        other => panic!("expected the account save, got {other:?}"),
+    }
+}
+
+/// Cancelling an ADDED key's ceremony keeps the existing drafts — the minted
+/// passkeys are real; only StartOver abandons them.
+#[test]
+fn cancelling_an_added_key_keeps_the_existing_drafts() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    let next = sut.resolve(ShellResult::PasskeyFailed {
+        kind: FailureKind::Cancelled,
+        message: None,
+    });
+    assert!(next.is_empty());
+
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert_eq!(view.keys.len(), 1, "key 1 survives the cancelled add");
+    assert_eq!(view.status, Some(StatusKey::SetupCancelled));
+}
+
+/// A drafted extra key can be removed; the pinned first key cannot.
+#[test]
+fn remove_key_drops_extras_but_never_the_first() {
+    let mut sut = two_keys("Ann");
+    assert!(sut.dispatch(Event::RemoveKey { index: 0 }).is_empty());
+    assert_eq!(sut.view().keys.len(), 2, "index 0 is not removable");
+
+    sut.dispatch(Event::RemoveKey { index: 1 });
+    assert_eq!(sut.view().keys.len(), 1);
+
+    // The set still freezes fine as a single key afterwards.
+    let next = sut.dispatch(Event::FinishKeys);
+    assert!(matches!(
+        next.as_slice(),
+        [ShellOperation::SavePendingUpload { .. }]
+    ));
+}
+
+/// A publish failure on a multi-key set keeps every draft and retries the
+/// FULL publish — all member proofs run again.
+#[test]
+fn a_failed_multi_publish_retries_every_member() {
+    let mut sut = two_keys("Ann");
+    sut.dispatch(Event::FinishKeys);
+    sut.resolve(ShellResult::PendingUploadSaved);
+    sut.resolve(ShellResult::IndexFailed {
+        message: "offline".to_owned(),
+        network: true,
+    });
+    assert_eq!(sut.view().stage, CreateStage::SyncFailed);
+
+    let requested = sut.dispatch(Event::RetryUpload);
+    match requested.as_slice() {
+        [ShellOperation::RegistryPublish { members, .. }] => {
+            assert_eq!(members.len(), 2);
+        }
+        other => panic!("expected the full republish, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Interleaved confirmation (create → sign, per key)
+// ---------------------------------------------------------------------------
+
+/// A cancelled membership get leaves the key DRAFTED but unconfirmed: its row
+/// offers a retry, and the set cannot be frozen until every key confirmed.
+#[test]
+fn a_cancelled_confirmation_gates_finish_and_retries_per_row() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    // The membership get for key 2 is cancelled.
+    let next = sut.resolve(ShellResult::PasskeyFailed {
+        kind: FailureKind::Cancelled,
+        message: None,
+    });
+    assert!(next.is_empty());
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert_eq!(view.keys.len(), 2, "the minted passkey stays drafted");
+    assert!(view.keys[0].confirmed);
+    assert!(!view.keys[1].confirmed);
+    assert!(!view.can_finish, "an unconfirmed key must gate the freeze");
+    assert!(
+        sut.dispatch(Event::FinishKeys).is_empty(),
+        "freezing with an unconfirmed key is refused"
+    );
+
+    // The row's own retry re-runs exactly that key's confirmation.
+    let next = sut.dispatch(Event::ConfirmKey { index: 1 });
+    match next.as_slice() {
+        [ShellOperation::SignMemberProof { credential_id, .. }] => {
+            assert_eq!(credential_id, CRED2);
+        }
+        other => panic!("expected the per-key confirmation retry, got {other:?}"),
+    }
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2-retry"),
+    });
+    let view = sut.view();
+    assert!(view.keys[1].confirmed);
+    assert!(view.can_finish);
+}
+
+/// Confirming an already-confirmed key is a no-op — no wasted prompt.
+#[test]
+fn confirming_a_confirmed_key_asks_for_nothing() {
+    let mut sut = registered("Ann");
+    assert!(sut.dispatch(Event::ConfirmKey { index: 0 }).is_empty());
+}
+
+/// A duplicate authenticator (same credential material behind a new id) is
+/// refused THE MOMENT it registers — not at FinishKeys.
+#[test]
+fn a_duplicate_founding_key_is_refused_at_registration() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    // The provider returns the SAME public key under a different credential.
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
+        registration: vela_core::app::Registration {
+            credential_id: CRED2.to_owned(),
+            ..support::registration(CRED)
+        },
+        now_iso: NOW.to_owned(),
+    });
+    assert!(
+        matches!(
+            next.as_slice(),
+            [ShellOperation::Prompt {
+                kind: vela_core::app::PromptKind::CreateFailed { .. },
+                ..
+            }]
+        ),
+        "a duplicate key is refused immediately; got {next:?}"
+    );
+    let view = sut.view();
+    assert_eq!(view.keys.len(), 1, "the duplicate was never drafted");
+    assert_eq!(view.stage, CreateStage::AddKeys);
+}
+
+/// StartOver abandons the group key too: the next run gets a fresh one, so a
+/// stale seed can never anchor a new wallet's proofs.
+#[test]
+fn start_over_mints_a_fresh_group_key() {
+    let mut sut = registered("Ann");
+    sut.dispatch(Event::StartOver);
+    // Name and acks survive StartOver; only the drafts and group key reset.
+    sut.dispatch(Event::Submit);
+    let next = sut.resolve(ShellResult::PasskeySupport { supported: true });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::GenerateGroupKey]),
+        "a fresh run mints a fresh group key; got {next:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Second-key gate (a device-bound sole key must not become a wallet alone)
+// ---------------------------------------------------------------------------
+
+/// Register key 1 as a DEVICE-BOUND credential (no BE/BS) and confirm it.
+fn device_bound_registered(name: &str) -> Sut {
+    let mut sut = filled(name);
+    sut.dispatch(Event::Submit);
+    sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(group_key_generated());
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::device_bound_registration(CRED),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k1"),
+    });
+    sut
+}
+
+/// A sole device-bound key is one lost device from an unrecoverable wallet:
+/// the freeze is refused and the view says a second key is needed.
+#[test]
+fn a_sole_device_bound_key_cannot_finish_alone() {
+    let mut sut = device_bound_registered("Ann");
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert!(view.keys[0].confirmed);
+    assert!(!view.keys[0].synced, "flags 0x45 carries no BS bit");
+    assert!(view.needs_second_key);
+    assert!(!view.can_finish);
+    assert!(
+        sut.dispatch(Event::FinishKeys).is_empty(),
+        "freezing a sole unsynced key is refused"
+    );
+}
+
+/// Adding ANY second key — even another device-bound one — breaks the single
+/// point of failure and unlocks the freeze.
+#[test]
+fn a_second_key_satisfies_the_device_bound_gate() {
+    let mut sut = device_bound_registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2"),
+    });
+    let view = sut.view();
+    assert!(!view.needs_second_key);
+    assert!(view.can_finish);
+    assert!(matches!(
+        sut.dispatch(Event::FinishKeys).as_slice(),
+        [ShellOperation::SavePendingUpload { .. }]
+    ));
+}
+
+/// …and removing back down to the sole device-bound key re-arms the gate.
+#[test]
+fn removing_back_to_a_sole_device_bound_key_rearms_the_gate() {
+    let mut sut = device_bound_registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2"),
+    });
+    sut.dispatch(Event::RemoveKey { index: 1 });
+    let view = sut.view();
+    assert!(view.needs_second_key);
+    assert!(!view.can_finish);
+}
+
+/// A SYNCED sole key is the common happy path and is never gated; the row
+/// also carries the sync signal for the UI badge.
+#[test]
+fn a_synced_sole_key_finishes_alone() {
+    let sut = registered("Ann");
+    let view = sut.view();
+    assert!(
+        view.keys[0].synced,
+        "the default fixture is a synced passkey"
+    );
+    assert!(!view.needs_second_key);
+    assert!(view.can_finish);
 }

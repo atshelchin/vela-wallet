@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { decodeFunctionResult, getAddress } from 'viem';
-import { REGISTRY_ABI } from './chain';
-import { formatRecord, type RawRecord } from './registry';
+import { LEGACY_REGISTRY_ABI } from './chain';
+import { formatLegacyRecord, type RawLegacyRecord } from './registry';
 import { GET_KEYS_RESULT } from './registry.fixture';
 
 /**
@@ -12,10 +12,10 @@ import { GET_KEYS_RESULT } from './registry.fixture';
  */
 describe('registry decode (real chain fixture)', () => {
 	const [total, records] = decodeFunctionResult({
-		abi: REGISTRY_ABI,
+		abi: LEGACY_REGISTRY_ABI,
 		functionName: 'getKeysByRpId',
 		data: GET_KEYS_RESULT
-	}) as [bigint, readonly RawRecord[]];
+	}) as [bigint, readonly RawLegacyRecord[]];
 
 	it('reads the on-chain total', () => {
 		expect(Number(total)).toBe(189);
@@ -23,7 +23,7 @@ describe('registry decode (real chain fixture)', () => {
 	});
 
 	it('decodes the newest record with name, address, key and time intact', () => {
-		const a = formatRecord(records[0]);
+		const a = formatLegacyRecord(records[0]);
 		expect(a.name).toBe('v test');
 		expect(a.credentialId).toBe('c4fabb9a1f71abed5116d00a2a6ab571');
 		expect(a.walletAddress).toBe(getAddress('0xb92359aea2d4933e4450924b90532c8621de3e4b'));
@@ -33,7 +33,7 @@ describe('registry decode (real chain fixture)', () => {
 	});
 
 	it('decodes a unicode name and its address', () => {
-		const b = formatRecord(records[1]);
+		const b = formatLegacyRecord(records[1]);
 		expect(b.name).toBe('Mimimi');
 		expect(b.walletAddress).toBe(getAddress('0xb0419e72285d4b5f04f194a5c636c3b12b567f3f'));
 	});

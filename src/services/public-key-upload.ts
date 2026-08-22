@@ -264,6 +264,15 @@ export async function retryPendingUploads(): Promise<{
   let failed = 0;
 
   for (const upload of pending) {
+    // A v2 multi-member group record cannot be re-driven silently: replaying
+    // its possession-proven publish takes one passkey PROMPT per member. It is
+    // finished from onboarding (RetryUpload / the next sign-in), never here —
+    // and this legacy v1 path could at best re-upload one key of a set whose
+    // address depends on all of them.
+    if (upload.members && upload.members.length > 1) {
+      console.log('[PublicKeyUpload] Skipping multi-key group record (needs interactive publish):', upload.name);
+      continue;
+    }
     try {
       await uploadPublicKey({
         credentialId: upload.id,

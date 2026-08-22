@@ -59,7 +59,15 @@ export async function loadAccounts(): Promise<StoredAccount[]> {
 
 export async function findAccountByCredentialId(id: string): Promise<StoredAccount | undefined> {
   const accounts = await loadAccounts();
-  return accounts.find(a => a.id === id);
+  // A multi-key wallet is owned by ANY of its founding credentials, not just
+  // `id` (which mirrors keys[0]).
+  return accounts.find(a => a.id === id || a.keys?.some(k => k.credentialId === id));
+}
+
+export async function findAccountByAddress(address: string): Promise<StoredAccount | undefined> {
+  const accounts = await loadAccounts();
+  const wanted = address.toLowerCase();
+  return accounts.find(a => a.address.toLowerCase() === wanted);
 }
 
 // ---------------------------------------------------------------------------

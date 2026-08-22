@@ -350,6 +350,117 @@ pub fn recover_public_key_from_assertions(
 }
 
 // ---------------------------------------------------------------------------
+// p256-index registry (group/member proofs + metadata blob)
+// ---------------------------------------------------------------------------
+
+/// Mirror of `registry_proof::RegistryProof` — the WebAuthn-shaped proof the
+/// registry contract verifies.
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryProofJs {
+    pub authenticator_data: String,
+    #[serde(rename = "clientDataJSON")]
+    pub client_data_json: String,
+    pub challenge_index: u32,
+    pub type_index: u32,
+    pub r: String,
+    pub s: String,
+}
+
+impl From<vela_core::registry_proof::RegistryProof> for RegistryProofJs {
+    fn from(proof: vela_core::registry_proof::RegistryProof) -> Self {
+        RegistryProofJs {
+            authenticator_data: proof.authenticator_data,
+            client_data_json: proof.client_data_json,
+            challenge_index: proof.challenge_index,
+            type_index: proof.type_index,
+            r: proof.r,
+            s: proof.s,
+        }
+    }
+}
+
+/// Mirror of `registry_proof::GroupProof`.
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct GroupProofJs {
+    pub group_public_key_hex: String,
+    pub proof: RegistryProofJs,
+}
+
+impl From<vela_core::registry_proof::GroupProof> for GroupProofJs {
+    fn from(built: vela_core::registry_proof::GroupProof) -> Self {
+        GroupProofJs {
+            group_public_key_hex: built.group_public_key_hex,
+            proof: built.proof.into(),
+        }
+    }
+}
+
+/// Input for `encodeRegistryMetadata`; `version` is supplied by the core.
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(from_wasm_abi)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistryMetadataInput {
+    pub address: String,
+    pub wallet_version: String,
+    pub key_names: Vec<String>,
+    pub created_at_iso: String,
+}
+
+/// The uncompressed public key of the one-time group key a 32-byte seed
+/// derives — needed before requesting the group's challenge.
+#[wasm_bindgen(js_name = groupPublicKeyFromSeed)]
+pub fn group_public_key_from_seed(seed_hex: &str) -> JsResult<String> {
+    vela_core::registry_proof::group_public_key_from_seed(seed_hex).map_err(err)
+}
+
+/// Derive the one-time group key from a 32-byte seed and build its closing
+/// proof over the group's content-hash challenge.
+#[wasm_bindgen(js_name = buildGroupProof)]
+pub fn build_group_proof(
+    seed_hex: &str,
+    rp_id: &str,
+    challenge_hex: &str,
+) -> JsResult<GroupProofJs> {
+    vela_core::registry_proof::build_group_proof(seed_hex, rp_id, challenge_hex)
+        .map(Into::into)
+        .map_err(err)
+}
+
+/// Assemble a member passkey's proof from its real WebAuthn assertion.
+#[wasm_bindgen(js_name = buildMemberProof)]
+pub fn build_member_proof(
+    authenticator_data_hex: &str,
+    client_data_json_hex: &str,
+    signature_der_hex: &str,
+) -> JsResult<RegistryProofJs> {
+    vela_core::registry_proof::build_member_proof(
+        authenticator_data_hex,
+        client_data_json_hex,
+        signature_der_hex,
+    )
+    .map(Into::into)
+    .map_err(err)
+}
+
+/// Encode the wallet's registry metadata blob to `0x`-hex, bounded to the
+/// contract's 2048-byte cap.
+#[wasm_bindgen(js_name = encodeRegistryMetadata)]
+pub fn encode_registry_metadata(input: RegistryMetadataInput) -> JsResult<String> {
+    let meta = vela_core::registry_metadata::RegistryMetadata {
+        version: vela_core::registry_metadata::REGISTRY_METADATA_VERSION,
+        address: input.address,
+        wallet_version: input.wallet_version,
+        key_names: input.key_names,
+        created_at_iso: input.created_at_iso,
+    };
+    meta.encode_hex().map_err(err)
+}
+
+// ---------------------------------------------------------------------------
 // identicon (spec 003-rust-identicon, contracts/identicon-api.md)
 // ---------------------------------------------------------------------------
 

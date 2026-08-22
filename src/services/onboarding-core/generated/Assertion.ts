@@ -3,4 +3,12 @@
 /**
  * A completed `navigator.credentials.get()`. Mirrors `PasskeyAssertionResult`.
  */
-export type Assertion = { credential_id: string, signature_der_hex: string, authenticator_data_hex: string, client_data_json_hex: string, user_id_hex: string | null, };
+export type Assertion = { credential_id: string, signature_der_hex: string, authenticator_data_hex: string, client_data_json_hex: string, user_id_hex: string | null, 
+/**
+ * The `authenticatorAttachment` token on the assertion's
+ * PublicKeyCredential ("platform" / "cross-platform", or empty). Unlike
+ * the attestation and transports — which live only in a create()
+ * response — this IS exposed on an assertion, so a recovered/logged-in
+ * key can still record it. Store-only display; never signed.
+ */
+authenticator_attachment: string, };

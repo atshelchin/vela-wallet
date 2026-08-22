@@ -3,6 +3,8 @@ import type { Account } from "./Account";
 import type { Assertion } from "./Assertion";
 import type { FailureKind } from "./FailureKind";
 import type { Registration } from "./Registration";
+import type { RegistryProof } from "./RegistryProof";
+import type { RegistryUnitMember } from "./RegistryUnitMember";
 
 /**
  * What the shell observed. Failures arrive as *variants*, never as exceptions:
@@ -10,16 +12,25 @@ import type { Registration } from "./Registration";
  * belongs to the operation, which is what lets the core own classification
  * instead of pattern-matching error strings.
  */
-export type ShellResult = { "type": "passkey_support", supported: boolean, } | { "type": "passkey_registered", registration: Registration, now_iso: string, } | { "type": "proof_signed", assertion: Assertion, now_iso: string, } | { "type": "passkey_authenticated", assertion: Assertion, now_iso: string, } | { "type": "passkey_failed", kind: FailureKind, 
+export type ShellResult = { "type": "passkey_support", supported: boolean, } | { "type": "passkey_registered", registration: Registration, now_iso: string, } | { "type": "proof_signed", assertion: Assertion, now_iso: string, } | { "type": "group_key_generated", seed_hex: string, 
+/**
+ * Uncompressed P-256 point, `04‖x‖y` hex (no `0x`).
+ */
+group_public_key_hex: string, } | { "type": "member_proof_signed", proof: RegistryProof, } | { "type": "legacy_name", name: string | null, } | { "type": "passkey_authenticated", assertion: Assertion, now_iso: string, } | { "type": "passkey_failed", kind: FailureKind, 
 /**
  * The platform's own words, forwarded verbatim for the
  * "something went wrong" alert. Absent for classified failures, whose
  * copy comes from the classification.
  */
-message: string | null, } | { "type": "accounts_loaded", accounts: Array<Account>, } | { "type": "account_saved" } | { "type": "pending_upload_saved" } | { "type": "pending_upload_removed" } | { "type": "storage_failed", message: string, } | { "type": "index_created" } | { "type": "index_record", public_key_hex: string, name: string, } | { "type": "index_missing" } | { "type": "index_failed", message: string, 
+message: string | null, } | { "type": "accounts_loaded", accounts: Array<Account>, } | { "type": "account_saved" } | { "type": "pending_upload_saved" } | { "type": "pending_upload_removed" } | { "type": "storage_failed", message: string, } | { "type": "registry_published" } | { "type": "registry_key_status", registered: boolean, 
+/**
+ * The ids of the groups (Units) this key is a founding member of,
+ * ascending. Empty for a registered key predating groups.
+ */
+unit_ids: Array<number>, } | { "type": "registry_unit", metadata_hex: string, members: Array<RegistryUnitMember>, } | { "type": "index_failed", message: string, 
 /**
  * True when the request never reached the server (transport failure or
  * abort). Only the shell can tell that from a 4xx, so this one bit of
  * classification is delegated.
  */
-network: boolean, } | { "type": "wallet_ref", resolved: boolean, } | { "type": "index_health", ok: boolean, } | { "type": "waited" } | { "type": "prompt_answered", accepted: boolean, } | { "type": "onboarding_completed" };
+network: boolean, } | { "type": "index_health", ok: boolean, } | { "type": "waited" } | { "type": "prompt_answered", accepted: boolean, } | { "type": "onboarding_completed" };

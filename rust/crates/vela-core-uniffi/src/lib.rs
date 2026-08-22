@@ -54,6 +54,10 @@ pub enum CoreError {
     #[error("{0}")]
     I18nCatalogParse(String),
     #[error("{0}")]
+    RegistryMetadata(String),
+    #[error("{0}")]
+    RegistryProof(String),
+    #[error("{0}")]
     Internal(String),
 }
 
@@ -81,6 +85,8 @@ impl From<vela_core::CoreError> for CoreError {
             E::I18nUnsupportedOption(_) => CoreError::I18nUnsupportedOption(msg),
             E::I18nCatalogUnavailable(_) => CoreError::I18nCatalogUnavailable(msg),
             E::I18nCatalogParse(_) => CoreError::I18nCatalogParse(msg),
+            E::RegistryMetadata(_) => CoreError::RegistryMetadata(msg),
+            E::RegistryProof(_) => CoreError::RegistryProof(msg),
             E::Internal(_) => CoreError::Internal(msg),
         }
     }

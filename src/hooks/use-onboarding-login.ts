@@ -31,6 +31,11 @@ function toStored(account: Account): StoredAccount {
     address: account.address,
     publicKeyHex: account.public_key_hex,
     createdAt: account.created_at_iso,
+    keys: (account.keys ?? []).map((key) => ({
+      credentialId: key.credential_id,
+      publicKeyHex: key.public_key_hex,
+      name: key.name,
+    })),
   };
 }
 

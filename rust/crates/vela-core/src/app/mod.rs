@@ -94,6 +94,14 @@ pub struct Registration {
     pub credential_id: String,
     pub attestation_object_hex: String,
     pub client_data_json_hex: String,
+    /// PublicKeyCredential response hints (not in authData, not signed):
+    /// the `authenticatorAttachment` token ("platform" / "cross-platform",
+    /// or empty) and the `getTransports()` list joined with commas
+    /// (e.g. "hybrid,internal", or empty). Stored on the entry for display.
+    #[serde(default)]
+    pub authenticator_attachment: String,
+    #[serde(default)]
+    pub transports: String,
 }
 
 /// A completed `navigator.credentials.get()`. Mirrors `PasskeyAssertionResult`.
@@ -105,9 +113,35 @@ pub struct Assertion {
     pub authenticator_data_hex: String,
     pub client_data_json_hex: String,
     pub user_id_hex: Option<String>,
+    /// The `authenticatorAttachment` token on the assertion's
+    /// PublicKeyCredential ("platform" / "cross-platform", or empty). Unlike
+    /// the attestation and transports — which live only in a create()
+    /// response — this IS exposed on an assertion, so a recovered/logged-in
+    /// key can still record it. Store-only display; never signed.
+    #[serde(default)]
+    pub authenticator_attachment: String,
+}
+
+/// One passkey of a wallet, in canonical founding order. `keys[0]` is the
+/// pinned key that signs through the shared `WEBAUTHN_SIGNER`; every later key
+/// signs through its own counterfactual signer proxy.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct AccountKey {
+    pub credential_id: String,
+    /// Uncompressed P-256 point, `04‖x‖y` hex.
+    pub public_key_hex: String,
+    /// Per-key label; `keys[0].name` is the wallet name itself.
+    pub name: String,
 }
 
 /// The persisted wallet. Serialises 1:1 to `StoredAccount`.
+///
+/// The scalar `id`/`public_key_hex` fields are the legacy single-key shape and
+/// stay authoritative for `keys[0]`: a multi-key account writes them as copies
+/// of its first key, and a legacy record simply has no `keys` at all. Only
+/// [`Account::key_hexes`] / [`Account::matches_credential`] may interpret this
+/// duality — everything else asks them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub struct Account {
@@ -116,11 +150,53 @@ pub struct Account {
     pub address: String,
     pub public_key_hex: String,
     pub created_at_iso: String,
+    /// Full founding key set. Empty ⇒ legacy single-key account (the scalar
+    /// fields are the whole story). `#[serde(default)]` lets records written
+    /// before this field existed deserialize unchanged.
+    #[serde(default)]
+    pub keys: Vec<AccountKey>,
 }
 
-/// A key that still owes the index server a successful publish. Written
+impl Account {
+    /// The full key set in founding order; a legacy account projects its
+    /// scalar field as the sole key.
+    pub(crate) fn key_hexes(&self) -> Vec<String> {
+        if self.keys.is_empty() {
+            vec![self.public_key_hex.clone()]
+        } else {
+            self.keys.iter().map(|k| k.public_key_hex.clone()).collect()
+        }
+    }
+
+    /// Does this credential belong to the wallet — as the legacy sole key or
+    /// as any founding member?
+    pub(crate) fn matches_credential(&self, credential_id: &str) -> bool {
+        self.id == credential_id || self.keys.iter().any(|k| k.credential_id == credential_id)
+    }
+}
+
+/// One draft key inside a multi-member [`PendingUpload`], founding order.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct PendingUploadMember {
+    pub credential_id: String,
+    pub name: String,
+    pub public_key_hex: String,
+    pub attestation_object_hex: String,
+    #[serde(default)]
+    pub authenticator_attachment: String,
+    #[serde(default)]
+    pub transports: String,
+}
+
+/// A key set that still owes the index server a successful publish. Written
 /// *before* the first upload attempt so an interrupted creation is retried on a
 /// later launch.
+///
+/// The scalar fields mirror `members[0]` (legacy single-key records have no
+/// `members` and the scalars are the whole story). A record with
+/// `members.len() > 1` must never be retried silently — replaying the publish
+/// takes one passkey prompt per member.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "bindings", derive(TS))]
 pub struct PendingUpload {
@@ -129,6 +205,54 @@ pub struct PendingUpload {
     pub public_key_hex: String,
     pub attestation_object_hex: String,
     pub created_at_iso: String,
+    /// Browser-reported display hints captured at creation, preserved so an
+    /// interrupted publish retried on a later launch keeps them (they are not
+    /// recoverable from the attestation object).
+    #[serde(default)]
+    pub authenticator_attachment: String,
+    #[serde(default)]
+    pub transports: String,
+    /// Full founding key set. Empty ⇒ legacy single-key record.
+    #[serde(default)]
+    pub members: Vec<PendingUploadMember>,
+}
+
+/// One member passkey to include in a possession-proven registry publish, in
+/// canonical founding order. The executor signs each with its credential.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct RegistryPublishMember {
+    pub credential_id: String,
+    /// Uncompressed P-256 point, `04‖x‖y` hex.
+    pub public_key_hex: String,
+    /// Empty, or 20 versioned attestation bytes (hex).
+    pub attestation_hex: String,
+    /// Browser-reported display hints (not signed): the
+    /// `authenticatorAttachment` token and the comma-joined transports list.
+    #[serde(default)]
+    pub authenticator_attachment: String,
+    #[serde(default)]
+    pub transports: String,
+    /// The possession proof collected AT CREATION (interleaved flow). Absent
+    /// on the login re-publish, whose executor signs the member live.
+    #[serde(default)]
+    pub proof: Option<crate::registry_proof::RegistryProof>,
+}
+
+/// One founding member of a registry group (Unit), as fetched back from the
+/// index. The mirror of [`RegistryPublishMember`] on the read side; ascending
+/// fetch order IS the canonical founding order.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct RegistryUnitMember {
+    pub credential_id: String,
+    /// Uncompressed P-256 point, `04‖x‖y` hex.
+    pub public_key_hex: String,
+    /// Browser-reported display hints recorded at registration.
+    #[serde(default)]
+    pub authenticator_attachment: String,
+    #[serde(default)]
+    pub transports: String,
 }
 
 /// How a ceremony failed. The **shell** reports the raw platform error; the
@@ -200,6 +324,18 @@ pub(crate) fn address_from_public_key_hex(public_key_hex: &str) -> Result<String
     Ok(safe::compute_safe_address(&key.x, &key.y)?.address)
 }
 
+/// The counterfactual Safe address for a founding key set. Byte-identical to
+/// [`address_from_public_key_hex`] for a single key (the release-gated
+/// `compute_safe_address_multi` N=1 equivalence); `keys[0]` is the pinned
+/// shared-signer key, the rest are canonically ordered inside.
+pub(crate) fn address_from_public_key_hexes(hexes: &[String]) -> Result<String, CoreError> {
+    let keys = hexes
+        .iter()
+        .map(|hex| safe::parse_public_key(hex))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(safe::compute_safe_address_multi(&keys)?.address)
+}
+
 impl Assertion {
     /// Decode into the byte-level assertion the crypto kernels take.
     pub(crate) fn to_core(&self) -> Result<WebAuthnAssertion, CoreError> {
@@ -239,14 +375,23 @@ impl Assertion {
         if !is_uuid_v4_shape(uuid) {
             return None;
         }
-        if name.is_empty() || name.encode_utf16().count() > 64 || has_unprintable(name) {
+        if !valid_display_name(name) {
             return None;
         }
         Some(name.to_owned())
     }
 }
 
-/// `8-4-4-4-12` lowercase hex, matching the `UUID_RE` the encoder pairs with.
+/// A displayable wallet name: non-empty, ≤64 UTF-16 units, no control
+/// characters or U+FFFD — the same bar `user_name()` holds the handle to,
+/// shared so a server-recovered name cannot smuggle in what a handle cannot.
+pub(crate) fn valid_display_name(name: &str) -> bool {
+    !name.is_empty() && name.encode_utf16().count() <= 64 && !has_unprintable(name)
+}
+
+/// `8-4-4-4-12` hex, case-insensitive: the web encoder emits lowercase but
+/// iOS `UUID().uuidString` is UPPERCASE — a name must never be lost because
+/// the uuid tail's case differs.
 fn is_uuid_v4_shape(candidate: &str) -> bool {
     const GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
     let mut parts = candidate.split('-');
@@ -254,11 +399,7 @@ fn is_uuid_v4_shape(candidate: &str) -> bool {
         let Some(part) = parts.next() else {
             return false;
         };
-        if part.len() != len
-            || !part
-                .bytes()
-                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-        {
+        if part.len() != len || !part.bytes().all(|b| b.is_ascii_hexdigit()) {
             return false;
         }
     }
@@ -289,6 +430,7 @@ mod tests {
             authenticator_data_hex: String::new(),
             client_data_json_hex: String::new(),
             user_id_hex: Some(primitives::to_hex(text.as_bytes(), false)),
+            authenticator_attachment: String::new(),
         }
     }
 

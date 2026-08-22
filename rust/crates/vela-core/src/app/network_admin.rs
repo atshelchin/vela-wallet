@@ -173,6 +173,22 @@ pub fn service_identity(field: NetEndpointField) -> Option<&'static str> {
     }
 }
 
+/// Whether a health response's `service` field is one this endpoint accepts.
+/// The passkey index accepts BOTH the legacy `…-index` and the v2 `…-registry`
+/// identities during the migration to the possession-proven registry.
+pub fn identity_accepted(field: NetEndpointField, service: Option<&str>) -> bool {
+    match field {
+        NetEndpointField::PasskeyIndex => matches!(
+            service,
+            Some("webauthn-p256-publickey-index") | Some("webauthn-p256-publickey-registry")
+        ),
+        _ => match service_identity(field) {
+            Some(expected) => service == Some(expected),
+            None => false,
+        },
+    }
+}
+
 /// One built-in network (models/chains.ts `CHAINS`, the fields this machine
 /// needs). The full table is the canon: chainId dedup, override defaults and
 /// provider probe targets all read from here.
@@ -2350,10 +2366,8 @@ fn service_health_result(
         NetHealthBody::Identity { service, status } => {
             // Invariant ⑥: the endpoint must BE the service it claims —
             // a passkey index pointed elsewhere is a login-safety failure.
-            let expected = service_identity(field);
-            let identity_ok = expected.is_some()
-                && service.as_deref() == expected
-                && status.as_deref() == Some("ok");
+            let identity_ok =
+                identity_accepted(field, service.as_deref()) && status.as_deref() == Some("ok");
             if identity_ok {
                 NetServiceHealth::Ok {
                     latency_ms,

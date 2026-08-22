@@ -49,6 +49,10 @@ pub enum CoreError {
     I18nCatalogUnavailable(String),
     #[error("i18n catalog JSON is malformed: {0}")]
     I18nCatalogParse(String),
+    #[error("registry metadata is invalid: {0}")]
+    RegistryMetadata(String),
+    #[error("registry group proof could not be built: {0}")]
+    RegistryProof(String),
     #[error("internal invariant violated: {0}")]
     Internal(String),
 }
@@ -77,6 +81,8 @@ impl CoreError {
             CoreError::I18nUnsupportedOption(_) => "I18nUnsupportedOption",
             CoreError::I18nCatalogUnavailable(_) => "I18nCatalogUnavailable",
             CoreError::I18nCatalogParse(_) => "I18nCatalogParse",
+            CoreError::RegistryMetadata(_) => "RegistryMetadata",
+            CoreError::RegistryProof(_) => "RegistryProof",
             CoreError::Internal(_) => "Internal",
         }
     }

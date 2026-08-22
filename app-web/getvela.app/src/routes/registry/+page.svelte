@@ -6,13 +6,32 @@
 	import Seo from '$lib/components/Seo.svelte';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
-	import { CONTRACT_ADDRESS, makeGnosisClient } from '$lib/chain';
-	import { fetchWalletPage, type WalletRecord } from '$lib/registry';
+	import { CONTRACT_ADDRESS, LEGACY_CONTRACT_ADDRESS, makeGnosisClient } from '$lib/chain';
+	import {
+		fetchWalletPage,
+		type RegistrySource,
+		type WalletRecord,
+		type MemberPasskey
+	} from '$lib/registry';
+	import {
+		parseAttestation,
+		resolveAuthenticator,
+		fallbackLabel,
+		securityChips,
+		type AttestationSignals,
+		type AuthenticatorLabel
+	} from '$lib/authenticators';
 	import type { PublicClient } from 'viem';
 
 	const SIZE_OPTIONS = [20, 50, 100] as const;
 	const DEFAULT_SIZE = 100;
-	const contractUrl = `https://gnosisscan.io/address/${CONTRACT_ADDRESS}`;
+	/** The current possession-proven registry is the default; the legacy
+	 *  server-signed index stays browsable for pre-migration wallets. */
+	const source = $derived<RegistrySource>(
+		page.url.searchParams.get('source') === 'legacy' ? 'legacy' : 'v2'
+	);
+	const contractAddr = $derived(source === 'legacy' ? LEGACY_CONTRACT_ADDRESS : CONTRACT_ADDRESS);
+	const contractUrl = $derived(`https://gnosisscan.io/address/${contractAddr}`);
 
 	// --- Live data ---
 	let client: PublicClient | null = null;
@@ -26,6 +45,45 @@
 	let expandedId = $state<string | null>(null);
 	let copiedKey = $state<string | null>(null);
 	let reqId = 0;
+
+	/** AAGUID (lowercase) → resolved authenticator label, filled in as the
+	 *  AAGUID Explorer answers. Reads degrade to a generic label. */
+	let authLabels = $state<Record<string, AuthenticatorLabel>>({});
+
+	/** Kick off (cached) AAGUID lookups for every passkey on the loaded page. */
+	function resolveLabels(rows: WalletRecord[]) {
+		const seen = new Set<string>();
+		for (const r of rows) {
+			for (const m of r.members ?? []) {
+				const att = parseAttestation(m.attestation);
+				if (!att?.aaguid) continue;
+				const key = att.aaguid.toLowerCase();
+				if (seen.has(key) || authLabels[key]) continue;
+				seen.add(key);
+				resolveAuthenticator(att.aaguid, m.authenticatorAttachment, m.transports).then((label) => {
+					authLabels = { ...authLabels, [key]: label };
+				});
+			}
+		}
+	}
+
+	/** The attestation signals + best-known authenticator label for one passkey. */
+	function memberAuth(m: MemberPasskey): {
+		att: AttestationSignals | null;
+		label: AuthenticatorLabel;
+	} {
+		const att = parseAttestation(m.attestation);
+		if (att?.aaguid) {
+			const known = authLabels[att.aaguid.toLowerCase()];
+			if (known) return { att, label: known };
+			// Awaiting the lookup: show the AAGUID itself, not a wrong guess.
+			return {
+				att,
+				label: { name: att.aaguid, iconUrl: null, iconUrlDark: null, glyph: '🔐', known: false }
+			};
+		}
+		return { att, label: fallbackLabel(m.authenticatorAttachment, m.transports) };
+	}
 
 	// --- URL-driven state (shareable, back-button friendly) ---
 	const currentPage = $derived(readPage(page.url.searchParams.get('page')));
@@ -54,13 +112,15 @@
 		errorMsg = null;
 		expandedId = null;
 		try {
-			const res = await fetchWalletPage(ensureClient(), p, size, d);
+			const res = await fetchWalletPage(ensureClient(), p, size, d, source);
 			if (id !== reqId) return; // a newer request superseded this one
 			total = res.total;
 			records = res.records;
 			loaded = { page: p, desc: d, size };
-		} catch {
+			resolveLabels(res.records);
+		} catch (e) {
 			if (id !== reqId) return;
+			console.error('registry read failed', e);
 			errorMsg = 'Couldn’t reach the Gnosis network. Please try again.';
 			records = [];
 		} finally {
@@ -72,18 +132,24 @@
 		const p = currentPage;
 		const d = desc;
 		const size = pageSize;
+		source; // re-read when the registry source changes
+		total = null; // the count belongs to a source; clear it while switching
 		if (browser) load(p, d, size);
 	});
 
 	// --- Navigation (writes to the URL; the effect above reacts) ---
 	/** Query string for a page + order + size. All values are app-controlled, so no
 	 *  escaping is needed. Empty (clean URL) for the defaults (newest / page 1 / 100). */
-	function queryFor(p: number, newest: boolean, size: number): string {
+	function queryFor(p: number, newest: boolean, size: number, src: RegistrySource = source): string {
 		const parts: string[] = [];
+		if (src === 'legacy') parts.push('source=legacy');
 		if (!newest) parts.push('order=oldest');
 		if (size !== DEFAULT_SIZE) parts.push(`size=${size}`);
 		if (p > 1) parts.push(`page=${p}`);
 		return parts.length ? `?${parts.join('&')}` : '';
+	}
+	function setSource(src: RegistrySource) {
+		navTo(queryFor(1, desc, pageSize, src)); // a new source starts from page 1
 	}
 	function navTo(qs: string) {
 		// resolve() is applied to the route; the lint rule just can't trace it
@@ -111,7 +177,8 @@
 	 *  honest chain; the index also guards against a hostile RPC returning duplicate
 	 *  records, which would otherwise crash the keyed #each. */
 	function rowKey(r: WalletRecord, i: number): string {
-		return `${r.walletRef}:${r.credentialId}:${i}`;
+		const id = r.source === 'legacy' ? `${r.walletRef}:${r.credentialId}` : `unit:${r.unitId}`;
+		return `${r.source}:${id}:${i}`;
 	}
 	function toggle(id: string) {
 		expandedId = expandedId === id ? null : id;
@@ -176,17 +243,35 @@
 		<a class="back" href={resolve('/')}>← Home</a>
 		<h1>Wallet registry</h1>
 		<p class="lede">
-			When a Vela wallet is created, its passkey public key is uploaded to a public index on
-			Gnosis — a cache, not a dependency: if the upload fails the wallet still works, and the
-			key can be re-derived on-device from two passkey signatures. This
-			page reads the
-			<a href={contractUrl} target="_blank" rel="noopener">index contract</a>
+			When a Vela wallet is created, its passkey public key is written to a public registry on
+			Gnosis — a cache, not a dependency: if the write fails the wallet still works, and the key
+			can be re-derived on-device from two passkey signatures.
+			{#if source === 'v2'}
+				Vela moved to a new <strong>possession-proven</strong> registry: every entry now carries a
+				WebAuthn signature that proves the writer actually holds the passkey, so no server can
+				forge one. Each wallet is one immutable on-chain group of its founding passkeys.
+			{:else}
+				This is the <strong>legacy</strong> index — a server-signed store kept readable for wallets
+				created before the migration. New wallets are written to the current registry.
+			{/if}
+			This page reads the
+			<a href={contractUrl} target="_blank" rel="noopener">registry contract</a>
 			live from your browser — nothing here comes from Vela's servers. Don't trust us — verify.
 		</p>
 		<div class="reg-stat" aria-live="polite">
 			<span class="live-dot" class:on={total !== null && !errorMsg}></span>
 			<strong class="stat-number">{total === null ? '—' : total.toLocaleString()}</strong>
 			<span>wallets created on-chain</span>
+		</div>
+		<div class="seg source-seg" role="group" aria-label="Registry source">
+			<button class:active={source === 'v2'} aria-pressed={source === 'v2'} onclick={() => setSource('v2')}
+				>Current registry</button
+			>
+			<button
+				class:active={source === 'legacy'}
+				aria-pressed={source === 'legacy'}
+				onclick={() => setSource('legacy')}>Legacy index</button
+			>
 		</div>
 	</header>
 
@@ -279,32 +364,141 @@
 										</button>
 									</dd>
 								</div>
-								<div class="detail">
-									<dt>Passkey credential</dt>
-									<dd>
-										<code class="mono">{r.credentialId}</code>
-										<button
-											class="cp"
-											aria-label="Copy passkey credential ID"
-											onclick={() => copy(r.credentialId, `${rid}:c`)}
-										>
-											{copiedKey === `${rid}:c` ? 'Copied' : 'Copy'}
-										</button>
-									</dd>
-								</div>
-								<div class="detail">
-									<dt>P-256 public key</dt>
-									<dd>
-										<code class="mono wrap">{r.publicKey}</code>
-										<button
-											class="cp"
-											aria-label="Copy P-256 public key"
-											onclick={() => copy(r.publicKey, `${rid}:k`)}
-										>
-											{copiedKey === `${rid}:k` ? 'Copied' : 'Copy'}
-										</button>
-									</dd>
-								</div>
+								{#if r.source === 'legacy'}
+									<div class="detail">
+										<dt>Passkey credential</dt>
+										<dd>
+											<code class="mono">{r.credentialId}</code>
+											<button
+												class="cp"
+												aria-label="Copy passkey credential ID"
+												onclick={() => copy(r.credentialId ?? '', `${rid}:c`)}
+											>
+												{copiedKey === `${rid}:c` ? 'Copied' : 'Copy'}
+											</button>
+										</dd>
+									</div>
+								{:else}
+									<div class="detail">
+										<dt>Group</dt>
+										<dd>
+											#{r.unitId} · {r.memberCount} passkey{r.memberCount === 1 ? '' : 's'}{r.walletVersion
+												? ` · ${r.walletVersion}`
+												: ''}
+										</dd>
+									</div>
+								{/if}
+								{#if r.source === 'legacy'}
+									<div class="detail">
+										<dt>P-256 public key</dt>
+										<dd>
+											<code class="mono wrap">{r.publicKey}</code>
+											<button
+												class="cp"
+												aria-label="Copy P-256 public key"
+												onclick={() => copy(r.publicKey, `${rid}:k`)}
+											>
+												{copiedKey === `${rid}:k` ? 'Copied' : 'Copy'}
+											</button>
+										</dd>
+									</div>
+								{:else}
+									<div class="detail detail-block">
+										<dt>{(r.members?.length ?? 0) === 1 ? 'Passkey' : 'Passkeys'}</dt>
+										<dd>
+											<ul class="pk-list">
+												{#each r.members ?? [] as m, mi (m.entryId ?? mi)}
+													{@const a = memberAuth(m)}
+													<li class="pk">
+														<div class="pk-head">
+															<span class="auth-glyph" aria-hidden="true">
+																{#if a.label.iconUrl}
+																	<picture>
+																		{#if a.label.iconUrlDark}
+																			<source
+																				srcset={a.label.iconUrlDark}
+																				media="(prefers-color-scheme: dark)"
+																			/>
+																		{/if}
+																		<img
+																			src={a.label.iconUrl}
+																			alt=""
+																			width="20"
+																			height="20"
+																			loading="lazy"
+																		/>
+																	</picture>
+																{:else}
+																	<span class="glyph">{a.label.glyph}</span>
+																{/if}
+															</span>
+															<span class="pk-name">{a.label.name}</span>
+															{#if a.att}
+																{#each securityChips(a.att) as chip (chip.label)}
+																	<span class="chip {chip.tone}" title={chip.title}
+																		>{chip.label}</span
+																	>
+																{/each}
+															{/if}
+														</div>
+														<div class="pk-facts">
+															<div class="pk-fact">
+																<span class="pk-label">Public key</span>
+																<span class="pk-value">
+																	<code class="mono wrap">{m.publicKey}</code>
+																	<button
+																		class="cp"
+																		aria-label="Copy public key"
+																		onclick={() => copy(m.publicKey, `${rid}:k${mi}`)}
+																	>
+																		{copiedKey === `${rid}:k${mi}` ? 'Copied' : 'Copy'}
+																	</button>
+																</span>
+															</div>
+															{#if m.credentialId}
+																<div class="pk-fact">
+																	<span class="pk-label">Credential</span>
+																	<span class="pk-value">
+																		<code class="mono wrap">{m.credentialId}</code>
+																		<button
+																			class="cp"
+																			aria-label="Copy credential id"
+																			onclick={() => copy(m.credentialId, `${rid}:c${mi}`)}
+																		>
+																			{copiedKey === `${rid}:c${mi}` ? 'Copied' : 'Copy'}
+																		</button>
+																	</span>
+																</div>
+															{/if}
+															{#if a.att?.aaguid}
+																<div class="pk-fact">
+																	<span class="pk-label">AAGUID</span>
+																	<span class="pk-value"><code class="mono">{a.att.aaguid}</code></span>
+																</div>
+															{/if}
+															{#if m.authenticatorAttachment || m.transports}
+																<div class="pk-fact">
+																	<span class="pk-label">Transport</span>
+																	<span class="pk-value"
+																		>{[m.authenticatorAttachment, m.transports]
+																			.filter(Boolean)
+																			.join(' · ')}</span
+																	>
+																</div>
+															{/if}
+															{#if m.attestation && m.attestation !== '0x'}
+																<div class="pk-fact">
+																	<span class="pk-label">Attestation</span>
+																	<span class="pk-value"><code class="mono wrap">{m.attestation}</code></span>
+																</div>
+															{/if}
+														</div>
+													</li>
+												{/each}
+											</ul>
+										</dd>
+									</div>
+								{/if}
 								<div class="detail">
 									<dt>Relying party</dt>
 									<dd>{r.rpId}</dd>
@@ -632,6 +826,121 @@
 	.cp:hover {
 		color: var(--text);
 		border-color: var(--border-strong);
+	}
+
+	/* ── Per-passkey list (multi-key wallets) ── */
+	.detail-block {
+		align-items: start;
+	}
+	.pk-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: grid;
+		gap: 10px;
+		width: 100%;
+		min-width: 0;
+	}
+	.pk {
+		display: grid;
+		gap: 12px;
+		padding: 14px 16px;
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		background: var(--bg-sunken);
+		min-width: 0;
+	}
+	.pk-head {
+		display: flex;
+		align-items: center;
+		gap: 9px;
+		flex-wrap: wrap;
+		padding-bottom: 11px;
+		border-bottom: 1px solid var(--border);
+	}
+	.auth-glyph {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		flex: 0 0 22px;
+	}
+	.auth-glyph img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		display: block;
+	}
+	.auth-glyph .glyph {
+		font-size: 1.1rem;
+		line-height: 1;
+	}
+	.pk-name {
+		font-weight: 650;
+		font-size: 0.94rem;
+		color: var(--text);
+		margin-right: auto;
+	}
+	.chip {
+		font-size: 0.68rem;
+		font-weight: 500;
+		padding: 2px 9px;
+		border-radius: 999px;
+		border: 1px solid var(--border);
+		color: var(--text-secondary);
+		white-space: nowrap;
+	}
+	.chip.sync {
+		color: #1f9e6b;
+		border-color: rgba(31, 158, 107, 0.35);
+		background: rgba(31, 158, 107, 0.08);
+	}
+	.chip.verify {
+		color: #2b72e8;
+		border-color: rgba(43, 114, 232, 0.35);
+		background: rgba(43, 114, 232, 0.08);
+	}
+	.chip.bound {
+		color: var(--text-muted);
+	}
+	.pk-facts {
+		display: grid;
+		gap: 8px;
+	}
+	.pk-fact {
+		display: grid;
+		grid-template-columns: 88px 1fr;
+		gap: 12px;
+		align-items: baseline;
+	}
+	.pk-label {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-tertiary);
+		padding-top: 2px;
+	}
+	.pk-value {
+		display: flex;
+		align-items: baseline;
+		gap: 8px;
+		flex-wrap: wrap;
+		min-width: 0;
+		font-size: 0.85rem;
+		color: var(--text-secondary);
+	}
+	.pk-value code.mono {
+		color: var(--code-inline-text);
+		background: var(--code-inline-bg);
+		padding: 2px 6px;
+		border-radius: 5px;
+	}
+	@media (max-width: 560px) {
+		.pk-fact {
+			grid-template-columns: 1fr;
+			gap: 3px;
+		}
 	}
 
 	/* ── Skeleton ── */

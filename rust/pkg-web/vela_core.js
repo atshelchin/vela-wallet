@@ -2505,6 +2505,49 @@ export function bestNativeDexPrice(groups) {
 }
 
 /**
+ * Derive the one-time group key from a 32-byte seed and build its closing
+ * proof over the group's content-hash challenge.
+ * @param {string} seed_hex
+ * @param {string} rp_id
+ * @param {string} challenge_hex
+ * @returns {GroupProofJs}
+ */
+export function buildGroupProof(seed_hex, rp_id, challenge_hex) {
+    const ptr0 = passStringToWasm0(seed_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(rp_id, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(challenge_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.buildGroupProof(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Assemble a member passkey's proof from its real WebAuthn assertion.
+ * @param {string} authenticator_data_hex
+ * @param {string} client_data_json_hex
+ * @param {string} signature_der_hex
+ * @returns {RegistryProofJs}
+ */
+export function buildMemberProof(authenticator_data_hex, client_data_json_hex, signature_der_hex) {
+    const ptr0 = passStringToWasm0(authenticator_data_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(client_data_json_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(signature_der_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ret = wasm.buildMemberProof(ptr0, len0, ptr1, len1, ptr2, len2);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * @param {string} sig
  * @returns {string}
  */
@@ -2746,6 +2789,31 @@ export function derSignatureToRawLowS(der) {
 }
 
 /**
+ * Encode the wallet's registry metadata blob to `0x`-hex, bounded to the
+ * contract's 2048-byte cap.
+ * @param {RegistryMetadataInput} input
+ * @returns {string}
+ */
+export function encodeRegistryMetadata(input) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ret = wasm.encodeRegistryMetadata(input);
+        var ptr1 = ret[0];
+        var len1 = ret[1];
+        if (ret[3]) {
+            ptr1 = 0; len1 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred2_0 = ptr1;
+        deferred2_1 = len1;
+        return getStringFromWasm0(ptr1, len1);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * @param {string} treasury_hex
  * @returns {Uint8Array}
  */
@@ -2846,6 +2914,33 @@ export function functionSelector(signature) {
     var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
     return v2;
+}
+
+/**
+ * The uncompressed public key of the one-time group key a 32-byte seed
+ * derives — needed before requesting the group's challenge.
+ * @param {string} seed_hex
+ * @returns {string}
+ */
+export function groupPublicKeyFromSeed(seed_hex) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(seed_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.groupPublicKeyFromSeed(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
 }
 
 /**

@@ -12,8 +12,28 @@
 import { createPublicClient, fallback, http, type Abi, type PublicClient } from 'viem';
 import { gnosis } from 'viem/chains';
 
-/** WebAuthn P-256 public-key index — the registry every Vela wallet writes to. */
-export const CONTRACT_ADDRESS = '0xdd93420BD49baaBdFF4A363DdD300622Ae87E9c3' as const;
+/**
+ * The current registry: `WebAuthnP256PublicKeyRegistry`, a possession-proven
+ * public-key registry. Every entry is written with a WebAuthn signature that
+ * proves the writer holds the passkey — unlike the legacy index below, which a
+ * server wrote on the wallet's behalf. A vela wallet is one immutable "group"
+ * (unit) here: its founding passkeys are the members, and its opaque metadata
+ * blob carries the wallet address, name, and Safe version.
+ *
+ * Each entry also records the WebAuthn signals that identify the authenticator:
+ * the versioned attestation (AAGUID + authenticatorData flags), the credential
+ * id, and the browser-reported hints (authenticatorAttachment, transports).
+ * These are store-only display data — never part of any signed binding — so
+ * the wallet address a passkey derives is unaffected by them.
+ */
+export const CONTRACT_ADDRESS = '0x5266DfF591B9F9EecfEdb8E7EfEf6c687854edaf' as const;
+
+/**
+ * The legacy index (`WebAuthnP256PublicKeyIndex`): a server-signed store, kept
+ * readable so wallets created before the migration are still visible. New
+ * wallets are written only to {@link CONTRACT_ADDRESS}.
+ */
+export const LEGACY_CONTRACT_ADDRESS = '0xdd93420BD49baaBdFF4A363DdD300622Ae87E9c3' as const;
 
 /** Relying-party id for Vela wallets. All getvela.app wallets are indexed under this. */
 export const RP_ID = 'getvela.app';
@@ -39,11 +59,97 @@ const GNOSIS_RPCS = [
 ];
 
 /**
- * Minimal ABI: the two read functions the site calls. `getKeysByRpId` returns the
- * running total plus a page of records; `getTotalCredentialsByRpId` is the cheap
- * count-only read.
+ * The current registry's read surface used by the site: list a page of the
+ * groups (wallets) under an rpId, read one group's frozen record, and read one
+ * group's members (each an entry with its public key + attestation). Counts:
+ * `getTotalUnits` is the wallet count, `getTotalEntries` the passkey count.
  */
-export const REGISTRY_ABI = [
+export const REGISTRY_ABI_V2 = [
+	{
+		type: 'function',
+		name: 'getTotalUnits',
+		stateMutability: 'view',
+		inputs: [],
+		outputs: [{ name: '', type: 'uint256' }]
+	},
+	{
+		type: 'function',
+		name: 'getTotalEntries',
+		stateMutability: 'view',
+		inputs: [],
+		outputs: [{ name: '', type: 'uint256' }]
+	},
+	{
+		type: 'function',
+		name: 'getGroupsByRpId',
+		stateMutability: 'view',
+		inputs: [
+			{ name: 'rpId', type: 'string' },
+			{ name: 'offset', type: 'uint256' },
+			{ name: 'limit', type: 'uint256' },
+			{ name: 'desc', type: 'bool' }
+		],
+		outputs: [
+			{ name: 'total', type: 'uint256' },
+			{ name: 'unitIds', type: 'uint256[]' }
+		]
+	},
+	{
+		type: 'function',
+		name: 'getUnit',
+		stateMutability: 'view',
+		inputs: [{ name: 'unitId', type: 'uint256' }],
+		outputs: [
+			{
+				name: '',
+				type: 'tuple',
+				components: [
+					{ name: 'rpId', type: 'string' },
+					{ name: 'metadata', type: 'bytes' },
+					{ name: 'groupPublicKey', type: 'bytes' },
+					{ name: 'contentHash', type: 'bytes32' },
+					{ name: 'memberCount', type: 'uint32' },
+					{ name: 'createdAt', type: 'uint256' }
+				]
+			}
+		]
+	},
+	{
+		type: 'function',
+		name: 'getGroupMembers',
+		stateMutability: 'view',
+		inputs: [
+			{ name: 'unitId', type: 'uint256' },
+			{ name: 'offset', type: 'uint256' },
+			{ name: 'limit', type: 'uint256' },
+			{ name: 'desc', type: 'bool' }
+		],
+		outputs: [
+			{ name: 'total', type: 'uint256' },
+			{ name: 'entryIds', type: 'uint256[]' },
+			{
+				name: 'entries',
+				type: 'tuple[]',
+				components: [
+					{ name: 'publicKey', type: 'bytes' },
+					{ name: 'attestation', type: 'bytes' },
+					// Store-only WebAuthn signals captured at first sight (see the
+					// registry's Entry struct); order MUST mirror the contract.
+					{ name: 'credentialId', type: 'bytes' },
+					{ name: 'authenticatorAttachment', type: 'bytes' },
+					{ name: 'transports', type: 'bytes' },
+					{ name: 'createdAt', type: 'uint256' }
+				]
+			}
+		]
+	}
+] as const satisfies Abi;
+
+/**
+ * Legacy index ABI: `getKeysByRpId` returns the running total plus a page of
+ * records; `getTotalCredentialsByRpId` is the cheap count-only read.
+ */
+export const LEGACY_REGISTRY_ABI = [
 	{
 		type: 'function',
 		name: 'getKeysByRpId',

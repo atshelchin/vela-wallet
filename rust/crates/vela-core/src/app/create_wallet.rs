@@ -1,28 +1,40 @@
 //! Machine A — creating a wallet.
 //!
 //! ```text
-//! Form ─submit─► CheckingSupport ─► Registering ─► Verifying ─► SavingPending
-//!   ▲                                                               │
-//!   │ cancel-at-verify KEEPS the draft (resume, never re-register)   ▼
-//!   └──────────────────────────────────────── Syncing{try≤3} ─► Saving ─► Created
+//! Form ─submit─► CheckingSupport ─► Registering(key 1) ─► AddKeys
+//!   ▲                                    ▲                  │ ▲
+//!   │ cancel-at-register KEEPS drafts    └──add_key(≤7)─────┘ │
+//!   │                                                finish_keys
+//!   │                                                        ▼
+//!   └────────────── SavingPending ─► Syncing{publish → remove pending}
+//!                                                        ─► Saving ─► Created
 //! ```
 //!
-//! The ordering is the product. A wallet becomes real only after **two**
-//! independent proofs: the passkey produced a valid signature (a provider can
-//! report `create()` success and still have stored nothing — issue #1), and the
-//! index server confirms it holds the matching public key (a locally-saved but
-//! unsynced wallet is usable here and unrecoverable everywhere else). Until both
-//! hold, nothing is written and the address is never shown, so an unusable
-//! wallet can never be funded.
+//! The ordering is the product. The passkey must first produce a valid
+//! signature (a provider can report `create()` success and still have stored
+//! nothing — issue #1). A wallet is 1..=7 founding passkeys, all minted here:
+//! the Safe address is a function of the FULL key set, so keys can never be
+//! added later. The wallet is then published to the registry as a
+//! possession-proven group *before* it is entered (option B): the same key set
+//! that derives the address is the group's membership. For a multi-key wallet
+//! that publish is load-bearing for recovery — a sibling device can only
+//! reconstruct the address from the registry group — which is exactly why the
+//! account is saved and enterable only after the publish has landed on-chain.
+//! A publish failure surfaces the retry screen while the passkeys and their
+//! drafts are kept; a single key additionally stays recoverable on-device
+//! from two signatures.
 
 use crux_core::{command::AbortHandle, render::render, App, Command};
 use serde::{Deserialize, Serialize};
 
-use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
+use super::shell::{CompletionMode, Effect, ShellOperation, ShellResult};
 use super::{
-    address_from_public_key_hex, name_fits_user_handle, public_key_hex_from_attestation, Account,
-    FailureKind, PendingUpload, PromptKind, StatusKey,
+    name_fits_user_handle, public_key_hex_from_attestation, Account, AccountKey, FailureKind,
+    PendingUpload, PromptKind, RegistryPublishMember, StatusKey,
 };
+use crate::error::CoreError;
+use crate::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
+use crate::registry_proof::RegistryProof;
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -31,8 +43,8 @@ use ts_rs::TS;
 /// business rule, not a UI decoration.
 pub const ACK_COUNT: usize = 4;
 
-/// Attempts allowed per upload run, matching today's `maxAttempts = 3`.
-const MAX_UPLOAD_TRIES: u8 = 3;
+/// The Safe deployment this wallet uses, recorded in the registry metadata.
+const WALLET_VERSION: &str = "safe-1.4.1";
 
 // ---------------------------------------------------------------------------
 // Events
@@ -52,7 +64,29 @@ pub enum Event {
     /// The primary button: "Create Wallet", or "Finish verification" when a
     /// draft is waiting.
     Submit,
-    /// Abandon an unprovable passkey and mint a fresh one.
+    /// From the key list: mint one more founding passkey with this label
+    /// (empty ⇒ "Key N"). Capped at `MAX_MULTI_KEYS`.
+    AddKey {
+        name: String,
+    },
+    /// Drop a not-yet-published draft key. Index 0 (the wallet's pinned first
+    /// key) is only removable via `StartOver`.
+    RemoveKey {
+        index: usize,
+    },
+    /// Relabel a draft key. Index 0's label is the wallet name itself.
+    KeyNameChanged {
+        index: usize,
+        name: String,
+    },
+    /// Re-run a drafted key's creation-time membership confirmation — the
+    /// recovery for a cancelled or failed `SignMemberProof`.
+    ConfirmKey {
+        index: usize,
+    },
+    /// Done adding keys — derive the address from the FULL set and publish.
+    FinishKeys,
+    /// Abandon the drafted passkeys and start from a clean form.
     StartOver,
     /// Re-run the index upload after it exhausted its retries.
     RetryUpload,
@@ -81,26 +115,72 @@ pub struct Draft {
     pub attestation_object_hex: String,
     pub name: String,
     pub registered_at_iso: String,
+    /// Browser-reported display hints from the create() credential.
+    pub authenticator_attachment: String,
+    pub transports: String,
+    /// Extracted at registration (the create() response carries the COSE
+    /// key), so a duplicate authenticator is caught the moment it appears.
+    pub public_key_hex: String,
+    /// The 20-byte versioned attestation, or empty.
+    pub attestation_hex: String,
+    /// The creation-time membership proof — collected right after the
+    /// registration, one `get()` per key, interleaved. `None` until signed
+    /// (or after a cancelled confirmation).
+    pub proof: Option<RegistryProof>,
 }
 
-/// Derived from the draft, not yet persisted anywhere.
+/// One derived founding key, canonical founding order.
 #[derive(Clone, Debug, Default)]
-pub struct Prepared {
+pub struct PreparedKey {
     pub credential_id: String,
+    /// The per-key label; `keys[0].name` is the wallet name.
     pub name: String,
     pub public_key_hex: String,
+    /// The full attestation object (hex) — kept for the pending record.
+    pub attestation_object_hex: String,
+    /// The 20-byte versioned attestation extracted from the attestation
+    /// object, or empty when it could not be extracted. Bound into the
+    /// registry member proof.
+    pub attestation_hex: String,
+    /// Browser-reported display hints captured from the create() credential.
+    pub authenticator_attachment: String,
+    pub transports: String,
+    /// The creation-time membership proof.
+    pub proof: Option<RegistryProof>,
+}
+
+/// Derived from the drafts, not yet persisted anywhere. `keys[0]` is the
+/// pinned shared-signer key; the address is a function of the FULL set.
+#[derive(Clone, Debug, Default)]
+pub struct Prepared {
+    pub keys: Vec<PreparedKey>,
     pub address: String,
     pub created_at_iso: String,
 }
 
 impl Prepared {
+    /// The first (pinned) key — the wallet's stable identity.
+    fn first(&self) -> &PreparedKey {
+        &self.keys[0]
+    }
+
     fn account(&self) -> Account {
+        let first = self.first();
         Account {
-            id: self.credential_id.clone(),
-            name: self.name.clone(),
+            id: first.credential_id.clone(),
+            name: first.name.clone(),
             address: self.address.clone(),
-            public_key_hex: self.public_key_hex.clone(),
+            public_key_hex: first.public_key_hex.clone(),
             created_at_iso: self.created_at_iso.clone(),
+            keys: self
+                .keys
+                .iter()
+                .map(|key| AccountKey {
+                    credential_id: key.credential_id.clone(),
+                    public_key_hex: key.public_key_hex.clone(),
+                    name: key.name.clone(),
+                })
+                .collect(),
         }
     }
 }
@@ -119,12 +199,11 @@ pub struct SyncState {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SyncStep {
+    /// Running the possession-proven publish (option B: before entering).
     #[default]
-    Creating,
-    Confirming,
-    CheckingWalletRef,
+    Publishing,
+    /// Clearing the pending-upload record after a successful publish.
     RemovingPending,
-    Waiting,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -132,8 +211,16 @@ pub enum Stage {
     #[default]
     Form,
     CheckingSupport,
+    /// Minting the one-time software group key (shell randomness) — the
+    /// anchor every member's creation-time proof binds to.
+    GeneratingGroupKey,
     Registering,
-    Verifying,
+    /// A freshly registered key is confirming its membership (one `get()`
+    /// over the member-mode challenge) — interleaved, per key.
+    SigningKey,
+    /// The key list between registration and derivation: add, relabel or
+    /// remove founding keys, then `FinishKeys` freezes the set.
+    AddKeys,
     SavingPending,
     Syncing(SyncStep),
     Saving,
@@ -145,7 +232,10 @@ pub enum Stage {
 impl Stage {
     /// Is an operation in flight? Everything that is not a resting place.
     fn is_busy(&self) -> bool {
-        !matches!(self, Stage::Form | Stage::SyncFailed | Stage::Created)
+        !matches!(
+            self,
+            Stage::Form | Stage::AddKeys | Stage::SyncFailed | Stage::Created
+        )
     }
 }
 
@@ -153,7 +243,18 @@ impl Stage {
 pub struct Model {
     name: String,
     acks: [bool; ACK_COUNT],
-    draft: Option<Draft>,
+    /// Founding-order draft keys; `drafts[0]` is the pinned first key.
+    drafts: Vec<Draft>,
+    /// The label of the registration currently in flight, claimed by the
+    /// `PasskeyRegistered` result.
+    registering_label: String,
+    /// The one-time group key the shell minted for this run. Every member's
+    /// creation-time proof binds to its public key; the seed closes the
+    /// group at publish. Cleared by StartOver.
+    group_seed_hex: Option<String>,
+    group_public_key_hex: Option<String>,
+    /// Which draft the in-flight `SignMemberProof` belongs to.
+    signing_index: Option<usize>,
     prepared: Option<Prepared>,
     sync: SyncState,
     stage: Stage,
@@ -175,8 +276,35 @@ pub enum CreateStage {
     /// The form panel — also what shows while work is in flight, with `busy`
     /// driving the button spinner. Matches today's screen exactly.
     Form,
+    /// The founding-key list: rows in `keys`, plus add/relabel/remove and the
+    /// finish button. Also shown (busy) while an added key's registration is
+    /// in flight.
+    AddKeys,
     SyncFailed,
     Created,
+}
+
+/// One row of the founding-key list.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct CreateKeyRow {
+    /// The per-key label; row 0 carries the wallet name.
+    pub name: String,
+    /// Browser-reported display hints ("platform"/"cross-platform", comma-
+    /// joined transports) — purely informational.
+    pub authenticator_attachment: String,
+    pub transports: String,
+    /// The key confirmed its group membership at creation. A `false` row
+    /// (cancelled confirmation) offers a per-row retry, and FinishKeys is
+    /// gated on every row being `true`.
+    pub confirmed: bool,
+    /// Backed up to a sync fabric (authenticatorData BS flag). Unknown
+    /// attestation reads as `true` — display and the second-key gate both
+    /// fail open.
+    pub synced: bool,
+    /// The authenticator model's AAGUID as a canonical uuid, or empty when
+    /// absent/all-zero. The shell resolves it to a provider name + icon.
+    pub aaguid: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -205,6 +333,17 @@ pub struct CreateView {
     pub address: Option<String>,
     pub sync_error_detail: Option<String>,
     pub can_go_back: bool,
+    /// The drafted founding keys, founding order. Non-empty from the moment
+    /// the first registration lands.
+    pub keys: Vec<CreateKeyRow>,
+    /// May one more key be added (below the cap, nothing in flight)?
+    pub can_add_key: bool,
+    /// May the key set be frozen and published (≥1 key, nothing in flight)?
+    pub can_finish: bool,
+    /// The sole drafted key is NOT a synced passkey: one lost device would
+    /// make the wallet unrecoverable, so finishing requires a second key.
+    /// Drives the friendly hint under the key list.
+    pub needs_second_key: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +363,7 @@ impl App for CreateWallet {
         match event {
             Event::Start => render(),
             Event::NameChanged { name } => {
-                if model.stage.is_busy() || model.draft.is_some() {
+                if model.stage.is_busy() || !model.drafts.is_empty() {
                     return Command::done(); // the input is not editable then
                 }
                 model.name = name;
@@ -238,6 +377,11 @@ impl App for CreateWallet {
                 render()
             }
             Event::Submit => submit(model),
+            Event::AddKey { name } => add_key(model, name),
+            Event::RemoveKey { index } => remove_key(model, index),
+            Event::KeyNameChanged { index, name } => key_name_changed(model, index, name),
+            Event::ConfirmKey { index } => confirm_key(model, index),
+            Event::FinishKeys => finish_keys(model),
             Event::StartOver => start_over(model),
             Event::RetryUpload => retry_upload(model),
             Event::EnterWallet => enter_wallet(model),
@@ -261,14 +405,19 @@ impl App for CreateWallet {
         let trimmed = model.name.trim();
         let name_too_long = !name_fits_user_handle(trimmed);
         let busy = model.stage.is_busy();
-        let has_draft = model.draft.is_some();
+        let has_draft = !model.drafts.is_empty();
 
         let stage = match model.stage {
             Stage::SyncFailed => CreateStage::SyncFailed,
             Stage::Created | Stage::Completing => CreateStage::Created,
+            Stage::AddKeys => CreateStage::AddKeys,
+            // An in-flight registration or membership confirmation keeps the
+            // key list on screen once it exists.
+            Stage::Registering | Stage::SigningKey if has_draft => CreateStage::AddKeys,
             _ => CreateStage::Form,
         };
 
+        let at_key_list = model.stage == Stage::AddKeys;
         CreateView {
             stage,
             name: model.name.clone(),
@@ -276,6 +425,7 @@ impl App for CreateWallet {
             name_too_long,
             acks: model.acks.to_vec(),
             can_submit: !busy
+                && model.stage == Stage::Form
                 && model.acks.iter().all(|checked| *checked)
                 && (has_draft || (!trimmed.is_empty() && !name_too_long)),
             submit_label: if has_draft {
@@ -295,6 +445,27 @@ impl App for CreateWallet {
                 _ => None,
             },
             can_go_back: model.stage != Stage::SyncFailed,
+            keys: model
+                .drafts
+                .iter()
+                .map(|draft| {
+                    let (aaguid, synced) = attestation_signals(&draft.attestation_hex);
+                    CreateKeyRow {
+                        name: draft.name.clone(),
+                        authenticator_attachment: draft.authenticator_attachment.clone(),
+                        transports: draft.transports.clone(),
+                        confirmed: draft.proof.is_some(),
+                        synced,
+                        aaguid,
+                    }
+                })
+                .collect(),
+            can_add_key: at_key_list && model.drafts.len() < crate::safe::MAX_MULTI_KEYS,
+            can_finish: at_key_list
+                && has_draft
+                && model.drafts.iter().all(|draft| draft.proof.is_some())
+                && !needs_second_key(&model.drafts),
+            needs_second_key: needs_second_key(&model.drafts),
         }
     }
 }
@@ -313,18 +484,12 @@ fn submit(model: &mut Model) -> Command<Effect, Event> {
         return Command::done();
     }
 
-    if let Some(draft) = model.draft.clone() {
-        // Resume: the passkey already exists, only its signature is missing.
-        model.attempt += 1;
-        model.stage = Stage::Verifying;
-        model.status = Some(StatusKey::VerifyingIdentity);
-        return request(
-            model,
-            ShellOperation::SignProof {
-                credential_id: draft.credential_id,
-                purpose: ProofPurpose::Verify,
-            },
-        );
+    if !model.drafts.is_empty() {
+        // Resume: passkeys already exist (never re-registered). Return to the
+        // key list — the publish's member proofs are the gets.
+        model.stage = Stage::AddKeys;
+        model.status = None;
+        return render();
     }
 
     let trimmed = model.name.trim();
@@ -338,15 +503,260 @@ fn submit(model: &mut Model) -> Command<Effect, Event> {
     request(model, ShellOperation::CheckPasskeySupport)
 }
 
+/// The passkey-provider display name for an added key: the wallet name plus
+/// the key's label, degraded to the label alone when the composition would
+/// not fit the WebAuthn user-handle budget. Key 1 always uses the wallet
+/// name itself, keeping N=1 byte-identical to the single-key flow.
+fn passkey_display_name(wallet: &str, label: &str) -> String {
+    let composed = format!("{wallet} · {label}");
+    if name_fits_user_handle(&composed) {
+        composed
+    } else {
+        label.to_owned()
+    }
+}
+
+fn add_key(model: &mut Model, label: String) -> Command<Effect, Event> {
+    if model.stage != Stage::AddKeys || model.drafts.len() >= crate::safe::MAX_MULTI_KEYS {
+        return Command::done();
+    }
+    let label = label.trim().to_owned();
+    let label = if label.is_empty() {
+        format!("Key {}", model.drafts.len() + 1)
+    } else {
+        label
+    };
+    if !name_fits_user_handle(&label) {
+        return Command::done();
+    }
+    model.attempt += 1;
+    model.registering_label = label.clone();
+    model.stage = Stage::Registering;
+    model.status = Some(StatusKey::SettingUpIdentity);
+    let name = passkey_display_name(model.name.trim(), &label);
+    // The provider must refuse to reuse an already-founding authenticator
+    // entry — a silent replacement would drop a key the address depends on.
+    let exclude_credential_ids = model
+        .drafts
+        .iter()
+        .map(|draft| draft.credential_id.clone())
+        .collect();
+    request(
+        model,
+        ShellOperation::RegisterPasskey {
+            name,
+            exclude_credential_ids,
+        },
+    )
+}
+
+fn remove_key(model: &mut Model, index: usize) -> Command<Effect, Event> {
+    // Index 0 is the pinned first key — removable only via StartOver.
+    if model.stage != Stage::AddKeys || index == 0 || index >= model.drafts.len() {
+        return Command::done();
+    }
+    model.drafts.remove(index);
+    render()
+}
+
+fn key_name_changed(model: &mut Model, index: usize, name: String) -> Command<Effect, Event> {
+    // Row 0's label IS the wallet name; it is not editable here.
+    if model.stage != Stage::AddKeys || index == 0 || index >= model.drafts.len() {
+        return Command::done();
+    }
+    let label = name.trim().to_owned();
+    if label.is_empty() || !name_fits_user_handle(&label) {
+        return Command::done();
+    }
+    model.drafts[index].name = label;
+    render()
+}
+
+/// The sync signals inside a 20-byte versioned attestation
+/// (`version ‖ AAGUID(16) ‖ authenticatorData flags ‖ reserved(2)`):
+/// the AAGUID as a canonical uuid (empty when absent or all-zero) and
+/// whether the credential is backed up (BS, bit 4) — a "synced passkey".
+///
+/// An EMPTY or malformed attestation reads as synced: some authenticators
+/// legitimately omit attested-credential data, and the second-key gate must
+/// fail open there rather than dead-end an honest provider (same benefit of
+/// the doubt `credProps.rk === undefined` gets in the passkey module).
+fn attestation_signals(attestation_hex: &str) -> (String, bool) {
+    let Ok(bytes) = crate::primitives::from_hex(attestation_hex) else {
+        return (String::new(), true);
+    };
+    if bytes.len() != 20 {
+        return (String::new(), true);
+    }
+    let aaguid_bytes = &bytes[1..17];
+    let aaguid = if aaguid_bytes.iter().all(|b| *b == 0) {
+        String::new()
+    } else {
+        let hex = crate::primitives::to_hex(aaguid_bytes, false);
+        format!(
+            "{}-{}-{}-{}-{}",
+            &hex[0..8],
+            &hex[8..12],
+            &hex[12..16],
+            &hex[16..20],
+            &hex[20..32]
+        )
+    };
+    let backed_up = bytes[17] & 0x10 != 0;
+    (aaguid, backed_up)
+}
+
+impl Draft {
+    /// Is this credential backed up to a sync fabric (BS flag)? Unknown
+    /// attestation reads as synced — see [`attestation_signals`].
+    fn synced(&self) -> bool {
+        attestation_signals(&self.attestation_hex).1
+    }
+}
+
+/// A single-key wallet whose only key is NOT synced is one lost device away
+/// from being unrecoverable — such a set needs a second key before it can
+/// freeze. Any second key (even device-bound) breaks the single point of
+/// failure; a synced sole key never trips this.
+fn needs_second_key(drafts: &[Draft]) -> bool {
+    drafts.len() == 1 && !drafts[0].synced()
+}
+
+/// Kick off one draft's creation-time membership confirmation.
+fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> {
+    let (Some(group_public_key_hex), Some(draft)) = (
+        model.group_public_key_hex.clone(),
+        model.drafts.get(index).cloned(),
+    ) else {
+        return Command::done();
+    };
+    model.signing_index = Some(index);
+    model.stage = Stage::SigningKey;
+    model.status = Some(StatusKey::VerifyingIdentity);
+    request(
+        model,
+        ShellOperation::SignMemberProof {
+            credential_id: draft.credential_id,
+            public_key_hex: draft.public_key_hex,
+            attestation_hex: draft.attestation_hex,
+            group_public_key_hex,
+        },
+    )
+}
+
+/// Retry a drafted key's membership confirmation (its row's own recovery).
+fn confirm_key(model: &mut Model, index: usize) -> Command<Effect, Event> {
+    if model.stage != Stage::AddKeys || index >= model.drafts.len() {
+        return Command::done();
+    }
+    if model.drafts[index].proof.is_some() {
+        return Command::done(); // already confirmed — nothing to redo
+    }
+    model.attempt += 1;
+    begin_sign_member(model, index)
+}
+
+/// Freeze the founding set: every key already confirmed its membership at
+/// creation, so this derives the address from ALL of them and writes the
+/// pending-sync record — all before a single byte of account state exists.
+fn finish_keys(model: &mut Model) -> Command<Effect, Event> {
+    if model.stage != Stage::AddKeys || model.drafts.is_empty() {
+        return Command::done();
+    }
+    // Every founding key must carry its creation-time proof: the publish
+    // replays them without a single prompt, so an unconfirmed draft would
+    // surface as a server rejection instead of a clear per-row state.
+    if model.drafts.iter().any(|draft| draft.proof.is_none()) {
+        return Command::done();
+    }
+    if needs_second_key(&model.drafts) {
+        return Command::done();
+    }
+    model.attempt += 1;
+
+    let keys: Vec<PreparedKey> = model
+        .drafts
+        .clone()
+        .into_iter()
+        .map(|draft| PreparedKey {
+            credential_id: draft.credential_id,
+            name: draft.name,
+            public_key_hex: draft.public_key_hex,
+            attestation_object_hex: draft.attestation_object_hex,
+            attestation_hex: draft.attestation_hex,
+            authenticator_attachment: draft.authenticator_attachment,
+            transports: draft.transports,
+            proof: draft.proof,
+        })
+        .collect();
+
+    model.status = Some(StatusKey::ComputingAddress);
+    let hexes: Vec<String> = keys.iter().map(|key| key.public_key_hex.clone()).collect();
+    // Also rejects duplicate keys — two providers returning the same
+    // credential material would otherwise mint an undeployable address.
+    let address = match super::address_from_public_key_hexes(&hexes) {
+        Ok(address) => address,
+        Err(error) => {
+            return fail_to_add_keys(
+                model,
+                PromptKind::CreateFailed {
+                    detail: error.to_string(),
+                },
+            )
+        }
+    };
+
+    // The wallet's creation moment is the first key's mint time — no clock
+    // lives in the core.
+    let created_at_iso = model.drafts[0].registered_at_iso.clone();
+    let first = keys[0].clone();
+    let members = keys
+        .iter()
+        .map(|key| super::PendingUploadMember {
+            credential_id: key.credential_id.clone(),
+            name: key.name.clone(),
+            public_key_hex: key.public_key_hex.clone(),
+            attestation_object_hex: key.attestation_object_hex.clone(),
+            authenticator_attachment: key.authenticator_attachment.clone(),
+            transports: key.transports.clone(),
+        })
+        .collect();
+    model.prepared = Some(Prepared {
+        keys,
+        address,
+        created_at_iso: created_at_iso.clone(),
+    });
+    model.stage = Stage::SavingPending;
+    request(
+        model,
+        ShellOperation::SavePendingUpload {
+            record: PendingUpload {
+                id: first.credential_id,
+                name: first.name,
+                public_key_hex: first.public_key_hex,
+                attestation_object_hex: first.attestation_object_hex,
+                created_at_iso,
+                authenticator_attachment: first.authenticator_attachment,
+                transports: first.transports,
+                members,
+            },
+        },
+    )
+}
+
 fn start_over(model: &mut Model) -> Command<Effect, Event> {
-    // Abandon the unprovable passkey. Nothing about it was persisted (no
-    // account, and the pending upload only exists after a proven signature), so
-    // this is a clean reset; the orphaned authenticator entry is inert.
+    // Abandon the drafted passkeys. Nothing about them was persisted (no
+    // account, and the pending upload only exists once the set is frozen), so
+    // this is a clean reset; the orphaned authenticator entries are inert.
     model.attempt += 1;
     if let Some(handle) = model.abort.take() {
         handle.abort();
     }
-    model.draft = None;
+    model.drafts.clear();
+    model.registering_label = String::new();
+    model.group_seed_hex = None;
+    model.group_public_key_hex = None;
+    model.signing_index = None;
     model.prepared = None;
     model.sync = SyncState::default();
     model.stage = Stage::Form;
@@ -355,29 +765,15 @@ fn start_over(model: &mut Model) -> Command<Effect, Event> {
 }
 
 fn retry_upload(model: &mut Model) -> Command<Effect, Event> {
-    if model.stage != Stage::SyncFailed {
+    if model.stage != Stage::SyncFailed || model.prepared.is_none() {
         return Command::done();
     }
-    let Some(prepared) = model.prepared.clone() else {
-        return Command::done();
-    };
-    // Resumes at the upload — never at registration. The passkey is already
-    // proven; re-registering would mint a second one for the same wallet.
+    // Resumes at the publish — never at registration. The passkey is already
+    // proven; re-registering would mint a second one for the same wallet. The
+    // publish re-prompts for the member signature, which an explicit retry
+    // makes expected.
     model.attempt += 1;
-    model.sync = SyncState {
-        tries: 1,
-        ..SyncState::default()
-    };
-    model.stage = Stage::Syncing(SyncStep::Creating);
-    model.status = Some(StatusKey::SyncingKey);
-    request(
-        model,
-        ShellOperation::IndexCreateRecord {
-            credential_id: prepared.credential_id,
-            public_key_hex: prepared.public_key_hex,
-            name: prepared.name,
-        },
-    )
+    begin_publish(model)
 }
 
 fn enter_wallet(model: &mut Model) -> Command<Effect, Event> {
@@ -410,13 +806,43 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         // -- support probe ---------------------------------------------------
         (Stage::CheckingSupport, ShellResult::PasskeySupport { supported }) => {
             if supported {
-                model.stage = Stage::Registering;
+                // The group key comes FIRST: every member's creation-time
+                // proof binds to its public key, so it must exist before the
+                // first registration.
+                model.stage = Stage::GeneratingGroupKey;
                 model.status = Some(StatusKey::SettingUpIdentity);
-                let name = model.name.trim().to_owned();
-                request(model, ShellOperation::RegisterPasskey { name })
+                request(model, ShellOperation::GenerateGroupKey)
             } else {
                 fail_to_form(model, PromptKind::NotSupportedCreate, None)
             }
+        }
+
+        // -- group key ---------------------------------------------------------
+        (
+            Stage::GeneratingGroupKey,
+            ShellResult::GroupKeyGenerated {
+                seed_hex,
+                group_public_key_hex,
+            },
+        ) => {
+            model.group_seed_hex = Some(seed_hex);
+            model.group_public_key_hex = Some(group_public_key_hex);
+            model.stage = Stage::Registering;
+            model.status = Some(StatusKey::SettingUpIdentity);
+            // Key 1's provider display name IS the wallet name (N=1 stays
+            // byte-identical to the single-key flow); its label too.
+            let name = model.name.trim().to_owned();
+            model.registering_label = name.clone();
+            request(
+                model,
+                ShellOperation::RegisterPasskey {
+                    name,
+                    exclude_credential_ids: Vec::new(),
+                },
+            )
+        }
+        (Stage::GeneratingGroupKey, ShellResult::StorageFailed { message }) => {
+            fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
         }
 
         // -- registration ----------------------------------------------------
@@ -427,159 +853,148 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 now_iso,
             },
         ) => {
-            model.draft = Some(Draft {
-                credential_id: registration.credential_id.clone(),
+            // Extract the public key NOW: a duplicate authenticator (same
+            // credential material behind a different id) is caught the moment
+            // it appears, not at FinishKeys.
+            model.status = Some(StatusKey::ExtractingKey);
+            let public_key_hex =
+                match public_key_hex_from_attestation(&registration.attestation_object_hex) {
+                    Ok(hex) => hex,
+                    Err(error) => {
+                        return fail_registration(
+                            model,
+                            PromptKind::CreateFailed {
+                                detail: error.to_string(),
+                            },
+                        )
+                    }
+                };
+            if model
+                .drafts
+                .iter()
+                .any(|draft| draft.public_key_hex.eq_ignore_ascii_case(&public_key_hex))
+            {
+                return fail_registration(
+                    model,
+                    PromptKind::CreateFailed {
+                        detail: "this authenticator already holds one of this wallet's keys"
+                            .to_owned(),
+                    },
+                );
+            }
+            // The attestation is best-effort: a passkey with no
+            // attested-credential data still registers.
+            let attestation_hex =
+                crate::webauthn::extract_attestation(&registration.attestation_object_hex)
+                    .unwrap_or_default();
+            model.drafts.push(Draft {
+                credential_id: registration.credential_id,
                 attestation_object_hex: registration.attestation_object_hex,
-                name: model.name.trim().to_owned(),
+                name: model.registering_label.clone(),
                 registered_at_iso: now_iso,
+                authenticator_attachment: registration.authenticator_attachment,
+                transports: registration.transports,
+                public_key_hex,
+                attestation_hex,
+                proof: None,
             });
-            model.stage = Stage::Verifying;
-            model.status = Some(StatusKey::VerifyingIdentity);
-            request(
-                model,
-                ShellOperation::SignProof {
-                    credential_id: registration.credential_id,
-                    purpose: ProofPurpose::Verify,
-                },
-            )
+            // Interleaved: the key confirms its group membership right here,
+            // while this authenticator is still "in hand" — the member
+            // challenge binds only (groupPublicKey, own attestation), so it
+            // exists before the rest of the set does. One create + one get
+            // per key, back to back; the publish then needs NO prompts.
+            begin_sign_member(model, model.drafts.len() - 1)
         }
         (Stage::Registering, ShellResult::PasskeyFailed { kind, message }) => match kind {
             FailureKind::Cancelled => {
-                model.stage = Stage::Form;
+                // Cancelling an ADDED key's ceremony returns to the key list
+                // with the existing drafts intact; cancelling the first one
+                // returns to the form.
+                model.stage = if model.drafts.is_empty() {
+                    Stage::Form
+                } else {
+                    Stage::AddKeys
+                };
                 model.status = Some(StatusKey::SetupCancelled);
                 render()
             }
             // The authenticator made a device-local credential: it would sign
             // fine here but never appear at sign-in or sync for recovery. Stop
             // now — nothing has been persisted (issue #1).
-            FailureKind::NotDiscoverable => fail_to_form(model, PromptKind::NotDiscoverable, None),
-            FailureKind::NotSupported => fail_to_form(model, PromptKind::NotSupportedCreate, None),
-            FailureKind::Other => fail_to_form(
+            FailureKind::NotDiscoverable => fail_registration(model, PromptKind::NotDiscoverable),
+            FailureKind::NotSupported => fail_registration(model, PromptKind::NotSupportedCreate),
+            FailureKind::Other => fail_registration(
                 model,
                 PromptKind::CreateFailed {
                     detail: message.unwrap_or_default(),
                 },
-                None,
             ),
         },
 
-        // -- proof of signing ------------------------------------------------
-        (Stage::Verifying, ShellResult::ProofSigned { assertion, now_iso }) => {
-            if !assertion.is_safe_compatible() {
-                // Non-retryable: this provider's response format can never work
-                // with the Safe contracts, so the draft is discarded rather than
-                // left resumable.
-                model.draft = None;
-                return fail_to_form(model, PromptKind::IncompatibleCreate, None);
+        // -- creation-time membership confirmation ----------------------------
+        (Stage::SigningKey, ShellResult::MemberProofSigned { proof }) => {
+            if let Some(index) = model.signing_index.take() {
+                if let Some(draft) = model.drafts.get_mut(index) {
+                    draft.proof = Some(proof);
+                }
             }
-            derive_and_persist_pending(model, now_iso)
+            model.stage = Stage::AddKeys;
+            model.status = None;
+            render()
         }
-        (Stage::Verifying, ShellResult::PasskeyFailed { kind, message }) => match kind {
-            FailureKind::Cancelled => {
-                // Keep the draft: the next submit resumes at the signature.
-                model.stage = Stage::Form;
-                model.status = Some(StatusKey::VerifyCancelled);
-                render()
+        (Stage::SigningKey, ShellResult::PasskeyFailed { kind, message }) => {
+            model.signing_index = None;
+            match kind {
+                // The key stays drafted, just unconfirmed — its row offers a
+                // per-key retry, and FinishKeys is gated on every proof.
+                FailureKind::Cancelled => {
+                    model.stage = Stage::AddKeys;
+                    model.status = Some(StatusKey::VerifyCancelled);
+                    render()
+                }
+                _ => fail_to_add_keys(
+                    model,
+                    PromptKind::CreateFailed {
+                        detail: message.unwrap_or_default(),
+                    },
+                ),
             }
-            _ => fail_to_form(
-                model,
-                PromptKind::CreateFailed {
-                    detail: message.unwrap_or_default(),
-                },
-                None,
-            ),
-        },
+        }
+        // The member-mode challenge could not be fetched (index/network).
+        (Stage::SigningKey, ShellResult::IndexFailed { message, .. }) => {
+            model.signing_index = None;
+            fail_to_add_keys(model, PromptKind::CreateFailed { detail: message })
+        }
 
         // -- pending record --------------------------------------------------
-        (Stage::SavingPending, ShellResult::PendingUploadSaved) => begin_upload(model),
+        (Stage::SavingPending, ShellResult::PendingUploadSaved) => begin_publish(model),
         (Stage::SavingPending, ShellResult::StorageFailed { message }) => {
             fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
         }
 
-        // -- index sync ------------------------------------------------------
-        (Stage::Syncing(SyncStep::Creating), ShellResult::IndexCreated) => {
-            model.sync.create_error = None;
-            confirm_upload(model)
-        }
-        (Stage::Syncing(SyncStep::Creating), ShellResult::IndexFailed { message, .. }) => {
-            // Not a failure yet. The stored record is the source of truth, and
-            // the write may have landed with its response lost — or the record
-            // may already exist from an earlier idempotent attempt.
-            model.sync.create_error = Some(message);
-            confirm_upload(model)
-        }
-        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexRecord { public_key_hex, .. }) => {
-            let expected = model
-                .prepared
-                .as_ref()
-                .map(|p| p.public_key_hex.clone())
-                .unwrap_or_default();
-            if public_key_hex.eq_ignore_ascii_case(&expected) {
-                model.sync.create_error = None;
-                check_wallet_ref(model)
-            } else {
-                retry_or_fail(
-                    model,
-                    "Server verification failed: public key mismatch".to_owned(),
-                )
-            }
-        }
-        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexMissing) => {
-            let detail = model
-                .sync
-                .create_error
-                .clone()
-                .unwrap_or_else(|| "Public key not found on the index server".to_owned());
-            retry_or_fail(model, detail)
-        }
-        (Stage::Syncing(SyncStep::Confirming), ShellResult::IndexFailed { message, .. }) => {
-            let detail = model.sync.create_error.clone().unwrap_or(message);
-            retry_or_fail(model, detail)
-        }
-        (Stage::Syncing(SyncStep::Waiting), ShellResult::Waited) => {
-            model.sync.tries += 1;
-            model.sync.create_error = None;
+        // -- registry publish (option B: publish before entering) ------------
+        // Published (or the identical group was already on-chain) → clear the
+        // pending record, then save and enter.
+        (Stage::Syncing(SyncStep::Publishing), ShellResult::RegistryPublished) => {
             let Some(prepared) = model.prepared.clone() else {
                 return Command::done();
             };
-            model.stage = Stage::Syncing(SyncStep::Creating);
+            model.stage = Stage::Syncing(SyncStep::RemovingPending);
             request(
                 model,
-                ShellOperation::IndexCreateRecord {
-                    credential_id: prepared.credential_id,
-                    public_key_hex: prepared.public_key_hex,
-                    name: prepared.name,
+                ShellOperation::RemovePendingUpload {
+                    credential_id: prepared.first().credential_id.clone(),
                 },
             )
         }
-
-        // -- wallet-reference reveal ----------------------------------------
-        //
-        // The credential record existing is NOT the signal that the key is
-        // usable for gas sponsorship: the bundler resolves it by wallet
-        // reference, which lands after the index's async on-chain commit-reveal
-        // — minutes later, and sometimes stuck. Clearing the pending entry on
-        // credential confirmation alone abandoned those registrations (issue
-        // #89). Never block onboarding on it either: the credential is
-        // confirmed and the wallet is fully usable.
-        (Stage::Syncing(SyncStep::CheckingWalletRef), ShellResult::WalletRef { resolved }) => {
-            if resolved {
-                let Some(prepared) = model.prepared.clone() else {
-                    return Command::done();
-                };
-                model.stage = Stage::Syncing(SyncStep::RemovingPending);
-                request(
-                    model,
-                    ShellOperation::RemovePendingUpload {
-                        credential_id: prepared.credential_id,
-                    },
-                )
-            } else {
-                save_account(model)
-            }
-        }
-        (Stage::Syncing(SyncStep::CheckingWalletRef), ShellResult::IndexFailed { .. }) => {
-            save_account(model)
+        // Publish failed. There is no silent retry — the publish needs a
+        // passkey signature — so offer the retry screen. The pending record is
+        // kept, and the key stays recoverable on-device regardless.
+        (Stage::Syncing(SyncStep::Publishing), ShellResult::IndexFailed { message, .. }) => {
+            model.sync.last_error = Some(message);
+            model.stage = Stage::SyncFailed;
+            model.status = None;
+            render()
         }
         (Stage::Syncing(SyncStep::RemovingPending), ShellResult::PendingUploadRemoved) => {
             save_account(model)
@@ -611,126 +1026,67 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
 // Internal transitions
 // ---------------------------------------------------------------------------
 
-/// Extract the public key, derive the Safe address, and write the pending-sync
-/// record — all before a single byte of account state exists.
-fn derive_and_persist_pending(model: &mut Model, now_iso: String) -> Command<Effect, Event> {
-    let Some(draft) = model.draft.clone() else {
-        return Command::done();
-    };
-
-    model.status = Some(StatusKey::ExtractingKey);
-    let public_key_hex = match public_key_hex_from_attestation(&draft.attestation_object_hex) {
-        Ok(hex) => hex,
-        Err(error) => {
-            return fail_to_form(
-                model,
-                PromptKind::CreateFailed {
-                    detail: error.to_string(),
-                },
-                None,
-            )
-        }
-    };
-
-    model.status = Some(StatusKey::ComputingAddress);
-    let address = match address_from_public_key_hex(&public_key_hex) {
-        Ok(address) => address,
-        Err(error) => {
-            return fail_to_form(
-                model,
-                PromptKind::CreateFailed {
-                    detail: error.to_string(),
-                },
-                None,
-            )
-        }
-    };
-
-    model.prepared = Some(Prepared {
-        credential_id: draft.credential_id.clone(),
-        name: draft.name.clone(),
-        public_key_hex: public_key_hex.clone(),
-        address,
-        created_at_iso: now_iso.clone(),
-    });
-    model.stage = Stage::SavingPending;
-    request(
-        model,
-        ShellOperation::SavePendingUpload {
-            record: PendingUpload {
-                id: draft.credential_id,
-                name: draft.name,
-                public_key_hex,
-                attestation_object_hex: draft.attestation_object_hex,
-                created_at_iso: now_iso,
-            },
-        },
-    )
-}
-
-fn begin_upload(model: &mut Model) -> Command<Effect, Event> {
+/// Run the possession-proven publish for the prepared wallet. A metadata
+/// encoding failure surfaces on the retry screen rather than blocking.
+fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
     let Some(prepared) = model.prepared.clone() else {
         return Command::done();
     };
-    model.sync = SyncState {
-        tries: 1,
-        ..SyncState::default()
-    };
-    model.stage = Stage::Syncing(SyncStep::Creating);
+    model.sync = SyncState::default();
     model.status = Some(StatusKey::SyncingKey);
-    request(
-        model,
-        ShellOperation::IndexCreateRecord {
-            credential_id: prepared.credential_id,
-            public_key_hex: prepared.public_key_hex,
-            name: prepared.name,
-        },
-    )
-}
-
-fn confirm_upload(model: &mut Model) -> Command<Effect, Event> {
-    let Some(prepared) = model.prepared.clone() else {
-        return Command::done();
-    };
-    model.stage = Stage::Syncing(SyncStep::Confirming);
-    request(
-        model,
-        ShellOperation::IndexQueryRecord {
-            credential_id: prepared.credential_id,
-        },
-    )
-}
-
-fn check_wallet_ref(model: &mut Model) -> Command<Effect, Event> {
-    let Some(prepared) = model.prepared.clone() else {
-        return Command::done();
-    };
-    model.stage = Stage::Syncing(SyncStep::CheckingWalletRef);
-    request(
-        model,
-        ShellOperation::IndexQueryByWalletRef {
-            address: prepared.address,
-        },
-    )
-}
-
-/// Another attempt, or give up and offer the retry screen. The waits mirror
-/// today's `1000 * attempt`: 1s after the first failure, 2s after the second.
-fn retry_or_fail(model: &mut Model, detail: String) -> Command<Effect, Event> {
-    if model.sync.tries < MAX_UPLOAD_TRIES {
-        let ms = 1000 * u32::from(model.sync.tries);
-        model.stage = Stage::Syncing(SyncStep::Waiting);
-        request(model, ShellOperation::Wait { ms })
-    } else {
-        model.sync.last_error = Some(detail);
-        model.stage = Stage::SyncFailed;
-        model.status = None;
-        render()
+    let group_seed_hex = model.group_seed_hex.clone().unwrap_or_default();
+    let group_public_key_hex = model.group_public_key_hex.clone().unwrap_or_default();
+    match registry_publish_op(&prepared, group_seed_hex, group_public_key_hex) {
+        Ok(operation) => {
+            model.stage = Stage::Syncing(SyncStep::Publishing);
+            request(model, operation)
+        }
+        Err(error) => {
+            model.sync.last_error = Some(error.to_string());
+            model.stage = Stage::SyncFailed;
+            model.status = None;
+            render()
+        }
     }
 }
 
-/// The only place an account is ever written — reachable only once the index
-/// server has confirmed it holds the matching key.
+/// Build the registry publish operation for a prepared wallet: one member per
+/// founding key, `key_names` in the same canonical founding order, every
+/// member carrying its creation-time proof — the executor closes the group
+/// with the software key and registers, no prompts.
+fn registry_publish_op(
+    prepared: &Prepared,
+    group_seed_hex: String,
+    group_public_key_hex: String,
+) -> Result<ShellOperation, CoreError> {
+    let metadata = RegistryMetadata {
+        version: REGISTRY_METADATA_VERSION,
+        address: prepared.address.clone(),
+        wallet_version: WALLET_VERSION.to_owned(),
+        key_names: prepared.keys.iter().map(|key| key.name.clone()).collect(),
+        created_at_iso: prepared.created_at_iso.clone(),
+    };
+    Ok(ShellOperation::RegistryPublish {
+        metadata_hex: metadata.encode_hex()?,
+        members: prepared
+            .keys
+            .iter()
+            .map(|key| RegistryPublishMember {
+                credential_id: key.credential_id.clone(),
+                public_key_hex: key.public_key_hex.clone(),
+                attestation_hex: key.attestation_hex.clone(),
+                authenticator_attachment: key.authenticator_attachment.clone(),
+                transports: key.transports.clone(),
+                proof: key.proof.clone(),
+            })
+            .collect(),
+        group_seed_hex,
+        group_public_key_hex,
+    })
+}
+
+/// The only place an account is ever written — reachable only after the
+/// possession-proven publish has landed (or degraded to the retry screen).
 fn save_account(model: &mut Model) -> Command<Effect, Event> {
     let Some(prepared) = model.prepared.clone() else {
         return Command::done();
@@ -742,6 +1098,32 @@ fn save_account(model: &mut Model) -> Command<Effect, Event> {
             account: prepared.account(),
         },
     )
+}
+
+/// A registration failure returns to wherever the drafts live: the key list
+/// when founding keys already exist (they stay intact), the form otherwise.
+fn fail_registration(model: &mut Model, prompt: PromptKind) -> Command<Effect, Event> {
+    if model.drafts.is_empty() {
+        fail_to_form(model, prompt, None)
+    } else {
+        fail_to_add_keys(model, prompt)
+    }
+}
+
+/// Return to the key list, telling the user why. The drafts are kept — the
+/// minted passkeys are real and the user decides what to do with the set.
+fn fail_to_add_keys(model: &mut Model, prompt: PromptKind) -> Command<Effect, Event> {
+    model.stage = Stage::AddKeys;
+    model.status = None;
+    let attempt = model.attempt;
+    Command::all([
+        Command::request_from_shell(ShellOperation::Prompt {
+            kind: prompt,
+            confirmable: false,
+        })
+        .then_send(move |result| Event::ShellCompleted { attempt, result }),
+        render(),
+    ])
 }
 
 /// Return to the form, optionally telling the user why. The draft is left

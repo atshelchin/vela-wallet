@@ -210,6 +210,8 @@ describe('Passkey API (native module present)', () => {
     credentialId: 'abc123',
     attestationObjectHex: 'a163666d74...',
     clientDataJSONHex: '7b22747970...',
+    authenticatorAttachment: 'platform',
+    transports: 'hybrid,internal',
   };
 
   const mockAssertResult: PasskeyAssertionResult = {
@@ -218,6 +220,7 @@ describe('Passkey API (native module present)', () => {
     authenticatorDataHex: '49960de5...',
     clientDataJSONHex: '7b22747970...',
     userIdHex: '416c696365...',
+    authenticatorAttachment: 'platform',
   };
 
   let Passkey: typeof import('@/modules/passkey');
@@ -384,6 +387,8 @@ describe('Type contracts', () => {
       credentialId: 'hex',
       attestationObjectHex: 'hex',
       clientDataJSONHex: 'hex',
+      authenticatorAttachment: 'platform',
+      transports: 'hybrid,internal',
     };
     expect(result.credentialId).toBeDefined();
     expect(result.attestationObjectHex).toBeDefined();
@@ -396,6 +401,7 @@ describe('Type contracts', () => {
       signatureHex: 'hex',
       authenticatorDataHex: 'hex',
       clientDataJSONHex: 'hex',
+      authenticatorAttachment: 'platform',
     };
     expect(result.credentialId).toBeDefined();
     expect(result.signatureHex).toBeDefined();

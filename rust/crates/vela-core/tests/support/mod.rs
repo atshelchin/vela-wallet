@@ -154,9 +154,28 @@ fn hex(value: &Value) -> String {
 
 /// A real CTAP2 attestation object whose key is the same identity the assertion
 /// pair below signs with — so a test can register, verify and recover
-/// consistently.
+/// consistently. The vector's flags byte (0x45 = UP|UV|AT) is patched to
+/// 0x5d (adds BE|BS): the DEFAULT fixture models the common case — a synced
+/// platform passkey — so single-key flows are not tripped by the
+/// second-key gate. [`device_bound_attestation_object_hex`] keeps the raw
+/// device-bound byte for the tests OF that gate.
 pub fn attestation_object_hex() -> String {
+    device_bound_attestation_object_hex().replacen("d14df34945", "d14df3495d", 1)
+}
+
+/// The vector's attestation verbatim: flags 0x45, no BE/BS — a device-bound
+/// credential (e.g. a security key with no sync fabric).
+pub fn device_bound_attestation_object_hex() -> String {
     hex(&case("extractPublicKey/real-key")["input"]["attestation_object"])
+}
+
+/// A registration whose credential is DEVICE-BOUND (no BE/BS): the sole-key
+/// case the second-key gate exists for.
+pub fn device_bound_registration(credential_id: &str) -> Registration {
+    Registration {
+        attestation_object_hex: device_bound_attestation_object_hex(),
+        ..registration(credential_id)
+    }
 }
 
 /// The uncompressed public key that attestation and the assertion pair share.
@@ -174,6 +193,54 @@ pub fn registration(credential_id: &str) -> Registration {
         credential_id: credential_id.to_owned(),
         attestation_object_hex: attestation_object_hex(),
         client_data_json_hex: hex_of(r#"{"type":"webauthn.create","challenge":"Y2hhbGxlbmdl"}"#),
+        authenticator_attachment: "platform".to_owned(),
+        transports: "hybrid,internal".to_owned(),
+    }
+}
+
+/// A second genuine P-256 curve point (x = 0x11…14 is the first x in that
+/// run whose y² is a quadratic residue), distinct from the conformance key.
+pub const SECOND_KEY_X: &str = "1111111111111111111111111111111111111111111111111111111111111114";
+pub const SECOND_KEY_Y: &str = "d8dd738ca691a327dd14c119194a3d96dbb93d2cb9edab12387669ec973cb024";
+
+/// The conformance attestation object with its COSE coordinates replaced by
+/// [`SECOND_KEY_X`]/[`SECOND_KEY_Y`] — extraction only decodes and validates
+/// the curve point, so multi-key tests get a DISTINCT founding key from a
+/// byte-identical CBOR shape.
+pub fn second_attestation_object_hex() -> String {
+    format!(
+        "a363666d74646e6f6e656761747453746d74a0686175746844617461590094\
+         a69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df349\
+         5d00000001000000000000000000000000000000000010\
+         cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\
+         a5010203262001215820{SECOND_KEY_X}225820{SECOND_KEY_Y}"
+    )
+    .replace(char::is_whitespace, "")
+}
+
+/// The uncompressed second founding key, `04‖x‖y`.
+pub fn second_public_key_hex() -> String {
+    format!("04{SECOND_KEY_X}{SECOND_KEY_Y}")
+}
+
+/// A registration whose attestation carries the SECOND fixture key.
+pub fn second_registration(credential_id: &str) -> Registration {
+    Registration {
+        attestation_object_hex: second_attestation_object_hex(),
+        ..registration(credential_id)
+    }
+}
+
+/// A creation-time membership proof. The core transports it opaquely (the
+/// registry verifies it), so a shaped dummy is faithful.
+pub fn member_proof(tag: &str) -> vela_core::registry_proof::RegistryProof {
+    vela_core::registry_proof::RegistryProof {
+        authenticator_data: format!("aa{}", hex_of(tag)),
+        client_data_json: hex_of(&format!("{{\"tag\":\"{tag}\"}}")),
+        challenge_index: 9,
+        type_index: 1,
+        r: "11".repeat(32),
+        s: "22".repeat(32),
     }
 }
 
@@ -211,6 +278,7 @@ fn assertion_from(value: &Value, credential_id: &str) -> Assertion {
             "Ann\0{}",
             "0f8fad5b-d9cb-469f-a165-70867728950e"
         ))),
+        authenticator_attachment: "platform".to_owned(),
     }
 }
 
@@ -225,6 +293,7 @@ pub fn account(id: &str, name: &str, address: &str) -> Account {
         address: address.to_owned(),
         public_key_hex: expected_public_key_hex(),
         created_at_iso: "2026-08-05T00:00:00.000Z".to_owned(),
+        keys: Vec::new(),
     }
 }
 

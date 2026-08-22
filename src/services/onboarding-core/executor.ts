@@ -12,10 +12,12 @@
  * keeps ownership of classification (FR-022).
  */
 
-import { toHex } from '@/services/vela-core';
+import { buildMemberProof, groupPublicKeyFromSeed, toHex } from '@/services/vela-core';
 import * as Passkey from '@/modules/passkey';
 import { PasskeyError, PasskeyErrorCode } from '@/modules/passkey';
-import * as PublicKeyIndex from '@/services/public-key-index';
+import * as Registry from '@/services/public-key-registry';
+import { queryLegacyName } from '@/services/public-key-index';
+import { publishToRegistry } from '@/services/registry-publish';
 import {
   loadAccounts,
   loadServiceEndpoints,
@@ -45,6 +47,11 @@ function toStoredAccount(account: Account): StoredAccount {
     address: account.address,
     publicKeyHex: account.public_key_hex,
     createdAt: account.created_at_iso,
+    keys: (account.keys ?? []).map((key) => ({
+      credentialId: key.credential_id,
+      publicKeyHex: key.public_key_hex,
+      name: key.name,
+    })),
   };
 }
 
@@ -55,6 +62,13 @@ export function fromStoredAccount(account: StoredAccount): Account {
     address: account.address,
     public_key_hex: account.publicKeyHex,
     created_at_iso: account.createdAt,
+    // Legacy records have no keys array; the core's serde default tolerates
+    // an empty one and treats the scalar fields as the sole key.
+    keys: (account.keys ?? []).map((key) => ({
+      credential_id: key.credentialId,
+      public_key_hex: key.publicKeyHex,
+      name: key.name,
+    })),
   };
 }
 
@@ -77,10 +91,6 @@ function message(error: unknown): string {
 function isTransportFailure(error: unknown): boolean {
   if (isTimeoutError(error)) return true;
   return !/^(Query|Create) failed:/.test(message(error));
-}
-
-function isNotFound(error: unknown): boolean {
-  return message(error).includes('404');
 }
 
 function passkeyFailure(error: unknown): ShellResult {
@@ -112,15 +122,36 @@ export function operationFailure(effect: OnboardingEffect, error: unknown): Shel
     case 'authenticate_passkey':
       return passkeyFailure(error);
 
+    // Randomness cannot fail in practice; classify like storage so the core
+    // lands on the calm create-failed prompt rather than a passkey alert.
+    case 'generate_group_key':
+      return { type: 'storage_failed', message: message(error) };
+
+    // Best-effort by contract: a lost legacy name degrades the label, never
+    // the login. (queryLegacyName already swallows everything, so this arm
+    // is belt-and-braces.)
+    case 'lookup_legacy_name':
+      return { type: 'legacy_name', name: null };
+
+    // Mixed ceremony: the challenge fetch is an index call, the get() is a
+    // passkey ceremony — classify by what actually threw.
+    case 'sign_member_proof':
+      if (error instanceof PasskeyError) return passkeyFailure(error);
+      return {
+        type: 'index_failed',
+        message: message(error),
+        network: isTransportFailure(error),
+      };
+
     case 'load_accounts':
     case 'save_account':
     case 'save_pending_upload':
     case 'remove_pending_upload':
       return { type: 'storage_failed', message: message(error) };
 
-    case 'index_create_record':
-    case 'index_query_record':
-    case 'index_query_by_wallet_ref':
+    case 'registry_publish':
+    case 'registry_query_by_public_key':
+    case 'registry_query_unit':
       return {
         type: 'index_failed',
         message: message(error),
@@ -175,7 +206,7 @@ async function probeIndexHealth(signal: AbortSignal): Promise<boolean> {
     });
     if (!response.ok) return false;
     const json = await response.json();
-    return json.service === 'webauthn-p256-publickey-index' && json.status === 'ok';
+    return Registry.isRegistryServiceIdentity(json.service) && json.status === 'ok';
   } catch {
     return false;
   } finally {
@@ -238,16 +269,55 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         return { type: 'passkey_support', supported: await Passkey.isSupported() };
 
       case 'register_passkey': {
-        const registration = await Passkey.register(operation.name);
+        const registration = await Passkey.register(operation.name, operation.exclude_credential_ids);
         return {
           type: 'passkey_registered',
           registration: {
             credential_id: registration.credentialId,
             attestation_object_hex: registration.attestationObjectHex,
             client_data_json_hex: registration.clientDataJSONHex,
+            authenticator_attachment: registration.authenticatorAttachment,
+            transports: registration.transports,
           },
           now_iso: nowIso(),
         };
+      }
+
+      case 'generate_group_key': {
+        // The one-time software group key — the only randomness in the flow,
+        // and it stays in the shell (the core only echoes it into the final
+        // publish).
+        const seed = new Uint8Array(32);
+        crypto.getRandomValues(seed);
+        const seedHex = toHex(seed);
+        return {
+          type: 'group_key_generated',
+          seed_hex: seedHex,
+          group_public_key_hex: groupPublicKeyFromSeed(seedHex),
+        };
+      }
+
+      case 'sign_member_proof': {
+        // Creation-time membership confirmation: fetch the member-mode
+        // challenge (binds only groupPublicKey + own attestation), run the
+        // get() against exactly this credential, assemble the proof in the
+        // core. The publish later replays it without another prompt.
+        const challenge = await Registry.requestMemberChallenge({
+          rpId: Passkey.getRelyingPartyId(),
+          groupPublicKey: operation.group_public_key_hex,
+          publicKey: operation.public_key_hex,
+          attestation: operation.attestation_hex,
+        });
+        const challengeHex = challenge.challenge.startsWith('0x')
+          ? challenge.challenge.slice(2)
+          : challenge.challenge;
+        const assertion = await Passkey.sign(challengeHex, operation.credential_id);
+        const proof = buildMemberProof(
+          assertion.authenticatorDataHex,
+          assertion.clientDataJSONHex,
+          assertion.signatureHex,
+        );
+        return { type: 'member_proof_signed', proof };
       }
 
       case 'sign_proof': {
@@ -263,13 +333,34 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
             authenticator_data_hex: assertion.authenticatorDataHex,
             client_data_json_hex: assertion.clientDataJSONHex,
             user_id_hex: assertion.userIdHex ?? null,
+            authenticator_attachment: assertion.authenticatorAttachment,
           },
           now_iso: nowIso(),
         };
       }
 
+      case 'lookup_legacy_name': {
+        console.log('[login] handle gave no usable name — querying the v1 p256-index…');
+        const name = await queryLegacyName(Passkey.getRelyingPartyId(), operation.credential_id);
+        console.log(
+          name
+            ? `[login] wallet name from v1 p256-index: "${name}"`
+            : '[login] v1 p256-index has no record — the default name "Wallet" stands',
+        );
+        return { type: 'legacy_name', name };
+      }
+
       case 'authenticate_passkey': {
         const assertion = await Passkey.authenticate();
+        // Name-source telemetry: what the passkey's own handle yields. When
+        // this is null the core falls to the fallback and asks the legacy
+        // index (`lookup_legacy_name` below) before settling for "Wallet".
+        const handleName = Passkey.decodeUserNameFromHandle(assertion.userIdHex ?? undefined);
+        console.log(
+          handleName
+            ? `[login] wallet name from passkey handle: "${handleName}"`
+            : '[login] passkey handle yields no name — will consult the legacy index if needed',
+        );
         return {
           type: 'passkey_authenticated',
           assertion: {
@@ -278,6 +369,7 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
             authenticator_data_hex: assertion.authenticatorDataHex,
             client_data_json_hex: assertion.clientDataJSONHex,
             user_id_hex: assertion.userIdHex ?? null,
+            authenticator_attachment: assertion.authenticatorAttachment,
           },
           now_iso: nowIso(),
         };
@@ -287,6 +379,7 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         return { type: 'accounts_loaded', accounts: (await loadAccounts()).map(fromStoredAccount) };
 
       case 'save_account':
+        console.log(`[onboarding] saving account "${operation.account.name}" (${operation.account.address})`);
         await saveAccount(toStoredAccount(operation.account));
         return { type: 'account_saved' };
 
@@ -297,6 +390,16 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
           publicKeyHex: operation.record.public_key_hex,
           attestationObjectHex: operation.record.attestation_object_hex,
           createdAt: operation.record.created_at_iso,
+          authenticatorAttachment: operation.record.authenticator_attachment,
+          transports: operation.record.transports,
+          members: (operation.record.members ?? []).map((member) => ({
+            credentialId: member.credential_id,
+            name: member.name,
+            publicKeyHex: member.public_key_hex,
+            attestationObjectHex: member.attestation_object_hex,
+            authenticatorAttachment: member.authenticator_attachment,
+            transports: member.transports,
+          })),
         });
         return { type: 'pending_upload_saved' };
 
@@ -304,32 +407,53 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         await removePendingUpload(operation.credential_id);
         return { type: 'pending_upload_removed' };
 
-      case 'index_create_record':
-        await PublicKeyIndex.createRecord({
+      case 'registry_publish': {
+        // The whole possession-proven publish — one-time group key, server
+        // challenges, per-member signatures, proofs, register and poll.
+        await publishToRegistry({
           rpId: Passkey.getRelyingPartyId(),
-          credentialId: operation.credential_id,
-          publicKey: operation.public_key_hex,
-          name: operation.name,
+          metadataHex: operation.metadata_hex,
+          seedHex: operation.group_seed_hex || undefined,
+          groupPublicKey: operation.group_public_key_hex || undefined,
+          members: operation.members.map((member) => ({
+            credentialId: member.credential_id,
+            publicKeyHex: member.public_key_hex,
+            attestationHex: member.attestation_hex,
+            authenticatorAttachment: member.authenticator_attachment,
+            transports: member.transports,
+            proof: member.proof ?? undefined,
+          })),
         });
-        return { type: 'index_created' };
+        return { type: 'registry_published' };
+      }
 
-      case 'index_query_record':
-        try {
-          const record = await PublicKeyIndex.queryRecord(
-            Passkey.getRelyingPartyId(),
-            operation.credential_id,
-          );
-          return { type: 'index_record', public_key_hex: record.publicKey, name: record.name ?? '' };
-        } catch (error) {
-          // A 404 is an answer, not a failure: the server is up and has no
-          // record, which is exactly the case on-device recovery exists for.
-          if (isNotFound(error)) return { type: 'index_missing' };
-          throw error;
+      case 'registry_query_by_public_key': {
+        const profile = await Registry.queryByPublicKey(operation.public_key_hex);
+        // The core speaks u32 unit ids (JSON numbers); an id past 2^32 would
+        // truncate, so it fails the query instead — see the shell contract.
+        const unitIds = profile.groups?.unitIds ?? [];
+        if (unitIds.some((id) => !Number.isInteger(id) || id < 0 || id >= 2 ** 32)) {
+          throw new Error(`Query failed: unit id out of u32 range in ${JSON.stringify(unitIds)}`);
         }
+        return {
+          type: 'registry_key_status',
+          registered: profile.entry !== null,
+          unit_ids: unitIds,
+        };
+      }
 
-      case 'index_query_by_wallet_ref': {
-        const record = await PublicKeyIndex.queryByWalletRef(operation.address);
-        return { type: 'wallet_ref', resolved: record !== null };
+      case 'registry_query_unit': {
+        const detail = await Registry.queryUnit(operation.unit_id);
+        return {
+          type: 'registry_unit',
+          metadata_hex: detail.unit.metadata,
+          members: detail.members.items.map((member) => ({
+            credential_id: member.credentialId,
+            public_key_hex: member.publicKey,
+            authenticator_attachment: member.authenticatorAttachment ?? '',
+            transports: member.transports ?? '',
+          })),
+        };
       }
 
       case 'probe_index_health':

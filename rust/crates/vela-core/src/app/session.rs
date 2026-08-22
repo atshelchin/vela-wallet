@@ -607,7 +607,13 @@ fn try_finish_restore(model: &mut Model) -> Command<SessionEffect, Event> {
         if account.public_key_hex.is_empty() {
             continue;
         }
-        if let Ok(correct) = super::address_from_public_key_hex(&account.public_key_hex) {
+        // The full founding key set: a multi-key account must be recomputed
+        // from ALL its keys — deriving from keys[0] alone yields a different
+        // (single-key) Safe and would rewrite a correct multi-key address.
+        // For legacy accounts key_hexes() is the sole scalar key and the
+        // multi derivation is byte-identical to the old single-key one.
+        let key_hexes = account.key_hexes();
+        if let Ok(correct) = super::address_from_public_key_hexes(&key_hexes) {
             if account.address != correct {
                 account.address = correct;
                 writes.push(SessionOperation::SaveAccount {

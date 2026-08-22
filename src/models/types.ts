@@ -21,12 +21,45 @@ export interface Account {
 
 // MARK: - Stored Account (with public key for signing)
 
-export interface StoredAccount extends Account {
+/** One passkey of a wallet, in canonical founding order. `keys[0]` is the
+ *  pinned key that signs through the shared WebAuthn signer; later keys sign
+ *  through their own counterfactual signer proxies. */
+export interface StoredAccountKey {
+  /** Passkey credential ID (hex string). */
+  credentialId: string;
   /** Uncompressed P256 public key hex (04 || x || y). */
   publicKeyHex: string;
+  /** Per-key label; `keys[0].name` is the wallet name itself. */
+  name: string;
+}
+
+export interface StoredAccount extends Account {
+  /** Uncompressed P256 public key hex (04 || x || y). Legacy scalar — always
+   *  equals `keys[0].publicKeyHex` when `keys` is present. */
+  publicKeyHex: string;
+  /** Full founding key set. Absent/empty ⇒ legacy single-key account. Only
+   *  {@link accountKeySet} may interpret this duality. */
+  keys?: StoredAccountKey[];
+}
+
+/** The full key set in founding order; a legacy record projects its scalar
+ *  fields as the sole key. The ONLY reader of the legacy/multi duality. */
+export function accountKeySet(account: StoredAccount): StoredAccountKey[] {
+  if (account.keys && account.keys.length > 0) return account.keys;
+  return [{ credentialId: account.id, publicKeyHex: account.publicKeyHex, name: account.name }];
 }
 
 // MARK: - Pending Upload
+
+/** One draft key inside a multi-member pending upload, founding order. */
+export interface PendingUploadMember {
+  credentialId: string;
+  name: string;
+  publicKeyHex: string;
+  attestationObjectHex: string;
+  authenticatorAttachment?: string;
+  transports?: string;
+}
 
 export interface PendingUpload {
   /** Credential ID (hex). */
@@ -35,6 +68,14 @@ export interface PendingUpload {
   publicKeyHex: string;
   attestationObjectHex: string;
   createdAt: string;
+  /** Browser-reported display hints captured at creation (not recoverable
+   *  from the attestation object), preserved for a later-launch retry. */
+  authenticatorAttachment?: string;
+  transports?: string;
+  /** Full founding key set. Absent/empty ⇒ legacy single-key record. A record
+   *  with more than one member must never be retried silently — replaying the
+   *  publish takes one passkey prompt per member. */
+  members?: PendingUploadMember[];
 }
 
 // MARK: - API Token

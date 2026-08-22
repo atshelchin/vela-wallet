@@ -16,7 +16,11 @@ use crux_core::macros::effect;
 use crux_core::render::RenderOperation;
 use serde::{Deserialize, Serialize};
 
-use super::{Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration};
+use super::{
+    Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration,
+    RegistryPublishMember, RegistryUnitMember,
+};
+use crate::registry_proof::RegistryProof;
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
@@ -68,11 +72,40 @@ pub enum ShellOperation {
     /// `navigator.credentials.create()` — mint a passkey for this name.
     RegisterPasskey {
         name: String,
+        /// Credentials the authenticator must refuse to reuse
+        /// (`excludeCredentials`): the wallet's already-registered founding
+        /// keys, so a provider cannot silently replace one of them when the
+        /// user adds another key. Empty for the first key.
+        #[serde(default)]
+        exclude_credential_ids: Vec<String>,
     },
     /// `navigator.credentials.get()` against a known credential.
     SignProof {
         credential_id: String,
         purpose: ProofPurpose,
+    },
+    /// Mint the one-time software group key for a wallet's registry group.
+    /// All randomness lives in the shell; the seed never touches the core's
+    /// serialized state beyond being echoed into the final publish.
+    GenerateGroupKey,
+    /// One founding passkey confirms its group membership AT CREATION: the
+    /// member challenge binds only (groupPublicKey, own attestation) — the
+    /// contract's `memberBindingFor` — so it exists before the rest of the
+    /// set does. The executor fetches the member-mode challenge, runs the
+    /// `get()`, and assembles the proof in the core.
+    SignMemberProof {
+        credential_id: String,
+        /// Uncompressed P-256 point, `04‖x‖y` hex.
+        public_key_hex: String,
+        /// Empty, or 20 versioned attestation bytes (hex).
+        attestation_hex: String,
+        group_public_key_hex: String,
+    },
+    /// The v1 index's display name for a credential — the only place a
+    /// v1-era wallet's name survives (v1 stored it server-side; a handle
+    /// that decodes carries its own). Best-effort and read-only.
+    LookupLegacyName {
+        credential_id: String,
     },
     /// `navigator.credentials.get()` with no credential hint — "who are you?".
     AuthenticatePasskey,
@@ -87,19 +120,35 @@ pub enum ShellOperation {
     RemovePendingUpload {
         credential_id: String,
     },
-    /// Publish a public key to the index server.
-    IndexCreateRecord {
-        credential_id: String,
+    /// Publish the wallet's key set as one possession-proven registry group.
+    /// With `group_seed_hex` set (the interleaved create flow), the members
+    /// carry proofs collected at creation and the executor only closes the
+    /// group (software group proof) and registers — no prompts. With it
+    /// empty (the login re-publish), the executor runs the whole legacy
+    /// mechanism: fresh group key, challenges, one `get()` per member.
+    /// `metadata_hex` is the group's opaque blob, already encoded.
+    RegistryPublish {
+        metadata_hex: String,
+        members: Vec<RegistryPublishMember>,
+        #[serde(default)]
+        group_seed_hex: String,
+        #[serde(default)]
+        group_public_key_hex: String,
+    },
+    /// Is this public key already an entry in the registry? Lets a sign-in
+    /// skip a redundant re-publish (and its extra signature).
+    RegistryQueryByPublicKey {
         public_key_hex: String,
-        name: String,
     },
-    /// Look a credential up in the index server.
-    IndexQueryRecord {
-        credential_id: String,
-    },
-    /// Has the index server's on-chain reveal landed for this wallet yet?
-    IndexQueryByWalletRef {
-        address: String,
+    /// Fetch one registry group (Unit): its metadata blob and its founding
+    /// members. The only way a sibling device can reconstruct a multi-key
+    /// wallet's full key set — and with it the address.
+    ///
+    /// `u32`, not `u64`: the wire is JSON (see [`ShellOperation::Wait`]); the
+    /// shell rejects an id past `2^32` as an index failure instead of
+    /// truncating it.
+    RegistryQueryUnit {
+        unit_id: u32,
     },
     /// One health probe of the index server.
     ProbeIndexHealth,
@@ -149,6 +198,22 @@ pub enum ShellResult {
         assertion: Assertion,
         now_iso: String,
     },
+    /// The one-time software group key the shell just minted.
+    GroupKeyGenerated {
+        seed_hex: String,
+        /// Uncompressed P-256 point, `04‖x‖y` hex (no `0x`).
+        group_public_key_hex: String,
+    },
+    /// A founding passkey's possession proof, assembled from its
+    /// creation-time `get()` over the member-mode challenge.
+    MemberProofSigned {
+        proof: RegistryProof,
+    },
+    /// The v1 record's display name, or None (absent record, offline, or a
+    /// v2-era wallet). Never an error — a lost name degrades the label only.
+    LegacyName {
+        name: Option<String>,
+    },
     PasskeyAuthenticated {
         assertion: Assertion,
         now_iso: String,
@@ -169,24 +234,30 @@ pub enum ShellResult {
     StorageFailed {
         message: String,
     },
-    IndexCreated,
-    IndexRecord {
-        public_key_hex: String,
-        name: String,
+    /// The registry publish landed on-chain (or the identical group was
+    /// already there).
+    RegistryPublished,
+    /// The registry's answer to `RegistryQueryByPublicKey`.
+    RegistryKeyStatus {
+        registered: bool,
+        /// The ids of the groups (Units) this key is a founding member of,
+        /// ascending. Empty for a registered key predating groups.
+        #[serde(default)]
+        unit_ids: Vec<u32>,
     },
-    /// The index server answered, and it has no record for this credential.
-    /// Distinct from `IndexFailed`: a *missing* record is recoverable on-device,
-    /// an unreachable server is not.
-    IndexMissing,
+    /// The registry's answer to `RegistryQueryUnit`: the group's frozen
+    /// metadata blob plus its founding members in canonical founding order
+    /// (the ascending on-chain member order IS the founding order).
+    RegistryUnit {
+        metadata_hex: String,
+        members: Vec<RegistryUnitMember>,
+    },
     IndexFailed {
         message: String,
         /// True when the request never reached the server (transport failure or
         /// abort). Only the shell can tell that from a 4xx, so this one bit of
         /// classification is delegated.
         network: bool,
-    },
-    WalletRef {
-        resolved: bool,
     },
     IndexHealth {
         ok: bool,

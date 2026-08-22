@@ -49,28 +49,59 @@
 	<section>
 		<h2>What We Store</h2>
 
-		<h3>Passkey Public Key</h3>
+		<h3>What Goes On-Chain (Public and Permanent)</h3>
 		<p>
-			When you create a wallet, your passkey's <strong>public key</strong> (not private key) is uploaded
-			to our Passkey Index server. This enables cross-device sign-in — if you lose your device, you can
-			recover your wallet on a new one by signing in with the same iCloud or Google account.
+			When you create a wallet, it is written to a <strong>public smart contract</strong> on the
+			Gnosis blockchain — the Passkey Registry — with a WebAuthn signature proving you hold the
+			passkey. Everything below is <strong>readable by anyone, forever</strong>, and cannot be
+			edited or deleted. You can browse exactly what is stored on the
+			<a href="/registry">registry page</a>. None of it can move your funds or sign on your behalf.
 		</p>
+		<p>For each wallet, the registry stores:</p>
+		<ul>
+			<li>
+				<strong>Your passkey's public key</strong> — the P-256 public key (never the private key).
+			</li>
+			<li>
+				<strong>The wallet name you chose</strong> and the <strong>Safe wallet address</strong>, its
+				Safe version, and its creation time. The name is public — choose one that does not reveal
+				your real identity if you prefer to stay pseudonymous.
+			</li>
+			<li>
+				<strong>Your authenticator's model</strong> — a 20-byte attestation carrying the
+				authenticator's AAGUID (which identifies the passkey provider, e.g. Apple Passwords, Google
+				Password Manager, a browser, a password manager, or a security key) and the WebAuthn flag
+				bits that indicate whether user verification happened and whether the passkey is syncable /
+				backed up.
+			</li>
+			<li>
+				<strong>The WebAuthn credential id</strong> — a per-site handle for the passkey (not a
+				secret; it cannot authenticate on its own).
+			</li>
+			<li>
+				<strong>Browser-reported hints</strong> — the authenticatorAttachment ("platform" /
+				"cross-platform") and the transport list ("internal", "hybrid", "usb", etc.).
+			</li>
+			<li>
+				<strong>The relying-party id</strong> (<code>getvela.app</code>) and a one-time group key
+				used only to close the record.
+			</li>
+		</ul>
 		<p>
-			The public key is stored on the Gnosis blockchain via a smart contract and is publicly
-			readable. It cannot be used to sign transactions or move your funds.
+			The registry is how your wallet's founding passkeys are recorded on-chain, as one immutable
+			group. Cross-device sign-in and recovery rely on it, and for a multi-passkey wallet it is
+			required: the wallet's address is derived from its <strong>full set of founding passkeys</strong>,
+			and a new device reconstructs that set — and therefore the correct address — from this public
+			record. (A new device can re-derive a single passkey from two of its signatures on its own, but
+			not the rest of a multi-key wallet's membership.)
 		</p>
 
-		<h3>Account Name</h3>
+		<h3>What Never Leaves Your Device</h3>
 		<p>
-			The account name you choose during wallet creation is stored alongside your public key on the
-			Passkey Index server. This helps identify your wallet during cross-device sign-in. Choose a
-			name that does not reveal your real identity if you prefer to remain pseudonymous.
-		</p>
-
-		<h3>On-Device Data</h3>
-		<p>
+			Your passkey <strong>private key</strong>, your biometrics, and your operating-system account
+			(Apple ID / Google account) are never uploaded, never transmitted, and never written on-chain.
 			Wallet configuration, token balances, transaction history, and RPC endpoint preferences are
-			stored locally on your device using AsyncStorage. This data is not transmitted to our servers.
+			stored locally on your device and are not sent to our servers.
 		</p>
 	</section>
 
@@ -86,6 +117,13 @@
 			— your data is never sent to Google or any ad network. No cookies, no cross-site tracking, and
 			no device fingerprinting. We do not build advertising profiles, and we do not sell or share
 			this data.
+		</p>
+		<p>
+			The <a href="/registry">registry page</a> reads the smart contract directly from your browser
+			via public Gnosis RPC nodes — nothing there comes from our servers. To label each authenticator
+			it looks up the AAGUID (an already-public, non-personal identifier of the authenticator model)
+			against our AAGUID Explorer service; it never sends your credential id, public key, or wallet
+			address to that service.
 		</p>
 	</section>
 
@@ -115,9 +153,10 @@
 	<section>
 		<h2>Data Retention</h2>
 		<p>
-			Public key records on the Passkey Index are stored indefinitely on the Gnosis blockchain.
-			On-device data is deleted when you log out or uninstall the app. We do not maintain
-			server-side backups of your local wallet data.
+			Your wallet's registry record is stored indefinitely and immutably on the Gnosis blockchain —
+			it is append-only and cannot be edited or deleted by us or by anyone. On-device data is deleted
+			when you log out or uninstall the app. We do not maintain server-side backups of your local
+			wallet data.
 		</p>
 	</section>
 

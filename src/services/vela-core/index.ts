@@ -387,6 +387,56 @@ export function encodeSetupData(x: Uint8Array, y: Uint8Array): Uint8Array {
   return translated(() => bytesFromHex(wasm.computeSafeAddress(x, y).setup_data));
 }
 
+/** The flat `x‖y` 64-byte-block concatenation `computeSafeAddressMulti` takes. */
+function concatKeyBlocks(publicKeyHexes: string[]): Uint8Array {
+  const blocks = new Uint8Array(publicKeyHexes.length * 64);
+  publicKeyHexes.forEach((hex, index) => {
+    const key = wasm.parsePublicKey(hex);
+    blocks.set(bytesFromHex(key.x), index * 64);
+    blocks.set(bytesFromHex(key.y), index * 64 + 32);
+  });
+  return blocks;
+}
+
+/**
+ * The counterfactual Safe address (+ saltNonce/setupData) for a founding key
+ * set. `keys[0]` is the pinned shared-signer key; later keys get their own
+ * signer proxies deployed inside the setup MultiSend. For a single key this
+ * is byte-identical to `computeAddress`/`calculateSaltNonce`/`encodeSetupData`
+ * — the release-gated N=1 equivalence.
+ */
+export function computeSafeAddressMulti(publicKeyHexes: string[]): {
+  address: string;
+  saltNonce: Uint8Array;
+  setupData: Uint8Array;
+} {
+  return translated(() => {
+    const info = wasm.computeSafeAddressMulti(concatKeyBlocks(publicKeyHexes));
+    return {
+      address: info.address,
+      saltNonce: bytesFromHex(info.salt_nonce),
+      setupData: bytesFromHex(info.setup_data),
+    };
+  });
+}
+
+/** Multi-address shorthand mirroring `computeAddress`. */
+export function computeAddressMulti(publicKeyHexes: string[]): string {
+  return computeSafeAddressMulti(publicKeyHexes).address;
+}
+
+/**
+ * The counterfactual per-key WebAuthn signer proxy address — what a NON-first
+ * founding key uses as the signature's verifier (`r` field) in place of the
+ * shared `WEBAUTHN_SIGNER`.
+ */
+export function computeWebauthnSignerAddress(publicKeyHex: string): string {
+  return translated(() => {
+    const key = wasm.parsePublicKey(publicKeyHex);
+    return wasm.computeWebauthnSignerAddress(bytesFromHex(key.x), bytesFromHex(key.y));
+  });
+}
+
 export function computeSplitterAddress(treasury: string): string {
   return translated(() => wasm.computeSplitterAddress(treasury));
 }
@@ -456,6 +506,60 @@ export function recoverPublicKeyFromAssertions(
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------------------
+// p256-index registry (group/member proofs + metadata blob)
+// ---------------------------------------------------------------------------
+
+/** A WebAuthn-shaped possession proof, as the registry contract verifies it. */
+export interface RegistryProof {
+  authenticatorData: string;
+  clientDataJSON: string;
+  challengeIndex: number;
+  typeIndex: number;
+  r: string;
+  s: string;
+}
+
+export interface GroupProof {
+  groupPublicKeyHex: string;
+  proof: RegistryProof;
+}
+
+/** The uncompressed public key (`04||x||y` hex) of the one-time group key a
+ *  32-byte seed (hex) derives — needed before requesting the group challenge. */
+export function groupPublicKeyFromSeed(seedHex: string): string {
+  return translated(() => wasm.groupPublicKeyFromSeed(seedHex));
+}
+
+/** Derive the one-time group key from a 32-byte seed (hex — the shell's
+ *  `crypto.getRandomValues`) and build its closing proof over the group's
+ *  content-hash challenge (hex). Throws on a bad seed/challenge. */
+export function buildGroupProof(seedHex: string, rpId: string, challengeHex: string): GroupProof {
+  return translated(() => wasm.buildGroupProof(seedHex, rpId, challengeHex));
+}
+
+/** Assemble a member passkey's proof from its real assertion (authenticator
+ *  data hex, clientDataJSON hex, DER signature hex). Throws on malformed
+ *  input. */
+export function buildMemberProof(
+  authenticatorDataHex: string,
+  clientDataJSONHex: string,
+  signatureDerHex: string,
+): RegistryProof {
+  return translated(() => wasm.buildMemberProof(authenticatorDataHex, clientDataJSONHex, signatureDerHex));
+}
+
+/** Encode the wallet's registry metadata blob to `0x`-hex (version supplied by
+ *  the core, bounded to the 2048-byte on-chain cap). Throws if oversize. */
+export function encodeRegistryMetadata(input: {
+  address: string;
+  walletVersion: string;
+  keyNames: string[];
+  createdAtIso: string;
+}): string {
+  return translated(() => wasm.encodeRegistryMetadata(input));
 }
 
 // --- identicon --------------------------------------------------------------

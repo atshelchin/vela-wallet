@@ -350,3 +350,80 @@ describe('safe-transaction', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Multi-key wallet seams (initCode + per-key signer address)
+// ---------------------------------------------------------------------------
+
+import {
+  buildInitCodeForKeys,
+  keySetOf,
+  signerAddressFor,
+  type WalletKeySet,
+} from '@/services/safe-transaction';
+import { computeWebauthnSignerAddress, toHex, WEBAUTHN_SIGNER } from '@/services/vela-core';
+
+const KEY_A =
+  '04a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90b1c2d3e4f50617283940a1b2c3d4e5f6b1c2d3e4f50617283940a1b2c3d4e5f6';
+const KEY_B =
+  '048f9b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff07a8b9cadbecfd0e1f20314253647586970818293a4b5c6d7e8f9010203040506';
+
+describe('buildInitCodeForKeys', () => {
+  test('one key is byte-identical to buildInitCode (release gate)', () => {
+    expect(toHex(buildInitCodeForKeys([KEY_A]))).toBe(toHex(buildInitCode(KEY_A)));
+  });
+
+  test('two keys produce a different (multi-owner) initCode', () => {
+    const multi = buildInitCodeForKeys([KEY_A, KEY_B]);
+    expect(toHex(multi)).not.toBe(toHex(buildInitCode(KEY_A)));
+    // Same factory prefix, larger setup payload (extra owner + createSigner leg).
+    expect(toHex(multi).slice(0, 40)).toBe(toHex(buildInitCode(KEY_A)).slice(0, 40));
+    expect(multi.length).toBeGreaterThan(buildInitCode(KEY_A).length);
+  });
+
+  test('an empty key set is refused', () => {
+    expect(() => buildInitCodeForKeys([])).toThrow();
+  });
+});
+
+describe('signerAddressFor', () => {
+  const keySet: WalletKeySet = {
+    keys: [
+      { credentialId: 'aa01', publicKeyHex: KEY_A },
+      { credentialId: 'bb02', publicKeyHex: KEY_B },
+    ],
+  };
+
+  test('a bare-hex signer and single-key sets always use the shared signer', () => {
+    expect(signerAddressFor(KEY_A, 'anything')).toBe(WEBAUTHN_SIGNER);
+    expect(signerAddressFor({ keys: keySet.keys.slice(0, 1) }, 'zz')).toBe(WEBAUTHN_SIGNER);
+  });
+
+  test('keys[0] signs via the shared signer, keys[1] via its own proxy', () => {
+    expect(signerAddressFor(keySet, 'aa01')).toBe(WEBAUTHN_SIGNER);
+    expect(signerAddressFor(keySet, 'bb02')).toBe(computeWebauthnSignerAddress(KEY_B));
+    // 0x-prefixed / case variations of the same credential still resolve.
+    expect(signerAddressFor(keySet, '0xBB02')).toBe(computeWebauthnSignerAddress(KEY_B));
+  });
+
+  test('a foreign credential on a multi-key set is refused, never mis-encoded', () => {
+    expect(() => signerAddressFor(keySet, 'cc03')).toThrow();
+  });
+});
+
+describe('keySetOf', () => {
+  test('legacy records project the scalar key; multi records pass through', () => {
+    expect(keySetOf({ id: 'aa01', publicKeyHex: KEY_A })).toEqual({
+      keys: [{ credentialId: 'aa01', publicKeyHex: KEY_A }],
+    });
+    const multi = keySetOf({
+      id: 'aa01',
+      publicKeyHex: KEY_A,
+      keys: [
+        { credentialId: 'aa01', publicKeyHex: KEY_A },
+        { credentialId: 'bb02', publicKeyHex: KEY_B },
+      ],
+    });
+    expect(multi.keys).toHaveLength(2);
+  });
+});

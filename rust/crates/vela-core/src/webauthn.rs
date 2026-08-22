@@ -249,6 +249,74 @@ pub fn recover_public_key_from_assertions(
     }))
 }
 
+/// The 20-byte versioned attestation the registry stores for a freshly created
+/// passkey, built from its WebAuthn attestation object:
+/// `version(0x01) ‖ AAGUID(16) ‖ authenticator flags(1) ‖ reserved(0x0000)`.
+/// Returns `0x`-free hex. A login assertion carries no attestation object, so
+/// this is only available at creation; callers fall back to an empty
+/// attestation when it cannot be extracted.
+pub fn extract_attestation(attestation_object_hex: &str) -> Result<String, CoreError> {
+    let bytes = primitives::from_hex(attestation_object_hex)?;
+    let value: ciborium::Value = ciborium::de::from_reader(bytes.as_slice())
+        .map_err(|e| CoreError::InvalidCbor(format!("attestation object: {e}")))?;
+    let map = value
+        .into_map()
+        .map_err(|_| CoreError::InvalidCbor("attestation object is not a CBOR map".to_owned()))?;
+    let auth_data = map
+        .into_iter()
+        .find_map(|(k, v)| match (k, v) {
+            (ciborium::Value::Text(key), ciborium::Value::Bytes(bytes)) if key == "authData" => {
+                Some(bytes)
+            }
+            _ => None,
+        })
+        .ok_or_else(|| CoreError::InvalidCbor("no authData byte string in map".to_owned()))?;
+
+    let flags = *auth_data
+        .get(32)
+        .ok_or_else(|| CoreError::InvalidCbor("authData has no flags byte".to_owned()))?;
+    // The AAGUID (authData[37..53]) exists only when attested-credential-data
+    // is present (AT flag 0x40).
+    if flags & 0x40 == 0 || auth_data.len() < 53 {
+        return Err(CoreError::InvalidCbor(
+            "no attested credential data (AAGUID) in authData".to_owned(),
+        ));
+    }
+    let mut out = Vec::with_capacity(20);
+    out.push(1); // ATTESTATION_VERSION
+    out.extend_from_slice(&auth_data[37..53]); // AAGUID
+    out.push(flags);
+    out.extend_from_slice(&[0x00, 0x00]); // reserved
+    Ok(primitives::to_hex(&out, false))
+}
+
+/// The candidate P-256 public keys a SINGLE assertion could have been signed
+/// by — up to two on P-256, each re-verified against the signature. Exactly
+/// one is the credential's real key; the caller disambiguates (a second
+/// assertion, or — cheaper — whichever candidate the registry already knows,
+/// since the false candidate has no holder and can never be registered).
+/// Returned as `04‖x‖y` hex, no `0x`.
+pub fn recover_candidates(assertion: &WebAuthnAssertion) -> Result<Vec<String>, CoreError> {
+    let raw = der_signature_to_raw_low_s(&assertion.signature_der)?;
+    let keys = candidates(
+        &raw,
+        &webauthn_signing_hash(&assertion.authenticator_data, &assertion.client_data_json),
+    )?;
+    let mut out = Vec::with_capacity(keys.len());
+    for key in keys {
+        let bytes = key.to_sec1_point(false);
+        let bytes = bytes.as_bytes();
+        if bytes.len() != 65 {
+            return Err(CoreError::Internal(format!(
+                "unexpected SEC1 point length {}",
+                bytes.len()
+            )));
+        }
+        out.push(primitives::to_hex(bytes, false));
+    }
+    Ok(out)
+}
+
 /// All verifying keys that could have produced `raw_sig` over `prehash`.
 fn candidates(raw_sig: &[u8], prehash: &[u8]) -> Result<Vec<VerifyingKey>, CoreError> {
     let sig = Signature::from_slice(raw_sig)

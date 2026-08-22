@@ -27,8 +27,13 @@ use crux_core::{command::AbortHandle, render::render, App, Command};
 use serde::{Deserialize, Serialize};
 
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
-use super::{address_from_public_key_hex, Account, Assertion, FailureKind, PromptKind};
+use super::{
+    address_from_public_key_hex, valid_display_name, Account, AccountKey, Assertion, FailureKind,
+    PromptKind, RegistryPublishMember,
+};
+use crate::error::CoreError;
 use crate::primitives;
+use crate::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
 use crate::webauthn;
 
 #[cfg(feature = "bindings")]
@@ -41,6 +46,9 @@ const HEALTH_PROBE_GAP_MS: u32 = 2000;
 
 /// Fallback when a credential carries no name this app can trust.
 const FALLBACK_ACCOUNT_NAME: &str = "Wallet";
+
+/// The Safe deployment this wallet uses, recorded in the registry metadata.
+const WALLET_VERSION: &str = "safe-1.4.1";
 
 // ---------------------------------------------------------------------------
 // Events
@@ -79,13 +87,32 @@ pub enum Stage {
     CheckingSupport,
     Authenticating,
     LoadingAccounts,
-    QueryingIndex,
+    /// One signature yields two candidate keys; we ask the registry which one
+    /// it already knows before asking the user to sign a second time.
+    MatchingKey,
+    /// The matched key belongs to a registry group — fetching its founding
+    /// members to reconstruct the (possibly multi-key) wallet.
+    FetchingUnit,
+    /// The resolved account's name fell to the fallback — asking the v1
+    /// index for the display name a v1-era wallet stored server-side.
+    ResolvingName,
     /// Waiting for the user to accept or decline on-device recovery.
     AwaitingConsent,
     /// Waiting for the second signature that pins down the public key.
     Recovering,
+    /// Running the possession-proven publish before entering (option B).
+    Publishing,
     Saving,
     Completing,
+}
+
+/// What follows a name resolution: entering directly (the account is
+/// already registered) or the recovery publish.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum AfterName {
+    #[default]
+    Save,
+    Publish,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -104,9 +131,13 @@ pub struct Model {
     observed_at: String,
     /// The account about to be persisted.
     pending: Option<Account>,
-    /// True when `pending` came from on-device recovery, which is the only case
-    /// that owes the index server a background heal.
-    recovered: bool,
+    /// Candidate public keys from the first signature still to be checked
+    /// against the registry (`04‖x‖y` hex).
+    candidates: Vec<String>,
+    /// The candidate currently being queried.
+    querying: Option<String>,
+    /// Where the flow continues once the name resolution answers.
+    after_name: AfterName,
     attempt: u64,
     health: Health,
     abort: Option<AbortHandle>,
@@ -209,7 +240,8 @@ fn sign_in(model: &mut Model) -> Command<Effect, Event> {
     model.attempt += 1;
     model.assertion = None;
     model.pending = None;
-    model.recovered = false;
+    model.candidates = Vec::new();
+    model.querying = None;
     model.stage = Stage::CheckingSupport;
     request(model, ShellOperation::CheckPasskeySupport)
 }
@@ -246,7 +278,7 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             };
             match accounts
                 .iter()
-                .position(|account| account.id == assertion.credential_id)
+                .position(|account| account.matches_credential(&assertion.credential_id))
             {
                 Some(active_index) => {
                     // Already known here: enter immediately, no server involved.
@@ -262,76 +294,17 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                     )
                 }
                 None => {
-                    model.stage = Stage::QueryingIndex;
-                    request(
-                        model,
-                        ShellOperation::IndexQueryRecord {
-                            credential_id: assertion.credential_id,
-                        },
-                    )
+                    // The registry cannot be looked up by credential id, but
+                    // one signature already yields two candidate keys — one
+                    // real, one with no holder. Whichever the registry knows
+                    // is the real one, so the common case (already published)
+                    // needs no second signature at all.
+                    begin_candidate_match(model)
                 }
             }
         }
         (Stage::LoadingAccounts, ShellResult::StorageFailed { message }) => {
             idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
-        }
-
-        // -- resolution: index -------------------------------------------------
-        (
-            Stage::QueryingIndex,
-            ShellResult::IndexRecord {
-                public_key_hex,
-                name,
-            },
-        ) => {
-            let Some(assertion) = model.assertion.clone() else {
-                return Command::done();
-            };
-            let address = match address_from_public_key_hex(&public_key_hex) {
-                Ok(address) => address,
-                Err(error) => {
-                    return idle_with_prompt(
-                        model,
-                        PromptKind::SignInFailed {
-                            detail: error.to_string(),
-                        },
-                    )
-                }
-            };
-            let account = Account {
-                id: assertion.credential_id.clone(),
-                name: if name.is_empty() {
-                    account_name(&assertion)
-                } else {
-                    name
-                },
-                address,
-                public_key_hex,
-                created_at_iso: model.observed_at.clone(),
-            };
-            begin_save(model, account, false)
-        }
-        // A *missing* record is not a dead end: the passkey itself can rebuild
-        // the wallet. An unreachable server is a different thing entirely and
-        // must not trigger recovery.
-        (Stage::QueryingIndex, ShellResult::IndexMissing) => {
-            model.stage = Stage::AwaitingConsent;
-            request(
-                model,
-                ShellOperation::Prompt {
-                    kind: PromptKind::RecoverOffer,
-                    confirmable: true,
-                },
-            )
-        }
-        (Stage::QueryingIndex, ShellResult::IndexFailed { message, network }) => {
-            if network {
-                model.health.unreachable = true;
-                model.stage = Stage::Idle;
-                render()
-            } else {
-                idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
-            }
         }
 
         // -- recovery ----------------------------------------------------------
@@ -362,7 +335,12 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 return Command::done();
             };
             match recover_account(&first, &second, &model.observed_at) {
-                Some(account) => begin_save(model, account, true),
+                // Both candidates were already checked against the registry and
+                // neither was known, so the recovered key is unpublished: the
+                // publish follows — and it FREEZES the name into the group
+                // metadata, which is exactly why a fallback name is worth one
+                // legacy lookup first.
+                Some(account) => resolve_name_then(model, account, AfterName::Publish),
                 // The two signatures did not pin down exactly one key (or the
                 // bytes would not parse). Nothing is persisted on a guess.
                 None => idle_with_prompt(model, PromptKind::RecoverFailed),
@@ -376,33 +354,123 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             _ => idle_with_prompt(model, PromptKind::RecoverFailed),
         },
 
+        // -- one-signature match: which candidate does the registry know? -----
+        // A candidate the registry already holds IS the real key — the false
+        // candidate has no holder and can never be registered. Enter directly:
+        // one signature, and no publish (it is already there).
+        (
+            Stage::MatchingKey,
+            ShellResult::RegistryKeyStatus {
+                registered: true,
+                unit_ids,
+            },
+        ) => {
+            // A key belonging to a group must be reconstructed from the FULL
+            // founding set — deriving from this key alone would produce the
+            // wrong address for any multi-key wallet. The lowest id is the
+            // founding group (multi-unit membership is an explicit non-goal).
+            match unit_ids.iter().min().copied() {
+                Some(unit_id) => {
+                    model.stage = Stage::FetchingUnit;
+                    request(model, ShellOperation::RegistryQueryUnit { unit_id })
+                }
+                // A registered key predating groups: the historical
+                // single-key resolution.
+                None => match matched_account(model) {
+                    Some(account) => resolve_name_then(model, account, AfterName::Save),
+                    None => offer_recovery(model),
+                },
+            }
+        }
+        // This candidate is unknown; try the next, or fall back to a second
+        // signature once both are exhausted.
+        (
+            Stage::MatchingKey,
+            ShellResult::RegistryKeyStatus {
+                registered: false, ..
+            },
+        ) => query_next_candidate(model),
+        // The registry could not answer, so it cannot disambiguate the two
+        // candidates — fall back to the second signature.
+        (Stage::MatchingKey, ShellResult::IndexFailed { .. }) => offer_recovery(model),
+
+        // -- group reconstruction ----------------------------------------------
+        (
+            Stage::FetchingUnit,
+            ShellResult::RegistryUnit {
+                metadata_hex,
+                members,
+            },
+        ) => {
+            let Some(assertion) = model.assertion.clone() else {
+                return Command::done();
+            };
+            match reconstruct_account(&assertion, &metadata_hex, &members, &model.observed_at) {
+                // The group is already on-chain — no publish, just enter.
+                Some(account) => resolve_name_then(model, account, AfterName::Save),
+                // The fetched members do not recompute to the recorded
+                // address. Nothing is persisted on a guess.
+                None => idle_with_prompt(
+                    model,
+                    PromptKind::SignInFailed {
+                        detail: "registry group does not match its address".to_owned(),
+                    },
+                ),
+            }
+        }
+        // The unit is known to exist but could not be read. A multi-key
+        // wallet's address CANNOT be derived from one key, so entering with a
+        // single-key guess would fund the wrong Safe — surface the failure.
+        (Stage::FetchingUnit, ShellResult::IndexFailed { message, .. }) => {
+            idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
+        }
+
+        // -- name resolution (v1-era wallets) ----------------------------------
+        (Stage::ResolvingName, ShellResult::LegacyName { name }) => {
+            let Some(mut account) = model.pending.take() else {
+                return Command::done();
+            };
+            if let Some(name) = name.filter(|name| valid_display_name(name)) {
+                if let Some(first) = account.keys.iter_mut().find(|key| key.name == account.name) {
+                    first.name = name.clone();
+                }
+                account.name = name;
+            }
+            match model.after_name {
+                AfterName::Save => begin_save(model, account),
+                AfterName::Publish => {
+                    model.pending = Some(account);
+                    begin_publish(model)
+                }
+            }
+        }
+
+        // -- publish before entering (option B) --------------------------------
+        // Publish landed (or the identical group was already there): enter.
+        (Stage::Publishing, ShellResult::RegistryPublished) => match model.pending.clone() {
+            Some(account) => begin_save(model, account),
+            None => Command::done(),
+        },
+        // Publish failed: the recovered wallet is still valid; enter anyway.
+        (Stage::Publishing, ShellResult::IndexFailed { .. }) => match model.pending.clone() {
+            Some(account) => begin_save(model, account),
+            None => Command::done(),
+        },
+
         // -- persistence and handover -----------------------------------------
+        // Publishing to the registry already happened before this point
+        // (option B), so save simply hands the wallet over.
         (Stage::Saving, ShellResult::AccountSaved) => {
             let Some(account) = model.pending.clone() else {
                 return Command::done();
             };
             model.stage = Stage::Completing;
-            let complete = request(
+            request(
                 model,
                 ShellOperation::CompleteOnboarding {
-                    mode: CompletionMode::AddAccount {
-                        account: account.clone(),
-                    },
+                    mode: CompletionMode::AddAccount { account },
                 },
-            );
-            if model.recovered {
-                // Heal the index behind the user's back. Fire-and-forget by
-                // construction: its result maps to an event that does nothing.
-                let heal = Command::request_from_shell(ShellOperation::IndexCreateRecord {
-                    credential_id: account.id,
-                    public_key_hex: account.public_key_hex,
-                    name: account.name,
-                })
-                .then_send(|_| Event::HealIgnored);
-                Command::all([complete, heal])
-            } else {
-                complete
-            }
+            )
         }
         (Stage::Saving, ShellResult::StorageFailed { message }) => {
             idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
@@ -433,6 +501,24 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Build the account for a credential and a known public key.
+fn account_from_key(assertion: &Assertion, public_key_hex: &str, now_iso: &str) -> Option<Account> {
+    let address = address_from_public_key_hex(public_key_hex).ok()?;
+    let name = account_name(assertion);
+    Some(Account {
+        id: assertion.credential_id.clone(),
+        name: name.clone(),
+        address,
+        public_key_hex: public_key_hex.to_owned(),
+        created_at_iso: now_iso.to_owned(),
+        keys: vec![AccountKey {
+            credential_id: assertion.credential_id.clone(),
+            public_key_hex: public_key_hex.to_owned(),
+            name,
+        }],
+    })
+}
+
 /// Rebuild the wallet from two signatures by the same credential.
 fn recover_account(first: &Assertion, second: &Assertion, now_iso: &str) -> Option<Account> {
     let (a, b) = (first.to_core().ok()?, second.to_core().ok()?);
@@ -442,14 +528,7 @@ fn recover_account(first: &Assertion, second: &Assertion, now_iso: &str) -> Opti
         primitives::to_hex(&key.x, false),
         primitives::to_hex(&key.y, false)
     );
-    let address = address_from_public_key_hex(&public_key_hex).ok()?;
-    Some(Account {
-        id: first.credential_id.clone(),
-        name: account_name(first),
-        address,
-        public_key_hex,
-        created_at_iso: now_iso.to_owned(),
-    })
+    account_from_key(first, &public_key_hex, now_iso)
 }
 
 /// The name to show, from the credential's own user handle when the index has
@@ -460,11 +539,240 @@ fn account_name(assertion: &Assertion) -> String {
         .unwrap_or_else(|| FALLBACK_ACCOUNT_NAME.to_owned())
 }
 
-fn begin_save(model: &mut Model, account: Account, recovered: bool) -> Command<Effect, Event> {
+/// Continue with `account`, first recovering its display name from the v1
+/// index when — and only when — the passkey handle yielded none (the name
+/// fell to the fallback). A v2-era wallet, or any handle that decodes,
+/// never makes this extra request.
+fn resolve_name_then(
+    model: &mut Model,
+    account: Account,
+    after: AfterName,
+) -> Command<Effect, Event> {
+    if account.name != FALLBACK_ACCOUNT_NAME {
+        return match after {
+            AfterName::Save => begin_save(model, account),
+            AfterName::Publish => {
+                model.pending = Some(account);
+                begin_publish(model)
+            }
+        };
+    }
+    let credential_id = account.id.clone();
+    model.pending = Some(account);
+    model.after_name = after;
+    model.stage = Stage::ResolvingName;
+    request(model, ShellOperation::LookupLegacyName { credential_id })
+}
+
+fn begin_save(model: &mut Model, account: Account) -> Command<Effect, Event> {
     model.pending = Some(account.clone());
-    model.recovered = recovered;
     model.stage = Stage::Saving;
     request(model, ShellOperation::SaveAccount { account })
+}
+
+/// Recover the two candidate keys from the first signature and start checking
+/// them against the registry. If neither can even be recovered, fall back to
+/// the two-signature path.
+fn begin_candidate_match(model: &mut Model) -> Command<Effect, Event> {
+    let candidates = model
+        .assertion
+        .as_ref()
+        .and_then(|assertion| assertion.to_core().ok())
+        .and_then(|core| webauthn::recover_candidates(&core).ok())
+        .unwrap_or_default();
+    if candidates.is_empty() {
+        return offer_recovery(model);
+    }
+    model.candidates = candidates;
+    query_next_candidate(model)
+}
+
+/// Query the next untried candidate against the registry; when both are
+/// exhausted, offer the on-device (two-signature) recovery.
+fn query_next_candidate(model: &mut Model) -> Command<Effect, Event> {
+    if model.candidates.is_empty() {
+        return offer_recovery(model);
+    }
+    let candidate = model.candidates.remove(0);
+    model.querying = Some(candidate.clone());
+    model.stage = Stage::MatchingKey;
+    request(
+        model,
+        ShellOperation::RegistryQueryByPublicKey {
+            public_key_hex: candidate,
+        },
+    )
+}
+
+/// The account for the candidate the registry just confirmed it knows.
+fn matched_account(model: &Model) -> Option<Account> {
+    let assertion = model.assertion.as_ref()?;
+    let public_key_hex = model.querying.as_ref()?;
+    account_from_key(assertion, public_key_hex, &model.observed_at)
+}
+
+/// Rebuild the wallet from its registry group.
+///
+/// Recomputation is the authority, the metadata blob the cross-check: the
+/// address that is persisted MUST be derivable from the fetched members, or
+/// nothing is. The fetch order is the canonical founding order, so the
+/// straight derivation matches first try; if it does not (a server that
+/// reordered members), every member is tried as the pinned `keys[0]` — the
+/// only degree of freedom, since `compute_safe_address_multi` canonically
+/// orders the rest internally.
+fn reconstruct_account(
+    assertion: &Assertion,
+    metadata_hex: &str,
+    members: &[super::RegistryUnitMember],
+    now_iso: &str,
+) -> Option<Account> {
+    if members.is_empty()
+        || !members
+            .iter()
+            .any(|member| member.credential_id == assertion.credential_id)
+    {
+        // A group that does not even contain the signing credential is not
+        // this wallet, whatever the query said.
+        return None;
+    }
+    let metadata = RegistryMetadata::decode_hex(metadata_hex).ok()?;
+
+    let ordered = reorder_to_address(members, &metadata.address)?;
+
+    let name = assertion
+        .user_name()
+        .or_else(|| metadata.key_names.first().cloned())
+        .unwrap_or_else(|| FALLBACK_ACCOUNT_NAME.to_owned());
+    let keys: Vec<AccountKey> = ordered
+        .iter()
+        .enumerate()
+        .map(|(index, member)| AccountKey {
+            credential_id: member.credential_id.clone(),
+            public_key_hex: member.public_key_hex.clone(),
+            name: metadata
+                .key_names
+                .get(index)
+                .cloned()
+                .unwrap_or_else(|| format!("Key {}", index + 1)),
+        })
+        .collect();
+    let first = keys.first()?;
+    Some(Account {
+        id: first.credential_id.clone(),
+        name,
+        address: metadata.address.clone(),
+        public_key_hex: first.public_key_hex.clone(),
+        created_at_iso: if metadata.created_at_iso.is_empty() {
+            now_iso.to_owned()
+        } else {
+            metadata.created_at_iso.clone()
+        },
+        keys,
+    })
+}
+
+/// The founding order whose derivation equals `address`, or `None`. Tries the
+/// given order first, then each member as the pin.
+fn reorder_to_address<'a>(
+    members: &'a [super::RegistryUnitMember],
+    address: &str,
+) -> Option<Vec<&'a super::RegistryUnitMember>> {
+    let derives_to = |ordered: &[&super::RegistryUnitMember]| -> bool {
+        let hexes: Vec<String> = ordered
+            .iter()
+            .map(|member| member.public_key_hex.clone())
+            .collect();
+        super::address_from_public_key_hexes(&hexes)
+            .map(|derived| derived.eq_ignore_ascii_case(address))
+            .unwrap_or(false)
+    };
+
+    let as_fetched: Vec<&super::RegistryUnitMember> = members.iter().collect();
+    if derives_to(&as_fetched) {
+        return Some(as_fetched);
+    }
+    for pin in 0..members.len() {
+        let mut ordered: Vec<&super::RegistryUnitMember> = Vec::with_capacity(members.len());
+        ordered.push(&members[pin]);
+        ordered.extend(
+            members
+                .iter()
+                .enumerate()
+                .filter_map(|(index, member)| (index != pin).then_some(member)),
+        );
+        if derives_to(&ordered) {
+            return Some(ordered);
+        }
+    }
+    None
+}
+
+/// Offer the two-signature recovery — the second signature disambiguates the
+/// candidates the registry could not.
+fn offer_recovery(model: &mut Model) -> Command<Effect, Event> {
+    model.stage = Stage::AwaitingConsent;
+    request(
+        model,
+        ShellOperation::Prompt {
+            kind: PromptKind::RecoverOffer,
+            confirmable: true,
+        },
+    )
+}
+
+/// Emit the possession-proven publish for the pending account. A metadata
+/// encoding failure never blocks reaching the wallet.
+fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
+    let Some(account) = model.pending.clone() else {
+        return Command::done();
+    };
+    // The authenticatorAttachment IS exposed on the login assertion (unlike the
+    // attestation object and transports), so carry it onto the published entry.
+    let attachment = model
+        .assertion
+        .as_ref()
+        .map(|assertion| assertion.authenticator_attachment.clone())
+        .unwrap_or_default();
+    match registry_publish_op(&account, &attachment) {
+        Ok(operation) => {
+            model.stage = Stage::Publishing;
+            request(model, operation)
+        }
+        Err(_) => begin_save(model, account),
+    }
+}
+
+/// Build the single-key registry publish operation for an account.
+fn registry_publish_op(
+    account: &Account,
+    authenticator_attachment: &str,
+) -> Result<ShellOperation, CoreError> {
+    let metadata = RegistryMetadata {
+        version: REGISTRY_METADATA_VERSION,
+        address: account.address.clone(),
+        wallet_version: WALLET_VERSION.to_owned(),
+        key_names: vec![account.name.clone()],
+        created_at_iso: account.created_at_iso.clone(),
+    };
+    Ok(ShellOperation::RegistryPublish {
+        metadata_hex: metadata.encode_hex()?,
+        members: vec![RegistryPublishMember {
+            credential_id: account.id.clone(),
+            public_key_hex: account.public_key_hex.clone(),
+            // A recovered key carries no create()-time attestation object and no
+            // transports (getTransports() is create-only) — but its assertion
+            // DOES expose authenticatorAttachment, so that one is preserved.
+            attestation_hex: String::new(),
+            authenticator_attachment: authenticator_attachment.to_owned(),
+            transports: String::new(),
+            // Legacy mode: the executor mints a fresh group key and signs
+            // this member live (one prompt) — recovery has no creation-time
+            // proof to replay.
+            proof: None,
+        }],
+        group_seed_hex: String::new(),
+        group_public_key_hex: String::new(),
+    })
 }
 
 fn idle_with_prompt(model: &mut Model, prompt: PromptKind) -> Command<Effect, Event> {

@@ -247,7 +247,7 @@ function safeChecksum(address: string): `0x${string}` {
 
 // ── Legacy index ─────────────────────────────────────────────────────────────
 
-interface RawLegacyRecord {
+export interface RawLegacyRecord {
 	rpId: string;
 	credentialId: string;
 	walletRef: `0x${string}`;

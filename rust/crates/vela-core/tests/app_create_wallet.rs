@@ -768,7 +768,7 @@ fn removing_back_to_a_sole_device_bound_key_rearms_the_gate() {
 /// also carries the sync signal for the UI badge.
 #[test]
 fn a_synced_sole_key_finishes_alone() {
-    let mut sut = registered("Ann");
+    let sut = registered("Ann");
     let view = sut.view();
     assert!(
         view.keys[0].synced,

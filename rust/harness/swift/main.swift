@@ -105,6 +105,8 @@ func errorCode(_ error: CoreError) -> String {
     case .I18nUnsupportedOption: return "I18nUnsupportedOption"
     case .I18nCatalogUnavailable: return "I18nCatalogUnavailable"
     case .I18nCatalogParse: return "I18nCatalogParse"
+    case .RegistryMetadata: return "RegistryMetadata"
+    case .RegistryProof: return "RegistryProof"
     case .Internal: return "Internal"
     }
 }
@@ -118,7 +120,8 @@ func errorMessage(_ error: CoreError) -> String {
          .Eip712NonCanonicalDomain(let m), .InvalidIdenticonSeed(let m),
          .I18nEmptyKeyList(let m), .I18nInvalidCount(let m),
          .I18nUnsupportedOption(let m), .I18nCatalogUnavailable(let m),
-         .I18nCatalogParse(let m), .Internal(let m):
+         .I18nCatalogParse(let m), .RegistryMetadata(let m), .RegistryProof(let m),
+         .Internal(let m):
         return m
     }
 }

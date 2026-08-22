@@ -605,3 +605,180 @@ fn a_sibling_credential_matches_the_local_multikey_account() {
         other => panic!("expected immediate completion, got {other:?}"),
     }
 }
+
+// ---------------------------------------------------------------------------
+// Legacy name recovery (v1-era wallets whose handle yields no name)
+// ---------------------------------------------------------------------------
+
+/// …→ signed in with a handle-LESS assertion (a v1-era passkey whose
+/// userHandle yields no name): the resolved name falls to the fallback.
+fn authenticated_nameless() -> Sut {
+    let mut sut = mounted();
+    sut.dispatch(Event::SignIn);
+    sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(ShellResult::PasskeyAuthenticated {
+        assertion: Assertion {
+            user_id_hex: None,
+            ..support::assertion(CRED)
+        },
+        now_iso: NOW.to_owned(),
+    });
+    sut
+}
+
+/// The conformance assertion carries no decodable user handle, so the
+/// resolved name falls to the fallback — exactly the v1-era shape.
+#[test]
+fn a_fallback_name_asks_the_legacy_index_before_entering() {
+    let mut sut = authenticated_nameless();
+    sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    // Legacy v2 entry, no group: the historical single-key resolution.
+    let next = sut.resolve(ShellResult::RegistryKeyStatus {
+        registered: true,
+        unit_ids: vec![],
+    });
+    match next.as_slice() {
+        [ShellOperation::LookupLegacyName { credential_id }] => {
+            assert_eq!(credential_id, CRED);
+        }
+        other => panic!("a fallback name is worth one legacy lookup; got {other:?}"),
+    }
+    let next = sut.resolve(ShellResult::LegacyName {
+        name: Some("大表哥".to_owned()),
+    });
+    match next.as_slice() {
+        [ShellOperation::SaveAccount { account }] => {
+            assert_eq!(account.name, "大表哥");
+            assert_eq!(
+                account.keys[0].name, "大表哥",
+                "keys[0] carries the wallet name"
+            );
+        }
+        other => panic!("expected the save with the recovered name, got {other:?}"),
+    }
+}
+
+/// No legacy record (or the index is offline): the fallback stands and the
+/// login is never blocked.
+#[test]
+fn a_missing_legacy_name_keeps_the_fallback_and_enters() {
+    let mut sut = authenticated_nameless();
+    sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    sut.resolve(ShellResult::RegistryKeyStatus {
+        registered: true,
+        unit_ids: vec![],
+    });
+    let next = sut.resolve(ShellResult::LegacyName { name: None });
+    match next.as_slice() {
+        [ShellOperation::SaveAccount { account }] => {
+            assert_eq!(account.name, "Wallet");
+        }
+        other => panic!("expected the save, got {other:?}"),
+    }
+}
+
+/// The recovery PUBLISH freezes the name into the group metadata — the one
+/// write that made this bug permanent — so it too resolves first.
+#[test]
+fn recovery_resolves_the_name_before_freezing_it_into_the_publish() {
+    let mut sut = authenticated_nameless();
+    sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    walk_to_recover_offer(&mut sut);
+    sut.resolve(ShellResult::PromptAnswered { accepted: true });
+    let (_, second) = support::assertion_pair(CRED);
+    let next = sut.resolve(ShellResult::ProofSigned {
+        assertion: second,
+        now_iso: NOW.to_owned(),
+    });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::LookupLegacyName { .. }]),
+        "the publish would freeze the fallback; got {next:?}"
+    );
+    let next = sut.resolve(ShellResult::LegacyName {
+        name: Some("大表哥".to_owned()),
+    });
+    match next.as_slice() {
+        [ShellOperation::RegistryPublish {
+            members,
+            metadata_hex,
+            ..
+        }] => {
+            assert_eq!(members.len(), 1);
+            let metadata =
+                vela_core::registry_metadata::RegistryMetadata::decode_hex(metadata_hex).unwrap();
+            assert_eq!(metadata.key_names, vec!["大表哥".to_owned()]);
+        }
+        other => panic!("expected the publish, got {other:?}"),
+    }
+}
+
+/// An unprintable or oversized server name is refused — the same bar the
+/// handle is held to; the fallback stands instead.
+#[test]
+fn a_malformed_legacy_name_is_refused() {
+    let mut sut = authenticated_nameless();
+    sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    sut.resolve(ShellResult::RegistryKeyStatus {
+        registered: true,
+        unit_ids: vec![],
+    });
+    let next = sut.resolve(ShellResult::LegacyName {
+        name: Some("bad\u{7}name".to_owned()),
+    });
+    match next.as_slice() {
+        [ShellOperation::SaveAccount { account }] => {
+            assert_eq!(account.name, "Wallet");
+        }
+        other => panic!("expected the save, got {other:?}"),
+    }
+}
+
+/// An UPPERCASE uuid tail (iOS `UUID().uuidString`) no longer discards the
+/// handle's name — uuid shape is case-insensitive now.
+#[test]
+fn an_uppercase_uuid_handle_still_yields_its_name() {
+    use vela_core::app::Assertion;
+    let assertion = Assertion {
+        credential_id: CRED.to_owned(),
+        signature_der_hex: String::new(),
+        authenticator_data_hex: String::new(),
+        client_data_json_hex: String::new(),
+        user_id_hex: Some(
+            "大表哥\u{0}0F8FAD5B-D9CB-469F-A165-70867728950E"
+                .bytes()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        ),
+        authenticator_attachment: String::new(),
+    };
+    // user_name() is pub(crate); observe through the machine instead: a
+    // local account match is not needed — the name only matters on save, so
+    // assert via the matched-candidate path with a crafted assertion.
+    // (Direct: the mod-level unit test covers the decode; this pins the
+    // login-visible behavior.)
+    let mut sut = mounted();
+    sut.dispatch(Event::SignIn);
+    sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(ShellResult::PasskeyAuthenticated {
+        assertion: Assertion {
+            // A REAL, Safe-compatible assertion body with the crafted handle.
+            user_id_hex: assertion.user_id_hex.clone(),
+            ..support::assertion(CRED)
+        },
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::AccountsLoaded { accounts: vec![] });
+    let next = sut.resolve(ShellResult::RegistryKeyStatus {
+        registered: true,
+        unit_ids: vec![],
+    });
+    match next.as_slice() {
+        [ShellOperation::SaveAccount { account }] => {
+            assert_eq!(
+                account.name, "大表哥",
+                "no legacy lookup needed — the handle decodes"
+            );
+        }
+        other => panic!("expected a direct save, got {other:?}"),
+    }
+}

@@ -74,6 +74,31 @@ export async function createRecord(request: CreateRequest): Promise<PublicKeyRec
   return response.json();
 }
 
+/**
+ * The FROZEN v1 index deployment. `passkeyIndexURL` now points at the v2
+ * registry, but wallets created in the v1 era have their display name only
+ * HERE (v1 stored it server-side; the v2 group metadata is written at
+ * publish time and cannot recover it). Read-only, best-effort.
+ */
+export const LEGACY_INDEX_URL = 'https://p256-index.getvela.app';
+
+/**
+ * The v1 record's display name for a credential, or null. Never throws —
+ * a lost legacy name must degrade the label, not the login.
+ */
+export async function queryLegacyName(rpId: string, credentialId: string): Promise<string | null> {
+  try {
+    const url = `${LEGACY_INDEX_URL}/api/query?rpId=${encodeURIComponent(rpId)}&credentialId=${encodeURIComponent(credentialId)}`;
+    const response = await fetchWithTimeout(url, {}, { timeoutMs: NET_TIMEOUTS.keyIndexRead });
+    if (!response.ok) return null;
+    const record = (await response.json()) as { name?: string };
+    const name = record.name?.trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Query a public key by rpId and credentialId. */
 export async function queryRecord(rpId: string, credentialId: string): Promise<PublicKeyRecord> {
   const baseUrl = await getBaseUrl();

@@ -16,6 +16,7 @@ import { buildMemberProof, groupPublicKeyFromSeed, toHex } from '@/services/vela
 import * as Passkey from '@/modules/passkey';
 import { PasskeyError, PasskeyErrorCode } from '@/modules/passkey';
 import * as Registry from '@/services/public-key-registry';
+import { queryLegacyName } from '@/services/public-key-index';
 import { publishToRegistry } from '@/services/registry-publish';
 import {
   loadAccounts,
@@ -125,6 +126,12 @@ export function operationFailure(effect: OnboardingEffect, error: unknown): Shel
     // lands on the calm create-failed prompt rather than a passkey alert.
     case 'generate_group_key':
       return { type: 'storage_failed', message: message(error) };
+
+    // Best-effort by contract: a lost legacy name degrades the label, never
+    // the login. (queryLegacyName already swallows everything, so this arm
+    // is belt-and-braces.)
+    case 'lookup_legacy_name':
+      return { type: 'legacy_name', name: null };
 
     // Mixed ceremony: the challenge fetch is an index call, the get() is a
     // passkey ceremony — classify by what actually threw.
@@ -332,8 +339,28 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         };
       }
 
+      case 'lookup_legacy_name': {
+        console.log('[login] handle gave no usable name — querying the v1 p256-index…');
+        const name = await queryLegacyName(Passkey.getRelyingPartyId(), operation.credential_id);
+        console.log(
+          name
+            ? `[login] wallet name from v1 p256-index: "${name}"`
+            : '[login] v1 p256-index has no record — the default name "Wallet" stands',
+        );
+        return { type: 'legacy_name', name };
+      }
+
       case 'authenticate_passkey': {
         const assertion = await Passkey.authenticate();
+        // Name-source telemetry: what the passkey's own handle yields. When
+        // this is null the core falls to the fallback and asks the legacy
+        // index (`lookup_legacy_name` below) before settling for "Wallet".
+        const handleName = Passkey.decodeUserNameFromHandle(assertion.userIdHex ?? undefined);
+        console.log(
+          handleName
+            ? `[login] wallet name from passkey handle: "${handleName}"`
+            : '[login] passkey handle yields no name — will consult the legacy index if needed',
+        );
         return {
           type: 'passkey_authenticated',
           assertion: {
@@ -352,6 +379,7 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         return { type: 'accounts_loaded', accounts: (await loadAccounts()).map(fromStoredAccount) };
 
       case 'save_account':
+        console.log(`[onboarding] saving account "${operation.account.name}" (${operation.account.address})`);
         await saveAccount(toStoredAccount(operation.account));
         return { type: 'account_saved' };
 

@@ -28,8 +28,8 @@ use serde::{Deserialize, Serialize};
 
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
 use super::{
-    address_from_public_key_hex, Account, AccountKey, Assertion, FailureKind, PromptKind,
-    RegistryPublishMember,
+    address_from_public_key_hex, valid_display_name, Account, AccountKey, Assertion, FailureKind,
+    PromptKind, RegistryPublishMember,
 };
 use crate::error::CoreError;
 use crate::primitives;
@@ -93,6 +93,9 @@ pub enum Stage {
     /// The matched key belongs to a registry group — fetching its founding
     /// members to reconstruct the (possibly multi-key) wallet.
     FetchingUnit,
+    /// The resolved account's name fell to the fallback — asking the v1
+    /// index for the display name a v1-era wallet stored server-side.
+    ResolvingName,
     /// Waiting for the user to accept or decline on-device recovery.
     AwaitingConsent,
     /// Waiting for the second signature that pins down the public key.
@@ -101,6 +104,15 @@ pub enum Stage {
     Publishing,
     Saving,
     Completing,
+}
+
+/// What follows a name resolution: entering directly (the account is
+/// already registered) or the recovery publish.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum AfterName {
+    #[default]
+    Save,
+    Publish,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -124,6 +136,8 @@ pub struct Model {
     candidates: Vec<String>,
     /// The candidate currently being queried.
     querying: Option<String>,
+    /// Where the flow continues once the name resolution answers.
+    after_name: AfterName,
     attempt: u64,
     health: Health,
     abort: Option<AbortHandle>,
@@ -322,12 +336,11 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             };
             match recover_account(&first, &second, &model.observed_at) {
                 // Both candidates were already checked against the registry and
-                // neither was known, so the recovered key is unpublished: go
-                // straight to the publish, no redundant query.
-                Some(account) => {
-                    model.pending = Some(account);
-                    begin_publish(model)
-                }
+                // neither was known, so the recovered key is unpublished: the
+                // publish follows — and it FREEZES the name into the group
+                // metadata, which is exactly why a fallback name is worth one
+                // legacy lookup first.
+                Some(account) => resolve_name_then(model, account, AfterName::Publish),
                 // The two signatures did not pin down exactly one key (or the
                 // bytes would not parse). Nothing is persisted on a guess.
                 None => idle_with_prompt(model, PromptKind::RecoverFailed),
@@ -364,7 +377,7 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 // A registered key predating groups: the historical
                 // single-key resolution.
                 None => match matched_account(model) {
-                    Some(account) => begin_save(model, account),
+                    Some(account) => resolve_name_then(model, account, AfterName::Save),
                     None => offer_recovery(model),
                 },
             }
@@ -394,7 +407,7 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             };
             match reconstruct_account(&assertion, &metadata_hex, &members, &model.observed_at) {
                 // The group is already on-chain — no publish, just enter.
-                Some(account) => begin_save(model, account),
+                Some(account) => resolve_name_then(model, account, AfterName::Save),
                 // The fetched members do not recompute to the recorded
                 // address. Nothing is persisted on a guess.
                 None => idle_with_prompt(
@@ -410,6 +423,26 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         // single-key guess would fund the wrong Safe — surface the failure.
         (Stage::FetchingUnit, ShellResult::IndexFailed { message, .. }) => {
             idle_with_prompt(model, PromptKind::SignInFailed { detail: message })
+        }
+
+        // -- name resolution (v1-era wallets) ----------------------------------
+        (Stage::ResolvingName, ShellResult::LegacyName { name }) => {
+            let Some(mut account) = model.pending.take() else {
+                return Command::done();
+            };
+            if let Some(name) = name.filter(|name| valid_display_name(name)) {
+                if let Some(first) = account.keys.iter_mut().find(|key| key.name == account.name) {
+                    first.name = name.clone();
+                }
+                account.name = name;
+            }
+            match model.after_name {
+                AfterName::Save => begin_save(model, account),
+                AfterName::Publish => {
+                    model.pending = Some(account);
+                    begin_publish(model)
+                }
+            }
         }
 
         // -- publish before entering (option B) --------------------------------
@@ -504,6 +537,31 @@ fn account_name(assertion: &Assertion) -> String {
     assertion
         .user_name()
         .unwrap_or_else(|| FALLBACK_ACCOUNT_NAME.to_owned())
+}
+
+/// Continue with `account`, first recovering its display name from the v1
+/// index when — and only when — the passkey handle yielded none (the name
+/// fell to the fallback). A v2-era wallet, or any handle that decodes,
+/// never makes this extra request.
+fn resolve_name_then(
+    model: &mut Model,
+    account: Account,
+    after: AfterName,
+) -> Command<Effect, Event> {
+    if account.name != FALLBACK_ACCOUNT_NAME {
+        return match after {
+            AfterName::Save => begin_save(model, account),
+            AfterName::Publish => {
+                model.pending = Some(account);
+                begin_publish(model)
+            }
+        };
+    }
+    let credential_id = account.id.clone();
+    model.pending = Some(account);
+    model.after_name = after;
+    model.stage = Stage::ResolvingName;
+    request(model, ShellOperation::LookupLegacyName { credential_id })
 }
 
 fn begin_save(model: &mut Model, account: Account) -> Command<Effect, Event> {

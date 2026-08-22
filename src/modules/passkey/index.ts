@@ -135,7 +135,10 @@ export function decodeUserName(userID: string): string {
   return idx === -1 ? userID : userID.slice(0, idx);
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// Case-INSENSITIVE: the web encoder emits lowercase but iOS
+// `UUID().uuidString` is uppercase — a name must never be lost because the
+// uuid tail's case differs. Mirrors the core's `is_uuid_v4_shape`.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // eslint-disable-next-line no-control-regex
 const UNPRINTABLE_RE = /[\u0000-\u001f\u007f-\u009f\ufffd]/;
 

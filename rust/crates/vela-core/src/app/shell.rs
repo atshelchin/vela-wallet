@@ -101,6 +101,12 @@ pub enum ShellOperation {
         attestation_hex: String,
         group_public_key_hex: String,
     },
+    /// The v1 index's display name for a credential — the only place a
+    /// v1-era wallet's name survives (v1 stored it server-side; a handle
+    /// that decodes carries its own). Best-effort and read-only.
+    LookupLegacyName {
+        credential_id: String,
+    },
     /// `navigator.credentials.get()` with no credential hint — "who are you?".
     AuthenticatePasskey,
     /// Read every locally stored account.
@@ -202,6 +208,11 @@ pub enum ShellResult {
     /// creation-time `get()` over the member-mode challenge.
     MemberProofSigned {
         proof: RegistryProof,
+    },
+    /// The v1 record's display name, or None (absent record, offline, or a
+    /// v2-era wallet). Never an error — a lost name degrades the label only.
+    LegacyName {
+        name: Option<String>,
     },
     PasskeyAuthenticated {
         assertion: Assertion,

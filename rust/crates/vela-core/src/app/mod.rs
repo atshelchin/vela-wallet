@@ -375,14 +375,23 @@ impl Assertion {
         if !is_uuid_v4_shape(uuid) {
             return None;
         }
-        if name.is_empty() || name.encode_utf16().count() > 64 || has_unprintable(name) {
+        if !valid_display_name(name) {
             return None;
         }
         Some(name.to_owned())
     }
 }
 
-/// `8-4-4-4-12` lowercase hex, matching the `UUID_RE` the encoder pairs with.
+/// A displayable wallet name: non-empty, ≤64 UTF-16 units, no control
+/// characters or U+FFFD — the same bar `user_name()` holds the handle to,
+/// shared so a server-recovered name cannot smuggle in what a handle cannot.
+pub(crate) fn valid_display_name(name: &str) -> bool {
+    !name.is_empty() && name.encode_utf16().count() <= 64 && !has_unprintable(name)
+}
+
+/// `8-4-4-4-12` hex, case-insensitive: the web encoder emits lowercase but
+/// iOS `UUID().uuidString` is UPPERCASE — a name must never be lost because
+/// the uuid tail's case differs.
 fn is_uuid_v4_shape(candidate: &str) -> bool {
     const GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
     let mut parts = candidate.split('-');
@@ -390,11 +399,7 @@ fn is_uuid_v4_shape(candidate: &str) -> bool {
         let Some(part) = parts.next() else {
             return false;
         };
-        if part.len() != len
-            || !part
-                .bytes()
-                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-        {
+        if part.len() != len || !part.bytes().all(|b| b.is_ascii_hexdigit()) {
             return false;
         }
     }

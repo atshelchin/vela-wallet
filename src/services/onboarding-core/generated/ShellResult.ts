@@ -16,7 +16,7 @@ export type ShellResult = { "type": "passkey_support", supported: boolean, } | {
 /**
  * Uncompressed P-256 point, `04‖x‖y` hex (no `0x`).
  */
-group_public_key_hex: string, } | { "type": "member_proof_signed", proof: RegistryProof, } | { "type": "passkey_authenticated", assertion: Assertion, now_iso: string, } | { "type": "passkey_failed", kind: FailureKind, 
+group_public_key_hex: string, } | { "type": "member_proof_signed", proof: RegistryProof, } | { "type": "legacy_name", name: string | null, } | { "type": "passkey_authenticated", assertion: Assertion, now_iso: string, } | { "type": "passkey_failed", kind: FailureKind, 
 /**
  * The platform's own words, forwarded verbatim for the
  * "something went wrong" alert. Absent for classified failures, whose

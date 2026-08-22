@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, Keyboard } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, Pressable, ScrollView, Keyboard, Image, useColorScheme } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated from 'react-native-reanimated';
 import { fadeIn, fadeInDown } from '@/constants/entering';
@@ -15,6 +15,93 @@ import {
   KeyRound, Plus, X,
 } from 'lucide-react-native';
 import { copyToClipboard, openBrowser } from '@/services/platform';
+import {
+  resolveAuthenticator,
+  fallbackLabel,
+  type AuthenticatorLabel,
+} from '@/services/authenticator-info';
+
+/** i18n keys for the semantic fallback names `authenticator-info` returns. */
+const AUTHENTICATOR_KIND_KEYS = {
+  'security-key': 'onboarding.create.providerSecurityKey',
+  platform: 'onboarding.create.providerPlatform',
+  generic: 'onboarding.create.providerGeneric',
+  unknown: 'onboarding.create.providerUnknown',
+} as const;
+
+/** Resolve a key row's provider label (AAGUID → name/icon, cached, best
+ *  effort); renders the semantic fallback until — or instead of — the fetch. */
+function useAuthenticatorLabel(aaguid: string, attachment: string, transports: string) {
+  const [label, setLabel] = useState<AuthenticatorLabel>(() => fallbackLabel(attachment, transports));
+  useEffect(() => {
+    let live = true;
+    resolveAuthenticator(aaguid || null, attachment, transports).then((resolved) => {
+      if (live) setLabel(resolved);
+    });
+    return () => { live = false; };
+  }, [aaguid, attachment, transports]);
+  return label;
+}
+
+/** One founding-key row: provider icon, editable label, provider name +
+ *  sync badge, confirmation state, remove. */
+function KeyRowView({ index, row, flow, dark }: {
+  index: number;
+  row: { name: string; authenticatorAttachment: string; transports: string; confirmed: boolean; synced: boolean; aaguid: string };
+  flow: ReturnType<typeof useCreateWallet>;
+  dark: boolean;
+}) {
+  const { t } = useTranslation();
+  const label = useAuthenticatorLabel(row.aaguid, row.authenticatorAttachment, row.transports);
+  const iconUrl = (dark ? label.iconUrlDark : label.iconUrl) ?? label.iconUrl;
+  const providerName = label.name ?? t(AUTHENTICATOR_KIND_KEYS[label.kind]);
+  return (
+    <View style={[styles.keyRow, index > 0 && styles.keyRowDivider]}>
+      {iconUrl ? (
+        <Image source={{ uri: iconUrl }} style={styles.keyIcon} />
+      ) : (
+        <KeyRound size={18} color={color.fg.muted} strokeWidth={2} />
+      )}
+      <View style={styles.keyBody}>
+        {index === 0 ? (
+          <Text style={styles.keyName} numberOfLines={1}>{row.name}</Text>
+        ) : (
+          <TextInput
+            style={styles.keyNameInput}
+            defaultValue={row.name}
+            onEndEditing={(e) => flow.renameKey(index, e.nativeEvent.text)}
+            returnKeyType="done"
+            editable={!flow.busy}
+          />
+        )}
+        <View style={styles.keyMetaRow}>
+          <Text style={styles.keyProvider} numberOfLines={1}>{providerName}</Text>
+          <View style={[styles.keyBadge, row.synced ? styles.keyBadgeSynced : styles.keyBadgeDeviceOnly]}>
+            <Text style={[styles.keyBadgeText, row.synced ? styles.keyBadgeTextSynced : styles.keyBadgeTextDeviceOnly]}>
+              {row.synced ? t('onboarding.create.keySyncedBadge') : t('onboarding.create.keyDeviceOnlyBadge')}
+            </Text>
+          </View>
+        </View>
+      </View>
+      {row.confirmed ? (
+        <Check size={16} color={color.success.base} strokeWidth={2.5} />
+      ) : (
+        <Pressable onPress={() => flow.confirmKey(index)} hitSlop={8} disabled={flow.busy}>
+          <Text style={styles.confirmKeyText}>{t('onboarding.create.confirmKeyBtn')}</Text>
+        </Pressable>
+      )}
+      {index > 0 && !flow.busy ? (
+        <Pressable
+          onPress={() => flow.removeKey(index)}
+          hitSlop={8}
+          accessibilityLabel={t('onboarding.create.removeKeyBtn')}
+        >
+          <X size={16} color={color.fg.subtle} strokeWidth={2} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
 
 interface Props {
   onCreated?: (address: string, name: string) => void;
@@ -46,6 +133,7 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
   const [showBugReport, setShowBugReport] = useState(false);
   const [showErrorDetail, setShowErrorDetail] = useState(false);
   const { resolved: language } = useLanguagePreference();
+  const dark = useColorScheme() === 'dark';
 
   const created = flow.stage === 'created';
   const syncFailed = flow.stage === 'sync_failed';
@@ -146,42 +234,15 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
               {/* The founding keys, in the order that pins the address. */}
               <View style={styles.keyList}>
                 {flow.keys.map((key, i) => (
-                  <View key={i} style={[styles.keyRow, i > 0 && styles.keyRowDivider]}>
-                    <KeyRound size={18} color={color.fg.muted} strokeWidth={2} />
-                    {i === 0 ? (
-                      <Text style={styles.keyName} numberOfLines={1}>{key.name}</Text>
-                    ) : (
-                      <TextInput
-                        style={styles.keyNameInput}
-                        defaultValue={key.name}
-                        onEndEditing={(e) => flow.renameKey(i, e.nativeEvent.text)}
-                        returnKeyType="done"
-                        editable={!flow.busy}
-                      />
-                    )}
-                    {key.confirmed ? (
-                      <Check size={16} color={color.success.base} strokeWidth={2.5} />
-                    ) : (
-                      <Pressable
-                        onPress={() => flow.confirmKey(i)}
-                        hitSlop={8}
-                        disabled={flow.busy}
-                      >
-                        <Text style={styles.confirmKeyText}>{t('onboarding.create.confirmKeyBtn')}</Text>
-                      </Pressable>
-                    )}
-                    {i > 0 && !flow.busy ? (
-                      <Pressable
-                        onPress={() => flow.removeKey(i)}
-                        hitSlop={8}
-                        accessibilityLabel={t('onboarding.create.removeKeyBtn')}
-                      >
-                        <X size={16} color={color.fg.subtle} strokeWidth={2} />
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  <KeyRowView key={i} index={i} row={key} flow={flow} dark={dark} />
                 ))}
               </View>
+
+              {flow.needsSecondKey ? (
+                <Text style={styles.needSecondKeyText}>
+                  {t('onboarding.create.needSecondKeyHint')}
+                </Text>
+              ) : null}
 
               {flow.canAddKey ? (
                 <Pressable style={styles.addKeyRow} onPress={() => flow.addKey('')} disabled={flow.busy}>
@@ -545,20 +606,66 @@ const styles = createStyles(() => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.lg,
-    paddingVertical: space.xl,
+    paddingVertical: space.lg,
+  },
+  keyIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.md,
+  },
+  keyBody: {
+    flex: 1,
+    gap: 2,
+  },
+  keyMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+  },
+  keyProvider: {
+    fontSize: text.xs,
+    ...inter.regular,
+    color: color.fg.subtle,
+    flexShrink: 1,
+  },
+  keyBadge: {
+    borderRadius: radius.full,
+    paddingHorizontal: space.md,
+    paddingVertical: 1,
+  },
+  keyBadgeSynced: {
+    backgroundColor: color.success.soft,
+  },
+  keyBadgeDeviceOnly: {
+    backgroundColor: color.warning.soft,
+  },
+  keyBadgeText: {
+    fontSize: text.xs,
+    ...inter.medium,
+  },
+  keyBadgeTextSynced: {
+    color: color.success.base,
+  },
+  keyBadgeTextDeviceOnly: {
+    color: color.warning.base,
+  },
+  needSecondKeyText: {
+    fontSize: text.sm,
+    ...inter.medium,
+    color: color.warning.base,
+    marginTop: space.lg,
+    lineHeight: 19,
   },
   keyRowDivider: {
     borderTopWidth: 1,
     borderTopColor: color.border.base,
   },
   keyName: {
-    flex: 1,
     fontSize: text.base,
     ...inter.medium,
     color: color.fg.base,
   },
   keyNameInput: {
-    flex: 1,
     fontSize: text.base,
     ...inter.regular,
     color: color.fg.base,

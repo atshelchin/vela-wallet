@@ -34,6 +34,11 @@ export type CreateWalletKeyRow = {
   /** The key confirmed its membership at creation; a false row (cancelled
    *  confirmation) shows its own retry, and Continue stays disabled. */
   confirmed: boolean;
+  /** Backed up to a sync fabric (BS flag); unknown reads as true. */
+  synced: boolean;
+  /** Authenticator model AAGUID (canonical uuid) or "" — resolved to a
+   *  provider name + icon via the AAGUID Explorer. */
+  aaguid: string;
 };
 
 export type CreateWalletController = {
@@ -62,6 +67,9 @@ export type CreateWalletController = {
   canAddKey: boolean;
   /** The set may be frozen and published. */
   canFinish: boolean;
+  /** The sole drafted key is device-bound (not synced): one lost device
+   *  would lose the wallet, so finishing needs a second key. */
+  needsSecondKey: boolean;
 
   setName: (name: string) => void;
   toggleAck: (index: number) => void;

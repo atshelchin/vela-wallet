@@ -154,9 +154,28 @@ fn hex(value: &Value) -> String {
 
 /// A real CTAP2 attestation object whose key is the same identity the assertion
 /// pair below signs with — so a test can register, verify and recover
-/// consistently.
+/// consistently. The vector's flags byte (0x45 = UP|UV|AT) is patched to
+/// 0x5d (adds BE|BS): the DEFAULT fixture models the common case — a synced
+/// platform passkey — so single-key flows are not tripped by the
+/// second-key gate. [`device_bound_attestation_object_hex`] keeps the raw
+/// device-bound byte for the tests OF that gate.
 pub fn attestation_object_hex() -> String {
+    device_bound_attestation_object_hex().replacen("d14df34945", "d14df3495d", 1)
+}
+
+/// The vector's attestation verbatim: flags 0x45, no BE/BS — a device-bound
+/// credential (e.g. a security key with no sync fabric).
+pub fn device_bound_attestation_object_hex() -> String {
     hex(&case("extractPublicKey/real-key")["input"]["attestation_object"])
+}
+
+/// A registration whose credential is DEVICE-BOUND (no BE/BS): the sole-key
+/// case the second-key gate exists for.
+pub fn device_bound_registration(credential_id: &str) -> Registration {
+    Registration {
+        attestation_object_hex: device_bound_attestation_object_hex(),
+        ..registration(credential_id)
+    }
 }
 
 /// The uncompressed public key that attestation and the assertion pair share.
@@ -192,7 +211,7 @@ pub fn second_attestation_object_hex() -> String {
     format!(
         "a363666d74646e6f6e656761747453746d74a0686175746844617461590094\
          a69533717b230610f14ea657c0bd8231dd6fc7b7108f1215a874fbb1d14df349\
-         4500000001000000000000000000000000000000000010\
+         5d00000001000000000000000000000000000000000010\
          cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\
          a5010203262001215820{SECOND_KEY_X}225820{SECOND_KEY_Y}"
     )

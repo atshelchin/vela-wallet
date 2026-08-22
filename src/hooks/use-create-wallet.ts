@@ -43,6 +43,7 @@ const INITIAL_VIEW: CreateView = {
   keys: [],
   can_add_key: false,
   can_finish: false,
+  needs_second_key: false,
 };
 
 function toStored(account: Account): StoredAccount {
@@ -142,9 +143,12 @@ export function useCreateWallet(
         authenticatorAttachment: key.authenticator_attachment,
         transports: key.transports,
         confirmed: key.confirmed ?? true,
+        synced: key.synced ?? true,
+        aaguid: key.aaguid ?? '',
       })),
       canAddKey: view.can_add_key ?? false,
       canFinish: view.can_finish ?? false,
+      needsSecondKey: view.needs_second_key ?? false,
 
       setName: (name) => send({ type: 'name_changed', name }),
       toggleAck: (index) => send({ type: 'ack_toggled', index }),

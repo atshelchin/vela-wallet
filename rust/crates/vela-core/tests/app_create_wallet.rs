@@ -581,7 +581,6 @@ fn a_failed_multi_publish_retries_every_member() {
     }
 }
 
-
 // ---------------------------------------------------------------------------
 // Interleaved confirmation (create → sign, per key)
 // ---------------------------------------------------------------------------
@@ -682,4 +681,99 @@ fn start_over_mints_a_fresh_group_key() {
         matches!(next.as_slice(), [ShellOperation::GenerateGroupKey]),
         "a fresh run mints a fresh group key; got {next:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Second-key gate (a device-bound sole key must not become a wallet alone)
+// ---------------------------------------------------------------------------
+
+/// Register key 1 as a DEVICE-BOUND credential (no BE/BS) and confirm it.
+fn device_bound_registered(name: &str) -> Sut {
+    let mut sut = filled(name);
+    sut.dispatch(Event::Submit);
+    sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(group_key_generated());
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::device_bound_registration(CRED),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k1"),
+    });
+    sut
+}
+
+/// A sole device-bound key is one lost device from an unrecoverable wallet:
+/// the freeze is refused and the view says a second key is needed.
+#[test]
+fn a_sole_device_bound_key_cannot_finish_alone() {
+    let mut sut = device_bound_registered("Ann");
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert!(view.keys[0].confirmed);
+    assert!(!view.keys[0].synced, "flags 0x45 carries no BS bit");
+    assert!(view.needs_second_key);
+    assert!(!view.can_finish);
+    assert!(
+        sut.dispatch(Event::FinishKeys).is_empty(),
+        "freezing a sole unsynced key is refused"
+    );
+}
+
+/// Adding ANY second key — even another device-bound one — breaks the single
+/// point of failure and unlocks the freeze.
+#[test]
+fn a_second_key_satisfies_the_device_bound_gate() {
+    let mut sut = device_bound_registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2"),
+    });
+    let view = sut.view();
+    assert!(!view.needs_second_key);
+    assert!(view.can_finish);
+    assert!(matches!(
+        sut.dispatch(Event::FinishKeys).as_slice(),
+        [ShellOperation::SavePendingUpload { .. }]
+    ));
+}
+
+/// …and removing back down to the sole device-bound key re-arms the gate.
+#[test]
+fn removing_back_to_a_sole_device_bound_key_rearms_the_gate() {
+    let mut sut = device_bound_registered("Ann");
+    sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+    });
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2"),
+    });
+    sut.dispatch(Event::RemoveKey { index: 1 });
+    let view = sut.view();
+    assert!(view.needs_second_key);
+    assert!(!view.can_finish);
+}
+
+/// A SYNCED sole key is the common happy path and is never gated; the row
+/// also carries the sync signal for the UI badge.
+#[test]
+fn a_synced_sole_key_finishes_alone() {
+    let mut sut = registered("Ann");
+    let view = sut.view();
+    assert!(
+        view.keys[0].synced,
+        "the default fixture is a synced passkey"
+    );
+    assert!(!view.needs_second_key);
+    assert!(view.can_finish);
 }

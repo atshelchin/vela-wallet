@@ -18,4 +18,15 @@ authenticator_attachment: string, transports: string,
  * (cancelled confirmation) offers a per-row retry, and FinishKeys is
  * gated on every row being `true`.
  */
-confirmed: boolean, };
+confirmed: boolean, 
+/**
+ * Backed up to a sync fabric (authenticatorData BS flag). Unknown
+ * attestation reads as `true` — display and the second-key gate both
+ * fail open.
+ */
+synced: boolean, 
+/**
+ * The authenticator model's AAGUID as a canonical uuid, or empty when
+ * absent/all-zero. The shell resolves it to a provider name + icon.
+ */
+aaguid: string, };

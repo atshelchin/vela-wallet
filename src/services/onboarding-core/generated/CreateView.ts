@@ -22,4 +22,10 @@ can_add_key: boolean,
 /**
  * May the key set be frozen and published (≥1 key, nothing in flight)?
  */
-can_finish: boolean, };
+can_finish: boolean, 
+/**
+ * The sole drafted key is NOT a synced passkey: one lost device would
+ * make the wallet unrecoverable, so finishing requires a second key.
+ * Drives the friendly hint under the key list.
+ */
+needs_second_key: boolean, };

@@ -274,7 +274,13 @@ function buildFixtureAttestationObject(rpId: string, credIdBytes: Uint8Array, pu
   );
 
   const rpIdHash = sha256(new TextEncoder().encode(rpId));
-  const flags = new Uint8Array([0x45]); // UP|UV|AT (0x01|0x04|0x40)
+  // UP|UV|AT (0x45) — and this byte is FROZEN: the fixture public keys'
+  // registry entries already live on Gnosis with exactly this attestation,
+  // and entries are immutable (AttestationMismatch on any other bytes). A
+  // side effect worth knowing: no BE/BS ⇒ the fixtures read as DEVICE-BOUND,
+  // so a single-key parallel-space creation trips the second-key gate — which
+  // doubles as the live demo of that gate. Add a second key to proceed.
+  const flags = new Uint8Array([0x45]);
   const signCount = new Uint8Array([0, 0, 0, 0]);
   const aaguid = new Uint8Array(16);
   const credLen = new Uint8Array([(credIdBytes.length >> 8) & 0xff, credIdBytes.length & 0xff]);

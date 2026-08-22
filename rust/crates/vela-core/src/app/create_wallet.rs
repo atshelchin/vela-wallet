@@ -298,6 +298,13 @@ pub struct CreateKeyRow {
     /// (cancelled confirmation) offers a per-row retry, and FinishKeys is
     /// gated on every row being `true`.
     pub confirmed: bool,
+    /// Backed up to a sync fabric (authenticatorData BS flag). Unknown
+    /// attestation reads as `true` — display and the second-key gate both
+    /// fail open.
+    pub synced: bool,
+    /// The authenticator model's AAGUID as a canonical uuid, or empty when
+    /// absent/all-zero. The shell resolves it to a provider name + icon.
+    pub aaguid: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -333,6 +340,10 @@ pub struct CreateView {
     pub can_add_key: bool,
     /// May the key set be frozen and published (≥1 key, nothing in flight)?
     pub can_finish: bool,
+    /// The sole drafted key is NOT a synced passkey: one lost device would
+    /// make the wallet unrecoverable, so finishing requires a second key.
+    /// Drives the friendly hint under the key list.
+    pub needs_second_key: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -437,17 +448,24 @@ impl App for CreateWallet {
             keys: model
                 .drafts
                 .iter()
-                .map(|draft| CreateKeyRow {
-                    name: draft.name.clone(),
-                    authenticator_attachment: draft.authenticator_attachment.clone(),
-                    transports: draft.transports.clone(),
-                    confirmed: draft.proof.is_some(),
+                .map(|draft| {
+                    let (aaguid, synced) = attestation_signals(&draft.attestation_hex);
+                    CreateKeyRow {
+                        name: draft.name.clone(),
+                        authenticator_attachment: draft.authenticator_attachment.clone(),
+                        transports: draft.transports.clone(),
+                        confirmed: draft.proof.is_some(),
+                        synced,
+                        aaguid,
+                    }
                 })
                 .collect(),
             can_add_key: at_key_list && model.drafts.len() < crate::safe::MAX_MULTI_KEYS,
             can_finish: at_key_list
                 && has_draft
-                && model.drafts.iter().all(|draft| draft.proof.is_some()),
+                && model.drafts.iter().all(|draft| draft.proof.is_some())
+                && !needs_second_key(&model.drafts),
+            needs_second_key: needs_second_key(&model.drafts),
         }
     }
 }
@@ -554,6 +572,56 @@ fn key_name_changed(model: &mut Model, index: usize, name: String) -> Command<Ef
     render()
 }
 
+/// The sync signals inside a 20-byte versioned attestation
+/// (`version ‖ AAGUID(16) ‖ authenticatorData flags ‖ reserved(2)`):
+/// the AAGUID as a canonical uuid (empty when absent or all-zero) and
+/// whether the credential is backed up (BS, bit 4) — a "synced passkey".
+///
+/// An EMPTY or malformed attestation reads as synced: some authenticators
+/// legitimately omit attested-credential data, and the second-key gate must
+/// fail open there rather than dead-end an honest provider (same benefit of
+/// the doubt `credProps.rk === undefined` gets in the passkey module).
+fn attestation_signals(attestation_hex: &str) -> (String, bool) {
+    let Ok(bytes) = crate::primitives::from_hex(attestation_hex) else {
+        return (String::new(), true);
+    };
+    if bytes.len() != 20 {
+        return (String::new(), true);
+    }
+    let aaguid_bytes = &bytes[1..17];
+    let aaguid = if aaguid_bytes.iter().all(|b| *b == 0) {
+        String::new()
+    } else {
+        let hex = crate::primitives::to_hex(aaguid_bytes, false);
+        format!(
+            "{}-{}-{}-{}-{}",
+            &hex[0..8],
+            &hex[8..12],
+            &hex[12..16],
+            &hex[16..20],
+            &hex[20..32]
+        )
+    };
+    let backed_up = bytes[17] & 0x10 != 0;
+    (aaguid, backed_up)
+}
+
+impl Draft {
+    /// Is this credential backed up to a sync fabric (BS flag)? Unknown
+    /// attestation reads as synced — see [`attestation_signals`].
+    fn synced(&self) -> bool {
+        attestation_signals(&self.attestation_hex).1
+    }
+}
+
+/// A single-key wallet whose only key is NOT synced is one lost device away
+/// from being unrecoverable — such a set needs a second key before it can
+/// freeze. Any second key (even device-bound) breaks the single point of
+/// failure; a synced sole key never trips this.
+fn needs_second_key(drafts: &[Draft]) -> bool {
+    drafts.len() == 1 && !drafts[0].synced()
+}
+
 /// Kick off one draft's creation-time membership confirmation.
 fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> {
     let (Some(group_public_key_hex), Some(draft)) = (
@@ -599,6 +667,9 @@ fn finish_keys(model: &mut Model) -> Command<Effect, Event> {
     // replays them without a single prompt, so an unconfirmed draft would
     // surface as a server rejection instead of a clear per-row state.
     if model.drafts.iter().any(|draft| draft.proof.is_none()) {
+        return Command::done();
+    }
+    if needs_second_key(&model.drafts) {
         return Command::done();
     }
     model.attempt += 1;

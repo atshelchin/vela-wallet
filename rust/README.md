@@ -45,7 +45,7 @@ workspace `Cargo.toml`; the reasoning behind each is in
 
 | What | Command |
 |---|---|
-| Test the crate | `cd rust && cargo test --workspace` |
+| Test the crate | `cd rust && cargo test --workspace --features vela-core/i18n-all` |
 | Lint | `cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings` |
 | Regenerate conformance vectors | `npm run dump:vectors` (repo root) |
 | Regenerate the identicon artwork table | `npm run gen:identicon-features` |

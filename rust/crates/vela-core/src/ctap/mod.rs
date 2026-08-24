@@ -32,6 +32,7 @@
 
 pub mod commands;
 pub mod hid;
+pub mod pin_uv;
 
 pub use commands::{
     attestation_object, get_info_request, parse_get_assertion, parse_get_info,
@@ -39,3 +40,4 @@ pub use commands::{
     GetAssertion, GetAssertionResponse, MakeCredential, MakeCredentialResponse, PinUvAuth, Status,
 };
 pub use hid::{CtapHidCommand, Frames, HidError, HID_REPORT_SIZE};
+pub use pin_uv::{pin_hash, Protocol, SharedSecret};

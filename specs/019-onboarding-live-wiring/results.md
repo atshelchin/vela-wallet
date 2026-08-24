@@ -318,3 +318,53 @@ drift rule) threw into the degrade path. The gallery now loads the core without
 running any machine, so it draws what production draws. A gallery that showed a
 blank circle where production shows artwork would be lying about the one thing
 it exists to be honest about.
+
+---
+
+## Phase 4 — the CTAP2 module
+
+`rust/crates/vela-core/src/ctap/`: framing, commands, PIN/UV. Bytes in, bytes
+out — no clock, no randomness, no transport, checked by grep rather than
+assumed.
+
+| Piece | Tests |
+| --- | --- |
+| `hid.rs` — CTAPHID framing both directions | 14 |
+| `commands.rs` — makeCredential / getAssertion / getInfo, status codes | 14 |
+| `pin_uv.rs` — protocols One and Two | 11 + 4 known-answer |
+
+Core suite 1,145 → **1,160**. clippy `-D warnings` and fmt clean.
+
+**`ctap/cose.rs` was not written.** The task list called for one; `webauthn.rs`
+already extracts the COSE key from attested credential data, and the CTAP path
+reaches that code through `attestation_object()`. A second COSE module would be
+a second answer to the same question, which is the thing this repository is
+organised to avoid.
+
+**The load-bearing test** is `a_reassembled_attestation_object_is_indistinguishable_from_a_browser_one`.
+A real CTAP2 attestation object from the conformance vectors is taken apart into
+the three fields a `makeCredential` response carries, reassembled by the new
+encoder, and handed to the parsers the **browser** path already uses. They must
+return the same public key and the same versioned attestation — including the
+backup-state flag the second-key gate reads. If that drifts, a desktop-minted
+key and a browser-minted key derive different addresses from the same
+authenticator, and the wallet is two wallets.
+
+**Known answers, not round trips.** A round trip proves the module is
+self-consistent; it does not prove it is doing AES-256-CBC or HKDF-SHA-256.
+Wiring the wrong HMAC into HKDF, or CBC-ing in the wrong direction, round-trips
+perfectly and produces a token no authenticator will ever accept. So: NIST
+SP 800-38A §F.2.5 for CBC-AES256, RFC 5869 Test Case 1 for HKDF-SHA-256, and a
+published SHA-256 for the PIN hash.
+
+**Dependencies**: `hkdf` 0.13, `hmac` 0.13, `aes` 0.9, `cbc` 0.2 — the same
+RustCrypto generation as the `sha2` 0.11 the core already uses. Mixing
+generations would pull a second copy of every trait crate. Measured
+consequences: the wasm artifact went 3,466,137 → **3,466,071 bytes** (66 SMALLER
+— the module is unreachable from the wasm bridge and is eliminated), and
+`cargo tree -p vela-core-uniffi | grep -c crux` is still 0.
+
+**Not yet done in this module**: the ECDH exchange (it needs randomness, so the
+shell mints the key pair and hands over the shared X), `authenticatorClientPIN`
+request/response encoding, and the `getPinUvAuthTokenUsingPinWithPermissions`
+sequence. Phase 5 needs them before a security key with a PIN can be used.

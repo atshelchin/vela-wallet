@@ -22,6 +22,13 @@ alloy-json-abi = { version = "1.6.1", default-features = false, features = ["std
 sha2 = "0.11.0"
 p256 = { version = "0.14.0", default-features = false, features = ["ecdsa", "alloc"] }
 ecdsa = { version = "0.17.0", default-features = false, features = ["der", "alloc"] }
+# CTAP2's PIN/UV auth protocols (spec 019, research.md D4). Same RustCrypto
+# generation as the sha2 the core already uses (0.11 / crypto-common 0.2) —
+# mixing generations would pull a second copy of every trait crate.
+hkdf = { version = "0.13.0", default-features = false }
+hmac = { version = "0.13.0", default-features = false }
+aes = { version = "0.9.1", default-features = false }
+cbc = { version = "0.2.0", default-features = false, features = ["block-padding", "alloc"] }
 ciborium = { version = "0.2.2", default-features = false }
 ciborium-io = { version = "0.2.2", default-features = false }
 coset = { version = "0.4.2", default-features = false }

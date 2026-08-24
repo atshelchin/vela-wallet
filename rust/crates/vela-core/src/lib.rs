@@ -18,6 +18,10 @@ pub mod abi;
 /// state-machine framework. See `specs/011-crux-onboarding-state/`.
 #[cfg(feature = "crux")]
 pub mod app;
+/// A CTAP2 client with no I/O in it: framing, commands, COSE, PIN/UV. The
+/// transport belongs to a platform shell; what is identical on every one of
+/// them lives here. See `specs/019-onboarding-live-wiring/research.md` D4.
+pub mod ctap;
 pub mod eip712;
 pub mod error;
 pub mod i18n;

@@ -98,6 +98,11 @@ name = "generate_wallet_state_bindings"
 path = "src/bin/generate_wallet_state_bindings.rs"
 required-features = ["bindings"]
 
+[[bin]]
+name = "generate_session_bindings"
+path = "src/bin/generate_session_bindings.rs"
+required-features = ["bindings"]
+
 [dev-dependencies]
 proptest = { workspace = true }
 hex-literal = { workspace = true }

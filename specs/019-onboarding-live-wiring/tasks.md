@@ -144,9 +144,9 @@ loads no wasm and the Worker still ships none.
 - [X] T054 [US5] Rewrite `app-web/vela-wallet/e2e/welcome-ssr.e2e.ts:145`: the **Worker** still ships no wasm, and the Welcome page loads none — the onboarding wasm is a client-only, on-demand asset
 - [X] T055 [US1] Update `app-web/vela-wallet/e2e/welcome-layout.e2e.ts` for the v2 Welcome and the full-page flow (the 014 in-place-swap assertions no longer describe anything)
 - [X] T056 [US2] Wire the login machine in `app-web/vela-wallet/src/lib/onboarding/core/login.ts` and the Welcome screen's 我已有钱包 button: `LoginEvent::Start` on mount to begin health probing, `SignIn` on activation, `busy` disabling the button, and the confirmable `RecoverOffer` prompt whose answer is the only one that changes the flow
-- [ ] T057 [US2] Verify the one-signature path on web: with a registry-known key and no stored account, sign-in must prompt exactly once and rebuild the full founding group before entering — two prompts means the common path regressed to recovery
-- [ ] T058 Run the web gate: `cd app-web/vela-wallet && pnpm gen:tokens --check && pnpm check && pnpm lint && pnpm test:unit -- --run && pnpm build && pnpm test:e2e`
-- [ ] T059 Run [quickstart.md](./quickstart.md) scenarios 1, 2, 4, 5, 6, 7 and the index-unreachable case by hand on web; record the results in `results.md`
+- [X] T057 [US2] Verify the one-signature path on web: with a registry-known key and no stored account, sign-in must prompt exactly once and rebuild the full founding group before entering — two prompts means the common path regressed to recovery
+- [X] T058 Run the web gate: `cd app-web/vela-wallet && pnpm gen:tokens --check && pnpm check && pnpm lint && pnpm test:unit -- --run && pnpm build && pnpm test:e2e`
+- [X] T059 Run [quickstart.md](./quickstart.md) scenarios 1, 2, 4, 5, 6, 7 and the index-unreachable case by hand on web; record the results in `results.md`
 
 ---
 
@@ -158,13 +158,13 @@ platforms. Blocks Phase 5 only.
 **Independent test**: `cargo test -p vela-core --features crux,i18n-all` with the ported
 vectors passing; no transport, no clock, no randomness anywhere in the module.
 
-- [ ] T060 Create `rust/crates/vela-core/src/ctap/mod.rs` and register it in `lib.rs`; add `hkdf` and `aes-gcm` (RustCrypto, pure Rust) to `rust/crates/vela-core/Cargo.toml`
-- [ ] T061 [P] Implement CTAPHID framing in `rust/crates/vela-core/src/ctap/hid.rs`: `INIT` (0x06) / `CBOR` (0x10) / `KEEPALIVE` (0x3B) / `ERROR` (0x3F), init and continuation packets, 64-byte reports, channel allocation — bytes in, bytes out
+- [X] T060 Create `rust/crates/vela-core/src/ctap/mod.rs` and register it in `lib.rs`; add `hkdf` and `aes-gcm` (RustCrypto, pure Rust) to `rust/crates/vela-core/Cargo.toml`
+- [X] T061 [P] Implement CTAPHID framing in `rust/crates/vela-core/src/ctap/hid.rs`: `INIT` (0x06) / `CBOR` (0x10) / `KEEPALIVE` (0x3B) / `ERROR` (0x3F), init and continuation packets, 64-byte reports, channel allocation — bytes in, bytes out
 - [ ] T062 [P] Implement canonical CBOR request/response encoding in `rust/crates/vela-core/src/ctap/commands.rs` for `authenticatorMakeCredential` (0x01), `authenticatorGetAssertion` (0x02), `authenticatorGetInfo` (0x04), `authenticatorClientPIN` (0x06), plus the status-code vocabulary
 - [ ] T063 [P] Implement COSE key encode/decode for ES256 in `rust/crates/vela-core/src/ctap/cose.rs`, reusing `webauthn.rs`'s existing extraction rather than duplicating it
 - [ ] T064 Implement PIN/UV auth protocols One and Two in `rust/crates/vela-core/src/ctap/pin_uv.rs` (ECDH key agreement, HKDF-SHA256, AES-256-CBC/GCM, `pinUvAuthToken` acquisition with permissions), taking the shared secret as an input rather than performing the exchange
 - [ ] T065 [P] Port the known-answer vectors from `/Volumes/data/production2/securitykeys` — RFC 5869 HKDF (`TransportCryptoTest`), canonical CBOR ordering (`CborTest`) — into `rust/crates/vela-core/tests/ctap_vectors.rs`
-- [ ] T066 [P] Add round-trip tests in `rust/crates/vela-core/tests/ctap_hid.rs`: a payload longer than one report must fragment and reassemble byte-identically; a truncated continuation must fail rather than silently short-read
+- [X] T066 [P] Add round-trip tests in `rust/crates/vela-core/tests/ctap_hid.rs`: a payload longer than one report must fragment and reassemble byte-identically; a truncated continuation must fail rather than silently short-read
 - [ ] T067 Add a `makeCredential` / `getAssertion` request-encoding test asserting `excludeCredentials` and `pubKeyCredParams: [{alg: -7}]` are present and RS256 is absent (FR-011, and the ES256-only rule in [contracts/shell-operations.md](./contracts/shell-operations.md))
 - [ ] T068 Run the core gate: `cd rust && cargo test -p vela-core --features crux,i18n-all && cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --check`
 - [ ] T069 Confirm the module stayed pure: `grep -rn "std::time\|SystemTime\|rand::\|reqwest\|tokio" rust/crates/vela-core/src/ctap/` must return nothing

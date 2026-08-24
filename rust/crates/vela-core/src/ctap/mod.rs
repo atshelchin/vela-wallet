@@ -30,6 +30,12 @@
 //! randomness passes it in, the same way the onboarding machines take theirs
 //! from a shell result.
 
+pub mod commands;
 pub mod hid;
 
+pub use commands::{
+    attestation_object, get_info_request, parse_get_assertion, parse_get_info,
+    parse_make_credential, split_response, AuthenticatorInfo, Command, CredentialDescriptor,
+    GetAssertion, GetAssertionResponse, MakeCredential, MakeCredentialResponse, PinUvAuth, Status,
+};
 pub use hid::{CtapHidCommand, Frames, HidError, HID_REPORT_SIZE};

@@ -160,12 +160,12 @@ vectors passing; no transport, no clock, no randomness anywhere in the module.
 
 - [X] T060 Create `rust/crates/vela-core/src/ctap/mod.rs` and register it in `lib.rs`; add `hkdf` and `aes-gcm` (RustCrypto, pure Rust) to `rust/crates/vela-core/Cargo.toml`
 - [X] T061 [P] Implement CTAPHID framing in `rust/crates/vela-core/src/ctap/hid.rs`: `INIT` (0x06) / `CBOR` (0x10) / `KEEPALIVE` (0x3B) / `ERROR` (0x3F), init and continuation packets, 64-byte reports, channel allocation — bytes in, bytes out
-- [ ] T062 [P] Implement canonical CBOR request/response encoding in `rust/crates/vela-core/src/ctap/commands.rs` for `authenticatorMakeCredential` (0x01), `authenticatorGetAssertion` (0x02), `authenticatorGetInfo` (0x04), `authenticatorClientPIN` (0x06), plus the status-code vocabulary
+- [X] T062 [P] Implement canonical CBOR request/response encoding in `rust/crates/vela-core/src/ctap/commands.rs` for `authenticatorMakeCredential` (0x01), `authenticatorGetAssertion` (0x02), `authenticatorGetInfo` (0x04), `authenticatorClientPIN` (0x06), plus the status-code vocabulary
 - [ ] T063 [P] Implement COSE key encode/decode for ES256 in `rust/crates/vela-core/src/ctap/cose.rs`, reusing `webauthn.rs`'s existing extraction rather than duplicating it
 - [ ] T064 Implement PIN/UV auth protocols One and Two in `rust/crates/vela-core/src/ctap/pin_uv.rs` (ECDH key agreement, HKDF-SHA256, AES-256-CBC/GCM, `pinUvAuthToken` acquisition with permissions), taking the shared secret as an input rather than performing the exchange
 - [ ] T065 [P] Port the known-answer vectors from `/Volumes/data/production2/securitykeys` — RFC 5869 HKDF (`TransportCryptoTest`), canonical CBOR ordering (`CborTest`) — into `rust/crates/vela-core/tests/ctap_vectors.rs`
 - [X] T066 [P] Add round-trip tests in `rust/crates/vela-core/tests/ctap_hid.rs`: a payload longer than one report must fragment and reassemble byte-identically; a truncated continuation must fail rather than silently short-read
-- [ ] T067 Add a `makeCredential` / `getAssertion` request-encoding test asserting `excludeCredentials` and `pubKeyCredParams: [{alg: -7}]` are present and RS256 is absent (FR-011, and the ES256-only rule in [contracts/shell-operations.md](./contracts/shell-operations.md))
+- [X] T067 Add a `makeCredential` / `getAssertion` request-encoding test asserting `excludeCredentials` and `pubKeyCredParams: [{alg: -7}]` are present and RS256 is absent (FR-011, and the ES256-only rule in [contracts/shell-operations.md](./contracts/shell-operations.md))
 - [ ] T068 Run the core gate: `cd rust && cargo test -p vela-core --features crux,i18n-all && cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --check`
 - [ ] T069 Confirm the module stayed pure: `grep -rn "std::time\|SystemTime\|rand::\|reqwest\|tokio" rust/crates/vela-core/src/ctap/` must return nothing
 

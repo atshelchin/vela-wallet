@@ -68,8 +68,12 @@
 	// count PLUS the legacy index's count, so the number reflects the new
 	// contract without dropping the pre-migration wallets.
 	const CURRENT_CONTRACT = '0x5266DfF591B9F9EecfEdb8E7EfEf6c687854edaf';
-	// getTotalUnits() — the wallet (group) count on the current registry.
-	const CURRENT_CALLDATA = '0xa754a702';
+	// getGroupsByRpId("getvela.app", 0, 0, false) — the wallet (group) count under
+	// Vela's rpId. NOT getTotalUnits(): that is a global count across every rpId,
+	// so probe/localhost dev wallets would inflate the number and it would disagree
+	// with the /registry page, which filters by rpId. limit=0 returns (total, []).
+	const CURRENT_CALLDATA =
+		'0x847c874f0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b67657476656c612e617070000000000000000000000000000000000000000000';
 	const LEGACY_CONTRACT = '0xdd93420BD49baaBdFF4A363DdD300622Ae87E9c3';
 	// getTotalCredentialsByRpId("getvela.app") on the legacy index.
 	const LEGACY_CALLDATA =
@@ -100,7 +104,9 @@
 		}
 	}
 
-	/** One `eth_call` returning a uint, with RPC failover. */
+	/** One `eth_call`, reading the first 32-byte return word as a uint, with RPC
+	 *  failover. Slicing the first word (not parsing the whole payload) keeps this
+	 *  correct for multi-word returns like getGroupsByRpId's `(total, unitIds)`. */
 	async function callUint(to: string, data: string): Promise<number | null> {
 		let attempts = 0;
 		while (attempts < rpcs.length) {
@@ -118,8 +124,8 @@
 					})
 				});
 				const json = await res.json();
-				if (json.result) {
-					return parseInt(json.result, 16);
+				if (typeof json.result === 'string' && json.result.length >= 66) {
+					return parseInt(json.result.slice(0, 66), 16);
 				}
 			} catch {
 				// failover to next RPC

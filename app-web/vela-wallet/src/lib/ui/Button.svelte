@@ -5,10 +5,10 @@
 		variant: 'primary' | 'secondary';
 		/**
 		 * `pill` is the Welcome page's shape (spec 006); `rounded` is the v2
-		 * onboarding flow's, whose design draws 12px rectangles throughout.
-		 * A prop rather than a second button: the two differ in one radius,
-		 * and a fork would make every later change to states, sizing or
-		 * disabled treatment happen twice.
+		 * onboarding flow's, whose design draws rectangles at `--radius-lg`
+		 * throughout. A prop rather than a second button: the two differ in
+		 * one radius, and a fork would make every later change to states,
+		 * sizing or disabled treatment happen twice.
 		 */
 		shape?: 'pill' | 'rounded';
 		/** Renders an <a> when set (and not disabled), else a <button>. */

@@ -1,8 +1,13 @@
 /**
- * Responsive gate (spec SC-003, FR-001/003): no horizontal overflow at any
- * checked width, the 1280px boundary switches layouts, and both CTAs open
- * the correct flow container per form factor (spec 014 US2: in-place swap at
- * ≥ 1280px, bottom sheet below — no navigation).
+ * Responsive gate (spec 006 SC-003, FR-001/003): no horizontal overflow at any
+ * checked width, the 1280px boundary switches layouts, and both CTAs reach the
+ * flow they own.
+ *
+ * The container assertions changed with spec 019. Creating a wallet is a
+ * stepped journey and now has its own route, so it NAVIGATES rather than
+ * swapping a column — a reload mid-ceremony strands nobody and back works.
+ * Signing in has no steps, so it still happens in place and speaks only
+ * through the button's busy state.
  */
 import { expect, test } from '@playwright/test';
 
@@ -16,7 +21,8 @@ for (const width of WIDTHS) {
 			() => document.documentElement.scrollWidth - document.documentElement.clientWidth
 		);
 		expect(overflow).toBe(0);
-		await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
+		// A LINK since spec 019: creating a wallet is a route, not a panel swap.
+		await expect(page.getByRole('link', { name: 'Create Wallet' })).toBeVisible();
 	});
 }
 
@@ -43,7 +49,7 @@ test('resizing across the boundary keeps the page intact', async ({ page }) => {
 	await expect(page.locator('.grid')).toBeVisible();
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect(page.locator('.slides')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Create Wallet' })).toBeVisible();
 });
 
 test('mobile pager dots advance the carousel', async ({ page }) => {
@@ -54,47 +60,33 @@ test('mobile pager dots advance the carousel', async ({ page }) => {
 	await expect(dots.nth(3)).toHaveAttribute('aria-current', 'true');
 });
 
-test('desktop CTAs swap the action pane in place — no navigation, hero stable', async ({
-	page
-}) => {
-	await page.setViewportSize({ width: 1440, height: 900 });
-	await page.goto('/en');
-	const brandBefore = (await page.locator('.brand').boundingBox())!;
+for (const width of [1440, 390]) {
+	test(`Create Wallet navigates to the flow at ${width}px`, async ({ page }) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto('/en');
 
-	await page.getByRole('button', { name: 'Create Wallet' }).click();
-	await expect(page).toHaveURL('/en');
-	await expect(page.getByRole('dialog')).toHaveCount(0);
-	await expect(
-		page.locator('.actions').getByRole('heading', { name: 'Create Wallet' })
-	).toBeVisible();
+		await page.getByRole('link', { name: 'Create Wallet' }).click();
+		await expect(page).toHaveURL('/en/create');
+		// The flow's own chrome: a back affordance and the stepped bar. Which
+		// step is showing is the core's to say, so this asserts arrival, not
+		// contents.
+		await expect(page.getByRole('progressbar')).toBeVisible();
 
-	// FR-008: the hero column must not reflow when the column swaps.
-	const brandAfter = (await page.locator('.brand').boundingBox())!;
-	expect(brandAfter.x).toBe(brandBefore.x);
-	expect(brandAfter.y).toBe(brandBefore.y);
-	expect(brandAfter.width).toBe(brandBefore.width);
+		await page.goBack();
+		await expect(page).toHaveURL('/en');
+		await expect(page.getByRole('link', { name: 'Create Wallet' })).toBeVisible();
+	});
+}
 
-	// Close × restores the CTA stack.
-	await page.getByRole('button', { name: 'Close' }).click();
-	await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
-
-	await page.getByRole('button', { name: 'I already have a wallet' }).click();
-	await expect(page).toHaveURL('/en');
-	await expect(page.locator('.actions').getByRole('heading', { name: 'Sign In' })).toBeVisible();
-	await page.getByRole('button', { name: 'Close' }).click();
-	await expect(page.getByRole('button', { name: 'I already have a wallet' })).toBeVisible();
-});
-
-test('mobile CTAs open the bottom sheet — no navigation', async ({ page }) => {
+test('sign-in stays on Welcome — it has no steps to show', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/en');
+
+	// No virtual authenticator here, so the ceremony will fail — the assertion
+	// is only that activating it does not navigate away. What the failure looks
+	// like is e2e/onboarding-signin.spec.ts's job, with an authenticator.
 	await page.getByRole('button', { name: 'I already have a wallet' }).click();
-	const dialog = page.getByRole('dialog', { name: 'Sign In' });
-	await expect(dialog).toBeVisible();
 	await expect(page).toHaveURL('/en');
-	await page.keyboard.press('Escape');
-	await expect(page.getByRole('dialog')).toHaveCount(0);
-	await expect(page.getByRole('button', { name: 'Create Wallet' })).toBeVisible();
 });
 
 test('mobile brand mark and wordmark share one row', async ({ page }) => {

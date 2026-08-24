@@ -124,7 +124,7 @@ loads no wasm and the Worker still ships none.
 
 ### The v2 screens
 
-- [ ] T040 [US1] Rewrite `app-web/vela-wallet/src/routes/[locale]/+page.svelte` to the v2 Welcome: mark + wordmark + `welcome.heroTitle` / `heroSubtitle` + two CTAs, desktop 620 px / mobile 440 px single column, buttons stacked below 1280 px
+- [X] T040 [US1] Rewrite `app-web/vela-wallet/src/routes/[locale]/+page.svelte` to the v2 Welcome: mark + wordmark + `welcome.heroTitle` / `heroSubtitle` + two CTAs, desktop 620 px / mobile 440 px single column, buttons stacked below 1280 px
 - [X] T041 [US1] Create `src/lib/ui/onboarding/FlowShell.svelte`: the full-page stepped container — back affordance on `can_go_back`, segmented progress at 33/66/100 %, replacing the 014 sheet/in-column container
 - [X] T042 [US1] Create `src/lib/ui/onboarding/NameScreen.svelte`: name field, over-length hint, the two acknowledgement checkboxes with inline policy links, the two static assurances with filled ticks, `create.nextBtn`
 - [X] T043 [US4] Create `src/lib/ui/onboarding/KeysScreen.svelte`: title/subtitle flips, `n / 7` counter, key rows (icon + name + provider line + badge), the accent-soft warning strip on `needs_second_key`, per-row confirm retry, row delete for index > 0, the address footnote, CTA flipping `createWalletBtn` ⇄ `addSecondKeyBtn`
@@ -132,18 +132,18 @@ loads no wasm and the Worker still ships none.
 - [X] T045 [US1] Create `src/lib/ui/onboarding/ProgressScreen.svelte`: meter label, percentage, and the three task rows driven by `status` per [research D9](./research.md) — no timer anywhere in this file
 - [X] T046 [US1] Create `src/lib/ui/onboarding/DoneScreen.svelte`: identicon, wallet name, mono address, key list, `enterWalletBtn`
 - [X] T047 [US5] Create `src/lib/ui/onboarding/RetryScreen.svelte` for `stage == sync_failed`: preserved key set, technical details from `sync_error_detail`, retry-upload primary, start-over secondary
-- [ ] T048 [US5] Rework `src/lib/ui/onboarding/Sheet.svelte` into the v2 error sheet — bottom-anchored with a drag handle below 1280 px, a centred 400 px card above — and map all 18 outcome kinds onto it via `OutcomeBody.svelte` ([data-model.md §5](./data-model.md))
-- [ ] T049 [US5] Wire the endpoint-settings surface to `LoginView.endpoint_unreachable`: it opens itself with a warning after three failed probes, and 我已有钱包 stays attemptable
-- [ ] T050 [US3] Apply `SessionView::allowed_route` as the route guard in `app-web/vela-wallet/src/routes/[locale]/+layout.svelte`, and land the wallet home with the real address and name after `enter_wallet`
-- [ ] T051 [US1] Delete the superseded 014 containers (`CreatePanel.svelte`, `LoginPanel.svelte`, `FlowScaffold.svelte`) and the fixture-only state model paths they served, keeping the atoms (`Button`, `NameField`, `AckRow`, `ActionStack`, `StepProgress`, `StatusBadge`, `TechDetails`, `AddressStrip`)
+- [X] T048 [US5] Rework `src/lib/ui/onboarding/Sheet.svelte` into the v2 error sheet — bottom-anchored with a drag handle below 1280 px, a centred 400 px card above — and map all 18 outcome kinds onto it via `OutcomeBody.svelte` ([data-model.md §5](./data-model.md))
+- [X] T049 [US5] Wire the endpoint-settings surface to `LoginView.endpoint_unreachable`: it opens itself with a warning after three failed probes, and 我已有钱包 stays attemptable
+- [X] T050 [US3] Apply `SessionView::allowed_route` as the route guard in `app-web/vela-wallet/src/routes/[locale]/+layout.svelte`, and land the wallet home with the real address and name after `enter_wallet`
+- [X] T051 [US1] Delete the superseded 014 containers (`CreatePanel.svelte`, `LoginPanel.svelte`, `FlowScaffold.svelte`) and the fixture-only state model paths they served, keeping the atoms (`Button`, `NameField`, `AckRow`, `ActionStack`, `StepProgress`, `StatusBadge`, `TechDetails`, `AddressStrip`)
 
 ### Gallery and gates
 
-- [ ] T052 [US6] Rewrite `app-web/vela-wallet/src/lib/onboarding/fixtures.ts` and `src/routes/dev/gallery/+page.svelte` to cover every v2 screen and all 18 outcome kinds in both themes; keep the dev-only 404-in-production gate
-- [ ] T053 [US6] Update `app-web/vela-wallet/src/lib/onboarding/fixtures.test.ts` for the new fixture set
-- [ ] T054 [US5] Rewrite `app-web/vela-wallet/e2e/welcome-ssr.e2e.ts:145`: the **Worker** still ships no wasm, and the Welcome page loads none — the onboarding wasm is a client-only, on-demand asset
-- [ ] T055 [US1] Update `app-web/vela-wallet/e2e/welcome-layout.e2e.ts` for the v2 Welcome and the full-page flow (the 014 in-place-swap assertions no longer describe anything)
-- [ ] T056 [US2] Wire the login machine in `app-web/vela-wallet/src/lib/onboarding/core/login.ts` and the Welcome screen's 我已有钱包 button: `LoginEvent::Start` on mount to begin health probing, `SignIn` on activation, `busy` disabling the button, and the confirmable `RecoverOffer` prompt whose answer is the only one that changes the flow
+- [X] T052 [US6] Rewrite `app-web/vela-wallet/src/lib/onboarding/fixtures.ts` and `src/routes/dev/gallery/+page.svelte` to cover every v2 screen and all 18 outcome kinds in both themes; keep the dev-only 404-in-production gate
+- [X] T053 [US6] ~~Update `fixtures.test.ts`~~ — the 014 fixture model it tested is deleted; v2 fixtures are `CreateView` values, checked by the type system and rendered through the real screens
+- [X] T054 [US5] Rewrite `app-web/vela-wallet/e2e/welcome-ssr.e2e.ts:145`: the **Worker** still ships no wasm, and the Welcome page loads none — the onboarding wasm is a client-only, on-demand asset
+- [X] T055 [US1] Update `app-web/vela-wallet/e2e/welcome-layout.e2e.ts` for the v2 Welcome and the full-page flow (the 014 in-place-swap assertions no longer describe anything)
+- [X] T056 [US2] Wire the login machine in `app-web/vela-wallet/src/lib/onboarding/core/login.ts` and the Welcome screen's 我已有钱包 button: `LoginEvent::Start` on mount to begin health probing, `SignIn` on activation, `busy` disabling the button, and the confirmable `RecoverOffer` prompt whose answer is the only one that changes the flow
 - [ ] T057 [US2] Verify the one-signature path on web: with a registry-known key and no stored account, sign-in must prompt exactly once and rebuild the full founding group before entering — two prompts means the common path regressed to recovery
 - [ ] T058 Run the web gate: `cd app-web/vela-wallet && pnpm gen:tokens --check && pnpm check && pnpm lint && pnpm test:unit -- --run && pnpm build && pnpm test:e2e`
 - [ ] T059 Run [quickstart.md](./quickstart.md) scenarios 1, 2, 4, 5, 6, 7 and the index-unreachable case by hand on web; record the results in `results.md`

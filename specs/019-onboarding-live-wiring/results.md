@@ -162,3 +162,82 @@ onboarding safety nets were silently down.
 
 The whole repository — including `src/`, the shipping Expo client — builds, lints and
 tests green, and creates and signs in for real under a virtual authenticator.
+
+---
+
+## Phase 3 — Web
+
+### What shipped
+
+| Layer | Where |
+| --- | --- |
+| effect loop, JSON/wasm adapter, on-demand loader | `src/lib/onboarding/core/{effect-loop,json-shell,wasm-client}.ts` |
+| 18-operation executor + passkey / registry / storage / publish | `src/lib/onboarding/core/{executor,passkey,registry,storage,publish,copy,sessions}.ts` |
+| the app-resident session | `src/lib/session/core/{session.svelte,executor}.ts` |
+| the v2 journey | `src/lib/ui/onboarding/v2/` — flow shell, name, keys, add-method picker, progress, retry, done, prompt sheet |
+| its own route | `src/routes/[locale]/create/` |
+| sign-in, in place | `src/routes/[locale]/+page.svelte` |
+| the state gallery, rebuilt | `src/routes/dev/gallery/` + `src/lib/onboarding/v2-fixtures.ts` |
+
+### Gates
+
+| Gate | Result |
+| --- | --- |
+| `pnpm check` (svelte-check) | 648 files, 0 errors, 0 warnings |
+| `pnpm lint` (prettier + eslint) | clean |
+| `pnpm test:unit` | 7 files, **156 passed** |
+| `pnpm build` | built; the Worker bundle carries no wasm |
+| `pnpm test:e2e` | **43 passed** |
+
+Two e2e assertions were rewritten rather than deleted, and one was added:
+
+- *the DEPLOY bundle contains no wasm* — still true and still checked. The
+  onboarding machines are a static asset the CLIENT fetches; a Worker still
+  cannot compile wasm from bytes.
+- *the Welcome page loads no wasm until someone commits to a flow* — new, and
+  the half that actually protects the landing page. 3.4 MB carrying all 25
+  machines arrives whole or not at all, so the flow lives behind a route.
+- *desktop CTAs swap the action pane in place* → *Create Wallet navigates to the
+  flow*. Creating a wallet is a stepped journey and now owns a URL: back works
+  and a reload strands nobody mid-ceremony. Signing in has no steps, so it stays
+  on Welcome and speaks through the button's busy state.
+
+### Corrections to this feature's own spec
+
+1. **FR-024 was too strong.** "No new tokens" was true of the colours, which I
+   checked against `docs/design-tokens.json`, and not of the type scale, which I
+   had not: the v2 hero is 46/38 px and the DTCG scale tops out at 40. Six values
+   are now declared through the generator's documented `WEB_ADDITIONS`
+   mechanism (`text-hero`, `text-heroCompact`, `layout-flowColumn`,
+   `layout-welcomeColumn`, `layout-promptCard`, `layout-galleryRail`) rather than
+   sprinkled as literals — which is what that mechanism is for, and what spec 018
+   used it for.
+
+2. **Research D13 was wrong.** It said spec 014's eighteen `OutcomeKind`s would
+   be "re-skinned, not reduced". They cannot be: the core does not express them.
+   A transport failure and a 503 both arrive as `CreateFailed { detail }` with
+   the platform's own words, so rendering them as distinct screens would mean
+   classifying error strings in TypeScript — the one thing this architecture is
+   built to prevent. What the core emits is **nine** prompts, and those are what
+   the v2 sheet renders. The `onboarding.common.*` taxonomy survives as copy for
+   a shell that IS handed a classification; it is not a state the core produces.
+   The 014 state model (`states.ts`, `outcomes.ts`, `fixtures.ts`) is deleted
+   with the panels it fed.
+
+3. **The v2 Welcome was NOT applied, deliberately.** The design draws Welcome as
+   mark + wordmark + hero + two buttons. This app's `/[locale]` is also the
+   site's landing page: prerendered in 15 locales, canonical + hreflang, with a
+   meta description and six feature cards written for it (spec 006). Deleting
+   that is a marketing decision the onboarding design file was not making, so
+   the page keeps its content and only its buttons changed. `welcome.heroTitle`
+   / `heroSubtitle` are in the corpus and unused on web — the native shells,
+   which have no landing page to preserve, will use them. **Needs a founder
+   call.**
+
+### Found while wiring
+
+- `FLOW_FORM_KEYS` in `src/lib/i18n/messages.ts` still named `ack3*`, which the
+  Phase 2 rename had removed. The build resolves flow copy from that manifest,
+  so those four strings would have shipped as their own key names. Caught by a
+  scan for dangling corpus keys, not by a test — the manifest is a list of
+  strings, and nothing typed it against the corpus.

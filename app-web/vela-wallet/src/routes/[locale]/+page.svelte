@@ -1,24 +1,22 @@
 <script lang="ts">
-	import { MediaQuery } from 'svelte/reactivity';
+	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import BrandMark from '$lib/ui/BrandMark.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import Carousel from '$lib/ui/Carousel.svelte';
 	import FeatureCard from '$lib/ui/FeatureCard.svelte';
-	import CreatePanel from '$lib/ui/onboarding/CreatePanel.svelte';
-	import LoginPanel from '$lib/ui/onboarding/LoginPanel.svelte';
-	import Sheet from '$lib/ui/onboarding/Sheet.svelte';
-	import type {
-		ActionId,
-		CreatePanelState,
-		LoginPanelState,
-		StringResolver
-	} from '$lib/onboarding/states';
-	import { scaffoldTitleI18nKey } from '$lib/onboarding/outcomes';
+	import PromptSheet from '$lib/ui/onboarding/v2/PromptSheet.svelte';
 	import { fillTemplate } from '$lib/i18n/fill';
 	import { SUPPORTED_LOCALES, FALLBACK_LOCALE } from '$lib/i18n/locales';
-	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { SITE_ORIGIN } from '$lib/site';
+	import { loadOnboardingCore } from '$lib/onboarding/core/wasm-client';
+	import { createLoginSession, type LoginSession } from '$lib/onboarding/core/sessions';
+	import { promptCopy, type PromptCopy } from '$lib/onboarding/core/copy';
+	import { session } from '$lib/session/core/session.svelte';
+	import type { CompletionMode } from '$lib/onboarding/generated/CompletionMode';
+	import type { LoginView } from '$lib/onboarding/generated/LoginView';
+	import type { PromptKind } from '$lib/onboarding/generated/PromptKind';
 
 	let { data }: PageProps = $props();
 
@@ -26,55 +24,67 @@
 	const locale = $derived(data.locale);
 
 	/* ------------------------------------------------------------------ */
-	/* Onboarding flow containers (spec 014 US2 / T025).                    */
-	/* ≥ 1280px: the flow panel swaps the .actions column content in place  */
-	/* (FR-008); below: the bottom sheet presentation (FR-009). The hero    */
-	/* column is untouched either way — the aside keeps its dimensions.     */
+	/* Onboarding (spec 019).                                               */
+	/*                                                                      */
+	/* Creating a wallet is a stepped journey and gets its own route, so    */
+	/* back works and a reload strands nobody mid-ceremony. Signing in has  */
+	/* no steps — one system passkey sheet and you are either in or you are */
+	/* not — so it runs HERE, in place, and only speaks through the button's */
+	/* busy state and the failure sheet.                                    */
 	/* ------------------------------------------------------------------ */
 
-	type Flow = 'create' | 'login';
+	/** Serialized flow copy from the layout load; numbers filled here. */
+	const strings = (key: string, params?: Record<string, string | number>) =>
+		fillTemplate(data.flow[key] ?? key, params);
 
-	const desktop = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
+	const createHref = $derived(resolve('/[locale]/create', { locale }));
 
-	let openFlow = $state<Flow | null>(null);
-	let sheet = $state<{ requestClose: () => void }>();
+	let loginView = $state<LoginView | null>(null);
+	let login: LoginSession | null = null;
+	let pending = $state<{ copy: PromptCopy; resolve: (accepted: boolean) => void } | null>(null);
 
-	/** Initial states per contract §3: create → empty Form, login → Waiting(null). */
-	const CREATE_INITIAL: CreatePanelState = {
-		kind: 'form',
-		name: '',
-		nameTooLong: false,
-		acks: [false, false, false],
-		canSubmit: false,
-		busy: false
-	};
-	const LOGIN_INITIAL: LoginPanelState = { kind: 'waiting' };
-
-	/** Serialized flow copy from the layout load; frozen numbers filled here. */
-	const flowStrings: StringResolver = (key, params) => fillTemplate(data.flow[key] ?? key, params);
-
-	const sheetLabel = $derived(
-		openFlow === null
-			? ''
-			: flowStrings(
-					scaffoldTitleI18nKey(openFlow === 'create' ? CREATE_INITIAL : LOGIN_INITIAL, openFlow)
-				)
-	);
+	const signingIn = $derived(loginView?.busy ?? false);
 
 	/**
-	 * Host action sink (contract §2): every ActionId is a no-op in this
-	 * feature (FR-011 — the wiring feature routes them later), except the
-	 * dismissal semantics, which close the container.
+	 * The endpoint the registry lives at is unreachable. Sign-in is still
+	 * attemptable — the core decides that, not this screen — so this only
+	 * surfaces the warning.
 	 */
-	function onFlowAction(id: ActionId) {
-		if (id === 'back' || id === 'cancel' || id === 'close' || id === 'not_now') closeFlow();
+	const endpointUnreachable = $derived(loginView?.endpoint_unreachable ?? false);
+
+	function prompt(kind: PromptKind): Promise<boolean> {
+		return new Promise((settle) => {
+			pending = { copy: promptCopy(kind, strings), resolve: settle };
+		});
 	}
 
-	function closeFlow() {
-		// Sheet presentation: play the exit animation, then unmount via onClose.
-		if (sheet) sheet.requestClose();
-		else openFlow = null;
+	async function complete(mode: CompletionMode): Promise<void> {
+		await session.boot();
+		session.accountEstablished(mode);
 	}
+
+	/**
+	 * Sign-in loads the core on FIRST USE, not on mount: the Welcome page is
+	 * prerendered and must stay wasm-free until someone commits. The health
+	 * probe the core starts on `start` is part of that commitment.
+	 */
+	async function signIn() {
+		if (signingIn) return;
+		if (!login) {
+			await loadOnboardingCore();
+			login = createLoginSession({
+				onView: (next) => (loginView = next),
+				deps: { prompt, complete }
+			});
+			login.start({ type: 'start' });
+		}
+		login.dispatch({ type: 'sign_in' });
+	}
+
+	onMount(() => () => {
+		login?.dispose();
+		login = null;
+	});
 </script>
 
 <svelte:head>
@@ -113,40 +123,31 @@
 	</section>
 
 	<aside class="actions">
-		{#if openFlow !== null && desktop.current}
-			<div class="flowPanel">
-				{#if openFlow === 'create'}
-					<CreatePanel state={CREATE_INITIAL} strings={flowStrings} onAction={onFlowAction} />
-				{:else}
-					<LoginPanel state={LOGIN_INITIAL} strings={flowStrings} onAction={onFlowAction} />
-				{/if}
-			</div>
-		{:else}
-			<div class="stack">
-				<Button variant="primary" onclick={() => (openFlow = 'create')}>
-					{m.createWallet}
-				</Button>
-				<Button variant="secondary" onclick={() => (openFlow = 'login')}>
-					{m.alreadyHaveWallet}
-				</Button>
-			</div>
-		{/if}
+		<div class="stack">
+			<Button variant="primary" href={createHref}>
+				{m.createWallet}
+			</Button>
+			<Button variant="secondary" disabled={signingIn} onclick={signIn}>
+				{m.alreadyHaveWallet}
+			</Button>
+			{#if endpointUnreachable}
+				<p class="endpointWarning" role="status">
+					{strings('onboarding.settings.warningText')}
+				</p>
+			{/if}
+		</div>
 	</aside>
 </main>
 
-{#if openFlow !== null && !desktop.current}
-	<Sheet bind:this={sheet} label={sheetLabel} onClose={() => (openFlow = null)}>
-		{#if openFlow === 'create'}
-			<CreatePanel
-				state={CREATE_INITIAL}
-				strings={flowStrings}
-				onAction={onFlowAction}
-				showHandle
-			/>
-		{:else}
-			<LoginPanel state={LOGIN_INITIAL} strings={flowStrings} onAction={onFlowAction} showHandle />
-		{/if}
-	</Sheet>
+{#if pending}
+	<PromptSheet
+		copy={pending.copy}
+		dismissLabel={strings('onboarding.common.back')}
+		onAnswer={(accepted) => {
+			pending?.resolve(accepted);
+			pending = null;
+		}}
+	/>
 {/if}
 
 <style>
@@ -211,10 +212,11 @@
 		width: 100%;
 	}
 
-	/* In-place swap target: same column, same width envelope as the stack. */
-	.flowPanel {
-		width: 100%;
-		max-width: var(--layout-frameW);
+	.endpointWarning {
+		margin: 0;
+		color: var(--color-warning-base);
+		font-size: var(--text-base);
+		line-height: var(--leading-normal);
 	}
 
 	/* ------------------------------------------------------------- */

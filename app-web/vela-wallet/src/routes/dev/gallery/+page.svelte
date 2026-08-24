@@ -1,323 +1,297 @@
 <script lang="ts">
 	/**
-	 * Onboarding state gallery (spec 014, US1) — dev-only. Lists all 34
-	 * fixture codes grouped Create / Login (E10 in both groups), renders the
-	 * selection through the REAL panels inside the real Sheet (mobile sim)
-	 * or as the inline panel (desktop/web-wide sim), with theme and locale
-	 * switches. Actions route to a log-only sink (FR-011).
+	 * The v2 onboarding state gallery — dev-only.
+	 *
+	 * Every state is a `CreateView` the core could emit, rendered through the
+	 * REAL screens (spec 019, `v2-fixtures.ts`). That is the whole design of
+	 * this page: spec 014's gallery had its own state vocabulary because no core
+	 * existed to render from, so a screen could pass the gallery and still fail
+	 * in production. It cannot now — a fixture that renders wrong here renders
+	 * the real machine wrong too.
+	 *
+	 * No passkey is touched, no network is called and nothing is written: the
+	 * views are values, not a running machine.
 	 */
 	import type { PageProps } from './$types';
-	import type {
-		ActionId,
-		CreatePanelState,
-		LoginPanelState,
-		StringResolver
-	} from '$lib/onboarding/states';
-	import { scaffoldTitleI18nKey } from '$lib/onboarding/outcomes';
-	import { fixturesForFlow } from '$lib/onboarding/fixtures';
+	import FlowShell from '$lib/ui/onboarding/v2/FlowShell.svelte';
+	import NameScreen from '$lib/ui/onboarding/v2/NameScreen.svelte';
+	import KeysScreen from '$lib/ui/onboarding/v2/KeysScreen.svelte';
+	import ProgressScreen from '$lib/ui/onboarding/v2/ProgressScreen.svelte';
+	import RetryScreen from '$lib/ui/onboarding/v2/RetryScreen.svelte';
+	import DoneScreen from '$lib/ui/onboarding/v2/DoneScreen.svelte';
+	import PromptSheet from '$lib/ui/onboarding/v2/PromptSheet.svelte';
+	import { CREATE_FIXTURES, PROMPT_FIXTURES } from '$lib/onboarding/v2-fixtures';
+	import {
+		progressFor,
+		promptCopy,
+		statusKeyToI18n,
+		submitLabelToI18n
+	} from '$lib/onboarding/core/copy';
 	import { fillTemplate } from '$lib/i18n/fill';
-	import CreatePanel from '$lib/ui/onboarding/CreatePanel.svelte';
-	import LoginPanel from '$lib/ui/onboarding/LoginPanel.svelte';
-	import Sheet from '$lib/ui/onboarding/Sheet.svelte';
 
 	let { data }: PageProps = $props();
 
-	type Flow = 'create' | 'login';
-
-	const groups: { flow: Flow; name: string }[] = [
-		{ flow: 'create', name: 'Create' },
-		{ flow: 'login', name: 'Login' }
-	];
-
 	let locale = $state('zh');
 	let theme = $state<'dark' | 'light'>('dark');
-	let container = $state<'panel' | 'sheet'>('panel');
-	let selectedFlow = $state<Flow>('create');
-	let selectedCode = $state('A1');
-	let sheetOpen = $state(true);
-	let lastAction = $state('—');
-	let sheetInstance = $state<{ requestClose: () => void }>();
+	let selected = $state(CREATE_FIXTURES[0].code);
+	let promptCode = $state<string | null>(null);
+	let lastEvent = $state('—');
 
-	// The gallery is the theme host: it stamps data-theme on <html> and
-	// restores the default (media-query driven) on leave.
-	$effect(() => {
-		document.documentElement.dataset.theme = theme;
-		return () => {
-			delete document.documentElement.dataset.theme;
-		};
-	});
+	const catalog = $derived((data.catalogs as Record<string, unknown>)[locale] ?? {});
 
-	const selected = $derived(
-		fixturesForFlow(selectedFlow).find((fixture) => fixture.code === selectedCode) ??
-			fixturesForFlow(selectedFlow)[0]
-	);
-
-	const createState = $derived(
-		selectedFlow === 'create' ? (selected.state as CreatePanelState) : null
-	);
-	const loginState = $derived(
-		selectedFlow === 'login' ? (selected.state as LoginPanelState) : null
-	);
-
-	/** Nested-object walk; also accepts flat dotted keys. */
-	function lookup(catalog: unknown, key: string): string | undefined {
-		if (catalog === null || typeof catalog !== 'object') return undefined;
-		const flat = (catalog as Record<string, unknown>)[key];
-		if (typeof flat === 'string') return flat;
+	function strings(key: string, params?: Record<string, string | number>): string {
+		const parts = key.split('.');
 		let node: unknown = catalog;
-		for (const part of key.split('.')) {
-			if (node === null || typeof node !== 'object') return undefined;
+		for (const part of parts) {
+			if (typeof node !== 'object' || node === null) return key;
 			node = (node as Record<string, unknown>)[part];
 		}
-		return typeof node === 'string' ? node : undefined;
+		return typeof node === 'string' ? fillTemplate(node, params) : key;
 	}
 
-	// Falls back locale → en → the key itself: NEW corpus keys may still be
-	// landing in parallel and must not break the gallery.
-	const strings: StringResolver = $derived(
-		(key: string, params?: Record<string, string | number>) =>
-			fillTemplate(
-				lookup(data.catalogs[locale], key) ?? lookup(data.catalogs['en'], key) ?? key,
-				params
-			)
+	const fixture = $derived(CREATE_FIXTURES.find((f) => f.code === selected) ?? CREATE_FIXTURES[0]);
+	const view = $derived(fixture.view);
+	const prompt = $derived(PROMPT_FIXTURES.find((p) => p.code === promptCode) ?? null);
+
+	const screen = $derived.by(() => {
+		if (view.stage === 'created') return 'done' as const;
+		if (view.stage === 'sync_failed') return 'retry' as const;
+		if (view.busy && progressFor(view.status)) return 'progress' as const;
+		return view.stage === 'add_keys' ? ('keys' as const) : ('form' as const);
+	});
+
+	const step = $derived(screen === 'form' ? 0 : screen === 'keys' ? 1 : 2);
+
+	const statusText = $derived(
+		view.status && !progressFor(view.status) ? strings(statusKeyToI18n(view.status)) : undefined
 	);
 
-	const sheetLabel = $derived(strings(scaffoldTitleI18nKey(selected.state, selectedFlow)));
-
-	function select(flow: Flow, code: string) {
-		selectedFlow = flow;
-		selectedCode = code;
-		sheetOpen = true;
-	}
-
-	function onPanelAction(id: ActionId) {
-		lastAction = `${selected.code} → ${id}`;
-		console.log('[gallery action]', selected.code, id);
-		if (id === 'close' && container === 'sheet') sheetInstance?.requestClose();
+	function log(what: string) {
+		lastEvent = what;
 	}
 </script>
 
-<svelte:head>
-	<title>Onboarding State Gallery</title>
-	<meta name="robots" content="noindex" />
-</svelte:head>
+<svelte:head><title>Onboarding v2 — state gallery</title></svelte:head>
 
-<div class="gallery">
-	<aside class="sidebar">
-		<h1 class="heading">Onboarding states</h1>
-		{#each groups as group (group.flow)}
-			<section class="group">
-				<h2 class="groupName">{group.name}</h2>
-				<div class="codes">
-					{#each fixturesForFlow(group.flow) as fixture (group.flow + fixture.code)}
-						<button
-							class="code"
-							class:active={selectedFlow === group.flow && selectedCode === fixture.code}
-							type="button"
-							onclick={() => select(group.flow, fixture.code)}
-						>
-							{fixture.code}
-						</button>
-					{/each}
-				</div>
-			</section>
-		{/each}
+<div class="gallery" data-theme={theme}>
+	<aside class="rail">
+		<div class="switches">
+			<label>
+				<span>Locale</span>
+				<select bind:value={locale}>
+					{#each data.locales as l (l)}<option value={l}>{l}</option>{/each}
+				</select>
+			</label>
+			<label>
+				<span>Theme</span>
+				<select bind:value={theme}>
+					<option value="dark">dark</option>
+					<option value="light">light</option>
+				</select>
+			</label>
+		</div>
+
+		<h2>Create</h2>
+		<ul>
+			{#each CREATE_FIXTURES as f (f.code)}
+				<li>
+					<button
+						class:active={selected === f.code && promptCode === null}
+						onclick={() => {
+							selected = f.code;
+							promptCode = null;
+						}}
+					>
+						<span class="code">{f.code}</span>
+						<span class="label">{f.label}</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
+
+		<h2>Prompts</h2>
+		<ul>
+			{#each PROMPT_FIXTURES as p (p.code)}
+				<li>
+					<button class:active={promptCode === p.code} onclick={() => (promptCode = p.code)}>
+						<span class="code">{p.code}</span>
+						<span class="label">{p.label}</span>
+					</button>
+				</li>
+			{/each}
+		</ul>
+
+		<p class="lastevent">last event: <code>{lastEvent}</code></p>
 	</aside>
 
 	<main class="stage">
-		<div class="controls">
-			<div class="control">
-				<span class="controlLabel">Theme</span>
-				<button
-					class="chip"
-					class:on={theme === 'dark'}
-					type="button"
-					onclick={() => (theme = 'dark')}>dark</button
-				>
-				<button
-					class="chip"
-					class:on={theme === 'light'}
-					type="button"
-					onclick={() => (theme = 'light')}>light</button
-				>
-			</div>
-			<div class="control">
-				<span class="controlLabel">Locale</span>
-				{#each data.locales as availableLocale (availableLocale)}
-					<button
-						class="chip"
-						class:on={locale === availableLocale}
-						type="button"
-						onclick={() => (locale = availableLocale)}>{availableLocale}</button
-					>
-				{/each}
-			</div>
-			<div class="control">
-				<span class="controlLabel">Container</span>
-				<button
-					class="chip"
-					class:on={container === 'panel'}
-					type="button"
-					onclick={() => (container = 'panel')}>panel</button
-				>
-				<button
-					class="chip"
-					class:on={container === 'sheet'}
-					type="button"
-					onclick={() => {
-						container = 'sheet';
-						sheetOpen = true;
-					}}>sheet</button
-				>
-			</div>
-			<p class="sink" aria-live="polite">action: {lastAction}</p>
-		</div>
-
-		{#if container === 'panel'}
-			<div class="panelSim">
-				{#if createState !== null}
-					<CreatePanel state={createState} {strings} onAction={onPanelAction} />
-				{:else if loginState !== null}
-					<LoginPanel state={loginState} {strings} onAction={onPanelAction} />
-				{/if}
-			</div>
-		{:else if sheetOpen}
-			<Sheet bind:this={sheetInstance} label={sheetLabel} onClose={() => (sheetOpen = false)}>
-				{#if createState !== null}
-					<CreatePanel state={createState} {strings} onAction={onPanelAction} showHandle />
-				{:else if loginState !== null}
-					<LoginPanel state={loginState} {strings} onAction={onPanelAction} showHandle />
-				{/if}
-			</Sheet>
-		{:else}
-			<button class="chip reopen" type="button" onclick={() => (sheetOpen = true)}>
-				Reopen sheet — {selected.code}
-			</button>
-		{/if}
+		<FlowShell
+			flowLabel={strings('onboarding.create.headerDefault')}
+			backLabel={strings('onboarding.common.back')}
+			{step}
+			canGoBack={view.can_go_back}
+			onBack={() => log('go_back')}
+		>
+			{#if screen === 'form'}
+				<NameScreen
+					name={view.name}
+					nameEditable={view.name_editable}
+					nameTooLong={view.name_too_long}
+					acks={view.acks}
+					canSubmit={view.can_submit}
+					busy={view.busy}
+					submitLabel={strings(submitLabelToI18n(view.submit_label))}
+					{statusText}
+					showStartOver={view.show_start_over}
+					{strings}
+					privacyUrl="https://getvela.app/privacy"
+					termsUrl="https://getvela.app/terms"
+					onName={() => log('name_changed')}
+					onToggleAck={(i) => log(`ack_toggled ${i}`)}
+					onSubmit={() => log('submit')}
+					onStartOver={() => log('start_over')}
+				/>
+			{:else if screen === 'keys'}
+				<KeysScreen
+					keys={view.keys}
+					canAddKey={view.can_add_key}
+					canFinish={view.can_finish}
+					needsSecondKey={view.needs_second_key}
+					busy={view.busy}
+					maxKeys={7}
+					{strings}
+					onAddKey={(m) => log(`add_key ${m}`)}
+					onConfirmKey={(i) => log(`confirm_key ${i}`)}
+					onRemoveKey={(i) => log(`remove_key ${i}`)}
+					onFinish={() => log('finish_keys')}
+				/>
+			{:else if screen === 'progress'}
+				<ProgressScreen
+					position={progressFor(view.status)!}
+					keyCount={view.keys.length}
+					{strings}
+				/>
+			{:else if screen === 'retry'}
+				<RetryScreen
+					detail={view.sync_error_detail}
+					busy={view.busy}
+					{strings}
+					onRetry={() => log('retry_upload')}
+					onStartOver={() => log('start_over')}
+				/>
+			{:else if screen === 'done'}
+				<DoneScreen
+					address={view.address ?? ''}
+					walletName={view.keys[0]?.name ?? view.name}
+					keys={view.keys}
+					{strings}
+					onEnter={() => log('enter_wallet')}
+				/>
+			{/if}
+		</FlowShell>
 	</main>
 </div>
 
+{#if prompt}
+	<PromptSheet
+		copy={promptCopy(prompt.kind, strings)}
+		dismissLabel={strings('onboarding.common.back')}
+		onAnswer={(accepted) => {
+			log(`prompt_answered ${accepted}`);
+			promptCode = null;
+		}}
+	/>
+{/if}
+
 <style>
 	.gallery {
-		display: flex;
+		display: grid;
+		grid-template-columns: var(--layout-galleryRail) 1fr;
 		min-height: 100dvh;
-		align-items: stretch;
+		background: var(--color-bg-base);
+		color: var(--color-fg-base);
 	}
 
-	.sidebar {
-		flex: none;
-		width: calc(var(--layout-frameW) / 2);
-		padding: var(--space-3xl);
-		border-inline-end: var(--border-hairline) solid var(--color-border-base);
+	.rail {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xl);
+		padding: var(--space-3xl) var(--space-xl);
+		border-right: var(--border-hairline) solid var(--color-border-base);
+		background: var(--color-bg-sunken);
 		overflow-y: auto;
 	}
 
-	.heading {
-		margin: 0 0 var(--space-2xl);
-		font-size: var(--text-lg);
-		font-weight: var(--weight-semibold);
-		color: var(--color-fg-base);
-	}
-
-	.group {
-		margin-bottom: var(--space-3xl);
-	}
-
-	.groupName {
-		margin: 0 0 var(--space-lg);
-		font-size: var(--text-sm);
-		font-weight: var(--weight-semibold);
-		letter-spacing: var(--letterSpacing-sectionLabel);
-		text-transform: uppercase;
-		color: var(--color-fg-subtle);
-	}
-
-	.codes {
+	.switches {
 		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-md);
+		gap: var(--space-xl);
 	}
 
-	.code {
-		min-width: var(--size-control-sm);
-		padding: var(--space-md) var(--space-lg);
-		border: var(--border-hairline) solid var(--color-border-base);
-		border-radius: var(--radius-md);
-		background: none;
-		color: var(--color-fg-muted);
-		font-family: var(--font-mono);
-		font-size: var(--text-base);
-		cursor: pointer;
-	}
-
-	.code.active {
-		border-color: var(--color-accent-base);
-		color: var(--color-fg-base);
-	}
-
-	.stage {
-		flex: 1;
-		min-width: 0;
+	.switches label {
 		display: flex;
 		flex-direction: column;
-		align-items: center;
-		gap: var(--space-3xl);
-		padding: var(--space-3xl);
-	}
-
-	.controls {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: var(--space-2xl);
-		width: 100%;
-	}
-
-	.control {
-		display: flex;
-		align-items: center;
-		gap: var(--space-md);
-	}
-
-	.controlLabel {
+		gap: var(--space-sm);
 		font-size: var(--text-sm);
-		color: var(--color-fg-subtle);
+		color: var(--color-fg-muted);
 	}
 
-	.chip {
-		padding: var(--space-md) var(--space-xl);
-		border: var(--border-hairline) solid var(--color-border-base);
-		border-radius: var(--radius-full);
+	h2 {
+		margin: 0;
+		font-size: var(--text-sm);
+		font-weight: var(--weight-semibold);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-fg-muted);
+	}
+
+	ul {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	ul button {
+		display: flex;
+		gap: var(--space-md);
+		width: 100%;
+		padding: var(--space-md) var(--space-lg);
+		border: 0;
+		border-radius: var(--radius-md);
 		background: none;
 		color: var(--color-fg-muted);
 		font-family: var(--font-ui);
 		font-size: var(--text-base);
+		text-align: start;
 		cursor: pointer;
 	}
 
-	.chip.on {
-		border-color: var(--color-accent-base);
+	ul button:hover {
+		background: var(--color-bg-raised);
+	}
+
+	ul button.active {
+		background: var(--color-accent-soft);
 		color: var(--color-fg-base);
 	}
 
-	.sink {
-		margin: 0;
-		margin-inline-start: auto;
+	.code {
+		flex: 0 0 2.5em;
 		font-family: var(--font-mono);
 		font-size: var(--text-sm);
+	}
+
+	.lastevent {
+		margin: auto 0 0;
 		color: var(--color-fg-subtle);
+		font-size: var(--text-sm);
 	}
 
-	.panelSim {
-		width: 100%;
-		max-width: var(--layout-frameW);
-		border: var(--border-hairline) solid var(--color-border-base);
-		border-radius: var(--radius-xl);
-		background: var(--color-bg-raised);
-		overflow: hidden;
-	}
-
-	.reopen {
-		align-self: center;
+	.stage {
+		display: flex;
+		flex-direction: column;
+		padding: var(--space-4xl);
 	}
 </style>

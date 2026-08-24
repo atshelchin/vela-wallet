@@ -142,12 +142,19 @@ test.describe('with JavaScript disabled', () => {
 	});
 });
 
-test('the DEPLOY bundle contains no wasm (engine is build-time only)', () => {
+test('the DEPLOY bundle contains no wasm (the i18n engine is build-time only)', () => {
 	/* .svelte-kit/cloudflare/_worker.js is only a ~4KB adapter shim — grepping
 	   it proves nothing. `wrangler deploy --dry-run` produces the bundle that
 	   actually ships (hooks + the / endpoint + everything manifest-reachable);
 	   if anything ever imports engine.server.ts from runtime code, the wasm
-	   base64 lands HERE and this test goes red. */
+	   base64 lands HERE and this test goes red.
+
+	   Spec 019 added a SECOND wasm path — the onboarding state machines, which
+	   run in the browser because that is where the passkey ceremony happens.
+	   That does not weaken this test: the machines are fetched by the client
+	   from a static asset, and a Worker still cannot compile wasm from bytes.
+	   The client-side half of the promise (Welcome itself fetches nothing) is
+	   the test below. */
 	test.setTimeout(120_000);
 	const outdir = mkdtempSync(join(tmpdir(), 'vela-worker-dry-run-'));
 	execSync(`pnpm exec wrangler deploy --dry-run --outdir ${JSON.stringify(outdir)}`, {
@@ -160,4 +167,20 @@ test('the DEPLOY bundle contains no wasm (engine is build-time only)', () => {
 		const bundle = readFileSync(join(outdir, name), 'utf8');
 		expect(bundle.includes('WASM_BASE64'), name).toBe(false);
 	}
+});
+
+test('the Welcome page loads no wasm until someone commits to a flow', async ({ page }) => {
+	/* The onboarding core is 3.4 MB and carries all 25 state machines — wasm is
+	   not tree-shaken, so it arrives whole or not at all. The whole reason the
+	   flow lives behind a route is that this page, which is also the site's
+	   landing page in 15 locales, must not pay for it. */
+	const wasmRequests: string[] = [];
+	page.on('request', (request) => {
+		if (request.url().endsWith('.wasm')) wasmRequests.push(request.url());
+	});
+
+	await page.goto('/zh');
+	await page.waitForLoadState('networkidle');
+
+	expect(wasmRequests, 'Welcome must not fetch the onboarding core').toEqual([]);
 });

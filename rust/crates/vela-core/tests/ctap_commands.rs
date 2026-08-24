@@ -272,15 +272,45 @@ fn a_response_splits_into_a_status_and_a_body() {
 #[test]
 fn status_codes_map_to_the_decisions_they_drive() {
     assert_eq!(Status::from_byte(0x00), Status::Success);
+    assert_eq!(Status::from_byte(0x19), Status::Cancelled);
     assert_eq!(Status::from_byte(0x27), Status::Cancelled);
     assert_eq!(Status::from_byte(0x2f), Status::Cancelled);
     assert_eq!(Status::from_byte(0x21), Status::CredentialExcluded);
     assert_eq!(Status::from_byte(0x2e), Status::NoCredentials);
-    assert_eq!(Status::from_byte(0x31), Status::PinRequired);
-    assert_eq!(Status::from_byte(0x33), Status::PinBlocked);
     assert_eq!(Status::from_byte(0x7f), Status::Other(0x7f));
     assert!(Status::Success.is_success());
     assert!(!Status::Cancelled.is_success());
+}
+
+/// The five PIN codes, by number.
+///
+/// They sit next to each other and mean five different things, and a wallet
+/// that crosses two of them says something false to a person holding a key:
+/// "it is locked" when the PIN was merely mistyped, or "try again" to a key
+/// that will refuse every attempt until it is unplugged. The numbers are
+/// CTAP 2.1 §6.3 and this test is what pins them.
+#[test]
+fn the_five_pin_codes_are_five_different_sentences() {
+    // 0x31 PIN_INVALID — wrong PIN, one attempt spent, ask again.
+    assert_eq!(Status::from_byte(0x31), Status::PinRequired);
+    // 0x36 PUAT_REQUIRED — a token is needed and none was sent.
+    assert_eq!(Status::from_byte(0x36), Status::PinRequired);
+
+    // 0x32 PIN_BLOCKED — out of attempts; only a reset clears it, and a reset
+    // destroys every credential on the key.
+    assert_eq!(Status::from_byte(0x32), Status::PinBlocked);
+    // 0x34 PIN_AUTH_BLOCKED — power-cycle to clear.
+    assert_eq!(Status::from_byte(0x34), Status::PinBlocked);
+
+    // 0x35 PIN_NOT_SET — no PIN exists. Asking for one cannot help.
+    assert_eq!(Status::from_byte(0x35), Status::PinNotSet);
+    // 0x2b UNSUPPORTED_OPTION — what a key with neither a PIN nor a biometric
+    // answers to a request that asks for user verification. Same instruction.
+    assert_eq!(Status::from_byte(0x2b), Status::PinNotSet);
+
+    // 0x33 PIN_AUTH_INVALID — the pinUvAuthParam did not verify. A CLIENT
+    // fault, not a person's; it keeps its number so a bug report names it.
+    assert_eq!(Status::from_byte(0x33), Status::Other(0x33));
 }
 
 /// THE integration point.

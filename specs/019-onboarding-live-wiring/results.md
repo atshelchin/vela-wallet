@@ -478,11 +478,11 @@ cd app-desktop/vela-wallet
 cargo check                                  # clean
 cargo clippy --all-targets -- -D warnings    # clean
 cargo fmt --check                            # clean
-cargo test                                   # 54 passed, 2 ignored
+cargo test                                   # 56 passed, 2 ignored
 cargo test -- --ignored                      # 2 passed (network)
 ```
 
-Desktop tests went 37 → 54. The seventeen added are the ones that would
+Desktop tests went 37 → 56. The nineteen added are the ones that would
 otherwise need hardware to notice:
 
 - **The join with the browser path.** The clientDataJSON this client builds is
@@ -522,6 +522,31 @@ neither press a key's button nor take a picture. What it can do:
   as `not_supported` with a message naming it, which is the sheet the recovery
   path starts from.
 
+### A bug Phase 5 found in Phase 4's status mapping
+
+`Status::from_byte` had the PIN codes crossed. CTAP 2.1 §6.3 numbers three
+adjacent errors `PIN_BLOCKED` (0x32), `PIN_AUTH_INVALID` (0x33) and
+`PIN_AUTH_BLOCKED` (0x34); Phase 4 read 0x33 as blocked and 0x34 as
+retry-the-PIN, and did not name 0x32 at all.
+
+The consequence is a sentence, and it is the wrong one at the worst moment: a
+key that had hit its blocked state would be offered a PIN retry loop it can
+never satisfy, and a `pinUvAuthParam` that failed to verify — a CLIENT fault —
+would tell somebody their security key is locked. A locked key's only exit is a
+RESET, and a reset destroys the wallet's founding credential.
+
+Fixed, with every byte pinned in `the_five_pin_codes_are_five_different_sentences`.
+0x35 `PIN_NOT_SET` and 0x2b `UNSUPPORTED_OPTION` gained their own `PinNotSet`
+status, because a key with no PIN cannot be helped by asking for one; 0x33 now
+keeps its number so a bug report names it.
+
+The shell acts on the same fact one step earlier: `verifiable()` reads `getInfo`
+and refuses a key with neither a PIN nor a biometric BEFORE the ceremony, so a
+brand-new key out of its box says "set a PIN with the manufacturer's tool"
+instead of costing a touch to answer `UNSUPPORTED_OPTION`.
+
+Core suite 1,170 → 1,171; desktop 54 → 56.
+
 ### Still unverified — T089 and T091
 
 **Nothing below has been run against a security key.** These are the claims a
@@ -532,14 +557,18 @@ person with a YubiKey has to check, and the order to check them in:
    work — that is the whole reason `supported()` does not look for a device.
 2. **One key, quickstart scenario 1.** Watch for the touch prompt appearing on
    the `KEEPALIVE` rather than immediately.
-3. **A key with a PIN.** The dialog should name the key and show the remaining
+3. **A key with NO PIN.** Expect "set a PIN with the manufacturer's tool"
+   before any touch is asked for — this is the fix above, and it is the case a
+   key straight out of its box lands in.
+4. **A key with a PIN.** The dialog should name the key and show the remaining
    attempts. Type it wrong once on purpose: expect one attempt spent, the count
-   down by one, and the dialog back — not a failed ceremony.
-4. **Two keys, scenario 2.** The second registration must be REFUSED by the
+   down by one, and the dialog back — not a failed ceremony, and NOT the word
+   "locked".
+5. **Two keys, scenario 2.** The second registration must be REFUSED by the
    same authenticator (`excludeList` doing its job → "use a different one").
-5. **Scenario 4 and the one-signature path (T089).** One touch at sign-in, not
+6. **Scenario 4 and the one-signature path (T089).** One touch at sign-in, not
    two.
-6. **Scenario 6**, the publish retry.
+7. **Scenario 6**, the publish retry.
 
 The riskiest untested surface is the report-id byte in `usb.rs::write`: a device
 that uses report ids would need the first byte to be its id rather than zero,

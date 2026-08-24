@@ -63,25 +63,46 @@ pub enum Status {
     CredentialExcluded,
     /// No credential on this authenticator matches (`CTAP2_ERR_NO_CREDENTIALS`).
     NoCredentials,
-    /// A PIN is set and this request did not carry a token
-    /// (`CTAP2_ERR_PIN_REQUIRED`, `CTAP2_ERR_PIN_INVALID`, `…_PIN_AUTH_INVALID`).
+    /// The PIN given was refused, or one is required and was not sent
+    /// (`CTAP2_ERR_PIN_INVALID` 0x31, `CTAP2_ERR_PUAT_REQUIRED` 0x36). One
+    /// attempt was spent; the caller may ask again.
     PinRequired,
-    /// The authenticator is locked until it is reinserted or reset
-    /// (`CTAP2_ERR_PIN_BLOCKED`, `CTAP2_ERR_PIN_AUTH_BLOCKED`).
+    /// The authenticator has no PIN configured (`CTAP2_ERR_PIN_NOT_SET` 0x35),
+    /// or refused an option this request needs (`CTAP2_ERR_UNSUPPORTED_OPTION`
+    /// 0x2b — what a key with neither a PIN nor a biometric answers when a
+    /// request asks for user verification). Distinct from
+    /// [`Self::PinRequired`] because asking for a PIN again cannot help: the
+    /// key has to be enrolled with the vendor's tool first.
+    PinNotSet,
+    /// Locked until the key is power-cycled or reset
+    /// (`CTAP2_ERR_PIN_BLOCKED` 0x32, `CTAP2_ERR_PIN_AUTH_BLOCKED` 0x34).
     PinBlocked,
     /// Anything else, with its number intact.
     Other(u8),
 }
 
 impl Status {
+    /// The numbers are CTAP 2.1 §6.3, and the three PIN groups are easy to
+    /// cross — 0x32/0x33/0x34 are `PIN_BLOCKED` / `PIN_AUTH_INVALID` /
+    /// `PIN_AUTH_BLOCKED`, which are three different sentences. Crossing them
+    /// tells a person their key is bricked when their PIN was merely wrong, or
+    /// offers a PIN retry to a key that will refuse every one until it is
+    /// unplugged. `ctap_commands.rs` pins every byte in this match.
     pub fn from_byte(byte: u8) -> Self {
         match byte {
             0x00 => Self::Success,
             0x19 | 0x27 | 0x2f => Self::Cancelled,
-            0x33 => Self::PinBlocked,
-            0x31 | 0x34 | 0x36 => Self::PinRequired,
-            0x2e => Self::NoCredentials,
             0x21 => Self::CredentialExcluded,
+            0x2b => Self::PinNotSet,
+            0x2e => Self::NoCredentials,
+            0x31 | 0x36 => Self::PinRequired,
+            0x32 | 0x34 => Self::PinBlocked,
+            0x35 => Self::PinNotSet,
+            // 0x33 `PIN_AUTH_INVALID` deliberately falls through: it means the
+            // pinUvAuthParam did not verify, which is a CLIENT fault (a wrong
+            // shared secret, a wrong protocol number), not something a person
+            // can fix by typing more carefully. It keeps its number so a bug
+            // report says which one it was.
             other => Self::Other(other),
         }
     }

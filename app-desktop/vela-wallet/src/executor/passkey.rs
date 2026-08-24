@@ -148,6 +148,7 @@ pub fn register(
 
     let mut key = open()?;
     let info = get_info(&mut key)?;
+    verifiable(&key, &info)?;
     if !info.resident_key {
         // A non-discoverable credential signs fine when pinned by id and then
         // never appears at sign-in. Fail HERE, before anything is stored or
@@ -219,6 +220,7 @@ pub fn assert(
 ) -> Result<Assertion, PasskeyFailure> {
     let mut key = open()?;
     let info = get_info(&mut key)?;
+    verifiable(&key, &info)?;
 
     let client_data = client_data_json(ClientDataType::Get, challenge);
     let client_data_hash = primitives::sha256(client_data.as_bytes());
@@ -278,6 +280,25 @@ pub fn assert(
 // ---------------------------------------------------------------------------
 // The PIN session
 // ---------------------------------------------------------------------------
+
+/// Can this authenticator verify a user at all?
+///
+/// A Vela key must be user-verified: the core's `validate_client_data` refuses
+/// an assertion whose UV flag is clear, so a key with neither a PIN nor a
+/// biometric can never produce one this wallet accepts.
+///
+/// Checked HERE, from `getInfo`, rather than by sending the request and letting
+/// the authenticator refuse it. Sending it is not wrong — the refusal comes
+/// back as `UNSUPPORTED_OPTION` or `PIN_NOT_SET`, which the status mapping
+/// already understands — but it costs the person a touch to be told something
+/// that was knowable before they were asked to touch anything. A key straight
+/// out of its box is exactly the case that hits this.
+fn verifiable(key: &SecurityKey, info: &AuthenticatorInfo) -> Result<(), PasskeyFailure> {
+    if info.client_pin_set || info.user_verification {
+        return Ok(());
+    }
+    Err(no_pin(key.product()))
+}
 
 /// Agree a `pinUvAuthToken` with the key, if it has a PIN.
 ///
@@ -350,6 +371,8 @@ fn pin_session(
                 retry = true;
                 continue;
             }
+            // Asking again cannot help: the key has no PIN to give.
+            Err(UsbError::Ctap(Status::PinNotSet)) => return Err(no_pin(key.product())),
             Err(UsbError::Ctap(Status::PinBlocked)) => {
                 return Err(PasskeyFailure::other(format!(
                     "{} is locked. Unplug it and plug it back in, or — if it asks for a reset — be aware a reset erases every passkey on it.",
@@ -462,13 +485,29 @@ fn usb_failure(error: UsbError) -> PasskeyFailure {
             PasskeyFailure::other("This security key holds no Vela passkey.")
         }
         UsbError::Ctap(Status::PinRequired) => PasskeyFailure::other(
-            "This security key needs a PIN before it can store a passkey. Set one with the vendor's tool, then try again.",
+            "The PIN was not accepted. Try again, and watch the remaining attempts before you spend the last one.",
+        ),
+        UsbError::Ctap(Status::PinNotSet) => PasskeyFailure::other(no_pin_message()),
+        UsbError::Ctap(Status::PinBlocked) => PasskeyFailure::other(
+            "This security key is locked. Unplug it and plug it back in; if it asks for a reset, be aware that a reset erases every passkey on it.",
         ),
         UsbError::TimedOut => {
             PasskeyFailure::other("The security key stopped responding. Unplug it and try again.")
         }
         other => PasskeyFailure::other(other.to_string()),
     }
+}
+
+/// The one instruction a key with no PIN needs.
+fn no_pin(product: &str) -> PasskeyFailure {
+    PasskeyFailure::other(format!(
+        "{product} has no PIN set. Set one with the manufacturer's tool and try again — a wallet key has to be able to verify that it is you."
+    ))
+}
+
+/// The same sentence where the product name is not to hand.
+fn no_pin_message() -> &'static str {
+    "This security key has no PIN set. Set one with the manufacturer's tool and try again — a wallet key has to be able to verify that it is you."
 }
 
 fn encode_failed(error: vela_core::error::CoreError) -> PasskeyFailure {
@@ -692,6 +731,49 @@ mod tests {
                 .unwrap_or_default()
                 .to_lowercase()
                 .contains("different")
+        );
+    }
+
+    /// A key with no PIN and no biometric cannot make a wallet key, and the
+    /// sentence says what to do about it.
+    ///
+    /// This is the brand-new-key case: out of the box a security key has no
+    /// PIN, and the wallet's requirement that every credential be user-verified
+    /// is not something a person can guess at from `CTAP2_ERR_UNSUPPORTED_OPTION`.
+    #[test]
+    fn a_key_with_no_pin_gets_an_instruction() {
+        for failure in [
+            no_pin("YubiKey 5C"),
+            usb_failure(UsbError::Ctap(Status::PinNotSet)),
+        ] {
+            assert_eq!(failure.kind, FailureKind::Other);
+            let message = failure.message.unwrap_or_default();
+            assert!(message.contains("no PIN set"), "{message}");
+            assert!(
+                message.contains("try again"),
+                "the sentence has to end in something to do: {message}"
+            );
+        }
+    }
+
+    /// A refused PIN and a locked key are different sentences, and telling a
+    /// person their key is locked when they merely mistyped is the failure
+    /// mode worth a test: a reset is the only way out of the locked state, and
+    /// a reset destroys the wallet's founding credential.
+    #[test]
+    fn a_wrong_pin_and_a_locked_key_do_not_share_a_sentence() {
+        let wrong = usb_failure(UsbError::Ctap(Status::PinRequired))
+            .message
+            .unwrap_or_default();
+        let locked = usb_failure(UsbError::Ctap(Status::PinBlocked))
+            .message
+            .unwrap_or_default();
+        assert!(wrong.contains("not accepted"), "{wrong}");
+        assert!(!wrong.contains("locked"), "{wrong}");
+        assert!(locked.contains("locked"), "{locked}");
+        assert!(
+            locked.contains("erases"),
+            "a reset destroys every passkey on the key, and that has to be said: {locked}"
         );
     }
 

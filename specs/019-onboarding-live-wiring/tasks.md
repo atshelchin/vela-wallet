@@ -50,9 +50,9 @@ the whole shape; every later phase is the same shape in another language.
 question later has an answer.
 
 - [X] T001 Commit `design/onboarding-new/` to git on branch `019-onboarding-live-wiring` (done: commit `31ad4b04`)
-- [ ] T002 Record baseline artifact sizes in `specs/019-onboarding-live-wiring/results.md`: `app-android/vela-wallet/app/src/main/jniLibs/arm64-v8a/libvela_core_uniffi.so`, `app-ios/VelaCoreKit/Artifacts/VelaCoreFFI.xcframework` (`du -sh`), `public/vela_core_bg.*.wasm`
-- [ ] T003 [P] Record baseline corpus counts in the same file: `onboarding` namespace leaves (163), corpus leaves (1,184), and the SC-005 residency figure from `cargo test -p vela-core --features i18n-all --test i18n_residency -- --nocapture`
-- [ ] T004 Confirm the tree is green before touching it: `cd rust && cargo test --workspace --features vela-core/i18n-all && cargo clippy --workspace --all-targets --features vela-core/i18n-all -- -D warnings`, plus `npx tsc --noEmit && npx jest` at the repo root
+- [X] T002 Record baseline artifact sizes in `specs/019-onboarding-live-wiring/results.md`: `app-android/vela-wallet/app/src/main/jniLibs/arm64-v8a/libvela_core_uniffi.so`, `app-ios/VelaCoreKit/Artifacts/VelaCoreFFI.xcframework` (`du -sh`), `public/vela_core_bg.*.wasm`
+- [X] T003 [P] Record baseline corpus counts in the same file: `onboarding` namespace leaves (163), corpus leaves (1,184), and the SC-005 residency figure from `cargo test -p vela-core --features i18n-all --test i18n_residency -- --nocapture`
+- [X] T004 Confirm the tree is green before touching it: `cd rust && cargo test --workspace --features vela-core/i18n-all && cargo clippy --workspace --all-targets --features vela-core/i18n-all -- -D warnings`, plus `npx tsc --noEmit && npx jest` at the repo root
 
 ---
 

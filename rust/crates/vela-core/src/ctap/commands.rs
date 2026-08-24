@@ -26,8 +26,13 @@
 //! and would let the two paths disagree about a key.
 
 use ciborium::Value;
+use coset::CborSerializable as _;
 
 use crate::error::CoreError;
+use crate::types::P256PublicKey;
+use crate::webauthn::p256_from_cose_key;
+
+use super::pin_uv::Protocol;
 
 /// The command byte that precedes the CBOR payload in a CTAPHID `CBOR` message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -293,6 +298,175 @@ impl GetAssertion {
     }
 }
 
+/// Which `authenticatorClientPIN` job a request is asking for.
+///
+/// Only the four a wallet performs. Setting or changing a PIN is deliberately
+/// absent: enrolling a security key is the authenticator vendor's flow, and a
+/// wallet that offered to set a PIN would be taking custody of a credential it
+/// has no way to recover.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ClientPinSubcommand {
+    /// How many PIN attempts remain before the key locks itself.
+    GetPinRetries = 0x01,
+    /// The authenticator's ephemeral public key for this session.
+    GetKeyAgreement = 0x02,
+    /// CTAP 2.0's token request: no permissions, no rpId.
+    GetPinToken = 0x05,
+    /// CTAP 2.1's: the token is scoped to the operations and the RP named here.
+    GetPinUvAuthTokenUsingPinWithPermissions = 0x09,
+}
+
+/// What a `pinUvAuthToken` is allowed to do (CTAP 2.1 §6.5.5.7).
+///
+/// A token minted for `mc | ga` on `getvela.app` cannot be replayed into a
+/// credential-management command or against another relying party. CTAP 2.0's
+/// `getPinToken` had no such scoping — which is why 2.1 added this and why the
+/// wallet asks for the narrow token whenever the authenticator supports it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Permissions(u8);
+
+impl Permissions {
+    pub const MAKE_CREDENTIAL: Self = Self(0x01);
+    pub const GET_ASSERTION: Self = Self(0x02);
+
+    pub fn bits(self) -> u8 {
+        self.0
+    }
+}
+
+impl core::ops::BitOr for Permissions {
+    type Output = Self;
+    fn bitor(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+}
+
+/// One `authenticatorClientPIN` request.
+///
+/// The fields an individual subcommand does not use stay `None`; CTAP2 reads a
+/// request by key, so sending a key the subcommand has no meaning for is a
+/// protocol error rather than a harmless extra.
+#[derive(Clone, Debug)]
+pub struct ClientPin {
+    pub protocol: Protocol,
+    pub subcommand: ClientPinSubcommand,
+    /// The PLATFORM's ephemeral public key. Minted by the shell — this crate
+    /// has no randomness — and sent so the authenticator can complete the
+    /// same ECDH from its side.
+    pub key_agreement: Option<P256PublicKey>,
+    /// `pinHashEnc`: the left 16 bytes of SHA-256(PIN), encrypted under the
+    /// shared secret. The PIN itself never crosses the wire.
+    pub pin_hash_enc: Option<Vec<u8>>,
+    pub permissions: Option<Permissions>,
+    /// The relying party the token is scoped to. `None` leaves the token
+    /// unscoped, which an authenticator may refuse for `ga` permission.
+    pub rp_id: Option<String>,
+}
+
+impl ClientPin {
+    /// The `getKeyAgreement` request that opens every PIN session.
+    pub fn key_agreement(protocol: Protocol) -> Self {
+        Self {
+            protocol,
+            subcommand: ClientPinSubcommand::GetKeyAgreement,
+            key_agreement: None,
+            pin_hash_enc: None,
+            permissions: None,
+            rp_id: None,
+        }
+    }
+
+    /// How many attempts are left. Asked BEFORE a PIN is offered, so a wallet
+    /// can warn instead of spending the second-to-last try.
+    pub fn pin_retries(protocol: Protocol) -> Self {
+        Self {
+            protocol,
+            subcommand: ClientPinSubcommand::GetPinRetries,
+            key_agreement: None,
+            pin_hash_enc: None,
+            permissions: None,
+            rp_id: None,
+        }
+    }
+
+    /// The token request. `permissions` selects the CTAP 2.1 subcommand; a
+    /// `None` falls back to CTAP 2.0's unscoped `getPinToken`, which is all an
+    /// older authenticator understands.
+    pub fn pin_token(
+        protocol: Protocol,
+        platform_key: P256PublicKey,
+        pin_hash_enc: Vec<u8>,
+        permissions: Option<Permissions>,
+        rp_id: Option<String>,
+    ) -> Self {
+        Self {
+            protocol,
+            subcommand: match permissions {
+                Some(_) => ClientPinSubcommand::GetPinUvAuthTokenUsingPinWithPermissions,
+                None => ClientPinSubcommand::GetPinToken,
+            },
+            key_agreement: Some(platform_key),
+            pin_hash_enc: Some(pin_hash_enc),
+            permissions,
+            // rpId is only defined for the permissions subcommand; carrying it
+            // into 2.0's getPinToken would be a key that command cannot read.
+            rp_id: permissions.and(rp_id),
+        }
+    }
+
+    pub fn encode(&self) -> Result<Vec<u8>, CoreError> {
+        let mut entries = vec![
+            (
+                0x01,
+                Value::Integer(i64::from(self.protocol.number()).into()),
+            ),
+            (
+                0x02,
+                Value::Integer(i64::from(self.subcommand as u8).into()),
+            ),
+        ];
+        if let Some(key) = &self.key_agreement {
+            entries.push((0x03, cose_key_value(key)?));
+        }
+        if let Some(pin_hash_enc) = &self.pin_hash_enc {
+            entries.push((0x06, Value::Bytes(pin_hash_enc.clone())));
+        }
+        if let Some(permissions) = self.permissions {
+            entries.push((0x09, Value::Integer(i64::from(permissions.bits()).into())));
+        }
+        if let Some(rp_id) = &self.rp_id {
+            entries.push((0x0a, Value::Text(rp_id.clone())));
+        }
+        encode_value(Command::ClientPin, Some(map(entries)))
+    }
+}
+
+/// A COSE_Key for the platform's ephemeral ECDH key, as CBOR.
+///
+/// Built with `coset`, not by hand. The wallet has exactly one COSE encoder and
+/// one COSE decoder, and this is the encoder; a second one written here could
+/// disagree with the one that reads attested credential data, and the two would
+/// only ever be compared by an authenticator refusing a token.
+///
+/// `alg` is ECDH-ES+HKDF-256 (-25) because CTAP 2.1 §6.5.6 says so, not because
+/// anything derives keys with it: PIN/UV protocol Two runs its own HKDF over
+/// the shared X, and protocol One a bare SHA-256. Authenticators do check.
+fn cose_key_value(key: &P256PublicKey) -> Result<Value, CoreError> {
+    let cose = coset::CoseKeyBuilder::new_ec2_pub_key(
+        coset::iana::EllipticCurve::P_256,
+        key.x.clone(),
+        key.y.clone(),
+    )
+    .algorithm(coset::iana::Algorithm::ECDH_ES_HKDF_256)
+    .build();
+    let bytes = cose
+        .to_vec()
+        .map_err(|error| CoreError::InvalidCoseKey(format!("COSE encode: {error}")))?;
+    ciborium::de::from_reader(bytes.as_slice())
+        .map_err(|error| CoreError::InvalidCbor(format!("COSE re-read: {error}")))
+}
+
 /// `authenticatorGetInfo` takes no arguments — the command byte is the request.
 pub fn get_info_request() -> Result<Vec<u8>, CoreError> {
     encode_value(Command::GetInfo, None)
@@ -450,6 +624,62 @@ pub fn parse_get_assertion(body: &[u8]) -> Result<GetAssertionResponse, CoreErro
         signature_der: bytes_at(&entries, 0x03, "signature")?,
         user_id,
     })
+}
+
+/// What `authenticatorClientPIN` answered.
+///
+/// One struct for four subcommands, because the authenticator answers all four
+/// with the same map and simply leaves out what does not apply. A caller reads
+/// the field its request was about; a `None` there means the authenticator did
+/// not answer the question that was asked, which is a protocol fault worth
+/// surfacing rather than defaulting through.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ClientPinResponse {
+    /// The AUTHENTICATOR's ephemeral public key for this session.
+    pub key_agreement: Option<P256PublicKey>,
+    /// The `pinUvAuthToken`, still encrypted under the shared secret.
+    pub pin_uv_auth_token: Option<Vec<u8>>,
+    /// PIN attempts left before the key locks itself. Zero means locked until
+    /// the authenticator is reset — and a reset destroys every credential on
+    /// it, including this wallet's founding key.
+    pub pin_retries: Option<u32>,
+    /// The key must be unplugged and reinserted before another PIN attempt.
+    pub power_cycle_state: bool,
+    pub uv_retries: Option<u32>,
+}
+
+pub fn parse_client_pin(body: &[u8]) -> Result<ClientPinResponse, CoreError> {
+    let entries = parse_map(body)?;
+    let mut response = ClientPinResponse::default();
+
+    if let Some(value) = take(&entries, 0x01) {
+        // The key arrives as a nested CBOR map. It is re-serialized and handed
+        // to the one COSE decoder this wallet has — the same one that reads a
+        // credential's public key out of attested credential data — rather than
+        // being walked here. Its on-curve check is the load-bearing part: an
+        // off-curve "public key" is how a tampered response gets a client to
+        // compute a shared secret with structure the attacker chose.
+        let mut bytes = Vec::new();
+        ciborium::ser::into_writer(value, &mut bytes)
+            .map_err(|error| CoreError::InvalidCbor(error.to_string()))?;
+        let key = coset::CoseKey::from_slice(&bytes)
+            .map_err(|error| CoreError::InvalidCoseKey(format!("keyAgreement: {error}")))?;
+        response.key_agreement = Some(p256_from_cose_key(&key)?);
+    }
+    if let Some(Value::Bytes(bytes)) = take(&entries, 0x02) {
+        response.pin_uv_auth_token = Some(bytes.clone());
+    }
+    if let Some(Value::Integer(count)) = take(&entries, 0x03) {
+        response.pin_retries = u32::try_from(i128::from(*count)).ok();
+    }
+    if let Some(Value::Bool(flag)) = take(&entries, 0x04) {
+        response.power_cycle_state = *flag;
+    }
+    if let Some(Value::Integer(count)) = take(&entries, 0x05) {
+        response.uv_retries = u32::try_from(i128::from(*count)).ok();
+    }
+
+    Ok(response)
 }
 
 /// The parts of `authenticatorGetInfo` a wallet acts on.

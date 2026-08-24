@@ -14,6 +14,28 @@
 //! seed during onboarding. What is here is everything downstream of that: key
 //! derivation, encryption, and the HMACs.
 //!
+//! ## The sequence, end to end
+//!
+//! ```text
+//!  shell                          this module                 authenticator
+//!    │ mint ephemeral P-256 pair
+//!    │                            ClientPin::key_agreement ──────►
+//!    │◄──────────────── parse_client_pin ── keyAgreement (COSE) ──│
+//!    │ ECDH ⇒ shared X
+//!    │                     SharedSecret::derive(protocol, X)
+//!    │ ask the person for the PIN
+//!    │              SharedSecret::encrypt_pin_hash(pin, iv)
+//!    │                            ClientPin::pin_token ──────────►
+//!    │◄────────────── parse_client_pin ── pinUvAuthToken (enc) ───│
+//!    │              SharedSecret::decrypt_token ⇒ PinUvAuthToken
+//!    │              PinUvAuthToken::param(client_data_hash)
+//!    │                            MakeCredential / GetAssertion ─►
+//! ```
+//!
+//! Two of those arrows need randomness — the ephemeral key pair and protocol
+//! Two's IV — and both are the shell's to supply, which is the whole reason
+//! the exchange sits outside this file.
+//!
 //! ## The two protocols
 //!
 //! | | One | Two |
@@ -209,6 +231,93 @@ impl SharedSecret {
             )));
         }
         Ok(cbc_decrypt(&self.aes_key, &iv, body))
+    }
+}
+
+impl SharedSecret {
+    /// `pinHashEnc` — what a token request actually carries in place of a PIN.
+    ///
+    /// The PIN is hashed, truncated to 16 bytes and encrypted under this
+    /// session's AES key. It is exactly one block, so protocol One's zero IV
+    /// encrypts it in place and protocol Two's `iv` (16 fresh random bytes from
+    /// the shell) is prepended.
+    ///
+    /// The `pin` argument is borrowed and never stored: the caller owns the
+    /// string's lifetime, and should drop it as soon as this returns.
+    pub fn encrypt_pin_hash(&self, pin: &str, iv: &[u8]) -> Result<Vec<u8>, CoreError> {
+        self.encrypt(&pin_hash(pin), iv)
+    }
+
+    /// Unwrap the `pinUvAuthToken` a successful token request returned.
+    ///
+    /// A token is 16 or 32 bytes. Anything else means the shared secret is
+    /// wrong — the two sides derived different keys, and the "token" is
+    /// plausible-looking noise. Returning it would produce a `pinUvAuthParam`
+    /// the authenticator rejects with `PIN_AUTH_INVALID`, which reads to a user
+    /// as "your PIN was wrong" when it was not.
+    pub fn decrypt_token(&self, ciphertext: &[u8]) -> Result<PinUvAuthToken, CoreError> {
+        let token = self.decrypt(ciphertext)?;
+        if token.len() != 16 && token.len() != 32 {
+            return Err(CoreError::InvalidSignature(format!(
+                "pinUvAuthToken is {} bytes, expected 16 or 32 — the shared secret does not match",
+                token.len()
+            )));
+        }
+        Ok(PinUvAuthToken {
+            protocol: self.protocol,
+            token,
+        })
+    }
+}
+
+/// A live `pinUvAuthToken`, and the protocol that has to be quoted alongside
+/// every parameter it produces.
+///
+/// Held as its own type rather than as a loose `Vec<u8>` so a token can never
+/// be sent to an authenticator without its protocol number: the HMAC is
+/// truncated on One and whole on Two, and a mismatch is rejected as an invalid
+/// PIN rather than as a client bug.
+#[derive(Clone)]
+pub struct PinUvAuthToken {
+    protocol: Protocol,
+    token: Vec<u8>,
+}
+
+impl core::fmt::Debug for PinUvAuthToken {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // A token in a log is a token an attacker can use until the
+        // authenticator is unplugged.
+        f.debug_struct("PinUvAuthToken")
+            .field("protocol", &self.protocol)
+            .field("len", &self.token.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl PinUvAuthToken {
+    /// The `pinUvAuthParam` for a `makeCredential` or `getAssertion`: the HMAC
+    /// of the client-data hash under the token.
+    ///
+    /// The message is the client-data HASH, not the request bytes. That is the
+    /// spec's choice and it matters here: it means one token authenticates a
+    /// ceremony over a particular challenge, so replaying it against a
+    /// different challenge does not work.
+    pub fn param(&self, client_data_hash: &[u8]) -> crate::ctap::commands::PinUvAuth {
+        let mut mac = <HmacSha256 as KeyInit>::new_from_slice(&self.token)
+            .unwrap_or_else(|_| unreachable!("HMAC accepts a key of any length"));
+        mac.update(client_data_hash);
+        let tag = mac.finalize().into_bytes();
+        crate::ctap::commands::PinUvAuth {
+            protocol: self.protocol.number(),
+            param: match self.protocol {
+                Protocol::One => tag[..16].to_vec(),
+                Protocol::Two => tag.to_vec(),
+            },
+        }
+    }
+
+    pub fn protocol(&self) -> Protocol {
+        self.protocol
     }
 }
 

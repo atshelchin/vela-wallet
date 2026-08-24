@@ -10,9 +10,11 @@ use serde_json::Value as Json;
 
 use vela_core::ctap::commands::{
     attestation_object, get_info_request, parse_get_assertion, parse_get_info,
-    parse_make_credential, split_response, Command, CredentialDescriptor, GetAssertion,
-    MakeCredential, PinUvAuth, Status,
+    parse_make_credential, split_response, ClientPin, ClientPinSubcommand, Command,
+    CredentialDescriptor, GetAssertion, MakeCredential, Permissions, PinUvAuth, Status,
 };
+use vela_core::ctap::Protocol;
+use vela_core::types::P256PublicKey;
 use vela_core::webauthn;
 
 const VECTORS: &str = include_str!("vectors/webauthn.json");
@@ -461,4 +463,213 @@ fn get_info_reports_what_the_wallet_branches_on() {
     );
     assert!(!info.user_verification);
     assert_eq!(info.pin_protocols, vec![2, 1]);
+}
+
+// ---------------------------------------------------------------------------
+// authenticatorClientPIN
+// ---------------------------------------------------------------------------
+
+/// The request that opens every PIN session, byte for byte.
+///
+/// Hand-computable, which is the point: `06` is the command, `a2` a two-entry
+/// map, then `01 01` (pinUvAuthProtocol = 1) and `02 02` (subCommand =
+/// getKeyAgreement). If this ever grows a third key, an authenticator that
+/// reads the request strictly stops answering and the desktop client loses its
+/// only way to reach a key with a PIN.
+#[test]
+fn get_key_agreement_is_six_bytes() {
+    let bytes = match ClientPin::key_agreement(Protocol::One).encode() {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    assert_eq!(bytes, vec![0x06, 0xa2, 0x01, 0x01, 0x02, 0x02]);
+
+    let two = match ClientPin::key_agreement(Protocol::Two).encode() {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    assert_eq!(two, vec![0x06, 0xa2, 0x01, 0x02, 0x02, 0x02]);
+}
+
+/// A real P-256 point — the curve's generator, from SEC 2 §2.4.2. Written out
+/// rather than computed, so this fixture cannot drift with a p256 upgrade. Any
+/// fabricated (x, y) is refused by the shared COSE decoder, which the
+/// off-curve test below asserts directly.
+fn platform_key() -> P256PublicKey {
+    let hex = |text: &str| match vela_core::primitives::from_hex(text) {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("generator coordinate is not hex: {error}"),
+    };
+    P256PublicKey {
+        x: hex("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"),
+        y: hex("4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"),
+    }
+}
+
+/// The permissions subcommand carries what CTAP 2.1 scopes a token by; the
+/// 2.0 fallback carries neither, because `getPinToken` has no key for them.
+#[test]
+fn only_the_permissions_subcommand_scopes_the_token() {
+    let scoped = ClientPin::pin_token(
+        Protocol::Two,
+        platform_key(),
+        vec![0x11; 32],
+        Some(Permissions::MAKE_CREDENTIAL | Permissions::GET_ASSERTION),
+        Some("getvela.app".to_owned()),
+    );
+    assert_eq!(
+        scoped.subcommand,
+        ClientPinSubcommand::GetPinUvAuthTokenUsingPinWithPermissions
+    );
+    let map = match decode(
+        &scoped
+            .encode()
+            .unwrap_or_else(|error| unreachable!("{error:?}"))[1..],
+    ) {
+        Value::Map(entries) => entries,
+        other => unreachable!("clientPIN request is not a map: {other:?}"),
+    };
+    let at = |key: i64| {
+        map.iter().find_map(|(k, v)| match k {
+            Value::Integer(i) if i128::from(*i) == i128::from(key) => Some(v.clone()),
+            _ => None,
+        })
+    };
+    assert_eq!(at(0x09), Some(Value::Integer(3.into())), "mc | ga");
+    assert_eq!(at(0x0a), Some(Value::Text("getvela.app".to_owned())));
+    assert!(at(0x03).is_some(), "keyAgreement must travel with the hash");
+    assert_eq!(at(0x06), Some(Value::Bytes(vec![0x11; 32])));
+
+    // The same call with no permissions must fall back to CTAP 2.0's
+    // unscoped getPinToken — and must NOT smuggle the rpId into it, which is
+    // a key that subcommand does not define.
+    let unscoped = ClientPin::pin_token(
+        Protocol::Two,
+        platform_key(),
+        vec![0x11; 32],
+        None,
+        Some("getvela.app".to_owned()),
+    );
+    assert_eq!(unscoped.subcommand, ClientPinSubcommand::GetPinToken);
+    assert_eq!(unscoped.rp_id, None);
+    let bytes = unscoped
+        .encode()
+        .unwrap_or_else(|error| unreachable!("{error:?}"));
+    let map = match decode(&bytes[1..]) {
+        Value::Map(entries) => entries,
+        other => unreachable!("{other:?}"),
+    };
+    assert!(
+        !map.iter().any(|(k, _)| matches!(
+            k,
+            Value::Integer(i) if i128::from(*i) == 0x09 || i128::from(*i) == 0x0a
+        )),
+        "getPinToken must carry neither permissions nor rpId"
+    );
+}
+
+/// The platform's key goes out as a COSE_Key the wallet's own decoder reads
+/// back unchanged — the same decoder that reads a credential's public key out
+/// of attested credential data. If these two ever diverge, the desktop mints
+/// tokens no authenticator accepts and the failure surfaces as "wrong PIN".
+#[test]
+fn the_key_agreement_key_round_trips_through_the_shared_cose_decoder() {
+    let key = platform_key();
+    let request = ClientPin::pin_token(Protocol::Two, key.clone(), vec![0x22; 32], None, None);
+    let bytes = match request.encode() {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    let map = match decode(&bytes[1..]) {
+        Value::Map(entries) => entries,
+        other => unreachable!("{other:?}"),
+    };
+    let cose = map
+        .iter()
+        .find_map(|(k, v)| match k {
+            Value::Integer(i) if i128::from(*i) == 0x03 => Some(v.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| unreachable!("no keyAgreement in the request"));
+
+    // alg MUST be ECDH-ES+HKDF-256 (-25). Authenticators check it, and nothing
+    // in the wallet derives keys with it — protocol Two runs its own HKDF.
+    let alg = match &cose {
+        Value::Map(entries) => entries.iter().find_map(|(k, v)| match k {
+            Value::Integer(i) if i128::from(*i) == 3 => Some(v.clone()),
+            _ => None,
+        }),
+        other => unreachable!("keyAgreement is not a map: {other:?}"),
+    };
+    assert_eq!(alg, Some(Value::Integer((-25).into())));
+
+    // And it decodes back to the same point through the ONE COSE decoder.
+    let mut encoded = Vec::new();
+    if let Err(error) = ciborium::ser::into_writer(&cose, &mut encoded) {
+        unreachable!("{error}");
+    }
+    let response = client_pin_response(vec![(0x01, cose)]);
+    let parsed = match vela_core::ctap::parse_client_pin(&response) {
+        Ok(parsed) => parsed,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    assert_eq!(parsed.key_agreement, Some(key));
+}
+
+fn client_pin_response(entries: Vec<(i64, Value)>) -> Vec<u8> {
+    let map = Value::Map(
+        entries
+            .into_iter()
+            .map(|(key, value)| (Value::Integer(key.into()), value))
+            .collect(),
+    );
+    let mut body = Vec::new();
+    if let Err(error) = ciborium::ser::into_writer(&map, &mut body) {
+        unreachable!("{error}");
+    }
+    body
+}
+
+/// A keyAgreement key that is not on P-256 must be refused, not agreed with.
+///
+/// This is the one response in the PIN flow an attacker on the wire can
+/// usefully forge: a client that completes ECDH against an off-curve point can
+/// be walked into a shared secret with structure the forger chose. The check
+/// lives in the shared COSE decoder, so this test is really asserting that the
+/// CTAP path goes through it.
+#[test]
+fn an_off_curve_key_agreement_key_is_refused() {
+    let bogus = Value::Map(vec![
+        (Value::Integer(1.into()), Value::Integer(2.into())),
+        (Value::Integer(3.into()), Value::Integer((-25).into())),
+        (Value::Integer((-1).into()), Value::Integer(1.into())),
+        (Value::Integer((-2).into()), Value::Bytes(vec![0x01; 32])),
+        (Value::Integer((-3).into()), Value::Bytes(vec![0x02; 32])),
+    ]);
+    let response = client_pin_response(vec![(0x01, bogus)]);
+    assert!(
+        vela_core::ctap::parse_client_pin(&response).is_err(),
+        "an off-curve keyAgreement key must not produce a shared secret"
+    );
+}
+
+/// Retries and the power-cycle flag are what a wallet warns on before spending
+/// an attempt. Zero retries means the key is locked until it is RESET, and a
+/// reset destroys the wallet's founding credential.
+#[test]
+fn retries_and_power_cycle_are_read_back() {
+    let response = client_pin_response(vec![
+        (0x03, Value::Integer(2.into())),
+        (0x04, Value::Bool(true)),
+        (0x05, Value::Integer(5.into())),
+    ]);
+    let parsed = match vela_core::ctap::parse_client_pin(&response) {
+        Ok(parsed) => parsed,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    assert_eq!(parsed.pin_retries, Some(2));
+    assert!(parsed.power_cycle_state);
+    assert_eq!(parsed.uv_retries, Some(5));
+    assert_eq!(parsed.pin_uv_auth_token, None);
+    assert_eq!(parsed.key_agreement, None);
 }

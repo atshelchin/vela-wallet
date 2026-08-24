@@ -22,6 +22,9 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
 # language switch needs no I/O (spec 004 FR-014 leaves this choice per-platform).
 vela-core = { path = "../../rust/crates/vela-core", features = [
   "i18n-all",
+  # The onboarding, login and session state machines (spec 019). Desktop runs
+  # them in-process through `CoreHost<A>`; there is no bridge and no JSON.
+  "crux",
   # Identicon avatars as PNG bytes (spec 015 research.md D1): gpui's svg() is a
   # monochrome-mask renderer with a null AssetSource at rev c97b7c0, so the
   # desktop draws the same rasterization Android/iOS decode.
@@ -56,6 +59,58 @@ dotlottie-rs = { git = "https://github.com/LottieFiles/dotlottie-rs", tag = "v0.
 # The frame pump hands ThorVG's buffer to gpui as an `image::Frame`; this is the
 # same `image` version gpui itself re-exports through `RenderImage`.
 image = "0.25"
+
+# ---------------------------------------------------------------------------
+# Live onboarding (spec 019)
+# ---------------------------------------------------------------------------
+
+# The onboarding/login/session state machines. `crux` is DEFAULT OFF in
+# vela-core so the uniffi crate cannot grow (see its Cargo.toml); desktop is
+# the one client that runs `Core<A>` directly rather than through a bridge, so
+# it is the one client that turns the feature on here.
+crux_core = "0.19"
+
+# FIDO2 over USB HID (research D3). The desktop has no system passkey service,
+# so a removable security key is the only authenticator it can reach, and FIDO
+# over USB is HID — the kernel HID driver owns the device, so a raw-USB crate
+# cannot claim it.
+#
+# `linux-native-basic-udev`, NOT `linux-native`. D3 asked whether the native
+# backend removes the libudev link; measured, it does not:
+#
+#   --features linux-native             ⇒ udev v0.9.3 + libudev-sys v0.1.4
+#   --features linux-native-basic-udev  ⇒ basic-udev (pure Rust /sys walk)
+#
+# Both skip cc-compiling the vendored hidapi C, but only the `basic-udev`
+# variant drops the `libudev-sys` link, and with it the libudev-dev build
+# requirement — which is what the offline-and-deterministic posture below (see
+# the dotlottie-rs block) actually asks for. hidapi's build.rs re-exports
+# `feature="linux-native"` for it, so the same backend code runs either way,
+# and exactly one Linux backend may be selected — hence `default-features =
+# false`, which also drops `illumos-static-libusb`. Inert on macOS and Windows,
+# where the vendored IOKit/Win32 backends are used.
+hidapi = { version = "2.6", default-features = false, features = [
+    "linux-native-basic-udev",
+] }
+
+# The registry/index client. rustls + webpki-roots rather than the platform
+# verifier: the trust anchors are compiled in, so a build needs no system CA
+# store and behaves identically on the three desktops. `json` is ureq's
+# serde_json integration — the same serde_json the shell already needs for the
+# account file.
+ureq = { version = "3.4", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The 32-byte software group-key seed, and CTAP2's PIN/UV key agreement. ALL
+# randomness in the flow lives in the shell — vela-core's ctap module takes the
+# shared secret as an input precisely so it can stay a pure function.
+getrandom = "0.3"
+p256 = { version = "0.13", features = ["ecdh"] }
+
+# Where the account file lives: the platform config dir, so the three desktops
+# each land in their own convention rather than in a hand-rolled `~/.vela`.
+dirs = "6"
 
 # Embeds the application icon into vela-wallet.exe as resource id 1, which is
 # where gpui's LoadImageW looks for it. Declared unconditionally rather than

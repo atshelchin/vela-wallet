@@ -72,6 +72,19 @@ pub fn extract_attestation_public_key(
     let key = coset::CoseKey::from_slice(&cose_slice[..key_len])
         .map_err(|e| CoreError::InvalidCoseKey(format!("COSE parse: {e}")))?;
 
+    p256_from_cose_key(&key)
+}
+
+/// The P-256 point inside a COSE_Key, checked.
+///
+/// Shared, deliberately: an attested credential's public key and a CTAP2
+/// `getKeyAgreement` response are the same structure arriving by different
+/// roads, and the checks that matter — EC2, P-256, 32-byte coordinates, and a
+/// point that actually lies on the curve — must not exist twice with a chance
+/// to differ. `ctap::commands` reads the key-agreement key through this
+/// function for exactly that reason; it is also why the CTAP module has no
+/// COSE parser of its own.
+pub fn p256_from_cose_key(key: &coset::CoseKey) -> Result<P256PublicKey, CoreError> {
     if key.kty != coset::KeyType::Assigned(iana::KeyType::EC2) {
         return Err(CoreError::InvalidCoseKey(format!(
             "kty is {:?}, expected EC2",
@@ -111,7 +124,8 @@ pub fn extract_attestation_public_key(
         )));
     }
     // On-curve check: a fabricated (x, y) that is not a P-256 point must never
-    // become a wallet identity.
+    // become a wallet identity — nor, through the key-agreement path, a shared
+    // secret with an attacker-chosen structure.
     let mut sec1 = vec![0x04u8];
     sec1.extend_from_slice(&x);
     sec1.extend_from_slice(&y);

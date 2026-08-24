@@ -141,3 +141,144 @@ fn debug_output_never_carries_the_keys() {
     assert!(!rendered.contains("hmac_key"));
     assert!(!rendered.contains("7f"));
 }
+
+// ---------------------------------------------------------------------------
+// The token half of the sequence
+// ---------------------------------------------------------------------------
+
+/// A round trip through the session's own encryption, from the PIN the person
+/// typed to the token that comes back — using the SHELL's half as the
+/// authenticator would.
+///
+/// This is a round trip on purpose, and it is not the test that proves the
+/// crypto: NIST and RFC 5869 vectors inside the module do that. What this
+/// proves is the wiring — that `encrypt_pin_hash` produces something the same
+/// keys decrypt, and that a token of a legal size survives the trip intact.
+#[test]
+fn a_token_survives_the_session_it_was_minted_in() {
+    for protocol in [Protocol::One, Protocol::Two] {
+        let session = secret(protocol);
+        let iv = [0x5au8; 16];
+
+        let pin_hash_enc = match session.encrypt_pin_hash("1234", &iv) {
+            Ok(bytes) => bytes,
+            Err(error) => unreachable!("{error:?}"),
+        };
+        // Protocol Two prepends the IV; One sends the single block alone.
+        let expected = match protocol {
+            Protocol::One => 16,
+            Protocol::Two => 32,
+        };
+        assert_eq!(pin_hash_enc.len(), expected);
+        match session.decrypt(&pin_hash_enc) {
+            Ok(plain) => assert_eq!(plain, pin_hash("1234").to_vec()),
+            Err(error) => unreachable!("{error:?}"),
+        }
+
+        let wire = match session.encrypt(&[0x33u8; 32], &iv) {
+            Ok(bytes) => bytes,
+            Err(error) => unreachable!("{error:?}"),
+        };
+        let token = match session.decrypt_token(&wire) {
+            Ok(token) => token,
+            Err(error) => unreachable!("{error:?}"),
+        };
+        assert_eq!(token.protocol(), protocol);
+    }
+}
+
+/// A token of the wrong size means the two sides derived DIFFERENT keys, and
+/// what came back is plausible-looking noise. Passing it on produces a
+/// `pinUvAuthParam` the authenticator refuses with `PIN_AUTH_INVALID` — which
+/// a person reads as "my PIN was wrong" when their PIN was fine.
+#[test]
+fn a_token_that_is_not_16_or_32_bytes_is_a_wrong_shared_secret() {
+    let session = secret(Protocol::One);
+    let wire = match session.encrypt(&[0x44u8; 48], &[0u8; 16]) {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    assert!(
+        session.decrypt_token(&wire).is_err(),
+        "a 48-byte token is not a token"
+    );
+}
+
+/// The parameter is the HMAC of the CLIENT-DATA HASH under the token, and it
+/// is truncated on One and whole on Two. Both halves matter: an authenticator
+/// on One compares 16 bytes and rejects 32, and the protocol number has to
+/// travel with the parameter or the wallet cannot say which comparison it
+/// meant.
+#[test]
+fn the_parameter_is_sized_and_labelled_by_its_protocol() {
+    let client_data_hash = [0x99u8; 32];
+    let mut params = Vec::new();
+    for protocol in [Protocol::One, Protocol::Two] {
+        let session = secret(protocol);
+        let wire = match session.encrypt(&[0x33u8; 32], &[0x5au8; 16]) {
+            Ok(bytes) => bytes,
+            Err(error) => unreachable!("{error:?}"),
+        };
+        let token = match session.decrypt_token(&wire) {
+            Ok(token) => token,
+            Err(error) => unreachable!("{error:?}"),
+        };
+        let param = token.param(&client_data_hash);
+        assert_eq!(param.protocol, protocol.number());
+        assert_eq!(
+            param.param.len(),
+            match protocol {
+                Protocol::One => 16,
+                Protocol::Two => 32,
+            }
+        );
+        params.push(param.param);
+    }
+    // Both sessions decrypted to the same token bytes, so the difference
+    // between the protocols here is EXACTLY the truncation — One is Two's
+    // first 16 bytes. That is the property an authenticator on protocol One
+    // compares against, and sending it 32 bytes is a rejected request, not a
+    // longer one.
+    assert_eq!(params[0], params[1][..16].to_vec());
+}
+
+/// The parameter binds ONE challenge. Replaying a token against a different
+/// client-data hash produces a different parameter, which is the property that
+/// makes a stolen token useless for a ceremony it was not minted for.
+#[test]
+fn a_token_does_not_authenticate_a_challenge_it_was_not_asked_about() {
+    let session = secret(Protocol::Two);
+    let wire = match session.encrypt(&[0x33u8; 32], &[0x5au8; 16]) {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    let token = match session.decrypt_token(&wire) {
+        Ok(token) => token,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    assert_ne!(
+        token.param(&[0x01u8; 32]).param,
+        token.param(&[0x02u8; 32]).param
+    );
+}
+
+/// The debug formatter must never print the token. A `pinUvAuthToken` in a log
+/// is usable by anyone who reads it until the key is unplugged.
+#[test]
+fn a_token_does_not_print_itself() {
+    let session = secret(Protocol::Two);
+    let wire = match session.encrypt(&[0xabu8; 32], &[0x5au8; 16]) {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    let token = match session.decrypt_token(&wire) {
+        Ok(token) => token,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    let printed = format!("{token:?}");
+    assert!(printed.contains("PinUvAuthToken"));
+    assert!(
+        !printed.contains("ab"),
+        "the token bytes must not appear in its Debug output: {printed}"
+    );
+}

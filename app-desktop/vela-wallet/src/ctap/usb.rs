@@ -21,7 +21,18 @@ use std::time::{Duration, Instant};
 use hidapi::{HidApi, HidDevice};
 
 use vela_core::ctap::hid::{self, BROADCAST_CHANNEL, CtapHidCommand, Message, Reassembler};
-use vela_core::ctap::{HID_REPORT_SIZE, Status, selection_request, split_response};
+use vela_core::ctap::{
+    CredentialDescriptor, GetAssertion, HID_REPORT_SIZE, Status, selection_request, split_response,
+};
+
+/// The answer to "does this key hold that credential?".
+enum Holds {
+    Yes,
+    No,
+    /// The key would not say — too old for a silent probe, or the cable
+    /// hiccuped. Not a reason to exclude it from the fallback.
+    Unknown,
+}
 
 /// The HID usage page every FIDO authenticator declares, and the usage within
 /// it. A keyboard, a mouse and a webcam all also enumerate as HID devices; this
@@ -123,6 +134,11 @@ pub struct SecurityKey {
     /// and the `rk` capability both come from here, and asking twice would let
     /// a ceremony act on a different answer than the one it decided with.
     product: String,
+    /// The HID path — stable for as long as the device stays plugged in, and
+    /// DIFFERENT for two keys of the same model, which the product string is
+    /// not. It is an identity, never shown: the only thing that reads it is the
+    /// PIN cache, which must not hand one key's PIN to another.
+    path: String,
 }
 
 impl SecurityKey {
@@ -161,8 +177,9 @@ impl SecurityKey {
             // A key that will not open is skipped, not fatal: another one on
             // the bus may open fine, and "no key present" is a better answer
             // than one device's permission error.
+            let path = info.path().to_string_lossy().into_owned();
             if let Ok(device) = info.open_device(&api) {
-                opened.push((product, device));
+                opened.push((product, path, device));
             }
         }
 
@@ -170,12 +187,8 @@ impl SecurityKey {
             return Err(UsbError::NoKeyPresent);
         }
         if opened.len() == 1 {
-            let (product, device) = opened.remove(0);
-            let mut key = Self {
-                device,
-                channel: BROADCAST_CHANNEL,
-                product,
-            };
+            let (product, path, device) = opened.remove(0);
+            let mut key = Self::new(product, path, device);
             key.channel = key.init(nonce())?;
             return Ok(key);
         }
@@ -183,9 +196,122 @@ impl SecurityKey {
         Self::race(opened, nonce, touch)
     }
 
+    /// Open the key that already holds a particular credential.
+    ///
+    /// A `get()` knows which credential it wants, so making every plugged-in
+    /// key blink and asking a person to pick is asking them to answer a
+    /// question the client could answer itself. Each key is probed SILENTLY —
+    /// a `getAssertion` with `up: false`, which no authenticator lights up for
+    /// — and the one that does not say "no credentials" is the one.
+    ///
+    /// Falls back to the touch race when the answer is not exactly one key:
+    /// zero (the credential is on something unplugged), several (a credential
+    /// restored onto two keys), or a device too old to answer a silent probe.
+    /// A guess would be worse than a question.
+    pub fn open_holding(
+        credential_id: &[u8],
+        rp_id: &str,
+        probe_hash: &[u8],
+        nonce: &dyn Fn() -> [u8; 8],
+        touch: Option<&TouchNotifier>,
+    ) -> Result<Self, UsbError> {
+        let api = HidApi::new().map_err(|error| UsbError::Hid(error.to_string()))?;
+        let mut opened = Vec::new();
+        for info in api
+            .device_list()
+            .filter(|device| device.usage_page() == FIDO_USAGE_PAGE && device.usage() == FIDO_USAGE)
+        {
+            let product = info.product_string().unwrap_or("security key").to_owned();
+            let path = info.path().to_string_lossy().into_owned();
+            if let Ok(device) = info.open_device(&api) {
+                opened.push((product, path, device));
+            }
+        }
+        if opened.is_empty() {
+            return Err(UsbError::NoKeyPresent);
+        }
+
+        let mut holders = Vec::new();
+        let mut rest = Vec::new();
+        for (product, path, device) in opened {
+            let mut key = Self::new(product, path, device);
+            match key.init(nonce()) {
+                Ok(channel) => key.channel = channel,
+                Err(_) => continue,
+            }
+            match key.holds(credential_id, rp_id, probe_hash) {
+                Holds::Yes => holders.push(key),
+                // Definitively not this one — it is not even a candidate for
+                // the fallback race, because it cannot answer the assertion.
+                Holds::No => {}
+                Holds::Unknown => rest.push(key),
+            }
+        }
+
+        if holders.len() == 1 {
+            return Ok(holders.remove(0));
+        }
+        // Ambiguous. Ask, rather than guess — but only among the keys that
+        // might hold it, so nothing blinks that certainly cannot answer.
+        holders.append(&mut rest);
+        if holders.is_empty() {
+            return Err(UsbError::NoKeyPresent);
+        }
+        if holders.len() == 1 {
+            return Ok(holders.remove(0));
+        }
+        Self::race_open(holders, touch)
+    }
+
+    /// Does this key hold that credential? Asked without lighting it up.
+    fn holds(&mut self, credential_id: &[u8], rp_id: &str, probe_hash: &[u8]) -> Holds {
+        let probe = GetAssertion {
+            rp_id: rp_id.to_owned(),
+            client_data_hash: probe_hash.to_vec(),
+            allow: vec![CredentialDescriptor {
+                id: credential_id.to_vec(),
+            }],
+            // The whole point: no touch, no light.
+            user_presence: false,
+            user_verification: false,
+            pin_uv_auth: None,
+        };
+        let Ok(request) = probe.encode() else {
+            return Holds::Unknown;
+        };
+        match self.cbor(&request, None) {
+            // It answered an assertion for that credential, so it has it.
+            Ok(_) => Holds::Yes,
+            Err(UsbError::Ctap(Status::NoCredentials)) => Holds::No,
+            // It refused for a reason that is ABOUT the credential rather than
+            // about its absence — a PIN it wants first, a UV it insists on.
+            // Only a key that holds the credential gets that far.
+            Err(UsbError::Ctap(Status::PinRequired | Status::PinNotSet | Status::UvFailed)) => {
+                Holds::Yes
+            }
+            // Anything else — an old key that will not do silent probes, a
+            // cable that hiccuped — is not an answer either way.
+            Err(_) => Holds::Unknown,
+        }
+    }
+
+    fn new(product: String, path: String, device: HidDevice) -> Self {
+        Self {
+            device,
+            channel: BROADCAST_CHANNEL,
+            product,
+            path,
+        }
+    }
+
+    /// The key's identity for this session. Not for display.
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
     /// Ask every plugged-in key which one is being touched.
     fn race(
-        opened: Vec<(String, HidDevice)>,
+        opened: Vec<(String, String, HidDevice)>,
         nonce: &dyn Fn() -> [u8; 8],
         touch: Option<&TouchNotifier>,
     ) -> Result<Self, UsbError> {
@@ -198,28 +324,41 @@ impl SecurityKey {
             }));
         }
 
+        let mut keys = Vec::with_capacity(opened.len());
+        for (product, path, device) in opened {
+            let mut key = Self::new(product, path, device);
+            // A key that will not even initialise is not in the race.
+            if let Ok(channel) = key.init(nonce()) {
+                key.channel = channel;
+                keys.push(key);
+            }
+        }
+        Self::finish_race(keys, touch)
+    }
+
+    /// The same race over keys that are already open and initialised.
+    fn race_open(keys: Vec<Self>, touch: Option<&TouchNotifier>) -> Result<Self, UsbError> {
+        if let Some(notify) = touch {
+            notify(Some(TouchRequest {
+                kind: TouchKind::Select,
+                product: String::new(),
+            }));
+        }
+        Self::finish_race(keys, touch)
+    }
+
+    fn finish_race(keys: Vec<Self>, touch: Option<&TouchNotifier>) -> Result<Self, UsbError> {
         let (winner_tx, winner_rx) = mpsc::channel::<Result<Self, ()>>();
-        let mut handles = Vec::with_capacity(opened.len());
-        for (product, device) in opened {
-            let nonce = nonce();
+        let mut handles = Vec::with_capacity(keys.len());
+        for mut key in keys {
             let winner_tx = winner_tx.clone();
             handles.push(thread::spawn(move || {
-                let mut key = Self {
-                    device,
-                    channel: BROADCAST_CHANNEL,
-                    product,
-                };
-                let outcome = key
-                    .init(nonce)
-                    .and_then(|channel| {
-                        key.channel = channel;
-                        let request = selection_request()
-                            .map_err(|error| UsbError::Encode(error.to_string()))?;
-                        // No notifier on this one: the announcement above
-                        // covers the whole race, and one per device would fire
-                        // as many times as there are keys.
-                        key.cbor(&request, None)
-                    })
+                let outcome = selection_request()
+                    .map_err(|error| UsbError::Encode(error.to_string()))
+                    // No notifier on this one: the announcement covers the
+                    // whole race, and one per device would fire as many times
+                    // as there are keys.
+                    .and_then(|request| key.cbor(&request, None))
                     .map(|_| key);
                 // A send that fails means the race is already decided and the
                 // receiver is gone — the normal ending for every loser.

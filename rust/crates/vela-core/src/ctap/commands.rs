@@ -159,6 +159,13 @@ pub struct GetAssertion {
     /// Empty means "any discoverable credential for this RP" — the
     /// "who are you?" ceremony sign-in starts with.
     pub allow: Vec<CredentialDescriptor>,
+    /// Ask the person to touch the key.
+    ///
+    /// `false` is the SILENT probe: "do you hold this credential?", answered
+    /// without lighting the key up. It is how a client with a credential id
+    /// already in hand finds WHICH of several plugged-in keys holds it, instead
+    /// of making all of them blink and asking a person to disambiguate
+    /// something the client could have worked out itself.
     pub user_presence: bool,
     pub user_verification: bool,
     pub pin_uv_auth: Option<PinUvAuth>,
@@ -308,6 +315,12 @@ impl GetAssertion {
         let mut options = Vec::new();
         if self.user_presence {
             options.push((Value::Text("up".to_string()), Value::Bool(true)));
+        } else {
+            // Emitted EXPLICITLY when false. CTAP2 defaults `up` to true when
+            // the key is absent, so a silent probe that merely omits it is a
+            // request that makes the key blink — the opposite of what it is
+            // for.
+            options.push((Value::Text("up".to_string()), Value::Bool(false)));
         }
         if self.user_verification {
             options.push((Value::Text("uv".to_string()), Value::Bool(true)));

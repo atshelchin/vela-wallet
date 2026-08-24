@@ -24,6 +24,7 @@
 //! attempts on a retry that was never refused. Blocking on a condvar until the
 //! person answers is what keeps one attempt one attempt.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex};
 
 use crate::ctap::usb::TouchRequest;
@@ -48,13 +49,20 @@ struct PinState {
     /// Set by the screen; taken by the ceremony thread. The outer `Option` is
     /// "has an answer arrived", the inner is "was it a PIN or a dismissal".
     answer: Option<Option<String>>,
-    /// The PIN already given during this flow.
+    /// The PIN already given during this flow, PER KEY.
     ///
-    /// Reused without asking again — a wallet with three founding keys on one
-    /// authenticator would otherwise ask three times for the same digits. It is
-    /// dropped the moment an attempt is REFUSED, so a mistyped PIN is never
-    /// silently retried, and again when the flow closes.
-    cached: Option<String>,
+    /// Keyed by device, and that is the whole point. One founding key takes
+    /// several ceremonies — register, then prove, then confirm membership — and
+    /// asking for the same digits three times in a row is not security, it is
+    /// friction. But with two keys plugged in, the first version of this cache
+    /// was flow-wide, so key A's PIN was silently offered to key B: wrong
+    /// (different keys have different PINs, and it would spend one of B's
+    /// attempts on A's), and it reads like the app kept the PIN somewhere.
+    ///
+    /// It keeps it in memory, for one flow, per device. Dropped the moment an
+    /// attempt is REFUSED — so a mistyped PIN is never silently retried — and
+    /// again when the flow closes.
+    cached: HashMap<String, String>,
     /// The flow went away. A ceremony still blocked here must stop waiting
     /// rather than hold a thread until the process exits.
     closed: bool,
@@ -107,11 +115,12 @@ impl CeremonyChannel {
         if state.closed {
             return None;
         }
-        // A refused attempt invalidates whatever is cached: it was wrong, and
+        // A refused attempt invalidates THAT KEY's entry: it was wrong, and
         // replaying it would spend the next attempt on the same mistake.
+        let device = request.device.clone();
         if request.retry {
-            state.cached = None;
-        } else if let Some(cached) = &state.cached {
+            state.cached.remove(&device);
+        } else if let Some(cached) = state.cached.get(&device) {
             return Some(cached.clone());
         }
 
@@ -123,7 +132,14 @@ impl CeremonyChannel {
             }
             if let Some(answer) = state.answer.take() {
                 state.asking = None;
-                state.cached = answer.clone();
+                match &answer {
+                    Some(pin) => {
+                        state.cached.insert(device, pin.clone());
+                    }
+                    None => {
+                        state.cached.remove(&device);
+                    }
+                }
                 return answer;
             }
             let Ok(next) = self.answered.wait(state) else {
@@ -191,7 +207,7 @@ impl CeremonyChannel {
     pub fn close(&self) {
         if let Ok(mut state) = self.pin.lock() {
             state.closed = true;
-            state.cached = None;
+            state.cached.clear();
             state.asking = None;
             state.answer = Some(None);
         }
@@ -204,5 +220,131 @@ impl CeremonyChannel {
             *slot = None;
         }
         self.answered.notify_all();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn request(device: &str, retry: bool) -> PinRequest {
+        PinRequest {
+            product: "YubiKey 5C NFC".to_owned(),
+            device: device.to_owned(),
+            retries: Some(8),
+            retry,
+        }
+    }
+
+    /// Answer whatever the ceremony thread asks for, counting the asks.
+    ///
+    /// The channel blocks the caller until a screen replies, so the "screen"
+    /// here is a thread that watches for a question and answers it.
+    fn answering(
+        channel: &Arc<CeremonyChannel>,
+        pin: &'static str,
+        asks: Arc<AtomicUsize>,
+    ) -> std::thread::JoinHandle<()> {
+        let channel = Arc::clone(channel);
+        std::thread::spawn(move || {
+            // Bounded so a broken cache cannot hang the suite.
+            for _ in 0..200 {
+                if channel.pending_pin().is_some() {
+                    asks.fetch_add(1, Ordering::Relaxed);
+                    channel.answer_pin(Some(pin.to_owned()));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        })
+    }
+
+    /// TWO KEYS, TWO PINS.
+    ///
+    /// The cache exists so one key is not asked three times during one wallet
+    /// creation. It was flow-wide at first, which meant the second key plugged
+    /// in never got asked at all — it was handed the first key's PIN. That is
+    /// wrong twice over: different keys have different PINs, so it would spend
+    /// one of the second key's limited attempts on the first key's digits; and
+    /// to a person watching, it looks like the app kept their PIN.
+    #[test]
+    fn one_key_s_pin_is_never_offered_to_another() {
+        let channel = CeremonyChannel::new();
+        let asks = Arc::new(AtomicUsize::new(0));
+        let screen = answering(&channel, "1234", Arc::clone(&asks));
+
+        let ceremony = channel.ceremony();
+        // Same key twice: asked once, cached for the second.
+        assert_eq!(
+            (ceremony.pin)(request("/dev/key-a", false)).as_deref(),
+            Some("1234")
+        );
+        assert_eq!(
+            (ceremony.pin)(request("/dev/key-a", false)).as_deref(),
+            Some("1234")
+        );
+        assert_eq!(
+            asks.load(Ordering::Relaxed),
+            1,
+            "the same key is asked once"
+        );
+
+        // A DIFFERENT key: asked again, even though a PIN is already cached.
+        assert_eq!(
+            (ceremony.pin)(request("/dev/key-b", false)).as_deref(),
+            Some("1234")
+        );
+        assert_eq!(
+            asks.load(Ordering::Relaxed),
+            2,
+            "a second key must be asked for its own PIN"
+        );
+
+        channel.close();
+        let _ = screen.join();
+    }
+
+    /// A refused PIN drops that key's entry, and only that key's.
+    #[test]
+    fn a_refusal_forgets_one_key_and_leaves_the_other() {
+        let channel = CeremonyChannel::new();
+        let asks = Arc::new(AtomicUsize::new(0));
+        let screen = answering(&channel, "1234", Arc::clone(&asks));
+
+        let ceremony = channel.ceremony();
+        let _ = (ceremony.pin)(request("/dev/key-a", false));
+        let _ = (ceremony.pin)(request("/dev/key-b", false));
+        assert_eq!(asks.load(Ordering::Relaxed), 2);
+
+        // A retries: asked again. B is untouched by that.
+        let _ = (ceremony.pin)(request("/dev/key-a", true));
+        assert_eq!(asks.load(Ordering::Relaxed), 3);
+        let _ = (ceremony.pin)(request("/dev/key-b", false));
+        assert_eq!(
+            asks.load(Ordering::Relaxed),
+            3,
+            "the other key's cache survives its neighbour's mistake"
+        );
+
+        channel.close();
+        let _ = screen.join();
+    }
+
+    /// Closing the flow releases anything blocked AND forgets every PIN. A
+    /// cached secret outliving the screen that collected it is a secret nobody
+    /// agreed to leave lying around.
+    #[test]
+    fn closing_forgets_every_pin_and_unblocks() {
+        let channel = CeremonyChannel::new();
+        let asks = Arc::new(AtomicUsize::new(0));
+        let screen = answering(&channel, "1234", Arc::clone(&asks));
+        let ceremony = channel.ceremony();
+        let _ = (ceremony.pin)(request("/dev/key-a", false));
+        channel.close();
+        let _ = screen.join();
+
+        // After close, a request returns immediately with nothing rather than
+        // blocking on a screen that is gone.
+        assert_eq!((ceremony.pin)(request("/dev/key-a", false)), None);
     }
 }

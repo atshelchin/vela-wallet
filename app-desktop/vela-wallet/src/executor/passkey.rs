@@ -101,6 +101,10 @@ pub struct PinRequest {
     /// The authenticator's product string, so the dialog can name the key on
     /// the desk rather than "your authenticator".
     pub product: String,
+    /// Which key is asking. NOT shown — it is the HID path, and its only job is
+    /// to keep one key's PIN from being offered to another. Two keys of the
+    /// same model report the same product string, so the product cannot do it.
+    pub device: String,
     /// Attempts left before the key locks itself. A locked key can only be
     /// recovered by a RESET, which destroys every credential on it — including
     /// this wallet's founding key — so this number is shown, never hidden.
@@ -243,7 +247,10 @@ pub fn assert(
     credential_id: Option<&str>,
     ceremony: &Ceremony,
 ) -> Result<Assertion, PasskeyFailure> {
-    let mut key = open(ceremony)?;
+    let mut key = match credential_id {
+        Some(id) => open_for(id, ceremony)?,
+        None => open(ceremony)?,
+    };
     let info = get_info(&mut key)?;
     verifiable(&key, &info)?;
 
@@ -467,6 +474,7 @@ fn pin_session(
         let retries = pin_retries(key, protocol);
         let Some(pin) = (ceremony.pin)(PinRequest {
             product: key.product().to_owned(),
+            device: key.path().to_owned(),
             retries,
             retry,
         }) else {
@@ -609,12 +617,38 @@ fn key_agreement(
 // Plumbing
 // ---------------------------------------------------------------------------
 
+fn nonces() -> impl Fn() -> [u8; 8] {
+    || match random(8).try_into() {
+        Ok(nonce) => nonce,
+        Err(_) => unreachable!("random(8) returns 8 bytes"),
+    }
+}
+
+/// The key to run a ceremony on when ANY key will do — a registration, or the
+/// "who are you?" sign-in. With several plugged in, the one touched wins.
 fn open(ceremony: &Ceremony) -> Result<SecurityKey, PasskeyFailure> {
-    SecurityKey::open_touched(
-        &|| match random(8).try_into() {
-            Ok(nonce) => nonce,
-            Err(_) => unreachable!("random(8) returns 8 bytes"),
-        },
+    SecurityKey::open_touched(&nonces(), Some(&ceremony.touch)).map_err(usb_failure)
+}
+
+/// The key that already holds this credential.
+///
+/// Used whenever the credential id is known — every proof, every membership
+/// confirmation, every re-signature. Those are the ceremonies where making all
+/// three plugged-in keys blink is asking a person to answer a question the
+/// client can answer itself, silently, in a few milliseconds.
+///
+/// The probe hash is fresh random bytes, never the ceremony's real client-data
+/// hash: a probe is discarded, and an assertion signed over the real hash by a
+/// key that then loses the race would be a signature nobody asked for.
+fn open_for(credential_id: &str, ceremony: &Ceremony) -> Result<SecurityKey, PasskeyFailure> {
+    let Ok(id) = primitives::from_hex(credential_id) else {
+        return open(ceremony);
+    };
+    SecurityKey::open_holding(
+        &id,
+        RELYING_PARTY,
+        &random(32),
+        &nonces(),
         Some(&ceremony.touch),
     )
     .map_err(usb_failure)

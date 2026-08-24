@@ -260,6 +260,7 @@ fn entries() -> Vec<Entry> {
         "pin · first ask",
         Fixture::Pin(PinRequest {
             product: "YubiKey 5C NFC".to_owned(),
+            device: "/dev/fixture".to_owned(),
             retries: Some(8),
             retry: false,
         }),
@@ -268,6 +269,7 @@ fn entries() -> Vec<Entry> {
         "pin · refused",
         Fixture::Pin(PinRequest {
             product: "YubiKey 5C NFC".to_owned(),
+            device: "/dev/fixture".to_owned(),
             retries: Some(2),
             retry: true,
         }),
@@ -276,6 +278,7 @@ fn entries() -> Vec<Entry> {
         "pin · no count",
         Fixture::Pin(PinRequest {
             product: "Security key".to_owned(),
+            device: "/dev/fixture".to_owned(),
             retries: None,
             retry: false,
         }),

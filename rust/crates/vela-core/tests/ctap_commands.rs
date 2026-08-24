@@ -703,3 +703,65 @@ fn retries_and_power_cycle_are_read_back() {
     assert_eq!(parsed.pin_uv_auth_token, None);
     assert_eq!(parsed.key_agreement, None);
 }
+
+/// The silent probe: "do you hold this credential?", asked without lighting
+/// the key up.
+///
+/// `up: false` has to be EMITTED. CTAP2 defaults `up` to true when the key is
+/// absent from the options map, so a probe that merely leaves it out is a
+/// request that makes the authenticator blink — which is the opposite of a
+/// silent probe, and with three keys plugged in means three keys blinking for
+/// a question the client could have answered itself.
+#[test]
+fn a_silent_probe_says_up_false_out_loud() {
+    let probe = GetAssertion {
+        rp_id: "getvela.app".to_owned(),
+        client_data_hash: vec![0xbb; 32],
+        allow: vec![CredentialDescriptor { id: vec![1, 2, 3] }],
+        user_presence: false,
+        user_verification: false,
+        pin_uv_auth: None,
+    };
+    let bytes = match probe.encode() {
+        Ok(bytes) => bytes,
+        Err(error) => unreachable!("{error:?}"),
+    };
+    let Value::Map(entries) = decode(&bytes[1..]) else {
+        unreachable!("request is not a map");
+    };
+    let options = entries
+        .iter()
+        .find_map(|(k, v)| match k {
+            Value::Integer(i) if i128::from(*i) == 0x05 => Some(v.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| unreachable!("no options map"));
+    let Value::Map(options) = options else {
+        unreachable!("options is not a map");
+    };
+    assert_eq!(
+        options.iter().find_map(|(k, v)| match k {
+            Value::Text(name) if name == "up" => Some(v.clone()),
+            _ => None,
+        }),
+        Some(Value::Bool(false)),
+        "a probe that omits `up` is a probe that makes the key blink"
+    );
+    assert!(
+        !options
+            .iter()
+            .any(|(k, _)| matches!(k, Value::Text(name) if name == "uv")),
+        "a probe asks for no verification either"
+    );
+
+    // And the allow list pins exactly the one credential being asked about,
+    // so the answer is about IT and not about whatever else the key holds.
+    let allow = entries.iter().find_map(|(k, v)| match k {
+        Value::Integer(i) if i128::from(*i) == 0x03 => Some(v.clone()),
+        _ => None,
+    });
+    let Some(Value::Array(allow)) = allow else {
+        unreachable!("no allow list");
+    };
+    assert_eq!(allow.len(), 1);
+}

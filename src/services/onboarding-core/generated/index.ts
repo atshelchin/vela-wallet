@@ -8,6 +8,7 @@ export * from './CreateStage';
 export * from './CreateView';
 export * from './CreateWalletEvent';
 export * from './FailureKind';
+export * from './KeyMethod';
 export * from './LoginEvent';
 export * from './LoginView';
 export * from './PendingUpload';

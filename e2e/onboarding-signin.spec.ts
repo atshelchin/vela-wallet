@@ -15,10 +15,13 @@
  */
 import { test, expect, type Page, type CDPSession } from '@playwright/test';
 
+// Two gates now, not four (spec 019): self-custody, and legal assent. The
+// recovery line is still on the screen but is an assurance, not a checkbox —
+// so it deliberately does NOT appear here. Clicking it would be a no-op and
+// the Create button would stay disabled, which is exactly the failure this
+// list exists to make impossible.
 const ACK_FRAGMENTS = [
-  'This is a self-custodial wallet',
-  'If you lose your device',
-  'If your iCloud or Google account is compromised',
+  'My private keys are held by my own device',
   'I agree to the',
 ];
 
@@ -29,6 +32,12 @@ const AUTHENTICATOR_OPTIONS = {
   hasUserVerification: true,
   isUserVerified: true,
   automaticPresenceSimulation: true,
+  // Chrome's virtual authenticator leaves the backup flags clear, which the
+  // core reads as "this key exists only on this device" — and a sole
+  // device-bound key cannot finish the founding set. Declaring it backed up
+  // keeps these tests about sign-in rather than about the second-key gate.
+  defaultBackupEligibility: true,
+  defaultBackupState: true,
 } as const;
 
 type IndexMode = 'record' | 'missing' | 'unreachable';
@@ -62,6 +71,41 @@ async function stubNetwork(page: Page, state: { mode: IndexMode }): Promise<void
       record = { ...(route.request().postDataJSON() as Record<string, unknown>), createdAt: Date.now() };
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(record) });
     }
+    // POST /api/challenge — MEMBER mode (one founding key confirming at
+    // creation) and GROUP mode (closing the group at publish) share the
+    // endpoint, told apart by whether the body carries `members`.
+    if (url.includes('/api/challenge')) {
+      const body = route.request().postDataJSON() as {
+        members?: { publicKey: string; attestation?: string }[];
+      };
+      const value = (seed: string) => ({
+        challenge: `0x${seed.padEnd(64, '0').slice(0, 64)}`,
+        challengeBase64url: Buffer.from(seed.padEnd(32, '0').slice(0, 32)).toString('base64url'),
+      });
+      const payload = body.members
+        ? {
+            contentHash: `0x${'c0'.repeat(32)}`,
+            groupChallenge: value('a1'),
+            members: body.members.map((m, i) => ({ ...value(`b${i}`), publicKey: m.publicKey })),
+          }
+        : value('b0');
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+    }
+    if (url.includes('/api/register')) {
+      record = { ...(route.request().postDataJSON() as Record<string, unknown>), createdAt: Date.now() };
+      return route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'task-e2e', status: 'pending' }),
+      });
+    }
+    if (url.includes('/api/task/')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'task-e2e', status: 'done', onChainId: 1, txHash: null }),
+      });
+    }
     if (url.includes('/api/query')) {
       const found = state.mode === 'record' && record !== null;
       return found
@@ -94,7 +138,11 @@ async function createWallet(page: Page, name: string): Promise<void> {
     await page.getByText(frag, { exact: false }).first().click({ position: { x: 6, y: 6 } });
   }
   await page.getByText('Create Wallet', { exact: true }).last().click();
-  await expect(page.locator('body')).toContainText('Your wallet is ready!', { timeout: 30_000 });
+  // The founding-key list, new with the multi-key set: the address is a
+  // function of the WHOLE set, so this is the last moment a key can be added.
+  await expect(page.locator('body')).toContainText('Added', { timeout: 30_000 });
+  await page.getByText('Continue', { exact: true }).last().click();
+  await expect(page.locator('body')).toContainText('Wallet created', { timeout: 30_000 });
 }
 
 async function readAccounts(page: Page): Promise<{ id: string; address: string; name: string }[]> {

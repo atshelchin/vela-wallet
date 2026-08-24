@@ -52,7 +52,7 @@ link fragments but moves from `ack3` to `ack1`.
 | `create.keysLabel` | zh 「已添加」 · en "Added" — the key-list section label |
 | `create.successTitle` | zh 「钱包已创建」 · en "Wallet created" |
 | `create.successMessage` | zh 「{{count}} 把密钥都能单独登录。合约在首笔交易时部署。」 · en "Any of your {{count}} keys can sign in on its own. The contract deploys with your first transaction." |
-| `create.keyDeviceOnlyBadge` | zh 「仅本机」 · en "This device" |
+| `create.keyDeviceOnlyBadge` | zh 「仅本机」 · en "This device only" — deliberately NOT "This device", which is `methodPlatformTitle`; the badge and the add-method must not read identically |
 | `create.keySyncedBadge` | zh 「已同步」 · en "Synced" |
 | `create.needSecondKeyHint` | zh 「这把密钥只存在本机，没有同步备份。设备一旦丢失，钱包就打不开了。」 · en "This key exists only on this device, with no synced backup. Lose the device and the wallet cannot be opened." |
 | `common.notDiscoverableTitle` | zh 「这台设备上没有可用的通行密钥」 · en "No usable passkey on this device" |
@@ -91,7 +91,7 @@ link fragments but moves from `ack3` to `ack1`.
 | `create.keysSubtitle` | 任意一把都能单独登录，最多 7 把。 | Any one of them can sign in on its own. Up to 7. |
 | `create.keysSubtitleBlocked` | 两把密钥，丢一把另一把照样登录。 | With two keys, losing one still leaves you a way in. |
 | `create.keysSubtitleFull` | 已达上限 7 把。 | You've reached the limit of 7. |
-| `create.keyCount` | {{count}} / {{max}} | {{count}} / {{max}} |
+| `create.keyCount` | {{current}} / {{max}} | {{current}} / {{max}} |
 | `create.keyLimitReached` | 已达上限 7 把 | Limit of 7 reached |
 | `create.keyHardwareBadge` | 硬件 | Hardware |
 | `create.addSecondKeyBtn` | 先添加第 2 把密钥 | Add a second key first |

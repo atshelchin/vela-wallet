@@ -18,10 +18,13 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 
+// Two gates now, not four (spec 019): self-custody, and legal assent. The
+// recovery line is still on the screen but is an assurance, not a checkbox —
+// so it deliberately does NOT appear here. Clicking it would be a no-op and
+// the Create button would stay disabled, which is exactly the failure this
+// list exists to make impossible.
 const ACK_FRAGMENTS = [
-  'This is a self-custodial wallet',
-  'If you lose your device',
-  'If your iCloud or Google account is compromised',
+  'My private keys are held by my own device',
   'I agree to the',
 ];
 
@@ -32,6 +35,15 @@ const AUTHENTICATOR_OPTIONS = {
   hasUserVerification: true,
   isUserVerified: true,
   automaticPresenceSimulation: true,
+  // Chrome's virtual authenticator leaves the authenticatorData backup flags
+  // clear by default, which the core correctly reads as "this key exists only
+  // on this device" — and a sole device-bound key cannot finish the founding
+  // set (needs_second_key). Declaring the credential backed up is what makes
+  // this a SINGLE-key happy path rather than a test of the second-key gate,
+  // which `a_sole_device_bound_key_cannot_finish_alone` already covers in the
+  // core suite.
+  defaultBackupEligibility: true,
+  defaultBackupState: true,
 } as const;
 
 /**
@@ -60,6 +72,52 @@ async function stubNetworkWithIndexMock(page: Page): Promise<void> {
     if (url.includes('/api/create')) {
       record = { ...(route.request().postDataJSON() as Record<string, unknown>), createdAt: Date.now() };
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(record) });
+    }
+    // POST /api/challenge — MEMBER mode (one founding key confirming at
+    // creation) and GROUP mode (closing the group at publish) share the
+    // endpoint and are told apart by whether the body carries `members`. The
+    // interleaved create->confirm flow calls the member form once per key
+    // BEFORE any publish exists, so a stub without this route leaves the
+    // executor reading `.challenge` off undefined and the whole create path
+    // dies at "Verifying identity...".
+    if (url.includes('/api/challenge')) {
+      const body = route.request().postDataJSON() as {
+        members?: { publicKey: string; attestation?: string }[];
+      };
+      const value = (seed: string) => ({
+        challenge: `0x${seed.padEnd(64, '0').slice(0, 64)}`,
+        challengeBase64url: Buffer.from(seed.padEnd(32, '0').slice(0, 32)).toString('base64url'),
+      });
+      const payload = body.members
+        ? {
+            contentHash: `0x${'c0'.repeat(32)}`,
+            groupChallenge: value('a1'),
+            members: body.members.map((m, i) => ({ ...value(`b${i}`), publicKey: m.publicKey })),
+          }
+        : value('b0');
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(payload),
+      });
+    }
+    // POST /api/register accepts, and the task it names is immediately done —
+    // the flow only needs a terminal state, not a realistic settlement delay.
+    if (url.includes('/api/register')) {
+      const req = route.request().postDataJSON() as Record<string, unknown>;
+      record = { ...req, createdAt: Date.now() };
+      return route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'task-e2e', status: 'pending' }),
+      });
+    }
+    if (url.includes('/api/task/')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ id: 'task-e2e', status: 'done', onChainId: 1, txHash: null }),
+      });
     }
     if (url.includes('/api/query')) {
       return record
@@ -101,9 +159,16 @@ test.describe('Onboarding — passkey must prove it can sign before anything per
     await fillCreateForm(page, 'E2E Verify Test');
     await page.getByText('Create Wallet', { exact: true }).last().click();
 
-    // Register + test signature + upload all run inside one flow now; the
-    // success screen appears only after signing is proven AND the key synced.
-    await expect(page.locator('body')).toContainText('Your wallet is ready!', { timeout: 30_000 });
+    // The founding-key list: the first key is registered and has confirmed its
+    // group membership, and the person decides whether one is enough. This
+    // step exists because the address is a function of the WHOLE set, so it is
+    // the last moment a key can be added.
+    await expect(page.locator('body')).toContainText('Added', { timeout: 30_000 });
+    await page.getByText('Continue', { exact: true }).last().click();
+
+    // Register + test signature + publish all run inside one flow; the success
+    // screen appears only after signing is proven AND the group has landed.
+    await expect(page.locator('body')).toContainText('Wallet created', { timeout: 30_000 });
     await expect(page.locator('body')).toContainText(/0x[0-9a-fA-F]/);
     await expect(page.locator('body')).toContainText('Enter Wallet');
 
@@ -164,10 +229,13 @@ test.describe('Onboarding — passkey must prove it can sign before anything per
       w.__releaseGet = null;
     });
 
-    // Verification fails → resume state, NOT a success screen.
+    // Verification fails → the key list with that row unconfirmed, NOT a
+    // success screen. The retry is per row ("Confirm"), because with a
+    // founding SET the failure belongs to one key rather than to the flow —
+    // the others keep their proofs and are not re-signed.
     await expect(page.locator('body')).toContainText('Verification was cancelled', { timeout: 30_000 });
-    await expect(page.locator('body')).toContainText('Finish Verification');
-    await expect(page.locator('body')).not.toContainText('Your wallet is ready!');
+    await expect(page.locator('body')).toContainText('Confirm');
+    await expect(page.locator('body')).not.toContainText('Wallet created');
 
     // THE INVARIANT: a passkey that cannot sign leaves NO trace — no local
     // account (would sit dead in the switcher forever) and no pending upload
@@ -178,7 +246,7 @@ test.describe('Onboarding — passkey must prove it can sign before anything per
     expect(pending === null || pending === '[]').toBeTruthy();
 
     // Resume retries ONLY the signature — it must never mint a second passkey.
-    await page.getByText('Finish Verification', { exact: true }).click();
+    await page.getByText('Confirm', { exact: true }).first().click();
     await expect(page.locator('body')).toContainText('Verification was cancelled', { timeout: 30_000 });
     expect(created).toHaveLength(1);
 
@@ -189,10 +257,12 @@ test.describe('Onboarding — passkey must prove it can sign before anything per
     // completes the whole journey: stuck → start over → wallet created.
     await expect(page.locator('body')).toContainText('Start over with a new passkey');
     await page.getByText('Start over with a new passkey', { exact: true }).click();
-    await expect(page.locator('body')).not.toContainText('Finish Verification');
+    await expect(page.locator('body')).not.toContainText('Confirm');
 
     await page.getByText('Create Wallet', { exact: true }).last().click();
-    await expect(page.locator('body')).toContainText('Your wallet is ready!', { timeout: 30_000 });
+    await expect(page.locator('body')).toContainText('Added', { timeout: 30_000 });
+    await page.getByText('Continue', { exact: true }).last().click();
+    await expect(page.locator('body')).toContainText('Wallet created', { timeout: 30_000 });
     expect(created).toHaveLength(2); // a fresh passkey — not the dead one
 
     const accountsAfter = await page.evaluate(() => localStorage.getItem('vela.accounts'));

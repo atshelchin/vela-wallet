@@ -155,7 +155,7 @@ pub const BUNDLER_BASE: &str = "https://vela-relay.getvela.app";
 
 // `DEFAULT_SERVICE_ENDPOINTS` (models/types.ts:317-324).
 pub const DEFAULT_ETHEREUM_DATA_URL: &str = "https://ethereum-data.awesometools.dev";
-pub const DEFAULT_PASSKEY_INDEX_URL: &str = "https://p256-index-rs.getvela.app";
+pub const DEFAULT_PASSKEY_INDEX_URL: &str = "https://p256-index-v2.getvela.app";
 pub const DEFAULT_BUNDLER_SERVICE_URL: &str = "https://vela-relay.getvela.app";
 pub const DEFAULT_FIAT_RATES_URL: &str = "https://vela-currency.getvela.app/v2/rates?base=USD";
 

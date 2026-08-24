@@ -162,12 +162,20 @@ for (let i = 1; i < PATHS.length; i++) {
 //   batchSendHintTitled,importFile,importAll,exportAll,importGroup,
 //   exportGroup,groupRename,moveGroup,recentActivity,viewAllActivity,
 //   deleteContact,actionQr,edit} — existing `contacts` branch, no new branches).
-// Merged 017 + 018: the base's 1234 leaf + 78 branch, plus 017's 12 leaves
-// and its one `settings.eraseDevice` branch, plus 018's 21 contacts leaves
-// and no new branch. The three checks below are the arithmetic's witness —
+// + 30 net onboarding leaves (spec 019: the v2 create journey). 31 added —
+//   welcome.{heroTitle,heroSubtitle}, the key screen's titles/subtitles/
+//   counter/badges/CTAs, the three add methods, the progress screen's meter
+//   and three task rows, the done screen's address label and identicon hint,
+//   the desktop security-key sheet, and login.switchDeviceBtn — against 1
+//   removed, `create.ack2`, when the acknowledgement gate went from four
+//   boxes to two. The six `create.ack1`/`ack3*` moves are renames and net
+//   zero, and no branch was added or removed.
+// Merged 017 + 018 + 019: the base's 1234 leaf + 78 branch, plus 017's 12
+// leaves and its one `settings.eraseDevice` branch, plus 018's 21 contacts
+// leaves, plus 019's 30. The three checks below are the arithmetic's witness —
 // they fail loudly rather than let a merge invent a corpus.
-if (PATHS.length !== 1359) fail(`expected 1359 paths (1280 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1280) fail(`expected 1280 leaf paths, got ${leafSet.size}`);
+if (PATHS.length !== 1389) fail(`expected 1389 paths (1310 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1310) fail(`expected 1310 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

@@ -3,12 +3,12 @@
 //! The SHARED key-path table: every dotted path in the corpus, sorted, interned
 //! once for all 15 locales. Regenerate with `node scripts/gen-i18n.mjs`.
 //!
-//! 1359 paths = 1280 leaf + 79 branch. Repeated per locale these key bytes
-//! would cost 533880 bytes; interned once they cost 37036.
+//! 1389 paths = 1310 leaf + 79 branch. Repeated per locale these key bytes
+//! would cost 549450 bytes; interned once they cost 38074.
 
 /// Every path in the corpus, strictly sorted. Lookup is a binary search here, then
 /// an O(1) index into the active locale's value table.
-pub(crate) static PATHS: [&str; 1359] = [
+pub(crate) static PATHS: [&str; 1389] = [
     "about",
     "about.footer",
     "about.linkGitHub",
@@ -856,18 +856,19 @@ pub(crate) static PATHS: [&str; 1359] = [
     "onboarding.create.accountNamePlaceholder",
     "onboarding.create.ack0",
     "onboarding.create.ack1",
-    "onboarding.create.ack2",
-    "onboarding.create.ack3",
-    "onboarding.create.ack3And",
-    "onboarding.create.ack3Period",
-    "onboarding.create.ack3PrivacyPolicy",
-    "onboarding.create.ack3Terms",
+    "onboarding.create.ack1And",
+    "onboarding.create.ack1Period",
+    "onboarding.create.ack1PrivacyPolicy",
+    "onboarding.create.ack1Terms",
     "onboarding.create.addKeyBtn",
+    "onboarding.create.addMethodLabel",
+    "onboarding.create.addSecondKeyBtn",
     "onboarding.create.alertErrorTitle",
     "onboarding.create.alertNotDiscoverableBody",
     "onboarding.create.alertNotDiscoverableTitle",
     "onboarding.create.alertNotSupportedBody",
     "onboarding.create.alertNotSupportedTitle",
+    "onboarding.create.assuranceRecovery",
     "onboarding.create.confirmKeyBtn",
     "onboarding.create.createWalletBtn",
     "onboarding.create.enterWalletBtn",
@@ -876,13 +877,33 @@ pub(crate) static PATHS: [&str; 1359] = [
     "onboarding.create.headerCreated",
     "onboarding.create.headerDefault",
     "onboarding.create.headerSyncFailed",
+    "onboarding.create.identiconHint",
+    "onboarding.create.keyCount",
     "onboarding.create.keyDeviceOnlyBadge",
+    "onboarding.create.keyHardwareBadge",
+    "onboarding.create.keyLimitReached",
     "onboarding.create.keySyncedBadge",
     "onboarding.create.keysHint",
     "onboarding.create.keysLabel",
+    "onboarding.create.keysSubtitle",
+    "onboarding.create.keysSubtitleBlocked",
+    "onboarding.create.keysSubtitleFull",
+    "onboarding.create.keysTitle",
+    "onboarding.create.keysTitleBlocked",
+    "onboarding.create.methodHybridBody",
+    "onboarding.create.methodHybridTitle",
+    "onboarding.create.methodHybridUnavailable",
+    "onboarding.create.methodPlatformBody",
+    "onboarding.create.methodPlatformTitle",
+    "onboarding.create.methodSecurityKeyBody",
+    "onboarding.create.methodSecurityKeyTitle",
     "onboarding.create.nameTooLong",
     "onboarding.create.needSecondKeyHint",
+    "onboarding.create.nextBtn",
     "onboarding.create.openSettings",
+    "onboarding.create.progressMeterLabel",
+    "onboarding.create.progressSubtitle",
+    "onboarding.create.progressTitle",
     "onboarding.create.providerGeneric",
     "onboarding.create.providerPlatform",
     "onboarding.create.providerSecurityKey",
@@ -892,6 +913,8 @@ pub(crate) static PATHS: [&str; 1359] = [
     "onboarding.create.reportPrefill",
     "onboarding.create.retryUploadBtn",
     "onboarding.create.retryVerifyBtn",
+    "onboarding.create.securityKeyRequiredBody",
+    "onboarding.create.securityKeyRequiredTitle",
     "onboarding.create.startOverBtn",
     "onboarding.create.statusComputingAddress",
     "onboarding.create.statusExtractingKey",
@@ -905,9 +928,13 @@ pub(crate) static PATHS: [&str; 1359] = [
     "onboarding.create.syncFailedHint",
     "onboarding.create.syncFailedMessage",
     "onboarding.create.syncFailedTitle",
+    "onboarding.create.taskDeriveAddress",
+    "onboarding.create.taskVerifyKey",
+    "onboarding.create.taskWriteIndex",
     "onboarding.create.technicalDetails",
     "onboarding.create.verifyHint",
     "onboarding.create.verifyStuckHint",
+    "onboarding.create.walletAddressLabel",
     "onboarding.login",
     "onboarding.login.alertIncompatibleBody",
     "onboarding.login.alertIncompatibleBodyCreate",
@@ -934,6 +961,7 @@ pub(crate) static PATHS: [&str; 1359] = [
     "onboarding.login.statusCancelledTitle",
     "onboarding.login.successMessage",
     "onboarding.login.successTitle",
+    "onboarding.login.switchDeviceBtn",
     "onboarding.settings",
     "onboarding.settings.endpointUrlLabel",
     "onboarding.settings.passkeyHint",
@@ -963,6 +991,8 @@ pub(crate) static PATHS: [&str; 1359] = [
     "onboarding.welcome.featureSafeContractTitle",
     "onboarding.welcome.featureStablecoinGasBody",
     "onboarding.welcome.featureStablecoinGasTitle",
+    "onboarding.welcome.heroSubtitle",
+    "onboarding.welcome.heroTitle",
     "onboarding.welcome.tagline",
     "onboarding.welcomeWeb",
     "onboarding.welcomeWeb.features",
@@ -1374,7 +1404,7 @@ pub(crate) static PATHS: [&str; 1359] = [
 /// A branch is a distinct lookup outcome, not a miss: `t("home")` must return the
 /// byte-exact diagnostic `key 'home (en)' returned an object instead of string.`,
 /// which a flat map could never distinguish from an absent key.
-pub(crate) static IS_BRANCH: [u8; 170] = [
+pub(crate) static IS_BRANCH: [u8; 174] = [
     0x01, 0x00, 0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x81, 0x01, 0x00, 0x40, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00,
     0x14, 0x12, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02, 0x21, 0xa0, 0x00, 0x08, 0x00, 0x00, 0x00,
@@ -1382,14 +1412,14 @@ pub(crate) static IS_BRANCH: [u8; 170] = [
     0x00, 0x03, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x04, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x02, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x08, 0x00, 0x00, 0x20, 0x00, 0x04, 0x00, 0x38, 0x49, 0x92, 0x10, 0x00, 0x02, 0x00, 0x08, 0x00,
-    0x00, 0x00, 0x80, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x08, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x98, 0x02, 0x04, 0x21, 0x40, 0x42, 0x80, 0x20, 0xc0, 0x10, 0x00,
-    0x00, 0x02, 0x20, 0x02, 0x10, 0x40, 0x20, 0x80, 0x20, 0x00,
+    0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x02, 0x40, 0x00, 0x00, 0x4e, 0x92, 0x24, 0x04, 0x80,
+    0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x20, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xa6, 0x00, 0x41, 0x08, 0x90, 0x10, 0x20,
+    0x08, 0x30, 0x04, 0x00, 0x80, 0x00, 0x88, 0x00, 0x04, 0x10, 0x08, 0x20, 0x08, 0x00,
 ];
 
 /// Number of entries in [`PATHS`]. Value tables carry `N_PATHS + 1` offsets.
-pub(crate) const N_PATHS: usize = 1359;
+pub(crate) const N_PATHS: usize = 1389;
 
 /// Index of `path` in [`PATHS`], or `None`.
 pub(crate) fn path_id(path: &str) -> Option<usize> {

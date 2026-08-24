@@ -25,10 +25,13 @@ async function blockExternal(page: Page) {
   });
 }
 
+// Two gates now, not four (spec 019): self-custody, and legal assent. The
+// recovery line is still on the screen but is an assurance, not a checkbox —
+// so it deliberately does NOT appear here. Clicking it would be a no-op and
+// the Create button would stay disabled, which is exactly the failure this
+// list exists to make impossible.
 const ACK_FRAGMENTS = [
-  'This is a self-custodial wallet',
-  'If you lose your device',
-  'If your iCloud or Google account is compromised',
+  'My private keys are held by my own device',
   'I agree to the',
 ];
 

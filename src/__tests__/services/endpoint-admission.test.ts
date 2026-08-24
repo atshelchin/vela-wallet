@@ -70,7 +70,7 @@ describe('isLocalhostHttp', () => {
 
 describe('isAdmissibleEndpoint — what may be written to storage', () => {
   test('https is admissible', () => {
-    expect(isAdmissibleEndpoint('https://p256-index-rs.getvela.app')).toBe(true);
+    expect(isAdmissibleEndpoint('https://p256-index-v2.getvela.app')).toBe(true);
     expect(isAdmissibleEndpoint('https://my-own-index.example.com/base')).toBe(true);
   });
 
@@ -84,8 +84,8 @@ describe('isAdmissibleEndpoint — what may be written to storage', () => {
   });
 
   test('a scheme-less or exotic-scheme value is refused', () => {
-    expect(isAdmissibleEndpoint('p256-index-rs.getvela.app')).toBe(false);
-    expect(isAdmissibleEndpoint('//p256-index-rs.getvela.app')).toBe(false);
+    expect(isAdmissibleEndpoint('p256-index-v2.getvela.app')).toBe(false);
+    expect(isAdmissibleEndpoint('//p256-index-v2.getvela.app')).toBe(false);
     expect(isAdmissibleEndpoint('javascript:alert(1)')).toBe(false);
     expect(isAdmissibleEndpoint('data:text/plain,x')).toBe(false);
     expect(isAdmissibleEndpoint('file:///etc/hosts')).toBe(false);

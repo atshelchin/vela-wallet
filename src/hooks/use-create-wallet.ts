@@ -153,7 +153,11 @@ export function useCreateWallet(
       setName: (name) => send({ type: 'name_changed', name }),
       toggleAck: (index) => send({ type: 'ack_toggled', index }),
       submit: () => send({ type: 'submit' }),
-      addKey: (name) => send({ type: 'add_key', name }),
+      // The browser presents its own platform / nearby-device / security-key
+      // choice inside the passkey sheet, so this shell asks for the platform
+      // and lets the provider offer the rest. The native shells, which run the
+      // ceremony themselves, send what the person picked.
+      addKey: (name) => send({ type: 'add_key', name, method: 'platform' }),
       removeKey: (index) => send({ type: 'remove_key', index }),
       renameKey: (index, name) => send({ type: 'key_name_changed', index, name }),
       confirmKey: (index) => send({ type: 'confirm_key', index }),

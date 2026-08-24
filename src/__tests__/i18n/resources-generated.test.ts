@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 18,918 leaves across 15 locales', () => {
+  it('carries the whole corpus — 19,368 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -113,15 +113,21 @@ describe('generated i18n resources', () => {
     // 18,918 = 18,723 at the 018 base, plus multi-passkey onboarding's
     // 13 keys × 15 locales = 195 (5 add-keys strings, confirmKeyBtn for the
     // interleaved flow, then the sync-badge/provider/second-key-gate set).
+    // 19,368 = 18,918 plus spec 019's net 30 × 15 = 450: 31 keys added for the
+    // v2 create journey (the hero, the key screen, the three add methods, the
+    // progress tasks, the done screen's labels, the desktop security-key
+    // sheet, login.switchDeviceBtn) against 1 removed — create.ack2, when the
+    // acknowledgement gate went from four boxes to two. The six ack1/ack3
+    // moves are renames and net zero.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(18_918);
+    expect(total).toBe(19_368);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {
     // 39 values are sentence fragments concatenated at render time, and
     // zh/zh-TW/zh-HK deliberately OMIT the spaces — so no uniform trim rule is
     // safe, and any trimming step in the pipeline shows up right here.
-    expect(en.onboarding.create.ack3).toMatch(/ $/);
+    expect(en.onboarding.create.ack1).toMatch(/ $/);
     expect(en.home.switcherAccountCount).toMatch(/ $/);
   });
 });

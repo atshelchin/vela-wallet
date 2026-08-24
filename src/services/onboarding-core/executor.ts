@@ -269,6 +269,11 @@ export function createOnboardingExecutor(deps: OnboardingExecutorDeps) {
         return { type: 'passkey_support', supported: await Passkey.isSupported() };
 
       case 'register_passkey': {
+        // `operation.method` is deliberately unread here. On the web the
+        // browser's own passkey sheet already offers this device / a nearby
+        // device / a security key, and offering the choice twice would be
+        // worse than not offering it. The native shells, which run the
+        // ceremony themselves, do read it.
         const registration = await Passkey.register(operation.name, operation.exclude_credential_ids);
         return {
           type: 'passkey_registered',

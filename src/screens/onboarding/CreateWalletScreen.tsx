@@ -8,7 +8,6 @@ import { VelaButton } from '@/components/ui/VelaButton';
 import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { BugReportModal } from '@/components/ui/BugReportModal';
 import { useLanguagePreference } from '@/i18n/language';
-import { getAllNetworksSync } from '@/models/network';
 import { useCreateWallet } from '@/hooks/use-create-wallet';
 import {
   ArrowLeft, CheckCircle2, AlertTriangle, Loader, Copy, Check, Square, CheckSquare,
@@ -110,12 +109,17 @@ interface Props {
 }
 
 // Stable label keys for the acknowledgment checklist; t() is called inside the component.
+// Two gates, matching the core's ACK_COUNT: self-custody, and legal assent.
+// The last item is rendered with inline links — handled specially in JSX.
 const ACKNOWLEDGMENT_KEYS = [
   'onboarding.create.ack0',
   'onboarding.create.ack1',
-  'onboarding.create.ack2',
-  'onboarding.create.ack3', // last item is rendered with inline links — handled specially in JSX
 ] as const;
+
+/// Stated beside the gates rather than as one: it explains what the founding
+/// key set buys you, which is a fact about the wallet, not a promise the
+/// person has to make.
+const ACK_ASSURANCE_KEY = 'onboarding.create.assuranceRecovery';
 
 /**
  * Renders the create-wallet flow. It holds no business state: every decision —
@@ -163,7 +167,11 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
             </View>
             <Text style={styles.successTitle}>{t('onboarding.create.successTitle')}</Text>
             <Text style={styles.successMessage}>
-              {t('onboarding.create.successMessage', { count: getAllNetworksSync().length })}
+              {/* `count` is the FOUNDING KEY count, not the network count it
+                  used to be — the sentence is now about the key set, and
+                  handing it 12 networks would tell a one-key wallet it has
+                  twelve keys. */}
+              {t('onboarding.create.successMessage', { count: flow.keys.length })}
             </Text>
 
             {/* Address display */}
@@ -318,17 +326,21 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
                       <Text style={styles.checkText}>
                         {isLast ? (
                           <>
-                            {t('onboarding.create.ack3')}
-                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/privacy')}>{t('onboarding.create.ack3PrivacyPolicy')}</Text>
-                            {t('onboarding.create.ack3And')}
-                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/terms')}>{t('onboarding.create.ack3Terms')}</Text>
-                            {t('onboarding.create.ack3Period')}
+                            {t('onboarding.create.ack1')}
+                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/privacy')}>{t('onboarding.create.ack1PrivacyPolicy')}</Text>
+                            {t('onboarding.create.ack1And')}
+                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/terms')}>{t('onboarding.create.ack1Terms')}</Text>
+                            {t('onboarding.create.ack1Period')}
                           </>
                         ) : t(labelKey)}
                       </Text>
                     </Pressable>
                   );
                 })}
+                <View style={styles.checkRow}>
+                  <CheckSquare size={18} color={color.accent.base} strokeWidth={2} />
+                  <Text style={styles.checkText}>{t(ACK_ASSURANCE_KEY)}</Text>
+                </View>
               </View>
 
               {statusText ? (

@@ -25,6 +25,7 @@ use crate::contacts::fixtures as contacts_fixtures;
 use crate::icons::{Icon, IconCache};
 use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
+use crate::session;
 use crate::theme::{
     self, CONTACTS_BODY_PAD_TOP, CONTACTS_BUTTON_H, CONTACTS_HEADER_H, CONTACTS_HERO_AVATAR,
     CONTACTS_RAIL_LABEL_H, CONTACTS_RAIL_ROW_H, CONTACTS_RAIL_W, GALLERY_BAR_H, SIDEBAR_PAD,
@@ -254,6 +255,148 @@ impl WalletPage {
         }
     }
 
+    /// The way out.
+    ///
+    /// Session state is app-resident and `allowed_route` decides the screen, so
+    /// without this row a signed-in desktop has no path back to Welcome at all
+    /// — the route guard is a one-way door. It renders only for a REAL session:
+    /// the fixture identity (`VELA_PAGE=wallet`) is a design surface with no
+    /// session behind it, and offering to sign out of nothing would be a button
+    /// that cannot work.
+    fn sign_out_row(&self, theme: &Theme, cx: &mut Context<Self>) -> gpui::AnyElement {
+        if self.identity.is_none() {
+            return div().into_any_element();
+        }
+        let hover = theme.bg_sunken;
+        div()
+            .id("sign-out")
+            .mt(px(4.))
+            .px(px(12.))
+            .py(px(8.))
+            .rounded(px(8.))
+            .flex_none()
+            .cursor_pointer()
+            .text_size(theme::text_row_sub())
+            .text_color(theme.fg_muted)
+            .hover(move |style| style.bg(hover).text_color(theme.error_base))
+            .on_click(cx.listener(|_, _, _, cx| session::sign_out(cx)))
+            .child(self.strings.sign_out_button.clone())
+            .into_any_element()
+    }
+
+    /// The confirmation the core opens, with the warning it decided on.
+    ///
+    /// `pending_upload_warning` is not this screen's judgement: the session
+    /// machine asks storage whether any public key never reached the registry
+    /// and puts the answer here. A key in that state is one this wallet may not
+    /// be able to sign in with from anywhere else yet, which is the one fact
+    /// that should give someone pause — so the dialog does not open until the
+    /// core has the answer.
+    fn sign_out_dialog(&self, theme: &Theme, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        let view = session::view(cx);
+        let dialog = view.sign_out?;
+        let s = &self.strings;
+
+        let mut card = div()
+            .w(px(400.))
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .p(px(28.))
+            .rounded(px(20.))
+            .bg(theme.bg_raised)
+            .border_1()
+            .border_color(theme.border_card)
+            .child(
+                div()
+                    .text_size(theme::text_panel_title())
+                    .font_weight(gpui::FontWeight::BOLD)
+                    .text_color(theme.fg_base)
+                    .child(s.sign_out_title.clone()),
+            )
+            .child(
+                div()
+                    .text_size(theme::text_row_sub())
+                    .line_height(px(20.))
+                    .text_color(theme.fg_muted)
+                    .child(s.sign_out_keeps.clone()),
+            );
+
+        if dialog.pending_upload_warning {
+            card = card.child(
+                div()
+                    .p(px(12.))
+                    .rounded(px(10.))
+                    .bg(theme.warning_soft)
+                    .text_size(theme::text_row_sub())
+                    .line_height(px(20.))
+                    .text_color(theme.fg_base)
+                    .child(s.sign_out_warning.clone()),
+            );
+        }
+
+        // The destructive label changes with the warning, as the shipping
+        // client does: "Sign Out Anyway" is the acknowledgement.
+        let confirm_label = if dialog.pending_upload_warning {
+            s.sign_out_anyway.clone()
+        } else {
+            s.sign_out_title.clone()
+        };
+        let hover_confirm = theme.error_base;
+        let hover_cancel = theme.bg_sunken;
+        card = card.child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .id("sign-out-confirm")
+                        .h(px(44.))
+                        .rounded(px(12.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .bg(theme.error_soft)
+                        .text_size(theme::text_row_title())
+                        .text_color(theme.error_base)
+                        .hover(move |style| style.bg(hover_confirm).text_color(theme.fg_inverse))
+                        .on_click(cx.listener(|_, _, _, cx| session::sign_out_confirmed(cx)))
+                        .child(confirm_label),
+                )
+                .child(
+                    div()
+                        .id("sign-out-cancel")
+                        .h(px(44.))
+                        .rounded(px(12.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .text_size(theme::text_row_title())
+                        .text_color(theme.fg_base)
+                        .hover(move |style| style.bg(hover_cancel))
+                        .on_click(cx.listener(|_, _, _, cx| session::sign_out_dismissed(cx)))
+                        .child(s.sign_out_cancel.clone()),
+                ),
+        );
+
+        Some(
+            div()
+                .id("sign-out-scrim")
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(theme.bg_base.opacity(0.55))
+                .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(card)
+                .into_any_element(),
+        )
+    }
+
     fn theme_mode(&self) -> ThemeMode {
         self.override_mode.unwrap_or(self.mode)
     }
@@ -343,6 +486,7 @@ impl WalletPage {
                     .child(self.strings.networks_title.clone()),
             )
             .child(networks)
+            .child(self.sign_out_row(theme, cx))
             .child(sidebar_search(
                 theme,
                 &mut self.icons,
@@ -1800,20 +1944,33 @@ impl Render for WalletPage {
         };
 
         let menu = self.menu_overlay(&theme, cx);
+        let sign_out = self.sign_out_dialog(&theme, cx);
         let mut root = div()
             .size_full()
+            .relative()
             .bg(theme.bg_base)
             .text_color(theme.fg_base)
             .child(body);
         if let Some(menu) = menu {
             root = root.child(menu);
         }
+        // Over everything, including the anchored menu: it is the one dialog
+        // whose answer changes which screen the app is on.
+        if let Some(sign_out) = sign_out {
+            root = root.child(sign_out);
+        }
         let root = root
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 let ks = &event.keystroke;
-                // Esc peels one layer at a time: the anchored menu first, then
-                // the third column (desktop SPEC keyboard map).
+                // Esc peels one layer at a time: the sign-out dialog first (it
+                // is on top), then the anchored menu, then the third column
+                // (desktop SPEC keyboard map).
+                if ks.key == "escape" && session::view(cx).sign_out.is_some() {
+                    session::sign_out_dismissed(cx);
+                    cx.notify();
+                    return;
+                }
                 if ks.key == "escape" {
                     if this.menu.is_some() {
                         this.menu = None;

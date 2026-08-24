@@ -117,22 +117,27 @@ mod tests {
         "onboarding.welcome.tagline",
     ];
 
-    /// The 48 NEW spec-014 flow keys (contracts/i18n-keys.md) plus the reused
-    /// root `common.cancel` (E1's secondary). The EXISTS onboarding keys the
-    /// flow reuses were pinned by their own specs; this sweep guards the ones
-    /// this feature introduced. Var-bearing keys (`{{seconds}}` …) resolve
-    /// with the placeholder left in place under default options — still a
-    /// non-echo, non-empty value, which is all this sweep asserts.
-    /// Every corpus key the onboarding surface renders — the create flow, the
-    /// failure sheet, the welcome page and its two modals.
+    /// Every corpus key this client renders outside the wallet fixtures — the
+    /// create flow, the failure sheet, the welcome page and its modals, and the
+    /// sign-out confirmation.
     ///
     /// Rewritten for the v2 design: spec 014's list named the keys ITS
     /// container used, and eleven of those are now unreachable from any screen
-    /// while forty are new. A stale entry here would keep asserting that copy
-    /// nobody renders is translated, and a missing one would let a real hole
-    /// ship — so the list is the client's surface, maintained with it.
-    const FLOW_KEYS: [&str; 102] = [
+    /// while forty-six are new. A stale entry would keep asserting that copy
+    /// nobody renders is translated; a missing one would let a real hole ship.
+    /// So the list is the client's surface, maintained with it.
+    ///
+    /// Var-bearing keys (`{{seconds}}` …) resolve with the placeholder left in
+    /// place under default options — still a non-echo, non-empty value, which
+    /// is all this sweep asserts about them.
+    const FLOW_KEYS: [&str; 108] = [
         "common.cancel",
+        "settings.signOut.button",
+        "settings.signOut.title",
+        "settings.signOut.keeps",
+        "settings.signOut.warning",
+        "settings.signOut.anyway",
+        "settings.signOut.cancel",
         "onboarding.common.back",
         "onboarding.common.close",
         "onboarding.common.confirmInPrompt",

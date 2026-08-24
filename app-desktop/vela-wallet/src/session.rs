@@ -73,17 +73,29 @@ pub fn view(cx: &App) -> SessionView {
 /// The onboarding hand-off. Both machines exit through `CompleteOnboarding`,
 /// and this is what receives it.
 ///
-/// It is one of only two events the desktop can currently send. `SwitchAccount`
-/// and the sign-out pair need an account switcher and a sign-out row, and the
-/// desktop wallet page (spec 015) has neither yet — so they are absent rather
-/// than present-and-uncallable. The OPERATIONS behind them are implemented in
-/// `executor::perform_session`, so adding those controls is a screen change and
-/// not a shell change.
+/// `SwitchAccount` is still absent: the desktop wallet page has no account
+/// switcher yet, and an event with no control is dead code. The operation
+/// behind it is implemented in `executor::perform_session`, so adding the
+/// switcher is a screen change and not a shell change.
 pub fn account_established(mode: CompletionMode, cx: &mut App) {
     dispatch(
         vela_core::app::session::Event::AccountEstablished { mode },
         cx,
     );
+}
+
+/// Open the sign-out confirmation. The core checks the pending-upload outbox
+/// before the dialog appears, so the warning is decided rather than guessed.
+pub fn sign_out(cx: &mut App) {
+    dispatch(vela_core::app::session::Event::SignOut, cx);
+}
+
+pub fn sign_out_confirmed(cx: &mut App) {
+    dispatch(vela_core::app::session::Event::SignOutConfirmed, cx);
+}
+
+pub fn sign_out_dismissed(cx: &mut App) {
+    dispatch(vela_core::app::session::Event::SignOutDismissed, cx);
 }
 
 fn dispatch(event: vela_core::app::session::Event, cx: &mut App) {
@@ -94,4 +106,124 @@ fn dispatch(event: vela_core::app::session::Event, cx: &mut App) {
     let pending = state.host.dispatch(event);
     state.pump(pending);
     cx.set_global(state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vela_core::app::session::{Event, SessionRoute};
+    use vela_core::app::{Account, AccountKey};
+
+    fn account() -> Account {
+        Account {
+            id: "cred0".to_owned(),
+            name: "Everyday wallet".to_owned(),
+            address: "0x44EEC06897ff7ab8C7f16819511A64bA168A6D33".to_owned(),
+            public_key_hex: "04aa".to_owned(),
+            created_at_iso: "2026-08-25T00:00:00.000Z".to_owned(),
+            keys: vec![AccountKey {
+                credential_id: "cred0".to_owned(),
+                public_key_hex: "04aa".to_owned(),
+                name: "Everyday wallet".to_owned(),
+            }],
+        }
+    }
+
+    /// Sign in, then sign out, and land back on Welcome.
+    ///
+    /// This is the loop a person actually walks, and it was a ONE-WAY DOOR
+    /// until the wallet page grew a sign-out row: `allowed_route` sends a
+    /// signed-in desktop to the wallet and there was no control anywhere that
+    /// could send it back. Wiring a route guard without wiring its exit is the
+    /// specific mistake this test exists to catch — an `allowed_route` that
+    /// never returns to `Onboarding` is a wallet nobody can leave.
+    #[test]
+    fn a_wallet_can_be_signed_out_of_and_the_route_goes_back() {
+        crate::executor::storage::tests::with_temp_state("session-round-trip", || {
+            let mut state = SessionState::new();
+            let pending = state.host.dispatch(Event::Boot);
+            state.pump(pending);
+            assert_eq!(
+                state.view.allowed_route,
+                SessionRoute::Onboarding,
+                "empty storage starts at Welcome"
+            );
+
+            let pending = state.host.dispatch(Event::AccountEstablished {
+                mode: CompletionMode::AddAccount { account: account() },
+            });
+            state.pump(pending);
+            assert_eq!(state.view.allowed_route, SessionRoute::Wallet);
+            assert_eq!(state.view.address, account().address);
+
+            // The confirmation is the core's, and it does not open until the
+            // pending-upload question has an answer.
+            let pending = state.host.dispatch(Event::SignOut);
+            state.pump(pending);
+            let dialog = state
+                .view
+                .sign_out
+                .clone()
+                .unwrap_or_else(|| unreachable!("the confirmation never opened"));
+            assert!(
+                !dialog.pending_upload_warning,
+                "nothing is outstanding in this fixture"
+            );
+            assert_eq!(
+                state.view.allowed_route,
+                SessionRoute::Wallet,
+                "opening the dialog must not navigate"
+            );
+
+            // Cancelling leaves the wallet exactly where it was.
+            let pending = state.host.dispatch(Event::SignOutDismissed);
+            state.pump(pending);
+            assert!(state.view.sign_out.is_none());
+            assert_eq!(state.view.allowed_route, SessionRoute::Wallet);
+
+            let pending = state.host.dispatch(Event::SignOut);
+            state.pump(pending);
+            let pending = state.host.dispatch(Event::SignOutConfirmed);
+            state.pump(pending);
+            assert_eq!(
+                state.view.allowed_route,
+                SessionRoute::Onboarding,
+                "there has to be a way back"
+            );
+            assert!(!state.view.has_wallet);
+
+            // And it really left the disk, so a relaunch agrees.
+            let mut relaunched = SessionState::new();
+            let pending = relaunched.host.dispatch(Event::Boot);
+            relaunched.pump(pending);
+            assert_eq!(relaunched.view.allowed_route, SessionRoute::Onboarding);
+        });
+    }
+
+    /// An un-synced public key must make the dialog say so. A record in that
+    /// state is a key the registry never confirmed, and signing out before it
+    /// lands can leave the wallet unreachable from anywhere else.
+    #[test]
+    fn an_unconfirmed_public_key_warns_before_sign_out() {
+        crate::executor::storage::tests::with_temp_state("session-pending", || {
+            let mut state = SessionState::new();
+            let pending = state.host.dispatch(Event::Boot);
+            state.pump(pending);
+            let pending = state.host.dispatch(Event::AccountEstablished {
+                mode: CompletionMode::AddAccount { account: account() },
+            });
+            state.pump(pending);
+
+            crate::executor::storage::tests::write_pending_upload("cred0");
+
+            let pending = state.host.dispatch(Event::SignOut);
+            state.pump(pending);
+            let dialog = state
+                .view
+                .sign_out
+                .clone()
+                .unwrap_or_else(|| unreachable!("the confirmation never opened"));
+            assert!(dialog.pending_upload_warning);
+        });
+    }
 }

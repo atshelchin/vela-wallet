@@ -51,6 +51,14 @@ pub struct WalletStrings {
     pub empty_assets_title: SharedString,
     pub empty_assets_caption: SharedString,
     pub networks_title: SharedString,
+    /// The sign-out row and its confirmation. The copy is the shipping
+    /// client's, already translated in all fifteen locales.
+    pub sign_out_button: SharedString,
+    pub sign_out_title: SharedString,
+    pub sign_out_keeps: SharedString,
+    pub sign_out_warning: SharedString,
+    pub sign_out_anyway: SharedString,
+    pub sign_out_cancel: SharedString,
     pub all_networks: SharedString,
     pub search_placeholder: SharedString,
     pub receive_title: SharedString,
@@ -109,6 +117,19 @@ impl WalletStrings {
             empty_assets_title: s("assets.emptyTitle"),
             empty_assets_caption: s("assets.emptySubtext"),
             networks_title: s("settingsModals.network.modalTitle"),
+            sign_out_button: s("settings.signOut.button"),
+            sign_out_title: s("settings.signOut.title"),
+            // `settings.signOut.desc` is deliberately NOT read here. It ends
+            // "your passkey stays in Face ID / fingerprint", which is a fact
+            // about a phone; on this platform the passkey is on the security
+            // key in the person's hand, and telling them otherwise while they
+            // decide whether to sign out is worse than saying less. `keeps`
+            // carries the part the decision actually turns on — the address and
+            // everything under it comes back — and is true everywhere.
+            sign_out_keeps: s("settings.signOut.keeps"),
+            sign_out_warning: s("settings.signOut.warning"),
+            sign_out_anyway: s("settings.signOut.anyway"),
+            sign_out_cancel: s("settings.signOut.cancel"),
             all_networks: s("componentsUi.networkFilter.allNetworks"),
             search_placeholder: s("componentsUi.commandBar.placeholder"),
             receive_title: s("receive.title"),

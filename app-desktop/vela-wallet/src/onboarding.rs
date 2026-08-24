@@ -23,7 +23,7 @@ use std::sync::Arc;
 use gpui::{
     App, Context, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent,
     MouseButton, ParentElement, Render, SharedString, Stateful, StatefulInteractiveElement as _,
-    Styled, Task, Window, WindowControlArea, div, px,
+    Styled, Window, WindowControlArea, div, px,
 };
 
 use vela_core::app::create_wallet::{CreateView, CreateWallet};
@@ -108,8 +108,14 @@ pub struct OnboardingPage {
     prompt: Option<(Machine, Prompt)>,
     pin: Option<PinDialog>,
     endpoint: Option<EndpointSurface>,
-    /// The ceremony-channel poll, while it is running.
-    watcher: Option<Task<()>>,
+    /// Whether the ceremony-channel poll is running.
+    ///
+    /// A bool, NOT the `Task`. gpui cancels a task when its handle is dropped,
+    /// and the poll decides for itself when to stop — so holding the handle
+    /// means the loop drops the very task it is running inside, which aborts
+    /// the process rather than ending the loop. The task is detached and stops
+    /// by returning; this flag is only what keeps a second one from starting.
+    watching: bool,
 }
 
 impl OnboardingPage {
@@ -175,7 +181,7 @@ impl OnboardingPage {
             prompt: None,
             pin: None,
             endpoint: None,
-            watcher: None,
+            watching: false,
         };
 
         // The reachability probe starts with the page. On the web this waits
@@ -309,10 +315,14 @@ impl OnboardingPage {
 
     /// Poll the ceremony channel while anything is in flight.
     fn ensure_watcher(&mut self, cx: &mut Context<Self>) {
-        if self.watcher.is_some() || (self.create.is_idle() && self.login.is_idle()) {
+        if self.watching || (self.create.is_idle() && self.login.is_idle()) {
             return;
         }
-        self.watcher = Some(cx.spawn(async move |page, cx| {
+        self.watching = true;
+        // Detached: the loop ends by RETURNING, never by having its handle
+        // dropped. `page.update` also fails once the screen is gone, which is
+        // the other way out.
+        cx.spawn(async move |page, cx| {
             loop {
                 cx.background_executor()
                     .timer(std::time::Duration::from_millis(CEREMONY_TICK_MS))
@@ -322,7 +332,8 @@ impl OnboardingPage {
                     break;
                 }
             }
-        }));
+        })
+        .detach();
     }
 
     /// One poll. Returns whether to keep polling.
@@ -347,7 +358,8 @@ impl OnboardingPage {
         let busy = !self.create.is_idle() || !self.login.is_idle();
         cx.notify();
         if !busy {
-            self.watcher = None;
+            // Only clears the flag. The task ends because this returns `false`.
+            self.watching = false;
         }
         busy
     }

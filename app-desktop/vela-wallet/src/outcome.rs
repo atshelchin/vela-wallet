@@ -137,10 +137,17 @@ impl OutcomeKind {
                 // The publish's own budget: `await_task` gives up at 120 s.
                 loc.t_vars("onboarding.common.timeoutBody", &[("seconds", 120.)]),
             ),
+            // NOT `onboarding.common.unsupportedTitle/Body`, which says "this
+            // device has no usable biometric authentication". That is true of a
+            // phone whose fingerprint reader is off; on a desktop it is a
+            // non-sequitur, because no desktop here has a biometric path at all
+            // and the wallet never asked for one. `not_supported` on this
+            // platform means one thing — there is no security key it can reach
+            // — and the corpus already carries that sentence.
             Self::Unsupported => (
                 BadgeVariant::Error,
-                loc.t("onboarding.common.unsupportedTitle"),
-                loc.t("onboarding.common.unsupportedBody"),
+                loc.t("onboarding.create.securityKeyRequiredTitle"),
+                loc.t("onboarding.create.securityKeyRequiredBody"),
             ),
             Self::Incompatible => (
                 BadgeVariant::Error,
@@ -459,4 +466,48 @@ fn details_block(
             );
     }
     block
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `not_supported` on a desktop is not a sentence about biometrics.
+    ///
+    /// The shared catalog's copy — "This device has no usable biometric
+    /// authentication" — is true of a phone with its fingerprint reader off. No
+    /// desktop here has a biometric path at all, and the wallet never asked for
+    /// one, so on this platform the sheet has exactly one thing to say: plug in
+    /// a security key.
+    #[test]
+    fn the_unsupported_sheet_talks_about_security_keys_not_biometrics() {
+        // Compared as KEYS, not as words: the assertion is about which corpus
+        // entry this outcome pulls, and asserting on the English would make the
+        // test pass or fail depending on the developer's `LANG`.
+        let loc = Loc::from_env();
+        let spec = OutcomeKind::Unsupported.spec(&loc);
+        assert_eq!(
+            spec.body,
+            loc.t("onboarding.create.securityKeyRequiredBody"),
+            "the desktop sheet must say what to plug in"
+        );
+        assert_ne!(
+            spec.body,
+            loc.t("onboarding.common.unsupportedBody"),
+            "…and must not say this device has no usable biometric authentication"
+        );
+        assert_eq!(
+            spec.headline,
+            loc.t("onboarding.create.securityKeyRequiredTitle")
+        );
+    }
+
+    /// The prompt a missing key produces really is the one above.
+    #[test]
+    fn a_missing_key_prompt_lands_on_unsupported() {
+        assert_eq!(
+            OutcomeKind::for_prompt(&PromptKind::NotSupportedCreate),
+            OutcomeKind::Unsupported
+        );
+    }
 }

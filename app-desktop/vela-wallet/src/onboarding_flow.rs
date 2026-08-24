@@ -134,12 +134,25 @@ pub fn status_key(status: StatusKey) -> &'static str {
 
 /// A key row's provider line.
 ///
-/// Keyed off the METHOD the person chose. The design draws a richer line
-/// («YubiKey 5C · USB»), which needs the AAGUID resolved to a model name — a
-/// lookup the flow does not make. Until it does, this is the honest version of
-/// the same fact.
-fn provider_line(method: KeyMethod) -> &'static str {
-    match method {
+/// Keyed off what the AUTHENTICATOR REPORTED, not off the method the person
+/// chose — which is the opposite of the web client, and for a reason the row's
+/// own type spells out: `method` is the choice, the other three fields are what
+/// the device said about itself, and on desktop the two legitimately disagree.
+/// The FIRST key is minted before the key screen exists, so it carries
+/// `KeyMethod::default()` (platform) while being, unavoidably, a USB security
+/// key. Labelling that row "Platform passkey" would be the shell repeating a
+/// default back to the person as though it were a fact.
+///
+/// The design draws a richer line («YubiKey 5C · USB»), which needs the AAGUID
+/// resolved to a model name — a lookup the flow does not make. Until it does,
+/// this is the honest version of the same fact.
+fn provider_line(key: &CreateKeyRow) -> &'static str {
+    if key.authenticator_attachment == "cross-platform"
+        || key.transports.split(',').any(|t| t.trim() == "usb")
+    {
+        return "onboarding.create.providerSecurityKey";
+    }
+    match key.method {
         KeyMethod::Platform => "onboarding.create.providerPlatform",
         KeyMethod::Hybrid => "onboarding.create.providerGeneric",
         KeyMethod::SecurityKey => "onboarding.create.providerSecurityKey",
@@ -699,7 +712,7 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
                         .text_color(theme.fg_base)
                         .child(SharedString::from(key.name.clone())),
                 )
-                .child(caption(theme, loc.t(provider_line(key.method)))),
+                .child(caption(theme, loc.t(provider_line(key)))),
         )
         .child(trailing);
 
@@ -1138,6 +1151,43 @@ mod tests {
             can_finish: false,
             needs_second_key: false,
         }
+    }
+
+    /// The first key is a USB key wearing the core's default method, and the
+    /// row must say what it IS.
+    ///
+    /// `Submit` mints the founding key before the key screen exists, so the
+    /// core sends `KeyMethod::default()` — platform. On this platform that is a
+    /// placeholder, not a report: the thing on the desk is a security key.
+    /// Rendering "Platform passkey" there is the shell repeating a default back
+    /// to the person as a fact.
+    #[test]
+    fn a_usb_key_reads_as_a_security_key_whatever_the_method_says() {
+        let usb = CreateKeyRow {
+            name: "Everyday wallet".to_owned(),
+            authenticator_attachment: "cross-platform".to_owned(),
+            transports: "usb".to_owned(),
+            confirmed: true,
+            synced: false,
+            aaguid: String::new(),
+            method: KeyMethod::Platform,
+        };
+        assert_eq!(
+            provider_line(&usb),
+            "onboarding.create.providerSecurityKey",
+            "the report outranks the default"
+        );
+
+        // With nothing reported, the choice is all there is.
+        let unreported = CreateKeyRow {
+            authenticator_attachment: String::new(),
+            transports: String::new(),
+            ..usb.clone()
+        };
+        assert_eq!(
+            provider_line(&unreported),
+            "onboarding.create.providerPlatform"
+        );
     }
 
     /// data-model §3's screen-selection table, which is the whole of the create

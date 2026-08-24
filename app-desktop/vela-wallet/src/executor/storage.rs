@@ -268,7 +268,7 @@ pub fn clear_signed_in_wallet() -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use vela_core::app::AccountKey;
 
@@ -278,7 +278,7 @@ mod tests {
     /// one lock rather than run in parallel — the alternative is a shared
     /// document two tests rewrite at once, which is exactly the interleave the
     /// file lock in this module exists to prevent.
-    fn with_temp_state<T>(name: &str, body: impl FnOnce() -> T) -> T {
+    pub(crate) fn with_temp_state<T>(name: &str, body: impl FnOnce() -> T) -> T {
         static SERIAL: Mutex<()> = Mutex::new(());
         let Ok(_guard) = SERIAL.lock() else {
             unreachable!("the test lock is poisoned");
@@ -294,6 +294,24 @@ mod tests {
         let out = body();
         let _ = fs::remove_dir_all(&dir);
         out
+    }
+
+    /// Put one un-confirmed public key in the outbox. Written as JSON rather
+    /// than through `save_pending_upload` because the shape is what matters to
+    /// the caller, not the record.
+    pub(crate) fn write_pending_upload(credential_id: &str) {
+        let Ok(path) = path() else {
+            unreachable!("path");
+        };
+        let mut map = read_all().unwrap_or_default();
+        map.insert(
+            KEY_PENDING_UPLOADS.to_owned(),
+            json!([{ "id": credential_id }]),
+        );
+        let Ok(body) = serde_json::to_string(&Value::Object(map)) else {
+            unreachable!("serialize");
+        };
+        let _ = fs::write(&path, body);
     }
 
     fn account(id: &str, keys: usize) -> Account {

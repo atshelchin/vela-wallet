@@ -136,15 +136,18 @@ pub fn register(
     method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Registration, PasskeyFailure> {
-    if method != KeyMethod::SecurityKey {
-        // The key screen renders the other two as unavailable-and-explained, so
-        // this is a defence against a future caller rather than a path a person
-        // can reach.
-        return Err(PasskeyFailure::classified(
-            FailureKind::NotSupported,
-            "This computer has no passkey service; only a USB security key can be used here.",
-        ));
-    }
+    // `method` is IGNORED here, deliberately, and the core says so: the first
+    // key is minted before the key screen exists, so it carries
+    // `KeyMethod::default()` — the PLATFORM authenticator — and
+    // `create_wallet.rs` documents that "a shell with none of its own (desktop)
+    // overrides it at the ceremony".
+    //
+    // Refusing a non-`SecurityKey` method instead of overriding it is what made
+    // the very first press of 继续 answer "device not supported" on a machine
+    // with a security key plugged into it. The choice still travels to the core
+    // and still labels the key row; what it must not do is decide whether a
+    // ceremony is possible, because on this platform exactly one is.
+    let _ = method;
 
     let mut key = open()?;
     let info = get_info(&mut key)?;

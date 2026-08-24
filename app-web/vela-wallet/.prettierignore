@@ -11,4 +11,6 @@ bun.lockb
 # Generated artifacts (drift-gated or wrangler-owned)
 src/lib/tokens/tokens.css
 src/lib/tokens/tokens.ts
+src/lib/onboarding/generated/
+src/lib/session/generated/
 worker-configuration.d.ts

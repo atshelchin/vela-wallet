@@ -108,19 +108,19 @@ loads no wasm and the Worker still ships none.
 
 ### Driving the core from the browser
 
-- [ ] T030 Create `app-web/vela-wallet/src/lib/onboarding/core/effect-loop.ts` by porting `src/services/crux/effect-loop.ts` — product-agnostic, one `AbortController` per effect; keep its contract comment ("`execute` MUST NOT reject for an expected failure")
-- [ ] T031 Create `app-web/vela-wallet/src/lib/onboarding/core/wasm-client.ts`: a lazy, idempotent `init(WASM_URL)` importing `rust/pkg-web/vela_core.js`, invoked on the first create or sign-in intent and never at module top level (research D5)
-- [ ] T032 Add a build step that copies the fingerprinted `public/vela_core_bg.<hash>.wasm` into `app-web/vela-wallet/static/` so the browser can fetch the URL `vela_core_wasm_url.js` names
-- [ ] T033 [P] Create `app-web/vela-wallet/src/lib/onboarding/core/json-shell.ts` adapting the wasm classes' `dispatch` / `resolve_effect` / `view` to the effect loop, mirroring `src/services/crux/json-wasm-shell.ts`
+- [X] T030 Create `app-web/vela-wallet/src/lib/onboarding/core/effect-loop.ts` by porting `src/services/crux/effect-loop.ts` — product-agnostic, one `AbortController` per effect; keep its contract comment ("`execute` MUST NOT reject for an expected failure")
+- [X] T031 Create `app-web/vela-wallet/src/lib/onboarding/core/wasm-client.ts`: a lazy, idempotent `init(WASM_URL)` importing `rust/pkg-web/vela_core.js`, invoked on the first create or sign-in intent and never at module top level (research D5)
+- [X] T032 Add a build step that copies the fingerprinted `public/vela_core_bg.<hash>.wasm` into `app-web/vela-wallet/static/` so the browser can fetch the URL `vela_core_wasm_url.js` names
+- [X] T033 [P] Create `app-web/vela-wallet/src/lib/onboarding/core/json-shell.ts` adapting the wasm classes' `dispatch` / `resolve_effect` / `view` to the effect loop, mirroring `src/services/crux/json-wasm-shell.ts`
 
 ### The executor
 
-- [ ] T034 [US1] Create `app-web/vela-wallet/src/lib/onboarding/core/passkey.ts`: `navigator.credentials.create/get`, ES256 only (`alg: -7`), `residentKey: 'required'` **and** `requireResidentKey: true`, `userVerification: 'required'`, `attestation: 'direct'`, `credProps` extension with `rk === false` ⇒ `not_discoverable` before anything is stored; rpId resolution and the platform-error → `FailureKind` mapping
-- [ ] T035 [P] [US2] Create `app-web/vela-wallet/src/lib/onboarding/core/registry.ts`: challenge/register/task-poll/query-by-key/query-unit/health against the registry service, plus the read-only v1 legacy-name `eth_call`, with `network: true` set only when the request never reached the server
-- [ ] T036 [P] [US3] Create `app-web/vela-wallet/src/lib/onboarding/core/storage.ts` over `localStorage` using the existing keys and record shapes — **`keys` carried on every read and write** ([data-model.md §6](./data-model.md))
-- [ ] T037 [US1] Create `app-web/vela-wallet/src/lib/onboarding/core/executor.ts`: an exhaustive switch over all 18 operations per [contracts/shell-operations.md](./contracts/shell-operations.md) §1, converting every rejection into the result variant the operation owes
-- [ ] T038 [P] [US1] Create `app-web/vela-wallet/src/lib/onboarding/core/copy.ts`: exhaustive `StatusKey` / `PromptKind` / `SubmitLabel` / `KeyMethod` → i18n key maps with `never` fallbacks, mirroring `src/services/onboarding-core/copy.ts`
-- [ ] T039 [US3] Create `app-web/vela-wallet/src/lib/onboarding/core/session.ts` + its executor over the 7 `SessionOperation`s ([contracts/shell-operations.md](./contracts/shell-operations.md) §2), constructed once for the app rather than per screen
+- [X] T034 [US1] Create `app-web/vela-wallet/src/lib/onboarding/core/passkey.ts`: `navigator.credentials.create/get`, ES256 only (`alg: -7`), `residentKey: 'required'` **and** `requireResidentKey: true`, `userVerification: 'required'`, `attestation: 'direct'`, `credProps` extension with `rk === false` ⇒ `not_discoverable` before anything is stored; rpId resolution and the platform-error → `FailureKind` mapping
+- [X] T035 [P] [US2] Create `app-web/vela-wallet/src/lib/onboarding/core/registry.ts`: challenge/register/task-poll/query-by-key/query-unit/health against the registry service, plus the read-only v1 legacy-name `eth_call`, with `network: true` set only when the request never reached the server
+- [X] T036 [P] [US3] Create `app-web/vela-wallet/src/lib/onboarding/core/storage.ts` over `localStorage` using the existing keys and record shapes — **`keys` carried on every read and write** ([data-model.md §6](./data-model.md))
+- [X] T037 [US1] Create `app-web/vela-wallet/src/lib/onboarding/core/executor.ts`: an exhaustive switch over all 18 operations per [contracts/shell-operations.md](./contracts/shell-operations.md) §1, converting every rejection into the result variant the operation owes
+- [X] T038 [P] [US1] Create `app-web/vela-wallet/src/lib/onboarding/core/copy.ts`: exhaustive `StatusKey` / `PromptKind` / `SubmitLabel` / `KeyMethod` → i18n key maps with `never` fallbacks, mirroring `src/services/onboarding-core/copy.ts`
+- [X] T039 [US3] Create `app-web/vela-wallet/src/lib/onboarding/core/session.ts` + its executor over the 7 `SessionOperation`s ([contracts/shell-operations.md](./contracts/shell-operations.md) §2), constructed once for the app rather than per screen
 
 ### The v2 screens
 

@@ -39,7 +39,11 @@ const WEB_ADDITIONS = [
 	['motion-hover', '120ms', 'spec 018 FR-011: desktop row hover raise'],
 	['motion-bubble-in', '120ms', 'spec 018 FR-011: index-rail letter bubble fade-in'],
 	['motion-bubble-out', '80ms', 'spec 018 FR-011: index-rail letter bubble fade-out'],
-	['size-identiconHero', '64px', 'spec 018: contact-detail hero avatar, measured 64 in C2 (mobile)'],
+	[
+		'size-identiconHero',
+		'64px',
+		'spec 018: contact-detail hero avatar, measured 64 in C2 (mobile)'
+	],
 	['size-identiconDetail', '48px', 'spec 018: contact-detail avatar, measured 48 in DC2 (desktop)'],
 	['layout-contactsRailW', '216px', 'spec 018 research D9: desktop group-rail width (DC1)'],
 	['layout-contactsMenuW', '216px', 'spec 018 research D9: dropdown/context menu width (M1/M2)'],

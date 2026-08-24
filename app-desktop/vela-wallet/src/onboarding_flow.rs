@@ -1,874 +1,338 @@
-//! Presentation state model + panel renderers for the onboarding create/login
-//! flows (spec 014). Pure UI: no passkey, network, storage, or timing behaviour
-//! lives here — every interaction is emitted as a [`PanelEvent`] to a
-//! host-provided sink, and the host (Welcome page or the dev gallery) decides
-//! what, if anything, happens next (FR-011).
+//! The create journey, as five screens.
 //!
-//! Field vocabulary follows `specs/014-onboarding-flow-ui/data-model.md`, which
-//! itself aligns with the spec-011 crux ViewModels so the later wiring feature
-//! is a mechanical mapping.
+//! Everything here is a rendering of `CreateView`. **The mapping in
+//! [`Screen::of`] is the whole of the create UI's logic** — there is no other
+//! decision in this file, and a client that implements that table has no create
+//! logic of its own (data-model §3).
+//!
+//! What spec 014 had here is gone: the in-place action-column swap, the five
+//! `CreatePanelState` variants, the elapsed-seconds ring. The v2 design makes
+//! the flow the whole page and keeps a modal for FAILURES only, which is
+//! [`crate::outcome`]. What survived is the `ui/` atoms, unchanged — they were
+//! built against the same tokens the redesign kept.
+//!
+//! ## The three gates, and why they are visible
+//!
+//! The core enforces at most seven keys, every key confirmed, and a second key
+//! when the only one is not backed up. Each surfaces here as a disabled control
+//! WITH ITS REASON WRITTEN NEXT TO IT rather than as a press that quietly does
+//! nothing. A person who cannot finish is owed the sentence that says why.
 
 use std::rc::Rc;
 
-use crate::loc::Loc;
-use crate::theme::{self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, LOGIN_BAR_FILL, Theme};
-use crate::ui::{
-    ButtonVariant, NameFieldStrings, ack_row, action_stack, address_strip, elapsed_ring,
-    flow_scaffold, login_progress, name_field, status_badge, step_progress, tech_details,
-    vela_button_opts,
-};
 use gpui::{
-    App, Div, FocusHandle, FontWeight, ParentElement, SharedString, Styled, Window, div, px,
+    AnyElement, App, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement as _,
+    ParentElement, SharedString, StatefulInteractiveElement as _, Styled, Window, div, px,
+    relative,
 };
 
-/// Byte budget for the account name — mirror of vela-core's
-/// `MAX_USER_NAME_BYTES` (64-byte WebAuthn user handle − 37 bytes of envelope).
-/// Mirrored rather than imported because the source constant lives behind the
-/// `crux` feature gate, which this shell does not enable.
-pub const MAX_NAME_BYTES: usize = 64 - 37;
+use vela_core::app::create_wallet::{CreateKeyRow, CreateStage, CreateView, SubmitLabel};
+use vela_core::app::{KeyMethod, StatusKey};
+
+use crate::loc::Loc;
+use crate::theme::{
+    self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD,
+    STEP_BAR_H, Theme,
+};
+use crate::ui::{
+    ButtonVariant, NameFieldStrings, ack_row, address_strip, name_field, vela_button_opts,
+};
+
+/// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
+pub const MAX_KEYS: usize = 7;
+
+/// The flow's column width. Wider than 014's 512 px panel because the flow is
+/// no longer beside anything.
+pub const FLOW_COLUMN_W: f32 = 560.;
+/// The three-segment bar at the top of the shell.
+pub const FLOW_STEPS: usize = 3;
+
+/// The privacy and terms URLs the legal acknowledgement links to. Absolute,
+/// because they are the marketing site's pages and not app routes.
+pub const PRIVACY_URL: &str = "https://getvela.app/privacy";
+pub const TERMS_URL: &str = "https://getvela.app/terms";
 
 // ---------------------------------------------------------------------------
-// State model (data-model.md §2)
+// Screen selection — the whole of the create UI's logic
 // ---------------------------------------------------------------------------
 
-/// Create-flow renderable condition. Field names match the spec-011 ViewModel.
-#[derive(Clone, Debug)]
-pub enum CreatePanelState {
-    Form {
-        name: String,
-        name_too_long: bool,
-        acks: [bool; 3],
-        can_submit: bool,
-        /// Reserved by spec 011; not exercised in this feature.
-        busy: bool,
-    },
-    Working {
-        /// 1..=5 — drives the 5-segment bar and the 第 N/5 步 caption.
-        step: u8,
-        status: CreateStatusKey,
-        /// A4's 请在系统弹窗中确认 sub-caption (step 1 only in the mocks).
-        show_hint: bool,
-        /// `Some(n)` renders the frozen elapsed-seconds ring (`c` variants).
-        elapsed_secs: Option<u16>,
-    },
-    Outcome(OutcomeSpec),
-}
-
-/// Login-flow renderable condition.
-#[derive(Clone, Debug)]
-pub enum LoginPanelState {
-    Waiting { elapsed_secs: Option<u16> },
-    Outcome(OutcomeSpec),
-}
-
-/// The five create working steps — mirrors spec 011's `StatusKey` subset.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CreateStatusKey {
-    SettingUpIdentity,
-    VerifyingIdentity,
-    ExtractingKey,
-    ComputingAddress,
-    SyncingKey,
-}
-
-impl CreateStatusKey {
-    /// The headline's corpus key (all five EXIST — spec 007 era).
-    pub fn key(self) -> &'static str {
-        match self {
-            Self::SettingUpIdentity => "onboarding.create.statusSettingUpIdentity",
-            Self::VerifyingIdentity => "onboarding.create.statusVerifyingIdentity",
-            Self::ExtractingKey => "onboarding.create.statusExtractingKey",
-            Self::ComputingAddress => "onboarding.create.statusComputingAddress",
-            Self::SyncingKey => "onboarding.create.statusSyncingKey",
-        }
-    }
-}
-
-/// Badge circle variants (data-model.md §3, 6 refined from the mocks).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BadgeVariant {
-    Success,
-    Warning,
-    Neutral,
-    Error,
-    Timeout,
-    Info,
-}
-
-/// Which scaffold title an outcome renders under.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TitleKey {
-    Create,
-    Login,
-    Sync,
-    Shared,
-}
-
-impl TitleKey {
-    /// The corpus key of the scaffold title this outcome renders under.
-    pub fn key(self) -> &'static str {
-        match self {
-            Self::Create => "onboarding.create.headerDefault",
-            Self::Login => "onboarding.login.header",
-            Self::Sync => "onboarding.create.headerSyncFailed",
-            Self::Shared => "onboarding.common.headerShared",
-        }
-    }
-}
-
-/// Every action a flow control can emit (contract §2 — shared across the four
-/// shells). Components never interpret these; the host sink does.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ActionId {
-    SubmitCreate,
-    EnterWallet,
-    FinishVerify,
-    StartOverNewPasskey,
+pub enum Screen {
+    Name,
+    Keys,
+    Progress,
     Retry,
-    RetryUpload,
-    RetryVerify,
-    RetryLogin,
-    RecreateWallet,
-    CreateNewWallet,
-    RecoverNow,
-    NotNow,
-    EditIndexEndpoint,
-    ReportError,
-    OpenBiometricSettings,
-    OpenCredentialManagerSettings,
-    Back,
-    Cancel,
-    Close,
-    CopyAddress,
-    ToggleDetails,
-    OpenPrivacyPolicy,
-    OpenTerms,
+    Done,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ActionRole {
-    Primary,
-    Secondary,
-}
+impl Screen {
+    /// data-model §3's table, verbatim.
+    ///
+    /// The one refinement over `stage` alone: a busy machine reporting a
+    /// PROGRESS status has left the key list and is deriving, so the progress
+    /// screen takes over until it lands. `setting_up_identity` is deliberately
+    /// not a progress status — it happens before the key list exists, and
+    /// belongs to the Name screen's status line.
+    pub fn of(view: &CreateView) -> Self {
+        match view.stage {
+            CreateStage::Created => Self::Done,
+            CreateStage::SyncFailed => Self::Retry,
+            CreateStage::AddKeys if view.busy && progress_for(view.status).is_some() => {
+                Self::Progress
+            }
+            CreateStage::AddKeys => Self::Keys,
+            CreateStage::Form if view.busy && progress_for(view.status).is_some() => Self::Progress,
+            CreateStage::Form => Self::Name,
+        }
+    }
 
-/// One stacked action: role decides the button treatment, id names the press.
-#[derive(Clone, Debug)]
-pub struct Action {
-    pub role: ActionRole,
-    pub id: ActionId,
-    pub label: SharedString,
-}
-
-/// The 技术详情 disclosure content. Runtime diagnostics, not copy (research
-/// D1) — gallery fixtures carry representative strings verbatim.
-#[derive(Clone, Debug)]
-pub struct TechDetails {
-    /// e.g. `E_SERVER` — rendered in the error color.
-    pub code: String,
-    /// e.g. 第 5 步同步公钥；以及登录.
-    pub context: String,
-    /// e.g. `HTTP 503 · p256-index.getvela.app`.
-    pub endpoint: Option<String>,
-}
-
-/// One shape renders every result/error state (data-model.md §3). Strings are
-/// already key-resolved ([`OutcomeKind::spec`]) so components stay i18n-free.
-#[derive(Clone, Debug)]
-pub struct OutcomeSpec {
-    /// Which scaffold title to render under (resolved via [`TitleKey::key`]).
-    pub scaffold_title: TitleKey,
-    pub badge: BadgeVariant,
-    pub headline: SharedString,
-    pub body: SharedString,
-    /// `Some` → copyable address strip (A11 only). Full untruncated value.
-    pub address: Option<SharedString>,
-    /// A11's under-strip verify line (`onboarding.create.verifyHint`).
-    pub footnote: Option<SharedString>,
-    /// `Some` → 技术详情 disclosure present.
-    pub details: Option<TechDetails>,
-    /// Default collapsed on every entry to a state; E2x fixture opens it.
-    pub details_expanded: bool,
-    /// Exactly 1 primary + 0..=2 secondary, top-to-bottom.
-    pub actions: Vec<Action>,
-}
-
-/// The outcome taxonomy: 18 kinds, one authoritative catalog (data-model §4).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum OutcomeKind {
-    Created,
-    SyncFailed,
-    VerifyStuck,
-    Network,
-    Server,
-    Timeout,
-    CancelledSetup,
-    CancelledVerify,
-    Unsupported,
-    Incompatible,
-    NotDiscoverable,
-    AccountNotFound,
-    Unknown,
-    RecoverOffer,
-    RecoverFailed,
-    SignInFailed,
-    SignedIn,
-    LoginCancelled,
-}
-
-impl OutcomeKind {
-    /// The pure `kind → OutcomeSpec` catalog. Components render the spec and
-    /// never branch on the kind. `address`/`details` are runtime data — the
-    /// catalog leaves them empty and fixtures (later, the wiring) fill them.
-    pub fn spec(self, loc: &Loc) -> OutcomeSpec {
-        let a = |role, id, key: &str| Action {
-            role,
-            id,
-            label: loc.t(key),
-        };
-        let p = |id, key: &str| a(ActionRole::Primary, id, key);
-        let s = |id, key: &str| a(ActionRole::Secondary, id, key);
-        use ActionId::*;
-
-        let (title, badge, headline, body, footnote, actions) = match self {
-            Self::Created => (
-                TitleKey::Create,
-                BadgeVariant::Success,
-                loc.t("onboarding.create.successTitle"),
-                // 12 supported networks — the count the whole app ships today.
-                loc.t_vars("onboarding.create.successMessage", &[("count", 12.)]),
-                Some(loc.t("onboarding.create.verifyHint")),
-                vec![p(EnterWallet, "onboarding.create.enterWalletBtn")],
-            ),
-            Self::SyncFailed => (
-                TitleKey::Sync,
-                BadgeVariant::Warning,
-                loc.t("onboarding.create.syncFailedTitle"),
-                loc.t("onboarding.common.syncFailedBody"),
-                None,
-                vec![
-                    p(RetryUpload, "onboarding.create.retryUploadBtn"),
-                    s(EditIndexEndpoint, "onboarding.common.editIndexEndpoint"),
-                    s(ReportError, "onboarding.common.reportError"),
-                ],
-            ),
-            Self::VerifyStuck => (
-                TitleKey::Create,
-                BadgeVariant::Warning,
-                loc.t("onboarding.common.verifyStuckTitle"),
-                loc.t("onboarding.common.verifyStuckBody"),
-                None,
-                vec![
-                    p(FinishVerify, "onboarding.create.finishVerifyBtn"),
-                    s(StartOverNewPasskey, "onboarding.create.startOverBtn"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::Network => (
-                TitleKey::Create,
-                BadgeVariant::Error,
-                loc.t("onboarding.common.networkTitle"),
-                loc.t("onboarding.common.networkBody"),
-                None,
-                vec![
-                    p(Retry, "onboarding.common.retry"),
-                    // Root key, reused deliberately (contract i18n-keys.md).
-                    s(Cancel, "common.cancel"),
-                ],
-            ),
-            Self::Server => (
-                TitleKey::Create,
-                BadgeVariant::Error,
-                loc.t("onboarding.common.serverTitle"),
-                loc.t("onboarding.common.serverBody"),
-                None,
-                vec![
-                    p(Retry, "onboarding.common.retry"),
-                    s(EditIndexEndpoint, "onboarding.common.editIndexEndpoint"),
-                    s(ReportError, "onboarding.common.reportError"),
-                ],
-            ),
-            Self::Timeout => (
-                TitleKey::Create,
-                BadgeVariant::Timeout,
-                loc.t("onboarding.common.timeoutTitle"),
-                // The mock's 60 s budget; the wiring feature passes the real one.
-                loc.t_vars("onboarding.common.timeoutBody", &[("seconds", 60.)]),
-                None,
-                vec![
-                    p(Retry, "onboarding.common.retry"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::CancelledSetup => (
-                TitleKey::Create,
-                BadgeVariant::Neutral,
-                loc.t("onboarding.common.cancelledSetupTitle"),
-                loc.t("onboarding.common.cancelledSetupBody"),
-                None,
-                vec![
-                    p(RecreateWallet, "onboarding.common.recreateWallet"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::CancelledVerify => (
-                TitleKey::Create,
-                BadgeVariant::Neutral,
-                loc.t("onboarding.common.cancelledVerifyTitle"),
-                loc.t("onboarding.common.cancelledVerifyBody"),
-                None,
-                vec![
-                    p(RetryVerify, "onboarding.create.retryVerifyBtn"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::Unsupported => (
-                TitleKey::Create,
-                BadgeVariant::Error,
-                loc.t("onboarding.common.unsupportedTitle"),
-                loc.t("onboarding.common.unsupportedBody"),
-                None,
-                vec![
-                    p(
-                        OpenBiometricSettings,
-                        "onboarding.common.openBiometricSettings",
-                    ),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::Incompatible => (
-                TitleKey::Create,
-                BadgeVariant::Error,
-                loc.t("onboarding.common.incompatibleTitle"),
-                loc.t("onboarding.common.incompatibleBody"),
-                None,
-                vec![
-                    p(
-                        OpenCredentialManagerSettings,
-                        "onboarding.common.openCredentialManagerSettings",
-                    ),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::NotDiscoverable => (
-                TitleKey::Create,
-                BadgeVariant::Warning,
-                loc.t("onboarding.common.notDiscoverableTitle"),
-                loc.t("onboarding.common.notDiscoverableBody"),
-                None,
-                vec![
-                    p(RecreateWallet, "onboarding.common.recreateWallet"),
-                    s(
-                        OpenCredentialManagerSettings,
-                        "onboarding.common.openCredentialManagerSettings",
-                    ),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::AccountNotFound => (
-                TitleKey::Login,
-                BadgeVariant::Error,
-                loc.t("onboarding.common.notFoundTitle"),
-                loc.t("onboarding.common.notFoundBody"),
-                None,
-                vec![
-                    p(CreateNewWallet, "onboarding.login.createNewWalletBtn"),
-                    s(EditIndexEndpoint, "onboarding.common.editIndexEndpoint"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::Unknown => (
-                TitleKey::Shared,
-                BadgeVariant::Error,
-                loc.t("onboarding.common.unknownTitle"),
-                loc.t("onboarding.common.unknownBody"),
-                None,
-                vec![
-                    p(Retry, "onboarding.common.retry"),
-                    s(ReportError, "onboarding.common.reportError"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::RecoverOffer => (
-                TitleKey::Login,
-                BadgeVariant::Info,
-                loc.t("onboarding.login.recoverOfferTitle"),
-                loc.t("onboarding.login.recoverOfferBody"),
-                None,
-                vec![
-                    p(RecoverNow, "onboarding.login.recoverConfirm"),
-                    s(NotNow, "onboarding.login.recoverCancel"),
-                ],
-            ),
-            Self::RecoverFailed => (
-                TitleKey::Login,
-                BadgeVariant::Error,
-                loc.t("onboarding.login.recoverFailedTitle"),
-                loc.t("onboarding.login.recoverFailedBody"),
-                None,
-                vec![
-                    p(Retry, "onboarding.common.retry"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::SignInFailed => (
-                TitleKey::Login,
-                BadgeVariant::Error,
-                loc.t("onboarding.login.alertSignInFailedTitle"),
-                loc.t("onboarding.login.signInFailedBody"),
-                None,
-                vec![
-                    p(Retry, "onboarding.common.retry"),
-                    s(ReportError, "onboarding.common.reportError"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-            Self::SignedIn => (
-                TitleKey::Login,
-                BadgeVariant::Success,
-                loc.t("onboarding.login.successTitle"),
-                loc.t("onboarding.login.successMessage"),
-                None,
-                vec![p(EnterWallet, "onboarding.create.enterWalletBtn")],
-            ),
-            Self::LoginCancelled => (
-                TitleKey::Login,
-                BadgeVariant::Neutral,
-                loc.t("onboarding.login.statusCancelledTitle"),
-                loc.t("onboarding.login.statusCancelledBody"),
-                None,
-                vec![
-                    p(RetryLogin, "onboarding.login.retryLoginBtn"),
-                    s(Back, "onboarding.common.back"),
-                ],
-            ),
-        };
-
-        OutcomeSpec {
-            scaffold_title: title,
-            badge,
-            headline,
-            body,
-            address: None,
-            footnote,
-            details: None,
-            details_expanded: false,
-            actions,
+    /// Which of the three segments is filled: name, keys, everything after.
+    fn step(self) -> usize {
+        match self {
+            Self::Name => 1,
+            Self::Keys => 2,
+            Self::Progress | Self::Retry | Self::Done => 3,
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// Derivation rules the model carries (data-model.md validation notes)
-// ---------------------------------------------------------------------------
-
-/// spec 011's rule: the name must fit the WebAuthn user handle budget.
-pub fn name_too_long(name: &str) -> bool {
-    name.trim().len() > MAX_NAME_BYTES
+/// The progress screen's active row and percentage (data-model §3, research D9).
+///
+/// Derived from the stage the core reported, never from elapsed time: a bar
+/// that advances on a timer tells the person something the wallet does not
+/// know, and the moment they are most owed the truth is while their key set is
+/// being frozen.
+pub fn progress_for(status: Option<StatusKey>) -> Option<(usize, u32)> {
+    match status? {
+        StatusKey::VerifyingIdentity | StatusKey::ExtractingKey => Some((0, 33)),
+        StatusKey::ComputingAddress => Some((1, 62)),
+        StatusKey::SyncingKey => Some((2, 100)),
+        _ => None,
+    }
 }
 
-/// `can_submit == (!name_too_long && name nonempty && all acks)`.
-pub fn derive_can_submit(name: &str, too_long: bool, acks: &[bool; 3]) -> bool {
-    !too_long && !name.trim().is_empty() && acks.iter().all(|a| *a)
+/// The three task rows, in order.
+const PROGRESS_TASKS: [&str; 3] = [
+    "onboarding.create.taskVerifyKey",
+    "onboarding.create.taskDeriveAddress",
+    "onboarding.create.taskWriteIndex",
+];
+
+/// The transient status line's corpus key. Exhaustive: a new `StatusKey` in the
+/// core stops this compiling rather than rendering a blank line.
+pub fn status_key(status: StatusKey) -> &'static str {
+    match status {
+        StatusKey::SettingUpIdentity => "onboarding.create.statusSettingUpIdentity",
+        StatusKey::VerifyingIdentity => "onboarding.create.statusVerifyingIdentity",
+        StatusKey::ExtractingKey => "onboarding.create.statusExtractingKey",
+        StatusKey::ComputingAddress => "onboarding.create.statusComputingAddress",
+        StatusKey::SyncingKey => "onboarding.create.statusSyncingKey",
+        StatusKey::SetupCancelled => "onboarding.create.statusSetupCancelled",
+        StatusKey::VerifyCancelled => "onboarding.create.statusVerifyCancelled",
+    }
 }
 
-// ---------------------------------------------------------------------------
-// Gallery fixtures (data-model.md §5 — 34 codes, E10 listed in both groups)
-// ---------------------------------------------------------------------------
-
-/// Which gallery group(s) a fixture belongs to. `Shared` (E10) appears under
-/// both Create and Login.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FixtureFlow {
-    Create,
-    Login,
-    Shared,
-}
-
-/// The state a fixture instantiates. E10 carries a Create-shaped state; its
-/// rendering is identical from either flow.
-#[derive(Clone, Debug)]
-pub enum FixtureState {
-    Create(CreatePanelState),
-    Login(LoginPanelState),
-}
-
-/// A named, gallery-selectable Presentation State with representative data.
-#[derive(Clone, Debug)]
-pub struct StateFixture {
-    pub code: &'static str,
-    pub flow: FixtureFlow,
-    pub state: FixtureState,
-}
-
-/// The A11 success address — full 42 chars; display truncates, copy does not.
-pub const FIXTURE_ADDRESS: &str = "0x44EEC06897ff7ab8C7f16819511A64bA168A6D33";
-
-/// All 34 fixture codes in inventory order. TechDetails contents are
-/// representative runtime diagnostics: E2/E2x carry the contract-pinned
-/// strings verbatim; the rest carry plausible values in the same shape.
-pub fn fixtures(loc: &Loc) -> Vec<StateFixture> {
-    use CreatePanelState as C;
-    use FixtureFlow as F;
-    use FixtureState as S;
-    use LoginPanelState as L;
-
-    let form = |name: &str, too_long: bool, acks: [bool; 3]| C::Form {
-        name: name.to_owned(),
-        name_too_long: too_long,
-        can_submit: derive_can_submit(name, too_long, &acks),
-        acks,
-        busy: false,
-    };
-    let working = |step: u8, status: CreateStatusKey, elapsed: Option<u16>| C::Working {
-        step,
-        status,
-        show_hint: step == 1,
-        elapsed_secs: elapsed,
-    };
-    let details = |code: &str, context: &str, endpoint: Option<&str>| {
-        Some(TechDetails {
-            code: code.to_owned(),
-            context: context.to_owned(),
-            endpoint: endpoint.map(str::to_owned),
-        })
-    };
-    let outcome = |kind: OutcomeKind, d: Option<TechDetails>, expanded: bool| -> OutcomeSpec {
-        let mut spec = kind.spec(loc);
-        spec.details = d;
-        spec.details_expanded = expanded;
-        spec
-    };
-    let create = |code: &'static str, state: C| StateFixture {
-        code,
-        flow: F::Create,
-        state: S::Create(state),
-    };
-    let login = |code: &'static str, state: L| StateFixture {
-        code,
-        flow: F::Login,
-        state: S::Login(state),
-    };
-
-    use CreateStatusKey::*;
-    let server_details = || {
-        details(
-            "E_SERVER",
-            "第 5 步同步公钥；以及登录",
-            Some("HTTP 503 · p256-index.getvela.app"),
-        )
-    };
-
-    let mut a11 = outcome(OutcomeKind::Created, None, false);
-    a11.address = Some(FIXTURE_ADDRESS.into());
-
-    vec![
-        create("A1", form("", false, [false; 3])),
-        create("A2", form("大表哥", false, [true; 3])),
-        create(
-            "A3",
-            form("一个特别特别特别长的账户名称示例", true, [false; 3]),
-        ),
-        create("A4", working(1, SettingUpIdentity, None)),
-        create("A4c", working(1, SettingUpIdentity, Some(19))),
-        create("A5", working(2, VerifyingIdentity, None)),
-        create("A5c", working(2, VerifyingIdentity, Some(6))),
-        create("A6", working(3, ExtractingKey, None)),
-        create("A6c", working(3, ExtractingKey, Some(9))),
-        create("A7", working(4, ComputingAddress, None)),
-        create("A7c", working(4, ComputingAddress, Some(12))),
-        create("A8", working(5, SyncingKey, None)),
-        create("A8c", working(5, SyncingKey, Some(8))),
-        create("A11", C::Outcome(a11)),
-        create(
-            "A12",
-            C::Outcome(outcome(OutcomeKind::SyncFailed, server_details(), false)),
-        ),
-        create(
-            "A13",
-            C::Outcome(outcome(
-                OutcomeKind::VerifyStuck,
-                details("E_VERIFY_STUCK", "第 2 步验证身份", None),
-                false,
-            )),
-        ),
-        create(
-            "E1",
-            C::Outcome(outcome(
-                OutcomeKind::Network,
-                details("E_NETWORK", "第 5 步同步公钥；以及登录", None),
-                false,
-            )),
-        ),
-        create(
-            "E2",
-            C::Outcome(outcome(OutcomeKind::Server, server_details(), false)),
-        ),
-        create(
-            "E2x",
-            C::Outcome(outcome(OutcomeKind::Server, server_details(), true)),
-        ),
-        create(
-            "E3",
-            C::Outcome(outcome(
-                OutcomeKind::Timeout,
-                details("E_TIMEOUT", "第 5 步同步公钥；60 秒无响应", None),
-                false,
-            )),
-        ),
-        create(
-            "E4",
-            C::Outcome(outcome(
-                OutcomeKind::CancelledSetup,
-                details("E_CANCELLED", "第 1 步创建通行密钥", None),
-                false,
-            )),
-        ),
-        create(
-            "E5",
-            C::Outcome(outcome(
-                OutcomeKind::CancelledVerify,
-                details("E_CANCELLED", "第 2 步验证身份", None),
-                false,
-            )),
-        ),
-        create(
-            "E6",
-            C::Outcome(outcome(
-                OutcomeKind::Unsupported,
-                details("E_UNSUPPORTED", "第 1 步创建通行密钥", None),
-                false,
-            )),
-        ),
-        create(
-            "E7",
-            C::Outcome(outcome(
-                OutcomeKind::Incompatible,
-                details("E_INCOMPATIBLE", "第 1 步创建通行密钥", None),
-                false,
-            )),
-        ),
-        create(
-            "E8",
-            C::Outcome(outcome(
-                OutcomeKind::NotDiscoverable,
-                details("E_NOT_DISCOVERABLE", "第 2 步验证身份", None),
-                false,
-            )),
-        ),
-        StateFixture {
-            code: "E9",
-            flow: F::Login,
-            state: S::Login(L::Outcome(outcome(
-                OutcomeKind::AccountNotFound,
-                details(
-                    "E_NOT_FOUND",
-                    "登录查询",
-                    Some("HTTP 404 · p256-index.getvela.app"),
-                ),
-                false,
-            ))),
-        },
-        StateFixture {
-            code: "E10",
-            flow: F::Shared,
-            state: S::Create(C::Outcome(outcome(
-                OutcomeKind::Unknown,
-                details("E_UNKNOWN", "未归类的异常", None),
-                false,
-            ))),
-        },
-        login("B1", L::Waiting { elapsed_secs: None }),
-        login(
-            "B1c",
-            L::Waiting {
-                elapsed_secs: Some(41),
-            },
-        ),
-        login(
-            "B2",
-            L::Outcome(outcome(
-                OutcomeKind::RecoverOffer,
-                details(
-                    "E_NOT_INDEXED",
-                    "索引服务没有这枚通行密钥的记录",
-                    Some("p256-index.getvela.app"),
-                ),
-                false,
-            )),
-        ),
-        login(
-            "B3",
-            L::Outcome(outcome(
-                OutcomeKind::RecoverFailed,
-                details("E_RECOVER", "两次签名恢复公钥", None),
-                false,
-            )),
-        ),
-        login(
-            "B4",
-            L::Outcome(outcome(
-                OutcomeKind::SignInFailed,
-                details("E_SIGNIN", "通行密钥断言失败", None),
-                false,
-            )),
-        ),
-        login(
-            "B5",
-            L::Outcome(outcome(
-                OutcomeKind::SignedIn,
-                details(
-                    "SIGNED_IN",
-                    "通行密钥验证通过",
-                    Some("p256-index.getvela.app"),
-                ),
-                false,
-            )),
-        ),
-        login(
-            "B6",
-            L::Outcome(outcome(
-                OutcomeKind::LoginCancelled,
-                details("E_CANCELLED", "通行密钥验证未完成", None),
-                false,
-            )),
-        ),
-    ]
+/// A key row's provider line.
+///
+/// Keyed off the METHOD the person chose. The design draws a richer line
+/// («YubiKey 5C · USB»), which needs the AAGUID resolved to a model name — a
+/// lookup the flow does not make. Until it does, this is the honest version of
+/// the same fact.
+fn provider_line(method: KeyMethod) -> &'static str {
+    match method {
+        KeyMethod::Platform => "onboarding.create.providerPlatform",
+        KeyMethod::Hybrid => "onboarding.create.providerGeneric",
+        KeyMethod::SecurityKey => "onboarding.create.providerSecurityKey",
+    }
 }
 
 // ---------------------------------------------------------------------------
-// Panel events + renderers (contract §2/§3)
+// Events
 // ---------------------------------------------------------------------------
 
-/// Everything a flow panel can emit. `Action` presses carry the shared
-/// [`ActionId`] vocabulary; the payload variants are the local visual state
-/// FR-011 allows (typing, checkboxes). Hosts mutate their copy of the state
-/// and `cx.notify()`.
-#[derive(Clone, Debug)]
-pub enum PanelEvent {
-    Action(ActionId),
+/// What a control on these screens can ask for. The host translates each into a
+/// core event (or, for the three presentation-only ones, into its own state).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FlowEvent {
     NameChanged(String),
     AckToggled(usize),
+    Submit,
+    StartOver,
+    AddKey(KeyMethod),
+    ConfirmKey(usize),
+    RemoveKey(usize),
+    FinishKeys,
+    RetryUpload,
+    EnterWallet,
+    /// The top-left affordance. The CORE owns whether there is a step to go
+    /// back to (`can_go_back`); leaving the flow entirely is the host's,
+    /// because the core has no idea what contains it.
+    Back,
+    /// Presentation only: expand or collapse the add-method list.
+    TogglePicker,
+    /// Presentation only: the address was copied.
+    CopyAddress,
+    /// Presentation only: a method the desktop cannot run was pressed.
+    MethodUnavailable(KeyMethod),
 }
 
-/// The host-provided sink. `Rc` so the many child closures share one handler.
-pub type PanelSink = Rc<dyn Fn(PanelEvent, &mut Window, &mut App)>;
+pub type FlowSink = Rc<dyn Fn(FlowEvent, &mut Window, &mut App)>;
 
-/// Everything a panel render needs from its host besides the state itself.
-pub struct PanelHost<'a> {
+/// Everything the screens read. All of it is either `CreateView` or the host's
+/// own presentation state — there is no third source.
+pub struct FlowHost<'a> {
     pub theme: &'a Theme,
     pub loc: &'a Loc,
-    /// Focus handle for the name field (host-owned so it persists per frame).
+    pub view: &'a CreateView,
     pub name_focus: &'a FocusHandle,
-    /// Transient 已复制 feedback for the address strip (host bool + notify).
+    /// The add-method list is expanded.
+    pub picker_open: bool,
+    /// The Done screen's transient 已复制 feedback.
     pub copied: bool,
-    pub sink: PanelSink,
+    /// A security key is blinking, waiting for a finger. The one thing on these
+    /// screens that comes from the transport rather than from the core — the
+    /// core has no idea a cable exists.
+    pub touch_waiting: bool,
+    pub sink: FlowSink,
 }
 
-fn on_action(sink: &PanelSink, id: ActionId) -> impl Fn(&mut Window, &mut App) + 'static {
+fn emit(sink: &FlowSink, event: FlowEvent) -> impl Fn(&mut Window, &mut App) + 'static {
     let sink = sink.clone();
-    move |window, cx| sink(PanelEvent::Action(id), window, cx)
+    move |window, cx| sink(event.clone(), window, cx)
 }
 
-/// Render the create flow panel for `state`, scaffold included, sized for the
-/// 512 px action panel (or the gallery's replica of it).
-pub fn render_create_panel(state: &CreatePanelState, host: &PanelHost<'_>, window: &Window) -> Div {
-    let theme = host.theme;
-    let loc = host.loc;
-    let title = match state {
-        CreatePanelState::Outcome(spec) => loc.t(spec.scaffold_title.key()),
-        _ => loc.t(TitleKey::Create.key()),
-    };
-    let content = match state {
-        CreatePanelState::Form {
-            name,
-            name_too_long,
-            acks,
-            can_submit,
-            busy,
-        } => render_form(name, *name_too_long, acks, *can_submit, *busy, host, window),
-        CreatePanelState::Working {
-            step,
-            status,
-            show_hint,
-            elapsed_secs,
-        } => render_working(*step, *status, *show_hint, *elapsed_secs, host),
-        CreatePanelState::Outcome(spec) => render_outcome(spec, host),
-    };
-    flow_scaffold(
-        theme,
-        title,
-        on_action(&host.sink, ActionId::Close),
-        content,
-    )
-}
+// ---------------------------------------------------------------------------
+// The shell
+// ---------------------------------------------------------------------------
 
-/// Render the login flow panel for `state`, scaffold included.
-pub fn render_login_panel(state: &LoginPanelState, host: &PanelHost<'_>) -> Div {
+/// The whole flow: back affordance, three-segment bar, and one screen.
+pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
+    let screen = Screen::of(host.view);
     let theme = host.theme;
-    let loc = host.loc;
-    let title = match state {
-        LoginPanelState::Outcome(spec) => loc.t(spec.scaffold_title.key()),
-        LoginPanelState::Waiting { .. } => loc.t(TitleKey::Login.key()),
+
+    // No way back out of a running ceremony: the keys are being frozen, and the
+    // only honest control is none.
+    let can_leave = screen != Screen::Progress && screen != Screen::Done;
+    let back: AnyElement = if can_leave {
+        let on_back = emit(&host.sink, FlowEvent::Back);
+        div()
+            .id("flow-back")
+            .flex()
+            .items_center()
+            .gap(px(FLOW_GAP_SM))
+            .cursor_pointer()
+            .text_size(theme::text_body())
+            .font_weight(FontWeight::SEMIBOLD)
+            .text_color(theme.fg_muted)
+            .hover(|s| s.text_color(theme.fg_base))
+            .on_click(move |_, window, cx| on_back(window, cx))
+            .child("‹")
+            .child(host.loc.t("onboarding.common.back"))
+            .into_any_element()
+    } else {
+        // An empty leading cell, so the flow label stays where it was: a row
+        // that re-centres when the affordance disappears reads as a jump.
+        div().into_any_element()
     };
-    let content = match state {
-        LoginPanelState::Waiting { elapsed_secs } => {
-            let headline = loc.t("onboarding.login.statusAwaitingPasskey");
-            let hint = loc.t("onboarding.login.statusAwaitingPasskeyHint");
-            let mut headline_row = div()
+
+    let body = match screen {
+        Screen::Name => render_name(host, window),
+        Screen::Keys => render_keys(host),
+        Screen::Progress => render_progress(host),
+        Screen::Retry => render_retry(host),
+        Screen::Done => render_done(host),
+    };
+
+    div()
+        .w(px(FLOW_COLUMN_W))
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_LG))
+        .child(
+            div()
+                .w_full()
                 .flex()
                 .items_center()
                 .justify_between()
-                .gap(px(FLOW_GAP_MD))
+                .child(back)
                 .child(
                     div()
-                        .min_w(px(0.))
-                        .text_size(theme::text_flow_headline())
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(theme.fg_base)
-                        .child(headline),
-                );
-            if let Some(secs) = elapsed_secs {
-                headline_row = headline_row.child(elapsed_ring(theme, *secs));
-            }
-            div()
-                .flex()
-                .flex_col()
-                .child(login_progress(theme, LOGIN_BAR_FILL))
-                .child(div().h(px(FLOW_GAP_LG)))
-                .child(headline_row)
-                .child(
-                    div()
-                        .mt(px(FLOW_GAP_SM))
                         .text_size(theme::text_body())
-                        .line_height(theme::line_height_body())
                         .text_color(theme.fg_muted)
-                        .child(hint),
-                )
-        }
-        LoginPanelState::Outcome(spec) => render_outcome(spec, host),
-    };
-    flow_scaffold(
-        theme,
-        title,
-        on_action(&host.sink, ActionId::Close),
-        content,
-    )
+                        .child(host.loc.t("onboarding.create.headerDefault")),
+                ),
+        )
+        .child(segmented_bar(theme, screen.step()))
+        .child(body)
 }
 
-// -- pattern bodies ----------------------------------------------------------
+/// The three-segment progress bar. One filled track rather than 014's five
+/// separate segments: the journey is three steps now, and the fill is
+/// continuous because the third step covers everything after the key list.
+fn segmented_bar(theme: &Theme, step: usize) -> Div {
+    #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
+    let fraction = step as f32 / FLOW_STEPS as f32;
+    div()
+        .w_full()
+        .h(px(STEP_BAR_H))
+        .rounded_full()
+        .bg(theme.divider)
+        .child(
+            div()
+                .w(relative(fraction))
+                .h_full()
+                .rounded_full()
+                .bg(theme.accent),
+        )
+}
 
-fn render_form(
-    name: &str,
-    too_long: bool,
-    acks: &[bool; 3],
-    can_submit: bool,
-    busy: bool,
-    host: &PanelHost<'_>,
-    window: &Window,
-) -> Div {
+fn title(theme: &Theme, text: SharedString) -> Div {
+    div()
+        .text_size(theme::text_tagline())
+        .font_weight(FontWeight::BOLD)
+        .text_color(theme.fg_base)
+        .child(text)
+}
+
+fn subtitle(theme: &Theme, text: SharedString) -> Div {
+    div()
+        .text_size(theme::text_card_title())
+        .line_height(theme::line_height_body())
+        .text_color(theme.fg_muted)
+        .child(text)
+}
+
+fn caption(theme: &Theme, text: SharedString) -> Div {
+    div()
+        .text_size(theme::text_flow_caption())
+        .text_color(theme.fg_subtle)
+        .child(text)
+}
+
+// ---------------------------------------------------------------------------
+// Name
+// ---------------------------------------------------------------------------
+
+/// Which link inside the legal acknowledgement was pressed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LegalLink {
+    Privacy,
+    Terms,
+}
+
+impl LegalLink {
+    pub fn url(self) -> &'static str {
+        match self {
+            Self::Privacy => PRIVACY_URL,
+            Self::Terms => TERMS_URL,
+        }
+    }
+}
+
+fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
     let theme = host.theme;
     let loc = host.loc;
-    let sink = &host.sink;
+    let view = host.view;
 
     let strings = NameFieldStrings {
         label: loc.t("onboarding.create.accountNameLabel"),
@@ -876,384 +340,873 @@ fn render_form(
         helper: loc.t("onboarding.create.accountNameHint"),
         too_long_hint: loc.t("onboarding.create.nameTooLong"),
     };
-    let field = {
-        let sink = sink.clone();
-        name_field(
-            theme,
-            &strings,
-            name,
-            too_long,
-            host.name_focus,
-            window,
-            move |next, window, cx| sink(PanelEvent::NameChanged(next), window, cx),
-        )
-    };
-
-    // Rows 1–2 are plain sentences; row 3 wraps the inline Privacy Policy /
-    // Terms links (individually activatable — spec edge case).
-    let mut rows = div().flex().flex_col().gap(px(FLOW_GAP_LG));
-    for (ix, checked) in acks.iter().enumerate() {
-        let (text, links) = match ix {
-            0 => (loc.t("onboarding.create.ack0").to_string(), vec![]),
-            1 => (loc.t("onboarding.create.ack1").to_string(), vec![]),
-            _ => {
-                let lead = loc.t("onboarding.create.ack3").to_string();
-                let privacy = loc.t("onboarding.create.ack3PrivacyPolicy").to_string();
-                let and = loc.t("onboarding.create.ack3And").to_string();
-                let terms = loc.t("onboarding.create.ack3Terms").to_string();
-                let period = loc.t("onboarding.create.ack3Period").to_string();
-                let privacy_range = lead.len()..lead.len() + privacy.len();
-                let terms_start = privacy_range.end + and.len();
-                let terms_range = terms_start..terms_start + terms.len();
-                (
-                    format!("{lead}{privacy}{and}{terms}{period}"),
-                    vec![
-                        (privacy_range, ActionId::OpenPrivacyPolicy),
-                        (terms_range, ActionId::OpenTerms),
-                    ],
-                )
+    let sink = host.sink.clone();
+    let editable = view.name_editable;
+    let field = name_field(
+        theme,
+        &strings,
+        &view.name,
+        view.name_too_long,
+        host.name_focus,
+        window,
+        move |value, window, cx| {
+            if editable {
+                sink(FlowEvent::NameChanged(value), window, cx);
             }
-        };
-        let on_toggle = {
-            let sink = sink.clone();
-            move |window: &mut Window, cx: &mut App| sink(PanelEvent::AckToggled(ix), window, cx)
-        };
-        let on_link = {
-            let sink = sink.clone();
-            move |id: ActionId, window: &mut Window, cx: &mut App| {
-                sink(PanelEvent::Action(id), window, cx)
-            }
-        };
-        rows = rows.child(ack_row(
-            ix,
-            theme,
-            *checked,
-            SharedString::from(text),
-            links,
-            on_toggle,
-            on_link,
-        ));
-    }
-
-    let cta = {
-        let on_submit = on_action(sink, ActionId::SubmitCreate);
-        vela_button_opts(
-            "create-submit",
-            ButtonVariant::Primary,
-            loc.t("onboarding.create.createWalletBtn"),
-            can_submit && !busy,
-            theme,
-            move |_, window, cx| on_submit(window, cx),
-        )
-    };
-
-    div()
-        .flex()
-        .flex_col()
-        .child(field)
-        .child(div().h(px(FLOW_GAP_LG)))
-        .child(rows)
-        .child(div().h(px(FLOW_GAP_LG)))
-        .child(cta)
-}
-
-fn render_working(
-    step: u8,
-    status: CreateStatusKey,
-    show_hint: bool,
-    elapsed_secs: Option<u16>,
-    host: &PanelHost<'_>,
-) -> Div {
-    let theme = host.theme;
-    let loc = host.loc;
-
-    let caption = loc.t_vars(
-        "onboarding.common.stepCounter",
-        &[("current", f64::from(step)), ("total", 5.)],
+        },
     );
-    let mut headline_row = div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .gap(px(FLOW_GAP_MD))
-        .child(
-            div()
-                .min_w(px(0.))
-                .text_size(theme::text_flow_headline())
-                .font_weight(FontWeight::BOLD)
-                .text_color(theme.fg_base)
-                .child(loc.t(status.key())),
-        );
-    if let Some(secs) = elapsed_secs {
-        headline_row = headline_row.child(elapsed_ring(theme, secs));
-    }
 
-    let mut col = div()
-        .flex()
-        .flex_col()
-        .child(step_progress(theme, step, 5))
-        .child(
-            div()
-                .mt(px(FLOW_GAP_MD))
-                .text_size(theme::text_flow_caption())
-                .text_color(theme.fg_muted)
-                .child(caption),
-        )
-        .child(div().mt(px(FLOW_GAP_SM)).child(headline_row));
-    if show_hint {
-        col = col.child(
-            div()
-                .mt(px(FLOW_GAP_SM))
-                .text_size(theme::text_body())
-                .line_height(theme::line_height_body())
-                .text_color(theme.fg_subtle)
-                .child(loc.t("onboarding.common.confirmInPrompt")),
-        );
-    }
-    col
-}
+    // The legal row's two inline links, located by byte range in the assembled
+    // sentence. Built by concatenation rather than by interpolation because the
+    // ranges have to be exact, and `{{var}}` fills would move them per locale.
+    let ack1_lead = loc.t("onboarding.create.ack1");
+    let ack1_privacy = loc.t("onboarding.create.ack1PrivacyPolicy");
+    let ack1_and = loc.t("onboarding.create.ack1And");
+    let ack1_terms = loc.t("onboarding.create.ack1Terms");
+    let ack1_period = loc.t("onboarding.create.ack1Period");
+    let privacy_at = ack1_lead.len();
+    let and_at = privacy_at + ack1_privacy.len();
+    let terms_at = and_at + ack1_and.len();
+    let legal = SharedString::from(format!(
+        "{ack1_lead}{ack1_privacy}{ack1_and}{ack1_terms}{ack1_period}"
+    ));
 
-fn render_outcome(spec: &OutcomeSpec, host: &PanelHost<'_>) -> Div {
-    let theme = host.theme;
-    let loc = host.loc;
-    let sink = &host.sink;
-
-    // A11's headline is set in the success green; every other outcome —
-    // including B5's — keeps the base foreground (both per the mocks).
-    let headline_color = if spec.badge == BadgeVariant::Success && spec.address.is_some() {
-        theme.success_base
-    } else {
-        theme.fg_base
-    };
-
-    let mut col = div()
+    let sink_ack0 = host.sink.clone();
+    let sink_ack1 = host.sink.clone();
+    let acks = div()
+        .w_full()
         .flex()
         .flex_col()
+        .gap(px(FLOW_GAP_LG))
+        .child(ack_row::<LegalLink>(
+            0,
+            theme,
+            view.acks.first().copied().unwrap_or(false),
+            loc.t("onboarding.create.ack0"),
+            Vec::new(),
+            move |window, cx| sink_ack0(FlowEvent::AckToggled(0), window, cx),
+            |_, _, _| {},
+        ))
+        // The recovery line is an ASSURANCE — a fact about what the founding
+        // set buys you — not a third gate. It renders with a filled tick and
+        // nothing to click, because making it clickable would invite ticking
+        // something that changes nothing.
         .child(
             div()
                 .flex()
-                .justify_center()
-                .child(status_badge(theme, spec.badge)),
+                .items_start()
+                .gap(px(FLOW_GAP_MD))
+                .child(
+                    div()
+                        .size(px(theme::ACK_BOX))
+                        .flex_none()
+                        .mt(px(1.))
+                        .rounded(px(theme::ACK_BOX / 3.))
+                        .bg(theme.success_soft)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            div()
+                                .text_size(theme::text_flow_caption())
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(theme.success_base)
+                                .child("✓"),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w(px(0.))
+                        .text_size(theme::text_body())
+                        .line_height(theme::line_height_body())
+                        .text_color(theme.fg_muted)
+                        .child(loc.t("onboarding.create.assuranceRecovery")),
+                ),
         )
-        .child(
-            div()
-                .mt(px(FLOW_GAP_LG))
-                .text_size(theme::text_flow_headline())
-                .font_weight(FontWeight::BOLD)
-                .text_color(headline_color)
-                .text_center()
-                .child(spec.headline.clone()),
-        )
-        .child(
-            div()
-                .mt(px(FLOW_GAP_SM))
-                .text_size(theme::text_body())
-                .line_height(theme::line_height_body())
-                .text_color(theme.fg_muted)
-                .text_center()
-                .child(spec.body.clone()),
-        );
-
-    if let Some(address) = &spec.address {
-        let on_copied = on_action(sink, ActionId::CopyAddress);
-        col = col.child(div().mt(px(FLOW_GAP_LG)).child(address_strip(
+        .child(ack_row(
+            1,
             theme,
-            address.clone(),
-            host.copied,
-            loc.t("onboarding.common.copied"),
-            on_copied,
-        )));
+            view.acks.get(1).copied().unwrap_or(false),
+            legal,
+            vec![
+                (privacy_at..and_at, LegalLink::Privacy),
+                (terms_at..terms_at + ack1_terms.len(), LegalLink::Terms),
+            ],
+            move |window, cx| sink_ack1(FlowEvent::AckToggled(1), window, cx),
+            // The links open a browser and are NOT the checkbox: pressing one
+            // must not tick the box the sentence belongs to.
+            move |link: LegalLink, _window, cx| cx.open_url(link.url()),
+        ));
+
+    let mut column = div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_LG))
+        .child(title(theme, loc.t("onboarding.create.nameTitle")))
+        .child(field)
+        .child(acks);
+
+    // A cancelled ceremony is a quiet status line with the draft intact, never
+    // a sheet: there is a form to come back to, and the design reserves the
+    // modal for the sign-in path where there is not.
+    if let Some(status) = view.status
+        && progress_for(Some(status)).is_none()
+    {
+        column = column.child(caption(theme, loc.t(status_key(status))));
     }
-    if let Some(footnote) = &spec.footnote {
-        col = col.child(
+
+    let submit_key = match view.submit_label {
+        SubmitLabel::Create => "onboarding.create.nextBtn",
+        SubmitLabel::FinishVerify => "onboarding.create.finishVerifyBtn",
+    };
+    let sink_submit = host.sink.clone();
+    column = column.child(vela_button_opts(
+        "flow-submit",
+        ButtonVariant::Primary,
+        loc.t(submit_key),
+        view.can_submit && !view.busy,
+        theme,
+        move |_, window, cx| sink_submit(FlowEvent::Submit, window, cx),
+    ));
+
+    if view.show_start_over {
+        let on_start_over = emit(&host.sink, FlowEvent::StartOver);
+        column = column.child(
             div()
-                .mt(px(FLOW_GAP_MD))
-                .text_size(theme::text_flow_caption())
-                .text_color(theme.fg_subtle)
-                .text_center()
-                .child(footnote.clone()),
+                .id("flow-start-over")
+                .w_full()
+                .flex()
+                .justify_center()
+                .cursor_pointer()
+                .text_size(theme::text_body())
+                .text_color(theme.fg_muted)
+                .hover(|s| s.text_color(theme.fg_base))
+                .on_click(move |_, window, cx| on_start_over(window, cx))
+                .child(loc.t("onboarding.create.startOverBtn")),
         );
     }
 
-    if let Some(details) = &spec.details {
-        let on_toggle = on_action(sink, ActionId::ToggleDetails);
-        col = col
-            .child(
-                div()
-                    .mt(px(FLOW_GAP_LG))
-                    .h(px(theme::HAIRLINE))
-                    .w_full()
-                    .bg(theme.divider),
-            )
-            .child(tech_details(
-                theme,
-                loc.t("onboarding.create.technicalDetails"),
-                details,
-                spec.details_expanded,
-                on_toggle,
-            ));
+    column
+}
+
+// ---------------------------------------------------------------------------
+// Keys
+// ---------------------------------------------------------------------------
+
+fn render_keys(host: &FlowHost<'_>) -> Div {
+    let theme = host.theme;
+    let loc = host.loc;
+    let view = host.view;
+    let full = view.keys.len() >= MAX_KEYS;
+
+    let headline = if view.needs_second_key {
+        loc.t("onboarding.create.keysTitleBlocked")
+    } else {
+        loc.t("onboarding.create.keysTitle")
+    };
+    let sub = if view.needs_second_key {
+        loc.t("onboarding.create.keysSubtitleBlocked")
+    } else if full {
+        loc.t("onboarding.create.keysSubtitleFull")
+    } else {
+        loc.t("onboarding.create.keysSubtitle")
+    };
+
+    let mut column = div().w_full().flex().flex_col().gap(px(FLOW_GAP_LG)).child(
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(FLOW_GAP_SM))
+            .child(title(theme, headline))
+            .child(subtitle(theme, sub)),
+    );
+
+    if view.needs_second_key {
+        column = column.child(
+            div()
+                .w_full()
+                .flex()
+                .items_start()
+                .gap(px(FLOW_GAP_MD))
+                .p(px(FLOW_GAP_MD))
+                .rounded(px(RADIUS_FIELD))
+                .bg(theme.warning_soft)
+                .child(
+                    div()
+                        .size(px(FLOW_GAP_SM))
+                        .flex_none()
+                        .mt(px(6.))
+                        .rounded_full()
+                        .bg(theme.warning_base),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w(px(0.))
+                        .text_size(theme::text_body())
+                        .line_height(theme::line_height_body())
+                        .text_color(theme.fg_base)
+                        .child(loc.t("onboarding.create.needSecondKeyHint")),
+                ),
+        );
     }
 
-    // Stacked actions: primary capsule, then the mock's dark solid rows —
-    // one authority (`action_stack`) decides that styling.
-    let press = {
-        let sink = sink.clone();
-        move |id: ActionId, window: &mut Window, cx: &mut App| {
-            sink(PanelEvent::Action(id), window, cx)
+    #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
+    let counter = loc.t_vars(
+        "onboarding.create.keyCount",
+        &[
+            ("current", view.keys.len() as f64),
+            ("max", MAX_KEYS as f64),
+        ],
+    );
+    let mut list = div().w_full().flex().flex_col().child(
+        div()
+            .w_full()
+            .flex()
+            .items_center()
+            .justify_between()
+            .pb(px(FLOW_GAP_SM))
+            .child(caption(theme, loc.t("onboarding.create.keysLabel")))
+            .child(caption(theme, counter)),
+    );
+    for (index, key) in view.keys.iter().enumerate() {
+        list = list.child(key_row(host, index, key));
+    }
+    column = column.child(list);
+
+    // Add-key control, with the cap stated on it rather than behind it.
+    let on_toggle = emit(&host.sink, FlowEvent::TogglePicker);
+    let add_label = if full {
+        loc.t("onboarding.create.keyLimitReached")
+    } else {
+        loc.t("onboarding.create.addKeyBtn")
+    };
+    let mut add = div().w_full().flex().flex_col().child({
+        let row = div()
+            .id("flow-add-key")
+            .w_full()
+            .flex()
+            .items_center()
+            .gap(px(FLOW_GAP_MD))
+            .py(px(FLOW_GAP_MD))
+            .text_size(theme::text_card_title())
+            .child(div().text_color(theme.accent).child("+"))
+            .child(div().text_color(theme.fg_base).child(add_label));
+        if view.can_add_key {
+            row.cursor_pointer()
+                .hover(|s| s.bg(theme.bg_sunken))
+                .on_click(move |_, window, cx| on_toggle(window, cx))
+        } else {
+            row.opacity(OPACITY_DISABLED)
+        }
+    });
+    if host.picker_open && view.can_add_key {
+        add = add.child(method_picker(host));
+    }
+    column = column.child(add);
+
+    column = column.child(caption(theme, loc.t("onboarding.create.keysHint")));
+
+    let finish_label = if view.needs_second_key {
+        loc.t("onboarding.create.addSecondKeyBtn")
+    } else {
+        loc.t("onboarding.create.createWalletBtn")
+    };
+    let sink_finish = host.sink.clone();
+    column.child(vela_button_opts(
+        "flow-finish",
+        ButtonVariant::Primary,
+        finish_label,
+        view.can_finish && !view.busy,
+        theme,
+        move |_, window, cx| sink_finish(FlowEvent::FinishKeys, window, cx),
+    ))
+}
+
+fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
+    let theme = host.theme;
+    let loc = host.loc;
+    let busy = host.view.busy;
+
+    // ONE trailing slot, as the design draws it. A key that has not confirmed
+    // its membership has no status to show yet, so the retry TAKES that slot
+    // rather than crowding in beside it.
+    let trailing: AnyElement = if key.confirmed {
+        let (label, fg, bg) = if key.synced {
+            (
+                loc.t("onboarding.create.keySyncedBadge"),
+                theme.success_base,
+                theme.success_soft,
+            )
+        } else {
+            (
+                loc.t("onboarding.create.keyDeviceOnlyBadge"),
+                theme.fg_muted,
+                theme.bg_well,
+            )
+        };
+        div()
+            .flex_none()
+            .px(px(FLOW_GAP_SM))
+            .py(px(2.))
+            .rounded_full()
+            .bg(bg)
+            .text_size(theme::text_flow_caption())
+            .text_color(fg)
+            .child(label)
+            .into_any_element()
+    } else {
+        let on_confirm = emit(&host.sink, FlowEvent::ConfirmKey(index));
+        let row = div()
+            .id(("flow-confirm-key", index as u64))
+            .flex_none()
+            .px(px(FLOW_GAP_SM))
+            .py(px(2.))
+            .rounded_full()
+            .bg(theme.warning_soft)
+            .text_size(theme::text_flow_caption())
+            .text_color(theme.warning_base)
+            .child(loc.t("onboarding.create.confirmKeyBtn"));
+        if busy {
+            row.opacity(OPACITY_DISABLED).into_any_element()
+        } else {
+            row.cursor_pointer()
+                .on_click(move |_, window, cx| on_confirm(window, cx))
+                .into_any_element()
         }
     };
-    col.child(
-        div()
-            .mt(px(FLOW_GAP_LG))
-            .child(action_stack(theme, &spec.actions, press)),
-    )
+
+    let mut row = div()
+        .w_full()
+        .flex()
+        .items_center()
+        .gap(px(FLOW_GAP_MD))
+        .py(px(FLOW_GAP_MD))
+        .border_b_1()
+        .border_color(theme.divider)
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.))
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .text_size(theme::text_card_title())
+                        .text_color(theme.fg_base)
+                        .child(SharedString::from(key.name.clone())),
+                )
+                .child(caption(theme, loc.t(provider_line(key.method)))),
+        )
+        .child(trailing);
+
+    // Row 0 is the pinned key: not removable, and its name IS the wallet name.
+    if index > 0 {
+        let on_remove = emit(&host.sink, FlowEvent::RemoveKey(index));
+        let remove = div()
+            .id(("flow-remove-key", index as u64))
+            .flex_none()
+            .size(px(theme::FLOW_CLOSE_HIT))
+            .rounded_full()
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_size(theme::text_card_title())
+            .text_color(theme.fg_muted)
+            .child("×");
+        row = row.child(if busy {
+            remove.opacity(OPACITY_DISABLED)
+        } else {
+            remove
+                .cursor_pointer()
+                .hover(|s| s.bg(theme.bg_sunken))
+                .on_click(move |_, window, cx| on_remove(window, cx))
+        });
+    }
+
+    row
 }
+
+/// The three ways to mint a founding key.
+///
+/// **Two of them cannot run here, and both say so.** `Platform` needs a system
+/// passkey service, which no desktop in this app's reach provides; `Hybrid`
+/// needs the QR transport a later feature adds. Hiding them would leave a
+/// person wondering whether their laptop's fingerprint reader was supposed to
+/// work; showing them greyed with a reason answers that in one line.
+fn method_picker(host: &FlowHost<'_>) -> Div {
+    let theme = host.theme;
+    let loc = host.loc;
+
+    let entry = |method: KeyMethod, title_key: &str, body: SharedString, available: bool| {
+        let sink = host.sink.clone();
+        let event = if available {
+            FlowEvent::AddKey(method)
+        } else {
+            FlowEvent::MethodUnavailable(method)
+        };
+        let row = div()
+            .id(("flow-method", method as u64))
+            .w_full()
+            .flex()
+            .items_center()
+            .gap(px(FLOW_GAP_MD))
+            .py(px(FLOW_GAP_MD))
+            .border_b_1()
+            .border_color(theme.divider)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(0.))
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .child(
+                        div()
+                            .text_size(theme::text_card_title())
+                            .text_color(theme.fg_base)
+                            .child(loc.t(title_key)),
+                    )
+                    .child(caption(theme, body)),
+            );
+        if available {
+            row.cursor_pointer()
+                .hover(|s| s.bg(theme.bg_sunken))
+                .on_click(move |_, window, cx| sink(event.clone(), window, cx))
+        } else {
+            row.opacity(OPACITY_DISABLED)
+        }
+    };
+
+    div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .child(caption(theme, loc.t("onboarding.create.addMethodLabel")))
+        .child(entry(
+            KeyMethod::SecurityKey,
+            "onboarding.create.methodSecurityKeyTitle",
+            loc.t("onboarding.create.methodSecurityKeyBody"),
+            true,
+        ))
+        .child(entry(
+            KeyMethod::Platform,
+            "onboarding.create.methodPlatformTitle",
+            loc.t("onboarding.create.securityKeyRequiredBody"),
+            false,
+        ))
+        .child(entry(
+            KeyMethod::Hybrid,
+            "onboarding.create.methodHybridTitle",
+            loc.t("onboarding.create.methodHybridUnavailable"),
+            false,
+        ))
+}
+
+// ---------------------------------------------------------------------------
+// Progress
+// ---------------------------------------------------------------------------
+
+fn render_progress(host: &FlowHost<'_>) -> Div {
+    let theme = host.theme;
+    let loc = host.loc;
+    let (active, percent) = progress_for(host.view.status).unwrap_or((0, 0));
+
+    #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
+    let subtitle_text = loc.t_vars(
+        "onboarding.create.progressSubtitle",
+        &[("count", host.view.keys.len() as f64)],
+    );
+
+    let mut tasks = div().w_full().flex().flex_col().gap(px(FLOW_GAP_MD));
+    for (index, key) in PROGRESS_TASKS.iter().enumerate() {
+        let (mark, color) = match index {
+            _ if index < active => ("✓", theme.success_base),
+            _ if index == active => ("●", theme.accent),
+            _ => ("○", theme.fg_subtle),
+        };
+        tasks = tasks.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(FLOW_GAP_MD))
+                .child(div().flex_none().text_color(color).child(mark))
+                .child(
+                    div()
+                        .text_size(theme::text_card_title())
+                        .text_color(if index <= active {
+                            theme.fg_base
+                        } else {
+                            theme.fg_subtle
+                        })
+                        .child(loc.t(key)),
+                ),
+        );
+    }
+
+    let mut column = div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_LG))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(FLOW_GAP_SM))
+                .child(title(theme, loc.t("onboarding.create.progressTitle")))
+                .child(subtitle(theme, subtitle_text)),
+        )
+        .child(
+            div()
+                .w_full()
+                .flex()
+                .flex_col()
+                .gap(px(FLOW_GAP_SM))
+                .child(
+                    div()
+                        .w_full()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(caption(
+                            theme,
+                            loc.t("onboarding.create.progressMeterLabel"),
+                        ))
+                        .child(caption(theme, SharedString::from(format!("{percent}%")))),
+                )
+                .child(
+                    div()
+                        .w_full()
+                        .h(px(STEP_BAR_H))
+                        .rounded_full()
+                        .bg(theme.divider)
+                        .child(
+                            #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
+                            div()
+                                .w(relative(percent as f32 / 100.))
+                                .h_full()
+                                .rounded_full()
+                                .bg(theme.accent),
+                        ),
+                ),
+        )
+        .child(tasks);
+
+    if host.touch_waiting {
+        column = column.child(caption(
+            theme,
+            host.loc.t("onboarding.common.confirmInPrompt"),
+        ));
+    }
+    column
+}
+
+// ---------------------------------------------------------------------------
+// Retry
+// ---------------------------------------------------------------------------
+
+/// The keys were minted; the group never landed.
+///
+/// Nothing is lost and nothing is re-minted: the core keeps the whole founding
+/// set and a pending record it wrote BEFORE the first publish attempt, so retry
+/// resumes at the publish. That is why the primary here is a retry, and why
+/// starting over is the quiet secondary rather than the obvious escape.
+fn render_retry(host: &FlowHost<'_>) -> Div {
+    let theme = host.theme;
+    let loc = host.loc;
+    let view = host.view;
+
+    let mut column = div().w_full().flex().flex_col().gap(px(FLOW_GAP_LG)).child(
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(FLOW_GAP_SM))
+            .child(title(theme, loc.t("onboarding.create.syncFailedTitle")))
+            .child(subtitle(
+                theme,
+                loc.t("onboarding.create.syncFailedMessage"),
+            ))
+            .child(caption(theme, loc.t("onboarding.create.syncFailedHint"))),
+    );
+
+    if let Some(detail) = &view.sync_error_detail {
+        column = column.child(
+            div()
+                .w_full()
+                .flex()
+                .flex_col()
+                .gap(px(FLOW_GAP_SM))
+                .child(div().h(px(HAIRLINE)).w_full().bg(theme.divider))
+                .child(caption(theme, loc.t("onboarding.create.technicalDetails")))
+                .child(
+                    div()
+                        .w_full()
+                        .p(px(FLOW_GAP_MD))
+                        .rounded(px(RADIUS_FIELD))
+                        .bg(theme.bg_well)
+                        .font_family(theme::font_mono())
+                        .text_size(theme::text_flow_caption())
+                        .text_color(theme.error_base)
+                        .child(SharedString::from(detail.clone())),
+                ),
+        );
+    }
+
+    let sink_retry = host.sink.clone();
+    let sink_over = host.sink.clone();
+    column
+        .child(vela_button_opts(
+            "flow-retry-upload",
+            ButtonVariant::Primary,
+            loc.t("onboarding.create.retryUploadBtn"),
+            !view.busy,
+            theme,
+            move |_, window, cx| sink_retry(FlowEvent::RetryUpload, window, cx),
+        ))
+        .child(vela_button_opts(
+            "flow-start-over",
+            ButtonVariant::Row,
+            loc.t("onboarding.create.startOverBtn"),
+            !view.busy,
+            theme,
+            move |_, window, cx| sink_over(FlowEvent::StartOver, window, cx),
+        ))
+}
+
+// ---------------------------------------------------------------------------
+// Done
+// ---------------------------------------------------------------------------
+
+/// The wallet exists.
+///
+/// This is the first moment an address is shown, and that ordering is a RULE
+/// rather than a layout choice: the core withholds `address` until the group
+/// has landed and the account is saved, because an address shown earlier is an
+/// address someone can fund before the wallet is reachable.
+fn render_done(host: &FlowHost<'_>) -> Div {
+    let theme = host.theme;
+    let loc = host.loc;
+    let view = host.view;
+    let address = view.address.clone().unwrap_or_default();
+    let wallet_name = view
+        .keys
+        .first()
+        .map_or_else(|| view.name.clone(), |key| key.name.clone());
+
+    let mut keys = div().w_full().flex().flex_col();
+    for key in &view.keys {
+        let (label, fg, bg) = if key.synced {
+            (
+                loc.t("onboarding.create.keySyncedBadge"),
+                theme.success_base,
+                theme.success_soft,
+            )
+        } else {
+            (
+                loc.t("onboarding.create.keyDeviceOnlyBadge"),
+                theme.fg_muted,
+                theme.bg_well,
+            )
+        };
+        keys = keys.child(
+            div()
+                .w_full()
+                .flex()
+                .items_center()
+                .justify_between()
+                .py(px(FLOW_GAP_MD))
+                .border_b_1()
+                .border_color(theme.divider)
+                .child(
+                    div()
+                        .text_size(theme::text_card_title())
+                        .text_color(theme.fg_base)
+                        .child(SharedString::from(key.name.clone())),
+                )
+                .child(
+                    div()
+                        .px(px(FLOW_GAP_SM))
+                        .py(px(2.))
+                        .rounded_full()
+                        .bg(bg)
+                        .text_size(theme::text_flow_caption())
+                        .text_color(fg)
+                        .child(label),
+                ),
+        );
+    }
+
+    #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
+    let success_body = loc.t_vars(
+        "onboarding.create.successMessage",
+        &[("count", view.keys.len() as f64)],
+    );
+    let on_copy = emit(&host.sink, FlowEvent::CopyAddress);
+    let sink_enter = host.sink.clone();
+
+    div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_LG))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(FLOW_GAP_SM))
+                .child(title(theme, loc.t("onboarding.create.successTitle")))
+                .child(subtitle(theme, success_body)),
+        )
+        .child(
+            div()
+                .w_full()
+                .flex()
+                .flex_col()
+                .gap(px(FLOW_GAP_MD))
+                .p(px(FLOW_GAP_LG))
+                .rounded(px(RADIUS_FIELD))
+                .bg(theme.bg_raised)
+                .border_1()
+                .border_color(theme.border_card)
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.))
+                        .child(
+                            div()
+                                .text_size(theme::text_card_title())
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(theme.fg_base)
+                                .child(SharedString::from(wallet_name)),
+                        )
+                        .child(caption(theme, loc.t("onboarding.create.identiconHint"))),
+                )
+                .child(caption(
+                    theme,
+                    loc.t("onboarding.create.walletAddressLabel"),
+                ))
+                .child(address_strip(
+                    theme,
+                    SharedString::from(address),
+                    host.copied,
+                    loc.t("onboarding.common.copied"),
+                    move |window, cx| on_copy(window, cx),
+                )),
+        )
+        .child(keys)
+        .child(caption(theme, loc.t("onboarding.create.verifyHint")))
+        .child(vela_button_opts(
+            "flow-enter-wallet",
+            ButtonVariant::Primary,
+            loc.t("onboarding.create.enterWalletBtn"),
+            true,
+            theme,
+            move |_, window, cx| sink_enter(FlowEvent::EnterWallet, window, cx),
+        ))
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// The design codes, verbatim and in inventory order (contract §1). E10
-    /// appears ONCE — the gallery lists it under both flow groups, but the
-    /// fixture set holds 34 unique entries.
-    const EXPECTED_CODES: [&str; 34] = [
-        "A1", "A2", "A3", "A4", "A4c", "A5", "A5c", "A6", "A6c", "A7", "A7c", "A8", "A8c", "A11",
-        "A12", "A13", "E1", "E2", "E2x", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10", "B1",
-        "B1c", "B2", "B3", "B4", "B5", "B6",
-    ];
-
-    /// Every outcome kind in the catalog (data-model §4 — 18 kinds).
-    const ALL_KINDS: [OutcomeKind; 18] = [
-        OutcomeKind::Created,
-        OutcomeKind::SyncFailed,
-        OutcomeKind::VerifyStuck,
-        OutcomeKind::Network,
-        OutcomeKind::Server,
-        OutcomeKind::Timeout,
-        OutcomeKind::CancelledSetup,
-        OutcomeKind::CancelledVerify,
-        OutcomeKind::Unsupported,
-        OutcomeKind::Incompatible,
-        OutcomeKind::NotDiscoverable,
-        OutcomeKind::AccountNotFound,
-        OutcomeKind::Unknown,
-        OutcomeKind::RecoverOffer,
-        OutcomeKind::RecoverFailed,
-        OutcomeKind::SignInFailed,
-        OutcomeKind::SignedIn,
-        OutcomeKind::LoginCancelled,
-    ];
-
-    fn outcome_of(fixture: &StateFixture) -> Option<&OutcomeSpec> {
-        match &fixture.state {
-            FixtureState::Create(CreatePanelState::Outcome(spec)) => Some(spec),
-            FixtureState::Login(LoginPanelState::Outcome(spec)) => Some(spec),
-            _ => None,
+    fn view(stage: CreateStage, busy: bool, status: Option<StatusKey>) -> CreateView {
+        CreateView {
+            stage,
+            name: String::new(),
+            name_editable: true,
+            name_too_long: false,
+            acks: vec![false, false],
+            can_submit: false,
+            submit_label: SubmitLabel::Create,
+            busy,
+            status,
+            show_start_over: false,
+            address: None,
+            sync_error_detail: None,
+            can_go_back: false,
+            keys: Vec::new(),
+            can_add_key: true,
+            can_finish: false,
+            needs_second_key: false,
         }
     }
 
-    /// Data-model §3: exactly 1 primary + 0..=2 secondary, primary on top.
-    fn assert_action_shape(what: &str, actions: &[Action]) {
-        assert!(
-            (1..=3).contains(&actions.len()),
-            "{what}: {} actions, expected 1..=3",
-            actions.len()
-        );
-        let primaries = actions
-            .iter()
-            .filter(|a| a.role == ActionRole::Primary)
-            .count();
-        assert_eq!(primaries, 1, "{what}: expected exactly 1 primary action");
+    /// data-model §3's screen-selection table, which is the whole of the create
+    /// UI's logic. If this drifts, a screen appears at the wrong moment — and
+    /// the moment that matters is the progress screen, which is the only one
+    /// with no way back out.
+    #[test]
+    fn the_screen_table_matches_the_data_model() {
         assert_eq!(
-            actions[0].role,
-            ActionRole::Primary,
-            "{what}: the primary action must lead the stack"
-        );
-    }
-
-    /// SC-001's mechanical half: dropping (or duplicating) a design state
-    /// fails here, not in a visual pass.
-    #[test]
-    fn fixture_set_is_the_34_design_codes() {
-        let loc = Loc::pinned("en");
-        let codes: Vec<&str> = fixtures(&loc).iter().map(|f| f.code).collect();
-        assert_eq!(codes, EXPECTED_CODES);
-    }
-
-    /// E10 is the one shared fixture — the gallery derives both group listings
-    /// from this flag, so exactly one `Shared` entry means exactly one E10 per
-    /// group (contract §1).
-    #[test]
-    fn e10_is_the_only_shared_fixture() {
-        let loc = Loc::pinned("en");
-        let shared: Vec<&str> = fixtures(&loc)
-            .iter()
-            .filter(|f| f.flow == FixtureFlow::Shared)
-            .map(|f| f.code)
-            .collect();
-        assert_eq!(shared, ["E10"]);
-    }
-
-    /// The action-shape invariant, over the whole catalog AND every outcome
-    /// fixture built from it.
-    #[test]
-    fn outcome_actions_are_one_primary_and_at_most_two_secondary() {
-        let loc = Loc::pinned("en");
-        for kind in ALL_KINDS {
-            assert_action_shape(&format!("{kind:?}"), &kind.spec(&loc).actions);
-        }
-        for fixture in fixtures(&loc) {
-            if let Some(spec) = outcome_of(&fixture) {
-                assert_action_shape(fixture.code, &spec.actions);
-            }
-        }
-    }
-
-    /// Spot checks of the badge mapping (data-model §3 table).
-    #[test]
-    fn badge_mapping_spot_checks() {
-        let loc = Loc::pinned("en");
-        // A11 success ✓, E3 timeout clock, B2 recovery-offer info, E4 neutral.
-        assert_eq!(OutcomeKind::Created.spec(&loc).badge, BadgeVariant::Success);
-        assert_eq!(OutcomeKind::Timeout.spec(&loc).badge, BadgeVariant::Timeout);
-        assert_eq!(
-            OutcomeKind::RecoverOffer.spec(&loc).badge,
-            BadgeVariant::Info
+            Screen::of(&view(CreateStage::Form, false, None)),
+            Screen::Name
         );
         assert_eq!(
-            OutcomeKind::CancelledSetup.spec(&loc).badge,
-            BadgeVariant::Neutral
+            Screen::of(&view(CreateStage::AddKeys, false, None)),
+            Screen::Keys
+        );
+        assert_eq!(
+            Screen::of(&view(CreateStage::SyncFailed, false, None)),
+            Screen::Retry
+        );
+        assert_eq!(
+            Screen::of(&view(CreateStage::Created, false, None)),
+            Screen::Done
+        );
+        assert_eq!(
+            Screen::of(&view(
+                CreateStage::AddKeys,
+                true,
+                Some(StatusKey::ComputingAddress)
+            )),
+            Screen::Progress,
+            "a busy machine deriving an address has left the key list"
         );
     }
 
-    /// Contract §1 fixture pins: the full 42-char A11 address, E2x as the one
-    /// expanded-disclosure entry, and the model rule that `details_expanded`
-    /// requires `details`.
+    /// `setting_up_identity` happens BEFORE the key list exists, so it belongs
+    /// to the Name screen's status line and must not take the page over.
+    /// Neither may a cancellation, which is the one thing the v2 design is
+    /// explicit about not making modal.
     #[test]
-    fn fixture_pins_hold() {
-        let loc = Loc::pinned("en");
-        let all = fixtures(&loc);
-
-        assert_eq!(FIXTURE_ADDRESS.len(), 42);
-        let a11 = all.iter().find(|f| f.code == "A11").expect("A11 exists");
-        let a11_spec = outcome_of(a11).expect("A11 is an outcome");
-        assert_eq!(a11_spec.address.as_deref(), Some(FIXTURE_ADDRESS));
-
-        let expanded: Vec<&str> = all
-            .iter()
-            .filter(|f| outcome_of(f).is_some_and(|s| s.details_expanded))
-            .map(|f| f.code)
-            .collect();
-        assert_eq!(expanded, ["E2x"]);
-
-        for fixture in &all {
-            if let Some(spec) = outcome_of(fixture) {
-                assert!(
-                    !spec.details_expanded || spec.details.is_some(),
-                    "{}: details_expanded without details",
-                    fixture.code
-                );
-            }
+    fn the_pre_key_and_cancelled_statuses_stay_on_the_name_screen() {
+        for status in [
+            StatusKey::SettingUpIdentity,
+            StatusKey::SetupCancelled,
+            StatusKey::VerifyCancelled,
+        ] {
+            assert_eq!(progress_for(Some(status)), None, "{status:?}");
+            assert_eq!(
+                Screen::of(&view(CreateStage::Form, true, Some(status))),
+                Screen::Name,
+                "{status:?}"
+            );
         }
+    }
+
+    /// The three progress rows advance only on what the core reported.
+    #[test]
+    fn progress_positions_come_from_the_reported_stage() {
+        assert_eq!(
+            progress_for(Some(StatusKey::VerifyingIdentity)),
+            Some((0, 33))
+        );
+        assert_eq!(progress_for(Some(StatusKey::ExtractingKey)), Some((0, 33)));
+        assert_eq!(
+            progress_for(Some(StatusKey::ComputingAddress)),
+            Some((1, 62))
+        );
+        assert_eq!(progress_for(Some(StatusKey::SyncingKey)), Some((2, 100)));
+        assert_eq!(progress_for(None), None);
+        assert_eq!(PROGRESS_TASKS.len(), 3);
     }
 }

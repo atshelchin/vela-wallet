@@ -20,8 +20,7 @@ use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Bounds, BoxShadow, CursorStyle, Decorations, Div, Global, HitboxBehavior, Hsla,
     InteractiveElement as _, IntoElement, MouseButton, ParentElement as _, Pixels, Point,
-    ResizeEdge, Size, Stateful, Styled, Tiling, Window, canvas, div, point, px,
-    transparent_black,
+    ResizeEdge, Size, Stateful, Styled, Tiling, Window, canvas, div, point, px, transparent_black,
 };
 
 /// Shadow reach outside the visible window. It is also the resize grab band —
@@ -74,7 +73,11 @@ impl Global for LastResizeEdge {}
 /// Wraps the page in the window chrome. Under server decorations this is a
 /// transparent passthrough; under client decorations it owns the shadow, the
 /// border, the rounding and every resize interaction.
-pub fn window_frame(content: impl IntoElement, theme: &Theme, window: &mut Window) -> Stateful<Div> {
+pub fn window_frame(
+    content: impl IntoElement,
+    theme: &Theme,
+    window: &mut Window,
+) -> Stateful<Div> {
     let decorations = window.window_decorations();
 
     // The compositor must know how much of the surface is shadow, so input

@@ -21,7 +21,7 @@ use serde_json::json;
 use ureq::Agent;
 
 use vela_core::app::{RegistryPublishMember, RegistryUnitMember};
-use vela_core::registry_proof::{build_group_proof, build_member_proof, RegistryProof};
+use vela_core::registry_proof::{RegistryProof, build_group_proof, build_member_proof};
 
 use super::passkey::{self, Ceremony, RELYING_PARTY};
 
@@ -128,14 +128,20 @@ fn classify(label: &str, error: ureq::Error) -> RegistryError {
     }
 }
 
-fn get_json<T: serde::de::DeserializeOwned>(path: &str, label: &str, timeout: Duration) -> Result<T> {
+fn get_json<T: serde::de::DeserializeOwned>(
+    path: &str,
+    label: &str,
+    timeout: Duration,
+) -> Result<T> {
     agent(timeout)
         .get(format!("{}{path}", registry_url()))
         .call()
         .map_err(|error| classify(label, error))?
         .body_mut()
         .read_json::<T>()
-        .map_err(|error| RegistryError::answered(format!("{label} returned unreadable JSON: {error}")))
+        .map_err(|error| {
+            RegistryError::answered(format!("{label} returned unreadable JSON: {error}"))
+        })
 }
 
 fn post_json<T: serde::de::DeserializeOwned>(
@@ -150,7 +156,9 @@ fn post_json<T: serde::de::DeserializeOwned>(
         .map_err(|error| classify(label, error))?
         .body_mut()
         .read_json::<T>()
-        .map_err(|error| RegistryError::answered(format!("{label} returned unreadable JSON: {error}")))
+        .map_err(|error| {
+            RegistryError::answered(format!("{label} returned unreadable JSON: {error}"))
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -222,7 +230,10 @@ pub fn query_by_public_key(public_key_hex: &str) -> Result<KeyStatus> {
         "Query",
         READ_TIMEOUT,
     )?;
-    let raw = profile.groups.map(|groups| groups.unit_ids).unwrap_or_default();
+    let raw = profile
+        .groups
+        .map(|groups| groups.unit_ids)
+        .unwrap_or_default();
     let mut unit_ids = Vec::with_capacity(raw.len());
     for id in raw {
         // The core speaks u32 unit ids because the wire is JSON. An id past
@@ -233,7 +244,7 @@ pub fn query_by_public_key(public_key_hex: &str) -> Result<KeyStatus> {
             Err(_) => {
                 return Err(RegistryError::answered(format!(
                     "Query failed: unit id {id} is out of u32 range"
-                )))
+                )));
             }
         }
     }
@@ -336,7 +347,9 @@ pub fn probe_health() -> bool {
     // the one answer this probe must never give wrongly.
     let nonce = vela_core::primitives::to_hex(&passkey::random(8), false);
     match get_json::<Health>(&format!("/api/health?_t={nonce}"), "Health", READ_TIMEOUT) {
-        Ok(health) => SERVICE_IDENTITIES.contains(&health.service.as_str()) && health.status == "ok",
+        Ok(health) => {
+            SERVICE_IDENTITIES.contains(&health.service.as_str()) && health.status == "ok"
+        }
         Err(_) => false,
     }
 }
@@ -461,7 +474,9 @@ pub fn publish(
                     .members
                     .iter()
                     .find(|candidate| {
-                        candidate.public_key.eq_ignore_ascii_case(&member.public_key_hex)
+                        candidate
+                            .public_key
+                            .eq_ignore_ascii_case(&member.public_key_hex)
                     })
                     .ok_or_else(|| {
                         RegistryError::answered(format!(
@@ -470,10 +485,9 @@ pub fn publish(
                         ))
                     })?;
                 let challenge_bytes =
-                    vela_core::primitives::from_hex(strip_hex(&derived.challenge))
-                        .map_err(|error| {
-                            RegistryError::answered(format!("challenge is not hex: {error}"))
-                        })?;
+                    vela_core::primitives::from_hex(strip_hex(&derived.challenge)).map_err(
+                        |error| RegistryError::answered(format!("challenge is not hex: {error}")),
+                    )?;
                 let assertion =
                     passkey::assert(&challenge_bytes, Some(&member.credential_id), ceremony)
                         .map_err(|failure| {
@@ -556,7 +570,7 @@ fn await_task(id: &str) -> Result<()> {
                 return Err(RegistryError::answered(format!(
                     "Register failed: {}",
                     task.error.unwrap_or_else(|| "unknown".to_owned())
-                )))
+                )));
             }
             Ok(_) => {}
             Err(error) if !error.network => return Err(error),

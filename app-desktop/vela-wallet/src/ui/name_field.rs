@@ -7,7 +7,7 @@
 
 use crate::theme::{self, FLOW_CARET_W, FLOW_GAP_MD, FLOW_GAP_SM, INPUT_H, RADIUS_FIELD, Theme};
 use gpui::{
-    App, Div, FocusHandle, FontWeight, InteractiveElement, KeyDownEvent, ParentElement,
+    App, Div, ElementId, FocusHandle, FontWeight, InteractiveElement, KeyDownEvent, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, Window, div, px,
 };
 
@@ -28,6 +28,38 @@ pub fn name_field(
     window: &Window,
     on_change: impl Fn(String, &mut Window, &mut App) + 'static,
 ) -> Div {
+    text_field(
+        "name-field",
+        theme,
+        strings,
+        value,
+        too_long,
+        false,
+        focus,
+        window,
+        on_change,
+    )
+}
+
+/// The same well, with its own id and an optional mask.
+///
+/// `id` because two fields can share a screen — the endpoint surface sits over
+/// a flow that already has a name field, and a duplicate gpui element id makes
+/// the second one unclickable. `mask` because a security key's PIN is a secret
+/// that should not be shoulder-readable, and it is the only value this app
+/// takes that is.
+#[allow(clippy::too_many_arguments, clippy::allow_attributes)]
+pub fn text_field(
+    id: impl Into<ElementId>,
+    theme: &Theme,
+    strings: &NameFieldStrings,
+    value: &str,
+    too_long: bool,
+    mask: bool,
+    focus: &FocusHandle,
+    window: &Window,
+    on_change: impl Fn(String, &mut Window, &mut App) + 'static,
+) -> Div {
     let focused = focus.is_focused(window);
     let border = if too_long {
         theme.error_base
@@ -37,6 +69,11 @@ pub fn name_field(
         theme.divider
     };
 
+    let shown = if mask {
+        "•".repeat(value.chars().count())
+    } else {
+        value.to_owned()
+    };
     let text: Div = if value.is_empty() {
         div()
             .text_size(theme::text_flow_label())
@@ -46,7 +83,7 @@ pub fn name_field(
         div()
             .text_size(theme::text_flow_label())
             .text_color(theme.fg_base)
-            .child(SharedString::from(value.to_owned()))
+            .child(SharedString::from(shown))
     };
 
     let mut inner = div().flex().items_center().child(
@@ -71,7 +108,7 @@ pub fn name_field(
         let current = value.to_owned();
         let focus_for_click = focus.clone();
         div()
-            .id("name-field")
+            .id(id)
             .track_focus(focus)
             .h(px(INPUT_H))
             .w_full()

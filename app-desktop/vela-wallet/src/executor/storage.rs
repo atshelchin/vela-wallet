@@ -21,7 +21,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 use vela_core::app::{Account, PendingUpload};
 
@@ -56,9 +56,18 @@ static LOCK: Mutex<()> = Mutex::new(());
 /// `$XDG_CONFIG_HOME`) and a wallet that ignores it is a wallet the platform's
 /// own backup and migration tools do not know about.
 pub fn path() -> Result<PathBuf> {
-    let base = dirs::config_dir().ok_or_else(|| {
-        StorageError("this system has no configuration directory".to_owned())
-    })?;
+    // `VELA_STATE_DIR` overrides it — the same env-switch family as
+    // `VELA_THEME` / `VELA_LANG` / `VELA_GALLERY`. It exists so a test can run
+    // against a temporary directory instead of the developer's real wallet,
+    // which is not a hypothetical concern: every function in this file
+    // REWRITES the document.
+    if let Ok(dir) = std::env::var("VELA_STATE_DIR")
+        && !dir.is_empty()
+    {
+        return Ok(PathBuf::from(dir).join("wallet.json"));
+    }
+    let base = dirs::config_dir()
+        .ok_or_else(|| StorageError("this system has no configuration directory".to_owned()))?;
     Ok(base.join("VelaWallet").join("wallet.json"))
 }
 
@@ -179,16 +188,6 @@ pub fn save_active_index(index: usize) -> Result<()> {
 // Pending uploads
 // ---------------------------------------------------------------------------
 
-pub fn load_pending_uploads() -> Result<Vec<PendingUpload>> {
-    let mut pending = Vec::new();
-    for item in read_list(KEY_PENDING_UPLOADS)? {
-        if let Ok(record) = serde_json::from_value::<PendingUpload>(item) {
-            pending.push(record);
-        }
-    }
-    Ok(pending)
-}
-
 pub fn has_pending_uploads() -> Result<bool> {
     Ok(!read_list(KEY_PENDING_UPLOADS)?.is_empty())
 }
@@ -266,4 +265,196 @@ pub fn clear_signed_in_wallet() -> Result<()> {
     map.remove(KEY_ACCOUNTS);
     map.remove(KEY_ACTIVE_INDEX);
     write_all(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vela_core::app::AccountKey;
+
+    /// One temporary state directory per test.
+    ///
+    /// `VELA_STATE_DIR` is process-wide, so these tests are serialized behind
+    /// one lock rather than run in parallel — the alternative is a shared
+    /// document two tests rewrite at once, which is exactly the interleave the
+    /// file lock in this module exists to prevent.
+    fn with_temp_state<T>(name: &str, body: impl FnOnce() -> T) -> T {
+        static SERIAL: Mutex<()> = Mutex::new(());
+        let Ok(_guard) = SERIAL.lock() else {
+            unreachable!("the test lock is poisoned");
+        };
+        let dir = std::env::temp_dir().join(format!("vela-storage-test-{name}"));
+        let _ = fs::remove_dir_all(&dir);
+        if fs::create_dir_all(&dir).is_err() {
+            unreachable!("could not create the temporary state directory");
+        }
+        // SAFETY: the lock above makes this the only thread touching the
+        // variable for the duration of `body`.
+        unsafe { std::env::set_var("VELA_STATE_DIR", &dir) };
+        let out = body();
+        let _ = fs::remove_dir_all(&dir);
+        out
+    }
+
+    fn account(id: &str, keys: usize) -> Account {
+        Account {
+            id: id.to_owned(),
+            name: "Everyday wallet".to_owned(),
+            address: "0x44EEC06897ff7ab8C7f16819511A64bA168A6D33".to_owned(),
+            public_key_hex: "04aa".to_owned(),
+            created_at_iso: "2026-08-25T00:00:00.000Z".to_owned(),
+            keys: (0..keys)
+                .map(|index| AccountKey {
+                    credential_id: format!("cred{index}"),
+                    public_key_hex: format!("04{index:02}"),
+                    name: format!("Key {}", index + 1),
+                })
+                .collect(),
+        }
+    }
+
+    /// THE invariant. A multi-key account that comes back with fewer keys is a
+    /// different, wrong, single-key Safe at an address nothing can deploy — and
+    /// it fails silently, on the next launch, after the wallet was funded.
+    #[test]
+    fn a_multi_key_account_round_trips_with_every_key() {
+        with_temp_state("multi-key", || {
+            let saved = account("wallet-1", 3);
+            if save_account(&saved).is_err() {
+                unreachable!("save failed");
+            }
+            let loaded = match load_accounts() {
+                Ok(accounts) => accounts,
+                Err(error) => unreachable!("{error}"),
+            };
+            assert_eq!(loaded.len(), 1);
+            assert_eq!(
+                loaded[0].keys.len(),
+                3,
+                "keys were dropped on the round trip"
+            );
+            assert_eq!(loaded[0], saved);
+        });
+    }
+
+    /// A legacy single-key record has NO `keys` array, and that emptiness is
+    /// the fact — filling it in would invent a founding set.
+    #[test]
+    fn a_legacy_account_keeps_its_empty_key_list() {
+        with_temp_state("legacy", || {
+            let saved = account("wallet-legacy", 0);
+            if save_account(&saved).is_err() {
+                unreachable!("save failed");
+            }
+            match load_accounts() {
+                Ok(accounts) => assert!(accounts[0].keys.is_empty()),
+                Err(error) => unreachable!("{error}"),
+            }
+        });
+    }
+
+    /// Upsert by id, not append: saving the same wallet twice must not produce
+    /// two accounts a switcher would show side by side.
+    #[test]
+    fn saving_the_same_account_twice_replaces_it() {
+        with_temp_state("upsert", || {
+            let mut saved = account("wallet-1", 2);
+            let _ = save_account(&saved);
+            saved.name = "Renamed".to_owned();
+            let _ = save_account(&saved);
+            match load_accounts() {
+                Ok(accounts) => {
+                    assert_eq!(accounts.len(), 1);
+                    assert_eq!(accounts[0].name, "Renamed");
+                }
+                Err(error) => unreachable!("{error}"),
+            }
+        });
+    }
+
+    /// Corrupt JSON reads as an empty wallet rather than an error, exactly as
+    /// the web client does: a damaged file must not make the wallet
+    /// permanently unopenable, and every write replaces the whole document.
+    #[test]
+    fn a_corrupt_file_reads_as_empty_rather_than_failing() {
+        with_temp_state("corrupt", || {
+            let Ok(path) = path() else {
+                unreachable!("path");
+            };
+            let _ = fs::write(&path, "{not json");
+            match load_accounts() {
+                Ok(accounts) => assert!(accounts.is_empty()),
+                Err(error) => unreachable!("a corrupt file must not fail: {error}"),
+            }
+        });
+    }
+
+    /// Missing, garbage and negative all read as 0. A negative index would make
+    /// the session render an empty address with a wallet present, which the
+    /// core forbids.
+    #[test]
+    fn the_active_index_fails_closed() {
+        with_temp_state("active-index", || {
+            assert_eq!(load_active_index(), 0, "missing");
+            let Ok(path) = path() else {
+                unreachable!("path");
+            };
+            for raw in [
+                r#"{"vela.activeAccountIndex": -3}"#,
+                r#"{"vela.activeAccountIndex": "x"}"#,
+            ] {
+                let _ = fs::write(&path, raw);
+                assert_eq!(load_active_index(), 0, "{raw}");
+            }
+            let _ = fs::write(&path, r#"{"vela.activeAccountIndex": 2}"#);
+            assert_eq!(load_active_index(), 2);
+        });
+    }
+
+    /// Sign-out drops the account list and the active index, and NOTHING else.
+    /// The pending-upload outbox in particular survives: a record there is a
+    /// public key the registry never confirmed, and a deleted record can never
+    /// be retried — that credential becomes unfindable at sign-in.
+    #[test]
+    fn signing_out_leaves_the_pending_outbox_and_the_endpoint_alone() {
+        with_temp_state("sign-out", || {
+            let _ = save_account(&account("wallet-1", 2));
+            let _ = save_active_index(1);
+            let _ = save_registry_endpoint("https://example.invalid");
+            let Ok(path) = path() else {
+                unreachable!("path");
+            };
+            // Written directly: the point is the KEY surviving, and building a
+            // whole `PendingUpload` would test serde rather than the scope.
+            let Ok(raw) = fs::read_to_string(&path) else {
+                unreachable!("read");
+            };
+            let Ok(Value::Object(mut map)) = serde_json::from_str::<Value>(&raw) else {
+                unreachable!("parse");
+            };
+            map.insert(KEY_PENDING_UPLOADS.to_owned(), json!([{ "id": "cred0" }]));
+            let Ok(body) = serde_json::to_string(&Value::Object(map)) else {
+                unreachable!("serialize");
+            };
+            let _ = fs::write(&path, body);
+
+            if clear_signed_in_wallet().is_err() {
+                unreachable!("clear failed");
+            }
+            match load_accounts() {
+                Ok(accounts) => assert!(accounts.is_empty()),
+                Err(error) => unreachable!("{error}"),
+            }
+            assert_eq!(load_active_index(), 0);
+            match has_pending_uploads() {
+                Ok(pending) => assert!(pending, "the outbox must survive a sign-out"),
+                Err(error) => unreachable!("{error}"),
+            }
+            assert_eq!(
+                load_registry_endpoint().as_deref(),
+                Some("https://example.invalid"),
+                "the endpoint belongs to the machine, not to the session"
+            );
+        });
+    }
 }

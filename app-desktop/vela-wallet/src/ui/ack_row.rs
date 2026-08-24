@@ -5,21 +5,23 @@
 
 use std::ops::Range;
 
-use crate::onboarding_flow::ActionId;
 use crate::theme::{self, ACK_BOX, FLOW_GAP_MD, Theme};
 use gpui::{
     App, Div, FontWeight, HighlightStyle, InteractiveElement, InteractiveText, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, StyledText, Window, div, px,
 };
 
-pub fn ack_row(
+/// Generic over the link id so this atom does not have to know which screen's
+/// vocabulary it is carrying — the legal row's two links mean something to the
+/// create flow and nothing here.
+pub fn ack_row<Link: Copy + 'static>(
     ix: usize,
     theme: &Theme,
     checked: bool,
     text: SharedString,
-    links: Vec<(Range<usize>, ActionId)>,
+    links: Vec<(Range<usize>, Link)>,
     on_toggle: impl Fn(&mut Window, &mut App) + 'static,
-    on_link: impl Fn(ActionId, &mut Window, &mut App) + 'static,
+    on_link: impl Fn(Link, &mut Window, &mut App) + 'static,
 ) -> Div {
     let checkbox = {
         let base = div()
@@ -64,7 +66,7 @@ pub fn ack_row(
             })
             .collect();
         let ranges: Vec<Range<usize>> = links.iter().map(|(range, _)| range.clone()).collect();
-        let ids: Vec<ActionId> = links.iter().map(|(_, id)| *id).collect();
+        let ids: Vec<Link> = links.iter().map(|(_, id)| *id).collect();
         div().child(
             InteractiveText::new(
                 ("ack-links", ix as u64),

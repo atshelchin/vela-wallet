@@ -19,8 +19,8 @@ use std::time::{Duration, Instant};
 
 use hidapi::{HidApi, HidDevice};
 
-use vela_core::ctap::hid::{self, CtapHidCommand, Message, Reassembler, BROADCAST_CHANNEL};
-use vela_core::ctap::{split_response, Status, HID_REPORT_SIZE};
+use vela_core::ctap::hid::{self, BROADCAST_CHANNEL, CtapHidCommand, Message, Reassembler};
+use vela_core::ctap::{HID_REPORT_SIZE, Status, split_response};
 
 /// The HID usage page every FIDO authenticator declares, and the usage within
 /// it. A keyboard, a mouse and a webcam all also enumerate as HID devices; this
@@ -102,8 +102,8 @@ impl SecurityKey {
     /// "First" rather than "the one you meant": telling two plugged-in keys
     /// apart requires `authenticatorSelection`, which asks the person to touch
     /// one — a ceremony inside a ceremony. One key is the overwhelmingly common
-    /// case and the second is a recorded follow-up, not a silent wrong guess:
-    /// [`count`] lets a caller see how many are present.
+    /// case; two plugged in at once is a recorded follow-up, and until it lands
+    /// the wallet uses the first and the person can unplug the other.
     pub fn open_first(nonce: [u8; 8]) -> Result<Self, UsbError> {
         let api = HidApi::new().map_err(|error| UsbError::Hid(error.to_string()))?;
         let info = api
@@ -122,17 +122,6 @@ impl SecurityKey {
         };
         key.channel = key.init(nonce)?;
         Ok(key)
-    }
-
-    /// How many FIDO authenticators are plugged in. Zero is the answer the
-    /// "no key present" sheet is built around.
-    pub fn count() -> usize {
-        let Ok(api) = HidApi::new() else {
-            return 0;
-        };
-        api.device_list()
-            .filter(|device| device.usage_page() == FIDO_USAGE_PAGE && device.usage() == FIDO_USAGE)
-            .count()
     }
 
     /// The device's product string, for the message a failure sheet shows.
@@ -155,7 +144,9 @@ impl SecurityKey {
                 got: reply.len(),
             }));
         }
-        Ok(u32::from_be_bytes([reply[8], reply[9], reply[10], reply[11]]))
+        Ok(u32::from_be_bytes([
+            reply[8], reply[9], reply[10], reply[11],
+        ]))
     }
 
     /// Send a CTAP2 request and return its response body, or the status the
@@ -195,8 +186,7 @@ impl SecurityKey {
         payload: &[u8],
         touch: Option<&TouchNotifier>,
     ) -> Result<Vec<u8>, UsbError> {
-        let frames = hid::encode(self.channel, command, payload)
-            .map_err(|error| UsbError::Framing(error))?;
+        let frames = hid::encode(self.channel, command, payload).map_err(UsbError::Framing)?;
         for frame in &frames {
             self.write(frame)?;
         }
@@ -255,10 +245,10 @@ impl SecurityKey {
         // Whatever happened, the key is no longer waiting for a finger. Leaving
         // a "touch your key" prompt up after a failure is how a screen ends up
         // asking for something that can no longer happen.
-        if announced_touch {
-            if let Some(notify) = touch {
-                notify(false);
-            }
+        if let Some(notify) = touch
+            && announced_touch
+        {
+            notify(false);
         }
         outcome
     }

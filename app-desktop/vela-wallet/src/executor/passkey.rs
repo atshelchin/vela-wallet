@@ -26,15 +26,15 @@ use p256::ecdh::EphemeralSecret;
 // The OS CSPRNG, reached through the trait p256's ECDH asks for. Same entropy
 // source as [`random`] below — the ephemeral scalar is not allowed to come
 // from anywhere weaker than the challenges do.
+use p256::PublicKey;
 use p256::elliptic_curve::rand_core::OsRng;
 use p256::elliptic_curve::sec1::ToEncodedPoint as _;
-use p256::PublicKey;
 
 use vela_core::app::{Assertion, FailureKind, KeyMethod, Registration};
 use vela_core::ctap::{
-    attestation_object, get_info_request, parse_client_pin, parse_get_assertion, parse_get_info,
     AuthenticatorInfo, ClientPin, CredentialDescriptor, GetAssertion, MakeCredential, Permissions,
-    PinUvAuthToken, Protocol, SharedSecret, Status,
+    PinUvAuthToken, Protocol, SharedSecret, Status, attestation_object, get_info_request,
+    parse_client_pin, parse_get_assertion, parse_get_info,
 };
 use vela_core::types::P256PublicKey;
 use vela_core::{primitives, webauthn};
@@ -185,9 +185,14 @@ pub fn register(
         pin_uv_auth: token.as_ref().map(|token| token.param(&client_data_hash)),
     };
 
-    let body = send(&mut key, &request.encode().map_err(encode_failed)?, ceremony)?;
-    let response = vela_core::ctap::parse_make_credential(&body)
-        .map_err(|error| PasskeyFailure::other(format!("malformed makeCredential reply: {error}")))?;
+    let body = send(
+        &mut key,
+        &request.encode().map_err(encode_failed)?,
+        ceremony,
+    )?;
+    let response = vela_core::ctap::parse_make_credential(&body).map_err(|error| {
+        PasskeyFailure::other(format!("malformed makeCredential reply: {error}"))
+    })?;
     let credential_id = webauthn::attested_credential_id(&response.auth_data)
         .map_err(|error| PasskeyFailure::other(format!("malformed credential: {error}")))?;
     let attestation = attestation_object(&response)
@@ -233,7 +238,11 @@ pub fn assert(
         pin_uv_auth: token.as_ref().map(|token| token.param(&client_data_hash)),
     };
 
-    let body = send(&mut key, &request.encode().map_err(encode_failed)?, ceremony)?;
+    let body = send(
+        &mut key,
+        &request.encode().map_err(encode_failed)?,
+        ceremony,
+    )?;
     let response = parse_get_assertion(&body)
         .map_err(|error| PasskeyFailure::other(format!("malformed getAssertion reply: {error}")))?;
 
@@ -246,7 +255,7 @@ pub fn assert(
         (None, None) => {
             return Err(PasskeyFailure::other(
                 "the security key signed without saying which credential it used",
-            ))
+            ));
         }
     };
 
@@ -345,7 +354,7 @@ fn pin_session(
                 return Err(PasskeyFailure::other(format!(
                     "{} is locked. Unplug it and plug it back in, or — if it asks for a reset — be aware a reset erases every passkey on it.",
                     key.product()
-                )))
+                )));
             }
             Err(error) => return Err(usb_failure(error)),
         }
@@ -531,4 +540,130 @@ pub fn random(len: usize) -> Vec<u8> {
         unreachable!("the platform CSPRNG is unavailable");
     }
     bytes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vela_core::registry_proof::build_member_proof;
+    use vela_core::types::ClientDataKind;
+
+    /// The clientDataJSON this client signs must be readable by the SAME
+    /// parsers the browser path feeds.
+    ///
+    /// This is the drift that would hurt most and show up latest: a desktop
+    /// ceremony that produces a subtly different envelope still signs fine, and
+    /// then the core refuses the assertion — or worse, the registry accepts a
+    /// proof whose offsets point at the wrong bytes.
+    #[test]
+    fn the_client_data_is_what_the_core_already_knows_how_to_read() {
+        // An assertion's authenticatorData, with UV set — which is what
+        // `validate_client_data` checks for on the `get` path.
+        let mut authenticator_data = vec![0u8; 32];
+        authenticator_data.push(0x05);
+        authenticator_data.extend_from_slice(&[0, 0, 0, 0]);
+
+        for (kind, core_kind) in [
+            (ClientDataType::Create, ClientDataKind::Create),
+            (ClientDataType::Get, ClientDataKind::Get),
+        ] {
+            let json = client_data_json(kind, &[0x11; 32]);
+            if let Err(error) =
+                webauthn::validate_client_data(core_kind, json.as_bytes(), &authenticator_data)
+            {
+                unreachable!("the core rejected our own clientDataJSON: {error:?}");
+            }
+        }
+    }
+
+    /// A member proof is assembled by FINDING two substrings in whatever the
+    /// authenticator produced, and reporting their byte offsets to the registry
+    /// contract. Our envelope has to contain both, in the shape the finder
+    /// expects.
+    #[test]
+    fn a_member_proof_can_be_built_from_our_envelope() {
+        let json = client_data_json(ClientDataType::Get, &[0x22; 32]);
+        let mut authenticator_data = vec![0u8; 32];
+        authenticator_data.push(0x05);
+        authenticator_data.extend_from_slice(&[0, 0, 0, 0]);
+        // A syntactically valid DER signature is all `build_member_proof` needs
+        // to reach the offsets; its VALUE is the authenticator's business.
+        let signature = signature_der();
+
+        let proof = match build_member_proof(
+            &primitives::to_hex(&authenticator_data, false),
+            &primitives::to_hex(json.as_bytes(), false),
+            &primitives::to_hex(&signature, false),
+        ) {
+            Ok(proof) => proof,
+            Err(error) => unreachable!("{error:?}"),
+        };
+        assert_eq!(
+            &proof.client_data_json[proof.type_index as usize
+                ..proof.type_index as usize + r#""type":"webauthn.get""#.len()],
+            r#""type":"webauthn.get""#
+        );
+        assert_eq!(
+            &proof.client_data_json[proof.challenge_index as usize
+                ..proof.challenge_index as usize + r#""challenge":""#.len()],
+            r#""challenge":""#
+        );
+    }
+
+    /// A low-S DER signature over a fixed digest, produced here rather than
+    /// hard-coded so the vector cannot drift out of the curve.
+    fn signature_der() -> Vec<u8> {
+        use p256::ecdsa::signature::hazmat::PrehashSigner as _;
+        use p256::ecdsa::{Signature, SigningKey};
+        let key = match SigningKey::from_slice(&[0x42u8; 32]) {
+            Ok(key) => key,
+            Err(error) => unreachable!("{error}"),
+        };
+        let signature: Signature = match key.sign_prehash(&[0x33u8; 32]) {
+            Ok(signature) => signature,
+            Err(error) => unreachable!("{error}"),
+        };
+        signature
+            .normalize_s()
+            .unwrap_or(signature)
+            .to_der()
+            .to_bytes()
+            .to_vec()
+    }
+
+    /// WebAuthn caps `user.id` at 64 bytes, and the core validates the NAME
+    /// against the remaining 27 before any ceremony starts. The envelope this
+    /// function adds is what makes those two numbers agree; if it grows, a name
+    /// the core accepted produces a handle the authenticator refuses.
+    #[test]
+    fn the_user_handle_fits_the_webauthn_budget() {
+        let longest = "x".repeat(64 - 37);
+        let handle = user_handle(&longest);
+        assert_eq!(handle.len(), 64);
+        assert_eq!(handle[longest.len()], 0, "the separator is a NUL");
+    }
+
+    /// Two handles for the same name must differ: the uuid tail is what stops
+    /// a second key inheriting the first one's user handle.
+    #[test]
+    fn two_handles_for_one_name_differ() {
+        assert_ne!(
+            user_handle("Everyday wallet"),
+            user_handle("Everyday wallet")
+        );
+    }
+
+    /// A canonical uuid v4, which is what the other clients' `randomUUID()`
+    /// produces — the handle is stored and compared as bytes.
+    #[test]
+    fn the_uuid_is_shaped_like_a_uuid_v4() {
+        let uuid = uuid_v4();
+        assert_eq!(uuid.len(), 36);
+        assert_eq!(uuid.chars().filter(|ch| *ch == '-').count(), 4, "{uuid}");
+        assert_eq!(uuid.as_bytes()[14], b'4', "version nibble: {uuid}");
+        assert!(
+            matches!(uuid.as_bytes()[19], b'8' | b'9' | b'a' | b'b'),
+            "variant nibble: {uuid}"
+        );
+    }
 }

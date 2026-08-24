@@ -7,7 +7,6 @@ use gpui::{Hsla, SharedString, rgb};
 use super::{WalletStrings, fill};
 
 pub const WALLET_NAME: &str = "大表哥";
-pub const ADDRESS_DISPLAY: &str = "0x14fB1f…D1eA5c";
 pub const ADDRESS_FULL: &str = "0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c";
 pub const NETWORK_COUNT: u32 = 8;
 
@@ -233,7 +232,10 @@ pub fn activity_default(s: &WalletStrings) -> Vec<ActivityRowModel> {
         row(
             s,
             ActivityKind::Received,
-            format!("{} · {yesterday} 20:15", fill(&s.from_name, "name", "Alice")),
+            format!(
+                "{} · {yesterday} 20:15",
+                fill(&s.from_name, "name", "Alice")
+            ),
             "+50",
             "USDC",
             true,
@@ -265,10 +267,28 @@ pub fn assets_default(s: &WalletStrings) -> Vec<AssetRowModel> {
     let _ = s;
     vec![
         asset("BNB", "BNB Chain", chain_bnb(), "0.8533", value("$496.46")),
-        asset("ETH", "Arbitrum", chain_arbitrum(), "0.2253", value("$422.62")),
-        asset("ETH", "Ethereum", chain_ethereum(), "0.0689", value("$129.25")),
+        asset(
+            "ETH",
+            "Arbitrum",
+            chain_arbitrum(),
+            "0.2253",
+            value("$422.62"),
+        ),
+        asset(
+            "ETH",
+            "Ethereum",
+            chain_ethereum(),
+            "0.0689",
+            value("$129.25"),
+        ),
         asset("XDAI", "Gnosis", chain_gnosis(), "74.3965", value("$74.38")),
-        asset("USDT", "Ethereum", chain_ethereum(), "53.4836", value("$53.48")),
+        asset(
+            "USDT",
+            "Ethereum",
+            chain_ethereum(),
+            "53.4836",
+            value("$53.48"),
+        ),
         asset("USDC", "Polygon", chain_polygon(), "12.04", value("$12.04")),
     ]
 }

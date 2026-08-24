@@ -152,7 +152,10 @@ mod tests {
             (s.no_price.as_ref(), "home.balanceDetailNoPrice"),
             (s.qr_caption.as_ref(), "componentsUi.qrPlaceholder.caption"),
             (s.address_label.as_ref(), "receive.addressLabel"),
-            (s.label_transactions.as_ref(), "tokenDetail.labelTransactions"),
+            (
+                s.label_transactions.as_ref(),
+                "tokenDetail.labelTransactions",
+            ),
         ] {
             assert_ne!(value, key, "`{key}` echoed the key");
         }

@@ -33,9 +33,9 @@ pub mod storage;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use vela_core::app::FailureKind;
 use vela_core::app::session::{SessionOperation, SessionShellResult};
 use vela_core::app::shell::{ProofPurpose, ShellOperation, ShellResult};
-use vela_core::app::FailureKind;
 use vela_core::l10n::datetime::Civil;
 use vela_core::primitives;
 use vela_core::registry_proof::{build_member_proof, group_public_key_from_seed};
@@ -233,7 +233,7 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
 
         // The two the screen owns.
         ShellOperation::Prompt { .. } | ShellOperation::CompleteOnboarding { .. } => {
-            return Performed::Screen
+            return Performed::Screen;
         }
     };
     Performed::Now(Box::new(result))

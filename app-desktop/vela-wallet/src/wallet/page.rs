@@ -26,10 +26,9 @@ use crate::icons::{Icon, IconCache};
 use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::theme::{
-    self, CONTACTS_BODY_PAD_TOP, CONTACTS_HEADER_H, CONTACTS_HERO_AVATAR, CONTACTS_RAIL_LABEL_H,
-    CONTACTS_BUTTON_H, CONTACTS_RAIL_ROW_H, CONTACTS_RAIL_W, GALLERY_BAR_H, SIDEBAR_PAD,
-    SIDEBAR_TOP, SIDEBAR_W,
-    THIRD_PANEL_W, Theme, ThemeMode, WALLET_PAD_TOP, WALLET_PAD_X,
+    self, CONTACTS_BODY_PAD_TOP, CONTACTS_BUTTON_H, CONTACTS_HEADER_H, CONTACTS_HERO_AVATAR,
+    CONTACTS_RAIL_LABEL_H, CONTACTS_RAIL_ROW_H, CONTACTS_RAIL_W, GALLERY_BAR_H, SIDEBAR_PAD,
+    SIDEBAR_TOP, SIDEBAR_W, THIRD_PANEL_W, Theme, ThemeMode, WALLET_PAD_TOP, WALLET_PAD_X,
 };
 use crate::window_frame::window_frame;
 
@@ -39,7 +38,7 @@ use super::components::{
     identicon_avatar, nav_row, qr_placeholder, section_header, sidebar_search, skeleton_row,
     token_icon, wallet_header,
 };
-use super::fixtures::{self, ADDRESS_DISPLAY, ADDRESS_FULL, IDENTICON_BOARD_SEEDS, WALLET_NAME};
+use super::fixtures::{self, ADDRESS_FULL, IDENTICON_BOARD_SEEDS, WALLET_NAME};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PanelId {
@@ -138,14 +137,60 @@ pub struct WalletPage {
     menu: Option<(ContactsMenu, Point<Pixels>, Anchor)>,
     tab: GalleryTab,
     gallery: bool,
+    /// The signed-in account, when there is one.
+    ///
+    /// `None` means the fixture identity — the design page opened directly with
+    /// `VELA_PAGE=wallet`, which is how spec 015's states are reviewed. A real
+    /// session replaces the identity and NOTHING else: balances, activity and
+    /// networks are still fixtures, and pretending otherwise by hiding them
+    /// would make a signed-in wallet look emptier than a fixture one rather
+    /// than more honest.
+    identity: Option<Identity>,
     icons: IconCache,
     identicons: IdenticonCache,
     focus_handle: FocusHandle,
 }
 
+/// The account the header and the receive panel name.
+#[derive(Clone, Debug)]
+pub struct Identity {
+    pub name: SharedString,
+    pub address: String,
+}
+
+impl Identity {
+    /// `0x14fB1f…D1eA5c` — the same middle-truncation every other client uses.
+    fn display(&self) -> SharedString {
+        let address = &self.address;
+        if address.len() <= 14 {
+            return SharedString::from(address.clone());
+        }
+        SharedString::from(format!(
+            "{}…{}",
+            &address[..8],
+            &address[address.len() - 6..]
+        ))
+    }
+}
+
 impl WalletPage {
     pub fn new(gallery: bool, window: &mut Window, cx: &mut Context<Self>) -> Self {
         Self::with_section(Section::Wallet, gallery, window, cx)
+    }
+
+    /// The wallet as a signed-in person sees it.
+    pub fn signed_in(identity: Identity, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let mut page = Self::with_section(Section::Wallet, false, window, cx);
+        page.identity = Some(identity);
+        page
+    }
+
+    /// What the header, the receive panel and the identicon are drawn from.
+    fn identity(&self) -> Identity {
+        self.identity.clone().unwrap_or_else(|| Identity {
+            name: WALLET_NAME.into(),
+            address: ADDRESS_FULL.to_owned(),
+        })
     }
 
     /// `VELA_PAGE=contacts` opens straight onto 通讯录 (spec 018 research D1).
@@ -202,6 +247,7 @@ impl WalletPage {
                 Section::Contacts => GalleryTab::Dc1,
             },
             gallery,
+            identity: None,
             icons: IconCache::default(),
             identicons: IdenticonCache::default(),
             focus_handle,
@@ -275,14 +321,17 @@ impl WalletPage {
             .flex()
             .flex_col()
             .gap(px(16.))
-            .child(wallet_header(
-                theme,
-                &mut self.icons,
-                &mut self.identicons,
-                ADDRESS_FULL,
-                WALLET_NAME.into(),
-                ADDRESS_DISPLAY.into(),
-            ))
+            .child({
+                let identity = self.identity();
+                wallet_header(
+                    theme,
+                    &mut self.icons,
+                    &mut self.identicons,
+                    &identity.address,
+                    identity.name.clone(),
+                    identity.display(),
+                )
+            })
             .child(nav_col)
             .child(div().h(px(1.)).bg(theme.divider))
             .child(
@@ -978,7 +1027,7 @@ impl WalletPage {
             .font_family(theme::font_mono())
             .text_size(theme::text_mono_address())
             .text_color(theme.fg_base)
-            .child(SharedString::from(ADDRESS_FULL));
+            .child(SharedString::from(self.identity().address));
 
         let copy = div()
             .id("copy-address")

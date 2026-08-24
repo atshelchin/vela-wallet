@@ -7,7 +7,7 @@
 
 use crate::theme::Theme;
 use gpui::{
-    canvas, div, px, Bounds, Div, Hsla, ParentElement, PathBuilder, Pixels, Point, Styled, Window,
+    Bounds, Div, Hsla, ParentElement, PathBuilder, Pixels, Point, Styled, Window, canvas, div, px,
 };
 
 /// Logo viewBox, the coordinate space of the path constants below.

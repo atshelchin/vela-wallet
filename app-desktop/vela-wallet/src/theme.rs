@@ -181,25 +181,8 @@ impl Theme {
 pub const WINDOW_W: f32 = 1280.;
 pub const WINDOW_H: f32 = 800.;
 
-/// Left content column inset from the window edge.
-pub const CONTENT_INSET: f32 = 96.;
-/// Right inset of the left column (content → panel edge). Sized so the card
-/// grid lands exactly on the mock at the 1280 design width: 96 + 3×204 + 2×14
-/// + 32 = 768 = window − panel.
-pub const CONTENT_INSET_RIGHT: f32 = 32.;
-/// Fixed width of the right action panel.
-pub const PANEL_W: f32 = 512.;
-/// Horizontal inset of the action panel's content.
-pub const PANEL_INSET: f32 = 84.;
-
-/// Top of the brand row, then the two vertical gaps of the left column rhythm.
-pub const BRAND_TOP: f32 = 104.;
 pub const GAP_BRAND_TAGLINE: f32 = 56.;
-pub const GAP_TAGLINE_GRID: f32 = 40.;
 
-/// The mocks indent the brand row 14 px beyond the column inset
-/// (logo ink at x = 110, tagline/cards at 96 — review measurement).
-pub const BRAND_INDENT: f32 = 14.;
 pub const LOGO_SIZE: f32 = 60.;
 pub const GAP_LOGO_WORDMARK: f32 = 34.;
 
@@ -397,16 +380,6 @@ pub fn launch_box(viewport_w: f32) -> (f32, f32) {
     (w, w * LAUNCH_CANVAS_H / LAUNCH_CANVAS_W)
 }
 
-/// At the 1280 design size the flex math lands each card at the mock's 204 px;
-/// cards share the left column equally, so a wider window widens all three.
-pub const CARD_MIN_H: f32 = 140.;
-pub const CARD_GAP_X: f32 = 14.;
-pub const CARD_GAP_Y: f32 = 16.;
-pub const CARD_PAD: f32 = 16.;
-/// Card interior rhythm: numeral → title → body (mock-measured; the 6 is off
-/// the 4 px grid the same way the 14 px column gap is).
-pub const CARD_GAP_NUMERAL_TITLE: f32 = 8.;
-pub const CARD_GAP_TITLE_BODY: f32 = 6.;
 pub const RADIUS_CARD: f32 = 16.;
 
 /// The mocks size the two capsules differently: primary 52, secondary 48
@@ -427,14 +400,12 @@ pub const GAP_BUTTONS: f32 = 24.;
 
 /// Outcome status badge: the circle behind the ✓/×/! glyph.
 pub const BADGE_CIRCLE: f32 = 56.;
-/// Elapsed-seconds ring (the `c` progress variants): outer size and stroke.
-pub const RING_SIZE: f32 = 40.;
+/// Stroke width of the small drawn glyphs (the copy icon, the badge's clock
+/// face). Named for the elapsed ring it was measured on; the ring itself is
+/// gone with spec 014's progress pattern, the weight it established is not.
 pub const RING_STROKE: f32 = 4.;
-/// Progress bars: segment height and the gap between the 5 create segments.
+/// The v2 flow's progress bar height.
 pub const STEP_BAR_H: f32 = 5.;
-pub const STEP_BAR_GAP: f32 = 8.;
-/// The login waiting bar's filled share (single-bar mode, mock B1 ~40%).
-pub const LOGIN_BAR_FILL: f32 = 0.4;
 /// Name field / address strip well height, and the wells' corner radius.
 pub const INPUT_H: f32 = 52.;
 pub const RADIUS_FIELD: f32 = 12.;
@@ -451,18 +422,12 @@ pub const OPACITY_DISABLED: f32 = 0.45;
 pub const HAIRLINE: f32 = 1.;
 /// The scaffold's close × hit target.
 pub const FLOW_CLOSE_HIT: f32 = 32.;
-/// Small drawn glyphs: disclosure chevron box, copy icon box.
-pub const FLOW_ICON_SM: f32 = 12.;
 pub const FLOW_ICON_MD: f32 = 16.;
 /// Name-field caret width; also the stroke of the thin drawn glyphs.
 pub const FLOW_CARET_W: f32 = 1.5;
 /// Dev-only state gallery: fixture list column width.
 pub const GALLERY_SIDEBAR_W: f32 = 280.;
 
-/// Flow scaffold title (创建钱包 / 登录 row).
-pub fn text_flow_title() -> Pixels {
-    px(20.)
-}
 /// Progress/outcome headline.
 pub fn text_flow_headline() -> Pixels {
     px(17.)
@@ -478,10 +443,6 @@ pub fn text_flow_caption() -> Pixels {
 /// The glyph inside the status badge circle.
 pub fn text_badge_glyph() -> Pixels {
     px(26.)
-}
-/// The number inside the elapsed ring (2-digit capable without resizing).
-pub fn text_ring() -> Pixels {
-    px(14.)
 }
 
 /// The mock wordmark's cap height is ~30.5 px, which for the system font is a

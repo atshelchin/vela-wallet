@@ -3,7 +3,7 @@
 //! which is drawn with `PathBuilder` — no SVG assets exist in this shell
 //! (research D7), and gpui would render them monochrome anyway.
 
-use crate::onboarding_flow::BadgeVariant;
+use crate::outcome::BadgeVariant;
 use crate::theme::{self, BADGE_CIRCLE, RING_STROKE, Theme};
 use gpui::{
     Bounds, Div, FontWeight, Hsla, ParentElement, PathBuilder, Pixels, Point, Styled, Window,
@@ -12,12 +12,9 @@ use gpui::{
 
 pub fn status_badge(theme: &Theme, variant: BadgeVariant) -> Div {
     let (bg, fg) = match variant {
-        BadgeVariant::Success => (theme.success_soft, theme.success_base),
         BadgeVariant::Warning | BadgeVariant::Timeout => (theme.warning_soft, theme.warning_base),
         BadgeVariant::Error => (theme.error_soft, theme.error_base),
         BadgeVariant::Info => (theme.info_soft, theme.info_base),
-        // The mock's dark charcoal circle: the shared "well" surface.
-        BadgeVariant::Neutral => (theme.bg_well, theme.fg_base),
     };
 
     let circle = div()
@@ -43,8 +40,10 @@ pub fn status_badge(theme: &Theme, variant: BadgeVariant) -> Div {
         ),
         _ => {
             let glyph = match variant {
-                BadgeVariant::Success => "✓",
                 BadgeVariant::Error => "×",
+                // Warning and Info share the exclamation: the difference the
+                // person reads is the colour, and a second glyph would be a
+                // second thing to learn for the same fact.
                 _ => "!",
             };
             circle.child(

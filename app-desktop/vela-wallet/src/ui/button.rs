@@ -50,11 +50,7 @@ pub fn vela_button_opts(
     // The height is a MINIMUM: long-locale labels wrap inside a
     // width-constrained, centered block and grow the row instead of
     // escaping the capsule (radius stays at the single-line value).
-    let label_block = div()
-        .w_full()
-        .min_w(px(0.))
-        .text_center()
-        .child(label);
+    let label_block = div().w_full().min_w(px(0.)).text_center().child(label);
     let base = div()
         .id(id)
         .min_h(px(height))
@@ -108,5 +104,8 @@ pub fn vela_button_opts(
         }
     };
 
-    styled.cursor_pointer().child(label_block).on_click(on_click)
+    styled
+        .cursor_pointer()
+        .child(label_block)
+        .on_click(on_click)
 }

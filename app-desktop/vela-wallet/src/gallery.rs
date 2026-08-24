@@ -292,11 +292,27 @@ impl GalleryView {
         );
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window, cx);
+        let entries = entries();
+        // `VELA_GALLERY_STATE=<n>` opens straight onto one fixture. It exists
+        // because a machine without screen-recording permission cannot drive
+        // the arrow keys OR take a picture, and "launch it once per fixture and
+        // see whether it survives a frame" is the only end-to-end check left —
+        // `scripts/sweep-gallery.sh` is that loop.
+        let selected = std::env::var("VELA_GALLERY_STATE")
+            .ok()
+            .and_then(|raw| raw.parse::<usize>().ok())
+            .filter(|index| *index < entries.len())
+            .unwrap_or(0);
+        eprintln!(
+            "[vela-wallet] gallery: {} states, opening `{}`",
+            entries.len(),
+            entries[selected].code
+        );
         Self {
             mode: ThemeMode::detect(window),
             loc,
-            entries: entries(),
-            selected: 0,
+            entries,
+            selected,
             picker_open: false,
             copied: false,
             details_expanded: false,

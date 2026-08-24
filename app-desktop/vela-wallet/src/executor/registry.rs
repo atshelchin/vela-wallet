@@ -605,3 +605,67 @@ fn urlencode(value: &str) -> String {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The endpoint is normalised, not trusted: a trailing slash would produce
+    /// `//api/health`, and a newline pasted with a URL would be smuggled into
+    /// the request line.
+    #[test]
+    fn the_endpoint_is_cleaned_before_it_is_used() {
+        set_registry_url("  https://example.invalid/\n ");
+        assert_eq!(registry_url(), "https://example.invalid");
+        // Empty is not an endpoint — it falls back rather than producing
+        // requests to `/api/health` with no host.
+        set_registry_url("   ");
+        assert_eq!(registry_url(), DEFAULT_REGISTRY_URL);
+    }
+
+    /// Only a status code means the server answered. Everything else is a
+    /// request that never arrived, and the core offers a different endpoint for
+    /// exactly that case — so misclassifying a 4xx as a network failure would
+    /// send someone hunting for a working URL over a refusal.
+    #[test]
+    fn only_a_status_code_counts_as_an_answer() {
+        assert!(!classify("Query", ureq::Error::StatusCode(404)).network);
+        assert!(classify("Query", ureq::Error::HostNotFound).network);
+    }
+
+    /// A credential id is hex today, but the query string is built from it —
+    /// so anything that could change WHICH record is being asked for is
+    /// escaped rather than assumed absent.
+    #[test]
+    fn query_values_are_escaped() {
+        assert_eq!(urlencode("abc123"), "abc123");
+        assert_eq!(urlencode("a&b=c"), "a%26b%3Dc");
+        assert_eq!(urlencode("a b"), "a%20b");
+    }
+
+    /// The live registry, reached for real.
+    ///
+    /// `#[ignore]` because it needs the network: run it with
+    /// `cargo test -- --ignored` when changing this file. It is the only check
+    /// that the service identity this client accepts is still the one the
+    /// deployed server sends — a rename there would make every wallet report
+    /// the index unreachable while it is answering perfectly.
+    #[test]
+    #[ignore = "needs the network"]
+    fn the_deployed_registry_answers_its_health_probe() {
+        set_registry_url(DEFAULT_REGISTRY_URL);
+        assert!(probe_health(), "{DEFAULT_REGISTRY_URL} did not answer");
+    }
+
+    /// A key nobody registered comes back as not-registered, not as an error.
+    #[test]
+    #[ignore = "needs the network"]
+    fn an_unknown_public_key_is_simply_unregistered() {
+        set_registry_url(DEFAULT_REGISTRY_URL);
+        let unknown = format!("04{}", "11".repeat(64));
+        match query_by_public_key(&unknown) {
+            Ok(status) => assert!(!status.registered),
+            Err(error) => unreachable!("{}", error.message),
+        }
+    }
+}

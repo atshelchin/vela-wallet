@@ -653,6 +653,65 @@ mod tests {
         );
     }
 
+    /// "No key plugged in" is `not_supported` WITH WORDS.
+    ///
+    /// The kind matters because the core branches on it; the message matters
+    /// because on a desktop this is the one failure that is not "something went
+    /// wrong" — it is an instruction, and the sheet has to be able to give it.
+    #[test]
+    fn a_missing_key_is_a_sentence_rather_than_a_shrug() {
+        let failure = usb_failure(UsbError::NoKeyPresent);
+        assert_eq!(failure.kind, FailureKind::NotSupported);
+        let message = failure.message.unwrap_or_default();
+        assert!(
+            message.to_lowercase().contains("security key"),
+            "the message must name what is missing: {message}"
+        );
+    }
+
+    /// A person who declines at the authenticator has not hit an error.
+    /// Cancellation carries no message — its copy comes from the
+    /// classification, and forwarding "the security key refused" would tell
+    /// somebody their own choice went wrong.
+    #[test]
+    fn declining_at_the_key_is_a_cancellation_with_no_words() {
+        let failure = usb_failure(UsbError::Ctap(Status::Cancelled));
+        assert_eq!(failure.kind, FailureKind::Cancelled);
+        assert_eq!(failure.message, None);
+    }
+
+    /// The exclusion list doing its job is not a fault, and it is not
+    /// `not_supported` either: a different key would work.
+    #[test]
+    fn an_excluded_credential_says_to_use_another_key() {
+        let failure = usb_failure(UsbError::Ctap(Status::CredentialExcluded));
+        assert_eq!(failure.kind, FailureKind::Other);
+        assert!(
+            failure
+                .message
+                .unwrap_or_default()
+                .to_lowercase()
+                .contains("different")
+        );
+    }
+
+    /// Support means the HID subsystem is REACHABLE, not that a key is plugged
+    /// in — and the difference is the whole recovery path. Answering `false`
+    /// for an empty USB port would make the core raise "this device cannot
+    /// create a wallet", which is untrue and has no way back; a missing key has
+    /// to arrive later, as a failure the person can fix by plugging one in.
+    ///
+    /// So this asserts support on a machine that (almost certainly) has no
+    /// security key attached, which is exactly the case that must not report
+    /// unsupported.
+    #[test]
+    fn support_does_not_depend_on_a_key_being_plugged_in() {
+        assert!(
+            supported(),
+            "HID enumeration is unavailable on this host, so this test cannot say anything"
+        );
+    }
+
     /// A canonical uuid v4, which is what the other clients' `randomUUID()`
     /// produces — the handle is stored and compared as bytes.
     #[test]

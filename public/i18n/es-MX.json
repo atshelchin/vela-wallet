@@ -491,7 +491,7 @@
    "featureSafeContractBody": "Las cuentas se basan en contratos Safe auditados, no en una implementación propia.",
    "featureStablecoinGasTitle": "Paga el gas con monedas estables",
    "featureStablecoinGasBody": "La mayoría de las redes permiten pagar las comisiones con monedas estables — no necesitas conseguir antes la moneda nativa.",
-   "heroTitle": "La billetera de Ethereum que nadie puede apagar",
+   "heroTitle": "La billetera de Ethereum\nque nadie puede apagar",
    "heroSubtitle": "Firma con una passkey. La clave nunca sale de tu dispositivo."
   },
   "welcomeWeb": {
@@ -586,7 +586,7 @@
    "headerCreated": "Billetera creada",
    "headerSyncFailed": "Sincronización entre dispositivos",
    "accountNameLabel": "Nombre de la cuenta",
-   "accountNamePlaceholder": "Escribe un nombre para tu cuenta",
+   "accountNamePlaceholder": "Billetera diaria",
    "accountNameHint": "Este nombre se guarda con tu llave pública on-chain para iniciar sesión entre dispositivos.",
    "nameTooLong": "Este nombre es demasiado largo para una passkey — acórtalo, por favor.",
    "technicalDetails": "Detalles técnicos",
@@ -665,7 +665,8 @@
    "walletAddressLabel": "Dirección de la billetera",
    "identiconHint": "Un patrón de identidad generado a partir de la dirección",
    "securityKeyRequiredTitle": "Conecta una llave de seguridad",
-   "securityKeyRequiredBody": "Este equipo no tiene servicio de passkeys del sistema. Conecta una llave de seguridad USB FIDO2 e inténtalo otra vez."
+   "securityKeyRequiredBody": "Este equipo no tiene servicio de passkeys del sistema. Conecta una llave de seguridad USB FIDO2 e inténtalo otra vez.",
+   "nameTitle": "Ponle nombre a tu billetera"
   },
   "login": {
    "alertNotSupportedTitle": "No compatible",

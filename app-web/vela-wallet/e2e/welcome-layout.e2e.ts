@@ -26,38 +26,50 @@ for (const width of WIDTHS) {
 	});
 }
 
-test('1279px renders the mobile layout: carousel + pager, no grid', async ({ page }) => {
+test('1279px stacks the two ways in', async ({ page }) => {
 	await page.setViewportSize({ width: 1279, height: 900 });
 	await page.goto('/en');
-	await expect(page.locator('.slides')).toBeVisible();
-	await expect(page.locator('.dots .dot')).toHaveCount(6);
-	await expect(page.locator('.grid')).toBeHidden();
+	// One column at every width (spec 019). Below the breakpoint the buttons
+	// stack; the check is the axis, not a class name.
+	const create = (await page.getByRole('link', { name: 'Create Wallet' }).boundingBox())!;
+	const signIn = (await page
+		.getByRole('button', { name: 'I already have a wallet' })
+		.boundingBox())!;
+	expect(signIn.y).toBeGreaterThan(create.y + create.height - 1);
 });
 
-test('1280px renders the desktop layout: 2×3 grid + action pane, no carousel', async ({ page }) => {
+test('1280px puts the two ways in side by side', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 900 });
 	await page.goto('/en');
-	await expect(page.locator('.grid')).toBeVisible();
-	await expect(page.locator('.grid article')).toHaveCount(6);
-	await expect(page.locator('.slides')).toBeHidden();
+	const create = (await page.getByRole('link', { name: 'Create Wallet' }).boundingBox())!;
+	const signIn = (await page
+		.getByRole('button', { name: 'I already have a wallet' })
+		.boundingBox())!;
+	expect(signIn.x).toBeGreaterThan(create.x + create.width - 1);
+	expect(Math.abs(signIn.y - create.y)).toBeLessThan(2);
 	await expect(page.locator('.actions')).toBeVisible();
 });
 
 test('resizing across the boundary keeps the page intact', async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto('/en');
-	await expect(page.locator('.grid')).toBeVisible();
+	await expect(page.locator('.headline')).toBeVisible();
 	await page.setViewportSize({ width: 390, height: 844 });
-	await expect(page.locator('.slides')).toBeVisible();
+	await expect(page.locator('.headline')).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Create Wallet' })).toBeVisible();
 });
 
-test('mobile pager dots advance the carousel', async ({ page }) => {
-	await page.setViewportSize({ width: 390, height: 844 });
+test('the headline shrinks below the desktop breakpoint', async ({ page }) => {
 	await page.goto('/en');
-	const dots = page.locator('.dots .dot');
-	await dots.nth(3).click();
-	await expect(dots.nth(3)).toHaveAttribute('aria-current', 'true');
+	const headline = page.locator('.headline');
+
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const wide = Number.parseFloat(await headline.evaluate((el) => getComputedStyle(el).fontSize));
+
+	await page.setViewportSize({ width: 390, height: 844 });
+	const narrow = Number.parseFloat(await headline.evaluate((el) => getComputedStyle(el).fontSize));
+
+	expect(wide).toBeGreaterThan(narrow);
 });
 
 for (const width of [1440, 390]) {

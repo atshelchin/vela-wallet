@@ -491,7 +491,7 @@
    "featureSafeContractBody": "As contas são construídas sobre contratos Safe auditados, não sobre uma implementação própria.",
    "featureStablecoinGasTitle": "Pague o gas com stablecoins",
    "featureStablecoinGasBody": "A maioria das redes permite pagar as taxas com stablecoins — sem precisar ter a moeda nativa antes.",
-   "heroTitle": "A carteira Ethereum que ninguém pode desligar",
+   "heroTitle": "A carteira Ethereum\nque ninguém pode desligar",
    "heroSubtitle": "Assine com uma passkey. A chave nunca sai do seu aparelho."
   },
   "welcomeWeb": {
@@ -586,7 +586,7 @@
    "headerCreated": "Carteira criada",
    "headerSyncFailed": "Sincronização entre dispositivos",
    "accountNameLabel": "Nome da conta",
-   "accountNamePlaceholder": "Digite um nome para sua conta",
+   "accountNamePlaceholder": "Carteira do dia a dia",
    "accountNameHint": "Este nome é armazenado junto com sua chave pública on-chain para login em vários dispositivos.",
    "nameTooLong": "Este nome é longo demais para uma passkey — encurte-o, por favor.",
    "technicalDetails": "Detalhes técnicos",
@@ -665,7 +665,8 @@
    "walletAddressLabel": "Endereço da carteira",
    "identiconHint": "Um padrão de identidade gerado a partir do endereço",
    "securityKeyRequiredTitle": "Conecte uma chave de segurança",
-   "securityKeyRequiredBody": "Este computador não tem serviço de passkey do sistema. Conecte uma chave de segurança USB FIDO2 e tente de novo."
+   "securityKeyRequiredBody": "Este computador não tem serviço de passkey do sistema. Conecte uma chave de segurança USB FIDO2 e tente de novo.",
+   "nameTitle": "Dê um nome à sua carteira"
   },
   "login": {
    "alertNotSupportedTitle": "Não compatível",

@@ -8,7 +8,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SUPPORTED_LOCALES, textDirectionOf } from './locales';
-import { FEATURE_SLUGS, FLOW_KEYS, WELCOME_KEYS } from './messages';
+import { FLOW_KEYS, WELCOME_KEYS } from './messages';
 import { fillTemplate } from './fill';
 import {
 	rawResolve,
@@ -26,18 +26,8 @@ describe('welcome messages resolve through the vela-core engine', () => {
 			expect(messages.tagline.length).toBeGreaterThan(0);
 			expect(messages.createWallet.length).toBeGreaterThan(0);
 			expect(messages.alreadyHaveWallet.length).toBeGreaterThan(0);
-			expect(messages.features).toHaveLength(FEATURE_SLUGS.length);
-			for (const feature of messages.features) {
-				expect(feature.title.length).toBeGreaterThan(0);
-				expect(feature.description.length).toBeGreaterThan(0);
-			}
 		});
 	}
-
-	it('numbers cards 01–06 in design order', () => {
-		const { features } = resolveWelcomeMessages('en');
-		expect(features.map((f) => f.number)).toEqual(['01', '02', '03', '04', '05', '06']);
-	});
 
 	it('actually loads per-locale catalogs (en/zh/ja taglines all differ)', () => {
 		const taglines = (['en', 'zh', 'ja'] as const).map(
@@ -51,8 +41,8 @@ describe('welcome messages resolve through the vela-core engine', () => {
 			const messages = resolveWelcomeMessages(locale);
 			expect(messages.tagline).toBe(rawResolve(locale, 'onboarding.welcomeWeb.tagline'));
 			expect(messages.createWallet).toBe(rawResolve(locale, 'onboarding.welcome.createWallet'));
-			expect(messages.features[0].title).toBe(
-				rawResolve(locale, 'onboarding.welcomeWeb.features.noSeedPhrase.title')
+			expect(messages.alreadyHaveWallet).toBe(
+				rawResolve(locale, 'onboarding.welcome.alreadyHaveWallet')
 			);
 		}
 	});

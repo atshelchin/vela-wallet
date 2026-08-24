@@ -1,11 +1,27 @@
 <script lang="ts">
+	/**
+	 * Welcome — the v2 design (spec 019).
+	 *
+	 * One column at every width: brand, headline, and the two ways in. Desktop
+	 * gets a wider column and a side-by-side button row; below the breakpoint
+	 * the column narrows and the buttons stack. Nothing reflows into a second
+	 * pane, because there is no second pane — the flow this page starts is a
+	 * full page of its own.
+	 *
+	 * Creating a wallet NAVIGATES: it is a stepped journey, so it owns a URL and
+	 * back works. Signing in has no steps — one system passkey sheet and you are
+	 * either in or you are not — so it runs here, in place, and speaks only
+	 * through the button's busy state and the failure sheet.
+	 *
+	 * This page is also the site's landing page: prerendered in 15 locales with
+	 * canonical + hreflang. The wasm the flow needs is fetched by the flow, not
+	 * by this page — `e2e/welcome-ssr.e2e.ts` holds that line.
+	 */
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import BrandMark from '$lib/ui/BrandMark.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import Carousel from '$lib/ui/Carousel.svelte';
-	import FeatureCard from '$lib/ui/FeatureCard.svelte';
 	import PromptSheet from '$lib/ui/onboarding/v2/PromptSheet.svelte';
 	import { fillTemplate } from '$lib/i18n/fill';
 	import { SUPPORTED_LOCALES, FALLBACK_LOCALE } from '$lib/i18n/locales';
@@ -23,16 +39,6 @@
 	const m = $derived(data.messages);
 	const locale = $derived(data.locale);
 
-	/* ------------------------------------------------------------------ */
-	/* Onboarding (spec 019).                                               */
-	/*                                                                      */
-	/* Creating a wallet is a stepped journey and gets its own route, so    */
-	/* back works and a reload strands nobody mid-ceremony. Signing in has  */
-	/* no steps — one system passkey sheet and you are either in or you are */
-	/* not — so it runs HERE, in place, and only speaks through the button's */
-	/* busy state and the failure sheet.                                    */
-	/* ------------------------------------------------------------------ */
-
 	/** Serialized flow copy from the layout load; numbers filled here. */
 	const strings = (key: string, params?: Record<string, string | number>) =>
 		fillTemplate(data.flow[key] ?? key, params);
@@ -46,9 +52,8 @@
 	const signingIn = $derived(loginView?.busy ?? false);
 
 	/**
-	 * The endpoint the registry lives at is unreachable. Sign-in is still
-	 * attemptable — the core decides that, not this screen — so this only
-	 * surfaces the warning.
+	 * The registry is unreachable. Sign-in stays attemptable — the core decides
+	 * that, not this screen — so this only surfaces the warning.
 	 */
 	const endpointUnreachable = $derived(loginView?.endpoint_unreachable ?? false);
 
@@ -64,9 +69,9 @@
 	}
 
 	/**
-	 * Sign-in loads the core on FIRST USE, not on mount: the Welcome page is
+	 * Sign-in loads the core on FIRST USE, never on mount: this page is
 	 * prerendered and must stay wasm-free until someone commits. The health
-	 * probe the core starts on `start` is part of that commitment.
+	 * probe the core starts is part of that commitment.
 	 */
 	async function signIn() {
 		if (signingIn) return;
@@ -98,45 +103,34 @@
 </svelte:head>
 
 <main class="welcome">
-	<section class="content">
-		<header class="brand">
-			<BrandMark />
-			<h1 class="wordmark">Vela Wallet</h1>
-		</header>
+	<div class="column">
+		<div class="top">
+			<header class="brand">
+				<BrandMark size={60} />
+				<span class="wordmark">VELA WALLET</span>
+			</header>
 
-		<p class="tagline">{m.tagline}</p>
-
-		<!-- Desktop: 2×3 grid. Mobile: one-card carousel. Same content, one source. -->
-		<div class="grid">
-			{#each m.features as feature (feature.number)}
-				<FeatureCard {...feature} />
-			{/each}
+			<div class="hero">
+				<h1 class="headline">{m.heroTitle}</h1>
+				<p class="sub">{m.heroSubtitle}</p>
+			</div>
 		</div>
 
-		<div class="slides">
-			<Carousel items={m.features} label={m.tagline}>
-				{#snippet slide(feature: (typeof m.features)[number])}
-					<FeatureCard {...feature} />
-				{/snippet}
-			</Carousel>
-		</div>
-	</section>
-
-	<aside class="actions">
-		<div class="stack">
-			<Button variant="primary" href={createHref}>
+		<div class="actions">
+			<Button variant="primary" shape="rounded" href={createHref}>
 				{m.createWallet}
 			</Button>
-			<Button variant="secondary" disabled={signingIn} onclick={signIn}>
+			<Button variant="secondary" shape="rounded" disabled={signingIn} onclick={signIn}>
 				{m.alreadyHaveWallet}
 			</Button>
-			{#if endpointUnreachable}
-				<p class="endpointWarning" role="status">
-					{strings('onboarding.settings.warningText')}
-				</p>
-			{/if}
 		</div>
-	</aside>
+
+		{#if endpointUnreachable}
+			<p class="endpointWarning" role="status">
+				{strings('onboarding.settings.warningText')}
+			</p>
+		{/if}
+	</div>
 </main>
 
 {#if pending}
@@ -151,65 +145,86 @@
 {/if}
 
 <style>
-	/* ------------------------------------------------------------------ */
-	/* Mobile (< 1280px): centered brand, carousel, bottom-anchored CTAs. */
-	/* ------------------------------------------------------------------ */
-
 	.welcome {
 		display: flex;
-		flex-direction: column;
+		justify-content: center;
 		min-height: 100dvh;
-		padding: var(--space-3xl) var(--layout-screenPaddingX) var(--space-4xl);
-		gap: var(--space-3xl);
+		padding: var(--space-4xl) var(--layout-screenPaddingX) var(--space-5xl);
+		background: var(--color-bg-base);
 	}
 
-	.content {
+	/*
+	 * The design anchors the brand and headline at the top of the frame and
+	 * the two ways in at its BOTTOM. That only happens if the column fills the
+	 * height — centre it and `space-between` has nothing to distribute, which
+	 * is exactly how the first pass ended up with the buttons riding up under
+	 * the subtitle.
+	 */
+
+	/*
+	 * `space-between`, not a centred stack: the design anchors the brand and
+	 * headline at the top and the two ways in at the bottom, so the eye lands
+	 * on what the wallet IS before it lands on what to do about it.
+	 */
+	.column {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		justify-content: space-between;
+		gap: var(--space-5xl);
+		width: 100%;
+		max-width: var(--layout-flowColumn);
+	}
+
+	.top {
 		display: flex;
 		flex-direction: column;
-		flex: 1;
-		min-height: 0;
+		gap: var(--space-3xl);
 	}
 
 	.brand {
 		display: flex;
+		gap: var(--space-lg);
 		align-items: center;
-		justify-content: center;
-		gap: var(--space-xl);
-		margin-top: auto;
 	}
 
 	.wordmark {
-		margin: 0;
-		font-size: var(--text-4xl);
-		font-weight: var(--weight-bold);
 		color: var(--color-fg-base);
+		font-size: var(--text-xl);
+		font-weight: var(--weight-bold);
+		letter-spacing: 0.11em;
 	}
 
-	.tagline {
-		margin: var(--space-4xl) 0 auto;
-		text-align: center;
-		font-size: var(--text-2xl);
+	.hero {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
+
+	.headline {
+		margin: 0;
+		color: var(--color-fg-base);
+		font-size: var(--text-heroCompact);
+		font-weight: var(--weight-bold);
+		/* The design breaks the headline across two lines. The break lives in
+		   the corpus as a newline rather than as markup, so each locale picks
+		   its own — a Chinese line length is not a German one. */
+		white-space: pre-line;
+		line-height: var(--leading-tight);
+		letter-spacing: -0.02em;
+	}
+
+	.sub {
+		margin: 0;
 		color: var(--color-fg-muted);
-	}
-
-	.grid {
-		display: none;
-	}
-
-	.slides {
-		margin-top: var(--space-4xl);
+		font-size: var(--text-lg);
+		line-height: var(--leading-normal);
 	}
 
 	.actions {
 		display: flex;
 		flex-direction: column;
-	}
-
-	.stack {
-		display: flex;
-		flex-direction: column;
 		gap: var(--space-lg);
-		width: 100%;
 	}
 
 	.endpointWarning {
@@ -219,60 +234,27 @@
 		line-height: var(--leading-normal);
 	}
 
-	/* ------------------------------------------------------------- */
-	/* Desktop (>= 1280px): content pane + raised action pane right. */
-	/* ------------------------------------------------------------- */
+	/* ------------------------------------------------------------------ */
+	/* Desktop: a wider column and the two ways in side by side.           */
+	/* ------------------------------------------------------------------ */
 
 	@media (min-width: 1280px) {
-		.welcome {
-			flex-direction: row;
-			padding: 0;
-			gap: 0;
+		.column {
+			max-width: var(--layout-welcomeColumn);
 		}
 
-		.content {
-			flex: 1 1 auto;
-			justify-content: center;
-			padding: var(--space-5xl);
+		.headline {
+			font-size: var(--text-hero);
 		}
 
-		.brand {
-			justify-content: flex-start;
-			margin-top: 0;
-		}
-
-		.wordmark {
-			font-size: var(--text-5xl);
-		}
-
-		.tagline {
-			margin: var(--space-5xl) 0 var(--space-5xl);
-			text-align: start;
-			font-size: var(--text-4xl);
-		}
-
-		.grid {
-			display: grid;
-			grid-template-columns: repeat(3, 1fr);
-			gap: var(--space-2xl);
-			max-width: calc(var(--layout-maxContentWidth) + var(--space-5xl) * 4);
-		}
-
-		.slides {
-			display: none;
-		}
-
+		/* Side by side, sharing the column equally — the design's two buttons
+		   are the same width. */
 		.actions {
-			flex: 0 0 38%;
-			align-items: center;
-			justify-content: center;
-			background: var(--color-bg-raised);
-			border-inline-start: var(--border-hairline) solid var(--color-border-base);
-			padding: var(--space-5xl);
+			flex-direction: row;
 		}
 
-		.stack {
-			max-width: var(--layout-frameW);
+		.actions :global(.button) {
+			flex: 1 1 auto;
 		}
 	}
 </style>

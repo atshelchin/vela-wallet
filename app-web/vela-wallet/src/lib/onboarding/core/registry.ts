@@ -12,7 +12,6 @@
  */
 
 import type { RegistryProof } from '../generated/RegistryProof';
-import type { RegistryPublishMember } from '../generated/RegistryPublishMember';
 import type { RegistryUnitMember } from '../generated/RegistryUnitMember';
 
 /** The v2 registry. Overridable so a self-hosted stack is a setting, not a fork. */
@@ -127,12 +126,24 @@ export function groupChallenge(body: {
 	return postJson('/api/challenge', body, READ_TIMEOUT_MS, 'Challenge');
 }
 
+/**
+ * Register the closed group. `members` is the REGISTRY's camelCase shape, not
+ * the core's snake_case wire type — `publish.ts` translates, and this signature
+ * refuses the core type so the translation cannot be skipped.
+ */
 export function registerGroup(body: {
 	rpId: string;
 	metadata?: string;
 	groupPublicKey: string;
 	groupProof: RegistryProof;
-	members: RegistryPublishMember[];
+	members: {
+		publicKey: string;
+		attestation?: string;
+		credentialId?: string;
+		authenticatorAttachment?: string;
+		transports?: string;
+		proof: RegistryProof;
+	}[];
 }): Promise<{ id?: string; status: string; contentHash?: string }> {
 	return postJson('/api/register', body, WRITE_TIMEOUT_MS, 'Register');
 }

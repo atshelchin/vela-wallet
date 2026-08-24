@@ -7,49 +7,38 @@
  * and shapes; resolution happens only in `engine.server.ts`.
  */
 
-/** Order matches the reference designs: cards 01–06. */
-export const FEATURE_SLUGS = [
-	'noSeedPhrase',
-	'oneAddress',
-	'openSource',
-	'keysInPasswordManager',
-	'safeContracts',
-	'stablecoinGas'
-] as const;
-
-export type FeatureSlug = (typeof FEATURE_SLUGS)[number];
-
-export interface FeatureCardMessages {
-	/** Zero-padded display number, '01'…'06'. */
-	number: string;
-	title: string;
-	description: string;
-}
-
 export interface WelcomeMessages {
 	metaTitle: string;
 	metaDescription: string;
 	tagline: string;
+	/** The v2 headline and its one supporting line (spec 019). */
+	heroTitle: string;
+	heroSubtitle: string;
 	createWallet: string;
 	alreadyHaveWallet: string;
-	features: FeatureCardMessages[];
 }
 
 /**
  * Every corpus key the Welcome page consumes (tests iterate this).
- * `onboarding.welcomeWeb.passkeyIndexLink` stays in the corpus for the future
- * settings screen but left the page per founder direction (2026-08-01).
+ *
+ * `onboarding.welcomeWeb.features.*` left the page with the v2 design (spec
+ * 019, founder direction 2026-08-25): the design is one column — brand,
+ * headline, two ways in — and the six feature cards have no place in it. The
+ * twelve strings stay in the corpus rather than being deleted, because they are
+ * written marketing copy and the page they belong on may yet exist; nothing
+ * resolves them today.
+ *
+ * `onboarding.welcomeWeb.passkeyIndexLink` likewise stays for the future
+ * settings screen (founder direction 2026-08-01).
  */
 export const WELCOME_KEYS = [
 	'onboarding.welcomeWeb.meta.title',
 	'onboarding.welcomeWeb.meta.description',
 	'onboarding.welcomeWeb.tagline',
+	'onboarding.welcome.heroTitle',
+	'onboarding.welcome.heroSubtitle',
 	'onboarding.welcome.createWallet',
-	'onboarding.welcome.alreadyHaveWallet',
-	...FEATURE_SLUGS.flatMap((slug) => [
-		`onboarding.welcomeWeb.features.${slug}.title`,
-		`onboarding.welcomeWeb.features.${slug}.description`
-	])
+	'onboarding.welcome.alreadyHaveWallet'
 ] as const;
 
 /* ------------------------------------------------------------------------ */
@@ -74,9 +63,9 @@ const FLOW_CHROME_KEYS = [
  */
 const FLOW_FORM_KEYS = [
 	'onboarding.create.headerDefault',
+	'onboarding.create.nameTitle',
 	'onboarding.create.accountNameLabel',
 	'onboarding.create.accountNamePlaceholder',
-	'onboarding.create.accountNameHint',
 	'onboarding.create.nameTooLong',
 	'onboarding.create.ack0',
 	'onboarding.create.ack1',

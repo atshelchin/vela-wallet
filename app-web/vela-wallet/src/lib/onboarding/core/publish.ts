@@ -18,6 +18,26 @@ import * as Passkey from './passkey';
 import type { RegistryProof } from '../generated/RegistryProof';
 import type { RegistryPublishMember } from '../generated/RegistryPublishMember';
 
+/**
+ * One member as the REGISTRY wants it.
+ *
+ * Deliberately spelled out rather than spread from `RegistryPublishMember`.
+ * The core's wire type is snake_case because it is generated from Rust; the
+ * registry's HTTP API is camelCase. Spreading the core type into the request
+ * body sends `public_key_hex` where the server reads `publicKey`, and the
+ * server answers `members[0]: publicKey is required` — after the person has
+ * already minted and confirmed every key. The two vocabularies meet here, in
+ * one function, and nowhere else.
+ */
+type RegistryApiMember = {
+	publicKey: string;
+	attestation?: string;
+	credentialId?: string;
+	authenticatorAttachment?: string;
+	transports?: string;
+	proof: RegistryProof;
+};
+
 export type PublishArgs = {
 	rpId: string;
 	/** The group's opaque metadata blob, already hex-encoded by the core. */
@@ -57,7 +77,7 @@ export async function publish(args: PublishArgs): Promise<void> {
 		}))
 	});
 
-	const proven: (RegistryPublishMember & { proof: RegistryProof })[] = [];
+	const proven: RegistryApiMember[] = [];
 	for (const member of args.members) {
 		let proof = member.proof ?? undefined;
 		if (!proof) {
@@ -74,7 +94,14 @@ export async function publish(args: PublishArgs): Promise<void> {
 				assertion.signatureHex
 			) as RegistryProof;
 		}
-		proven.push({ ...member, proof });
+		proven.push({
+			publicKey: member.public_key_hex,
+			attestation: member.attestation_hex,
+			credentialId: member.credential_id,
+			authenticatorAttachment: member.authenticator_attachment,
+			transports: member.transports,
+			proof
+		});
 	}
 
 	// The group key silently closes over the content hash.

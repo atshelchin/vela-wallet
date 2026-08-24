@@ -17,7 +17,7 @@
       "featureSafeContractBody": "账户基于经过审计的 Safe 合约，不是自研实现。",
       "featureStablecoinGasTitle": "用稳定币付 gas",
       "featureStablecoinGasBody": "多数网络支持用稳定币支付手续费，不用先备一份原生币。",
-      "heroTitle": "谁也关不掉的以太坊钱包",
+      "heroTitle": "谁也关不掉的\n以太坊钱包",
       "heroSubtitle": "用通行密钥签名，密钥留在你的设备里。"
     },
     "welcomeWeb": {
@@ -112,7 +112,7 @@
       "headerCreated": "钱包已创建",
       "headerSyncFailed": "跨设备同步",
       "accountNameLabel": "账户名称",
-      "accountNamePlaceholder": "为您的账户输入名称",
+      "accountNamePlaceholder": "日常钱包",
       "accountNameHint": "此名称将与您的公钥一起存储上链，用于跨设备登录。",
       "nameTooLong": "名字太长，放不进通行密钥——请缩短一些。",
       "technicalDetails": "技术详情",
@@ -191,7 +191,8 @@
       "walletAddressLabel": "钱包地址",
       "identiconHint": "地址生成的身份图案",
       "securityKeyRequiredTitle": "请插入安全密钥",
-      "securityKeyRequiredBody": "这台电脑没有系统通行密钥服务。插入 FIDO2 USB 安全密钥后重试。"
+      "securityKeyRequiredBody": "这台电脑没有系统通行密钥服务。插入 FIDO2 USB 安全密钥后重试。",
+      "nameTitle": "给钱包起个名字"
     },
     "login": {
       "alertNotSupportedTitle": "不支持",

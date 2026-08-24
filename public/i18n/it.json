@@ -491,7 +491,7 @@
    "featureSafeContractBody": "Gli account si basano su contratti Safe sottoposti ad audit, non su un'implementazione sviluppata in proprio.",
    "featureStablecoinGasTitle": "Paga il gas in stablecoin",
    "featureStablecoinGasBody": "La maggior parte delle reti ti permette di pagare le commissioni in stablecoin — non serve prima avere il token nativo.",
-   "heroTitle": "Il wallet Ethereum che nessuno può spegnere",
+   "heroTitle": "Il wallet Ethereum\nche nessuno può spegnere",
    "heroSubtitle": "Firma con una passkey. La chiave non lascia mai il tuo dispositivo."
   },
   "welcomeWeb": {
@@ -586,7 +586,7 @@
    "headerCreated": "Wallet creato",
    "headerSyncFailed": "Sincronizzazione tra dispositivi",
    "accountNameLabel": "Nome dell'account",
-   "accountNamePlaceholder": "Inserisci un nome per il tuo account",
+   "accountNamePlaceholder": "Wallet quotidiano",
    "accountNameHint": "Questo nome viene memorizzato on-chain insieme alla tua chiave pubblica per l'accesso da più dispositivi.",
    "nameTooLong": "Questo nome è troppo lungo per una passkey — accorcialo, per favore.",
    "technicalDetails": "Dettagli tecnici",
@@ -665,7 +665,8 @@
    "walletAddressLabel": "Indirizzo del wallet",
    "identiconHint": "Un motivo identificativo generato dall'indirizzo",
    "securityKeyRequiredTitle": "Inserisci una chiave di sicurezza",
-   "securityKeyRequiredBody": "Questo computer non ha un servizio passkey di sistema. Inserisci una chiave di sicurezza USB FIDO2 e riprova."
+   "securityKeyRequiredBody": "Questo computer non ha un servizio passkey di sistema. Inserisci una chiave di sicurezza USB FIDO2 e riprova.",
+   "nameTitle": "Dai un nome al tuo wallet"
   },
   "login": {
    "alertNotSupportedTitle": "Non supportato",

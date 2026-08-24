@@ -495,7 +495,7 @@
    "featureSafeContractBody": "Accounts are built on audited Safe contracts, not a custom implementation.",
    "featureStablecoinGasTitle": "Pay gas in stablecoins",
    "featureStablecoinGasBody": "Most networks let you pay fees in stablecoins — no need to hold the native coin first.",
-   "heroTitle": "The Ethereum wallet no one can switch off",
+   "heroTitle": "The Ethereum wallet\nno one can switch off",
    "heroSubtitle": "Sign with a passkey. The key never leaves your device."
   },
   "welcomeWeb": {
@@ -590,7 +590,7 @@
    "headerCreated": "Wallet Created",
    "headerSyncFailed": "Cross-Device Sync",
    "accountNameLabel": "Account Name",
-   "accountNamePlaceholder": "Enter a name for your account",
+   "accountNamePlaceholder": "Everyday wallet",
    "accountNameHint": "This name is stored with your public key on-chain for cross-device sign-in.",
    "nameTooLong": "This name is too long to fit in a passkey — please shorten it.",
    "technicalDetails": "Technical details",
@@ -669,7 +669,8 @@
    "walletAddressLabel": "Wallet address",
    "identiconHint": "An identity pattern generated from the address",
    "securityKeyRequiredTitle": "Plug in a security key",
-   "securityKeyRequiredBody": "This computer has no system passkey service. Plug in a FIDO2 USB security key and try again."
+   "securityKeyRequiredBody": "This computer has no system passkey service. Plug in a FIDO2 USB security key and try again.",
+   "nameTitle": "Name your wallet"
   },
   "login": {
    "alertNotSupportedTitle": "Not Supported",

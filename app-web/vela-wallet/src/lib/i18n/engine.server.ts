@@ -15,7 +15,7 @@
 import { I18n as WasmI18n } from '../../../../../rust/pkg-web/vela_core.js';
 import './wasm-init.server';
 import { FALLBACK_LOCALE, type Locale } from './locales';
-import { FEATURE_SLUGS, FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
+import { FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
 import type { WalletMessages } from '$lib/wallet/messages';
 import type { ContactsMessages } from '$lib/contacts/messages';
 
@@ -64,13 +64,10 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
 		metaTitle: t(locale, 'onboarding.welcomeWeb.meta.title'),
 		metaDescription: t(locale, 'onboarding.welcomeWeb.meta.description'),
 		tagline: t(locale, 'onboarding.welcomeWeb.tagline'),
+		heroTitle: t(locale, 'onboarding.welcome.heroTitle'),
+		heroSubtitle: t(locale, 'onboarding.welcome.heroSubtitle'),
 		createWallet: t(locale, 'onboarding.welcome.createWallet'),
-		alreadyHaveWallet: t(locale, 'onboarding.welcome.alreadyHaveWallet'),
-		features: FEATURE_SLUGS.map((slug, i) => ({
-			number: String(i + 1).padStart(2, '0'),
-			title: t(locale, `onboarding.welcomeWeb.features.${slug}.title`),
-			description: t(locale, `onboarding.welcomeWeb.features.${slug}.description`)
-		}))
+		alreadyHaveWallet: t(locale, 'onboarding.welcome.alreadyHaveWallet')
 	};
 }
 

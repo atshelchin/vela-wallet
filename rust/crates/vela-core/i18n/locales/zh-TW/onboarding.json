@@ -17,7 +17,7 @@
       "featureSafeContractBody": "帳戶基於經過審計的 Safe 合約，而非自行開發的實作。",
       "featureStablecoinGasTitle": "用穩定幣付 gas",
       "featureStablecoinGasBody": "多數網路支援用穩定幣支付手續費，不必先準備原生幣。",
-      "heroTitle": "誰也關不掉的以太坊錢包",
+      "heroTitle": "誰也關不掉的\n以太坊錢包",
       "heroSubtitle": "用通行密鑰簽署，金鑰留在你的裝置裡。"
     },
     "welcomeWeb": {
@@ -112,7 +112,7 @@
       "headerCreated": "錢包已建立",
       "headerSyncFailed": "跨裝置同步",
       "accountNameLabel": "帳戶名稱",
-      "accountNamePlaceholder": "為您的帳戶輸入名稱",
+      "accountNamePlaceholder": "日常錢包",
       "accountNameHint": "此名稱會連同您的公鑰一起記錄在鏈上，用於跨裝置登入。",
       "nameTooLong": "名稱太長，無法寫入通行密鑰——請縮短一些。",
       "technicalDetails": "技術詳情",
@@ -191,7 +191,8 @@
       "walletAddressLabel": "錢包地址",
       "identiconHint": "由地址產生的身分圖案",
       "securityKeyRequiredTitle": "請插入安全金鑰",
-      "securityKeyRequiredBody": "這台電腦沒有系統通行密鑰服務。插入 FIDO2 USB 安全金鑰後再試。"
+      "securityKeyRequiredBody": "這台電腦沒有系統通行密鑰服務。插入 FIDO2 USB 安全金鑰後再試。",
+      "nameTitle": "給錢包取個名字"
     },
     "login": {
       "alertNotSupportedTitle": "不支援",

@@ -488,7 +488,7 @@
    "featureSafeContractBody": "Tài khoản được xây dựng trên các hợp đồng Safe đã qua kiểm toán, không phải bản tự phát triển.",
    "featureStablecoinGasTitle": "Trả gas bằng stablecoin",
    "featureStablecoinGasBody": "Hầu hết các mạng cho phép trả phí bằng stablecoin — không cần có sẵn coin gốc trước.",
-   "heroTitle": "Ví Ethereum không ai tắt được",
+   "heroTitle": "Ví Ethereum\nkhông ai tắt được",
    "heroSubtitle": "Ký bằng passkey. Khoá luôn nằm trong thiết bị của bạn."
   },
   "welcomeWeb": {
@@ -583,7 +583,7 @@
    "headerCreated": "Đã tạo ví",
    "headerSyncFailed": "Đồng bộ đa thiết bị",
    "accountNameLabel": "Tên tài khoản",
-   "accountNamePlaceholder": "Nhập tên cho tài khoản của bạn",
+   "accountNamePlaceholder": "Ví hằng ngày",
    "accountNameHint": "Tên này được lưu trên chuỗi cùng khóa công khai của bạn để đăng nhập trên nhiều thiết bị.",
    "nameTooLong": "Tên này quá dài cho passkey — vui lòng rút ngắn.",
    "technicalDetails": "Chi tiết kỹ thuật",
@@ -662,7 +662,8 @@
    "walletAddressLabel": "Địa chỉ ví",
    "identiconHint": "Hoạ tiết nhận dạng sinh từ địa chỉ",
    "securityKeyRequiredTitle": "Hãy cắm khoá bảo mật",
-   "securityKeyRequiredBody": "Máy tính này không có dịch vụ passkey của hệ thống. Hãy cắm khoá bảo mật USB FIDO2 rồi thử lại."
+   "securityKeyRequiredBody": "Máy tính này không có dịch vụ passkey của hệ thống. Hãy cắm khoá bảo mật USB FIDO2 rồi thử lại.",
+   "nameTitle": "Đặt tên cho ví"
   },
   "login": {
    "alertNotSupportedTitle": "Không hỗ trợ",

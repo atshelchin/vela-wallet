@@ -132,7 +132,7 @@ async function createWallet(page: Page, name: string): Promise<void> {
   await page.goto('/onboarding?mode=create');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('body')).toContainText('Create Wallet', { timeout: 40_000 });
-  await page.getByPlaceholder('Enter a name for your account').fill(name);
+  await page.getByPlaceholder('Everyday wallet').fill(name);
   for (const frag of ACK_FRAGMENTS) {
     // Hit the checkbox, not the row centre — see onboarding-verify.spec.ts.
     await page.getByText(frag, { exact: false }).first().click({ position: { x: 6, y: 6 } });

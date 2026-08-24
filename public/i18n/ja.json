@@ -488,7 +488,7 @@
    "featureSafeContractBody": "アカウントは監査済みの Safe コントラクトの上に構築されており、独自実装ではありません。",
    "featureStablecoinGasTitle": "ガス代はステーブルコインで",
    "featureStablecoinGasBody": "ほとんどのネットワークで手数料をステーブルコインで支払えるので、先にネイティブコインを用意しておく必要はありません。",
-   "heroTitle": "誰にも止められないイーサリアムウォレット",
+   "heroTitle": "誰にも止められない\nイーサリアムウォレット",
    "heroSubtitle": "パスキーで署名します。鍵は端末から出ません。"
   },
   "welcomeWeb": {
@@ -583,7 +583,7 @@
    "headerCreated": "ウォレットを作成しました",
    "headerSyncFailed": "端末間の同期",
    "accountNameLabel": "アカウント名",
-   "accountNamePlaceholder": "アカウントの名前を入力",
+   "accountNamePlaceholder": "普段づかいのウォレット",
    "accountNameHint": "この名前は、端末をまたいだサインインのために公開鍵とともにオンチェーンに保存されます。",
    "nameTooLong": "この名前は長すぎてパスキーに収まりません。短くしてください。",
    "technicalDetails": "技術的な詳細",
@@ -662,7 +662,8 @@
    "walletAddressLabel": "ウォレットアドレス",
    "identiconHint": "アドレスから生成される識別パターン",
    "securityKeyRequiredTitle": "セキュリティキーを挿してください",
-   "securityKeyRequiredBody": "このパソコンにはシステムのパスキー機能がありません。FIDO2 の USB セキュリティキーを挿して再試行してください。"
+   "securityKeyRequiredBody": "このパソコンにはシステムのパスキー機能がありません。FIDO2 の USB セキュリティキーを挿して再試行してください。",
+   "nameTitle": "ウォレットに名前をつける"
   },
   "login": {
    "alertNotSupportedTitle": "非対応",

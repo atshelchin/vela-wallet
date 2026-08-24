@@ -494,7 +494,7 @@
    "featureSafeContractBody": "Аккаунты построены на прошедших аудит контрактах Safe, а не на собственной реализации.",
    "featureStablecoinGasTitle": "Оплата газа стейблкоинами",
    "featureStablecoinGasBody": "В большинстве сетей комиссию можно платить стейблкоинами — не нужно сначала запасаться нативной монетой.",
-   "heroTitle": "Кошелёк Ethereum, который никто не выключит",
+   "heroTitle": "Кошелёк Ethereum,\nкоторый никто не выключит",
    "heroSubtitle": "Подпись через passkey. Ключ не покидает ваше устройство."
   },
   "welcomeWeb": {
@@ -589,7 +589,7 @@
    "headerCreated": "Кошелёк создан",
    "headerSyncFailed": "Синхронизация между устройствами",
    "accountNameLabel": "Имя аккаунта",
-   "accountNamePlaceholder": "Введите имя для своего аккаунта",
+   "accountNamePlaceholder": "Повседневный кошелёк",
    "accountNameHint": "Это имя хранится вместе с вашим открытым ключом в сети для входа с разных устройств.",
    "nameTooLong": "Это имя слишком длинное для passkey — пожалуйста, сократите его.",
    "technicalDetails": "Технические подробности",
@@ -668,7 +668,8 @@
    "walletAddressLabel": "Адрес кошелька",
    "identiconHint": "Узор-идентификатор, полученный из адреса",
    "securityKeyRequiredTitle": "Вставьте ключ безопасности",
-   "securityKeyRequiredBody": "На этом компьютере нет системной службы passkey. Вставьте USB-ключ FIDO2 и попробуйте снова."
+   "securityKeyRequiredBody": "На этом компьютере нет системной службы passkey. Вставьте USB-ключ FIDO2 и попробуйте снова.",
+   "nameTitle": "Назовите кошелёк"
   },
   "login": {
    "alertNotSupportedTitle": "Не поддерживается",

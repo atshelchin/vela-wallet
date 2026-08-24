@@ -17,7 +17,7 @@
       "featureSafeContractBody": "Les comptes reposent sur des contrats Safe audités, et non sur une implémentation maison.",
       "featureStablecoinGasTitle": "Payez le gas en stablecoins",
       "featureStablecoinGasBody": "La plupart des réseaux permettent de payer les frais en stablecoins — inutile de détenir d'abord la pièce native.",
-      "heroTitle": "Le portefeuille Ethereum que personne ne peut couper",
+      "heroTitle": "Le portefeuille Ethereum\nque personne ne peut couper",
       "heroSubtitle": "Signez avec une passkey. La clé ne quitte jamais votre appareil."
     },
     "welcomeWeb": {
@@ -112,7 +112,7 @@
       "headerCreated": "Portefeuille créé",
       "headerSyncFailed": "Synchronisation multi-appareils",
       "accountNameLabel": "Nom du compte",
-      "accountNamePlaceholder": "Saisissez un nom pour votre compte",
+      "accountNamePlaceholder": "Portefeuille du quotidien",
       "accountNameHint": "Ce nom est enregistré avec votre clé publique on-chain pour la connexion multi-appareils.",
       "nameTooLong": "Ce nom est trop long pour une clé d'accès — veuillez le raccourcir.",
       "technicalDetails": "Détails techniques",
@@ -191,7 +191,8 @@
       "walletAddressLabel": "Adresse du portefeuille",
       "identiconHint": "Un motif d'identité généré à partir de l'adresse",
       "securityKeyRequiredTitle": "Branchez une clé de sécurité",
-      "securityKeyRequiredBody": "Cet ordinateur n'a pas de service de passkeys système. Branchez une clé de sécurité USB FIDO2 et réessayez."
+      "securityKeyRequiredBody": "Cet ordinateur n'a pas de service de passkeys système. Branchez une clé de sécurité USB FIDO2 et réessayez.",
+      "nameTitle": "Nommez votre portefeuille"
     },
     "login": {
       "alertNotSupportedTitle": "Non pris en charge",

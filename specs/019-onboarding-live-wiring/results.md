@@ -241,3 +241,45 @@ Two e2e assertions were rewritten rather than deleted, and one was added:
   so those four strings would have shipped as their own key names. Caught by a
   scan for dangling corpus keys, not by a test — the manifest is a list of
   strings, and nothing typed it against the corpus.
+
+### The design pass (founder review, 2026-08-25)
+
+Screenshots next to the design file showed the first implementation had drifted
+in ways the gates could not see. Every gate was green and the screens were still
+wrong. Fixed:
+
+**Welcome**
+
+| Design | First pass | Cause |
+| --- | --- | --- |
+| headline breaks across two lines | one line | the break was dropped as "text-wrap will handle it"; it will not, and should not — where a line breaks is a per-locale decision |
+| the two ways in sit at the BOTTOM of the frame | directly under the subtitle | `align-items: center` + `flex: 0 1 auto` collapsed the column to its content height, so `space-between` had nothing to distribute |
+| the two buttons share the row equally | already correct | — |
+
+The break now lives in the corpus as a newline and renders with
+`white-space: pre-line`, so each locale chooses its own — a Chinese line length
+is not a German one. The design's own `<br>` would have exported Chinese line
+breaks to fifteen languages.
+
+**Name screen**
+
+| Design | First pass |
+| --- | --- |
+| 「给钱包起个名字」 | 「创建钱包」 — the flow's label, reused as the screen's title |
+| placeholder 「日常钱包」 | 「为您的账户输入名称」 |
+| no helper line under the field | a helper line |
+| custody gate → recovery assurance → terms gate | custody → terms → assurance |
+| accent-coloured policy links | default underlined |
+| field label small, uppercase, letter-spaced | 13 px semibold |
+
+The placeholder change is the one worth naming: an EXAMPLE of a good answer
+explains a field better than an instruction under it, which is why the design
+shows one. `create.nameTitle` is a new corpus key (+1 leaf × 15 locales); the
+old `accountNameHint` stays in the corpus, unused.
+
+**What this says about the gates.** Type checks, lint, unit tests and 43 e2e
+assertions all passed on a Welcome page whose headline was on the wrong number
+of lines and whose buttons were in the wrong place. Nothing in the suite
+compares a rendering to the design; `e2e/welcome-visual.e2e.ts` harvests
+screenshots for a human to look at, and no human had. Worth remembering before
+trusting "all gates green" as a statement about fidelity.

@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 19,368 leaves across 15 locales', () => {
+  it('carries the whole corpus — 19,383 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -119,8 +119,10 @@ describe('generated i18n resources', () => {
     // sheet, login.switchDeviceBtn) against 1 removed — create.ack2, when the
     // acknowledgement gate went from four boxes to two. The six ack1/ack3
     // moves are renames and net zero.
+    // 19,383 = 19,368 plus `create.nameTitle` × 15: the design's name screen
+    // is titled 「给钱包起个名字」, which is not the flow's own label.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_368);
+    expect(total).toBe(19_383);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

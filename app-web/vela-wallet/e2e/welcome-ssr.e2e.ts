@@ -34,7 +34,8 @@ interface WelcomeCorpus {
 	createWallet: string;
 	alreadyHaveWallet: string;
 	metaTitle: string;
-	featureTitles: string[];
+	heroTitle: string;
+	heroSubtitle: string;
 }
 
 function corpus(locale: string): WelcomeCorpus {
@@ -47,9 +48,8 @@ function corpus(locale: string): WelcomeCorpus {
 		createWallet: onboarding.welcome.createWallet,
 		alreadyHaveWallet: onboarding.welcome.alreadyHaveWallet,
 		metaTitle: onboarding.welcomeWeb.meta.title,
-		featureTitles: Object.values(
-			onboarding.welcomeWeb.features as Record<string, { title: string }>
-		).map((f) => f.title)
+		heroTitle: onboarding.welcome.heroTitle as string,
+		heroSubtitle: onboarding.welcome.heroSubtitle as string
 	};
 }
 
@@ -63,13 +63,14 @@ for (const locale of LOCALES) {
 		const html = await response.text();
 		const expected = corpus(locale);
 		expect(html).toContain(`<html lang="${locale}" dir="ltr"`);
-		expect(html).toContain(escapeHtml(expected.tagline));
+		// The v2 Welcome (spec 019): brand, headline, two ways in. The tagline
+		// survives only in the meta description now, so the headline is what
+		// proves the page itself is localized.
+		expect(html).toContain(escapeHtml(expected.heroTitle));
+		expect(html).toContain(escapeHtml(expected.heroSubtitle));
 		expect(html).toContain(escapeHtml(expected.createWallet));
 		expect(html).toContain(escapeHtml(expected.alreadyHaveWallet));
 		expect(html).toContain(`<title>${escapeHtml(expected.metaTitle)}</title>`);
-		for (const title of expected.featureTitles) {
-			expect(html).toContain(escapeHtml(title));
-		}
 		// 15 locale alternates + x-default
 		expect(html.match(/hreflang=/g)).toHaveLength(16);
 		expect(html).toContain('hreflang="x-default"');
@@ -129,14 +130,11 @@ test('unknown locale segment is a 404', async ({ request }) => {
 test.describe('with JavaScript disabled', () => {
 	test.use({ javaScriptEnabled: false });
 
-	test('all six features and both CTAs are still readable', async ({ page }) => {
+	test('the headline and both CTAs are still readable', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto('/zh');
 		const expected = corpus('zh');
-		for (const title of expected.featureTitles) {
-			// titles exist twice by design: desktop grid + mobile carousel
-			await expect(page.getByText(title).first()).toBeAttached();
-		}
+		await expect(page.getByText(expected.heroTitle)).toBeVisible();
 		await expect(page.getByText(expected.createWallet)).toBeVisible();
 		await expect(page.getByText(expected.alreadyHaveWallet)).toBeVisible();
 	});

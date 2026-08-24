@@ -3,10 +3,14 @@
 	 * Name the wallet, and accept the two gates.
 	 *
 	 * Two checkboxes, matching the core's `ACK_COUNT`: self-custody, and legal
-	 * assent. The recovery line beside them is an ASSURANCE — a fact about what
-	 * the founding key set buys you — not a third gate, so it renders with a
-	 * filled tick and nothing to click. Making it clickable would invite the
+	 * assent. The recovery line between them is an ASSURANCE — a fact about
+	 * what the founding key set buys you — not a third gate, so it renders with
+	 * a filled tick and nothing to click. Making it clickable would invite the
 	 * person to tick something that changes nothing.
+	 *
+	 * Row order follows the design: what the wallet is, what it gives you, what
+	 * you agree to. Legal assent goes LAST because it is the only line that is
+	 * about the company rather than about the wallet.
 	 */
 	import AckRow from '../AckRow.svelte';
 	import NameField from '../NameField.svelte';
@@ -59,12 +63,11 @@
 -->
 <!-- eslint-disable svelte/no-navigation-without-resolve -->
 <section class="screen">
-	<h1 class="title">{strings('onboarding.create.headerDefault')}</h1>
+	<h1 class="title">{strings('onboarding.create.nameTitle')}</h1>
 
 	<NameField
 		label={strings('onboarding.create.accountNameLabel')}
 		placeholder={strings('onboarding.create.accountNamePlaceholder')}
-		hint={strings('onboarding.create.accountNameHint')}
 		errorText={nameTooLong ? strings('onboarding.create.nameTooLong') : undefined}
 		value={name}
 		oninput={nameEditable ? onName : undefined}
@@ -76,6 +79,13 @@
 		<AckRow checked={acks[0] ?? false} onToggle={() => onToggleAck(0)}>
 			{strings('onboarding.create.ack0')}
 		</AckRow>
+
+		<p class="assurance">
+			<span class="tick" aria-hidden="true">
+				<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+			</span>
+			<span>{strings('onboarding.create.assuranceRecovery')}</span>
+		</p>
 
 		<AckRow checked={acks[1] ?? false} onToggle={() => onToggleAck(1)}>
 			{strings('onboarding.create.ack1')}<a
@@ -91,13 +101,6 @@
 				onclick={(event) => event.stopPropagation()}>{strings('onboarding.create.ack1Terms')}</a
 			>{strings('onboarding.create.ack1Period')}
 		</AckRow>
-
-		<p class="assurance">
-			<span class="tick" aria-hidden="true">
-				<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
-			</span>
-			<span>{strings('onboarding.create.assuranceRecovery')}</span>
-		</p>
 	</div>
 
 	{#if statusText}
@@ -178,6 +181,15 @@
 		margin: 0;
 		color: var(--color-info-base);
 		font-size: var(--text-base);
+	}
+
+	.gates :global(a) {
+		color: var(--color-accent-base);
+		text-decoration: none;
+	}
+
+	.gates :global(a:hover) {
+		color: var(--color-fg-base);
 	}
 
 	.startover {

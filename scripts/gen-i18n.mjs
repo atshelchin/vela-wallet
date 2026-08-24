@@ -170,12 +170,15 @@ for (let i = 1; i < PATHS.length; i++) {
 //   removed, `create.ack2`, when the acknowledgement gate went from four
 //   boxes to two. The six `create.ack1`/`ack3*` moves are renames and net
 //   zero, and no branch was added or removed.
+// + 1 more onboarding leaf: `create.nameTitle`. The design's name screen is
+//   titled 「给钱包起个名字」, which is not the flow's own label — a screen that
+//   asks one question should say what the question is.
 // Merged 017 + 018 + 019: the base's 1234 leaf + 78 branch, plus 017's 12
 // leaves and its one `settings.eraseDevice` branch, plus 018's 21 contacts
 // leaves, plus 019's 30. The three checks below are the arithmetic's witness —
 // they fail loudly rather than let a merge invent a corpus.
-if (PATHS.length !== 1389) fail(`expected 1389 paths (1310 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1310) fail(`expected 1310 leaf paths, got ${leafSet.size}`);
+if (PATHS.length !== 1390) fail(`expected 1390 paths (1311 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1311) fail(`expected 1311 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

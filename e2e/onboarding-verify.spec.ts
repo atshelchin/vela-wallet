@@ -136,7 +136,7 @@ async function fillCreateForm(page: Page, name: string): Promise<void> {
   await page.goto('/onboarding?mode=create');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('body')).toContainText('Create Wallet', { timeout: 40_000 });
-  await page.getByPlaceholder('Enter a name for your account').fill(name);
+  await page.getByPlaceholder('Everyday wallet').fill(name);
   // Click the checkbox itself, not the row's centre. The last row's text wraps
   // around inline "Privacy Policy" / "Terms of Service" links, and a
   // centre-of-box click can land on one of them — opening a tab instead of

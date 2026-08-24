@@ -103,7 +103,7 @@ test.describe('Onboarding — wallet is NOT persisted until the key syncs (US 1.
 
     // 4. Name + acknowledge both checkboxes (the Create button is disabled
     //    until name is set and every box is checked).
-    await page.getByPlaceholder('Enter a name for your account').fill('E2E Sync Test');
+    await page.getByPlaceholder('Everyday wallet').fill('E2E Sync Test');
     // Click the checkbox itself, not the row's centre. The last row's text wraps
     // around inline "Privacy Policy" / "Terms of Service" links, and a
     // centre-of-box click can land on one of them — opening a tab instead of

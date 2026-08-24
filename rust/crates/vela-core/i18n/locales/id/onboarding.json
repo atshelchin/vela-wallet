@@ -17,7 +17,7 @@
       "featureSafeContractBody": "Akun dibangun di atas kontrak Safe yang telah diaudit, bukan implementasi buatan sendiri.",
       "featureStablecoinGasTitle": "Bayar gas dengan stablecoin",
       "featureStablecoinGasBody": "Sebagian besar jaringan memungkinkan Anda membayar biaya dengan stablecoin — tidak perlu menyiapkan koin native lebih dulu.",
-      "heroTitle": "Dompet Ethereum yang tak bisa dimatikan siapa pun",
+      "heroTitle": "Dompet Ethereum\nyang tak bisa dimatikan",
       "heroSubtitle": "Tanda tangani dengan passkey. Kuncinya tetap di perangkat Anda."
     },
     "welcomeWeb": {
@@ -112,7 +112,7 @@
       "headerCreated": "Dompet Dibuat",
       "headerSyncFailed": "Sinkronisasi Lintas Perangkat",
       "accountNameLabel": "Nama Akun",
-      "accountNamePlaceholder": "Masukkan nama untuk akun Anda",
+      "accountNamePlaceholder": "Dompet harian",
       "accountNameHint": "Nama ini disimpan di blockchain bersama kunci publik Anda untuk masuk lintas perangkat.",
       "nameTooLong": "Nama ini terlalu panjang untuk passkey — mohon persingkat.",
       "technicalDetails": "Detail teknis",
@@ -191,7 +191,8 @@
       "walletAddressLabel": "Alamat dompet",
       "identiconHint": "Pola identitas yang dihasilkan dari alamat",
       "securityKeyRequiredTitle": "Colokkan kunci keamanan",
-      "securityKeyRequiredBody": "Komputer ini tidak punya layanan passkey sistem. Colokkan kunci keamanan USB FIDO2 lalu coba lagi."
+      "securityKeyRequiredBody": "Komputer ini tidak punya layanan passkey sistem. Colokkan kunci keamanan USB FIDO2 lalu coba lagi.",
+      "nameTitle": "Beri nama dompet Anda"
     },
     "login": {
       "alertNotSupportedTitle": "Tidak Didukung",

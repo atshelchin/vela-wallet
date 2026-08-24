@@ -17,7 +17,7 @@
       "featureSafeContractBody": "계정은 자체 구현이 아니라 감사를 거친 Safe 컨트랙트를 기반으로 합니다.",
       "featureStablecoinGasTitle": "가스비는 스테이블코인으로",
       "featureStablecoinGasBody": "대부분의 네트워크에서 수수료를 스테이블코인으로 낼 수 있어, 네이티브 코인을 미리 준비해 둘 필요가 없습니다.",
-      "heroTitle": "누구도 끌 수 없는 이더리움 지갑",
+      "heroTitle": "누구도 끌 수 없는\n이더리움 지갑",
       "heroSubtitle": "패스키로 서명합니다. 키는 기기 밖으로 나가지 않습니다."
     },
     "welcomeWeb": {
@@ -112,7 +112,7 @@
       "headerCreated": "지갑 생성 완료",
       "headerSyncFailed": "기기 간 동기화",
       "accountNameLabel": "계정 이름",
-      "accountNamePlaceholder": "계정 이름을 입력하세요",
+      "accountNamePlaceholder": "일상 지갑",
       "accountNameHint": "이 이름은 기기 간 로그인을 위해 공개 키와 함께 온체인에 저장됩니다.",
       "nameTooLong": "이름이 너무 길어 패스키에 담을 수 없습니다. 짧게 줄여 주세요.",
       "technicalDetails": "기술 정보",
@@ -191,7 +191,8 @@
       "walletAddressLabel": "지갑 주소",
       "identiconHint": "주소에서 생성된 식별 패턴",
       "securityKeyRequiredTitle": "보안 키를 꽂아 주세요",
-      "securityKeyRequiredBody": "이 컴퓨터에는 시스템 패스키 서비스가 없습니다. FIDO2 USB 보안 키를 꽂고 다시 시도하세요."
+      "securityKeyRequiredBody": "이 컴퓨터에는 시스템 패스키 서비스가 없습니다. FIDO2 USB 보안 키를 꽂고 다시 시도하세요.",
+      "nameTitle": "지갑 이름 정하기"
     },
     "login": {
       "alertNotSupportedTitle": "지원되지 않음",

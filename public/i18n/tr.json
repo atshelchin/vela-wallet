@@ -488,7 +488,7 @@
    "featureSafeContractBody": "Hesaplar, özel yazılmış bir çözüm değil, denetimden geçmiş Safe sözleşmeleri üzerine kuruludur.",
    "featureStablecoinGasTitle": "Gas'ı stablecoin ile ödeyin",
    "featureStablecoinGasBody": "Çoğu ağ, ücretleri stablecoin ile ödemenize izin verir — önceden yerel coin edinmeniz gerekmez.",
-   "heroTitle": "Kimsenin kapatamayacağı Ethereum cüzdanı",
+   "heroTitle": "Kimsenin kapatamayacağı\nEthereum cüzdanı",
    "heroSubtitle": "Passkey ile imzalayın. Anahtar cihazınızdan çıkmaz."
   },
   "welcomeWeb": {
@@ -583,7 +583,7 @@
    "headerCreated": "Cüzdan Oluşturuldu",
    "headerSyncFailed": "Cihazlar Arası Eşitleme",
    "accountNameLabel": "Hesap Adı",
-   "accountNamePlaceholder": "Hesabınız için bir ad girin",
+   "accountNamePlaceholder": "Günlük cüzdan",
    "accountNameHint": "Bu ad, cihazlar arası giriş için açık anahtarınızla birlikte zincir üzerinde saklanır.",
    "nameTooLong": "Bu ad bir geçiş anahtarına sığmayacak kadar uzun — lütfen kısaltın.",
    "technicalDetails": "Teknik ayrıntılar",
@@ -662,7 +662,8 @@
    "walletAddressLabel": "Cüzdan adresi",
    "identiconHint": "Adresten üretilen kimlik deseni",
    "securityKeyRequiredTitle": "Bir güvenlik anahtarı takın",
-   "securityKeyRequiredBody": "Bu bilgisayarda sistem passkey hizmeti yok. FIDO2 USB güvenlik anahtarı takıp yeniden deneyin."
+   "securityKeyRequiredBody": "Bu bilgisayarda sistem passkey hizmeti yok. FIDO2 USB güvenlik anahtarı takıp yeniden deneyin.",
+   "nameTitle": "Cüzdanınıza bir ad verin"
   },
   "login": {
    "alertNotSupportedTitle": "Desteklenmiyor",

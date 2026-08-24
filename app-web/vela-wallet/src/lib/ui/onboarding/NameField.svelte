@@ -1,16 +1,18 @@
 <script lang="ts">
 	/**
-	 * Labeled account-name field (spec 014, A1–A3 anatomy): label → input →
-	 * (error) red inline over-length hint → helper caption. The error line
-	 * appears WITHOUT shifting the field above it and coexists with the
-	 * helper caption below (spec edge case). Typing is local visual state
-	 * only (FR-011).
+	 * Labeled account-name field: label → input → (error) red inline
+	 * over-length line. The error appears WITHOUT shifting the field above it.
+	 *
+	 * The v2 design gives the label the small uppercase treatment it uses for
+	 * every field label, and drops the helper caption entirely — the
+	 * placeholder is an EXAMPLE of a good answer, which explains the field
+	 * better than a sentence under it. `hint` is therefore optional.
 	 */
 	interface Props {
 		/** Resolved strings. */
 		label: string;
 		placeholder: string;
-		hint: string;
+		hint?: string;
 		/** Present → error styling + red inline line (A3). */
 		errorText?: string;
 		/** Initial value from state; edits stay local, reported via oninput. */
@@ -41,14 +43,18 @@
 		autocomplete="off"
 		spellcheck="false"
 		aria-invalid={hasError}
-		aria-describedby={hasError ? `${id}-error ${id}-hint` : `${id}-hint`}
+		aria-describedby={[hasError ? `${id}-error` : null, hint !== undefined ? `${id}-hint` : null]
+			.filter(Boolean)
+			.join(' ') || undefined}
 		bind:value={text}
 		oninput={() => oninput?.(text)}
 	/>
 	{#if errorText !== undefined}
 		<p class="errorline" id="{id}-error">{errorText}</p>
 	{/if}
-	<p class="hint" id="{id}-hint">{hint}</p>
+	{#if hint !== undefined}
+		<p class="hint" id="{id}-hint">{hint}</p>
+	{/if}
 </div>
 
 <style>
@@ -58,10 +64,17 @@
 		gap: var(--space-md);
 	}
 
+	.input:focus-visible {
+		border-color: var(--color-accent-base);
+		outline: none;
+	}
+
 	.label {
-		font-size: var(--text-base);
+		color: var(--color-fg-muted);
+		font-size: var(--text-sm);
 		font-weight: var(--weight-semibold);
-		color: var(--color-fg-base);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
 	.input {

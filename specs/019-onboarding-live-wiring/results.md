@@ -283,3 +283,38 @@ of lines and whose buttons were in the wrong place. Nothing in the suite
 compares a rendering to the design; `e2e/welcome-visual.e2e.ts` harvests
 screenshots for a human to look at, and no human had. Worth remembering before
 trusting "all gates green" as a statement about fidelity.
+
+### The same pass over the remaining screens
+
+The founder's review named two screens; the drift was a pattern, so the rest
+got the same treatment.
+
+**Key list** — three fixes, one of them serious:
+
+- The provider line rendered `transports` verbatim: rows read
+  **«internal,hybrid»**, **«usb»**. That is a machine's comma-joined wire list
+  shown to a person reading their own key list. It now resolves from the
+  METHOD through `providerLineFor` — 平台通行密钥 / 通行密钥 / 安全密钥. The design
+  draws a richer line still («macOS · 密码 App», «YubiKey 5C · USB»), which needs
+  the AAGUID resolved to a provider name and model over the network; the flow
+  does not make that call, and this is the honest version of the same fact
+  until it does.
+- The three key glyphs shared a height and read as one rounded box. Proportion
+  is the entire signal — a wide laptop, a tall phone, a squat key — because a
+  person picks the row that looks like the thing in their hand.
+- 确认 and 移除 sat side by side as two accent-weight text buttons, competing
+  with each other and with the badge. The design gives a row ONE trailing slot:
+  the retry now takes it (a key that has not confirmed has no status to show
+  yet), and remove is a quiet × after it. The design draws no remove affordance
+  at all — but the core lets a draft key be dropped, and without one the only
+  way out of a mistaken key is starting the whole set over. Recorded as a gap in
+  the design rather than resolved by inventing a control.
+
+**Done screen** — the identicon was blank in the gallery. Not a bug in the
+screen: the gallery renders fixture VALUES and never constructs a machine, so
+the wasm was never initialised and `identiconSvgCircular` (vela-core's nimiq
+identicon, seeded through the core's own `identiconNormalizeSeed` per spec 003's
+drift rule) threw into the degrade path. The gallery now loads the core without
+running any machine, so it draws what production draws. A gallery that showed a
+blank circle where production shows artwork would be lying about the one thing
+it exists to be honest about.

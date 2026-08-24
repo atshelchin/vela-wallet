@@ -10,6 +10,7 @@
 	 */
 	import Button from '$lib/ui/Button.svelte';
 	import AddMethodPicker from './AddMethodPicker.svelte';
+	import { providerLineFor } from '$lib/onboarding/core/copy';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
 	import type { KeyMethod } from '$lib/onboarding/generated/KeyMethod';
 
@@ -97,13 +98,18 @@
 					<span class="glyph" aria-hidden="true" data-method={key.method}></span>
 					<span class="who">
 						<span class="name">{key.name}</span>
-						<span class="meta">{key.transports || key.authenticator_attachment || ''}</span>
+						<span class="meta">{strings(providerLineFor(key.method))}</span>
 					</span>
+					<!--
+						One trailing slot, as the design draws it. A key that has not
+						confirmed its membership has no status to show yet, so the
+						retry TAKES that slot rather than crowding in beside it.
+					-->
 					{#if key.confirmed}
 						<span class="badge" data-tone={badge.tone}>{badge.text}</span>
 					{:else}
 						<button
-							class="rowaction"
+							class="confirm"
 							type="button"
 							disabled={busy}
 							onclick={() => onConfirmKey(index)}
@@ -113,12 +119,13 @@
 					{/if}
 					{#if index > 0}
 						<button
-							class="rowaction"
+							class="remove"
 							type="button"
 							disabled={busy}
+							aria-label={strings('onboarding.create.removeKeyBtn')}
 							onclick={() => onRemoveKey(index)}
 						>
-							{strings('onboarding.create.removeKeyBtn')}
+							<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
 						</button>
 					{/if}
 				</li>
@@ -252,21 +259,29 @@
 		background: var(--color-bg-sunken);
 	}
 
+	/*
+	 * Proportion is the whole signal: a wide laptop, a tall phone, a squat
+	 * key. A person picks the row that looks like the thing in their hand, so
+	 * the three must not read as one rounded box — which is what they did when
+	 * they shared a height.
+	 */
 	.glyph {
-		flex: 0 0 var(--icon-lg);
-		height: var(--icon-base);
+		flex: 0 0 var(--icon-xl);
+		width: var(--icon-xl);
+		height: var(--icon-sm);
 		border: var(--border-emphasis) solid var(--color-fg-muted);
 		border-radius: var(--radius-sm);
 	}
 
 	.glyph[data-method='hybrid'] {
-		width: var(--icon-base);
-		height: var(--icon-lg);
-		flex-basis: var(--icon-base);
+		flex-basis: var(--icon-sm);
+		width: var(--icon-sm);
+		height: var(--icon-xl);
 	}
 
 	.glyph[data-method='security_key'] {
-		height: var(--icon-sm);
+		height: var(--icon-xs);
+		border-radius: var(--radius-full);
 	}
 
 	.who {
@@ -305,7 +320,7 @@
 		color: var(--color-warning-base);
 	}
 
-	.rowaction {
+	.confirm {
 		padding: 0;
 		border: 0;
 		background: none;
@@ -316,7 +331,40 @@
 		cursor: pointer;
 	}
 
-	.rowaction:disabled {
+	/*
+	 * The design gives a key row no remove affordance at all — but the core
+	 * lets a draft key be dropped, and without one the only way out of a
+	 * mistaken key is starting the whole set over. A quiet × after the badge
+	 * keeps the row's rhythm while leaving the door open.
+	 */
+	.remove {
+		display: grid;
+		flex: 0 0 var(--icon-base);
+		place-items: center;
+		height: var(--icon-base);
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--color-fg-subtle);
+		cursor: pointer;
+		transition: color var(--motion-duration-fast) ease;
+	}
+
+	.remove:hover:not(:disabled) {
+		color: var(--color-fg-base);
+	}
+
+	.remove svg {
+		width: var(--icon-sm);
+		height: var(--icon-sm);
+		fill: none;
+		stroke: currentColor;
+		stroke-width: var(--icon-stroke-base);
+		stroke-linecap: round;
+	}
+
+	.confirm:disabled,
+	.remove:disabled {
 		opacity: var(--opacity-disabled);
 		cursor: default;
 	}

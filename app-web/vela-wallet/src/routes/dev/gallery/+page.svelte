@@ -12,6 +12,7 @@
 	 * No passkey is touched, no network is called and nothing is written: the
 	 * views are values, not a running machine.
 	 */
+	import { onMount } from 'svelte';
 	import type { PageProps } from './$types';
 	import FlowShell from '$lib/ui/onboarding/v2/FlowShell.svelte';
 	import NameScreen from '$lib/ui/onboarding/v2/NameScreen.svelte';
@@ -28,8 +29,21 @@
 		submitLabelToI18n
 	} from '$lib/onboarding/core/copy';
 	import { fillTemplate } from '$lib/i18n/fill';
+	import { loadOnboardingCore } from '$lib/onboarding/core/wasm-client';
 
 	let { data }: PageProps = $props();
+
+	/*
+	 * The core is loaded but never RUN: no machine is constructed, no passkey
+	 * touched, no network called. The done screen draws its identicon with the
+	 * same kernel that ships, so a gallery that skipped this would show a blank
+	 * circle where production shows artwork — a gallery lying about the one
+	 * thing it exists to be honest about.
+	 */
+	let coreReady = $state(false);
+	onMount(() => {
+		loadOnboardingCore().then(() => (coreReady = true));
+	});
 
 	let locale = $state('zh');
 	let theme = $state<'dark' | 'light'>('dark');
@@ -179,7 +193,7 @@
 					onRetry={() => log('retry_upload')}
 					onStartOver={() => log('start_over')}
 				/>
-			{:else if screen === 'done'}
+			{:else if screen === 'done' && coreReady}
 				<DoneScreen
 					address={view.address ?? ''}
 					walletName={view.keys[0]?.name ?? view.name}
@@ -187,6 +201,8 @@
 					{strings}
 					onEnter={() => log('enter_wallet')}
 				/>
+			{:else if screen === 'done'}
+				<p class="waiting">loading the core for the identicon…</p>
 			{/if}
 		</FlowShell>
 	</main>
@@ -293,5 +309,10 @@
 		display: flex;
 		flex-direction: column;
 		padding: var(--space-4xl);
+	}
+
+	.waiting {
+		color: var(--color-fg-subtle);
+		font-size: var(--text-base);
 	}
 </style>

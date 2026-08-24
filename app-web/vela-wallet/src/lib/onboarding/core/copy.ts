@@ -115,6 +115,33 @@ export function methodCopy(method: KeyMethod): { title: string; body: string } {
 	}
 }
 
+/**
+ * The provider line under a key's name.
+ *
+ * Keyed off the METHOD the person chose, deliberately — the alternative is
+ * `transports`, which is a comma-joined machine list ("internal,hybrid") that
+ * the first pass rendered straight into the row. What an authenticator reports
+ * about its wire protocols is not a sentence, and a person reading their own
+ * key list is owed one.
+ *
+ * The design draws a richer line still («macOS · 密码 App», «YubiKey 5C · USB»),
+ * which needs the AAGUID resolved to a provider name and model. That lookup is
+ * a network call the flow does not make; until it does, this is the honest
+ * version of the same fact.
+ */
+export function providerLineFor(method: KeyMethod): string {
+	switch (method) {
+		case 'platform':
+			return 'onboarding.create.providerPlatform';
+		case 'hybrid':
+			return 'onboarding.create.providerGeneric';
+		case 'security_key':
+			return 'onboarding.create.providerSecurityKey';
+		default:
+			return unreachable(method);
+	}
+}
+
 export type PromptCopy = {
 	title: string;
 	message: string;

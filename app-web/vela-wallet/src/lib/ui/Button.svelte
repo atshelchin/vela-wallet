@@ -3,6 +3,14 @@
 
 	interface Props {
 		variant: 'primary' | 'secondary';
+		/**
+		 * `pill` is the Welcome page's shape (spec 006); `rounded` is the v2
+		 * onboarding flow's, whose design draws 12px rectangles throughout.
+		 * A prop rather than a second button: the two differ in one radius,
+		 * and a fork would make every later change to states, sizing or
+		 * disabled treatment happen twice.
+		 */
+		shape?: 'pill' | 'rounded';
 		/** Renders an <a> when set (and not disabled), else a <button>. */
 		href?: string;
 		disabled?: boolean;
@@ -10,14 +18,14 @@
 		children: Snippet;
 	}
 
-	let { variant, href, disabled = false, onclick, children }: Props = $props();
+	let { variant, shape = 'pill', href, disabled = false, onclick, children }: Props = $props();
 </script>
 
 {#if href !== undefined && !disabled}
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- generic component; callers pass resolve()d paths -->
-	<a class="button {variant}" {href}>{@render children()}</a>
+	<a class="button {variant} {shape}" {href}>{@render children()}</a>
 {:else}
-	<button class="button {variant}" {disabled} {onclick} type="button">
+	<button class="button {variant} {shape}" {disabled} {onclick} type="button">
 		{@render children()}
 	</button>
 {/if}
@@ -35,7 +43,6 @@
 		padding-inline: var(--space-3xl);
 		padding-block: var(--space-md);
 		border: none;
-		border-radius: var(--radius-full);
 		font-family: var(--font-ui);
 		font-size: var(--text-xl);
 		font-weight: var(--weight-semibold);
@@ -47,6 +54,14 @@
 		transition:
 			opacity var(--motion-duration-fast) ease,
 			transform var(--motion-duration-fast) ease;
+	}
+
+	.pill {
+		border-radius: var(--radius-full);
+	}
+
+	.rounded {
+		border-radius: var(--radius-lg);
 	}
 
 	.button:hover:not(:disabled) {

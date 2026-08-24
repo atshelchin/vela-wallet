@@ -125,13 +125,13 @@ loads no wasm and the Worker still ships none.
 ### The v2 screens
 
 - [ ] T040 [US1] Rewrite `app-web/vela-wallet/src/routes/[locale]/+page.svelte` to the v2 Welcome: mark + wordmark + `welcome.heroTitle` / `heroSubtitle` + two CTAs, desktop 620 px / mobile 440 px single column, buttons stacked below 1280 px
-- [ ] T041 [US1] Create `src/lib/ui/onboarding/FlowShell.svelte`: the full-page stepped container — back affordance on `can_go_back`, segmented progress at 33/66/100 %, replacing the 014 sheet/in-column container
-- [ ] T042 [US1] Create `src/lib/ui/onboarding/NameScreen.svelte`: name field, over-length hint, the two acknowledgement checkboxes with inline policy links, the two static assurances with filled ticks, `create.nextBtn`
-- [ ] T043 [US4] Create `src/lib/ui/onboarding/KeysScreen.svelte`: title/subtitle flips, `n / 7` counter, key rows (icon + name + provider line + badge), the accent-soft warning strip on `needs_second_key`, per-row confirm retry, row delete for index > 0, the address footnote, CTA flipping `createWalletBtn` ⇄ `addSecondKeyBtn`
-- [ ] T044 [US4] Create `src/lib/ui/onboarding/AddMethodPicker.svelte`: the in-place three-method expansion; `Hybrid` rendered present-but-unavailable with `create.methodHybridUnavailable` — on web it is the browser's own QR, so it maps to `Platform` rather than being disabled
-- [ ] T045 [US1] Create `src/lib/ui/onboarding/ProgressScreen.svelte`: meter label, percentage, and the three task rows driven by `status` per [research D9](./research.md) — no timer anywhere in this file
-- [ ] T046 [US1] Create `src/lib/ui/onboarding/DoneScreen.svelte`: identicon, wallet name, mono address, key list, `enterWalletBtn`
-- [ ] T047 [US5] Create `src/lib/ui/onboarding/RetryScreen.svelte` for `stage == sync_failed`: preserved key set, technical details from `sync_error_detail`, retry-upload primary, start-over secondary
+- [X] T041 [US1] Create `src/lib/ui/onboarding/FlowShell.svelte`: the full-page stepped container — back affordance on `can_go_back`, segmented progress at 33/66/100 %, replacing the 014 sheet/in-column container
+- [X] T042 [US1] Create `src/lib/ui/onboarding/NameScreen.svelte`: name field, over-length hint, the two acknowledgement checkboxes with inline policy links, the two static assurances with filled ticks, `create.nextBtn`
+- [X] T043 [US4] Create `src/lib/ui/onboarding/KeysScreen.svelte`: title/subtitle flips, `n / 7` counter, key rows (icon + name + provider line + badge), the accent-soft warning strip on `needs_second_key`, per-row confirm retry, row delete for index > 0, the address footnote, CTA flipping `createWalletBtn` ⇄ `addSecondKeyBtn`
+- [X] T044 [US4] Create `src/lib/ui/onboarding/AddMethodPicker.svelte`: the in-place three-method expansion; `Hybrid` rendered present-but-unavailable with `create.methodHybridUnavailable` — on web it is the browser's own QR, so it maps to `Platform` rather than being disabled
+- [X] T045 [US1] Create `src/lib/ui/onboarding/ProgressScreen.svelte`: meter label, percentage, and the three task rows driven by `status` per [research D9](./research.md) — no timer anywhere in this file
+- [X] T046 [US1] Create `src/lib/ui/onboarding/DoneScreen.svelte`: identicon, wallet name, mono address, key list, `enterWalletBtn`
+- [X] T047 [US5] Create `src/lib/ui/onboarding/RetryScreen.svelte` for `stage == sync_failed`: preserved key set, technical details from `sync_error_detail`, retry-upload primary, start-over secondary
 - [ ] T048 [US5] Rework `src/lib/ui/onboarding/Sheet.svelte` into the v2 error sheet — bottom-anchored with a drag handle below 1280 px, a centred 400 px card above — and map all 18 outcome kinds onto it via `OutcomeBody.svelte` ([data-model.md §5](./data-model.md))
 - [ ] T049 [US5] Wire the endpoint-settings surface to `LoginView.endpoint_unreachable`: it opens itself with a warning after three failed probes, and 我已有钱包 stays attemptable
 - [ ] T050 [US3] Apply `SessionView::allowed_route` as the route guard in `app-web/vela-wallet/src/routes/[locale]/+layout.svelte`, and land the wallet home with the real address and name after `enter_wallet`

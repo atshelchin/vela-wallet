@@ -25,6 +25,8 @@ import init, {
 	buildMemberProof,
 	CreateWalletCore,
 	groupPublicKeyFromSeed,
+	identiconNormalizeSeed,
+	identiconSvgCircular,
 	LoginCore,
 	SessionCore,
 	toHex
@@ -36,6 +38,7 @@ export { CreateWalletCore, LoginCore, SessionCore };
 // the group key's public half. They live in the same module and are only
 // callable once `loadOnboardingCore()` has resolved.
 export { buildGroupProof, buildMemberProof, groupPublicKeyFromSeed, toHex };
+export { identiconNormalizeSeed, identiconSvgCircular };
 
 /**
  * The in-flight (or settled) initialization. Held as a promise rather than a

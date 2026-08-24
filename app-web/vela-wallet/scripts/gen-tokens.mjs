@@ -45,6 +45,22 @@ const WEB_ADDITIONS = [
 		'spec 018: contact-detail hero avatar, measured 64 in C2 (mobile)'
 	],
 	['size-identiconDetail', '48px', 'spec 018: contact-detail avatar, measured 48 in DC2 (desktop)'],
+	[
+		'text-hero',
+		'46px',
+		'spec 019: the v2 Welcome headline. The DTCG type scale tops out at 40px (text-5xl), and the onboarding design specifies 46/38 — declared once here rather than sprinkled as literals'
+	],
+	['text-heroCompact', '38px', 'spec 019: the v2 Welcome headline below the desktop breakpoint'],
+	[
+		'layout-flowColumn',
+		'440px',
+		'spec 019: the v2 onboarding flow column. The design centres every step in one column of this width at every viewport; the Welcome hero is the only wider one'
+	],
+	[
+		'layout-welcomeColumn',
+		'620px',
+		'spec 019: the v2 Welcome column, wider than the flow it starts'
+	],
 	['layout-contactsRailW', '216px', 'spec 018 research D9: desktop group-rail width (DC1)'],
 	['layout-contactsMenuW', '216px', 'spec 018 research D9: dropdown/context menu width (M1/M2)'],
 	[

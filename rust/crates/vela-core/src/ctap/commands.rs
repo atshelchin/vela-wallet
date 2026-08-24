@@ -694,6 +694,10 @@ pub struct AuthenticatorInfo {
     pub client_pin_set: bool,
     /// The authenticator can verify the user itself (biometrics).
     pub user_verification: bool,
+    /// CTAP 2.1's `getPinUvAuthTokenUsingPinWithPermissions` is available, so a
+    /// token can be scoped to `mc | ga` on one relying party instead of being
+    /// the unscoped 2.0 token that authenticates anything.
+    pub pin_uv_auth_token: bool,
     pub pin_protocols: Vec<u8>,
 }
 
@@ -725,6 +729,7 @@ pub fn parse_get_info(body: &[u8]) -> Result<AuthenticatorInfo, CoreError> {
                 // must ask for one.
                 "clientPin" => info.client_pin_set = *flag,
                 "uv" => info.user_verification = *flag,
+                "pinUvAuthToken" => info.pin_uv_auth_token = *flag,
                 _ => {}
             }
         }

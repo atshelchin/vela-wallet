@@ -6,6 +6,9 @@
 )]
 
 mod contacts;
+mod core_host;
+mod ctap;
+mod executor;
 mod gallery;
 mod icons;
 mod identicon;

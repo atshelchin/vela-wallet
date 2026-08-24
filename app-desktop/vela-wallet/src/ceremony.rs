@@ -78,7 +78,16 @@ pub struct CeremonyChannel {
     touch: Mutex<Option<TouchRequest>>,
     pin: Mutex<PinState>,
     pick: Mutex<PickState>,
-    answered: Condvar,
+    /// ONE CONDVAR PER MUTEX, and that is not a style choice.
+    ///
+    /// `std`'s `Condvar` remembers the mutex it was first waited on with and
+    /// PANICS — aborting the process from a background thread — if a second
+    /// one shows up. A single `answered` shared by the PIN wait and the wallet
+    /// picker's wait is exactly that: "attempted to use a condition variable
+    /// with two mutexes", raised the first time a person is asked for a PIN
+    /// and then asked which wallet.
+    pin_answered: Condvar,
+    pick_answered: Condvar,
 }
 
 impl CeremonyChannel {
@@ -142,7 +151,7 @@ impl CeremonyChannel {
                 }
                 return answer;
             }
-            let Ok(next) = self.answered.wait(state) else {
+            let Ok(next) = self.pin_answered.wait(state) else {
                 return None;
             };
             state = next;
@@ -167,7 +176,7 @@ impl CeremonyChannel {
                 state.asking = None;
                 return answer;
             }
-            let Ok(next) = self.answered.wait(state) else {
+            let Ok(next) = self.pick_answered.wait(state) else {
                 return None;
             };
             state = next;
@@ -184,7 +193,7 @@ impl CeremonyChannel {
         if let Ok(mut state) = self.pick.lock() {
             state.answer = Some(index);
         }
-        self.answered.notify_all();
+        self.pick_answered.notify_all();
     }
 
     /// Called on the UI thread each tick: is a PIN being asked for?
@@ -198,7 +207,7 @@ impl CeremonyChannel {
         if let Ok(mut state) = self.pin.lock() {
             state.answer = Some(value);
         }
-        self.answered.notify_all();
+        self.pin_answered.notify_all();
     }
 
     /// The flow is leaving. Releases anything still blocked, and forgets the
@@ -219,7 +228,8 @@ impl CeremonyChannel {
         if let Ok(mut slot) = self.touch.lock() {
             *slot = None;
         }
-        self.answered.notify_all();
+        self.pin_answered.notify_all();
+        self.pick_answered.notify_all();
     }
 }
 
@@ -328,6 +338,64 @@ mod tests {
 
         channel.close();
         let _ = screen.join();
+    }
+
+    /// BOTH waits, on one channel.
+    ///
+    /// `std`'s `Condvar` remembers the mutex it was first waited on with and
+    /// panics if a second one appears — and a panic on a ceremony thread
+    /// aborts the process, which is what a person saw the first time they were
+    /// asked for a PIN and then which wallet. One condvar was serving two
+    /// mutexes.
+    ///
+    /// The test is the SEQUENCE, not either half: each worked perfectly alone,
+    /// which is why the suite that covered them separately said nothing.
+    #[test]
+    fn a_pin_and_a_wallet_choice_can_both_be_asked_on_one_channel() {
+        let channel = CeremonyChannel::new();
+        let ceremony = channel.ceremony();
+
+        let screen = {
+            let channel = Arc::clone(&channel);
+            std::thread::spawn(move || {
+                for _ in 0..400 {
+                    if channel.pending_pin().is_some() {
+                        channel.answer_pin(Some("1234".to_owned()));
+                    }
+                    if channel.pending_choice().is_some() {
+                        channel.answer_choice(Some(1));
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(5));
+                }
+            })
+        };
+
+        assert_eq!(
+            (ceremony.pin)(request("/dev/key-a", false)).as_deref(),
+            Some("1234")
+        );
+        assert_eq!(
+            (ceremony.pick)(vec![choice("Everyday wallet"), choice("Savings")]),
+            Some(1)
+        );
+        // And back the other way, because the panic is about which mutex was
+        // FIRST — a channel that survives pin-then-pick could still die on
+        // pick-then-pin if only one of the two were split.
+        assert_eq!(
+            (ceremony.pin)(request("/dev/key-b", false)).as_deref(),
+            Some("1234")
+        );
+
+        channel.close();
+        let _ = screen.join();
+    }
+
+    fn choice(name: &str) -> CredentialChoice {
+        CredentialChoice {
+            name: name.to_owned(),
+            credential_id: "aabbccdd".to_owned(),
+            product: "YubiKey 5C NFC".to_owned(),
+        }
     }
 
     /// Closing the flow releases anything blocked AND forgets every PIN. A

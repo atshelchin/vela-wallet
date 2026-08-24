@@ -368,3 +368,181 @@ consequences: the wasm artifact went 3,466,137 → **3,466,071 bytes** (66 SMALL
 shell mints the key pair and hands over the shared X), `authenticatorClientPIN`
 request/response encoding, and the `getPinUvAuthTokenUsingPinWithPermissions`
 sequence. Phase 5 needs them before a security key with a PIN can be used.
+
+---
+
+## Phase 5 — Desktop
+
+### What shipped
+
+The desktop client creates and enters a wallet through a USB security key. It
+is the first client with no system passkey service, so it performs the CTAP2
+ceremonies itself — over `vela_core::ctap`, which is why there is no second
+implementation of the protocol anywhere in the repository.
+
+| Layer | File | What it owns |
+| --- | --- | --- |
+| driver | `core_host.rs` | `CoreHost<A>` — typed, no bridge, no JSON |
+| cable | `ctap/usb.rs` | hidapi enumeration, 64-byte reports, KEEPALIVE |
+| ceremonies | `executor/passkey.rs` | makeCredential / getAssertion, the PIN session, the ECDH |
+| index | `executor/registry.rs` | the six registry calls, both `queryUnit` guards |
+| storage | `executor/storage.rs` | one JSON file, the four shared keys |
+| switch | `executor/mod.rs` | the 18 onboarding operations + the 7 session ones |
+| screens | `onboarding.rs`, `onboarding_flow.rs`, `outcome.rs` | v2 Welcome, the five steps, the sheet |
+| bridge to the UI | `ceremony.rs` | "touch your key", "type your PIN" |
+| session | `session.rs`, `main.rs` | app-resident, `allowed_route` |
+
+### The core grew first
+
+Phase 4 deliberately left three things out of `ctap/`. Two of them landed here,
+because a security key with a PIN cannot be used without them:
+`authenticatorClientPIN` encoding and parsing (`ClientPin`, `parse_client_pin`,
+`Permissions`) and the token sequence (`encrypt_pin_hash`, `decrypt_token`,
+`PinUvAuthToken`). The third — the ECDH exchange — stayed out on purpose and is
+in the shell, where the randomness is.
+
+**No COSE module was written for the platform key, either.** The x/y-and-
+on-curve check came out of `webauthn.rs` as `p256_from_cose_key`, and both
+paths call it: an attested credential's public key and a `getKeyAgreement`
+response are the same structure arriving by different roads. That shared check
+is also the guard that stops an off-curve point from producing a shared secret
+whose structure an attacker chose.
+
+Core suite **1,160 → 1,170**.
+
+### Research D3, measured
+
+D3 asked whether hidapi's `linux-native` feature removes the libudev link. It
+does not:
+
+| Feature | Adds |
+| --- | --- |
+| `linux-native` | `udev` 0.9.3 + **`libudev-sys` 0.1.4** |
+| `linux-native-basic-udev` | `basic-udev` 0.1.2 (pure-Rust `/sys` walk) |
+
+Both skip cc-compiling the vendored hidapi C; only the second drops the
+`libudev-sys` link and with it the `libudev-dev` build requirement, which is
+what the offline-and-deterministic posture actually asks for. hidapi's
+`build.rs` re-exports `feature="linux-native"` for it, so the same backend code
+runs either way. `cargo tree --target x86_64-unknown-linux-gnu | grep -c
+libudev-sys` is **0**.
+
+### Deviation: ten outcomes on the sheet, not eighteen
+
+Research D13 said spec 014's eighteen `OutcomeKind` values would be re-skinned
+rather than reduced. Their COPY was re-skinned — every corpus key survives — but
+eight of them are no longer sheets, because v2 gave them somewhere better:
+
+| 014 outcome | v2 |
+| --- | --- |
+| `Created` | the Done screen |
+| `SignedIn` | the wallet itself |
+| `SyncFailed` | the Retry screen, with the whole key list intact |
+| `VerifyStuck` | the Name screen, with the 完成验证 submit label |
+| `CancelledSetup` / `CancelledVerify` / `LoginCancelled` | the Name screen's quiet status line |
+| `AccountNotFound` | a `sign_in_failed` prompt carrying the registry's words |
+
+Keeping all eighteen as sheet variants would have meant eight enum arms nothing
+constructs — and, worse, would have kept 014's premise that a cancellation with
+a filled-in form behind it is a modal. data-model §5 already says it is not.
+`src/outcome.rs` carries the table above so the mapping is findable.
+
+### Two things the core does not know about, and where they went
+
+A CTAP2 ceremony has two moments that belong on screen and no place in
+`ShellOperation`: **the key is blinking**, and **this key wants its PIN**.
+Neither is a `PromptKind`, because neither is a decision a machine branches on —
+they are facts about one piece of hardware on one desk, and pushing them into
+the core would ask three clients that never touch an authenticator to carry a
+concept they cannot have.
+
+They travel on `ceremony.rs` instead. The ceremony thread BLOCKS while asking
+for a PIN, which is deliberate: it is holding the device open, the PIN session
+is per-connection, and releasing it to go and ask would spend one of a small
+number of attempts on a retry nobody refused. The PIN is cached for the flow
+(three keys on one authenticator would otherwise ask three times), dropped the
+instant an attempt is refused, and dropped again when the flow closes.
+
+### The `wait` operation is not cancellable, and that is checked
+
+`core_host.rs` documents why it has no `cancelled_effect_ids` list: the
+machines keep one operation in flight per pipeline and stamp each request with
+the attempt that asked, so a superseded answer is dropped by the CORE on
+arrival. A desktop executor implementing cancellation would be implementing a
+path the core never takes.
+
+### Gates
+
+```
+cd app-desktop/vela-wallet
+cargo check                                  # clean
+cargo clippy --all-targets -- -D warnings    # clean
+cargo fmt --check                            # clean
+cargo test                                   # 54 passed, 2 ignored
+cargo test -- --ignored                      # 2 passed (network)
+```
+
+Desktop tests went 37 → 54. The seventeen added are the ones that would
+otherwise need hardware to notice:
+
+- **The join with the browser path.** The clientDataJSON this client builds is
+  accepted by `webauthn::validate_client_data` on both ceremonies, and
+  `build_member_proof` finds its `"type"` and `"challenge"` offsets. If this
+  drifts, a desktop-minted key signs fine and the registry accepts a proof whose
+  offsets point at the wrong bytes.
+- **The storage invariant.** A three-key account round-trips with three keys.
+  Also: a legacy record keeps its empty `keys`, saving twice upserts rather than
+  appends, a corrupt file reads as empty, a negative active index fails closed,
+  and a sign-out leaves the pending-upload outbox AND the endpoint alone.
+- **The one bit of classification a shell owns.** Only a status code means the
+  server answered; `HostNotFound` is a request that never arrived.
+- **The screen table.** data-model §3's mapping, including that
+  `setting_up_identity` and both cancellations stay on the Name screen.
+
+### What was checked in place of the hardware sweep
+
+This build host has no FIDO2 key and no screen-recording permission — it can
+neither press a key's button nor take a picture. What it can do:
+
+- **`scripts/sweep-gallery.sh`** opens all **26** gallery states once each
+  (`VELA_GALLERY_STATE=<n>`) and checks the process survives a frame in every
+  one. A duplicate gpui element id, a panicking layout or a corpus key that
+  resolves to nothing kills it. All 26 rendered.
+- **The deployed registry, reached for real.** `cargo test -- --ignored` runs
+  the health probe against `p256-index-v2.getvela.app` and a query for an
+  unregistered key. Both pass, so the service identity this client accepts is
+  still the one the server sends — a rename there would make every wallet report
+  the index unreachable while it answers perfectly.
+- **The default route.** The binary launches on onboarding, runs the health
+  probe, and writes nothing to `VELA_STATE_DIR` until a wallet exists.
+- **"No key plugged in" is support, not unsupport.** `supported()` asks whether
+  HID is REACHABLE, and the test asserts it on this key-less host. Answering
+  `false` for an empty USB port would make the core raise "this device cannot
+  create a wallet" — untrue, and with no way back. A missing key arrives later
+  as `not_supported` with a message naming it, which is the sheet the recovery
+  path starts from.
+
+### Still unverified — T089 and T091
+
+**Nothing below has been run against a security key.** These are the claims a
+person with a YubiKey has to check, and the order to check them in:
+
+1. **The create flow with no key plugged in.** Expect `not_supported` with
+   "No security key is plugged in", and expect plugging one in and retrying to
+   work — that is the whole reason `supported()` does not look for a device.
+2. **One key, quickstart scenario 1.** Watch for the touch prompt appearing on
+   the `KEEPALIVE` rather than immediately.
+3. **A key with a PIN.** The dialog should name the key and show the remaining
+   attempts. Type it wrong once on purpose: expect one attempt spent, the count
+   down by one, and the dialog back — not a failed ceremony.
+4. **Two keys, scenario 2.** The second registration must be REFUSED by the
+   same authenticator (`excludeList` doing its job → "use a different one").
+5. **Scenario 4 and the one-signature path (T089).** One touch at sign-in, not
+   two.
+6. **Scenario 6**, the publish retry.
+
+The riskiest untested surface is the report-id byte in `usb.rs::write`: a device
+that uses report ids would need the first byte to be its id rather than zero,
+and getting it wrong presents as an authenticator answering `INVALID_COMMAND` to
+everything. FIDO devices do not use report ids, so zero is right — but that is
+reasoning, not a measurement.

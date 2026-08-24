@@ -179,23 +179,24 @@ USB security key.
 **Independent test**: [quickstart.md](./quickstart.md) scenarios 1, 2, 4, 6 with a YubiKey,
 plus the no-key-present case.
 
-- [ ] T075 Add `features = ["crux"]` to the `vela-core` path dependency in `app-desktop/vela-wallet/Cargo.toml`, and `hidapi` — verify whether the `linux-native` feature removes the libudev link, per [research D3](./research.md); record the finding in `results.md`
-- [ ] T076 Create `app-desktop/vela-wallet/src/core_host.rs`: a generic `CoreHost<A>` driving `Core<A>` — monotonic effect ids, an outstanding-request map, "an unknown id means the answer outlived the question", cancellation on `cancelled_effect_ids`; the shape reference is `/Volumes/data/production2/airkeys/app-desktop/airkeys-wallet/src/shell_host.rs`
-- [ ] T077 [US1] Create `app-desktop/vela-wallet/src/ctap/usb.rs`: `hidapi` enumeration filtered to usage page `0xF1D0` / usage `0x01`, open/read/write of 64-byte reports; framing and CBOR come from `vela_core::ctap` and are not re-implemented here
-- [ ] T078 [US1] Create `app-desktop/vela-wallet/src/executor/passkey.rs`: `make_credential` and `get_assertion` ceremonies over T077, mapping "no key present" to `passkey_failed { kind: not_supported }` with a message the sheet can render, and surfacing "touch your key" as a prompt
-- [ ] T079 [P] [US2] Create `app-desktop/vela-wallet/src/executor/registry.rs` — the registry and index calls over the desktop HTTP client
-- [ ] T080 [P] [US3] Create `app-desktop/vela-wallet/src/executor/storage.rs`: a JSON file under the platform config dir, same keys and record shapes, `keys` carried on every read and write
-- [ ] T081 [US1] Create `app-desktop/vela-wallet/src/executor/mod.rs`: the exhaustive 18-operation switch, plus the 7 session operations
-- [ ] T082 [US1] Rewrite `app-desktop/vela-wallet/src/onboarding.rs` to the v2 Welcome (mark, wordmark, hero, two CTAs) — the 014 in-place action-column swap goes away
-- [ ] T083 [US1] Rewrite `app-desktop/vela-wallet/src/onboarding_flow.rs` as the v2 stepped flow: Name, Keys, Progress, Retry, Done, driven by `CreateView` per [data-model.md §3](./data-model.md); the `ui/` atoms are reused unchanged
-- [ ] T084 [US4] Implement the key list and the three-method picker in the same module; `Platform` is unavailable on desktop (no system service) and `Hybrid` is unavailable in this feature — both explained, not hidden
-- [ ] T085 [US5] Implement the v2 error sheet as a centred 400 px overlay covering all 18 outcome kinds, and the endpoint-settings surface on `endpoint_unreachable`
-- [ ] T086 [US3] Wire the session machine and `allowed_route` in `app-desktop/vela-wallet/src/main.rs`, landing on the existing wallet page with the real address
-- [ ] T087 [US6] Rewrite `app-desktop/vela-wallet/src/gallery.rs` fixtures to the v2 state set, keeping the `VELA_GALLERY=1` gate
-- [ ] T088 [US2] Wire the login machine and the 我已有钱包 button in `app-desktop/vela-wallet/src/onboarding.rs`, including the confirmable recovery consent and the health-probe-driven endpoint surface
-- [ ] T089 [US2] Verify the one-signature path on desktop with a registry-known security key: one touch, not two
-- [ ] T090 Run the desktop gate: `cd app-desktop/vela-wallet && cargo check && cargo clippy --all-targets -- -D warnings && cargo test`
-- [ ] T091 [US1] Manual sweep with a FIDO2 USB key: quickstart scenarios 1, 2, 4, 6, plus starting the create flow with **no** key plugged in and recovering from that sheet by plugging one in; record in `results.md`
+- [X] T075 Add `features = ["crux"]` to the `vela-core` path dependency in `app-desktop/vela-wallet/Cargo.toml`, and `hidapi` — verify whether the `linux-native` feature removes the libudev link, per [research D3](./research.md); record the finding in `results.md`
+- [X] T076 Create `app-desktop/vela-wallet/src/core_host.rs`: a generic `CoreHost<A>` driving `Core<A>` — monotonic effect ids, an outstanding-request map, "an unknown id means the answer outlived the question", cancellation on `cancelled_effect_ids`; the shape reference is `/Volumes/data/production2/airkeys/app-desktop/airkeys-wallet/src/shell_host.rs`
+- [X] T077 [US1] Create `app-desktop/vela-wallet/src/ctap/usb.rs`: `hidapi` enumeration filtered to usage page `0xF1D0` / usage `0x01`, open/read/write of 64-byte reports; framing and CBOR come from `vela_core::ctap` and are not re-implemented here
+- [X] T078 [US1] Create `app-desktop/vela-wallet/src/executor/passkey.rs`: `make_credential` and `get_assertion` ceremonies over T077, mapping "no key present" to `passkey_failed { kind: not_supported }` with a message the sheet can render, and surfacing "touch your key" as a prompt
+- [X] T079 [P] [US2] Create `app-desktop/vela-wallet/src/executor/registry.rs` — the registry and index calls over the desktop HTTP client
+- [X] T080 [P] [US3] Create `app-desktop/vela-wallet/src/executor/storage.rs`: a JSON file under the platform config dir, same keys and record shapes, `keys` carried on every read and write
+- [X] T081 [US1] Create `app-desktop/vela-wallet/src/executor/mod.rs`: the exhaustive 18-operation switch, plus the 7 session operations
+- [X] T082 [US1] Rewrite `app-desktop/vela-wallet/src/onboarding.rs` to the v2 Welcome (mark, wordmark, hero, two CTAs) — the 014 in-place action-column swap goes away
+- [X] T083 [US1] Rewrite `app-desktop/vela-wallet/src/onboarding_flow.rs` as the v2 stepped flow: Name, Keys, Progress, Retry, Done, driven by `CreateView` per [data-model.md §3](./data-model.md); the `ui/` atoms are reused unchanged
+- [X] T084 [US4] Implement the key list and the three-method picker in the same module; `Platform` is unavailable on desktop (no system service) and `Hybrid` is unavailable in this feature — both explained, not hidden
+- [X] T085 [US5] Implement the v2 error sheet as a centred 400 px overlay covering all 18 outcome kinds, and the endpoint-settings surface on `endpoint_unreachable`
+- [X] T086 [US3] Wire the session machine and `allowed_route` in `app-desktop/vela-wallet/src/main.rs`, landing on the existing wallet page with the real address
+- [X] T087 [US6] Rewrite `app-desktop/vela-wallet/src/gallery.rs` fixtures to the v2 state set, keeping the `VELA_GALLERY=1` gate
+- [X] T088 [US2] Wire the login machine and the 我已有钱包 button in `app-desktop/vela-wallet/src/onboarding.rs`, including the confirmable recovery consent and the health-probe-driven endpoint surface
+- [ ] T089 [US2] **BLOCKED — no FIDO2 key on the build host.** Verify the one-signature path on desktop with a registry-known security key: one touch, not two
+- [X] T090 Run the desktop gate: `cd app-desktop/vela-wallet && cargo check && cargo clippy --all-targets -- -D warnings && cargo test`
+- [ ] T091 [US1] **BLOCKED — no FIDO2 key on the build host.** Manual sweep with a FIDO2 USB key: quickstart scenarios 1, 2, 4, 6, plus starting the create flow with **no** key plugged in and recovering from that sheet by plugging one in; record in `results.md`
+- [X] T092 What a host with no security key and no screen-recording permission CAN check, done in its place: `scripts/sweep-gallery.sh` opens all 26 gallery states, the deployed registry answers its health probe and an unknown-key query (`cargo test -- --ignored`), and the clientDataJSON this client builds is accepted by the core's own parsers. See `results.md` for what remains unverified
 
 ---
 

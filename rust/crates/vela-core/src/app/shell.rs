@@ -17,7 +17,7 @@ use crux_core::render::RenderOperation;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration,
+    Account, Assertion, FailureKind, KeyMethod, PendingUpload, PromptKind, Registration,
     RegistryPublishMember, RegistryUnitMember,
 };
 use crate::registry_proof::RegistryProof;
@@ -78,6 +78,13 @@ pub enum ShellOperation {
         /// user adds another key. Empty for the first key.
         #[serde(default)]
         exclude_credential_ids: Vec<String>,
+        /// Which authenticator the *person* asked for. Selects the ceremony —
+        /// the platform authenticator, a nearby device, or a removable security
+        /// key — and nothing else. What the authenticator turns out to report
+        /// about itself comes back on the registration and is not constrained
+        /// by this.
+        #[serde(default)]
+        method: KeyMethod,
     },
     /// `navigator.credentials.get()` against a known credential.
     SignProof {

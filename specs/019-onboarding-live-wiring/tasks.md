@@ -67,12 +67,12 @@ lints and tests green, and `npm run web` can still create a wallet.
 
 ### The two core changes
 
-- [ ] T010 Add `pub enum KeyMethod { Platform, Hybrid, SecurityKey }` (`serde` `snake_case`, `TS` under the `bindings` feature) to `rust/crates/vela-core/src/app/mod.rs`, beside `FailureKind` — see [data-model.md §1](./data-model.md)
-- [ ] T011 Add `method: KeyMethod` to `ShellOperation::RegisterPasskey` in `rust/crates/vela-core/src/app/shell.rs`, documenting that it is what the *person chose*, distinct from what the authenticator reports
-- [ ] T012 Add `method` to `Event::AddKey`, add `registering_method` to `Model`, and carry it onto the resulting `Draft` and `CreateKeyRow` in `rust/crates/vela-core/src/app/create_wallet.rs`; `Event::Submit` uses the client-supplied default for the first key
-- [ ] T013 Change `ACK_COUNT` from 4 to 2 in `rust/crates/vela-core/src/app/create_wallet.rs` and adjust `Model.acks` / `CreateView.acks`
-- [ ] T014 Update `rust/crates/vela-core/tests/app_create_wallet.rs` for both changes — every ack-array construction, and the `add_key` cases which now carry a method; the assertions themselves must not be weakened
-- [ ] T015 Run the core gate: `cd rust && cargo test -p vela-core --features crux,i18n-all && cargo clippy --workspace --all-targets --features vela-core/i18n-all -- -D warnings && cargo fmt --check`
+- [X] T010 Add `pub enum KeyMethod { Platform, Hybrid, SecurityKey }` (`serde` `snake_case`, `TS` under the `bindings` feature) to `rust/crates/vela-core/src/app/mod.rs`, beside `FailureKind` — see [data-model.md §1](./data-model.md)
+- [X] T011 Add `method: KeyMethod` to `ShellOperation::RegisterPasskey` in `rust/crates/vela-core/src/app/shell.rs`, documenting that it is what the *person chose*, distinct from what the authenticator reports
+- [X] T012 Add `method` to `Event::AddKey`, add `registering_method` to `Model`, and carry it onto the resulting `Draft` and `CreateKeyRow` in `rust/crates/vela-core/src/app/create_wallet.rs`; `Event::Submit` uses the client-supplied default for the first key
+- [X] T013 Change `ACK_COUNT` from 4 to 2 in `rust/crates/vela-core/src/app/create_wallet.rs` and adjust `Model.acks` / `CreateView.acks`
+- [X] T014 Update `rust/crates/vela-core/tests/app_create_wallet.rs` for both changes — every ack-array construction, and the `add_key` cases which now carry a method; the assertions themselves must not be weakened
+- [X] T015 Run the core gate: `cd rust && cargo test -p vela-core --features crux,i18n-all && cargo clippy --workspace --all-targets --features vela-core/i18n-all -- -D warnings && cargo fmt --check`
 
 ### The corpus
 

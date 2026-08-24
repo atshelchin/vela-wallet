@@ -8,9 +8,9 @@
 mod support;
 
 use support::{Driver, NOW};
-use vela_core::app::create_wallet::{CreateStage, CreateWallet, Event, SubmitLabel};
+use vela_core::app::create_wallet::{CreateStage, CreateWallet, Event, SubmitLabel, ACK_COUNT};
 use vela_core::app::shell::{ShellOperation, ShellResult};
-use vela_core::app::{FailureKind, StatusKey};
+use vela_core::app::{FailureKind, KeyMethod, StatusKey};
 
 const CRED: &str = "credential-1";
 
@@ -26,7 +26,7 @@ fn filled(name: &str) -> Sut {
     sut.dispatch(Event::NameChanged {
         name: name.to_owned(),
     });
-    for index in 0..4 {
+    for index in 0..ACK_COUNT {
         sut.dispatch(Event::AckToggled { index });
     }
     sut
@@ -110,12 +110,17 @@ fn submit_requires_every_acknowledgment() {
     sut.dispatch(Event::NameChanged {
         name: "Ann".to_owned(),
     });
-    for index in 0..3 {
+    for index in 0..ACK_COUNT - 1 {
         sut.dispatch(Event::AckToggled { index });
     }
-    assert!(!sut.view().can_submit, "three of four boxes must not pass");
+    assert!(
+        !sut.view().can_submit,
+        "all but one box ticked must not pass"
+    );
 
-    sut.dispatch(Event::AckToggled { index: 3 });
+    sut.dispatch(Event::AckToggled {
+        index: ACK_COUNT - 1,
+    });
     assert!(sut.view().can_submit);
 }
 
@@ -433,6 +438,7 @@ fn two_keys(name: &str) -> Sut {
     let mut sut = registered(name);
     let next = sut.dispatch(Event::AddKey {
         name: "Backup".to_owned(),
+        method: KeyMethod::SecurityKey,
     });
     match next.as_slice() {
         [ShellOperation::RegisterPasskey {
@@ -459,6 +465,51 @@ fn two_keys(name: &str) -> Sut {
         proof: support::member_proof("k2"),
     });
     sut
+}
+
+/// The add method is the person's choice, and it has to survive the round trip
+/// through the shell — the ceremony is selected from it, and the key row is
+/// labelled by it. A method that arrives at the shell as `Platform` when the
+/// person asked for a security key runs the wrong ceremony.
+#[test]
+fn the_chosen_add_method_reaches_the_shell_and_the_key_row() {
+    let mut sut = registered("Ann");
+
+    let next = sut.dispatch(Event::AddKey {
+        name: "Backup".to_owned(),
+        method: KeyMethod::SecurityKey,
+    });
+    match next.as_slice() {
+        [ShellOperation::RegisterPasskey { method, .. }] => {
+            assert_eq!(
+                *method,
+                KeyMethod::SecurityKey,
+                "the ceremony must be selected from what the person chose"
+            );
+        }
+        other => panic!("expected a registration, got {other:?}"),
+    }
+
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k2"),
+    });
+
+    let keys = sut.view().keys;
+    assert_eq!(keys.len(), 2);
+    assert_eq!(
+        keys[0].method,
+        KeyMethod::Platform,
+        "the first key is the one the shell chooses, and it defaults to the platform"
+    );
+    assert_eq!(
+        keys[1].method,
+        KeyMethod::SecurityKey,
+        "the row must be labelled by the choice, not by what the authenticator reported"
+    );
 }
 
 /// The multi-key oracle: what the FULL founding set derives to.
@@ -528,6 +579,7 @@ fn cancelling_an_added_key_keeps_the_existing_drafts() {
     let mut sut = registered("Ann");
     sut.dispatch(Event::AddKey {
         name: "Backup".to_owned(),
+        method: KeyMethod::SecurityKey,
     });
     let next = sut.resolve(ShellResult::PasskeyFailed {
         kind: FailureKind::Cancelled,
@@ -592,6 +644,7 @@ fn a_cancelled_confirmation_gates_finish_and_retries_per_row() {
     let mut sut = registered("Ann");
     sut.dispatch(Event::AddKey {
         name: "Backup".to_owned(),
+        method: KeyMethod::SecurityKey,
     });
     sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::second_registration(CRED2),
@@ -644,6 +697,7 @@ fn a_duplicate_founding_key_is_refused_at_registration() {
     let mut sut = registered("Ann");
     sut.dispatch(Event::AddKey {
         name: "Backup".to_owned(),
+        method: KeyMethod::SecurityKey,
     });
     // The provider returns the SAME public key under a different credential.
     let next = sut.resolve(ShellResult::PasskeyRegistered {
@@ -727,6 +781,7 @@ fn a_second_key_satisfies_the_device_bound_gate() {
     let mut sut = device_bound_registered("Ann");
     sut.dispatch(Event::AddKey {
         name: "Backup".to_owned(),
+        method: KeyMethod::SecurityKey,
     });
     sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::second_registration(CRED2),
@@ -750,6 +805,7 @@ fn removing_back_to_a_sole_device_bound_key_rearms_the_gate() {
     let mut sut = device_bound_registered("Ann");
     sut.dispatch(Event::AddKey {
         name: "Backup".to_owned(),
+        method: KeyMethod::SecurityKey,
     });
     sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::second_registration(CRED2),

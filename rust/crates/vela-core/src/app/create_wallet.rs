@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use super::shell::{CompletionMode, Effect, ShellOperation, ShellResult};
 use super::{
     name_fits_user_handle, public_key_hex_from_attestation, Account, AccountKey, FailureKind,
-    PendingUpload, PromptKind, RegistryPublishMember, StatusKey,
+    KeyMethod, PendingUpload, PromptKind, RegistryPublishMember, StatusKey,
 };
 use crate::error::CoreError;
 use crate::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
@@ -39,9 +39,18 @@ use crate::registry_proof::RegistryProof;
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
 
-/// The acknowledgment checklist. Four rows, all required — the gate is a
+/// The acknowledgment checklist. Two rows, both required — the gate is a
 /// business rule, not a UI decoration.
-pub const ACK_COUNT: usize = 4;
+///
+/// Row 0 records that the person accepted self-custody: the private keys are
+/// held by their own device's credential manager and Vela cannot recover them.
+/// Row 1 records legal assent to the privacy policy and the terms.
+///
+/// It was four. The other two said true things about recovery and about a
+/// compromised provider account, but a checklist people tick without reading
+/// records nothing, and four measurably reduces comprehension of all four. They
+/// are now stated as assurances beside the gate rather than as gates.
+pub const ACK_COUNT: usize = 2;
 
 /// The Safe deployment this wallet uses, recorded in the registry metadata.
 const WALLET_VERSION: &str = "safe-1.4.1";
@@ -65,9 +74,12 @@ pub enum Event {
     /// draft is waiting.
     Submit,
     /// From the key list: mint one more founding passkey with this label
-    /// (empty ⇒ "Key N"). Capped at `MAX_MULTI_KEYS`.
+    /// (empty ⇒ "Key N") through the chosen kind of authenticator. Capped at
+    /// `MAX_MULTI_KEYS`.
     AddKey {
         name: String,
+        #[serde(default)]
+        method: KeyMethod,
     },
     /// Drop a not-yet-published draft key. Index 0 (the wallet's pinned first
     /// key) is only removable via `StartOver`.
@@ -118,6 +130,10 @@ pub struct Draft {
     /// Browser-reported display hints from the create() credential.
     pub authenticator_attachment: String,
     pub transports: String,
+    /// Which kind of authenticator the person asked for. Recorded so the key
+    /// list can label the row by the choice rather than guessing from the
+    /// hints above, which describe what the authenticator reported instead.
+    pub method: KeyMethod,
     /// Extracted at registration (the create() response carries the COSE
     /// key), so a duplicate authenticator is caught the moment it appears.
     pub public_key_hex: String,
@@ -248,6 +264,8 @@ pub struct Model {
     /// The label of the registration currently in flight, claimed by the
     /// `PasskeyRegistered` result.
     registering_label: String,
+    /// The method of that same in-flight registration, claimed alongside it.
+    registering_method: KeyMethod,
     /// The one-time group key the shell minted for this run. Every member's
     /// creation-time proof binds to its public key; the seed closes the
     /// group at publish. Cleared by StartOver.
@@ -305,6 +323,10 @@ pub struct CreateKeyRow {
     /// The authenticator model's AAGUID as a canonical uuid, or empty when
     /// absent/all-zero. The shell resolves it to a provider name + icon.
     pub aaguid: String,
+    /// Which kind of authenticator the person chose for this key. Drives the
+    /// row's icon and provider line; distinct from the three fields above,
+    /// which are what the authenticator reported about itself.
+    pub method: KeyMethod,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -377,7 +399,7 @@ impl App for CreateWallet {
                 render()
             }
             Event::Submit => submit(model),
-            Event::AddKey { name } => add_key(model, name),
+            Event::AddKey { name, method } => add_key(model, name, method),
             Event::RemoveKey { index } => remove_key(model, index),
             Event::KeyNameChanged { index, name } => key_name_changed(model, index, name),
             Event::ConfirmKey { index } => confirm_key(model, index),
@@ -457,6 +479,7 @@ impl App for CreateWallet {
                         confirmed: draft.proof.is_some(),
                         synced,
                         aaguid,
+                        method: draft.method,
                     }
                 })
                 .collect(),
@@ -516,7 +539,7 @@ fn passkey_display_name(wallet: &str, label: &str) -> String {
     }
 }
 
-fn add_key(model: &mut Model, label: String) -> Command<Effect, Event> {
+fn add_key(model: &mut Model, label: String, method: KeyMethod) -> Command<Effect, Event> {
     if model.stage != Stage::AddKeys || model.drafts.len() >= crate::safe::MAX_MULTI_KEYS {
         return Command::done();
     }
@@ -531,6 +554,7 @@ fn add_key(model: &mut Model, label: String) -> Command<Effect, Event> {
     }
     model.attempt += 1;
     model.registering_label = label.clone();
+    model.registering_method = method;
     model.stage = Stage::Registering;
     model.status = Some(StatusKey::SettingUpIdentity);
     let name = passkey_display_name(model.name.trim(), &label);
@@ -546,6 +570,7 @@ fn add_key(model: &mut Model, label: String) -> Command<Effect, Event> {
         ShellOperation::RegisterPasskey {
             name,
             exclude_credential_ids,
+            method,
         },
     )
 }
@@ -833,11 +858,17 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             // byte-identical to the single-key flow); its label too.
             let name = model.name.trim().to_owned();
             model.registering_label = name.clone();
+            // The first key is the one choice the shell makes instead of the
+            // person: the key screen where methods are offered does not exist
+            // yet. `Default` is the platform authenticator, and a shell with
+            // none of its own (desktop) overrides it at the ceremony.
+            model.registering_method = KeyMethod::default();
             request(
                 model,
                 ShellOperation::RegisterPasskey {
                     name,
                     exclude_credential_ids: Vec::new(),
+                    method: model.registering_method,
                 },
             )
         }
@@ -894,6 +925,7 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 registered_at_iso: now_iso,
                 authenticator_attachment: registration.authenticator_attachment,
                 transports: registration.transports,
+                method: model.registering_method,
                 public_key_hex,
                 attestation_hex,
                 proof: None,

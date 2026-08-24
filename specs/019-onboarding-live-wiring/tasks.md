@@ -76,23 +76,23 @@ lints and tests green, and `npm run web` can still create a wallet.
 
 ### The corpus
 
-- [ ] T016 Apply [contracts/i18n-keys.md](./contracts/i18n-keys.md) §1–§3 (6 removed, 4 renamed, 15 rewritten) to `rust/crates/vela-core/i18n/locales/<lng>/onboarding.json` for all 15 locales
-- [ ] T017 Apply [contracts/i18n-keys.md](./contracts/i18n-keys.md) §4 (32 added) to the same 15 files; `zh` takes the design's own copy verbatim, `en` takes the contract's, the other 13 follow the machine-translation-pending-human-review precedent
-- [ ] T018 Regenerate and verify: `npm run gen:i18n && npm run lint:i18n && npm run verify:i18n && npm run dump:vectors`
-- [ ] T019 Update the leaf/path count pins in the root Jest suite to the new figures (expected: `onboarding` 189, corpus 1,210) and run `npx jest`
-- [ ] T020 Re-measure `rust/crates/vela-core/tests/i18n_residency.rs` and confirm `ja` + `en` still fit the 135,345-byte SC-005 budget; update the recorded figures in the test's comments if they moved
+- [X] T016 Apply [contracts/i18n-keys.md](./contracts/i18n-keys.md) §1–§3 (6 removed, 4 renamed, 15 rewritten) to `rust/crates/vela-core/i18n/locales/<lng>/onboarding.json` for all 15 locales
+- [X] T017 Apply [contracts/i18n-keys.md](./contracts/i18n-keys.md) §4 (32 added) to the same 15 files; `zh` takes the design's own copy verbatim, `en` takes the contract's, the other 13 follow the machine-translation-pending-human-review precedent
+- [X] T018 Regenerate and verify: `npm run gen:i18n && npm run lint:i18n && npm run verify:i18n && npm run dump:vectors`
+- [X] T019 Update the leaf/path count pins in the root Jest suite to the new figures (expected: `onboarding` 189, corpus 1,210) and run `npx jest`
+- [X] T020 Re-measure `rust/crates/vela-core/tests/i18n_residency.rs` and confirm `ja` + `en` still fit the 135,345-byte SC-005 budget; update the recorded figures in the test's comments if they moved
 
 ### Regenerating the committed artifacts
 
-- [ ] T021 `npm run gen:core-types` — `src/services/onboarding-core/generated/` gains `KeyMethod.ts` and the changed `CreateWalletEvent` / `ShellOperation` / `CreateKeyRow`; commit the output, never hand-edit it
-- [ ] T022 `npm run build:wasm && npm run verify:wasm` — commit the regenerated `rust/pkg-web/` and the newly fingerprinted `public/vela_core_bg.<hash>.wasm`, and delete the superseded one
+- [X] T021 `npm run gen:core-types` — `src/services/onboarding-core/generated/` gains `KeyMethod.ts` and the changed `CreateWalletEvent` / `ShellOperation` / `CreateKeyRow`; commit the output, never hand-edit it
+- [X] T022 `npm run build:wasm && npm run verify:wasm` — commit the regenerated `rust/pkg-web/` and the newly fingerprinted `public/vela_core_bg.<hash>.wasm`, and delete the superseded one
 
 ### The fifth shell — lockstep (FR-030, SC-010)
 
-- [ ] T023 [US1] Update `src/screens/onboarding/CreateWalletScreen.tsx` from four acknowledgement rows to two, using the rewritten `ack0`/`ack1` and the renamed `ack1*` link fragments
-- [ ] T024 [US1] Update `src/services/onboarding-core/executor.ts` `register_passkey` case to accept and ignore-or-honour `method`; the Expo client sends `KeyMethod::Platform` and lets the browser present its own choices (research D12)
-- [ ] T025 [US1] Update `src/services/onboarding-core/copy.ts` for the removed `ack2`/`ack3*` keys, keeping its exhaustive-with-`never` shape
-- [ ] T026 Run the shipping client's gate: `npx tsc --noEmit && npx jest && npm run lint`, then `npm run web` and create a wallet plus sign in for real (SC-010)
+- [X] T023 [US1] Update `src/screens/onboarding/CreateWalletScreen.tsx` from four acknowledgement rows to two, using the rewritten `ack0`/`ack1` and the renamed `ack1*` link fragments
+- [X] T024 [US1] Update `src/services/onboarding-core/executor.ts` `register_passkey` case to accept and ignore-or-honour `method`; the Expo client sends `KeyMethod::Platform` and lets the browser present its own choices (research D12)
+- [X] T025 [US1] Update `src/services/onboarding-core/copy.ts` for the removed `ack2`/`ack3*` keys, keeping its exhaustive-with-`never` shape
+- [X] T026 Run the shipping client's gate: `npx tsc --noEmit && npx jest && npm run lint`, then `npm run web` and create a wallet plus sign in for real (SC-010)
 
 ---
 

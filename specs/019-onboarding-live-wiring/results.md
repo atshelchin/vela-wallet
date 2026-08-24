@@ -575,3 +575,87 @@ that uses report ids would need the first byte to be its id rather than zero,
 and getting it wrong presents as an authenticator answering `INVALID_COMMAND` to
 everything. FIDO devices do not use report ids, so zero is right — but that is
 reasoning, not a measurement.
+
+
+---
+
+## Phase 5, on real hardware — what a plugged-in FIDO2 key found
+
+The founder ran the desktop build on a Mac with a security key attached. Three
+things were wrong and one thing was missing. **Sign-in worked on the first try**,
+which is the load-bearing result: the HID enumeration, the CTAPHID framing, the
+CTAP2 `getAssertion`, the registry lookup and the account restore all work
+against a real authenticator on macOS. Everything below is above that line.
+
+### 1. "Device not supported" on the first press of 继续
+
+`passkey::register` refused any `method` that was not `SecurityKey`. But the
+first founding key is minted from the Name screen, BEFORE the key screen that
+offers methods exists, so the core sends `KeyMethod::default()` — the platform
+authenticator — and `create_wallet.rs` says exactly what a shell is supposed to
+do with it:
+
+> `Default` is the platform authenticator, and a shell with none of its own
+> (desktop) **overrides it at the ceremony**.
+
+The guard was written as a defence against "a future caller" and instead
+contradicted the contract it was meant to honour, on the only path a person can
+actually take. The method is ignored at the ceremony now and still travels to
+the core, which is what the contract asks for.
+
+### 2. `zsh: trace trap` — the poll cancelling itself
+
+`tick()` runs inside the ceremony-poll task, and it set `self.watcher = None`
+when both machines went idle. That drops the `Task` handle for the task
+currently executing; gpui cancels a task when its handle drops, and
+self-cancellation aborts the process. It reproduced on dismissing the failure
+sheet, which is precisely when the machines go idle.
+
+Fixed by detaching the task and keeping a bool. The loop ends by RETURNING,
+never by having its handle dropped.
+
+**The general shape is worth keeping:** a gpui `Task` handle held in the state
+that its own future mutates is a self-cancellation waiting to happen.
+
+### 3. The sheet was reading mobile copy
+
+`not_supported` rendered `onboarding.common.unsupportedBody` — "This device has
+no usable biometric authentication." True of a phone with its fingerprint reader
+turned off; a non-sequitur on a desktop, which has no biometric path at all and
+never asked for one. It now pulls `onboarding.create.securityKeyRequiredBody`,
+which the corpus already carried for this exact case.
+
+Related: a key row's provider line was keyed off the METHOD, so the first key —
+a USB key wearing the platform default — read "Platform passkey". It reads the
+authenticator's own report first now, which is what `CreateKeyRow`'s three
+report fields are for.
+
+### 4. The one-way door
+
+Signing in worked and then stranded the user. `SessionView::allowed_route` sends
+a signed-in desktop to the wallet, and **no control anywhere could send it
+back** — the desktop wallet page has no sign-out row, which this file had
+already recorded as a known gap. Recording it did not make it less of a trap:
+wiring a route guard without wiring its exit produces an app you cannot leave.
+
+The wallet sidebar now carries the sign-out row and the core's confirmation.
+`pending_upload_warning` is the session machine's answer after it asks storage,
+not the screen's guess, and the dialog does not open until it has one. Esc
+dismisses. Copy is `settings.signOut.*`, already translated in all fifteen
+locales — **no corpus change**. `settings.signOut.desc` is deliberately skipped:
+it ends "your passkey stays in Face ID / fingerprint", and on this platform the
+passkey is on the key in the person's hand.
+
+Pinned by tests, in `session.rs`: `Boot → AccountEstablished → SignOut →
+SignOutConfirmed` returns `allowed_route` to `Onboarding` and a relaunch agrees;
+cancelling changes nothing; an unconfirmed public key raises the warning.
+
+### What this changes about T091
+
+Scenario 1's first half is now known-good on real hardware in one direction:
+sign-in. Creation had never been reached, because it failed at the first press.
+The remaining list in "Still unverified" stands, and the ORDER matters more now
+— item 1 (no key plugged in) and item 3 (a key with no PIN) are the two that
+were never exercised, and item 2 is the one that just got its first real run.
+
+Desktop tests 56 → 61.

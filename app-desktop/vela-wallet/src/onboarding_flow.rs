@@ -202,10 +202,6 @@ pub struct FlowHost<'a> {
     pub picker_open: bool,
     /// The Done screen's transient 已复制 feedback.
     pub copied: bool,
-    /// A security key is blinking, waiting for a finger. The one thing on these
-    /// screens that comes from the transport rather than from the core — the
-    /// core has no idea a cable exists.
-    pub touch_waiting: bool,
     pub sink: FlowSink,
 }
 
@@ -860,7 +856,7 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
         );
     }
 
-    let mut column = div()
+    div()
         .w_full()
         .flex()
         .flex_col()
@@ -907,15 +903,7 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                         ),
                 ),
         )
-        .child(tasks);
-
-    if host.touch_waiting {
-        column = column.child(caption(
-            theme,
-            host.loc.t("onboarding.common.confirmInPrompt"),
-        ));
-    }
-    column
+        .child(tasks)
 }
 
 // ---------------------------------------------------------------------------

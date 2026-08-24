@@ -192,7 +192,16 @@
       "identiconHint": "Un motif d'identité généré à partir de l'adresse",
       "securityKeyRequiredTitle": "Branchez une clé de sécurité",
       "securityKeyRequiredBody": "Cet ordinateur n'a pas de service de passkeys système. Branchez une clé de sécurité USB FIDO2 et réessayez.",
-      "nameTitle": "Nommez votre portefeuille"
+      "nameTitle": "Nommez votre portefeuille",
+      "pinTitle": "Saisissez le code PIN de votre clé de sécurité",
+      "pinBody": "{{product}} n'a pas de lecteur d'empreinte : c'est son code PIN qui confirme que c'est bien vous. Le code n'est transmis qu'à la clé que vous tenez — jamais au disque de cet ordinateur, jamais à un serveur.",
+      "pinLabel": "Code PIN",
+      "pinAttemptsLeft": "Tentatives restantes : {{attempts}}",
+      "pinRejected": "Ce code PIN a été refusé. Une fois les tentatives épuisées, la clé se verrouille et seule une réinitialisation la débloque — ce qui efface toutes ses clés d'accès.",
+      "touchTitle": "Touchez votre clé de sécurité",
+      "touchBody": "{{product}} clignote et vous attend. Touchez-la maintenant pour confirmer.",
+      "touchFingerprintBody": "{{product}} clignote. Posez votre doigt sur son capteur pour confirmer que c'est bien vous.",
+      "touchSelectBody": "Plusieurs clés de sécurité sont branchées et clignotent toutes. Touchez celle que vous voulez utiliser."
     },
     "login": {
       "alertNotSupportedTitle": "Non pris en charge",
@@ -220,7 +229,10 @@
       "signInFailedBody": "Vérifiez que Face ID, Touch ID ou une empreinte est configuré sur cet appareil.",
       "retryLoginBtn": "Réessayer la connexion",
       "createNewWalletBtn": "Créer un nouveau portefeuille",
-      "switchDeviceBtn": "Se connecter sur un autre appareil"
+      "switchDeviceBtn": "Se connecter sur un autre appareil",
+      "pickTitle": "Quel portefeuille ?",
+      "pickBody": "{{product}} contient plusieurs portefeuilles Vela. Choisissez celui auquel vous connecter.",
+      "pickUnnamed": "Portefeuille sans nom"
     }
   }
 }

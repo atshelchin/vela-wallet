@@ -663,7 +663,16 @@
    "identiconHint": "Pola identitas yang dihasilkan dari alamat",
    "securityKeyRequiredTitle": "Colokkan kunci keamanan",
    "securityKeyRequiredBody": "Komputer ini tidak punya layanan passkey sistem. Colokkan kunci keamanan USB FIDO2 lalu coba lagi.",
-   "nameTitle": "Beri nama dompet Anda"
+   "nameTitle": "Beri nama dompet Anda",
+   "pinTitle": "Masukkan PIN kunci keamanan Anda",
+   "pinBody": "{{product}} tidak punya sensor sidik jari, jadi PIN-nya yang memastikan ini benar Anda. PIN hanya dikirim ke kunci di tangan Anda — tidak pernah ke disk komputer ini, dan tidak pernah ke server.",
+   "pinLabel": "PIN",
+   "pinAttemptsLeft": "Sisa percobaan: {{attempts}}",
+   "pinRejected": "PIN itu ditolak. Ketika percobaan habis, kunci mengunci dirinya sendiri dan hanya reset yang membukanya — dan reset menghapus semua passkey di dalamnya.",
+   "touchTitle": "Sentuh kunci keamanan Anda",
+   "touchBody": "{{product}} berkedip dan menunggu Anda. Sentuh sekarang untuk mengonfirmasi.",
+   "touchFingerprintBody": "{{product}} berkedip. Letakkan jari Anda di sensornya untuk memastikan ini benar Anda.",
+   "touchSelectBody": "Beberapa kunci keamanan terpasang dan semuanya berkedip. Sentuh yang ingin Anda pakai."
   },
   "login": {
    "alertNotSupportedTitle": "Tidak Didukung",
@@ -691,7 +700,10 @@
    "signInFailedBody": "Pastikan Face ID, Touch ID, atau sidik jari sudah disiapkan di perangkat ini.",
    "retryLoginBtn": "Coba Masuk Lagi",
    "createNewWalletBtn": "Buat Dompet Baru",
-   "switchDeviceBtn": "Masuk di perangkat lain"
+   "switchDeviceBtn": "Masuk di perangkat lain",
+   "pickTitle": "Dompet yang mana?",
+   "pickBody": "{{product}} menyimpan lebih dari satu dompet Vela. Pilih yang ingin Anda masuki.",
+   "pickUnnamed": "Dompet tanpa nama"
   }
  },
  "connect": {

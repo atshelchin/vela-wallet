@@ -666,7 +666,16 @@
    "identiconHint": "Un motivo identificativo generato dall'indirizzo",
    "securityKeyRequiredTitle": "Inserisci una chiave di sicurezza",
    "securityKeyRequiredBody": "Questo computer non ha un servizio passkey di sistema. Inserisci una chiave di sicurezza USB FIDO2 e riprova.",
-   "nameTitle": "Dai un nome al tuo wallet"
+   "nameTitle": "Dai un nome al tuo wallet",
+   "pinTitle": "Inserisci il PIN della chiave di sicurezza",
+   "pinBody": "{{product}} non ha un sensore di impronte, quindi usa il PIN per confermare che sei tu. Il PIN arriva solo alla chiave che hai in mano: mai sul disco di questo computer, mai a un server.",
+   "pinLabel": "PIN",
+   "pinAttemptsLeft": "Tentativi rimasti: {{attempts}}",
+   "pinRejected": "Questo PIN non è stato accettato. Esauriti i tentativi la chiave si blocca da sola e solo un ripristino la sblocca, cancellando tutte le passkey che contiene.",
+   "touchTitle": "Tocca la tua chiave di sicurezza",
+   "touchBody": "{{product}} sta lampeggiando e ti sta aspettando. Toccala ora per confermare.",
+   "touchFingerprintBody": "{{product}} sta lampeggiando. Appoggia il dito sul suo sensore per confermare che sei tu.",
+   "touchSelectBody": "Sono collegate più chiavi di sicurezza e stanno lampeggiando tutte. Tocca quella che vuoi usare."
   },
   "login": {
    "alertNotSupportedTitle": "Non supportato",
@@ -694,7 +703,10 @@
    "signInFailedBody": "Assicurati che su questo dispositivo sia configurato Face ID, Touch ID o un'impronta.",
    "retryLoginBtn": "Riprova ad accedere",
    "createNewWalletBtn": "Crea un nuovo wallet",
-   "switchDeviceBtn": "Accedi su un altro dispositivo"
+   "switchDeviceBtn": "Accedi su un altro dispositivo",
+   "pickTitle": "Quale portafoglio?",
+   "pickBody": "{{product}} contiene più di un portafoglio Vela. Scegli quello in cui accedere.",
+   "pickUnnamed": "Portafoglio senza nome"
   }
  },
  "connect": {

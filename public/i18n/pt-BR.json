@@ -666,7 +666,16 @@
    "identiconHint": "Um padrão de identidade gerado a partir do endereço",
    "securityKeyRequiredTitle": "Conecte uma chave de segurança",
    "securityKeyRequiredBody": "Este computador não tem serviço de passkey do sistema. Conecte uma chave de segurança USB FIDO2 e tente de novo.",
-   "nameTitle": "Dê um nome à sua carteira"
+   "nameTitle": "Dê um nome à sua carteira",
+   "pinTitle": "Digite o PIN da sua chave de segurança",
+   "pinBody": "A {{product}} não tem sensor de impressão digital, então usa o PIN para confirmar que é você. O PIN vai apenas para a chave na sua mão — nunca para o disco deste computador nem para um servidor.",
+   "pinLabel": "PIN",
+   "pinAttemptsLeft": "Tentativas restantes: {{attempts}}",
+   "pinRejected": "Esse PIN não foi aceito. Quando as tentativas acabam, a chave se bloqueia e só uma redefinição a libera — o que apaga todas as chaves de acesso nela.",
+   "touchTitle": "Toque na sua chave de segurança",
+   "touchBody": "A {{product}} está piscando e esperando por você. Toque nela agora para confirmar.",
+   "touchFingerprintBody": "A {{product}} está piscando. Apoie o dedo no sensor dela para confirmar que é você.",
+   "touchSelectBody": "Há várias chaves de segurança conectadas e todas estão piscando. Toque naquela que você quer usar."
   },
   "login": {
    "alertNotSupportedTitle": "Não compatível",
@@ -694,7 +703,10 @@
    "signInFailedBody": "Verifique se o Face ID, o Touch ID ou uma digital está configurado neste dispositivo.",
    "retryLoginBtn": "Tentar entrar de novo",
    "createNewWalletBtn": "Criar uma carteira nova",
-   "switchDeviceBtn": "Entrar em outro aparelho"
+   "switchDeviceBtn": "Entrar em outro aparelho",
+   "pickTitle": "Qual carteira?",
+   "pickBody": "A {{product}} guarda mais de uma carteira Vela. Escolha em qual você quer entrar.",
+   "pickUnnamed": "Carteira sem nome"
   }
  },
  "connect": {

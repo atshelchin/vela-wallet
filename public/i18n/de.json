@@ -663,7 +663,16 @@
    "identiconHint": "Ein aus der Adresse erzeugtes Identitätsmuster",
    "securityKeyRequiredTitle": "Sicherheitsschlüssel einstecken",
    "securityKeyRequiredBody": "Dieser Computer hat keinen System-Passkey-Dienst. Steck einen FIDO2-USB-Sicherheitsschlüssel ein und versuch es erneut.",
-   "nameTitle": "Gib deiner Wallet einen Namen"
+   "nameTitle": "Gib deiner Wallet einen Namen",
+   "pinTitle": "PIN des Sicherheitsschlüssels eingeben",
+   "pinBody": "{{product}} hat keinen Fingerabdrucksensor und bestätigt Sie deshalb per PIN. Die PIN geht nur an den Schlüssel in Ihrer Hand — nie auf die Festplatte dieses Computers und nie an einen Server.",
+   "pinLabel": "PIN",
+   "pinAttemptsLeft": "Verbleibende Versuche: {{attempts}}",
+   "pinRejected": "Diese PIN wurde nicht akzeptiert. Sind die Versuche aufgebraucht, sperrt sich der Schlüssel selbst und lässt sich nur durch ein Zurücksetzen entsperren — dabei werden alle Passkeys darauf gelöscht.",
+   "touchTitle": "Berühren Sie Ihren Sicherheitsschlüssel",
+   "touchBody": "{{product}} blinkt und wartet auf Sie. Berühren Sie ihn jetzt zur Bestätigung.",
+   "touchFingerprintBody": "{{product}} blinkt. Legen Sie Ihren Finger auf den Sensor, um zu bestätigen, dass Sie es sind.",
+   "touchSelectBody": "Mehrere Sicherheitsschlüssel sind angeschlossen und blinken alle. Berühren Sie den, den Sie verwenden möchten."
   },
   "login": {
    "alertNotSupportedTitle": "Nicht unterstützt",
@@ -691,7 +700,10 @@
    "signInFailedBody": "Stellen Sie sicher, dass Face ID, Touch ID oder ein Fingerabdruck auf diesem Gerät eingerichtet ist.",
    "retryLoginBtn": "Anmeldung erneut versuchen",
    "createNewWalletBtn": "Neue Wallet erstellen",
-   "switchDeviceBtn": "Auf einem anderen Gerät anmelden"
+   "switchDeviceBtn": "Auf einem anderen Gerät anmelden",
+   "pickTitle": "Welche Wallet?",
+   "pickBody": "Auf {{product}} liegt mehr als eine Vela-Wallet. Wählen Sie die aus, in der Sie sich anmelden möchten.",
+   "pickUnnamed": "Wallet ohne Namen"
   }
  },
  "connect": {

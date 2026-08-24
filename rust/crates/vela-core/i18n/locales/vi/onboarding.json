@@ -192,7 +192,16 @@
       "identiconHint": "Hoạ tiết nhận dạng sinh từ địa chỉ",
       "securityKeyRequiredTitle": "Hãy cắm khoá bảo mật",
       "securityKeyRequiredBody": "Máy tính này không có dịch vụ passkey của hệ thống. Hãy cắm khoá bảo mật USB FIDO2 rồi thử lại.",
-      "nameTitle": "Đặt tên cho ví"
+      "nameTitle": "Đặt tên cho ví",
+      "pinTitle": "Nhập mã PIN của khoá bảo mật",
+      "pinBody": "{{product}} không có cảm biến vân tay nên dùng mã PIN để xác nhận đúng là bạn. Mã PIN chỉ được gửi tới chiếc khoá trên tay bạn — không bao giờ lưu vào máy này, cũng không gửi lên máy chủ.",
+      "pinLabel": "Mã PIN",
+      "pinAttemptsLeft": "Số lần thử còn lại: {{attempts}}",
+      "pinRejected": "Mã PIN không đúng. Khi hết lượt thử, khoá sẽ tự khoá lại và chỉ có thể mở bằng cách đặt lại — thao tác đó xoá sạch mọi passkey trên khoá.",
+      "touchTitle": "Chạm vào khoá bảo mật của bạn",
+      "touchBody": "{{product}} đang nhấp nháy và chờ bạn. Hãy chạm vào nó để xác nhận.",
+      "touchFingerprintBody": "{{product}} đang nhấp nháy. Đặt ngón tay lên cảm biến để xác nhận đúng là bạn.",
+      "touchSelectBody": "Có nhiều khoá bảo mật đang cắm và tất cả đều nhấp nháy. Hãy chạm vào khoá bạn muốn dùng."
     },
     "login": {
       "alertNotSupportedTitle": "Không hỗ trợ",
@@ -220,7 +229,10 @@
       "signInFailedBody": "Hãy chắc chắn thiết bị đã thiết lập Face ID, Touch ID hoặc vân tay.",
       "retryLoginBtn": "Thử đăng nhập lại",
       "createNewWalletBtn": "Tạo ví mới",
-      "switchDeviceBtn": "Đăng nhập trên thiết bị khác"
+      "switchDeviceBtn": "Đăng nhập trên thiết bị khác",
+      "pickTitle": "Ví nào?",
+      "pickBody": "{{product}} đang giữ nhiều hơn một ví Vela. Hãy chọn ví bạn muốn đăng nhập.",
+      "pickUnnamed": "Ví chưa đặt tên"
     }
   }
 }

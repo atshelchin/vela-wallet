@@ -24,10 +24,22 @@
 //! attempts on a retry that was never refused. Blocking on a condvar until the
 //! person answers is what keeps one attempt one attempt.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
-use crate::executor::passkey::{Ceremony, PinRequest};
+use crate::ctap::usb::TouchRequest;
+use crate::executor::passkey::{Ceremony, CredentialChoice, PinRequest};
+
+/// The wallet picker's half of the channel. Same shape as the PIN's and for
+/// the same reason: the ceremony thread is holding the device open while it
+/// asks, so it blocks rather than releasing and re-enumerating.
+#[derive(Default)]
+struct PickState {
+    asking: Option<Vec<CredentialChoice>>,
+    /// The outer `Option` is "has an answer arrived", the inner is "a row, or a
+    /// dismissal".
+    answer: Option<Option<usize>>,
+    closed: bool,
+}
 
 #[derive(Default)]
 struct PinState {
@@ -51,8 +63,13 @@ struct PinState {
 /// Shared between the screen and whatever ceremony is currently running.
 #[derive(Default)]
 pub struct CeremonyChannel {
-    touch: AtomicBool,
+    /// What the key is waiting for right now, if anything. A `Mutex` rather
+    /// than an atomic flag because it carries the key's product string and
+    /// which physical act is being asked for — a bool could only say "some
+    /// key wants something".
+    touch: Mutex<Option<TouchRequest>>,
     pin: Mutex<PinState>,
+    pick: Mutex<PickState>,
     answered: Condvar,
 }
 
@@ -65,17 +82,21 @@ impl CeremonyChannel {
     pub fn ceremony(self: &Arc<Self>) -> Ceremony {
         let touch_channel = Arc::clone(self);
         let pin_channel = Arc::clone(self);
+        let pick_channel = Arc::clone(self);
         Ceremony {
             touch: Arc::new(move |waiting| {
-                touch_channel.touch.store(waiting, Ordering::Relaxed);
+                if let Ok(mut slot) = touch_channel.touch.lock() {
+                    *slot = waiting;
+                }
             }),
             pin: Arc::new(move |request| pin_channel.request_pin(request)),
+            pick: Arc::new(move |choices| pick_channel.request_choice(choices)),
         }
     }
 
-    /// Is a key waiting for a finger right now?
-    pub fn touch_waiting(&self) -> bool {
-        self.touch.load(Ordering::Relaxed)
+    /// What a key is waiting for right now, if anything.
+    pub fn touch_waiting(&self) -> Option<TouchRequest> {
+        self.touch.lock().ok()?.clone()
     }
 
     /// Called on the ceremony thread. Blocks until the screen answers.
@@ -112,6 +133,44 @@ impl CeremonyChannel {
         }
     }
 
+    /// Called on the ceremony thread. Blocks until the screen answers.
+    fn request_choice(&self, choices: Vec<CredentialChoice>) -> Option<usize> {
+        let Ok(mut state) = self.pick.lock() else {
+            return None;
+        };
+        if state.closed {
+            return None;
+        }
+        state.asking = Some(choices);
+        state.answer = None;
+        loop {
+            if state.closed {
+                return None;
+            }
+            if let Some(answer) = state.answer.take() {
+                state.asking = None;
+                return answer;
+            }
+            let Ok(next) = self.answered.wait(state) else {
+                return None;
+            };
+            state = next;
+        }
+    }
+
+    /// Called on the UI thread each tick: is a wallet being asked for?
+    pub fn pending_choice(&self) -> Option<Vec<CredentialChoice>> {
+        self.pick.lock().ok()?.asking.clone()
+    }
+
+    /// Called on the UI thread. `None` is a dismissal.
+    pub fn answer_choice(&self, index: Option<usize>) {
+        if let Ok(mut state) = self.pick.lock() {
+            state.answer = Some(index);
+        }
+        self.answered.notify_all();
+    }
+
     /// Called on the UI thread each tick: is a PIN being asked for?
     pub fn pending_pin(&self) -> Option<PinRequest> {
         self.pin.lock().ok()?.asking.clone()
@@ -136,7 +195,14 @@ impl CeremonyChannel {
             state.asking = None;
             state.answer = Some(None);
         }
-        self.touch.store(false, Ordering::Relaxed);
+        if let Ok(mut state) = self.pick.lock() {
+            state.closed = true;
+            state.asking = None;
+            state.answer = Some(None);
+        }
+        if let Ok(mut slot) = self.touch.lock() {
+            *slot = None;
+        }
         self.answered.notify_all();
     }
 }

@@ -77,6 +77,11 @@ pub enum Status {
     /// Locked until the key is power-cycled or reset
     /// (`CTAP2_ERR_PIN_BLOCKED` 0x32, `CTAP2_ERR_PIN_AUTH_BLOCKED` 0x34).
     PinBlocked,
+    /// The authenticator's own user verification did not succeed — the finger
+    /// did not match (`CTAP2_ERR_UV_INVALID` 0x3f), or it has run out of
+    /// attempts and only the PIN is left (`CTAP2_ERR_UV_BLOCKED` 0x3c). Both
+    /// are a reason to OFFER the PIN, not to fail the ceremony.
+    UvFailed,
     /// Anything else, with its number intact.
     Other(u8),
 }
@@ -98,6 +103,7 @@ impl Status {
             0x31 | 0x36 => Self::PinRequired,
             0x32 | 0x34 => Self::PinBlocked,
             0x35 => Self::PinNotSet,
+            0x3c | 0x3f => Self::UvFailed,
             // 0x33 `PIN_AUTH_INVALID` deliberately falls through: it means the
             // pinUvAuthParam did not verify, which is a CLIENT fault (a wrong
             // shared secret, a wrong protocol number), not something a person
@@ -334,7 +340,17 @@ pub enum ClientPinSubcommand {
     GetKeyAgreement = 0x02,
     /// CTAP 2.0's token request: no permissions, no rpId.
     GetPinToken = 0x05,
-    /// CTAP 2.1's: the token is scoped to the operations and the RP named here.
+    /// The token, obtained by the authenticator verifying the user ITSELF —
+    /// a fingerprint on the key, not a PIN typed on the host. Preferred
+    /// whenever `getInfo` reports built-in UV as configured: the person
+    /// already chose a key with a sensor, and asking them to type instead is
+    /// asking them to use the fallback.
+    GetPinUvAuthTokenUsingUvWithPermissions = 0x06,
+    /// How many built-in-UV attempts remain before it locks out and the PIN is
+    /// the only way left.
+    GetUvRetries = 0x07,
+    /// CTAP 2.1's PIN request: the token is scoped to the operations and the RP
+    /// named here.
     GetPinUvAuthTokenUsingPinWithPermissions = 0x09,
 }
 
@@ -404,6 +420,44 @@ impl ClientPin {
         Self {
             protocol,
             subcommand: ClientPinSubcommand::GetPinRetries,
+            key_agreement: None,
+            pin_hash_enc: None,
+            permissions: None,
+            rp_id: None,
+        }
+    }
+
+    /// The token, verified by the authenticator's own sensor.
+    ///
+    /// Carries no `pinHashEnc`: nothing is typed, and there is no PIN in this
+    /// exchange at all. The key prompts for a finger and answers with the same
+    /// encrypted token the PIN path produces, so everything downstream is
+    /// identical.
+    ///
+    /// Only defined for CTAP 2.1's permissions subcommand — an authenticator
+    /// with built-in UV but no `pinUvAuthToken` support verifies inline
+    /// instead, through the request's own `uv` option, and needs no token.
+    pub fn uv_token(
+        protocol: Protocol,
+        platform_key: P256PublicKey,
+        permissions: Permissions,
+        rp_id: Option<String>,
+    ) -> Self {
+        Self {
+            protocol,
+            subcommand: ClientPinSubcommand::GetPinUvAuthTokenUsingUvWithPermissions,
+            key_agreement: Some(platform_key),
+            pin_hash_enc: None,
+            permissions: Some(permissions),
+            rp_id,
+        }
+    }
+
+    /// How many built-in-UV attempts are left.
+    pub fn uv_retries(protocol: Protocol) -> Self {
+        Self {
+            protocol,
+            subcommand: ClientPinSubcommand::GetUvRetries,
             key_agreement: None,
             pin_hash_enc: None,
             permissions: None,
@@ -621,6 +675,16 @@ pub struct GetAssertionResponse {
     /// The user handle, when the authenticator volunteered one. This is where a
     /// wallet's name survives a device wipe.
     pub user_id: Option<Vec<u8>>,
+    /// How many discoverable credentials the authenticator holds for this
+    /// relying party (`numberOfCredentials`, key 0x05).
+    ///
+    /// Present ONLY on the first response to a request with an empty allow
+    /// list, and absent when there is exactly one. A client that ignores it
+    /// silently signs in as whichever credential the key happened to return
+    /// first — which, on a key holding two of a person's wallets, means one of
+    /// them becomes unreachable. The rest are fetched with
+    /// [`Command::GetNextAssertion`].
+    pub number_of_credentials: Option<u32>,
 }
 
 pub fn parse_get_assertion(body: &[u8]) -> Result<GetAssertionResponse, CoreError> {
@@ -639,12 +703,29 @@ pub fn parse_get_assertion(body: &[u8]) -> Result<GetAssertionResponse, CoreErro
         }),
         _ => None,
     };
+    let number_of_credentials = match take(&entries, 0x05) {
+        Some(Value::Integer(count)) => u32::try_from(i128::from(*count)).ok(),
+        _ => None,
+    };
     Ok(GetAssertionResponse {
         credential_id,
         auth_data: bytes_at(&entries, 0x02, "authData")?,
         signature_der: bytes_at(&entries, 0x03, "signature")?,
         user_id,
+        number_of_credentials,
     })
+}
+
+/// `authenticatorGetNextAssertion` — the next credential of a set the first
+/// `getAssertion` reported. No arguments: the authenticator is walking a list
+/// it already built, over the client-data hash it already has.
+///
+/// Valid only immediately after a `getAssertion` that reported
+/// `numberOfCredentials` above one, and only until the authenticator's own
+/// timer runs out. It costs NO second touch: user presence was collected once,
+/// for the set.
+pub fn get_next_assertion_request() -> Result<Vec<u8>, CoreError> {
+    encode_value(Command::GetNextAssertion, None)
 }
 
 /// What `authenticatorClientPIN` answered.

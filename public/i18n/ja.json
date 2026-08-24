@@ -663,7 +663,16 @@
    "identiconHint": "アドレスから生成される識別パターン",
    "securityKeyRequiredTitle": "セキュリティキーを挿してください",
    "securityKeyRequiredBody": "このパソコンにはシステムのパスキー機能がありません。FIDO2 の USB セキュリティキーを挿して再試行してください。",
-   "nameTitle": "ウォレットに名前をつける"
+   "nameTitle": "ウォレットに名前をつける",
+   "pinTitle": "セキュリティキーの PIN を入力",
+   "pinBody": "{{product}} には指紋センサーがないため、PIN で本人確認を行います。PIN は手元のキーにのみ送られ、このコンピューターに保存されることもサーバーに送られることもありません。",
+   "pinLabel": "PIN",
+   "pinAttemptsLeft": "残り試行回数: {{attempts}}",
+   "pinRejected": "PIN が正しくありません。試行回数がなくなるとキーはロックされ、リセットでしか解除できません。リセットするとキー上のパスキーはすべて消去されます。",
+   "touchTitle": "セキュリティキーにタッチ",
+   "touchBody": "{{product}} が点滅して待っています。今タッチして確認してください。",
+   "touchFingerprintBody": "{{product}} が点滅しています。センサーに指を置いて本人確認を行ってください。",
+   "touchSelectBody": "複数のセキュリティキーが接続されていて、すべて点滅しています。使いたいものにタッチしてください。"
   },
   "login": {
    "alertNotSupportedTitle": "非対応",
@@ -691,7 +700,10 @@
    "signInFailedBody": "この端末に Face ID、Touch ID または指紋が設定されているか確認してください。",
    "retryLoginBtn": "サインインを再試行",
    "createNewWalletBtn": "新しいウォレットを作成",
-   "switchDeviceBtn": "別の端末でサインイン"
+   "switchDeviceBtn": "別の端末でサインイン",
+   "pickTitle": "どのウォレットにしますか？",
+   "pickBody": "{{product}} には複数の Vela ウォレットが保存されています。サインインするものを選んでください。",
+   "pickUnnamed": "名称未設定のウォレット"
   }
  },
  "connect": {

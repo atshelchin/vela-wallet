@@ -192,7 +192,16 @@
       "identiconHint": "Un patrón de identidad generado a partir de la dirección",
       "securityKeyRequiredTitle": "Conecta una llave de seguridad",
       "securityKeyRequiredBody": "Este equipo no tiene servicio de passkeys del sistema. Conecta una llave de seguridad USB FIDO2 e inténtalo otra vez.",
-      "nameTitle": "Ponle nombre a tu billetera"
+      "nameTitle": "Ponle nombre a tu billetera",
+      "pinTitle": "Escribe el PIN de tu llave de seguridad",
+      "pinBody": "{{product}} no tiene sensor de huella, así que usa su PIN para confirmar que eres tú. El PIN solo llega a la llave que tienes en la mano: nunca al disco de esta computadora ni a un servidor.",
+      "pinLabel": "PIN",
+      "pinAttemptsLeft": "Intentos restantes: {{attempts}}",
+      "pinRejected": "Ese PIN no se aceptó. Cuando se acaban los intentos, la llave se bloquea sola y solo un restablecimiento la libera, lo que borra todas sus llaves de acceso.",
+      "touchTitle": "Toca tu llave de seguridad",
+      "touchBody": "{{product}} está parpadeando y esperándote. Tócala ahora para confirmar.",
+      "touchFingerprintBody": "{{product}} está parpadeando. Apoya el dedo en su sensor para confirmar que eres tú.",
+      "touchSelectBody": "Hay varias llaves de seguridad conectadas y todas están parpadeando. Toca la que quieras usar."
     },
     "login": {
       "alertNotSupportedTitle": "No compatible",
@@ -220,7 +229,10 @@
       "signInFailedBody": "Asegúrate de que este dispositivo tenga configurado Face ID, Touch ID o huella.",
       "retryLoginBtn": "Reintentar inicio de sesión",
       "createNewWalletBtn": "Crear una billetera nueva",
-      "switchDeviceBtn": "Entrar en otro dispositivo"
+      "switchDeviceBtn": "Entrar en otro dispositivo",
+      "pickTitle": "¿Cuál cartera?",
+      "pickBody": "{{product}} guarda más de una cartera Vela. Elige en cuál quieres entrar.",
+      "pickUnnamed": "Cartera sin nombre"
     }
   }
 }

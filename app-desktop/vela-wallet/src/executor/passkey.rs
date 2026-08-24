@@ -32,14 +32,15 @@ use p256::elliptic_curve::sec1::ToEncodedPoint as _;
 
 use vela_core::app::{Assertion, FailureKind, KeyMethod, Registration};
 use vela_core::ctap::{
-    AuthenticatorInfo, ClientPin, CredentialDescriptor, GetAssertion, MakeCredential, Permissions,
-    PinUvAuthToken, Protocol, SharedSecret, Status, attestation_object, get_info_request,
-    parse_client_pin, parse_get_assertion, parse_get_info,
+    AuthenticatorInfo, ClientPin, CredentialDescriptor, GetAssertion, GetAssertionResponse,
+    MakeCredential, Permissions, PinUvAuthToken, Protocol, SharedSecret, Status,
+    attestation_object, get_info_request, get_next_assertion_request, parse_client_pin,
+    parse_get_assertion, parse_get_info,
 };
 use vela_core::types::P256PublicKey;
 use vela_core::{primitives, webauthn};
 
-use crate::ctap::usb::{SecurityKey, TouchNotifier, UsbError};
+use crate::ctap::usb::{SecurityKey, TouchKind, TouchNotifier, UsbError};
 
 /// The relying party every Vela passkey is bound to. A passkey cannot be moved
 /// between relying parties, so this string is part of the wallet's identity:
@@ -108,13 +109,34 @@ pub struct PinRequest {
     pub retry: bool,
 }
 
+/// One wallet a security key holds for this relying party.
+#[derive(Clone, Debug)]
+pub struct CredentialChoice {
+    /// The wallet's name, read out of the user handle the credential was minted
+    /// with (`name‖NUL‖uuid`). Empty when the authenticator volunteered no
+    /// handle, which a very old credential may not.
+    pub name: String,
+    /// Hex. Only shown when two rows share a name — otherwise it is noise the
+    /// person has no use for.
+    pub credential_id: String,
+    /// The key these all live on, for the row's second line.
+    pub product: String,
+}
+
+/// Asks which of several wallets on one key to sign in as, and blocks.
+///
+/// `None` is a dismissal, which is a cancellation. Only called when the key
+/// reports more than one: a single credential is not a choice.
+pub type CredentialPicker = Arc<dyn Fn(Vec<CredentialChoice>) -> Option<usize> + Send + Sync>;
+
 /// Everything a ceremony needs from the screen that started it.
 #[derive(Clone)]
 pub struct Ceremony {
-    /// Called with `true` when the key starts waiting for a finger and `false`
-    /// when it stops.
+    /// Called with what the key is waiting for when it starts waiting, and
+    /// with `None` when it stops.
     pub touch: TouchNotifier,
     pub pin: PinRequester,
+    pub pick: CredentialPicker,
 }
 
 /// Is a passkey ceremony possible on this machine at all?
@@ -149,7 +171,7 @@ pub fn register(
     // ceremony is possible, because on this platform exactly one is.
     let _ = method;
 
-    let mut key = open()?;
+    let mut key = open(ceremony)?;
     let info = get_info(&mut key)?;
     verifiable(&key, &info)?;
     if !info.resident_key {
@@ -221,7 +243,7 @@ pub fn assert(
     credential_id: Option<&str>,
     ceremony: &Ceremony,
 ) -> Result<Assertion, PasskeyFailure> {
-    let mut key = open()?;
+    let mut key = open(ceremony)?;
     let info = get_info(&mut key)?;
     verifiable(&key, &info)?;
 
@@ -248,8 +270,20 @@ pub fn assert(
         &request.encode().map_err(encode_failed)?,
         ceremony,
     )?;
-    let response = parse_get_assertion(&body)
+    let first = parse_get_assertion(&body)
         .map_err(|error| PasskeyFailure::other(format!("malformed getAssertion reply: {error}")))?;
+
+    // "Who are you?" can have more than one answer. A key holding two of a
+    // person's wallets reports `numberOfCredentials` and hands back the FIRST;
+    // the rest come from `getNextAssertion`, over the same client-data hash and
+    // with no second touch. Taking the first without asking is how the other
+    // wallet becomes unreachable from this computer.
+    let response = match first.number_of_credentials {
+        Some(total) if total > 1 && credential_id.is_none() => {
+            choose(&mut key, first, total, ceremony)?
+        }
+        _ => first,
+    };
 
     // The authenticator omits the credential descriptor when the request
     // pinned exactly one. Falling back to what was asked for is not a guess —
@@ -284,6 +318,86 @@ pub fn assert(
 // The PIN session
 // ---------------------------------------------------------------------------
 
+/// Collect every assertion the key is offering and let the person pick one.
+///
+/// The assertions are ALREADY SIGNED — `getNextAssertion` walks a list the
+/// authenticator built when it collected user presence, so this costs no
+/// further touch and no further wait. What comes back is the one the person
+/// chose; the others are dropped unused, which is exactly as private as never
+/// having asked (they never leave this process).
+fn choose(
+    key: &mut SecurityKey,
+    first: GetAssertionResponse,
+    total: u32,
+    ceremony: &Ceremony,
+) -> Result<GetAssertionResponse, PasskeyFailure> {
+    let mut all = vec![first];
+    // `total` comes from the device. Capped so a malformed count cannot spin
+    // this loop against a key that will answer anything.
+    let remaining = total.saturating_sub(1).min(MAX_ENUMERATED_CREDENTIALS);
+    for _ in 0..remaining {
+        let request = get_next_assertion_request().map_err(encode_failed)?;
+        // No touch notifier: the key is not asking for anything here.
+        let Ok(body) = key.cbor(&request, None) else {
+            // A key that stops enumerating leaves what it already gave. Better
+            // a picker with three of four wallets than a failed sign-in.
+            break;
+        };
+        match parse_get_assertion(&body) {
+            Ok(next) => all.push(next),
+            Err(_) => break,
+        }
+    }
+
+    if all.len() == 1 {
+        return Ok(all.remove(0));
+    }
+
+    let product = key.product().to_owned();
+    let choices = all
+        .iter()
+        .map(|assertion| CredentialChoice {
+            name: assertion
+                .user_id
+                .as_deref()
+                .map(wallet_name_from_handle)
+                .unwrap_or_default(),
+            credential_id: assertion
+                .credential_id
+                .as_deref()
+                .map(|bytes| primitives::to_hex(bytes, false))
+                .unwrap_or_default(),
+            product: product.clone(),
+        })
+        .collect();
+
+    let Some(index) = (ceremony.pick)(choices) else {
+        return Err(PasskeyFailure {
+            kind: FailureKind::Cancelled,
+            message: None,
+        });
+    };
+    all.into_iter()
+        .nth(index)
+        .ok_or_else(|| PasskeyFailure::other("that wallet is no longer in the list"))
+}
+
+/// The name inside a `name‖NUL‖uuid` user handle.
+///
+/// Everything before the NUL and nothing else: the uuid exists to make two
+/// wallets with the same name different, not to be read. A handle that is not
+/// UTF-8, or has no NUL, yields nothing rather than garbage — a row with no
+/// name still has its credential id.
+fn wallet_name_from_handle(handle: &[u8]) -> String {
+    let name = handle.split(|byte| *byte == 0).next().unwrap_or_default();
+    String::from_utf8(name.to_vec()).unwrap_or_default()
+}
+
+/// The most credentials this client will walk. A person with more than a
+/// handful of Vela wallets on one authenticator is not the case to optimise
+/// for — this is here to stop a bad `numberOfCredentials` from looping.
+const MAX_ENUMERATED_CREDENTIALS: u32 = 16;
+
 /// Can this authenticator verify a user at all?
 ///
 /// A Vela key must be user-verified: the core's `validate_client_data` refuses
@@ -314,13 +428,40 @@ fn pin_session(
     info: &AuthenticatorInfo,
     ceremony: &Ceremony,
 ) -> Result<Option<PinUvAuthToken>, PasskeyFailure> {
-    if !info.client_pin_set {
-        return Ok(None);
-    }
     // An authenticator with a PIN but no advertised protocol list is a CTAP 2.0
     // device, and 2.0 had exactly one protocol.
     let protocol = Protocol::best_of(&info.pin_protocols).unwrap_or(Protocol::One);
 
+    // BUILT-IN UV FIRST. `uv: true` in getInfo means the key can verify the
+    // person itself and is enrolled to do it — a fingerprint on the key. That
+    // is what they bought the sensor for, and a PIN is the FALLBACK, so
+    // reaching for the PIN while the sensor is sitting there is the client
+    // choosing the worse of two paths on the person's behalf.
+    if info.user_verification {
+        if !info.pin_uv_auth_token {
+            // CTAP 2.0 with built-in UV: there is no token to fetch. The
+            // request's own `uv` option makes the authenticator verify inline,
+            // which `register`/`assert` set whenever no token came back.
+            return Ok(None);
+        }
+        match uv_token(key, protocol, ceremony) {
+            Ok(token) => return Ok(Some(token)),
+            // The finger did not match, or the sensor is locked out. Both mean
+            // "offer the PIN", and only if there is one to offer.
+            Err(UsbError::Ctap(Status::UvFailed)) if info.client_pin_set => {}
+            Err(UsbError::Ctap(Status::UvFailed)) => {
+                return Err(PasskeyFailure::other(format!(
+                    "{} could not verify your fingerprint, and it has no PIN set as a fallback.",
+                    key.product()
+                )));
+            }
+            Err(error) => return Err(usb_failure(error)),
+        }
+    }
+
+    if !info.client_pin_set {
+        return Ok(None);
+    }
     let mut retry = false;
     loop {
         let retries = pin_retries(key, protocol);
@@ -387,6 +528,37 @@ fn pin_session(
     }
 }
 
+/// Ask the authenticator to verify the person with its own sensor.
+///
+/// The touch notifier travels with this one: the key blinks and waits for a
+/// finger exactly as it does for a user-presence touch, and it is the only
+/// clientPIN request that makes the person do anything.
+fn uv_token(
+    key: &mut SecurityKey,
+    protocol: Protocol,
+    ceremony: &Ceremony,
+) -> Result<PinUvAuthToken, UsbError> {
+    let (secret, platform_key) =
+        key_agreement(key, protocol).map_err(|_| UsbError::Ctap(Status::UvFailed))?;
+    let request = ClientPin::uv_token(
+        protocol,
+        platform_key,
+        Permissions::MAKE_CREDENTIAL | Permissions::GET_ASSERTION,
+        Some(RELYING_PARTY.to_owned()),
+    )
+    .encode()
+    .map_err(|error| UsbError::Encode(error.to_string()))?;
+
+    let body = key.cbor(&request, Some((&ceremony.touch, TouchKind::Fingerprint)))?;
+    let encrypted = parse_client_pin(&body)
+        .map_err(|error| UsbError::Encode(error.to_string()))?
+        .pin_uv_auth_token
+        .ok_or(UsbError::Ctap(Status::UvFailed))?;
+    secret
+        .decrypt_token(&encrypted)
+        .map_err(|error| UsbError::Encode(error.to_string()))
+}
+
 /// Ask how many PIN attempts are left. Best effort: a key that will not answer
 /// this still deserves a PIN dialog, just without the count.
 fn pin_retries(key: &mut SecurityKey, protocol: Protocol) -> Option<u32> {
@@ -437,31 +609,52 @@ fn key_agreement(
 // Plumbing
 // ---------------------------------------------------------------------------
 
-fn open() -> Result<SecurityKey, PasskeyFailure> {
-    SecurityKey::open_first(match random(8).try_into() {
-        Ok(nonce) => nonce,
-        Err(_) => unreachable!("random(8) returns 8 bytes"),
-    })
+fn open(ceremony: &Ceremony) -> Result<SecurityKey, PasskeyFailure> {
+    SecurityKey::open_touched(
+        &|| match random(8).try_into() {
+            Ok(nonce) => nonce,
+            Err(_) => unreachable!("random(8) returns 8 bytes"),
+        },
+        Some(&ceremony.touch),
+    )
     .map_err(usb_failure)
 }
 
 fn get_info(key: &mut SecurityKey) -> Result<AuthenticatorInfo, PasskeyFailure> {
     let request = get_info_request().map_err(encode_failed)?;
     let body = key.cbor(&request, None).map_err(usb_failure)?;
-    parse_get_info(&body)
-        .map_err(|error| PasskeyFailure::other(format!("malformed getInfo reply: {error}")))
+    let info = parse_get_info(&body)
+        .map_err(|error| PasskeyFailure::other(format!("malformed getInfo reply: {error}")))?;
+    // Logged because it is the difference between three situations a person
+    // cannot tell apart from the outside: a key with no sensor, a key with a
+    // sensor and no enrolled finger, and a key that has both and was asked for
+    // a PIN anyway. `uv` is present-and-true only when built-in verification is
+    // CONFIGURED — an unenrolled sensor reports false.
+    eprintln!(
+        "[vela-wallet] {}: versions={:?} rk={} clientPin={} uv={} pinUvAuthToken={} protocols={:?}",
+        key.product(),
+        info.versions,
+        info.resident_key,
+        info.client_pin_set,
+        info.user_verification,
+        info.pin_uv_auth_token,
+        info.pin_protocols,
+    );
+    Ok(info)
 }
 
-/// The request that makes the key blink. Only this one passes the touch
-/// notifier: `getInfo`, `getKeyAgreement` and the token request all answer
-/// immediately, and announcing a touch for them would train people to ignore
-/// the prompt.
+/// The request that makes the key blink for a BUTTON PRESS.
+///
+/// `getInfo`, `getKeyAgreement` and the PIN token request all answer instantly
+/// and pass no notifier; announcing a touch for them would train people to
+/// ignore the prompt. The built-in-UV token request does blink, and asks for a
+/// finger rather than a press — it passes `Fingerprint` (see `uv_token`).
 fn send(
     key: &mut SecurityKey,
     request: &[u8],
     ceremony: &Ceremony,
 ) -> Result<Vec<u8>, PasskeyFailure> {
-    match key.cbor(request, Some(&ceremony.touch)) {
+    match key.cbor(request, Some((&ceremony.touch, TouchKind::Presence))) {
         Ok(body) => Ok(body),
         Err(error) => {
             key.cancel();
@@ -735,6 +928,25 @@ mod tests {
                 .to_lowercase()
                 .contains("different")
         );
+    }
+
+    /// The picker's row label comes out of the user handle the credential was
+    /// minted with, and only the part before the NUL.
+    ///
+    /// The uuid tail exists to make two same-named wallets different, not to be
+    /// read; putting it on screen would turn "Everyday wallet" into
+    /// "Everyday wallet\0f81d4fa-…". A handle that is not UTF-8 or has no NUL
+    /// yields nothing rather than mojibake — the row still has its credential
+    /// id to tell it apart.
+    #[test]
+    fn a_wallet_name_is_the_handle_up_to_the_nul() {
+        assert_eq!(
+            wallet_name_from_handle(&user_handle("Everyday wallet")),
+            "Everyday wallet"
+        );
+        assert_eq!(wallet_name_from_handle(b"no-nul-here"), "no-nul-here");
+        assert_eq!(wallet_name_from_handle(&[]), "");
+        assert_eq!(wallet_name_from_handle(&[0xff, 0xfe, 0x00, b'x']), "");
     }
 
     /// A key with no PIN and no biometric cannot make a wallet key, and the

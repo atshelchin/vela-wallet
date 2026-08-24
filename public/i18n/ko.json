@@ -663,7 +663,16 @@
    "identiconHint": "주소에서 생성된 식별 패턴",
    "securityKeyRequiredTitle": "보안 키를 꽂아 주세요",
    "securityKeyRequiredBody": "이 컴퓨터에는 시스템 패스키 서비스가 없습니다. FIDO2 USB 보안 키를 꽂고 다시 시도하세요.",
-   "nameTitle": "지갑 이름 정하기"
+   "nameTitle": "지갑 이름 정하기",
+   "pinTitle": "보안 키의 PIN 입력",
+   "pinBody": "{{product}}에는 지문 센서가 없어 PIN으로 본인을 확인합니다. PIN은 손에 든 키에만 전달되며, 이 컴퓨터에 저장되거나 서버로 전송되지 않습니다.",
+   "pinLabel": "PIN",
+   "pinAttemptsLeft": "남은 시도 횟수: {{attempts}}",
+   "pinRejected": "PIN이 올바르지 않습니다. 시도 횟수를 모두 사용하면 키가 잠기며 초기화로만 해제할 수 있고, 초기화하면 키의 모든 패스키가 지워집니다.",
+   "touchTitle": "보안 키를 터치하세요",
+   "touchBody": "{{product}}이(가) 깜박이며 기다리고 있습니다. 지금 터치해 확인하세요.",
+   "touchFingerprintBody": "{{product}}이(가) 깜박이고 있습니다. 센서에 손가락을 올려 본인임을 확인하세요.",
+   "touchSelectBody": "보안 키가 여러 개 연결되어 모두 깜박이고 있습니다. 사용할 키를 터치하세요."
   },
   "login": {
    "alertNotSupportedTitle": "지원되지 않음",
@@ -691,7 +700,10 @@
    "signInFailedBody": "이 기기에 Face ID, Touch ID 또는 지문이 설정되어 있는지 확인하세요.",
    "retryLoginBtn": "로그인 다시 시도",
    "createNewWalletBtn": "새 지갑 만들기",
-   "switchDeviceBtn": "다른 기기에서 로그인"
+   "switchDeviceBtn": "다른 기기에서 로그인",
+   "pickTitle": "어느 지갑인가요?",
+   "pickBody": "{{product}}에 Vela 지갑이 여러 개 있습니다. 로그인할 지갑을 선택하세요.",
+   "pickUnnamed": "이름 없는 지갑"
   }
  },
  "connect": {

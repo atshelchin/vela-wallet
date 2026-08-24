@@ -28,6 +28,8 @@ use gpui::{
 use vela_core::app::create_wallet::{CreateKeyRow, CreateStage, CreateView, SubmitLabel};
 use vela_core::app::{KeyMethod, PromptKind, StatusKey};
 
+use crate::ctap::usb::{TouchKind, TouchRequest};
+use crate::executor::passkey::{CredentialChoice, PinRequest};
 use crate::loc::Loc;
 use crate::onboarding_flow::{FLOW_COLUMN_W, FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, outcome_sheet};
@@ -46,7 +48,18 @@ const FIXTURE_ADDRESS: &str = "0x44EEC06897ff7ab8C7f16819511A64bA168A6D33";
 
 enum Fixture {
     Flow(CreateView),
-    Sheet { kind: PromptKind, confirmable: bool },
+    Sheet {
+        kind: PromptKind,
+        confirmable: bool,
+    },
+    /// The three dialogs that belong to the CABLE rather than to the core, and
+    /// so appear in no `CreateView` and no `PromptKind`. They are the states a
+    /// reviewer is least able to reach on purpose — each needs a particular
+    /// authenticator in a particular condition — which is exactly why they are
+    /// here.
+    Touch(TouchRequest),
+    Pin(PinRequest),
+    Pick(Vec<CredentialChoice>),
 }
 
 struct Entry {
@@ -86,6 +99,14 @@ fn key(name: &str, method: KeyMethod, confirmed: bool, synced: bool) -> CreateKe
         synced,
         aaguid: String::new(),
         method,
+    }
+}
+
+fn choice(name: &str, credential_id: &str) -> CredentialChoice {
+    CredentialChoice {
+        name: name.to_owned(),
+        credential_id: credential_id.to_owned(),
+        product: "YubiKey 5C NFC".to_owned(),
     }
 }
 
@@ -207,6 +228,80 @@ fn entries() -> Vec<Entry> {
         view
     });
 
+    let mut hardware = |code: &'static str, fixture: Fixture| {
+        out.push(Entry {
+            group: "Security key",
+            code,
+            fixture,
+        });
+    };
+    hardware(
+        "touch · button",
+        Fixture::Touch(TouchRequest {
+            kind: TouchKind::Presence,
+            product: "YubiKey 5C NFC".to_owned(),
+        }),
+    );
+    hardware(
+        "touch · fingerprint",
+        Fixture::Touch(TouchRequest {
+            kind: TouchKind::Fingerprint,
+            product: "YubiKey Bio".to_owned(),
+        }),
+    );
+    hardware(
+        "touch · several keys",
+        Fixture::Touch(TouchRequest {
+            kind: TouchKind::Select,
+            product: String::new(),
+        }),
+    );
+    hardware(
+        "pin · first ask",
+        Fixture::Pin(PinRequest {
+            product: "YubiKey 5C NFC".to_owned(),
+            retries: Some(8),
+            retry: false,
+        }),
+    );
+    hardware(
+        "pin · refused",
+        Fixture::Pin(PinRequest {
+            product: "YubiKey 5C NFC".to_owned(),
+            retries: Some(2),
+            retry: true,
+        }),
+    );
+    hardware(
+        "pin · no count",
+        Fixture::Pin(PinRequest {
+            product: "Security key".to_owned(),
+            retries: None,
+            retry: false,
+        }),
+    );
+    hardware(
+        "pick · two wallets",
+        Fixture::Pick(vec![
+            choice("Everyday wallet", "aa11bb22cc33dd44"),
+            choice("Savings", "ee55ff66aa77bb88"),
+        ]),
+    );
+    hardware(
+        "pick · same name twice",
+        Fixture::Pick(vec![
+            choice("Everyday wallet", "aa11bb22cc33dd44"),
+            choice("Everyday wallet", "ee55ff66aa77bb88"),
+        ]),
+    );
+    hardware(
+        "pick · one unnamed",
+        Fixture::Pick(vec![
+            choice("Everyday wallet", "aa11bb22cc33dd44"),
+            choice("", "ee55ff66aa77bb88"),
+        ]),
+    );
+
     // The failure sheet, one row per outcome the catalog names. The two that
     // carry a detail string are driven through the refinement rather than
     // around it, so this list is also a check on it.
@@ -279,6 +374,8 @@ pub struct GalleryView {
     picker_open: bool,
     copied: bool,
     details_expanded: bool,
+    /// The PIN fixture is typeable, so the masking can be looked at.
+    pin_value: String,
     name_focus: FocusHandle,
     focus_handle: FocusHandle,
 }
@@ -316,6 +413,7 @@ impl GalleryView {
             picker_open: false,
             copied: false,
             details_expanded: false,
+            pin_value: String::new(),
             name_focus: cx.focus_handle(),
             focus_handle,
         }
@@ -331,6 +429,7 @@ impl GalleryView {
         self.picker_open = false;
         self.copied = false;
         self.details_expanded = false;
+        self.pin_value.clear();
         cx.notify();
     }
 
@@ -470,10 +569,34 @@ impl GalleryView {
                     name_focus: &self.name_focus,
                     picker_open: self.picker_open,
                     copied: self.copied,
-                    touch_waiting: false,
                     sink,
                 };
                 render_create_flow(&host, window)
+            }
+            // The cable's three dialogs, rendered bare: the gallery IS the
+            // backdrop, and each card's own scrim would cover the sidebar.
+            Fixture::Touch(request) => crate::hardware::touch_card(theme, &self.loc, request),
+            Fixture::Pin(request) => crate::hardware::pin_card(
+                theme,
+                &self.loc,
+                request,
+                &self.pin_value,
+                &self.name_focus,
+                window,
+                {
+                    let this = entity.clone();
+                    move |next: String, _window: &mut Window, cx: &mut gpui::App| {
+                        this.update(cx, |this, cx| {
+                            this.pin_value = next;
+                            cx.notify();
+                        });
+                    }
+                },
+                |_, _, _| {},
+                |_, _, _| {},
+            ),
+            Fixture::Pick(choices) => {
+                crate::hardware::pick_card(theme, &self.loc, choices, |_, _, _| {}, |_, _, _| {})
             }
             Fixture::Sheet { kind, confirmable } => {
                 let mut prompt = Prompt::new(kind.clone(), *confirmable, 0);

@@ -177,8 +177,26 @@ for (let i = 1; i < PATHS.length; i++) {
 // leaves and its one `settings.eraseDevice` branch, plus 018's 21 contacts
 // leaves, plus 019's 30. The three checks below are the arithmetic's witness —
 // they fail loudly rather than let a merge invent a corpus.
-if (PATHS.length !== 1390) fail(`expected 1390 paths (1311 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1311) fail(`expected 1311 leaf paths, got ${leafSet.size}`);
+// + 5 more onboarding leaves, `create.pin*`: the desktop is the only client
+//   that speaks CTAP2 itself, so it is the only one that ever has to ask for a
+//   security key's PIN. That dialog shipped reading `securityKeyRequiredTitle`
+//   ("Plug in a security key") as its heading, which is a different sentence
+//   about a different moment; these five are its own.
+// + 3 more, `create.touch*`: the desktop is also the only client that has to
+//   tell someone their key is BLINKING. Every other client hands the ceremony
+//   to a system sheet that says so itself; here the app is the only thing on
+//   screen, and shipping without these meant a person watched a spinner while a
+//   key waited for a finger three feet away.
+// + 3 more, `login.pick*`: a security key can hold several of one person's
+//   wallets, and "who are you?" then has more than one answer. Every other
+//   client gets that picker from the system sheet; here the app draws it, and
+//   without it the first credential the key happens to return wins and the
+//   others are unreachable from that computer.
+// + 1 more, `create.touchSelectBody`: with two keys plugged in BOTH blink, and
+//   the one the person touches is the one that gets used. "Touch it" is the
+//   wrong sentence there — it has to say touch the ONE you want.
+if (PATHS.length !== 1402) fail(`expected 1402 paths (1323 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1323) fail(`expected 1323 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

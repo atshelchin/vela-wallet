@@ -32,7 +32,12 @@ use vela_core::app::shell::{ShellOperation, ShellResult};
 
 use crate::ceremony::CeremonyChannel;
 use crate::core_host::{CoreHost, Pending};
-use crate::executor::{self, Performed, passkey::PinRequest, registry, storage};
+use crate::executor::{
+    self, Performed,
+    passkey::{CredentialChoice, PinRequest},
+    registry, storage,
+};
+use crate::hardware;
 use crate::loc::Loc;
 use crate::onboarding_flow::{FLOW_COLUMN_W, FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, SHEET_PAD, SHEET_RADIUS, SHEET_W, outcome_sheet};
@@ -107,6 +112,8 @@ pub struct OnboardingPage {
     /// The one modal. `Some` ⇒ a machine is waiting for an answer.
     prompt: Option<(Machine, Prompt)>,
     pin: Option<PinDialog>,
+    /// The key offered several wallets and one has to be chosen.
+    pick: Option<Vec<CredentialChoice>>,
     endpoint: Option<EndpointSurface>,
     /// Whether the ceremony-channel poll is running.
     ///
@@ -180,6 +187,7 @@ impl OnboardingPage {
             channel: CeremonyChannel::new(),
             prompt: None,
             pin: None,
+            pick: None,
             endpoint: None,
             watching: false,
         };
@@ -227,6 +235,7 @@ impl OnboardingPage {
         self.picker_open = false;
         self.prompt = None;
         self.pin = None;
+        self.pick = None;
         cx.notify();
     }
 
@@ -353,6 +362,11 @@ impl OnboardingPage {
         } else if self.pin.is_some() {
             // The ceremony took the answer; the dialog's job is done.
             self.pin = None;
+        }
+
+        let asking = self.channel.pending_choice();
+        if self.pick.is_some() != asking.is_some() {
+            self.pick = asking;
         }
 
         let busy = !self.create.is_idle() || !self.login.is_idle();
@@ -489,6 +503,12 @@ impl OnboardingPage {
         self.pump_login(pending, cx);
     }
 
+    fn answer_choice(&mut self, index: Option<usize>, cx: &mut Context<Self>) {
+        self.channel.answer_choice(index);
+        self.pick = None;
+        cx.notify();
+    }
+
     fn answer_pin(&mut self, value: Option<String>, cx: &mut Context<Self>) {
         self.channel.answer_pin(value);
         self.pin = None;
@@ -592,6 +612,36 @@ impl OnboardingPage {
 
     // -- overlays -----------------------------------------------------------
 
+    /// The three dialogs the CABLE raises, wrapped in this page's scrim.
+    ///
+    /// The cards themselves live in [`crate::hardware`] and know nothing about
+    /// this screen — which is what lets the gallery render the real ones rather
+    /// than a copy that can drift from them.
+    fn touch_prompt(&self, theme: &Theme) -> Option<Stateful<Div>> {
+        let waiting = self.channel.touch_waiting()?;
+        Some(scrim(theme, "touch-scrim").child(hardware::touch_card(theme, &self.loc, &waiting)))
+    }
+
+    fn wallet_picker(&self, theme: &Theme, cx: &mut Context<Self>) -> Option<Stateful<Div>> {
+        let choices = self.pick.as_ref()?;
+        let card = hardware::pick_card(
+            theme,
+            &self.loc,
+            choices,
+            {
+                // `cx.listener` is not `Clone`, and the picker needs one
+                // handler per row — so this is the weak-entity form by hand.
+                let page = cx.entity();
+                move |index: &usize, _window: &mut Window, cx: &mut App| {
+                    let index = *index;
+                    page.update(cx, |page, cx| page.answer_choice(Some(index), cx));
+                }
+            },
+            cx.listener(|this, _, _, cx| this.answer_choice(None, cx)),
+        );
+        Some(scrim(theme, "wallet-pick-scrim").child(card))
+    }
+
     fn pin_dialog(
         &self,
         theme: &Theme,
@@ -599,85 +649,28 @@ impl OnboardingPage {
         cx: &mut Context<Self>,
     ) -> Option<Stateful<Div>> {
         let dialog = self.pin.as_ref()?;
-        let retries = dialog
-            .request
-            .retries
-            .map_or_else(String::new, |left| format!(" · {left}"));
-        let strings = NameFieldStrings {
-            label: SharedString::from(format!("{}{retries}", dialog.request.product)),
-            placeholder: SharedString::from("••••"),
-            helper: self.loc.t("onboarding.create.methodSecurityKeyBody"),
-            too_long_hint: self.loc.t("onboarding.login.alertSignInFailedTitle"),
-        };
-        let value = dialog.value.clone();
-
-        let card = div()
-            .w(px(SHEET_W))
-            .flex()
-            .flex_col()
-            .gap(px(FLOW_GAP_LG))
-            .p(px(SHEET_PAD))
-            .rounded(px(SHEET_RADIUS))
-            .bg(theme.bg_raised)
-            .border_1()
-            .border_color(theme.border_card)
-            .child(
-                div()
-                    .text_size(theme::text_flow_headline())
-                    .font_weight(FontWeight::BOLD)
-                    .text_color(theme.fg_base)
-                    .child(self.loc.t("onboarding.create.securityKeyRequiredTitle")),
-            )
-            .child(text_field(
-                "pin-field",
-                theme,
-                &strings,
-                &dialog.value,
-                dialog.request.retry,
-                true,
-                &dialog.focus,
-                window,
-                {
-                    // Not `cx.listener`: that adapts gpui's own
-                    // `Fn(&E, &mut Window, &mut App)` event shape, and a text
-                    // field hands over its value by move rather than by
-                    // reference.
-                    let page = cx.entity();
-                    move |next: String, _window: &mut Window, cx: &mut App| {
-                        page.update(cx, |page, cx| {
-                            if let Some(dialog) = page.pin.as_mut() {
-                                dialog.value = next;
-                                cx.notify();
-                            }
-                        });
+        let page = cx.entity();
+        let card = hardware::pin_card(
+            theme,
+            &self.loc,
+            &dialog.request,
+            &dialog.value,
+            &dialog.focus,
+            window,
+            move |next: String, _window: &mut Window, cx: &mut App| {
+                page.update(cx, |page, cx| {
+                    if let Some(dialog) = page.pin.as_mut() {
+                        dialog.value = next;
+                        cx.notify();
                     }
-                },
-            ))
-            .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(FLOW_GAP_MD))
-                    .child(vela_button_opts(
-                        "pin-confirm",
-                        ButtonVariant::Primary,
-                        self.loc.t("onboarding.create.nextBtn"),
-                        !value.is_empty(),
-                        theme,
-                        cx.listener(move |this, _, _, cx| {
-                            let typed = this.pin.as_ref().map(|d| d.value.clone());
-                            this.answer_pin(typed.filter(|v| !v.is_empty()), cx);
-                        }),
-                    ))
-                    .child(vela_button(
-                        "pin-cancel",
-                        ButtonVariant::Row,
-                        self.loc.t("common.cancel"),
-                        theme,
-                        cx.listener(|this, _, _, cx| this.answer_pin(None, cx)),
-                    )),
-            );
-
+                });
+            },
+            cx.listener(|this, _, _, cx| {
+                let typed = this.pin.as_ref().map(|dialog| dialog.value.clone());
+                this.answer_pin(typed.filter(|value| !value.is_empty()), cx);
+            }),
+            cx.listener(|this, _, _, cx| this.answer_pin(None, cx)),
+        );
         Some(scrim(theme, "pin-scrim").child(card))
     }
 
@@ -940,7 +933,6 @@ impl Render for OnboardingPage {
                 name_focus: &self.name_focus,
                 picker_open: self.picker_open,
                 copied: self.copied,
-                touch_waiting: self.channel.touch_waiting(),
                 sink,
             };
             div()
@@ -996,6 +988,12 @@ impl Render for OnboardingPage {
                     entity.update(cx, |page, cx| page.on_sheet_action(id, cx));
                 },
             ));
+        }
+        if let Some(prompt) = self.touch_prompt(&theme) {
+            root = root.child(prompt);
+        }
+        if let Some(picker) = self.wallet_picker(&theme, cx) {
+            root = root.child(picker);
         }
         if let Some(dialog) = self.pin_dialog(&theme, window, cx) {
             root = root.child(dialog);

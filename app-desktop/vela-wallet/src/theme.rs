@@ -406,6 +406,10 @@ pub const BADGE_CIRCLE: f32 = 56.;
 pub const RING_STROKE: f32 = 4.;
 /// The v2 flow's progress bar height.
 pub const STEP_BAR_H: f32 = 5.;
+/// The touch prompt's target disc. Sized like the outcome badge, because it
+/// sits in the same place on the same card and is asking for the same amount
+/// of attention.
+pub const TOUCH_DISC: f32 = 56.;
 /// Name field / address strip well height, and the wells' corner radius.
 pub const INPUT_H: f32 = 52.;
 pub const RADIUS_FIELD: f32 = 12.;

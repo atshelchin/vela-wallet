@@ -663,7 +663,16 @@
    "identiconHint": "Adresten üretilen kimlik deseni",
    "securityKeyRequiredTitle": "Bir güvenlik anahtarı takın",
    "securityKeyRequiredBody": "Bu bilgisayarda sistem passkey hizmeti yok. FIDO2 USB güvenlik anahtarı takıp yeniden deneyin.",
-   "nameTitle": "Cüzdanınıza bir ad verin"
+   "nameTitle": "Cüzdanınıza bir ad verin",
+   "pinTitle": "Güvenlik anahtarınızın PIN'ini girin",
+   "pinBody": "{{product}} parmak izi sensörüne sahip değil; sizi PIN ile doğrular. PIN yalnızca elinizdeki anahtara gider — bu bilgisayarın diskine de bir sunucuya da asla gitmez.",
+   "pinLabel": "PIN",
+   "pinAttemptsLeft": "Kalan deneme: {{attempts}}",
+   "pinRejected": "Bu PIN kabul edilmedi. Denemeler bittiğinde anahtar kendini kilitler ve yalnızca sıfırlama açar — sıfırlama ise üzerindeki tüm geçiş anahtarlarını siler.",
+   "touchTitle": "Güvenlik anahtarınıza dokunun",
+   "touchBody": "{{product}} yanıp sönüyor ve sizi bekliyor. Onaylamak için şimdi dokunun.",
+   "touchFingerprintBody": "{{product}} yanıp sönüyor. Siz olduğunuzu doğrulamak için parmağınızı sensörüne koyun.",
+   "touchSelectBody": "Birden fazla güvenlik anahtarı takılı ve hepsi yanıp sönüyor. Kullanmak istediğinize dokunun."
   },
   "login": {
    "alertNotSupportedTitle": "Desteklenmiyor",
@@ -691,7 +700,10 @@
    "signInFailedBody": "Bu cihazda Face ID, Touch ID veya parmak izinin ayarlı olduğundan emin olun.",
    "retryLoginBtn": "Girişi tekrar dene",
    "createNewWalletBtn": "Yeni cüzdan oluştur",
-   "switchDeviceBtn": "Başka bir cihazda giriş yap"
+   "switchDeviceBtn": "Başka bir cihazda giriş yap",
+   "pickTitle": "Hangi cüzdan?",
+   "pickBody": "{{product}} birden fazla Vela cüzdanı içeriyor. Giriş yapmak istediğinizi seçin.",
+   "pickUnnamed": "Adsız cüzdan"
   }
  },
  "connect": {

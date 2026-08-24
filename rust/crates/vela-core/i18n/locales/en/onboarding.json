@@ -192,7 +192,16 @@
       "identiconHint": "An identity pattern generated from the address",
       "securityKeyRequiredTitle": "Plug in a security key",
       "securityKeyRequiredBody": "This computer has no system passkey service. Plug in a FIDO2 USB security key and try again.",
-      "nameTitle": "Name your wallet"
+      "nameTitle": "Name your wallet",
+      "pinTitle": "Enter your security key's PIN",
+      "pinBody": "{{product}} has no fingerprint sensor, so its PIN is how it confirms it is you. The PIN goes only to the key in your hand — never to this computer's disk, and never to a server.",
+      "pinLabel": "PIN",
+      "pinAttemptsLeft": "Attempts left: {{attempts}}",
+      "pinRejected": "That PIN was not accepted. The key locks itself when the attempts run out, and only a reset clears it — which erases every passkey on it.",
+      "touchTitle": "Touch your security key",
+      "touchBody": "{{product}} is blinking and waiting for you. Touch it now to confirm.",
+      "touchFingerprintBody": "{{product}} is blinking. Rest your finger on its sensor to confirm it is you.",
+      "touchSelectBody": "Several security keys are plugged in and all of them are blinking. Touch the one you want to use."
     },
     "login": {
       "alertNotSupportedTitle": "Not Supported",
@@ -220,7 +229,10 @@
       "signInFailedBody": "Make sure Face ID, Touch ID or a fingerprint is set up on this device.",
       "retryLoginBtn": "Retry sign-in",
       "createNewWalletBtn": "Create a new wallet",
-      "switchDeviceBtn": "Sign in on another device"
+      "switchDeviceBtn": "Sign in on another device",
+      "pickTitle": "Which wallet?",
+      "pickBody": "{{product}} holds more than one Vela wallet. Choose the one to sign in to.",
+      "pickUnnamed": "Unnamed wallet"
     }
   }
 }

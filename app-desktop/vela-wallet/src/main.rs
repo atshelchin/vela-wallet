@@ -11,6 +11,7 @@ mod core_host;
 mod ctap;
 mod executor;
 mod gallery;
+mod hardware;
 mod icons;
 mod identicon;
 mod loc;

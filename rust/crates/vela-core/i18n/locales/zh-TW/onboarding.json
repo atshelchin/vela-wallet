@@ -192,7 +192,16 @@
       "identiconHint": "由地址產生的身分圖案",
       "securityKeyRequiredTitle": "請插入安全金鑰",
       "securityKeyRequiredBody": "這台電腦沒有系統通行密鑰服務。插入 FIDO2 USB 安全金鑰後再試。",
-      "nameTitle": "給錢包取個名字"
+      "nameTitle": "給錢包取個名字",
+      "pinTitle": "輸入安全金鑰的 PIN 碼",
+      "pinBody": "{{product}} 沒有指紋感測器，因此用 PIN 碼確認是你本人。PIN 碼只會傳送到你手上的金鑰——不會寫入這台電腦，也不會上傳伺服器。",
+      "pinLabel": "PIN 碼",
+      "pinAttemptsLeft": "剩餘嘗試次數：{{attempts}}",
+      "pinRejected": "PIN 碼不正確。次數用盡後金鑰會自我鎖定，只能透過重置解鎖——而重置會清除金鑰上的所有通行金鑰。",
+      "touchTitle": "觸摸你的安全金鑰",
+      "touchBody": "{{product}} 正在閃爍等待。現在觸摸它即可確認。",
+      "touchFingerprintBody": "{{product}} 正在閃爍。把手指放在它的感測器上，確認是你本人。",
+      "touchSelectBody": "插著多個安全金鑰，它們都在閃爍。觸摸你想使用的那一個。"
     },
     "login": {
       "alertNotSupportedTitle": "不支援",
@@ -220,7 +229,10 @@
       "signInFailedBody": "請確認裝置已設定 Face ID、Touch ID 或指紋。",
       "retryLoginBtn": "重試登入",
       "createNewWalletBtn": "建立新錢包",
-      "switchDeviceBtn": "換一台裝置登入"
+      "switchDeviceBtn": "換一台裝置登入",
+      "pickTitle": "登入哪個錢包？",
+      "pickBody": "{{product}} 上儲存了多個 Vela 錢包，請選擇要登入的那個。",
+      "pickUnnamed": "未命名錢包"
     }
   }
 }

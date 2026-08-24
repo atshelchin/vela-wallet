@@ -79,6 +79,25 @@ impl Loc {
             .into()
     }
 
+    /// `t` with ONE text variable.
+    ///
+    /// Separate from [`Self::t_vars`] rather than folded into it because the
+    /// only strings that take text are the ones naming a piece of hardware —
+    /// the product string a USB device reports about itself. Everything else
+    /// interpolates numbers, and keeping the two apart means a caller cannot
+    /// accidentally put a device's own words where a count belongs.
+    pub fn t_text(&self, key: &str, name: &str, value: &str) -> SharedString {
+        let vars = [(name, Var::Str(value))];
+        let opts = Options {
+            vars: &vars,
+            ..Options::default()
+        };
+        self.engine
+            .t(key, &opts)
+            .unwrap_or_else(|_| key.to_owned())
+            .into()
+    }
+
     /// The BCP-47 tag actually resolved (used only for logging).
     pub fn language(&self) -> &str {
         self.engine.language()
@@ -130,8 +149,20 @@ mod tests {
     /// Var-bearing keys (`{{seconds}}` …) resolve with the placeholder left in
     /// place under default options — still a non-echo, non-empty value, which
     /// is all this sweep asserts about them.
-    const FLOW_KEYS: [&str; 108] = [
+    const FLOW_KEYS: [&str; 120] = [
         "common.cancel",
+        "onboarding.create.touchSelectBody",
+        "onboarding.create.touchTitle",
+        "onboarding.create.touchBody",
+        "onboarding.create.touchFingerprintBody",
+        "onboarding.login.pickTitle",
+        "onboarding.login.pickBody",
+        "onboarding.login.pickUnnamed",
+        "onboarding.create.pinTitle",
+        "onboarding.create.pinBody",
+        "onboarding.create.pinLabel",
+        "onboarding.create.pinAttemptsLeft",
+        "onboarding.create.pinRejected",
         "settings.signOut.button",
         "settings.signOut.title",
         "settings.signOut.keeps",
@@ -250,6 +281,16 @@ mod tests {
     /// argued for in a diff.
     const SAME_AS_ENGLISH: [(&str, &str); 1] = [("de", "onboarding.create.providerGeneric")];
 
+    /// Keys whose value is a term of art that most locales keep verbatim.
+    ///
+    /// "PIN" is an international acronym — German, Italian, Indonesian,
+    /// Turkish, Japanese, Korean, Spanish and Portuguese all print those three
+    /// letters, while Chinese, French, Russian and Vietnamese put a word for
+    /// "code" around them. Listing nine locale/key pairs would be a list of
+    /// coincidences; the fact is about the KEY, so it is stated once about the
+    /// key. Every other string in that dialog is still checked per locale.
+    const SAME_AS_ENGLISH_KEYS: [&str; 1] = ["onboarding.create.pinLabel"];
+
     /// Does this value contain anything a translator could translate?
     ///
     /// `{{var}}` names are wire identifiers, not words: `{{current}} / {{max}}`
@@ -321,7 +362,11 @@ mod tests {
                 // or `.` has no words in it at all. Asserting a difference
                 // there would demand a translator change a string that says
                 // nothing.
-                if lng != "en" && has_words(&value) && !SAME_AS_ENGLISH.contains(&(lng, key)) {
+                if lng != "en"
+                    && has_words(&value)
+                    && !SAME_AS_ENGLISH.contains(&(lng, key))
+                    && !SAME_AS_ENGLISH_KEYS.contains(&key)
+                {
                     let en_value = en.t(key, &Options::default()).expect("t() is total");
                     assert_ne!(value, en_value, "{lng}: `{key}` fell back to English");
                 }

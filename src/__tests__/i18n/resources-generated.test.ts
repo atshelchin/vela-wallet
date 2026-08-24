@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 19,383 leaves across 15 locales', () => {
+  it('carries the whole corpus — 19,563 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -121,8 +121,21 @@ describe('generated i18n resources', () => {
     // moves are renames and net zero.
     // 19,383 = 19,368 plus `create.nameTitle` × 15: the design's name screen
     // is titled 「给钱包起个名字」, which is not the flow's own label.
+    // 19,563 = 19,383 plus 12 desktop-only keys × 15. The desktop is the only
+    // client that speaks CTAP2 itself, so it is the only one that has to say
+    // any of this on its own behalf — every other client hands the ceremony to
+    // a system passkey sheet that says it for them:
+    //   create.pin*   (5) the PIN prompt, which shipped reading
+    //                     `securityKeyRequiredTitle` ("Plug in a security key")
+    //                     as its heading — a different sentence about a
+    //                     different moment.
+    //   create.touch* (4) "your key is blinking, touch it" — with a separate
+    //                     body for a sensor, because pressing a button and
+    //                     resting a finger are different physical acts, and a
+    //                     third for when SEVERAL keys are blinking at once.
+    //   login.pick*   (3) which of several wallets on one key to sign in to.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_383);
+    expect(total).toBe(19_563);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

@@ -31,6 +31,31 @@ struct TypeRole {
     var font: Font { .custom(fontName, size: size, relativeTo: relativeTo) }
     /// Extra spacing SwiftUI needs to reach the token line height.
     var lineSpacing: CGFloat { size * (leading - 1) }
+
+    /// The same role as a `UIFont`, Dynamic-Type scaled like the SwiftUI one.
+    /// For the single TextKit-drawn view in the app (`AckRow`'s legal line).
+    var uiFont: UIFont {
+        let base = UIFont(name: fontName, size: size) ?? .systemFont(ofSize: size)
+        return UIFontMetrics(forTextStyle: relativeTo.uiStyle).scaledFont(for: base)
+    }
+}
+
+private extension Font.TextStyle {
+    var uiStyle: UIFont.TextStyle {
+        switch self {
+        case .largeTitle: .largeTitle
+        case .title: .title1
+        case .title2: .title2
+        case .title3: .title3
+        case .headline: .headline
+        case .subheadline: .subheadline
+        case .callout: .callout
+        case .footnote: .footnote
+        case .caption: .caption1
+        case .caption2: .caption2
+        default: .body
+        }
+    }
 }
 
 enum Typography {

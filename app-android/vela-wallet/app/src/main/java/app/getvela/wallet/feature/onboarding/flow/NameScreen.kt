@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import app.getvela.wallet.core.designsystem.components.ACK_LINK_TAG
 import app.getvela.wallet.core.designsystem.components.VelaAckRow
@@ -138,10 +137,10 @@ fun ColumnScope.NameScreen(
                         conjunction = strings.t(I18nKeys.Create.ACK2_AND),
                         terms = strings.t(I18nKeys.Create.ACK2_TERMS),
                         period = strings.t(I18nKeys.Create.ACK2_PERIOD),
-                        linkStyle = SpanStyle(
-                            color = colors.accentBase,
-                            textDecoration = TextDecoration.Underline,
-                        ),
+                        // Accent alone marks a link here, as it does on web,
+                        // iOS and the desktop — an underline on one shell only
+                        // is the kind of drift this pass exists to remove.
+                        linkStyle = SpanStyle(color = colors.accentBase),
                     ),
                     onLink = { which ->
                         when (which) {

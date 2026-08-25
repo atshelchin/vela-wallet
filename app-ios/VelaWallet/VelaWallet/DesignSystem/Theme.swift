@@ -50,6 +50,17 @@ struct Theme {
     var infoSoft: Color { palette.infoSoft.color }
 }
 
+/// UIKit colors, for the few places a `UIView` has to be handed one.
+///
+/// The ack row's legal line is drawn by TextKit, because SwiftUI's `Text`
+/// cannot say which character a tap landed on and the row needs to know
+/// (`AckRow`). This is the one bridge that needs; nothing else should.
+extension TokenColor {
+    var uiColor: UIColor {
+        UIColor(red: red, green: green, blue: blue, alpha: alpha)
+    }
+}
+
 /// Brand constants from design-system.md's brand section (mode-dependent by
 /// rule, not part of the Penpot color sets — see spec 007 logo tokens).
 enum Brand {

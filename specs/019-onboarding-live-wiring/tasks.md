@@ -207,12 +207,12 @@ plus the no-key-present case.
 **Independent test**: the Swift and Kotlin smoke harnesses drive a create-wallet dispatch
 through the bridge and get a view back.
 
-- [ ] T095 Enable `crux` on the `vela-core` dependency in `rust/crates/vela-core-uniffi/Cargo.toml`
-- [ ] T096 Create `rust/crates/vela-core-uniffi/src/onboarding_bridge.rs`: uniffi objects exposing `dispatch(event_json) -> String`, `resolve_effect(effect_id, result_json) -> String`, `view() -> String` for the create, login and session machines, each holding its `Core<A>` and request map behind a `Mutex`; semantics identical to `rust/crates/vela-core-wasm/src/bridge.rs`, including the unknown-id rule
-- [ ] T097 Regenerate the bindings and binaries: `rust/scripts/build-ios-xcframework.sh` and `rust/scripts/build-android.sh`; commit `rust/bindings/swift/` and `rust/bindings/kotlin/`
-- [ ] T098 Measure the size delta against the T002 baseline and record it in `results.md`. **If the delta is unacceptable, stop and switch to the second-crate fallback in [research D2](./research.md)** rather than absorbing it silently
-- [ ] T099 Rewrite the obsolete invariant in `rust/crates/vela-core/Cargo.toml` and `rust/README.md`: the `cargo tree -p vela-core-uniffi | grep -c crux # must be 0` rule was written about Hermes and the Expo app, and no longer describes native Swift and Kotlin — state what replaced it and why
-- [ ] T100 Extend `rust/harness/swift/main.swift` and `rust/harness/kotlin/Harness.kt` to drive one create-wallet dispatch through the new bridge, then run `rust/scripts/smoke-swift.sh` and `rust/scripts/smoke-kotlin.sh`
+- [X] T095 Enable `crux` on the `vela-core` dependency in `rust/crates/vela-core-uniffi/Cargo.toml`
+- [X] T096 Create `rust/crates/vela-core-uniffi/src/onboarding_bridge.rs`: uniffi objects exposing `dispatch(event_json) -> String`, `resolve_effect(effect_id, result_json) -> String`, `view() -> String` for the create, login and session machines, each holding its `Core<A>` and request map behind a `Mutex`; semantics identical to `rust/crates/vela-core-wasm/src/bridge.rs`, including the unknown-id rule
+- [~] T097 Regenerate the bindings and binaries: `rust/scripts/build-ios-xcframework.sh` and `rust/scripts/build-android.sh`; commit `rust/bindings/swift/` and `rust/bindings/kotlin/` — **both scripts ran green; the "commit" half is not possible**: `rust/.gitignore:2` ignores `bindings/` and `app-ios/.gitignore:30` ignores the xcframework, both being regenerated build outputs. The generated file that IS committed, `app-ios/VelaCoreKit/Sources/VelaCore/vela_core_uniffi.swift`, carries the three new classes
+- [X] T098 Measure the size delta against the T002 baseline and record it in `results.md`. **If the delta is unacceptable, stop and switch to the second-crate fallback in [research D2](./research.md)** rather than absorbing it silently
+- [X] T099 Rewrite the obsolete invariant in `rust/crates/vela-core/Cargo.toml` and `rust/README.md`: the `cargo tree -p vela-core-uniffi | grep -c crux # must be 0` rule was written about Hermes and the Expo app, and no longer describes native Swift and Kotlin — state what replaced it and why
+- [X] T100 Extend `rust/harness/swift/main.swift` and `rust/harness/kotlin/Harness.kt` to drive one create-wallet dispatch through the new bridge, then run `rust/scripts/smoke-swift.sh` and `rust/scripts/smoke-kotlin.sh`
 
 ---
 

@@ -3612,6 +3612,9 @@ dependencies = [
 name = "vela-core-uniffi"
 version = "0.1.0"
 dependencies = [
+ "crux_core",
+ "serde",
+ "serde_json",
  "thiserror",
  "uniffi",
  "vela-core",

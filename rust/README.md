@@ -168,16 +168,46 @@ Two rules make it worth having, and both are enforceable:
    storage, no clock, no randomness. Wall-clock instants arrive as fields on the
    results the shell returns. That is what makes every rule testable in
    milliseconds with no browser (`npm run test:core`).
-2. **It is feature-gated and off by default.** `--features crux` is enabled only
-   by `vela-core-wasm`, because web is the one runtime that can execute it —
-   Hermes has no WebAssembly. The uniffi bindings, and therefore the iOS static
-   library and the Android `.so`, never link the framework:
+2. **It is feature-gated and off by default,** so a consumer that runs no
+   machine pays for none. `crux_core`, `futures` and their trees stay out of its
+   dependency graph entirely.
+
+   Until spec 019 this rule had a second half — `vela-core-uniffi` must *never*
+   link the framework, "because web is the one runtime that can execute it,
+   Hermes has no WebAssembly":
 
    ```bash
-   cargo tree -p vela-core-uniffi | grep -c crux   # must be 0
+   cargo tree -p vela-core-uniffi | grep -c crux   # was: must be 0
+   ```
+
+   That reason was about the **Expo React Native client**, whose JavaScript
+   engine genuinely could not load wasm. It stopped describing reality when
+   `app-ios` and `app-android` became native Swift and Kotlin: they have no
+   Hermes, no wasm, and reach Rust only through uniffi. Keeping the rule would
+   not have protected anything — it would have obliged the two native clients to
+   re-implement the onboarding rules by hand, the exact duplication this crate
+   exists to prevent.
+
+   Since 019 the four clients run the same machines by four routes: the web and
+   the browser extension through `vela-core-wasm`, the desktop app by linking
+   `vela-core` directly, and iOS and Android through
+   `vela-core-uniffi/src/onboarding_bridge.rs` — which is the wasm bridge's
+   semantics, not a second implementation of them.
+
+   What replaced the prohibition is a **measurement**: enabling `crux` on the
+   uniffi crate costs +785,864 stripped bytes on arm64-v8a (2,369,528 →
+   3,155,392). The figure lives in
+   `specs/019-onboarding-live-wiring/results.md`, and moving it materially is a
+   decision to take again rather than a diff to wave through. What is still an
+   invariant:
+
+   ```bash
+   cargo tree -p vela-core-wasm | grep -c crux     # must be > 0
    ```
 
 The TypeScript mirrors of the wire types are generated, committed and gated:
 `npm run gen:onboarding-types` (add `-- --check` for the drift gate).
 
-Design, contracts and the rule-to-test map: `specs/011-crux-onboarding-state/`.
+Design, contracts and the rule-to-test map: `specs/011-crux-onboarding-state/`,
+superseded for the shell surface by
+`specs/019-onboarding-live-wiring/contracts/shell-operations.md`.

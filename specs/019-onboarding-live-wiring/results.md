@@ -659,3 +659,126 @@ The remaining list in "Still unverified" stands, and the ORDER matters more now
 were never exercised, and item 2 is the one that just got its first real run.
 
 Desktop tests 56 → 61.
+
+---
+
+## Phase 6 — the uniffi bridge (T095–T100)
+
+### What shipped
+
+`rust/crates/vela-core-uniffi/src/onboarding_bridge.rs` — three uniffi objects
+(`CreateWalletCore`, `LoginCore`, `SessionCore`) with the surface the web has had
+since spec 011: `dispatch(eventJson)`, `resolveEffect(effectId, resultJson)`,
+`view()`, all JSON in and JSON out.
+
+The generic half is a straight port of `vela-core-wasm/src/bridge.rs`, and the
+correlation rules are the same three, in the same order, for the same reasons:
+monotonic ids, an unknown id means the answer outlived the question, a `resolve`
+error means the command was aborted before the answer arrived. Two things differ,
+and only because the language forces them:
+
+| | wasm | uniffi |
+| --- | --- | --- |
+| Mutation | `&mut self`, single-threaded | `Mutex` per core — an exported object is `Send + Sync` and its methods take `&self` |
+| Errors | `JsValue` | `CoreError::Internal`, the crate's existing flat error |
+
+A poisoned lock is **reported, not recovered**. It means a previous dispatch
+panicked mid-mutation, and continuing over a half-updated model is how one bug
+becomes a wrong wallet address.
+
+### T098 — the size delta, and the decision it gates
+
+The raw `.so` is not the number that ships; the Android Gradle Plugin strips debug
+symbols on packaging. So the honest instrument is a **stripped** comparison, and
+producing one meant rebuilding the pre-change tree (`git stash`, build, strip) —
+the T002 baseline was recorded unstripped.
+
+| arm64-v8a `libvela_core_uniffi.so` | Bytes |
+| --- | --- |
+| Baseline, stripped (no `crux`) | 2,369,528 |
+| With `crux`, stripped | 3,155,392 |
+| **Delta** | **+785,864 (+33.2 %)** |
+
+Unstripped, for continuity with the T002 table:
+
+| Artifact | T002 baseline | Now | Delta |
+| --- | --- | --- | --- |
+| `jniLibs/arm64-v8a/…so` | 4,342,328 | 6,979,424 | +2,637,096 |
+| `jniLibs/armeabi-v7a/…so` | 2,815,036 | 4,392,996 | +1,577,960 |
+| `jniLibs/x86_64/…so` | 3,811,840 | 6,059,000 | +2,247,160 |
+| `VelaCoreFFI.xcframework` (whole) | 173 MB | 238 MB | +65 MB |
+| └ `ios-arm64/libvela_core_uniffi.a` | 90,715,352 | 124,468,120 | +33,752,768 |
+
+The iOS `.a` is an unstripped debug-symbol-carrying static archive that the linker
+dead-strips into the app binary; its absolute size has never meant anything and its
+delta means less than the Android figure. **+768 KiB per ABI, stripped, is the number.**
+
+**Decision: proceed. Do not take the second-crate fallback** — and the measurement
+is what says so, in a direction worth naming. The fallback in
+[research D2](./research.md) was held in reserve "if the delta is unacceptable", but
+it cannot *reduce* shipped bytes: a second uniffi crate keeps the existing `.so`
+byte-stable by shipping a **second** `.so` beside it, so the app carries 2.37 MB plus
+a crux-bearing library plus a duplicate uniffi runtime. It is strictly larger. The
+fallback buys isolation, not size, and nothing here asked for isolation.
+
+Recorded in `rust/crates/vela-core/Cargo.toml` and `rust/README.md` as the gate that
+replaced the old prohibition (T099): a future change that moves +785,864 materially
+is a decision to take again, not a diff to wave through.
+
+### T099 — the invariant that stopped being true
+
+```
+cargo tree -p vela-core-uniffi | grep -c crux   # must be 0
+```
+
+This rule was **correct about the runtime it was written for and wrong about the
+one it was applied to**. Its stated reason was "web is the only runtime that can
+execute it (Hermes has no WebAssembly)" — a fact about the Expo React Native
+client, whose JavaScript engine genuinely cannot load wasm. `app-ios` and
+`app-android` are native Swift and Kotlin: no Hermes, no wasm, Rust only through
+uniffi. The rule was obsolete for them, not violated by them.
+
+Keeping it would not have protected anything. It would have obliged the two native
+clients to re-implement the onboarding rules by hand — the precise duplication
+`vela-core` exists to prevent, and the one this whole feature is about ending.
+
+Rewritten in both places to say what replaced it: a measurement instead of a
+prohibition, plus the half that is still an invariant
+(`cargo tree -p vela-core-wasm | grep -c crux # > 0`, verified: 3).
+
+### T100 — the smoke harnesses
+
+Both harnesses now drive a real create-wallet dispatch through the bridge, and both
+stop short of `register_passkey`: performing that needs Credential Manager and an
+Activity on Android, AuthenticationServices and a presentation anchor on iOS, and
+neither exists in a JVM or command-line harness. What they do assert:
+
+- filling the form produces **no effect at all** (it is pure model), and leaves
+  `can_submit` true;
+- `submit` produces exactly one effect, `check_passkey_support`, with id `1`;
+- answering it leads to `generate_group_key`;
+- **rule 2**: re-answering a resolved id produces no work and does not move the
+  view, and does not throw — a bridge that threw here would turn every raced
+  ceremony on a phone into a crash;
+- a malformed event throws `invalid event from shell`, because a shell bug must be
+  loud;
+- `LoginCore` start probes the index, and a fresh `SessionCore` is in `loading`.
+
+| Gate | Result |
+| --- | --- |
+| `cargo check -p vela-core-uniffi` | exit 0 |
+| `cargo clippy -p vela-core-uniffi --all-targets -- -D warnings` | exit 0 |
+| `rust/scripts/build-ios-xcframework.sh` | exit 0 |
+| `rust/scripts/build-android.sh` | 3 ABIs |
+| `rust/scripts/smoke-kotlin.sh` | 43,063 conformance cases + bridge green |
+| `rust/scripts/smoke-swift.sh` | 43,063 conformance cases + bridge green |
+
+### Deviation: "commit `rust/bindings/`" cannot be done
+
+T097 asks for `rust/bindings/swift/` and `rust/bindings/kotlin/` to be committed.
+They are **gitignored by an existing repo rule** (`rust/.gitignore:2 bindings/`), as
+is `app-ios/VelaCoreKit/Artifacts/` — both are build outputs regenerated by the two
+build scripts. The one generated file that *is* committed is
+`app-ios/VelaCoreKit/Sources/VelaCore/vela_core_uniffi.swift`, which
+`build-ios-xcframework.sh` copies into place; it carries the three new classes and
+is in this commit. The task text assumed a layout the repo does not have.

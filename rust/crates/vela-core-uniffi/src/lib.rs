@@ -8,6 +8,12 @@
 
 uniffi::setup_scaffolding!();
 
+// The Crux state machines (spec 019-onboarding-live-wiring), exported with the
+// same JSON surface the web gets from `vela-core-wasm`.
+mod onboarding_bridge;
+
+pub use onboarding_bridge::{CreateWalletCore, LoginCore, SessionCore};
+
 // ---------------------------------------------------------------------------
 // Error (flat: foreign side sees variant + Display message)
 // ---------------------------------------------------------------------------

@@ -193,9 +193,9 @@ plus the no-key-present case.
 - [X] T086 [US3] Wire the session machine and `allowed_route` in `app-desktop/vela-wallet/src/main.rs`, landing on the existing wallet page with the real address
 - [X] T087 [US6] Rewrite `app-desktop/vela-wallet/src/gallery.rs` fixtures to the v2 state set, keeping the `VELA_GALLERY=1` gate
 - [X] T088 [US2] Wire the login machine and the 我已有钱包 button in `app-desktop/vela-wallet/src/onboarding.rs`, including the confirmable recovery consent and the health-probe-driven endpoint surface
-- [ ] T089 [US2] **BLOCKED — no FIDO2 key on the build host.** Verify the one-signature path on desktop with a registry-known security key: one touch, not two
+- [~] T089 [US2] Verify the one-signature path on desktop with a registry-known security key: one touch, not two — **the check is now automated and waiting on a PIN**: `VELA_TEST_PIN=… cargo test register_then_assert -- --ignored` counts the touch prompts and asserts the assertion costs exactly one. The protocol layer underneath it is already verified against a real YubiKey (`a_plugged_in_key_answers_get_info`)
 - [X] T090 Run the desktop gate: `cd app-desktop/vela-wallet && cargo check && cargo clippy --all-targets -- -D warnings && cargo test`
-- [ ] T091 [US1] **BLOCKED — no FIDO2 key on the build host.** Manual sweep with a FIDO2 USB key: quickstart scenarios 1, 2, 4, 6, plus starting the create flow with **no** key plugged in and recovering from that sheet by plugging one in; record in `results.md`
+- [~] T091 [US1] Manual sweep with a FIDO2 USB key: quickstart scenarios 1, 2, 4, 6, plus starting the create flow with **no** key plugged in and recovering from that sheet by plugging one in; record in `results.md`
 - [X] T092 What a host with no security key and no screen-recording permission CAN check, done in its place: `scripts/sweep-gallery.sh` opens all 26 gallery states, the deployed registry answers its health probe and an unknown-key query (`cargo test -- --ignored`), and the clientDataJSON this client builds is accepted by the core's own parsers. See `results.md` for what remains unverified
 
 ---
@@ -263,7 +263,7 @@ through the bridge and get a view back.
 - [X] T137 Introduce `Features/Onboarding/I18nKeys.swift` and move the inline key literals in `FlowStates.swift` / `FlowSheet.swift` into it — iOS is the one client with no centralised key file, and this feature is where that stops being tolerable
 - [X] T138 Verify the associated domain: `webcredentials:getvela.app` is in the entitlements and the apple-app-site-association file on the production domain resolves; record the check in `results.md`
 - [X] T139 [US2] Wire the login machine and the 我已有钱包 button in `Features/Onboarding/WelcomeScreen.swift` + `WelcomeModel.swift`, including the confirmable recovery consent
-- [ ] T140 [US2] Verify the one-signature path on iOS against a registry-known key
+- [X] T140 [US2] Verify the one-signature path on iOS against a registry-known key — founder-verified on a physical iPhone 11: 我已有钱包 raises ONE passkey prompt and lands on the wallet
 - [X] T141 Run the iOS gate: `node app-ios/scripts/gen-tokens.mjs --check`, `node app-ios/scripts/audit-literals.mjs`, and `xcodebuild -project app-ios/VelaWallet/VelaWallet.xcodeproj -scheme VelaWallet -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build test`
 - [~] T142 [US1] On-device sweep: quickstart scenarios 1–7; record in `results.md` — the build is signed, installed and running on a physical iPhone 11 (iOS 26.5.2), and the founder reached a created wallet on it. **The one-way door they hit there is fixed and shipped to the device; the sweep itself is not finished.** No screenshot path exists for a physical iPhone from this host, so every iOS screen is still unconfirmed by an automated eye
 

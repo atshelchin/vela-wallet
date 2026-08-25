@@ -1198,3 +1198,115 @@ mod tests {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Against real hardware
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod hardware_tests {
+    use super::*;
+
+    /// The full ceremony round trip, against a plugged-in authenticator.
+    ///
+    /// `#[ignore]` because it needs hardware AND a finger:
+    ///
+    /// ```bash
+    /// VELA_TEST_PIN=<your key's PIN> \
+    ///   cargo test -p vela-wallet register_then_assert -- --ignored --nocapture
+    /// ```
+    ///
+    /// The PIN comes from the environment because it is a secret that belongs to
+    /// the person at the desk, not to this repository. Omit it for a key with no
+    /// PIN set — the request returns `None` and the ceremony either proceeds
+    /// without user verification or fails saying so, which is itself the third
+    /// hardware state `results.md` asks about.
+    ///
+    /// **What this proves that `a_plugged_in_key_answers_get_info` cannot**: the
+    /// PIN/UV auth protocol, `makeCredential` with an exclude list, attestation
+    /// parsing, `getAssertion` against a named credential, and — the claim T089
+    /// is actually about — that signing in costs **one** touch. The assertion
+    /// below counts them.
+    #[test]
+    #[ignore]
+    fn register_then_assert() {
+        let touches = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counter = Arc::clone(&touches);
+        let ceremony = Ceremony {
+            touch: Arc::new(move |request| {
+                if let Some(request) = request {
+                    counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    eprintln!("  >>> TOUCH YOUR KEY ({:?}) <<<", request.kind);
+                }
+            }),
+            pin: Arc::new(|request| {
+                let pin = std::env::var("VELA_TEST_PIN").ok();
+                eprintln!(
+                    "  key asked for a PIN (retries left: {:?}); {}",
+                    request.retries,
+                    if pin.is_some() {
+                        "supplying VELA_TEST_PIN"
+                    } else {
+                        "none set"
+                    }
+                );
+                pin
+            }),
+            // One key, one credential: a picker that had to choose would mean
+            // the test is running against a state it did not set up.
+            pick: Arc::new(|choices| {
+                assert_eq!(
+                    choices.len(),
+                    1,
+                    "expected exactly one credential to choose from"
+                );
+                Some(0)
+            }),
+            window: 0,
+        };
+
+        let registration = register("Hardware test", &[], KeyMethod::SecurityKey, &ceremony)
+            .expect("makeCredential against the plugged-in key");
+        let after_register = touches.load(std::sync::atomic::Ordering::SeqCst);
+        eprintln!("registered credential {}", registration.credential_id);
+
+        // The attestation must yield a P-256 key, or nothing downstream works:
+        // the address derivation, the on-chain verifier and two-signature
+        // recovery are all ES256.
+        let attestation = vela_core::primitives::from_hex(&registration.attestation_object_hex)
+            .expect("attestation is hex");
+        let key = vela_core::webauthn::extract_attestation_public_key(&attestation)
+            .expect("a P-256 public key comes out of the attestation");
+        assert_eq!(key.x.len(), 32);
+        assert_eq!(key.y.len(), 32);
+
+        // The claim T089 is about: signing in costs ONE touch, not two. Two
+        // means the common path regressed into the recovery flow, which asks
+        // for a second signature to pin down the key.
+        touches.store(0, std::sync::atomic::Ordering::SeqCst);
+        let assertion = assert(
+            b"vela-hardware-test-challenge",
+            Some(&registration.credential_id),
+            &ceremony,
+        )
+        .expect("getAssertion against the credential just minted");
+        let for_assertion = touches.load(std::sync::atomic::Ordering::SeqCst);
+
+        assert_eq!(
+            assertion.credential_id, registration.credential_id,
+            "the key signed with a different credential than the one asked for"
+        );
+        assert!(
+            !assertion.signature_der_hex.is_empty(),
+            "no signature came back"
+        );
+        assert_eq!(
+            for_assertion, 1,
+            "signing in asked for {for_assertion} touches; T089 says it must be exactly one \
+             (two means the common path regressed to recovery)"
+        );
+        eprintln!(
+            "OK — register took {after_register} touch prompt(s), assert took {for_assertion}"
+        );
+    }
+}

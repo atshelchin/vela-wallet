@@ -1101,3 +1101,69 @@ than house style.
 
 Gates after the fixes: Android **64 passed, 0 failed** + `assembleDebug` green;
 iOS `BUILD SUCCEEDED` + `TEST SUCCEEDED`, `audit-literals` clean.
+
+---
+
+## Against a real YubiKey, 2026-08-25
+
+A FIDO2 key was plugged into the build host, so T089/T091 stopped being blocked
+and became two tests instead of a manual walk — which is the better shape, since
+a manual walk is not a gate.
+
+### `a_plugged_in_key_answers_get_info` — no touch required
+
+This is the measurement this file asked for and could not take:
+
+> The riskiest untested surface is the report-id byte in `usb.rs::write` […]
+> FIDO devices do not use report ids, so zero is right — **but that is reasoning,
+> not a measurement.**
+
+It is a measurement now. An `INIT` that allocates a channel and a `getInfo` that
+parses proves the report-id byte, the 64-byte framing, the init/continuation
+split and the canonical CBOR decoder all agree with real silicon:
+
+```
+product: YubiKey FIDO+CCID
+versions: ["U2F_V2", "FIDO_2_0", "FIDO_2_1_PRE", "FIDO_2_1", "FIDO_2_3"]
+pin protocols: [2, 1]
+resident key capable: true
+client pin set: true
+```
+
+The three assertions are the three facts the create flow branches on: CTAP2 at
+all, resident-key capable (a founding key that is not discoverable signs fine and
+never appears in a picker), and at least one PIN/UV protocol.
+
+Worth noting for feature 020: this key advertises **`FIDO_2_3`**.
+
+### `register_then_assert` — one touch, which is the claim
+
+The full round trip through the app's own `passkey::register` / `passkey::assert`,
+counting touch prompts. Its load-bearing assertion is T089's sentence:
+
+```
+assert_eq!(for_assertion, 1,
+    "signing in asked for {n} touches; T089 says it must be exactly one \
+     (two means the common path regressed to recovery)")
+```
+
+It also checks that the attestation yields a 32/32-byte P-256 point, because the
+address derivation, the on-chain verifier and two-signature recovery are all
+ES256 and none of them would work otherwise.
+
+**Waiting on a PIN.** The key has one set (8 retries), and the PIN belongs to the
+person at the desk rather than to this repository, so it comes from the
+environment:
+
+```bash
+VELA_TEST_PIN=… cargo test register_then_assert -- --ignored --nocapture
+```
+
+Run without it, the test does something useful anyway: the PIN request returns
+`None`, the ceremony reports `Cancelled`, and that is the "declined the PIN"
+path behaving correctly.
+
+### T140 — done
+
+The founder verified the iOS one-signature sign-in on the physical iPhone 11:
+我已有钱包 raises **one** passkey prompt and lands on the wallet.

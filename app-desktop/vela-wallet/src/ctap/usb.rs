@@ -562,3 +562,73 @@ impl SecurityKey {
             .map_err(|error| UsbError::Hid(error.to_string()))
     }
 }
+
+// ---------------------------------------------------------------------------
+// Against real hardware
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod hardware_tests {
+    use super::*;
+
+    /// The protocol layer, against a plugged-in authenticator.
+    ///
+    /// `#[ignore]` because it needs hardware: run it with
+    /// `cargo test -- --ignored --nocapture` on a host with a FIDO2 key in a
+    /// USB port. It takes NO touch — `getInfo` is answered instantly by every
+    /// authenticator — which is what makes it worth having as a gate rather
+    /// than as a manual walk.
+    ///
+    /// This is the check `results.md` named as the riskiest untested surface:
+    ///
+    /// > The riskiest untested surface is the report-id byte in `usb.rs::write`:
+    /// > a device that uses report ids would need the first byte to be its id
+    /// > rather than zero, and getting it wrong presents as an authenticator
+    /// > answering `INVALID_COMMAND` to everything. FIDO devices do not use
+    /// > report ids, so zero is right — but that is reasoning, not a
+    /// > measurement.
+    ///
+    /// A green run here IS the measurement: an `INIT` that allocates a channel
+    /// and a `getInfo` that parses proves the report-id byte, the 64-byte
+    /// framing, the init/continuation split and the canonical CBOR decoder all
+    /// agree with a real device.
+    #[test]
+    #[ignore]
+    fn a_plugged_in_key_answers_get_info() {
+        let mut key = match SecurityKey::open_touched(&|| [0x11; 8], None) {
+            Ok(key) => key,
+            Err(UsbError::NoKeyPresent) => {
+                panic!("no FIDO2 key is plugged in — this test needs one")
+            }
+            Err(error) => panic!("could not open the key: {error:?}"),
+        };
+
+        let request = vela_core::ctap::commands::get_info_request().expect("encode getInfo");
+        let body = key.cbor(&request, None).expect("getInfo");
+        let info = vela_core::ctap::commands::parse_get_info(&body).expect("parse getInfo");
+
+        println!("product: {}", key.product());
+        println!("versions: {:?}", info.versions);
+        println!("pin protocols: {:?}", info.pin_protocols);
+        println!("resident key capable: {}", info.resident_key);
+        println!("client pin set: {:?}", info.client_pin_set);
+
+        // The three facts the create flow actually branches on.
+        assert!(
+            info.versions
+                .iter()
+                .any(|v| v == "FIDO_2_0" || v.starts_with("FIDO_2")),
+            "this key does not speak CTAP2 at all: {:?}",
+            info.versions
+        );
+        assert!(
+            info.resident_key,
+            "the key reports no resident-key capability — a Vela founding key MUST be \
+             discoverable, or it signs fine and never appears in a picker"
+        );
+        assert!(
+            !info.pin_protocols.is_empty(),
+            "the key advertises no PIN/UV auth protocol, so user verification is impossible"
+        );
+    }
+}

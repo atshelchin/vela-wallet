@@ -2,8 +2,12 @@
 //  NameField.swift
 //  VelaWallet
 //
-//  The single authoritative account-name field (spec 014): label →
-//  sunken input well → (over-length) error hint → helper caption. The
+//  The single authoritative account-name field (spec 014): optional label →
+//  sunken input well → (over-length) error hint → optional helper. An empty
+//  `label` or `helper` renders NOTHING rather than an empty line box, which
+//  would otherwise leave a band of dead space; the create screen passes both
+//  empty because its heading already names the field (spec 019), and the
+//  accessible name falls back to the placeholder. The
 //  error hint appears between field and caption without displacing the
 //  field (A3), and the field border tints error (contract §5).
 //
@@ -24,9 +28,11 @@ struct NameField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            Text(label)
-                .typeRole(Typography.fieldLabel)
-                .foregroundStyle(theme.fgBase)
+            if !label.isEmpty {
+                Text(label)
+                    .typeRole(Typography.fieldLabel)
+                    .foregroundStyle(theme.fgBase)
+            }
 
             TextField(
                 "",
@@ -48,7 +54,7 @@ struct NameField: View {
                 RoundedRectangle(cornerRadius: Tokens.Radius.r12)
                     .strokeBorder(borderColor, lineWidth: borderWidth)
             }
-            .accessibilityLabel(label)
+            .accessibilityLabel(label.isEmpty ? placeholder : label)
 
             if tooLong {
                 Text(tooLongText)
@@ -56,9 +62,11 @@ struct NameField: View {
                     .foregroundStyle(theme.errorBase)
             }
 
-            Text(helper)
-                .typeRole(Typography.flowCaption)
-                .foregroundStyle(theme.fgMuted)
+            if !helper.isEmpty {
+                Text(helper)
+                    .typeRole(Typography.flowCaption)
+                    .foregroundStyle(theme.fgMuted)
+            }
         }
     }
 

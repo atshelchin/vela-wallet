@@ -34,7 +34,7 @@ import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 
 /**
- * Labeled single-line input (spec 014, A1–A3): label → sunken well → optional
+ * Single-line input (spec 014, A1–A3): optional label → sunken well → optional
  * error hint (error.base, A3) → helper caption. The error line appears between
  * the field and the caption without displacing the field (spec edge case).
  */
@@ -60,14 +60,20 @@ fun VelaTextField(
     }
     val borderWidth = if (isError || focused) VelaBorder.emphasis else VelaBorder.hairline
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = label,
-            color = colors.fgBase,
-            fontFamily = VelaFontFamily,
-            fontWeight = VelaFontWeight.semibold,
-            fontSize = VelaTextSize.base,
-        )
-        Spacer(modifier = Modifier.height(VelaSpacing.md))
+        // An empty label renders NOTHING — not an empty Text with its own line
+        // box, which would leave a band of dead space above the field. The
+        // create screen passes "" because its heading already names the field
+        // (spec 019); the placeholder still names it to assistive technology.
+        if (label.isNotEmpty()) {
+            Text(
+                text = label,
+                color = colors.fgBase,
+                fontFamily = VelaFontFamily,
+                fontWeight = VelaFontWeight.semibold,
+                fontSize = VelaTextSize.base,
+            )
+            Spacer(modifier = Modifier.height(VelaSpacing.md))
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()

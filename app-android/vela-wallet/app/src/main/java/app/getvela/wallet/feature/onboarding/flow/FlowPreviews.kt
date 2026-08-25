@@ -24,23 +24,19 @@ import app.getvela.wallet.core.i18n.VelaStrings
 private object PreviewStrings : VelaStrings {
     private val sample = mapOf(
         I18nKeys.Create.HEADER to "Create Wallet",
-        I18nKeys.Create.ACCOUNT_NAME_LABEL to "Account Name",
         I18nKeys.Create.ACCOUNT_NAME_PLACEHOLDER to "Enter a name for your account",
-        I18nKeys.Create.ACCOUNT_NAME_HINT to
-            "This name is stored with your public key on-chain for cross-device sign-in.",
         I18nKeys.Create.NAME_TOO_LONG to
             "This name is too long to fit in a passkey — please shorten it.",
         I18nKeys.Create.ACK0 to
-            "This is a self-custodial wallet. Your passkey private key is managed by your " +
-            "device's password manager. Vela Wallet cannot access or recover it.",
-        I18nKeys.Create.ASSURANCE_RECOVERY to
-            "If you lose your device, you can restore your wallet on a new device through " +
-            "your iCloud or Google account.",
-        I18nKeys.Create.ACK1 to "I agree to the ",
-        I18nKeys.Create.ACK1_PRIVACY_POLICY to "Privacy Policy",
-        I18nKeys.Create.ACK1_AND to " and ",
-        I18nKeys.Create.ACK1_TERMS to "Terms of Service",
-        I18nKeys.Create.ACK1_PERIOD to ".",
+            "My public key and wallet name are written into the on-chain contract.",
+        I18nKeys.Create.ACK1 to
+            "My private key stays in my device's password manager or security key. " +
+            "Vela never sees it.",
+        I18nKeys.Create.ACK2 to "I have read and agree to the ",
+        I18nKeys.Create.ACK2_PRIVACY_POLICY to "Privacy Policy",
+        I18nKeys.Create.ACK2_AND to " and ",
+        I18nKeys.Create.ACK2_TERMS to "Terms of Service",
+        I18nKeys.Create.ACK2_PERIOD to ".",
         I18nKeys.Create.CREATE_WALLET_BTN to "Create Wallet",
         I18nKeys.Create.STATUS_SETTING_UP_IDENTITY to "Setting up secure identity...",
         I18nKeys.Create.SUCCESS_TITLE to "Your wallet is ready!",

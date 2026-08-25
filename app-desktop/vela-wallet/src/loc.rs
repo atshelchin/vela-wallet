@@ -149,7 +149,7 @@ mod tests {
     /// Var-bearing keys (`{{seconds}}` …) resolve with the placeholder left in
     /// place under default options — still a non-echo, non-empty value, which
     /// is all this sweep asserts about them.
-    const FLOW_KEYS: [&str; 122] = [
+    const FLOW_KEYS: [&str; 120] = [
         "common.cancel",
         "onboarding.create.keyUnreadableTitle",
         "onboarding.create.keyUnreadableBody",
@@ -192,19 +192,17 @@ mod tests {
         "onboarding.common.unknownTitle",
         "onboarding.common.unsupportedBody",
         "onboarding.common.unsupportedTitle",
-        "onboarding.create.accountNameHint",
-        "onboarding.create.accountNameLabel",
         "onboarding.create.accountNamePlaceholder",
         "onboarding.create.ack0",
         "onboarding.create.ack1",
-        "onboarding.create.ack1And",
-        "onboarding.create.ack1Period",
-        "onboarding.create.ack1PrivacyPolicy",
-        "onboarding.create.ack1Terms",
+        "onboarding.create.ack2",
+        "onboarding.create.ack2And",
+        "onboarding.create.ack2Period",
+        "onboarding.create.ack2PrivacyPolicy",
+        "onboarding.create.ack2Terms",
         "onboarding.create.addKeyBtn",
         "onboarding.create.addMethodLabel",
         "onboarding.create.addSecondKeyBtn",
-        "onboarding.create.assuranceRecovery",
         "onboarding.create.confirmKeyBtn",
         "onboarding.create.createWalletBtn",
         "onboarding.create.enterWalletBtn",

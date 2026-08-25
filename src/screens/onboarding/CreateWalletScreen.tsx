@@ -108,18 +108,20 @@ interface Props {
   onOpenSettings?: () => void;
 }
 
-// Stable label keys for the acknowledgment checklist; t() is called inside the component.
-// Two gates, matching the core's ACK_COUNT: self-custody, and legal assent.
+// Stable label keys for the acknowledgment checklist; t() is called inside the
+// component. THREE gates, matching the core's ACK_COUNT, and each one a fact
+// about where something ends up: the public key and the name go on-chain, the
+// private key stays in the device or on a security key, and the legal assent.
 // The last item is rendered with inline links — handled specially in JSX.
+//
+// The recovery assurance that used to sit beside them is gone: it described a
+// benefit, and mixing one of those into a list of consequences teaches people
+// to skim the list.
 const ACKNOWLEDGMENT_KEYS = [
   'onboarding.create.ack0',
   'onboarding.create.ack1',
+  'onboarding.create.ack2',
 ] as const;
-
-/// Stated beside the gates rather than as one: it explains what the founding
-/// key set buys you, which is a fact about the wallet, not a promise the
-/// person has to make.
-const ACK_ASSURANCE_KEY = 'onboarding.create.assuranceRecovery';
 
 /**
  * Renders the create-wallet flow. It holds no business state: every decision —
@@ -326,21 +328,17 @@ export function CreateWalletScreen({ onCreated, onBack, onOpenSettings }: Props)
                       <Text style={styles.checkText}>
                         {isLast ? (
                           <>
-                            {t('onboarding.create.ack1')}
-                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/privacy')}>{t('onboarding.create.ack1PrivacyPolicy')}</Text>
-                            {t('onboarding.create.ack1And')}
-                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/terms')}>{t('onboarding.create.ack1Terms')}</Text>
-                            {t('onboarding.create.ack1Period')}
+                            {t('onboarding.create.ack2')}
+                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/privacy')}>{t('onboarding.create.ack2PrivacyPolicy')}</Text>
+                            {t('onboarding.create.ack2And')}
+                            <Text style={styles.checkLink} onPress={() => openBrowser('https://getvela.app/terms')}>{t('onboarding.create.ack2Terms')}</Text>
+                            {t('onboarding.create.ack2Period')}
                           </>
                         ) : t(labelKey)}
                       </Text>
                     </Pressable>
                   );
                 })}
-                <View style={styles.checkRow}>
-                  <CheckSquare size={18} color={color.accent.base} strokeWidth={2} />
-                  <Text style={styles.checkText}>{t(ACK_ASSURANCE_KEY)}</Text>
-                </View>
               </View>
 
               {statusText ? (

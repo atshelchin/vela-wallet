@@ -343,10 +343,15 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
     let loc = host.loc;
     let view = host.view;
 
+    // No label and no helper (spec 019). The heading directly above the field
+    // already says "name your wallet", so a label restated it — and what the
+    // helper said, that the name is stored on-chain, is now `ack0`, where a
+    // person has to look at it rather than past it. Both render as nothing when
+    // empty rather than as an empty line box.
     let strings = NameFieldStrings {
-        label: loc.t("onboarding.create.accountNameLabel"),
+        label: SharedString::default(),
         placeholder: loc.t("onboarding.create.accountNamePlaceholder"),
-        helper: loc.t("onboarding.create.accountNameHint"),
+        helper: SharedString::default(),
         too_long_hint: loc.t("onboarding.create.nameTooLong"),
     };
     let sink = host.sink.clone();
@@ -368,20 +373,21 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
     // The legal row's two inline links, located by byte range in the assembled
     // sentence. Built by concatenation rather than by interpolation because the
     // ranges have to be exact, and `{{var}}` fills would move them per locale.
-    let ack1_lead = loc.t("onboarding.create.ack1");
-    let ack1_privacy = loc.t("onboarding.create.ack1PrivacyPolicy");
-    let ack1_and = loc.t("onboarding.create.ack1And");
-    let ack1_terms = loc.t("onboarding.create.ack1Terms");
-    let ack1_period = loc.t("onboarding.create.ack1Period");
-    let privacy_at = ack1_lead.len();
-    let and_at = privacy_at + ack1_privacy.len();
-    let terms_at = and_at + ack1_and.len();
+    let ack2_lead = loc.t("onboarding.create.ack2");
+    let ack2_privacy = loc.t("onboarding.create.ack2PrivacyPolicy");
+    let ack2_and = loc.t("onboarding.create.ack2And");
+    let ack2_terms = loc.t("onboarding.create.ack2Terms");
+    let ack2_period = loc.t("onboarding.create.ack2Period");
+    let privacy_at = ack2_lead.len();
+    let and_at = privacy_at + ack2_privacy.len();
+    let terms_at = and_at + ack2_and.len();
     let legal = SharedString::from(format!(
-        "{ack1_lead}{ack1_privacy}{ack1_and}{ack1_terms}{ack1_period}"
+        "{ack2_lead}{ack2_privacy}{ack2_and}{ack2_terms}{ack2_period}"
     ));
 
     let sink_ack0 = host.sink.clone();
     let sink_ack1 = host.sink.clone();
+    let sink_ack2 = host.sink.clone();
     let acks = div()
         .w_full()
         .flex()
@@ -396,65 +402,47 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
             move |window, cx| sink_ack0(FlowEvent::AckToggled(0), window, cx),
             |_, _, _| {},
         ))
-        // The recovery line is an ASSURANCE — a fact about what the founding
-        // set buys you — not a third gate. It renders with a filled tick and
-        // nothing to click, because making it clickable would invite ticking
-        // something that changes nothing.
-        .child(
-            div()
-                .flex()
-                .items_start()
-                .gap(px(FLOW_GAP_MD))
-                .child(
-                    div()
-                        .size(px(theme::ACK_BOX))
-                        .flex_none()
-                        .mt(px(1.))
-                        .rounded(px(theme::ACK_BOX / 3.))
-                        .bg(theme.success_soft)
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(
-                            div()
-                                .text_size(theme::text_flow_caption())
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(theme.success_base)
-                                .child("✓"),
-                        ),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w(px(0.))
-                        .text_size(theme::text_body())
-                        .line_height(theme::line_height_body())
-                        .text_color(theme.fg_muted)
-                        .child(loc.t("onboarding.create.assuranceRecovery")),
-                ),
-        )
-        .child(ack_row(
+        // Three gates, each a FACT about where something ends up (`ACK_COUNT`).
+        // The recovery assurance that used to sit here described a BENEFIT, and
+        // mixing one of those into a list of consequences teaches people to skim
+        // the list — so it is gone, and row 1 now names where the PRIVATE key
+        // stays, which the old pair never said out loud.
+        .child(ack_row::<LegalLink>(
             1,
             theme,
             view.acks.get(1).copied().unwrap_or(false),
+            loc.t("onboarding.create.ack1"),
+            Vec::new(),
+            move |window, cx| sink_ack1(FlowEvent::AckToggled(1), window, cx),
+            |_, _, _| {},
+        ))
+        .child(ack_row(
+            2,
+            theme,
+            view.acks.get(2).copied().unwrap_or(false),
             legal,
             vec![
                 (privacy_at..and_at, LegalLink::Privacy),
-                (terms_at..terms_at + ack1_terms.len(), LegalLink::Terms),
+                (terms_at..terms_at + ack2_terms.len(), LegalLink::Terms),
             ],
-            move |window, cx| sink_ack1(FlowEvent::AckToggled(1), window, cx),
+            move |window, cx| sink_ack2(FlowEvent::AckToggled(2), window, cx),
             // The links open a browser and are NOT the checkbox: pressing one
             // must not tick the box the sentence belongs to.
             move |link: LegalLink, _window, cx| cx.open_url(link.url()),
         ));
 
+    // The gates sit against the button they gate: the spacer between the field
+    // and them absorbs the free height, so they are never stranded mid-screen.
+    // A checklist a cursor reaches before the sentence does is one nobody reads.
     let mut column = div()
         .w_full()
+        .flex_1()
         .flex()
         .flex_col()
         .gap(px(FLOW_GAP_LG))
         .child(title(theme, loc.t("onboarding.create.nameTitle")))
         .child(field)
+        .child(div().flex_1())
         .child(acks);
 
     // A cancelled ceremony is a quiet status line with the draft intact, never

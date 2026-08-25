@@ -147,7 +147,11 @@ describe('generated i18n resources', () => {
     // 39 values are sentence fragments concatenated at render time, and
     // zh/zh-TW/zh-HK deliberately OMIT the spaces — so no uniform trim rule is
     // safe, and any trimming step in the pipeline shows up right here.
-    expect(en.onboarding.create.ack1).toMatch(/ $/);
+    // `ack2`, not `ack1`: the legal line moved to index 2 when the checklist
+    // went two rows to three (create_wallet.rs `ACK_COUNT`), and its fragments
+    // were renamed with it — a fragment key whose name disagrees with the row it
+    // renders is exactly how the ack3 -> ack1 confusion started.
+    expect(en.onboarding.create.ack2).toMatch(/ $/);
     expect(en.home.switcherAccountCount).toMatch(/ $/);
   });
 });

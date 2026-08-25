@@ -4,7 +4,7 @@
 //! once for all 15 locales. Regenerate with `node scripts/gen-i18n.mjs`.
 //!
 //! 1404 paths = 1325 leaf + 79 branch. Repeated per locale these key bytes
-//! would cost 556080 bytes; interned once they cost 38516.
+//! would cost 555885 bytes; interned once they cost 38503.
 
 /// Every path in the corpus, strictly sorted. Lookup is a binary search here, then
 /// an O(1) index into the active locale's value table.
@@ -856,10 +856,11 @@ pub(crate) static PATHS: [&str; 1404] = [
     "onboarding.create.accountNamePlaceholder",
     "onboarding.create.ack0",
     "onboarding.create.ack1",
-    "onboarding.create.ack1And",
-    "onboarding.create.ack1Period",
-    "onboarding.create.ack1PrivacyPolicy",
-    "onboarding.create.ack1Terms",
+    "onboarding.create.ack2",
+    "onboarding.create.ack2And",
+    "onboarding.create.ack2Period",
+    "onboarding.create.ack2PrivacyPolicy",
+    "onboarding.create.ack2Terms",
     "onboarding.create.addKeyBtn",
     "onboarding.create.addMethodLabel",
     "onboarding.create.addSecondKeyBtn",
@@ -868,7 +869,6 @@ pub(crate) static PATHS: [&str; 1404] = [
     "onboarding.create.alertNotDiscoverableTitle",
     "onboarding.create.alertNotSupportedBody",
     "onboarding.create.alertNotSupportedTitle",
-    "onboarding.create.assuranceRecovery",
     "onboarding.create.confirmKeyBtn",
     "onboarding.create.createWalletBtn",
     "onboarding.create.enterWalletBtn",

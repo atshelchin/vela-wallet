@@ -153,3 +153,27 @@ on that screen a person acts on, and showing a fixture address after a real crea
 the app telling them their money is somewhere it is not. Everything else there is
 visibly-placeholder balance data; an address is not. ⚠ The rest of the home screen is still
 fixtures and is a later feature's job.
+
+---
+
+## 11. Three bugs a real phone found (2026-08-25)
+
+Added after the device session; `results.md` carries the detail. Recorded here
+because each one is a *class* of mistake, not an incident:
+
+1. **A comment that documented an obsolete invariant.** `AndroidManifest.xml`
+   said "No permissions: this slice is fully offline" and was believed. The app
+   could mint a passkey and then fail its very next network call. ⚠ A comment
+   asserting a property nothing tests is a claim with a shelf life.
+
+2. **A lesson recorded and not generalised.** Phase 5 hit the one-way door on
+   desktop, fixed it, and wrote it into `results.md` — where it sat for a day
+   while both phones shipped without an exit. ⚠ Worth asking, whenever a
+   platform-specific fix lands: is this fact about the platform, or about the
+   feature?
+
+3. **A view field read out of its lifecycle.** `busy` means "this machine is
+   working" while a machine is alive, and means nothing once it has finished —
+   but nothing in the type says so. ⚠ Every view the shells read has this shape;
+   a terminal state that keeps emitting a live-looking value is a trap the other
+   machines can lay too.

@@ -430,8 +430,6 @@ pub const BTN_H_SECONDARY: f32 = 48.;
 // needs breathing room inside the capsule (spec 014 long-locale fix).
 pub const BTN_PAD_X: f32 = 24.;
 pub const BTN_PAD_Y: f32 = 10.;
-/// Vertical gap between the two CTAs (24/25 in the mocks, review-measured).
-pub const GAP_BUTTONS: f32 = 24.;
 
 // ---------------------------------------------------------------------------
 // Onboarding create/login flow patterns (spec 014, design/onboarding mocks).
@@ -512,10 +510,6 @@ pub const GALLERY_SIDEBAR_W: f32 = 280.;
 pub fn text_flow_headline() -> Pixels {
     px(17.)
 }
-/// Form field label.
-pub fn text_flow_label() -> Pixels {
-    px(14.)
-}
 /// Step counter / helper captions.
 pub fn text_flow_caption() -> Pixels {
     px(12.)
@@ -552,9 +546,6 @@ pub fn text_body() -> Pixels {
 }
 pub fn text_numeral() -> Pixels {
     px(12.)
-}
-pub fn text_button() -> Pixels {
-    px(16.)
 }
 /// Every v2 button label — welcome, flow, sheet — is this size and BOLD.
 pub fn text_cta() -> Pixels {

@@ -7,10 +7,16 @@
 	 * every field label, and drops the helper caption entirely — the
 	 * placeholder is an EXAMPLE of a good answer, which explains the field
 	 * better than a sentence under it. `hint` is therefore optional.
+	 *
+	 * So is `label`: on the create screen the heading directly above the field
+	 * already says "name your wallet", and a label there restated it in smaller
+	 * type. Omitted, the input keeps its accessible name from `aria-label`, so
+	 * the label is gone from the SCREEN and not from the accessibility tree.
 	 */
 	interface Props {
-		/** Resolved strings. */
-		label: string;
+		/** Resolved strings. Omit `label` to render the field unlabelled; it
+		 *  still names itself to assistive technology via `placeholder`. */
+		label?: string;
 		placeholder: string;
 		hint?: string;
 		/** Present → error styling + red inline line (A3). */
@@ -33,7 +39,9 @@
 </script>
 
 <div class="field">
-	<label class="label" for={id}>{label}</label>
+	{#if label}
+		<label class="label" for={id}>{label}</label>
+	{/if}
 	<input
 		class="input"
 		class:error={hasError}
@@ -42,6 +50,7 @@
 		{placeholder}
 		autocomplete="off"
 		spellcheck="false"
+		aria-label={label ? undefined : placeholder}
 		aria-invalid={hasError}
 		aria-describedby={[hasError ? `${id}-error` : null, hint !== undefined ? `${id}-hint` : null]
 			.filter(Boolean)

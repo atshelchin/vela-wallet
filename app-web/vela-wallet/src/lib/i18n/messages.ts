@@ -57,23 +57,28 @@ const FLOW_CHROME_KEYS = [
 ] as const;
 
 /**
- * The v2 name screen. Two gates, not four (spec 019): the legal line kept its
- * inline link fragments but moved from `ack3` to `ack1`, and the recovery line
- * became the assurance beside them rather than a third box.
+ * The v2 name screen. Three gates: where the PUBLIC key goes, where the PRIVATE
+ * key stays, and the legal assent — whose fragments are named `ack2*` because
+ * they render at index 2, and a fragment key that disagrees with its row is how
+ * the `ack3` -> `ack1` confusion started.
+ *
+ * `accountNameLabel` is gone from this screen: the field sat under a heading
+ * that already said "name your wallet", so the label restated it. Its helper
+ * line went too — what it said (the name is stored on-chain) is now `ack0`,
+ * where a person has to actually look at it.
  */
 const FLOW_FORM_KEYS = [
 	'onboarding.create.headerDefault',
 	'onboarding.create.nameTitle',
-	'onboarding.create.accountNameLabel',
 	'onboarding.create.accountNamePlaceholder',
 	'onboarding.create.nameTooLong',
 	'onboarding.create.ack0',
 	'onboarding.create.ack1',
-	'onboarding.create.ack1PrivacyPolicy',
-	'onboarding.create.ack1And',
-	'onboarding.create.ack1Terms',
-	'onboarding.create.ack1Period',
-	'onboarding.create.assuranceRecovery',
+	'onboarding.create.ack2',
+	'onboarding.create.ack2PrivacyPolicy',
+	'onboarding.create.ack2And',
+	'onboarding.create.ack2Terms',
+	'onboarding.create.ack2Period',
 	'onboarding.create.nextBtn',
 	'onboarding.create.finishVerifyBtn',
 	'onboarding.create.startOverBtn',

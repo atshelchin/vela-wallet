@@ -75,8 +75,7 @@ describe('onboarding flow messages resolve through the vela-core engine (spec 01
 		// that IS handed a classification; it is not a state the core emits.
 		for (const sentinel of [
 			'onboarding.common.close',
-			'onboarding.create.accountNameLabel',
-			'onboarding.create.ack1PrivacyPolicy',
+			'onboarding.create.ack2PrivacyPolicy',
 			'onboarding.create.keysTitleBlocked',
 			'onboarding.create.methodSecurityKeyBody',
 			'onboarding.create.taskDeriveAddress',

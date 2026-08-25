@@ -80,13 +80,27 @@ struct FlowShell<Content: View>: View {
 
 // MARK: - Name
 
-/// Name the wallet, and accept the two gates.
+/// Name the wallet, and accept the three gates.
 ///
-/// Two checkboxes, matching the core's `ACK_COUNT` (data-model §2, 4 → 2). The
-/// recovery line between them is an ASSURANCE — a fact about what the founding
-/// key set buys you — not a third gate, so it renders with a filled tick and
-/// nothing to tap. Making it tappable would invite a person to agree to
-/// something that changes nothing.
+/// Three checkboxes, matching the core's `ACK_COUNT`, and every one of them a
+/// FACT ABOUT WHERE SOMETHING ENDS UP: the public key and the name go into the
+/// on-chain contract, the private key stays in the device's password manager or
+/// on a security key, and the legal assent. Together they are the whole custody
+/// story, and **none arrives pre-ticked** — a box that is already ticked records
+/// nothing about what the person read.
+///
+/// The recovery assurance that used to sit between them is gone. It described a
+/// BENEFIT, and mixing one of those into a list of consequences teaches people
+/// to skim the list.
+///
+/// The field has no label and no helper line: the heading directly above it
+/// already says "name your wallet", and what the helper said (the name is
+/// stored on-chain) is now `ack0`, where a person has to look at it.
+///
+/// The gates sit at the BOTTOM, against the button they gate, and OUTSIDE the
+/// ScrollView — a `Spacer` inside one does not expand, so a checklist left in
+/// the scroll lands in the middle of the screen. The field above scrolls
+/// instead: it is one row, and the gates are the part that has to be seen.
 struct NameScreen: View {
     @Environment(\.theme) private var theme
     let loc: Loc
@@ -107,61 +121,58 @@ struct NameScreen: View {
                         .foregroundStyle(theme.fgBase)
 
                     NameField(
-                        label: loc.t(I18nKeys.Create.accountNameLabel),
+                        label: "",
                         placeholder: loc.t(I18nKeys.Create.accountNamePlaceholder),
-                        helper: loc.t(I18nKeys.Create.accountNameHint),
+                        helper: "",
                         tooLongText: loc.t(I18nKeys.Create.nameTooLong),
                         text: $name,
                         tooLong: view.nameTooLong
                     )
                     .disabled(!view.nameEditable)
-
-                    VStack(alignment: .leading, spacing: Tokens.Space.s12) {
-                        AckRow(
-                            segments: [AckSegment(text: loc.t(I18nKeys.Create.ack0))],
-                            checked: binding(for: 0)
-                        )
-
-                        HStack(alignment: .top, spacing: Tokens.Space.s12) {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(theme.successBase)
-                            Text(loc.t(I18nKeys.Create.assuranceRecovery))
-                                .typeRole(Typography.flowCaption)
-                                .foregroundStyle(theme.fgMuted)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        // Unlike Android, iOS can put the two links INSIDE the
-                        // consent sentence: `AckRow` disables row-wide toggling
-                        // when a row has links, so the link tap and the checkbox
-                        // tap do not compete. Android's row is one touch target
-                        // and needs its links on a line of their own.
-                        AckRow(
-                            segments: [
-                                AckSegment(text: loc.t(I18nKeys.Create.ack1)),
-                                AckSegment(
-                                    text: loc.t(I18nKeys.Create.ack1PrivacyPolicy),
-                                    action: .openPrivacyPolicy
-                                ),
-                                AckSegment(text: loc.t(I18nKeys.Create.ack1And)),
-                                AckSegment(text: loc.t(I18nKeys.Create.ack1Terms), action: .openTerms),
-                                AckSegment(text: loc.t(I18nKeys.Create.ack1Period)),
-                            ],
-                            checked: binding(for: 1),
-                            onLink: onLink
-                        )
-                    }
-
-                    if let statusText {
-                        Text(statusText)
-                            .typeRole(Typography.flowCaption)
-                            .foregroundStyle(theme.fgMuted)
-                            .accessibilityAddTraits(.updatesFrequently)
-                    }
                 }
                 .padding(.bottom, Tokens.Space.s32)
             }
             .scrollBounceBehavior(.basedOnSize)
+
+            VStack(alignment: .leading, spacing: Tokens.Space.s12) {
+                AckRow(
+                    segments: [AckSegment(text: loc.t(I18nKeys.Create.ack0))],
+                    checked: binding(for: 0)
+                )
+
+                AckRow(
+                    segments: [AckSegment(text: loc.t(I18nKeys.Create.ack1))],
+                    checked: binding(for: 1)
+                )
+
+                // Unlike Android, iOS can put the two links INSIDE the consent
+                // sentence: `AckRow` disables row-wide toggling when a row has
+                // links, so the link tap and the checkbox tap do not compete.
+                // Android's row is one touch target and needs its links on a
+                // line of their own.
+                AckRow(
+                    segments: [
+                        AckSegment(text: loc.t(I18nKeys.Create.ack2)),
+                        AckSegment(
+                            text: loc.t(I18nKeys.Create.ack2PrivacyPolicy),
+                            action: .openPrivacyPolicy
+                        ),
+                        AckSegment(text: loc.t(I18nKeys.Create.ack2And)),
+                        AckSegment(text: loc.t(I18nKeys.Create.ack2Terms), action: .openTerms),
+                        AckSegment(text: loc.t(I18nKeys.Create.ack2Period)),
+                    ],
+                    checked: binding(for: 2),
+                    onLink: onLink
+                )
+
+                if let statusText {
+                    Text(statusText)
+                        .typeRole(Typography.flowCaption)
+                        .foregroundStyle(theme.fgMuted)
+                        .accessibilityAddTraits(.updatesFrequently)
+                }
+            }
+            .padding(.bottom, Tokens.Space.s24)
 
             VelaButton(
                 title: loc.t(submitLabelToI18n(view.submitLabel)),

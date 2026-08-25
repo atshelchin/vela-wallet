@@ -1,16 +1,24 @@
 <script lang="ts">
 	/**
-	 * Name the wallet, and accept the two gates.
+	 * Name the wallet, and accept the three gates.
 	 *
-	 * Two checkboxes, matching the core's `ACK_COUNT`: self-custody, and legal
-	 * assent. The recovery line between them is an ASSURANCE — a fact about
-	 * what the founding key set buys you — not a third gate, so it renders with
-	 * a filled tick and nothing to click. Making it clickable would invite the
-	 * person to tick something that changes nothing.
+	 * Three checkboxes, matching the core's `ACK_COUNT`, and every one of them a
+	 * FACT ABOUT WHERE SOMETHING ENDS UP: the public key and the name go into
+	 * the on-chain contract, the private key stays in the device or on a
+	 * security key, and the legal assent. Together they are the whole custody
+	 * story, and none is pre-ticked — a box that arrives ticked records nothing.
 	 *
-	 * Row order follows the design: what the wallet is, what it gives you, what
-	 * you agree to. Legal assent goes LAST because it is the only line that is
-	 * about the company rather than about the wallet.
+	 * The recovery assurance that used to sit between them is gone. It described
+	 * a BENEFIT, and mixing one of those into a list of consequences teaches
+	 * people to skim the list.
+	 *
+	 * The field has no label and no helper line either. The heading above it
+	 * already says "name your wallet", so a label restated it — and what the
+	 * helper said (the name is stored on-chain) is now `ack0`, where a person
+	 * has to look at it rather than past it.
+	 *
+	 * Legal assent goes LAST because it is the only line about the company
+	 * rather than about the wallet.
 	 */
 	import AckRow from '../AckRow.svelte';
 	import NameField from '../NameField.svelte';
@@ -66,7 +74,6 @@
 	<h1 class="title">{strings('onboarding.create.nameTitle')}</h1>
 
 	<NameField
-		label={strings('onboarding.create.accountNameLabel')}
 		placeholder={strings('onboarding.create.accountNamePlaceholder')}
 		errorText={nameTooLong ? strings('onboarding.create.nameTooLong') : undefined}
 		value={name}
@@ -80,26 +87,23 @@
 			{strings('onboarding.create.ack0')}
 		</AckRow>
 
-		<p class="assurance">
-			<span class="tick" aria-hidden="true">
-				<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
-			</span>
-			<span>{strings('onboarding.create.assuranceRecovery')}</span>
-		</p>
-
 		<AckRow checked={acks[1] ?? false} onToggle={() => onToggleAck(1)}>
-			{strings('onboarding.create.ack1')}<a
+			{strings('onboarding.create.ack1')}
+		</AckRow>
+
+		<AckRow checked={acks[2] ?? false} onToggle={() => onToggleAck(2)}>
+			{strings('onboarding.create.ack2')}<a
 				href={privacyUrl}
 				target="_blank"
 				rel="noreferrer"
 				onclick={(event) => event.stopPropagation()}
-				>{strings('onboarding.create.ack1PrivacyPolicy')}</a
-			>{strings('onboarding.create.ack1And')}<a
+				>{strings('onboarding.create.ack2PrivacyPolicy')}</a
+			>{strings('onboarding.create.ack2And')}<a
 				href={termsUrl}
 				target="_blank"
 				rel="noreferrer"
-				onclick={(event) => event.stopPropagation()}>{strings('onboarding.create.ack1Terms')}</a
-			>{strings('onboarding.create.ack1Period')}
+				onclick={(event) => event.stopPropagation()}>{strings('onboarding.create.ack2Terms')}</a
+			>{strings('onboarding.create.ack2Period')}
 		</AckRow>
 	</div>
 
@@ -144,37 +148,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-lg);
-	}
-
-	.assurance {
-		display: grid;
-		grid-template-columns: auto 1fr;
-		gap: var(--space-lg);
-		align-items: start;
-		margin: 0;
-		color: var(--color-fg-muted);
-		font-size: var(--text-base);
-		line-height: var(--leading-relaxed);
-	}
-
-	.tick {
-		display: grid;
-		place-items: center;
-		width: var(--icon-lg);
-		height: var(--icon-lg);
-		margin-top: var(--space-xs);
-		border-radius: var(--radius-sm);
-		background: var(--color-accent-base);
-	}
-
-	.tick svg {
-		width: var(--icon-sm);
-		height: var(--icon-sm);
-		fill: none;
-		stroke: var(--color-onAccent);
-		stroke-width: var(--icon-stroke-heavy);
-		stroke-linecap: round;
-		stroke-linejoin: round;
 	}
 
 	.status {

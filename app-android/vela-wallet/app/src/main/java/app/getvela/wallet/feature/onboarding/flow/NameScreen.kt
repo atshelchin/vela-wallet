@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,33 +20,41 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaAckRow
-import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.components.VelaTextField
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
-import app.getvela.wallet.core.designsystem.tokens.VelaIconSize
-import app.getvela.wallet.core.designsystem.tokens.VelaLeading
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 import app.getvela.wallet.core.i18n.I18nKeys
 import app.getvela.wallet.core.i18n.LocalVelaStrings
 
 /**
- * Name the wallet, and accept the two gates.
+ * Name the wallet, and accept the three gates.
  *
- * Two checkboxes, matching the core's `ACK_COUNT` (data-model §2, 4 → 2). The
- * recovery line between them is an ASSURANCE — a fact about what the founding
- * key set buys you — not a third gate, so it renders with a filled tick and
- * nothing to tap. Making it tappable would invite a person to agree to something
- * that changes nothing.
+ * Three checkboxes, matching the core's `ACK_COUNT`, and every one of them a
+ * FACT ABOUT WHERE SOMETHING ENDS UP: the public key and the name go into the
+ * on-chain contract, the private key stays in the device's password manager or
+ * on a security key, and the legal assent. Together they are the whole custody
+ * story, and **none arrives pre-ticked** — a box that is already ticked records
+ * nothing about what the person read.
  *
- * Row order follows the design: what the wallet is, what it gives you, what you
- * agree to. Legal assent goes LAST because it is the only line that is about the
- * company rather than about the wallet.
+ * The recovery assurance that used to sit between them is gone. It described a
+ * BENEFIT, and mixing one of those into a list of consequences teaches people to
+ * skim the list.
+ *
+ * The field has no label and no helper line. The heading directly above it
+ * already says "name your wallet", so a label restated it in smaller type — and
+ * what the helper said (the name is stored on-chain) is now `ack0`, where a
+ * person has to look at it rather than past it.
+ *
+ * The gates sit at the BOTTOM, against the button they gate, and OUTSIDE the
+ * scrolling region — a checklist a thumb reaches before the sentence does is
+ * one nobody reads, and a fixed spacer only pushes it to the middle. The field
+ * above scrolls instead: it is one row, and the gates are the part that has to
+ * be on screen.
  */
 @Composable
 fun ColumnScope.NameScreen(
@@ -89,69 +95,55 @@ fun ColumnScope.NameScreen(
         VelaTextField(
             value = name,
             onValueChange = { if (nameEditable) onName(it) },
-            label = strings.t(I18nKeys.Create.ACCOUNT_NAME_LABEL),
+            label = "",
             placeholder = strings.t(I18nKeys.Create.ACCOUNT_NAME_PLACEHOLDER),
             errorText = if (nameTooLong) strings.t(I18nKeys.Create.NAME_TOO_LONG) else null,
-            helperText = strings.t(I18nKeys.Create.ACCOUNT_NAME_HINT),
         )
 
-        Spacer(modifier = Modifier.height(VelaSpacing.xl4))
+    }
 
-        Column(verticalArrangement = Arrangement.spacedBy(VelaSpacing.md)) {
-            VelaAckRow(
-                checked = acks.getOrElse(0) { false },
-                onCheckedChange = { onToggleAck(0) },
-                text = AnnotatedString(strings.t(I18nKeys.Create.ACK0)),
-            )
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(bottom = VelaSpacing.xl),
+        verticalArrangement = Arrangement.spacedBy(VelaSpacing.md),
+    ) {
+        VelaAckRow(
+            checked = acks.getOrElse(0) { false },
+            onCheckedChange = { onToggleAck(0) },
+            text = AnnotatedString(strings.t(I18nKeys.Create.ACK0)),
+        )
+        VelaAckRow(
+            checked = acks.getOrElse(1) { false },
+            onCheckedChange = { onToggleAck(1) },
+            text = AnnotatedString(strings.t(I18nKeys.Create.ACK1)),
+        )
+        VelaAckRow(
+            checked = acks.getOrElse(2) { false },
+            onCheckedChange = { onToggleAck(2) },
+            text = legalLine(
+                lead = strings.t(I18nKeys.Create.ACK2),
+                privacy = strings.t(I18nKeys.Create.ACK2_PRIVACY_POLICY),
+                conjunction = strings.t(I18nKeys.Create.ACK2_AND),
+                terms = strings.t(I18nKeys.Create.ACK2_TERMS),
+                period = strings.t(I18nKeys.Create.ACK2_PERIOD),
+                emphasis = colors.fgBase,
+            ),
+        )
 
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(
-                    imageVector = VelaIcons.Check,
-                    contentDescription = null,
-                    tint = colors.successBase,
-                    modifier = Modifier.size(VelaIconSize.base),
-                )
-                Spacer(modifier = Modifier.size(VelaSpacing.md))
-                Text(
-                    text = strings.t(I18nKeys.Create.ASSURANCE_RECOVERY),
-                    color = colors.fgMuted,
-                    fontFamily = VelaFontFamily,
-                    fontWeight = VelaFontWeight.regular,
-                    fontSize = VelaTextSize.base,
-                    lineHeight = VelaLeading.normal * VelaTextSize.base,
-                )
-            }
-
-            VelaAckRow(
-                checked = acks.getOrElse(1) { false },
-                onCheckedChange = { onToggleAck(1) },
-                text = legalLine(
-                    lead = strings.t(I18nKeys.Create.ACK1),
-                    privacy = strings.t(I18nKeys.Create.ACK1_PRIVACY_POLICY),
-                    conjunction = strings.t(I18nKeys.Create.ACK1_AND),
-                    terms = strings.t(I18nKeys.Create.ACK1_TERMS),
-                    period = strings.t(I18nKeys.Create.ACK1_PERIOD),
-                    emphasis = colors.fgBase,
-                ),
-            )
-
-            // The two documents open outside the app, from HERE rather than
-            // from the sentence above. The checkbox row IS a single touch
-            // target, and a link inside it either steals the tap or is too
-            // small to hit — the spec-011 lesson `VelaAckRow` already carries.
-            //
-            // So the sentence names them without pretending to be tappable
-            // (emphasis, not accent — device-verified 2026-08-25: accent
-            // coloured text inside an untappable row reads as a broken link),
-            // and this row is where they are actually opened.
-            Row(horizontalArrangement = Arrangement.spacedBy(VelaSpacing.xl)) {
-                PolicyLink(strings.t(I18nKeys.Create.ACK1_PRIVACY_POLICY), onOpenPrivacy)
-                PolicyLink(strings.t(I18nKeys.Create.ACK1_TERMS), onOpenTerms)
-            }
+        // The two documents open from HERE, not from the sentence above. The
+        // checkbox row is a single touch target (`VelaAckRow`'s
+        // `toggleable`), so an inline link either steals the tap or is too
+        // small to hit — the spec-011 lesson that component already carries.
+        //
+        // So the sentence names them without pretending to be tappable
+        // (emphasis, not accent — device-verified 2026-08-25: accent-coloured
+        // text inside an untappable row reads as a broken link), and this row
+        // is where they are actually opened.
+        Row(horizontalArrangement = Arrangement.spacedBy(VelaSpacing.xl)) {
+            PolicyLink(strings.t(I18nKeys.Create.ACK2_PRIVACY_POLICY), onOpenPrivacy)
+            PolicyLink(strings.t(I18nKeys.Create.ACK2_TERMS), onOpenTerms)
         }
 
         if (statusText != null) {
-            Spacer(modifier = Modifier.height(VelaSpacing.xl))
             Text(
                 text = statusText,
                 color = colors.fgMuted,
@@ -160,11 +152,6 @@ fun ColumnScope.NameScreen(
                 fontSize = VelaTextSize.base,
             )
         }
-
-        // The scroll region ends here, and the CTA begins immediately below it.
-        // Without this the last row sits flush against the button and reads as
-        // clipped even when it is not.
-        Spacer(modifier = Modifier.height(VelaSpacing.xl5))
     }
 
     VelaPrimaryButton(

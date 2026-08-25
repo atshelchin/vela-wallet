@@ -60,17 +60,18 @@ object I18nKeys {
         // Spec 014 create-flow keys (contracts/i18n-keys.md). All EXISTS in the
         // corpus except RETRY_VERIFY_BTN, which lands with the spec-014 corpus batch.
         const val HEADER_SYNC_FAILED = "onboarding.create.headerSyncFailed"
-        const val ACCOUNT_NAME_LABEL = "onboarding.create.accountNameLabel"
         const val ACCOUNT_NAME_PLACEHOLDER = "onboarding.create.accountNamePlaceholder"
-        const val ACCOUNT_NAME_HINT = "onboarding.create.accountNameHint"
         const val NAME_TOO_LONG = "onboarding.create.nameTooLong"
         const val TECHNICAL_DETAILS = "onboarding.create.technicalDetails"
-        // Two acknowledgements, not four (spec 019, data-model §2). The legal
-        // line moved from index 3 to index 1 when `ACK_COUNT` went 4 → 2, and
-        // its link fragments moved with it: the `onboarding.create.ack3*`
-        // lineage no longer exists in the corpus.
+        // THREE acknowledgements, each a fact about where something ends up:
+        // the public key and the name go on-chain, the private key stays in the
+        // device or on a security key, and the legal assent. The legal line's
+        // link fragments are named for the row they render on — `ack2*` — because
+        // a fragment key that disagrees with its index is how the earlier
+        // `ack3` → `ack1` confusion started.
         const val ACK0 = "onboarding.create.ack0"
         const val ACK1 = "onboarding.create.ack1"
+        const val ACK2 = "onboarding.create.ack2"
         const val CREATE_WALLET_BTN = "onboarding.create.createWalletBtn"
         const val STATUS_SETTING_UP_IDENTITY = "onboarding.create.statusSettingUpIdentity"
         const val STATUS_VERIFYING_IDENTITY = "onboarding.create.statusVerifyingIdentity"
@@ -89,15 +90,12 @@ object I18nKeys {
 
         // --- spec 019, the v2 create journey -------------------------------
         //
-        // Name screen. ACK1 replaced the old ACK3 lineage when ACK_COUNT went
-        // 4 -> 2 (data-model 2): the legal line is now index 1, so its link
-        // fragments moved from ack3* to ack1*.
+        // Name screen.
         const val NAME_TITLE = "onboarding.create.nameTitle"
-        const val ACK1_PRIVACY_POLICY = "onboarding.create.ack1PrivacyPolicy"
-        const val ACK1_AND = "onboarding.create.ack1And"
-        const val ACK1_TERMS = "onboarding.create.ack1Terms"
-        const val ACK1_PERIOD = "onboarding.create.ack1Period"
-        const val ASSURANCE_RECOVERY = "onboarding.create.assuranceRecovery"
+        const val ACK2_PRIVACY_POLICY = "onboarding.create.ack2PrivacyPolicy"
+        const val ACK2_AND = "onboarding.create.ack2And"
+        const val ACK2_TERMS = "onboarding.create.ack2Terms"
+        const val ACK2_PERIOD = "onboarding.create.ack2Period"
         const val NEXT_BTN = "onboarding.create.nextBtn"
         const val STATUS_SETUP_CANCELLED = "onboarding.create.statusSetupCancelled"
         const val STATUS_VERIFY_CANCELLED = "onboarding.create.statusVerifyCancelled"

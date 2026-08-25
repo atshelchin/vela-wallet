@@ -1309,4 +1309,70 @@ mod hardware_tests {
             "OK — register took {after_register} touch prompt(s), assert took {for_assertion}"
         );
     }
+
+    /// The exclude list, against the same authenticator.
+    ///
+    /// ```bash
+    /// VELA_TEST_PIN=… cargo test excluded_credential_is_refused -- --ignored --nocapture
+    /// ```
+    ///
+    /// **Why this matters more than it looks.** A multi-key wallet registers each
+    /// founding key separately, and the Safe address is derived from ALL of them.
+    /// If the second registration silently REPLACED the first on the same
+    /// authenticator, the person would end up with one credential where the core
+    /// believes there are two — and the address it derived belongs to a key set
+    /// that no longer exists. Nothing on screen would look wrong; the wallet
+    /// would simply be unreachable and unfundable.
+    ///
+    /// So the authenticator MUST refuse, and this is the only test that proves a
+    /// real one does. It needs one key, not two: registering twice on the same
+    /// device with the first credential excluded is exactly the case.
+    #[test]
+    #[ignore]
+    fn excluded_credential_is_refused() {
+        let ceremony = Ceremony {
+            touch: Arc::new(|request| {
+                if let Some(request) = request {
+                    eprintln!("  >>> TOUCH YOUR KEY ({:?}) <<<", request.kind);
+                }
+            }),
+            pin: Arc::new(|_| std::env::var("VELA_TEST_PIN").ok()),
+            pick: Arc::new(|_| Some(0)),
+            window: 0,
+        };
+
+        let first = register("Exclude test", &[], KeyMethod::SecurityKey, &ceremony)
+            .expect("the first registration");
+        eprintln!("first credential: {}", first.credential_id);
+
+        eprintln!("  now registering again with that credential EXCLUDED — the key must refuse");
+        let second = register(
+            "Exclude test 2",
+            std::slice::from_ref(&first.credential_id),
+            KeyMethod::SecurityKey,
+            &ceremony,
+        );
+
+        match second {
+            Err(failure) => {
+                // The message is the shell's, and the sheet renders it. It has to
+                // say what happened, because "try again" would be advice that
+                // cannot work on this key.
+                eprintln!("refused, as it must: {failure:?}");
+                assert_eq!(
+                    failure.kind,
+                    FailureKind::Other,
+                    "an excludeList refusal is not a cancellation and not an \
+                     unsupported device — the person can still add a key, on a \
+                     DIFFERENT authenticator"
+                );
+            }
+            Ok(second) => panic!(
+                "the authenticator minted a SECOND credential ({}) despite the first \
+                 ({}) being in excludeCredentials — a multi-key wallet built on this \
+                 key would derive an address from a key set that does not exist",
+                second.credential_id, first.credential_id
+            ),
+        }
+    }
 }

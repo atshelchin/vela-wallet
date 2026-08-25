@@ -53,22 +53,20 @@ class I18nEngineSmokeTest {
         // Spec 014 onboarding flow keys (contracts/i18n-keys.md): every string
         // the create/login state panels render must resolve, not echo.
         I18nKeys.Create.HEADER_SYNC_FAILED,
-        I18nKeys.Create.ACCOUNT_NAME_LABEL,
         I18nKeys.Create.ACCOUNT_NAME_PLACEHOLDER,
-        I18nKeys.Create.ACCOUNT_NAME_HINT,
         I18nKeys.Create.NAME_TOO_LONG,
         I18nKeys.Create.TECHNICAL_DETAILS,
         I18nKeys.Create.ACK0,
         I18nKeys.Create.ACK1,
-        I18nKeys.Create.ACK1_PRIVACY_POLICY,
-        I18nKeys.Create.ACK1_AND,
-        I18nKeys.Create.ACK1_TERMS,
-        I18nKeys.Create.ACK1_PERIOD,
+        I18nKeys.Create.ACK2,
+        I18nKeys.Create.ACK2_PRIVACY_POLICY,
+        I18nKeys.Create.ACK2_AND,
+        I18nKeys.Create.ACK2_TERMS,
+        I18nKeys.Create.ACK2_PERIOD,
         // The v2 create journey (spec 019). Listed here rather than in a second
         // test because the claim is the same one: no key this app renders may
         // echo its own name at a person.
         I18nKeys.Create.NAME_TITLE,
-        I18nKeys.Create.ASSURANCE_RECOVERY,
         I18nKeys.Create.NEXT_BTN,
         I18nKeys.Create.STATUS_SETUP_CANCELLED,
         I18nKeys.Create.STATUS_VERIFY_CANCELLED,

@@ -1,5 +1,8 @@
-//! Account-name field (spec 014 Form pattern): label, single-line editable
-//! well, over-length hint (A3), helper caption. Editing is the minimal gpui
+//! Account-name field (spec 014 Form pattern): optional label, single-line
+//! editable well, over-length hint (A3), optional helper caption. An empty
+//! label or helper renders NOTHING rather than an empty box with its own
+//! margin — the create screen passes both empty since spec 019, because its
+//! heading already names the field. Editing is the minimal gpui
 //! idiom — a focus handle plus `on_key_down` appending `key_char`s and
 //! handling backspace, with a styled-div caret. Composed text input (IME) is
 //! a documented limitation of this pure-UI phase; the wiring feature owns a
@@ -145,19 +148,21 @@ pub fn text_field(
             })
     };
 
-    let mut col = div()
-        .flex()
-        .flex_col()
-        .child(
+    let mut col = div().flex().flex_col();
+    if !strings.label.is_empty() {
+        col = col.child(
             // v2's field label: tiny, uppercase and muted — a caption over the
-            // field, not a heading beside it.
+            // field, not a heading beside it. Rendered only when there is one:
+            // the name screen's own heading already says "name your wallet", so
+            // it passes an empty label rather than restate it in smaller type.
             div()
                 .text_size(theme::text_section_label())
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(theme.fg_muted)
                 .child(SharedString::from(strings.label.to_uppercase())),
-        )
-        .child(div().mt(px(FLOW_GAP_SM)).child(well));
+        );
+    }
+    col = col.child(div().mt(px(FLOW_GAP_SM)).child(well));
 
     if too_long {
         // A3: the red line slots in WITHOUT displacing the field above it and
@@ -169,6 +174,9 @@ pub fn text_field(
                 .text_color(theme.error_base)
                 .child(strings.too_long_hint.clone()),
         );
+    }
+    if strings.helper.is_empty() {
+        return col;
     }
     col.child(
         div()

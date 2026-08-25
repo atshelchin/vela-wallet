@@ -1167,3 +1167,65 @@ path behaving correctly.
 
 The founder verified the iOS one-signature sign-in on the physical iPhone 11:
 我已有钱包 raises **one** passkey prompt and lands on the wallet.
+
+---
+
+## Closing — 2026-08-25
+
+### Every gate, at the close
+
+| Shell | Gate | Result |
+| --- | --- | --- |
+| core | `cargo test -p vela-core --features crux,i18n-all` | **1,172 passed, 0 failed** |
+| core | `clippy -D warnings` · `fmt --check` | clean |
+| core | `smoke-kotlin.sh` · `smoke-swift.sh` | 43,063 conformance + bridge + golden Safe, each |
+| desktop | `cargo test` | **70 passed, 0 failed, 5 ignored** |
+| desktop | `clippy -D warnings` · `fmt --check` | clean |
+| desktop | `cargo test -- --ignored` | 3 pass without a PIN (2 network, 1 CTAP `getInfo`); 2 wait on one |
+| web (`app-web`) | `svelte-check` | **650 files, 0 errors, 0 warnings** |
+| web (repo root) | `tsc --noEmit` · `jest` | exit 0 · **196 suites, 2,498 passed** |
+| Android | `testDebugUnitTest` · `assembleDebug` | **64 passed, 0 failed** · green |
+| iOS | `gen-tokens --check` · `audit-literals` · `xcodebuild build test` | in sync · clean · **109 passed** |
+
+Test counts across the feature: core 1,116 → 1,172 · desktop 37 → 70 ·
+Android 51 → 64 · iOS 84 → 109.
+
+### Verified on real hardware
+
+| Claim | Where |
+| --- | --- |
+| Create a wallet end to end | Galaxy S22, Google Password Manager |
+| Sign in costs ONE passkey prompt | Galaxy S22 **and** iPhone 11 (T119, T140) |
+| Sign out returns to Welcome with live CTAs | Galaxy S22 |
+| Cancelling a ceremony keeps the form and the draft | Galaxy S22, emulator |
+| Founding keys are discoverable | the system picker listed every one |
+| CTAPHID framing, report-id byte, CBOR | YubiKey `FIDO_2_3`, no touch needed |
+| Every iOS screen, by eye | 19 screenshots off the iPhone 11 |
+| Sign-in on a security key | Mac + YubiKey (Phase 5) |
+
+### What a human still has to do
+
+Three items, all needing a finger or a second device. None is a code gap.
+
+1. **`VELA_TEST_PIN=… cargo test register_then_assert excluded_credential_is_refused -- --ignored`**
+   on the Mac with the YubiKey. Closes T089 and most of T091: the touch count,
+   the attestation's P-256 point, and the exclude-list refusal.
+2. **T091's two remaining hardware states** — a key with NO PIN set (the
+   "set one with the manufacturer's tool" path), and a PIN typed wrong once
+   (the attempt count must go down by one and the word "locked" must not
+   appear). Both need a second key or a PIN reset, so neither is scriptable.
+3. **T121's Android scenarios 2, 3 and 7** — the second-key gate with a
+   device-only key, cross-client address agreement against a second client, and
+   publish-failure recovery with the network cut mid-flow.
+
+### What this feature actually changed
+
+Four clients stopped having four opinions about onboarding. The create and login
+rules live in `vela-core` and are reached by four routes — directly on desktop,
+through wasm on web and the extension, through the uniffi bridge on iOS and
+Android — and the golden Safe address is now pinned on all four so a derivation
+change cannot drift on one.
+
+The bugs worth remembering are in `deviations.md` §11, as classes rather than
+incidents: a comment that documented an obsolete invariant, a lesson recorded
+but not generalised, and a view field read outside its lifecycle.

@@ -39,18 +39,31 @@ use crate::registry_proof::RegistryProof;
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
 
-/// The acknowledgment checklist. Two rows, both required — the gate is a
+/// The acknowledgment checklist. Three rows, all required — the gate is a
 /// business rule, not a UI decoration.
 ///
-/// Row 0 records that the person accepted self-custody: the private keys are
-/// held by their own device's credential manager and Vela cannot recover them.
-/// Row 1 records legal assent to the privacy policy and the terms.
+/// Each row is a FACT about where something ends up, and the three together are
+/// the whole custody story a person is agreeing to:
 ///
-/// It was four. The other two said true things about recovery and about a
-/// compromised provider account, but a checklist people tick without reading
-/// records nothing, and four measurably reduces comprehension of all four. They
-/// are now stated as assurances beside the gate rather than as gates.
-pub const ACK_COUNT: usize = 2;
+/// * Row 0 — the public key and the wallet name are written into the on-chain
+///   contract. Public, permanent, and not deletable later.
+/// * Row 1 — the private key stays in the device's credential manager or on a
+///   security key. Vela never sees it, and therefore cannot recover it.
+/// * Row 2 — legal assent to the privacy policy and the terms.
+///
+/// It was four, then two, and is three. The four included two rows that said
+/// true things about recovery and about a compromised provider account, and a
+/// checklist people tick without reading records nothing — so those became
+/// assurances beside the gate. Two turned out to be the wrong two: the pair
+/// named where the PRIVATE key lives and what the user agrees to, and never
+/// said that the public key and the chosen name go on-chain in the clear. That
+/// is the one consequence of creating a wallet that cannot be undone
+/// afterwards, so it is now a gate rather than something a person discovers.
+///
+/// The recovery assurance that used to sit between them is gone from this
+/// screen: it described a benefit, and this list is only for the facts a person
+/// is consenting to.
+pub const ACK_COUNT: usize = 3;
 
 /// The Safe deployment this wallet uses, recorded in the registry metadata.
 const WALLET_VERSION: &str = "safe-1.4.1";

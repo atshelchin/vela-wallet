@@ -30,21 +30,22 @@ enum I18nKeys {
         static let headerCreated = "onboarding.create.headerCreated"
         static let headerSyncFailed = "onboarding.create.headerSyncFailed"
 
-        // Name screen. ACK1 replaced the old ACK3 lineage when `ACK_COUNT` went
-        // 4 -> 2 (data-model §2): the legal line is index 1 now, so its link
-        // fragments moved from ack3* to ack1*.
+        // Name screen. THREE acknowledgements, each a fact about where something
+        // ends up: the public key and the name go on-chain, the private key
+        // stays in the device or on a security key, and the legal assent. The
+        // legal line's fragments are named for the row they render on — `ack2*`
+        // — because a fragment key that disagrees with its index is how the
+        // earlier ack3 -> ack1 confusion started.
         static let nameTitle = "onboarding.create.nameTitle"
-        static let accountNameLabel = "onboarding.create.accountNameLabel"
         static let accountNamePlaceholder = "onboarding.create.accountNamePlaceholder"
-        static let accountNameHint = "onboarding.create.accountNameHint"
         static let nameTooLong = "onboarding.create.nameTooLong"
         static let ack0 = "onboarding.create.ack0"
         static let ack1 = "onboarding.create.ack1"
-        static let ack1PrivacyPolicy = "onboarding.create.ack1PrivacyPolicy"
-        static let ack1And = "onboarding.create.ack1And"
-        static let ack1Terms = "onboarding.create.ack1Terms"
-        static let ack1Period = "onboarding.create.ack1Period"
-        static let assuranceRecovery = "onboarding.create.assuranceRecovery"
+        static let ack2 = "onboarding.create.ack2"
+        static let ack2PrivacyPolicy = "onboarding.create.ack2PrivacyPolicy"
+        static let ack2And = "onboarding.create.ack2And"
+        static let ack2Terms = "onboarding.create.ack2Terms"
+        static let ack2Period = "onboarding.create.ack2Period"
         static let nextBtn = "onboarding.create.nextBtn"
         static let createWalletBtn = "onboarding.create.createWalletBtn"
         static let finishVerifyBtn = "onboarding.create.finishVerifyBtn"
@@ -163,10 +164,10 @@ enum I18nKeys {
     static let all: [String] = [
         Welcome.tagline, Welcome.createWallet, Welcome.alreadyHaveWallet,
         Create.header, Create.headerCreated, Create.headerSyncFailed,
-        Create.nameTitle, Create.accountNameLabel, Create.accountNamePlaceholder,
-        Create.accountNameHint, Create.nameTooLong,
-        Create.ack0, Create.ack1, Create.ack1PrivacyPolicy, Create.ack1And,
-        Create.ack1Terms, Create.ack1Period, Create.assuranceRecovery,
+        Create.nameTitle, Create.accountNamePlaceholder, Create.nameTooLong,
+        Create.ack0, Create.ack1,
+        Create.ack2, Create.ack2PrivacyPolicy, Create.ack2And,
+        Create.ack2Terms, Create.ack2Period,
         Create.nextBtn, Create.createWalletBtn, Create.finishVerifyBtn, Create.startOverBtn,
         Create.statusSettingUpIdentity, Create.statusVerifyingIdentity,
         Create.statusExtractingKey, Create.statusComputingAddress, Create.statusSyncingKey,

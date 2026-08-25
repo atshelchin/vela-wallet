@@ -52,6 +52,33 @@ const WEB_ADDITIONS = [
 	],
 	['text-heroCompact', '38px', 'spec 019: the v2 Welcome headline below the desktop breakpoint'],
 	[
+		'layout-onboardingRail',
+		'320px',
+		'spec 019: the onboarding rail, at and above the desktop breakpoint only. Below it the page keeps its single column — a rail is an answer to spare width, and a phone has none'
+	],
+	[
+		'layout-onboardingColumn',
+		'520px',
+		'spec 019: the screen column beside the rail. Content ends where it ends there; the mobile layout anchors its CTA to the bottom of the viewport, which is a phone pattern and stays on phones'
+	],
+	['text-stepOrdinal', '104px', 'spec 019: the rail step ordinal, set as display TYPE rather than drawn as a stepper widget'],
+	['text-stepTotal', '20px', 'spec 019: the /03 beside the ordinal, and the step name under it'],
+	[
+		'text-railTagline',
+		'26px',
+		'spec 019: the rail line outside the journey. 26, not the design 30 — the string cannot carry the design hard break (Android and iOS render the same key on one line), and 26 fits the CJK taglines in the rail measure whole'
+	],
+	[
+		'color-rail-ordinal',
+		'color-mix(in srgb, var(--color-fg-base) 14%, var(--color-bg-sunken))'
+		, 'spec 019: the ordinal is a WATERMARK on the rail surface. Mixed rather than declared per mode because WEB_ADDITIONS land in :root only — and a mix off the two tokens that already flip is the more honest statement anyway: one step off the background, whichever background that is'
+	],
+	[
+		'color-rail-ordinalSoft',
+		'color-mix(in srgb, var(--color-fg-base) 22%, var(--color-bg-sunken))'
+		, 'spec 019: the /03, a step further up from the background than the ordinal'
+	],
+	[
 		'layout-flowColumn',
 		'440px',
 		'spec 019: the v2 onboarding flow column. The design centres every step in one column of this width at every viewport; the Welcome hero is the only wider one'

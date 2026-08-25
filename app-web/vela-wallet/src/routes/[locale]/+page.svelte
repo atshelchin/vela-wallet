@@ -22,6 +22,7 @@
 	import type { PageProps } from './$types';
 	import BrandMark from '$lib/ui/BrandMark.svelte';
 	import Button from '$lib/ui/Button.svelte';
+	import OnboardingRail from '$lib/ui/onboarding/v2/OnboardingRail.svelte';
 	import PromptSheet from '$lib/ui/onboarding/v2/PromptSheet.svelte';
 	import { fillTemplate } from '$lib/i18n/fill';
 	import { SUPPORTED_LOCALES, FALLBACK_LOCALE } from '$lib/i18n/locales';
@@ -103,8 +104,14 @@
 </svelte:head>
 
 <main class="welcome">
+	<OnboardingRail
+		rail={{ kind: 'tagline', text: strings('onboarding.welcome.desktopTagline') }}
+	/>
+
 	<div class="column">
 		<div class="top">
+			<!-- The rail carries the brand at desktop widths; below the breakpoint
+			     there is no rail, and it belongs here as it always did. -->
 			<header class="brand">
 				<BrandMark size={60} />
 				<span class="wordmark">VELA WALLET</span>
@@ -153,18 +160,25 @@
 		background: var(--color-bg-base);
 	}
 
-	/*
-	 * The design anchors the brand and headline at the top of the frame and
-	 * the two ways in at its BOTTOM. That only happens if the column fills the
-	 * height — centre it and `space-between` has nothing to distribute, which
-	 * is exactly how the first pass ended up with the buttons riding up under
-	 * the subtitle.
-	 */
+	/* The rail brings its own padding and has to reach both edges, so the page
+	   gives up its own once the rail is showing. */
+	@media (min-width: 1280px) {
+		.welcome {
+			justify-content: flex-start;
+			padding: 0;
+		}
+	}
 
 	/*
-	 * `space-between`, not a centred stack: the design anchors the brand and
-	 * headline at the top and the two ways in at the bottom, so the eye lands
-	 * on what the wallet IS before it lands on what to do about it.
+	 * PHONE WIDTHS: `space-between`, so the brand and headline sit at the top
+	 * of the frame and the two ways in ride the bottom, within a thumb. That
+	 * only works if the column fills the height — centre it and space-between
+	 * has nothing to distribute, which is how the first pass ended up with the
+	 * buttons riding up under the subtitle.
+	 *
+	 * At desktop widths it is centred instead, beside the rail. Stretching this
+	 * rule to a desktop window is what opened the hole in the middle of the
+	 * page and made it read like a phone screen pulled tall.
 	 */
 	.column {
 		display: flex;
@@ -235,26 +249,44 @@
 	}
 
 	/* ------------------------------------------------------------------ */
-	/* Desktop: a wider column and the two ways in side by side.           */
+	/* Desktop: a rail on the left, and the two ways in side by side.      */
 	/* ------------------------------------------------------------------ */
 
 	@media (min-width: 1280px) {
+		/* Beside the rail: left-aligned, vertically centred, and at its natural
+		   height. The mobile layout anchors the two ways in to the bottom of the
+		   viewport, which is right on a phone and opens a hole on a desktop. */
 		.column {
-			max-width: var(--layout-welcomeColumn);
+			flex: 0 1 auto;
+			justify-content: center;
+			gap: 0;
+			/* box-sizing is border-box globally, so the measure has to carry its own
+			   padding — 520 of text plus 72 a side. */
+			max-width: calc(var(--layout-onboardingColumn) + 144px);
+			margin-inline: 0;
+			padding: var(--space-5xl) 72px;
+		}
+
+		/* The rail has it. */
+		.brand {
+			display: none;
 		}
 
 		.headline {
 			font-size: var(--text-hero);
 		}
 
-		/* Side by side, sharing the column equally — the design's two buttons
-		   are the same width. */
+		/* Side by side, each at ITS LABEL'S width. A desktop dialog sizes a
+		   button to what it says; a full-width button is a phone's answer to a
+		   thumb, and two of them stacked is what made this read as a phone. */
 		.actions {
 			flex-direction: row;
+			margin-block-start: var(--space-4xl);
 		}
 
 		.actions :global(.button) {
-			flex: 1 1 auto;
+			flex: 0 0 auto;
+			min-width: 176px;
 		}
 	}
 </style>

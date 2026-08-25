@@ -13,6 +13,7 @@
 	 */
 	import { onMount } from 'svelte';
 	import FlowShell from './FlowShell.svelte';
+	import { RAIL_STEPS, type RailSlot } from './rail';
 	import NameScreen from './NameScreen.svelte';
 	import KeysScreen from './KeysScreen.svelte';
 	import ProgressScreen from './ProgressScreen.svelte';
@@ -86,6 +87,36 @@
 		return view.stage === 'add_keys' ? ('keys' as const) : ('form' as const);
 	});
 
+	/**
+	 * What the rail says beside the current screen. Three steps, and the
+	 * product's own line outside them — so the journey reads brand → 01 → 02 →
+	 * 03 → brand. DONE returns to the brand because by then nobody is asking
+	 * where they are; they are asking what they got.
+	 *
+	 * RETRY is not a fourth step: it is the third one having failed to land,
+	 * and the rail keeps saying so.
+	 */
+	const railSlot = $derived.by((): RailSlot => {
+		const step = (ordinal: number, key: string): RailSlot => ({
+			kind: 'step',
+			ordinal,
+			total: RAIL_STEPS,
+			name: strings(`onboarding.create.step${key}Label`),
+			detail: strings(`onboarding.create.step${key}Detail`)
+		});
+		switch (screen) {
+			case 'form':
+				return step(1, 'Naming');
+			case 'keys':
+				return step(2, 'Keys');
+			case 'progress':
+			case 'retry':
+				return step(3, 'Create');
+			default:
+				return { kind: 'tagline', text: strings('onboarding.welcome.desktopTagline') };
+		}
+	});
+
 	const statusText = $derived(
 		view?.status && !progressFor(view.status) ? strings(statusKeyToI18n(view.status)) : undefined
 	);
@@ -107,6 +138,7 @@
 	backLabel={strings('onboarding.common.back')}
 	canGoBack={screen !== 'progress'}
 	onBack={back}
+	{railSlot}
 >
 	{#if fatal}
 		<p class="fatal" role="alert">{fatal}</p>

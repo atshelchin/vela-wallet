@@ -8611,6 +8611,7 @@ dependencies = [
  "hidapi",
  "image",
  "p256 0.13.2",
+ "raw-window-handle",
  "resvg 0.45.1",
  "serde",
  "serde_json",

@@ -23,7 +23,7 @@ use std::sync::Arc;
 use gpui::{
     App, Context, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent,
     MouseButton, ParentElement, Render, SharedString, Stateful, StatefulInteractiveElement as _,
-    Styled, Window, WindowControlArea, div, px,
+    Styled, Window, div, px,
 };
 
 use vela_core::app::create_wallet::{CreateView, CreateWallet};
@@ -51,7 +51,9 @@ use crate::ui::{
     ButtonVariant, LaunchAnimation, NameFieldStrings, text_field, vela_button, vela_button_opts,
     vela_mark,
 };
-use crate::window_frame::{FRAME_SHADOW, frame_tiling, round_to_frame, window_frame};
+use crate::window_frame::{
+    FRAME_SHADOW, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
+};
 
 /// Height of the drag strip under client-side decorations.
 const DRAG_STRIP_H: f32 = 96.;
@@ -95,7 +97,6 @@ pub struct OnboardingPage {
     mode: ThemeMode,
     loc: Loc,
     focus_handle: FocusHandle,
-    drag_pending: bool,
     launch: Option<LaunchAnimation>,
 
     /// The create journey has taken over the page.
@@ -180,7 +181,6 @@ impl OnboardingPage {
             mode,
             loc,
             focus_handle,
-            drag_pending: false,
             creating: false,
             create,
             create_view,
@@ -784,110 +784,6 @@ impl OnboardingPage {
 
         Some(scrim(theme, "endpoint-scrim").child(card))
     }
-
-    // -- window chrome (unchanged from spec 007) ----------------------------
-
-    fn drag_strip(&self, cx: &mut Context<Self>) -> Stateful<Div> {
-        div()
-            .id("drag-strip")
-            .absolute()
-            .top_0()
-            .left_0()
-            .w_full()
-            .h(px(DRAG_STRIP_H))
-            .window_control_area(WindowControlArea::Drag)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _, _, _| this.drag_pending = true),
-            )
-            .on_mouse_up(
-                MouseButton::Left,
-                cx.listener(|this, _, _, _| this.drag_pending = false),
-            )
-            .on_mouse_down_out(cx.listener(|this, _, _, _| this.drag_pending = false))
-            // Press-then-move is a drag: hand the window to the compositor.
-            .on_mouse_move(cx.listener(|this, _, window, _| {
-                if this.drag_pending {
-                    this.drag_pending = false;
-                    window.start_window_move();
-                }
-            }))
-            .on_click(|event, window, _| {
-                if event.click_count() == 2 {
-                    window.zoom_window();
-                }
-            })
-            .on_mouse_down(MouseButton::Right, |event, window, _| {
-                window.show_window_menu(event.position);
-            })
-    }
-
-    fn window_controls(&self, window: &Window) -> Stateful<Div> {
-        let theme = Theme::of(self.mode);
-        let control = |id: &'static str, icon: &'static str, area: WindowControlArea| {
-            div()
-                .id(id)
-                .w(px(46.))
-                .h(px(34.))
-                .flex_none()
-                .flex()
-                .items_center()
-                .justify_center()
-                .cursor_pointer()
-                .text_size(px(18.))
-                .text_color(theme.fg_base)
-                .window_control_area(area)
-                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .child(icon)
-        };
-
-        let minimize = control("window-minimize", "−", WindowControlArea::Min)
-            .hover(|el| el.bg(theme.bg_sunken))
-            .active(|el| el.bg(theme.border_card))
-            .on_click(|_, window, cx| {
-                cx.stop_propagation();
-                window.minimize_window();
-            });
-        let maximize_icon = if window.is_maximized() { "❐" } else { "□" };
-        let maximize = control("window-maximize", maximize_icon, WindowControlArea::Max)
-            .hover(|el| el.bg(theme.bg_sunken))
-            .active(|el| el.bg(theme.border_card))
-            .on_click(|_, window, cx| {
-                cx.stop_propagation();
-                window.zoom_window();
-            });
-        let close = control("window-close", "×", WindowControlArea::Close)
-            .text_size(px(22.))
-            .hover(|el| el.bg(theme.accent).text_color(theme.fg_inverse))
-            .active(|el| el.bg(theme.accent_active).text_color(theme.fg_inverse))
-            .on_click(|_, window, cx| {
-                cx.stop_propagation();
-                window.remove_window();
-            });
-
-        div()
-            .id("window-controls")
-            .absolute()
-            .top_0()
-            .right_0()
-            .w(px(138.))
-            .h(px(34.))
-            .flex()
-            .flex_row()
-            .children([minimize, maximize, close])
-    }
-
-    fn titlebar(&self, window: &Window, cx: &mut Context<Self>) -> Stateful<Div> {
-        div()
-            .id("custom-titlebar")
-            .absolute()
-            .top_0()
-            .left_0()
-            .w_full()
-            .h(px(DRAG_STRIP_H))
-            .child(self.drag_strip(cx))
-            .child(self.window_controls(window))
-    }
 }
 
 /// The OS-level handle for this app's window.
@@ -900,8 +796,12 @@ impl OnboardingPage {
 fn native_window_handle(window: &Window) -> WindowHandle {
     #[cfg(windows)]
     {
-        use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
-        match window.window_handle().map(|handle| handle.as_raw()) {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        // Called through the trait, not as a method: `Window` has an INHERENT
+        // `window_handle()` returning gpui's own `AnyWindowHandle`, and an
+        // inherent method always wins over a trait method of the same name, so
+        // `window.window_handle()` would silently resolve to the wrong one.
+        match HasWindowHandle::window_handle(window).map(|handle| handle.as_raw()) {
             Ok(RawWindowHandle::Win32(win32)) => isize::from(win32.hwnd),
             // Zero is what the API takes to mean "no parent". The dialog still
             // appears; it just may not take focus, which is a worse experience
@@ -1041,7 +941,7 @@ impl Render for OnboardingPage {
             root = root.child(surface);
         }
 
-        let owns_titlebar = tiling.is_some() || cfg!(target_os = "windows");
+        let draws_titlebar = owns_titlebar(window);
         let root = match tiling {
             Some(tiling) => round_to_frame(root, tiling),
             None => root,
@@ -1058,8 +958,8 @@ impl Render for OnboardingPage {
                     window.toggle_fullscreen();
                 }
             }));
-        let root = if owns_titlebar {
-            root.child(self.titlebar(window, cx))
+        let root = if draws_titlebar {
+            root.child(titlebar(&theme, window, px(DRAG_STRIP_H)))
         } else {
             root
         };

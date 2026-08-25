@@ -9,6 +9,7 @@
 //! the sidebar, third column, Esc handling and gallery chrome already exist,
 //! so contacts is a `Section` switch on the content column (research.md D1).
 
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Anchor, Context, Div, ElementId, FocusHandle, InteractiveElement as _, IntoElement,
     KeyDownEvent, MouseButton, MouseDownEvent, ParentElement, Pixels, Point, Render, SharedString,
@@ -31,7 +32,9 @@ use crate::theme::{
     CONTACTS_RAIL_LABEL_H, CONTACTS_RAIL_ROW_H, CONTACTS_RAIL_W, GALLERY_BAR_H, SIDEBAR_PAD,
     SIDEBAR_TOP, SIDEBAR_W, THIRD_PANEL_W, Theme, ThemeMode, WALLET_PAD_TOP, WALLET_PAD_X,
 };
-use crate::window_frame::window_frame;
+use crate::window_frame::{
+    CAPTION_H, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
+};
 
 use super::WalletStrings;
 use super::components::{
@@ -48,6 +51,18 @@ pub enum PanelId {
     AssetDetail,
     /// Spec 018 DC2 — the contacts third-column content.
     ContactDetail,
+}
+
+/// What the contacts header row adds on top so its search field, buttons and
+/// ⋯ start below the drag strip. The row is centred inside
+/// `CONTACTS_HEADER_H`, so padding moves the group by only half — 16 buys the
+/// ~7px of clearance the 34px strip needs, with a little room to spare.
+const CONTACTS_HEADER_CAPTION_PAD: f32 = 16.;
+
+/// What the gallery chip strip adds on top for the same reason. It is not
+/// centred, so this is the clearance itself, less the 8 the bar already had.
+fn gallery_bar_caption_pad(caption: bool) -> f32 {
+    if caption { CAPTION_H + 4. - 8. } else { 0. }
 }
 
 /// Which destination the content column renders. The sidebar's selected nav
@@ -577,9 +592,14 @@ impl WalletPage {
     // -- column 2 (contacts): header + group rail + sectioned list -----------
 
     /// Window-space top of the contacts content column: the gallery chip strip
-    /// pushes everything down when it is on screen.
-    fn contacts_top(&self) -> f32 {
-        if self.gallery { GALLERY_BAR_H } else { 0. }
+    /// pushes everything down when it is on screen, and the strip is itself
+    /// pushed down by the caption row where the page draws one.
+    fn contacts_top(&self, window: &Window) -> f32 {
+        if self.gallery {
+            GALLERY_BAR_H + gallery_bar_caption_pad(owns_titlebar(window))
+        } else {
+            0.
+        }
     }
 
     /// Where DC5's dropdown hangs when the gallery chip (rather than a click)
@@ -587,7 +607,7 @@ impl WalletPage {
     fn header_menu_anchor(&self, window: &Window) -> Point<Pixels> {
         point(
             window.viewport_size().width - px(WALLET_PAD_X),
-            px(self.contacts_top() + CONTACTS_HEADER_H),
+            px(self.contacts_top(window) + CONTACTS_HEADER_H),
         )
     }
 
@@ -596,17 +616,20 @@ impl WalletPage {
     fn group_header_menu_anchor(&self, window: &Window) -> Point<Pixels> {
         point(
             window.viewport_size().width - px(WALLET_PAD_X),
-            px(self.contacts_top() + CONTACTS_HEADER_H + CONTACTS_BODY_PAD_TOP + CONTACTS_BUTTON_H),
+            px(self.contacts_top(window)
+                + CONTACTS_HEADER_H
+                + CONTACTS_BODY_PAD_TOP
+                + CONTACTS_BUTTON_H),
         )
     }
 
     /// Where DC6's context menu hangs when the gallery chip opens it: the
     /// trailing edge of the 家人 rail row, which is where a right-click on that
     /// row lands. The interactive path uses the real cursor position instead.
-    fn group_menu_anchor(&self) -> Point<Pixels> {
+    fn group_menu_anchor(&self, window: &Window) -> Point<Pixels> {
         point(
             px(SIDEBAR_W + WALLET_PAD_X + CONTACTS_RAIL_W),
-            px(self.contacts_top()
+            px(self.contacts_top(window)
                 + CONTACTS_HEADER_H
                 + CONTACTS_BODY_PAD_TOP
                 + CONTACTS_RAIL_ROW_H
@@ -615,19 +638,26 @@ impl WalletPage {
         )
     }
 
-    fn contacts_header(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Div {
+    fn contacts_header(&mut self, theme: &Theme, caption: bool, cx: &mut Context<Self>) -> Div {
         let title = self.contacts.title.clone();
         let placeholder = self.contacts.search_placeholder.clone();
         let add = self.contacts.add_contact.clone();
 
         // The DC1 hairline is inset to the content column's padding, not bled
         // to the sidebar edge — so it is a sibling row, not a bottom border.
+        //
+        // The row is centred in `CONTACTS_HEADER_H`, which puts the search
+        // field's top edge a few pixels inside the drag strip where the page
+        // draws its own caption. Padding the row pushes the whole centred
+        // group clear of it; the header's own height is unchanged, so the
+        // hairline — and every menu anchor hung off it — stays put.
         let row = div()
             .flex_1()
             .flex()
             .items_center()
             .gap(px(16.))
             .px(px(WALLET_PAD_X))
+            .when(caption, |el| el.pt(px(CONTACTS_HEADER_CAPTION_PAD)))
             .child(
                 div()
                     .text_size(theme::text_panel_title())
@@ -904,8 +934,8 @@ impl WalletPage {
             ))
     }
 
-    fn contacts_content(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Div {
-        let header = self.contacts_header(theme, cx);
+    fn contacts_content(&mut self, theme: &Theme, caption: bool, cx: &mut Context<Self>) -> Div {
+        let header = self.contacts_header(theme, caption, cx);
         let rail = self.contacts_rail(theme, cx);
         let body: gpui::AnyElement = if self.contacts_empty {
             self.contacts_empty_view(theme).into_any_element()
@@ -1419,14 +1449,14 @@ impl WalletPage {
             )),
             GalleryTab::Dc6 => Some((
                 ContactsMenu::Group,
-                self.group_menu_anchor(),
+                self.group_menu_anchor(window),
                 Anchor::TopLeft,
             )),
             _ => None,
         };
     }
 
-    fn gallery_bar(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Div {
+    fn gallery_bar(&mut self, theme: &Theme, caption: bool, cx: &mut Context<Self>) -> Div {
         let tabs = GalleryTab::ALL;
         let mut bar = div()
             .flex()
@@ -1438,7 +1468,11 @@ impl WalletPage {
             .border_b_1()
             .border_color(theme.divider)
             // Clear the traffic lights on macOS.
-            .pl(px(84.));
+            .pl(px(84.))
+            // …and the drag strip where the page draws its own caption: a tab
+            // under it would hit-test as caption on Windows and never see the
+            // click. Same idiom as the traffic-light padding above.
+            .pt(px(8. + gallery_bar_caption_pad(caption)));
         for (i, (tab, label)) in tabs.into_iter().enumerate() {
             let active = self.tab == tab;
             bar = bar.child(
@@ -1852,7 +1886,7 @@ impl WalletPage {
             .child(wrap)
     }
 
-    fn wallet_columns(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Div {
+    fn wallet_columns(&mut self, theme: &Theme, caption: bool, cx: &mut Context<Self>) -> Div {
         let mut columns = div()
             .flex_1()
             .min_h(px(0.))
@@ -1860,7 +1894,7 @@ impl WalletPage {
             .child(self.sidebar(theme, cx));
         columns = match self.section {
             Section::Wallet => columns.child(self.content(theme, cx)),
-            Section::Contacts => columns.child(self.contacts_content(theme, cx)),
+            Section::Contacts => columns.child(self.contacts_content(theme, caption, cx)),
         };
         columns = match self.panel {
             PanelId::None => columns,
@@ -1919,15 +1953,22 @@ impl Render for WalletPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(self.theme_mode());
 
+        // Windows and Linux CSD have no system caption, so the page draws one
+        // (spec 015 results.md deviation 5 assumed Windows was a native path;
+        // `appears_transparent` means it is not). Where it lands over content,
+        // that content is pushed clear of it below.
+        let caption = owns_titlebar(window);
+
         let body = if self.gallery {
-            let bar = self.gallery_bar(&theme, cx);
+            let bar = self.gallery_bar(&theme, caption, cx);
             let content: gpui::AnyElement = match self.tab {
                 GalleryTab::Components => self.components_tab(&theme).into_any_element(),
                 GalleryTab::ContactsComponents => {
                     self.contacts_components_tab(&theme).into_any_element()
                 }
                 GalleryTab::Identicons => self.identicons_tab(&theme).into_any_element(),
-                _ => self.wallet_columns(&theme, cx).into_any_element(),
+                // The bar already cleared the caption row for the page.
+                _ => self.wallet_columns(&theme, false, cx).into_any_element(),
             };
             div()
                 .size_full()
@@ -1940,7 +1981,7 @@ impl Render for WalletPage {
                 .size_full()
                 .flex()
                 .flex_col()
-                .child(self.wallet_columns(&theme, cx))
+                .child(self.wallet_columns(&theme, caption, cx))
         };
 
         let menu = self.menu_overlay(&theme, cx);
@@ -1984,6 +2025,18 @@ impl Render for WalletPage {
                     window.toggle_fullscreen();
                 }
             }));
+
+        // Square corners would poke out of the frame's rounded border.
+        let root = match frame_tiling(window) {
+            Some(tiling) => round_to_frame(root, tiling),
+            None => root,
+        };
+        // Last child: the caption buttons paint over the page, not under it.
+        let root = if caption {
+            root.child(titlebar(&theme, window, px(CAPTION_H)))
+        } else {
+            root
+        };
 
         window_frame(root, &theme, window)
     }

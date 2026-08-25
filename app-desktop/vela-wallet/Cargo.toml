@@ -123,6 +123,14 @@ dirs = "6"
 # Windows 10 build 1903 a non-elevated process cannot open a FIDO HID device.
 vela-passkey-win = { path = "../vela-passkey-win" }
 
+# Reading the HWND out of the gpui window to parent the passkey dialog to it.
+# gpui already depends on this crate and re-exports the trait impl, but a trait
+# has to be in scope through a direct dependency to be usable, so it is named
+# here too — same "0.6", so cargo unifies it onto gpui's 0.6.2 rather than
+# compiling a second copy whose `RawWindowHandle` would be a different type.
+[target.'cfg(windows)'.dependencies]
+raw-window-handle = "0.6"
+
 # Embeds the application icon into vela-wallet.exe as resource id 1, which is
 # where gpui's LoadImageW looks for it. Declared unconditionally rather than
 # under [target.'cfg(windows)'.build-dependencies], because that section is

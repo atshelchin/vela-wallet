@@ -22,7 +22,6 @@ struct AckRow: View {
     @Binding var checked: Bool
     var onLink: (ActionId) -> Void = { _ in }
 
-    private var hasLinks: Bool { segments.contains { $0.action != nil } }
     private var fullText: String { segments.map(\.text).joined() }
 
     var body: some View {
@@ -40,12 +39,19 @@ struct AckRow: View {
                 })
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .contentShape(Rectangle())
-        // Row-wide toggling only when no inline links compete for taps;
-        // link rows toggle via the checkbox itself.
-        .onTapGesture {
-            if !hasLinks { checked.toggle() }
-        }
+        // The row's toggle sits BEHIND the content rather than in front of it.
+        // An `onTapGesture` on the container wins over the inline links and
+        // swallows them, which is why the legal row used to opt out of
+        // row-wide toggling — and then a tap anywhere but the 16pt box did
+        // nothing at all, while the same sentence on web ticks from anywhere
+        // (founder-found 2026-08-25). Behind the text, the links keep their
+        // own taps and every other pixel of the row falls through to here.
+        .background(
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture { checked.toggle() }
+                .accessibilityHidden(true)
+        )
     }
 
     private var checkbox: some View {

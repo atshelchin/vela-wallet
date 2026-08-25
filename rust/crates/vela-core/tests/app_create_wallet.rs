@@ -124,6 +124,52 @@ fn submit_requires_every_acknowledgment() {
     assert!(sut.view().can_submit);
 }
 
+/// The form is the flow's FIRST screen, so the core has nowhere to send a
+/// person who presses back there — and every host reads `can_go_back` to
+/// decide between "the core steps back" and "I leave the flow". Reporting
+/// `true` here made the back affordance dead on the name screen on all four
+/// shells (device-found 2026-08-25).
+#[test]
+fn the_form_has_no_step_back_so_the_host_owns_leaving() {
+    let mut sut = filled("Ann");
+    assert!(
+        !sut.view().can_go_back,
+        "the name screen's back leaves the flow; it is not a core step"
+    );
+
+    let view_before = sut.view();
+    sut.dispatch(Event::GoBack);
+    let view_after = sut.view();
+    assert_eq!(view_after.stage, view_before.stage);
+    assert_eq!(view_after.name, view_before.name);
+    assert_eq!(view_after.acks, view_before.acks);
+}
+
+/// The key list DOES have a step back: the form it came from. The drafts are
+/// kept — the form re-entered with drafts is the "finish verification" state,
+/// and its submit returns to this same list without re-registering anything.
+#[test]
+fn back_from_the_key_list_returns_to_the_form_and_keeps_the_drafts() {
+    let mut sut = registered("Ann");
+    assert_eq!(sut.view().stage, CreateStage::AddKeys);
+    assert!(sut.view().can_go_back);
+
+    sut.dispatch(Event::GoBack);
+    let view = sut.view();
+    assert_eq!(view.stage, CreateStage::Form);
+    assert_eq!(view.keys.len(), 1, "going back keeps the minted key");
+    assert_eq!(view.submit_label, SubmitLabel::FinishVerify);
+    assert!(!view.name_editable, "a draft pins the name");
+    assert!(!view.can_go_back, "and the form still has nowhere back to");
+
+    sut.dispatch(Event::Submit);
+    assert_eq!(
+        sut.view().stage,
+        CreateStage::AddKeys,
+        "submit returns to the list it came from, with no new ceremony"
+    );
+}
+
 /// FR-015 — a name that cannot fit the WebAuthn user handle is rejected before
 /// any ceremony starts, not deep inside one with a cryptic platform error.
 #[test]

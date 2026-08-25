@@ -2,12 +2,13 @@ package app.getvela.wallet.feature.onboarding.flow
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,10 +17,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.withLink
 import app.getvela.wallet.core.designsystem.components.VelaAckRow
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.components.VelaTextField
@@ -50,11 +53,14 @@ import app.getvela.wallet.core.i18n.LocalVelaStrings
  * what the helper said (the name is stored on-chain) is now `ack0`, where a
  * person has to look at it rather than past it.
  *
- * The gates sit at the BOTTOM, against the button they gate, and OUTSIDE the
- * scrolling region — a checklist a thumb reaches before the sentence does is
- * one nobody reads, and a fixed spacer only pushes it to the middle. The field
- * above scrolls instead: it is one row, and the gates are the part that has to
- * be on screen.
+ * The gates sit at the BOTTOM, against the button they gate: a checklist a
+ * thumb reaches before the sentence does is one nobody reads. But they are
+ * INSIDE the scrolling region, pushed down by the arrangement rather than
+ * pinned by a weight — with the keyboard up the leftover height is smaller
+ * than the form, and a pinned block took its space out of the field above,
+ * which arrived on screen squashed to a sliver (founder-found 2026-08-25).
+ * Scrolled instead, everything keeps its natural height and the focused field
+ * is scrolled into view by the text field itself.
  */
 @Composable
 fun ColumnScope.NameScreen(
@@ -77,80 +83,83 @@ fun ColumnScope.NameScreen(
     val strings = LocalVelaStrings.current
     val colors = VelaTheme.colors
 
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState()),
-    ) {
-        Text(
-            text = strings.t(I18nKeys.Create.NAME_TITLE),
-            color = colors.fgBase,
-            fontFamily = VelaFontFamily,
-            fontWeight = VelaFontWeight.bold,
-            fontSize = VelaTextSize.xl3,
-        )
-        Spacer(modifier = Modifier.height(VelaSpacing.xl3))
+    BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        // `heightIn(min = maxHeight)` + `SpaceBetween` is what bottom-anchors
+        // the gates INSIDE a scroll: a `Spacer(weight)` cannot, because the
+        // height inside a scrolling column is unbounded and weighted children
+        // collapse to nothing there.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = strings.t(I18nKeys.Create.NAME_TITLE),
+                    color = colors.fgBase,
+                    fontFamily = VelaFontFamily,
+                    fontWeight = VelaFontWeight.bold,
+                    fontSize = VelaTextSize.xl3,
+                )
+                Spacer(modifier = Modifier.height(VelaSpacing.xl3))
 
-        VelaTextField(
-            value = name,
-            onValueChange = { if (nameEditable) onName(it) },
-            label = "",
-            placeholder = strings.t(I18nKeys.Create.ACCOUNT_NAME_PLACEHOLDER),
-            errorText = if (nameTooLong) strings.t(I18nKeys.Create.NAME_TOO_LONG) else null,
-        )
+                VelaTextField(
+                    value = name,
+                    onValueChange = { if (nameEditable) onName(it) },
+                    label = "",
+                    placeholder = strings.t(I18nKeys.Create.ACCOUNT_NAME_PLACEHOLDER),
+                    errorText = if (nameTooLong) strings.t(I18nKeys.Create.NAME_TOO_LONG) else null,
+                )
+            }
 
-    }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = VelaSpacing.xl3, bottom = VelaSpacing.xl),
+                verticalArrangement = Arrangement.spacedBy(VelaSpacing.md),
+            ) {
+                VelaAckRow(
+                    checked = acks.getOrElse(0) { false },
+                    onCheckedChange = { onToggleAck(0) },
+                    text = AnnotatedString(strings.t(I18nKeys.Create.ACK0)),
+                )
+                VelaAckRow(
+                    checked = acks.getOrElse(1) { false },
+                    onCheckedChange = { onToggleAck(1) },
+                    text = AnnotatedString(strings.t(I18nKeys.Create.ACK1)),
+                )
+                VelaAckRow(
+                    checked = acks.getOrElse(2) { false },
+                    onCheckedChange = { onToggleAck(2) },
+                    text = legalLine(
+                        lead = strings.t(I18nKeys.Create.ACK2),
+                        privacy = strings.t(I18nKeys.Create.ACK2_PRIVACY_POLICY),
+                        conjunction = strings.t(I18nKeys.Create.ACK2_AND),
+                        terms = strings.t(I18nKeys.Create.ACK2_TERMS),
+                        period = strings.t(I18nKeys.Create.ACK2_PERIOD),
+                        linkStyles = TextLinkStyles(
+                            style = SpanStyle(
+                                color = colors.accentBase,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                        ),
+                        onOpenPrivacy = onOpenPrivacy,
+                        onOpenTerms = onOpenTerms,
+                    ),
+                )
 
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(bottom = VelaSpacing.xl),
-        verticalArrangement = Arrangement.spacedBy(VelaSpacing.md),
-    ) {
-        VelaAckRow(
-            checked = acks.getOrElse(0) { false },
-            onCheckedChange = { onToggleAck(0) },
-            text = AnnotatedString(strings.t(I18nKeys.Create.ACK0)),
-        )
-        VelaAckRow(
-            checked = acks.getOrElse(1) { false },
-            onCheckedChange = { onToggleAck(1) },
-            text = AnnotatedString(strings.t(I18nKeys.Create.ACK1)),
-        )
-        VelaAckRow(
-            checked = acks.getOrElse(2) { false },
-            onCheckedChange = { onToggleAck(2) },
-            text = legalLine(
-                lead = strings.t(I18nKeys.Create.ACK2),
-                privacy = strings.t(I18nKeys.Create.ACK2_PRIVACY_POLICY),
-                conjunction = strings.t(I18nKeys.Create.ACK2_AND),
-                terms = strings.t(I18nKeys.Create.ACK2_TERMS),
-                period = strings.t(I18nKeys.Create.ACK2_PERIOD),
-                emphasis = colors.fgBase,
-            ),
-        )
-
-        // The two documents open from HERE, not from the sentence above. The
-        // checkbox row is a single touch target (`VelaAckRow`'s
-        // `toggleable`), so an inline link either steals the tap or is too
-        // small to hit — the spec-011 lesson that component already carries.
-        //
-        // So the sentence names them without pretending to be tappable
-        // (emphasis, not accent — device-verified 2026-08-25: accent-coloured
-        // text inside an untappable row reads as a broken link), and this row
-        // is where they are actually opened.
-        Row(horizontalArrangement = Arrangement.spacedBy(VelaSpacing.xl)) {
-            PolicyLink(strings.t(I18nKeys.Create.ACK2_PRIVACY_POLICY), onOpenPrivacy)
-            PolicyLink(strings.t(I18nKeys.Create.ACK2_TERMS), onOpenTerms)
-        }
-
-        if (statusText != null) {
-            Text(
-                text = statusText,
-                color = colors.fgMuted,
-                fontFamily = VelaFontFamily,
-                fontWeight = VelaFontWeight.regular,
-                fontSize = VelaTextSize.base,
-            )
+                if (statusText != null) {
+                    Text(
+                        text = statusText,
+                        color = colors.fgMuted,
+                        fontFamily = VelaFontFamily,
+                        fontWeight = VelaFontWeight.regular,
+                        fontSize = VelaTextSize.base,
+                    )
+                }
+            }
         }
     }
 
@@ -178,19 +187,6 @@ fun ColumnScope.NameScreen(
     Spacer(modifier = Modifier.height(VelaSpacing.xl))
 }
 
-@Composable
-private fun PolicyLink(label: String, onClick: () -> Unit) {
-    Text(
-        text = label,
-        color = VelaTheme.colors.accentBase,
-        fontFamily = VelaFontFamily,
-        fontWeight = VelaFontWeight.medium,
-        fontSize = VelaTextSize.base,
-        textDecoration = TextDecoration.Underline,
-        modifier = Modifier.clickable(onClick = onClick).padding(vertical = VelaSpacing.sm),
-    )
-}
-
 /**
  * The legal line, assembled from its five corpus fragments.
  *
@@ -198,6 +194,12 @@ private fun PolicyLink(label: String, onClick: () -> Unit) {
  * have to be styleable, and the conjunction and the full stop are grammar that
  * differs per locale — Chinese uses a different period character, and some
  * locales put the conjunction elsewhere entirely.
+ *
+ * The two documents open from the WORDS, the way they do on web, iOS and the
+ * desktop — this row used to name them in plain text and repeat them as a
+ * separate link row underneath, which was the odd one out of four shells. A
+ * `LinkAnnotation` inside the text consumes its own tap, so the link opens a
+ * browser and the surrounding row still toggles the box.
  */
 private fun legalLine(
     lead: String,
@@ -205,11 +207,13 @@ private fun legalLine(
     conjunction: String,
     terms: String,
     period: String,
-    emphasis: androidx.compose.ui.graphics.Color,
+    linkStyles: TextLinkStyles,
+    onOpenPrivacy: () -> Unit,
+    onOpenTerms: () -> Unit,
 ): AnnotatedString = buildAnnotatedString {
     append(lead)
-    withStyle(SpanStyle(color = emphasis, fontWeight = VelaFontWeight.semibold)) { append(privacy) }
+    withLink(LinkAnnotation.Clickable("privacy", linkStyles) { onOpenPrivacy() }) { append(privacy) }
     append(conjunction)
-    withStyle(SpanStyle(color = emphasis, fontWeight = VelaFontWeight.semibold)) { append(terms) }
+    withLink(LinkAnnotation.Clickable("terms", linkStyles) { onOpenTerms() }) { append(terms) }
     append(period)
 }

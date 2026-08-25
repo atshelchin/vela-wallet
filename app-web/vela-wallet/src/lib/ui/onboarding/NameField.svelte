@@ -74,8 +74,18 @@
 	}
 
 	.input:focus-visible {
+		/* ONE highlight, not two. The global `:focus-visible` halo in app.css
+		   is meant for controls that have no border of their own; on a field
+		   that already draws one it read as a second ring around the first
+		   (founder-found 2026-08-25), and the halo's own `radius-sm` squared
+		   off the corners of a field the tokens make `radius-lg`.
+		   The inset line thickens the accent border in place — no ring, no
+		   reflow, and the same "border turns accent" focus the Android, iOS
+		   and desktop fields use. */
 		border-color: var(--color-accent-base);
+		border-radius: var(--radius-lg);
 		outline: none;
+		box-shadow: inset 0 0 0 var(--border-hairline) var(--color-accent-base);
 	}
 
 	.label {

@@ -43,24 +43,16 @@ fun CreateFlowScreen(
         ?.let { strings.t(statusKeyToI18n(it)) }
 
     FlowShell(
-        flowLabel = strings.t(
-            if (screen == Screen.Done) I18nKeys.Create.HEADER_CREATED else I18nKeys.Create.HEADER,
-        ),
         backLabel = strings.t(I18nKeys.Flow.BACK),
-        step = when (screen) {
-            Screen.Loading -> -1
-            Screen.Name -> 0
-            Screen.Keys -> 1
-            else -> 2
-        },
         // The one screen with no way back is the one where going back would
         // abandon work already in flight: a ceremony is running and a passkey
         // may already exist in the person's provider.
         canGoBack = screen != Screen.Progress,
         onBack = {
-            // The core owns whether there is anywhere to go back TO; leaving the
-            // flow entirely is the host's, because the core has no idea what
-            // contains it.
+            // The core owns whether there is anywhere to go back TO — only the
+            // key list has one. From the name screen it reports none, and back
+            // then means leaving the flow, which is the host's because the core
+            // has no idea what contains it.
             if (view?.canGoBack == true) model.goBack() else onExit()
         },
     ) {

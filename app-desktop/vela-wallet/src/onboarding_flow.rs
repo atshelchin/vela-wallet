@@ -44,8 +44,9 @@ pub const MAX_KEYS: usize = 7;
 /// The flow's column width. Wider than 014's 512 px panel because the flow is
 /// no longer beside anything.
 pub const FLOW_COLUMN_W: f32 = 560.;
-/// The three-segment bar at the top of the shell.
-pub const FLOW_STEPS: usize = 3;
+/// The shell's header row. Fixed so the screen below never moves when the back
+/// affordance is not there to hold the row open.
+const FLOW_HEADER_H: f32 = 32.;
 
 /// The privacy and terms URLs the legal acknowledgement links to. Absolute,
 /// because they are the marketing site's pages and not app routes.
@@ -83,15 +84,6 @@ impl Screen {
             CreateStage::AddKeys => Self::Keys,
             CreateStage::Form if view.busy && progress_for(view.status).is_some() => Self::Progress,
             CreateStage::Form => Self::Name,
-        }
-    }
-
-    /// Which of the three segments is filled: name, keys, everything after.
-    fn step(self) -> usize {
-        match self {
-            Self::Name => 1,
-            Self::Keys => 2,
-            Self::Progress | Self::Retry | Self::Done => 3,
         }
     }
 }
@@ -214,7 +206,12 @@ fn emit(sink: &FlowSink, event: FlowEvent) -> impl Fn(&mut Window, &mut App) + '
 // The shell
 // ---------------------------------------------------------------------------
 
-/// The whole flow: back affordance, three-segment bar, and one screen.
+/// The whole flow: a back affordance and one screen.
+///
+/// The three-segment bar and the flow's name that used to head every step are
+/// gone (founder call, 2026-08-25): a meter over a journey whose every screen
+/// already says what it is measured decoration rather than progress, and the
+/// label repeated the heading directly under it.
 pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
     let screen = Screen::of(host.view);
     let theme = host.theme;
@@ -258,41 +255,16 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
         .flex_col()
         .gap(px(FLOW_GAP_LG))
         .child(
+            // The row keeps its height with or without the affordance, so the
+            // screen below never moves when back disappears.
             div()
                 .w_full()
+                .h(px(FLOW_HEADER_H))
                 .flex()
                 .items_center()
-                .justify_between()
-                .child(back)
-                .child(
-                    div()
-                        .text_size(theme::text_body())
-                        .text_color(theme.fg_muted)
-                        .child(host.loc.t("onboarding.create.headerDefault")),
-                ),
+                .child(back),
         )
-        .child(segmented_bar(theme, screen.step()))
         .child(body)
-}
-
-/// The three-segment progress bar. One filled track rather than 014's five
-/// separate segments: the journey is three steps now, and the fill is
-/// continuous because the third step covers everything after the key list.
-fn segmented_bar(theme: &Theme, step: usize) -> Div {
-    #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
-    let fraction = step as f32 / FLOW_STEPS as f32;
-    div()
-        .w_full()
-        .h(px(STEP_BAR_H))
-        .rounded_full()
-        .bg(theme.divider)
-        .child(
-            div()
-                .w(relative(fraction))
-                .h_full()
-                .rounded_full()
-                .bg(theme.accent),
-        )
 }
 
 fn title(theme: &Theme, text: SharedString) -> Div {

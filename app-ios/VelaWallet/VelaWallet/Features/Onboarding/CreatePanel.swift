@@ -17,24 +17,24 @@ import SwiftUI
 
 // MARK: - The shell
 
-/// A back affordance and a three-segment progress bar, and nothing else: every
-/// screen inside decides its own content.
+/// A back affordance, and nothing else: every screen inside decides its own
+/// content.
+///
+/// The three-segment bar and the flow's name that used to sit here are gone
+/// (founder call, 2026-08-25): a meter over a journey whose every screen
+/// already says what it is measured decoration rather than progress, and the
+/// label repeated the heading directly under it.
 struct FlowShell<Content: View>: View {
     @Environment(\.theme) private var theme
-    let flowLabel: String
     let backLabel: String
-    /// 0-based; negative hides the bar (the flow has not started stepping).
-    let step: Int
     let canGoBack: Bool
     let onBack: () -> Void
     @ViewBuilder let content: Content
 
-    private var fraction: Double {
-        step < 0 ? 0 : min(1, Double(step + 1) / Double(totalFlowSteps))
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // The row keeps its height with or without the affordance, so the
+            // screen below never jumps when back disappears.
             HStack {
                 if canGoBack {
                     Button(action: onBack) {
@@ -45,32 +45,13 @@ struct FlowShell<Content: View>: View {
                         .foregroundStyle(theme.fgMuted)
                     }
                     .accessibilityLabel(backLabel)
-                } else {
-                    Spacer().frame(width: 0)
                 }
                 Spacer()
-                Text(flowLabel)
-                    .typeRole(Typography.body)
-                    .foregroundStyle(theme.fgMuted)
             }
             .frame(minHeight: Tokens.Layout.hitTarget)
 
-            if step >= 0 {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(theme.borderBase)
-                        Capsule()
-                            .fill(theme.accentBase)
-                            .frame(width: proxy.size.width * fraction)
-                    }
-                }
-                .frame(height: FlowMetrics.progressBar)
-                .padding(.top, Tokens.Space.s16)
-                .animation(.easeInOut(duration: Tokens.Motion.base), value: fraction)
-            }
-
             content
-                .padding(.top, Tokens.Space.s32)
+                .padding(.top, Tokens.Space.s24)
         }
         .padding(.horizontal, Tokens.Layout.screenPaddingX)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

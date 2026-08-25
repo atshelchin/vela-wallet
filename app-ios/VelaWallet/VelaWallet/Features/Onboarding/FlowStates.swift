@@ -61,14 +61,6 @@ enum FlowScreen: Equatable {
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
 let maxKeys = 7
 
-/// Three, not spec 014's five.
-///
-/// The v2 journey is name, keys, and everything after. 014's five segments
-/// counted the internal STATUS steps of a single derive, which is a fact about
-/// the machine rather than about the person's progress through it — the progress
-/// SCREEN still shows those, as three task rows, which is where they belong.
-let totalFlowSteps = 3
-
 /// Which screen the core's view resolves to (data-model §3).
 ///
 /// The `stage` decides, with one refinement: a busy machine reporting a progress
@@ -82,16 +74,6 @@ func screenFor(_ view: CreateView?) -> FlowScreen {
     if view.stage == .syncFailed { return .retry }
     if view.busy, progressFor(view.status) != nil { return .progress }
     return view.stage == .addKeys ? .keys : .name
-}
-
-/// The 0-based segment the shell's progress bar fills to.
-func stepFor(_ screen: FlowScreen) -> Int {
-    switch screen {
-    case .loading: -1
-    case .name: 0
-    case .keys: 1
-    case .progress, .retry, .done: 2
-    }
 }
 
 /// Sizes the flow needs that the shared token set does not name.

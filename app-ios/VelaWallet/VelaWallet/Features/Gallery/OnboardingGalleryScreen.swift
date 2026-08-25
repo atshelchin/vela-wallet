@@ -125,9 +125,7 @@ private struct GalleryFlowHost: View {
 
     var body: some View {
         FlowShell(
-            flowLabel: loc.t(screen == .done ? I18nKeys.Create.headerCreated : I18nKeys.Create.header),
             backLabel: loc.t(I18nKeys.Flow.back),
-            step: stepFor(screen),
             canGoBack: true,
             onBack: onClose
         ) {

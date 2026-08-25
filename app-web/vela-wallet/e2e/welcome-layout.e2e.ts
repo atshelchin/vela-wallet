@@ -79,10 +79,10 @@ for (const width of [1440, 390]) {
 
 		await page.getByRole('link', { name: 'Create Wallet' }).click();
 		await expect(page).toHaveURL('/en/create');
-		// The flow's own chrome: a back affordance and the stepped bar. Which
-		// step is showing is the core's to say, so this asserts arrival, not
-		// contents.
-		await expect(page.getByRole('progressbar')).toBeVisible();
+		// The flow's own chrome is now the back affordance alone (the stepped
+		// bar and the flow label were removed 2026-08-25). Which step is
+		// showing is the core's to say, so this asserts arrival, not contents.
+		await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
 
 		await page.goBack();
 		await expect(page).toHaveURL('/en');

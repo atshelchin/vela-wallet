@@ -156,13 +156,4 @@ struct FlowFixturesTests {
             }
         }
     }
-
-    /// The progress bar never claims a step the screen is not on.
-    @Test func stepsMatchTheirScreens() {
-        #expect(stepFor(.loading) == -1)
-        #expect(stepFor(.name) == 0)
-        #expect(stepFor(.keys) == 1)
-        #expect(stepFor(.progress) == totalFlowSteps - 1)
-        #expect(stepFor(.done) == totalFlowSteps - 1)
-    }
 }

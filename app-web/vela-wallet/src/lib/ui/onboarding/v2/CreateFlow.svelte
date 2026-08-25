@@ -86,11 +86,6 @@
 		return view.stage === 'add_keys' ? ('keys' as const) : ('form' as const);
 	});
 
-	/** The three-segment bar: name, keys, then everything after. */
-	const step = $derived(
-		screen === 'form' ? 0 : screen === 'keys' ? 1 : screen === 'loading' ? -1 : 2
-	);
-
 	const statusText = $derived(
 		view?.status && !progressFor(view.status) ? strings(statusKeyToI18n(view.status)) : undefined
 	);
@@ -109,9 +104,7 @@
 </script>
 
 <FlowShell
-	flowLabel={strings('onboarding.create.headerDefault')}
 	backLabel={strings('onboarding.common.back')}
-	{step}
 	canGoBack={screen !== 'progress'}
 	onBack={back}
 >

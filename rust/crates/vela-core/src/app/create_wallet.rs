@@ -421,6 +421,19 @@ impl App for CreateWallet {
             Event::RetryUpload => retry_upload(model),
             Event::EnterWallet => enter_wallet(model),
             Event::GoBack => {
+                // The ONLY step this machine can return to is the form, and
+                // only from the key list. From the form itself there is
+                // nowhere to go but out of the flow, which is the host's to
+                // do — `can_go_back` says so, and a host that asked anyway
+                // used to get a re-render that changed nothing and a back
+                // affordance that did nothing (device-found 2026-08-25).
+                //
+                // The drafts survive: the form re-entered with drafts is the
+                // "finish verification" state, and its submit returns here.
+                if model.stage != Stage::AddKeys {
+                    return Command::done();
+                }
+                model.stage = Stage::Form;
                 model.status = None;
                 render()
             }
@@ -479,7 +492,10 @@ impl App for CreateWallet {
                 CreateStage::SyncFailed => model.sync.last_error.clone(),
                 _ => None,
             },
-            can_go_back: model.stage != Stage::SyncFailed,
+            // Does the CORE have a step to go back to? Only the key list
+            // does — everywhere else "back" means leaving the flow, which
+            // the host owns because the core cannot see what contains it.
+            can_go_back: model.stage == Stage::AddKeys,
             keys: model
                 .drafts
                 .iter()

@@ -74,8 +74,6 @@
 		return view.stage === 'add_keys' ? ('keys' as const) : ('form' as const);
 	});
 
-	const step = $derived(screen === 'form' ? 0 : screen === 'keys' ? 1 : 2);
-
 	const statusText = $derived(
 		view.status && !progressFor(view.status) ? strings(statusKeyToI18n(view.status)) : undefined
 	);
@@ -140,9 +138,7 @@
 
 	<main class="stage">
 		<FlowShell
-			flowLabel={strings('onboarding.create.headerDefault')}
 			backLabel={strings('onboarding.common.back')}
-			{step}
 			canGoBack={view.can_go_back}
 			onBack={() => log('go_back')}
 		>

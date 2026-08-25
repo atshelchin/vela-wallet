@@ -27,17 +27,16 @@ struct CreateFlowScreen: View {
 
     var body: some View {
         FlowShell(
-            flowLabel: loc.t(screen == .done ? I18nKeys.Create.headerCreated : I18nKeys.Create.header),
             backLabel: loc.t(I18nKeys.Flow.back),
-            step: stepFor(screen),
             // The one screen with no way back is the one where going back would
             // abandon work already in flight: a ceremony is running and a
             // passkey may already exist in the person's provider.
             canGoBack: screen != .progress,
             onBack: {
-                // The core owns whether there is anywhere to go back TO; leaving
-                // the flow entirely is the host's, because the core has no idea
-                // what contains it.
+                // The core owns whether there is anywhere to go back TO — only
+                // the key list has one. From the name screen it reports none,
+                // and back then means leaving the flow, which is the host's
+                // because the core has no idea what contains it.
                 if model.createView?.canGoBack == true { model.goBack() } else { onExit() }
             }
         ) {

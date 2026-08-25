@@ -131,14 +131,7 @@ fun GalleryScreen(initialDarkTheme: Boolean) {
                     ?.let { strings.t(statusKeyToI18n(it)) }
 
                 FlowShell(
-                    flowLabel = strings.t(I18nKeys.Create.HEADER),
                     backLabel = strings.t(I18nKeys.Flow.BACK),
-                    step = when (screen) {
-                        Screen.Loading -> -1
-                        Screen.Name -> 0
-                        Screen.Keys -> 1
-                        else -> 2
-                    },
                     canGoBack = true,
                     // The only interactive control in the gallery: everything
                     // else is a no-op, because a fixture has no core behind it

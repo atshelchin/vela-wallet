@@ -489,7 +489,7 @@
    "featureStablecoinGasTitle": "가스비는 스테이블코인으로",
    "featureStablecoinGasBody": "대부분의 네트워크에서 수수료를 스테이블코인으로 낼 수 있어, 네이티브 코인을 미리 준비해 둘 필요가 없습니다.",
    "heroTitle": "누구도 끌 수 없는\n이더리움 지갑",
-   "heroSubtitle": "패스키로 서명합니다. 키는 기기 밖으로 나가지 않습니다."
+   "heroSubtitle": "패스키로 서명합니다. Vela는 키를 볼 수 없습니다."
   },
   "welcomeWeb": {
    "meta": {

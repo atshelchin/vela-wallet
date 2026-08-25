@@ -18,35 +18,31 @@
 //! WITH ITS REASON WRITTEN NEXT TO IT rather than as a press that quietly does
 //! nothing. A person who cannot finish is owed the sentence that says why.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{
     AnyElement, App, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement as _,
-    ParentElement, SharedString, StatefulInteractiveElement as _, Styled, Window, div, px,
-    relative,
+    ParentElement, SharedString, Stateful, StatefulInteractiveElement as _, Styled, Window, div,
+    px,
 };
 
 use vela_core::app::create_wallet::{CreateKeyRow, CreateStage, CreateView, SubmitLabel};
 use vela_core::app::{KeyMethod, StatusKey};
 
+use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::theme::{
     self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD,
-    STEP_BAR_H, Theme,
+    Theme,
 };
-use crate::ui::{
-    ButtonVariant, NameFieldStrings, ack_row, address_strip, name_field, vela_button_opts,
-};
+use crate::ui::{ButtonVariant, NameFieldStrings, ack_row, name_field, vela_button_opts};
+use crate::wallet::components::identicon_avatar;
 
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
 pub const MAX_KEYS: usize = 7;
 
-/// The flow's column width. Wider than 014's 512 px panel because the flow is
-/// no longer beside anything.
-pub const FLOW_COLUMN_W: f32 = 560.;
-/// The shell's header row. Fixed so the screen below never moves when the back
-/// affordance is not there to hold the row open.
-const FLOW_HEADER_H: f32 = 32.;
+pub use crate::theme::FLOW_COLUMN_W;
 
 /// The privacy and terms URLs the legal acknowledgement links to. Absolute,
 /// because they are the marketing site's pages and not app routes.
@@ -190,6 +186,9 @@ pub struct FlowHost<'a> {
     pub loc: &'a Loc,
     pub view: &'a CreateView,
     pub name_focus: &'a FocusHandle,
+    /// The DONE card's avatar. A `RefCell` because rasterizing needs `&mut`
+    /// and the whole flow renders from a shared `&FlowHost`.
+    pub identicons: &'a RefCell<IdenticonCache>,
     /// The add-method list is expanded.
     pub picker_open: bool,
     /// The Done screen's transient 已复制 feedback.
@@ -219,26 +218,33 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
     // No way back out of a running ceremony: the keys are being frozen, and the
     // only honest control is none.
     let can_leave = screen != Screen::Progress && screen != Screen::Done;
-    let back: AnyElement = if can_leave {
+    let back = if can_leave {
         let on_back = emit(&host.sink, FlowEvent::Back);
         div()
             .id("flow-back")
             .flex()
             .items_center()
-            .gap(px(FLOW_GAP_SM))
+            .gap(px(theme::FLOW_BACK_GAP))
             .cursor_pointer()
             .text_size(theme::text_body())
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(theme.fg_muted)
             .hover(|s| s.text_color(theme.fg_base))
             .on_click(move |_, window, cx| on_back(window, cx))
-            .child("‹")
+            // The chevron is set larger than its label and on a line height of
+            // 1, so it reads as a mark rather than as a character of the word.
+            .child(
+                div()
+                    .text_size(theme::text_flow_sub())
+                    .line_height(theme::text_flow_sub())
+                    .child("‹"),
+            )
             .child(host.loc.t("onboarding.common.back"))
-            .into_any_element()
     } else {
-        // An empty leading cell, so the flow label stays where it was: a row
-        // that re-centres when the affordance disappears reads as a jump.
-        div().into_any_element()
+        // Unreachable: the header this belongs to is not drawn at all when
+        // there is no way back. Kept as an expression rather than an Option so
+        // the row below stays one shape.
+        div().id("flow-back-absent")
     };
 
     let body = match screen {
@@ -249,27 +255,50 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
         Screen::Done => render_done(host),
     };
 
+    // The header is a way back and NOTHING else, set off from the screen below
+    // it by 28. The screen itself is `flex: 1`, so its own bottom spacer can
+    // push a CTA onto the page's bottom edge.
+    //
+    // **It is drawn only where you can still leave.** On PROGRESS and DONE
+    // there is nowhere to go back to — a running ceremony cannot be abandoned
+    // and a finished one has its own way on — so the row is not drawn at all.
+    //
+    // **The step bar and the flow label are gone** (founder call, 2026-08-25,
+    // and the same conclusion these two screens had already reached from the
+    // other side): a three-segment meter over a journey whose every screen
+    // says what it is was decoration, and "Create Wallet" restated the title
+    // directly underneath it. The web, iOS and Android shells now match.
+    let header = can_leave.then(|| {
+        div()
+            .w_full()
+            .flex()
+            .items_center()
+            .flex_none()
+            .pb(px(theme::FLOW_HEADER_PAD_B))
+            .child(back)
+    });
+
     div()
-        .w(px(FLOW_COLUMN_W))
+        .w_full()
+        .max_w(px(FLOW_COLUMN_W))
+        .h_full()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
-        .child(
-            // The row keeps its height with or without the affordance, so the
-            // screen below never moves when back disappears.
-            div()
-                .w_full()
-                .h(px(FLOW_HEADER_H))
-                .flex()
-                .items_center()
-                .child(back),
-        )
-        .child(body)
+        .children(header)
+        .child(body.flex_1().min_h(px(0.)))
+}
+
+/// `flex: 1; min-height: 8px` — the spacer that sits between a screen's
+/// content and its CTA, so the CTA rides the bottom edge of the page rather
+/// than trailing the content.
+fn bottom_spacer() -> Div {
+    div().flex_1().min_h(px(theme::FLOW_SPACER_MIN))
 }
 
 fn title(theme: &Theme, text: SharedString) -> Div {
     div()
         .text_size(theme::text_tagline())
+        .line_height(theme::line_height_title())
         .font_weight(FontWeight::BOLD)
         .text_color(theme.fg_base)
         .child(text)
@@ -277,8 +306,26 @@ fn title(theme: &Theme, text: SharedString) -> Div {
 
 fn subtitle(theme: &Theme, text: SharedString) -> Div {
     div()
-        .text_size(theme::text_card_title())
-        .line_height(theme::line_height_body())
+        .text_size(theme::text_flow_sub())
+        .line_height(theme::line_height_flow_sub())
+        .text_color(theme.fg_muted)
+        .child(text)
+}
+
+/// The tiny uppercase label that heads a field or a list section.
+fn section_label(theme: &Theme, text: SharedString) -> Div {
+    div()
+        .text_size(theme::text_section_label())
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(theme.fg_muted)
+        .child(SharedString::from(text.to_uppercase()))
+}
+
+/// A mono counter — key count, percentage — set beside a section label.
+fn mono_meta(theme: &Theme, text: SharedString) -> Div {
+    div()
+        .font_family(theme::font_mono())
+        .text_size(theme::text_row_meta())
         .text_color(theme.fg_muted)
         .child(text)
 }
@@ -364,7 +411,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         .w_full()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
+        .gap(px(theme::FLOW_GAP_MD_SNUG))
         .child(ack_row::<LegalLink>(
             0,
             theme,
@@ -403,18 +450,18 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
             move |link: LegalLink, _window, cx| cx.open_url(link.url()),
         ));
 
-    // The gates sit against the button they gate: the spacer between the field
-    // and them absorbs the free height, so they are never stranded mid-screen.
-    // A checklist a cursor reaches before the sentence does is one nobody reads.
-    let mut column = div()
+    // The gates sit against the button they gate: the spacer above them absorbs
+    // the free height, so they are never stranded mid-screen. A checklist a
+    // cursor reaches before the sentence does is one nobody reads.
+    //
+    // They and the button are ONE block, bound by 16 rather than the column's
+    // 24 — that is what v2 draws, and it is what makes them read as the button's
+    // preconditions rather than as the last paragraph of the page.
+    let mut bottom = div()
         .w_full()
-        .flex_1()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
-        .child(title(theme, loc.t("onboarding.create.nameTitle")))
-        .child(field)
-        .child(div().flex_1())
+        .gap(px(FLOW_GAP_MD))
         .child(acks);
 
     // A cancelled ceremony is a quiet status line with the draft intact, never
@@ -423,7 +470,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
     if let Some(status) = view.status
         && progress_for(Some(status)).is_none()
     {
-        column = column.child(caption(theme, loc.t(status_key(status))));
+        bottom = bottom.child(caption(theme, loc.t(status_key(status))));
     }
 
     let submit_key = match view.submit_label {
@@ -431,7 +478,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         SubmitLabel::FinishVerify => "onboarding.create.finishVerifyBtn",
     };
     let sink_submit = host.sink.clone();
-    column = column.child(vela_button_opts(
+    bottom = bottom.child(vela_button_opts(
         "flow-submit",
         ButtonVariant::Primary,
         loc.t(submit_key),
@@ -442,7 +489,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
 
     if view.show_start_over {
         let on_start_over = emit(&host.sink, FlowEvent::StartOver);
-        column = column.child(
+        bottom = bottom.child(
             div()
                 .id("flow-start-over")
                 .w_full()
@@ -457,7 +504,15 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         );
     }
 
-    column
+    div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_LG))
+        .child(title(theme, loc.t("onboarding.create.nameTitle")))
+        .child(field)
+        .child(bottom_spacer())
+        .child(bottom)
 }
 
 // ---------------------------------------------------------------------------
@@ -483,7 +538,7 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
         loc.t("onboarding.create.keysSubtitle")
     };
 
-    let mut column = div().w_full().flex().flex_col().gap(px(FLOW_GAP_LG)).child(
+    let mut column = div().w_full().flex().flex_col().gap(px(FLOW_GAP_MD)).child(
         div()
             .flex()
             .flex_col()
@@ -498,24 +553,25 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
                 .w_full()
                 .flex()
                 .items_start()
-                .gap(px(FLOW_GAP_MD))
-                .p(px(FLOW_GAP_MD))
+                .gap(px(theme::FLOW_GAP_MD_SNUG))
+                .px(px(FLOW_GAP_MD))
+                .py(px(14.))
                 .rounded(px(RADIUS_FIELD))
                 .bg(theme.warning_soft)
                 .child(
                     div()
-                        .size(px(FLOW_GAP_SM))
+                        .size(px(7.))
                         .flex_none()
                         .mt(px(6.))
                         .rounded_full()
-                        .bg(theme.warning_base),
+                        .bg(theme.accent),
                 )
                 .child(
                     div()
                         .flex_1()
                         .min_w(px(0.))
                         .text_size(theme::text_body())
-                        .line_height(theme::line_height_body())
+                        .line_height(theme::line_height_flow_sub())
                         .text_color(theme.fg_base)
                         .child(loc.t("onboarding.create.needSecondKeyHint")),
                 ),
@@ -530,20 +586,27 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
             ("max", MAX_KEYS as f64),
         ],
     );
-    let mut list = div().w_full().flex().flex_col().child(
+    let mut rows = div().w_full().flex().flex_col().gap(px(theme::KEY_ROW_GAP));
+    for (index, key) in view.keys.iter().enumerate() {
+        rows = rows.child(key_row(host, index, key));
+    }
+    column = column.child(
         div()
             .w_full()
             .flex()
-            .items_center()
-            .justify_between()
-            .pb(px(FLOW_GAP_SM))
-            .child(caption(theme, loc.t("onboarding.create.keysLabel")))
-            .child(caption(theme, counter)),
+            .flex_col()
+            .gap(px(10.))
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(section_label(theme, loc.t("onboarding.create.keysLabel")))
+                    .child(mono_meta(theme, counter)),
+            )
+            .child(rows),
     );
-    for (index, key) in view.keys.iter().enumerate() {
-        list = list.child(key_row(host, index, key));
-    }
-    column = column.child(list);
 
     // Add-key control, with the cap stated on it rather than behind it.
     let on_toggle = emit(&host.sink, FlowEvent::TogglePicker);
@@ -552,31 +615,47 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
     } else {
         loc.t("onboarding.create.addKeyBtn")
     };
-    let mut add = div().w_full().flex().flex_col().child({
-        let row = div()
-            .id("flow-add-key")
-            .w_full()
-            .flex()
-            .items_center()
-            .gap(px(FLOW_GAP_MD))
-            .py(px(FLOW_GAP_MD))
-            .text_size(theme::text_card_title())
-            .child(div().text_color(theme.accent).child("+"))
-            .child(div().text_color(theme.fg_base).child(add_label));
-        if view.can_add_key {
-            row.cursor_pointer()
-                .hover(|s| s.bg(theme.bg_sunken))
-                .on_click(move |_, window, cx| on_toggle(window, cx))
-        } else {
-            row.opacity(OPACITY_DISABLED)
-        }
-    });
+    // v2 draws this as an outlined button in its own right — same rectangle as
+    // the CTA below it, one notch shorter — not as a bare row in the list.
+    let mut add = div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_SM))
+        .child({
+            let row = div()
+                .id("flow-add-key")
+                .w_full()
+                .h(px(theme::BTN_H_SECONDARY))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .gap(px(FLOW_GAP_SM))
+                .rounded(px(theme::RADIUS_CTA))
+                .border_1()
+                .border_color(theme.divider)
+                .text_size(theme::text_row_name())
+                .font_weight(FontWeight::BOLD)
+                .text_color(theme.fg_base)
+                .child(div().text_size(theme::text_card_title()).child("+"))
+                .child(div().child(add_label));
+            if view.can_add_key {
+                let accent = theme.accent;
+                row.cursor_pointer()
+                    .hover(move |s| s.border_color(accent))
+                    .on_click(move |_, window, cx| on_toggle(window, cx))
+            } else {
+                row.opacity(OPACITY_DISABLED)
+            }
+        });
     if host.picker_open && view.can_add_key {
         add = add.child(method_picker(host));
     }
     column = column.child(add);
 
     column = column.child(caption(theme, loc.t("onboarding.create.keysHint")));
+    column = column.child(bottom_spacer());
 
     let finish_label = if view.needs_second_key {
         loc.t("onboarding.create.addSecondKeyBtn")
@@ -603,26 +682,25 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
     // its membership has no status to show yet, so the retry TAKES that slot
     // rather than crowding in beside it.
     let trailing: AnyElement = if key.confirmed {
-        let (label, fg, bg) = if key.synced {
+        // Bare coloured text, not a filled pill: v2 puts the row itself in a
+        // bordered card, and a second fill inside it is one surface too many.
+        // `仅本机` is a WARNING, not a neutral — a key with no sync is the one
+        // fact on this screen that can cost someone their wallet.
+        let (label, fg) = if key.synced {
             (
                 loc.t("onboarding.create.keySyncedBadge"),
                 theme.success_base,
-                theme.success_soft,
             )
         } else {
             (
                 loc.t("onboarding.create.keyDeviceOnlyBadge"),
-                theme.fg_muted,
-                theme.bg_well,
+                theme.warning_base,
             )
         };
         div()
             .flex_none()
-            .px(px(FLOW_GAP_SM))
-            .py(px(2.))
-            .rounded_full()
-            .bg(bg)
-            .text_size(theme::text_flow_caption())
+            .text_size(theme::text_section_label())
+            .font_weight(FontWeight::SEMIBOLD)
             .text_color(fg)
             .child(label)
             .into_any_element()
@@ -633,7 +711,7 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
             .flex_none()
             .px(px(FLOW_GAP_SM))
             .py(px(2.))
-            .rounded_full()
+            .rounded(px(theme::RADIUS_ACK))
             .bg(theme.warning_soft)
             .text_size(theme::text_flow_caption())
             .text_color(theme.warning_base)
@@ -647,13 +725,19 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
         }
     };
 
+    // A bordered card on the page colour, not a hairline-separated row: v2
+    // gives every key its own edge and 8px of air, so a list of three reads as
+    // three things rather than as a table.
     let mut row = div()
         .w_full()
         .flex()
         .items_center()
-        .gap(px(FLOW_GAP_MD))
-        .py(px(FLOW_GAP_MD))
-        .border_b_1()
+        .gap(px(theme::FLOW_GAP_MD_SNUG))
+        .px(px(theme::KEY_ROW_PAD_X))
+        .py(px(theme::KEY_ROW_PAD_Y))
+        .rounded(px(RADIUS_FIELD))
+        .bg(theme.bg_base)
+        .border_1()
         .border_color(theme.divider)
         .child(
             div()
@@ -664,11 +748,17 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
                 .gap(px(2.))
                 .child(
                     div()
-                        .text_size(theme::text_card_title())
+                        .text_size(theme::text_row_name())
+                        .font_weight(FontWeight::SEMIBOLD)
                         .text_color(theme.fg_base)
                         .child(SharedString::from(key.name.clone())),
                 )
-                .child(caption(theme, loc.t(provider_line(key)))),
+                .child(
+                    div()
+                        .text_size(theme::text_row_meta())
+                        .text_color(theme.fg_muted)
+                        .child(loc.t(provider_line(key))),
+                ),
         )
         .child(trailing);
 
@@ -779,10 +869,20 @@ fn method_picker(host: &FlowHost<'_>) -> Div {
 // Progress
 // ---------------------------------------------------------------------------
 
+/// The wallet is being made.
+///
+/// **One progress indicator, not three.** The design's mock carried a
+/// DERIVING ADDRESS meter above the task list, and drawn against the real
+/// machine it was redundant twice over: the step bar at the top of the shell
+/// already says where the journey is, and the task list below says it exactly,
+/// by name. Worse, the meter's label named ONE phase while a different task
+/// was running, and its percentage is not measured — it is the same three
+/// statuses the list is already showing, divided by three. A number that looks
+/// measured and is not is worse than no number.
 fn render_progress(host: &FlowHost<'_>) -> Div {
     let theme = host.theme;
     let loc = host.loc;
-    let (active, percent) = progress_for(host.view.status).unwrap_or((0, 0));
+    let (active, _percent) = progress_for(host.view.status).unwrap_or((0, 0));
 
     #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
     let subtitle_text = loc.t_vars(
@@ -790,7 +890,9 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
         &[("count", host.view.keys.len() as f64)],
     );
 
-    let mut tasks = div().w_full().flex().flex_col().gap(px(FLOW_GAP_MD));
+    // Rule-separated rows, not a gapped list: the tasks are a ledger of what
+    // has happened, and v2 draws them as one.
+    let mut tasks = div().w_full().flex().flex_col().gap(px(2.));
     for (index, key) in PROGRESS_TASKS.iter().enumerate() {
         let (mark, color) = match index {
             _ if index < active => ("✓", theme.success_base),
@@ -799,13 +901,27 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
         };
         tasks = tasks.child(
             div()
+                .w_full()
                 .flex()
                 .items_center()
-                .gap(px(FLOW_GAP_MD))
-                .child(div().flex_none().text_color(color).child(mark))
+                .gap(px(theme::FLOW_GAP_MD_SNUG))
+                .py(px(theme::TASK_ROW_PAD_Y))
+                .border_b_1()
+                .border_color(theme.divider)
                 .child(
                     div()
-                        .text_size(theme::text_card_title())
+                        .w(px(FLOW_GAP_MD))
+                        .flex_none()
+                        .text_size(theme::text_row_meta())
+                        .text_color(color)
+                        .child(mark),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w(px(0.))
+                        .text_size(theme::text_row_name())
+                        .font_weight(FontWeight::MEDIUM)
                         .text_color(if index <= active {
                             theme.fg_base
                         } else {
@@ -820,7 +936,7 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
         .w_full()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
+        .gap(px(theme::FLOW_GAP_XL))
         .child(
             div()
                 .flex()
@@ -829,41 +945,8 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                 .child(title(theme, loc.t("onboarding.create.progressTitle")))
                 .child(subtitle(theme, subtitle_text)),
         )
-        .child(
-            div()
-                .w_full()
-                .flex()
-                .flex_col()
-                .gap(px(FLOW_GAP_SM))
-                .child(
-                    div()
-                        .w_full()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .child(caption(
-                            theme,
-                            loc.t("onboarding.create.progressMeterLabel"),
-                        ))
-                        .child(caption(theme, SharedString::from(format!("{percent}%")))),
-                )
-                .child(
-                    div()
-                        .w_full()
-                        .h(px(STEP_BAR_H))
-                        .rounded_full()
-                        .bg(theme.divider)
-                        .child(
-                            #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
-                            div()
-                                .w(relative(percent as f32 / 100.))
-                                .h_full()
-                                .rounded_full()
-                                .bg(theme.accent),
-                        ),
-                ),
-        )
         .child(tasks)
+        .child(bottom_spacer())
 }
 
 // ---------------------------------------------------------------------------
@@ -920,6 +1003,7 @@ fn render_retry(host: &FlowHost<'_>) -> Div {
     let sink_retry = host.sink.clone();
     let sink_over = host.sink.clone();
     column
+        .child(bottom_spacer())
         .child(vela_button_opts(
             "flow-retry-upload",
             ButtonVariant::Primary,
@@ -942,6 +1026,42 @@ fn render_retry(host: &FlowHost<'_>) -> Div {
 // Done
 // ---------------------------------------------------------------------------
 
+/// The address as v2 draws it: bare mono text under a rule, wrapping on any
+/// character, with no well and no button.
+///
+/// It is still copyable — the design dropped the affordance, but dropping the
+/// FUNCTION would mean a person who has just been handed the one identifier
+/// their money lives at has no way to take it with them. The whole line is the
+/// target, and the confirmation replaces it in place.
+fn done_address(
+    theme: &Theme,
+    address: String,
+    copied: bool,
+    loc: &Loc,
+    on_copy: impl Fn(&mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let (text, color) = if copied {
+        (loc.t("onboarding.common.copied"), theme.success_base)
+    } else {
+        (SharedString::from(address), theme.fg_muted)
+    };
+    div()
+        .id("flow-done-address")
+        .w_full()
+        .border_t_1()
+        .border_color(theme.divider)
+        .pt(px(theme::FLOW_GAP_MD_SNUG))
+        .cursor_pointer()
+        .font_family(theme::font_mono())
+        .text_size(theme::text_body())
+        .font_weight(FontWeight::MEDIUM)
+        .line_height(theme::line_height_flow_sub())
+        .text_color(color)
+        .hover(|s| s.text_color(theme.fg_base))
+        .on_click(move |_, window, cx| on_copy(window, cx))
+        .child(text)
+}
+
 /// The wallet exists.
 ///
 /// This is the first moment an address is shown, and that ordering is a RULE
@@ -960,17 +1080,17 @@ fn render_done(host: &FlowHost<'_>) -> Div {
 
     let mut keys = div().w_full().flex().flex_col();
     for key in &view.keys {
-        let (label, fg, bg) = if key.synced {
+        // The DONE list is a recap, not the editable list from KEYS: v2 sets
+        // it in the muted body size with a bare badge and no fill.
+        let (label, fg) = if key.synced {
             (
                 loc.t("onboarding.create.keySyncedBadge"),
                 theme.success_base,
-                theme.success_soft,
             )
         } else {
             (
                 loc.t("onboarding.create.keyDeviceOnlyBadge"),
-                theme.fg_muted,
-                theme.bg_well,
+                theme.warning_base,
             )
         };
         keys = keys.child(
@@ -978,23 +1098,23 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                 .w_full()
                 .flex()
                 .items_center()
-                .justify_between()
-                .py(px(FLOW_GAP_MD))
+                .gap(px(10.))
+                .py(px(theme::DONE_ROW_PAD_Y))
                 .border_b_1()
                 .border_color(theme.divider)
                 .child(
                     div()
-                        .text_size(theme::text_card_title())
-                        .text_color(theme.fg_base)
+                        .flex_1()
+                        .min_w(px(0.))
+                        .text_size(theme::text_body())
+                        .text_color(theme.fg_muted)
                         .child(SharedString::from(key.name.clone())),
                 )
                 .child(
                     div()
-                        .px(px(FLOW_GAP_SM))
-                        .py(px(2.))
-                        .rounded_full()
-                        .bg(bg)
-                        .text_size(theme::text_flow_caption())
+                        .flex_none()
+                        .text_size(theme::text_section_label())
+                        .font_weight(FontWeight::SEMIBOLD)
                         .text_color(fg)
                         .child(label),
                 ),
@@ -1019,7 +1139,27 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                 .flex()
                 .flex_col()
                 .gap(px(FLOW_GAP_SM))
-                .child(title(theme, loc.t("onboarding.create.successTitle")))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(theme::FLOW_GAP_MD_SNUG))
+                        .child(
+                            div()
+                                .size(px(theme::DONE_CHECK))
+                                .flex_none()
+                                .rounded_full()
+                                .bg(theme.success_soft)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(theme::text_flow_sub())
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(theme.success_base)
+                                .child("✓"),
+                        )
+                        .child(title(theme, loc.t("onboarding.create.successTitle"))),
+                )
                 .child(subtitle(theme, success_body)),
         )
         .child(
@@ -1027,40 +1167,43 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                 .w_full()
                 .flex()
                 .flex_col()
-                .gap(px(FLOW_GAP_MD))
-                .p(px(FLOW_GAP_LG))
+                .gap(px(14.))
+                .p(px(FLOW_GAP_MD))
                 .rounded(px(RADIUS_FIELD))
-                .bg(theme.bg_raised)
+                .bg(theme.bg_base)
                 .border_1()
-                .border_color(theme.border_card)
+                .border_color(theme.divider)
+                // Avatar beside the name, then the address under a rule. The
+                // caption that used to sit here DESCRIBED the identicon ("an
+                // identity pattern generated from the address") because there
+                // was no identicon to look at; now there is, and a caption
+                // narrating a picture next to the picture is noise. The
+                // "wallet address" label goes for the same reason — a 42-
+                // character 0x string in mono under a wallet's name is not
+                // mistakable for anything else.
                 .child(
                     div()
                         .flex()
-                        .flex_col()
-                        .gap(px(2.))
+                        .items_center()
+                        .gap(px(14.))
+                        .child(identicon_avatar(
+                            &mut host.identicons.borrow_mut(),
+                            &address,
+                            theme::DONE_AVATAR,
+                        ))
                         .child(
                             div()
-                                .text_size(theme::text_card_title())
-                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_size(theme::text_flow_sub())
+                                .font_weight(FontWeight::BOLD)
                                 .text_color(theme.fg_base)
                                 .child(SharedString::from(wallet_name)),
-                        )
-                        .child(caption(theme, loc.t("onboarding.create.identiconHint"))),
+                        ),
                 )
-                .child(caption(
-                    theme,
-                    loc.t("onboarding.create.walletAddressLabel"),
-                ))
-                .child(address_strip(
-                    theme,
-                    SharedString::from(address),
-                    host.copied,
-                    loc.t("onboarding.common.copied"),
-                    move |window, cx| on_copy(window, cx),
-                )),
+                .child(done_address(theme, address, host.copied, loc, on_copy)),
         )
         .child(keys)
         .child(caption(theme, loc.t("onboarding.create.verifyHint")))
+        .child(bottom_spacer())
         .child(vela_button_opts(
             "flow-enter-wallet",
             ButtonVariant::Primary,

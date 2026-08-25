@@ -489,7 +489,7 @@
    "featureStablecoinGasTitle": "Gas'ı stablecoin ile ödeyin",
    "featureStablecoinGasBody": "Çoğu ağ, ücretleri stablecoin ile ödemenize izin verir — önceden yerel coin edinmeniz gerekmez.",
    "heroTitle": "Kimsenin kapatamayacağı\nEthereum cüzdanı",
-   "heroSubtitle": "Passkey ile imzalayın. Anahtar cihazınızdan çıkmaz."
+   "heroSubtitle": "Passkey ile imzalayın. Vela anahtarınızı asla görmez."
   },
   "welcomeWeb": {
    "meta": {

@@ -18,8 +18,10 @@
 //! than naming its result. A refinement that stops working shows up here as the
 //! wrong card, which is the point.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Context, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent,
     ParentElement, Render, SharedString, StatefulInteractiveElement as _, Styled, Window, div, px,
@@ -30,6 +32,7 @@ use vela_core::app::{KeyMethod, PromptKind, StatusKey};
 
 use crate::ctap::usb::{TouchKind, TouchRequest};
 use crate::executor::passkey::{CredentialChoice, PinRequest};
+use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::onboarding_flow::{FLOW_COLUMN_W, FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, outcome_sheet};
@@ -381,6 +384,7 @@ pub struct GalleryView {
     pin_value: String,
     name_focus: FocusHandle,
     focus_handle: FocusHandle,
+    identicons: RefCell<IdenticonCache>,
 }
 
 impl GalleryView {
@@ -419,6 +423,7 @@ impl GalleryView {
             pin_value: String::new(),
             name_focus: cx.focus_handle(),
             focus_handle,
+            identicons: RefCell::default(),
         }
     }
 
@@ -547,6 +552,10 @@ impl GalleryView {
 
     fn stage(&self, theme: &Theme, window: &Window, cx: &mut Context<Self>) -> gpui::Stateful<Div> {
         let entity = cx.entity();
+        // A flow screen is a whole page: it fills the stage's height so its
+        // bottom spacer can put the CTA on the bottom edge, exactly as it does
+        // in the app. The cards and sheets are objects, and hug their content.
+        let is_flow = matches!(self.entries[self.selected].fixture, Fixture::Flow(_));
         let body: Div = match &self.entries[self.selected].fixture {
             Fixture::Flow(view) => {
                 let sink: FlowSink = Rc::new(move |event, _window, cx| {
@@ -570,6 +579,7 @@ impl GalleryView {
                     loc: &self.loc,
                     view,
                     name_focus: &self.name_focus,
+                    identicons: &self.identicons,
                     picker_open: self.picker_open,
                     copied: self.copied,
                     sink,
@@ -634,7 +644,7 @@ impl GalleryView {
             .overflow_y_scroll()
             .flex()
             .justify_center()
-            .items_start()
+            .map(|el| if is_flow { el } else { el.items_start() })
             .py(px(FLOW_GAP_LG * 2.))
             .child(body)
     }

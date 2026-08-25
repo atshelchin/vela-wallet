@@ -489,7 +489,7 @@
    "featureStablecoinGasTitle": "Gas mit Stablecoins zahlen",
    "featureStablecoinGasBody": "Auf den meisten Netzwerken können Sie die Gebühren mit Stablecoins zahlen — Sie müssen nicht erst den nativen Coin besitzen.",
    "heroTitle": "Die Ethereum-Wallet,\ndie niemand abschalten kann",
-   "heroSubtitle": "Signieren mit Passkey. Der Schlüssel verlässt dein Gerät nie."
+   "heroSubtitle": "Signieren mit Passkey. Vela sieht deinen Schlüssel nie."
   },
   "welcomeWeb": {
    "meta": {

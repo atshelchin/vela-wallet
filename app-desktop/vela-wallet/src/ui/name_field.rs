@@ -79,12 +79,12 @@ pub fn text_field(
     };
     let text: Div = if value.is_empty() {
         div()
-            .text_size(theme::text_flow_label())
+            .text_size(theme::text_flow_sub())
             .text_color(theme.fg_subtle)
             .child(strings.placeholder.clone())
     } else {
         div()
-            .text_size(theme::text_flow_label())
+            .text_size(theme::text_flow_sub())
             .text_color(theme.fg_base)
             .child(SharedString::from(shown))
     };
@@ -116,7 +116,10 @@ pub fn text_field(
             .h(px(INPUT_H))
             .w_full()
             .rounded(px(RADIUS_FIELD))
-            .bg(theme.bg_well)
+            // v2 fills the field with the PAGE colour, not the well: the
+            // hairline is what makes it a field, and a second surface tone
+            // under it only muddies the column.
+            .bg(theme.bg_base)
             .border_1()
             .border_color(border)
             .px(px(FLOW_GAP_MD))
@@ -148,11 +151,15 @@ pub fn text_field(
     let mut col = div().flex().flex_col();
     if !strings.label.is_empty() {
         col = col.child(
+            // v2's field label: tiny, uppercase and muted — a caption over the
+            // field, not a heading beside it. Rendered only when there is one:
+            // the name screen's own heading already says "name your wallet", so
+            // it passes an empty label rather than restate it in smaller type.
             div()
-                .text_size(theme::text_flow_label())
+                .text_size(theme::text_section_label())
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(theme.fg_base)
-                .child(strings.label.clone()),
+                .text_color(theme.fg_muted)
+                .child(SharedString::from(strings.label.to_uppercase())),
         );
     }
     col = col.child(div().mt(px(FLOW_GAP_SM)).child(well));

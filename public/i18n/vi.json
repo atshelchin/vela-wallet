@@ -489,7 +489,7 @@
    "featureStablecoinGasTitle": "Trả gas bằng stablecoin",
    "featureStablecoinGasBody": "Hầu hết các mạng cho phép trả phí bằng stablecoin — không cần có sẵn coin gốc trước.",
    "heroTitle": "Ví Ethereum\nkhông ai tắt được",
-   "heroSubtitle": "Ký bằng passkey. Khoá luôn nằm trong thiết bị của bạn."
+   "heroSubtitle": "Ký bằng passkey. Vela không bao giờ thấy khoá của bạn."
   },
   "welcomeWeb": {
    "meta": {

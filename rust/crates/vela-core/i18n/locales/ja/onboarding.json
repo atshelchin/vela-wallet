@@ -18,7 +18,7 @@
       "featureStablecoinGasTitle": "ガス代はステーブルコインで",
       "featureStablecoinGasBody": "ほとんどのネットワークで手数料をステーブルコインで支払えるので、先にネイティブコインを用意しておく必要はありません。",
       "heroTitle": "誰にも止められない\nイーサリアムウォレット",
-      "heroSubtitle": "パスキーで署名します。鍵は端末から出ません。"
+      "heroSubtitle": "パスキーで署名します。鍵を Vela が見ることはありません。"
     },
     "welcomeWeb": {
       "meta": {

@@ -18,7 +18,7 @@
       "featureStablecoinGasTitle": "用稳定币付 gas",
       "featureStablecoinGasBody": "多数网络支持用稳定币支付手续费，不用先备一份原生币。",
       "heroTitle": "谁也关不掉的\n以太坊钱包",
-      "heroSubtitle": "用通行密钥签名，密钥留在你的设备里。"
+      "heroSubtitle": "用通行密钥签名，Vela 看不到你的密钥。"
     },
     "welcomeWeb": {
       "meta": {

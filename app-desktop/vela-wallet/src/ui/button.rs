@@ -73,9 +73,11 @@ pub fn vela_button_opts(
     finish(base, variant, label_block, enabled, theme, on_click)
 }
 
-/// The v2 welcome pair (design/onboarding-new): the same rectangle as every
-/// other button, except that it DIVIDES A ROW with its sibling instead of
-/// filling the column, and both halves stand at the primary height.
+/// The welcome pair: the same rectangle as every other button, except that it
+/// sits beside its sibling at ITS LABEL'S WIDTH rather than filling the
+/// column. A desktop dialog sizes a button to what it says; a full-width
+/// button is a phone's answer to a thumb, and two of them stacked is what made
+/// the welcome read as a phone screen.
 ///
 /// Same fills, hovers and disabled treatment as `vela_button` — only the
 /// sizing differs, which is why they share `finish` below.
@@ -90,14 +92,14 @@ pub fn welcome_cta(
     let label_block = div().min_w(px(0.)).text_center().child(label);
     let base = div()
         .id(id)
-        .flex_1()
+        .flex_none()
         .min_w(px(theme::CTA_MIN_W))
         .min_h(px(theme::CTA_H))
         .rounded(px(theme::RADIUS_CTA))
         .flex()
         .items_center()
         .justify_center()
-        .px(px(theme::BTN_PAD_X))
+        .px(px(theme::CTA_PAD_X))
         .py(px(theme::BTN_PAD_Y))
         .text_size(theme::text_cta())
         .font_weight(FontWeight::BOLD);

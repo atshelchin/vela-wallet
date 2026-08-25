@@ -277,21 +277,49 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
             .child(back)
     });
 
+    // NOT `h_full`, and the body does not stretch. A screen ends where its
+    // content ends; the window's leftover height stays leftover. Pinning the
+    // CTA to the bottom edge is a phone's answer — the screen is the height of
+    // a hand there — and on a desktop window it opened a hole in the middle
+    // that grew with every pixel of height. That hole was the whole reason
+    // this page read as a phone page pulled tall.
     div()
         .w_full()
         .max_w(px(FLOW_COLUMN_W))
-        .h_full()
         .flex()
         .flex_col()
         .children(header)
-        .child(body.flex_1().min_h(px(0.)))
+        .child(body)
 }
 
-/// `flex: 1; min-height: 8px` — the spacer that sits between a screen's
-/// content and its CTA, so the CTA rides the bottom edge of the page rather
-/// than trailing the content.
-fn bottom_spacer() -> Div {
-    div().flex_1().min_h(px(theme::FLOW_SPACER_MIN))
+/// The create journey's length, as the rail counts it.
+pub const FLOW_STEPS: usize = 3;
+
+/// Which step the rail names, and the keys for what it says about it.
+///
+/// `None` once the wallet exists: DONE hands the rail back to the brand,
+/// because at that point nobody is asking where they are.
+pub fn rail_step(view: &CreateView) -> Option<(usize, &'static str, &'static str)> {
+    match Screen::of(view) {
+        Screen::Name => Some((
+            1,
+            "onboarding.create.stepNamingLabel",
+            "onboarding.create.stepNamingDetail",
+        )),
+        Screen::Keys => Some((
+            2,
+            "onboarding.create.stepKeysLabel",
+            "onboarding.create.stepKeysDetail",
+        )),
+        // Retry is not a fourth step — it is the third one having failed to
+        // land, and the rail keeps saying so.
+        Screen::Progress | Screen::Retry => Some((
+            3,
+            "onboarding.create.stepCreateLabel",
+            "onboarding.create.stepCreateDetail",
+        )),
+        Screen::Done => None,
+    }
 }
 
 fn title(theme: &Theme, text: SharedString) -> Div {
@@ -510,7 +538,6 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         .gap(px(FLOW_GAP_LG))
         .child(title(theme, loc.t("onboarding.create.nameTitle")))
         .child(field)
-        .child(bottom_spacer())
         .child(bottom)
 }
 
@@ -654,8 +681,6 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
     column = column.child(add);
 
     column = column.child(caption(theme, loc.t("onboarding.create.keysHint")));
-    column = column.child(bottom_spacer());
-
     let finish_label = if view.needs_second_key {
         loc.t("onboarding.create.addSecondKeyBtn")
     } else {
@@ -945,7 +970,6 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                 .child(subtitle(theme, subtitle_text)),
         )
         .child(tasks)
-        .child(bottom_spacer())
 }
 
 // ---------------------------------------------------------------------------
@@ -1002,7 +1026,6 @@ fn render_retry(host: &FlowHost<'_>) -> Div {
     let sink_retry = host.sink.clone();
     let sink_over = host.sink.clone();
     column
-        .child(bottom_spacer())
         .child(vela_button_opts(
             "flow-retry-upload",
             ButtonVariant::Primary,
@@ -1202,7 +1225,6 @@ fn render_done(host: &FlowHost<'_>) -> Div {
         )
         .child(keys)
         .child(caption(theme, loc.t("onboarding.create.verifyHint")))
-        .child(bottom_spacer())
         .child(vela_button_opts(
             "flow-enter-wallet",
             ButtonVariant::Primary,

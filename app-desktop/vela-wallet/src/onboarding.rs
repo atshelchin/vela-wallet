@@ -21,6 +21,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     App, Context, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent,
     MouseButton, ParentElement, Render, SharedString, Stateful, StatefulInteractiveElement as _,
@@ -40,19 +41,19 @@ use crate::executor::{
     registry, storage,
 };
 use crate::hardware;
+use crate::icons::IconCache;
 use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
-use crate::onboarding_flow::{FlowEvent, FlowHost, FlowSink, render_create_flow};
+use crate::onboarding_flow::{self, FLOW_STEPS, FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, SHEET_PAD, SHEET_RADIUS, SHEET_W, outcome_sheet};
 use crate::session;
 use crate::theme::{
-    self, FLOW_GAP_LG, FLOW_GAP_MD, GAP_BRAND_HERO, GAP_HERO_SUB, GAP_LOGO_WORDMARK,
-    GAP_WELCOME_CTA, GAP_WELCOME_SPLIT, LOGO_SIZE, Theme, ThemeMode, WELCOME_COLUMN_W,
-    WELCOME_PAD_BOTTOM, WELCOME_PAD_TOP, WELCOME_PAD_X,
+    self, CONTENT_PAD_X, CONTENT_PAD_Y, FLOW_COLUMN_W, FLOW_GAP_LG, FLOW_GAP_MD, GAP_HERO_CTA,
+    GAP_HERO_SUB, GAP_WELCOME_CTA, Theme, ThemeMode,
 };
 use crate::ui::{
-    ButtonVariant, LaunchAnimation, NameFieldStrings, text_field, vela_button, vela_mark,
-    vela_wordmark, welcome_cta,
+    ButtonVariant, LaunchAnimation, NameFieldStrings, RailSlot, onboarding_rail, text_field,
+    vela_button, welcome_cta,
 };
 use crate::window_frame::{
     CAPTION_H, FRAME_SHADOW, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
@@ -108,6 +109,8 @@ pub struct OnboardingPage {
     launch: Option<LaunchAnimation>,
     /// The DONE card's avatar (spec 015 D1's rasterizer, reused).
     identicons: RefCell<IdenticonCache>,
+    /// The rail's settings glyph.
+    icons: IconCache,
 
     /// The create journey has taken over the page.
     creating: bool,
@@ -192,6 +195,7 @@ impl OnboardingPage {
             loc,
             focus_handle,
             identicons: RefCell::default(),
+            icons: IconCache::default(),
             creating: false,
             create,
             create_view,
@@ -540,46 +544,31 @@ impl OnboardingPage {
 
     // -- welcome ------------------------------------------------------------
 
-    /// The v2 welcome (design/onboarding-new). Two blocks, not one centred
-    /// stack: brand and copy ride the top edge, the two CTAs ride the bottom,
-    /// and the space between them is whatever the window has left over. The
-    /// column is centred in the page; nothing inside it is.
+    /// The welcome, beside the rail. The brand is not here any more — it is in
+    /// the rail, where it stays for the whole journey — so this is the hero,
+    /// the line under it, and the two ways in.
     fn welcome(&self, theme: &Theme, cx: &mut Context<Self>) -> Div {
         let mut top = div()
             .flex()
             .flex_col()
-            .gap(px(GAP_BRAND_HERO))
+            .gap(px(GAP_HERO_SUB))
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .gap(px(GAP_LOGO_WORDMARK))
-                    .child(vela_mark(theme, px(LOGO_SIZE)))
-                    .child(vela_wordmark(theme)),
+                    .text_size(theme::text_hero())
+                    .line_height(theme::line_height_hero())
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(theme.fg_base)
+                    // The copy carries its own line break — every locale
+                    // breaks where its own sentence wants to, not where the
+                    // measure happens to run out.
+                    .child(self.t("heroTitle")),
             )
             .child(
                 div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(GAP_HERO_SUB))
-                    .child(
-                        div()
-                            .text_size(theme::text_hero())
-                            .line_height(theme::line_height_hero())
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(theme.fg_base)
-                            // The copy carries its own line break — every
-                            // locale breaks where its own sentence wants to,
-                            // not where 620px happens to run out.
-                            .child(self.t("heroTitle")),
-                    )
-                    .child(
-                        div()
-                            .text_size(theme::text_card_title())
-                            .line_height(theme::line_height_body())
-                            .text_color(theme.fg_muted)
-                            .child(self.t("heroSubtitle")),
-                    ),
+                    .text_size(theme::text_flow_sub())
+                    .line_height(theme::line_height_flow_sub())
+                    .text_color(theme.fg_muted)
+                    .child(self.t("heroSubtitle")),
             );
 
         // The registry is unreachable. Sign-in stays attemptable — the CORE
@@ -621,23 +610,12 @@ impl OnboardingPage {
             ));
 
         div()
-            .size_full()
+            .w_full()
+            .max_w(px(FLOW_COLUMN_W))
             .flex()
-            .justify_center()
-            .px(px(WELCOME_PAD_X))
-            .pt(px(WELCOME_PAD_TOP))
-            .pb(px(WELCOME_PAD_BOTTOM))
-            .child(
-                div()
-                    .w_full()
-                    .max_w(px(WELCOME_COLUMN_W))
-                    .flex()
-                    .flex_col()
-                    .justify_between()
-                    .gap(px(GAP_WELCOME_SPLIT))
-                    .child(top)
-                    .child(buttons),
-            )
+            .flex_col()
+            .child(top)
+            .child(buttons.mt(px(GAP_HERO_CTA)))
     }
 
     // -- overlays -----------------------------------------------------------
@@ -897,20 +875,49 @@ impl Render for OnboardingPage {
                 copied: self.copied,
                 sink,
             };
-            // The flow OWNS the page, exactly as the welcome does: same
-            // padding, same centred column, and a body tall enough for each
-            // screen's bottom spacer to put its CTA on the bottom edge.
-            div()
-                .size_full()
-                .flex()
-                .justify_center()
-                .px(px(WELCOME_PAD_X))
-                .pt(px(WELCOME_PAD_TOP))
-                .pb(px(WELCOME_PAD_BOTTOM))
-                .child(render_create_flow(&host, window))
+            render_create_flow(&host, window)
         } else {
             self.welcome(&theme, cx)
         };
+
+        // The rail's slot. Inside the journey it names the step; outside it —
+        // the welcome, and DONE once the wallet exists — it carries the
+        // product's line, so the sequence reads brand → 01 → 02 → 03 → brand.
+        let slot = match self
+            .creating
+            .then(|| onboarding_flow::rail_step(&self.create_view))
+        {
+            Some(Some((ordinal, name, detail))) => RailSlot::Step {
+                ordinal,
+                total: FLOW_STEPS,
+                name: self.loc.t(name),
+                detail: self.loc.t(detail),
+            },
+            _ => RailSlot::Tagline(self.loc.t("onboarding.welcome.desktopTagline")),
+        };
+        let rail = onboarding_rail(
+            &theme,
+            &mut self.icons,
+            slot,
+            self.loc.t("onboarding.settings.title"),
+            cx.listener(|this, _, _, cx| this.open_endpoint(false, cx)),
+        );
+
+        // The screen column: left-aligned beside the rail, at its natural
+        // height. The welcome is the one screen that centres — it is a cover,
+        // not a form, and it has no header row to hold a baseline steady.
+        let column = div()
+            .flex_1()
+            .min_w(px(0.))
+            .h_full()
+            .flex()
+            .flex_col()
+            .when(!self.creating, |el| el.justify_center())
+            .px(px(CONTENT_PAD_X))
+            .py(px(CONTENT_PAD_Y))
+            .child(content);
+
+        let content = div().size_full().flex().child(rail).child(column);
 
         let page = div()
             .size_full()

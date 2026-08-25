@@ -48,6 +48,17 @@ pub struct Theme {
     pub fg_muted: Hsla,
     pub fg_subtle: Hsla,
     pub fg_inverse: Hsla,
+    /// The onboarding rail's surface. Light steps DOWN to the sunken tone and
+    /// dark stays on the base — the same pair the wallet home's sidebar uses
+    /// (spec 015 deviation 4: dark `bg_sunken` is LIGHTER than the canvas and
+    /// would invert the hierarchy), so the two rails are visibly one app.
+    pub rail_surface: Hsla,
+    /// The onboarding rail's step ordinal and its `/03`. A WATERMARK on the
+    /// rail's own surface — one step above the background and well below any
+    /// text — so the number reads as a graphic the eye can rest on rather than
+    /// as something to read.
+    pub rail_ordinal: Hsla,
+    pub rail_ordinal_soft: Hsla,
     // brand accent + interaction states
     pub accent: Hsla,
     pub accent_hover: Hsla,
@@ -112,6 +123,9 @@ impl Theme {
             fg_muted: c(0x6e6b62),
             fg_subtle: c(0x8c887e),
             fg_inverse: c(0xffffff),
+            rail_surface: c(0xf5f3ef),
+            rail_ordinal: c(0xe1dcd1),
+            rail_ordinal_soft: c(0xd3cdc0),
             accent: c(0xe8572a),
             accent_hover: c(0xd14a20),
             accent_active: c(0xbf421c),
@@ -146,6 +160,9 @@ impl Theme {
             fg_muted: c(0x9a9790),
             fg_subtle: c(0x85827a),
             fg_inverse: c(0xffffff),
+            rail_surface: c(0x141412),
+            rail_ordinal: c(0x2e2e27),
+            rail_ordinal_soft: c(0x3b3b33),
             accent: c(0xe8572a),
             accent_hover: c(0xf26a40),
             accent_active: c(0xd44d22),
@@ -184,35 +201,42 @@ pub const WINDOW_H: f32 = 800.;
 pub const LOGO_SIZE: f32 = 60.;
 
 // ---------------------------------------------------------------------------
-// Welcome screen, v2 (design/onboarding-new/Vela Wallet Onboarding.html).
+// Onboarding, v2 desktop (design/onboarding-desktop-b.html).
 //
-// These are NOT measured off a raster. That file is a React page and the
-// values below are the literal CSS it renders for `screen === "welcome"` at
-// `device === "desktop"` — `colMax`, `heroSize`, the inline styles on the
-// brand row and the button row. Where a number here disagrees with the v1
-// mocks in design/onboarding, v2 is the one that ships.
+// Two columns. A rail carries the brand and, during the create journey, which
+// step you are on; the screen itself is a measure-width column beside it,
+// LEFT-ALIGNED and at its natural height.
+//
+// That last part is the whole point. The single-column version stretched to
+// the window (`flex: 1` + `space-between`), so its empty middle grew with
+// every pixel of window height — which is what made a 1280×800 desktop read
+// as a phone page pulled tall. A rail uses the width for orientation instead
+// of padding, and content that ends where it ends does not gape.
 // ---------------------------------------------------------------------------
 
-/// `colMax` — the welcome column is wider than the flow's 440/560, and it is
-/// a MAXIMUM: the column is centred in the page and its content is not.
-pub const WELCOME_COLUMN_W: f32 = 620.;
-/// The page's own `padding: 32px 24px`, plus the welcome column's
-/// `padding: 12px 0 16px`.
-pub const WELCOME_PAD_X: f32 = 24.;
-pub const WELCOME_PAD_TOP: f32 = 32. + 12.;
-pub const WELCOME_PAD_BOTTOM: f32 = 32. + 16.;
-/// The welcome column is `justify-content: space-between` — brand and copy at
-/// the top, the two CTAs on the bottom edge — with this as the floor between
-/// them when the window is short.
-pub const GAP_WELCOME_SPLIT: f32 = 40.;
+/// The rail, sized and toned like the wallet home's sidebar so onboarding and
+/// the app behind it are visibly the same program.
+pub const RAIL_W: f32 = 320.;
+pub const RAIL_PAD_X: f32 = 32.;
+pub const RAIL_PAD_Y: f32 = 40.;
+/// The measure of the rail's step detail and tagline — narrow on purpose, so
+/// they wrap into a block rather than running the rail's full width.
+pub const RAIL_TEXT_W: f32 = 214.;
+/// The short accent rule under the tagline.
+pub const RAIL_RULE_W: f32 = 28.;
+pub const RAIL_RULE_H: f32 = 2.;
 
-/// Mark ↔ wordmark.
+/// Padding of the screen column beside the rail.
+pub const CONTENT_PAD_X: f32 = 72.;
+pub const CONTENT_PAD_Y: f32 = 64.;
+
+/// Mark ↔ wordmark, in the rail's brand row.
 pub const GAP_LOGO_WORDMARK: f32 = 12.;
-/// Brand row ↔ hero.
-pub const GAP_BRAND_HERO: f32 = 24.;
 /// Hero ↔ subtitle.
 pub const GAP_HERO_SUB: f32 = 12.;
-/// Between the two CTAs, which share one row.
+/// Subtitle ↔ the CTA row.
+pub const GAP_HERO_CTA: f32 = 32.;
+/// Between the two welcome CTAs, which share one row.
 pub const GAP_WELCOME_CTA: f32 = 12.;
 
 /// `letter-spacing: .11em` on the wordmark, as a fraction of the em. gpui has
@@ -220,10 +244,12 @@ pub const GAP_WELCOME_CTA: f32 = 12.;
 /// `ui::vela_wordmark`.
 pub const WORDMARK_TRACKING: f32 = 0.11;
 
-/// The welcome CTAs are rectangles with a 12px radius, not the flow's
-/// capsules, and they divide one row rather than stacking.
+/// The welcome CTAs are rectangles with a 12px radius, and they sit side by
+/// side at their labels' width — a desktop dialog sizes a button to its label;
+/// a full-width button is a phone's answer to a thumb.
 pub const RADIUS_CTA: f32 = 12.;
-pub const CTA_MIN_W: f32 = 200.;
+pub const CTA_MIN_W: f32 = 176.;
+pub const CTA_PAD_X: f32 = 32.;
 pub const CTA_H: f32 = 52.;
 
 // ---------------------------------------------------------------------------
@@ -466,9 +492,9 @@ pub const FLOW_GAP_MD_SNUG: f32 = 12.;
 
 // -- v2 flow shell (design/onboarding-new) ----------------------------------
 
-/// `colMax` for every screen that is not the welcome: the flow reads as one
-/// narrow column, and it is a MAXIMUM.
-pub const FLOW_COLUMN_W: f32 = 440.;
+/// The measure of the screen column beside the rail — the SAME on every
+/// onboarding screen now, welcome included. A maximum, not a width.
+pub const FLOW_COLUMN_W: f32 = 520.;
 pub const FLOW_HEADER_PAD_B: f32 = 28.;
 /// The ‹ chevron sits closer to its label than the flow rhythm would put it.
 pub const FLOW_BACK_GAP: f32 = 7.;
@@ -484,9 +510,7 @@ pub const DONE_AVATAR: f32 = 44.;
 pub const TASK_ROW_PAD_Y: f32 = 11.;
 /// Vertical padding of a DONE key row — the same rule pattern, tighter.
 pub const DONE_ROW_PAD_Y: f32 = 10.;
-/// The `flex: 1; min-height: 8px` spacer that pushes a screen's CTA to the
-/// bottom edge of the page.
-pub const FLOW_SPACER_MIN: f32 = 8.;
+
 /// Disabled control emphasis (mock A1's dimmed-accent CTA — never a gray fill).
 pub const OPACITY_DISABLED: f32 = 0.45;
 /// Hairline rules (scaffold and outcome dividers).
@@ -516,6 +540,40 @@ pub fn text_badge_glyph() -> Pixels {
 /// welcome it belonged to.
 pub fn text_wordmark() -> Pixels {
     px(19.)
+}
+/// The rail's step ordinal, set in the mono face at display size. It is
+/// TYPOGRAPHY, not a widget: a stepper drawn as a control reads as chrome
+/// bolted to the side of the page, which is exactly what it looked like.
+pub fn text_step_ordinal() -> Pixels {
+    px(104.)
+}
+pub fn line_height_step_ordinal() -> Pixels {
+    px(104. * 0.82)
+}
+/// The `/03` that follows it.
+pub fn text_step_total() -> Pixels {
+    px(20.)
+}
+/// The step's name, under the ordinal.
+pub fn text_step_name() -> Pixels {
+    px(20.)
+}
+/// The rail's tagline, shown before the journey starts and after it ends.
+///
+/// 26, not the mock's 30: the mock hard-wrapped it after the comma, and the
+/// string cannot carry that break — Android and iOS render the same key on
+/// one line, and an iOS test asserts its exact value. At 26 the CJK taglines
+/// fit the rail's 256px inner measure whole, and the longer latin ones wrap
+/// into two lines instead of orphaning a glyph.
+pub fn text_rail_tagline() -> Pixels {
+    px(26.)
+}
+pub fn line_height_rail_tagline() -> Pixels {
+    px(26. * 1.35)
+}
+/// The one sentence under a step's name.
+pub fn line_height_rail_detail() -> Pixels {
+    px(13. * 1.6)
 }
 /// The v2 welcome hero. It carries the screen, so it is nearly twice v1's
 /// tagline; the copy ships its own line break rather than relying on a wrap.

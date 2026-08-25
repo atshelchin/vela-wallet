@@ -199,8 +199,14 @@ for (let i = 1; i < PATHS.length; i++) {
 //   OPENED is a permissions problem wearing a hardware problem's clothes.
 //   Reporting it as "no security key is plugged in" — which is what the code
 //   did — sends a person looking at the port instead of at their udev rules.
-if (PATHS.length !== 1404) fail(`expected 1404 paths (1325 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1325) fail(`expected 1325 leaf paths, got ${leafSet.size}`);
+// + 6 more, `create.step{Naming,Keys,Create}{Label,Detail}`: the desktop's v2
+//   onboarding is two columns, and the left one names the step you are on and
+//   what it decides. Those are not the screen titles — a rail that repeated
+//   the H1 beside it would be saying everything twice — so they are their own
+//   short pair per step. Desktop draws them today; the other clients have the
+//   strings and can adopt the layout without a corpus change.
+if (PATHS.length !== 1410) fail(`expected 1410 paths (1331 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1331) fail(`expected 1331 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

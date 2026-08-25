@@ -21,7 +21,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Context, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement, KeyDownEvent,
     ParentElement, Render, SharedString, StatefulInteractiveElement as _, Styled, Window, div, px,
@@ -552,10 +551,6 @@ impl GalleryView {
 
     fn stage(&self, theme: &Theme, window: &Window, cx: &mut Context<Self>) -> gpui::Stateful<Div> {
         let entity = cx.entity();
-        // A flow screen is a whole page: it fills the stage's height so its
-        // bottom spacer can put the CTA on the bottom edge, exactly as it does
-        // in the app. The cards and sheets are objects, and hug their content.
-        let is_flow = matches!(self.entries[self.selected].fixture, Fixture::Flow(_));
         let body: Div = match &self.entries[self.selected].fixture {
             Fixture::Flow(view) => {
                 let sink: FlowSink = Rc::new(move |event, _window, cx| {
@@ -644,7 +639,7 @@ impl GalleryView {
             .overflow_y_scroll()
             .flex()
             .justify_center()
-            .map(|el| if is_flow { el } else { el.items_start() })
+            .items_start()
             .py(px(FLOW_GAP_LG * 2.))
             .child(body)
     }

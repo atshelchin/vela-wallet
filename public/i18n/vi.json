@@ -672,7 +672,9 @@
    "touchTitle": "Chạm vào khoá bảo mật của bạn",
    "touchBody": "{{product}} đang nhấp nháy và chờ bạn. Hãy chạm vào nó để xác nhận.",
    "touchFingerprintBody": "{{product}} đang nhấp nháy. Đặt ngón tay lên cảm biến để xác nhận đúng là bạn.",
-   "touchSelectBody": "Có nhiều khoá bảo mật đang cắm và tất cả đều nhấp nháy. Hãy chạm vào khoá bạn muốn dùng."
+   "touchSelectBody": "Có nhiều khoá bảo mật đang cắm và tất cả đều nhấp nháy. Hãy chạm vào khoá bạn muốn dùng.",
+   "keyUnreadableTitle": "Không mở được khoá bảo mật của bạn",
+   "keyUnreadableBody": "Khoá bảo mật đã cắm, nhưng máy tính này không cho ví đọc nó. Đây là thiết lập quyền chứ không phải khoá bị hỏng — trên Linux, hãy cài bộ quy tắc udev FIDO của bản phân phối (libu2f-udev, hoặc systemd 252 trở lên vốn tự thiết lập), rồi rút khoá ra và cắm lại."
   },
   "login": {
    "alertNotSupportedTitle": "Không hỗ trợ",

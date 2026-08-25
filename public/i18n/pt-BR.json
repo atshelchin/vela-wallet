@@ -675,7 +675,9 @@
    "touchTitle": "Toque na sua chave de segurança",
    "touchBody": "A {{product}} está piscando e esperando por você. Toque nela agora para confirmar.",
    "touchFingerprintBody": "A {{product}} está piscando. Apoie o dedo no sensor dela para confirmar que é você.",
-   "touchSelectBody": "Há várias chaves de segurança conectadas e todas estão piscando. Toque naquela que você quer usar."
+   "touchSelectBody": "Há várias chaves de segurança conectadas e todas estão piscando. Toque naquela que você quer usar.",
+   "keyUnreadableTitle": "Não foi possível abrir sua chave de segurança",
+   "keyUnreadableBody": "Há uma chave de segurança conectada, mas este computador não permite que a carteira a leia. É uma configuração de permissões, não um defeito da chave — no Linux, instale as regras udev de FIDO da sua distribuição (libu2f-udev, ou systemd 252 e posteriores, que as configura sozinho) e reconecte a chave."
   },
   "login": {
    "alertNotSupportedTitle": "Não compatível",

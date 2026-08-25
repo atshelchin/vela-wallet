@@ -201,7 +201,9 @@
       "touchTitle": "Güvenlik anahtarınıza dokunun",
       "touchBody": "{{product}} yanıp sönüyor ve sizi bekliyor. Onaylamak için şimdi dokunun.",
       "touchFingerprintBody": "{{product}} yanıp sönüyor. Siz olduğunuzu doğrulamak için parmağınızı sensörüne koyun.",
-      "touchSelectBody": "Birden fazla güvenlik anahtarı takılı ve hepsi yanıp sönüyor. Kullanmak istediğinize dokunun."
+      "touchSelectBody": "Birden fazla güvenlik anahtarı takılı ve hepsi yanıp sönüyor. Kullanmak istediğinize dokunun.",
+      "keyUnreadableTitle": "Güvenlik anahtarınız açılamıyor",
+      "keyUnreadableBody": "Bir güvenlik anahtarı takılı ama bu bilgisayar cüzdanın onu okumasına izin vermiyor. Bu anahtarın arızası değil, bir izin ayarı — Linux'ta dağıtımınızın FIDO udev kurallarını kurun (libu2f-udev ya da bunları kendisi ayarlayan systemd 252 ve üzeri), sonra anahtarı çıkarıp tekrar takın."
     },
     "login": {
       "alertNotSupportedTitle": "Desteklenmiyor",

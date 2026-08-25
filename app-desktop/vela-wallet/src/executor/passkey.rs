@@ -721,6 +721,12 @@ fn usb_failure(error: UsbError) -> PasskeyFailure {
         UsbError::Ctap(Status::PinBlocked) => PasskeyFailure::other(
             "This security key is locked. Unplug it and plug it back in; if it asks for a reset, be aware that a reset erases every passkey on it.",
         ),
+        // Deliberately `other` rather than `not_supported`: the key IS
+        // supported and IS present, so the sheet must not say "plug one in".
+        // The message carries the OS's own words into the technical details.
+        UsbError::AccessDenied { product, detail } => PasskeyFailure::other(format!(
+            "{product} is plugged in but could not be opened: {detail}"
+        )),
         UsbError::TimedOut => {
             PasskeyFailure::other("The security key stopped responding. Unplug it and try again.")
         }

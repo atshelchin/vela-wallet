@@ -679,7 +679,9 @@
    "touchTitle": "Touch your security key",
    "touchBody": "{{product}} is blinking and waiting for you. Touch it now to confirm.",
    "touchFingerprintBody": "{{product}} is blinking. Rest your finger on its sensor to confirm it is you.",
-   "touchSelectBody": "Several security keys are plugged in and all of them are blinking. Touch the one you want to use."
+   "touchSelectBody": "Several security keys are plugged in and all of them are blinking. Touch the one you want to use.",
+   "keyUnreadableTitle": "Your security key can't be opened",
+   "keyUnreadableBody": "A security key is plugged in, but this computer will not let the wallet read it. That is a permissions setting rather than a fault in the key — on Linux, install your distribution's FIDO udev rules (libu2f-udev, or systemd 252 and later, which sets them up itself), then unplug the key and plug it in again."
   },
   "login": {
    "alertNotSupportedTitle": "Not Supported",

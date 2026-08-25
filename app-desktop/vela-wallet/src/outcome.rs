@@ -97,6 +97,8 @@ pub enum BadgeVariant {
 /// are screens now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OutcomeKind {
+    /// A key is plugged in and this process cannot open it.
+    KeyUnreadable,
     Network,
     Server,
     Timeout,
@@ -121,6 +123,11 @@ impl OutcomeKind {
     /// The pure `kind → OutcomeSpec` catalog.
     pub fn spec(self, loc: &Loc) -> OutcomeSpec {
         let (badge, headline, body) = match self {
+            Self::KeyUnreadable => (
+                BadgeVariant::Error,
+                loc.t("onboarding.create.keyUnreadableTitle"),
+                loc.t("onboarding.create.keyUnreadableBody"),
+            ),
             Self::Network => (
                 BadgeVariant::Error,
                 loc.t("onboarding.common.networkTitle"),
@@ -215,7 +222,13 @@ impl OutcomeKind {
 /// matches nothing keeps, which is the honest answer rather than a nearest fit.
 fn refine(detail: &str, fallback: OutcomeKind) -> OutcomeKind {
     let lowered = detail.to_lowercase();
-    if lowered.contains("timed out") || lowered.contains("timeout") {
+    if lowered.contains("could not be opened") {
+        // `usb.rs` phrases the permission failure that way, and it is the one
+        // refinement that changes what a person should DO rather than only how
+        // the failure is described: the key is right there and the fix is a
+        // udev rule, not another port.
+        OutcomeKind::KeyUnreadable
+    } else if lowered.contains("timed out") || lowered.contains("timeout") {
         OutcomeKind::Timeout
     } else if lowered.contains("no security key") || lowered.contains("usb hid unavailable") {
         OutcomeKind::Unsupported

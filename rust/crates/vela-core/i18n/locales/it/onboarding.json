@@ -201,7 +201,9 @@
       "touchTitle": "Tocca la tua chiave di sicurezza",
       "touchBody": "{{product}} sta lampeggiando e ti sta aspettando. Toccala ora per confermare.",
       "touchFingerprintBody": "{{product}} sta lampeggiando. Appoggia il dito sul suo sensore per confermare che sei tu.",
-      "touchSelectBody": "Sono collegate più chiavi di sicurezza e stanno lampeggiando tutte. Tocca quella che vuoi usare."
+      "touchSelectBody": "Sono collegate più chiavi di sicurezza e stanno lampeggiando tutte. Tocca quella che vuoi usare.",
+      "keyUnreadableTitle": "Impossibile aprire la tua chiave di sicurezza",
+      "keyUnreadableBody": "Una chiave di sicurezza è collegata, ma questo computer non permette al portafoglio di leggerla. È un'impostazione di permessi, non un guasto della chiave: su Linux installa le regole udev FIDO della tua distribuzione (libu2f-udev, oppure systemd 252 e successivi, che le imposta da solo) e ricollega la chiave."
     },
     "login": {
       "alertNotSupportedTitle": "Non supportato",

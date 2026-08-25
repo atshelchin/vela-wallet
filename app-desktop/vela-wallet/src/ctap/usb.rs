@@ -60,6 +60,16 @@ pub enum UsbError {
     /// system passkey service, a missing key is not "something went wrong", it
     /// is the whole story.
     NoKeyPresent,
+    /// A key IS plugged in and this process cannot open it.
+    ///
+    /// Distinct from [`Self::NoKeyPresent`], and the distinction is the whole
+    /// point: reporting "no security key is plugged in" to somebody looking
+    /// straight at one sends them hunting for a hardware fault that is really
+    /// a permissions problem. On Linux it is the FIDO udev rules — systemd 252
+    /// and later tag hidraw FIDO devices for the logged-in user, and older
+    /// systems need their distribution's u2f rules package. Carries the OS's
+    /// own words, which go into the technical details.
+    AccessDenied { product: String, detail: String },
     /// The HID subsystem itself is unavailable — no permission to enumerate,
     /// or a driver that is not there.
     Hid(String),
@@ -78,6 +88,12 @@ impl std::fmt::Display for UsbError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoKeyPresent => write!(f, "no security key is plugged in"),
+            Self::AccessDenied { product, detail } => {
+                write!(
+                    f,
+                    "{product} is plugged in but could not be opened: {detail}"
+                )
+            }
             Self::Hid(message) => write!(f, "USB HID unavailable: {message}"),
             Self::Framing(error) => write!(f, "the security key sent a malformed reply: {error:?}"),
             Self::TimedOut => write!(f, "the security key stopped responding"),
@@ -126,6 +142,45 @@ pub type TouchNotifier = Arc<dyn Fn(Option<TouchRequest>) + Send + Sync>;
 /// `KEEPALIVE` status: the authenticator is waiting for user presence.
 const KEEPALIVE_UP_NEEDED: u8 = 0x02;
 
+/// Every FIDO authenticator on the bus, opened.
+///
+/// The two error cases are deliberately different answers. Nothing on the bus
+/// is [`UsbError::NoKeyPresent`] — a true statement a person can act on by
+/// plugging one in. Something on the bus that will not open is
+/// [`UsbError::AccessDenied`], which is a permissions problem wearing a
+/// hardware problem's clothes: on Linux it means the FIDO udev rules are
+/// missing, and reporting it as absence sends the person looking at the port
+/// instead of at the rules.
+///
+/// A key that fails to open while ANOTHER opens fine is simply skipped: the
+/// working one is the answer, and one device's trouble is not the ceremony's.
+fn enumerate() -> Result<Vec<(String, String, HidDevice)>, UsbError> {
+    let api = HidApi::new().map_err(|error| UsbError::Hid(error.to_string()))?;
+    let mut opened = Vec::new();
+    let mut refused: Option<(String, String)> = None;
+    for info in api
+        .device_list()
+        .filter(|device| device.usage_page() == FIDO_USAGE_PAGE && device.usage() == FIDO_USAGE)
+    {
+        let product = info.product_string().unwrap_or("security key").to_owned();
+        let path = info.path().to_string_lossy().into_owned();
+        match info.open_device(&api) {
+            Ok(device) => opened.push((product, path, device)),
+            Err(error) => {
+                refused.get_or_insert((product, error.to_string()));
+            }
+        }
+    }
+
+    if !opened.is_empty() {
+        return Ok(opened);
+    }
+    match refused {
+        Some((product, detail)) => Err(UsbError::AccessDenied { product, detail }),
+        None => Err(UsbError::NoKeyPresent),
+    }
+}
+
 /// One open conversation with one authenticator.
 pub struct SecurityKey {
     device: HidDevice,
@@ -167,25 +222,7 @@ impl SecurityKey {
         // One `HidApi` for the whole process: hidapi refuses a second live
         // instance, so the devices are opened HERE and the handles move into
         // the race. `HidDevice` is `Send`, which is what makes that legal.
-        let api = HidApi::new().map_err(|error| UsbError::Hid(error.to_string()))?;
-        let mut opened = Vec::new();
-        for info in api
-            .device_list()
-            .filter(|device| device.usage_page() == FIDO_USAGE_PAGE && device.usage() == FIDO_USAGE)
-        {
-            let product = info.product_string().unwrap_or("security key").to_owned();
-            // A key that will not open is skipped, not fatal: another one on
-            // the bus may open fine, and "no key present" is a better answer
-            // than one device's permission error.
-            let path = info.path().to_string_lossy().into_owned();
-            if let Ok(device) = info.open_device(&api) {
-                opened.push((product, path, device));
-            }
-        }
-
-        if opened.is_empty() {
-            return Err(UsbError::NoKeyPresent);
-        }
+        let mut opened = enumerate()?;
         if opened.len() == 1 {
             let (product, path, device) = opened.remove(0);
             let mut key = Self::new(product, path, device);
@@ -215,21 +252,7 @@ impl SecurityKey {
         nonce: &dyn Fn() -> [u8; 8],
         touch: Option<&TouchNotifier>,
     ) -> Result<Self, UsbError> {
-        let api = HidApi::new().map_err(|error| UsbError::Hid(error.to_string()))?;
-        let mut opened = Vec::new();
-        for info in api
-            .device_list()
-            .filter(|device| device.usage_page() == FIDO_USAGE_PAGE && device.usage() == FIDO_USAGE)
-        {
-            let product = info.product_string().unwrap_or("security key").to_owned();
-            let path = info.path().to_string_lossy().into_owned();
-            if let Ok(device) = info.open_device(&api) {
-                opened.push((product, path, device));
-            }
-        }
-        if opened.is_empty() {
-            return Err(UsbError::NoKeyPresent);
-        }
+        let opened = enumerate()?;
 
         let mut holders = Vec::new();
         let mut rest = Vec::new();

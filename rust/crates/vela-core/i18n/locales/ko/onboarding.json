@@ -201,7 +201,9 @@
       "touchTitle": "보안 키를 터치하세요",
       "touchBody": "{{product}}이(가) 깜박이며 기다리고 있습니다. 지금 터치해 확인하세요.",
       "touchFingerprintBody": "{{product}}이(가) 깜박이고 있습니다. 센서에 손가락을 올려 본인임을 확인하세요.",
-      "touchSelectBody": "보안 키가 여러 개 연결되어 모두 깜박이고 있습니다. 사용할 키를 터치하세요."
+      "touchSelectBody": "보안 키가 여러 개 연결되어 모두 깜박이고 있습니다. 사용할 키를 터치하세요.",
+      "keyUnreadableTitle": "보안 키를 열 수 없습니다",
+      "keyUnreadableBody": "보안 키가 연결되어 있지만 이 컴퓨터가 지갑의 읽기를 허용하지 않습니다. 키 고장이 아니라 권한 설정 문제입니다. Linux에서는 배포판의 FIDO udev 규칙(libu2f-udev, 또는 자동 설정되는 systemd 252 이상)을 설치한 뒤 키를 뽑았다 다시 꽂으세요."
     },
     "login": {
       "alertNotSupportedTitle": "지원되지 않음",

@@ -201,7 +201,9 @@
       "touchTitle": "Toca tu llave de seguridad",
       "touchBody": "{{product}} está parpadeando y esperándote. Tócala ahora para confirmar.",
       "touchFingerprintBody": "{{product}} está parpadeando. Apoya el dedo en su sensor para confirmar que eres tú.",
-      "touchSelectBody": "Hay varias llaves de seguridad conectadas y todas están parpadeando. Toca la que quieras usar."
+      "touchSelectBody": "Hay varias llaves de seguridad conectadas y todas están parpadeando. Toca la que quieras usar.",
+      "keyUnreadableTitle": "No se puede abrir tu llave de seguridad",
+      "keyUnreadableBody": "Hay una llave de seguridad conectada, pero esta computadora no deja que la cartera la lea. Es una configuración de permisos, no una falla de la llave: en Linux, instala las reglas udev de FIDO de tu distribución (libu2f-udev, o systemd 252 en adelante, que las configura solo) y vuelve a conectar la llave."
     },
     "login": {
       "alertNotSupportedTitle": "No compatible",

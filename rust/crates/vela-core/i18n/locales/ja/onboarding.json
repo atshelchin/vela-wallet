@@ -201,7 +201,9 @@
       "touchTitle": "セキュリティキーにタッチ",
       "touchBody": "{{product}} が点滅して待っています。今タッチして確認してください。",
       "touchFingerprintBody": "{{product}} が点滅しています。センサーに指を置いて本人確認を行ってください。",
-      "touchSelectBody": "複数のセキュリティキーが接続されていて、すべて点滅しています。使いたいものにタッチしてください。"
+      "touchSelectBody": "複数のセキュリティキーが接続されていて、すべて点滅しています。使いたいものにタッチしてください。",
+      "keyUnreadableTitle": "セキュリティキーを開けません",
+      "keyUnreadableBody": "セキュリティキーは接続されていますが、このコンピューターがウォレットに読み取りを許可していません。キーの故障ではなく権限の設定です。Linux では、ディストリビューションの FIDO udev ルール（libu2f-udev。systemd 252 以降は自動設定）を導入し、キーを一度抜き差ししてください。"
     },
     "login": {
       "alertNotSupportedTitle": "非対応",

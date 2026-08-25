@@ -672,7 +672,9 @@
    "touchTitle": "Sentuh kunci keamanan Anda",
    "touchBody": "{{product}} berkedip dan menunggu Anda. Sentuh sekarang untuk mengonfirmasi.",
    "touchFingerprintBody": "{{product}} berkedip. Letakkan jari Anda di sensornya untuk memastikan ini benar Anda.",
-   "touchSelectBody": "Beberapa kunci keamanan terpasang dan semuanya berkedip. Sentuh yang ingin Anda pakai."
+   "touchSelectBody": "Beberapa kunci keamanan terpasang dan semuanya berkedip. Sentuh yang ingin Anda pakai.",
+   "keyUnreadableTitle": "Kunci keamanan Anda tidak bisa dibuka",
+   "keyUnreadableBody": "Kunci keamanan sudah terpasang, tetapi komputer ini tidak mengizinkan dompet membacanya. Ini soal pengaturan izin, bukan kerusakan kunci — di Linux, pasang aturan udev FIDO dari distribusi Anda (libu2f-udev, atau systemd 252 ke atas yang mengaturnya sendiri), lalu cabut dan pasang kembali kuncinya."
   },
   "login": {
    "alertNotSupportedTitle": "Tidak Didukung",

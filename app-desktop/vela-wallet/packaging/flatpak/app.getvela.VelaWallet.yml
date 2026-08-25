@@ -42,6 +42,12 @@ finish-args:
   - --socket=fallback-x11
   # The wallet talks to EVM RPC endpoints and a bundler.
   - --share=network
+  # Security keys. The sandbox hides /dev/hidraw* even when the HOST permissions
+  # are correct, and flatpak has no narrower FIDO permission than this — the
+  # same trade every browser flatpak makes to support security keys at all.
+  # Without it the key enumerates inside the sandbox and cannot be opened, and
+  # the wallet has no way to create or sign in to anything on this build.
+  - --device=all
   # No --filesystem: the app writes nothing outside its own sandbox data dir,
   # and a wallet is exactly the kind of program that should not hold host
   # filesystem access it does not use.

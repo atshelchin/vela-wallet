@@ -672,7 +672,9 @@
    "touchTitle": "掂一掂你嘅安全金鑰",
    "touchBody": "{{product}} 正喺度閃緊，等緊你。而家掂一掂佢就確認到。",
    "touchFingerprintBody": "{{product}} 正喺度閃緊。將手指放喺佢嘅感應器上面，確認係你本人。",
-   "touchSelectBody": "插咗幾個安全金鑰，全部都喺度閃緊。掂一掂你想用嗰個。"
+   "touchSelectBody": "插咗幾個安全金鑰，全部都喺度閃緊。掂一掂你想用嗰個。",
+   "keyUnreadableTitle": "開唔到你嘅安全金鑰",
+   "keyUnreadableBody": "安全金鑰插咗，但呢部電腦唔畀錢包讀佢。呢個係權限設定問題，金鑰本身冇壞——喺 Linux 上面，裝返發行版嘅 FIDO udev 規則（libu2f-udev；systemd 252 或以上會自己搞掂），然後拔出金鑰再插返。"
   },
   "login": {
    "alertNotSupportedTitle": "不支援",

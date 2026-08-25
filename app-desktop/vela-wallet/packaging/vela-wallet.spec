@@ -52,6 +52,10 @@ Recommends:     mesa-vulkan-drivers
 # is not a dependency — but the config and the fonts it points at still have to
 # exist, or text falls back to nothing.
 Requires:       fontconfig
+# Security keys are opened directly (/dev/hidraw*). systemd 252 and later
+# already tags FIDO devices for the logged-in user; the rule this package ships
+# covers older systems and is inert alongside it.
+Requires:       systemd-udev
 
 %description
 Vela Wallet is a self-custodial smart account wallet for EVM networks. Accounts
@@ -71,9 +75,12 @@ tar -xzf %{SOURCE0}
 %install
 mkdir -p %{buildroot}
 cp -a usr %{buildroot}/
+install -Dm0644 usr/lib/udev/rules.d/70-vela-fido.rules \
+  %{buildroot}%{_udevrulesdir}/70-vela-fido.rules
 
 %files
 %{_bindir}/vela-wallet
+%{_udevrulesdir}/70-vela-fido.rules
 %{_datadir}/applications/%{appid}.desktop
 %{_datadir}/icons/hicolor/*/apps/%{appid}.png
 %{_datadir}/icons/hicolor/scalable/apps/%{appid}.svg

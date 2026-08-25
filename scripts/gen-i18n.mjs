@@ -195,8 +195,12 @@ for (let i = 1; i < PATHS.length; i++) {
 // + 1 more, `create.touchSelectBody`: with two keys plugged in BOTH blink, and
 //   the one the person touches is the one that gets used. "Touch it" is the
 //   wrong sentence there — it has to say touch the ONE you want.
-if (PATHS.length !== 1402) fail(`expected 1402 paths (1323 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1323) fail(`expected 1323 leaf paths, got ${leafSet.size}`);
+// + 2 more, `create.keyUnreadable*`: a key that is plugged in and cannot be
+//   OPENED is a permissions problem wearing a hardware problem's clothes.
+//   Reporting it as "no security key is plugged in" — which is what the code
+//   did — sends a person looking at the port instead of at their udev rules.
+if (PATHS.length !== 1404) fail(`expected 1404 paths (1325 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1325) fail(`expected 1325 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

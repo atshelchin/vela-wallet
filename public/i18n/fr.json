@@ -675,7 +675,9 @@
    "touchTitle": "Touchez votre clé de sécurité",
    "touchBody": "{{product}} clignote et vous attend. Touchez-la maintenant pour confirmer.",
    "touchFingerprintBody": "{{product}} clignote. Posez votre doigt sur son capteur pour confirmer que c'est bien vous.",
-   "touchSelectBody": "Plusieurs clés de sécurité sont branchées et clignotent toutes. Touchez celle que vous voulez utiliser."
+   "touchSelectBody": "Plusieurs clés de sécurité sont branchées et clignotent toutes. Touchez celle que vous voulez utiliser.",
+   "keyUnreadableTitle": "Impossible d'ouvrir votre clé de sécurité",
+   "keyUnreadableBody": "Une clé de sécurité est branchée, mais cet ordinateur n'autorise pas le portefeuille à la lire. C'est un réglage de permissions, pas une panne de la clé — sous Linux, installez les règles udev FIDO de votre distribution (libu2f-udev, ou systemd 252 et plus, qui les met en place lui-même), puis débranchez et rebranchez la clé."
   },
   "login": {
    "alertNotSupportedTitle": "Non pris en charge",

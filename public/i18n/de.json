@@ -672,7 +672,9 @@
    "touchTitle": "Berühren Sie Ihren Sicherheitsschlüssel",
    "touchBody": "{{product}} blinkt und wartet auf Sie. Berühren Sie ihn jetzt zur Bestätigung.",
    "touchFingerprintBody": "{{product}} blinkt. Legen Sie Ihren Finger auf den Sensor, um zu bestätigen, dass Sie es sind.",
-   "touchSelectBody": "Mehrere Sicherheitsschlüssel sind angeschlossen und blinken alle. Berühren Sie den, den Sie verwenden möchten."
+   "touchSelectBody": "Mehrere Sicherheitsschlüssel sind angeschlossen und blinken alle. Berühren Sie den, den Sie verwenden möchten.",
+   "keyUnreadableTitle": "Ihr Sicherheitsschlüssel lässt sich nicht öffnen",
+   "keyUnreadableBody": "Ein Sicherheitsschlüssel ist angeschlossen, aber dieser Computer lässt die Wallet ihn nicht lesen. Das ist eine Berechtigungseinstellung und kein Defekt des Schlüssels — installieren Sie unter Linux die FIDO-udev-Regeln Ihrer Distribution (libu2f-udev, oder systemd 252 und neuer, das sie selbst einrichtet), und stecken Sie den Schlüssel danach einmal aus und wieder ein."
   },
   "login": {
    "alertNotSupportedTitle": "Nicht unterstützt",

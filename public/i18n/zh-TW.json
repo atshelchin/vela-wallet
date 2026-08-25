@@ -672,7 +672,9 @@
    "touchTitle": "觸摸你的安全金鑰",
    "touchBody": "{{product}} 正在閃爍等待。現在觸摸它即可確認。",
    "touchFingerprintBody": "{{product}} 正在閃爍。把手指放在它的感測器上，確認是你本人。",
-   "touchSelectBody": "插著多個安全金鑰，它們都在閃爍。觸摸你想使用的那一個。"
+   "touchSelectBody": "插著多個安全金鑰，它們都在閃爍。觸摸你想使用的那一個。",
+   "keyUnreadableTitle": "無法開啟你的安全金鑰",
+   "keyUnreadableBody": "安全金鑰已插入，但這台電腦不允許錢包讀取它。這是權限設定的問題，金鑰本身沒壞——在 Linux 上，請安裝發行版的 FIDO udev 規則（libu2f-udev；systemd 252 以上會自動設定），然後拔出金鑰再插回去。"
   },
   "login": {
    "alertNotSupportedTitle": "不支援",

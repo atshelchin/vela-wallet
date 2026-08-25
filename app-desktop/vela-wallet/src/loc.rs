@@ -149,8 +149,10 @@ mod tests {
     /// Var-bearing keys (`{{seconds}}` …) resolve with the placeholder left in
     /// place under default options — still a non-echo, non-empty value, which
     /// is all this sweep asserts about them.
-    const FLOW_KEYS: [&str; 120] = [
+    const FLOW_KEYS: [&str; 122] = [
         "common.cancel",
+        "onboarding.create.keyUnreadableTitle",
+        "onboarding.create.keyUnreadableBody",
         "onboarding.create.touchSelectBody",
         "onboarding.create.touchTitle",
         "onboarding.create.touchBody",

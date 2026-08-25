@@ -4,7 +4,12 @@ Architecture: @DEB_ARCH@
 Maintainer: Monday Labs <hello@getvela.app>
 Installed-Size: @INSTALLED_SIZE@
 Depends: @DEPENDS@
-Recommends: mesa-vulkan-drivers
+# Security keys are opened directly (/dev/hidraw*), which needs a udev rule
+# granting the logged-in user access. systemd 252+ ships one; `libu2f-udev` is
+# the package for everything older. Recommends rather than Depends because the
+# rule this package installs covers the same ground, and a modern systemd needs
+# neither.
+Recommends: mesa-vulkan-drivers, libu2f-udev
 Section: utils
 Priority: optional
 Homepage: https://getvela.app

@@ -2,13 +2,21 @@
 	/**
 	 * Deriving the address.
 	 *
-	 * Three task rows and a percentage, both computed from the stage the core
-	 * reported — never from elapsed time. A bar that advances on a timer tells
-	 * the person something the wallet does not know, and the one moment they
-	 * are most owed the truth is while their key set is being frozen.
+	 * Three task rows, driven by the stage the core reported — never by elapsed
+	 * time. A bar that advances on a timer tells the person something the
+	 * wallet does not know, and the one moment they are most owed the truth is
+	 * while their key set is being frozen. This is why spec 014's
+	 * elapsed-seconds ring is gone from the create flow.
 	 *
-	 * This is why spec 014's elapsed-seconds ring is gone from the create flow:
-	 * the percentage is the "still working" affordance the v2 design chose.
+	 * The percentage meter that used to head the rows is gone too (founder
+	 * call, 2026-08-25, and the desktop had already reached the same
+	 * conclusion): it LOOKED measured and was not — the same three statuses the
+	 * rows below name, divided by three — and its label named one phase while
+	 * another was running.
+	 *
+	 * The running row SPINS. Every one of these three waits on something
+	 * outside the app (a passkey prompt, a derivation, a network write), and a
+	 * still dot says nothing about whether anything is still happening.
 	 */
 	import { PROGRESS_TASKS, type ProgressPosition } from '$lib/onboarding/core/copy';
 
@@ -20,9 +28,9 @@
 
 	let { position, keyCount, strings }: Props = $props();
 
-	function mark(index: number): string {
-		if (index < position.activeTask) return '✓';
-		return index === position.activeTask ? '●' : '○';
+	function state(index: number): 'done' | 'active' | 'pending' {
+		if (index < position.activeTask) return 'done';
+		return index === position.activeTask ? 'active' : 'pending';
 	}
 </script>
 
@@ -34,34 +42,14 @@
 		</p>
 	</header>
 
-	<div class="meter">
-		<div class="meterhead">
-			<span class="meterlabel">{strings('onboarding.create.progressMeterLabel')}</span>
-			<span class="percent">{position.percent}%</span>
-		</div>
-		<div
-			class="track"
-			role="progressbar"
-			aria-valuemin={0}
-			aria-valuemax={100}
-			aria-valuenow={position.percent}
-			aria-label={strings('onboarding.create.progressMeterLabel')}
-		>
-			<div class="fill" style="width: {position.percent}%"></div>
-		</div>
-	</div>
-
 	<ul class="tasks">
 		{#each PROGRESS_TASKS as task, index (task)}
-			<li
-				class="task"
-				data-state={index < position.activeTask
-					? 'done'
-					: index === position.activeTask
-						? 'active'
-						: 'pending'}
-			>
-				<span class="mark" aria-hidden="true">{mark(index)}</span>
+			<li class="task" data-state={state(index)}>
+				{#if state(index) === 'active'}
+					<span class="spinner" aria-hidden="true"></span>
+				{:else}
+					<span class="mark" aria-hidden="true">{state(index) === 'done' ? '✓' : '○'}</span>
+				{/if}
 				<span class="what">{strings(task)}</span>
 			</li>
 		{/each}
@@ -98,46 +86,6 @@
 		line-height: var(--leading-normal);
 	}
 
-	.meter {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-lg);
-	}
-
-	.meterhead {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		font-family: var(--font-mono);
-	}
-
-	.meterlabel {
-		color: var(--color-fg-muted);
-		font-size: var(--text-sm);
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-	}
-
-	.percent {
-		color: var(--color-fg-base);
-		font-size: var(--text-lg);
-		font-weight: var(--weight-medium);
-	}
-
-	.track {
-		height: var(--space-sm);
-		border-radius: var(--radius-full);
-		background: var(--color-border-base);
-		overflow: hidden;
-	}
-
-	.fill {
-		height: 100%;
-		border-radius: var(--radius-full);
-		background: var(--color-accent-base);
-		transition: width var(--motion-duration-normal) ease;
-	}
-
 	.tasks {
 		display: flex;
 		flex-direction: column;
@@ -159,6 +107,26 @@
 	.mark {
 		flex: 0 0 var(--icon-base);
 		font-size: var(--text-sm);
+	}
+
+	/* The running row's mark: an accent arc turning in place. Sized to the same
+	   column the ✓ and ○ occupy, so the three rows never shift. */
+	.spinner {
+		flex: 0 0 var(--icon-base);
+		width: var(--icon-base);
+		height: var(--icon-base);
+		border: var(--border-emphasis) solid var(--color-border-base);
+		border-top-color: var(--color-accent-base);
+		border-radius: var(--radius-full);
+		/* Two of the slow token: 400ms is a transition length, and a full
+		   revolution that fast reads as a blur rather than as waiting. */
+		animation: spin calc(var(--motion-duration-slow) * 2) linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.task[data-state='done'] {
@@ -186,8 +154,9 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.fill {
-			transition: none;
+		/* Still, but still accent: the mark keeps saying WHICH row is running. */
+		.spinner {
+			animation: none;
 		}
 	}
 </style>

@@ -36,7 +36,7 @@ use crate::theme::{
     self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD,
     Theme,
 };
-use crate::ui::{ButtonVariant, NameFieldStrings, ack_row, name_field, vela_button_opts};
+use crate::ui::{ButtonVariant, NameFieldStrings, ack_row, name_field, spinner, vela_button_opts};
 use crate::wallet::components::identicon_avatar;
 
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
@@ -894,10 +894,24 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
     // has happened, and v2 draws them as one.
     let mut tasks = div().w_full().flex().flex_col().gap(px(2.));
     for (index, key) in PROGRESS_TASKS.iter().enumerate() {
-        let (mark, color) = match index {
-            _ if index < active => ("✓", theme.success_base),
-            _ if index == active => ("●", theme.accent),
-            _ => ("○", theme.fg_subtle),
+        // The RUNNING row turns. Each of these three waits on something outside
+        // the app — a passkey prompt, a derivation, a network write — and a
+        // still dot says nothing about whether anything is still happening
+        // (founder call, 2026-08-25).
+        let mark: AnyElement = if index < active {
+            div()
+                .text_size(theme::text_row_meta())
+                .text_color(theme.success_base)
+                .child("✓")
+                .into_any_element()
+        } else if index == active {
+            spinner(theme.accent, px(FLOW_GAP_MD), px(theme::SPINNER_STROKE))
+        } else {
+            div()
+                .text_size(theme::text_row_meta())
+                .text_color(theme.fg_subtle)
+                .child("○")
+                .into_any_element()
         };
         tasks = tasks.child(
             div()
@@ -911,9 +925,11 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                 .child(
                     div()
                         .w(px(FLOW_GAP_MD))
+                        .h(px(FLOW_GAP_MD))
                         .flex_none()
-                        .text_size(theme::text_row_meta())
-                        .text_color(color)
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .child(mark),
                 )
                 .child(

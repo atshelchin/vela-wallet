@@ -437,10 +437,16 @@ private struct AddMethodPicker: View {
 
 /// Deriving the address.
 ///
-/// Three task rows and a percentage, both computed from the stage the core
-/// reported — never from elapsed time. This is why spec 014's elapsed-seconds
-/// ring is gone from the create flow: the percentage is the "still working"
-/// affordance the v2 design chose, and it is derived rather than animated.
+/// Three task rows, driven by the stage the core reported — never by elapsed
+/// time. This is why spec 014's elapsed-seconds ring is gone from the create
+/// flow.
+///
+/// The percentage meter that used to head them is gone too (founder call,
+/// 2026-08-25, and the desktop had already reached the same conclusion): it
+/// LOOKED measured and was not — the same three statuses the rows below name,
+/// divided by three — and its label named one phase while another was running.
+/// What is left is honest: what finished, what is running, what has not
+/// started, with the running one spinning because it is waiting on a network.
 struct ProgressScreen: View {
     @Environment(\.theme) private var theme
     let loc: Loc
@@ -458,30 +464,6 @@ struct ProgressScreen: View {
                     .foregroundStyle(theme.fgMuted)
             }
 
-            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                HStack {
-                    Text(loc.t(I18nKeys.Create.progressMeterLabel))
-                        .typeRole(Typography.label)
-                        .foregroundStyle(theme.fgMuted)
-                    Spacer()
-                    Text("\(position.percent)%")
-                        .typeRole(Typography.mono)
-                        .foregroundStyle(theme.fgBase)
-                }
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(theme.borderBase)
-                        Capsule()
-                            .fill(theme.accentBase)
-                            .frame(width: proxy.size.width * Double(position.percent) / 100)
-                    }
-                }
-                .frame(height: FlowMetrics.progressBar)
-                .animation(.easeInOut(duration: Tokens.Motion.base), value: position.percent)
-                .accessibilityLabel(loc.t(I18nKeys.Create.progressMeterLabel))
-                .accessibilityValue("\(position.percent)%")
-            }
-
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(progressTasks.enumerated()), id: \.offset) { index, task in
                     let done = index < position.activeTask
@@ -490,9 +472,19 @@ struct ProgressScreen: View {
                         Group {
                             if done {
                                 Image(systemName: "checkmark").foregroundStyle(theme.successBase)
+                            } else if active {
+                                // A spinner, not a dot: this row is waiting on
+                                // a network round trip, and a still dot beside
+                                // "writing the key index" says nothing about
+                                // whether anything is happening (founder call,
+                                // 2026-08-25).
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .controlSize(.small)
+                                    .tint(theme.accentBase)
                             } else {
                                 Circle()
-                                    .fill(active ? theme.accentBase : theme.borderStrong)
+                                    .fill(theme.borderStrong)
                                     .frame(width: Tokens.Space.s8, height: Tokens.Space.s8)
                             }
                         }

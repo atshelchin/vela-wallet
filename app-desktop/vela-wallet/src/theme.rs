@@ -489,6 +489,9 @@ pub const DONE_ROW_PAD_Y: f32 = 10.;
 pub const FLOW_SPACER_MIN: f32 = 8.;
 /// Disabled control emphasis (mock A1's dimmed-accent CTA — never a gray fill).
 pub const OPACITY_DISABLED: f32 = 0.45;
+/// The task spinner's stroke — the emphasis border weight, which is what a
+/// 16px arc needs to read as a ring rather than as a hair.
+pub const SPINNER_STROKE: f32 = 2.;
 /// Hairline rules (scaffold and outcome dividers).
 pub const HAIRLINE: f32 = 1.;
 /// The scaffold's close × hit target.

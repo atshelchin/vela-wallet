@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 19,563 leaves across 15 locales', () => {
+  it('carries the whole corpus — 19,593 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -134,8 +134,13 @@ describe('generated i18n resources', () => {
     //                     resting a finger are different physical acts, and a
     //                     third for when SEVERAL keys are blinking at once.
     //   login.pick*   (3) which of several wallets on one key to sign in to.
+    // 19,593 = 19,563 plus create.keyUnreadable* × 15: a key that is plugged in
+    // and cannot be OPENED is a permissions problem wearing a hardware
+    // problem's clothes, and the code used to report it as "no security key is
+    // plugged in" — which sends a person to look at the port instead of at
+    // their udev rules.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_563);
+    expect(total).toBe(19_593);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

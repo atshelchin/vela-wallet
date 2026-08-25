@@ -24,6 +24,7 @@ use vela_core::app::{RegistryPublishMember, RegistryUnitMember};
 use vela_core::registry_proof::{RegistryProof, build_group_proof, build_member_proof};
 
 use super::passkey::{self, Ceremony, RELYING_PARTY};
+use super::proxy;
 
 /// The v2 registry. Overridable so a self-hosted stack is a setting, not a
 /// fork.
@@ -107,10 +108,16 @@ pub fn registry_url() -> String {
 /// challenge call, a register call and then polls a task every two seconds, and
 /// a fresh TLS handshake for each of those is most of the wall clock.
 fn agent(timeout: Duration) -> Agent {
-    Agent::config_builder()
-        .timeout_global(Some(timeout))
-        .build()
-        .new_agent()
+    let mut config = Agent::config_builder().timeout_global(Some(timeout));
+    // The proxy `ureq` would pick on its own is not always one that can carry
+    // a request: a SOCKS5 proxy is asked to resolve the target LOCALLY, which
+    // is the one step that cannot work on the machines that need a proxy most.
+    // `None` here means `ureq`'s own answer stands; see `proxy.rs` for the two
+    // cases where it does not.
+    if let Some(proxy) = proxy::system_proxy() {
+        config = config.proxy(Some(proxy.clone()));
+    }
+    config.build().new_agent()
 }
 
 /// Turn a ureq error into the one bit of classification the core needs.

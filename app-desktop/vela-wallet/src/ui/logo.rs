@@ -11,9 +11,19 @@ use gpui::{
     canvas, div, px,
 };
 
-/// Logo viewBox, the coordinate space of the path constants below.
+/// Logo viewBox, the coordinate space of the path constants below. This is
+/// the artwork's TIGHT CROP.
 const VB_W: f32 = 258.;
 const VB_H: f32 = 260.;
+
+/// The square box the design draws that artwork inside.
+///
+/// v2's brand row is `<svg viewBox="0 0 420 420" style="width: 60px">` whose
+/// paths span 258×260 of those 420 — so at a 60px box the mark is ~37px of
+/// artwork with ~11px of air on each side, and the 12px gap to the wordmark is
+/// measured from the BOX. Scaling the tight crop to 60 instead renders the
+/// mark 1.6× oversized, which is what made it tower over a 19px wordmark.
+const VB_BOX: f32 = 420.;
 
 pub fn vela_mark(theme: &Theme, size: Pixels) -> Div {
     let (sail_a, sail_b, hull) = (theme.logo_sail_a, theme.logo_sail_b, theme.logo_hull);
@@ -65,8 +75,9 @@ pub fn vela_wordmark(theme: &Theme) -> Div {
 }
 
 fn paint_mark(b: Bounds<Pixels>, sail_a: Hsla, sail_b: Hsla, hull: Hsla, window: &mut Window) {
-    // Uniform scale, centered — the viewBox is nearly square.
-    let scale = f32::from(b.size.width).min(f32::from(b.size.height)) / VB_W.max(VB_H);
+    // Uniform scale, centered. The divisor is the design's BOX, not the tight
+    // crop: `size` is the box the mark sits in, and the artwork is inset in it.
+    let scale = f32::from(b.size.width).min(f32::from(b.size.height)) / VB_BOX;
     let ox = f32::from(b.origin.x) + (f32::from(b.size.width) - VB_W * scale) / 2.;
     let oy = f32::from(b.origin.y) + (f32::from(b.size.height) - VB_H * scale) / 2.;
     let at = move |x: f32, y: f32| Point::new(px(ox + x * scale), px(oy + y * scale));

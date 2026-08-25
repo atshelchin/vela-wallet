@@ -33,8 +33,7 @@ use vela_core::app::{KeyMethod, StatusKey};
 use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::theme::{
-    self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD,
-    Theme,
+    self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD, Theme,
 };
 use crate::ui::{ButtonVariant, NameFieldStrings, ack_row, name_field, vela_button_opts};
 use crate::wallet::components::identicon_avatar;

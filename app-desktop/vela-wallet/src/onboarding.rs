@@ -55,11 +55,16 @@ use crate::ui::{
     vela_wordmark, welcome_cta,
 };
 use crate::window_frame::{
-    FRAME_SHADOW, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
+    CAPTION_H, FRAME_SHADOW, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
 };
 
-/// Height of the drag strip under client-side decorations.
-const DRAG_STRIP_H: f32 = 96.;
+/// Height of the drag strip where the page draws its own caption.
+///
+/// `CAPTION_H`, not the 96 the v1 welcome could afford. A drag area hit-tests
+/// as `HTCAPTION` on Windows and the OS then routes its input down the
+/// non-client path, so ANY control under it is dead — and v2's flow puts the
+/// ‹ 返回 link at the top of the page, 44px down. 96 swallowed it.
+const DRAG_STRIP_H: f32 = CAPTION_H;
 
 /// How often the screen looks at the ceremony channel while work is in flight.
 ///

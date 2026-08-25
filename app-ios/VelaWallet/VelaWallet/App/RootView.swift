@@ -279,24 +279,18 @@ enum PageOverride {
     }()
 }
 
-/// Resolves every welcome-screen string from the corpus — the key list is
-/// FR-006's contract (existing keys only, no new corpus entries).
+/// Resolves every welcome-screen string from the corpus — existing keys only,
+/// no new corpus entries.
+///
+/// `featureNoMnemonic*` … `featureStablecoinGas*` are no longer resolved: the
+/// v2 screen has no cards to put them on (spec 019). They stay in the corpus
+/// rather than being deleted, because they are written marketing copy and the
+/// page they belong on may yet exist — the same call the web made.
 enum WelcomeContentBuilder {
-    static let featureKeys: [(title: String, body: String)] = [
-        ("onboarding.welcome.featureNoMnemonicTitle", "onboarding.welcome.featureNoMnemonicBody"),
-        ("onboarding.welcome.featureOneAddressTitle", "onboarding.welcome.featureOneAddressBody"),
-        ("onboarding.welcome.featureOpenSourceTitle", "onboarding.welcome.featureOpenSourceBody"),
-        ("onboarding.welcome.featureKeyCustodyTitle", "onboarding.welcome.featureKeyCustodyBody"),
-        ("onboarding.welcome.featureSafeContractTitle", "onboarding.welcome.featureSafeContractBody"),
-        ("onboarding.welcome.featureStablecoinGasTitle", "onboarding.welcome.featureStablecoinGasBody"),
-    ]
-
     static func build(loc: Loc) -> WelcomeContent {
         WelcomeContent(
-            tagline: loc.t("onboarding.welcome.desktopTagline"),
-            cards: featureKeys.enumerated().map { index, keys in
-                FeatureCardContent(id: index, title: loc.t(keys.title), body: loc.t(keys.body))
-            },
+            heroTitle: loc.t("onboarding.welcome.heroTitle"),
+            heroSubtitle: loc.t("onboarding.welcome.heroSubtitle"),
             createWallet: loc.t("onboarding.welcome.createWallet"),
             alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet")
         )

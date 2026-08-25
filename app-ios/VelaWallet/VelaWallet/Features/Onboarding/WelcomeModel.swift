@@ -15,9 +15,13 @@ enum OnboardingIntent: Equatable {
 }
 
 /// All user-visible strings of the welcome screen, resolved once per locale.
+///
+/// The v2 screen is a headline and two buttons (spec 019); the six feature
+/// cards it used to carry are gone from the screen, and with them the carousel
+/// position this model used to clamp.
 struct WelcomeContent: Equatable {
-    let tagline: String
-    let cards: [FeatureCardContent] // exactly 6, fixed order
+    let heroTitle: String
+    let heroSubtitle: String
     let createWallet: String
     let alreadyHaveWallet: String
 }
@@ -26,14 +30,6 @@ struct WelcomeContent: Equatable {
 final class WelcomeModel {
     let content: WelcomeContent
     private let onIntent: (OnboardingIntent) -> Void
-
-    /// Carousel position, clamped to the card range; no wrap-around (US2).
-    var currentPage: Int = 0 {
-        didSet {
-            let bound = max(0, min(currentPage, content.cards.count - 1))
-            if currentPage != bound { currentPage = bound }
-        }
-    }
 
     init(content: WelcomeContent, onIntent: @escaping (OnboardingIntent) -> Void) {
         self.content = content

@@ -29,6 +29,8 @@ class I18nEngineSmokeTest {
 
     private val welcomeKeys = listOf(
         I18nKeys.Welcome.TAGLINE,
+        I18nKeys.Welcome.HERO_TITLE,
+        I18nKeys.Welcome.HERO_SUBTITLE,
         I18nKeys.Welcome.CREATE_WALLET,
         I18nKeys.Welcome.ALREADY_HAVE_WALLET,
         I18nKeys.Welcome.FEATURE_NO_MNEMONIC_TITLE,

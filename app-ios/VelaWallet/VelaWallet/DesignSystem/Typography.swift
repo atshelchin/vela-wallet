@@ -61,6 +61,22 @@ private extension Font.TextStyle {
 enum Typography {
     /// Wordmark / hero display — text.t32, bold, single-line.
     static let display = TypeRole(fontName: FontName.bold, size: Tokens.TextSize.t32, relativeTo: .largeTitle, leading: Tokens.Leading.none)
+    /// The v2 Welcome headline (spec 019). Sized by `WelcomeGeometry`, which
+    /// is where the design's 46/38 pair lives — the DTCG scale stops at 40.
+    static let hero = TypeRole(
+        fontName: FontName.bold,
+        size: WelcomeGeometry.heroSize,
+        relativeTo: .largeTitle,
+        leading: WelcomeGeometry.heroLeading
+    )
+    /// The v2 wordmark beside the mark: small, heavy, widely tracked — a label,
+    /// not a title. The tracking itself is applied at the call site.
+    static let wordmark = TypeRole(
+        fontName: FontName.bold,
+        size: WelcomeGeometry.wordmarkSize,
+        relativeTo: .body,
+        leading: Tokens.Leading.none
+    )
     /// Screen tagline — text.t17, regular.
     static let tagline = TypeRole(fontName: FontName.regular, size: Tokens.TextSize.t17, relativeTo: .body, leading: Tokens.Leading.normal)
     /// Card / section title — text.t20, semibold.

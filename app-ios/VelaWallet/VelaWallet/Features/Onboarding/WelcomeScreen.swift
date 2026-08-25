@@ -2,8 +2,14 @@
 //  WelcomeScreen.swift
 //  VelaWallet
 //
-//  The onboarding welcome screen — composition only (FR-009), reproducing
-//  design/onboarding/W1 (dark) and W1L (light) at the 390×844 design frame.
+//  The onboarding welcome screen — composition only (FR-009).
+//
+//  The v2 design (design/onboarding-new, founder direction 2026-08-25), which
+//  the web and the desktop already draw: brand row, a two-line headline with
+//  one supporting sentence, and the two ways in at the bottom. The six-card
+//  carousel is gone — the design is one column that says what the wallet IS
+//  before it says what to do about it, and a deck of feature cards nobody
+//  swipes past the first of was the opposite of that.
 //
 
 import SwiftUI
@@ -13,37 +19,31 @@ struct WelcomeScreen: View {
     @Bindable var model: WelcomeModel
 
     var body: some View {
-        // Android's structure, ported: a flexible hero region whose two big gaps
-        // are FRACTIONS OF ITS OWN HEIGHT, plus a CTA block pinned at the bottom.
-        // The previous version used two fixed `Spacer(minLength: 32)`, which is
-        // why the screen read as cramped next to Android on the same content.
-        VStack(spacing: 0) {
-            GeometryReader { proxy in
-                let region = proxy.size.height
-                VStack(spacing: 0) {
-                    Spacer().frame(height: region * WelcomeGeometry.heroTopFraction)
+        // Two blocks, not one centred stack: brand and copy ride the top edge,
+        // the CTAs ride the bottom, and the space between them is whatever the
+        // phone has left over.
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: WelcomeGeometry.brandHeroGap) {
+                BrandRow()
 
-                    BrandRow()
+                VStack(alignment: .leading, spacing: WelcomeGeometry.heroSubGap) {
+                    // The copy carries its own line break: every locale breaks
+                    // where its own sentence wants to, not where 390pt runs out.
+                    Text(model.content.heroTitle)
+                        .typeRole(Typography.hero)
+                        .tracking(WelcomeGeometry.heroSize * WelcomeGeometry.heroTracking)
+                        .foregroundStyle(theme.fgBase)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    Text(model.content.tagline)
-                        .typeRole(Typography.tagline)
+                    Text(model.content.heroSubtitle)
+                        .typeRole(Typography.body)
                         .foregroundStyle(theme.fgMuted)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, WelcomeGeometry.brandTaglineGap)
-
-                    Spacer().frame(height: region * WelcomeGeometry.taglineCarouselFraction)
-
-                    carousel
-
-                    PagerDots(count: model.content.cards.count, current: $model.currentPage)
-                        .padding(.top, WelcomeGeometry.cardDotsGap)
-
-                    // Absorbs whatever the fractions did not spend, so the hero
-                    // never fights the pinned CTAs for space.
-                    Spacer(minLength: 0)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(width: proxy.size.width)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: WelcomeGeometry.heroCtaMinGap)
 
             VStack(spacing: WelcomeGeometry.ctaGap) {
                 VelaButton(title: model.content.createWallet, kind: .primary) {
@@ -53,66 +53,26 @@ struct WelcomeScreen: View {
                     model.send(.importWallet)
                 }
             }
-            .padding(.top, WelcomeGeometry.dotsCtaGap)
         }
+        .padding(.top, Tokens.Space.s32)
         .padding(.horizontal, Tokens.Layout.screenPaddingX)
         .padding(.bottom, Tokens.Space.s8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(theme.bgBase.ignoresSafeArea())
-    }
-
-    /// Single-card paging carousel; height follows the tallest card of the
-    /// active locale (long-copy edge case) via a hidden measuring stack.
-    private var carousel: some View {
-        TabView(selection: $model.currentPage) {
-            ForEach(model.content.cards) { card in
-                FeatureCard(content: card)
-                    .tag(card.id)
-                    .frame(maxHeight: .infinity, alignment: .top)
-            }
-        }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .frame(height: max(measuredCardHeight, WelcomeGeometry.cardBandMinHeight))
-        .animation(.easeOut(duration: Tokens.Motion.base), value: model.currentPage)
-        .background {
-            // Invisible measuring pass: tallest card defines the band height.
-            ZStack {
-                ForEach(model.content.cards) { card in
-                    FeatureCard(content: card)
-                        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
-                            cardHeights[card.id] = height
-                        }
-                }
-            }
-            .hidden()
-        }
-    }
-
-    @State private var cardHeights: [Int: CGFloat] = [:]
-    private var measuredCardHeight: CGFloat {
-        cardHeights.values.max() ?? 0
     }
 }
 
-// MARK: - What was here
-
-// Spec 014's `WelcomeFlow` / `WelcomeFlowHost` presented the whole create and
-// sign-in journey as a bottom sheet over this screen, with a no-op action sink.
-// Spec 019 replaced both: creating pushes `AppRoute.create` (a full screen, so
-// nothing is behind a scrim that is not an interruption), and signing in
-// dispatches straight into the login machine — its first act is the system
-// passkey sheet, so a screen of our own between the tap and that sheet would be
-// a screen with nothing on it.
-
-#Preview("Welcome (en placeholder)") {
-    WelcomeScreen(model: WelcomeModel(
-        content: WelcomeContent(
-            tagline: "Your keys, your assets",
-            cards: (0..<6).map { FeatureCardContent(id: $0, title: "Card \($0 + 1)", body: "Body copy for card \($0 + 1).") },
-            createWallet: "Create Wallet",
-            alreadyHaveWallet: "I already have a wallet"
-        ),
-        onIntent: { _ in }
-    ))
-    .themed(.dark)
-    .preferredColorScheme(.dark)
+#Preview("Welcome") {
+    WelcomeScreen(
+        model: WelcomeModel(
+            content: WelcomeContent(
+                heroTitle: "The Ethereum wallet\nnobody can shut down",
+                heroSubtitle: "Sign with a passkey. Vela never sees your key.",
+                createWallet: "Create Wallet",
+                alreadyHaveWallet: "I already have a wallet"
+            ),
+            onIntent: { _ in }
+        )
+    )
+    .themed(.light)
 }

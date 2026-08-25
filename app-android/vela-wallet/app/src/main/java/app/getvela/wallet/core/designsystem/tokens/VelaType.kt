@@ -18,6 +18,13 @@ object VelaTextSize {
     val xl3: TextUnit = 26.sp
     val xl4: TextUnit = 32.sp
     val xl5: TextUnit = 40.sp
+
+    /**
+     * The v2 Welcome headline (spec 019). The DTCG scale tops out at 40 and the
+     * design asks for 46/38 — this is the compact one, which is what a phone
+     * gets (web precedent: WEB_ADDITIONS `text-heroCompact`).
+     */
+    val hero: TextUnit = 38.sp
 }
 
 /** core.weight — Android needs per-weight font files (see VelaFontFamily). */
@@ -35,6 +42,9 @@ object VelaLeading {
     const val normal: Float = 1.4f
     const val relaxed: Float = 1.6f
     const val amountHero: Float = 1.12f
+
+    /** The v2 Welcome headline's leading. */
+    const val hero: Float = 1.25f
 }
 
 /** core.letterSpacing. */

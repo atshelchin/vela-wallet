@@ -8,6 +8,8 @@ package app.getvela.wallet.core.i18n
 object I18nKeys {
     object Welcome {
         const val TAGLINE = "onboarding.welcome.desktopTagline"
+        const val HERO_TITLE = "onboarding.welcome.heroTitle"
+        const val HERO_SUBTITLE = "onboarding.welcome.heroSubtitle"
         const val CREATE_WALLET = "onboarding.welcome.createWallet"
         const val ALREADY_HAVE_WALLET = "onboarding.welcome.alreadyHaveWallet"
 

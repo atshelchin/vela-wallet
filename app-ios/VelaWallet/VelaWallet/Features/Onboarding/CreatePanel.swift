@@ -507,6 +507,54 @@ struct ProgressScreen: View {
     }
 }
 
+/// The done card's address: the WHOLE line is the copy target, and the
+/// confirmation replaces it in place.
+///
+/// Not `AddressStrip`: the v2 card draws the address as bare text under a
+/// rule, because it is the only 0x string on the screen and a sunken well
+/// around it made the card look like a form.
+private struct DoneAddressLine: View {
+    @Environment(\.theme) private var theme
+    let address: String
+    let copyLabel: String
+    let copiedLabel: String
+
+    @State private var copied = false
+
+    var body: some View {
+        Button(action: copy) {
+            Text(copied ? copiedLabel : address)
+                .typeRole(Typography.mono)
+                .foregroundStyle(copied ? theme.successBase : theme.fgMuted)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, Tokens.Space.s12)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(theme.borderBase)
+                        .frame(height: Tokens.BorderWidth.hairline)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: Tokens.Motion.fast), value: copied)
+        .accessibilityLabel(copyLabel)
+        .accessibilityValue(Text(verbatim: address))
+    }
+
+    private func copy() {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = address
+        #endif
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            copied = false
+        }
+    }
+}
+
 // MARK: - Retry
 
 /// The keys were minted; the group never landed.
@@ -603,8 +651,15 @@ struct DoneScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tokens.Space.s24) {
                     VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                        HStack(spacing: Tokens.Space.s8) {
-                            Image(systemName: "checkmark").foregroundStyle(theme.successBase)
+                        HStack(spacing: Tokens.Space.s12) {
+                            // The tick is a badge, not a glyph beside the words:
+                            // this is the one screen in the flow that reports an
+                            // outcome, and the design gives it a disc.
+                            Text(verbatim: "✓")
+                                .typeRole(Typography.title)
+                                .foregroundStyle(theme.successBase)
+                                .frame(width: FlowMetrics.doneCheck, height: FlowMetrics.doneCheck)
+                                .background(theme.successSoft, in: Circle())
                             Text(loc.t(I18nKeys.Create.successTitle))
                                 .typeRole(Typography.display)
                                 .foregroundStyle(theme.fgBase)
@@ -614,36 +669,33 @@ struct DoneScreen: View {
                             .foregroundStyle(theme.fgMuted)
                     }
 
+                    // Avatar beside the name, then the address under a rule.
+                    // The caption that used to sit here DESCRIBED the identicon
+                    // ("an identity pattern generated from the address") — a
+                    // sentence narrating a picture that is right next to it —
+                    // and the "wallet address" label went for the same reason:
+                    // a 42-character 0x string in mono under a wallet's name is
+                    // not mistakable for anything else.
                     VStack(alignment: .leading, spacing: Tokens.Space.s16) {
                         HStack(spacing: Tokens.Space.s12) {
                             // Rendered from the address by the same core that
                             // derived it, so what the person memorises here is
                             // what every other client draws.
                             IdenticonAvatar(seed: address, size: FlowMetrics.identicon)
-                            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                                Text(walletName)
-                                    .typeRole(Typography.title)
-                                    .foregroundStyle(theme.fgBase)
-                                Text(loc.t(I18nKeys.Create.identiconHint))
-                                    .typeRole(Typography.flowCaption)
-                                    .foregroundStyle(theme.fgMuted)
-                            }
+                            Text(walletName)
+                                .typeRole(Typography.title)
+                                .foregroundStyle(theme.fgBase)
                         }
 
-                        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                            Text(loc.t(I18nKeys.Create.walletAddressLabel))
-                                .typeRole(Typography.label)
-                                .foregroundStyle(theme.fgMuted)
-                            AddressStrip(
-                                address: address,
-                                copyLabel: loc.t(I18nKeys.Flow.copyAddress),
-                                copiedLabel: loc.t(I18nKeys.Flow.copied)
-                            )
-                        }
+                        DoneAddressLine(
+                            address: address,
+                            copyLabel: loc.t(I18nKeys.Flow.copyAddress),
+                            copiedLabel: loc.t(I18nKeys.Flow.copied)
+                        )
                     }
-                    .padding(Tokens.Space.s20)
+                    .padding(Tokens.Space.s16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(theme.bgRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.r16))
+                    .background(theme.bgRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.r12))
 
                     VStack(spacing: 0) {
                         ForEach(Array(keys.enumerated()), id: \.offset) { _, key in

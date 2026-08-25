@@ -45,6 +45,10 @@ object VelaSizing {
 
     /** The v2 welcome's brand mark — the web and the desktop draw it at 60. */
     val brandMark: Dp = 60.dp
+
+    /** The done card's identicon, and the disc its outcome tick sits in. */
+    val doneAvatar: Dp = 44.dp
+    val doneCheck: Dp = 34.dp
     val scanFabSize: Dp = 56.dp
 
     // sizing.control.* comes from the design-system brief (not present in the DTCG

@@ -8,12 +8,11 @@
 
 import SwiftUI
 
-/// Navigation state — future features push their real flows here (FR-010).
-/// `presentedFlow` is the spec-014 flow sheet (nil = Welcome only).
+/// Navigation state. Since spec 019 the create journey is a pushed route
+/// rather than a presented sheet — `presentedFlow` is gone with the 014 sheet.
 @Observable
 final class Router {
     var path: [AppRoute] = []
-    var presentedFlow: WelcomeFlow?
 }
 
 struct RootView: View {
@@ -22,6 +21,8 @@ struct RootView: View {
     let loc: Loc
     @State private var router: Router
     @State private var model: WelcomeModel
+    @State private var session: SessionController
+    @State private var onboarding: OnboardingModel
 
     // Spec 012. `true` only for the first construction in this process — a
     // cold start (FR-008); SwiftUI never rebuilds `RootView`'s State on a
@@ -34,13 +35,19 @@ struct RootView: View {
         self.loc = loc
         let router = Router()
         _router = State(initialValue: router)
+        let store = AccountStore()
+        let session = SessionController(store: store)
+        let onboarding = OnboardingModel(session: session, store: store)
+        _session = State(initialValue: session)
+        _onboarding = State(initialValue: onboarding)
         _model = State(initialValue: WelcomeModel(content: WelcomeContentBuilder.build(loc: loc)) { intent in
-            // Spec 014 (US2/D3): the intents present the flow sheet with the
-            // flow's initial state. The AppRoute placeholder cases remain for
-            // the future wiring feature, but nothing pushes them anymore.
             switch intent {
-            case .createWallet: router.presentedFlow = .create
-            case .importWallet: router.presentedFlow = .login
+            case .createWallet:
+                router.path.append(.create)
+            case .importWallet:
+                // No screen of our own: the login machine's first act is the
+                // system passkey sheet, and the wallet is what follows it.
+                onboarding.signIn()
             }
         })
     }
@@ -71,7 +78,7 @@ struct RootView: View {
         return ZStack {
             themedBackground
 
-            content(router: $router.path, flow: $router.presentedFlow)
+            content(router: $router.path)
                 // Composed from the first frame, hidden by the opaque overlay,
                 // so the hand-off has nothing left to build (FR-013a).
                 .opacity(pageOpacity)
@@ -118,13 +125,11 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private func content(router path: Binding<[AppRoute]>, flow: Binding<WelcomeFlow?>) -> some View {
+    private func content(router path: Binding<[AppRoute]>) -> some View {
         switch PageOverride.page {
         case .wallet:
             WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc))
         case .gallery:
-            // Spec 015's wallet-home gallery; the spec 014 onboarding-state
-            // gallery is OnboardingGalleryScreen behind VELA_GALLERY=1.
             GalleryScreen(loc: loc)
         case .contacts:
             ContactsStateHost(state: .c1, loc: loc)
@@ -132,25 +137,96 @@ struct RootView: View {
             ContactsGalleryScreen(loc: loc)
         case nil:
             NavigationStack(path: path) {
-                WelcomeScreen(model: model)
+                signedInOrWelcome
                     .navigationDestination(for: AppRoute.self) { route in
                         switch route {
-                        case .createWalletPlaceholder:
-                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.createWallet"))
-                        case .importWalletPlaceholder:
-                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.alreadyHaveWallet"))
+                        case .create:
+                            CreateFlowScreen(
+                                loc: loc,
+                                model: onboarding,
+                                onExit: { router.path.removeLast() },
+                                onLink: openPolicy
+                            )
+                            .navigationBarBackButtonHidden()
                         }
                     }
             }
-            // Spec 014 flow container (contract §3): FlowSheet supplies the
-            // content-height detent, drag indicator, and bgRaised presentation.
-            .sheet(item: flow) { presented in
-                WelcomeFlowHost(flow: presented, loc: loc)
-                    // Sheets are their own presentation root — re-apply the
-                    // active theme, mirroring the gallery's container contract.
-                    .themed(scheme)
+            // The route guard.
+            //
+            // `allowedRoute` is the core's ruling about WHAT is allowed; when to
+            // move is this view's call. It moves only for the two settled
+            // routes: `loading` is deliberately not navigated to, because the
+            // launch animation already covers that frame and bouncing through a
+            // spinner route would make a cold start flicker.
+            .onChange(of: session.view.allowedRoute) { _, route in
+                if route == .onboarding { router.path.removeAll() }
             }
+            .onChange(of: onboarding.finished) { _, finished in
+                if finished {
+                    router.path.removeAll()
+                    onboarding.consumeFinished()
+                }
+            }
+            // Hosted at the ROOT, deliberately. A prompt can be raised by either
+            // machine, and the login machine runs while Welcome is on screen —
+            // so a sheet attached to one route's view would vanish the moment
+            // the guard moved, taking the question with it and leaving the core
+            // waiting for an answer nobody can give.
+            .sheet(item: pendingPrompt) { prompt in
+                FlowSheet(
+                    loc: loc,
+                    kind: prompt.kind,
+                    confirmable: prompt.confirmable,
+                    onAnswer: onboarding.answerPrompt
+                )
+                .themed(scheme)
+            }
+            .sheet(isPresented: endpointSheet) {
+                EndpointSheet(
+                    loc: loc,
+                    defaultURL: RegistryClient.defaultURL,
+                    draft: onboarding.endpointURL,
+                    onSave: onboarding.saveEndpoint
+                )
+                .themed(scheme)
+            }
+            .task { session.boot() }
         }
+    }
+
+    /// The wallet when the core says there is one, Welcome otherwise.
+    ///
+    /// The wallet body is still the spec-015 fixture layer apart from the
+    /// address, which is now the real one: a home screen showing a fixture
+    /// address after a real create would be the app telling the person their
+    /// money is somewhere it is not.
+    @ViewBuilder
+    private var signedInOrWelcome: some View {
+        if session.view.allowedRoute == .wallet {
+            WalletScreen(
+                model: WalletFixtures
+                    .buildMobileState(.h1, loc: loc)
+                    .withAddress(session.view.address)
+            )
+        } else {
+            WelcomeScreen(model: model)
+        }
+    }
+
+    private var pendingPrompt: Binding<OnboardingModel.PendingPrompt?> {
+        Binding(get: { onboarding.pending }, set: { if $0 == nil { onboarding.answerPrompt(false) } })
+    }
+
+    private var endpointSheet: Binding<Bool> {
+        Binding(get: { onboarding.endpointSheetOpen }, set: { onboarding.endpointSheetOpen = $0 })
+    }
+
+    private func openPolicy(_ action: ActionId) {
+        let url = switch action {
+        case .openPrivacyPolicy: URL(string: "https://getvela.app/privacy")
+        case .openTerms: URL(string: "https://getvela.app/terms")
+        }
+        if let url { UIApplication.shared.open(url) }
     }
 }
 

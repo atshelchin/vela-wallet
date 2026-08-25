@@ -1,5 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<!--
+	  The relying-party association (spec 019 T138).
+
+	  Without this entry the passkey provider refuses every ceremony for
+	  getvela.app, so the app cannot create OR use a wallet — the whole feature
+	  is inert. The file was empty until this feature checked it, which is
+	  exactly the kind of gap that only shows up on a device.
+
+	  The other half already exists and was verified live: the
+	  apple-app-site-association file on the production domain returns 200 as
+	  application/json and lists this app under `webcredentials`:
+
+	      {"webcredentials":{"apps":["F9W689P9NE.app.getvela.VelaWallet", …]}}
+
+	  Both halves must name the same domain. `webcredentials:` is what passkeys
+	  read; `applinks:` is the separate association the /sign deep link uses, and
+	  it is listed in the same AASA file.
+	-->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>webcredentials:getvela.app</string>
+		<string>applinks:getvela.app</string>
+	</array>
+</dict>
 </plist>

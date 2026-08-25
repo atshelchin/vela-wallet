@@ -2,316 +2,196 @@
 //  FlowFixtures.swift
 //  VelaWallet
 //
-//  Gallery fixtures — one named Presentation State per design code
-//  (contract §1: 34 unique codes; E10 is shared and listed in BOTH flow
-//  groups). Representative data mirrors the mocks; TechDetails content is
-//  fixture data, not copy (research D1). Never used by production paths.
+//  Gallery fixtures for the v2 flow.
+//
+//  Spec 014's fixtures were `CreatePanelState` / `LoginPanelState` —
+//  presentation types this app owned. Those types are gone: the screens now
+//  render `CreateView` straight from the core, so a fixture has to be a
+//  `CreateView` too. That is the point of rewriting them rather than adapting
+//  them — a fixture in a shape the production path cannot produce is a picture
+//  of a screen that cannot happen.
+//
+//  The same list the desktop and Android clients walk, so a state that looks
+//  wrong on one is checkable against the others.
 //
 
 import Foundation
 
-/// Which gallery group(s) a fixture belongs to; `shared` (E10) appears in
-/// both the Create and the Login sections (spec.md state inventory).
-enum FlowScope {
-    case create
-    case login
-    case shared
+enum Fixture {
+    /// A step of the create journey, rendered by the real flow screens.
+    case flow(CreateView)
+    /// The failure sheet, one entry per outcome the catalog names.
+    case sheet(kind: PromptKind, confirmable: Bool)
+}
+
+struct StateFixture: Identifiable {
+    let group: String
+    let code: String
+    let fixture: Fixture
+
+    var id: String { code }
 }
 
 enum FlowFixtures {
-    enum FixtureState {
-        case create(CreatePanelState)
-        case login(LoginPanelState)
+
+    /// A funded-looking address; the identicon and the strip both derive from it.
+    static let fixtureAddress = "0x44EEC06897ff7ab8C7f16819511A64bA168A6D33"
+
+    static func base(
+        stage: CreateStage = .form,
+        name: String = "",
+        nameEditable: Bool = true,
+        nameTooLong: Bool = false,
+        acks: [Bool] = [false, false],
+        canSubmit: Bool = false,
+        submitLabel: SubmitLabel = .create,
+        showStartOver: Bool = false,
+        busy: Bool = false,
+        status: StatusKey? = nil,
+        keys: [CreateKeyRow] = [],
+        canAddKey: Bool = true,
+        canFinish: Bool = false,
+        needsSecondKey: Bool = false,
+        canGoBack: Bool = true,
+        address: String? = nil,
+        syncErrorDetail: String? = nil
+    ) -> CreateView {
+        CreateView(
+            stage: stage,
+            name: name,
+            nameEditable: nameEditable,
+            nameTooLong: nameTooLong,
+            acks: acks,
+            canSubmit: canSubmit,
+            submitLabel: submitLabel,
+            showStartOver: showStartOver,
+            busy: busy,
+            status: status,
+            keys: keys,
+            canAddKey: canAddKey,
+            canFinish: canFinish,
+            needsSecondKey: needsSecondKey,
+            canGoBack: canGoBack,
+            address: address,
+            syncErrorDetail: syncErrorDetail
+        )
     }
 
-    struct Fixture: Identifiable {
-        let code: String
-        /// Dev-facing gallery caption (mock filename shorthand, not UI copy).
-        let name: String
-        let scope: FlowScope
-        let state: FixtureState
-
-        var id: String { code }
+    static func key(
+        _ name: String,
+        method: KeyMethod = .platform,
+        confirmed: Bool = true,
+        synced: Bool = true
+    ) -> CreateKeyRow {
+        CreateKeyRow(
+            name: name,
+            authenticatorAttachment: method == .securityKey ? "cross-platform" : "platform",
+            transports: method == .securityKey ? "usb,nfc" : "internal,hybrid",
+            confirmed: confirmed,
+            synced: synced,
+            aaguid: "",
+            method: method
+        )
     }
 
-    /// A11 fixture address — full 42-char value; display truncates the
-    /// tail, copy copies the whole thing (contract §1). The 0x prefix is
-    /// split off so audit-literals' hex-color rule doesn't misread an
-    /// address fixture as a color value.
-    static let a11Address = "0x" + "44EEC06897ff7ab8C7f16819511A64bA168A6D33"
+    static let all: [StateFixture] = {
+        var out: [StateFixture] = []
+        func flow(_ code: String, _ view: CreateView) {
+            out.append(StateFixture(group: "Create", code: code, fixture: .flow(view)))
+        }
+        func sheet(_ code: String, _ type: String, detail: String? = nil, confirmable: Bool = false) {
+            out.append(StateFixture(
+                group: "Failures",
+                code: code,
+                fixture: .sheet(kind: PromptKind(type: type, detail: detail), confirmable: confirmable)
+            ))
+        }
 
-    /// E2/E2x diagnostics pinned by contract §1.
-    static let serverDetails = TechDetails(
-        code: "E_SERVER",
-        context: "第 5 步同步公钥；以及登录",
-        endpoint: "HTTP 503 · p256-index.getvela.app"
-    )
+        flow("name · empty", base())
+        flow("name · filled", base(name: "Everyday wallet", acks: [true, true], canSubmit: true))
+        flow("name · too long", base(
+            name: "A wallet name that will not fit a WebAuthn user handle",
+            nameTooLong: true
+        ))
+        // A draft waiting for its signature: the name is frozen, the button
+        // changed word, and the status line says why — the state spec 014 drew
+        // as a modal "verification cancelled" sheet.
+        flow("name · draft waiting", base(
+            name: "Everyday wallet",
+            nameEditable: false,
+            acks: [true, true],
+            canSubmit: true,
+            submitLabel: .finishVerify,
+            showStartOver: true,
+            status: .verifyCancelled
+        ))
+        flow("keys · one, needs a second", base(
+            stage: .addKeys,
+            keys: [key("Everyday wallet", synced: false)],
+            needsSecondKey: true
+        ))
+        flow("keys · two, ready", base(
+            stage: .addKeys,
+            keys: [key("Everyday wallet", synced: false), key("Key 2")],
+            canFinish: true
+        ))
+        flow("keys · unconfirmed row", base(
+            stage: .addKeys,
+            keys: [key("Everyday wallet"), key("Key 2", confirmed: false)]
+        ))
+        flow("keys · at the cap", base(
+            stage: .addKeys,
+            keys: (1...maxKeys).map { key("Key \($0)") },
+            canAddKey: false,
+            canFinish: true
+        ))
+        for (code, status) in [
+            ("progress · verify", StatusKey.verifyingIdentity),
+            ("progress · derive", StatusKey.computingAddress),
+            ("progress · publish", StatusKey.syncingKey),
+        ] {
+            flow(code, base(
+                stage: .addKeys,
+                busy: true,
+                status: status,
+                keys: [key("Everyday wallet"), key("Key 2")]
+            ))
+        }
+        flow("retry · publish failed", base(
+            stage: .syncFailed,
+            keys: [key("Everyday wallet")],
+            syncErrorDetail: "Register failed: 503 · p256-index-v2.getvela.app"
+        ))
+        flow("done", base(
+            stage: .created,
+            keys: [key("Everyday wallet"), key("Key 2", synced: false)],
+            address: fixtureAddress
+        ))
 
-    // MARK: - The 34 fixtures
+        sheet("unsupported", "not_supported_create")
+        sheet("unsupported · login", "not_supported_login")
+        sheet("not discoverable", "not_discoverable")
+        sheet("incompatible", "incompatible_create")
+        sheet("incompatible · login", "incompatible_login")
+        sheet("recover offer", "recover_offer", confirmable: true)
+        sheet("recover failed", "recover_failed")
+        // The two prompts that carry a detail string are driven THROUGH the
+        // refinement rather than around it, so this list is also a check on it:
+        // a `create_failed` whose message is empty renders an empty sheet, and
+        // that is exactly the bug this row would show.
+        sheet("create failed · unknown", "create_failed",
+              detail: "the authenticator returned no attestation")
+        sheet("create failed · network", "create_failed",
+              detail: "Register failed: The Internet connection appears to be offline.")
+        sheet("create failed · server", "create_failed", detail: "Register failed: 503")
+        sheet("create failed · timeout", "create_failed", detail: "Register timed out after 120s")
+        sheet("sign-in failed", "sign_in_failed",
+              detail: "No passkey for getvela.app on this device")
 
-    static let all: [Fixture] = createFixtures + loginFixtures + errorFixtures
+        return out
+    }()
 
-    static var createGroup: [Fixture] { all.filter { $0.scope != .login } }
-    static var loginGroup: [Fixture] { all.filter { $0.scope != .create } }
-
-    private static let createFixtures: [Fixture] = [
-        Fixture(
-            code: "A1", name: "Form · incomplete", scope: .create,
-            state: .create(.form(FormState()))
-        ),
-        Fixture(
-            code: "A2", name: "Form · ready", scope: .create,
-            state: .create(.form(FormState(name: "大表哥", acks: [true, true, true])))
-        ),
-        Fixture(
-            code: "A3", name: "Form · name too long", scope: .create,
-            state: .create(.form(FormState(
-                name: "一个特别特别特别长的账户名称示例", nameTooLong: true
-            )))
-        ),
-        Fixture(
-            code: "A4", name: "Progress · awaiting passkey", scope: .create,
-            state: .create(.working(WorkingState(status: .settingUpIdentity, showHint: true)))
-        ),
-        Fixture(
-            code: "A4c", name: "Step 1 · waiting >3s", scope: .create,
-            state: .create(.working(WorkingState(status: .settingUpIdentity, showHint: true, elapsedSecs: 19)))
-        ),
-        Fixture(
-            code: "A5", name: "Progress · verifying", scope: .create,
-            state: .create(.working(WorkingState(status: .verifyingIdentity)))
-        ),
-        Fixture(
-            code: "A5c", name: "Step 2 · waiting >3s", scope: .create,
-            state: .create(.working(WorkingState(status: .verifyingIdentity, elapsedSecs: 5)))
-        ),
-        Fixture(
-            code: "A6", name: "Progress · extracting key", scope: .create,
-            state: .create(.working(WorkingState(status: .extractingKey)))
-        ),
-        Fixture(
-            code: "A6c", name: "Step 3 · waiting >3s", scope: .create,
-            state: .create(.working(WorkingState(status: .extractingKey, elapsedSecs: 7)))
-        ),
-        Fixture(
-            code: "A7", name: "Progress · computing address", scope: .create,
-            state: .create(.working(WorkingState(status: .computingAddress)))
-        ),
-        Fixture(
-            code: "A7c", name: "Step 4 · waiting >3s", scope: .create,
-            state: .create(.working(WorkingState(status: .computingAddress, elapsedSecs: 12)))
-        ),
-        Fixture(
-            code: "A8", name: "Progress · syncing key", scope: .create,
-            state: .create(.working(WorkingState(status: .syncingKey)))
-        ),
-        Fixture(
-            code: "A8c", name: "Step 5 · waiting >3s", scope: .create,
-            state: .create(.working(WorkingState(status: .syncingKey, elapsedSecs: 8)))
-        ),
-        Fixture(
-            code: "A11", name: "Success", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.created.spec
-                spec.bodyVars = ["count": "12"]
-                spec.footnoteKey = "onboarding.create.verifyHint"
-                spec.address = a11Address
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "A12", name: "Sync failed", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.syncFailed.spec
-                spec.details = TechDetails(
-                    code: "E_SYNC",
-                    context: "第 5 步同步公钥",
-                    endpoint: "HTTP 503 · p256-index.getvela.app"
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "A13", name: "Verify stuck", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.verifyStuck.spec
-                spec.details = TechDetails(
-                    code: "E_VERIFY_STUCK", context: "第 2 步验证身份", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-    ]
-
-    private static let errorFixtures: [Fixture] = [
-        Fixture(
-            code: "E1", name: "Error · network", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.network.spec
-                spec.details = TechDetails(
-                    code: "E_NETWORK", context: "第 1 步创建通行密钥", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E2", name: "Error · server", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.server.spec
-                spec.details = serverDetails
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E2x", name: "Error · server · details expanded", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.server.spec
-                spec.details = serverDetails
-                spec.detailsExpanded = true
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E3", name: "Error · timeout", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.timeout.spec
-                spec.bodyVars = ["seconds": "60"]
-                spec.details = TechDetails(
-                    code: "E_TIMEOUT", context: "第 5 步同步公钥", endpoint: "p256-index.getvela.app"
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E4", name: "Error · cancelled setup", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.cancelledSetup.spec
-                spec.details = TechDetails(
-                    code: "E_CANCELLED", context: "第 1 步创建通行密钥", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E5", name: "Error · cancelled verify", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.cancelledVerify.spec
-                spec.details = TechDetails(
-                    code: "E_CANCELLED", context: "第 2 步验证身份", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E6", name: "Error · device unsupported", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.unsupported.spec
-                spec.details = TechDetails(
-                    code: "E_NOT_SUPPORTED", context: "创建通行密钥", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E7", name: "Error · device incompatible", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.incompatible.spec
-                spec.details = TechDetails(
-                    code: "E_INCOMPATIBLE", context: "创建通行密钥", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E8", name: "Error · passkey not discoverable", scope: .create,
-            state: .create(.outcome({
-                var spec = OutcomeKind.notDiscoverable.spec
-                spec.details = TechDetails(
-                    code: "E_NOT_DISCOVERABLE", context: "第 2 步验证身份", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E9", name: "Error · account not found", scope: .login,
-            state: .login(.outcome({
-                var spec = OutcomeKind.accountNotFound.spec
-                spec.details = TechDetails(
-                    code: "E_NOT_FOUND", context: "登录查询", endpoint: "HTTP 404 · p256-index.getvela.app"
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "E10", name: "Error · unknown (catch-all)", scope: .shared,
-            state: .create(.outcome({
-                var spec = OutcomeKind.unknown.spec
-                spec.details = TechDetails(
-                    code: "E_UNKNOWN", context: "未归类异常", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-    ]
-
-    private static let loginFixtures: [Fixture] = [
-        Fixture(
-            code: "B1", name: "Awaiting passkey", scope: .login,
-            state: .login(.waiting(elapsedSecs: nil))
-        ),
-        Fixture(
-            code: "B1c", name: "Awaiting passkey · >3s", scope: .login,
-            state: .login(.waiting(elapsedSecs: 41))
-        ),
-        Fixture(
-            code: "B2", name: "Recover offer", scope: .login,
-            state: .login(.outcome({
-                var spec = OutcomeKind.recoverOffer.spec
-                spec.details = TechDetails(
-                    code: "RECOVER_OFFER", context: "登录查询", endpoint: "HTTP 404 · p256-index.getvela.app"
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "B3", name: "Recover failed", scope: .login,
-            state: .login(.outcome({
-                var spec = OutcomeKind.recoverFailed.spec
-                spec.details = TechDetails(
-                    code: "E_RECOVER", context: "找回签名验证", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "B4", name: "Sign-in failed", scope: .login,
-            state: .login(.outcome({
-                var spec = OutcomeKind.signInFailed.spec
-                spec.details = TechDetails(
-                    code: "E_SIGN_IN", context: "通行密钥断言", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "B5", name: "Success", scope: .login,
-            state: .login(.outcome({
-                var spec = OutcomeKind.signedIn.spec
-                spec.details = TechDetails(
-                    code: "SESSION", context: "通行密钥断言已验证", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-        Fixture(
-            code: "B6", name: "Cancelled", scope: .login,
-            state: .login(.outcome({
-                var spec = OutcomeKind.loginCancelled.spec
-                spec.details = TechDetails(
-                    code: "E_CANCELLED", context: "通行密钥断言", endpoint: nil
-                )
-                return spec
-            }()))
-        ),
-    ]
+    static func byCode(_ code: String) -> StateFixture? {
+        all.first { $0.code == code }
+    }
 }

@@ -74,7 +74,7 @@ struct AddressStrip: View {
 
 #Preview("Address strip") {
     AddressStrip(
-        address: FlowFixtures.a11Address,
+        address: FlowFixtures.fixtureAddress,
         copyLabel: "复制地址",
         copiedLabel: "已复制"
     )
@@ -84,7 +84,7 @@ struct AddressStrip: View {
 
 #Preview("Address strip dark") {
     AddressStrip(
-        address: FlowFixtures.a11Address,
+        address: FlowFixtures.fixtureAddress,
         copyLabel: "复制地址",
         copiedLabel: "已复制"
     )

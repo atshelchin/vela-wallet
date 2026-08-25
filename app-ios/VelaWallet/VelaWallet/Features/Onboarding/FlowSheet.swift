@@ -2,245 +2,168 @@
 //  FlowSheet.swift
 //  VelaWallet
 //
-//  The flow container (spec 014, contract §3): scaffold header (title +
-//  close ×) over the pattern content, presented as a bottom sheet with a
-//  content-height detent (drag indicator visible, bg theme.bgRaised).
-//  Also home of the two shared pattern compositions both panels render —
-//  ProgressBlock and OutcomeContent — and the FlowStrings resolver.
+//  The one modal in the v2 flow: an interruption the person has to answer.
+//
+//  The whole journey is a full screen; only FAILURES are modal, because a
+//  failure genuinely does stop everything until it is acknowledged. A form
+//  someone is halfway through is not an interruption, which is why spec 014's
+//  sheet — which held the entire create flow — is gone.
+//
+//  `confirmable` is the core's word for "this answer changes the flow". The
+//  recovery offer is the only prompt where declining is a decision rather than a
+//  dismissal, and it is the only one that gets two real buttons. Every other
+//  prompt has one, because dismissing it and answering it are the same act.
+//
+//  **A dismissal is always `accepted = false`.** Swiping the sheet away must
+//  reach the core as a refusal, or a machine waiting on a `prompt_answered`
+//  hangs with nothing on screen — which is why the answer is delivered from
+//  `onDisappear` rather than only from the buttons.
 //
 
 import SwiftUI
 
-// MARK: - String resolution
-
-/// Thin resolver panels use so components only ever see resolved strings
-/// (Loc is the single i18n touchpoint; missing keys echo — FR-005).
-struct FlowStrings {
-    let loc: Loc
-
-    func t(_ key: String) -> String { loc.t(key) }
-    func t(_ key: String, vars: [String: String]) -> String { loc.t(key, vars: vars) }
-
-    func actionEntries(for spec: OutcomeSpec) -> [ActionEntry] {
-        spec.actions.map { ActionEntry(id: $0.id, role: $0.role, title: loc.t($0.labelKey)) }
-    }
-
-    func waitedSeconds(_ seconds: Int) -> String {
-        loc.t("onboarding.common.waitedSeconds", vars: ["seconds": "\(seconds)"])
-    }
-}
-
-// MARK: - Sheet container
-
-/// Scaffold: [system drag indicator] → title + close × → hairline →
-/// content. Hugs content height per state via a measured detent; the
-/// sheet re-measures when the content grows (disclosure expansion).
-struct FlowSheet<Content: View>: View {
+struct FlowSheet: View {
     @Environment(\.theme) private var theme
-    let title: String
-    /// Resolved close label (onboarding.common.close).
-    let closeLabel: String
-    let onClose: () -> Void
-    @ViewBuilder let content: () -> Content
+    let loc: Loc
+    let kind: PromptKind
+    let confirmable: Bool
+    let onAnswer: (Bool) -> Void
 
-    @State private var contentHeight: CGFloat = 0
+    @State private var answered = false
+
+    private var copy: PromptCopy { promptCopy(kind, loc: loc) }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
+        VStack(alignment: .leading, spacing: Tokens.Space.s16) {
+            StatusBadge(variant: Self.badge(for: kind.type))
 
-            Rectangle()
-                .fill(theme.borderBase)
-                .frame(height: Tokens.BorderWidth.hairline)
-
-            content()
-                .padding(.horizontal, Tokens.Layout.screenPaddingX)
-                .padding(.top, Tokens.Space.s24)
-                .padding(.bottom, Tokens.Space.s24)
-        }
-        .frame(maxWidth: .infinity)
-        .fixedSize(horizontal: false, vertical: true)
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.size.height
-        } action: { height in
-            contentHeight = height
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(max(contentHeight, 1))])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(theme.bgRaised)
-    }
-
-    private var header: some View {
-        HStack(spacing: Tokens.Space.s16) {
-            Text(title)
+            Text(copy.title)
                 .typeRole(Typography.title)
                 .foregroundStyle(theme.fgBase)
-            Spacer(minLength: Tokens.Space.s8)
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(GlyphFont.control)
-                    .foregroundStyle(theme.fgMuted)
-                    .frame(width: Tokens.Layout.hitTarget, height: Tokens.Layout.hitTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(closeLabel)
-        }
-        .padding(.leading, Tokens.Layout.screenPaddingX)
-        .padding(.trailing, Tokens.Space.s12)
-        .padding(.top, Tokens.Space.s16)
-        .padding(.bottom, Tokens.Space.s8)
-    }
-}
 
-// MARK: - Progress pattern (create Working + login Waiting)
+            Text(copy.message)
+                .typeRole(Typography.body)
+                .foregroundStyle(theme.fgMuted)
+                .fixedSize(horizontal: false, vertical: true)
 
-/// Bar → optional step caption → headline (+ frozen elapsed ring) →
-/// optional sub-caption. Both panels use this one composition.
-struct ProgressBlock: View {
-    @Environment(\.theme) private var theme
-    let mode: StepProgress.Mode
-    /// 第 N/5 步 — create only.
-    var stepCaption: String? = nil
-    let headline: String
-    /// 请在系统弹窗中确认。/ Face ID hint.
-    var hint: String? = nil
-    /// Frozen seconds + resolved a11y label (c-variants).
-    var elapsed: (seconds: Int, label: String)? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            StepProgress(mode: mode)
-
-            if let stepCaption {
-                Text(stepCaption)
-                    .typeRole(Typography.flowCaption)
-                    .foregroundStyle(theme.fgSubtle)
-                    .padding(.top, Tokens.Space.s12)
-            }
-
-            HStack(alignment: .center, spacing: Tokens.Space.s16) {
-                VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                    Text(headline)
-                        .typeRole(Typography.title)
-                        .foregroundStyle(theme.fgBase)
-                    if let hint {
-                        Text(hint)
-                            .typeRole(Typography.body)
-                            .foregroundStyle(theme.fgMuted)
-                    }
-                }
-                Spacer(minLength: Tokens.Space.s8)
-                if let elapsed {
-                    ElapsedRing(seconds: elapsed.seconds, a11yLabel: elapsed.label)
+            VStack(spacing: Tokens.Space.s12) {
+                if confirmable, let confirmLabel = copy.confirmLabel {
+                    VelaButton(title: confirmLabel, kind: .primary) { answer(true) }
+                    VelaButton(title: copy.cancelLabel ?? "", kind: .secondary) { answer(false) }
+                } else {
+                    VelaButton(title: loc.t(I18nKeys.Flow.close), kind: .primary) { answer(false) }
                 }
             }
             .padding(.top, Tokens.Space.s16)
         }
-    }
-}
-
-// MARK: - Outcome pattern
-
-/// Badge → headline → body → (address strip) → (footnote) → (技术详情)
-/// → action stack. Renders any OutcomeSpec; never branches on the kind
-/// except for the success-tinted headline of the created state (A11).
-struct OutcomeContent: View {
-    @Environment(\.theme) private var theme
-    let spec: OutcomeSpec
-    let strings: FlowStrings
-    let sink: (ActionId) -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            StatusBadge(variant: spec.badge)
-                .padding(.top, Tokens.Space.s16)
-
-            Text(strings.t(spec.headlineKey))
-                .typeRole(Typography.title)
-                .foregroundStyle(headlineColor)
-                .multilineTextAlignment(.center)
-                .padding(.top, Tokens.Space.s20)
-
-            Text(strings.t(spec.bodyKey, vars: spec.bodyVars))
-                .typeRole(Typography.body)
-                .foregroundStyle(theme.fgMuted)
-                .multilineTextAlignment(.center)
-                .padding(.top, Tokens.Space.s8)
-
-            if let address = spec.address {
-                AddressStrip(
-                    address: address,
-                    copyLabel: strings.t("onboarding.common.copyAddress"),
-                    copiedLabel: strings.t("onboarding.common.copied"),
-                    onCopy: { sink(.copyAddress) }
-                )
-                .padding(.top, Tokens.Space.s24)
-            }
-
-            if let footnoteKey = spec.footnoteKey {
-                Text(strings.t(footnoteKey))
-                    .typeRole(Typography.flowCaption)
-                    .foregroundStyle(theme.fgSubtle)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, Tokens.Space.s16)
-            }
-
-            if let details = spec.details {
-                Rectangle()
-                    .fill(theme.borderBase)
-                    .frame(height: Tokens.BorderWidth.hairline)
-                    .padding(.horizontal, -Tokens.Layout.screenPaddingX)
-                    .padding(.top, Tokens.Space.s24)
-
-                TechDetailsDisclosure(
-                    label: strings.t("onboarding.create.technicalDetails"),
-                    details: details,
-                    initiallyExpanded: spec.detailsExpanded,
-                    onToggle: { _ in sink(.toggleDetails) }
-                )
-            }
-
-            ActionStack(actions: strings.actionEntries(for: spec), onAction: sink)
-                .padding(.top, spec.details == nil ? Tokens.Space.s32 : Tokens.Space.s12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Tokens.Layout.screenPaddingX)
+        .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.height(sheetHeight)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(theme.bgRaised)
+        .interactiveDismissDisabled(false)
+        .onDisappear {
+            // The dismissal path. A swipe-away never reaches a button, and the
+            // core is waiting for an answer either way.
+            if !answered { onAnswer(false) }
         }
     }
 
-    private var headlineColor: Color {
-        spec.kind == .created ? theme.successBase : theme.fgBase
+    private func answer(_ accepted: Bool) {
+        guard !answered else { return }
+        answered = true
+        onAnswer(accepted)
+    }
+
+    /// Content-height-ish detent. A prompt's message is one or two sentences,
+    /// and a fixed medium detent would leave most of them floating in a
+    /// half-empty sheet.
+    private var sheetHeight: CGFloat {
+        confirmable ? 400 : 340
+    }
+
+    /// The badge each prompt wears.
+    ///
+    /// Spec 014 had eighteen `OutcomeKind` values and this feature does not
+    /// reduce them so much as RELOCATE them: eight of the eighteen are no longer
+    /// sheets because v2 gave them somewhere better — `Created` is the Done
+    /// screen, `SignedIn` is the wallet, `SyncFailed` is the Retry screen with
+    /// the key list intact, `VerifyStuck` is the Name screen with a changed
+    /// submit label, the three cancellations are the Name screen's quiet status
+    /// line, and `AccountNotFound` arrives as a `sign_in_failed` prompt carrying
+    /// the registry's own words. `deviations.md` carries the full table.
+    ///
+    /// What is left is what a sheet is for: nine prompt kinds, each an
+    /// interruption.
+    static func badge(for type: String) -> BadgeVariant {
+        switch type {
+        case "recover_offer": .info
+        case "not_discoverable": .warning
+        default: .error
+        }
     }
 }
 
-#Preview("Flow sheet · outcome") {
-    FlowSheet(title: "创建钱包", closeLabel: "关闭", onClose: {}) {
-        OutcomeContent(
-            spec: {
-                var spec = OutcomeKind.server.spec
-                spec.details = FlowFixtures.serverDetails
-                spec.detailsExpanded = true
-                return spec
-            }(),
-            strings: FlowStrings(loc: Loc()),
-            sink: { _ in }
-        )
-    }
-    .background(Tokens.light.bgRaised.color)
-    .themed(.light)
-}
+/// Point this wallet at a different passkey index.
+///
+/// Opened automatically when the core reports `endpointUnreachable`, and
+/// reachable by hand from the retry screen. **Sign-in is still permitted while
+/// it is open** (data-model §4): an unreachable index is not a locked door, and
+/// a person whose wallet is already on this device can often get in regardless.
+///
+/// The warning is not decoration. A wrong endpoint does not corrupt anything,
+/// but it makes every key lookup answer "not found" — which presents as a wallet
+/// that has vanished, and is the single most alarming wrong answer this app can
+/// give.
+struct EndpointSheet: View {
+    @Environment(\.theme) private var theme
+    let loc: Loc
+    let defaultURL: String
+    @State var draft: String
+    let onSave: (String) -> Void
 
-#Preview("Flow sheet · outcome dark") {
-    FlowSheet(title: "创建钱包", closeLabel: "关闭", onClose: {}) {
-        OutcomeContent(
-            spec: {
-                var spec = OutcomeKind.server.spec
-                spec.details = FlowFixtures.serverDetails
-                return spec
-            }(),
-            strings: FlowStrings(loc: Loc()),
-            sink: { _ in }
-        )
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s16) {
+            Text(loc.t(I18nKeys.Settings.sectionPasskeyIndex))
+                .typeRole(Typography.title)
+                .foregroundStyle(theme.fgBase)
+
+            Text(loc.t(I18nKeys.Settings.passkeyHint))
+                .typeRole(Typography.flowCaption)
+                .foregroundStyle(theme.fgMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            NameField(
+                label: loc.t(I18nKeys.Settings.endpointUrlLabel),
+                placeholder: defaultURL,
+                helper: "",
+                tooLongText: "",
+                text: $draft,
+                tooLong: false
+            )
+
+            HStack(alignment: .top, spacing: Tokens.Space.s12) {
+                Image(systemName: "exclamationmark.triangle").foregroundStyle(theme.warningBase)
+                Text(loc.t(I18nKeys.Settings.warningText))
+                    .typeRole(Typography.flowCaption)
+                    .foregroundStyle(theme.fgMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: Tokens.Space.s12) {
+                VelaButton(title: loc.t(I18nKeys.Flow.retry), kind: .primary) { onSave(draft) }
+                VelaButton(title: loc.t(I18nKeys.Settings.resetToDefault), kind: .secondary) {
+                    onSave(defaultURL)
+                }
+            }
+            .padding(.top, Tokens.Space.s16)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Tokens.Layout.screenPaddingX)
+        .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(theme.bgRaised)
     }
-    .background(Tokens.dark.bgRaised.color)
-    .themed(.dark)
 }

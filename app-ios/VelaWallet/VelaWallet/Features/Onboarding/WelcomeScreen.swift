@@ -93,60 +93,15 @@ struct WelcomeScreen: View {
     }
 }
 
-// MARK: - Flow presentation (spec 014, US2)
+// MARK: - What was here
 
-/// Which flow a Welcome intent presents; `nil` on the router = closed.
-enum WelcomeFlow: String, Identifiable {
-    case create
-    case login
-
-    var id: String { rawValue }
-}
-
-/// Production host for the flow sheet (contract §2/§3): FlowSheet + the
-/// flow's initial state (create → empty Form, login → Waiting nil). The
-/// action sink is a no-op log, except the closing ids which dismiss —
-/// real progression arrives with the wiring feature (FR-011, D3).
-struct WelcomeFlowHost: View {
-    let flow: WelcomeFlow
-    let loc: Loc
-    @Environment(\.dismiss) private var dismiss
-
-    private var createInitial: CreatePanelState { .form(FormState()) }
-    private var loginInitial: LoginPanelState { .waiting(elapsedSecs: nil) }
-
-    var body: some View {
-        FlowSheet(
-            title: loc.t(titleKey),
-            closeLabel: loc.t("onboarding.common.close"),
-            onClose: { dismiss() }
-        ) {
-            switch flow {
-            case .create:
-                CreatePanel(loc: loc, state: createInitial, sink: sink)
-            case .login:
-                LoginPanel(loc: loc, state: loginInitial, sink: sink)
-            }
-        }
-    }
-
-    private var titleKey: String {
-        switch flow {
-        case .create: CreatePanel.scaffoldTitleKey(for: createInitial)
-        case .login: LoginPanel.scaffoldTitleKey(for: loginInitial)
-        }
-    }
-
-    private func sink(_ action: ActionId) {
-        switch action {
-        case .back, .cancel, .notNow, .close:
-            dismiss()
-        default:
-            // No-op log per contract §2 — the desktop on_intent pattern.
-            print("[welcome] \(flow.rawValue) → \(action.rawValue)")
-        }
-    }
-}
+// Spec 014's `WelcomeFlow` / `WelcomeFlowHost` presented the whole create and
+// sign-in journey as a bottom sheet over this screen, with a no-op action sink.
+// Spec 019 replaced both: creating pushes `AppRoute.create` (a full screen, so
+// nothing is behind a scrim that is not an interruption), and signing in
+// dispatches straight into the login machine — its first act is the system
+// passkey sheet, so a screen of our own between the tap and that sheet would be
+// a screen with nothing on it.
 
 #Preview("Welcome (en placeholder)") {
     WelcomeScreen(model: WelcomeModel(

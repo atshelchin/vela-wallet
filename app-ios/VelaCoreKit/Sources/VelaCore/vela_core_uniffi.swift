@@ -2765,6 +2765,45 @@ public func recoverPublicKeyFromAssertions(a: WebAuthnAssertion, b: WebAuthnAsse
     )
 })
 }
+/**
+ * The group's closing proof, as `{"groupPublicKey": …, "proof": { … }}`.
+ */
+public func registryBuildGroupProof(seedHex: String, rpId: String, challengeHex: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_registry_build_group_proof(
+        FfiConverterString.lower(seedHex),
+        FfiConverterString.lower(rpId),
+        FfiConverterString.lower(challengeHex),uniffiCallStatus
+    )
+})
+}
+/**
+ * One member's possession proof, as the registry's camelCase object.
+ */
+public func registryBuildMemberProof(authenticatorDataHex: String, clientDataJsonHex: String, signatureDerHex: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_registry_build_member_proof(
+        FfiConverterString.lower(authenticatorDataHex),
+        FfiConverterString.lower(clientDataJsonHex),
+        FfiConverterString.lower(signatureDerHex),uniffiCallStatus
+    )
+})
+}
+/**
+ * The uncompressed public key (`04‖x‖y` hex) of the one-time group key a
+ * 32-byte `seed_hex` derives. Needed before the group's challenge can be
+ * requested, because the contract binds the challenge to this key.
+ */
+public func registryGroupPublicKeyFromSeed(seedHex: String)throws  -> String  {
+    return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_registry_group_public_key_from_seed(
+        FfiConverterString.lower(seedHex),uniffiCallStatus
+    )
+})
+}
 public func safeProxyRuntimeCode()throws  -> String  {
     return try  FfiConverterString.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
         uniffiCallStatus in
@@ -2954,6 +2993,15 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_recover_public_key_from_assertions() != 37092) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_registry_build_group_proof() != 16094) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_registry_build_member_proof() != 44131) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_registry_group_public_key_from_seed() != 7492) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_safe_proxy_runtime_code() != 4363) {

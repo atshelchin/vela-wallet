@@ -466,6 +466,34 @@ pub fn identicon_png(seed: String, size_px: u32) -> Result<Vec<u8>, CoreError> {
     Ok(vela_core::identicon_raster::identicon_png(&seed, size_px)?)
 }
 
+/// **A passkey provider's mark as PNG bytes** (`size_px` × `size_px`), from the
+/// vendored AAGUID catalog. `None` when the catalog does not know the model —
+/// hardware keys and attestation-less registrations both land there — and the
+/// caller then shows what it showed before this existed.
+///
+/// The lookup is offline by construction: asking a directory service would tell
+/// it which vault holds a Vela wallet's key.
+#[uniffi::export]
+pub fn passkey_provider_png(
+    aaguid: String,
+    dark: bool,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    Ok(vela_core::identicon_raster::passkey_provider_png(
+        &aaguid, dark, size_px,
+    )?)
+}
+
+/// The provider's brand name, or an empty string when the catalog has no entry.
+/// The create view already carries this for its own key rows; this is for every
+/// other surface that holds an AAGUID.
+#[uniffi::export]
+pub fn passkey_provider_name(aaguid: String) -> String {
+    vela_core::passkey::provider_name(&aaguid)
+        .unwrap_or_default()
+        .to_owned()
+}
+
 /// The shared placeholder artwork as PNG bytes — what platforms show for an
 /// invalid or empty seed instead of crashing or rendering blank.
 #[uniffi::export]

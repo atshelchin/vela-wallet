@@ -39,7 +39,7 @@ use crate::ui::{
     ButtonState, ButtonVariant, NameFieldStrings, ack_row, name_field, spinner, vela_button_opts,
     vela_button_state,
 };
-use crate::wallet::components::identicon_avatar;
+use crate::wallet::components::{identicon_avatar, passkey_mark};
 
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
 pub const MAX_KEYS: usize = 7;
@@ -133,9 +133,11 @@ pub fn status_key(status: StatusKey) -> &'static str {
 /// key. Labelling that row "Platform passkey" would be the shell repeating a
 /// default back to the person as though it were a fact.
 ///
-/// The design draws a richer line («YubiKey 5C · USB»), which needs the AAGUID
-/// resolved to a model name — a lookup the flow does not make. Until it does,
-/// this is the honest version of the same fact.
+/// This is the FALLBACK line. When the core's AAGUID catalog knows the model,
+/// the row shows the vault's own name and mark instead ("Apple Passwords",
+/// "1Password") — the richer line the design drew. The catalog covers software
+/// passkey providers, not the hundreds of hardware models in the FIDO metadata
+/// service, so this stays the answer for a USB key.
 fn provider_line(key: &CreateKeyRow) -> &'static str {
     if key.authenticator_attachment == "cross-platform"
         || key.transports.split(',').any(|t| t.trim() == "usb")
@@ -755,7 +757,21 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
         .rounded(px(RADIUS_FIELD))
         .bg(theme.bg_base)
         .border_1()
-        .border_color(theme.divider)
+        .border_color(theme.divider);
+
+    // The vault's own mark, when the catalog knows the model. Nothing when it
+    // does not — the line below already says what is known, and an invented
+    // placeholder logo would say something that is not.
+    if let Some(mark) = passkey_mark(
+        &mut host.identicons.borrow_mut(),
+        &key.aaguid,
+        host.theme.is_dark(),
+        theme::KEY_ROW_MARK,
+    ) {
+        row = row.child(mark);
+    }
+
+    let mut row = row
         .child(
             div()
                 .flex_1()
@@ -774,7 +790,11 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
                     div()
                         .text_size(theme::text_row_meta())
                         .text_color(theme.fg_muted)
-                        .child(loc.t(provider_line(key))),
+                        .child(if key.provider_name.is_empty() {
+                            loc.t(provider_line(key))
+                        } else {
+                            SharedString::from(key.provider_name.clone())
+                        }),
                 ),
         )
         .child(trailing);
@@ -1295,6 +1315,7 @@ mod tests {
             confirmed: true,
             synced: false,
             aaguid: String::new(),
+            provider_name: String::new(),
             method: KeyMethod::Platform,
         };
         assert_eq!(

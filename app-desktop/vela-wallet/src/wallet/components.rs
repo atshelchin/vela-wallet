@@ -67,6 +67,25 @@ pub fn identicon_avatar(
         .flex_none()
 }
 
+/// A passkey provider's mark, or nothing when the catalog does not know the
+/// authenticator model (a hardware key, or one that reported no AAGUID). Square
+/// with a soft corner, not a circle: it is a logo, not a person.
+pub fn passkey_mark(
+    identicons: &mut IdenticonCache,
+    aaguid: &str,
+    dark: bool,
+    size: f32,
+) -> Option<impl IntoElement> {
+    let image = identicons.passkey_mark(aaguid, dark, size as u32)?;
+    Some(
+        img(ImageSource::Render(image))
+            .w(px(size))
+            .h(px(size))
+            .rounded(px(theme::RADIUS_ACK))
+            .flex_none(),
+    )
+}
+
 /// Sidebar header: avatar + name + chevron + mono address.
 pub fn wallet_header(
     theme: &Theme,

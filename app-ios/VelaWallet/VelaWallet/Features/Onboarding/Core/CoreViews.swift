@@ -74,6 +74,10 @@ struct CreateKeyRow: Decodable, Equatable, Identifiable {
     /// display and the second-key gate both fail open.
     let synced: Bool
     let aaguid: String
+    /// The vault holding this key, resolved by the core from `aaguid`. Empty
+    /// when the catalog does not know the model — the row then says what it
+    /// always said, from `method`.
+    let providerName: String
     let method: KeyMethod
 
     /// Position-based, because the core's list has no ids and position IS the

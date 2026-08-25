@@ -2290,6 +2290,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeP256PublicKey: FfiConverterRustBuffer {
     typealias SwiftType = P256PublicKey?
 
@@ -2743,6 +2767,38 @@ public func parsePublicKey(hex: String)throws  -> P256PublicKey  {
 })
 }
 /**
+ * The provider's brand name, or an empty string when the catalog has no entry.
+ * The create view already carries this for its own key rows; this is for every
+ * other surface that holds an AAGUID.
+ */
+public func passkeyProviderName(aaguid: String) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_provider_name(
+        FfiConverterString.lower(aaguid),uniffiCallStatus
+    )
+})
+}
+/**
+ * **A passkey provider's mark as PNG bytes** (`size_px` × `size_px`), from the
+ * vendored AAGUID catalog. `None` when the catalog does not know the model —
+ * hardware keys and attestation-less registrations both land there — and the
+ * caller then shows what it showed before this existed.
+ *
+ * The lookup is offline by construction: asking a directory service would tell
+ * it which vault holds a Vela wallet's key.
+ */
+public func passkeyProviderPng(aaguid: String, dark: Bool, sizePx: UInt32)throws  -> Data?  {
+    return try  FfiConverterOptionData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_provider_png(
+        FfiConverterString.lower(aaguid),
+        FfiConverterBool.lower(dark),
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
+    )
+})
+}
+/**
  * Rasterize app-authored SVG markup (the spec 015 lucide icon corpus) to a
  * square PNG. For platforms without an SVG renderer; callers pass constant
  * markup with the tint pre-substituted (or white, tinted as a template image).
@@ -2987,6 +3043,12 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_parse_public_key() != 62646) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_provider_name() != 54778) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_provider_png() != 59824) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_rasterize_svg_png() != 18592) {

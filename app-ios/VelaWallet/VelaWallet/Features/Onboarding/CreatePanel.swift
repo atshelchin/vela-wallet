@@ -337,14 +337,24 @@ private struct KeyRow: View {
 
     var body: some View {
         HStack(spacing: Tokens.Space.s12) {
-            Image(systemName: key.method == .securityKey ? "key.horizontal" : "person.badge.key")
-                .foregroundStyle(theme.fgMuted)
-                .frame(width: Tokens.Control.sm, height: Tokens.Control.sm)
-                .background(theme.bgSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.r8))
+            // Who is holding this key, when the core's AAGUID catalog knows:
+            // the vault's own mark and its own name. When it does not — a
+            // hardware key, an authenticator that reported nothing — the row
+            // says what it always said, from `method`.
+            if key.providerName.isEmpty {
+                Image(systemName: key.method == .securityKey ? "key.horizontal" : "person.badge.key")
+                    .foregroundStyle(theme.fgMuted)
+                    .frame(width: Tokens.Control.sm, height: Tokens.Control.sm)
+                    .background(theme.bgSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.r8))
+            } else {
+                PasskeyProviderMark(aaguid: key.aaguid, name: key.providerName)
+            }
 
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text(key.name).typeRole(Typography.rowTitle).foregroundStyle(theme.fgBase)
-                Text(loc.t(providerLineFor(key.method)))
+                Text(key.providerName.isEmpty
+                    ? loc.t(providerLineFor(key.method))
+                    : key.providerName)
                     .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.fgMuted)
             }
@@ -699,10 +709,25 @@ struct DoneScreen: View {
 
                     VStack(spacing: 0) {
                         ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
-                            HStack {
-                                Text(key.name)
-                                    .typeRole(Typography.body)
-                                    .foregroundStyle(theme.fgBase)
+                            HStack(spacing: Tokens.Space.s12) {
+                                PasskeyProviderMark(
+                                    aaguid: key.aaguid,
+                                    name: key.providerName,
+                                    size: Tokens.Space.s20
+                                )
+                                VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                                    Text(key.name)
+                                        .typeRole(Typography.body)
+                                        .foregroundStyle(theme.fgBase)
+                                    // Where the key lives, under the name it was
+                                    // given. Quieter than the name: one is the
+                                    // person's word, the other the system's.
+                                    if !key.providerName.isEmpty {
+                                        Text(key.providerName)
+                                            .typeRole(Typography.flowCaption)
+                                            .foregroundStyle(theme.fgSubtle)
+                                    }
+                                }
                                 Spacer()
                                 Text(loc.t(key.synced
                                     ? I18nKeys.Create.keySyncedBadge

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,6 +36,7 @@ import app.getvela.wallet.core.designsystem.components.VelaAddressStrip
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.passkey.PasskeyProviderMark
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
@@ -154,14 +156,34 @@ fun ColumnScope.DoneScreen(
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = VelaSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    text = key.name,
-                    color = colors.fgBase,
-                    fontFamily = VelaFontFamily,
-                    fontSize = VelaTextSize.base,
+                PasskeyProviderMark(
+                    aaguid = key.aaguid,
+                    name = key.providerName,
+                    size = VelaIconSize.lg,
                 )
+                if (key.providerName.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(VelaSpacing.lg))
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = key.name,
+                        color = colors.fgBase,
+                        fontFamily = VelaFontFamily,
+                        fontSize = VelaTextSize.base,
+                    )
+                    // Where the key lives, under the name it was given. Quieter
+                    // than the name: one is the person's word for it, the other
+                    // is the system's.
+                    if (key.providerName.isNotEmpty()) {
+                        Text(
+                            text = key.providerName,
+                            color = colors.fgSubtle,
+                            fontFamily = VelaFontFamily,
+                            fontSize = VelaTextSize.sm,
+                        )
+                    }
+                }
                 Text(
                     text = strings.t(
                         if (key.synced) {

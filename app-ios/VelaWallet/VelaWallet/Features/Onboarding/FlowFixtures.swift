@@ -77,19 +77,24 @@ enum FlowFixtures {
         )
     }
 
+    /// A security key is deliberately given NO provider: hardware models live
+    /// in the FIDO metadata service, not the app's catalog, so the gallery
+    /// shows both the named case and the degradation in one screen.
     static func key(
         _ name: String,
         method: KeyMethod = .platform,
         confirmed: Bool = true,
         synced: Bool = true
     ) -> CreateKeyRow {
-        CreateKeyRow(
+        let platformKey = method != .securityKey
+        return CreateKeyRow(
             name: name,
-            authenticatorAttachment: method == .securityKey ? "cross-platform" : "platform",
-            transports: method == .securityKey ? "usb,nfc" : "internal,hybrid",
+            authenticatorAttachment: platformKey ? "platform" : "cross-platform",
+            transports: platformKey ? "internal,hybrid" : "usb,nfc",
             confirmed: confirmed,
             synced: synced,
-            aaguid: "",
+            aaguid: platformKey ? "fbfc3007-154e-4ecc-8c0b-6e020557d7bd" : "",
+            providerName: platformKey ? "Apple Passwords" : "",
             method: method
         )
     }

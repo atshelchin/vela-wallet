@@ -696,6 +696,23 @@ export function matchSelector(sig: string, calldata: Uint8Array): boolean;
 export function parsePublicKey(hex: string): P256PublicKey;
 
 /**
+ * **A passkey provider's mark**, as an `image/svg+xml` data URI, from the
+ * vendored AAGUID catalog. `undefined` when the catalog does not know the
+ * model — the caller then shows what it showed before this existed.
+ *
+ * A data URI rather than markup to inline: these marks carry `<style>` blocks
+ * and `clipPath` ids, and several of them inlined into one document would
+ * fight over both. The lookup is offline by construction — asking a directory
+ * service would tell it which vault holds a Vela wallet's key.
+ */
+export function passkeyProviderIconDataUri(aaguid: string, dark: boolean): string | undefined;
+
+/**
+ * The provider's brand name, or an empty string when the catalog has no entry.
+ */
+export function passkeyProviderName(aaguid: string): string;
+
+/**
  * Returns `null` when the two assertions do not pin down exactly one key
  * (different credentials, or the same signature twice) — that is a legitimate
  * outcome, not an error.
@@ -866,6 +883,8 @@ export interface InitOutput {
     readonly networkadmincore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly networkadmincore_view: (a: number) => [number, number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];
+    readonly passkeyProviderIconDataUri: (a: number, b: number, c: number) => [number, number];
+    readonly passkeyProviderName: (a: number, b: number) => [number, number];
     readonly paymentrequestcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly paymentrequestcore_new: () => number;
     readonly paymentrequestcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];

@@ -28,6 +28,7 @@ import init, {
 	identiconNormalizeSeed,
 	identiconSvgCircular,
 	LoginCore,
+	passkeyProviderIconDataUri,
 	SessionCore,
 	toHex
 } from '../../../../../../rust/pkg-web/vela_core.js';
@@ -39,6 +40,10 @@ export { CreateWalletCore, LoginCore, SessionCore };
 // callable once `loadOnboardingCore()` has resolved.
 export { buildGroupProof, buildMemberProof, groupPublicKeyFromSeed, toHex };
 export { identiconNormalizeSeed, identiconSvgCircular };
+// The passkey provider's mark, from the vendored AAGUID catalog. Offline by
+// construction — the alternative is telling a directory service which vault
+// holds this wallet's key.
+export { passkeyProviderIconDataUri };
 
 /**
  * The in-flight (or settled) initialization. Held as a promise rather than a

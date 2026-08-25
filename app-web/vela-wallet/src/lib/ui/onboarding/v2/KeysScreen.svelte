@@ -11,6 +11,7 @@
 	import Button from '$lib/ui/Button.svelte';
 	import AddMethodPicker from './AddMethodPicker.svelte';
 	import { providerLineFor } from '$lib/onboarding/core/copy';
+	import PasskeyProviderMark from './PasskeyProviderMark.svelte';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
 	import type { KeyMethod } from '$lib/onboarding/generated/KeyMethod';
 
@@ -95,10 +96,23 @@
 			{#each keys as key, index (index)}
 				{@const badge = badgeFor(key)}
 				<li class="row">
-					<span class="glyph" aria-hidden="true" data-method={key.method}></span>
+					<!--
+						Who is holding this key, when the core's AAGUID catalog knows:
+						the vault's own mark and its own name. When it does not — a
+						hardware key, an authenticator that reported nothing — the row
+						says what it always said: the shape glyph and the generic line
+						for the method.
+					-->
+					{#if key.provider_name}
+						<PasskeyProviderMark aaguid={key.aaguid} name={key.provider_name} />
+					{:else}
+						<span class="glyph" aria-hidden="true" data-method={key.method}></span>
+					{/if}
 					<span class="who">
 						<span class="name">{key.name}</span>
-						<span class="meta">{strings(providerLineFor(key.method))}</span>
+						<span class="meta">
+							{key.provider_name || strings(providerLineFor(key.method))}
+						</span>
 					</span>
 					<!--
 						One trailing slot, as the design draws it. A key that has not

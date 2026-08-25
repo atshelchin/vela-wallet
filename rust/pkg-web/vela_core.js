@@ -3243,6 +3243,51 @@ export function parsePublicKey(hex) {
 }
 
 /**
+ * **A passkey provider's mark**, as an `image/svg+xml` data URI, from the
+ * vendored AAGUID catalog. `undefined` when the catalog does not know the
+ * model — the caller then shows what it showed before this existed.
+ *
+ * A data URI rather than markup to inline: these marks carry `<style>` blocks
+ * and `clipPath` ids, and several of them inlined into one document would
+ * fight over both. The lookup is offline by construction — asking a directory
+ * service would tell it which vault holds a Vela wallet's key.
+ * @param {string} aaguid
+ * @param {boolean} dark
+ * @returns {string | undefined}
+ */
+export function passkeyProviderIconDataUri(aaguid, dark) {
+    const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyProviderIconDataUri(ptr0, len0, dark);
+    let v2;
+    if (ret[0] !== 0) {
+        v2 = getStringFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v2;
+}
+
+/**
+ * The provider's brand name, or an empty string when the catalog has no entry.
+ * @param {string} aaguid
+ * @returns {string}
+ */
+export function passkeyProviderName(aaguid) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.passkeyProviderName(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * Returns `null` when the two assertions do not pin down exactly one key
  * (different credentials, or the same signature twice) — that is a legitimate
  * outcome, not an error.

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.passkey.PasskeyProviderMark
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
@@ -250,21 +251,33 @@ private fun KeyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = VelaSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(VelaSizing.controlSm)
-                .clip(RoundedCornerShape(VelaRadius.md))
-                .background(colors.bgSunken),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = when (key.method) {
-                    KeyMethod.SecurityKey -> VelaIcons.Link2
-                    else -> VelaIcons.Wallet
-                },
-                contentDescription = null,
-                tint = colors.fgMuted,
-                modifier = Modifier.size(VelaIconSize.md),
+        // Who is holding this key, when the core's AAGUID catalog knows: the
+        // vault's own mark and its own name. When it does not — a hardware key,
+        // an authenticator that reported nothing — the row says what it always
+        // said, from `method`.
+        if (key.providerName.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .size(VelaSizing.controlSm)
+                    .clip(RoundedCornerShape(VelaRadius.md))
+                    .background(colors.bgSunken),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = when (key.method) {
+                        KeyMethod.SecurityKey -> VelaIcons.Link2
+                        else -> VelaIcons.Wallet
+                    },
+                    contentDescription = null,
+                    tint = colors.fgMuted,
+                    modifier = Modifier.size(VelaIconSize.md),
+                )
+            }
+        } else {
+            PasskeyProviderMark(
+                aaguid = key.aaguid,
+                name = key.providerName,
+                size = VelaSizing.controlSm,
             )
         }
         Spacer(modifier = Modifier.size(VelaSpacing.lg))
@@ -277,7 +290,7 @@ private fun KeyRow(
                 fontSize = VelaTextSize.lg,
             )
             Text(
-                text = strings.t(providerLineFor(key.method)),
+                text = key.providerName.ifEmpty { strings.t(providerLineFor(key.method)) },
                 color = colors.fgMuted,
                 fontFamily = VelaFontFamily,
                 fontSize = VelaTextSize.sm,

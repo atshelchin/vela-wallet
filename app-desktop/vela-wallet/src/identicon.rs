@@ -19,6 +19,10 @@ const RASTER_SCALE: u32 = 2;
 #[derive(Default)]
 pub struct IdenticonCache {
     map: HashMap<(String, u32), Arc<RenderImage>>,
+    /// Passkey-provider marks, keyed by (aaguid, dark, size). `None` is cached
+    /// too: an AAGUID the catalog does not know must not re-enter the
+    /// rasterizer on every frame of a list.
+    marks: HashMap<(String, bool, u32), Option<Arc<RenderImage>>>,
 }
 
 impl IdenticonCache {
@@ -42,6 +46,34 @@ impl IdenticonCache {
             .and_then(render_image_from_png)
             .unwrap_or_else(empty_render_image);
         self.map.insert((normalized, size), Arc::clone(&image));
+        image
+    }
+
+    /// The mark of the vault holding a passkey, for `aaguid` at `logical_px`.
+    ///
+    /// `None` when the catalog has no entry — a hardware key, or an
+    /// authenticator that reported no AAGUID. That is a normal answer, and the
+    /// caller keeps saying what it said before it asked.
+    pub fn passkey_mark(
+        &mut self,
+        aaguid: &str,
+        dark: bool,
+        logical_px: u32,
+    ) -> Option<Arc<RenderImage>> {
+        if aaguid.is_empty() {
+            return None;
+        }
+        let size = logical_px * RASTER_SCALE;
+        let key = (aaguid.to_owned(), dark, size);
+        if let Some(hit) = self.marks.get(&key) {
+            return hit.clone();
+        }
+        let image = vela_core::passkey_provider_png(aaguid, dark, size)
+            .ok()
+            .flatten()
+            .as_deref()
+            .and_then(render_image_from_png);
+        self.marks.insert(key, image.clone());
         image
     }
 }

@@ -12,6 +12,7 @@
 	 * draw.
 	 */
 	import Button from '$lib/ui/Button.svelte';
+	import PasskeyProviderMark from './PasskeyProviderMark.svelte';
 	import { identiconNormalizeSeed, identiconSvgCircular } from '$lib/onboarding/core/wasm-client';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
 
@@ -96,7 +97,13 @@
 	<ul class="keys">
 		{#each keys as key, index (index)}
 			<li class="key">
-				<span class="keyname">{key.name}</span>
+				{#if key.provider_name}
+					<PasskeyProviderMark aaguid={key.aaguid} name={key.provider_name} />
+				{/if}
+				<span class="keyname">
+					{key.name}
+					{#if key.provider_name}<span class="provider">{key.provider_name}</span>{/if}
+				</span>
 				<span class="badge" data-tone={key.synced ? 'synced' : 'local'}>
 					{key.synced
 						? strings('onboarding.create.keySyncedBadge')
@@ -240,14 +247,27 @@
 	.key {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: var(--space-lg);
 		padding-block: var(--space-lg);
 		border-bottom: var(--border-hairline) solid var(--color-border-base);
 	}
 
+	/* The badge keeps the trailing edge; the name block takes what is left. */
 	.keyname {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: var(--space-xs);
+		min-width: 0;
 		color: var(--color-fg-muted);
 		font-size: var(--text-base);
+	}
+
+	/* Where the key lives, under its name. Quieter than the name: the name is
+	   what the person chose, this is what the system reported. */
+	.provider {
+		color: var(--color-fg-subtle);
+		font-size: var(--text-sm);
 	}
 
 	.badge {

@@ -531,6 +531,33 @@ pub fn identicon_normalize_seed(seed: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Passkey providers (`vela_core::passkey`)
+// ---------------------------------------------------------------------------
+
+/// **A passkey provider's mark**, as an `image/svg+xml` data URI, from the
+/// vendored AAGUID catalog. `undefined` when the catalog does not know the
+/// model — the caller then shows what it showed before this existed.
+///
+/// A data URI rather than markup to inline: these marks carry `<style>` blocks
+/// and `clipPath` ids, and several of them inlined into one document would
+/// fight over both. The lookup is offline by construction — asking a directory
+/// service would tell it which vault holds a Vela wallet's key.
+#[wasm_bindgen(js_name = passkeyProviderIconDataUri)]
+#[must_use]
+pub fn passkey_provider_icon_data_uri(aaguid: &str, dark: bool) -> Option<String> {
+    vela_core::passkey::provider_icon_data_uri(aaguid, dark)
+}
+
+/// The provider's brand name, or an empty string when the catalog has no entry.
+#[wasm_bindgen(js_name = passkeyProviderName)]
+#[must_use]
+pub fn passkey_provider_name(aaguid: &str) -> String {
+    vela_core::passkey::provider_name(aaguid)
+        .unwrap_or_default()
+        .to_owned()
+}
+
+// ---------------------------------------------------------------------------
 // Native-coin price selection (`vela_core::app::balance_dashboard`)
 // ---------------------------------------------------------------------------
 //

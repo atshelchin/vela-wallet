@@ -52,6 +52,25 @@ fn rasterize(svg: &str, size_px: u32) -> Result<Vec<u8>, CoreError> {
         .map_err(|e| CoreError::Internal(format!("identicon raster: png encode: {e}")))
 }
 
+/// **A passkey provider's mark, as PNG bytes.**
+///
+/// Same argument as the identicon below: SwiftUI, Compose and gpui have no SVG
+/// renderer, so the one renderer that already lives here draws the catalog's
+/// artwork for them, while the web takes the same markup as a data URI.
+///
+/// `Ok(None)` when the AAGUID is unknown or the provider ships no mark — the
+/// caller degrades to what it knew before it asked, which is never an error.
+pub fn passkey_provider_png(
+    aaguid: &str,
+    dark: bool,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    let Some(svg) = crate::passkey::provider(aaguid).and_then(|p| p.icon_svg(dark)) else {
+        return Ok(None);
+    };
+    rasterize(svg, size_px).map(Some)
+}
+
 /// **The wallet's identicon, as PNG bytes.** Circular variant rendered at
 /// `size_px` × `size_px`. Same seed contract as
 /// [`crate::identicon::identicon_svg_circular`]: invalid seeds are rejected, and
@@ -92,6 +111,27 @@ mod tests {
                 .map_or(0, u32::from_be_bytes)
         };
         (word(16), word(20))
+    }
+
+    #[test]
+    fn a_provider_mark_renders_at_the_requested_size() {
+        // Windows Hello: four blue squares, published in both themes.
+        let png = passkey_provider_png("08987058-cadc-4b81-b6e1-30de50dcbe96", false, 48)
+            .expect("known provider rasterizes")
+            .expect("and ships a mark");
+        assert_eq!(png[..8], PNG_MAGIC);
+        assert_eq!(ihdr_dimensions(&png), (48, 48));
+    }
+
+    #[test]
+    fn an_unknown_aaguid_is_none_not_an_error() {
+        assert!(passkey_provider_png("", false, 48).expect("no error").is_none());
+        assert!(
+            passkey_provider_png("2fc0579f-8113-47ea-b116-bb5a8db9202a", true, 48)
+                .expect("no error")
+                .is_none(),
+            "hardware keys are not in this catalog"
+        );
     }
 
     #[test]

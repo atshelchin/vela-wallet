@@ -21,7 +21,11 @@ function key(over: Partial<CreateKeyRow> = {}): CreateKeyRow {
 		transports: 'internal,hybrid',
 		confirmed: true,
 		synced: true,
-		aaguid: '',
+		// A real, resolvable AAGUID by default: the gallery should show the
+		// case people actually see (a named vault with its own mark), and the
+		// unknown-provider fallback is one override away.
+		aaguid: 'fbfc3007-154e-4ecc-8c0b-6e020557d7bd',
+		provider_name: 'Apple Passwords',
 		method: 'platform',
 		...over
 	};
@@ -107,7 +111,17 @@ export const CREATE_FIXTURES: CreateFixture[] = [
 			keys: [
 				key(),
 				key({ name: 'Key 2', method: 'hybrid', transports: 'hybrid' }),
-				key({ name: 'Key 3', method: 'security_key', synced: false, transports: 'usb' })
+				// The degradation path, on purpose: a hardware key is not in the
+				// provider catalog, so this row must fall back to its shape glyph
+				// and the generic line.
+				key({
+					name: 'Key 3',
+					method: 'security_key',
+					synced: false,
+					transports: 'usb',
+					aaguid: '',
+					provider_name: ''
+				})
 			],
 			can_add_key: true,
 			can_finish: true

@@ -101,6 +101,12 @@ data class CreateKeyRow(
     val confirmed: Boolean,
     val synced: Boolean,
     val aaguid: String,
+    /**
+     * The vault holding this key, resolved by the core from [aaguid]. Empty
+     * when the catalog does not know the model — the row then says what it
+     * always said, from [method].
+     */
+    val providerName: String,
     val method: KeyMethod,
 )
 
@@ -144,6 +150,7 @@ data class CreateView(
                     confirmed = key.optBoolean("confirmed"),
                     synced = key.optBoolean("synced"),
                     aaguid = key.optString("aaguid"),
+                    providerName = key.optString("provider_name"),
                     method = KeyMethod.of(key.getString("method")),
                 )
             },

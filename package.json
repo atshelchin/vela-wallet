@@ -19,6 +19,8 @@
     "lint:lottie": "node scripts/lint-lottie-assets.mjs",
     "lint:lottie:self-test": "node scripts/lint-lottie-assets.mjs --self-test",
     "gen:identicon-features": "node scripts/gen-identicon-features.mjs",
+    "gen:passkey-providers": "node scripts/gen-passkey-providers.mjs",
+    "lint:passkey-providers": "node scripts/gen-passkey-providers.mjs --check",
     "verify:i18n": "node scripts/verify-i18n-parity.mjs",
     "verify:identicon": "node scripts/verify-identicon-parity.mjs",
     "build:wasm": "node rust/scripts/build-web.mjs",

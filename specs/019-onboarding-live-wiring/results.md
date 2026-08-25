@@ -1071,8 +1071,33 @@ keeps the scrolling region and the pinned button apart.
 | Task | State |
 | --- | --- |
 | T089 / T091 — desktop with a FIDO2 key | blocked, unchanged: no key on this host |
-| T121 — Android scenarios 3, 5, 6 | untried: two-key sets, the endpoint surface, the publish retry |
-| T140 / T142 — the iOS sweep | the fixed build is signed, installed and running on the iPhone 11; the sweep itself is the founder's to walk. No screenshot path exists for a physical iPhone from this host |
+| T121 — Android scenarios 2, 3, 7 | untried: the second-key gate, cross-client address agreement, publish-failure recovery |
+| T140 — the iOS one-signature sign-in | needs a finger on the iPhone |
+
+Scenarios 1, 4, 5 and 6 are done on Android; the numbering above is
+`quickstart.md`'s, not the shorthand used earlier in this file.
+
+### The iOS screenshot path, solved
+
+`simctl io screenshot` returns the springboard on this host, and
+`idevicescreenshot` needs a Developer Disk Image mounted through lockdown — which
+iOS 17+ replaced with a personalized DDI over CoreDevice's tunnel that
+libimobiledevice does not speak. Both dead ends are recorded because the next
+person will try them in that order.
+
+`VelaWalletUITests/ScreenshotSweepTests` sidesteps both: the screenshot is taken
+BY the test process running on the device, so nothing is captured host-side and
+no TCC prompt is involved. **Nineteen screens off a physical iPhone 11**, one
+launch per fixture, extracted with `xcresulttool export attachments`. The command
+is in the file's header comment.
+
+Every iOS screen has now been looked at. What it shows: the flow renders
+correctly in dark mode and Chinese, the identicon is derived from the address,
+the seven-key list, all five journey screens and five prompt sheets are right.
+⚠ Two cosmetic notes for the founder: at the seven-key cap the last row is
+clipped mid-glyph by the scroll edge (honest scroll behaviour, but it reads as
+broken at rest), and the dev gallery's list rows render in system blue rather
+than house style.
 
 Gates after the fixes: Android **64 passed, 0 failed** + `assembleDebug` green;
 iOS `BUILD SUCCEEDED` + `TEST SUCCEEDED`, `audit-literals` clean.

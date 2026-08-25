@@ -815,3 +815,38 @@ do {
 } catch {
     bridgeFail("threw: \(error)")
 }
+
+// ---------------------------------------------------------------------------
+// The golden multi-key Safe (spec 019 T145 / SC-003)
+// ---------------------------------------------------------------------------
+//
+// SC-003 asks that a multi-key wallet created on one client resolve to a
+// CHARACTER-IDENTICAL address on the other three. The property behind that
+// requirement is not really about four devices: all four clients derive the
+// address by calling `compute_safe_address_multi` in this crate, so what has to
+// agree is the four SURFACES the one function is reached through — Rust, wasm,
+// Kotlin and Swift. Four people with four phones would be testing the same
+// function four times and calling it evidence.
+//
+// The keys are the three parallel-space fixture keys, and the address is the
+// frozen golden Safe that `src/__tests__/services/passkey-fixture.test.ts`
+// already locks on the web side.
+
+do {
+    let keys = try [
+        "04197db9030a1e166bec2cee05e0ddb94b26ee0b6d6f429f1748cda4eedac36f04fe546861a9c9dfaf75719b53c75e0b933d4aad6d325f18c75776a260d507647b",
+        "047802f2cc39cc6ed85c41268a580c5f0df36df3f065facfb40f84265927b7ed678438b2084cb84f0d00708e40d44ed8c9901d979bbcb390117089847672c12eec",
+        "043eb2ae2f4e8090837820048baca2db04a7e7ca7dc6742f342a30c6855e7d96947f36ac5a4538dc3a8a7cbf0deea1c0ecb80bfb96a3f8ca57c98f8f400548cd56",
+    ].map { try parsePublicKey(hex: $0) }
+    let derived = try computeSafeAddressMulti(keys: keys).address
+    guard derived == "0x88cCA0EeDbF2C4426110bbFc998F048689266894" else {
+        FileHandle.standardError.write(
+            "smoke-swift: golden multi-key Safe drifted — got \(derived)\n".data(using: .utf8)!)
+        exit(1)
+    }
+    print("smoke-swift: golden multi-key Safe agrees (\(derived))")
+} catch {
+    FileHandle.standardError.write(
+        "smoke-swift: golden multi-key Safe threw — \(error)\n".data(using: .utf8)!)
+    exit(1)
+}

@@ -782,3 +782,209 @@ build scripts. The one generated file that *is* committed is
 `app-ios/VelaCoreKit/Sources/VelaCore/vela_core_uniffi.swift`, which
 `build-ios-xcframework.sh` copies into place; it carries the three new classes and
 is in this commit. The task text assumed a layout the repo does not have.
+
+---
+
+## Phase 7 — Android (T105–T121)
+
+### What shipped
+
+`feature/onboarding/core/` is the whole outside world: `CoreDriver` over the uniffi
+bridge, `PasskeyExecutor` over `androidx.credentials`, `RegistryClient` over
+`HttpURLConnection`, `AccountStore` over DataStore, and the eighteen-operation
+`OnboardingExecutor` + seven-operation `SessionExecutor`. `feature/onboarding/flow/` is
+the v2 journey: `FlowShell` + Name / Keys / Progress / Retry / Done, each rendering
+`CreateView` and nothing else.
+
+**The spec-014 presentation types are deleted, not adapted.** `CreatePanelState`,
+`LoginPanelState`, `OutcomeSpec` and their `CreatePanel`/`LoginPanel` renderers were a
+second model of one flow — and the gallery drove THEM while the app drove nothing, so a
+fixture could look right in the gallery and wrong in the app with no test able to notice.
+Every fixture now goes through the same `screenFor` the app does.
+
+### The failure contract, and the check the compiler cannot do
+
+The bridge is JSON, so the eighteen-way branch is a `when` over strings rather than the
+desktop's `match` over an enum. `OnboardingExecutorTest` is that check: every operation
+name must produce a failure variant, and an unknown one must throw rather than answer.
+An operation with no failure variant leaves the core waiting forever, which presents as a
+spinner that never stops and no error anywhere.
+
+### Gates
+
+| Gate | Result |
+| --- | --- |
+| `./gradlew :app:testDebugUnitTest` | **64 passed, 0 failed** |
+| `./gradlew :app:assembleDebug` | green |
+| `DesignTokenDriftTest` | green (inside the suite) |
+| T117 — `assetlinks.json` | **verified live**: `200`, lists `app.getvela.wallet` with `delegate_permission/common.get_login_creds` and three SHA-256 fingerprints, one of which is this host's debug keystore (`24:EA:D0:…:4A:B0`) |
+
+Android tests went 51 → 64.
+
+### The build environment, twice
+
+`./gradlew` picked up a JRE from a VS Code extension and failed on a missing `jlink`;
+every command here runs with `JAVA_HOME` pinned to the JDK 17 install and
+`--no-configuration-cache` (AGP 9 cannot serialize `JdkImageInput`). Worth knowing before
+the next person spends twenty minutes on it.
+
+### Three bugs a real Android found
+
+The emulator run is in this feature's second Android commit; in short:
+
+1. **`UnsatisfiedLinkError` at launch.** The packaged `.so` predated the three
+   `registry_*` uniffi functions while the generated Kotlin already called them.
+   `-PvelaSkipRustBuild` is what let the bindings and the binary drift a whole feature
+   apart. The same drift then appeared on iOS an hour later — see the deviations file.
+2. **A link that looked tappable and was not.** The two policy phrases inside the consent
+   sentence were accent-coloured, on a row whose entire area is the checkbox's touch
+   target. Emphasis now, with the real links on a line of their own.
+3. **System back left the app** from an open gallery fixture instead of returning to the
+   list.
+
+### What the emulator DID prove
+
+- The WebAuthn JSON this client builds is accepted by the real Credential Manager, and
+  the wallet name reaches the system sheet.
+- `setting_up_identity` renders as the Name screen's status line, not as a progress
+  screen — `data-model §3`, confirmed by eye.
+- **Cancelling the system passkey sheet lands back on the Name screen with the form
+  intact and a quiet "设置已取消。"** — the v2 behaviour spec 014 drew as a modal, and the
+  single most-taken failure path in the whole flow.
+- Every gallery fixture renders, in `zh` and in `ru`.
+
+What it could not prove: a completed registration. The emulator has no enrolled passkey
+provider, so Credential Manager offers only the hybrid QR path. See deviations §9.
+
+---
+
+## Phase 8 — iOS (T125–T142)
+
+### What shipped
+
+The same shape as Android in Swift: `Features/Onboarding/Core/` (driver, passkey,
+registry, store, both executors, the app-resident `SessionController`) and the five v2
+screens in `CreatePanel.swift`. The 014 presentation types are deleted here too; two
+fragments survived because both are genuinely the shell's — `ActionId` (two cases, routing
+an inline link tap) and `TechDetails`.
+
+`I18nKeys.swift` (T137) ends iOS being the one client with no centralised key file. It was
+tolerable at six inline literals and stops being tolerable at the ~100 this feature needs:
+a typo now fails to compile instead of rendering its own key path at a person, and the
+audit can find every key by reading one file.
+
+### T125 — the deployment target, and why both halves move together
+
+`ASAuthorizationPlatformPublicKeyCredentialProvider`'s `excludedCredentials` landed in
+17.4, and a founding key set cannot be built without it: registering a second passkey with
+no exclude list lets the provider silently REPLACE the first, and the Safe address depends
+on every key in the set — so the wallet would derive to an address nothing can deploy.
+`IPHONEOS_DEPLOYMENT_TARGET` (4 sites) and `Package.swift` moved together; a package
+allowing 17.0 while the app requires 17.4 compiles and then fails to link on the older
+runtime it claimed to support.
+
+### T138 found a blocker rather than confirming one
+
+`VelaWallet.entitlements` was an **empty dict**. Without
+`com.apple.developer.associated-domains` the passkey provider refuses every ceremony for
+`getvela.app` — the entire feature inert on a device, while building and passing tests
+perfectly. The other half was already live and correct:
+
+```
+GET https://getvela.app/.well-known/apple-app-site-association  → 200, application/json
+{"webcredentials":{"apps":["F9W689P9NE.app.getvela.VelaWallet", …]}, "applinks":{…}}
+```
+
+and `PRODUCT_BUNDLE_IDENTIFIER` / `DEVELOPMENT_TEAM` match it exactly. Both halves are in
+place now.
+
+### Gates
+
+| Gate | Result |
+| --- | --- |
+| `node scripts/gen-tokens.mjs --check` | tokens in sync |
+| `node scripts/audit-literals.mjs` | clean, 71 files |
+| `xcodebuild … build test` | **BUILD SUCCEEDED · TEST SUCCEEDED — 107 passed, 0 failed** |
+
+iOS tests went 84 → 107.
+
+### T142 — not verified by eye
+
+The app builds, installs, launches and stays alive on the iOS 26.2 simulator (PID alive
+under `launchctl`, no crash report), and the 107 tests run inside that simulator. The
+simulator's **display never rendered** on this host: `simctl io screenshot` returned the
+springboard across a SpringBoard restart and a full device erase. **Every iOS screen is
+therefore unverified visually.** No physical iPhone was available either.
+
+---
+
+## Phase 9 — Polish & cross-cutting (T145–T151)
+
+### T145 — cross-client address agreement, done differently and more strongly
+
+The task asks for a multi-key wallet created on one client and signed into on the other
+three. The property behind SC-003 is not really about four devices: all four clients derive
+the address by calling `compute_safe_address_multi` in `vela-core`, so what has to agree is
+the four SURFACES that one function is reached through. Four people with four phones would
+be testing the same function four times and calling it evidence.
+
+The golden multi-key Safe is now pinned in all four, from the same three parallel-space
+fixture keys:
+
+| Surface | Address |
+| --- | --- |
+| Rust — `app-desktop` links `vela-core` directly | `0x88cCA0EeDbF2C4426110bbFc998F048689266894` |
+| wasm — `app-web`, browser extension | same (`src/__tests__/services/passkey-fixture.test.ts`) |
+| uniffi Kotlin — `app-android` | same (`rust/harness/kotlin/Harness.kt`, added here) |
+| uniffi Swift — `app-ios` | same (`rust/harness/swift/main.swift`, added here) |
+
+A derivation change is now a conscious edit in four places rather than a silent drift in
+one. The end-to-end walk still wants doing once hardware allows — it would catch a
+*storage* or *wire* divergence this check cannot.
+
+### T146 — the locale sweep
+
+Mechanically, over all **161** onboarding keys the two native clients reference:
+
+> all 15 locales cover every referenced key, none empty, none echoing its own name
+
+By eye, on the Android emulator: `zh` through the live create walkthrough, and `ru` —
+which carries the longest bodies after `de` — through the key list at its 7-key cap and
+the recovery-offer sheet (158 characters, the longest Russian string in the set). Nothing
+overflowed; the "Синхронизирован" badge fits its capsule and both CTAs fit their pills.
+
+### T147 / T148 — the two superseded documents
+
+- `specs/011-crux-onboarding-state/contracts/onboarding-core.md` now carries a supersession
+  header naming what drifted: `index_create_record` / `index_query_record` / `wallet_ref`
+  and a four-variant `CreateStage`, against the shipped eighteen operations and
+  `Form | AddKeys | SyncFailed | Created`. Its title was also no longer true — "↔ Web
+  Shell" was accurate when web was the only runtime that could execute the machines.
+- `specs/014-onboarding-flow-ui/deviations.md` now says which of its items stopped
+  describing shipped UI, item by item — including that the elapsed-ring "unify the sweep"
+  follow-up is moot, because the ring is gone from the create flow entirely.
+
+### T151 — every gate, one last time
+
+| Shell | Gate | Result |
+| --- | --- | --- |
+| core | `cargo test -p vela-core --features crux,i18n-all` | **1,172 passed, 0 failed** |
+| core | `cargo clippy --workspace --all-targets` + `cargo fmt --check` | clean |
+| core | `rust/scripts/smoke-kotlin.sh` | 43,063 conformance + bridge + golden Safe |
+| core | `rust/scripts/smoke-swift.sh` | 43,063 conformance + bridge + golden Safe |
+| desktop | `cargo check` · `clippy -D warnings` · `fmt --check` · `cargo test` | clean · clean · clean · **66 passed** |
+| web (`app-web`) | `svelte-check` | **650 files, 0 errors, 0 warnings** |
+| web (repo root) | `npx tsc --noEmit` · `npx jest` | exit 0 · **196 suites, 2,498 passed, 1 skipped** |
+| Android | `:app:testDebugUnitTest` · `:app:assembleDebug` | **64 passed, 0 failed** · green |
+| iOS | `gen-tokens --check` · `audit-literals` · `xcodebuild build test` | in sync · clean · **107 passed, 0 failed** |
+
+Test counts across the feature: core 1,116 → 1,172 · desktop 37 → 66 · Android 51 → 64 ·
+iOS 84 → 107.
+
+### What is left
+
+`deviations.md` §9 is the honest list. In one line: **no create has been completed end to
+end on real hardware on any client.** Desktop reached sign-in on a security key (Phase 5);
+Android reached the real Credential Manager sheet and the cancel-recovery path on an
+emulator with no passkey provider; iOS ran and was never seen. Everything that can be
+checked without a finger on an authenticator has been.

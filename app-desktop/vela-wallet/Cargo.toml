@@ -98,7 +98,18 @@ hidapi = { version = "2.6", default-features = false, features = [
 # store and behaves identically on the three desktops. `json` is ureq's
 # serde_json integration — the same serde_json the shell already needs for the
 # account file.
-ureq = { version = "3.4", features = ["json", "socks-proxy"] }
+#
+# `win-system-proxy` makes `Proxy::try_from_env()` also read the WinINET
+# registry keys, which is where a Windows proxy is actually configured — the
+# environment variables this crate otherwise relies on are a shell convention,
+# and a GUI process started from the Start menu has none of them. The Linux
+# half of the same problem is `executor/proxy.rs`, which reads GNOME's setting;
+# macOS needs neither, because a system proxy there sits in the network stack.
+ureq = { version = "3.4", features = [
+    "json",
+    "socks-proxy",
+    "win-system-proxy",
+] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

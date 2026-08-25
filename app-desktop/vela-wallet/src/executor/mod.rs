@@ -28,6 +28,7 @@
 //! is why [`Performed`] exists.
 
 pub mod passkey;
+pub mod proxy;
 pub mod registry;
 pub mod storage;
 

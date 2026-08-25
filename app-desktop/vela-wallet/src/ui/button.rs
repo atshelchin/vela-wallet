@@ -3,10 +3,31 @@
 //! i18n (spec 007 FR-009).
 
 use crate::theme::{self, BTN_H_PRIMARY, BTN_H_SECONDARY, OPACITY_DISABLED, Theme};
+use crate::ui::spinner;
 use gpui::{
-    App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, ParentElement, SharedString,
-    Stateful, StatefulInteractiveElement, Styled, Window, div, px,
+    AnyElement, App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, IntoElement,
+    ParentElement, SharedString, Stateful, StatefulInteractiveElement, Styled, Window, div, px,
 };
+
+/// What the button is doing, which is three things and not two.
+///
+/// `Busy` is NOT `Disabled`: the action is running and this button is what the
+/// person is waiting on. It keeps full emphasis and turns a spinner where its
+/// label was, because a dimmed control reads as "unavailable" — the one thing
+/// "working" must never look like (DESIGN_SYSTEM.md, "Loading state").
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ButtonState {
+    Enabled,
+    Disabled,
+    Busy,
+}
+
+impl ButtonState {
+    /// The two-state callers' spelling.
+    pub fn from_enabled(enabled: bool) -> Self {
+        if enabled { Self::Enabled } else { Self::Disabled }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ButtonVariant {
@@ -48,6 +69,25 @@ pub fn vela_button_opts(
     theme: &Theme,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
+    vela_button_state(
+        id,
+        variant,
+        label,
+        ButtonState::from_enabled(enabled),
+        theme,
+        on_click,
+    )
+}
+
+/// `vela_button_opts` over the full three-state vocabulary.
+pub fn vela_button_state(
+    id: impl Into<ElementId>,
+    variant: ButtonVariant,
+    label: SharedString,
+    state: ButtonState,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
     let height = match variant {
         ButtonVariant::Primary => BTN_H_PRIMARY,
         ButtonVariant::Secondary | ButtonVariant::Row => BTN_H_SECONDARY,
@@ -70,7 +110,7 @@ pub fn vela_button_opts(
         .text_size(theme::text_cta())
         .font_weight(FontWeight::BOLD);
 
-    finish(base, variant, label_block, enabled, theme, on_click)
+    finish(base, variant, label_block, state, theme, on_click)
 }
 
 /// The v2 welcome pair (design/onboarding-new): the same rectangle as every
@@ -84,6 +124,25 @@ pub fn welcome_cta(
     variant: ButtonVariant,
     label: SharedString,
     enabled: bool,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    welcome_cta_state(
+        id,
+        variant,
+        label,
+        ButtonState::from_enabled(enabled),
+        theme,
+        on_click,
+    )
+}
+
+/// `welcome_cta` over the full three-state vocabulary.
+pub fn welcome_cta_state(
+    id: impl Into<ElementId>,
+    variant: ButtonVariant,
+    label: SharedString,
+    state: ButtonState,
     theme: &Theme,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
@@ -102,7 +161,7 @@ pub fn welcome_cta(
         .text_size(theme::text_cta())
         .font_weight(FontWeight::BOLD);
 
-    finish(base, variant, label_block, enabled, theme, on_click)
+    finish(base, variant, label_block, state, theme, on_click)
 }
 
 /// The part every button shape shares: the variant's fill, its hover/active
@@ -111,11 +170,11 @@ fn finish(
     base: Stateful<Div>,
     variant: ButtonVariant,
     label_block: Div,
-    enabled: bool,
+    state: ButtonState,
     theme: &Theme,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
-    if !enabled {
+    if state == ButtonState::Disabled {
         let styled = match variant {
             ButtonVariant::Primary => base.bg(theme.accent).text_color(theme.fg_inverse),
             ButtonVariant::Secondary => base
@@ -125,6 +184,28 @@ fn finish(
             ButtonVariant::Row => base.bg(theme.bg_well).text_color(theme.fg_base),
         };
         return styled.opacity(OPACITY_DISABLED).child(label_block);
+    }
+
+    // Busy: the fill at full strength, the label swapped for the turning arc,
+    // and no click handler — a second press cannot start the work twice.
+    if state == ButtonState::Busy {
+        let (styled, arc) = match variant {
+            ButtonVariant::Primary => (
+                base.bg(theme.accent).text_color(theme.fg_inverse),
+                theme.fg_inverse,
+            ),
+            ButtonVariant::Secondary => (
+                base.text_color(theme.fg_base)
+                    .border_1()
+                    .border_color(theme.divider),
+                theme.fg_base,
+            ),
+            ButtonVariant::Row => (
+                base.bg(theme.bg_well).text_color(theme.fg_base),
+                theme.fg_base,
+            ),
+        };
+        return styled.child(busy_arc(arc));
     }
 
     let styled = match variant {
@@ -161,4 +242,18 @@ fn finish(
         .cursor_pointer()
         .child(label_block)
         .on_click(on_click)
+}
+
+/// The busy spinner, sized to stand where the label stood.
+fn busy_arc(color: gpui::Hsla) -> AnyElement {
+    div()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(spinner::spinner(
+            color,
+            px(theme::BTN_SPINNER),
+            px(theme::SPINNER_STROKE),
+        ))
+        .into_any_element()
 }

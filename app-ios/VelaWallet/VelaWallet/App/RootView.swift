@@ -231,7 +231,7 @@ struct RootView: View {
                 }
             )
         } else {
-            WelcomeScreen(model: model)
+            WelcomeScreen(model: model, signingIn: onboarding.loginView.busy)
         }
     }
 

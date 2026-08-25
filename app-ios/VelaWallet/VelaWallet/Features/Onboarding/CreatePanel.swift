@@ -158,7 +158,8 @@ struct NameScreen: View {
             VelaButton(
                 title: loc.t(submitLabelToI18n(view.submitLabel)),
                 kind: .primary,
-                enabled: view.canSubmit && !view.busy,
+                enabled: view.canSubmit,
+                loading: view.busy,
                 action: onSubmit
             )
 
@@ -311,7 +312,8 @@ struct KeysScreen: View {
                     ? I18nKeys.Create.addSecondKeyBtn
                     : I18nKeys.Create.createWalletBtn),
                 kind: .primary,
-                enabled: view.canFinish && !view.busy,
+                enabled: view.canFinish,
+                loading: view.busy,
                 action: onFinish
             )
         }
@@ -559,7 +561,7 @@ struct RetryScreen: View {
                 VelaButton(
                     title: loc.t(I18nKeys.Create.retryUploadBtn),
                     kind: .primary,
-                    enabled: !busy,
+                    loading: busy,
                     action: onRetry
                 )
                 VelaButton(

@@ -14,24 +14,52 @@
 		/** Renders an <a> when set (and not disabled), else a <button>. */
 		href?: string;
 		disabled?: boolean;
+		/**
+		 * The action is running and this button is what the person is waiting
+		 * on. Deliberately not the same as `disabled`: a dimmed button reads as
+		 * "unavailable", which is the one thing "working" must never look like.
+		 * The button keeps full emphasis, holds its size, and turns a spinner
+		 * where its label was (DESIGN_SYSTEM.md — "Loading state:
+		 * ActivityIndicator replacing text").
+		 */
+		loading?: boolean;
 		onclick?: () => void;
 		children: Snippet;
 	}
 
-	let { variant, shape = 'pill', href, disabled = false, onclick, children }: Props = $props();
+	let {
+		variant,
+		shape = 'pill',
+		href,
+		disabled = false,
+		loading = false,
+		onclick,
+		children
+	}: Props = $props();
 </script>
 
-{#if href !== undefined && !disabled}
+{#if href !== undefined && !disabled && !loading}
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- generic component; callers pass resolve()d paths -->
 	<a class="button {variant} {shape}" {href}>{@render children()}</a>
 {:else}
-	<button class="button {variant} {shape}" {disabled} {onclick} type="button">
-		{@render children()}
+	<button
+		class="button {variant} {shape}"
+		class:loading
+		disabled={disabled || loading}
+		aria-busy={loading}
+		{onclick}
+		type="button"
+	>
+		<!-- Hidden rather than removed: the label goes on holding the button's
+		     width and height, so the spinner's arrival reflows nothing. -->
+		<span class="label">{@render children()}</span>
+		{#if loading}<span class="spinner" aria-hidden="true"></span>{/if}
 	</button>
 {/if}
 
 <style>
 	.button {
+		position: relative;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
@@ -75,6 +103,49 @@
 	.button:disabled {
 		opacity: var(--opacity-disabled);
 		cursor: default;
+	}
+
+	/* Busy is not disabled: full emphasis, no pointer invitation. */
+	.button.loading:disabled {
+		opacity: 1;
+		cursor: default;
+	}
+
+	.button.loading .label {
+		visibility: hidden;
+	}
+
+	.spinner {
+		position: absolute;
+		width: 1.15em;
+		height: 1.15em;
+		border: var(--border-emphasis) solid currentColor;
+		border-top-color: transparent;
+		border-radius: var(--radius-full);
+		/* One revolution, slower than any transition in the system: this is a
+		   wait, not a state change (the desktop spinner's 800ms, same reason). */
+		animation: spin 800ms linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(1turn);
+		}
+	}
+
+	@keyframes pulse {
+		50% {
+			opacity: 1;
+		}
+	}
+
+	/* Still an answer to "is anything happening", without the rotation. */
+	@media (prefers-reduced-motion: reduce) {
+		.spinner {
+			border-top-color: currentColor;
+			opacity: var(--opacity-dim);
+			animation: pulse 1.2s ease-in-out infinite;
+		}
 	}
 
 	.primary {

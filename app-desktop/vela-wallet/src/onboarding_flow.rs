@@ -35,7 +35,10 @@ use crate::loc::Loc;
 use crate::theme::{
     self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD, Theme,
 };
-use crate::ui::{ButtonVariant, NameFieldStrings, ack_row, name_field, spinner, vela_button_opts};
+use crate::ui::{
+    ButtonState, ButtonVariant, NameFieldStrings, ack_row, name_field, spinner, vela_button_opts,
+    vela_button_state,
+};
 use crate::wallet::components::identicon_avatar;
 
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
@@ -336,6 +339,21 @@ fn caption(theme: &Theme, text: SharedString) -> Div {
         .child(text)
 }
 
+/// A flow CTA's three states, out of the core's two flags.
+///
+/// `busy` wins: the machine is working on what this button started, so the
+/// button says so rather than dimming as if the action had become unavailable.
+/// Some of these waits swap the whole screen for the progress list, and some
+/// (a passkey prompt that has not opened yet) do not — this covers the second
+/// kind, which used to be a dimmed button and nothing else.
+fn submit_state(can_submit: bool, busy: bool) -> ButtonState {
+    if busy {
+        ButtonState::Busy
+    } else {
+        ButtonState::from_enabled(can_submit)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Name
 // ---------------------------------------------------------------------------
@@ -477,11 +495,11 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         SubmitLabel::FinishVerify => "onboarding.create.finishVerifyBtn",
     };
     let sink_submit = host.sink.clone();
-    bottom = bottom.child(vela_button_opts(
+    bottom = bottom.child(vela_button_state(
         "flow-submit",
         ButtonVariant::Primary,
         loc.t(submit_key),
-        view.can_submit && !view.busy,
+        submit_state(view.can_submit, view.busy),
         theme,
         move |_, window, cx| sink_submit(FlowEvent::Submit, window, cx),
     ));
@@ -662,11 +680,11 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
         loc.t("onboarding.create.createWalletBtn")
     };
     let sink_finish = host.sink.clone();
-    column.child(vela_button_opts(
+    column.child(vela_button_state(
         "flow-finish",
         ButtonVariant::Primary,
         finish_label,
-        view.can_finish && !view.busy,
+        submit_state(view.can_finish, view.busy),
         theme,
         move |_, window, cx| sink_finish(FlowEvent::FinishKeys, window, cx),
     ))
@@ -1019,11 +1037,12 @@ fn render_retry(host: &FlowHost<'_>) -> Div {
     let sink_over = host.sink.clone();
     column
         .child(bottom_spacer())
-        .child(vela_button_opts(
+        // The retry carries the wait; the way out beside it only closes.
+        .child(vela_button_state(
             "flow-retry-upload",
             ButtonVariant::Primary,
             loc.t("onboarding.create.retryUploadBtn"),
-            !view.busy,
+            submit_state(true, view.busy),
             theme,
             move |_, window, cx| sink_retry(FlowEvent::RetryUpload, window, cx),
         ))

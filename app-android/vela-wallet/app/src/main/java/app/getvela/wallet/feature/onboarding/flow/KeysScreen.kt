@@ -229,7 +229,8 @@ fun ColumnScope.KeysScreen(
             if (needsSecondKey) I18nKeys.Create.ADD_SECOND_KEY_BTN else I18nKeys.Create.CREATE_WALLET_BTN,
         ),
         onClick = onFinish,
-        enabled = canFinish && !busy,
+        enabled = canFinish,
+        loading = busy,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(modifier = Modifier.height(VelaSpacing.xl))

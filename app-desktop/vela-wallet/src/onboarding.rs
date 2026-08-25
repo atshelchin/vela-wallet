@@ -51,8 +51,8 @@ use crate::theme::{
     WELCOME_PAD_BOTTOM, WELCOME_PAD_TOP, WELCOME_PAD_X,
 };
 use crate::ui::{
-    ButtonVariant, LaunchAnimation, NameFieldStrings, text_field, vela_button, vela_mark,
-    vela_wordmark, welcome_cta,
+    ButtonState, ButtonVariant, LaunchAnimation, NameFieldStrings, text_field, vela_button,
+    vela_mark, vela_wordmark, welcome_cta, welcome_cta_state,
 };
 use crate::window_frame::{
     CAPTION_H, FRAME_SHADOW, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
@@ -607,15 +607,23 @@ impl OnboardingPage {
                 "create-wallet",
                 ButtonVariant::Primary,
                 self.t("createWallet"),
-                true,
+                !self.login_view.busy,
                 theme,
                 cx.listener(|this, _, _, cx| this.start_create(cx)),
             ))
-            .child(welcome_cta(
+            // Signing in has no screen of its own — the system passkey prompt
+            // is the next thing the person sees, and it does not arrive in the
+            // same frame as the press — so this button IS the progress
+            // indicator for that wait.
+            .child(welcome_cta_state(
                 "already-have-wallet",
                 ButtonVariant::Secondary,
                 self.t("alreadyHaveWallet"),
-                !self.login_view.busy,
+                if self.login_view.busy {
+                    ButtonState::Busy
+                } else {
+                    ButtonState::Enabled
+                },
                 theme,
                 cx.listener(|this, _, _, cx| this.sign_in(cx)),
             ));

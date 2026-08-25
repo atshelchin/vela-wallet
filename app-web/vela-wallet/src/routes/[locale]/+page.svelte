@@ -49,7 +49,18 @@
 	let login: LoginSession | null = null;
 	let pending = $state<{ copy: PromptCopy; resolve: (accepted: boolean) => void } | null>(null);
 
-	const signingIn = $derived(loginView?.busy ?? false);
+	/**
+	 * The press has been accepted but the core is not up yet.
+	 *
+	 * `loginView.busy` cannot cover this window: the view does not exist until
+	 * the 3.4 MB wasm has been fetched and the machine constructed, so the
+	 * SLOWEST part of signing in was also the only part with no feedback at all
+	 * — and the guard below could not hold, which let a second press build a
+	 * second login session.
+	 */
+	let starting = $state(false);
+
+	const signingIn = $derived(starting || (loginView?.busy ?? false));
 
 	/**
 	 * The registry is unreachable. Sign-in stays attemptable — the core decides
@@ -75,15 +86,22 @@
 	 */
 	async function signIn() {
 		if (signingIn) return;
-		if (!login) {
-			await loadOnboardingCore();
-			login = createLoginSession({
-				onView: (next) => (loginView = next),
-				deps: { prompt, complete }
-			});
-			login.start({ type: 'start' });
+		starting = true;
+		try {
+			if (!login) {
+				await loadOnboardingCore();
+				login = createLoginSession({
+					onView: (next) => (loginView = next),
+					deps: { prompt, complete }
+				});
+				login.start({ type: 'start' });
+			}
+			login.dispatch({ type: 'sign_in' });
+		} finally {
+			// Handed over to `loginView.busy` — or released, if the core never
+			// came up, so the button can be pressed again.
+			starting = false;
 		}
-		login.dispatch({ type: 'sign_in' });
 	}
 
 	onMount(() => () => {
@@ -117,10 +135,10 @@
 		</div>
 
 		<div class="actions">
-			<Button variant="primary" shape="rounded" href={createHref}>
+			<Button variant="primary" shape="rounded" disabled={signingIn} href={createHref}>
 				{m.createWallet}
 			</Button>
-			<Button variant="secondary" shape="rounded" disabled={signingIn} onclick={signIn}>
+			<Button variant="secondary" shape="rounded" loading={signingIn} onclick={signIn}>
 				{m.alreadyHaveWallet}
 			</Button>
 		</div>

@@ -155,7 +155,7 @@
 
 	<p class="footnote">{strings('onboarding.create.keysHint')}</p>
 
-	<Button variant="primary" shape="rounded" disabled={!canFinish || busy} onclick={onFinish}>
+	<Button variant="primary" shape="rounded" disabled={!canFinish} loading={busy} onclick={onFinish}>
 		{needsSecondKey
 			? strings('onboarding.create.addSecondKeyBtn')
 			: strings('onboarding.create.createWalletBtn')}

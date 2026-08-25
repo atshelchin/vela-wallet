@@ -111,7 +111,7 @@
 		<p class="status" aria-live="polite">{statusText}</p>
 	{/if}
 
-	<Button variant="primary" shape="rounded" disabled={!canSubmit || busy} onclick={onSubmit}
+	<Button variant="primary" shape="rounded" disabled={!canSubmit} loading={busy} onclick={onSubmit}
 		>{submitLabel}</Button
 	>
 

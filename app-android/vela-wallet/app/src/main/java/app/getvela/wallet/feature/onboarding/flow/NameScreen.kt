@@ -166,7 +166,8 @@ fun ColumnScope.NameScreen(
     VelaPrimaryButton(
         text = submitLabel,
         onClick = onSubmit,
-        enabled = canSubmit && !busy,
+        enabled = canSubmit,
+        loading = busy,
         modifier = Modifier.fillMaxWidth(),
     )
 

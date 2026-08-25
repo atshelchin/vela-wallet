@@ -59,9 +59,12 @@ import app.getvela.wallet.core.i18n.LocalVelaStrings
  * full-screen journey; 我已有钱包 dispatches straight into the login machine —
  * the system passkey sheet is the next thing the person sees, so an
  * intermediate screen of our own would be a screen with nothing on it.
- * [signingIn] is the core's `busy`, and it disables the button rather than
- * hiding it: a control that vanishes while a system dialog is up reads as the
- * app having crashed behind it.
+ * [signingIn] is the core's `busy`. The button neither hides nor dims: it turns
+ * a spinner in place of its label and stays at full emphasis. A control that
+ * vanished while a system dialog was up would read as the app having crashed
+ * behind it, and a dimmed one reads as unavailable — which is the one thing
+ * "working" must never look like. The passkey sheet is not instant, so this
+ * button IS the progress indicator for the wait in front of it.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -180,7 +183,7 @@ fun WelcomeScreen(
                 VelaSecondaryButton(
                     text = strings.t(I18nKeys.Welcome.ALREADY_HAVE_WALLET),
                     onClick = { onIntent(OnboardingIntent.RecoverWallet) },
-                    enabled = !signingIn,
+                    loading = signingIn,
                 )
                 Spacer(modifier = Modifier.height(VelaSpacing.xl))
             }

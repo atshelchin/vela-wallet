@@ -492,6 +492,10 @@ pub const OPACITY_DISABLED: f32 = 0.45;
 /// The task spinner's stroke — the emphasis border weight, which is what a
 /// 16px arc needs to read as a ring rather than as a hair.
 pub const SPINNER_STROKE: f32 = 2.;
+/// The spinner a BUSY button turns in place of its label. A notch over the
+/// 15px CTA text, so it occupies the label's optical weight rather than
+/// looking like a dropped full stop.
+pub const BTN_SPINNER: f32 = 18.;
 /// Hairline rules (scaffold and outcome dividers).
 pub const HAIRLINE: f32 = 1.;
 /// The scaffold's close × hit target.

@@ -30,6 +30,7 @@ import app.getvela.wallet.feature.wallet.components.EmptyState
 import app.getvela.wallet.feature.wallet.components.SectionHeader
 import app.getvela.wallet.feature.wallet.components.SkeletonActivityRow
 import app.getvela.wallet.feature.wallet.components.SkeletonAssetRow
+import app.getvela.wallet.feature.wallet.components.VelaTab
 import app.getvela.wallet.feature.wallet.components.VelaTabBar
 import app.getvela.wallet.feature.wallet.components.WalletHeaderRow
 import app.getvela.wallet.feature.wallet.components.BalanceDisplay
@@ -44,6 +45,19 @@ fun WalletScreen(
     model: WalletHomeModel,
     modifier: Modifier = Modifier,
     onPillClick: () -> Unit = {},
+    /**
+     * The Settings tab (spec 019).
+     *
+     * The tab has existed since spec 015 with an `onSelect` hook nothing used.
+     * It is the way back OUT of a signed-in wallet now — because wiring a route
+     * guard without wiring its exit produces an app you cannot leave, which is
+     * what the founder hit on iOS within a minute of the first successful
+     * create, and what Phase 5 had already hit on desktop.
+     *
+     * ⚠ Sign-out is currently the ONLY thing behind it. A real settings screen
+     * is a later feature; an unreachable wallet is not something to wait for it.
+     */
+    onSelectTab: (VelaTab) -> Unit = {},
     onSheetDismiss: () -> Unit = {},
 ) {
     if (model.textScale != 1f) {
@@ -51,10 +65,10 @@ fun WalletScreen(
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, density.fontScale * model.textScale),
         ) {
-            WalletHomeContent(model, modifier, onPillClick)
+            WalletHomeContent(model, modifier, onPillClick, onSelectTab)
         }
     } else {
-        WalletHomeContent(model, modifier, onPillClick)
+        WalletHomeContent(model, modifier, onPillClick, onSelectTab)
     }
 
     model.sheet?.let { sheet ->
@@ -67,6 +81,19 @@ private fun WalletHomeContent(
     model: WalletHomeModel,
     modifier: Modifier = Modifier,
     onPillClick: () -> Unit = {},
+    /**
+     * The Settings tab (spec 019).
+     *
+     * The tab has existed since spec 015 with an `onSelect` hook nothing used.
+     * It is the way back OUT of a signed-in wallet now — because wiring a route
+     * guard without wiring its exit produces an app you cannot leave, which is
+     * what the founder hit on iOS within a minute of the first successful
+     * create, and what Phase 5 had already hit on desktop.
+     *
+     * ⚠ Sign-out is currently the ONLY thing behind it. A real settings screen
+     * is a later feature; an unreachable wallet is not something to wait for it.
+     */
+    onSelectTab: (VelaTab) -> Unit = {},
 ) {
     val colors = VelaTheme.colors
     Box(
@@ -140,6 +167,7 @@ private fun WalletHomeContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding(),
+                onSelect = onSelectTab,
             )
         }
     }

@@ -209,5 +209,19 @@ extension OnboardingModel: OnboardingExecutorDeps {
         // machine's ruling, not this model's.
         session.accountEstablished(mode: mode)
         finished = true
+
+        // A FINISHED machine is not a BUSY one.
+        //
+        // `login.rs` parks in `Stage::Completing` forever after a successful
+        // sign-in — deliberately, because it is done and will never act again —
+        // and `busy` is derived as `stage != Idle`, so it reads `true` from then
+        // on. Welcome renders that as a disabled "I already have a wallet".
+        //
+        // Device-found 2026-08-25 on Android: sign in, sign out, and BOTH
+        // Welcome buttons are dead — the one-way door replaced by a dead end.
+        // The machine is right; rendering "done" as "working" was the bug.
+        loginView = .idle
+        login?.dispose()
+        login = nil
     }
 }

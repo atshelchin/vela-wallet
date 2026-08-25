@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -73,6 +74,13 @@ fun FlowShell(
             .fillMaxSize()
             .background(colors.bgBase)
             .safeDrawingPadding()
+            // Device-found 2026-08-25 (Galaxy S22): with the keyboard up, the
+            // scrolling region shrinks to whatever is left and its LAST row —
+            // the policy links — was clipped hard against the pinned CTA, so the
+            // glyphs were cut in half. `imePadding` on top of `safeDrawingPadding`
+            // is what keeps the two apart; the manifest already asks for
+            // adjustResize, which is necessary and was not sufficient.
+            .imePadding()
             .padding(horizontal = VelaSizing.screenPaddingX),
     ) {
         Row(

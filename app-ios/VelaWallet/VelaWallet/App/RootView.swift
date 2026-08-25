@@ -181,6 +181,21 @@ struct RootView: View {
                 )
                 .themed(scheme)
             }
+            // The way back out of a signed-in wallet.
+            //
+            // Rendered from `session.view.signOut`, which is non-null only after
+            // the machine has ASKED STORAGE whether any public key is still
+            // unconfirmed — so the warning inside is an answer rather than this
+            // screen's guess, and the sheet cannot open before there is one.
+            .sheet(item: signOutSheet) { sheet in
+                SignOutSheet(
+                    loc: loc,
+                    pendingUploadWarning: sheet.pendingUploadWarning,
+                    onConfirm: { session.signOutConfirmed() },
+                    onDismiss: { session.signOutDismissed() }
+                )
+                .themed(scheme)
+            }
             .sheet(isPresented: endpointSheet) {
                 EndpointSheet(
                     loc: loc,
@@ -206,7 +221,14 @@ struct RootView: View {
             WalletScreen(
                 model: WalletFixtures
                     .buildMobileState(.h1, loc: loc)
-                    .withAddress(session.view.address)
+                    .withAddress(session.view.address),
+                onSelectTab: { tab in
+                    // Sign-out is the only thing behind Settings today. The
+                    // other three tabs stay on this screen rather than
+                    // navigating to fixtures a signed-in person would read as
+                    // their real data.
+                    if tab == .settings { session.signOut() }
+                }
             )
         } else {
             WelcomeScreen(model: model)
@@ -215,6 +237,13 @@ struct RootView: View {
 
     private var pendingPrompt: Binding<OnboardingModel.PendingPrompt?> {
         Binding(get: { onboarding.pending }, set: { if $0 == nil { onboarding.answerPrompt(false) } })
+    }
+
+    private var signOutSheet: Binding<SessionSignOutView?> {
+        Binding(
+            get: { session.view.signOut },
+            set: { if $0 == nil { session.signOutDismissed() } }
+        )
     }
 
     private var endpointSheet: Binding<Bool> {

@@ -161,7 +161,10 @@ fun ColumnScope.NameScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(VelaSpacing.xl4))
+        // The scroll region ends here, and the CTA begins immediately below it.
+        // Without this the last row sits flush against the button and reads as
+        // clipped even when it is not.
+        Spacer(modifier = Modifier.height(VelaSpacing.xl5))
     }
 
     VelaPrimaryButton(

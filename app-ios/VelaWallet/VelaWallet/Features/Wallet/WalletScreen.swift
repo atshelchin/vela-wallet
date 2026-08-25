@@ -15,6 +15,17 @@ struct WalletScreen: View {
     @Environment(\.theme) private var theme
 
     let model: WalletHomeModel
+    /// The Settings tab (spec 019).
+    ///
+    /// The tab has existed since spec 015 with an `onSelect` hook nothing used.
+    /// It is the way back OUT of a signed-in wallet now — because wiring a route
+    /// guard without wiring its exit produces an app you cannot leave, which is
+    /// what the founder hit here within a minute of the first successful create,
+    /// and what Phase 5 had already hit on desktop.
+    ///
+    /// ⚠ Sign-out is currently the ONLY thing behind it. A real settings screen
+    /// is a later feature; an unreachable wallet is not something to wait for it.
+    var onSelectTab: (WalletTab) -> Void = { _ in }
     @State private var sheetShown = false
 
     var body: some View {
@@ -35,7 +46,7 @@ struct WalletScreen: View {
                 .padding(.horizontal, Tokens.Layout.screenPaddingX)
                 .padding(.bottom, Tokens.Space.s24)
             }
-            WalletTabBar(tabs: model.tabs)
+            WalletTabBar(tabs: model.tabs, onSelect: onSelectTab)
         }
         .background(theme.bgBase.ignoresSafeArea())
         .environment(\.walletTextScale, model.textScale)

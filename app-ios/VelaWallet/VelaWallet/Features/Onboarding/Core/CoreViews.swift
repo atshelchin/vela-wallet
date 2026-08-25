@@ -124,8 +124,14 @@ struct SessionAccountRow: Decodable, Equatable {
 }
 
 /// Present iff the sign-out confirmation dialog is open.
-struct SessionSignOutView: Decodable, Equatable {
+///
+/// `Identifiable` so `.sheet(item:)` can drive off it directly: the sheet's
+/// existence IS this value's existence, and a separate `@State` bool would be a
+/// second source of truth for a fact the core already owns.
+struct SessionSignOutView: Decodable, Equatable, Identifiable {
     let pendingUploadWarning: Bool
+
+    var id: Bool { pendingUploadWarning }
 }
 
 /// `SessionView` — the route guard and the account list.

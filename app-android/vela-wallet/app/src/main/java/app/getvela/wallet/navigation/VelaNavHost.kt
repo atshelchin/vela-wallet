@@ -32,10 +32,12 @@ import app.getvela.wallet.feature.onboarding.core.SessionRoute
 import app.getvela.wallet.feature.onboarding.flow.CreateFlowScreen
 import app.getvela.wallet.feature.onboarding.flow.EndpointSheet
 import app.getvela.wallet.feature.onboarding.flow.FlowSheet
+import app.getvela.wallet.feature.onboarding.flow.SignOutSheet
 import app.getvela.wallet.feature.onboarding.placeholder.ImportPlaceholderScreen
 import app.getvela.wallet.feature.wallet.WalletFixtures
 import app.getvela.wallet.feature.wallet.WalletScreen
 import app.getvela.wallet.feature.wallet.WalletScreenState
+import app.getvela.wallet.feature.wallet.components.VelaTab
 import app.getvela.wallet.feature.wallet.gallery.GalleryScreen
 
 object VelaDestinations {
@@ -109,10 +111,7 @@ fun VelaNavHost(
                         // No screen of our own: the login machine's first act is
                         // the system passkey sheet, and the wallet is what
                         // follows it.
-                        OnboardingIntent.RecoverWallet -> {
-                            onboarding.startLogin()
-                            onboarding.signIn()
-                        }
+                        OnboardingIntent.RecoverWallet -> onboarding.beginSignIn()
                     }
                 },
                 onLongPressLogo = welcome::showSettings,
@@ -158,6 +157,13 @@ fun VelaNavHost(
             WalletScreen(
                 model = model,
                 onPillClick = { sheetOpen = true },
+                onSelectTab = { tab ->
+                    // Sign-out is the only thing behind Settings today. The
+                    // other three tabs stay on this screen rather than
+                    // navigating to fixtures a signed-in person would read as
+                    // their real data.
+                    if (tab == VelaTab.Settings) application.container.session.signOut()
+                },
                 onSheetDismiss = { sheetOpen = false },
             )
         }
@@ -199,6 +205,20 @@ fun VelaNavHost(
             kind = prompt.kind,
             confirmable = prompt.confirmable,
             onAnswer = onboarding::answerPrompt,
+        )
+    }
+
+    // The way back out of a signed-in wallet.
+    //
+    // Rendered from `session.signOut`, which is non-null only after the machine
+    // has ASKED STORAGE whether any public key is still unconfirmed — so the
+    // warning inside is an answer rather than this screen's guess, and the sheet
+    // cannot open before there is one.
+    session.signOut?.let { sheet ->
+        SignOutSheet(
+            pendingUploadWarning = sheet.pendingUploadWarning,
+            onConfirm = { application.container.session.signOutConfirmed() },
+            onDismiss = { application.container.session.signOutDismissed() },
         )
     }
 

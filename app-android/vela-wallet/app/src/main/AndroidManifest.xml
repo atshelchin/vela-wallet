@@ -2,7 +2,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- No permissions: this slice is fully offline (spec FR-012). -->
+    <!--
+      INTERNET (spec 019-onboarding-live-wiring).
+
+      Spec 014's slice was genuinely offline and this file said so. It stopped
+      being true the moment onboarding was wired to the core: `registry_publish`,
+      `registry_query_by_public_key`, `registry_query_unit`, `lookup_legacy_name`
+      and `probe_index_health` all reach p256-index-v2.getvela.app, and the
+      passkey ceremony's provider syncs.
+
+      Device-found 2026-08-25: without it, minting a passkey succeeded and then
+      Confirm failed with "Permission denied (missing INTERNET permission?)" —
+      the worst possible order, because the person already has a credential in
+      their provider by then.
+
+      ACCESS_NETWORK_STATE is deliberately NOT requested. The shell's one job in
+      classifying a failure is `network`: did the request reach the server. That
+      is answered by what the call did, not by what the radio claims — a
+      connectivity check can say "connected" behind a captive portal and "no
+      network" on a working VPN, and either answer would put the wrong sheet in
+      front of somebody.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".VelaWalletApplication"

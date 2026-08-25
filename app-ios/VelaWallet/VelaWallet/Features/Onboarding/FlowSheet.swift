@@ -167,3 +167,81 @@ struct EndpointSheet: View {
         .presentationBackground(theme.bgRaised)
     }
 }
+
+/// The way back out of a signed-in wallet.
+///
+/// **This exists because wiring a route guard without wiring its exit produces
+/// an app you cannot leave.** Spec 019's Phase 5 hit exactly this on desktop —
+/// signing in worked and then stranded the person, because `allowedRoute` sends
+/// a signed-in client to the wallet and nothing anywhere sent it back. The
+/// desktop got a sidebar row; the two phones shipped without one, and the
+/// founder hit the same wall here within a minute of the first successful
+/// create.
+///
+/// Two things here are the core's, not this sheet's:
+///
+/// - **The warning.** `pendingUploadWarning` is the session machine's answer
+///   after it asks storage whether any public key is still unconfirmed — not
+///   this screen's guess. The dialog does not open until the machine has one.
+/// - **What sign-out clears.** The account list and the active index, and
+///   nothing else; contacts, history, tokens and settings belong to the account,
+///   and the account comes back because its address derives from the passkey.
+///
+/// `settings.signOut.desc` is deliberately skipped, as on desktop and Android:
+/// `keeps` says the load-bearing part without the platform-specific tail.
+struct SignOutSheet: View {
+    @Environment(\.theme) private var theme
+    let loc: Loc
+    let pendingUploadWarning: Bool
+    let onConfirm: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s16) {
+            Text(loc.t("settings.signOut.title"))
+                .typeRole(Typography.title)
+                .foregroundStyle(theme.fgBase)
+
+            Text(loc.t("settings.signOut.keeps"))
+                .typeRole(Typography.body)
+                .foregroundStyle(theme.fgMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if pendingUploadWarning {
+                HStack(alignment: .top, spacing: Tokens.Space.s12) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(theme.warningBase)
+                    Text(loc.t("settings.signOut.warning"))
+                        .typeRole(Typography.flowCaption)
+                        .foregroundStyle(theme.fgBase)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            VStack(spacing: Tokens.Space.s12) {
+                // "Sign Out Anyway" when there is something to be anyway ABOUT;
+                // plain "Sign Out" otherwise. Wording the risk into the button
+                // is what makes the warning above more than decoration.
+                VelaButton(
+                    title: loc.t(pendingUploadWarning
+                        ? "settings.signOut.anyway"
+                        : "settings.signOut.button"),
+                    kind: .primary,
+                    action: onConfirm
+                )
+                VelaButton(
+                    title: loc.t("settings.signOut.cancel"),
+                    kind: .secondary,
+                    action: onDismiss
+                )
+            }
+            .padding(.top, Tokens.Space.s16)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Tokens.Layout.screenPaddingX)
+        .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.height(pendingUploadWarning ? 460 : 360)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(theme.bgRaised)
+    }
+}

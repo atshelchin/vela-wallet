@@ -174,6 +174,19 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
     fun signIn() = send(loginDriver, JSONObject().put("type", "sign_in"))
 
+    /**
+     * Start a sign-in, creating the machine if the last one finished.
+     *
+     * [startLogin] is a no-op when a driver already exists, which is what makes
+     * a second tap during a live ceremony harmless — and what would make the
+     * button dead forever after a completed sign-in, if `complete` did not drop
+     * the finished machine.
+     */
+    fun beginSignIn() {
+        startLogin()
+        signIn()
+    }
+
     // -- prompts -------------------------------------------------------------
 
     fun answerPrompt(accepted: Boolean) {
@@ -245,6 +258,21 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                     // ViewModel's.
                     session.accountEstablished(mode)
                     finished = true
+
+                    // A FINISHED machine is not a BUSY one.
+                    //
+                    // `login.rs` parks in `Stage::Completing` forever after a
+                    // successful sign-in — deliberately, because it is done and
+                    // will never act again — and `busy` is derived as
+                    // `stage != Idle`, so it reads `true` from then on. Welcome
+                    // renders that as a disabled 我已有钱包 button.
+                    //
+                    // Device-found 2026-08-25: sign in, sign out, and BOTH
+                    // Welcome buttons are dead — the one-way door replaced by a
+                    // dead end. The machine is right; rendering "done" as
+                    // "working" was the bug.
+                    loginView = LoginView(busy = false, endpointUnreachable = false)
+                    disposeLogin()
                 }
             },
         )

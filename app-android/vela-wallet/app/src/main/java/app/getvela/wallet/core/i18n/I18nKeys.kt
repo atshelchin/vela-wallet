@@ -38,6 +38,20 @@ object I18nKeys {
         const val PASSKEY_HINT = "onboarding.settings.passkeyHint"
         const val RESET_TO_DEFAULT = "onboarding.settings.resetToDefault"
         const val WARNING_TEXT = "onboarding.settings.warningText"
+
+        // --- spec 019: the way back out of a signed-in wallet --------------
+        //
+        // `settings.*`, not `onboarding.settings.*`: sign-out belongs to the
+        // wallet, and the copy already existed in all fifteen locales because
+        // desktop needed it first. `settings.signOut.desc` is deliberately
+        // absent — it ends "your passkey stays in Face ID / fingerprint", which
+        // names the wrong platform's biometric on Android.
+        const val SIGN_OUT_BUTTON = "settings.signOut.button"
+        const val SIGN_OUT_TITLE = "settings.signOut.title"
+        const val SIGN_OUT_KEEPS = "settings.signOut.keeps"
+        const val SIGN_OUT_WARNING = "settings.signOut.warning"
+        const val SIGN_OUT_ANYWAY = "settings.signOut.anyway"
+        const val SIGN_OUT_CANCEL = "settings.signOut.cancel"
     }
 
     object Create {

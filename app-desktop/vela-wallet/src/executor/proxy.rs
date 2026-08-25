@@ -142,18 +142,16 @@ fn desktop_proxy() -> Option<Proxy> {
     // resort rather than the first because an HTTP CONNECT proxy is what the
     // http/https keys describe, and reading a socks port as one would produce a
     // connection that fails in a way nothing here could explain.
-    let (scheme, host, port) = ["https", "http", "socks"]
-        .into_iter()
-        .find_map(|scheme| {
-            let host = gsettings(&format!("org.gnome.system.proxy.{scheme}"), "host")?;
-            let port: u16 = gsettings(&format!("org.gnome.system.proxy.{scheme}"), "port")?
-                .parse()
-                .ok()?;
-            // A host set with the port left at 0 is a half-configured setting,
-            // not an endpoint. Skip to the next scheme rather than build a URI
-            // that cannot connect.
-            (!host.is_empty() && port != 0).then_some((scheme, host, port))
-        })?;
+    let (scheme, host, port) = ["https", "http", "socks"].into_iter().find_map(|scheme| {
+        let host = gsettings(&format!("org.gnome.system.proxy.{scheme}"), "host")?;
+        let port: u16 = gsettings(&format!("org.gnome.system.proxy.{scheme}"), "port")?
+            .parse()
+            .ok()?;
+        // A host set with the port left at 0 is a half-configured setting,
+        // not an endpoint. Skip to the next scheme rather than build a URI
+        // that cannot connect.
+        (!host.is_empty() && port != 0).then_some((scheme, host, port))
+    })?;
 
     let mut builder = Proxy::builder(match scheme {
         // Socks5h, for the reason in the module note: the machine that needs

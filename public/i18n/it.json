@@ -492,7 +492,7 @@
    "featureStablecoinGasTitle": "Paga il gas in stablecoin",
    "featureStablecoinGasBody": "La maggior parte delle reti ti permette di pagare le commissioni in stablecoin — non serve prima avere il token nativo.",
    "heroTitle": "Il wallet Ethereum\nche nessuno può spegnere",
-   "heroSubtitle": "Firma con una passkey. La chiave non lascia mai il tuo dispositivo."
+   "heroSubtitle": "Firma con una passkey. Vela non vede mai la tua chiave."
   },
   "welcomeWeb": {
    "meta": {

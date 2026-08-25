@@ -484,8 +484,9 @@ pub const FLOW_BACK_GAP: f32 = 7.;
 pub const KEY_ROW_PAD_X: f32 = 14.;
 pub const KEY_ROW_PAD_Y: f32 = 12.;
 pub const KEY_ROW_GAP: f32 = 8.;
-/// The tick beside the DONE title.
+/// The tick beside the DONE title, and the identicon inside its card.
 pub const DONE_CHECK: f32 = 34.;
+pub const DONE_AVATAR: f32 = 44.;
 /// Vertical padding of a progress task row, which is separated by a rule
 /// rather than by a gap.
 pub const TASK_ROW_PAD_Y: f32 = 11.;

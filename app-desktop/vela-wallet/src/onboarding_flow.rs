@@ -18,25 +18,26 @@
 //! WITH ITS REASON WRITTEN NEXT TO IT rather than as a press that quietly does
 //! nothing. A person who cannot finish is owed the sentence that says why.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{
     AnyElement, App, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement as _,
-    ParentElement, SharedString, StatefulInteractiveElement as _, Styled, Window, div, px,
-    relative,
+    ParentElement, SharedString, Stateful, StatefulInteractiveElement as _, Styled, Window, div,
+    px, relative,
 };
 
 use vela_core::app::create_wallet::{CreateKeyRow, CreateStage, CreateView, SubmitLabel};
 use vela_core::app::{KeyMethod, StatusKey};
 
+use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::theme::{
     self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD,
     STEP_BAR_H, Theme,
 };
-use crate::ui::{
-    ButtonVariant, NameFieldStrings, ack_row, address_strip, name_field, vela_button_opts,
-};
+use crate::ui::{ButtonVariant, NameFieldStrings, ack_row, name_field, vela_button_opts};
+use crate::wallet::components::identicon_avatar;
 
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
 pub const MAX_KEYS: usize = 7;
@@ -196,6 +197,9 @@ pub struct FlowHost<'a> {
     pub loc: &'a Loc,
     pub view: &'a CreateView,
     pub name_focus: &'a FocusHandle,
+    /// The DONE card's avatar. A `RefCell` because rasterizing needs `&mut`
+    /// and the whole flow renders from a shared `&FlowHost`.
+    pub identicons: &'a RefCell<IdenticonCache>,
     /// The add-method list is expanded.
     pub picker_open: bool,
     /// The Done screen's transient 已复制 feedback.
@@ -220,7 +224,7 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
     // No way back out of a running ceremony: the keys are being frozen, and the
     // only honest control is none.
     let can_leave = screen != Screen::Progress && screen != Screen::Done;
-    let back: AnyElement = if can_leave {
+    let back = if can_leave {
         let on_back = emit(&host.sink, FlowEvent::Back);
         div()
             .id("flow-back")
@@ -242,11 +246,11 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
                     .child("‹"),
             )
             .child(host.loc.t("onboarding.common.back"))
-            .into_any_element()
     } else {
-        // An empty leading cell, so the flow label stays where it was: a row
-        // that re-centres when the affordance disappears reads as a jump.
-        div().into_any_element()
+        // Unreachable: the header this belongs to is not drawn at all when
+        // there is no way back. Kept as an expression rather than an Option so
+        // the row below stays one shape.
+        div().id("flow-back-absent")
     };
 
     let body = match screen {
@@ -260,36 +264,45 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
     // The header is ONE block — back row and step bar bound by 16 — set off
     // from the screen below it by 28. The screen itself is `flex: 1`, so its
     // own bottom spacer can push a CTA onto the page's bottom edge.
+    //
+    // **It is drawn only where you can still leave.** The header exists to
+    // offer a way back and to say where in the journey you are; on PROGRESS
+    // and DONE it can do neither. Worse, it lies: both screens sit in the
+    // third of three steps, so the bar is pinned full while three tasks are
+    // still running on one of them and while the other is over, and the label
+    // names a journey the title underneath is already naming better.
+    let header = can_leave.then(|| {
+        div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .flex_none()
+            .gap(px(theme::FLOW_HEADER_GAP))
+            .pb(px(theme::FLOW_HEADER_PAD_B))
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(back)
+                    .child(
+                        div()
+                            .text_size(theme::text_body())
+                            .text_color(theme.fg_muted)
+                            .child(host.loc.t("onboarding.create.headerDefault")),
+                    ),
+            )
+            .child(segmented_bar(theme, screen.step()))
+    });
+
     div()
         .w_full()
         .max_w(px(FLOW_COLUMN_W))
         .h_full()
         .flex()
         .flex_col()
-        .child(
-            div()
-                .w_full()
-                .flex()
-                .flex_col()
-                .flex_none()
-                .gap(px(theme::FLOW_HEADER_GAP))
-                .pb(px(theme::FLOW_HEADER_PAD_B))
-                .child(
-                    div()
-                        .w_full()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .child(back)
-                        .child(
-                            div()
-                                .text_size(theme::text_body())
-                                .text_color(theme.fg_muted)
-                                .child(host.loc.t("onboarding.create.headerDefault")),
-                        ),
-                )
-                .child(segmented_bar(theme, screen.step())),
-        )
+        .children(header)
         .child(body.flex_1().min_h(px(0.)))
 }
 
@@ -894,10 +907,20 @@ fn method_picker(host: &FlowHost<'_>) -> Div {
 // Progress
 // ---------------------------------------------------------------------------
 
+/// The wallet is being made.
+///
+/// **One progress indicator, not three.** The design's mock carried a
+/// DERIVING ADDRESS meter above the task list, and drawn against the real
+/// machine it was redundant twice over: the step bar at the top of the shell
+/// already says where the journey is, and the task list below says it exactly,
+/// by name. Worse, the meter's label named ONE phase while a different task
+/// was running, and its percentage is not measured — it is the same three
+/// statuses the list is already showing, divided by three. A number that looks
+/// measured and is not is worse than no number.
 fn render_progress(host: &FlowHost<'_>) -> Div {
     let theme = host.theme;
     let loc = host.loc;
-    let (active, percent) = progress_for(host.view.status).unwrap_or((0, 0));
+    let (active, _percent) = progress_for(host.view.status).unwrap_or((0, 0));
 
     #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
     let subtitle_text = loc.t_vars(
@@ -959,54 +982,6 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                 .gap(px(FLOW_GAP_SM))
                 .child(title(theme, loc.t("onboarding.create.progressTitle")))
                 .child(subtitle(theme, subtitle_text)),
-        )
-        .child(
-            div()
-                .w_full()
-                .flex()
-                .flex_col()
-                .gap(px(10.))
-                .child(
-                    div()
-                        .w_full()
-                        .flex()
-                        .items_baseline()
-                        .justify_between()
-                        // The meter label and its percentage are the mono
-                        // pair the design reserves for numerals and
-                        // identifiers; the number is the larger of the two.
-                        .font_family(theme::font_mono())
-                        .child(
-                            div()
-                                .text_size(theme::text_row_meta())
-                                .text_color(theme.fg_muted)
-                                .child(SharedString::from(
-                                    loc.t("onboarding.create.progressMeterLabel").to_uppercase(),
-                                )),
-                        )
-                        .child(
-                            div()
-                                .text_size(theme::text_flow_sub())
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(theme.fg_base)
-                                .child(SharedString::from(format!("{percent}%"))),
-                        ),
-                )
-                .child(
-                    div()
-                        .w_full()
-                        .h(px(theme::METER_BAR_H))
-                        .rounded_full()
-                        .bg(theme.divider)
-                        .child(
-                            #[allow(clippy::cast_precision_loss, clippy::allow_attributes)]
-                            div()
-                                .w(relative(percent as f32 / 100.))
-                                .h_full()
-                                .rounded_full()
-                                .bg(theme.accent),
-                        ),
-                ),
         )
         .child(tasks)
         .child(bottom_spacer())
@@ -1088,6 +1063,42 @@ fn render_retry(host: &FlowHost<'_>) -> Div {
 // ---------------------------------------------------------------------------
 // Done
 // ---------------------------------------------------------------------------
+
+/// The address as v2 draws it: bare mono text under a rule, wrapping on any
+/// character, with no well and no button.
+///
+/// It is still copyable — the design dropped the affordance, but dropping the
+/// FUNCTION would mean a person who has just been handed the one identifier
+/// their money lives at has no way to take it with them. The whole line is the
+/// target, and the confirmation replaces it in place.
+fn done_address(
+    theme: &Theme,
+    address: String,
+    copied: bool,
+    loc: &Loc,
+    on_copy: impl Fn(&mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let (text, color) = if copied {
+        (loc.t("onboarding.common.copied"), theme.success_base)
+    } else {
+        (SharedString::from(address), theme.fg_muted)
+    };
+    div()
+        .id("flow-done-address")
+        .w_full()
+        .border_t_1()
+        .border_color(theme.divider)
+        .pt(px(theme::FLOW_GAP_MD_SNUG))
+        .cursor_pointer()
+        .font_family(theme::font_mono())
+        .text_size(theme::text_body())
+        .font_weight(FontWeight::MEDIUM)
+        .line_height(theme::line_height_flow_sub())
+        .text_color(color)
+        .hover(|s| s.text_color(theme.fg_base))
+        .on_click(move |_, window, cx| on_copy(window, cx))
+        .child(text)
+}
 
 /// The wallet exists.
 ///
@@ -1200,31 +1211,33 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                 .bg(theme.bg_base)
                 .border_1()
                 .border_color(theme.divider)
+                // Avatar beside the name, then the address under a rule. The
+                // caption that used to sit here DESCRIBED the identicon ("an
+                // identity pattern generated from the address") because there
+                // was no identicon to look at; now there is, and a caption
+                // narrating a picture next to the picture is noise. The
+                // "wallet address" label goes for the same reason — a 42-
+                // character 0x string in mono under a wallet's name is not
+                // mistakable for anything else.
                 .child(
                     div()
                         .flex()
-                        .flex_col()
-                        .gap(px(2.))
+                        .items_center()
+                        .gap(px(14.))
+                        .child(identicon_avatar(
+                            &mut host.identicons.borrow_mut(),
+                            &address,
+                            theme::DONE_AVATAR,
+                        ))
                         .child(
                             div()
                                 .text_size(theme::text_flow_sub())
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(theme.fg_base)
                                 .child(SharedString::from(wallet_name)),
-                        )
-                        .child(caption(theme, loc.t("onboarding.create.identiconHint"))),
+                        ),
                 )
-                .child(caption(
-                    theme,
-                    loc.t("onboarding.create.walletAddressLabel"),
-                ))
-                .child(address_strip(
-                    theme,
-                    SharedString::from(address),
-                    host.copied,
-                    loc.t("onboarding.common.copied"),
-                    move |window, cx| on_copy(window, cx),
-                )),
+                .child(done_address(theme, address, host.copied, loc, on_copy)),
         )
         .child(keys)
         .child(caption(theme, loc.t("onboarding.create.verifyHint")))

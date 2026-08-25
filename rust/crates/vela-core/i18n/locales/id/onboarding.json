@@ -18,7 +18,7 @@
       "featureStablecoinGasTitle": "Bayar gas dengan stablecoin",
       "featureStablecoinGasBody": "Sebagian besar jaringan memungkinkan Anda membayar biaya dengan stablecoin — tidak perlu menyiapkan koin native lebih dulu.",
       "heroTitle": "Dompet Ethereum\nyang tak bisa dimatikan",
-      "heroSubtitle": "Tanda tangani dengan passkey. Kuncinya tetap di perangkat Anda."
+      "heroSubtitle": "Tanda tangani dengan passkey. Vela tidak pernah melihat kunci Anda."
     },
     "welcomeWeb": {
       "meta": {

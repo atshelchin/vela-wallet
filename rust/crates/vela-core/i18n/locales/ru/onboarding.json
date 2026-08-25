@@ -18,7 +18,7 @@
       "featureStablecoinGasTitle": "Оплата газа стейблкоинами",
       "featureStablecoinGasBody": "В большинстве сетей комиссию можно платить стейблкоинами — не нужно сначала запасаться нативной монетой.",
       "heroTitle": "Кошелёк Ethereum,\nкоторый никто не выключит",
-      "heroSubtitle": "Подпись через passkey. Ключ не покидает ваше устройство."
+      "heroSubtitle": "Подпись через passkey. Vela никогда не видит ваш ключ."
     },
     "welcomeWeb": {
       "meta": {

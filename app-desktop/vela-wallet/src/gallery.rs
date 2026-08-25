@@ -18,6 +18,7 @@
 //! than naming its result. A refinement that stops working shows up here as the
 //! wrong card, which is the point.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::prelude::FluentBuilder as _;
@@ -31,6 +32,7 @@ use vela_core::app::{KeyMethod, PromptKind, StatusKey};
 
 use crate::ctap::usb::{TouchKind, TouchRequest};
 use crate::executor::passkey::{CredentialChoice, PinRequest};
+use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::onboarding_flow::{FLOW_COLUMN_W, FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, outcome_sheet};
@@ -382,6 +384,7 @@ pub struct GalleryView {
     pin_value: String,
     name_focus: FocusHandle,
     focus_handle: FocusHandle,
+    identicons: RefCell<IdenticonCache>,
 }
 
 impl GalleryView {
@@ -420,6 +423,7 @@ impl GalleryView {
             pin_value: String::new(),
             name_focus: cx.focus_handle(),
             focus_handle,
+            identicons: RefCell::default(),
         }
     }
 
@@ -575,6 +579,7 @@ impl GalleryView {
                     loc: &self.loc,
                     view,
                     name_focus: &self.name_focus,
+                    identicons: &self.identicons,
                     picker_open: self.picker_open,
                     copied: self.copied,
                     sink,

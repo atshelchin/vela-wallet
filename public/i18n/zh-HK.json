@@ -489,7 +489,7 @@
    "featureStablecoinGasTitle": "用穩定幣付 gas",
    "featureStablecoinGasBody": "大多數網絡支援以穩定幣支付手續費，不用先持有原生代幣。",
    "heroTitle": "冇人關得掉嘅\n以太坊錢包",
-   "heroSubtitle": "用通行密鑰簽名，條鑰匙一直留喺你部機度。"
+   "heroSubtitle": "用通行密鑰簽名，Vela 睇唔到你條鑰匙。"
   },
   "welcomeWeb": {
    "meta": {

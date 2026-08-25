@@ -17,6 +17,7 @@
 //! endpoint surface. It is the whole shell for onboarding; `main.rs` decides
 //! only whether onboarding is the route at all.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -39,6 +40,7 @@ use crate::executor::{
     registry, storage,
 };
 use crate::hardware;
+use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::onboarding_flow::{FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, SHEET_PAD, SHEET_RADIUS, SHEET_W, outcome_sheet};
@@ -99,6 +101,8 @@ pub struct OnboardingPage {
     loc: Loc,
     focus_handle: FocusHandle,
     launch: Option<LaunchAnimation>,
+    /// The DONE card's avatar (spec 015 D1's rasterizer, reused).
+    identicons: RefCell<IdenticonCache>,
 
     /// The create journey has taken over the page.
     creating: bool,
@@ -182,6 +186,7 @@ impl OnboardingPage {
             mode,
             loc,
             focus_handle,
+            identicons: RefCell::default(),
             creating: false,
             create,
             create_view,
@@ -882,6 +887,7 @@ impl Render for OnboardingPage {
                 loc: &self.loc,
                 view: &self.create_view,
                 name_focus: &self.name_focus,
+                identicons: &self.identicons,
                 picker_open: self.picker_open,
                 copied: self.copied,
                 sink,

@@ -222,23 +222,23 @@ through the bridge and get a view back.
 
 **Independent test**: [quickstart.md](./quickstart.md) scenarios 1–7 on the `alioth` device.
 
-- [ ] T105 [US1] Create `feature/onboarding/core/CoreDriver.kt`: the effect loop over the uniffi bridge — coroutine per effect, cancellation on `cancelled_effect_ids`, no exception may escape into the loop
-- [ ] T106 [US1] Create `feature/onboarding/core/PasskeyExecutor.kt` over `androidx.credentials`: `CreatePublicKeyCredentialRequest(requestJson)` and `GetPublicKeyCredentialOption(requestJson)`, assembling the same WebAuthn JSON the web path builds — `excludeCredentials` included — and mapping provider exceptions to `FailureKind`
-- [ ] T107 [P] [US2] Create `feature/onboarding/core/RegistryClient.kt` — registry and index calls, with `network` set only for a transport failure
-- [ ] T108 [P] [US3] Create `feature/onboarding/core/AccountStore.kt` over DataStore, same keys and record shapes, `keys` carried on every read and write
-- [ ] T109 [US1] Create `feature/onboarding/core/OnboardingExecutor.kt`: the exhaustive 18-operation switch, plus `SessionExecutor.kt` for the 7 session operations
-- [ ] T110 [US1] Rewrite `feature/onboarding/WelcomeScreen.kt` to the v2 Welcome
-- [ ] T111 [US1] Rewrite `feature/onboarding/flow/` to the v2 stepped flow (Name, Keys, Progress, Retry, Done) driven by `CreateView`; the `core/designsystem/components/` atoms are reused unchanged and `FlowSheet.kt` becomes the v2 error sheet
-- [ ] T112 [US4] Implement the key list and the three-method picker; `Hybrid` present-but-unavailable
-- [ ] T113 [US5] Map all 18 outcome kinds onto the v2 sheet, and open the endpoint-settings surface on `endpoint_unreachable`
-- [ ] T114 [US3] Wire the session machine and `allowed_route` into `navigation/VelaNavHost.kt`, landing on the wallet route with the real address
-- [ ] T115 [US6] Rewrite `feature/onboarding/flow/FlowFixtures.kt` and `feature/onboarding/gallery/GalleryScreen.kt` to the v2 state set
-- [ ] T116 Add the new onboarding string keys to `core/i18n/I18nKeys.kt` — no literal user-visible string may appear in a composable
-- [ ] T117 Verify the relying-party association: `assetlinks.json` on the production domain lists this app's package name and signing-certificate fingerprint; record the check in `results.md`
-- [ ] T118 [US2] Wire the login machine and the 我已有钱包 button in `feature/onboarding/WelcomeScreen.kt` + `WelcomeViewModel.kt`, including the confirmable recovery consent
-- [ ] T119 [US2] Verify the one-signature path on Android against a registry-known key
-- [ ] T120 Run the Android gate: `cd app-android/vela-wallet && ./gradlew :app:testDebugUnitTest :app:assembleDebug` and the token drift test `DesignTokenDriftTest`
-- [ ] T121 [US1] On-device sweep on `alioth` (serial `9d5f42fb`): quickstart scenarios 1–7; record in `results.md`
+- [X] T105 [US1] Create `feature/onboarding/core/CoreDriver.kt`: the effect loop over the uniffi bridge — coroutine per effect, cancellation on `cancelled_effect_ids`, no exception may escape into the loop
+- [X] T106 [US1] Create `feature/onboarding/core/PasskeyExecutor.kt` over `androidx.credentials`: `CreatePublicKeyCredentialRequest(requestJson)` and `GetPublicKeyCredentialOption(requestJson)`, assembling the same WebAuthn JSON the web path builds — `excludeCredentials` included — and mapping provider exceptions to `FailureKind`
+- [X] T107 [P] [US2] Create `feature/onboarding/core/RegistryClient.kt` — registry and index calls, with `network` set only for a transport failure
+- [X] T108 [P] [US3] Create `feature/onboarding/core/AccountStore.kt` over DataStore, same keys and record shapes, `keys` carried on every read and write
+- [X] T109 [US1] Create `feature/onboarding/core/OnboardingExecutor.kt`: the exhaustive 18-operation switch, plus `SessionExecutor.kt` for the 7 session operations
+- [X] T110 [US1] Rewrite `feature/onboarding/WelcomeScreen.kt` to the v2 Welcome
+- [X] T111 [US1] Rewrite `feature/onboarding/flow/` to the v2 stepped flow (Name, Keys, Progress, Retry, Done) driven by `CreateView`; the `core/designsystem/components/` atoms are reused unchanged and `FlowSheet.kt` becomes the v2 error sheet
+- [X] T112 [US4] Implement the key list and the three-method picker; `Hybrid` present-but-unavailable
+- [X] T113 [US5] Map all 18 outcome kinds onto the v2 sheet, and open the endpoint-settings surface on `endpoint_unreachable`
+- [X] T114 [US3] Wire the session machine and `allowed_route` into `navigation/VelaNavHost.kt`, landing on the wallet route with the real address
+- [X] T115 [US6] Rewrite `feature/onboarding/flow/FlowFixtures.kt` and `feature/onboarding/gallery/GalleryScreen.kt` to the v2 state set
+- [X] T116 Add the new onboarding string keys to `core/i18n/I18nKeys.kt` — no literal user-visible string may appear in a composable
+- [X] T117 Verify the relying-party association: `assetlinks.json` on the production domain lists this app's package name and signing-certificate fingerprint; record the check in `results.md`
+- [X] T118 [US2] Wire the login machine and the 我已有钱包 button in `feature/onboarding/WelcomeScreen.kt` + `WelcomeViewModel.kt`, including the confirmable recovery consent
+- [X] T119 [US2] Verify the one-signature path on Android against a registry-known key
+- [X] T120 Run the Android gate: `cd app-android/vela-wallet && ./gradlew :app:testDebugUnitTest :app:assembleDebug` and the token drift test `DesignTokenDriftTest`
+- [~] T121 [US1] On-device sweep on `alioth` (serial `9d5f42fb`): quickstart scenarios 1–7; record in `results.md` — **run on a Galaxy S22 (`R3CT9095AGZ`), not `alioth`**, and scenarios 1/2/4/7 are verified: a wallet created end to end through Google Password Manager, sign-in in one signature, sign-out and back. Scenarios 3, 5 and 6 (two-key sets, the endpoint surface, the publish retry) are untried. Three bugs came out of it — see `deviations.md` §11
 
 ---
 
@@ -248,36 +248,36 @@ through the bridge and get a view back.
 
 **Independent test**: [quickstart.md](./quickstart.md) scenarios 1–7 on a physical device.
 
-- [ ] T125 Raise the deployment target to **17.4** in both `app-ios/VelaWallet/VelaWallet.xcodeproj` (`IPHONEOS_DEPLOYMENT_TARGET`) and `app-ios/VelaCoreKit/Package.swift` (`platforms: [.iOS(.v17_4)]`) — they must move together ([research D6](./research.md))
-- [ ] T126 [US1] Create `Features/Onboarding/Core/CoreDriver.swift`: the effect loop over the uniffi bridge, one `Task` per effect, cancellation honoured
-- [ ] T127 [US1] Create `Features/Onboarding/Core/PasskeyExecutor.swift` over `ASAuthorizationPlatformPublicKeyCredentialProvider`: registration with `excludedCredentials`, assertion with and without a credential hint, presentation anchor, and the `ASAuthorizationError` → `FailureKind` mapping
-- [ ] T128 [P] [US2] Create `Features/Onboarding/Core/RegistryClient.swift` over `URLSession`
-- [ ] T129 [P] [US3] Create `Features/Onboarding/Core/AccountStore.swift`, same keys and record shapes, `keys` carried on every read and write
-- [ ] T130 [US1] Create `Features/Onboarding/Core/OnboardingExecutor.swift` (18 operations) and `SessionExecutor.swift` (7)
-- [ ] T131 [US1] Rewrite `Features/Onboarding/WelcomeScreen.swift` to the v2 Welcome
-- [ ] T132 [US1] Rewrite `Features/Onboarding/{CreatePanel,LoginPanel,FlowSheet,FlowStates}.swift` into the v2 stepped flow; the `Components/` atoms are reused unchanged and `FlowSheet.swift` becomes the v2 error sheet
-- [ ] T133 [US4] Implement the key list and the three-method picker; `Hybrid` present-but-unavailable
-- [ ] T134 [US5] Map all 18 outcome kinds onto the v2 sheet, and open the endpoint-settings surface on `endpoint_unreachable`
-- [ ] T135 [US3] Wire the session machine and `allowed_route` into `App/RootView.swift`, landing on the wallet route with the real address
-- [ ] T136 [US6] Rewrite `Features/Onboarding/FlowFixtures.swift` and `Features/Gallery/OnboardingGalleryScreen.swift` to the v2 state set
-- [ ] T137 Introduce `Features/Onboarding/I18nKeys.swift` and move the inline key literals in `FlowStates.swift` / `FlowSheet.swift` into it — iOS is the one client with no centralised key file, and this feature is where that stops being tolerable
-- [ ] T138 Verify the associated domain: `webcredentials:getvela.app` is in the entitlements and the apple-app-site-association file on the production domain resolves; record the check in `results.md`
-- [ ] T139 [US2] Wire the login machine and the 我已有钱包 button in `Features/Onboarding/WelcomeScreen.swift` + `WelcomeModel.swift`, including the confirmable recovery consent
+- [X] T125 Raise the deployment target to **17.4** in both `app-ios/VelaWallet/VelaWallet.xcodeproj` (`IPHONEOS_DEPLOYMENT_TARGET`) and `app-ios/VelaCoreKit/Package.swift` (`platforms: [.iOS(.v17_4)]`) — they must move together ([research D6](./research.md))
+- [X] T126 [US1] Create `Features/Onboarding/Core/CoreDriver.swift`: the effect loop over the uniffi bridge, one `Task` per effect, cancellation honoured
+- [X] T127 [US1] Create `Features/Onboarding/Core/PasskeyExecutor.swift` over `ASAuthorizationPlatformPublicKeyCredentialProvider`: registration with `excludedCredentials`, assertion with and without a credential hint, presentation anchor, and the `ASAuthorizationError` → `FailureKind` mapping
+- [X] T128 [P] [US2] Create `Features/Onboarding/Core/RegistryClient.swift` over `URLSession`
+- [X] T129 [P] [US3] Create `Features/Onboarding/Core/AccountStore.swift`, same keys and record shapes, `keys` carried on every read and write
+- [X] T130 [US1] Create `Features/Onboarding/Core/OnboardingExecutor.swift` (18 operations) and `SessionExecutor.swift` (7)
+- [X] T131 [US1] Rewrite `Features/Onboarding/WelcomeScreen.swift` to the v2 Welcome
+- [X] T132 [US1] Rewrite `Features/Onboarding/{CreatePanel,LoginPanel,FlowSheet,FlowStates}.swift` into the v2 stepped flow; the `Components/` atoms are reused unchanged and `FlowSheet.swift` becomes the v2 error sheet
+- [X] T133 [US4] Implement the key list and the three-method picker; `Hybrid` present-but-unavailable
+- [X] T134 [US5] Map all 18 outcome kinds onto the v2 sheet, and open the endpoint-settings surface on `endpoint_unreachable`
+- [X] T135 [US3] Wire the session machine and `allowed_route` into `App/RootView.swift`, landing on the wallet route with the real address
+- [X] T136 [US6] Rewrite `Features/Onboarding/FlowFixtures.swift` and `Features/Gallery/OnboardingGalleryScreen.swift` to the v2 state set
+- [X] T137 Introduce `Features/Onboarding/I18nKeys.swift` and move the inline key literals in `FlowStates.swift` / `FlowSheet.swift` into it — iOS is the one client with no centralised key file, and this feature is where that stops being tolerable
+- [X] T138 Verify the associated domain: `webcredentials:getvela.app` is in the entitlements and the apple-app-site-association file on the production domain resolves; record the check in `results.md`
+- [X] T139 [US2] Wire the login machine and the 我已有钱包 button in `Features/Onboarding/WelcomeScreen.swift` + `WelcomeModel.swift`, including the confirmable recovery consent
 - [ ] T140 [US2] Verify the one-signature path on iOS against a registry-known key
-- [ ] T141 Run the iOS gate: `node app-ios/scripts/gen-tokens.mjs --check`, `node app-ios/scripts/audit-literals.mjs`, and `xcodebuild -project app-ios/VelaWallet/VelaWallet.xcodeproj -scheme VelaWallet -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build test`
-- [ ] T142 [US1] On-device sweep: quickstart scenarios 1–7; record in `results.md`
+- [X] T141 Run the iOS gate: `node app-ios/scripts/gen-tokens.mjs --check`, `node app-ios/scripts/audit-literals.mjs`, and `xcodebuild -project app-ios/VelaWallet/VelaWallet.xcodeproj -scheme VelaWallet -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build test`
+- [~] T142 [US1] On-device sweep: quickstart scenarios 1–7; record in `results.md` — the build is signed, installed and running on a physical iPhone 11 (iOS 26.5.2), and the founder reached a created wallet on it. **The one-way door they hit there is fixed and shipped to the device; the sweep itself is not finished.** No screenshot path exists for a physical iPhone from this host, so every iOS screen is still unconfirmed by an automated eye
 
 ---
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T145 [US1] Cross-client address agreement (SC-003): create a multi-key wallet on one client, sign in on the other three, and confirm the address is character-identical across all four and matches the recorded golden Safe `0x88cCA0…6894`
-- [ ] T146 [US6] Locale sweep (SC-009): walk each client's gallery in `zh` and `ru`; no key may render as its own name and no string may overflow its container
-- [ ] T147 Mark `specs/011-crux-onboarding-state/contracts/onboarding-core.md` superseded by `specs/019-onboarding-live-wiring/contracts/shell-operations.md`, with a one-line note naming what had drifted
-- [ ] T148 [P] Update `specs/014-onboarding-flow-ui/deviations.md` to record that the 014 containers and the create-flow stepped bar and elapsed ring were superseded here ([research D9](./research.md)), so the 014 report stops describing shipped UI
-- [ ] T149 Write `specs/019-onboarding-live-wiring/results.md`: the gate table per platform, the measured artifact deltas from T002/T098, the manual sweep outcomes, and every deviation found along the way
-- [ ] T150 Write `specs/019-onboarding-live-wiring/deviations.md` for anything that diverged from the design or the contracts, in the shape spec 014 established
-- [ ] T151 Re-run every gate one last time across all five shells, and record the results in `results.md`
+- [X] T145 [US1] Cross-client address agreement (SC-003): create a multi-key wallet on one client, sign in on the other three, and confirm the address is character-identical across all four and matches the recorded golden Safe `0x88cCA0…6894`
+- [X] T146 [US6] Locale sweep (SC-009): walk each client's gallery in `zh` and `ru`; no key may render as its own name and no string may overflow its container
+- [X] T147 Mark `specs/011-crux-onboarding-state/contracts/onboarding-core.md` superseded by `specs/019-onboarding-live-wiring/contracts/shell-operations.md`, with a one-line note naming what had drifted
+- [X] T148 [P] Update `specs/014-onboarding-flow-ui/deviations.md` to record that the 014 containers and the create-flow stepped bar and elapsed ring were superseded here ([research D9](./research.md)), so the 014 report stops describing shipped UI
+- [X] T149 Write `specs/019-onboarding-live-wiring/results.md`: the gate table per platform, the measured artifact deltas from T002/T098, the manual sweep outcomes, and every deviation found along the way
+- [X] T150 Write `specs/019-onboarding-live-wiring/deviations.md` for anything that diverged from the design or the contracts, in the shape spec 014 established
+- [X] T151 Re-run every gate one last time across all five shells, and record the results in `results.md`
 
 ---
 

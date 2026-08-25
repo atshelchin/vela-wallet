@@ -988,3 +988,91 @@ end on real hardware on any client.** Desktop reached sign-in on a security key 
 Android reached the real Credential Manager sheet and the cancel-recovery path on an
 emulator with no passkey provider; iOS ran and was never seen. Everything that can be
 checked without a finger on an authenticator has been.
+
+---
+
+## On real hardware, 2026-08-25 — a Galaxy S22 and an iPhone 11
+
+The founder connected both devices over USB. Everything below happened in about
+twenty minutes, and **none of it could have been found any other way** — the
+emulator, the simulator and 1,400 tests were all green through all three bugs.
+
+### The first create that finished
+
+| Step | Device | Result |
+| --- | --- | --- |
+| Create a wallet | Galaxy S22 (`SM-S901U`, Android 15) | wallet home with a real address and a core-derived identicon |
+| Sign out | same | back to Welcome, both CTAs live |
+| Sign back in | same | **one passkey selection → the wallet.** T119 |
+
+The system passkey picker listed every Vela credential the device had minted —
+`tonyp`, `daddy 🧑`, a CJK-named one — all under Google Password Manager, which is
+what `residentKey: required` + `requireResidentKey: true` is FOR (issue #1). A
+non-discoverable credential would not have appeared there at all.
+
+### Bug 1 — the manifest still claimed to be offline
+
+```
+Permission denied (missing INTERNET permission?)
+```
+
+`AndroidManifest.xml` said, in as many words, `<!-- No permissions: this slice is
+fully offline (spec FR-012). -->`. That was true of spec 014 and stopped being
+true the moment onboarding was wired to the registry — five of the eighteen
+operations reach `p256-index-v2.getvela.app`.
+
+The failure order is what makes it serious: **minting the passkey SUCCEEDED**, and
+only the membership confirmation failed. The person is left holding a credential
+in their provider for a wallet that does not exist.
+
+`ACCESS_NETWORK_STATE` is deliberately *not* requested alongside it. The shell's
+one job in classifying a failure is `network` — did the request reach the server —
+and that is answered by what the call did, not by what the radio claims. A
+connectivity check says "connected" behind a captive portal and "no network" on a
+working VPN, and either answer puts the wrong sheet in front of somebody.
+
+### Bug 2 — the one-way door, on both phones this time
+
+Phase 5 found it on desktop and fixed it there:
+
+> Signing in worked and then stranded the user. `SessionView::allowed_route` sends
+> a signed-in desktop to the wallet, and **no control anywhere could send it
+> back**. […] wiring a route guard without wiring its exit produces an app you
+> cannot leave.
+
+Both phones shipped without an exit, and the founder hit it on iOS a minute after
+their first successful create. The desktop's lesson had been *recorded* and not
+*generalised* — which is the failure mode worth naming, because the fix took ten
+minutes and the recording had been sitting in this very file for a day.
+
+The Settings tab has existed since spec 015 with an `onSelect` hook nothing used.
+It is the way out now, on both phones, with the session machine's own
+confirmation sheet and its `pendingUploadWarning`.
+
+### Bug 3 — the one-way door replaced by a dead end
+
+After signing out, **both Welcome buttons were disabled.** `login.rs` parks in
+`Stage::Completing` forever after a successful sign-in — deliberately, because
+the machine is done and will never act again — and `busy` is derived as
+`stage != Idle`, so it reads `true` from then on. Welcome renders `busy` as a
+disabled CTA.
+
+The machine was right. Rendering "done" as "working" was the bug, and a finished
+machine is dropped now rather than kept to disable buttons on the next visit.
+
+### Also fixed from the same session
+
+The Name screen's policy-link row was clipped against the CTA with the keyboard
+up: `adjustResize` was necessary and not sufficient, and `imePadding()` is what
+keeps the scrolling region and the pinned button apart.
+
+### What is still not done
+
+| Task | State |
+| --- | --- |
+| T089 / T091 — desktop with a FIDO2 key | blocked, unchanged: no key on this host |
+| T121 — Android scenarios 3, 5, 6 | untried: two-key sets, the endpoint surface, the publish retry |
+| T140 / T142 — the iOS sweep | the fixed build is signed, installed and running on the iPhone 11; the sweep itself is the founder's to walk. No screenshot path exists for a physical iPhone from this host |
+
+Gates after the fixes: Android **64 passed, 0 failed** + `assembleDebug` green;
+iOS `BUILD SUCCEEDED` + `TEST SUCCEEDED`, `audit-literals` clean.

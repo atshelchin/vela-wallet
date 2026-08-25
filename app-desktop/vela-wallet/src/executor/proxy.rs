@@ -1,4 +1,11 @@
-//! Where the registry client learns how to get out of the machine.
+//! The app's one HTTP agent, and how it gets out of the machine.
+//!
+//! **Everything that talks to the network goes through [`agent`].** Not by
+//! convention — there is exactly one place an agent is constructed, and it is
+//! this one, so a caller cannot get a client that skipped the proxy by
+//! forgetting a line. That mattered less when the registry was the only network
+//! consumer and it was true by accident; it stops being an accident here,
+//! before feature 020's tunnel client and the bug reporter arrive.
 //!
 //! Two things go wrong on a desktop that `ureq`'s own proxy handling does not
 //! cover, and both of them present identically: every registry call sits until
@@ -49,8 +56,26 @@
 //! behaviour before this module existed.
 
 use std::sync::OnceLock;
+use std::time::Duration;
 
-use ureq::{Proxy, ProxyProtocol};
+use ureq::{Agent, Proxy, ProxyProtocol};
+
+/// The app's HTTP agent.
+///
+/// Connection reuse matters: the publish path makes a challenge call, a
+/// register call and then polls a task every two seconds, and a fresh TLS
+/// handshake for each of those is most of the wall clock.
+pub fn agent(timeout: Duration) -> Agent {
+    let mut config = Agent::config_builder().timeout_global(Some(timeout));
+    // The proxy `ureq` would pick on its own is not always one that can carry a
+    // request: a SOCKS5 proxy is asked to resolve the target LOCALLY, which is
+    // the one step that cannot work on the machines that need a proxy most.
+    // `None` here means `ureq`'s own answer stands; see the two cases above.
+    if let Some(proxy) = system_proxy() {
+        config = config.proxy(Some(proxy.clone()));
+    }
+    config.build().new_agent()
+}
 
 /// The proxy to configure on an agent, or `None` to leave `ureq`'s own default
 /// in place.

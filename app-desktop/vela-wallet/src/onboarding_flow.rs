@@ -41,9 +41,7 @@ use crate::ui::{
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
 pub const MAX_KEYS: usize = 7;
 
-/// The flow's column width. Wider than 014's 512 px panel because the flow is
-/// no longer beside anything.
-pub const FLOW_COLUMN_W: f32 = 560.;
+pub use crate::theme::FLOW_COLUMN_W;
 /// The three-segment bar at the top of the shell.
 pub const FLOW_STEPS: usize = 3;
 
@@ -228,14 +226,21 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
             .id("flow-back")
             .flex()
             .items_center()
-            .gap(px(FLOW_GAP_SM))
+            .gap(px(theme::FLOW_BACK_GAP))
             .cursor_pointer()
             .text_size(theme::text_body())
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(theme.fg_muted)
             .hover(|s| s.text_color(theme.fg_base))
             .on_click(move |_, window, cx| on_back(window, cx))
-            .child("‹")
+            // The chevron is set larger than its label and on a line height of
+            // 1, so it reads as a mark rather than as a character of the word.
+            .child(
+                div()
+                    .text_size(theme::text_flow_sub())
+                    .line_height(theme::text_flow_sub())
+                    .child("‹"),
+            )
             .child(host.loc.t("onboarding.common.back"))
             .into_any_element()
     } else {
@@ -252,27 +257,47 @@ pub fn render_create_flow(host: &FlowHost<'_>, window: &Window) -> Div {
         Screen::Done => render_done(host),
     };
 
+    // The header is ONE block — back row and step bar bound by 16 — set off
+    // from the screen below it by 28. The screen itself is `flex: 1`, so its
+    // own bottom spacer can push a CTA onto the page's bottom edge.
     div()
-        .w(px(FLOW_COLUMN_W))
+        .w_full()
+        .max_w(px(FLOW_COLUMN_W))
+        .h_full()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
         .child(
             div()
                 .w_full()
                 .flex()
-                .items_center()
-                .justify_between()
-                .child(back)
+                .flex_col()
+                .flex_none()
+                .gap(px(theme::FLOW_HEADER_GAP))
+                .pb(px(theme::FLOW_HEADER_PAD_B))
                 .child(
                     div()
-                        .text_size(theme::text_body())
-                        .text_color(theme.fg_muted)
-                        .child(host.loc.t("onboarding.create.headerDefault")),
-                ),
+                        .w_full()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(back)
+                        .child(
+                            div()
+                                .text_size(theme::text_body())
+                                .text_color(theme.fg_muted)
+                                .child(host.loc.t("onboarding.create.headerDefault")),
+                        ),
+                )
+                .child(segmented_bar(theme, screen.step())),
         )
-        .child(segmented_bar(theme, screen.step()))
-        .child(body)
+        .child(body.flex_1().min_h(px(0.)))
+}
+
+/// `flex: 1; min-height: 8px` — the spacer that sits between a screen's
+/// content and its CTA, so the CTA rides the bottom edge of the page rather
+/// than trailing the content.
+fn bottom_spacer() -> Div {
+    div().flex_1().min_h(px(theme::FLOW_SPACER_MIN))
 }
 
 /// The three-segment progress bar. One filled track rather than 014's five
@@ -298,6 +323,7 @@ fn segmented_bar(theme: &Theme, step: usize) -> Div {
 fn title(theme: &Theme, text: SharedString) -> Div {
     div()
         .text_size(theme::text_tagline())
+        .line_height(theme::line_height_title())
         .font_weight(FontWeight::BOLD)
         .text_color(theme.fg_base)
         .child(text)
@@ -305,8 +331,26 @@ fn title(theme: &Theme, text: SharedString) -> Div {
 
 fn subtitle(theme: &Theme, text: SharedString) -> Div {
     div()
-        .text_size(theme::text_card_title())
-        .line_height(theme::line_height_body())
+        .text_size(theme::text_flow_sub())
+        .line_height(theme::line_height_flow_sub())
+        .text_color(theme.fg_muted)
+        .child(text)
+}
+
+/// The tiny uppercase label that heads a field or a list section.
+fn section_label(theme: &Theme, text: SharedString) -> Div {
+    div()
+        .text_size(theme::text_section_label())
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(theme.fg_muted)
+        .child(SharedString::from(text.to_uppercase()))
+}
+
+/// A mono counter — key count, percentage — set beside a section label.
+fn mono_meta(theme: &Theme, text: SharedString) -> Div {
+    div()
+        .font_family(theme::font_mono())
+        .text_size(theme::text_row_meta())
         .text_color(theme.fg_muted)
         .child(text)
 }
@@ -386,7 +430,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         .w_full()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
+        .gap(px(theme::FLOW_GAP_MD_SNUG))
         .child(ack_row::<LegalLink>(
             0,
             theme,
@@ -404,22 +448,22 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
             div()
                 .flex()
                 .items_start()
-                .gap(px(FLOW_GAP_MD))
+                .gap(px(theme::FLOW_GAP_MD_SNUG))
                 .child(
                     div()
                         .size(px(theme::ACK_BOX))
                         .flex_none()
                         .mt(px(1.))
-                        .rounded(px(theme::ACK_BOX / 3.))
-                        .bg(theme.success_soft)
+                        .rounded(px(theme::RADIUS_ACK))
+                        .bg(theme.accent)
                         .flex()
                         .items_center()
                         .justify_center()
                         .child(
                             div()
-                                .text_size(theme::text_flow_caption())
+                                .text_size(theme::text_body())
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(theme.success_base)
+                                .text_color(theme.fg_inverse)
                                 .child("✓"),
                         ),
                 )
@@ -428,7 +472,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
                         .flex_1()
                         .min_w(px(0.))
                         .text_size(theme::text_body())
-                        .line_height(theme::line_height_body())
+                        .line_height(theme::line_height_ack())
                         .text_color(theme.fg_muted)
                         .child(loc.t("onboarding.create.assuranceRecovery")),
                 ),
@@ -448,13 +492,14 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
             move |link: LegalLink, _window, cx| cx.open_url(link.url()),
         ));
 
-    let mut column = div()
+    // The acknowledgements and the CTA are one block on the bottom edge; the
+    // title and the field ride the top, and the spacer between them is what
+    // the page has left over.
+    let mut bottom = div()
         .w_full()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
-        .child(title(theme, loc.t("onboarding.create.nameTitle")))
-        .child(field)
+        .gap(px(FLOW_GAP_MD))
         .child(acks);
 
     // A cancelled ceremony is a quiet status line with the draft intact, never
@@ -463,7 +508,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
     if let Some(status) = view.status
         && progress_for(Some(status)).is_none()
     {
-        column = column.child(caption(theme, loc.t(status_key(status))));
+        bottom = bottom.child(caption(theme, loc.t(status_key(status))));
     }
 
     let submit_key = match view.submit_label {
@@ -471,7 +516,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         SubmitLabel::FinishVerify => "onboarding.create.finishVerifyBtn",
     };
     let sink_submit = host.sink.clone();
-    column = column.child(vela_button_opts(
+    bottom = bottom.child(vela_button_opts(
         "flow-submit",
         ButtonVariant::Primary,
         loc.t(submit_key),
@@ -482,7 +527,7 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
 
     if view.show_start_over {
         let on_start_over = emit(&host.sink, FlowEvent::StartOver);
-        column = column.child(
+        bottom = bottom.child(
             div()
                 .id("flow-start-over")
                 .w_full()
@@ -497,7 +542,15 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         );
     }
 
-    column
+    div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_LG))
+        .child(title(theme, loc.t("onboarding.create.nameTitle")))
+        .child(field)
+        .child(bottom_spacer())
+        .child(bottom)
 }
 
 // ---------------------------------------------------------------------------
@@ -523,7 +576,7 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
         loc.t("onboarding.create.keysSubtitle")
     };
 
-    let mut column = div().w_full().flex().flex_col().gap(px(FLOW_GAP_LG)).child(
+    let mut column = div().w_full().flex().flex_col().gap(px(FLOW_GAP_MD)).child(
         div()
             .flex()
             .flex_col()
@@ -538,24 +591,25 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
                 .w_full()
                 .flex()
                 .items_start()
-                .gap(px(FLOW_GAP_MD))
-                .p(px(FLOW_GAP_MD))
+                .gap(px(theme::FLOW_GAP_MD_SNUG))
+                .px(px(FLOW_GAP_MD))
+                .py(px(14.))
                 .rounded(px(RADIUS_FIELD))
                 .bg(theme.warning_soft)
                 .child(
                     div()
-                        .size(px(FLOW_GAP_SM))
+                        .size(px(7.))
                         .flex_none()
                         .mt(px(6.))
                         .rounded_full()
-                        .bg(theme.warning_base),
+                        .bg(theme.accent),
                 )
                 .child(
                     div()
                         .flex_1()
                         .min_w(px(0.))
                         .text_size(theme::text_body())
-                        .line_height(theme::line_height_body())
+                        .line_height(theme::line_height_flow_sub())
                         .text_color(theme.fg_base)
                         .child(loc.t("onboarding.create.needSecondKeyHint")),
                 ),
@@ -570,20 +624,27 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
             ("max", MAX_KEYS as f64),
         ],
     );
-    let mut list = div().w_full().flex().flex_col().child(
+    let mut rows = div().w_full().flex().flex_col().gap(px(theme::KEY_ROW_GAP));
+    for (index, key) in view.keys.iter().enumerate() {
+        rows = rows.child(key_row(host, index, key));
+    }
+    column = column.child(
         div()
             .w_full()
             .flex()
-            .items_center()
-            .justify_between()
-            .pb(px(FLOW_GAP_SM))
-            .child(caption(theme, loc.t("onboarding.create.keysLabel")))
-            .child(caption(theme, counter)),
+            .flex_col()
+            .gap(px(10.))
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(section_label(theme, loc.t("onboarding.create.keysLabel")))
+                    .child(mono_meta(theme, counter)),
+            )
+            .child(rows),
     );
-    for (index, key) in view.keys.iter().enumerate() {
-        list = list.child(key_row(host, index, key));
-    }
-    column = column.child(list);
 
     // Add-key control, with the cap stated on it rather than behind it.
     let on_toggle = emit(&host.sink, FlowEvent::TogglePicker);
@@ -592,31 +653,47 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
     } else {
         loc.t("onboarding.create.addKeyBtn")
     };
-    let mut add = div().w_full().flex().flex_col().child({
-        let row = div()
-            .id("flow-add-key")
-            .w_full()
-            .flex()
-            .items_center()
-            .gap(px(FLOW_GAP_MD))
-            .py(px(FLOW_GAP_MD))
-            .text_size(theme::text_card_title())
-            .child(div().text_color(theme.accent).child("+"))
-            .child(div().text_color(theme.fg_base).child(add_label));
-        if view.can_add_key {
-            row.cursor_pointer()
-                .hover(|s| s.bg(theme.bg_sunken))
-                .on_click(move |_, window, cx| on_toggle(window, cx))
-        } else {
-            row.opacity(OPACITY_DISABLED)
-        }
-    });
+    // v2 draws this as an outlined button in its own right — same rectangle as
+    // the CTA below it, one notch shorter — not as a bare row in the list.
+    let mut add = div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .gap(px(FLOW_GAP_SM))
+        .child({
+            let row = div()
+                .id("flow-add-key")
+                .w_full()
+                .h(px(theme::BTN_H_SECONDARY))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .gap(px(FLOW_GAP_SM))
+                .rounded(px(theme::RADIUS_CTA))
+                .border_1()
+                .border_color(theme.divider)
+                .text_size(theme::text_row_name())
+                .font_weight(FontWeight::BOLD)
+                .text_color(theme.fg_base)
+                .child(div().text_size(theme::text_card_title()).child("+"))
+                .child(div().child(add_label));
+            if view.can_add_key {
+                let accent = theme.accent;
+                row.cursor_pointer()
+                    .hover(move |s| s.border_color(accent))
+                    .on_click(move |_, window, cx| on_toggle(window, cx))
+            } else {
+                row.opacity(OPACITY_DISABLED)
+            }
+        });
     if host.picker_open && view.can_add_key {
         add = add.child(method_picker(host));
     }
     column = column.child(add);
 
     column = column.child(caption(theme, loc.t("onboarding.create.keysHint")));
+    column = column.child(bottom_spacer());
 
     let finish_label = if view.needs_second_key {
         loc.t("onboarding.create.addSecondKeyBtn")
@@ -643,26 +720,25 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
     // its membership has no status to show yet, so the retry TAKES that slot
     // rather than crowding in beside it.
     let trailing: AnyElement = if key.confirmed {
-        let (label, fg, bg) = if key.synced {
+        // Bare coloured text, not a filled pill: v2 puts the row itself in a
+        // bordered card, and a second fill inside it is one surface too many.
+        // `仅本机` is a WARNING, not a neutral — a key with no sync is the one
+        // fact on this screen that can cost someone their wallet.
+        let (label, fg) = if key.synced {
             (
                 loc.t("onboarding.create.keySyncedBadge"),
                 theme.success_base,
-                theme.success_soft,
             )
         } else {
             (
                 loc.t("onboarding.create.keyDeviceOnlyBadge"),
-                theme.fg_muted,
-                theme.bg_well,
+                theme.warning_base,
             )
         };
         div()
             .flex_none()
-            .px(px(FLOW_GAP_SM))
-            .py(px(2.))
-            .rounded_full()
-            .bg(bg)
-            .text_size(theme::text_flow_caption())
+            .text_size(theme::text_section_label())
+            .font_weight(FontWeight::SEMIBOLD)
             .text_color(fg)
             .child(label)
             .into_any_element()
@@ -673,7 +749,7 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
             .flex_none()
             .px(px(FLOW_GAP_SM))
             .py(px(2.))
-            .rounded_full()
+            .rounded(px(theme::RADIUS_ACK))
             .bg(theme.warning_soft)
             .text_size(theme::text_flow_caption())
             .text_color(theme.warning_base)
@@ -687,13 +763,19 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
         }
     };
 
+    // A bordered card on the page colour, not a hairline-separated row: v2
+    // gives every key its own edge and 8px of air, so a list of three reads as
+    // three things rather than as a table.
     let mut row = div()
         .w_full()
         .flex()
         .items_center()
-        .gap(px(FLOW_GAP_MD))
-        .py(px(FLOW_GAP_MD))
-        .border_b_1()
+        .gap(px(theme::FLOW_GAP_MD_SNUG))
+        .px(px(theme::KEY_ROW_PAD_X))
+        .py(px(theme::KEY_ROW_PAD_Y))
+        .rounded(px(RADIUS_FIELD))
+        .bg(theme.bg_base)
+        .border_1()
         .border_color(theme.divider)
         .child(
             div()
@@ -704,11 +786,17 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
                 .gap(px(2.))
                 .child(
                     div()
-                        .text_size(theme::text_card_title())
+                        .text_size(theme::text_row_name())
+                        .font_weight(FontWeight::SEMIBOLD)
                         .text_color(theme.fg_base)
                         .child(SharedString::from(key.name.clone())),
                 )
-                .child(caption(theme, loc.t(provider_line(key)))),
+                .child(
+                    div()
+                        .text_size(theme::text_row_meta())
+                        .text_color(theme.fg_muted)
+                        .child(loc.t(provider_line(key))),
+                ),
         )
         .child(trailing);
 
@@ -830,7 +918,9 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
         &[("count", host.view.keys.len() as f64)],
     );
 
-    let mut tasks = div().w_full().flex().flex_col().gap(px(FLOW_GAP_MD));
+    // Rule-separated rows, not a gapped list: the tasks are a ledger of what
+    // has happened, and v2 draws them as one.
+    let mut tasks = div().w_full().flex().flex_col().gap(px(2.));
     for (index, key) in PROGRESS_TASKS.iter().enumerate() {
         let (mark, color) = match index {
             _ if index < active => ("✓", theme.success_base),
@@ -839,13 +929,27 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
         };
         tasks = tasks.child(
             div()
+                .w_full()
                 .flex()
                 .items_center()
-                .gap(px(FLOW_GAP_MD))
-                .child(div().flex_none().text_color(color).child(mark))
+                .gap(px(theme::FLOW_GAP_MD_SNUG))
+                .py(px(theme::TASK_ROW_PAD_Y))
+                .border_b_1()
+                .border_color(theme.divider)
                 .child(
                     div()
-                        .text_size(theme::text_card_title())
+                        .w(px(FLOW_GAP_MD))
+                        .flex_none()
+                        .text_size(theme::text_row_meta())
+                        .text_color(color)
+                        .child(mark),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w(px(0.))
+                        .text_size(theme::text_row_name())
+                        .font_weight(FontWeight::MEDIUM)
                         .text_color(if index <= active {
                             theme.fg_base
                         } else {
@@ -860,7 +964,7 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
         .w_full()
         .flex()
         .flex_col()
-        .gap(px(FLOW_GAP_LG))
+        .gap(px(theme::FLOW_GAP_XL))
         .child(
             div()
                 .flex()
@@ -874,23 +978,37 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                 .w_full()
                 .flex()
                 .flex_col()
-                .gap(px(FLOW_GAP_SM))
+                .gap(px(10.))
                 .child(
                     div()
                         .w_full()
                         .flex()
-                        .items_center()
+                        .items_baseline()
                         .justify_between()
-                        .child(caption(
-                            theme,
-                            loc.t("onboarding.create.progressMeterLabel"),
-                        ))
-                        .child(caption(theme, SharedString::from(format!("{percent}%")))),
+                        // The meter label and its percentage are the mono
+                        // pair the design reserves for numerals and
+                        // identifiers; the number is the larger of the two.
+                        .font_family(theme::font_mono())
+                        .child(
+                            div()
+                                .text_size(theme::text_row_meta())
+                                .text_color(theme.fg_muted)
+                                .child(SharedString::from(
+                                    loc.t("onboarding.create.progressMeterLabel").to_uppercase(),
+                                )),
+                        )
+                        .child(
+                            div()
+                                .text_size(theme::text_flow_sub())
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(theme.fg_base)
+                                .child(SharedString::from(format!("{percent}%"))),
+                        ),
                 )
                 .child(
                     div()
                         .w_full()
-                        .h(px(STEP_BAR_H))
+                        .h(px(theme::METER_BAR_H))
                         .rounded_full()
                         .bg(theme.divider)
                         .child(
@@ -904,6 +1022,7 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                 ),
         )
         .child(tasks)
+        .child(bottom_spacer())
 }
 
 // ---------------------------------------------------------------------------
@@ -960,6 +1079,7 @@ fn render_retry(host: &FlowHost<'_>) -> Div {
     let sink_retry = host.sink.clone();
     let sink_over = host.sink.clone();
     column
+        .child(bottom_spacer())
         .child(vela_button_opts(
             "flow-retry-upload",
             ButtonVariant::Primary,
@@ -1000,17 +1120,17 @@ fn render_done(host: &FlowHost<'_>) -> Div {
 
     let mut keys = div().w_full().flex().flex_col();
     for key in &view.keys {
-        let (label, fg, bg) = if key.synced {
+        // The DONE list is a recap, not the editable list from KEYS: v2 sets
+        // it in the muted body size with a bare badge and no fill.
+        let (label, fg) = if key.synced {
             (
                 loc.t("onboarding.create.keySyncedBadge"),
                 theme.success_base,
-                theme.success_soft,
             )
         } else {
             (
                 loc.t("onboarding.create.keyDeviceOnlyBadge"),
-                theme.fg_muted,
-                theme.bg_well,
+                theme.warning_base,
             )
         };
         keys = keys.child(
@@ -1018,23 +1138,23 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                 .w_full()
                 .flex()
                 .items_center()
-                .justify_between()
-                .py(px(FLOW_GAP_MD))
+                .gap(px(10.))
+                .py(px(theme::DONE_ROW_PAD_Y))
                 .border_b_1()
                 .border_color(theme.divider)
                 .child(
                     div()
-                        .text_size(theme::text_card_title())
-                        .text_color(theme.fg_base)
+                        .flex_1()
+                        .min_w(px(0.))
+                        .text_size(theme::text_body())
+                        .text_color(theme.fg_muted)
                         .child(SharedString::from(key.name.clone())),
                 )
                 .child(
                     div()
-                        .px(px(FLOW_GAP_SM))
-                        .py(px(2.))
-                        .rounded_full()
-                        .bg(bg)
-                        .text_size(theme::text_flow_caption())
+                        .flex_none()
+                        .text_size(theme::text_section_label())
+                        .font_weight(FontWeight::SEMIBOLD)
                         .text_color(fg)
                         .child(label),
                 ),
@@ -1059,7 +1179,27 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                 .flex()
                 .flex_col()
                 .gap(px(FLOW_GAP_SM))
-                .child(title(theme, loc.t("onboarding.create.successTitle")))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(theme::FLOW_GAP_MD_SNUG))
+                        .child(
+                            div()
+                                .size(px(theme::DONE_CHECK))
+                                .flex_none()
+                                .rounded_full()
+                                .bg(theme.success_soft)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_size(theme::text_flow_sub())
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(theme.success_base)
+                                .child("✓"),
+                        )
+                        .child(title(theme, loc.t("onboarding.create.successTitle"))),
+                )
                 .child(subtitle(theme, success_body)),
         )
         .child(
@@ -1067,12 +1207,12 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                 .w_full()
                 .flex()
                 .flex_col()
-                .gap(px(FLOW_GAP_MD))
-                .p(px(FLOW_GAP_LG))
+                .gap(px(14.))
+                .p(px(FLOW_GAP_MD))
                 .rounded(px(RADIUS_FIELD))
-                .bg(theme.bg_raised)
+                .bg(theme.bg_base)
                 .border_1()
-                .border_color(theme.border_card)
+                .border_color(theme.divider)
                 .child(
                     div()
                         .flex()
@@ -1080,8 +1220,8 @@ fn render_done(host: &FlowHost<'_>) -> Div {
                         .gap(px(2.))
                         .child(
                             div()
-                                .text_size(theme::text_card_title())
-                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_size(theme::text_flow_sub())
+                                .font_weight(FontWeight::BOLD)
                                 .text_color(theme.fg_base)
                                 .child(SharedString::from(wallet_name)),
                         )
@@ -1101,6 +1241,7 @@ fn render_done(host: &FlowHost<'_>) -> Div {
         )
         .child(keys)
         .child(caption(theme, loc.t("onboarding.create.verifyHint")))
+        .child(bottom_spacer())
         .child(vela_button_opts(
             "flow-enter-wallet",
             ButtonVariant::Primary,

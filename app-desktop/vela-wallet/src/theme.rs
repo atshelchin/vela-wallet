@@ -181,10 +181,50 @@ impl Theme {
 pub const WINDOW_W: f32 = 1280.;
 pub const WINDOW_H: f32 = 800.;
 
-pub const GAP_BRAND_TAGLINE: f32 = 56.;
-
 pub const LOGO_SIZE: f32 = 60.;
-pub const GAP_LOGO_WORDMARK: f32 = 34.;
+
+// ---------------------------------------------------------------------------
+// Welcome screen, v2 (design/onboarding-new/Vela Wallet Onboarding.html).
+//
+// These are NOT measured off a raster. That file is a React page and the
+// values below are the literal CSS it renders for `screen === "welcome"` at
+// `device === "desktop"` — `colMax`, `heroSize`, the inline styles on the
+// brand row and the button row. Where a number here disagrees with the v1
+// mocks in design/onboarding, v2 is the one that ships.
+// ---------------------------------------------------------------------------
+
+/// `colMax` — the welcome column is wider than the flow's 440/560, and it is
+/// a MAXIMUM: the column is centred in the page and its content is not.
+pub const WELCOME_COLUMN_W: f32 = 620.;
+/// The page's own `padding: 32px 24px`, plus the welcome column's
+/// `padding: 12px 0 16px`.
+pub const WELCOME_PAD_X: f32 = 24.;
+pub const WELCOME_PAD_TOP: f32 = 32. + 12.;
+pub const WELCOME_PAD_BOTTOM: f32 = 32. + 16.;
+/// The welcome column is `justify-content: space-between` — brand and copy at
+/// the top, the two CTAs on the bottom edge — with this as the floor between
+/// them when the window is short.
+pub const GAP_WELCOME_SPLIT: f32 = 40.;
+
+/// Mark ↔ wordmark.
+pub const GAP_LOGO_WORDMARK: f32 = 12.;
+/// Brand row ↔ hero.
+pub const GAP_BRAND_HERO: f32 = 24.;
+/// Hero ↔ subtitle.
+pub const GAP_HERO_SUB: f32 = 12.;
+/// Between the two CTAs, which share one row.
+pub const GAP_WELCOME_CTA: f32 = 12.;
+
+/// `letter-spacing: .11em` on the wordmark, as a fraction of the em. gpui has
+/// no letter-spacing property at all, so this is applied by hand — see
+/// `ui::vela_wordmark`.
+pub const WORDMARK_TRACKING: f32 = 0.11;
+
+/// The welcome CTAs are rectangles with a 12px radius, not the flow's
+/// capsules, and they divide one row rather than stacking.
+pub const RADIUS_CTA: f32 = 12.;
+pub const CTA_MIN_W: f32 = 200.;
+pub const CTA_H: f32 = 52.;
 
 // ---------------------------------------------------------------------------
 // Wallet home (spec 015). Geometry measured on the D1–D3 mocks at their
@@ -404,8 +444,12 @@ pub const BADGE_CIRCLE: f32 = 56.;
 /// face). Named for the elapsed ring it was measured on; the ring itself is
 /// gone with spec 014's progress pattern, the weight it established is not.
 pub const RING_STROKE: f32 = 4.;
-/// The v2 flow's progress bar height.
-pub const STEP_BAR_H: f32 = 5.;
+/// The step bar under the flow header — a hairline rule with an accent fill,
+/// not a chunky meter. The DERIVING-ADDRESS meter on the progress screen is a
+/// different, thicker bar (`METER_BAR_H`).
+pub const STEP_BAR_H: f32 = 2.;
+/// The progress screen's own meter.
+pub const METER_BAR_H: f32 = 4.;
 /// The touch prompt's target disc. Sized like the outcome badge, because it
 /// sits in the same place on the same card and is asking for the same amount
 /// of attention.
@@ -413,13 +457,45 @@ pub const TOUCH_DISC: f32 = 56.;
 /// Name field / address strip well height, and the wells' corner radius.
 pub const INPUT_H: f32 = 52.;
 pub const RADIUS_FIELD: f32 = 12.;
-/// Acknowledgment checkbox square.
-pub const ACK_BOX: f32 = 20.;
+/// Acknowledgment checkbox square, and its corner radius.
+pub const ACK_BOX: f32 = 22.;
+pub const RADIUS_ACK: f32 = 6.;
 /// Flow rhythm gaps (mock-measured: 8 within a group, 16 between rows,
 /// 24 between pattern blocks).
 pub const FLOW_GAP_SM: f32 = 8.;
 pub const FLOW_GAP_MD: f32 = 16.;
 pub const FLOW_GAP_LG: f32 = 24.;
+/// The progress screen's block rhythm, which is looser than the rest.
+pub const FLOW_GAP_XL: f32 = 28.;
+/// The gap v2 uses inside a row — mark to sentence, icon to label. Between
+/// `FLOW_GAP_SM` and `FLOW_GAP_MD`, and the design uses it everywhere a small
+/// leading element sits beside text.
+pub const FLOW_GAP_MD_SNUG: f32 = 12.;
+
+// -- v2 flow shell (design/onboarding-new) ----------------------------------
+
+/// `colMax` for every screen that is not the welcome: the flow reads as one
+/// narrow column, and it is a MAXIMUM.
+pub const FLOW_COLUMN_W: f32 = 440.;
+/// Back-link row ↔ step bar, and the whole header block ↔ the screen body.
+pub const FLOW_HEADER_GAP: f32 = 16.;
+pub const FLOW_HEADER_PAD_B: f32 = 28.;
+/// The ‹ chevron sits closer to its label than the flow rhythm would put it.
+pub const FLOW_BACK_GAP: f32 = 7.;
+/// A key row is a bordered card, not a hairline-separated row.
+pub const KEY_ROW_PAD_X: f32 = 14.;
+pub const KEY_ROW_PAD_Y: f32 = 12.;
+pub const KEY_ROW_GAP: f32 = 8.;
+/// The tick beside the DONE title.
+pub const DONE_CHECK: f32 = 34.;
+/// Vertical padding of a progress task row, which is separated by a rule
+/// rather than by a gap.
+pub const TASK_ROW_PAD_Y: f32 = 11.;
+/// Vertical padding of a DONE key row — the same rule pattern, tighter.
+pub const DONE_ROW_PAD_Y: f32 = 10.;
+/// The `flex: 1; min-height: 8px` spacer that pushes a screen's CTA to the
+/// bottom edge of the page.
+pub const FLOW_SPACER_MIN: f32 = 8.;
 /// Disabled control emphasis (mock A1's dimmed-accent CTA — never a gray fill).
 pub const OPACITY_DISABLED: f32 = 0.45;
 /// Hairline rules (scaffold and outcome dividers).
@@ -449,11 +525,22 @@ pub fn text_badge_glyph() -> Pixels {
     px(26.)
 }
 
-/// The mock wordmark's cap height is ~30.5 px, which for the system font is a
-/// ~42 px em size (review-verified; a 30 px em renders ~30% small).
-pub fn text_brand() -> Pixels {
-    px(42.)
+/// The v2 wordmark is small, heavy and widely tracked — a label beside the
+/// mark, not a title. v1's 42 px display treatment is gone with the two-column
+/// welcome it belonged to.
+pub fn text_wordmark() -> Pixels {
+    px(19.)
 }
+/// The v2 welcome hero. It carries the screen, so it is nearly twice v1's
+/// tagline; the copy ships its own line break rather than relying on a wrap.
+pub fn text_hero() -> Pixels {
+    px(46.)
+}
+/// `line-height: 1.25` at the hero size.
+pub fn line_height_hero() -> Pixels {
+    px(46. * 1.25)
+}
+/// Flow-screen titles (spec 014). Not the welcome hero — that is `text_hero`.
 pub fn text_tagline() -> Pixels {
     px(26.)
 }
@@ -468,6 +555,42 @@ pub fn text_numeral() -> Pixels {
 }
 pub fn text_button() -> Pixels {
     px(16.)
+}
+/// Every v2 button label — welcome, flow, sheet — is this size and BOLD.
+pub fn text_cta() -> Pixels {
+    px(15.)
+}
+/// Flow subtitles and the name field's own text. One notch under
+/// `text_card_title`, which the wallet home still uses at 16.
+pub fn text_flow_sub() -> Pixels {
+    px(15.)
+}
+/// `line-height: 1.5` at 15.
+pub fn line_height_flow_sub() -> Pixels {
+    px(22.5)
+}
+/// `line-height: 1.55` at 13 — the acknowledgement and hint sentences, which
+/// wrap more than anything else on the screen.
+pub fn line_height_ack() -> Pixels {
+    px(13. * 1.55)
+}
+/// `line-height: 1.2` on the 26px flow titles.
+pub fn line_height_title() -> Pixels {
+    px(26. * 1.2)
+}
+/// The uppercase field/section label above an input or a list. Tiny, heavy and
+/// tracked in the design; gpui cannot track, so the case and the weight carry
+/// it (see `ui::vela_wordmark` for the one place hand-tracking was worth it).
+pub fn text_section_label() -> Pixels {
+    px(11.)
+}
+/// A key row's name, and a progress task's label.
+pub fn text_row_name() -> Pixels {
+    px(14.)
+}
+/// A key row's provider line, and the mono counters beside a section label.
+pub fn text_row_meta() -> Pixels {
+    px(12.)
 }
 /// Relaxed body line height (~1.55 at 13 px).
 pub fn line_height_body() -> Pixels {

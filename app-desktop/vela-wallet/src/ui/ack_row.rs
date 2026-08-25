@@ -5,7 +5,7 @@
 
 use std::ops::Range;
 
-use crate::theme::{self, ACK_BOX, FLOW_GAP_MD, Theme};
+use crate::theme::{self, ACK_BOX, Theme};
 use gpui::{
     App, Div, FontWeight, HighlightStyle, InteractiveElement, InteractiveText, ParentElement,
     SharedString, StatefulInteractiveElement, Styled, StyledText, Window, div, px,
@@ -30,7 +30,7 @@ pub fn ack_row<Link: Copy + 'static>(
             .flex_none()
             // Optical alignment with the first text line (20 px line height).
             .mt(px(1.))
-            .rounded(px(ACK_BOX / 3.))
+            .rounded(px(theme::RADIUS_ACK))
             .flex()
             .items_center()
             .justify_center()
@@ -83,14 +83,14 @@ pub fn ack_row<Link: Copy + 'static>(
     div()
         .flex()
         .items_start()
-        .gap(px(FLOW_GAP_MD))
+        .gap(px(theme::FLOW_GAP_MD_SNUG))
         .child(checkbox)
         .child(
             div()
                 .flex_1()
                 .min_w(px(0.))
                 .text_size(theme::text_body())
-                .line_height(theme::line_height_body())
+                .line_height(theme::line_height_ack())
                 .text_color(theme.fg_muted)
                 .child(body),
         )

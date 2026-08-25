@@ -40,16 +40,17 @@ use crate::executor::{
 };
 use crate::hardware;
 use crate::loc::Loc;
-use crate::onboarding_flow::{FLOW_COLUMN_W, FlowEvent, FlowHost, FlowSink, render_create_flow};
+use crate::onboarding_flow::{FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, SHEET_PAD, SHEET_RADIUS, SHEET_W, outcome_sheet};
 use crate::session;
 use crate::theme::{
-    self, FLOW_GAP_LG, FLOW_GAP_MD, GAP_BRAND_TAGLINE, GAP_BUTTONS, GAP_LOGO_WORDMARK, LOGO_SIZE,
-    Theme, ThemeMode,
+    self, FLOW_GAP_LG, FLOW_GAP_MD, GAP_BRAND_HERO, GAP_HERO_SUB, GAP_LOGO_WORDMARK,
+    GAP_WELCOME_CTA, GAP_WELCOME_SPLIT, LOGO_SIZE, Theme, ThemeMode, WELCOME_COLUMN_W,
+    WELCOME_PAD_BOTTOM, WELCOME_PAD_TOP, WELCOME_PAD_X,
 };
 use crate::ui::{
-    ButtonVariant, LaunchAnimation, NameFieldStrings, text_field, vela_button, vela_button_opts,
-    vela_mark,
+    ButtonVariant, LaunchAnimation, NameFieldStrings, text_field, vela_button, vela_mark,
+    vela_wordmark, welcome_cta,
 };
 use crate::window_frame::{
     FRAME_SHADOW, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
@@ -529,37 +530,37 @@ impl OnboardingPage {
 
     // -- welcome ------------------------------------------------------------
 
+    /// The v2 welcome (design/onboarding-new). Two blocks, not one centred
+    /// stack: brand and copy ride the top edge, the two CTAs ride the bottom,
+    /// and the space between them is whatever the window has left over. The
+    /// column is centred in the page; nothing inside it is.
     fn welcome(&self, theme: &Theme, cx: &mut Context<Self>) -> Div {
-        let mut column = div()
-            .w(px(FLOW_COLUMN_W))
+        let mut top = div()
             .flex()
             .flex_col()
+            .gap(px(GAP_BRAND_HERO))
             .child(
                 div()
                     .flex()
                     .items_center()
                     .gap(px(GAP_LOGO_WORDMARK))
                     .child(vela_mark(theme, px(LOGO_SIZE)))
-                    .child(
-                        div()
-                            .text_size(theme::text_brand())
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(theme.fg_base)
-                            // A proper name, rendered verbatim.
-                            .child("Vela Wallet"),
-                    ),
+                    .child(vela_wordmark(theme)),
             )
             .child(
                 div()
-                    .mt(px(GAP_BRAND_TAGLINE))
                     .flex()
                     .flex_col()
-                    .gap(px(FLOW_GAP_MD))
+                    .gap(px(GAP_HERO_SUB))
                     .child(
                         div()
-                            .text_size(theme::text_tagline())
+                            .text_size(theme::text_hero())
+                            .line_height(theme::line_height_hero())
                             .font_weight(FontWeight::BOLD)
                             .text_color(theme.fg_base)
+                            // The copy carries its own line break — every
+                            // locale breaks where its own sentence wants to,
+                            // not where 620px happens to run out.
                             .child(self.t("heroTitle")),
                     )
                     .child(
@@ -569,38 +570,16 @@ impl OnboardingPage {
                             .text_color(theme.fg_muted)
                             .child(self.t("heroSubtitle")),
                     ),
-            )
-            .child(
-                div()
-                    .mt(px(GAP_BUTTONS * 2.))
-                    .flex()
-                    .flex_col()
-                    .gap(px(FLOW_GAP_MD))
-                    .child(vela_button(
-                        "create-wallet",
-                        ButtonVariant::Primary,
-                        self.t("createWallet"),
-                        theme,
-                        cx.listener(|this, _, _, cx| this.start_create(cx)),
-                    ))
-                    .child(vela_button_opts(
-                        "already-have-wallet",
-                        ButtonVariant::Secondary,
-                        self.t("alreadyHaveWallet"),
-                        !self.login_view.busy,
-                        theme,
-                        cx.listener(|this, _, _, cx| this.sign_in(cx)),
-                    )),
             );
 
         // The registry is unreachable. Sign-in stays attemptable — the CORE
         // decides that, not this screen — so this only says so, and offers the
-        // surface that can fix it.
+        // surface that can fix it. It belongs to the copy block: hung off the
+        // buttons it would float in the middle of the page.
         if self.login_view.endpoint_unreachable {
-            column = column.child(
+            top = top.child(
                 div()
                     .id("endpoint-warning")
-                    .mt(px(FLOW_GAP_LG))
                     .cursor_pointer()
                     .text_size(theme::text_flow_caption())
                     .line_height(theme::line_height_body())
@@ -610,12 +589,45 @@ impl OnboardingPage {
             );
         }
 
+        let buttons = div()
+            .flex()
+            .flex_row()
+            .gap(px(GAP_WELCOME_CTA))
+            .child(welcome_cta(
+                "create-wallet",
+                ButtonVariant::Primary,
+                self.t("createWallet"),
+                true,
+                theme,
+                cx.listener(|this, _, _, cx| this.start_create(cx)),
+            ))
+            .child(welcome_cta(
+                "already-have-wallet",
+                ButtonVariant::Secondary,
+                self.t("alreadyHaveWallet"),
+                !self.login_view.busy,
+                theme,
+                cx.listener(|this, _, _, cx| this.sign_in(cx)),
+            ));
+
         div()
             .size_full()
             .flex()
-            .items_center()
             .justify_center()
-            .child(column)
+            .px(px(WELCOME_PAD_X))
+            .pt(px(WELCOME_PAD_TOP))
+            .pb(px(WELCOME_PAD_BOTTOM))
+            .child(
+                div()
+                    .w_full()
+                    .max_w(px(WELCOME_COLUMN_W))
+                    .flex()
+                    .flex_col()
+                    .justify_between()
+                    .gap(px(GAP_WELCOME_SPLIT))
+                    .child(top)
+                    .child(buttons),
+            )
     }
 
     // -- overlays -----------------------------------------------------------
@@ -874,11 +886,16 @@ impl Render for OnboardingPage {
                 copied: self.copied,
                 sink,
             };
+            // The flow OWNS the page, exactly as the welcome does: same
+            // padding, same centred column, and a body tall enough for each
+            // screen's bottom spacer to put its CTA on the bottom edge.
             div()
                 .size_full()
                 .flex()
-                .items_center()
                 .justify_center()
+                .px(px(WELCOME_PAD_X))
+                .pt(px(WELCOME_PAD_TOP))
+                .pb(px(WELCOME_PAD_BOTTOM))
                 .child(render_create_flow(&host, window))
         } else {
             self.welcome(&theme, cx)

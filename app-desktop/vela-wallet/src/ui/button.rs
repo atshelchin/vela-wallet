@@ -35,6 +35,11 @@ pub fn vela_button(
 /// `vela_button` plus the disabled treatment (spec 014 form CTA): the same
 /// fill at `OPACITY_DISABLED` emphasis — mock A1's dimmed accent, never a gray
 /// swap — with the pointer affordance and the click handler withheld.
+///
+/// The shape is v2's: a 12px rectangle. **There is no capsule anywhere in
+/// design/onboarding-new** — every button in it, on every screen and in the
+/// sheet, is `border-radius: 12px` — so the pill went with v1 rather than
+/// surviving as a second shape nothing calls for.
 pub fn vela_button_opts(
     id: impl Into<ElementId>,
     variant: ButtonVariant,
@@ -49,30 +54,74 @@ pub fn vela_button_opts(
     };
     // The height is a MINIMUM: long-locale labels wrap inside a
     // width-constrained, centered block and grow the row instead of
-    // escaping the capsule (radius stays at the single-line value).
+    // escaping the button (the radius is fixed, so growth is safe).
     let label_block = div().w_full().min_w(px(0.)).text_center().child(label);
     let base = div()
         .id(id)
         .min_h(px(height))
         .w_full()
         .flex_none()
-        .rounded(px(height / 2.))
+        .rounded(px(theme::RADIUS_CTA))
         .flex()
         .items_center()
         .justify_center()
         .px(px(theme::BTN_PAD_X))
         .py(px(theme::BTN_PAD_Y))
-        .text_size(theme::text_button())
-        .font_weight(FontWeight::SEMIBOLD);
+        .text_size(theme::text_cta())
+        .font_weight(FontWeight::BOLD);
 
+    finish(base, variant, label_block, enabled, theme, on_click)
+}
+
+/// The v2 welcome pair (design/onboarding-new): the same rectangle as every
+/// other button, except that it DIVIDES A ROW with its sibling instead of
+/// filling the column, and both halves stand at the primary height.
+///
+/// Same fills, hovers and disabled treatment as `vela_button` — only the
+/// sizing differs, which is why they share `finish` below.
+pub fn welcome_cta(
+    id: impl Into<ElementId>,
+    variant: ButtonVariant,
+    label: SharedString,
+    enabled: bool,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let label_block = div().min_w(px(0.)).text_center().child(label);
+    let base = div()
+        .id(id)
+        .flex_1()
+        .min_w(px(theme::CTA_MIN_W))
+        .min_h(px(theme::CTA_H))
+        .rounded(px(theme::RADIUS_CTA))
+        .flex()
+        .items_center()
+        .justify_center()
+        .px(px(theme::BTN_PAD_X))
+        .py(px(theme::BTN_PAD_Y))
+        .text_size(theme::text_cta())
+        .font_weight(FontWeight::BOLD);
+
+    finish(base, variant, label_block, enabled, theme, on_click)
+}
+
+/// The part every button shape shares: the variant's fill, its hover/active
+/// pair, and either the click handler or the disabled dimming.
+fn finish(
+    base: Stateful<Div>,
+    variant: ButtonVariant,
+    label_block: Div,
+    enabled: bool,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
     if !enabled {
         let styled = match variant {
             ButtonVariant::Primary => base.bg(theme.accent).text_color(theme.fg_inverse),
             ButtonVariant::Secondary => base
-                .bg(theme.bg_raised)
                 .text_color(theme.fg_base)
                 .border_1()
-                .border_color(theme.outline_strong),
+                .border_color(theme.divider),
             ButtonVariant::Row => base.bg(theme.bg_well).text_color(theme.fg_base),
         };
         return styled.opacity(OPACITY_DISABLED).child(label_block);
@@ -87,11 +136,15 @@ pub fn vela_button_opts(
                 .active(move |s| s.bg(active))
         }
         ButtonVariant::Secondary => {
+            // Transparent on a hairline, not white-on-a-dark-outline: v2 draws
+            // the secondary as `background: transparent; border: 1px solid
+            // var(--border)`, and `divider` is the token that equals
+            // `--border` in BOTH modes (#ECEBE4 / #2C2C28). `outline_strong`
+            // is v1's heavy brown edge and belongs to the old capsule.
             let (hover_bg, active_bg) = (theme.bg_sunken, theme.divider);
-            base.bg(theme.bg_raised)
-                .text_color(theme.fg_base)
+            base.text_color(theme.fg_base)
                 .border_1()
-                .border_color(theme.outline_strong)
+                .border_color(theme.divider)
                 .hover(move |s| s.bg(hover_bg))
                 .active(move |s| s.bg(active_bg))
         }

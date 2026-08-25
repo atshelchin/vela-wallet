@@ -1,5 +1,6 @@
 package app.getvela.wallet.feature.onboarding.gallery
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -68,6 +69,12 @@ fun GalleryScreen(initialDarkTheme: Boolean) {
         val strings = LocalVelaStrings.current
         val colors = VelaTheme.colors
         val selected = selectedCode?.let(FlowFixtures::byCode)
+
+        // Device-verified 2026-08-25: without this, system back left the APP
+        // from an open fixture rather than returning to the list. The flow
+        // screens' own back control is an in-screen affordance, and on Android
+        // the gesture is what people actually reach for.
+        BackHandler(enabled = selected != null) { selectedCode = null }
 
         LazyColumn(
             modifier = Modifier

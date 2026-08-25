@@ -131,15 +131,19 @@ fun ColumnScope.NameScreen(
                     conjunction = strings.t(I18nKeys.Create.ACK1_AND),
                     terms = strings.t(I18nKeys.Create.ACK1_TERMS),
                     period = strings.t(I18nKeys.Create.ACK1_PERIOD),
-                    linkColor = colors.accentBase,
+                    emphasis = colors.fgBase,
                 ),
             )
 
-            // The two policy documents open outside the app. They are rendered
-            // as separate tappable rows rather than as inline links inside the
-            // checkbox: the row IS the checkbox's touch target, and a link
-            // inside it either steals the tap or is too small to hit — the
-            // spec-011 lesson this component already carries.
+            // The two documents open outside the app, from HERE rather than
+            // from the sentence above. The checkbox row IS a single touch
+            // target, and a link inside it either steals the tap or is too
+            // small to hit — the spec-011 lesson `VelaAckRow` already carries.
+            //
+            // So the sentence names them without pretending to be tappable
+            // (emphasis, not accent — device-verified 2026-08-25: accent
+            // coloured text inside an untappable row reads as a broken link),
+            // and this row is where they are actually opened.
             Row(horizontalArrangement = Arrangement.spacedBy(VelaSpacing.xl)) {
                 PolicyLink(strings.t(I18nKeys.Create.ACK1_PRIVACY_POLICY), onOpenPrivacy)
                 PolicyLink(strings.t(I18nKeys.Create.ACK1_TERMS), onOpenTerms)
@@ -211,11 +215,11 @@ private fun legalLine(
     conjunction: String,
     terms: String,
     period: String,
-    linkColor: androidx.compose.ui.graphics.Color,
+    emphasis: androidx.compose.ui.graphics.Color,
 ): AnnotatedString = buildAnnotatedString {
     append(lead)
-    withStyle(SpanStyle(color = linkColor)) { append(privacy) }
+    withStyle(SpanStyle(color = emphasis, fontWeight = VelaFontWeight.semibold)) { append(privacy) }
     append(conjunction)
-    withStyle(SpanStyle(color = linkColor)) { append(terms) }
+    withStyle(SpanStyle(color = emphasis, fontWeight = VelaFontWeight.semibold)) { append(terms) }
     append(period)
 }

@@ -293,6 +293,7 @@ enum WelcomeContentBuilder {
     static func build(loc: Loc) -> WelcomeContent {
         WelcomeContent(
             heroTitle: loc.t("onboarding.welcome.heroTitle"),
+            heroTitleFit: HeroFit(corpusValue: loc.t("onboarding.welcome.heroTitleFit")),
             heroSubtitle: loc.t("onboarding.welcome.heroSubtitle"),
             createWallet: loc.t("onboarding.welcome.createWallet"),
             alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet")

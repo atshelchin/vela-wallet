@@ -18,6 +18,7 @@ import androidx.credentials.exceptions.publickeycredential.CreatePublicKeyCreden
 import androidx.credentials.exceptions.publickeycredential.GetPublicKeyCredentialDomException
 import java.security.SecureRandom
 import java.util.UUID
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import uniffi.vela_core_uniffi.fromBase64url
@@ -166,6 +167,18 @@ class PasskeyExecutor(
     /**
      * An assertion. [credentialIdHex] pins it to one credential; `null` is the
      * "who are you?" ceremony sign-in starts with.
+     *
+     * A PINNED assertion retries once on "no credential". The create flow signs
+     * a membership proof with the passkey it minted moments earlier, and on
+     * Android the provider's index is sometimes not caught up yet: the first
+     * get reports nothing to sign with, and the identical retry the person is
+     * then forced to press by hand succeeds (founder-found on device
+     * 2026-08-25; iOS does not do this). We know that credential exists — we
+     * just watched it being created — so believing "no credential" the first
+     * time makes the app lie about the person's own key.
+     *
+     * An UNPINNED assertion never retries: there, "no credential" is the
+     * honest answer to "who are you?" on a device with no wallet.
      */
     suspend fun assert(challenge: ByteArray, credentialIdHex: String?): Assertion {
         val credentialManager = manager ?: throw PasskeyFailure(
@@ -189,13 +202,19 @@ class PasskeyExecutor(
             }
         }
 
+        val getRequest = GetCredentialRequest(
+            listOf(GetPublicKeyCredentialOption(request.toString())),
+        )
         val response = try {
-            credentialManager.getCredential(
-                context = context,
-                request = GetCredentialRequest(
-                    listOf(GetPublicKeyCredentialOption(request.toString())),
-                ),
-            )
+            credentialManager.getCredential(context = context, request = getRequest)
+        } catch (error: NoCredentialException) {
+            if (credentialIdHex == null) throw classifyGet(error)
+            delay(INDEX_SETTLE_MS)
+            try {
+                credentialManager.getCredential(context = context, request = getRequest)
+            } catch (retried: GetCredentialException) {
+                throw classifyGet(retried)
+            }
         } catch (error: GetCredentialException) {
             throw classifyGet(error)
         }
@@ -246,6 +265,14 @@ class PasskeyExecutor(
         const val PUBLIC_KEY = "public-key"
         const val ES256 = -7
         const val CHALLENGE_BYTES = 32
+
+        /**
+         * How long to let the provider's credential index catch up before
+         * re-asking for a credential we just watched it create. Long enough to
+         * cover the race that was seen on device, short enough that a person
+         * reads it as the same prompt taking a moment.
+         */
+        const val INDEX_SETTLE_MS = 600L
         const val NUL = '\u0000'
 
         /**

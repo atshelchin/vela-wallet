@@ -46,6 +46,11 @@ const WEB_ADDITIONS = [
 	],
 	['size-identiconDetail', '48px', 'spec 018: contact-detail avatar, measured 48 in DC2 (desktop)'],
 	[
+		'size-identiconViewer',
+		'160px',
+		"spec 019: the identicon viewer's artwork — big enough to read as a picture rather than an avatar, and to fit beside a wrapped address on the narrowest phone"
+	],
+	[
 		'text-hero',
 		'46px',
 		'spec 019: the v2 Welcome headline. The DTCG type scale tops out at 40px (text-5xl), and the onboarding design specifies 46/38 — declared once here rather than sprinkled as literals'

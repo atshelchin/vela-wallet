@@ -12,9 +12,14 @@
 
 	interface Props {
 		model: WalletDesktopModel;
+		/** Sidebar navigation. Absent in the gallery, where the rail is a picture. */
+		onnav?: (id: 'wallet' | 'contacts' | 'explore' | 'settings') => void;
+		/** Open the identicon viewer; absent in the gallery. */
+		onidenticon?: () => void;
+		identiconViewerLabel?: string;
 	}
 
-	let { model }: Props = $props();
+	let { model, onnav, onidenticon, identiconViewerLabel }: Props = $props();
 
 	// The third column replaces the mobile bottom sheet (research.md D5).
 	// Pure UI state: which content it hosts, seeded by the fixture state.
@@ -22,7 +27,7 @@
 </script>
 
 <div class="desktop">
-	<Sidebar sidebar={model.sidebar} />
+	<Sidebar sidebar={model.sidebar} {onnav} {onidenticon} identiconLabel={identiconViewerLabel} />
 
 	<main>
 		<div class="content">

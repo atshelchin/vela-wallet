@@ -156,16 +156,16 @@ fun VelaNavHost(
             // somewhere it is not; a fixture NAME over their own address and
             // identicon told them they were signed in as somebody else
             // (device-found 2026-08-26).
-            var sheetOpen by rememberSaveable { mutableStateOf(false) }
-            val model = remember(strings, sheetOpen, session.address, session.activeName) {
-                WalletFixtures.buildMobileState(
-                    if (sheetOpen) WalletScreenState.H8 else WalletScreenState.H1,
-                    strings,
-                ).withAddress(session.address).withName(session.activeName)
+            // The chain-select sheet used to open from the header's network
+            // pill; the pill is gone (founder call, 2026-08-26 — it cost the
+            // name and address their width), and with it this screen's H8
+            // state. The sheet keeps its fixtures for the gallery.
+            val model = remember(strings, session.address, session.activeName) {
+                WalletFixtures.buildMobileState(WalletScreenState.H1, strings)
+                    .withAddress(session.address).withName(session.activeName)
             }
             WalletScreen(
                 model = model,
-                onPillClick = { sheetOpen = true },
                 onSelectTab = { tab ->
                     // Sign-out is the only thing behind Settings today. The
                     // other three tabs stay on this screen rather than
@@ -173,7 +173,6 @@ fun VelaNavHost(
                     // their real data.
                     if (tab == VelaTab.Settings) application.container.session.signOut()
                 },
-                onSheetDismiss = { sheetOpen = false },
             )
         }
 

@@ -128,7 +128,7 @@ struct RootView: View {
     private func content(router path: Binding<[AppRoute]>) -> some View {
         switch PageOverride.page {
         case .wallet:
-            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc))
+            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc), loc: loc)
         case .gallery:
             GalleryScreen(loc: loc)
         case .contacts:
@@ -225,6 +225,7 @@ struct RootView: View {
                     .buildMobileState(.h1, loc: loc)
                     .withAddress(session.view.address)
                     .withName(session.view.activeName),
+                loc: loc,
                 onSelectTab: { tab in
                     // Sign-out is the only thing behind Settings today. The
                     // other three tabs stay on this screen rather than

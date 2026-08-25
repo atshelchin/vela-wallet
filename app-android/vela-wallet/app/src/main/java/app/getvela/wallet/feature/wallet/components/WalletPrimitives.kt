@@ -30,6 +30,14 @@ internal object WalletMetrics {
     /** 40dp header avatar / row leading circle (mock; space.xl4 32 + space.md 8). */
     val avatarSize: Dp = VelaSpacing.xl4 + VelaSpacing.md
 
+    /**
+     * 160dp identicon-viewer artwork (spec 019 founder call) — big enough to
+     * read as a picture rather than an avatar, and to sit above a wrapped
+     * address on the narrowest phone.
+     */
+    val identiconViewerSize: Dp = VelaSpacing.xl4 * 5
+
+
     /** 12dp chain-dot badge on row circles (icon.xs). */
     val badgeDotSize: Dp = VelaIconSize.xs
 

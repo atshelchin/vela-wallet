@@ -18,6 +18,7 @@
 	 * by this page — `e2e/welcome-ssr.e2e.ts` holds that line.
 	 */
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import BrandMark from '$lib/ui/BrandMark.svelte';
@@ -44,6 +45,7 @@
 		fillTemplate(data.flow[key] ?? key, params);
 
 	const createHref = $derived(resolve('/[locale]/create', { locale }));
+	const walletHref = $derived(resolve('/[locale]/wallet', { locale }));
 
 	let loginView = $state<LoginView | null>(null);
 	let login: LoginSession | null = null;
@@ -77,6 +79,9 @@
 	async function complete(mode: CompletionMode): Promise<void> {
 		await session.boot();
 		session.accountEstablished(mode);
+		// Signing in ends where the wallet is, not back on the page that
+		// started it — the same landing all three native clients make.
+		await goto(walletHref, { replaceState: true });
 	}
 
 	/**

@@ -8,7 +8,6 @@
 	import BottomSheet from './ui/BottomSheet.svelte';
 	import ChainFilterList from './ui/ChainFilterList.svelte';
 	import EmptyState from './ui/EmptyState.svelte';
-	import NetworkFilterPill from './ui/NetworkFilterPill.svelte';
 	import SectionHeader from './ui/SectionHeader.svelte';
 	import SkeletonRow from './ui/SkeletonRow.svelte';
 	import TabBar from './ui/TabBar.svelte';
@@ -16,20 +15,29 @@
 
 	interface Props {
 		model: WalletHomeModel;
+		/** Tab selection. Absent in the gallery, where the bar is a picture. */
+		onselect?: (id: 'wallet' | 'contacts' | 'explore' | 'settings') => void;
+		/** Open the identicon viewer; absent in the gallery. */
+		onidenticon?: () => void;
+		identiconViewerLabel?: string;
 	}
 
-	let { model }: Props = $props();
+	let { model, onselect, onidenticon, identiconViewerLabel }: Props = $props();
 
-	// Pure UI state: reopening the (fixture-provided) sheet after closing it.
+	// Pure UI state: the fixture-provided sheet, once dismissed, stays dismissed.
+	// Nothing on this screen reopens it any more — the pill that did is gone.
 	let sheetClosed = $state(false);
 	const showSheet = $derived(model.sheet !== undefined && !sheetClosed);
 </script>
 
 <div class="home" style:--text-scale={model.textScale === 1 ? undefined : model.textScale}>
 	<div class="scroll">
+		<!-- The header owns the whole width. The network filter pill used to sit
+		     at its trailing edge and cost the name and address the room they
+		     needed — a wallet called "kimik3 · something" showed as "kimik3 ·…"
+		     next to a chip nobody was reading (founder call, 2026-08-26). -->
 		<header class="top">
-			<WalletHeader header={model.header} />
-			<NetworkFilterPill pill={model.pill} onclick={() => (sheetClosed = false)} />
+			<WalletHeader header={model.header} {onidenticon} identiconLabel={identiconViewerLabel} />
 		</header>
 
 		<div class="balance">
@@ -83,7 +91,7 @@
 		{/if}
 	</div>
 
-	<TabBar tabs={model.tabs} />
+	<TabBar tabs={model.tabs} {onselect} />
 
 	{#if showSheet && model.sheet !== undefined}
 		<BottomSheet
@@ -116,14 +124,7 @@
 	.top {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-lg);
 		padding-block: var(--space-xl);
-	}
-
-	.top :global(.pill) {
-		flex-shrink: 1;
-		min-width: 0;
 	}
 
 	.balance {

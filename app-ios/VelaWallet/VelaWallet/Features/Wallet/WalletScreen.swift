@@ -15,6 +15,13 @@ struct WalletScreen: View {
     @Environment(\.theme) private var theme
 
     let model: WalletHomeModel
+    /// Strings this screen resolves for itself.
+    ///
+    /// Everything the FIXTURES know arrives pre-resolved in `model`; the
+    /// identicon viewer is not in the fixtures, because it is not a state of
+    /// this screen — it is a sheet the artwork opens, on this screen and on
+    /// every other screen that draws an identicon.
+    let loc: Loc
     /// The Settings tab (spec 019).
     ///
     /// The tab has existed since spec 015 with an `onSelect` hook nothing used.
@@ -27,6 +34,7 @@ struct WalletScreen: View {
     /// is a later feature; an unreachable wallet is not something to wait for it.
     var onSelectTab: (WalletTab) -> Void = { _ in }
     @State private var sheetShown = false
+    @State private var viewingIdenticon = false
 
     var body: some View {
         VStack(spacing: Tokens.Space.s0) {
@@ -60,18 +68,32 @@ struct WalletScreen: View {
                     .presentationBackground(theme.bgBase)
             }
         }
+        .sheet(isPresented: $viewingIdenticon) {
+            IdenticonViewerSheet(
+                loc: loc,
+                address: model.header.identiconSeed,
+                onClose: { viewingIdenticon = false }
+            )
+            .presentationDetents([.medium, .large])
+        }
         .onAppear { sheetShown = model.sheet != nil }
     }
 
-    // MARK: - Header row (WalletHeader + trailing NetworkFilterPill)
+    // MARK: - Header row
 
+    /// The header owns the whole width.
+    ///
+    /// A trailing `NetworkFilterPill` used to sit here and cost the name and
+    /// the address the room they need: a wallet called "kimik3 · something"
+    /// showed as "kimik3 ·…" beside a chip nobody was reading (founder call,
+    /// 2026-08-26). The pill's sheet keeps its fixture states for the gallery;
+    /// what it lost is its entry point on this screen.
     private var headerRow: some View {
-        HStack(spacing: Tokens.Space.s12) {
-            WalletHeaderView(model: model.header)
-            Spacer(minLength: Tokens.Space.s12)
-            NetworkFilterPill(model: model.pill)
-                .fixedSize()
-        }
+        WalletHeaderView(
+            model: model.header,
+            onIdenticon: { viewingIdenticon = true },
+            identiconLabel: loc.t("componentsUi.identiconViewer.a11yOpen")
+        )
     }
 
     // MARK: - Sections
@@ -141,13 +163,19 @@ struct WalletScreen: View {
 }
 
 #Preview("Wallet H1 dark") {
-    WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: Loc(overrideTag: "zh")))
+    WalletScreen(
+        model: WalletFixtures.buildMobileState(.h1, loc: Loc(overrideTag: "zh")),
+        loc: Loc(overrideTag: "zh")
+    )
         .themed(.dark)
         .environment(\.identiconProvider, .previewSafe)
 }
 
 #Preview("Wallet H2 light") {
-    WalletScreen(model: WalletFixtures.buildMobileState(.h2, loc: Loc(overrideTag: "zh")))
+    WalletScreen(
+        model: WalletFixtures.buildMobileState(.h2, loc: Loc(overrideTag: "zh")),
+        loc: Loc(overrideTag: "zh")
+    )
         .themed(.light)
         .environment(\.identiconProvider, .previewSafe)
 }

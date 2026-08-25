@@ -141,6 +141,94 @@ pub struct Ceremony {
     pub touch: TouchNotifier,
     pub pin: PinRequester,
     pub pick: CredentialPicker,
+    /// The app window the Windows dialog parents itself to.
+    ///
+    /// Read on exactly one platform, because it is the only one where the
+    /// passkey dialog belongs to the OS. Everywhere else this shell draws its
+    /// own prompts and there is nothing to parent.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub window: WindowHandle,
+}
+
+// ---------------------------------------------------------------------------
+// Windows: the OS runs the ceremony
+// ---------------------------------------------------------------------------
+//
+// Everything above this line talks to a security key over a cable. On Windows
+// it cannot: since Windows 10 build 1903 a non-elevated process may not open a
+// FIDO HID device, because the OS reserves them for `webauthn.dll`. So there,
+// the platform's CTAP client is the only route — and it draws its own picker,
+// touch prompt and PIN prompt, which is why none of this shell's three hardware
+// dialogs appear on that platform.
+//
+// It is not a downgrade. Windows Hello comes with it, so a Windows user with a
+// fingerprint reader and no security key can use this wallet — which on macOS
+// and Linux they currently cannot.
+//
+// The clientDataJSON is still OURS. Windows takes it as bytes and hashes it; it
+// does not build it. So the join with the core's parsers is identical on all
+// three desktops.
+
+/// The app window the OS dialog parents itself to.
+///
+/// Windows needs one to know where to put its sheet, and gpui gives us a real
+/// one — `webauthn-authenticator-rs` has to create a 1×1 window for this
+/// because it is a library called from console apps that have none.
+pub type WindowHandle = isize;
+
+#[cfg(windows)]
+fn win_failure(error: vela_passkey_win::WinError) -> PasskeyFailure {
+    use vela_passkey_win::WinError;
+    match error {
+        WinError::Cancelled => PasskeyFailure {
+            kind: FailureKind::Cancelled,
+            message: None,
+        },
+        WinError::Unavailable | WinError::NotSupported => PasskeyFailure::classified(
+            FailureKind::NotSupported,
+            "This version of Windows cannot run a passkey ceremony. Windows 10 build 1903 or later is required.",
+        ),
+        other => PasskeyFailure::other(other.to_string()),
+    }
+}
+
+#[cfg(windows)]
+fn register_windows(
+    window: WindowHandle,
+    name: &str,
+    exclude_credential_ids: &[String],
+) -> Result<Registration, PasskeyFailure> {
+    let client_data = client_data_json(ClientDataType::Create, &random(32));
+    let exclude: Vec<Vec<u8>> = exclude_credential_ids
+        .iter()
+        .filter_map(|id| primitives::from_hex(id).ok())
+        .collect();
+
+    vela_passkey_win::register(
+        window,
+        RELYING_PARTY,
+        RELYING_PARTY_NAME,
+        &user_handle(name),
+        name,
+        &client_data,
+        &exclude,
+    )
+    .map(vela_passkey_win::registration_from)
+    .map_err(win_failure)
+}
+
+#[cfg(windows)]
+fn assert_windows(
+    window: WindowHandle,
+    challenge: &[u8],
+    credential_id: Option<&str>,
+) -> Result<Assertion, PasskeyFailure> {
+    let client_data = client_data_json(ClientDataType::Get, challenge);
+    let pinned = credential_id.and_then(|id| primitives::from_hex(id).ok());
+
+    vela_passkey_win::assert(window, RELYING_PARTY, &client_data, pinned.as_deref())
+        .map(vela_passkey_win::assertion_from)
+        .map_err(win_failure)
 }
 
 /// Is a passkey ceremony possible on this machine at all?
@@ -152,11 +240,62 @@ pub struct Ceremony {
 /// reported later, by the ceremony, as `not_supported` with a message naming
 /// it — and plugging one in and pressing 重试 then works.
 pub fn supported() -> bool {
-    hidapi::HidApi::new().is_ok()
+    #[cfg(windows)]
+    {
+        // Not the HID subsystem: on Windows that answer is always "no" for a
+        // non-elevated process, and it would be the wrong question anyway.
+        vela_passkey_win::supported()
+    }
+    #[cfg(not(windows))]
+    {
+        hidapi::HidApi::new().is_ok()
+    }
 }
 
 /// `RegisterPasskey` — mint a founding key on a security key.
+/// `RegisterPasskey` — mint a founding key.
+///
+/// Which half of the wallet's passkey story runs is decided HERE, once: over a
+/// cable everywhere, and through the OS on Windows, where a cable is not
+/// allowed. Every caller sees one function.
 pub fn register(
+    name: &str,
+    exclude_credential_ids: &[String],
+    method: KeyMethod,
+    ceremony: &Ceremony,
+) -> Result<Registration, PasskeyFailure> {
+    #[cfg(windows)]
+    {
+        let _ = method;
+        register_windows(ceremony.window, name, exclude_credential_ids)
+    }
+    #[cfg(not(windows))]
+    {
+        register_ctap(name, exclude_credential_ids, method, ceremony)
+    }
+}
+
+/// `SignProof` / `SignMemberProof` / `AuthenticatePasskey` — one assertion.
+///
+/// `credential_id` is `None` for the "who are you?" ceremony a sign-in starts
+/// with: an empty allow list is what asks for any discoverable credential.
+pub fn assert(
+    challenge: &[u8],
+    credential_id: Option<&str>,
+    ceremony: &Ceremony,
+) -> Result<Assertion, PasskeyFailure> {
+    #[cfg(windows)]
+    {
+        assert_windows(ceremony.window, challenge, credential_id)
+    }
+    #[cfg(not(windows))]
+    {
+        assert_ctap(challenge, credential_id, ceremony)
+    }
+}
+
+#[cfg(not(windows))]
+fn register_ctap(
     name: &str,
     exclude_credential_ids: &[String],
     method: KeyMethod,
@@ -237,12 +376,8 @@ pub fn register(
     })
 }
 
-/// `SignProof` / `SignMemberProof` / `AuthenticatePasskey` — one assertion.
-///
-/// `credential_id` is `None` for the "who are you?" ceremony a sign-in starts
-/// with: an empty `allowList` is what asks the authenticator for any
-/// discoverable credential it holds for this relying party.
-pub fn assert(
+#[cfg(not(windows))]
+fn assert_ctap(
     challenge: &[u8],
     credential_id: Option<&str>,
     ceremony: &Ceremony,

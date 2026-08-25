@@ -117,7 +117,7 @@ remaining ones are found by reading rather than by tripping over them.
 Works. Verified against a real key: HID enumeration, framing, `getAssertion`,
 registry lookup, account restore.
 
-### Linux ⚠️ — packaging gap
+### Linux ✅ — packaging gap closed
 
 Direct `hidraw` access needs a **udev rule** granting the logged-in user access
 to FIDO devices. Our `.deb`, `.rpm` and flatpak ship none, and the flatpak
@@ -126,11 +126,19 @@ manifest has no device permission beyond `--device=dri`. On a distro without
 which today reports as "no security key is plugged in", the least useful
 sentence available.
 
-**Actions**: ship `70-fido.rules` in the Linux packages; widen the flatpak
-device permission; and make a permission error report as itself rather than as
-absence.
+**Done.** `packaging/70-vela-fido.rules` matches the USAGE PAGE rather than a
+vendor-id list — webauthn-rs's own notes are that systemd 252+ tags FIDO devices
+that way, and that the older vendor-id packages go stale the moment somebody
+buys a key they predate. It applies `uaccess`, which is the right scope for a
+thing you touch with a finger, and is inert alongside systemd's rule. The `.deb`
+also recommends `libu2f-udev`, the `.rpm` installs the rule, and the flatpak
+gained `--device=all` — the narrowest permission flatpak has for this, and the
+same trade every browser flatpak makes.
 
-### Windows ⛔ — **direct HID is forbidden**
+A permission error also reports as itself now (`UsbError::AccessDenied`), rather
+than as "no security key is plugged in".
+
+### Windows ✅ *(written, type-checked, never run)* — via the platform API
 
 Since **Windows 10 1903**, a non-elevated process **cannot open a FIDO HID
 device at all**. The OS reserves them for `webauthn.dll`, which is why
@@ -150,6 +158,36 @@ becomes, on that one platform, work the OS does.
 transport was chosen (research D3 evaluated HID crates and never asked whether
 the OS would let us use one).** It does not change macOS or Linux.
 
+**Built**, in `app-desktop/vela-passkey-win`, after reading
+`webauthn-authenticator-rs`'s `win10` module. Three things carried over from it:
+
+1. **We still build the clientDataJSON.** Windows takes it as bytes and hashes
+   it; it does not construct it. So the same builder the CTAP2 path uses runs
+   here, and the join with the core's parsers — the property that one
+   authenticator derives one address on every platform — is untouched.
+2. **`WebAuthNGetErrorName`** maps an `HRESULT` to the WebAuthn DOM exception
+   name a browser would have raised (`NotAllowedError`, `InvalidStateError`).
+   That is the vocabulary the web client already classifies by, so the failure
+   mapping is a translation rather than an invention.
+3. **Pointer lifetime.** Every request struct holds bare pointers into buffers
+   we own; they are bound to names that outlive the call, never to temporaries.
+
+One thing deliberately NOT carried over: their 1×1 helper window. It exists
+because `webauthn-authenticator-rs` is a library called from console apps with
+no window; gpui implements `raw_window_handle`, so the dialog parents to the
+wallet's real window and inherits its focus and z-order.
+
+**Windows Hello comes with it.** `WEBAUTHN_AUTHENTICATOR_ATTACHMENT_ANY` means a
+Windows user with a fingerprint reader and no security key can use this wallet —
+which on macOS and Linux they still cannot.
+
+**The verification gap, stated plainly.** `scripts/check-windows.sh` type-checks
+the whole path from any machine (`cargo clippy --target x86_64-pc-windows-gnu`,
+wired into CI), which is why the crate is separate: the desktop app's own tree
+compiles C and cannot be cross-checked at all, so anything living there could
+only be compiled by a Windows machine. Type-checked is not tested. Every struct
+field and signature is verified; no behaviour is.
+
 ### The macOS platform authenticator, revisited
 
 `ASAuthorizationPlatformPublicKeyCredentialProvider` is available on macOS 12+
@@ -162,18 +200,20 @@ a Mac user with Touch ID currently must own a security key to use this wallet.
 
 ## 8. What to do next, in order
 
-1. **Hot-plug** (§2). The first thing a new user hits, and today it is a dead
-   end that needs a retry press.
-2. **Linux udev + flatpak device permission** (§7). A packaging one-liner
-   standing between the Linux build and working at all.
-3. **Permission errors reported as themselves** (§7). "No key plugged in" is
-   currently what a person sees when the key is right there and unreadable.
-4. **`CTAPHID_CANCEL` to race losers** (§2). Keys blinking after the question
+1. **Run the Windows path on Windows** (§7). It is written and type-checked and
+   has never executed. Everything else on this list is smaller than the risk of
+   a platform whose only route is unverified.
+2. **Hot-plug** (§2). The first thing a new user hits, and today it is a dead
+   end that needs a retry press. `fido-hid-rs` does this with a udev
+   `MonitorBuilder` on Linux and the equivalent per OS — worth reading before
+   writing.
+3. **`CTAPHID_CANCEL` to race losers** (§2). Keys blinking after the question
    was answered.
-5. **`setPIN` / `changePIN`** (§4). Removes "go install the vendor's tool" from
+4. **`setPIN` / `changePIN`** (§4). Removes "go install the vendor's tool" from
    the happy path of a brand-new key.
-6. **`minPinLength`, `alwaysUv`, `forcePINChange`, UV retries** (§5). The
+5. **`minPinLength`, `alwaysUv`, `forcePINChange`, UV retries** (§5). The
    configurations that currently land in "something went wrong".
-7. **Windows via `webauthn.dll`** (§7). Its own feature; it is a second client,
-   not a patch.
-8. **`credentialManagement`** (§4). Reclaiming slots on a full key.
+6. **`credentialManagement`** (§4). Reclaiming slots on a full key.
+
+~~Linux udev + flatpak permission~~ and ~~permission errors reported as
+themselves~~ are done, above.

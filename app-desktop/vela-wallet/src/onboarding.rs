@@ -32,6 +32,7 @@ use vela_core::app::shell::{ShellOperation, ShellResult};
 
 use crate::ceremony::CeremonyChannel;
 use crate::core_host::{CoreHost, Pending};
+use crate::executor::passkey::WindowHandle;
 use crate::executor::{
     self, Performed,
     passkey::{CredentialChoice, PinRequest},
@@ -109,6 +110,10 @@ pub struct OnboardingPage {
     login_view: LoginView,
 
     channel: Arc<CeremonyChannel>,
+    /// The native window, for the one platform whose passkey dialog is the
+    /// OS's rather than ours. Captured at construction because a ceremony runs
+    /// on a background thread and cannot reach `Window` from there.
+    window_handle: WindowHandle,
     /// The one modal. `Some` ⇒ a machine is waiting for an answer.
     prompt: Option<(Machine, Prompt)>,
     pin: Option<PinDialog>,
@@ -185,6 +190,7 @@ impl OnboardingPage {
             login,
             login_view,
             channel: CeremonyChannel::new(),
+            window_handle: native_window_handle(window),
             prompt: None,
             pin: None,
             pick: None,
@@ -286,7 +292,9 @@ impl OnboardingPage {
             _ => {}
         }
 
-        let ceremony = self.channel.ceremony();
+        // The OS dialog on Windows parents itself to this. gpui hands over a
+        // real window handle; every other platform ignores it.
+        let ceremony = self.channel.ceremony(self.window_handle);
         let operation = effect.operation.clone();
         let id = effect.id;
         cx.spawn(async move |page, cx| {
@@ -879,6 +887,37 @@ impl OnboardingPage {
             .h(px(DRAG_STRIP_H))
             .child(self.drag_strip(cx))
             .child(self.window_controls(window))
+    }
+}
+
+/// The OS-level handle for this app's window.
+///
+/// Only Windows uses it: `WebAuthNAuthenticatorMakeCredential` needs somewhere
+/// to hang its dialog, and giving it the wallet's real window is what makes
+/// that dialog take focus and sit in the right place. gpui implements
+/// `raw_window_handle`, so this is a read rather than the 1×1 helper window a
+/// library without a window of its own has to invent.
+fn native_window_handle(window: &Window) -> WindowHandle {
+    #[cfg(windows)]
+    {
+        use raw_window_handle::{HasWindowHandle as _, RawWindowHandle};
+        match window.window_handle().map(|handle| handle.as_raw()) {
+            Ok(RawWindowHandle::Win32(win32)) => isize::from(win32.hwnd),
+            // Zero is what the API takes to mean "no parent". The dialog still
+            // appears; it just may not take focus, which is a worse experience
+            // than a crash would be honest about — so it is logged.
+            _ => {
+                eprintln!(
+                    "[vela-wallet] no native window handle; the passkey dialog may not take focus"
+                );
+                0
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+        0
     }
 }
 

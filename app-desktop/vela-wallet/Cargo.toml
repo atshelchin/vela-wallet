@@ -112,6 +112,17 @@ p256 = { version = "0.13", features = ["ecdh"] }
 # each land in their own convention rather than in a hand-rolled `~/.vela`.
 dirs = "6"
 
+# The Windows passkey path.
+#
+# Depended on UNCONDITIONALLY, and it compiles to almost nothing off Windows —
+# the `windows` crate is behind its own `cfg(windows)` target section inside it.
+# A `[target.'cfg(windows)'.dependencies]` entry here would mean the module can
+# only be COMPILED by a Windows machine, and the whole reason it is a separate
+# crate is that `cargo check -p vela-passkey-win --target x86_64-pc-windows-gnu`
+# runs anywhere. See its crate docs for why Windows needs it at all: since
+# Windows 10 build 1903 a non-elevated process cannot open a FIDO HID device.
+vela-passkey-win = { path = "../vela-passkey-win" }
+
 # Embeds the application icon into vela-wallet.exe as resource id 1, which is
 # where gpui's LoadImageW looks for it. Declared unconditionally rather than
 # under [target.'cfg(windows)'.build-dependencies], because that section is

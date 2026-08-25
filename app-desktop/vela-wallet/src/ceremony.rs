@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex};
 
 use crate::ctap::usb::TouchRequest;
-use crate::executor::passkey::{Ceremony, CredentialChoice, PinRequest};
+use crate::executor::passkey::{Ceremony, CredentialChoice, PinRequest, WindowHandle};
 
 /// The wallet picker's half of the channel. Same shape as the PIN's and for
 /// the same reason: the ceremony thread is holding the device open while it
@@ -96,7 +96,11 @@ impl CeremonyChannel {
     }
 
     /// The executor-facing handle.
-    pub fn ceremony(self: &Arc<Self>) -> Ceremony {
+    ///
+    /// `window` is the app's own window, which only the Windows path uses — the
+    /// OS dialog parents itself to it. On macOS and Linux this shell draws its
+    /// own prompts and the value is ignored.
+    pub fn ceremony(self: &Arc<Self>, window: WindowHandle) -> Ceremony {
         let touch_channel = Arc::clone(self);
         let pin_channel = Arc::clone(self);
         let pick_channel = Arc::clone(self);
@@ -108,6 +112,7 @@ impl CeremonyChannel {
             }),
             pin: Arc::new(move |request| pin_channel.request_pin(request)),
             pick: Arc::new(move |choices| pick_channel.request_choice(choices)),
+            window,
         }
     }
 
@@ -283,7 +288,7 @@ mod tests {
         let asks = Arc::new(AtomicUsize::new(0));
         let screen = answering(&channel, "1234", Arc::clone(&asks));
 
-        let ceremony = channel.ceremony();
+        let ceremony = channel.ceremony(0);
         // Same key twice: asked once, cached for the second.
         assert_eq!(
             (ceremony.pin)(request("/dev/key-a", false)).as_deref(),
@@ -321,7 +326,7 @@ mod tests {
         let asks = Arc::new(AtomicUsize::new(0));
         let screen = answering(&channel, "1234", Arc::clone(&asks));
 
-        let ceremony = channel.ceremony();
+        let ceremony = channel.ceremony(0);
         let _ = (ceremony.pin)(request("/dev/key-a", false));
         let _ = (ceremony.pin)(request("/dev/key-b", false));
         assert_eq!(asks.load(Ordering::Relaxed), 2);
@@ -353,7 +358,7 @@ mod tests {
     #[test]
     fn a_pin_and_a_wallet_choice_can_both_be_asked_on_one_channel() {
         let channel = CeremonyChannel::new();
-        let ceremony = channel.ceremony();
+        let ceremony = channel.ceremony(0);
 
         let screen = {
             let channel = Arc::clone(&channel);
@@ -406,7 +411,7 @@ mod tests {
         let channel = CeremonyChannel::new();
         let asks = Arc::new(AtomicUsize::new(0));
         let screen = answering(&channel, "1234", Arc::clone(&asks));
-        let ceremony = channel.ceremony();
+        let ceremony = channel.ceremony(0);
         let _ = (ceremony.pin)(request("/dev/key-a", false));
         channel.close();
         let _ = screen.join();

@@ -1,0 +1,34 @@
+[package]
+name = "vela-passkey-win"
+version = "0.1.1"
+edition = "2024"
+
+# The Windows WebAuthn API, and nothing else.
+#
+# Its own crate for two reasons. The first is a boundary: this is the ONE place
+# the wallet asks an operating system to run a passkey ceremony on its behalf,
+# and it should be possible to read all of it in one sitting.
+#
+# The second is that it can be TYPE-CHECKED for Windows from a Mac.
+# `cargo check --target x86_64-pc-windows-gnu` on the desktop app dies in a `cc`
+# build script long before it reaches any Rust — ThorVG and friends need a
+# mingw toolchain — so a Windows-only module inside that crate could only ever
+# be compiled by a Windows machine. This crate has no C in its dependency tree
+# at all, so `cargo check -p vela-passkey-win --target x86_64-pc-windows-gnu`
+# runs anywhere and catches every struct field and every signature.
+#
+[dependencies]
+# The wire types the mapping produces.
+#
+# It would be tidier for this crate to speak only bytes and let the shell map
+# them — but the shell CANNOT be cross-checked for Windows (its dependency tree
+# has C in it), so any mapping living there would be unverifiable from a Mac.
+# vela-core has no C at its default feature set and cross-checks fine, so the
+# mapping lives here and is type-checked with everything else.
+#
+# `crux` because `app::{Registration, Assertion}` are behind that feature — the
+# same one the desktop shell already turns on.
+vela-core = { path = "../../rust/crates/vela-core", features = ["crux"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_Networking_WindowsWebServices"] }

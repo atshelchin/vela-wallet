@@ -726,3 +726,52 @@ pub fn i18n_plural_suffixes_legacy() -> Vec<String> {
 pub fn i18n_text_direction(lng: String) -> String {
     vela_core::l10n::text_direction(&lng).as_str().to_owned()
 }
+
+// -- registry proofs (spec 019) -----------------------------------------------
+//
+// Returned as JSON strings rather than as uniffi records, deliberately. Both
+// consumers of these values want JSON and want it in the SAME shape: the core
+// takes the member proof back as part of a `member_proof_signed` shell result,
+// and the registry's HTTP API takes it as a camelCase request body. A mirror
+// record would mean two more FFI types on both platforms and a hand-written
+// re-serialization on each — three ways for the field names to drift apart on
+// the one payload where a wrong name means the server rejects a wallet the
+// person has already minted every key for.
+
+/// The uncompressed public key (`04‖x‖y` hex) of the one-time group key a
+/// 32-byte `seed_hex` derives. Needed before the group's challenge can be
+/// requested, because the contract binds the challenge to this key.
+#[uniffi::export]
+pub fn registry_group_public_key_from_seed(seed_hex: String) -> Result<String, CoreError> {
+    Ok(vela_core::registry_proof::group_public_key_from_seed(
+        &seed_hex,
+    )?)
+}
+
+/// The group's closing proof, as `{"groupPublicKey": …, "proof": { … }}`.
+#[uniffi::export]
+pub fn registry_build_group_proof(
+    seed_hex: String,
+    rp_id: String,
+    challenge_hex: String,
+) -> Result<String, CoreError> {
+    let proof = vela_core::registry_proof::build_group_proof(&seed_hex, &rp_id, &challenge_hex)?;
+    serde_json::to_string(&proof)
+        .map_err(|error| CoreError::Internal(format!("could not serialize group proof: {error}")))
+}
+
+/// One member's possession proof, as the registry's camelCase object.
+#[uniffi::export]
+pub fn registry_build_member_proof(
+    authenticator_data_hex: String,
+    client_data_json_hex: String,
+    signature_der_hex: String,
+) -> Result<String, CoreError> {
+    let proof = vela_core::registry_proof::build_member_proof(
+        &authenticator_data_hex,
+        &client_data_json_hex,
+        &signature_der_hex,
+    )?;
+    serde_json::to_string(&proof)
+        .map_err(|error| CoreError::Internal(format!("could not serialize member proof: {error}")))
+}

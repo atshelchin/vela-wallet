@@ -15,6 +15,7 @@ jna = "5.14.0"
 kotlinxCoroutines = "1.10.2"
 orgJson = "20240303"
 lottie = "6.7.1"
+credentials = "1.5.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +38,12 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashscreen" }
 jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
+# Credential Manager: the only route to WebAuthn on modern Android. The
+# play-services-auth companion is what serves Google Password Manager as a
+# provider on devices that have it; without it the request reaches only
+# providers that register through Credential Manager directly.
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
+androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 # Airbnb's Lottie for Compose (spec 012). Maven Central, pure Kotlin/Java, no

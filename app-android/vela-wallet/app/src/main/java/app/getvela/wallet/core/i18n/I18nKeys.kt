@@ -31,6 +31,13 @@ object I18nKeys {
         const val THEME_LIGHT = "onboarding.settings.themeLabelLight"
         const val THEME_DARK = "onboarding.settings.themeLabelDark"
         const val THEME_AUTO = "onboarding.settings.themeLabelAuto"
+
+        // --- spec 019: the endpoint surface an unreachable index opens -----
+        const val SECTION_PASSKEY_INDEX = "onboarding.settings.sectionPasskeyIndex"
+        const val ENDPOINT_URL_LABEL = "onboarding.settings.endpointUrlLabel"
+        const val PASSKEY_HINT = "onboarding.settings.passkeyHint"
+        const val RESET_TO_DEFAULT = "onboarding.settings.resetToDefault"
+        const val WARNING_TEXT = "onboarding.settings.warningText"
     }
 
     object Create {
@@ -44,13 +51,12 @@ object I18nKeys {
         const val ACCOUNT_NAME_HINT = "onboarding.create.accountNameHint"
         const val NAME_TOO_LONG = "onboarding.create.nameTooLong"
         const val TECHNICAL_DETAILS = "onboarding.create.technicalDetails"
+        // Two acknowledgements, not four (spec 019, data-model §2). The legal
+        // line moved from index 3 to index 1 when `ACK_COUNT` went 4 → 2, and
+        // its link fragments moved with it: the `onboarding.create.ack3*`
+        // lineage no longer exists in the corpus.
         const val ACK0 = "onboarding.create.ack0"
         const val ACK1 = "onboarding.create.ack1"
-        const val ACK3 = "onboarding.create.ack3"
-        const val ACK3_PRIVACY_POLICY = "onboarding.create.ack3PrivacyPolicy"
-        const val ACK3_AND = "onboarding.create.ack3And"
-        const val ACK3_TERMS = "onboarding.create.ack3Terms"
-        const val ACK3_PERIOD = "onboarding.create.ack3Period"
         const val CREATE_WALLET_BTN = "onboarding.create.createWalletBtn"
         const val STATUS_SETTING_UP_IDENTITY = "onboarding.create.statusSettingUpIdentity"
         const val STATUS_VERIFYING_IDENTITY = "onboarding.create.statusVerifyingIdentity"
@@ -66,6 +72,73 @@ object I18nKeys {
         const val SYNC_FAILED_TITLE = "onboarding.create.syncFailedTitle"
         const val RETRY_UPLOAD_BTN = "onboarding.create.retryUploadBtn"
         const val RETRY_VERIFY_BTN = "onboarding.create.retryVerifyBtn"
+
+        // --- spec 019, the v2 create journey -------------------------------
+        //
+        // Name screen. ACK1 replaced the old ACK3 lineage when ACK_COUNT went
+        // 4 -> 2 (data-model 2): the legal line is now index 1, so its link
+        // fragments moved from ack3* to ack1*.
+        const val NAME_TITLE = "onboarding.create.nameTitle"
+        const val ACK1_PRIVACY_POLICY = "onboarding.create.ack1PrivacyPolicy"
+        const val ACK1_AND = "onboarding.create.ack1And"
+        const val ACK1_TERMS = "onboarding.create.ack1Terms"
+        const val ACK1_PERIOD = "onboarding.create.ack1Period"
+        const val ASSURANCE_RECOVERY = "onboarding.create.assuranceRecovery"
+        const val NEXT_BTN = "onboarding.create.nextBtn"
+        const val STATUS_SETUP_CANCELLED = "onboarding.create.statusSetupCancelled"
+        const val STATUS_VERIFY_CANCELLED = "onboarding.create.statusVerifyCancelled"
+
+        // Keys screen.
+        const val KEYS_TITLE = "onboarding.create.keysTitle"
+        const val KEYS_TITLE_BLOCKED = "onboarding.create.keysTitleBlocked"
+        const val KEYS_SUBTITLE = "onboarding.create.keysSubtitle"
+        const val KEYS_SUBTITLE_BLOCKED = "onboarding.create.keysSubtitleBlocked"
+        const val KEYS_SUBTITLE_FULL = "onboarding.create.keysSubtitleFull"
+        const val KEYS_LABEL = "onboarding.create.keysLabel"
+        const val KEYS_HINT = "onboarding.create.keysHint"
+        const val KEY_COUNT = "onboarding.create.keyCount"
+        const val KEY_SYNCED_BADGE = "onboarding.create.keySyncedBadge"
+        const val KEY_DEVICE_ONLY_BADGE = "onboarding.create.keyDeviceOnlyBadge"
+        const val KEY_LIMIT_REACHED = "onboarding.create.keyLimitReached"
+        const val NEED_SECOND_KEY_HINT = "onboarding.create.needSecondKeyHint"
+        const val ADD_KEY_BTN = "onboarding.create.addKeyBtn"
+        const val ADD_SECOND_KEY_BTN = "onboarding.create.addSecondKeyBtn"
+        const val CONFIRM_KEY_BTN = "onboarding.create.confirmKeyBtn"
+        const val REMOVE_KEY_BTN = "onboarding.create.removeKeyBtn"
+        const val FINISH_KEYS_BTN = "onboarding.create.finishKeysBtn"
+        const val ADD_METHOD_LABEL = "onboarding.create.addMethodLabel"
+        const val METHOD_PLATFORM_TITLE = "onboarding.create.methodPlatformTitle"
+        const val METHOD_PLATFORM_BODY = "onboarding.create.methodPlatformBody"
+        const val METHOD_HYBRID_TITLE = "onboarding.create.methodHybridTitle"
+        const val METHOD_HYBRID_BODY = "onboarding.create.methodHybridBody"
+        const val METHOD_HYBRID_UNAVAILABLE = "onboarding.create.methodHybridUnavailable"
+        const val METHOD_SECURITY_KEY_TITLE = "onboarding.create.methodSecurityKeyTitle"
+        const val METHOD_SECURITY_KEY_BODY = "onboarding.create.methodSecurityKeyBody"
+        const val PROVIDER_PLATFORM = "onboarding.create.providerPlatform"
+        const val PROVIDER_GENERIC = "onboarding.create.providerGeneric"
+        const val PROVIDER_SECURITY_KEY = "onboarding.create.providerSecurityKey"
+
+        // Progress screen.
+        const val PROGRESS_TITLE = "onboarding.create.progressTitle"
+        const val PROGRESS_SUBTITLE = "onboarding.create.progressSubtitle"
+        const val PROGRESS_METER_LABEL = "onboarding.create.progressMeterLabel"
+        const val TASK_VERIFY_KEY = "onboarding.create.taskVerifyKey"
+        const val TASK_DERIVE_ADDRESS = "onboarding.create.taskDeriveAddress"
+        const val TASK_WRITE_INDEX = "onboarding.create.taskWriteIndex"
+
+        // Retry screen.
+        const val SYNC_FAILED_MESSAGE = "onboarding.create.syncFailedMessage"
+        const val SYNC_FAILED_HINT = "onboarding.create.syncFailedHint"
+
+        // Done screen.
+        const val HEADER_CREATED = "onboarding.create.headerCreated"
+        const val IDENTICON_HINT = "onboarding.create.identiconHint"
+        const val WALLET_ADDRESS_LABEL = "onboarding.create.walletAddressLabel"
+
+        // Prompts (data-model 5).
+        const val ALERT_ERROR_TITLE = "onboarding.create.alertErrorTitle"
+        const val ALERT_NOT_SUPPORTED_TITLE = "onboarding.create.alertNotSupportedTitle"
+        const val ALERT_NOT_SUPPORTED_BODY = "onboarding.create.alertNotSupportedBody"
     }
 
     /** onboarding.login.* — spec 014 login flow (mix of EXISTS + NEW corpus keys). */
@@ -87,6 +160,15 @@ object I18nKeys {
         const val RECOVER_CANCEL = "onboarding.login.recoverCancel"
         const val RECOVER_FAILED_TITLE = "onboarding.login.recoverFailedTitle"
         const val RECOVER_FAILED_BODY = "onboarding.login.recoverFailedBody"
+
+        // --- spec 019 ------------------------------------------------------
+        const val ALERT_NOT_SUPPORTED_TITLE = "onboarding.login.alertNotSupportedTitle"
+        const val ALERT_NOT_SUPPORTED_BODY = "onboarding.login.alertNotSupportedBody"
+        const val ALERT_INCOMPATIBLE_TITLE = "onboarding.login.alertIncompatibleTitle"
+        const val ALERT_INCOMPATIBLE_BODY = "onboarding.login.alertIncompatibleBody"
+        const val ALERT_INCOMPATIBLE_BODY_CREATE = "onboarding.login.alertIncompatibleBodyCreate"
+        const val ALERT_SIGN_IN_FAILED_BODY = "onboarding.login.alertSignInFailedBody"
+        const val SWITCH_DEVICE_BTN = "onboarding.login.switchDeviceBtn"
     }
 
     /**

@@ -1,90 +1,186 @@
 package app.getvela.wallet
 
-import app.getvela.wallet.core.designsystem.components.BadgeVariant
-import app.getvela.wallet.feature.onboarding.flow.ActionRole
-import app.getvela.wallet.feature.onboarding.flow.CreatePanelState
-import app.getvela.wallet.feature.onboarding.flow.FixturePanel
+import app.getvela.wallet.feature.onboarding.core.CreateStage
+import app.getvela.wallet.feature.onboarding.core.KeyMethod
+import app.getvela.wallet.feature.onboarding.core.StatusKey
+import app.getvela.wallet.feature.onboarding.flow.Fixture
 import app.getvela.wallet.feature.onboarding.flow.FlowFixtures
-import app.getvela.wallet.feature.onboarding.flow.LoginPanelState
-import app.getvela.wallet.feature.onboarding.flow.OutcomeSpec
-import app.getvela.wallet.feature.onboarding.flow.StateFixture
+import app.getvela.wallet.feature.onboarding.flow.MAX_KEYS
+import app.getvela.wallet.feature.onboarding.flow.PROGRESS_TASKS
+import app.getvela.wallet.feature.onboarding.flow.Screen
+import app.getvela.wallet.feature.onboarding.flow.methodCopy
+import app.getvela.wallet.feature.onboarding.flow.progressFor
+import app.getvela.wallet.feature.onboarding.flow.providerLineFor
+import app.getvela.wallet.feature.onboarding.flow.screenFor
+import app.getvela.wallet.feature.onboarding.flow.statusKeyToI18n
+import app.getvela.wallet.feature.onboarding.flow.submitLabelToI18n
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Spec 014 T031 — mechanical coverage gate (research D9): a dropped or
- * duplicated design state fails here, not in a visual walkthrough. The code
- * set is pinned verbatim by contracts/presentation-states.md §1 (34 unique
- * codes; E10 renders once but is listed in BOTH gallery groups, making the 35
- * spec renderings).
+ * Mechanical coverage of the v2 state set (spec 019 T115/T120).
+ *
+ * The load-bearing test is [everyFixtureResolvesToTheScreenItsNameClaims]: the
+ * gallery and the app share one `screenFor`, so a fixture that renders the wrong
+ * step here renders the wrong step in production too. Spec 014's version of this
+ * file pinned 34 design codes against a presentation type this app owned; that
+ * type is gone, and pinning a code list against fixtures nobody ships would only
+ * check the fixtures against themselves.
  */
 class FlowFixturesTest {
 
-    private val pinnedCodes = listOf(
-        "A1", "A2", "A3",
-        "A4", "A4c", "A5", "A5c", "A6", "A6c", "A7", "A7c", "A8", "A8c",
-        "A11", "A12", "A13",
-        "E1", "E2", "E2x", "E3", "E4", "E5", "E6", "E7", "E8", "E9", "E10",
-        "B1", "B1c", "B2", "B3", "B4", "B5", "B6",
-    )
-
-    private fun StateFixture.outcomeSpec(): OutcomeSpec? = when (val panel = panel) {
-        is FixturePanel.Create -> (panel.state as? CreatePanelState.Outcome)?.spec
-        is FixturePanel.Login -> (panel.state as? LoginPanelState.Outcome)?.spec
+    private fun flows() = FlowFixtures.all.mapNotNull { entry ->
+        (entry.fixture as? Fixture.Flow)?.let { entry.code to it.view }
     }
 
     @Test
-    fun fixtureSetIsExactlyThePinned34DesignCodes() {
-        assertEquals(34, pinnedCodes.size)
-        assertEquals(34, FlowFixtures.all.size)
-        // Set equality both ways: nothing missing, nothing extra, no duplicates.
-        assertEquals(pinnedCodes.toSet(), FlowFixtures.all.map { it.code }.toSet())
-        assertEquals(34, FlowFixtures.all.map { it.code }.toSet().size)
-    }
-
-    @Test
-    fun sharedE10IsReachableFromBothGalleryGroups() {
-        assertTrue(
-            "E10 missing from the create gallery group",
-            FlowFixtures.createGallery.any { it.code == "E10" },
+    fun everyFixtureResolvesToTheScreenItsNameClaims() {
+        val expected = mapOf(
+            "name · empty" to Screen.Name,
+            "name · filled" to Screen.Name,
+            "name · too long" to Screen.Name,
+            "name · draft waiting" to Screen.Name,
+            "keys · one, needs a second" to Screen.Keys,
+            "keys · two, ready" to Screen.Keys,
+            "keys · unconfirmed row" to Screen.Keys,
+            "keys · at the cap" to Screen.Keys,
+            "progress · verify" to Screen.Progress,
+            "progress · derive" to Screen.Progress,
+            "progress · publish" to Screen.Progress,
+            "retry · publish failed" to Screen.Retry,
+            "done" to Screen.Done,
         )
-        assertTrue(
-            "E10 missing from the login gallery group",
-            FlowFixtures.loginGallery.any { it.code == "E10" },
-        )
-        // Every fixture stays reachable through the two gallery groups.
-        assertEquals(
-            pinnedCodes.toSet(),
-            (FlowFixtures.createGallery + FlowFixtures.loginGallery).map { it.code }.toSet(),
-        )
-    }
-
-    @Test
-    fun everyOutcomeHasExactlyOnePrimaryFirstAndAtMostTwoSecondaries() {
-        val outcomes = FlowFixtures.all.mapNotNull { fixture ->
-            fixture.outcomeSpec()?.let { fixture.code to it }
+        assertEquals(expected.size, flows().size)
+        flows().forEach { (code, view) ->
+            assertEquals("fixture `$code` renders the wrong screen", expected[code], screenFor(view))
         }
-        // All non-form/non-progress codes are outcome-shaped:
-        // 34 − 3 form (A1–A3) − 10 working (A4–A8 + c) − 2 waiting (B1/B1c) = 19.
-        assertEquals(19, outcomes.size)
-        for ((code, spec) in outcomes) {
-            val primaries = spec.actions.count { it.role == ActionRole.Primary }
-            val secondaries = spec.actions.count { it.role == ActionRole.Secondary }
-            assertEquals("$code must have exactly 1 primary action", 1, primaries)
-            assertTrue("$code has $secondaries secondaries (max 2)", secondaries <= 2)
+    }
+
+    @Test
+    fun fixtureCodesAreUnique() {
+        val codes = FlowFixtures.all.map { it.code }
+        assertEquals(codes.size, codes.toSet().size)
+    }
+
+    /**
+     * The nine prompt kinds the core can raise, all present.
+     *
+     * Spec 014's eighteen `OutcomeKind` values were not reduced so much as
+     * relocated: eight of them are screens in v2 rather than sheets (the Done
+     * screen, the wallet, the Retry screen, the Name screen's changed submit
+     * label, and its quiet status line). What is left is what a sheet is for.
+     */
+    @Test
+    fun everyPromptKindHasASheetFixture() {
+        val kinds = FlowFixtures.all
+            .mapNotNull { (it.fixture as? Fixture.Sheet)?.kind?.type }
+            .toSet()
+        assertEquals(
+            setOf(
+                "not_supported_create",
+                "not_supported_login",
+                "not_discoverable",
+                "incompatible_create",
+                "incompatible_login",
+                "recover_offer",
+                "recover_failed",
+                "create_failed",
+                "sign_in_failed",
+            ),
+            kinds,
+        )
+    }
+
+    /** Only the recovery offer is confirmable — its answer is the one that branches. */
+    @Test
+    fun onlyTheRecoveryOfferIsConfirmable() {
+        FlowFixtures.all.mapNotNull { it.fixture as? Fixture.Sheet }.forEach { sheet ->
             assertEquals(
-                "$code must list its primary action first (top-to-bottom order)",
-                ActionRole.Primary,
-                spec.actions.first().role,
+                "confirmable is wrong for ${sheet.kind.type}",
+                sheet.kind.type == "recover_offer",
+                sheet.confirmable,
             )
         }
     }
 
+    /** The two prompts that carry the platform's own words must actually carry them. */
     @Test
-    fun spotBadgeMappingMatchesTheDataModel() {
-        assertEquals(BadgeVariant.Success, FlowFixtures.byCode("A11").outcomeSpec()?.badge)
-        assertEquals(BadgeVariant.Timeout, FlowFixtures.byCode("E3").outcomeSpec()?.badge)
-        assertEquals(BadgeVariant.Info, FlowFixtures.byCode("B2").outcomeSpec()?.badge)
+    fun detailBearingPromptsHaveDetail() {
+        FlowFixtures.all
+            .mapNotNull { it.fixture as? Fixture.Sheet }
+            .filter { it.kind.type == "create_failed" || it.kind.type == "sign_in_failed" }
+            .forEach { assertTrue(!it.kind.detail.isNullOrBlank()) }
+    }
+
+    /**
+     * `setting_up_identity` is NOT a progress-screen status.
+     *
+     * It happens before the key list exists, so it belongs to the Name screen's
+     * status line. A mapping that promoted it would send the person to a
+     * progress screen with a zero-key subtitle.
+     */
+    @Test
+    fun settingUpIdentityStaysOnTheNameScreen() {
+        assertNull(progressFor(StatusKey.SettingUpIdentity))
+        assertNull(progressFor(StatusKey.SetupCancelled))
+        assertNull(progressFor(StatusKey.VerifyCancelled))
+        assertNotNull(progressFor(StatusKey.VerifyingIdentity))
+        assertNotNull(progressFor(StatusKey.ExtractingKey))
+        assertNotNull(progressFor(StatusKey.ComputingAddress))
+        assertNotNull(progressFor(StatusKey.SyncingKey))
+    }
+
+    /** Every progress position points at a real task row. */
+    @Test
+    fun progressPositionsStayInsideTheTaskList() {
+        StatusKey.entries.mapNotNull(::progressFor).forEach { position ->
+            assertTrue(position.activeTask in PROGRESS_TASKS.indices)
+            assertTrue(position.percent in 1..100)
+        }
+    }
+
+    /** Every semantic variant the core emits has copy. Exhaustive by enum. */
+    @Test
+    fun everySemanticVariantHasCopy() {
+        StatusKey.entries.forEach { assertTrue(statusKeyToI18n(it).startsWith("onboarding.")) }
+        app.getvela.wallet.feature.onboarding.core.SubmitLabel.entries.forEach {
+            assertTrue(submitLabelToI18n(it).startsWith("onboarding."))
+        }
+        KeyMethod.entries.forEach {
+            assertTrue(providerLineFor(it).startsWith("onboarding."))
+            val (title, body) = methodCopy(it)
+            assertTrue(title.startsWith("onboarding."))
+            assertTrue(body.startsWith("onboarding."))
+        }
+    }
+
+    /** The cap fixture sits exactly at the core's `MAX_MULTI_KEYS`, not near it. */
+    @Test
+    fun theCapFixtureIsAtTheCap() {
+        val (_, view) = flows().first { it.first == "keys · at the cap" }
+        assertEquals(MAX_KEYS, view.keys.size)
+        assertTrue("a full list must not offer another key", !view.canAddKey)
+    }
+
+    /**
+     * An address exists on the Done fixture and nowhere else.
+     *
+     * The core withholds `address` until the group has landed and the account is
+     * saved — an address shown earlier is one somebody can fund before the
+     * wallet is reachable. A fixture that leaked it would make that ordering
+     * look optional.
+     */
+    @Test
+    fun onlyTheDoneFixtureCarriesAnAddress() {
+        flows().forEach { (code, view) ->
+            if (view.stage == CreateStage.Created) {
+                assertEquals(FlowFixtures.FIXTURE_ADDRESS, view.address)
+            } else {
+                assertNull("fixture `$code` shows an address before there is one", view.address)
+            }
+        }
     }
 }

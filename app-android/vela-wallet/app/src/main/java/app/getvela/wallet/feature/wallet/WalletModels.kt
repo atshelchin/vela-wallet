@@ -135,4 +135,39 @@ data class WalletHomeModel(
     val sheet: SheetModel? = null,
     /** 1 or 1.35 — multiplies the font scale via LocalDensity (spec FR-011). */
     val textScale: Float = 1f,
-)
+) {
+    /**
+     * Swap in the signed-in wallet's real address (spec 019).
+     *
+     * The rest of this screen is still the spec-015 fixture layer, and that is
+     * the point of doing it here rather than inside the fixtures: an address is
+     * the ONE thing on the home screen a person acts on, and showing a fixture
+     * address after a real wallet has been created would be the app telling them
+     * their money is somewhere it is not. Everything else on the page is
+     * visibly-placeholder balance data; an address is not.
+     *
+     * An empty address changes nothing — the developer routes reach this screen
+     * with no session at all.
+     */
+    fun withAddress(address: String): WalletHomeModel = if (address.isEmpty()) {
+        this
+    } else {
+        copy(
+            header = header.copy(
+                addressDisplay = shortenAddress(address),
+                identiconSeed = address,
+            ),
+        )
+    }
+}
+
+/** `0x1234…cdef` — the house short form, matching the other three clients. */
+private fun shortenAddress(address: String): String =
+    if (address.length <= SHORT_ADDRESS_KEEP_HEAD + SHORT_ADDRESS_KEEP_TAIL) {
+        address
+    } else {
+        address.take(SHORT_ADDRESS_KEEP_HEAD) + "\u2026" + address.takeLast(SHORT_ADDRESS_KEEP_TAIL)
+    }
+
+private const val SHORT_ADDRESS_KEEP_HEAD = 6
+private const val SHORT_ADDRESS_KEEP_TAIL = 4

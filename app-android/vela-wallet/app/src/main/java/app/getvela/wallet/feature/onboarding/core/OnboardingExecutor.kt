@@ -1,0 +1,458 @@
+package app.getvela.wallet.feature.onboarding.core
+
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import kotlinx.coroutines.delay
+import org.json.JSONArray
+import org.json.JSONObject
+import uniffi.vela_core_uniffi.registryBuildGroupProof
+import uniffi.vela_core_uniffi.registryBuildMemberProof
+import uniffi.vela_core_uniffi.registryGroupPublicKeyFromSeed
+import uniffi.vela_core_uniffi.toHex
+
+/**
+ * The only place onboarding touches the outside world.
+ *
+ * Each of the eighteen `ShellOperation`s the core declares maps to exactly one
+ * call — a passkey ceremony, a storage read or write, a registry request, a
+ * timer, a prompt. There is no branching on business meaning here: **if this
+ * file ever grows an `if` that decides what happens next, that decision belongs
+ * in the Rust machine instead.**
+ *
+ * ## Failure contract
+ *
+ * Nothing propagates outward. Every operation answers with the result variant it
+ * owes, including for its failures, which is what lets the core own
+ * classification instead of the shell pattern-matching error strings.
+ *
+ * The mapping lives in [failureFor] rather than inline in each arm, for the same
+ * reason the web executor splits it out: the classification for several
+ * operations depends on WHAT THREW, not on which operation it was —
+ * `sign_member_proof` can fail as a ceremony or as a registry call, and the core
+ * branches differently on the two.
+ *
+ * ## Exhaustiveness
+ *
+ * The bridge is JSON, so the compiler cannot check this `when` the way it checks
+ * the desktop's `match`. `OnboardingExecutorTest` enumerates all eighteen
+ * operation names against [OPERATIONS] instead, and an operation this file does
+ * not handle throws rather than silently answering nothing — a silent answer
+ * would leave the core waiting forever with a spinner on screen.
+ */
+class OnboardingExecutor(
+    private val passkey: PasskeyExecutor,
+    private val registry: RegistryClient,
+    private val store: AccountStore,
+    private val deps: Deps,
+) {
+    /** The two operations whose outside world is the user interface itself. */
+    interface Deps {
+        /**
+         * Show a notice or ask a question. `confirmable` selects a two-button
+         * dialog whose answer is a business decision the core acts on; a
+         * dismissal is `false`.
+         */
+        suspend fun prompt(kind: PromptKind, confirmable: Boolean): Boolean
+
+        /** Hand the wallet to the session machine and leave onboarding. */
+        suspend fun complete(mode: JSONObject)
+    }
+
+    /** Perform one operation and return the result JSON the core is waiting for. */
+    suspend fun perform(operation: JSONObject): String = try {
+        run(operation).toString()
+    } catch (error: Throwable) {
+        if (error is kotlinx.coroutines.CancellationException) throw error
+        failureFor(operation, error).toString()
+    }
+
+    private suspend fun run(operation: JSONObject): JSONObject =
+        when (val type = operation.getString("type")) {
+            "check_passkey_support" ->
+                result("passkey_support") { put("supported", passkey.supported()) }
+
+            "register_passkey" -> {
+                val registration = passkey.register(
+                    name = operation.optString("name"),
+                    excludeCredentialIds = operation.optJSONArray("exclude_credential_ids").strings(),
+                    method = KeyMethod.of(operation.optString("method", KeyMethod.Platform.wire)),
+                )
+                result("passkey_registered") {
+                    put(
+                        "registration",
+                        JSONObject()
+                            .put("credential_id", registration.credentialIdHex)
+                            .put("attestation_object_hex", registration.attestationObjectHex)
+                            .put("client_data_json_hex", registration.clientDataJsonHex)
+                            .put("authenticator_attachment", registration.authenticatorAttachment)
+                            .put("transports", registration.transports),
+                    )
+                    put("now_iso", nowIso())
+                }
+            }
+
+            "sign_proof" -> {
+                val assertion = passkey.assert(
+                    challenge = challengeFor(operation.optString("purpose")),
+                    credentialIdHex = operation.optString("credential_id"),
+                )
+                result("proof_signed") {
+                    put("assertion", assertion.toWire())
+                    put("now_iso", nowIso())
+                }
+            }
+
+            "generate_group_key" -> {
+                // The one-time software group key — the only randomness in the
+                // flow that is not a challenge, and it stays in the shell. The
+                // core only echoes it into the final publish.
+                val seedHex = toHex(passkey.random(GROUP_SEED_BYTES), false)
+                result("group_key_generated") {
+                    put("seed_hex", seedHex)
+                    put("group_public_key_hex", registryGroupPublicKeyFromSeed(seedHex))
+                }
+            }
+
+            "sign_member_proof" -> {
+                // Creation-time membership confirmation: fetch the member-mode
+                // challenge (it binds only groupPublicKey + own attestation, so
+                // it exists before the rest of the set does), sign against
+                // exactly this credential, assemble the proof in the core. The
+                // publish later replays it without another prompt.
+                val challenge = registry.memberChallenge(
+                    groupPublicKey = operation.optString("group_public_key_hex"),
+                    publicKey = operation.optString("public_key_hex"),
+                    attestation = operation.optString("attestation_hex"),
+                    rpId = passkey.relyingPartyId,
+                )
+                val assertion = passkey.assert(
+                    challenge = uniffi.vela_core_uniffi.fromHex(stripHex(challenge)),
+                    credentialIdHex = operation.optString("credential_id"),
+                )
+                result("member_proof_signed") {
+                    put("proof", JSONObject(memberProof(assertion)))
+                }
+            }
+
+            "lookup_legacy_name" -> result("legacy_name") {
+                put("name", registry.legacyName(operation.optString("credential_id")) ?: JSONObject.NULL)
+            }
+
+            "authenticate_passkey" -> {
+                val assertion = passkey.assert(passkey.random(CHALLENGE_BYTES), null)
+                result("passkey_authenticated") {
+                    put("assertion", assertion.toWire())
+                    put("now_iso", nowIso())
+                }
+            }
+
+            "load_accounts" -> result("accounts_loaded") { put("accounts", store.loadAccounts()) }
+
+            "save_account" -> {
+                store.saveAccount(operation.getJSONObject("account"))
+                result("account_saved") {}
+            }
+
+            "save_pending_upload" -> {
+                store.savePendingUpload(operation.getJSONObject("record"))
+                result("pending_upload_saved") {}
+            }
+
+            "remove_pending_upload" -> {
+                store.removePendingUpload(operation.optString("credential_id"))
+                result("pending_upload_removed") {}
+            }
+
+            "registry_publish" -> {
+                publish(operation)
+                result("registry_published") {}
+            }
+
+            "registry_query_by_public_key" -> {
+                val status = registry.queryByPublicKey(operation.optString("public_key_hex"))
+                result("registry_key_status") {
+                    put("registered", status.registered)
+                    put("unit_ids", JSONArray().apply { status.unitIds.forEach { put(it) } })
+                }
+            }
+
+            "registry_query_unit" -> {
+                val unit = registry.queryUnit(operation.optLong("unit_id"))
+                result("registry_unit") {
+                    put("metadata_hex", unit.metadataHex)
+                    put(
+                        "members",
+                        JSONArray().apply {
+                            unit.members.forEach { member ->
+                                put(
+                                    JSONObject()
+                                        .put("credential_id", member.credentialIdHex)
+                                        .put("public_key_hex", member.publicKeyHex)
+                                        .put(
+                                            "authenticator_attachment",
+                                            member.authenticatorAttachment,
+                                        )
+                                        .put("transports", member.transports),
+                                )
+                            }
+                        },
+                    )
+                }
+            }
+
+            "probe_index_health" -> result("index_health") { put("ok", registry.probeHealth()) }
+
+            // `wait` is the core's only clock. `delay` is cancellable, so an
+            // abandoned timer stops rather than firing into a machine that moved
+            // on — and the driver drops its answer either way.
+            "wait" -> {
+                delay(operation.optLong("ms"))
+                result("waited") {}
+            }
+
+            "prompt" -> result("prompt_answered") {
+                put(
+                    "accepted",
+                    deps.prompt(
+                        PromptKind.from(operation.getJSONObject("kind")),
+                        operation.optBoolean("confirmable"),
+                    ),
+                )
+            }
+
+            "complete_onboarding" -> {
+                deps.complete(operation.getJSONObject("mode"))
+                result("onboarding_completed") {}
+            }
+
+            else -> error("unhandled shell operation: $type")
+        }
+
+    /**
+     * Possession-proven publish of the founding key set as one registry group.
+     *
+     * With a group seed in hand the members already carry creation-time proofs
+     * and **no prompt is raised**; that is the whole point of the interleaved
+     * create-then-confirm flow. The empty-seed path is the login re-publish: a
+     * fresh group key, and one live assertion per member that has no proof.
+     */
+    private suspend fun publish(operation: JSONObject) {
+        val members = operation.optJSONArray("members").objects().map(PublishMember::from)
+        if (members.isEmpty()) {
+            throw RegistryFailure("registry publish needs at least one member", network = false)
+        }
+
+        var seedHex = operation.optString("group_seed_hex")
+        var groupPublicKey = operation.optString("group_public_key_hex")
+        if (seedHex.isEmpty() || groupPublicKey.isEmpty()) {
+            seedHex = toHex(passkey.random(GROUP_SEED_BYTES), false)
+            groupPublicKey = registryGroupPublicKeyFromSeed(seedHex)
+        }
+
+        val metadataHex = operation.optString("metadata_hex")
+        val challenge = registry.groupChallenge(
+            metadataHex = metadataHex,
+            groupPublicKey = groupPublicKey,
+            members = members,
+            rpId = passkey.relyingPartyId,
+        )
+
+        val proven = members.map { member ->
+            val existing = member.proof
+            if (existing != null) {
+                ProvenMember(member, existing)
+            } else {
+                val memberChallenge = challenge.memberChallenges[member.publicKeyHex.lowercase()]
+                    ?: throw RegistryFailure(
+                        "registry challenge is missing member ${member.publicKeyHex}",
+                        network = false,
+                    )
+                val assertion = passkey.assert(
+                    challenge = uniffi.vela_core_uniffi.fromHex(stripHex(memberChallenge)),
+                    credentialIdHex = member.credentialIdHex,
+                )
+                ProvenMember(member, JSONObject(memberProof(assertion)))
+            }
+        }
+
+        // The group key silently closes over the content hash.
+        val group = JSONObject(
+            registryBuildGroupProof(seedHex, passkey.relyingPartyId, challenge.groupChallenge),
+        )
+
+        val ack = registry.registerGroup(
+            metadataHex = metadataHex,
+            groupPublicKey = groupPublicKey,
+            groupProof = group.getJSONObject("proof"),
+            members = proven,
+            rpId = passkey.relyingPartyId,
+        )
+
+        // `done` up front means the identical group was already on-chain —
+        // idempotent by content hash, and just as landed as a fresh one.
+        if (ack.status == "done") return
+        val id = ack.id
+            ?: throw RegistryFailure("register was accepted without a task id", network = false)
+        registry.awaitTask(id)
+    }
+
+    private fun memberProof(assertion: Assertion): String = registryBuildMemberProof(
+        assertion.authenticatorDataHex,
+        assertion.clientDataJsonHex,
+        assertion.signatureDerHex,
+    )
+
+    /**
+     * The challenge a proof purpose signs over.
+     *
+     * The label strings are preserved verbatim from the other clients — they are
+     * part of the wire, not decoration. The two recovery purposes share a label
+     * on purpose: what must differ between the two signatures is the challenge
+     * BYTES, and the millisecond tail supplies that. The invariant is not
+     * trusted to the shell either way — `recover_public_key_from_assertions`
+     * returns nothing unless the two assertions pin down exactly one key, so a
+     * repeated challenge fails closed in the core.
+     */
+    private fun challengeFor(purpose: String): ByteArray {
+        val label = if (purpose == "verify") "vela-verify-" else "vela-recover-"
+        return (label + System.currentTimeMillis()).toByteArray(Charsets.UTF_8)
+    }
+
+    companion object {
+        /** Every operation this executor is required to handle (contract §1). */
+        val OPERATIONS = listOf(
+            "check_passkey_support",
+            "register_passkey",
+            "sign_proof",
+            "generate_group_key",
+            "sign_member_proof",
+            "lookup_legacy_name",
+            "authenticate_passkey",
+            "load_accounts",
+            "save_account",
+            "save_pending_upload",
+            "remove_pending_upload",
+            "registry_publish",
+            "registry_query_by_public_key",
+            "registry_query_unit",
+            "probe_index_health",
+            "wait",
+            "prompt",
+            "complete_onboarding",
+        )
+
+        private const val GROUP_SEED_BYTES = 32
+        private const val CHALLENGE_BYTES = 32
+
+        /**
+         * The result variant an operation owes when its execution threw.
+         *
+         * This is the whole failure contract: every rejection lands here, and the
+         * core sees a described outcome rather than an exception. An operation
+         * missing from this map would leave the core waiting forever, so the
+         * fallthrough is deliberate and loud.
+         */
+        fun failureFor(operation: JSONObject, error: Throwable): JSONObject =
+            when (val type = operation.optString("type")) {
+                "check_passkey_support" ->
+                    result("passkey_support") { put("supported", false) }
+
+                "register_passkey", "sign_proof", "authenticate_passkey" -> passkeyFailure(error)
+
+                // Mixed: the ceremony and the challenge fetch can each fail, and
+                // the core branches differently on the two. Classify by what
+                // actually threw rather than by which operation it was.
+                "sign_member_proof" ->
+                    if (error is RegistryFailure) indexFailure(error) else passkeyFailure(error)
+
+                "generate_group_key",
+                "load_accounts",
+                "save_account",
+                "save_pending_upload",
+                "remove_pending_upload",
+                -> result("storage_failed") { put("message", describe(error)) }
+
+                "registry_publish", "registry_query_by_public_key", "registry_query_unit" ->
+                    indexFailure(error)
+
+                // Best-effort and read-only: a lost name degrades the label,
+                // never the flow.
+                "lookup_legacy_name" -> result("legacy_name") { put("name", JSONObject.NULL) }
+
+                "probe_index_health" -> result("index_health") { put("ok", false) }
+
+                "wait" -> result("waited") {}
+
+                // A dismissed dialog is a refusal, not an error.
+                "prompt" -> result("prompt_answered") { put("accepted", false) }
+
+                // The hand-over already happened as far as the core is concerned;
+                // a failure here is the app's to survive, not the machine's.
+                "complete_onboarding" -> result("onboarding_completed") {}
+
+                else -> error("no failure variant for operation: $type")
+            }
+
+        /**
+         * The net for an exception that escaped [perform] itself — a shell bug,
+         * not an expected failure. It still has to answer, because a core left
+         * waiting on an unanswered effect shows a spinner that never stops.
+         */
+        fun escapedFailure(operation: JSONObject, error: Throwable): String =
+            runCatching { failureFor(operation, error).toString() }
+                .getOrElse { result("storage_failed") { put("message", describe(error)) }.toString() }
+
+        private fun passkeyFailure(error: Throwable): JSONObject {
+            val failure = error as? PasskeyFailure
+                ?: PasskeyFailure(FailureKind.Other, describe(error))
+            return result("passkey_failed") {
+                put("kind", failure.kind.wire)
+                // A classified failure's copy comes from the classification; only
+                // `other` and `not_supported` carry the platform's own words,
+                // because those go into the bug report and must not be
+                // prettified.
+                put(
+                    "message",
+                    when (failure.kind) {
+                        FailureKind.Cancelled -> JSONObject.NULL
+                        else -> failure.message ?: JSONObject.NULL
+                    },
+                )
+            }
+        }
+
+        private fun indexFailure(error: Throwable): JSONObject = result("index_failed") {
+            put("message", describe(error))
+            // The one bit of classification only a shell can supply: a request
+            // that never arrived is not the same as one the server refused.
+            put("network", (error as? RegistryFailure)?.network ?: true)
+        }
+
+        private fun describe(error: Throwable): String =
+            error.message ?: error::class.simpleName ?: "unknown failure"
+
+        private inline fun result(type: String, fill: JSONObject.() -> Unit): JSONObject =
+            JSONObject().put("type", type).apply(fill)
+
+        /** UTC, always: a stored `created_at_iso` carrying a local offset means
+         *  something different the moment the phone changes time zone. */
+        fun nowIso(): String = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT)
+            .apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .format(Date())
+
+        private fun stripHex(value: String): String = value.removePrefix("0x")
+    }
+}
+
+private fun Assertion.toWire(): JSONObject = JSONObject()
+    .put("credential_id", credentialIdHex)
+    .put("signature_der_hex", signatureDerHex)
+    .put("authenticator_data_hex", authenticatorDataHex)
+    .put("client_data_json_hex", clientDataJsonHex)
+    .put("user_id_hex", userIdHex ?: JSONObject.NULL)
+    .put("authenticator_attachment", authenticatorAttachment)
+
+private fun JSONArray?.strings(): List<String> =
+    if (this == null) emptyList() else (0 until length()).map { optString(it) }

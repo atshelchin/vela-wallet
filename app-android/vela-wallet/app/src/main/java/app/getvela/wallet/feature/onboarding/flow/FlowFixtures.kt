@@ -1,227 +1,201 @@
 package app.getvela.wallet.feature.onboarding.flow
 
+import app.getvela.wallet.feature.onboarding.core.CreateKeyRow
+import app.getvela.wallet.feature.onboarding.core.CreateStage
+import app.getvela.wallet.feature.onboarding.core.CreateView
+import app.getvela.wallet.feature.onboarding.core.KeyMethod
+import app.getvela.wallet.feature.onboarding.core.PromptKind
+import app.getvela.wallet.feature.onboarding.core.StatusKey
+import app.getvela.wallet.feature.onboarding.core.SubmitLabel
+
 /**
- * Gallery fixtures — one per design code (spec 014, contracts §1: 34 unique
- * codes; E10 is shared and listed in BOTH gallery groups). Representative data
- * mirrors the mocks (A11 address, E2x detail lines, ring values 19/8/41).
- * Fixtures are reachable only from the dev gallery, never from production
- * code paths.
+ * Gallery fixtures for the v2 flow.
+ *
+ * Spec 014's fixtures were `CreatePanelState` / `LoginPanelState` — presentation
+ * types this app owned. Those types are gone: the screens now render `CreateView`
+ * straight from the core, so a fixture has to be a `CreateView` too. That is the
+ * point of rewriting them rather than adapting them — a fixture in a shape the
+ * production path cannot produce is a picture of a screen that cannot happen.
+ *
+ * The same list the desktop client walks (results.md, Phase 5), so a state that
+ * looks wrong on one is checkable against the other.
  */
 
-enum class FixtureFlow { Create, Login, Shared }
+sealed interface Fixture {
+    /** A step of the create journey, rendered by the real flow screens. */
+    data class Flow(val view: CreateView) : Fixture
 
-sealed interface FixturePanel {
-    data class Create(val state: CreatePanelState) : FixturePanel
-    data class Login(val state: LoginPanelState) : FixturePanel
+    /** The failure sheet, one entry per outcome the catalog names. */
+    data class Sheet(val kind: PromptKind, val confirmable: Boolean) : Fixture
 }
 
-data class StateFixture(
-    val code: String,
-    val flow: FixtureFlow,
-    val panel: FixturePanel,
-)
+data class StateFixture(val group: String, val code: String, val fixture: Fixture)
 
 object FlowFixtures {
 
-    /** Full 42-char fixture value; display truncates the tail, copy uses this. */
-    const val A11_ADDRESS = "0x44EEC06897ff7ab8C7f16819511A64bA168A6D33"
+    /** A funded-looking address; the identicon and the strip both derive from it. */
+    const val FIXTURE_ADDRESS = "0x44EEC06897ff7ab8C7f16819511A64bA168A6D33"
 
-    /** E2x detail lines — pinned verbatim by contracts/presentation-states.md §1. */
-    private val serverDetails = TechDetails(
-        code = "E_SERVER",
-        context = "第 5 步同步公钥；以及登录",
-        endpoint = "HTTP 503 · p256-index.getvela.app",
+    private fun base(): CreateView = CreateView(
+        stage = CreateStage.Form,
+        name = "",
+        nameEditable = true,
+        nameTooLong = false,
+        acks = listOf(false, false),
+        canSubmit = false,
+        submitLabel = SubmitLabel.Create,
+        showStartOver = false,
+        busy = false,
+        status = null,
+        keys = emptyList(),
+        canAddKey = true,
+        canFinish = false,
+        needsSecondKey = false,
+        canGoBack = true,
+        address = null,
+        syncErrorDetail = null,
     )
 
-    private fun create(code: String, flow: FixtureFlow, state: CreatePanelState) =
-        StateFixture(code, flow, FixturePanel.Create(state))
+    private fun key(
+        name: String,
+        method: KeyMethod = KeyMethod.Platform,
+        confirmed: Boolean = true,
+        synced: Boolean = true,
+    ) = CreateKeyRow(
+        name = name,
+        authenticatorAttachment = if (method == KeyMethod.SecurityKey) "cross-platform" else "platform",
+        transports = if (method == KeyMethod.SecurityKey) "usb,nfc" else "internal,hybrid",
+        confirmed = confirmed,
+        synced = synced,
+        aaguid = "",
+        method = method,
+    )
 
-    private fun login(code: String, flow: FixtureFlow, state: LoginPanelState) =
-        StateFixture(code, flow, FixturePanel.Login(state))
+    val all: List<StateFixture> = buildList {
+        fun flow(code: String, view: CreateView) = add(StateFixture("Create", code, Fixture.Flow(view)))
+        fun sheet(code: String, kind: String, detail: String? = null, confirmable: Boolean = false) =
+            add(StateFixture("Failures", code, Fixture.Sheet(PromptKind(kind, detail), confirmable)))
 
-    private fun createOutcome(code: String, spec: OutcomeSpec, flow: FixtureFlow = FixtureFlow.Create) =
-        create(code, flow, CreatePanelState.Outcome(spec))
-
-    private fun loginOutcome(code: String, spec: OutcomeSpec) =
-        login(code, FixtureFlow.Login, LoginPanelState.Outcome(spec))
-
-    private fun working(step: Int, showHint: Boolean = false, elapsedSecs: Int? = null) =
-        CreatePanelState.Working(
-            step = step,
-            status = CreateStatus.entries[step - 1],
-            showHint = showHint,
-            elapsedSecs = elapsedSecs,
+        flow("name · empty", base())
+        flow(
+            "name · filled",
+            base().copy(name = "Everyday wallet", acks = listOf(true, true), canSubmit = true),
         )
-
-    /**
-     * All 34 fixtures. Order = gallery order: create block (A*, E1–E8/E2x),
-     * then login block (B*, E9), then the shared catch-all E10.
-     */
-    val all: List<StateFixture> = listOf(
-        // Form (A1–A3). A3's over-length name re-derives the red hint locally.
-        create("A1", FixtureFlow.Create, CreatePanelState.Form()),
-        create(
-            "A2",
-            FixtureFlow.Create,
-            CreatePanelState.Form(
-                name = "大表哥",
-                acks = listOf(true, true, true),
-                canSubmit = true,
-            ),
-        ),
-        create(
-            "A3",
-            FixtureFlow.Create,
-            CreatePanelState.Form(
-                name = "一个特别特别特别长的账户名称示例",
+        flow(
+            "name · too long",
+            base().copy(
+                name = "A wallet name that will not fit a WebAuthn user handle",
                 nameTooLong = true,
             ),
-        ),
-        // Progress (A4–A8 + countdown variants; ring pins: A4c=19, A8c=8).
-        create("A4", FixtureFlow.Create, working(step = 1, showHint = true)),
-        create("A4c", FixtureFlow.Create, working(step = 1, showHint = true, elapsedSecs = 19)),
-        create("A5", FixtureFlow.Create, working(step = 2)),
-        create("A5c", FixtureFlow.Create, working(step = 2, elapsedSecs = 6)),
-        create("A6", FixtureFlow.Create, working(step = 3)),
-        create("A6c", FixtureFlow.Create, working(step = 3, elapsedSecs = 9)),
-        create("A7", FixtureFlow.Create, working(step = 4)),
-        create("A7c", FixtureFlow.Create, working(step = 4, elapsedSecs = 12)),
-        create("A8", FixtureFlow.Create, working(step = 5)),
-        create("A8c", FixtureFlow.Create, working(step = 5, elapsedSecs = 8)),
-        // Create outcomes.
-        createOutcome(
-            "A11",
-            OutcomeKind.Created.spec(
-                address = A11_ADDRESS,
-                bodyVars = mapOf("count" to "12"),
+        )
+        // A draft waiting for its signature: the name is frozen, the button
+        // changed word, and the status line says why — the state spec 014 drew
+        // as a modal "verification cancelled" sheet.
+        flow(
+            "name · draft waiting",
+            base().copy(
+                name = "Everyday wallet",
+                nameEditable = false,
+                acks = listOf(true, true),
+                canSubmit = true,
+                submitLabel = SubmitLabel.FinishVerify,
+                showStartOver = true,
+                status = StatusKey.VerifyCancelled,
             ),
-        ),
-        createOutcome(
-            "A12",
-            OutcomeKind.SyncFailed.spec(
-                details = TechDetails(
-                    code = "E_SYNC_UPLOAD",
-                    context = "第 5 步同步公钥",
-                    endpoint = "HTTP 502 · p256-index.getvela.app",
+        )
+        flow(
+            "keys · one, needs a second",
+            base().copy(
+                stage = CreateStage.AddKeys,
+                keys = listOf(key("Everyday wallet", synced = false)),
+                needsSecondKey = true,
+            ),
+        )
+        flow(
+            "keys · two, ready",
+            base().copy(
+                stage = CreateStage.AddKeys,
+                keys = listOf(key("Everyday wallet", synced = false), key("Key 2")),
+                canFinish = true,
+            ),
+        )
+        flow(
+            "keys · unconfirmed row",
+            base().copy(
+                stage = CreateStage.AddKeys,
+                keys = listOf(key("Everyday wallet"), key("Key 2", confirmed = false)),
+            ),
+        )
+        flow(
+            "keys · at the cap",
+            base().copy(
+                stage = CreateStage.AddKeys,
+                keys = (1..MAX_KEYS).map { key("Key $it") },
+                canAddKey = false,
+                canFinish = true,
+            ),
+        )
+        listOf(
+            "progress · verify" to StatusKey.VerifyingIdentity,
+            "progress · derive" to StatusKey.ComputingAddress,
+            "progress · publish" to StatusKey.SyncingKey,
+        ).forEach { (code, status) ->
+            flow(
+                code,
+                base().copy(
+                    stage = CreateStage.AddKeys,
+                    busy = true,
+                    status = status,
+                    keys = listOf(key("Everyday wallet"), key("Key 2")),
                 ),
+            )
+        }
+        flow(
+            "retry · publish failed",
+            base().copy(
+                stage = CreateStage.SyncFailed,
+                syncErrorDetail = "Register failed: 503 · p256-index-v2.getvela.app",
+                keys = listOf(key("Everyday wallet")),
             ),
-        ),
-        createOutcome(
-            "A13",
-            OutcomeKind.VerifyStuck.spec(
-                details = TechDetails(code = "E_VERIFY_STUCK", context = "第 2 步验证身份"),
+        )
+        flow(
+            "done",
+            base().copy(
+                stage = CreateStage.Created,
+                address = FIXTURE_ADDRESS,
+                keys = listOf(key("Everyday wallet"), key("Key 2", synced = false)),
             ),
-        ),
-        createOutcome(
-            "E1",
-            OutcomeKind.Network.spec(
-                details = TechDetails(
-                    code = "E_NETWORK",
-                    context = "第 5 步同步公钥；以及登录",
-                    endpoint = "p256-index.getvela.app",
-                ),
-            ),
-        ),
-        createOutcome("E2", OutcomeKind.Server.spec(details = serverDetails)),
-        createOutcome(
-            "E2x",
-            OutcomeKind.Server.spec(details = serverDetails, detailsExpanded = true),
-        ),
-        createOutcome(
-            "E3",
-            OutcomeKind.Timeout.spec(
-                details = TechDetails(code = "E_TIMEOUT", context = "第 1 步创建通行密钥"),
-                bodyVars = mapOf("seconds" to "60"),
-            ),
-        ),
-        createOutcome(
-            "E4",
-            OutcomeKind.CancelledSetup.spec(
-                details = TechDetails(code = "E_CANCELLED_SETUP", context = "第 1 步创建通行密钥"),
-            ),
-        ),
-        createOutcome(
-            "E5",
-            OutcomeKind.CancelledVerify.spec(
-                details = TechDetails(code = "E_CANCELLED_VERIFY", context = "第 2 步验证身份"),
-            ),
-        ),
-        createOutcome(
-            "E6",
-            OutcomeKind.Unsupported.spec(
-                details = TechDetails(code = "E_UNSUPPORTED", context = "第 1 步创建通行密钥"),
-            ),
-        ),
-        createOutcome(
-            "E7",
-            OutcomeKind.Incompatible.spec(
-                details = TechDetails(code = "E_INCOMPATIBLE", context = "第 1 步创建通行密钥"),
-            ),
-        ),
-        createOutcome(
-            "E8",
-            OutcomeKind.NotDiscoverable.spec(
-                details = TechDetails(code = "E_NOT_DISCOVERABLE", context = "第 2 步验证身份"),
-            ),
-        ),
-        // Login flow (B1–B6, E9; ring pin B1c=41).
-        login("B1", FixtureFlow.Login, LoginPanelState.Waiting()),
-        login("B1c", FixtureFlow.Login, LoginPanelState.Waiting(elapsedSecs = 41)),
-        loginOutcome(
-            "B2",
-            OutcomeKind.RecoverOffer.spec(
-                details = TechDetails(code = "RECOVER_OFFER", context = "登录"),
-            ),
-        ),
-        loginOutcome(
-            "B3",
-            OutcomeKind.RecoverFailed.spec(
-                details = TechDetails(code = "E_RECOVER_FAILED", context = "登录"),
-            ),
-        ),
-        loginOutcome(
-            "B4",
-            OutcomeKind.SignInFailed.spec(
-                details = TechDetails(code = "E_SIGN_IN_FAILED", context = "登录"),
-            ),
-        ),
-        loginOutcome(
-            "B5",
-            OutcomeKind.SignedIn.spec(
-                details = TechDetails(code = "LOGIN_OK", context = "登录"),
-            ),
-        ),
-        loginOutcome(
-            "B6",
-            OutcomeKind.LoginCancelled.spec(
-                details = TechDetails(code = "E_LOGIN_CANCELLED", context = "登录"),
-            ),
-        ),
-        loginOutcome(
-            "E9",
-            OutcomeKind.AccountNotFound.spec(
-                details = TechDetails(
-                    code = "E_NOT_FOUND",
-                    context = "登录",
-                    endpoint = "HTTP 404 · p256-index.getvela.app",
-                ),
-            ),
-        ),
-        // Shared catch-all — one fixture, listed in both gallery groups.
-        createOutcome(
-            "E10",
-            OutcomeKind.Unknown.spec(
-                details = TechDetails(code = "E_UNKNOWN", context = "创建钱包 / 登录"),
-            ),
-            flow = FixtureFlow.Shared,
-        ),
-    )
+        )
 
-    fun byCode(code: String): StateFixture = all.first { it.code == code }
+        sheet("unsupported", "not_supported_create")
+        sheet("unsupported · login", "not_supported_login")
+        sheet("not discoverable", "not_discoverable")
+        sheet("incompatible", "incompatible_create")
+        sheet("incompatible · login", "incompatible_login")
+        sheet("recover offer", "recover_offer", confirmable = true)
+        sheet("recover failed", "recover_failed")
+        // The two prompts that carry a detail string are driven THROUGH the
+        // refinement rather than around it, so this list is also a check on it:
+        // a `create_failed` whose message is empty renders an empty sheet, and
+        // that is exactly the bug this row would show.
+        sheet(
+            "create failed · unknown",
+            "create_failed",
+            detail = "the credential provider returned no attestation",
+        )
+        sheet(
+            "create failed · network",
+            "create_failed",
+            detail = "Register failed: failed to connect",
+        )
+        sheet("create failed · server", "create_failed", detail = "Register failed: 503")
+        sheet("create failed · timeout", "create_failed", detail = "Register timed out after 120s")
+        sheet(
+            "sign-in failed",
+            "sign_in_failed",
+            detail = "No passkey for getvela.app on this device",
+        )
+    }
 
-    /** Create gallery group: create fixtures + the shared E10 (last). */
-    val createGallery: List<StateFixture> = all.filter { it.flow != FixtureFlow.Login }
-
-    /** Login gallery group: login fixtures + the shared E10 (last). */
-    val loginGallery: List<StateFixture> = all.filter { it.flow != FixtureFlow.Create }
+    fun byCode(code: String): StateFixture? = all.firstOrNull { it.code == code }
 }

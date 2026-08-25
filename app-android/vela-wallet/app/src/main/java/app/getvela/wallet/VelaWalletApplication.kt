@@ -4,8 +4,12 @@ import android.app.Application
 import app.getvela.wallet.core.data.ThemePreferenceRepository
 import app.getvela.wallet.core.i18n.I18nRuntime
 import app.getvela.wallet.core.i18n.LocaleResolver
+import app.getvela.wallet.feature.onboarding.core.AccountStore
+import app.getvela.wallet.feature.onboarding.core.SessionController
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 
 /**
  * Manual composition root (research D8) — no DI framework at this scale.
@@ -21,6 +25,26 @@ class AppContainer(private val app: Application) {
 
     val themeRepository = ThemePreferenceRepository(app)
 
+    val accountStore = AccountStore(app)
+
+    /**
+     * The session machine lives HERE, not in a ViewModel.
+     *
+     * It is the route guard for the whole app and it outlives every screen. A
+     * guard rebuilt whenever a screen is rebuilt would spend the first frame
+     * after each rotation reporting `loading` and bouncing a signed-in person
+     * back to onboarding.
+     *
+     * `SupervisorJob` so one failed effect cannot take the session down with it:
+     * every operation already answers with its own failure variant, and a scope
+     * that cancelled on the first exception would leave the app permanently in
+     * `loading`.
+     */
+    val session = SessionController(
+        store = accountStore,
+        scope = CoroutineScope(SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate),
+    )
+
     private val i18nExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "vela-i18n")
     }
@@ -29,6 +53,7 @@ class AppContainer(private val app: Application) {
         i18nExecutor.execute {
             i18nRuntime.initialize(LocaleResolver.resolve(currentLocales()))
         }
+        session.boot()
     }
 
     /** Re-resolves the system locale (activity recreation on locale change). */

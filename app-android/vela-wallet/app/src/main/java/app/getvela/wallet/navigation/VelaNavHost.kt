@@ -1,30 +1,37 @@
 package app.getvela.wallet.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import app.getvela.wallet.VelaWalletApplication
 import app.getvela.wallet.core.data.ThemePreference
 import app.getvela.wallet.core.i18n.LocalVelaStrings
-import app.getvela.wallet.feature.onboarding.OnboardingIntent
-import app.getvela.wallet.feature.onboarding.ThemeSettingsSheet
-import app.getvela.wallet.feature.onboarding.WelcomeScreen
-import app.getvela.wallet.feature.onboarding.WelcomeViewModel
-import app.getvela.wallet.feature.onboarding.flow.CreatePanelState
-import app.getvela.wallet.feature.onboarding.flow.FlowSheet
-import app.getvela.wallet.feature.onboarding.flow.LoginPanelState
 import app.getvela.wallet.feature.contacts.ContactsActions
 import app.getvela.wallet.feature.contacts.ContactsFixtures
 import app.getvela.wallet.feature.contacts.ContactsRoute
 import app.getvela.wallet.feature.contacts.ContactsScreenState
 import app.getvela.wallet.feature.contacts.gallery.ContactsGalleryScreen
-import app.getvela.wallet.feature.onboarding.placeholder.CreatePlaceholderScreen
+import app.getvela.wallet.feature.onboarding.OnboardingIntent
+import app.getvela.wallet.feature.onboarding.OnboardingViewModel
+import app.getvela.wallet.feature.onboarding.ThemeSettingsSheet
+import app.getvela.wallet.feature.onboarding.WelcomeScreen
+import app.getvela.wallet.feature.onboarding.WelcomeViewModel
+import app.getvela.wallet.feature.onboarding.core.RegistryClient
+import app.getvela.wallet.feature.onboarding.core.SessionRoute
+import app.getvela.wallet.feature.onboarding.flow.CreateFlowScreen
+import app.getvela.wallet.feature.onboarding.flow.EndpointSheet
+import app.getvela.wallet.feature.onboarding.flow.FlowSheet
 import app.getvela.wallet.feature.onboarding.placeholder.ImportPlaceholderScreen
 import app.getvela.wallet.feature.wallet.WalletFixtures
 import app.getvela.wallet.feature.wallet.WalletScreen
@@ -56,67 +63,97 @@ fun VelaNavHost(
     startDestination: String = VelaDestinations.WELCOME,
 ) {
     val navController = rememberNavController()
-    NavHost(
-        navController = navController,
-        startDestination = startDestination,
-    ) {
+    val context = LocalContext.current
+    val application = context.applicationContext as VelaWalletApplication
+    val session by application.container.session.view.collectAsStateWithLifecycle()
+    val onboarding: OnboardingViewModel = viewModel()
+
+    // Credential Manager raises system UI, which needs an Activity — not the
+    // application context the ViewModel was constructed with.
+    LaunchedEffect(context) { onboarding.attach(context) }
+
+    /**
+     * The route guard.
+     *
+     * `allowed_route` is the core's ruling about WHAT is allowed; when to move is
+     * this host's call, and it moves only for the two settled routes. `loading`
+     * is deliberately not navigated to: the launch animation is already covering
+     * this frame, and bouncing to a spinner route and back would make a cold
+     * start flicker through three screens.
+     *
+     * The developer routes are exempt. They are reached by an intent extra that
+     * release builds never receive, and a guard that yanked the gallery back to
+     * onboarding would make every fixture screen unreachable on a device with no
+     * wallet — which is every device the gallery is useful on.
+     */
+    LaunchedEffect(session.allowedRoute, startDestination) {
+        if (startDestination !in DEVELOPER_ROUTES) {
+            when (session.allowedRoute) {
+                SessionRoute.Wallet -> navController.navigateSingleTop(VelaDestinations.WALLET)
+                SessionRoute.Onboarding -> navController.navigateSingleTop(VelaDestinations.WELCOME)
+                SessionRoute.Loading -> Unit
+            }
+        }
+    }
+
+    NavHost(navController = navController, startDestination = startDestination) {
         composable(VelaDestinations.WELCOME) {
-            val viewModel: WelcomeViewModel = viewModel()
+            val welcome: WelcomeViewModel = viewModel()
             WelcomeScreen(
                 darkTheme = darkTheme,
-                // Spec 014 US2: the CTAs open the flow bottom sheet over Welcome
-                // (visibility in the ViewModel, ThemeSettingsSheet pattern) instead
-                // of navigating to the old placeholder screens. Re-taps are
-                // idempotent — the sheet state is already set.
-                onIntent = viewModel::recordIntent,
-                onLongPressLogo = viewModel::showSettings,
+                signingIn = onboarding.loginView.busy,
+                onIntent = { intent ->
+                    when (intent) {
+                        OnboardingIntent.CreateWallet ->
+                            navController.navigateSingleTop(VelaDestinations.CREATE)
+                        // No screen of our own: the login machine's first act is
+                        // the system passkey sheet, and the wallet is what
+                        // follows it.
+                        OnboardingIntent.RecoverWallet -> {
+                            onboarding.startLogin()
+                            onboarding.signIn()
+                        }
+                    }
+                },
+                onLongPressLogo = welcome::showSettings,
             )
-            if (viewModel.settingsSheetVisible) {
+            if (welcome.settingsSheetVisible) {
                 ThemeSettingsSheet(
                     current = themePreference,
                     onSelect = onThemeSelected,
-                    onDismiss = viewModel::hideSettings,
+                    onDismiss = welcome::hideSettings,
                 )
-            }
-            // Initial states per contract §3: create → Form empty, login →
-            // Waiting(null). System dismissal and close × restore Welcome
-            // unchanged; all other action presses are no-op logs (FR-011).
-            when (viewModel.flowSheetIntent) {
-                OnboardingIntent.CreateWallet -> FlowSheet(
-                    state = CreatePanelState.Form(),
-                    onAction = viewModel::onFlowAction,
-                    onDismiss = viewModel::hideFlowSheet,
-                )
-                OnboardingIntent.RecoverWallet -> FlowSheet(
-                    state = LoginPanelState.Waiting(),
-                    onAction = viewModel::onFlowAction,
-                    onDismiss = viewModel::hideFlowSheet,
-                )
-                null -> Unit
             }
         }
+
         composable(VelaDestinations.CREATE) {
-            CreatePlaceholderScreen(
-                darkTheme = darkTheme,
-                onBack = { navController.popBackStack() },
+            CreateFlowScreen(
+                model = onboarding,
+                onExit = { navController.popBackStack() },
+                onOpenPrivacy = { context.openUrl(PRIVACY_URL) },
+                onOpenTerms = { context.openUrl(TERMS_URL) },
             )
         }
+
         composable(VelaDestinations.IMPORT) {
             ImportPlaceholderScreen(
                 darkTheme = darkTheme,
                 onBack = { navController.popBackStack() },
             )
         }
+
         composable(VelaDestinations.WALLET) {
             val strings = LocalVelaStrings.current
-            // Fixture-driven only (spec FR-005): default state H1; the network
-            // pill opens the H8 chain sheet, still pure fixtures.
+            // Fixture-driven still (spec 015 FR-005) apart from the address,
+            // which is now the wallet's real one: a home screen showing a
+            // fixture address after a real create would be the app telling the
+            // person their money is somewhere it is not.
             var sheetOpen by rememberSaveable { mutableStateOf(false) }
-            val model = remember(strings, sheetOpen) {
+            val model = remember(strings, sheetOpen, session.address) {
                 WalletFixtures.buildMobileState(
                     if (sheetOpen) WalletScreenState.H8 else WalletScreenState.H1,
                     strings,
-                )
+                ).withAddress(session.address)
             }
             WalletScreen(
                 model = model,
@@ -124,13 +161,13 @@ fun VelaNavHost(
                 onSheetDismiss = { sheetOpen = false },
             )
         }
+
         composable(VelaDestinations.GALLERY) {
             GalleryScreen(systemDarkTheme = darkTheme)
         }
+
         composable(VelaDestinations.CONTACTS) {
             val strings = LocalVelaStrings.current
-            // Fixture-driven only (spec 018 FR-005): default state C1; the
-            // person-add button opens the C5 sheet, still pure fixtures.
             var menuOpen by rememberSaveable { mutableStateOf(false) }
             val model = remember(strings, menuOpen) {
                 ContactsFixtures.buildMobileState(
@@ -146,8 +183,66 @@ fun VelaNavHost(
                 ),
             )
         }
+
         composable(VelaDestinations.CONTACTS_GALLERY) {
             ContactsGalleryScreen(systemDarkTheme = darkTheme)
         }
     }
+
+    // Hosted OUTSIDE the NavHost, deliberately. A prompt can be raised by either
+    // machine, and the login machine runs while Welcome is on screen — so a
+    // sheet nested in one route's composable would vanish the moment the route
+    // guard moved, taking the question with it and leaving the core waiting for
+    // an answer nobody can give.
+    onboarding.pending?.let { prompt ->
+        FlowSheet(
+            kind = prompt.kind,
+            confirmable = prompt.confirmable,
+            onAnswer = onboarding::answerPrompt,
+        )
+    }
+
+    if (onboarding.endpointSheetOpen) {
+        EndpointSheet(
+            current = onboarding.endpointUrl,
+            defaultUrl = RegistryClient.DEFAULT_REGISTRY_URL,
+            onSave = onboarding::saveEndpoint,
+            onDismiss = onboarding::dismissEndpointSheet,
+        )
+    }
 }
+
+/**
+ * Move without stacking.
+ *
+ * The route guard can fire more than once for one decision — a recomposition, a
+ * second view from the same dispatch — and each firing must be idempotent, or
+ * the back stack fills with copies of the wallet and the system back button
+ * walks through them one at a time.
+ */
+private fun NavHostController.navigateSingleTop(route: String) {
+    if (currentDestination?.route == route) return
+    navigate(route) {
+        launchSingleTop = true
+        popUpTo(graph.startDestinationId) { inclusive = true }
+    }
+}
+
+private fun android.content.Context.openUrl(url: String) {
+    runCatching {
+        startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)),
+        )
+    }
+}
+
+/** Reached only by the `vela.startDestination` extra; the guard leaves them alone. */
+private val DEVELOPER_ROUTES = setOf(
+    VelaDestinations.GALLERY,
+    VelaDestinations.CONTACTS_GALLERY,
+    VelaDestinations.CONTACTS,
+    VelaDestinations.IMPORT,
+)
+
+private const val PRIVACY_URL = "https://getvela.app/privacy"
+private const val TERMS_URL = "https://getvela.app/terms"

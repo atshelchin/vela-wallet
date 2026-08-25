@@ -52,13 +52,21 @@ import java.util.Locale
 import kotlinx.coroutines.launch
 
 /**
- * Welcome screen per W1 (dark) / W1L (light): brand block, tagline, six-card
- * carousel with pager dots, CTA stack. Long-press on the mark opens the theme
- * settings sheet (RN precedent, spec FR-006).
+ * Welcome: brand block, tagline, six-card carousel with pager dots, CTA stack.
+ * Long-press on the mark opens the theme settings sheet (RN precedent, FR-006).
  *
  * The hero/carousel region scrolls when it cannot fit (large font scale, short
  * screens) while the CTA stack stays pinned and fully visible (US1 AS4); on
  * regular phones nothing scrolls and the spacing follows the mock's rhythm.
+ *
+ * Spec 019 changed what the two CTAs DO, not what they look like. Creating a
+ * wallet now leaves for a full-screen journey instead of raising a sheet over
+ * this page, and 我已有钱包 dispatches straight into the login machine — the
+ * system passkey sheet is the next thing the person sees, so an intermediate
+ * screen of our own would be a screen with nothing on it. [signingIn] is the
+ * core's `busy`, and it disables the button rather than hiding it: a control
+ * that vanishes while a system dialog is up reads as the app having crashed
+ * behind it.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -67,6 +75,7 @@ fun WelcomeScreen(
     onIntent: (OnboardingIntent) -> Unit,
     onLongPressLogo: () -> Unit,
     modifier: Modifier = Modifier,
+    signingIn: Boolean = false,
 ) {
     val strings = LocalVelaStrings.current
     val colors = VelaTheme.colors
@@ -181,11 +190,13 @@ fun WelcomeScreen(
                 VelaPrimaryButton(
                     text = strings.t(I18nKeys.Welcome.CREATE_WALLET),
                     onClick = { onIntent(OnboardingIntent.CreateWallet) },
+                    enabled = !signingIn,
                 )
                 Spacer(modifier = Modifier.height(VelaSpacing.lg))
                 VelaSecondaryButton(
                     text = strings.t(I18nKeys.Welcome.ALREADY_HAVE_WALLET),
                     onClick = { onIntent(OnboardingIntent.RecoverWallet) },
+                    enabled = !signingIn,
                 )
                 Spacer(modifier = Modifier.height(VelaSpacing.xl))
             }

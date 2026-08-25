@@ -106,8 +106,14 @@ fun VelaNavHost(
                 signingIn = onboarding.loginView.busy,
                 onIntent = { intent ->
                     when (intent) {
+                        // PUSHED, not swapped: `navigateSingleTop` clears the
+                        // back stack down to and including the start
+                        // destination, which is right for the session guard's
+                        // jumps and wrong here — it left the create flow as the
+                        // only entry, so its own back affordance had nothing to
+                        // pop and did nothing at all (device-found 2026-08-25).
                         OnboardingIntent.CreateWallet ->
-                            navController.navigateSingleTop(VelaDestinations.CREATE)
+                            navController.push(VelaDestinations.CREATE)
                         // No screen of our own: the login machine's first act is
                         // the system passkey sheet, and the wallet is what
                         // follows it.
@@ -240,6 +246,17 @@ fun VelaNavHost(
  * the back stack fills with copies of the wallet and the system back button
  * walks through them one at a time.
  */
+/**
+ * Forward navigation INSIDE the app: the screen we came from stays on the
+ * stack, so both the screen's own back affordance and the system's return to
+ * it. [navigateSingleTop] is the other kind — a swap the session guard makes
+ * when the core says a whole different route is allowed now.
+ */
+private fun NavHostController.push(route: String) {
+    if (currentDestination?.route == route) return
+    navigate(route) { launchSingleTop = true }
+}
+
 private fun NavHostController.navigateSingleTop(route: String) {
     if (currentDestination?.route == route) return
     navigate(route) {

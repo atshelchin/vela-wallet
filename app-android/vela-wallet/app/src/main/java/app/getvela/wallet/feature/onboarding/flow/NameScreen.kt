@@ -17,12 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
+import app.getvela.wallet.core.designsystem.components.ACK_LINK_TAG
 import app.getvela.wallet.core.designsystem.components.VelaAckRow
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.components.VelaTextField
@@ -139,15 +138,17 @@ fun ColumnScope.NameScreen(
                         conjunction = strings.t(I18nKeys.Create.ACK2_AND),
                         terms = strings.t(I18nKeys.Create.ACK2_TERMS),
                         period = strings.t(I18nKeys.Create.ACK2_PERIOD),
-                        linkStyles = TextLinkStyles(
-                            style = SpanStyle(
-                                color = colors.accentBase,
-                                textDecoration = TextDecoration.Underline,
-                            ),
+                        linkStyle = SpanStyle(
+                            color = colors.accentBase,
+                            textDecoration = TextDecoration.Underline,
                         ),
-                        onOpenPrivacy = onOpenPrivacy,
-                        onOpenTerms = onOpenTerms,
                     ),
+                    onLink = { which ->
+                        when (which) {
+                            LINK_PRIVACY -> onOpenPrivacy()
+                            LINK_TERMS -> onOpenTerms()
+                        }
+                    },
                 )
 
                 if (statusText != null) {
@@ -187,6 +188,9 @@ fun ColumnScope.NameScreen(
     Spacer(modifier = Modifier.height(VelaSpacing.xl))
 }
 
+private const val LINK_PRIVACY = "privacy"
+private const val LINK_TERMS = "terms"
+
 /**
  * The legal line, assembled from its five corpus fragments.
  *
@@ -195,11 +199,12 @@ fun ColumnScope.NameScreen(
  * differs per locale — Chinese uses a different period character, and some
  * locales put the conjunction elsewhere entirely.
  *
- * The two documents open from the WORDS, the way they do on web, iOS and the
+ * The two documents open from the WORDS, the way they do on web and on the
  * desktop — this row used to name them in plain text and repeat them as a
- * separate link row underneath, which was the odd one out of four shells. A
- * `LinkAnnotation` inside the text consumes its own tap, so the link opens a
- * browser and the surrounding row still toggles the box.
+ * separate link row underneath, which was the odd one out of the four shells.
+ * They are STRING annotations rather than `LinkAnnotation`s: `VelaAckRow` does
+ * the hit test against the text layout itself, because Compose laid the second
+ * link's tap box over the first line (device-found 2026-08-25).
  */
 private fun legalLine(
     lead: String,
@@ -207,13 +212,21 @@ private fun legalLine(
     conjunction: String,
     terms: String,
     period: String,
-    linkStyles: TextLinkStyles,
-    onOpenPrivacy: () -> Unit,
-    onOpenTerms: () -> Unit,
+    linkStyle: SpanStyle,
 ): AnnotatedString = buildAnnotatedString {
     append(lead)
-    withLink(LinkAnnotation.Clickable("privacy", linkStyles) { onOpenPrivacy() }) { append(privacy) }
+    link(LINK_PRIVACY, privacy, linkStyle)
     append(conjunction)
-    withLink(LinkAnnotation.Clickable("terms", linkStyles) { onOpenTerms() }) { append(terms) }
+    link(LINK_TERMS, terms, linkStyle)
     append(period)
+}
+
+private fun androidx.compose.ui.text.AnnotatedString.Builder.link(
+    id: String,
+    label: String,
+    style: SpanStyle,
+) {
+    pushStringAnnotation(ACK_LINK_TAG, id)
+    withStyle(style) { append(label) }
+    pop()
 }

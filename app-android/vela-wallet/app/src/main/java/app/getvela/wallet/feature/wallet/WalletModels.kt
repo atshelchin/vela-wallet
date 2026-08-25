@@ -159,6 +159,21 @@ data class WalletHomeModel(
             ),
         )
     }
+
+    /**
+     * Swap in the signed-in wallet's real NAME (spec 019).
+     *
+     * Same argument as the address, and found the same way — on a device. The
+     * header drew the fixture's 大表哥 over a real address and a real
+     * identicon, so the one line on the screen that was wrong was the one line
+     * a person reads as "this is my wallet". An empty name changes nothing:
+     * the developer routes reach this screen with no session at all.
+     */
+    fun withName(name: String): WalletHomeModel = if (name.isEmpty()) {
+        this
+    } else {
+        copy(header = header.copy(name = name))
+    }
 }
 
 /** `0x1234…cdef` — the house short form, matching the other three clients. */

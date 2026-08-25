@@ -146,6 +146,16 @@ struct SessionView: Decodable, Equatable {
     let allowedRoute: SessionRoute
     let signOut: SessionSignOutView?
 
+    /// The active account's display NAME, `""` when there is none.
+    ///
+    /// The address rides in `SessionView` pre-derived; the name does not, so
+    /// every screen that wants it would otherwise re-index the account list —
+    /// and an out-of-range `activeIndex` from a torn view would crash rather
+    /// than render an empty header.
+    var activeName: String {
+        accounts.indices.contains(activeIndex) ? accounts[activeIndex].account.name : ""
+    }
+
     static let booting = SessionView(
         loading: true,
         hasWallet: false,

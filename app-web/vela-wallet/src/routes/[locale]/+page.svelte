@@ -129,7 +129,7 @@
 			</header>
 
 			<div class="hero">
-				<h1 class="headline">{m.heroTitle}</h1>
+				<h1 class="headline" class:long={m.heroTitleFit === 'long'}>{m.heroTitle}</h1>
 				<p class="sub">{m.heroSubtitle}</p>
 			</div>
 		</div>
@@ -232,6 +232,14 @@
 		letter-spacing: -0.02em;
 	}
 
+	/* A locale whose headline is too wide for its rung drops one step down the
+	   ladder — 46 → 38 → 31 — rather than wrapping into a third line the design
+	   has no room for. Which locales those are is not guessed here: the corpus
+	   carries `heroTitleFit` beside the string it describes. */
+	.headline.long {
+		font-size: var(--text-heroTight);
+	}
+
 	.sub {
 		margin: 0;
 		color: var(--color-fg-muted);
@@ -263,6 +271,10 @@
 
 		.headline {
 			font-size: var(--text-hero);
+		}
+
+		.headline.long {
+			font-size: var(--text-heroCompact);
 		}
 
 		/* Side by side, sharing the column equally — the design's two buttons

@@ -69,6 +69,14 @@ enum Typography {
         relativeTo: .largeTitle,
         leading: WelcomeGeometry.heroLeading
     )
+    /// The same headline for a locale that needs the next rung down; picked by
+    /// `HeroFit`, never by the view.
+    static let heroLong = TypeRole(
+        fontName: FontName.bold,
+        size: WelcomeGeometry.heroSizeLong,
+        relativeTo: .largeTitle,
+        leading: WelcomeGeometry.heroLeading
+    )
     /// The v2 wordmark beside the mark: small, heavy, widely tracked — a label,
     /// not a title. The tracking itself is applied at the call site.
     static let wordmark = TypeRole(

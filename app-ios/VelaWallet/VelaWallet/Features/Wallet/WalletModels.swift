@@ -194,6 +194,26 @@ struct WalletHomeModel {
         return copy
     }
 
+    /// Swap in the signed-in wallet's real NAME (spec 019).
+    ///
+    /// Same argument as the address, and found the same way — on a device.
+    /// The header drew the fixture's 大表哥 over a real address and a real
+    /// identicon, so the one line on the screen that was wrong was the one
+    /// line a person reads as "this is my wallet".
+    ///
+    /// An empty name changes nothing: the developer routes reach this screen
+    /// with no session, and a blank header is worse than a placeholder one.
+    func withName(_ name: String) -> WalletHomeModel {
+        guard !name.isEmpty else { return self }
+        var copy = self
+        copy.header = WalletHeaderModel(
+            name: name,
+            addressDisplay: header.addressDisplay,
+            identiconSeed: header.identiconSeed
+        )
+        return copy
+    }
+
     /// `0x1234…cdef` — the house short form, matching the other three clients.
     private static func shorten(_ address: String) -> String {
         guard address.count > 10 else { return address }

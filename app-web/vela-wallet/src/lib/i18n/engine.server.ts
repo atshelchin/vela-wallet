@@ -65,6 +65,7 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
 		metaDescription: t(locale, 'onboarding.welcomeWeb.meta.description'),
 		tagline: t(locale, 'onboarding.welcomeWeb.tagline'),
 		heroTitle: t(locale, 'onboarding.welcome.heroTitle'),
+		heroTitleFit: t(locale, 'onboarding.welcome.heroTitleFit'),
 		heroSubtitle: t(locale, 'onboarding.welcome.heroSubtitle'),
 		createWallet: t(locale, 'onboarding.welcome.createWallet'),
 		alreadyHaveWallet: t(locale, 'onboarding.welcome.alreadyHaveWallet')

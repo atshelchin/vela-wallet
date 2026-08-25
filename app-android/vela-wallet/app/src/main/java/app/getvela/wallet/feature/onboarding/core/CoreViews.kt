@@ -183,6 +183,16 @@ data class SessionView(
     val allowedRoute: SessionRoute,
     val signOut: SessionSignOutView?,
 ) {
+    /**
+     * The active account's display NAME, `""` when there is none.
+     *
+     * The address rides in the view pre-derived; the name does not, so every
+     * screen that wants it would otherwise re-index the account list — and an
+     * out-of-range [activeIndex] from a torn view would throw rather than
+     * render an empty header.
+     */
+    val activeName: String get() = accounts.getOrNull(activeIndex)?.name.orEmpty()
+
     companion object {
         fun from(json: JSONObject): SessionView = SessionView(
             loading = json.optBoolean("loading"),

@@ -18,6 +18,7 @@
       "featureStablecoinGasTitle": "Pay gas in stablecoins",
       "featureStablecoinGasBody": "Most networks let you pay fees in stablecoins — no need to hold the native coin first.",
       "heroTitle": "The unstoppable\nEthereum wallet",
+      "heroTitleFit": "regular",
       "heroSubtitle": "Sign with a passkey. Vela never sees your key."
     },
     "welcomeWeb": {

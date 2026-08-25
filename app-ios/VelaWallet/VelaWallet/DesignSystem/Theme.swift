@@ -93,6 +93,16 @@ enum WelcomeGeometry {
     /// for 46/38 — this is the compact one, which is what a phone gets (web
     /// precedent: WEB_ADDITIONS `text-heroCompact`).
     static let heroSize: CGFloat = 38
+    /// One rung down, for a locale whose headline is too wide for `heroSize`
+    /// (the corpus says which, in `heroTitleFit`). The ladder is 46/38/31,
+    /// stepping ~0.82 each; measured at the shipped font the widest authored
+    /// line runs 6.9em (zh) to 10.9em (ru), and 31 is what fits the widest of
+    /// them in the 342pt the 390pt design frame leaves between its gutters.
+    /// 390 is the contract, not the floor: a 375pt phone has ~15pt less than
+    /// the widest headline needs and is allowed to wrap (founder direction
+    /// 2026-08-26). Do not shrink a locale a rung to serve it — that shrinks
+    /// the headline on every phone.
+    static let heroSizeLong: CGFloat = 31
     static let heroLeading: CGFloat = 1.25
     /// Optical tightening on a headline this large, as the web sets it.
     static let heroTracking: CGFloat = -0.02

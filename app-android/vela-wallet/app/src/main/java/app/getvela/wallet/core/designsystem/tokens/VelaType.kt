@@ -25,6 +25,20 @@ object VelaTextSize {
      * gets (web precedent: WEB_ADDITIONS `text-heroCompact`).
      */
     val hero: TextUnit = 38.sp
+
+    /**
+     * One rung further down (46/38/31, ~0.82 a step), for a locale whose
+     * headline is too wide for [hero]. Which locales those are is not decided
+     * here — the corpus says so in `onboarding.welcome.heroTitleFit`, because
+     * the width is a property of the translation: measured at the shipped font
+     * the widest authored line runs 6.9em (zh) to 10.9em (ru), and 31 is what
+     * fits the widest of them in the 342dp a 390dp frame leaves between its
+     * gutters. 390 is the contract, not the floor: a 360dp phone has less
+     * column than the widest headline needs and is allowed to wrap (founder
+     * direction 2026-08-26). Do not drop a locale a rung to serve it — that
+     * shrinks the headline on every phone.
+     */
+    val heroLong: TextUnit = 31.sp
 }
 
 /** core.weight — Android needs per-weight font files (see VelaFontFamily). */

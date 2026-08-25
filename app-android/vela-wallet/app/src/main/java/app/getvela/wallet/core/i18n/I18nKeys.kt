@@ -9,6 +9,8 @@ object I18nKeys {
     object Welcome {
         const val TAGLINE = "onboarding.welcome.desktopTagline"
         const val HERO_TITLE = "onboarding.welcome.heroTitle"
+        /** The headline's type tier: `regular` or `long` (an enum, not prose). */
+        const val HERO_TITLE_FIT = "onboarding.welcome.heroTitleFit"
         const val HERO_SUBTITLE = "onboarding.welcome.heroSubtitle"
         const val CREATE_WALLET = "onboarding.welcome.createWallet"
         const val ALREADY_HAVE_WALLET = "onboarding.welcome.alreadyHaveWallet"

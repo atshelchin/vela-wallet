@@ -211,17 +211,20 @@ struct RootView: View {
 
     /// The wallet when the core says there is one, Welcome otherwise.
     ///
-    /// The wallet body is still the spec-015 fixture layer apart from the
-    /// address, which is now the real one: a home screen showing a fixture
-    /// address after a real create would be the app telling the person their
-    /// money is somewhere it is not.
+    /// The wallet body is still the spec-015 fixture layer apart from the two
+    /// things that identify the wallet — its address and its name, both now
+    /// the real ones. A home screen showing a fixture address after a real
+    /// create would be the app telling the person their money is somewhere it
+    /// is not; a fixture NAME over their own address and identicon told them
+    /// they were signed in as somebody else (device-found 2026-08-26).
     @ViewBuilder
     private var signedInOrWelcome: some View {
         if session.view.allowedRoute == .wallet {
             WalletScreen(
                 model: WalletFixtures
                     .buildMobileState(.h1, loc: loc)
-                    .withAddress(session.view.address),
+                    .withAddress(session.view.address)
+                    .withName(session.view.activeName),
                 onSelectTab: { tab in
                     // Sign-out is the only thing behind Settings today. The
                     // other three tabs stay on this screen rather than

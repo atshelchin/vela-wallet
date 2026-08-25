@@ -533,6 +533,18 @@ pub fn text_hero() -> Pixels {
 pub fn line_height_hero() -> Pixels {
     px(46. * 1.25)
 }
+/// One rung down the hero ladder (46/38/31), for a locale whose headline is too
+/// wide for the first. The corpus says which, in `heroTitleFit` — the width is a
+/// property of the translation, not of the client: measured at the shipped font
+/// the widest authored line runs 6.9em (zh) to 12.8em (fr), and at 46 px the
+/// widest of them overruns the 620 px column.
+pub fn text_hero_long() -> Pixels {
+    px(38.)
+}
+/// `line-height: 1.25` at the long-locale hero size.
+pub fn line_height_hero_long() -> Pixels {
+    px(38. * 1.25)
+}
 /// Flow-screen titles (spec 014). Not the welcome hero — that is `text_hero`.
 pub fn text_tagline() -> Pixels {
     px(26.)

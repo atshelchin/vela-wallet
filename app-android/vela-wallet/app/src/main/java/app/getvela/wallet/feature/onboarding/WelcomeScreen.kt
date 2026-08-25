@@ -146,13 +146,22 @@ fun WelcomeScreen(
                 ) {
                     // The copy carries its own line break: every locale breaks
                     // where its own sentence wants to, not where 390dp runs out.
+                    // Its SIZE rides along for the same reason — a line that is
+                    // 10.9em wide in Russian and 6.9em in Chinese cannot be set
+                    // at one size and still fit 342dp. An unrecognised value
+                    // keeps the design's size: a corpus ahead of this build must
+                    // not shrink the headline on a string nobody knows.
+                    val heroSize = when (strings.t(I18nKeys.Welcome.HERO_TITLE_FIT)) {
+                        "long" -> VelaTextSize.heroLong
+                        else -> VelaTextSize.hero
+                    }
                     Text(
                         text = strings.t(I18nKeys.Welcome.HERO_TITLE),
                         color = colors.fgBase,
                         fontFamily = VelaFontFamily,
                         fontWeight = VelaFontWeight.bold,
-                        fontSize = VelaTextSize.hero,
-                        lineHeight = VelaLeading.hero * VelaTextSize.hero,
+                        fontSize = heroSize,
+                        lineHeight = VelaLeading.hero * heroSize,
                         letterSpacing = (-0.02).em,
                     )
                     Text(

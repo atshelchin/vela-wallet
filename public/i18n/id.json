@@ -488,7 +488,8 @@
    "featureSafeContractBody": "Akun dibangun di atas kontrak Safe yang telah diaudit, bukan implementasi buatan sendiri.",
    "featureStablecoinGasTitle": "Bayar gas dengan stablecoin",
    "featureStablecoinGasBody": "Sebagian besar jaringan memungkinkan Anda membayar biaya dengan stablecoin — tidak perlu menyiapkan koin native lebih dulu.",
-   "heroTitle": "Dompet Ethereum\nyang tak bisa dimatikan",
+   "heroTitle": "Dompet Ethereum\nyang Anda kendalikan",
+   "heroTitleFit": "long",
    "heroSubtitle": "Tanda tangani dengan passkey. Vela tidak pernah melihat kunci Anda."
   },
   "welcomeWeb": {

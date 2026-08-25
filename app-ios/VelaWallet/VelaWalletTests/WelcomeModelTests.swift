@@ -16,6 +16,7 @@ struct WelcomeModelTests {
         WelcomeModel(
             content: WelcomeContent(
                 heroTitle: "hero",
+                heroTitleFit: .regular,
                 heroSubtitle: "sub",
                 createWallet: "create",
                 alreadyHaveWallet: "import"

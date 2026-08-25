@@ -125,6 +125,22 @@ for (const lng of LOCALES) {
   }
 }
 
+// `onboarding.welcome.heroTitleFit` is the one corpus value that is NOT prose:
+// it is the enum that picks the Welcome headline's type tier, because the tier
+// is a property OF the translation (how wide its two authored lines are) and
+// travels with it to all four clients through the same `t()` they already call.
+// A corpus value is a translator's to edit, so the one thing that must never
+// happen — someone translating "long" into their language and every client
+// silently falling back to the untranslated tier — fails generation here.
+const HERO_FIT_KEY = 'onboarding.welcome.heroTitleFit';
+const HERO_FIT_VALUES = new Set(['regular', 'long']);
+for (const lng of LOCALES) {
+  const value = HERO_FIT_KEY.split('.').reduce((o, k) => (o ?? {})[k], bundles[lng]);
+  if (!HERO_FIT_VALUES.has(value)) {
+    fail(`locale ${lng}: ${HERO_FIT_KEY} is ${JSON.stringify(value)} — expected one of ${[...HERO_FIT_VALUES].join(', ')}. It is an enum, not prose; do not translate it.`);
+  }
+}
+
 const PATHS = [...new Set([...leafSet, ...branchSet])].sort();
 const IS_BRANCH = PATHS.map((p) => (branchSet.has(p) ? 1 : 0));
 
@@ -199,8 +215,12 @@ for (let i = 1; i < PATHS.length; i++) {
 //   OPENED is a permissions problem wearing a hardware problem's clothes.
 //   Reporting it as "no security key is plugged in" — which is what the code
 //   did — sends a person looking at the port instead of at their udev rules.
-if (PATHS.length !== 1404) fail(`expected 1404 paths (1325 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1325) fail(`expected 1325 leaf paths, got ${leafSet.size}`);
+// + 1 more, `welcome.heroTitleFit`: the headline's type tier. Measured at the
+//   shipped font, the widest authored line runs from 6.9em (zh) to 15.0em (id)
+//   — a 2.2x spread that one font size cannot serve, so the tier rides with the
+//   copy instead of being guessed per client.
+if (PATHS.length !== 1405) fail(`expected 1405 paths (1326 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1326) fail(`expected 1326 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

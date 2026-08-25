@@ -562,17 +562,26 @@ impl OnboardingPage {
                     .flex()
                     .flex_col()
                     .gap(px(GAP_HERO_SUB))
-                    .child(
+                    .child({
+                        // The copy carries its own line break — every locale
+                        // breaks where its own sentence wants to, not where
+                        // 620px happens to run out — and it carries its own
+                        // SIZE for the same reason: the widest authored line is
+                        // twice as wide in French as in Chinese. An
+                        // unrecognised value keeps the design's size.
+                        let long = self.t("heroTitleFit").as_ref() == "long";
+                        let (size, leading) = if long {
+                            (theme::text_hero_long(), theme::line_height_hero_long())
+                        } else {
+                            (theme::text_hero(), theme::line_height_hero())
+                        };
                         div()
-                            .text_size(theme::text_hero())
-                            .line_height(theme::line_height_hero())
+                            .text_size(size)
+                            .line_height(leading)
                             .font_weight(FontWeight::BOLD)
                             .text_color(theme.fg_base)
-                            // The copy carries its own line break — every
-                            // locale breaks where its own sentence wants to,
-                            // not where 620px happens to run out.
-                            .child(self.t("heroTitle")),
-                    )
+                            .child(self.t("heroTitle"))
+                    })
                     .child(
                         div()
                             .text_size(theme::text_card_title())

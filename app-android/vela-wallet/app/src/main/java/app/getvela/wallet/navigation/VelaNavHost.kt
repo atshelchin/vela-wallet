@@ -149,16 +149,19 @@ fun VelaNavHost(
 
         composable(VelaDestinations.WALLET) {
             val strings = LocalVelaStrings.current
-            // Fixture-driven still (spec 015 FR-005) apart from the address,
-            // which is now the wallet's real one: a home screen showing a
-            // fixture address after a real create would be the app telling the
-            // person their money is somewhere it is not.
+            // Fixture-driven still (spec 015 FR-005) apart from the two things
+            // that identify the wallet — its address and its name, both now the
+            // real ones. A home screen showing a fixture address after a real
+            // create would be the app telling the person their money is
+            // somewhere it is not; a fixture NAME over their own address and
+            // identicon told them they were signed in as somebody else
+            // (device-found 2026-08-26).
             var sheetOpen by rememberSaveable { mutableStateOf(false) }
-            val model = remember(strings, sheetOpen, session.address) {
+            val model = remember(strings, sheetOpen, session.address, session.activeName) {
                 WalletFixtures.buildMobileState(
                     if (sheetOpen) WalletScreenState.H8 else WalletScreenState.H1,
                     strings,
-                ).withAddress(session.address)
+                ).withAddress(session.address).withName(session.activeName)
             }
             WalletScreen(
                 model = model,

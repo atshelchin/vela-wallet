@@ -25,6 +25,8 @@ struct WelcomeScreen: View {
     /// having gone unavailable rather than gone to work.
     var signingIn: Bool = false
 
+    private var heroRole: TypeRole { model.content.heroTitleFit.role }
+
     var body: some View {
         // Two blocks, not one centred stack: brand and copy ride the top edge,
         // the CTAs ride the bottom, and the space between them is whatever the
@@ -36,9 +38,12 @@ struct WelcomeScreen: View {
                 VStack(alignment: .leading, spacing: WelcomeGeometry.heroSubGap) {
                     // The copy carries its own line break: every locale breaks
                     // where its own sentence wants to, not where 390pt runs out.
+                    // Its SIZE comes from the same place for the same reason —
+                    // a line that is 10.9em wide in Russian and 6.9em in Chinese
+                    // cannot be set at one size and still fit 342pt.
                     Text(model.content.heroTitle)
-                        .typeRole(Typography.hero)
-                        .tracking(WelcomeGeometry.heroSize * WelcomeGeometry.heroTracking)
+                        .typeRole(heroRole)
+                        .tracking(heroRole.size * WelcomeGeometry.heroTracking)
                         .foregroundStyle(theme.fgBase)
                         .fixedSize(horizontal: false, vertical: true)
 
@@ -73,7 +78,8 @@ struct WelcomeScreen: View {
     WelcomeScreen(
         model: WelcomeModel(
             content: WelcomeContent(
-                heroTitle: "The Ethereum wallet\nnobody can shut down",
+                heroTitle: "The unstoppable\nEthereum wallet",
+                heroTitleFit: .regular,
                 heroSubtitle: "Sign with a passkey. Vela never sees your key.",
                 createWallet: "Create Wallet",
                 alreadyHaveWallet: "I already have a wallet"

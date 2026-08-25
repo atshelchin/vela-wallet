@@ -17,7 +17,8 @@
       "featureSafeContractBody": "As contas são construídas sobre contratos Safe auditados, não sobre uma implementação própria.",
       "featureStablecoinGasTitle": "Pague o gas com stablecoins",
       "featureStablecoinGasBody": "A maioria das redes permite pagar as taxas com stablecoins — sem precisar ter a moeda nativa antes.",
-      "heroTitle": "A carteira Ethereum\nque ninguém pode desligar",
+      "heroTitle": "Só você controla\nsua carteira Ethereum",
+      "heroTitleFit": "long",
       "heroSubtitle": "Assine com uma passkey. A Vela nunca vê sua chave."
     },
     "welcomeWeb": {

@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.getvela.wallet.VelaWalletApplication
+import app.getvela.wallet.core.diagnostics.VelaLog
 import app.getvela.wallet.feature.onboarding.core.AccountStore
 import app.getvela.wallet.feature.onboarding.core.CoreDriver
 import app.getvela.wallet.feature.onboarding.core.CreateView
@@ -112,8 +113,27 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             bridge = CreateWalletCore().asBridge(),
             scope = viewModelScope,
             perform = { operation -> executor().perform(operation) },
-            onView = { json -> createView = CreateView.from(json) },
-            onFault = { error -> fault = error.message ?: error.toString() },
+            onView = { json ->
+                val next = CreateView.from(json)
+                // Where the machine ACTUALLY is, per update. A create that
+                // "does not work" always stops at some stage, and this is the
+                // line that says which one it stopped at, with what running.
+                VelaLog.event(
+                    "create.view",
+                    next.stage.name,
+                    "busy" to next.busy,
+                    "status" to (next.status ?: "-"),
+                    "keys" to next.keys.size,
+                    "confirmed" to next.keys.count { it.confirmed },
+                    "canFinish" to next.canFinish,
+                    "needsSecondKey" to next.needsSecondKey,
+                )
+                createView = next
+            },
+            onFault = { error ->
+                VelaLog.failure("create.fault", "core fault", error)
+                fault = error.message ?: error.toString()
+            },
         )
         createDriver = driver
         driver.dispatch(event("start"))
@@ -166,7 +186,10 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 loginView = next
             },
-            onFault = { error -> fault = error.message ?: error.toString() },
+            onFault = { error ->
+                VelaLog.failure("login.fault", "core fault", error)
+                fault = error.message ?: error.toString()
+            },
         )
         loginDriver = driver
         driver.dispatch(event("start"))

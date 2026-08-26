@@ -325,9 +325,15 @@ expansion* and FR-009a.
 impact: the app-owned Android USB path serves the GMS-free population (GrapheneOS/
 CalyxOS, China-market devices) that overlaps most with this wallet's target users.
 
-- [ ] T170 uniffi-export the core `ctap` module's ceremony surface (make-credential,
-  get-assertion, getInfo, PIN/UV flows) so Kotlin can drive it sans-IO — the transport
-  stays platform code
+- [~] T170 uniffi-export the core `ctap` module's ceremony surface so Kotlin can drive
+  it sans-IO — **first cut landed (2026-08-26)**: the whole orchestration
+  (getInfo→UV-before-PIN→PIN retry loop→make/get→getNextAssertion picker) moved from
+  the desktop shell into `vela_core::ctap::ceremony` behind the `Cable`/`Host` seams;
+  desktop refactored onto it, 67 tests + 4 new core tests green, behavior pinned by
+  the client-data/member-proof/failure-sentence tests. Remaining: the uniffi callback
+  surface itself (report-level `UsbHidPort` + `CeremonyHost`), plus lifting the
+  CTAPHID INIT/keepalive exchange loop out of desktop `usb.rs` into a generic
+  `HidCable` so Kotlin stays ~100 lines of USB plumbing
 - [ ] T171 Android USB-host transport: CTAPHID over `android.hardware.usb`
   (interrupt/bulk endpoints, permission dialog, hot-plug via `ACTION_USB_DEVICE_ATTACHED`),
   feeding the exported ctap client; wire it as the `SecurityKey` route in

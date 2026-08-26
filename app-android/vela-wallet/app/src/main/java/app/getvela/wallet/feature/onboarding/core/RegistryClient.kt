@@ -1,6 +1,7 @@
 package app.getvela.wallet.feature.onboarding.core
 
 import java.io.IOException
+import app.getvela.wallet.core.diagnostics.VelaLog
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -280,9 +281,11 @@ class RegistryClient(baseUrl: String = DEFAULT_REGISTRY_URL) {
         timeoutMs: Int,
         label: String,
     ): JSONObject = withContext(Dispatchers.IO) {
+        val startedAt = System.currentTimeMillis()
         val connection = try {
             (URL(baseUrl + path).openConnection() as HttpURLConnection)
         } catch (error: Exception) {
+            VelaLog.failure("registry", label, error, "path" to path, "stage" to "connect")
             throw RegistryFailure("$label failed: ${error.message}", network = true)
         }
         try {
@@ -302,8 +305,16 @@ class RegistryClient(baseUrl: String = DEFAULT_REGISTRY_URL) {
             val status = try {
                 connection.responseCode
             } catch (error: IOException) {
+                VelaLog.failure("registry", label, error, "path" to path, "stage" to "read")
                 throw RegistryFailure("$label failed: ${error.message}", network = true)
             }
+            VelaLog.event(
+                "registry",
+                label,
+                "path" to path,
+                "status" to status,
+                "ms" to System.currentTimeMillis() - startedAt,
+            )
             if (status !in 200..299) {
                 throw RegistryFailure("$label failed: $status", network = false)
             }

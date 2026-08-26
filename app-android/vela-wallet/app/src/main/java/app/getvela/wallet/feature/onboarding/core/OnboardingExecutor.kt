@@ -1,5 +1,7 @@
 package app.getvela.wallet.feature.onboarding.core
 
+import android.os.SystemClock
+import app.getvela.wallet.core.diagnostics.VelaLog
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,11 +63,43 @@ class OnboardingExecutor(
     }
 
     /** Perform one operation and return the result JSON the core is waiting for. */
-    suspend fun perform(operation: JSONObject): String = try {
-        run(operation).toString()
-    } catch (error: Throwable) {
-        if (error is kotlinx.coroutines.CancellationException) throw error
-        failureFor(operation, error).toString()
+    suspend fun perform(operation: JSONObject): String {
+        // One line in, one line out, for every operation the core asks for. A
+        // create that "does not work" is always a specific step that did not
+        // answer, and this is the record of which (spec 019, USB-key
+        // diagnosis 2026-08-26). Debug builds only; see VelaLog.
+        val type = operation.optString("type")
+        val started = SystemClock.elapsedRealtime()
+        VelaLog.event(
+            "core.operation",
+            type,
+            "cred" to VelaLog.shortId(operation.optString("credential_id").ifEmpty { null }),
+            "transports" to operation.optString("transports").ifEmpty { null },
+            "method" to operation.optString("method").ifEmpty { null },
+            "purpose" to operation.optString("purpose").ifEmpty { null },
+        )
+        return try {
+            val answer = run(operation)
+            VelaLog.event(
+                "core.result",
+                answer.optString("type"),
+                "for" to type,
+                "ms" to SystemClock.elapsedRealtime() - started,
+            )
+            answer.toString()
+        } catch (error: Throwable) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            val answer = failureFor(operation, error)
+            VelaLog.failure(
+                "core.failed",
+                type,
+                error,
+                "answered" to answer.optString("type"),
+                "kind" to answer.opt("kind"),
+                "ms" to SystemClock.elapsedRealtime() - started,
+            )
+            answer.toString()
+        }
     }
 
     private suspend fun run(operation: JSONObject): JSONObject =

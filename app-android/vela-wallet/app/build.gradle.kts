@@ -44,6 +44,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // `BuildConfig.DEBUG` is the whole gate on the on-device diagnostic log
+        // (spec 019): a release build carries the calls and does nothing.
+        buildConfig = true
     }
 
     sourceSets {

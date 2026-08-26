@@ -7,6 +7,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.GetPublicKeyCredentialOption
+import app.getvela.wallet.core.diagnostics.VelaLog
 import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.CreateCredentialCancellationException
 import androidx.credentials.exceptions.CreateCredentialException
@@ -133,13 +134,29 @@ class PasskeyExecutor(
             put("extensions", JSONObject().put("credProps", true))
         }
 
+        VelaLog.event(
+            "passkey.register",
+            "asking",
+            "method" to method,
+            "attachment" to (attachmentFor(method) ?: "any"),
+            "excluded" to excludeCredentialIds.size,
+        )
         val response = try {
             credentialManager.createCredential(
                 context = context,
                 request = CreatePublicKeyCredentialRequest(request.toString()),
             )
         } catch (error: CreateCredentialException) {
-            throw classifyCreate(error)
+            val failure = classifyCreate(error)
+            VelaLog.failure(
+                "passkey.register",
+                "refused",
+                error,
+                "type" to error.type,
+                "kind" to failure.kind,
+                "domError" to (error as? CreatePublicKeyCredentialDomException)?.domError?.type,
+            )
+            throw failure
         }
 
         val json = JSONObject(
@@ -168,6 +185,14 @@ class PasskeyExecutor(
         // `assert`.
         mintedAt = SystemClock.elapsedRealtime()
         mintedCredentialIdHex = credentialIdHex
+        VelaLog.event(
+            "passkey.register",
+            "minted",
+            "cred" to VelaLog.shortId(credentialIdHex),
+            "attachment" to json.optString("authenticatorAttachment"),
+            "transports" to inner.optJSONArray("transports").strings().joinToString(","),
+            "rk" to (credProps?.opt("rk") ?: "unreported"),
+        )
         return Registration(
             credentialIdHex = credentialIdHex,
             attestationObjectHex = hexOfBase64url(inner.getString("attestationObject")),
@@ -256,6 +281,13 @@ class PasskeyExecutor(
         }
 
         val options = listOf(GetPublicKeyCredentialOption(request.toString()))
+        VelaLog.event(
+            "passkey.assert",
+            if (credentialIdHex == null) "asking (any credential)" else "asking (pinned)",
+            "cred" to VelaLog.shortId(credentialIdHex),
+            "transports" to transports.ifEmpty { "unknown" },
+            "removable" to removable(transports),
+        )
         val response = if (credentialIdHex == null) {
             try {
                 credentialManager.getCredential(
@@ -263,11 +295,19 @@ class PasskeyExecutor(
                     request = GetCredentialRequest(options),
                 )
             } catch (error: GetCredentialException) {
-                throw classifyGet(error)
+                val failure = classifyGet(error)
+                VelaLog.failure(
+                    "passkey.assert",
+                    "refused",
+                    error,
+                    "type" to error.type,
+                    "kind" to failure.kind,
+                )
+                throw failure
             }
         } else {
             settleAfterMint(credentialIdHex)
-            getPinned(credentialManager, options)
+            getPinned(credentialManager, options, removable(transports))
         }
 
         val credential = response.credential as? PublicKeyCredential
@@ -275,6 +315,13 @@ class PasskeyExecutor(
         val json = JSONObject(credential.authenticationResponseJson)
         val inner = json.getJSONObject("response")
 
+        VelaLog.event(
+            "passkey.assert",
+            "signed",
+            "cred" to VelaLog.shortId(hexOfBase64url(json.getString("rawId"))),
+            "attachment" to json.optString("authenticatorAttachment"),
+            "userHandle" to (inner.nullableString("userHandle") != null),
+        )
         return Assertion(
             credentialIdHex = hexOfBase64url(json.getString("rawId")),
             // `signatureDerHex`, not `signatureHex`: the provider hands back a
@@ -311,10 +358,22 @@ class PasskeyExecutor(
     private suspend fun getPinned(
         credentialManager: CredentialManager,
         options: List<GetPublicKeyCredentialOption>,
+        removable: Boolean,
     ): GetCredentialResponse {
         var attempt = 0
         while (true) {
-            val last = attempt == RETRY_BACKOFF_MS.size
+            // A REMOVABLE key gets one attempt, and it draws real UI.
+            //
+            // This loop exists for a race between providers that store a
+            // credential and providers that INDEX it — a phone's own passkey
+            // vault needs a moment after a create, and asking for an
+            // immediately-available credential turns that moment into a retry
+            // instead of an unexplained sheet. None of that describes a
+            // security key: it is never "immediately available" because it has
+            // to be tapped or plugged, so every early attempt is a guaranteed
+            // miss, and the backoff between them is dead time in front of
+            // somebody holding a key against their phone (2026-08-26).
+            val last = removable || attempt == RETRY_BACKOFF_MS.size
             try {
                 return credentialManager.getCredential(
                     context = context,
@@ -324,14 +383,49 @@ class PasskeyExecutor(
                     ),
                 )
             } catch (error: NoCredentialException) {
+                // A REMOVABLE key is never "immediately available" — it has to
+                // be tapped or plugged — so these misses are expected for one
+                // and say nothing about whether the credential exists. The
+                // attempt number and the flag are logged because that
+                // distinction is the whole reason this loop is here.
+                VelaLog.failure(
+                    "passkey.assert",
+                    if (last) "no credential (final attempt)" else "no credential yet",
+                    error,
+                    "attempt" to attempt,
+                    "preferImmediate" to !last,
+                )
                 if (last) throw classifyGet(error)
                 delay(RETRY_BACKOFF_MS[attempt])
                 attempt += 1
             } catch (error: GetCredentialException) {
-                throw classifyGet(error)
+                val failure = classifyGet(error)
+                VelaLog.failure(
+                    "passkey.assert",
+                    "refused",
+                    error,
+                    "attempt" to attempt,
+                    "preferImmediate" to !last,
+                    "type" to error.type,
+                    "kind" to failure.kind,
+                    "domError" to (error as? GetPublicKeyCredentialDomException)?.domError?.type,
+                )
+                throw failure
             }
         }
     }
+
+    /**
+     * Does this credential live on something the person has to present — a USB
+     * stick, an NFC card — rather than in a vault this phone can consult?
+     *
+     * Unknown transports answer `false`: the settle-race retry is harmless for
+     * a credential that turns out to be removable (it costs one extra attempt),
+     * while skipping it for one that turns out to be local would bring back the
+     * sheet it exists to prevent.
+     */
+    private fun removable(transports: String): Boolean =
+        transports.split(',').map { it.trim() }.any { it == "usb" || it == "nfc" || it == "ble" }
 
     fun random(bytes: Int): ByteArray = ByteArray(bytes).also(secureRandom::nextBytes)
 

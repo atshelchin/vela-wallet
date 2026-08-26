@@ -2,6 +2,7 @@ package app.getvela.wallet
 
 import android.app.Application
 import app.getvela.wallet.core.data.ThemePreferenceRepository
+import app.getvela.wallet.core.diagnostics.VelaLog
 import app.getvela.wallet.core.i18n.I18nRuntime
 import app.getvela.wallet.core.i18n.LocaleResolver
 import app.getvela.wallet.feature.onboarding.core.AccountStore
@@ -76,6 +77,9 @@ class VelaWalletApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // First, so a crash in composition is itself on the record. Debug
+        // builds only; see VelaLog.
+        VelaLog.install(this)
         container = AppContainer(this)
         container.start()
     }

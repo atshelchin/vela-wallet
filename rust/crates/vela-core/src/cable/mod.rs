@@ -20,4 +20,5 @@ pub mod qr;
 pub mod crypto;
 pub mod keys;
 pub mod noise;
+pub mod session;
 pub mod tunnel_domain;

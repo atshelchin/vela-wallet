@@ -495,3 +495,252 @@ pub fn ctap_assert_ccid(
         authenticator_attachment: "cross-platform".to_owned(),
     })
 }
+
+// ---------------------------------------------------------------------------
+// caBLE v2 — "sign in with your phone" (the hybrid transport)
+// ---------------------------------------------------------------------------
+//
+// The QR, the BLE advert decrypt, the Noise handshake and the CTAP-over-Noise
+// framing are ALL the core's (`vela_core::cable`). The shell provides only the
+// radio and the socket: it scans for the advert this QR names, opens the
+// WebSocket tunnel, and moves one frame each way. The ceremony that runs over
+// the encrypted channel is byte-for-byte the USB/CCID one — a phone reached by
+// caBLE is just another `Cable`.
+
+use vela_core::cable::conn::{CableConnection, CablePort as CoreCablePort};
+use vela_core::cable::crypto as cable_crypto;
+use vela_core::cable::session::CableInitiator;
+use vela_core::ctap::ceremony::TouchAnnouncer;
+
+/// One message-oriented caBLE frame transport, as Kotlin/Swift sees it. The
+/// shell owns the WebSocket (or BLE L2CAP) socket; the Noise handshake and the
+/// CTAP framing above it are the core's.
+#[uniffi::export(with_foreign)]
+pub trait CableFramePort: Send + Sync {
+    /// Write one whole message (a WS binary frame, or a length-prefixed L2CAP
+    /// message — the port decides). `Some(detail)` is a failure.
+    fn write_frame(&self, frame: Vec<u8>) -> Option<String>;
+    /// Read the next whole message, blocking until one arrives or the transport
+    /// gives up.
+    fn read_frame(&self) -> CableFrameOutcome;
+    /// "WebSocket" / "L2CAP" — diagnostics and the PIN-cache identity, never UI.
+    fn channel(&self) -> String;
+}
+
+/// What one [`CableFramePort::read_frame`] produced.
+#[derive(uniffi::Enum)]
+pub enum CableFrameOutcome {
+    /// One whole message.
+    Frame { bytes: Vec<u8> },
+    /// The peer went silent.
+    TimedOut,
+    /// The transport failed in its own words.
+    Failed { detail: String },
+}
+
+/// The parsed BLE proximity advert that named this QR's phone.
+#[derive(uniffi::Record)]
+pub struct CableAdvert {
+    /// The 16-byte decrypted EID plaintext — fed back to `cable_connect_url` and
+    /// the assert/register calls (the PSK derives from it).
+    pub plaintext: Vec<u8>,
+    /// The 3-byte tunnel routing id (part of the WebSocket URL).
+    pub routing_id: Vec<u8>,
+    /// The tunnel-server domain id.
+    pub tunnel_domain_id: u16,
+}
+
+/// The Kotlin/Swift port, as the core's [`CoreCablePort`].
+struct CablePortAdapter {
+    inner: Arc<dyn CableFramePort>,
+    channel: String,
+}
+
+impl CoreCablePort for CablePortAdapter {
+    fn write_frame(&mut self, frame: &[u8]) -> Result<(), PortError> {
+        match self.inner.write_frame(frame.to_vec()) {
+            None => Ok(()),
+            Some(detail) => Err(PortError::Io(detail)),
+        }
+    }
+
+    fn read_frame(&mut self) -> Result<Vec<u8>, PortError> {
+        match self.inner.read_frame() {
+            CableFrameOutcome::Frame { bytes } => Ok(bytes),
+            CableFrameOutcome::TimedOut => Err(PortError::TimedOut),
+            CableFrameOutcome::Failed { detail } => Err(PortError::Io(detail)),
+        }
+    }
+
+    fn channel(&self) -> &str {
+        &self.channel
+    }
+}
+
+/// The `FIDO:/…` QR payload to render. `None` if the secrets are malformed
+/// (wrong length, or a static seed that is not a valid scalar — the shell
+/// retries with fresh randomness).
+#[uniffi::export]
+pub fn cable_qr_payload(
+    static_seed: Vec<u8>,
+    qr_secret: Vec<u8>,
+    offer_ble: bool,
+    epoch_seconds: i64,
+) -> Option<String> {
+    CableInitiator::new(&static_seed, &qr_secret)
+        .map(|session| session.qr_payload(offer_ble, epoch_seconds))
+}
+
+/// The 64-byte advert key (AES-256 ‖ HMAC-SHA256) for a shell that trial-decrypts
+/// BLE adverts in native code rather than through [`cable_try_decrypt_advert`].
+#[uniffi::export]
+pub fn cable_eid_key(qr_secret: Vec<u8>) -> Vec<u8> {
+    cable_crypto::eid_key(&qr_secret)
+}
+
+/// Trial-decrypt one 20-byte BLE advert candidate; `Some` when it is this QR's
+/// phone. Pure crypto — needs only the QR secret.
+#[uniffi::export]
+pub fn cable_try_decrypt_advert(qr_secret: Vec<u8>, candidate: Vec<u8>) -> Option<CableAdvert> {
+    let key = cable_crypto::eid_key(&qr_secret);
+    let plaintext = cable_crypto::try_decrypt_advert(&candidate, &key)?;
+    let eid = cable_crypto::AdvertEid::parse(&plaintext)?;
+    Some(CableAdvert {
+        plaintext: plaintext.to_vec(),
+        routing_id: eid.routing_id.to_vec(),
+        tunnel_domain_id: eid.tunnel_domain_id,
+    })
+}
+
+/// The WebSocket tunnel URL to open, from the decrypted advert plaintext. `None`
+/// if the secrets or the advert are malformed, or the advert names an unknown
+/// tunnel domain.
+#[uniffi::export]
+pub fn cable_connect_url(
+    static_seed: Vec<u8>,
+    qr_secret: Vec<u8>,
+    advert_plaintext: Vec<u8>,
+) -> Option<String> {
+    CableInitiator::new(&static_seed, &qr_secret)?.connect_url(&advert_plaintext)
+}
+
+/// Open the caBLE cable: run the Noise handshake over the shell's connected
+/// socket, wired to announce the touch (which happens ON THE PHONE) through the
+/// host. Shared by register and assert.
+fn establish_cable(
+    port: Arc<dyn CableFramePort>,
+    host: Arc<dyn CtapCeremonyHost>,
+    static_seed: Vec<u8>,
+    qr_secret: Vec<u8>,
+    advert_plaintext: Vec<u8>,
+    product: String,
+) -> Result<CableConnection<CablePortAdapter>, CtapError> {
+    let session = CableInitiator::new(&static_seed, &qr_secret).ok_or_else(|| CtapError::Other {
+        detail: "the caBLE session secrets are malformed".to_owned(),
+    })?;
+    let adapter = CablePortAdapter {
+        channel: port.channel(),
+        inner: port,
+    };
+    let ephemeral_seed = host.random(32);
+    let touch_host = Arc::clone(&host);
+    let on_touch: TouchAnnouncer = Box::new(move |kind, product| {
+        let name = match kind {
+            TouchKind::Presence => "presence",
+            TouchKind::Fingerprint => "fingerprint",
+            TouchKind::Select => "select",
+        };
+        touch_host.touch(name.to_owned(), product.to_owned());
+    });
+    session
+        .establish(adapter, &advert_plaintext, &ephemeral_seed, product, Some(on_touch))
+        .map_err(|error| CtapError::from(ceremony::failure_for(error)))
+}
+
+/// `RegisterPasskey` over caBLE: mint a founding key that lives on the phone.
+#[uniffi::export]
+#[allow(clippy::too_many_arguments)]
+pub fn ctap_register_cable(
+    port: Arc<dyn CableFramePort>,
+    host: Arc<dyn CtapCeremonyHost>,
+    static_seed: Vec<u8>,
+    qr_secret: Vec<u8>,
+    advert_plaintext: Vec<u8>,
+    product: String,
+    name: String,
+    exclude_credential_ids: Vec<String>,
+) -> Result<CtapRegistration, CtapError> {
+    let mut cable = establish_cable(
+        port,
+        Arc::clone(&host),
+        static_seed,
+        qr_secret,
+        advert_plaintext,
+        product,
+    )?;
+    let host_adapter = HostAdapter { inner: host };
+    let registration = ceremony::Client {
+        cable: &mut cable,
+        host: &host_adapter,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .register(&name, &exclude_credential_ids)?;
+
+    Ok(CtapRegistration {
+        credential_id_hex: registration.credential_id_hex,
+        attestation_object_hex: registration.attestation_object_hex,
+        client_data_json_hex: registration.client_data_json_hex,
+        authenticator_attachment: "cross-platform".to_owned(),
+        // The phone is reached over the hybrid transport.
+        transports: "hybrid".to_owned(),
+    })
+}
+
+/// One assertion over caBLE. `credential_id_hex` empty is the "who are you?"
+/// sign-in ceremony (the phone offers whatever Vela passkeys it holds).
+#[uniffi::export]
+#[allow(clippy::too_many_arguments)]
+pub fn ctap_assert_cable(
+    port: Arc<dyn CableFramePort>,
+    host: Arc<dyn CtapCeremonyHost>,
+    static_seed: Vec<u8>,
+    qr_secret: Vec<u8>,
+    advert_plaintext: Vec<u8>,
+    product: String,
+    challenge: Vec<u8>,
+    credential_id_hex: String,
+) -> Result<CtapAssertion, CtapError> {
+    let mut cable = establish_cable(
+        port,
+        Arc::clone(&host),
+        static_seed,
+        qr_secret,
+        advert_plaintext,
+        product,
+    )?;
+    let host_adapter = HostAdapter { inner: host };
+    let pinned = if credential_id_hex.is_empty() {
+        None
+    } else {
+        Some(credential_id_hex.as_str())
+    };
+    let assertion = ceremony::Client {
+        cable: &mut cable,
+        host: &host_adapter,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .assert(&challenge, pinned)?;
+
+    Ok(CtapAssertion {
+        credential_id_hex: assertion.credential_id_hex,
+        signature_der_hex: assertion.signature_der_hex,
+        authenticator_data_hex: assertion.authenticator_data_hex,
+        client_data_json_hex: assertion.client_data_json_hex,
+        user_id_hex: assertion.user_id_hex.unwrap_or_default(),
+        authenticator_attachment: "cross-platform".to_owned(),
+    })
+}

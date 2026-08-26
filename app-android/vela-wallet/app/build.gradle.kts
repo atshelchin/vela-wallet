@@ -17,7 +17,11 @@ android {
 
     defaultConfig {
         applicationId = "app.getvela.wallet"
-        minSdk = 31
+        // 29 (Android 10) is the lowest level we can regression-test on real
+        // hardware; every library floor is ≤23 and passkeys need only 28+, but
+        // shipping below what we can reproduce bugs on is a support trap.
+        // Keep rust/scripts/build-android.sh --platform in sync.
+        minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"

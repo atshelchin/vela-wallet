@@ -25,9 +25,9 @@ if ! command -v cargo-ndk >/dev/null 2>&1; then
   exit 1
 fi
 
-# minSdk of the app is 31 (app-android/vela-wallet/app/build.gradle.kts).
+# minSdk of the app is 29 (app-android/vela-wallet/app/build.gradle.kts).
 cd "$ROOT/rust"
-cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 --platform 31 -o "$OUT" \
+cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 --platform 29 -o "$OUT" \
   build --release -p vela-core-uniffi
 
 echo "OK: $(find "$OUT" -name 'libvela_core_uniffi.so' | wc -l | tr -d ' ') ABIs in $OUT"

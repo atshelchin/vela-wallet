@@ -133,6 +133,13 @@ pub struct AccountKey {
     pub public_key_hex: String,
     /// Per-key label; `keys[0].name` is the wallet name itself.
     pub name: String,
+    /// WHERE this credential lives, as its authenticator reported at
+    /// registration, comma joined (`hybrid,internal`, `usb,nfc`). Empty for
+    /// records written before this field existed, and for authenticators that
+    /// reported nothing — a `get()` then falls back to letting the platform
+    /// guess, which is what this field exists to stop.
+    #[serde(default)]
+    pub transports: String,
 }
 
 /// The persisted wallet. Serialises 1:1 to `StoredAccount`.

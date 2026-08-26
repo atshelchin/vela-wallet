@@ -241,6 +241,9 @@ fn awaiting_second_signature(first: Assertion) -> Sut {
         next,
         vec![ShellOperation::SignProof {
             credential_id: CRED.to_owned(),
+            // Inferred from the assertion's attachment: the fixture reports
+            // none, so the shell is told nothing rather than told wrong.
+            transports: String::new(),
             purpose: ProofPurpose::RecoverSecond,
         }],
         "accepting asks for the disambiguating second signature"
@@ -584,11 +587,13 @@ fn a_sibling_credential_matches_the_local_multikey_account() {
                 credential_id: CRED.to_owned(),
                 public_key_hex: support::expected_public_key_hex(),
                 name: "Ann".to_owned(),
+                transports: "internal".to_owned(),
             },
             vela_core::app::AccountKey {
                 credential_id: CRED2.to_owned(),
                 public_key_hex: support::second_public_key_hex(),
                 name: "Backup".to_owned(),
+                transports: "usb,nfc".to_owned(),
             },
         ],
         ..support::account(CRED, "Ann", &multi_address())

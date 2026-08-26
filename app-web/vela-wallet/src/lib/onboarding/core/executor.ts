@@ -77,7 +77,8 @@ export function createOnboardingExecutor(deps: ExecutorDeps) {
 				// the shell signs whatever it is handed.
 				const assertion = await Passkey.sign(
 					challengeFor(operation.purpose),
-					operation.credential_id
+					operation.credential_id,
+					operation.transports
 				);
 				return { type: 'proof_signed', assertion: toAssertion(assertion), now_iso: nowIso() };
 			}
@@ -110,7 +111,8 @@ export function createOnboardingExecutor(deps: ExecutorDeps) {
 				});
 				const assertion = await Passkey.sign(
 					stripHex(challenge.challenge),
-					operation.credential_id
+					operation.credential_id,
+					operation.transports
 				);
 				const { buildMemberProof } = await import('./wasm-client');
 				return {

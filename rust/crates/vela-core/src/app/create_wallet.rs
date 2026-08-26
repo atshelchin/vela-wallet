@@ -208,6 +208,7 @@ impl Prepared {
                     credential_id: key.credential_id.clone(),
                     public_key_hex: key.public_key_hex.clone(),
                     name: key.name.clone(),
+                    transports: key.transports.clone(),
                 })
                 .collect(),
         }
@@ -709,6 +710,7 @@ fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> 
             credential_id: draft.credential_id,
             public_key_hex: draft.public_key_hex,
             attestation_hex: draft.attestation_hex,
+            transports: draft.transports,
             group_public_key_hex,
         },
     )

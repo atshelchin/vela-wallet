@@ -213,7 +213,25 @@ class PasskeyExecutor(
      * honest answer to "who are you?" on a device with no wallet, and the
      * platform's UI is exactly what should be shown.
      */
-    suspend fun assert(challenge: ByteArray, credentialIdHex: String?): Assertion {
+    suspend fun assert(
+        challenge: ByteArray,
+        credentialIdHex: String?,
+        /**
+         * WHERE the credential lives, as its authenticator reported at
+         * registration (`hybrid,internal`, `usb,nfc`, …), or empty when unknown.
+         *
+         * **This is load-bearing, not a hint.** An `allowCredentials` entry with
+         * no transports leaves Credential Manager to guess where to look, and it
+         * guesses REMOVABLE SECURITY KEY: a passkey living in Apple Passwords on
+         * another phone drew "Connect your security key", which is a dead end
+         * the person cannot answer — they have no key to plug in, and the route
+         * that would work (scan the QR with the phone that holds it) is never
+         * offered (device-found 2026-08-26). With `hybrid` present the platform
+         * offers that route; with `usb` it offers the sheet a security key
+         * owner actually wants.
+         */
+        transports: String = "",
+    ): Assertion {
         val credentialManager = manager ?: throw PasskeyFailure(
             FailureKind.NotSupported,
             "Credential Manager is unavailable on this device",
@@ -224,14 +242,16 @@ class PasskeyExecutor(
             put("rpId", relyingPartyId)
             put("userVerification", "required")
             if (credentialIdHex != null) {
-                put(
-                    "allowCredentials",
-                    JSONArray().put(
-                        JSONObject()
-                            .put("type", PUBLIC_KEY)
-                            .put("id", base64urlOfHex(credentialIdHex)),
-                    ),
-                )
+                val descriptor = JSONObject()
+                    .put("type", PUBLIC_KEY)
+                    .put("id", base64urlOfHex(credentialIdHex))
+                val hints = transports.split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                if (hints.isNotEmpty()) {
+                    descriptor.put("transports", JSONArray(hints))
+                }
+                put("allowCredentials", JSONArray().put(descriptor))
             }
         }
 

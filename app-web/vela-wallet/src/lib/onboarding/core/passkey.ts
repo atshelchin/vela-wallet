@@ -195,11 +195,30 @@ export async function authenticate(): Promise<Assertion> {
  */
 let pendingSign: AbortController | null = null;
 
-export async function sign(challengeHex: string, credentialId: string): Promise<Assertion> {
+export async function sign(
+	challengeHex: string,
+	credentialId: string,
+	/**
+	 * WHERE the credential lives, as its authenticator reported at registration
+	 * (`hybrid,internal`, `usb,nfc`, …), or empty when unknown.
+	 *
+	 * **Load-bearing, not a hint.** An `allowCredentials` entry with no
+	 * transports leaves the platform to guess where to look, and Android's
+	 * Credential Manager guesses REMOVABLE SECURITY KEY: a passkey living in
+	 * Apple Passwords on another phone drew "Connect your security key", a dead
+	 * end for somebody holding a phone and no key (device-found 2026-08-26).
+	 * Browsers route on the same field.
+	 */
+	transports = ''
+): Promise<Assertion> {
 	assertSupported();
 	pendingSign?.abort();
 	const controller = new AbortController();
 	pendingSign = controller;
+	const hints = transports
+		.split(',')
+		.map((value) => value.trim())
+		.filter(Boolean) as AuthenticatorTransport[];
 
 	try {
 		const credential = (await navigator.credentials.get({
@@ -207,7 +226,13 @@ export async function sign(challengeHex: string, credentialId: string): Promise<
 				challenge: hexToBytes(challengeHex) as BufferSource,
 				rpId: relyingPartyId(),
 				userVerification: 'required',
-				allowCredentials: [{ type: 'public-key', id: hexToBytes(credentialId) as BufferSource }]
+				allowCredentials: [
+					{
+						type: 'public-key',
+						id: hexToBytes(credentialId) as BufferSource,
+						...(hints.length > 0 ? { transports: hints } : {})
+					}
+				]
 			},
 			signal: controller.signal
 		})) as PublicKeyCredential | null;

@@ -67,10 +67,24 @@ fn registered(name: &str) -> Sut {
         [ShellOperation::SignMemberProof {
             credential_id,
             group_public_key_hex,
+            transports,
             ..
         }] => {
             assert_eq!(credential_id, CRED);
             assert_eq!(group_public_key_hex, GROUP_KEY);
+            // WHERE the key lives rides along with WHICH key it is.
+            //
+            // A `get()` whose allowCredentials entry carries no transports
+            // leaves the platform to guess, and Android's Credential Manager
+            // guesses "removable security key" — it drew "Connect your security
+            // key" for a passkey living in Apple Passwords on another phone,
+            // which is a dead end the person cannot answer (device-found
+            // 2026-08-26). The fixture's authenticator reports `hybrid`, and
+            // that is what must reach the shell.
+            assert_eq!(
+                transports, "hybrid,internal",
+                "the confirmation must say where to look for the key"
+            );
         }
         other => panic!("registration flows straight into its membership get; got {other:?}"),
     }

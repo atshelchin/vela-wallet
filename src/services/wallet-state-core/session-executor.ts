@@ -66,6 +66,10 @@ export function toCoreAccount(
       credential_id: key.credentialId ?? '',
       public_key_hex: key.publicKeyHex ?? '',
       name: key.name ?? '',
+      // WHERE the credential lives, which this client's own storage does not
+      // record. Empty is the honest answer; the core treats it as "unknown"
+      // and the platform is left to route as it always did here.
+      transports: '',
     })),
   };
 }

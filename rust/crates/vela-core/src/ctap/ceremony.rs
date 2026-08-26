@@ -39,6 +39,12 @@ use crate::webauthn;
 // The seams
 // ---------------------------------------------------------------------------
 
+/// A cable's "the key is blinking, touch it" callback: fired once per exchange
+/// with the physical act asked for and the device's product string. Both
+/// cables ([`super::hid_cable`], [`super::apdu_cable`]) take one; a shell wires
+/// it to a screen, a test to a counter.
+pub type TouchAnnouncer = Box<dyn FnMut(TouchKind, &str)>;
+
 /// Which physical act a blinking authenticator is waiting for. CTAPHID's
 /// keepalive cannot say — it is known from which request is in flight, which
 /// is why the ceremony passes it to the transport per exchange.

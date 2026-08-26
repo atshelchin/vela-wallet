@@ -30,9 +30,11 @@
 //! randomness passes it in, the same way the onboarding machines take theirs
 //! from a shell result.
 
+pub mod apdu_cable;
 pub mod ceremony;
 pub mod commands;
 pub mod hid;
+pub mod hid_cable;
 pub mod pin_uv;
 
 pub use commands::{

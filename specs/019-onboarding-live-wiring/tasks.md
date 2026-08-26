@@ -334,11 +334,23 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   surface itself (report-level `UsbHidPort` + `CeremonyHost`), plus lifting the
   CTAPHID INIT/keepalive exchange loop out of desktop `usb.rs` into a generic
   `HidCable` so Kotlin stays ~100 lines of USB plumbing
+- [ ] T170a Core `HidCable`: the CTAPHID INIT/framing/keepalive exchange loop, generic
+  over a 64-byte-report `Port` — lifted from desktop `usb.rs`, unit-tested with a
+  scripted fake port; desktop's `SecurityKey` becomes one `Port` behind it
+- [ ] T170b Core `ApduCable`: the ISO 7816 loop (SELECT FIDO AID → NFCCTAP_MSG
+  0x80/0x10 → 0x9100 keepalive poll with touch on data[0]==0x02 → 61xx GET RESPONSE →
+  extended-length APDU), generic over an `ApduPort` — ported from the demo's
+  `SmartCardCtapDevice.swift`, byte-identical to the NFC binding, so iOS CCID and
+  iOS/Android NFC are three ports under one cable
 - [ ] T171 Android USB-host transport: CTAPHID over `android.hardware.usb`
-  (interrupt/bulk endpoints, permission dialog, hot-plug via `ACTION_USB_DEVICE_ATTACHED`),
-  feeding the exported ctap client; wire it as the `SecurityKey` route in
-  `PasskeyExecutor` with GMS FIDO2 as the fallback where GMS exists — registration AND
-  assertion, create AND sign-in
+  (interrupt/bulk endpoints, permission dialog, hot-plug via `ACTION_USB_DEVICE_ATTACHED`;
+  reference: demo `transport/usb/UsbCtap.kt`), a `Port` under the core `HidCable`; wire
+  it as the `SecurityKey` route in `PasskeyExecutor` with GMS FIDO2 as the fallback
+  where GMS exists — registration AND assertion, create AND sign-in
+- [ ] T171b iOS CCID transport: `TKSmartCard` as an `ApduPort` under the core
+  `ApduCable` (`com.apple.security.smartcard` entitlement, slot/state KVO presence
+  monitor; reference: demo `SmartCardCtapDevice.swift`; YubiKey fw 5.8+); wire it as
+  the app-owned `SecurityKey` route beside the AS security-key provider
 - [ ] T172 Android sign-in: a security-key entry on the welcome/login surface that does
   not depend on the OEM sheet (unpinned get on the app-owned path; GMS FIDO2 unpinned
   get as the GMS alternative)
@@ -346,9 +358,12 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   strings): touch prompt, PIN prompt with attempts, several-keys race — reuse the
   `create.pin*`/`create.touch*` corpus keys; only genuinely new keys go through the
   five-step corpus gate
-- [ ] T174 Hybrid (caBLE v2) client in core: QR payload + BLE advert decrypt + tunnel +
-  Noise, sans-IO, CTAP 2.2+ hybrid per webauthn-rs `cable/mod.rs` as the only public
-  protocol writing; transports (BLE scan, WebSocket) live in each shell
+- [ ] T174 Hybrid (caBLE v2 / CTAP 2.3) client in core: QR payload (CBOR keys 0–6;
+  key 6 channel list emitted only when offering BLE — legacy-collision gotcha) + BLE
+  advert decrypt + Noise + tunnel + the CTAP 2.3 BLE-only data channel, sans-IO —
+  PORTED from the founder's proven demos (`transport/ble/cable/*.kt` and the iOS
+  `CableConn`/`CableQr`/`Noise`/`HybridBleClient`), with webauthn-rs `cable/mod.rs`
+  as the cross-check; transports (BLE scan/connect, WebSocket) live in each shell
 - [ ] T175 Desktop scan method: wire the caBLE client on macOS/Linux (QR render in gpui,
   `btleplug` scan, tunnel WebSocket); flip the method row from
   present-and-unavailable to live

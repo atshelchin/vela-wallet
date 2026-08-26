@@ -65,9 +65,21 @@ OS/browser sheet arbitrates (and validates the RP domain association).
 | Method | Web | Android | iOS | macOS | Windows | Linux |
 | --- | --- | --- | --- | --- | --- | --- |
 | **This device** | browser sheet | Credential Manager (system; needs a provider — GMS or third-party) | AS platform provider (system) | ⛔ 019: none in gpui — AS platform API is future work | webauthn.dll (Hello; system, **no association needed**) | ⛔ no platform authenticator exists |
-| **USB security key** | browser sheet | **app-owned CTAP2 over USB host** (`android.hardware.usb`; **no GMS, no association, no OEM sheet**) — GMS FIDO2 direct stays as the already-working alternative where GMS exists | AS security-key provider (system) | app-owned CTAP2/USB | webauthn.dll (system UI, **no association needed**) | app-owned CTAP2/USB |
-| **Scan (hybrid, CTAP 2.2+ caBLE v2, BLE-proximity)** | browser sheet QR | system sheet's cross-device route where GMS exists; app-owned caBLE otherwise (shares the desktop client) | system sheet's cross-device route | app-owned caBLE client (**new build**) | webauthn.dll QR | app-owned caBLE client (**new build**) |
-| **Domain-association-free route exists** | ⛔ browser owns the client | ✅ app-owned CTAP USB (+ NFC via IsoDep APDU, staged next) | ⛔ (AS API requires AASA) | ✅ USB + hybrid | ✅ webauthn.dll asserts any rpId | ✅ USB + hybrid |
+| **USB security key** | browser sheet | **app-owned CTAP2 over USB host** (`android.hardware.usb`, CTAPHID; **no GMS, no association, no OEM sheet**) — GMS FIDO2 direct stays as the already-working alternative where GMS exists | **app-owned FIDO over CCID** (CryptoTokenKit `TKSmartCard`, `com.apple.security.smartcard` entitlement; CTAP2 in ISO 7816 APDUs, byte-identical to the NFC binding; YubiKey firmware 5.8+; founder-proven in the demo) — the AS security-key provider stays as the system alternative | app-owned CTAP2/USB | webauthn.dll (system UI, **no association needed**) | app-owned CTAP2/USB |
+| **Scan (hybrid caBLE v2 / CTAP 2.3, incl. the BLE-only data channel — no tunnel server)** | browser sheet QR | system sheet's cross-device route where GMS exists; app-owned caBLE otherwise | system sheet's cross-device route, **plus the app-owned caBLE client** (founder-proven in the demo: QR + Noise + WebSocket tunnel AND the CTAP 2.3 BLE data channel) | app-owned caBLE client | webauthn.dll QR | app-owned caBLE client |
+| **Domain-association-free route exists** | ⛔ browser owns the client | ✅ app-owned CTAP USB + NFC (IsoDep) + caBLE | ✅ **app-owned CCID USB + NFC + caBLE** | ✅ USB + hybrid | ✅ webauthn.dll asserts any rpId | ✅ USB + hybrid |
+
+**Reference implementations (founder-built, protocol-proven on device)**:
+`/Volumes/data/production2/apppasskeysdemo` (Android: `transport/usb/UsbCtap.kt`,
+`transport/nfc/NfcCtapClient.kt`, `transport/ble/` caBLE with Noise + tunnel + BLE
+channel) and `/Volumes/data/production2/apppasskeysdemo-ios` (iOS:
+`SmartCardCtapDevice.swift` CCID, `NfcCtapDevice.swift`, `HybridBleClient` +
+`CableConn`/`CableQr`/`Noise`). Phase 11 is a PORT of these into the production
+architecture — protocol logic into the core's `ctap` module (one implementation),
+permission/UI plumbing per shell — not an invention. Two shared framing layers fall
+out: a `HidCable` (CTAPHID: Android USB, desktop USB) and an `ApduCable` (ISO 7816:
+iOS CCID, iOS/Android NFC) — one keepalive/chaining loop each, every transport a
+thin byte-port beneath it.
 
 Boundary statements the matrix encodes:
 
@@ -527,12 +539,12 @@ the design authority table plus the full failure catalog.
 the scan/hybrid method, the app-owned Android CTAP path, and the universal method
 choice are now IN scope, per the matrix above.)*
 
-- NFC (IsoDep APDU) and smart-card (CCID) transports for the app-owned CTAP paths —
-  staged immediately after USB; the transport seam in the core `ctap` module is built
-  so adding them touches no ceremony code.
-- An app-owned passkey path on **iOS** (the OS offers no HID access; hybrid-as-client
-  over CoreBluetooth is the eventual route) and on the **web** (the browser owns the
-  WebAuthn client; no app-owned route can exist).
+- NFC (IsoDep / CoreNFC ISO 7816) for the app-owned paths — staged immediately after
+  USB, and cheap by then: it shares the `ApduCable` the iOS CCID path already needs,
+  so adding it touches no ceremony code. *(An earlier revision wrongly said iOS has no
+  app-owned USB route at all — FIDO over CCID via CryptoTokenKit is founder-proven.)*
+- An app-owned passkey path on the **web** (the browser owns the WebAuthn client; no
+  app-owned route can exist).
 - A macOS platform-authenticator (Touch ID) route via the AS API — worth having, needs
   an entitlement + AASA and a Swift shim from gpui; explicitly future work.
 - Making the wallet home's balances, assets and activity real.

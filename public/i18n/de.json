@@ -712,7 +712,8 @@
    "switchDeviceBtn": "Auf einem anderen Gerät anmelden",
    "pickTitle": "Welche Wallet?",
    "pickBody": "Auf {{product}} liegt mehr als eine Vela-Wallet. Wählen Sie die aus, in der Sie sich anmelden möchten.",
-   "pickUnnamed": "Wallet ohne Namen"
+   "pickUnnamed": "Wallet ohne Namen",
+   "signInSecurityKeyBtn": "Mit einem Sicherheitsschlüssel anmelden"
   }
  },
  "connect": {

@@ -48,6 +48,10 @@ struct RootView: View {
                 // No screen of our own: the login machine's first act is the
                 // system passkey sheet, and the wallet is what follows it.
                 onboarding.signIn()
+            case .importWithSecurityKey:
+                // Force the app-owned CTAP path — the only way to reach a
+                // wallet on a hardware key when a platform passkey is present.
+                onboarding.signIn(method: .securityKey)
             }
         })
     }
@@ -334,7 +338,8 @@ enum WelcomeContentBuilder {
             heroTitleFit: HeroFit(corpusValue: loc.t("onboarding.welcome.heroTitleFit")),
             heroSubtitle: loc.t("onboarding.welcome.heroSubtitle"),
             createWallet: loc.t("onboarding.welcome.createWallet"),
-            alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet")
+            alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet"),
+            signInSecurityKey: loc.t("onboarding.login.signInSecurityKeyBtn")
         )
     }
 }

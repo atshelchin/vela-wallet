@@ -9,6 +9,10 @@ import androidx.lifecycle.ViewModel
 enum class OnboardingIntent {
     CreateWallet,
     RecoverWallet,
+
+    /** Sign in on a security key specifically — the app-owned CTAP path, even
+     *  when a platform passkey is also present. */
+    RecoverWithSecurityKey,
 }
 
 /**

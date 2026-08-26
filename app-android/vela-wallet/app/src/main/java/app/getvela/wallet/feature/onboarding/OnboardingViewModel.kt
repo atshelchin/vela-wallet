@@ -285,7 +285,8 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         driver.dispatch(event("start"))
     }
 
-    fun signIn() = send(loginDriver, JSONObject().put("type", "sign_in"))
+    fun signIn(method: KeyMethod = KeyMethod.Platform) =
+        send(loginDriver, JSONObject().put("type", "sign_in").put("method", method.wire))
 
     /**
      * Start a sign-in, creating the machine if the last one finished.
@@ -295,9 +296,9 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
      * button dead forever after a completed sign-in, if `complete` did not drop
      * the finished machine.
      */
-    fun beginSignIn() {
+    fun beginSignIn(method: KeyMethod = KeyMethod.Platform) {
         startLogin()
-        signIn()
+        signIn(method)
     }
 
     // -- prompts -------------------------------------------------------------

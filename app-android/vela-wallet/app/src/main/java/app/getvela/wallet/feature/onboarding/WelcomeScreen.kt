@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -193,6 +196,23 @@ fun WelcomeScreen(
                     text = strings.t(I18nKeys.Welcome.ALREADY_HAVE_WALLET),
                     onClick = { onIntent(OnboardingIntent.RecoverWallet) },
                     loading = signingIn,
+                )
+                Spacer(modifier = Modifier.height(VelaSpacing.md))
+                // The explicit security-key route — a lighter tertiary action
+                // for signing into a wallet on a hardware key even when this
+                // device also has a platform passkey.
+                Text(
+                    text = strings.t(I18nKeys.Login.SIGN_IN_SECURITY_KEY_BTN),
+                    color = VelaTheme.colors.fgMuted,
+                    fontFamily = VelaFontFamily,
+                    fontWeight = VelaFontWeight.medium,
+                    fontSize = VelaTextSize.base,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(VelaSizing.hitTarget)
+                        .clickable(enabled = !signingIn) { onIntent(OnboardingIntent.RecoverWithSecurityKey) }
+                        .wrapContentHeight(),
                 )
                 Spacer(modifier = Modifier.height(VelaSpacing.xl))
             }

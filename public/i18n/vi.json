@@ -712,7 +712,8 @@
    "switchDeviceBtn": "Đăng nhập trên thiết bị khác",
    "pickTitle": "Ví nào?",
    "pickBody": "{{product}} đang giữ nhiều hơn một ví Vela. Hãy chọn ví bạn muốn đăng nhập.",
-   "pickUnnamed": "Ví chưa đặt tên"
+   "pickUnnamed": "Ví chưa đặt tên",
+   "signInSecurityKeyBtn": "Đăng nhập bằng khóa bảo mật"
   }
  },
  "connect": {

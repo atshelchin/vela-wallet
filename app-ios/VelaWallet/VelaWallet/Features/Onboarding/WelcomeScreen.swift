@@ -64,6 +64,19 @@ struct WelcomeScreen: View {
                 VelaButton(title: model.content.alreadyHaveWallet, kind: .secondary, loading: signingIn) {
                     model.send(.importWallet)
                 }
+                // The explicit security-key route: a lighter tertiary action,
+                // for signing into a wallet that lives on a hardware key even
+                // when this device also has a platform passkey.
+                Button {
+                    model.send(.importWithSecurityKey)
+                } label: {
+                    Text(model.content.signInSecurityKey)
+                        .typeRole(Typography.label)
+                        .foregroundStyle(theme.fgMuted)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: Tokens.Layout.hitTarget)
+                }
+                .disabled(signingIn)
             }
         }
         .padding(.top, Tokens.Space.s32)
@@ -82,7 +95,8 @@ struct WelcomeScreen: View {
                 heroTitleFit: .regular,
                 heroSubtitle: "Sign with a passkey. Vela never sees your key.",
                 createWallet: "Create Wallet",
-                alreadyHaveWallet: "I already have a wallet"
+                alreadyHaveWallet: "I already have a wallet",
+                signInSecurityKey: "Sign in with a security key"
             ),
             onIntent: { _ in }
         )

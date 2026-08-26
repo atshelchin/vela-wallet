@@ -715,7 +715,8 @@
    "switchDeviceBtn": "Entrar en otro dispositivo",
    "pickTitle": "¿Cuál cartera?",
    "pickBody": "{{product}} guarda más de una cartera Vela. Elige en cuál quieres entrar.",
-   "pickUnnamed": "Cartera sin nombre"
+   "pickUnnamed": "Cartera sin nombre",
+   "signInSecurityKeyBtn": "Iniciar sesión con una llave de seguridad"
   }
  },
  "connect": {

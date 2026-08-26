@@ -182,7 +182,7 @@ final class OnboardingModel {
 
     // MARK: - Sign in
 
-    func signIn() {
+    func signIn(method: KeyMethod = .platform) {
         if login == nil {
             let driver = CoreDriver(
                 bridge: LoginCore(),
@@ -207,7 +207,7 @@ final class OnboardingModel {
             login = driver
             driver.dispatch(Self.event("start"))
         }
-        login?.dispatch(Self.event("sign_in"))
+        login?.dispatch(Self.event("sign_in", ["method": method.rawValue]))
     }
 
     // MARK: - Prompts

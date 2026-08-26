@@ -712,7 +712,8 @@
    "switchDeviceBtn": "別の端末でサインイン",
    "pickTitle": "どのウォレットにしますか？",
    "pickBody": "{{product}} には複数の Vela ウォレットが保存されています。サインインするものを選んでください。",
-   "pickUnnamed": "名称未設定のウォレット"
+   "pickUnnamed": "名称未設定のウォレット",
+   "signInSecurityKeyBtn": "セキュリティキーでサインイン"
   }
  },
  "connect": {

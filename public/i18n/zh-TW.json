@@ -712,7 +712,8 @@
    "switchDeviceBtn": "換一台裝置登入",
    "pickTitle": "登入哪個錢包？",
    "pickBody": "{{product}} 上儲存了多個 Vela 錢包，請選擇要登入的那個。",
-   "pickUnnamed": "未命名錢包"
+   "pickUnnamed": "未命名錢包",
+   "signInSecurityKeyBtn": "用安全密鑰登入"
   }
  },
  "connect": {

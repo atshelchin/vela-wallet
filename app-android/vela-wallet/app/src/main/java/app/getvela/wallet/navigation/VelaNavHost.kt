@@ -27,6 +27,7 @@ import app.getvela.wallet.feature.onboarding.OnboardingViewModel
 import app.getvela.wallet.feature.onboarding.ThemeSettingsSheet
 import app.getvela.wallet.feature.onboarding.WelcomeScreen
 import app.getvela.wallet.feature.onboarding.WelcomeViewModel
+import app.getvela.wallet.feature.onboarding.core.KeyMethod
 import app.getvela.wallet.feature.onboarding.core.RegistryClient
 import app.getvela.wallet.feature.onboarding.core.SessionRoute
 import app.getvela.wallet.feature.onboarding.flow.CreateFlowScreen
@@ -139,6 +140,8 @@ fun VelaNavHost(
                         // the system passkey sheet, and the wallet is what
                         // follows it.
                         OnboardingIntent.RecoverWallet -> onboarding.beginSignIn()
+                        OnboardingIntent.RecoverWithSecurityKey ->
+                            onboarding.beginSignIn(KeyMethod.SecurityKey)
                     }
                 },
                 onLongPressLogo = welcome::showSettings,

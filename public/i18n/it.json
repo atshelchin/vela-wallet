@@ -715,7 +715,8 @@
    "switchDeviceBtn": "Accedi su un altro dispositivo",
    "pickTitle": "Quale portafoglio?",
    "pickBody": "{{product}} contiene più di un portafoglio Vela. Scegli quello in cui accedere.",
-   "pickUnnamed": "Portafoglio senza nome"
+   "pickUnnamed": "Portafoglio senza nome",
+   "signInSecurityKeyBtn": "Accedi con una chiave di sicurezza"
   }
  },
  "connect": {

@@ -56,3 +56,5 @@ specs/002-penpot-design-source/dom-dumps/
 specs/002-penpot-design-source/dom-dumps/cells/
 specs/002-penpot-design-source/generator/assets/library.json
 .vscode
+app-android/vela-wallet/.idea/deploymentTargetSelector.xml
+app-android/vela-wallet/.idea/inspectionProfiles/Project_Default.xml

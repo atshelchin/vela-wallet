@@ -30,6 +30,11 @@ const INS_GET_RESPONSE: u8 = 0x11; // NFCCTAP_GETRESPONSE (keepalive poll)
 const P1_MSG: u8 = 0x00; // python-fido2 uses 0x80; YubiKey accepts both, NFC uses 0x00
 const SW_OK: u16 = 0x9000;
 const SW_KEEPALIVE: u16 = 0x9100;
+/// The keepalive status byte a card sends while waiting for a touch. Kept for
+/// the test's realism; the cable no longer keys the touch prompt off it,
+/// because some authenticators report the generic `0x01` here instead (see
+/// [`ApduCable::ctap_msg`]).
+#[cfg(test)]
 const KEEPALIVE_UP_NEEDED: u8 = 0x02;
 const MAX_POLLS: usize = 300; // ~30 s at the transport's ~100 ms poll cadence
 
@@ -121,7 +126,16 @@ impl<P: ApduPort> ApduCable<P> {
     /// One `NFCCTAP_MSG`, its keepalives polled and its long reply chained.
     fn ctap_msg(&mut self, payload: &[u8]) -> Result<Vec<u8>, CableError> {
         let mut out = Vec::new();
+        // Announce the touch UP FRONT for a command that needs one. Over a card
+        // the presence touch happens DURING this exchange, and — unlike CTAPHID
+        // — the keepalive is not a reliable signal: some authenticators report
+        // the generic `0x01` (processing) rather than `0x02` (up-needed) while
+        // they wait, so keying the prompt off the `0x02` byte left iOS with no
+        // "touch your key" prompt at all (device-found on iPhone, 2026-08-27).
+        // The command carries a touch kind iff it needs a touch, so that IS the
+        // signal; the keepalive below is now only a backstop.
         let mut announced_touch = false;
+        self.announce_touch(&mut announced_touch);
         let mut polls = 0usize;
         let mut apdu = Self::first_command_apdu(payload)?;
 
@@ -137,14 +151,8 @@ impl<P: ApduPort> ApduCable<P> {
                     if polls > MAX_POLLS {
                         return Err(CableError::TimedOut);
                     }
-                    if !announced_touch && data.first() == Some(&KEEPALIVE_UP_NEEDED) {
-                        announced_touch = true;
-                        if let (Some(kind), Some(callback)) =
-                            (self.touch, self.on_touch.as_mut())
-                        {
-                            callback(kind, self.port.product());
-                        }
-                    }
+                    let _ = &data;
+                    self.announce_touch(&mut announced_touch);
                     self.port.poll_delay();
                     apdu = vec![CLA, INS_GET_RESPONSE, 0x00, 0x00, 0x00];
                 }
@@ -160,6 +168,18 @@ impl<P: ApduPort> ApduCable<P> {
                     )));
                 }
             }
+        }
+    }
+
+    /// Fire the "touch your key" callback once per exchange, iff this command
+    /// carries a touch kind (i.e. it is a presence-requiring command).
+    fn announce_touch(&mut self, announced: &mut bool) {
+        if *announced {
+            return;
+        }
+        if let (Some(kind), Some(callback)) = (self.touch, self.on_touch.as_mut()) {
+            *announced = true;
+            callback(kind, self.port.product());
         }
     }
 

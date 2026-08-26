@@ -121,12 +121,14 @@ private struct PinKeypad: View {
         ["", "0", "⌫"],
     ]
 
-    private let keyHeight: CGFloat = 60
+    private let keyHeight: CGFloat = 56
 
     var body: some View {
-        VStack(spacing: Tokens.Space.s12) {
+        // A tight, even grid — the same 8pt rhythm the Android pad uses, so the
+        // "0 / delete" row sits as close to "7 8 9" as every other row.
+        VStack(spacing: Tokens.Space.s8) {
             ForEach(rows.indices, id: \.self) { r in
-                HStack(spacing: Tokens.Space.s12) {
+                HStack(spacing: Tokens.Space.s8) {
                     ForEach(rows[r], id: \.self) { label in
                         key(label)
                     }

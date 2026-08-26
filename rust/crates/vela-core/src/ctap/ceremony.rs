@@ -187,6 +187,9 @@ pub fn failure_for(error: CableError) -> CeremonyError {
         CableError::Ctap(Status::NoCredentials) => {
             CeremonyError::other("This security key holds no Vela passkey.")
         }
+        CableError::Ctap(Status::KeyStoreFull) => CeremonyError::other(
+            "This security key's passkey storage is full. Delete some passkeys from it (with the manufacturer's tool, e.g. Yubico Authenticator) and try again.",
+        ),
         CableError::Ctap(Status::PinRequired) => CeremonyError::other(
             "The PIN was not accepted. Try again, and watch the remaining attempts before you spend the last one.",
         ),

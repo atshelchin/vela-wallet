@@ -82,6 +82,12 @@ pub enum Status {
     /// attempts and only the PIN is left (`CTAP2_ERR_UV_BLOCKED` 0x3c). Both
     /// are a reason to OFFER the PIN, not to fail the ceremony.
     UvFailed,
+    /// The authenticator's discoverable-credential storage is full
+    /// (`CTAP2_ERR_KEY_STORE_FULL` 0x28). A Vela founding key must be
+    /// discoverable, so there is no room to mint one until some are deleted —
+    /// which a key accumulates fast under repeated testing (each create leaves
+    /// a resident credential, and the key holds only 25–100).
+    KeyStoreFull,
     /// Anything else, with its number intact.
     Other(u8),
 }
@@ -98,6 +104,7 @@ impl Status {
             0x00 => Self::Success,
             0x19 | 0x27 | 0x2f => Self::Cancelled,
             0x21 => Self::CredentialExcluded,
+            0x28 => Self::KeyStoreFull,
             0x2b => Self::PinNotSet,
             0x2e => Self::NoCredentials,
             0x31 | 0x36 => Self::PinRequired,

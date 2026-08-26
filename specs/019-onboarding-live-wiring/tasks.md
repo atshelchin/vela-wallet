@@ -334,10 +334,10 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   surface itself (report-level `UsbHidPort` + `CeremonyHost`), plus lifting the
   CTAPHID INIT/keepalive exchange loop out of desktop `usb.rs` into a generic
   `HidCable` so Kotlin stays ~100 lines of USB plumbing
-- [ ] T170a Core `HidCable`: the CTAPHID INIT/framing/keepalive exchange loop, generic
+- [X] T170a Core `HidCable`: the CTAPHID INIT/framing/keepalive exchange loop, generic
   over a 64-byte-report `Port` — lifted from desktop `usb.rs`, unit-tested with a
   scripted fake port; desktop's `SecurityKey` becomes one `Port` behind it
-- [ ] T170b Core `ApduCable`: the ISO 7816 loop (SELECT FIDO AID → NFCCTAP_MSG
+- [X] T170b Core `ApduCable`: the ISO 7816 loop (SELECT FIDO AID → NFCCTAP_MSG
   0x80/0x10 → 0x9100 keepalive poll with touch on data[0]==0x02 → 61xx GET RESPONSE →
   extended-length APDU), generic over an `ApduPort` — ported from the demo's
   `SmartCardCtapDevice.swift`, byte-identical to the NFC binding, so iOS CCID and

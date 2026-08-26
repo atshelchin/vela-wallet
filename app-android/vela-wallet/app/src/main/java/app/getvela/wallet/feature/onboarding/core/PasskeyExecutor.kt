@@ -286,6 +286,7 @@ class PasskeyExecutor(
             if (credentialIdHex == null) "asking (any credential)" else "asking (pinned)",
             "cred" to VelaLog.shortId(credentialIdHex),
             "transports" to transports.ifEmpty { "unknown" },
+            "removable" to removable(transports),
         )
         val response = if (credentialIdHex == null) {
             try {
@@ -306,7 +307,7 @@ class PasskeyExecutor(
             }
         } else {
             settleAfterMint(credentialIdHex)
-            getPinned(credentialManager, options)
+            getPinned(credentialManager, options, removable(transports))
         }
 
         val credential = response.credential as? PublicKeyCredential
@@ -357,10 +358,22 @@ class PasskeyExecutor(
     private suspend fun getPinned(
         credentialManager: CredentialManager,
         options: List<GetPublicKeyCredentialOption>,
+        removable: Boolean,
     ): GetCredentialResponse {
         var attempt = 0
         while (true) {
-            val last = attempt == RETRY_BACKOFF_MS.size
+            // A REMOVABLE key gets one attempt, and it draws real UI.
+            //
+            // This loop exists for a race between providers that store a
+            // credential and providers that INDEX it — a phone's own passkey
+            // vault needs a moment after a create, and asking for an
+            // immediately-available credential turns that moment into a retry
+            // instead of an unexplained sheet. None of that describes a
+            // security key: it is never "immediately available" because it has
+            // to be tapped or plugged, so every early attempt is a guaranteed
+            // miss, and the backoff between them is dead time in front of
+            // somebody holding a key against their phone (2026-08-26).
+            val last = removable || attempt == RETRY_BACKOFF_MS.size
             try {
                 return credentialManager.getCredential(
                     context = context,
@@ -401,6 +414,18 @@ class PasskeyExecutor(
             }
         }
     }
+
+    /**
+     * Does this credential live on something the person has to present — a USB
+     * stick, an NFC card — rather than in a vault this phone can consult?
+     *
+     * Unknown transports answer `false`: the settle-race retry is harmless for
+     * a credential that turns out to be removable (it costs one extra attempt),
+     * while skipping it for one that turns out to be local would bring back the
+     * sheet it exists to prevent.
+     */
+    private fun removable(transports: String): Boolean =
+        transports.split(',').map { it.trim() }.any { it == "usb" || it == "nfc" || it == "ble" }
 
     fun random(bytes: Int): ByteArray = ByteArray(bytes).also(secureRandom::nextBytes)
 

@@ -48,41 +48,51 @@ struct UsbPinSheet: View {
                 .foregroundStyle(theme.fgMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // The masked PIN — one dot per digit entered.
-            Text(String(repeating: "●", count: pin.count))
-                .typeRole(Typography.title)
-                .foregroundStyle(pin.isEmpty ? theme.fgSubtle : theme.fgBase)
-                .frame(maxWidth: .infinity, minHeight: Tokens.Space.s32, alignment: .center)
-                .overlay(alignment: .center) {
-                    if pin.isEmpty {
-                        Text(loc.t(I18nKeys.Create.pinLabel))
-                            .typeRole(Typography.body)
-                            .foregroundStyle(theme.fgSubtle)
+            // The masked PIN — a row of dots, one per digit, centred, with the
+            // label shown until the first digit lands.
+            ZStack {
+                if pin.isEmpty {
+                    Text(loc.t(I18nKeys.Create.pinLabel))
+                        .typeRole(Typography.body)
+                        .foregroundStyle(theme.fgSubtle)
+                } else {
+                    HStack(spacing: Tokens.Space.s12) {
+                        ForEach(0..<pin.count, id: \.self) { _ in
+                            Circle()
+                                .fill(theme.fgBase)
+                                .frame(width: 12, height: 12)
+                        }
                     }
                 }
+            }
+            .frame(maxWidth: .infinity, minHeight: Tokens.Space.s24, alignment: .center)
+            .padding(.vertical, Tokens.Space.s8)
 
             if pending.isRetry {
                 Text(loc.t(I18nKeys.Create.pinRejected))
                     .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.errorBase)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
             if pending.retries >= 0 {
                 Text(loc.t(I18nKeys.Create.pinAttemptsLeft, vars: ["attempts": String(pending.retries)]))
                     .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.fgSubtle)
+                    .frame(maxWidth: .infinity, alignment: .center)
             }
 
             PinKeypad(
                 onDigit: { digit in if pin.count < 63 { pin.append(digit) } },
                 onDelete: { if !pin.isEmpty { pin.removeLast() } }
             )
+            .padding(.top, Tokens.Space.s8)
 
             VelaButton(title: loc.t(I18nKeys.Create.confirmKeyBtn), kind: .primary) {
                 answer(pin)
             }
             .disabled(!canSubmit)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, Tokens.Layout.screenPaddingX)
         .padding(.vertical, Tokens.Space.s32)
         .presentationDragIndicator(.visible)
@@ -97,7 +107,8 @@ struct UsbPinSheet: View {
     }
 }
 
-/// A 3×4 numeric keypad, owing nothing to the system keyboard.
+/// A 3×4 numeric keypad, owing nothing to the system keyboard. Square-ish keys
+/// on a tight grid — a passcode pad, not a form field.
 private struct PinKeypad: View {
     @Environment(\.theme) private var theme
     let onDigit: (Character) -> Void
@@ -110,10 +121,12 @@ private struct PinKeypad: View {
         ["", "0", "⌫"],
     ]
 
+    private let keyHeight: CGFloat = 60
+
     var body: some View {
-        VStack(spacing: Tokens.Space.s8) {
+        VStack(spacing: Tokens.Space.s12) {
             ForEach(rows.indices, id: \.self) { r in
-                HStack(spacing: Tokens.Space.s8) {
+                HStack(spacing: Tokens.Space.s12) {
                     ForEach(rows[r], id: \.self) { label in
                         key(label)
                     }
@@ -125,7 +138,7 @@ private struct PinKeypad: View {
     @ViewBuilder
     private func key(_ label: String) -> some View {
         if label.isEmpty {
-            Color.clear.frame(maxWidth: .infinity, minHeight: Tokens.Space.s48)
+            Color.clear.frame(maxWidth: .infinity, minHeight: keyHeight)
         } else {
             Button {
                 if label == "⌫" {
@@ -135,12 +148,14 @@ private struct PinKeypad: View {
                 }
             } label: {
                 Text(label)
-                    .typeRole(Typography.title)
+                    .typeRole(label == "⌫" ? Typography.title : Typography.display)
                     .foregroundStyle(theme.fgBase)
-                    .frame(maxWidth: .infinity, minHeight: Tokens.Space.s48)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: keyHeight)
                     .background(theme.bgSunken)
-                    .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+                    .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.r16))
             }
+            .buttonStyle(.plain)
         }
     }
 }

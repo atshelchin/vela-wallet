@@ -15,6 +15,7 @@ object VelaSpacing {
     val xl3: Dp = 24.dp
     val xl4: Dp = 32.dp
     val xl5: Dp = 48.dp
+    val xl6: Dp = 64.dp
 }
 
 /** core.radius. */

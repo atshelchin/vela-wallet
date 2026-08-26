@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -96,26 +97,42 @@ fun UsbPinDialog(
                 fontFamily = VelaFontFamily,
                 fontSize = VelaTextSize.base,
             )
-            // The masked PIN — one dot per digit, or the label when empty.
-            Text(
-                text = if (pin.isEmpty()) {
-                    strings.t(I18nKeys.Create.PIN_LABEL)
+            // The masked PIN — a centred row of dots, or the label when empty.
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(VelaSpacing.xl4)
+                    .padding(vertical = VelaSpacing.sm),
+            ) {
+                if (pin.isEmpty()) {
+                    Text(
+                        text = strings.t(I18nKeys.Create.PIN_LABEL),
+                        color = colors.fgSubtle,
+                        fontFamily = VelaFontFamily,
+                        fontSize = VelaTextSize.base,
+                    )
                 } else {
-                    "●".repeat(pin.length)
-                },
-                color = if (pin.isEmpty()) colors.fgSubtle else colors.fgBase,
-                fontFamily = VelaFontFamily,
-                fontWeight = VelaFontWeight.bold,
-                fontSize = VelaTextSize.xl2,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
+                    Row(horizontalArrangement = Arrangement.spacedBy(VelaSpacing.md)) {
+                        repeat(pin.length) {
+                            Box(
+                                modifier = Modifier
+                                    .size(VelaSpacing.lg)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(colors.fgBase),
+                            )
+                        }
+                    }
+                }
+            }
             if (isRetry) {
                 Text(
                     text = strings.t(I18nKeys.Create.PIN_REJECTED),
                     color = colors.errorBase,
                     fontFamily = VelaFontFamily,
                     fontSize = VelaTextSize.sm,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (retries >= 0) {
@@ -127,6 +144,8 @@ fun UsbPinDialog(
                     color = colors.fgSubtle,
                     fontFamily = VelaFontFamily,
                     fontSize = VelaTextSize.sm,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             PinKeypad(
@@ -168,8 +187,8 @@ private fun PinKeypad(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(VelaSpacing.xl5)
-                                .clip(RoundedCornerShape(VelaRadius.lg))
+                                .height(VelaSpacing.xl6)
+                                .clip(RoundedCornerShape(VelaRadius.xl))
                                 .background(colors.bgSunken)
                                 .clickable {
                                     if (label == "⌫") onDelete() else onDigit(label[0])
@@ -180,7 +199,7 @@ private fun PinKeypad(
                                 color = colors.fgBase,
                                 fontFamily = VelaFontFamily,
                                 fontWeight = VelaFontWeight.semibold,
-                                fontSize = VelaTextSize.xl2,
+                                fontSize = VelaTextSize.xl4,
                             )
                         }
                     }

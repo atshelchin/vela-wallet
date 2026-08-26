@@ -211,3 +211,36 @@ commit's raw px/color values, which are now tokens.
 ⚠ The general lesson repeats №11's: "the screen does not exist yet at this
 point in the flow" is an architecture smell, not a constraint — the fix was to
 move the flow, not to guess for the person.
+
+## 13. GMS-free Android and the OTG requirement (2026-08-26)
+
+The app-owned CTAP-over-USB path (T171) was verified on two GMS-degraded
+Android 10 phones — a Xiaomi and a OnePlus 5T — each creating and signing into
+a wallet with a USB YubiKey where the system passkey route is wholly unusable.
+
+What the phones taught us, recorded so the next person does not rediscover it:
+
+- **The system route fails three different ways on a degraded GMS, and every
+  one must reroute to the app-owned path.** Register: "FIDO2_API is not
+  available … SERVICE_INVALID". Sign-in: "no provider dependencies found"
+  (`GetCredentialProviderConfigurationException`). Add-key via the OEM sheet:
+  "this device does not support biometric authentication" — which is nonsense
+  for an external key, and the clearest sign the GMS fallback had to go for the
+  security-key method. The fix routes all three to the app-owned CTAP client
+  (commit `8319b4a4`).
+
+- **A failed relying-party domain association is the SAME reroute.** If the
+  developer's `.well-known/assetlinks.json` is unreachable, the system
+  association check fails — but a person must still reach their own key. The
+  app-owned path consults no association, so a sign-in whose system route is
+  unavailable for that reason falls through to it. This is FR-009c working: the
+  escape hatch from a lapsed OR merely-down domain.
+
+- **USB OTG must be enabled, and on a single-port phone the port is a
+  bottleneck.** The OnePlus 5T did not see the YubiKey until OTG was turned on
+  in Settings (OnePlus ships it off and auto-disables it after ten idle
+  minutes). And its single USB-C port cannot hold the adb cable and the key at
+  once — a device test needs wireless adb, or the key goes in and the log is
+  read from the on-device VelaLog file afterward. `fidoDevices()` now logs
+  every enumerated USB device precisely so "no key plugged in" and "key present
+  but OTG is off / unrecognised" stop being indistinguishable.

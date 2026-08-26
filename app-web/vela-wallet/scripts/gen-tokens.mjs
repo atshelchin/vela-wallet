@@ -71,7 +71,17 @@ const WEB_ADDITIONS = [
 		'520px',
 		'spec 019: the screen column beside the rail. Content ends where it ends there; the mobile layout anchors its CTA to the bottom of the viewport, which is a phone pattern and stays on phones'
 	],
+	[
+		'layout-onboardingFrameGutter',
+		'72px',
+		"spec 019: the desktop flow frame's horizontal breathing room — the column plus twice this is the frame's max width"
+	],
 	['text-stepOrdinal', '104px', 'spec 019: the rail step ordinal, set as display TYPE rather than drawn as a stepper widget'],
+	['layout-railRuleW', '28px', "spec 019: the accent rule under the rail's tagline — a mark, not a divider, so it has a width of its own"],
+	['layout-railDetailMeasure', '214px', "spec 019: the step detail's measure inside the rail — wraps at a readable line, not at the rail's edge"],
+	['space-railOrdinalGap', '6px', 'spec 019: between the rail ordinal and its /03 — tighter than the space scale steps, per the design'],
+	['space-railNameGap', '22px', 'spec 019: between the rail ordinal block and the step name, per the design'],
+	['layout-welcomeCtaMin', '176px', "spec 019: the desktop welcome CTAs' minimum width — side-by-side buttons sized to their labels, not to the column"],
 	['text-stepTotal', '20px', 'spec 019: the /03 beside the ordinal, and the step name under it'],
 	[
 		'text-railTagline',

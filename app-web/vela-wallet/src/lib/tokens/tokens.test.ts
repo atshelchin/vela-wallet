@@ -28,8 +28,16 @@ describe('drift gate', () => {
 		const css = generateCss();
 		const darkVars = [...css.matchAll(/^\t(--color-[\w-]+):/gm)].map((m) => m[1]);
 		const lightBlock = css.split('@media (prefers-color-scheme: light)')[1] ?? '';
+		// Web additions declared once in :root, mode-independent by construction:
+		// onAccent is a constant, the rail pair are color-mix over tokens that
+		// already flip per mode.
+		const MODE_INDEPENDENT = new Set([
+			'--color-onAccent',
+			'--color-rail-ordinal',
+			'--color-rail-ordinalSoft'
+		]);
 		for (const name of darkVars) {
-			if (name === '--color-onAccent') continue; // web addition, mode-independent
+			if (MODE_INDEPENDENT.has(name)) continue;
 			expect(lightBlock, name).toContain(`${name}:`);
 		}
 	});

@@ -30,6 +30,7 @@
 	} from '$lib/onboarding/core/copy';
 	import { fillTemplate } from '$lib/i18n/fill';
 	import { loadOnboardingCore } from '$lib/onboarding/core/wasm-client';
+	import { RAIL_STEPS, type RailSlot } from '$lib/ui/onboarding/v2/rail';
 
 	let { data }: PageProps = $props();
 
@@ -77,6 +78,29 @@
 	const statusText = $derived(
 		view.status && !progressFor(view.status) ? strings(statusKeyToI18n(view.status)) : undefined
 	);
+
+	// The same rail copy CreateFlow derives, so a fixture shows the rail the
+	// real flow would — the gallery must not invent its own vocabulary.
+	const railSlot = $derived.by((): RailSlot => {
+		const step = (ordinal: number, key: string): RailSlot => ({
+			kind: 'step',
+			ordinal,
+			total: RAIL_STEPS,
+			name: strings(`onboarding.create.step${key}Label`),
+			detail: strings(`onboarding.create.step${key}Detail`)
+		});
+		switch (screen) {
+			case 'form':
+				return step(1, 'Naming');
+			case 'keys':
+				return step(2, 'Keys');
+			case 'progress':
+			case 'retry':
+				return step(3, 'Create');
+			default:
+				return { kind: 'tagline', text: strings('onboarding.welcome.heroSubtitle') };
+		}
+	});
 
 	function log(what: string) {
 		lastEvent = what;
@@ -141,6 +165,7 @@
 			backLabel={strings('onboarding.common.back')}
 			canGoBack={view.can_go_back}
 			onBack={() => log('go_back')}
+			{railSlot}
 		>
 			{#if screen === 'form'}
 				<NameScreen

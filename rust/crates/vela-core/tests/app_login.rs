@@ -242,8 +242,9 @@ fn awaiting_second_signature(first: Assertion) -> Sut {
         vec![ShellOperation::SignProof {
             credential_id: CRED.to_owned(),
             // Inferred from the assertion's attachment: the fixture reports
-            // none, so the shell is told nothing rather than told wrong.
-            transports: String::new(),
+            // "platform", so the shell is pointed at the device's own vault
+            // rather than left to guess (and Android guesses "security key").
+            transports: "internal".to_owned(),
             purpose: ProofPurpose::RecoverSecond,
         }],
         "accepting asks for the disambiguating second signature"

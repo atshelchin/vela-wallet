@@ -293,9 +293,11 @@
 			gap: 0;
 			/* box-sizing is border-box globally, so the measure has to carry its own
 			   padding — 520 of text plus 72 a side. */
-			max-width: calc(var(--layout-onboardingColumn) + 144px);
+			max-width: calc(
+				var(--layout-onboardingColumn) + var(--layout-onboardingFrameGutter) * 2
+			);
 			margin-inline: 0;
-			padding: var(--space-5xl) 72px;
+			padding: var(--space-5xl) var(--layout-onboardingFrameGutter);
 		}
 
 		/* The rail has it. */
@@ -321,7 +323,7 @@
 
 		.actions :global(.button) {
 			flex: 0 0 auto;
-			min-width: 176px;
+			min-width: var(--layout-welcomeCtaMin);
 		}
 	}
 </style>

@@ -61,7 +61,7 @@
 		flex-direction: column;
 		width: var(--layout-onboardingRail);
 		padding: var(--space-5xl) var(--space-4xl);
-		border-inline-end: 1px solid var(--color-border-base);
+		border-inline-end: var(--border-hairline) solid var(--color-border-base);
 		background: var(--color-bg-sunken);
 	}
 
@@ -103,16 +103,16 @@
 
 	.rule {
 		display: block;
-		width: 28px;
-		height: 2px;
+		width: var(--layout-railRuleW);
+		height: var(--space-xs);
 		margin-block-start: var(--space-3xl);
-		border-radius: 999px;
+		border-radius: var(--radius-full);
 		background: var(--color-accent-base);
 	}
 
 	.ordinal {
 		display: flex;
-		gap: 6px;
+		gap: var(--space-railOrdinalGap);
 		align-items: baseline;
 		margin: 0;
 		font-family: var(--font-mono);
@@ -132,14 +132,14 @@
 	}
 
 	.name {
-		margin: 22px 0 0;
+		margin: var(--space-railNameGap) 0 0;
 		color: var(--color-fg-base);
 		font-size: var(--text-stepTotal);
 		font-weight: var(--weight-bold);
 	}
 
 	.detail {
-		max-width: 214px;
+		max-width: var(--layout-railDetailMeasure);
 		margin: var(--space-md) 0 0;
 		color: var(--color-fg-muted);
 		font-size: var(--text-base);

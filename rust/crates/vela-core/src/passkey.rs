@@ -73,8 +73,10 @@ pub struct MarkPalette<'a> {
 /// transport before talking CTAP, and an entry it cannot place is dropped —
 /// which can empty the list it just filtered:
 ///
-///     no credential match found as non-empty allowlist reduced to empty
-///     when batching
+/// ```text
+/// no credential match found as non-empty allowlist reduced to empty
+/// when batching
+/// ```
 ///
 /// (device-found 2026-08-26). So the wire carries only the five transports a
 /// client can actually route on. Dropping `smart-card` from a key that also

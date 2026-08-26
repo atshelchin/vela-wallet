@@ -103,25 +103,10 @@ impl std::fmt::Display for UsbError {
     }
 }
 
-/// What the key is waiting for.
-///
-/// The distinction is not cosmetic: "press the gold disc" and "rest your finger
-/// on the sensor" are different physical acts, and a person who is told the
-/// wrong one stands there pressing a fingerprint reader. CTAPHID has no
-/// keepalive status for user VERIFICATION, so this cannot be read off the wire
-/// — it is known from which request is in flight, which is why the caller
-/// passes it in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TouchKind {
-    /// User presence: a touch on the key's button.
-    Presence,
-    /// Built-in user verification: a finger on the key's sensor.
-    Fingerprint,
-    /// SEVERAL keys are plugged in and all of them are blinking. Touching one
-    /// is how the person says which. Carries no product string — naming one of
-    /// them would be naming the wrong one.
-    Select,
-}
+/// What the key is waiting for. Lives beside the ceremony in the core since
+/// the orchestration moved there (spec 019 phase 11); re-exported so the
+/// transport's vocabulary stays reachable in one place.
+pub use vela_core::ctap::ceremony::TouchKind;
 
 /// What the screen should say while the key blinks.
 #[derive(Clone, Debug)]

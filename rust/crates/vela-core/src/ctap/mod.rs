@@ -30,6 +30,7 @@
 //! randomness passes it in, the same way the onboarding machines take theirs
 //! from a shell result.
 
+pub mod ceremony;
 pub mod commands;
 pub mod hid;
 pub mod pin_uv;

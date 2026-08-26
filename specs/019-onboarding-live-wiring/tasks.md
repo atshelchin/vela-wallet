@@ -353,10 +353,15 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   `create.pin*`/`touch*`/`login.pick*` corpus keys (no new corpus). Hot-plug
   (`ACTION_USB_DEVICE_ATTACHED`) not yet wired — the person presses retry after
   plugging in, same as the desktop.
-- [ ] T171b iOS CCID transport: `TKSmartCard` as an `ApduPort` under the core
-  `ApduCable` (`com.apple.security.smartcard` entitlement, slot/state KVO presence
-  monitor; reference: demo `SmartCardCtapDevice.swift`; YubiKey fw 5.8+); wire it as
-  the app-owned `SecurityKey` route beside the AS security-key provider
+- [~] T171b iOS CCID transport — **built, compiles green for the simulator
+  (2026-08-26); on-device verification needs a USB-C YubiKey on a USB-C iPhone**.
+  `ctap_bridge.rs` gains `CcidPort` + `ctapRegisterCcid`/`ctapAssertCcid`;
+  `SmartCardCtapCeremony.swift` is the `TKSmartCard`→`ApduCable` port (semaphore
+  bridges async transmit to the core's sync call) + ceremony + host;
+  `PasskeyExecutor` prefers it for the security-key method + removable assert;
+  `UsbCeremonyPrompts.swift` are the PIN/pick/touch sheets (reused desktop corpus
+  keys); `com.apple.security.smartcard` entitlement added. Slot/state KVO presence
+  monitor not added — `deviceAvailable()` polls the slot manager per ceremony.
 - [ ] T172 Android sign-in: a security-key entry on the welcome/login surface that does
   not depend on the OEM sheet (unpinned get on the app-owned path; GMS FIDO2 unpinned
   get as the GMS alternative)

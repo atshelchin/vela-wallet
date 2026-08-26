@@ -699,7 +699,10 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
                 row.opacity(OPACITY_DISABLED)
             }
         });
-    if host.picker_open && view.can_add_key {
+    // An EMPTY list keeps the methods expanded: the first key's method is the
+    // person's choice too, and an empty list with a collapsed "+" is a
+    // puzzle, not a step.
+    if (host.picker_open || view.keys.is_empty()) && view.can_add_key {
         add = add.child(method_picker(host));
     }
     column = column.child(add);

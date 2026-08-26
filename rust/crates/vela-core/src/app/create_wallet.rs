@@ -472,9 +472,10 @@ impl App for CreateWallet {
             Stage::SyncFailed => CreateStage::SyncFailed,
             Stage::Created | Stage::Completing => CreateStage::Created,
             Stage::AddKeys => CreateStage::AddKeys,
-            // An in-flight registration or membership confirmation keeps the
-            // key list on screen once it exists.
-            Stage::Registering | Stage::SigningKey if has_draft => CreateStage::AddKeys,
+            // Every registration and membership confirmation is launched from
+            // the key list, so an in-flight one keeps it on screen — including
+            // the first key's, whose list is still empty.
+            Stage::Registering | Stage::SigningKey => CreateStage::AddKeys,
             _ => CreateStage::Form,
         };
 
@@ -589,8 +590,14 @@ fn add_key(model: &mut Model, label: String, method: KeyMethod) -> Command<Effec
     if model.stage != Stage::AddKeys || model.drafts.len() >= crate::safe::MAX_MULTI_KEYS {
         return Command::done();
     }
+    // Key 1's label and provider display name ARE the wallet name (N=1 stays
+    // byte-identical to the single-key flow); later keys compose "wallet ·
+    // label" and fall back to the label alone when that would not fit.
+    let first = model.drafts.is_empty();
     let label = label.trim().to_owned();
-    let label = if label.is_empty() {
+    let label = if first {
+        model.name.trim().to_owned()
+    } else if label.is_empty() {
         format!("Key {}", model.drafts.len() + 1)
     } else {
         label
@@ -603,7 +610,11 @@ fn add_key(model: &mut Model, label: String, method: KeyMethod) -> Command<Effec
     model.registering_method = method;
     model.stage = Stage::Registering;
     model.status = Some(StatusKey::SettingUpIdentity);
-    let name = passkey_display_name(model.name.trim(), &label);
+    let name = if first {
+        label.clone()
+    } else {
+        passkey_display_name(model.name.trim(), &label)
+    };
     // The provider must refuse to reuse an already-founding authenticator
     // entry — a silent replacement would drop a key the address depends on.
     let exclude_credential_ids = model
@@ -899,25 +910,17 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         ) => {
             model.group_seed_hex = Some(seed_hex);
             model.group_public_key_hex = Some(group_public_key_hex);
-            model.stage = Stage::Registering;
-            model.status = Some(StatusKey::SettingUpIdentity);
-            // Key 1's provider display name IS the wallet name (N=1 stays
-            // byte-identical to the single-key flow); its label too.
-            let name = model.name.trim().to_owned();
-            model.registering_label = name.clone();
-            // The first key is the one choice the shell makes instead of the
-            // person: the key screen where methods are offered does not exist
-            // yet. `Default` is the platform authenticator, and a shell with
-            // none of its own (desktop) overrides it at the ceremony.
-            model.registering_method = KeyMethod::default();
-            request(
-                model,
-                ShellOperation::RegisterPasskey {
-                    name,
-                    exclude_credential_ids: Vec::new(),
-                    method: model.registering_method,
-                },
-            )
+            // Land on the (empty) key list instead of minting a first key
+            // here. The first key used to be the one choice the shell made
+            // instead of the person — `KeyMethod::default()`, i.e. the
+            // platform authenticator — which on an OEM whose system sheet
+            // cannot reach a security key locked hardware-key owners out of
+            // creating a wallet at all (device-found on a Xiaomi, 2026-08-26).
+            // Every founding key, the first included, is now minted from the
+            // key screen through the same method choice.
+            model.stage = Stage::AddKeys;
+            model.status = None;
+            render()
         }
         (Stage::GeneratingGroupKey, ShellResult::StorageFailed { message }) => {
             fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
@@ -986,14 +989,11 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         }
         (Stage::Registering, ShellResult::PasskeyFailed { kind, message }) => match kind {
             FailureKind::Cancelled => {
-                // Cancelling an ADDED key's ceremony returns to the key list
-                // with the existing drafts intact; cancelling the first one
-                // returns to the form.
-                model.stage = if model.drafts.is_empty() {
-                    Stage::Form
-                } else {
-                    Stage::AddKeys
-                };
+                // Back to the key list with the existing drafts intact — for
+                // the first key that list is empty, and returning THERE rather
+                // than to the form is what lets the person try again with a
+                // different method.
+                model.stage = Stage::AddKeys;
                 model.status = Some(StatusKey::SetupCancelled);
                 render()
             }
@@ -1182,11 +1182,10 @@ fn save_account(model: &mut Model) -> Command<Effect, Event> {
 /// A registration failure returns to wherever the drafts live: the key list
 /// when founding keys already exist (they stay intact), the form otherwise.
 fn fail_registration(model: &mut Model, prompt: PromptKind) -> Command<Effect, Event> {
-    if model.drafts.is_empty() {
-        fail_to_form(model, prompt, None)
-    } else {
-        fail_to_add_keys(model, prompt)
-    }
+    // Always back to the key list — even for the first key, whose list is
+    // empty. The list is where the method choice lives, and a failed
+    // authenticator is exactly when a person wants to pick a different one.
+    fail_to_add_keys(model, prompt)
 }
 
 /// Return to the key list, telling the user why. The drafts are kept — the

@@ -43,9 +43,10 @@ fn group_key_generated() -> ShellResult {
     }
 }
 
-/// Form → group key minted → key 1 registered AND its membership confirmed
-/// (interleaved: one create + one get per key) → the key list. The set is
-/// frozen by `FinishKeys`, after which the publish needs NO prompts.
+/// Form → group key minted → the (empty) key list → key 1 registered AND its
+/// membership confirmed (interleaved: one create + one get per key) → the key
+/// list. The set is frozen by `FinishKeys`, after which the publish needs NO
+/// prompts.
 fn registered(name: &str) -> Sut {
     let mut sut = filled(name);
     sut.dispatch(Event::Submit);
@@ -55,10 +56,27 @@ fn registered(name: &str) -> Sut {
         "the group key anchors every member proof, so it is minted first; got {next:?}"
     );
     let next = sut.resolve(group_key_generated());
-    assert!(matches!(
-        next.as_slice(),
-        [ShellOperation::RegisterPasskey { .. }]
-    ));
+    assert!(
+        next.is_empty(),
+        "the group key lands on the key list; no ceremony starts before the \
+         person picks a method for the first key; got {next:?}"
+    );
+    assert_eq!(sut.view().stage, CreateStage::AddKeys);
+    assert!(sut.view().keys.is_empty());
+    let next = sut.dispatch(Event::AddKey {
+        name: String::new(),
+        method: KeyMethod::Platform,
+    });
+    match next.as_slice() {
+        [ShellOperation::RegisterPasskey { name: display, .. }] => {
+            assert_eq!(
+                display, name,
+                "key 1's provider display name IS the wallet name (N=1 stays \
+                 byte-identical to the single-key flow)"
+            );
+        }
+        other => panic!("expected the first registration, got {other:?}"),
+    }
     let next = sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::registration(CRED),
         now_iso: NOW.to_owned(),
@@ -202,13 +220,20 @@ fn overlong_name_is_rejected_before_any_effect_is_requested() {
 // Registration and the proof of signing
 // ---------------------------------------------------------------------------
 
-/// FR-006 — nothing is persisted before the passkey proves it can sign.
+/// FR-006 — nothing is persisted before the passkey proves it can sign. A
+/// cancelled FIRST registration returns to the (empty) key list, where the
+/// method choice lives — trying again with a different authenticator must not
+/// require re-entering the name.
 #[test]
 fn cancelling_registration_persists_nothing() {
     let mut sut = filled("Ann");
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     sut.resolve(group_key_generated());
+    sut.dispatch(Event::AddKey {
+        name: String::new(),
+        method: KeyMethod::Platform,
+    });
     let next = sut.resolve(ShellResult::PasskeyFailed {
         kind: FailureKind::Cancelled,
         message: None,
@@ -220,7 +245,8 @@ fn cancelling_registration_persists_nothing() {
     );
     let view = sut.view();
     assert_eq!(view.status, Some(StatusKey::SetupCancelled));
-    assert_eq!(view.submit_label, SubmitLabel::Create);
+    assert_eq!(view.stage, CreateStage::AddKeys);
+    assert!(view.keys.is_empty(), "nothing was drafted");
     assert!(!view.busy);
 }
 
@@ -237,6 +263,10 @@ fn non_discoverable_credential_aborts_without_persisting() {
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     sut.resolve(group_key_generated());
+    sut.dispatch(Event::AddKey {
+        name: String::new(),
+        method: KeyMethod::Platform,
+    });
     let next = sut.resolve(ShellResult::PasskeyFailed {
         kind: FailureKind::NotDiscoverable,
         message: None,
@@ -257,6 +287,7 @@ fn non_discoverable_credential_aborts_without_persisting() {
         SubmitLabel::Create,
         "no draft kept"
     );
+    assert!(sut.view().keys.is_empty(), "no draft kept");
 }
 
 // An incompatible provider is no longer caught by a separate verification
@@ -563,13 +594,50 @@ fn the_chosen_add_method_reaches_the_shell_and_the_key_row() {
     assert_eq!(
         keys[0].method,
         KeyMethod::Platform,
-        "the first key is the one the shell chooses, and it defaults to the platform"
+        "the helper minted key 1 through the platform method, and the row says so"
     );
     assert_eq!(
         keys[1].method,
         KeyMethod::SecurityKey,
         "the row must be labelled by the choice, not by what the authenticator reported"
     );
+}
+
+/// The FIRST key's method is the person's choice too. This is the Xiaomi
+/// lock-out fix (device-found 2026-08-26): the core used to mint key 1 with
+/// `KeyMethod::default()` before the key screen existed, so on an OEM whose
+/// system sheet cannot reach a security key, a hardware-key owner could not
+/// create a wallet at all.
+#[test]
+fn the_first_key_carries_the_persons_method_choice() {
+    let mut sut = filled("Ann");
+    sut.dispatch(Event::Submit);
+    sut.resolve(ShellResult::PasskeySupport { supported: true });
+    sut.resolve(group_key_generated());
+
+    let next = sut.dispatch(Event::AddKey {
+        name: String::new(),
+        method: KeyMethod::SecurityKey,
+    });
+    match next.as_slice() {
+        [ShellOperation::RegisterPasskey { method, name, .. }] => {
+            assert_eq!(*method, KeyMethod::SecurityKey);
+            assert_eq!(name, "Ann", "key 1's display name is the wallet name");
+        }
+        other => panic!("expected the first registration, got {other:?}"),
+    }
+
+    sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::registration(CRED),
+        now_iso: NOW.to_owned(),
+    });
+    sut.resolve(ShellResult::MemberProofSigned {
+        proof: support::member_proof("k1"),
+    });
+    let keys = sut.view().keys;
+    assert_eq!(keys.len(), 1);
+    assert_eq!(keys[0].method, KeyMethod::SecurityKey);
+    assert_eq!(keys[0].name, "Ann", "row 0's label is the wallet name");
 }
 
 /// The multi-key oracle: what the FULL founding set derives to.
@@ -807,6 +875,10 @@ fn device_bound_registered(name: &str) -> Sut {
     sut.dispatch(Event::Submit);
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     sut.resolve(group_key_generated());
+    sut.dispatch(Event::AddKey {
+        name: String::new(),
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeyRegistered {
         registration: support::device_bound_registration(CRED),
         now_iso: NOW.to_owned(),

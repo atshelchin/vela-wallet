@@ -68,8 +68,9 @@ async function blockPublish(page: Page) {
 // the Create button would stay disabled, which is exactly the failure this
 // list exists to make impossible.
 const ACK_FRAGMENTS = [
-  'My private keys are held by my own device',
-  'I agree to the',
+  'My public key and wallet name are written',
+  "My private key stays in my device's password manager",
+  'I have read and agree to the',
 ];
 
 test.describe('Onboarding — wallet is NOT persisted until the key syncs (US 1.3)', () => {
@@ -118,6 +119,9 @@ test.describe('Onboarding — wallet is NOT persisted until the key syncs (US 1.
     //    (1s + 2s backoff) and fails. The header and the button share the label
     //    "Create Wallet", so target the button (last in DOM order).
     await page.getByText('Create Wallet', { exact: true }).last().click();
+    // The key list now opens EMPTY — the first key's method is the person's
+    // choice too (2026-08-26) — so the first passkey is minted from it.
+    await page.getByText('Add a passkey', { exact: true }).last().click();
 
     // 5b. The founding-key list, then finish the set — the publish happens on
     //     the far side of this step.

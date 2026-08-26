@@ -291,7 +291,10 @@ struct KeysScreen: View {
                     .disabled(!view.canAddKey)
                     .opacity(view.canAddKey ? 1 : Tokens.Opacity.disabled)
 
-                    if pickerOpen && view.canAddKey {
+                    // An EMPTY list keeps the three methods expanded: the
+                    // first key's method is the person's choice too, and an
+                    // empty list with a collapsed "+" is a puzzle, not a step.
+                    if (pickerOpen || view.keys.isEmpty) && view.canAddKey {
                         AddMethodPicker(loc: loc) { method in
                             pickerOpen = false
                             onAddKey(method)

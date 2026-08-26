@@ -80,6 +80,12 @@ fun ColumnScope.KeysScreen(
     var pickerOpen by remember { mutableStateOf(false) }
     val full = keys.size >= MAX_KEYS
 
+    // An EMPTY list keeps the three methods expanded: the first key's method
+    // is the person's choice too (the Xiaomi lock-out fix — its system sheet
+    // cannot reach a security key), and an empty list with a collapsed "+"
+    // is a puzzle, not a step.
+    val pickerShown = (pickerOpen || keys.isEmpty()) && canAddKey
+
     Column(
         modifier = Modifier
             .weight(1f)
@@ -208,7 +214,7 @@ fun ColumnScope.KeysScreen(
             )
         }
 
-        if (pickerOpen && canAddKey) {
+        if (pickerShown) {
             AddMethodPicker { method ->
                 pickerOpen = false
                 onAddKey(method)

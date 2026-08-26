@@ -49,6 +49,11 @@
 
 	const full = $derived(keys.length >= maxKeys);
 
+	// An EMPTY list keeps the three methods expanded: the first key's method is
+	// the person's choice too (the whole Xiaomi lock-out fix), and a list with
+	// nothing on it plus a collapsed "+" is a puzzle, not a step.
+	const pickerShown = $derived((pickerOpen || keys.length === 0) && canAddKey);
+
 	const subtitle = $derived(
 		needsSecondKey
 			? strings('onboarding.create.keysSubtitleBlocked')
@@ -155,7 +160,7 @@
 			class="addtoggle"
 			type="button"
 			disabled={!canAddKey}
-			aria-expanded={pickerOpen}
+			aria-expanded={pickerShown}
 			onclick={() => (pickerOpen = !pickerOpen)}
 		>
 			<span class="plus" aria-hidden="true">+</span>
@@ -165,7 +170,7 @@
 					: strings('onboarding.create.addKeyBtn')}
 			</span>
 		</button>
-		<AddMethodPicker open={pickerOpen && canAddKey} {strings} onPick={pick} />
+		<AddMethodPicker open={pickerShown} {strings} onPick={pick} />
 	</div>
 
 	<div class="spacer"></div>

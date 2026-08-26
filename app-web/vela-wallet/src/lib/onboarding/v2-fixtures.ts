@@ -81,6 +81,19 @@ export const CREATE_FIXTURES: CreateFixture[] = [
 		})
 	},
 	{
+		code: 'K0',
+		label: 'Keys · empty, methods expanded',
+		// Where the create flow now lands from the name screen: no key yet, the
+		// three add methods held open so the FIRST key's method is the person's
+		// choice (the Xiaomi lock-out fix, 2026-08-26).
+		view: view({
+			stage: 'add_keys',
+			name: 'Everyday wallet',
+			keys: [],
+			can_add_key: true
+		})
+	},
+	{
 		code: 'K1',
 		label: 'Keys · one synced key',
 		view: view({

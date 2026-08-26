@@ -24,8 +24,9 @@ import { test, expect, type Page } from '@playwright/test';
 // the Create button would stay disabled, which is exactly the failure this
 // list exists to make impossible.
 const ACK_FRAGMENTS = [
-  'My private keys are held by my own device',
-  'I agree to the',
+  'My public key and wallet name are written',
+  "My private key stays in my device's password manager",
+  'I have read and agree to the',
 ];
 
 const AUTHENTICATOR_OPTIONS = {
@@ -158,6 +159,9 @@ test.describe('Onboarding — passkey must prove it can sign before anything per
 
     await fillCreateForm(page, 'E2E Verify Test');
     await page.getByText('Create Wallet', { exact: true }).last().click();
+    // The key list now opens EMPTY — the first key's method is the person's
+    // choice too (2026-08-26) — so the first passkey is minted from it.
+    await page.getByText('Add a passkey', { exact: true }).last().click();
 
     // The founding-key list: the first key is registered and has confirmed its
     // group membership, and the person decides whether one is enough. This
@@ -214,6 +218,9 @@ test.describe('Onboarding — passkey must prove it can sign before anything per
     await fillCreateForm(page, 'E2E Dead Passkey');
     await page.evaluate(() => { (window as unknown as { __gateNextGet?: boolean }).__gateNextGet = true; });
     await page.getByText('Create Wallet', { exact: true }).last().click();
+    // The key list now opens EMPTY — the first key's method is the person's
+    // choice too (2026-08-26) — so the first passkey is minted from it.
+    await page.getByText('Add a passkey', { exact: true }).last().click();
 
     // The passkey registers, then the app parks at the latched get(). Remove
     // the credential — "provider lost it" — and let the verify signature run.
@@ -260,6 +267,9 @@ test.describe('Onboarding — passkey must prove it can sign before anything per
     await expect(page.locator('body')).not.toContainText('Confirm');
 
     await page.getByText('Create Wallet', { exact: true }).last().click();
+    // The key list now opens EMPTY — the first key's method is the person's
+    // choice too (2026-08-26) — so the first passkey is minted from it.
+    await page.getByText('Add a passkey', { exact: true }).last().click();
     await expect(page.locator('body')).toContainText('Added', { timeout: 30_000 });
     await page.getByText('Continue', { exact: true }).last().click();
     await expect(page.locator('body')).toContainText('Wallet created', { timeout: 30_000 });

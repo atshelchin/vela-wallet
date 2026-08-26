@@ -15,6 +15,9 @@
 //! state machine build on these foundations.
 
 pub mod base10;
+pub mod conn;
 pub mod qr;
 pub mod crypto;
+pub mod keys;
+pub mod noise;
 pub mod tunnel_domain;

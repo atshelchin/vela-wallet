@@ -28,6 +28,11 @@ ecdsa = { version = "0.17.0", default-features = false, features = ["der", "allo
 hkdf = { version = "0.13.0", default-features = false }
 hmac = { version = "0.13.0", default-features = false }
 aes = { version = "0.9.1", default-features = false }
+# AES-256-GCM for the caBLE v2 / hybrid Noise channel (spec 019 T174,
+# `Noise_KNpsk0_P256_AESGCM_SHA256`). Same RustCrypto generation as `aes` 0.9
+# (cipher 0.5 / crypto-common 0.2) so no second trait tree is pulled. Only the
+# hybrid "sign in with your phone" path needs it; hashing/PIN-UV do not.
+aes-gcm = { version = "0.11.1", default-features = false, features = ["aes", "alloc"] }
 cbc = { version = "0.2.0", default-features = false, features = ["block-padding", "alloc"] }
 ciborium = { version = "0.2.2", default-features = false }
 ciborium-io = { version = "0.2.2", default-features = false }

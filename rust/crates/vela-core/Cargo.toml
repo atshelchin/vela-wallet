@@ -103,6 +103,7 @@ ciborium = { workspace = true }
 hkdf = { workspace = true }
 hmac = { workspace = true }
 aes = { workspace = true }
+aes-gcm = { workspace = true }
 cbc = { workspace = true }
 ciborium-io = { workspace = true }
 coset = { workspace = true }

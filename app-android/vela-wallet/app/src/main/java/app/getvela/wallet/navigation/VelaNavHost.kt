@@ -33,6 +33,9 @@ import app.getvela.wallet.feature.onboarding.flow.CreateFlowScreen
 import app.getvela.wallet.feature.onboarding.flow.EndpointSheet
 import app.getvela.wallet.feature.onboarding.flow.FlowSheet
 import app.getvela.wallet.feature.onboarding.flow.SignOutSheet
+import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
+import app.getvela.wallet.feature.onboarding.flow.UsbTouchIndicator
+import app.getvela.wallet.feature.onboarding.flow.UsbWalletPicker
 import app.getvela.wallet.feature.onboarding.placeholder.ImportPlaceholderScreen
 import app.getvela.wallet.feature.wallet.WalletFixtures
 import app.getvela.wallet.feature.wallet.WalletScreen
@@ -239,6 +242,28 @@ fun VelaNavHost(
             confirmable = prompt.confirmable,
             onAnswer = onboarding::answerPrompt,
         )
+    }
+
+    // The app-owned CTAP-over-USB path's own ceremony dialogs — the PIN, the
+    // which-wallet picker and the touch prompt a system passkey sheet would
+    // otherwise draw. Hosted OUTSIDE the NavHost for the same reason the flow
+    // sheet is: the login machine can raise them while Welcome is on screen.
+    onboarding.pendingPin?.let { pin ->
+        UsbPinDialog(
+            product = pin.product,
+            retries = pin.retries,
+            isRetry = pin.isRetry,
+            onSubmit = onboarding::answerPin,
+        )
+    }
+    onboarding.pendingWalletPick?.let { pick ->
+        UsbWalletPicker(
+            choices = pick.choices,
+            onPick = onboarding::answerWalletPick,
+        )
+    }
+    onboarding.usbTouchWaiting?.let { touch ->
+        UsbTouchIndicator(kind = touch.kind, product = touch.product)
     }
 
     // The way back out of a signed-in wallet.

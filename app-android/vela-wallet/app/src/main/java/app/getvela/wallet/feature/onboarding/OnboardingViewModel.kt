@@ -18,10 +18,15 @@ import app.getvela.wallet.feature.onboarding.core.PasskeyExecutor
 import app.getvela.wallet.feature.onboarding.core.PromptKind
 import app.getvela.wallet.feature.onboarding.core.RegistryClient
 import app.getvela.wallet.feature.onboarding.core.SessionController
+import app.getvela.wallet.feature.onboarding.core.UsbSecurityKeyCeremony
 import app.getvela.wallet.feature.onboarding.core.asBridge
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import uniffi.vela_core_uniffi.CtapCredentialChoice
 import uniffi.vela_core_uniffi.CreateWalletCore
 import uniffi.vela_core_uniffi.LoginCore
 
@@ -84,6 +89,71 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         val answer: CompletableDeferred<Boolean>,
     )
 
+    /** The security key's PIN prompt (app-owned USB path only), and its answer. */
+    var pendingPin by mutableStateOf<PendingPin?>(null)
+        private set
+
+    data class PendingPin(
+        val product: String,
+        val retries: Int,
+        val isRetry: Boolean,
+        val answer: CompletableDeferred<String?>,
+    )
+
+    /** Several wallets on one key — the picker, and its answer. */
+    var pendingWalletPick by mutableStateOf<PendingWalletPick?>(null)
+        private set
+
+    data class PendingWalletPick(
+        val choices: List<CtapCredentialChoice>,
+        val answer: CompletableDeferred<Int?>,
+    )
+
+    /** Set while a USB key is blinking; the screen shows "touch your key". Kind
+     *  is "presence" / "fingerprint" / "select", null when nothing is waiting. */
+    var usbTouchWaiting by mutableStateOf<UsbTouch?>(null)
+        private set
+
+    data class UsbTouch(val kind: String, val product: String)
+
+    /**
+     * The app-owned USB ceremony's UI seam. Every method BLOCKS the calling
+     * (IO) thread until the person answers on the main thread — a synchronous
+     * CTAP host callback cannot suspend, so it waits on a [CompletableDeferred]
+     * the UI completes.
+     */
+    private val usbPrompts = object : UsbSecurityKeyCeremony.Prompts {
+        override fun askPin(product: String, retries: Int, isRetry: Boolean): String? {
+            val answer = CompletableDeferred<String?>()
+            viewModelScope.launch { pendingPin = PendingPin(product, retries, isRetry, answer) }
+            return runBlocking { answer.await() }
+        }
+
+        override fun askWhichWallet(choices: List<CtapCredentialChoice>): Int? {
+            val answer = CompletableDeferred<Int?>()
+            viewModelScope.launch { pendingWalletPick = PendingWalletPick(choices, answer) }
+            return runBlocking { answer.await() }
+        }
+
+        override fun touchWaiting(kind: String?, product: String) {
+            viewModelScope.launch {
+                usbTouchWaiting = kind?.let { UsbTouch(it, product) }
+            }
+        }
+    }
+
+    fun answerPin(pin: String?) {
+        val prompt = pendingPin ?: return
+        pendingPin = null
+        prompt.answer.complete(pin)
+    }
+
+    fun answerWalletPick(index: Int?) {
+        val prompt = pendingWalletPick ?: return
+        pendingWalletPick = null
+        prompt.answer.complete(index)
+    }
+
     init {
         viewModelScope.launch {
             // The stored override, applied before any machine can ask a
@@ -103,6 +173,7 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
      */
     fun attach(activityContext: android.content.Context) {
         if (passkey == null) {
+            val isRealActivity = activityContext is app.getvela.wallet.MainActivity
             passkey = PasskeyExecutor(
                 context = activityContext,
                 // Present only from the real activity: the gallery and the
@@ -111,6 +182,15 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 // which is what those surfaces want anyway.
                 securityKey = (activityContext as? app.getvela.wallet.MainActivity)
                     ?.securityKeyCeremony,
+                // The app-owned USB path: available from any real activity,
+                // needs no launcher (it talks to the key directly). It probes
+                // for a plugged-in key per ceremony and steps aside when none
+                // is there.
+                usbSecurityKey = if (isRealActivity) {
+                    UsbSecurityKeyCeremony(activityContext, usbPrompts)
+                } else {
+                    null
+                },
             )
         }
     }

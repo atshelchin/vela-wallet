@@ -155,6 +155,18 @@ object I18nKeys {
         const val ALERT_ERROR_TITLE = "onboarding.create.alertErrorTitle"
         const val ALERT_NOT_SUPPORTED_TITLE = "onboarding.create.alertNotSupportedTitle"
         const val ALERT_NOT_SUPPORTED_BODY = "onboarding.create.alertNotSupportedBody"
+
+        // The app-owned CTAP path's own dialogs — the ceremony a system passkey
+        // sheet would otherwise draw. Shared with the desktop (spec 019 §5).
+        const val PIN_TITLE = "onboarding.create.pinTitle"
+        const val PIN_BODY = "onboarding.create.pinBody"
+        const val PIN_LABEL = "onboarding.create.pinLabel"
+        const val PIN_ATTEMPTS_LEFT = "onboarding.create.pinAttemptsLeft"
+        const val PIN_REJECTED = "onboarding.create.pinRejected"
+        const val TOUCH_TITLE = "onboarding.create.touchTitle"
+        const val TOUCH_BODY = "onboarding.create.touchBody"
+        const val TOUCH_FINGERPRINT_BODY = "onboarding.create.touchFingerprintBody"
+        const val TOUCH_SELECT_BODY = "onboarding.create.touchSelectBody"
     }
 
     /** onboarding.login.* — spec 014 login flow (mix of EXISTS + NEW corpus keys). */
@@ -185,6 +197,12 @@ object I18nKeys {
         const val ALERT_INCOMPATIBLE_BODY_CREATE = "onboarding.login.alertIncompatibleBodyCreate"
         const val ALERT_SIGN_IN_FAILED_BODY = "onboarding.login.alertSignInFailedBody"
         const val SWITCH_DEVICE_BTN = "onboarding.login.switchDeviceBtn"
+
+        // The which-wallet picker for the app-owned CTAP path — a key that
+        // holds more than one Vela wallet. Shared with the desktop.
+        const val PICK_TITLE = "onboarding.login.pickTitle"
+        const val PICK_BODY = "onboarding.login.pickBody"
+        const val PICK_UNNAMED = "onboarding.login.pickUnnamed"
     }
 
     /**

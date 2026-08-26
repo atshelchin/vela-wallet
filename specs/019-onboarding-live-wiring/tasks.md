@@ -342,11 +342,17 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   extended-length APDU), generic over an `ApduPort` — ported from the demo's
   `SmartCardCtapDevice.swift`, byte-identical to the NFC binding, so iOS CCID and
   iOS/Android NFC are three ports under one cable
-- [ ] T171 Android USB-host transport: CTAPHID over `android.hardware.usb`
-  (interrupt/bulk endpoints, permission dialog, hot-plug via `ACTION_USB_DEVICE_ATTACHED`;
-  reference: demo `transport/usb/UsbCtap.kt`), a `Port` under the core `HidCable`; wire
-  it as the `SecurityKey` route in `PasskeyExecutor` with GMS FIDO2 as the fallback
-  where GMS exists — registration AND assertion, create AND sign-in
+- [~] T171 Android USB-host transport — **built, compiled, installed on the S22
+  (2026-08-26); on-device ceremony verification pending a USB-C key plugged into the
+  phone**. `ctap_bridge.rs` uniffi-exports `UsbHidPort`+`CtapCeremonyHost` callback
+  interfaces and `ctapRegister`/`ctapAssert`; Kotlin `UsbHidTransport` (enumerate /
+  permission / claim / bulk-transfer reports, no framing) is the port, `UsbSecurityKey
+  Ceremony` drives it on IO with the host bridging PIN/pick/touch to blocking UI
+  (`UsbCeremonyPrompts` + ViewModel state). `PasskeyExecutor` prefers it over GMS FIDO2
+  whenever a USB FIDO key is present, for register AND assert. Reused the desktop's
+  `create.pin*`/`touch*`/`login.pick*` corpus keys (no new corpus). Hot-plug
+  (`ACTION_USB_DEVICE_ATTACHED`) not yet wired — the person presses retry after
+  plugging in, same as the desktop.
 - [ ] T171b iOS CCID transport: `TKSmartCard` as an `ApduPort` under the core
   `ApduCable` (`com.apple.security.smartcard` entitlement, slot/state KVO presence
   monitor; reference: demo `SmartCardCtapDevice.swift`; YubiKey fw 5.8+); wire it as

@@ -56,6 +56,18 @@ class PasskeyExecutor(
      */
     private val securityKey: SecurityKeyCeremony? = null,
     /**
+     * The app-owned CTAP2-over-USB path (`vela_core::ctap`, the same protocol
+     * the desktop runs), for security keys reached with NO Google service.
+     *
+     * Preferred over [securityKey] when a USB FIDO key is plugged in, because
+     * it is the only route that works on a phone without (full) GMS —
+     * GrapheneOS, CalyxOS, much of the China market — where Credential Manager
+     * has no passkey provider at all. Where GMS exists, the GMS FIDO2 path
+     * stays as the fallback. `null` on surfaces with no activity to run a
+     * ceremony through (previews, the gallery).
+     */
+    private val usbSecurityKey: UsbSecurityKeyCeremony? = null,
+    /**
      * The relying party. A passkey is bound to it: change it and every existing
      * wallet becomes unreachable from this app.
      */
@@ -85,8 +97,18 @@ class PasskeyExecutor(
         excludeCredentialIds: List<String>,
         method: KeyMethod,
     ): Registration {
-        if (method == KeyMethod.SecurityKey && securityKey != null) {
-            return registerOnSecurityKey(name, excludeCredentialIds)
+        if (method == KeyMethod.SecurityKey) {
+            // The app-owned USB path first, when a key is plugged in: it is the
+            // only route on a phone without GMS, and it bypasses the OEM sheet
+            // everywhere. GMS FIDO2 is the fallback where a key is not (yet)
+            // plugged in but the OS can still run the ceremony.
+            if (usbSecurityKey?.deviceAvailable() == true) {
+                VelaLog.event("passkey.register", "asking (app-owned usb ctap)", "excluded" to excludeCredentialIds.size)
+                return usbSecurityKey.register(name, excludeCredentialIds)
+            }
+            if (securityKey != null) {
+                return registerOnSecurityKey(name, excludeCredentialIds)
+            }
         }
 
         val credentialManager = manager ?: throw PasskeyFailure(
@@ -326,6 +348,16 @@ class PasskeyExecutor(
          */
         transports: String = "",
     ): Assertion {
+        // A credential that lives on a removable key: the app-owned USB path
+        // first (the only one on a GMS-free phone, and it bypasses the OEM
+        // sheet), GMS FIDO2 as the fallback. An UNPINNED "who are you?" over
+        // USB is also offered when a key is plugged in — a person signing in on
+        // a GMS-free phone reaches their wallet the same way they made it.
+        if (removable(transports) && usbSecurityKey?.deviceAvailable() == true) {
+            VelaLog.event("passkey.assert", "asking (app-owned usb ctap)", "cred" to VelaLog.shortId(credentialIdHex))
+            return usbSecurityKey.assert(challenge, credentialIdHex)
+        }
+
         val credentialManager = manager ?: throw PasskeyFailure(
             FailureKind.NotSupported,
             "Credential Manager is unavailable on this device",

@@ -1,18 +1,19 @@
 package app.getvela.wallet.feature.onboarding.flow
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -20,13 +21,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
+import app.getvela.wallet.core.designsystem.tokens.VelaRadius
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 import app.getvela.wallet.core.i18n.I18nKeys
@@ -43,7 +46,18 @@ import uniffi.vela_core_uniffi.CtapCredentialChoice
  * the shared corpus (spec 019 §5); nothing here is hard-coded.
  */
 
-/** The security key's PIN. `onSubmit(null)` / dismissal is a cancellation. */
+/**
+ * The security key's PIN. `onSubmit(null)` / dismissal is a cancellation.
+ *
+ * **An in-app numeric keypad, deliberately — not a text field.** A security key
+ * that also does OTP enumerates as a USB keyboard, and a phone with a keyboard
+ * attached suppresses its on-screen IME. The person would be stranded: no soft
+ * keyboard, and the key itself only emits an OTP on a touch, never a PIN. So the
+ * PIN is entered on this app's own keypad, which owes nothing to the system
+ * keyboard (iPhone-found 2026-08-27; the same hardware fact holds on Android).
+ * FIDO2 PINs are numeric in the overwhelming majority of cases; an alphanumeric
+ * PIN is the one case a numeric pad does not cover, noted for a follow-up.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UsbPinDialog(
@@ -66,8 +80,7 @@ fun UsbPinDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = VelaSpacing.xl2)
-                .padding(bottom = VelaSpacing.xl2)
-                .imePadding(),
+                .padding(bottom = VelaSpacing.xl2),
             verticalArrangement = Arrangement.spacedBy(VelaSpacing.lg),
         ) {
             Text(
@@ -83,13 +96,18 @@ fun UsbPinDialog(
                 fontFamily = VelaFontFamily,
                 fontSize = VelaTextSize.base,
             )
-            OutlinedTextField(
-                value = pin,
-                onValueChange = { pin = it },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                label = { Text(strings.t(I18nKeys.Create.PIN_LABEL)) },
+            // The masked PIN — one dot per digit, or the label when empty.
+            Text(
+                text = if (pin.isEmpty()) {
+                    strings.t(I18nKeys.Create.PIN_LABEL)
+                } else {
+                    "●".repeat(pin.length)
+                },
+                color = if (pin.isEmpty()) colors.fgSubtle else colors.fgBase,
+                fontFamily = VelaFontFamily,
+                fontWeight = VelaFontWeight.bold,
+                fontSize = VelaTextSize.xl2,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth(),
             )
             if (isRetry) {
@@ -111,12 +129,63 @@ fun UsbPinDialog(
                     fontSize = VelaTextSize.sm,
                 )
             }
+            PinKeypad(
+                onDigit = { digit -> if (pin.length < 63) pin += digit },
+                onDelete = { pin = pin.dropLast(1) },
+            )
             VelaPrimaryButton(
                 text = strings.t(I18nKeys.Create.CONFIRM_KEY_BTN),
                 onClick = { onSubmit(pin) },
-                enabled = pin.isNotEmpty(),
+                // FIDO2 requires at least 4 UTF-8 bytes.
+                enabled = pin.length >= 4,
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+/** A 3×4 numeric keypad, owing nothing to the system keyboard. */
+@Composable
+private fun PinKeypad(
+    onDigit: (Char) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val colors = VelaTheme.colors
+    val rows = listOf(
+        listOf("1", "2", "3"),
+        listOf("4", "5", "6"),
+        listOf("7", "8", "9"),
+        listOf("", "0", "⌫"),
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(VelaSpacing.md)) {
+        for (row in rows) {
+            Row(horizontalArrangement = Arrangement.spacedBy(VelaSpacing.md)) {
+                for (label in row) {
+                    if (label.isEmpty()) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    } else {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(VelaSpacing.xl5)
+                                .clip(RoundedCornerShape(VelaRadius.lg))
+                                .background(colors.bgSunken)
+                                .clickable {
+                                    if (label == "⌫") onDelete() else onDigit(label[0])
+                                },
+                        ) {
+                            Text(
+                                text = label,
+                                color = colors.fgBase,
+                                fontFamily = VelaFontFamily,
+                                fontWeight = VelaFontWeight.semibold,
+                                fontSize = VelaTextSize.xl2,
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

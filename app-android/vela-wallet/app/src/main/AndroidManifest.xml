@@ -36,6 +36,38 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VelaWallet">
         <!--
+            The same HID-keyboard problem, one layer out.
+
+            Credential Manager runs its request through `HiddenActivity`, which
+            androidx declares in ITS manifest — with
+            `orientation|screenSize|screenLayout|keyboardHidden`. That set
+            anticipated a rotation, not a KEYBOARD APPEARING: a USB security key
+            enumerates as one, `keyboard` flips NOKEYS→QWERTY mid-ceremony, and
+            the activity holding the pending request is destroyed under it. The
+            authenticator finishes the registration — GMS logs "Success in
+            handleRegistration with credential" — and the answer lands on a
+            controller that is already gone, so the app is told
+            `TYPE_INTERRUPTED` ("The UI was interrupted") or, when the selector
+            unwinds first, `TYPE_USER_CANCELED` by somebody who cancelled
+            nothing (Galaxy S22, Android 15, device-found 2026-08-26).
+
+            So the library's own declaration is extended rather than replaced:
+            its four, plus the three a HID device actually changes. These
+            activities are transparent proxies awaiting a result — surviving a
+            configuration change is exactly what they need to do.
+        -->
+        <activity
+            android:name="androidx.credentials.playservices.HiddenActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|touchscreen"
+            tools:node="merge"
+            tools:replace="android:configChanges" />
+        <activity
+            android:name="androidx.credentials.playservices.IdentityCredentialApiHiddenActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|touchscreen"
+            tools:node="merge"
+            tools:replace="android:configChanges" />
+
+        <!--
             A USB security key enumerates as a HID KEYBOARD. Plugging one in
             changes `keyboard`/`keyboardHidden`/`navigation`, and an activity that
             does not declare those is destroyed and relaunched — in the middle of

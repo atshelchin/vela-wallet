@@ -31,6 +31,7 @@ import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.theme.isDarkEffective
 import app.getvela.wallet.core.i18n.LocalVelaStrings
 import app.getvela.wallet.core.i18n.VelaStrings
+import app.getvela.wallet.feature.onboarding.core.SecurityKeyCeremony
 import app.getvela.wallet.feature.onboarding.gallery.GalleryScreen
 import app.getvela.wallet.navigation.VelaDestinations
 import app.getvela.wallet.navigation.VelaNavHost
@@ -41,6 +42,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * The security-key ceremony, built HERE because an activity-result launcher
+     * must be registered before the activity is STARTED — `attach()` runs from
+     * composition, which is already too late and throws.
+     */
+    lateinit var securityKeyCeremony: SecurityKeyCeremony
+        private set
 
     /**
      * Deterministic disable for instrumented tests (FR-029).
@@ -87,6 +96,7 @@ class MainActivity : ComponentActivity() {
         // The gallery skips the launch animation for deterministic walkthroughs.
         val coldStart = savedInstanceState == null && !launchAnimationDisabled() && !galleryRequested()
         super.onCreate(savedInstanceState)
+        securityKeyCeremony = SecurityKeyCeremony(this)
         enableEdgeToEdge()
 
         val container = (application as VelaWalletApplication).container

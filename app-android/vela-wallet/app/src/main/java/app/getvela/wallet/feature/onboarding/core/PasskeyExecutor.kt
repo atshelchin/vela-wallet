@@ -7,6 +7,8 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.GetPublicKeyCredentialOption
+import com.google.android.gms.fido.fido2.api.common.AuthenticatorAssertionResponse
+import com.google.android.gms.fido.fido2.api.common.AuthenticatorAttestationResponse
 import app.getvela.wallet.core.diagnostics.VelaLog
 import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.CreateCredentialCancellationException
@@ -44,6 +46,16 @@ import uniffi.vela_core_uniffi.toHex
 class PasskeyExecutor(
     private val context: Context,
     /**
+     * The FIDO2 path, for the ceremonies Credential Manager cannot run.
+     *
+     * A USB security key is not a provider, so whether its sheet can reach one
+     * is the OEM's decision — and on a Galaxy S22 it cannot: the create sheet
+     * lists two password managers and nothing else. `null` (previews, the
+     * gallery) means Credential Manager for everything, which is what those
+     * surfaces want. See [SecurityKeyCeremony].
+     */
+    private val securityKey: SecurityKeyCeremony? = null,
+    /**
      * The relying party. A passkey is bound to it: change it and every existing
      * wallet becomes unreachable from this app.
      */
@@ -73,6 +85,10 @@ class PasskeyExecutor(
         excludeCredentialIds: List<String>,
         method: KeyMethod,
     ): Registration {
+        if (method == KeyMethod.SecurityKey && securityKey != null) {
+            return registerOnSecurityKey(name, excludeCredentialIds)
+        }
+
         val credentialManager = manager ?: throw PasskeyFailure(
             FailureKind.NotSupported,
             "Credential Manager is unavailable on this device",
@@ -203,6 +219,59 @@ class PasskeyExecutor(
     }
 
     /**
+     * Registration straight onto the key the person is holding.
+     *
+     * Credential Manager is skipped ENTIRELY here — not narrowed, skipped. Its
+     * sheet is a provider picker, and on a Galaxy S22 the create sheet lists two
+     * password managers and no way to reach a security key at all
+     * ("CreateOptions size=2"), so somebody who chose "USB security key" in our
+     * own picker was handed a dialog that could not do it and every way out of
+     * it reported a cancellation (device-found 2026-08-26).
+     */
+    private suspend fun registerOnSecurityKey(
+        name: String,
+        excludeCredentialIds: List<String>,
+    ): Registration {
+        val ceremony = securityKey ?: throw PasskeyFailure(
+            FailureKind.NotSupported,
+            "No security-key ceremony on this surface",
+        )
+        VelaLog.event(
+            "passkey.register",
+            "asking (fido2 security key)",
+            "excluded" to excludeCredentialIds.size,
+        )
+        val credential = ceremony.register(
+            rpId = relyingPartyId,
+            rpName = RELYING_PARTY_NAME,
+            challenge = random(CHALLENGE_BYTES),
+            userId = encodeUserHandle(name).toByteArray(Charsets.UTF_8),
+            userName = name,
+            excludeCredentialIds = excludeCredentialIds.map {
+                uniffi.vela_core_uniffi.fromHex(it)
+            },
+        )
+        val response = credential.response as AuthenticatorAttestationResponse
+        val credentialIdHex = toHex(credential.rawId ?: ByteArray(0), false)
+        mintedAt = SystemClock.elapsedRealtime()
+        mintedCredentialIdHex = credentialIdHex
+        VelaLog.event(
+            "passkey.register",
+            "minted (fido2)",
+            "cred" to VelaLog.shortId(credentialIdHex),
+        )
+        return Registration(
+            credentialIdHex = credentialIdHex,
+            attestationObjectHex = toHex(response.attestationObject, false),
+            clientDataJsonHex = toHex(response.clientDataJSON, false),
+            // What it is, by construction: this path only ever talks to a
+            // removable key.
+            authenticatorAttachment = "cross-platform",
+            transports = "usb,nfc",
+        )
+    }
+
+    /**
      * An assertion. [credentialIdHex] pins it to one credential; `null` is the
      * "who are you?" ceremony sign-in starts with.
      *
@@ -261,6 +330,10 @@ class PasskeyExecutor(
             FailureKind.NotSupported,
             "Credential Manager is unavailable on this device",
         )
+
+        if (credentialIdHex != null && removable(transports) && securityKey != null) {
+            return assertOnSecurityKey(challenge, credentialIdHex)
+        }
 
         val request = JSONObject().apply {
             put("challenge", toBase64url(challenge))
@@ -334,6 +407,52 @@ class PasskeyExecutor(
             // one, and the core's name resolution branches on it.
             userIdHex = inner.nullableString("userHandle")?.let { hexOfBase64url(it) },
             authenticatorAttachment = json.optString("authenticatorAttachment"),
+        )
+    }
+
+    /**
+     * Signing with the key the person is holding, straight through FIDO2.
+     *
+     * The same reason as registration: a credential that lives on a removable
+     * key is held by no PROVIDER, so Credential Manager's sheet has nothing to
+     * offer for it — it lists the password managers that do not have it, and
+     * whatever the person does there comes back as a cancellation.
+     */
+    private suspend fun assertOnSecurityKey(
+        challenge: ByteArray,
+        credentialIdHex: String,
+    ): Assertion {
+        val ceremony = securityKey ?: throw PasskeyFailure(
+            FailureKind.NotSupported,
+            "No security-key ceremony on this surface",
+        )
+        VelaLog.event(
+            "passkey.assert",
+            "asking (fido2 security key)",
+            "cred" to VelaLog.shortId(credentialIdHex),
+        )
+        val credential = ceremony.assert(
+            rpId = relyingPartyId,
+            challenge = challenge,
+            credentialId = uniffi.vela_core_uniffi.fromHex(credentialIdHex),
+        )
+        val response = credential.response as AuthenticatorAssertionResponse
+        VelaLog.event(
+            "passkey.assert",
+            "signed (fido2)",
+            "cred" to VelaLog.shortId(toHex(credential.rawId ?: ByteArray(0), false)),
+        )
+        return Assertion(
+            credentialIdHex = toHex(credential.rawId ?: ByteArray(0), false),
+            // `signatureDerHex`, not `signatureHex`: the authenticator hands
+            // back a DER signature and the core normalises it (including low-S).
+            signatureDerHex = toHex(response.signature, false),
+            authenticatorDataHex = toHex(response.authenticatorData, false),
+            clientDataJsonHex = toHex(response.clientDataJSON, false),
+            // Absent, not empty: no user handle is a different fact from an
+            // empty one, and the core's name resolution branches on it.
+            userIdHex = response.userHandle?.takeIf { it.isNotEmpty() }?.let { toHex(it, false) },
+            authenticatorAttachment = "cross-platform",
         )
     }
 

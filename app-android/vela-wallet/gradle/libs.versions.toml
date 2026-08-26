@@ -16,6 +16,7 @@ kotlinxCoroutines = "1.10.2"
 orgJson = "20240303"
 lottie = "6.7.1"
 credentials = "1.5.0"
+playServicesFido = "21.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,7 +45,14 @@ jna = { group = "net.java.dev.jna", name = "jna", version.ref = "jna" }
 # providers that register through Credential Manager directly.
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
+# The FIDO2 API, for the ceremony Credential Manager will not offer: an OEM
+# selector that lists only password managers has no way to reach a USB security
+# key (Galaxy S22: "CreateOptions size=2"), and this is the API behind the
+# system's own "insert or tap your security key" screen.
+play-services-fido = { group = "com.google.android.gms", name = "play-services-fido", version.ref = "playServicesFido" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
+# `Task.await()`, so the FIDO2 pending intent is fetched without a callback.
+kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutines" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 # Airbnb's Lottie for Compose (spec 012). Maven Central, pure Kotlin/Java, no
 # native library — so it adds nothing to the ABI payload the uniffi .so already

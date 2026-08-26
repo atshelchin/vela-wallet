@@ -102,7 +102,17 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
      * rebuilds only the passkey executor, which holds the context.
      */
     fun attach(activityContext: android.content.Context) {
-        if (passkey == null) passkey = PasskeyExecutor(activityContext)
+        if (passkey == null) {
+            passkey = PasskeyExecutor(
+                context = activityContext,
+                // Present only from the real activity: the gallery and the
+                // previews have no launcher to run a ceremony through, and a
+                // null one simply means "Credential Manager for everything",
+                // which is what those surfaces want anyway.
+                securityKey = (activityContext as? app.getvela.wallet.MainActivity)
+                    ?.securityKeyCeremony,
+            )
+        }
     }
 
     // -- create --------------------------------------------------------------

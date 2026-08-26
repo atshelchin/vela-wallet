@@ -240,6 +240,7 @@ fn port_error(error: PortError) -> CableError {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::ctap::commands::get_info_request;

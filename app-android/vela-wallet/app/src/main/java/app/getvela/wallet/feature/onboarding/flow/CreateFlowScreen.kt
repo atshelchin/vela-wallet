@@ -32,9 +32,23 @@ fun CreateFlowScreen(
     val strings = LocalVelaStrings.current
     val view = model.createView
 
+    // Start on arrival; do NOT stop on leaving composition.
+    //
+    // `onDispose { disposeCreate() }` was killing live ceremonies. Leaving
+    // composition is not the same event as leaving the flow: an activity
+    // relaunch (a USB key enumerating as a HID keyboard does exactly that), a
+    // trip to the background, or the system credential UI taking over all pull
+    // this screen out of the tree while the person is mid-ceremony — and
+    // disposing the driver there cancels the coroutine awaiting the
+    // authenticator. The key still mints the credential; nothing is left
+    // listening for it (device-found 2026-08-26).
+    //
+    // The machine belongs to the ViewModel, which outlives the screen, so it is
+    // disposed where the flow actually ENDS: the exit affordance and the
+    // finished handler, both in the navigation host.
     DisposableEffect(Unit) {
         model.startCreate()
-        onDispose { model.disposeCreate() }
+        onDispose { }
     }
 
     val screen = screenFor(view)

@@ -35,10 +35,27 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.VelaWallet">
+        <!--
+            A USB security key enumerates as a HID KEYBOARD. Plugging one in
+            changes `keyboard`/`keyboardHidden`/`navigation`, and an activity that
+            does not declare those is destroyed and relaunched — in the middle of
+            the passkey ceremony the person plugged the key in FOR. The key mints
+            the credential; the app that asked for it is already gone, and the
+            create flow silently restarts on the welcome screen (device-found
+            2026-08-26: "finishDrawing of relaunch … MainActivity" in logcat on
+            every attempt, and ten register operations with zero answers).
+
+            Compose reads configuration through the composition rather than
+            through a restart, so handling these costs nothing and is what makes
+            a hardware key usable at all. `locale` and `layoutDirection` are
+            deliberately absent: the i18n runtime is built at startup, and a
+            language change should still rebuild it.
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
+            android:configChanges="keyboard|keyboardHidden|navigation|touchscreen|screenSize|smallestScreenSize|screenLayout|density|fontScale|uiMode"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.VelaWallet"
             android:windowSoftInputMode="adjustResize"

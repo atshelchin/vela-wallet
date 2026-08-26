@@ -91,8 +91,26 @@ fun VelaNavHost(
     LaunchedEffect(session.allowedRoute, startDestination) {
         if (startDestination !in DEVELOPER_ROUTES) {
             when (session.allowedRoute) {
-                SessionRoute.Wallet -> navController.navigateSingleTop(VelaDestinations.WALLET)
-                SessionRoute.Onboarding -> navController.navigateSingleTop(VelaDestinations.WELCOME)
+                SessionRoute.Wallet -> {
+                    // The flow ended in a wallet, so the machine that built it
+                    // is done — the other real end, beside the exit affordance.
+                    onboarding.disposeCreate()
+                    navController.navigateSingleTop(VelaDestinations.WALLET)
+                }
+                // NOT while a create is in flight.
+                //
+                // `Onboarding` is where somebody building a wallet already IS,
+                // so this branch has nothing to correct for them — but it fires
+                // again whenever this host re-enters composition (an activity
+                // relaunch does that, and plugging in a USB security key
+                // relaunches the activity). It then cleared the back stack down
+                // to Welcome, taking the create screen and its live ceremony
+                // with it: the person watched the app walk out of the flow they
+                // were three keys into (device-found 2026-08-26).
+                SessionRoute.Onboarding ->
+                    if (onboarding.createView == null) {
+                        navController.navigateSingleTop(VelaDestinations.WELCOME)
+                    }
                 SessionRoute.Loading -> Unit
             }
         }
@@ -134,7 +152,14 @@ fun VelaNavHost(
         composable(VelaDestinations.CREATE) {
             CreateFlowScreen(
                 model = onboarding,
-                onExit = { navController.popBackStack() },
+                // Leaving the flow, which is a different event from the screen
+                // leaving composition — see the DisposableEffect in
+                // CreateFlowScreen. The machine holds drafted passkeys, so it is
+                // dropped HERE, where somebody actually said they were done.
+                onExit = {
+                    onboarding.disposeCreate()
+                    navController.popBackStack()
+                },
                 onOpenPrivacy = { context.openUrl(PRIVACY_URL) },
                 onOpenTerms = { context.openUrl(TERMS_URL) },
             )

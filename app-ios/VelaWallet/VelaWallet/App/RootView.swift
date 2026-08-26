@@ -107,7 +107,21 @@ struct RootView: View {
                     }
                 )
             }
+
+            // The "touch your security key" prompt is an OVERLAY, not a sheet.
+            // It fires the instant the key asks for a touch — which is right
+            // after the PIN sheet dismisses — and SwiftUI cannot present a
+            // second sheet over a dismissing one, so a sheet here simply never
+            // appeared (device-found on iPhone, 2026-08-27; Android showed it,
+            // iOS did not). An overlay has no such conflict, and a blinking key
+            // is answered with a finger, not a tap, so it needs no dismissal.
+            if let touch = onboarding.usbTouch {
+                UsbTouchOverlay(loc: loc, touch: touch)
+                    .themed(scheme)
+                    .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.15), value: onboarding.usbTouch?.id)
         .themed(scheme)
         .preferredColorScheme(ThemeOverride.launchScheme)
     }
@@ -199,10 +213,6 @@ struct RootView: View {
                 UsbWalletPickerSheet(loc: loc, pending: pick, onPick: onboarding.answerWalletPick)
                     .themed(scheme)
             }
-            .sheet(item: usbTouchSheet) { touch in
-                UsbTouchSheet(loc: loc, touch: touch)
-                    .themed(scheme)
-            }
             .sheet(item: signOutSheet) { sheet in
                 SignOutSheet(
                     loc: loc,
@@ -265,10 +275,6 @@ struct RootView: View {
         Binding(get: { onboarding.pendingWalletPick }, set: { if $0 == nil { onboarding.answerWalletPick(nil) } })
     }
 
-    private var usbTouchSheet: Binding<OnboardingModel.UsbTouch?> {
-        // The touch prompt has no answer — it clears when the ceremony moves on.
-        Binding(get: { onboarding.usbTouch }, set: { _ in })
-    }
 
     private var pendingPrompt: Binding<OnboardingModel.PendingPrompt?> {
         Binding(get: { onboarding.pending }, set: { if $0 == nil { onboarding.answerPrompt(false) } })

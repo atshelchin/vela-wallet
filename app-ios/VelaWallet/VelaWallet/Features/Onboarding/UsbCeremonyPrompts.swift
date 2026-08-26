@@ -210,12 +210,17 @@ struct UsbWalletPickerSheet: View {
 
 /// The key is blinking — "touch it now". Not answered by a tap; it clears when
 /// the ceremony's next step arrives (the model sets the state to nil).
-struct UsbTouchSheet: View {
+/// The key is blinking — "touch it now". A full-screen OVERLAY (a dimmed
+/// backdrop with a centred card), NOT a sheet: it appears the instant the PIN
+/// sheet dismisses, and SwiftUI cannot present a second sheet over a dismissing
+/// one. It is answered with a finger on the key, not a tap, so it offers no
+/// dismissal; it clears when the ceremony's next step arrives.
+struct UsbTouchOverlay: View {
     @Environment(\.theme) private var theme
     let loc: Loc
     let touch: OnboardingModel.UsbTouch
 
-    private var body_: String {
+    private var message: String {
         switch touch.kind {
         case "fingerprint":
             return loc.t(I18nKeys.Create.touchFingerprintBody, vars: ["product": touch.product])
@@ -227,21 +232,31 @@ struct UsbTouchSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.s12) {
-            Text(loc.t(I18nKeys.Create.touchTitle))
-                .typeRole(Typography.title)
-                .foregroundStyle(theme.fgBase)
+        ZStack {
+            Color.black.opacity(0.45).ignoresSafeArea()
 
-            Text(body_)
-                .typeRole(Typography.body)
-                .foregroundStyle(theme.fgMuted)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: Tokens.Space.s16) {
+                Image(systemName: "key.radiowaves.forward")
+                    .font(.system(size: 44, weight: .regular))
+                    .foregroundStyle(theme.accentBase)
+                    .symbolEffect(.pulse, options: .repeating)
+
+                Text(loc.t(I18nKeys.Create.touchTitle))
+                    .typeRole(Typography.title)
+                    .foregroundStyle(theme.fgBase)
+                    .multilineTextAlignment(.center)
+
+                Text(message)
+                    .typeRole(Typography.body)
+                    .foregroundStyle(theme.fgMuted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(Tokens.Space.s32)
+            .frame(maxWidth: 320)
+            .background(theme.bgRaised)
+            .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.r20))
+            .padding(.horizontal, Tokens.Layout.screenPaddingX)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, Tokens.Layout.screenPaddingX)
-        .padding(.vertical, Tokens.Space.s32)
-        .presentationDetents([.height(220)])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(theme.bgRaised)
     }
 }

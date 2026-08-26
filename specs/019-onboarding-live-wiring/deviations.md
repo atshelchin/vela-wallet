@@ -244,3 +244,23 @@ What the phones taught us, recorded so the next person does not rediscover it:
   read from the on-device VelaLog file afterward. `fidoDevices()` now logs
   every enumerated USB device precisely so "no key plugged in" and "key present
   but OTG is off / unrecognised" stop being indistinguishable.
+
+## 14. A security key is a keyboard: the PIN needs an in-app keypad (2026-08-27)
+
+Plugged into a phone, a security key that also does OTP enumerates as a USB
+HID **keyboard** — and both iOS and Android then suppress the on-screen
+keyboard, because they believe a hardware one is attached. The person is
+stranded at the app-owned CTAP path's PIN step: the software keyboard is gone,
+and the key itself only ever emits an OTP on a touch, never a PIN.
+
+The fix is to owe the system keyboard nothing. Both the iOS `UsbPinSheet` and
+the Android `UsbPinDialog` draw their own 3×4 numeric keypad and mask the entry
+as dots. FIDO2 PINs are numeric in the overwhelming majority of cases; a key
+whose PIN is alphanumeric is the one case a numeric pad does not cover, and is
+noted for a follow-up (a full in-app alphanumeric keyboard, since the system
+one cannot be relied on to appear).
+
+⚠ The general lesson: an external authenticator's OTHER USB interfaces are the
+platform's to interpret, and the OTP-as-keyboard one reaches into UI that has
+nothing to do with the ceremony. It is worth asking, for every peripheral the
+app talks to, what ELSE the OS thinks that peripheral is.

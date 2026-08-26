@@ -241,8 +241,7 @@
 			"switchDeviceBtn": "Masuk di perangkat lain",
 			"pickTitle": "Dompet yang mana?",
 			"pickBody": "{{product}} menyimpan lebih dari satu dompet Vela. Pilih yang ingin Anda masuki.",
-			"pickUnnamed": "Dompet tanpa nama",
-			"signInSecurityKeyBtn": "Masuk dengan kunci keamanan"
+			"pickUnnamed": "Dompet tanpa nama"
 		}
 	}
 }

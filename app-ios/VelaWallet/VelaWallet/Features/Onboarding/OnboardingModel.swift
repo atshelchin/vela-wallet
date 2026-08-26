@@ -67,6 +67,67 @@ final class OnboardingModel {
     /// Set while a card is blinking; the screen shows "touch your key".
     private(set) var usbTouch: UsbTouch?
 
+    // MARK: - The one onboarding bottom sheet
+
+    /// Every app-owned onboarding ceremony prompt — the sign-in method picker,
+    /// the "connecting…" hold, the PIN, the touch, the wallet picker, and the
+    /// flow prompt — shares ONE `.sheet`. Presenting a second sheet while a
+    /// first is dismissing fails silently on iOS (the nesting bug the founder
+    /// hit); one sheet whose CONTENT swaps never dismisses between steps.
+
+    /// The sign-in method picker is open (opened from Welcome's "I already have
+    /// a wallet"). Lives here, not on the screen, so the one shared sheet owns it.
+    var showSignInMethods = false
+
+    /// Held from the instant an app-owned sign-in method is chosen until the
+    /// login machine goes idle — it keeps the shared sheet on screen across the
+    /// gap between the method pick and the first ceremony prompt, so the sheet
+    /// swaps content instead of dismissing and re-presenting.
+    private(set) var signInConnecting = false
+
+    /// The ceremony has actually started spinning (login reported `busy`) since
+    /// `signInConnecting` was raised. Without it, the login machine's initial
+    /// idle view — which arrives before `sign_in` is dispatched — would clear the
+    /// hold in the same frame it was set and the sheet would flicker shut.
+    private var sawBusySinceConnect = false
+
+    /// True when any app-owned onboarding prompt should be on screen. Drives the
+    /// single `.sheet(isPresented:)`; the content is chosen by priority.
+    var onboardingSheetPresented: Bool {
+        pendingPin != nil || pendingWalletPick != nil || usbTouch != nil
+            || pending != nil || signInConnecting || showSignInMethods
+    }
+
+    /// A swipe-to-dismiss on the shared sheet. Cancels whatever the active
+    /// prompt is waiting for; the PIN and wallet picker answer nil (cancel), the
+    /// flow prompt answers false, the method picker just closes. The touch and
+    /// the connecting hold are non-dismissable (their sheet content disables the
+    /// interactive dismiss), so they never reach here.
+    func dismissOnboardingSheet() {
+        if pendingPin != nil {
+            answerPin(nil)
+        } else if pendingWalletPick != nil {
+            answerWalletPick(nil)
+        } else if pending != nil {
+            answerPrompt(false)
+        } else if showSignInMethods {
+            showSignInMethods = false
+        }
+    }
+
+    /// A method was chosen in the sign-in picker. Platform hands off to the
+    /// system passkey sheet (our sheet closes; the OS draws its own), so it needs
+    /// no hold. Every app-owned method keeps the shared sheet up via
+    /// `signInConnecting` while the ceremony spins up.
+    func pickSignInMethod(_ method: KeyMethod) {
+        showSignInMethods = false
+        if method != .platform {
+            signInConnecting = true
+            sawBusySinceConnect = false
+        }
+        signIn(method: method)
+    }
+
     struct PendingPin: Identifiable {
         let product: String
         let retries: Int
@@ -201,6 +262,15 @@ final class OnboardingModel {
                         self.endpointSheetOpen = true
                     }
                     self.loginView = decoded
+                    // Release the "connecting" hold once the ceremony has spun
+                    // up and then wound down — never on the initial idle view
+                    // that precedes `sign_in`. A pending error keeps the sheet
+                    // up on its own; a success finishes onboarding.
+                    if decoded.busy {
+                        self.sawBusySinceConnect = true
+                    } else if self.sawBusySinceConnect {
+                        self.signInConnecting = false
+                    }
                 },
                 onFault: { [weak self] error in self?.fault = error.localizedDescription }
             )

@@ -719,8 +719,7 @@
    "switchDeviceBtn": "Sign in on another device",
    "pickTitle": "Which wallet?",
    "pickBody": "{{product}} holds more than one Vela wallet. Choose the one to sign in to.",
-   "pickUnnamed": "Unnamed wallet",
-   "signInSecurityKeyBtn": "Sign in with a security key"
+   "pickUnnamed": "Unnamed wallet"
   }
  },
  "connect": {

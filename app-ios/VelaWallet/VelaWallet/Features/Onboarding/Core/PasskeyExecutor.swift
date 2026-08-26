@@ -131,12 +131,14 @@ final class PasskeyExecutor: NSObject {
         excludeCredentialIds: [String],
         method: KeyMethod
     ) async throws -> Registration {
-        // The app-owned CCID path IS the security-key route when a card is
-        // present: the key's own PIN/fingerprint, no Apple service and no
-        // domain association. The system security-key provider stays available
-        // (it can guide an NFC tap / insertion through its sheet) for when no
-        // card is plugged in yet.
-        if method == .securityKey, let smartCard, await smartCard.deviceAvailable() {
+        // The app-owned CCID path IS the security-key route, ALWAYS — never the
+        // system's ASAuthorization security-key provider. The person chose "USB
+        // security key", and our implementation is the whole point of that
+        // choice: the key's own PIN/fingerprint, no Apple service, no domain
+        // association. When no card is plugged in it prompts to plug one in,
+        // rather than handing off to a system sheet that consults the RP's
+        // association (founder direction 2026-08-27).
+        if method == .securityKey, let smartCard {
             return try await smartCard.register(name: name, excludeCredentialIds: excludeCredentialIds)
         }
 
@@ -266,14 +268,14 @@ final class PasskeyExecutor: NSObject {
         )
         // A credential that lives on a removable key — OR a sign-in the person
         // explicitly asked to do on a security key — takes the app-owned CCID
-        // path when a card is present: the key's own PIN/UV, no Apple service,
-        // no domain association. The `method == .securityKey` case is the
-        // "who are you?" sign-in with no credential hint, where the person
-        // chose the hardware key on the welcome screen; without it the system
-        // would silently use a platform passkey and a wallet living only on the
-        // key would be unreachable.
+        // path, ALWAYS, never the system's security-key provider. The
+        // `method == .securityKey` case is the "who are you?" sign-in where the
+        // person chose the hardware key on the welcome screen; the `removable`
+        // case is the create flow's member proof over a usb-transport
+        // credential. Both are our implementation's job; when no card is
+        // present it prompts to plug one in (founder direction 2026-08-27).
         let removable = !hints.isDisjoint(with: ["usb", "nfc", "ble"])
-        if removable || method == .securityKey, let smartCard, await smartCard.deviceAvailable() {
+        if removable || method == .securityKey, let smartCard {
             return try await smartCard.assert(challenge: challenge, credentialIdHex: credentialIdHex)
         }
 

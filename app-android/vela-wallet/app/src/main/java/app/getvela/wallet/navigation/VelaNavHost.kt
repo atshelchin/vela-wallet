@@ -33,6 +33,7 @@ import app.getvela.wallet.feature.onboarding.core.SessionRoute
 import app.getvela.wallet.feature.onboarding.flow.CreateFlowScreen
 import app.getvela.wallet.feature.onboarding.flow.EndpointSheet
 import app.getvela.wallet.feature.onboarding.flow.FlowSheet
+import app.getvela.wallet.feature.onboarding.flow.SignInMethodSheet
 import app.getvela.wallet.feature.onboarding.flow.SignOutSheet
 import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
 import app.getvela.wallet.feature.onboarding.flow.UsbTouchIndicator
@@ -123,6 +124,7 @@ fun VelaNavHost(
     NavHost(navController = navController, startDestination = startDestination) {
         composable(VelaDestinations.WELCOME) {
             val welcome: WelcomeViewModel = viewModel()
+            var showSignInMethods by rememberSaveable { mutableStateOf(false) }
             WelcomeScreen(
                 darkTheme = darkTheme,
                 signingIn = onboarding.loginView.busy,
@@ -136,16 +138,23 @@ fun VelaNavHost(
                         // pop and did nothing at all (device-found 2026-08-25).
                         OnboardingIntent.CreateWallet ->
                             navController.push(VelaDestinations.CREATE)
-                        // No screen of our own: the login machine's first act is
-                        // the system passkey sheet, and the wallet is what
-                        // follows it.
-                        OnboardingIntent.RecoverWallet -> onboarding.beginSignIn()
-                        OnboardingIntent.RecoverWithSecurityKey ->
-                            onboarding.beginSignIn(KeyMethod.SecurityKey)
+                        // Signing in offers the same three authenticators
+                        // creating does — the picker opens, and the chosen
+                        // method runs the "who are you?" ceremony on that route.
+                        OnboardingIntent.RecoverWallet -> showSignInMethods = true
                     }
                 },
                 onLongPressLogo = welcome::showSettings,
             )
+            if (showSignInMethods) {
+                SignInMethodSheet(
+                    onPick = { method ->
+                        showSignInMethods = false
+                        onboarding.beginSignIn(method)
+                    },
+                    onDismiss = { showSignInMethods = false },
+                )
+            }
             if (welcome.settingsSheetVisible) {
                 ThemeSettingsSheet(
                     current = themePreference,

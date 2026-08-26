@@ -11,10 +11,10 @@ import Observation
 
 enum OnboardingIntent: Equatable {
     case createWallet
-    case importWallet
-    /// Sign in specifically on a security key — the app-owned CTAP path, even
-    /// when a platform passkey is also present.
-    case importWithSecurityKey
+    /// Open the sign-in method picker — the person then chooses this device, a
+    /// nearby device by scan, or a hardware security key, exactly as they pick
+    /// per key when creating.
+    case openSignIn
 }
 
 /// Which rung of the hero type ladder this locale's headline needs.
@@ -53,7 +53,6 @@ struct WelcomeContent: Equatable {
     let heroSubtitle: String
     let createWallet: String
     let alreadyHaveWallet: String
-    let signInSecurityKey: String
 }
 
 @Observable

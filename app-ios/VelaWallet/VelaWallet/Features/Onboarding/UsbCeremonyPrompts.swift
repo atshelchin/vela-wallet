@@ -32,7 +32,6 @@ struct UsbPinSheet: View {
     let onSubmit: (String?) -> Void
 
     @State private var pin = ""
-    @State private var answered = false
 
     /// FIDO2 requires a PIN of at least 4 UTF-8 bytes.
     private var canSubmit: Bool { pin.count >= 4 }
@@ -88,22 +87,16 @@ struct UsbPinSheet: View {
             .padding(.top, Tokens.Space.s8)
 
             VelaButton(title: loc.t(I18nKeys.Create.confirmKeyBtn), kind: .primary) {
-                answer(pin)
+                onSubmit(pin)
             }
             .disabled(!canSubmit)
         }
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, Tokens.Layout.screenPaddingX)
         .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(theme.bgRaised)
-        .onDisappear { if !answered { onSubmit(nil) } }
-    }
-
-    private func answer(_ pin: String?) {
-        guard !answered else { return }
-        answered = true
-        onSubmit(pin)
     }
 }
 
@@ -169,8 +162,6 @@ struct UsbWalletPickerSheet: View {
     let pending: OnboardingModel.PendingWalletPick
     let onPick: (Int?) -> Void
 
-    @State private var answered = false
-
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s12) {
             Text(loc.t(I18nKeys.Login.pickTitle))
@@ -185,7 +176,7 @@ struct UsbWalletPickerSheet: View {
             ForEach(Array(pending.choices.enumerated()), id: \.offset) { index, choice in
                 if index > 0 { Divider().overlay(theme.borderBase) }
                 Button {
-                    answer(index)
+                    onPick(index)
                 } label: {
                     Text(choice.name.isEmpty ? loc.t(I18nKeys.Login.pickUnnamed) : choice.name)
                         .typeRole(Typography.body)
@@ -198,26 +189,17 @@ struct UsbWalletPickerSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Tokens.Layout.screenPaddingX)
         .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.medium])
         .presentationDragIndicator(.visible)
         .presentationBackground(theme.bgRaised)
-        .onDisappear { if !answered { onPick(nil) } }
-    }
-
-    private func answer(_ index: Int?) {
-        guard !answered else { return }
-        answered = true
-        onPick(index)
     }
 }
 
-/// The key is blinking — "touch it now". Not answered by a tap; it clears when
-/// the ceremony's next step arrives (the model sets the state to nil).
-/// The key is blinking — "touch it now". A full-screen OVERLAY (a dimmed
-/// backdrop with a centred card), NOT a sheet: it appears the instant the PIN
-/// sheet dismisses, and SwiftUI cannot present a second sheet over a dismissing
-/// one. It is answered with a finger on the key, not a tap, so it offers no
-/// dismissal; it clears when the ceremony's next step arrives.
-struct UsbTouchOverlay: View {
+/// The key is blinking — "touch it now". Sheet content (not a tap target): it
+/// clears when the ceremony's next step arrives. Because every app-owned prompt
+/// shares ONE bottom sheet, this swaps in over the PIN with no second sheet to
+/// conflict with.
+struct UsbTouchSheet: View {
     @Environment(\.theme) private var theme
     let loc: Loc
     let touch: OnboardingModel.UsbTouch
@@ -234,9 +216,6 @@ struct UsbTouchOverlay: View {
     }
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea()
-
             VStack(spacing: Tokens.Space.s16) {
                 Image(systemName: "key.radiowaves.forward")
                     .font(.system(size: 44, weight: .regular))
@@ -254,11 +233,41 @@ struct UsbTouchOverlay: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(Tokens.Space.s32)
-            .frame(maxWidth: 320)
-            .background(theme.bgRaised)
-            .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.r20))
+            .frame(maxWidth: .infinity)
             .padding(.horizontal, Tokens.Layout.screenPaddingX)
+            .padding(.vertical, Tokens.Space.s32)
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(theme.bgRaised)
+            .interactiveDismissDisabled(true)
+    }
+}
+
+/// The brief "connecting to your security key…" state that keeps the single
+/// bottom sheet up between the person picking a method and the first ceremony
+/// prompt arriving — so the sheet never dismisses and re-presents (the nesting
+/// bug), it only swaps content.
+struct UsbConnectingSheet: View {
+    @Environment(\.theme) private var theme
+    let loc: Loc
+
+    var body: some View {
+        VStack(spacing: Tokens.Space.s16) {
+            ProgressView()
+            Text(loc.t(I18nKeys.Create.methodSecurityKeyTitle))
+                .typeRole(Typography.title)
+                .foregroundStyle(theme.fgBase)
+            Text(loc.t(I18nKeys.Create.methodSecurityKeyBody))
+                .typeRole(Typography.body)
+                .foregroundStyle(theme.fgMuted)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Tokens.Layout.screenPaddingX)
+        .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(theme.bgRaised)
+        .interactiveDismissDisabled(true)
     }
 }

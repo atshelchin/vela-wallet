@@ -203,7 +203,6 @@ object I18nKeys {
         const val PICK_TITLE = "onboarding.login.pickTitle"
         const val PICK_BODY = "onboarding.login.pickBody"
         const val PICK_UNNAMED = "onboarding.login.pickUnnamed"
-        const val SIGN_IN_SECURITY_KEY_BTN = "onboarding.login.signInSecurityKeyBtn"
     }
 
     /**

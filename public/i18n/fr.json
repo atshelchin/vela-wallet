@@ -715,8 +715,7 @@
    "switchDeviceBtn": "Se connecter sur un autre appareil",
    "pickTitle": "Quel portefeuille ?",
    "pickBody": "{{product}} contient plusieurs portefeuilles Vela. Choisissez celui auquel vous connecter.",
-   "pickUnnamed": "Portefeuille sans nom",
-   "signInSecurityKeyBtn": "Se connecter avec une clé de sécurité"
+   "pickUnnamed": "Portefeuille sans nom"
   }
  },
  "connect": {

@@ -44,14 +44,13 @@ struct RootView: View {
             switch intent {
             case .createWallet:
                 router.path.append(.create)
-            case .importWallet:
-                // No screen of our own: the login machine's first act is the
-                // system passkey sheet, and the wallet is what follows it.
-                onboarding.signIn()
-            case .importWithSecurityKey:
-                // Force the app-owned CTAP path — the only way to reach a
-                // wallet on a hardware key when a platform passkey is present.
-                onboarding.signIn(method: .securityKey)
+            case .openSignIn:
+                // Open the sign-in method picker — the person then chooses the
+                // authenticator, and the login machine runs the "who are you?"
+                // ceremony on that route. The picker rides the ONE onboarding
+                // sheet, so its choice can hand straight to the PIN/touch prompts
+                // without a sheet dismissing between them.
+                onboarding.showSignInMethods = true
             }
         })
     }
@@ -111,21 +110,7 @@ struct RootView: View {
                     }
                 )
             }
-
-            // The "touch your security key" prompt is an OVERLAY, not a sheet.
-            // It fires the instant the key asks for a touch — which is right
-            // after the PIN sheet dismisses — and SwiftUI cannot present a
-            // second sheet over a dismissing one, so a sheet here simply never
-            // appeared (device-found on iPhone, 2026-08-27; Android showed it,
-            // iOS did not). An overlay has no such conflict, and a blinking key
-            // is answered with a finger, not a tap, so it needs no dismissal.
-            if let touch = onboarding.usbTouch {
-                UsbTouchOverlay(loc: loc, touch: touch)
-                    .themed(scheme)
-                    .transition(.opacity)
-            }
         }
-        .animation(.easeInOut(duration: 0.15), value: onboarding.usbTouch?.id)
         .themed(scheme)
         .preferredColorScheme(ThemeOverride.launchScheme)
     }
@@ -185,19 +170,23 @@ struct RootView: View {
                     onboarding.consumeFinished()
                 }
             }
-            // Hosted at the ROOT, deliberately. A prompt can be raised by either
-            // machine, and the login machine runs while Welcome is on screen —
-            // so a sheet attached to one route's view would vanish the moment
-            // the guard moved, taking the question with it and leaving the core
-            // waiting for an answer nobody can give.
-            .sheet(item: pendingPrompt) { prompt in
-                FlowSheet(
-                    loc: loc,
-                    kind: prompt.kind,
-                    confirmable: prompt.confirmable,
-                    onAnswer: onboarding.answerPrompt
-                )
-                .themed(scheme)
+            // The ONE onboarding sheet. Every app-owned ceremony prompt — the
+            // sign-in method picker, the "connecting…" hold, the security key's
+            // PIN, the touch, the which-wallet picker, and the create/login flow
+            // prompts — shares this single `.sheet`, its content chosen by
+            // priority. Presenting a second sheet while a first is dismissing
+            // fails silently on iOS (the nesting bug the founder hit on iPhone,
+            // 2026-08-27): the PIN would arrive as the method picker dismissed
+            // and simply never appear. One sheet whose CONTENT swaps never
+            // dismisses between steps, so nothing is dropped.
+            //
+            // Hosted at the ROOT deliberately: a prompt can be raised by either
+            // machine, and the login machine runs while Welcome is on screen, so
+            // a sheet attached to one route's view would vanish the moment the
+            // guard moved and leave the core waiting for an answer nobody can
+            // give.
+            .sheet(isPresented: onboardingSheet) {
+                onboardingSheetContent
             }
             // The way back out of a signed-in wallet.
             //
@@ -205,18 +194,6 @@ struct RootView: View {
             // the machine has ASKED STORAGE whether any public key is still
             // unconfirmed — so the warning inside is an answer rather than this
             // screen's guess, and the sheet cannot open before there is one.
-            // The app-owned CCID ceremony's own dialogs — the PIN, the
-            // which-wallet picker and the touch prompt a system passkey sheet
-            // would otherwise draw. Hosted at the root for the same reason the
-            // flow sheet is.
-            .sheet(item: usbPinSheet) { pin in
-                UsbPinSheet(loc: loc, pending: pin, onSubmit: onboarding.answerPin)
-                    .themed(scheme)
-            }
-            .sheet(item: usbWalletPickSheet) { pick in
-                UsbWalletPickerSheet(loc: loc, pending: pick, onPick: onboarding.answerWalletPick)
-                    .themed(scheme)
-            }
             .sheet(item: signOutSheet) { sheet in
                 SignOutSheet(
                     loc: loc,
@@ -265,23 +242,49 @@ struct RootView: View {
                 }
             )
         } else {
-            WelcomeScreen(model: model, signingIn: onboarding.loginView.busy)
+            WelcomeScreen(loc: loc, model: model, signingIn: onboarding.loginView.busy)
         }
     }
 
-    // The CCID prompts: a nil-set (swipe-away) is a dismissal, which is a
-    // cancellation — the ceremony's background thread is waiting on the answer.
-    private var usbPinSheet: Binding<OnboardingModel.PendingPin?> {
-        Binding(get: { onboarding.pendingPin }, set: { if $0 == nil { onboarding.answerPin(nil) } })
+    /// The single onboarding sheet's presentation. A swipe-to-dismiss routes to
+    /// `dismissOnboardingSheet`, which cancels whatever the active prompt is
+    /// waiting for; the touch and connecting states disable interactive dismiss,
+    /// so they never reach it.
+    private var onboardingSheet: Binding<Bool> {
+        Binding(
+            get: { onboarding.onboardingSheetPresented },
+            set: { if !$0 { onboarding.dismissOnboardingSheet() } }
+        )
     }
 
-    private var usbWalletPickSheet: Binding<OnboardingModel.PendingWalletPick?> {
-        Binding(get: { onboarding.pendingWalletPick }, set: { if $0 == nil { onboarding.answerWalletPick(nil) } })
-    }
-
-
-    private var pendingPrompt: Binding<OnboardingModel.PendingPrompt?> {
-        Binding(get: { onboarding.pending }, set: { if $0 == nil { onboarding.answerPrompt(false) } })
+    /// The onboarding sheet's content, chosen by priority so a later step wins
+    /// over the state it replaces: pin > wallet pick > touch > flow prompt >
+    /// connecting hold > method picker.
+    @ViewBuilder private var onboardingSheetContent: some View {
+        if let pin = onboarding.pendingPin {
+            UsbPinSheet(loc: loc, pending: pin, onSubmit: onboarding.answerPin)
+                .themed(scheme)
+        } else if let pick = onboarding.pendingWalletPick {
+            UsbWalletPickerSheet(loc: loc, pending: pick, onPick: onboarding.answerWalletPick)
+                .themed(scheme)
+        } else if let touch = onboarding.usbTouch {
+            UsbTouchSheet(loc: loc, touch: touch)
+                .themed(scheme)
+        } else if let prompt = onboarding.pending {
+            FlowSheet(
+                loc: loc,
+                kind: prompt.kind,
+                confirmable: prompt.confirmable,
+                onAnswer: onboarding.answerPrompt
+            )
+            .themed(scheme)
+        } else if onboarding.signInConnecting {
+            UsbConnectingSheet(loc: loc)
+                .themed(scheme)
+        } else if onboarding.showSignInMethods {
+            SignInMethodSheet(loc: loc, onPick: onboarding.pickSignInMethod)
+                .themed(scheme)
+        }
     }
 
     private var signOutSheet: Binding<SessionSignOutView?> {
@@ -338,8 +341,7 @@ enum WelcomeContentBuilder {
             heroTitleFit: HeroFit(corpusValue: loc.t("onboarding.welcome.heroTitleFit")),
             heroSubtitle: loc.t("onboarding.welcome.heroSubtitle"),
             createWallet: loc.t("onboarding.welcome.createWallet"),
-            alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet"),
-            signInSecurityKey: loc.t("onboarding.login.signInSecurityKeyBtn")
+            alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet")
         )
     }
 }

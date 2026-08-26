@@ -241,8 +241,7 @@
 			"switchDeviceBtn": "Başka bir cihazda giriş yap",
 			"pickTitle": "Hangi cüzdan?",
 			"pickBody": "{{product}} birden fazla Vela cüzdanı içeriyor. Giriş yapmak istediğinizi seçin.",
-			"pickUnnamed": "Adsız cüzdan",
-			"signInSecurityKeyBtn": "Güvenlik anahtarıyla oturum aç"
+			"pickUnnamed": "Adsız cüzdan"
 		}
 	}
 }

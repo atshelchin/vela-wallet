@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 19,713 leaves across 15 locales', () => {
+  it('carries the whole corpus — 19,698 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -147,12 +147,8 @@ describe('generated i18n resources', () => {
     // 19,698 = 19,608 plus the desktop rail's 6 `create.step*` keys × 15: the
     // three journey steps (Name / Keys / Create), each a label plus a detail
     // sentence, for the rail that replaced the phone-page-pulled-tall layout.
-    // 19,713 = 19,698 plus login.signInSecurityKeyBtn × 15: the welcome
-    // screen's explicit "sign in with a security key" affordance, so a wallet
-    // that lives on a hardware key can be reached even when a platform passkey
-    // is also present and the system would otherwise use it silently.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_713);
+    expect(total).toBe(19_698);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

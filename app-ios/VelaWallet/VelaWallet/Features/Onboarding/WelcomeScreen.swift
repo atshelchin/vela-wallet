@@ -16,6 +16,7 @@ import SwiftUI
 
 struct WelcomeScreen: View {
     @Environment(\.theme) private var theme
+    let loc: Loc
     @Bindable var model: WelcomeModel
     /// The login machine's `busy`. Signing in has no screen of its own — the
     /// system passkey sheet is the next thing the person sees, and it does not
@@ -61,22 +62,13 @@ struct WelcomeScreen: View {
                 VelaButton(title: model.content.createWallet, kind: .primary, enabled: !signingIn) {
                     model.send(.createWallet)
                 }
+                // Signing in offers the SAME three authenticators creating does
+                // — this device, a nearby device by scan, a hardware key — so a
+                // wallet that lives on a security key is reachable even when a
+                // platform passkey is also present. The picker opens on tap.
                 VelaButton(title: model.content.alreadyHaveWallet, kind: .secondary, loading: signingIn) {
-                    model.send(.importWallet)
+                    model.send(.openSignIn)
                 }
-                // The explicit security-key route: a lighter tertiary action,
-                // for signing into a wallet that lives on a hardware key even
-                // when this device also has a platform passkey.
-                Button {
-                    model.send(.importWithSecurityKey)
-                } label: {
-                    Text(model.content.signInSecurityKey)
-                        .typeRole(Typography.label)
-                        .foregroundStyle(theme.fgMuted)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: Tokens.Layout.hitTarget)
-                }
-                .disabled(signingIn)
             }
         }
         .padding(.top, Tokens.Space.s32)
@@ -87,16 +79,67 @@ struct WelcomeScreen: View {
     }
 }
 
+/// The three ways to sign in — this device, a nearby device by scan, a hardware
+/// security key — the same set creating a wallet offers per key. `hybrid` (the
+/// scan) is present-but-unavailable until the caBLE client lands (feature 020's
+/// remnant in T174), exactly as it is on the create key screen.
+struct SignInMethodSheet: View {
+    @Environment(\.theme) private var theme
+    let loc: Loc
+    let onPick: (KeyMethod) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(loc.t(I18nKeys.Login.header))
+                .typeRole(Typography.title)
+                .foregroundStyle(theme.fgBase)
+                .padding(.bottom, Tokens.Space.s16)
+
+            ForEach(KeyMethod.allCases, id: \.self) { method in
+                let available = method != .hybrid
+                let copy = methodCopy(method)
+                Button { if available { onPick(method) } } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                            Text(loc.t(copy.title))
+                                .typeRole(Typography.rowTitle)
+                                .foregroundStyle(theme.fgBase)
+                            Text(loc.t(available ? copy.body : I18nKeys.Create.methodHybridUnavailable))
+                                .typeRole(Typography.flowCaption)
+                                .foregroundStyle(theme.fgMuted)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        if available {
+                            Image(systemName: "chevron.right").foregroundStyle(theme.fgSubtle)
+                        }
+                    }
+                    .frame(minHeight: Tokens.Layout.hitTarget)
+                    .padding(.vertical, Tokens.Space.s8)
+                }
+                .disabled(!available)
+                .opacity(available ? 1 : Tokens.Opacity.disabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Tokens.Layout.screenPaddingX)
+        .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(theme.bgRaised)
+    }
+}
+
 #Preview("Welcome") {
     WelcomeScreen(
+        loc: Loc(),
         model: WelcomeModel(
             content: WelcomeContent(
                 heroTitle: "The unstoppable\nEthereum wallet",
                 heroTitleFit: .regular,
                 heroSubtitle: "Sign with a passkey. Vela never sees your key.",
                 createWallet: "Create Wallet",
-                alreadyHaveWallet: "I already have a wallet",
-                signInSecurityKey: "Sign in with a security key"
+                alreadyHaveWallet: "I already have a wallet"
             ),
             onIntent: { _ in }
         )

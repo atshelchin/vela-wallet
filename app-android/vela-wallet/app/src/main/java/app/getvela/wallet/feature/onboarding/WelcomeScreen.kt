@@ -197,23 +197,6 @@ fun WelcomeScreen(
                     onClick = { onIntent(OnboardingIntent.RecoverWallet) },
                     loading = signingIn,
                 )
-                Spacer(modifier = Modifier.height(VelaSpacing.md))
-                // The explicit security-key route — a lighter tertiary action
-                // for signing into a wallet on a hardware key even when this
-                // device also has a platform passkey.
-                Text(
-                    text = strings.t(I18nKeys.Login.SIGN_IN_SECURITY_KEY_BTN),
-                    color = VelaTheme.colors.fgMuted,
-                    fontFamily = VelaFontFamily,
-                    fontWeight = VelaFontWeight.medium,
-                    fontSize = VelaTextSize.base,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(VelaSizing.hitTarget)
-                        .clickable(enabled = !signingIn) { onIntent(OnboardingIntent.RecoverWithSecurityKey) }
-                        .wrapContentHeight(),
-                )
                 Spacer(modifier = Modifier.height(VelaSpacing.xl))
             }
         }

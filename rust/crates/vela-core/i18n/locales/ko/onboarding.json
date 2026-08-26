@@ -241,8 +241,7 @@
 			"switchDeviceBtn": "다른 기기에서 로그인",
 			"pickTitle": "어느 지갑인가요?",
 			"pickBody": "{{product}}에 Vela 지갑이 여러 개 있습니다. 로그인할 지갑을 선택하세요.",
-			"pickUnnamed": "이름 없는 지갑",
-			"signInSecurityKeyBtn": "보안 키로 로그인"
+			"pickUnnamed": "이름 없는 지갑"
 		}
 	}
 }

@@ -3243,6 +3243,42 @@ export function parsePublicKey(hex) {
 }
 
 /**
+ * **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
+ * key whose AAGUID the catalog cannot name. `undefined` when the row deserves
+ * no mark of this kind — a platform authenticator, which the client already
+ * draws its own way.
+ *
+ * The three colours are the caller's tokens: the artwork ships in one theme,
+ * and one vendor's greys are not this app's greys in either.
+ * @param {string} authenticator_attachment
+ * @param {string} transports
+ * @param {boolean} chose_security_key
+ * @param {string} strong
+ * @param {string} soft
+ * @param {string} hole
+ * @returns {string | undefined}
+ */
+export function passkeyFallbackIconDataUri(authenticator_attachment, transports, chose_security_key, strong, soft, hole) {
+    const ptr0 = passStringToWasm0(authenticator_attachment, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(transports, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(strong, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(soft, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ptr4 = passStringToWasm0(hole, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len4 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyFallbackIconDataUri(ptr0, len0, ptr1, len1, chose_security_key, ptr2, len2, ptr3, len3, ptr4, len4);
+    let v6;
+    if (ret[0] !== 0) {
+        v6 = getStringFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v6;
+}
+
+/**
  * **A passkey provider's mark**, as an `image/svg+xml` data URI, from the
  * vendored AAGUID catalog. `undefined` when the catalog does not know the
  * model — the caller then shows what it showed before this existed.

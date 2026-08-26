@@ -28,6 +28,7 @@ import init, {
 	identiconNormalizeSeed,
 	identiconSvgCircular,
 	LoginCore,
+	passkeyFallbackIconDataUri,
 	passkeyProviderIconDataUri,
 	SessionCore,
 	toHex
@@ -44,6 +45,9 @@ export { identiconNormalizeSeed, identiconSvgCircular };
 // construction — the alternative is telling a directory service which vault
 // holds this wallet's key.
 export { passkeyProviderIconDataUri };
+// The security-key artwork for a key the catalog cannot name — the one unknown
+// whose KIND is still known, because the authenticator said so.
+export { passkeyFallbackIconDataUri };
 
 /**
  * The in-flight (or settled) initialization. Held as a promise rather than a

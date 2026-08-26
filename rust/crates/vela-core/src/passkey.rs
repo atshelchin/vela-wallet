@@ -23,6 +23,80 @@
 
 use crate::passkey_catalog::{ICONS, NO_ICON, PROVIDERS};
 
+/// Artwork for the keys the catalog cannot name.
+///
+/// Hardware authenticators live in the FIDO metadata service, not in the
+/// provider catalog, so a security key is the ONE unknown whose kind is still
+/// known — the authenticator says `cross-platform`, and its transports say
+/// whether it is the thing on the end of a USB cable. Drawing that is honest;
+/// drawing a made-up brand mark would not be.
+///
+/// A platform authenticator with no catalog entry gets NO mark from here: all
+/// that is known about it is "a passkey on this device", which each client
+/// already draws in its own vocabulary.
+///
+/// Colours are placeholders rather than literals: these ship in one theme, and
+/// one vendor's greys are not this app's greys in either theme. Callers
+/// substitute their own tokens — the same contract `rasterize_svg_png` states.
+const SECURITY_KEY_USB_SVG: &str = include_str!("../data/passkey-fallback-security-key.svg");
+const SECURITY_KEY_SVG: &str = include_str!("../data/passkey-fallback-passkey.svg");
+
+/// Which fallback a row deserves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FallbackMark {
+    /// A key on the end of a USB cable.
+    UsbKey,
+    /// A security key reached some other way (NFC, BLE, hybrid).
+    SecurityKey,
+}
+
+/// The three colour slots a fallback mark wears.
+#[derive(Clone, Copy, Debug)]
+pub struct MarkPalette<'a> {
+    /// The body of the glyph — a muted foreground.
+    pub strong: &'a str,
+    /// The key's shell behind it — a border or sunken surface tone.
+    pub soft: &'a str,
+    /// What shows THROUGH the glyph: the surface the mark sits on, never white.
+    pub hole: &'a str,
+}
+
+/// Which fallback mark, if any, a key row should draw when the catalog has no
+/// entry for its AAGUID.
+///
+/// `None` means "nothing better than what you already draw" — a platform
+/// authenticator, whose only honest description is the one the client already
+/// shows.
+#[must_use]
+pub fn fallback_mark(
+    authenticator_attachment: &str,
+    transports: &str,
+    chose_security_key: bool,
+) -> Option<FallbackMark> {
+    let transport = |name: &str| transports.split(',').any(|t| t.trim() == name);
+    let cross_platform = authenticator_attachment == "cross-platform";
+    if !cross_platform && !chose_security_key && !transport("usb") && !transport("nfc") {
+        return None;
+    }
+    if transport("usb") {
+        return Some(FallbackMark::UsbKey);
+    }
+    Some(FallbackMark::SecurityKey)
+}
+
+/// A fallback mark as SVG markup, wearing the caller's palette.
+#[must_use]
+pub fn fallback_svg(mark: FallbackMark, palette: MarkPalette) -> String {
+    let source = match mark {
+        FallbackMark::UsbKey => SECURITY_KEY_USB_SVG,
+        FallbackMark::SecurityKey => SECURITY_KEY_SVG,
+    };
+    source
+        .replace("{{strong}}", palette.strong)
+        .replace("{{soft}}", palette.soft)
+        .replace("{{hole}}", palette.hole)
+}
+
 /// A resolved authenticator model.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PasskeyProvider {
@@ -96,6 +170,16 @@ pub fn provider_icon_data_uri(aaguid: &str, dark: bool) -> Option<String> {
     ))
 }
 
+/// A fallback mark as an `image/svg+xml` data URI, for the same reason the
+/// provider marks are served that way.
+#[must_use]
+pub fn fallback_icon_data_uri(mark: FallbackMark, palette: MarkPalette) -> String {
+    format!(
+        "data:image/svg+xml;charset=utf-8,{}",
+        percent_encode(&fallback_svg(mark, palette))
+    )
+}
+
 /// Minimal percent-encoding for SVG in a data URI: only what a URI parser or an
 /// HTML attribute would otherwise take for its own.
 fn percent_encode(svg: &str) -> String {
@@ -165,6 +249,61 @@ mod tests {
             if p.icon_svg(false).is_none() {
                 assert!(p.icon_svg(true).is_none(), "{name}: one-sided fallback");
             }
+        }
+    }
+
+    const PALETTE: MarkPalette<'static> = MarkPalette {
+        strong: "#6E6B62",
+        soft: "#D8D4CB",
+        hole: "#FAFAF8",
+    };
+
+    #[test]
+    fn a_usb_key_and_a_tapped_key_get_different_marks() {
+        assert_eq!(
+            fallback_mark("cross-platform", "usb,nfc", false),
+            Some(FallbackMark::UsbKey)
+        );
+        assert_eq!(
+            fallback_mark("cross-platform", "nfc", false),
+            Some(FallbackMark::SecurityKey)
+        );
+        // The first key is minted before the key screen exists and carries the
+        // core's default method, so what the DEVICE reported outranks it.
+        assert_eq!(
+            fallback_mark("", "usb", false),
+            Some(FallbackMark::UsbKey),
+            "the report outranks the default"
+        );
+        assert_eq!(
+            fallback_mark("", "", true),
+            Some(FallbackMark::SecurityKey),
+            "and the person's own choice outranks silence"
+        );
+    }
+
+    #[test]
+    fn a_platform_authenticator_gets_no_fallback_mark() {
+        // Its only honest description is "a passkey on this device", which every
+        // client already draws in its own vocabulary.
+        assert_eq!(fallback_mark("platform", "internal,hybrid", false), None);
+        assert_eq!(fallback_mark("", "", false), None);
+    }
+
+    #[test]
+    fn a_fallback_mark_wears_the_callers_palette_and_no_vendor_grey() {
+        for mark in [FallbackMark::UsbKey, FallbackMark::SecurityKey] {
+            let svg = fallback_svg(mark, PALETTE);
+            assert!(svg.contains(PALETTE.strong), "the body takes fg");
+            assert!(!svg.contains("{{"), "every slot is filled: {svg}");
+            assert!(
+                !svg.to_ascii_lowercase().contains("#5f6368"),
+                "no vendor grey survives"
+            );
+            assert!(
+                !svg.to_ascii_lowercase().contains("white"),
+                "the cut-outs show the surface, not paper"
+            );
         }
     }
 

@@ -15,6 +15,13 @@ struct TokenColor {
     var blue: Double { Double(argb & 0xFF) / 255.0 }
 
     var color: Color { Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha) }
+
+    /// `#rrggbb` — for artwork that is TINTED rather than drawn by SwiftUI: the
+    /// passkey fallback marks are SVG documents rasterized by vela-core, and an
+    /// SVG wants what CSS wants.
+    var hex: String {
+        String(format: "#%06X", argb & 0x00FF_FFFF)
+    }
 }
 
 /// A design-token shadow. Export strings are "x y blur spread color" with

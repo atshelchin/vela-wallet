@@ -548,6 +548,31 @@ pub fn passkey_provider_icon_data_uri(aaguid: &str, dark: bool) -> Option<String
     vela_core::passkey::provider_icon_data_uri(aaguid, dark)
 }
 
+/// **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
+/// key whose AAGUID the catalog cannot name. `undefined` when the row deserves
+/// no mark of this kind — a platform authenticator, which the client already
+/// draws its own way.
+///
+/// The three colours are the caller's tokens: the artwork ships in one theme,
+/// and one vendor's greys are not this app's greys in either.
+#[wasm_bindgen(js_name = passkeyFallbackIconDataUri)]
+#[must_use]
+pub fn passkey_fallback_icon_data_uri(
+    authenticator_attachment: &str,
+    transports: &str,
+    chose_security_key: bool,
+    strong: &str,
+    soft: &str,
+    hole: &str,
+) -> Option<String> {
+    let mark =
+        vela_core::passkey::fallback_mark(authenticator_attachment, transports, chose_security_key)?;
+    Some(vela_core::passkey::fallback_icon_data_uri(
+        mark,
+        vela_core::passkey::MarkPalette { strong, soft, hole },
+    ))
+}
+
 /// The provider's brand name, or an empty string when the catalog has no entry.
 #[wasm_bindgen(js_name = passkeyProviderName)]
 #[must_use]

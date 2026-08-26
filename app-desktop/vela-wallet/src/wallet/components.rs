@@ -86,6 +86,26 @@ pub fn passkey_mark(
     )
 }
 
+/// The security-key mark for a key the provider catalog cannot name, or nothing
+/// when the row deserves none (a platform authenticator).
+pub fn passkey_fallback_mark(
+    identicons: &mut IdenticonCache,
+    attachment: &str,
+    transports: &str,
+    chose_security_key: bool,
+    theme: &Theme,
+    size: f32,
+) -> Option<impl IntoElement> {
+    let image =
+        identicons.passkey_fallback(attachment, transports, chose_security_key, theme, size as u32)?;
+    Some(
+        img(ImageSource::Render(image))
+            .w(px(size))
+            .h(px(size))
+            .flex_none(),
+    )
+}
+
 /// Sidebar header: avatar + name + chevron + mono address.
 pub fn wallet_header(
     theme: &Theme,

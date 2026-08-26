@@ -341,14 +341,13 @@ private struct KeyRow: View {
             // the vault's own mark and its own name. When it does not — a
             // hardware key, an authenticator that reported nothing — the row
             // says what it always said, from `method`.
-            if key.providerName.isEmpty {
-                Image(systemName: key.method == .securityKey ? "key.horizontal" : "person.badge.key")
-                    .foregroundStyle(theme.fgMuted)
-                    .frame(width: Tokens.Control.sm, height: Tokens.Control.sm)
-                    .background(theme.bgSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.r8))
-            } else {
-                PasskeyProviderMark(aaguid: key.aaguid, name: key.providerName)
-            }
+            PasskeyProviderMark(
+                key: key,
+                label: key.providerName.isEmpty
+                    ? loc.t(providerLineFor(key.method))
+                    : key.providerName,
+                glyphFallback: true
+            )
 
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text(key.name).typeRole(Typography.rowTitle).foregroundStyle(theme.fgBase)
@@ -711,8 +710,8 @@ struct DoneScreen: View {
                         ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
                             HStack(spacing: Tokens.Space.s12) {
                                 PasskeyProviderMark(
-                                    aaguid: key.aaguid,
-                                    name: key.providerName,
+                                    key: key,
+                                    label: key.providerName,
                                     size: Tokens.Space.s20
                                 )
                                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {

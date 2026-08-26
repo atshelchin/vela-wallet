@@ -255,7 +255,13 @@ private fun KeyRow(
         // vault's own mark and its own name. When it does not — a hardware key,
         // an authenticator that reported nothing — the row says what it always
         // said, from `method`.
-        if (key.providerName.isEmpty()) {
+        val drewMark = PasskeyProviderMark(
+            key = key,
+            label = key.providerName.ifEmpty { strings.t(providerLineFor(key.method)) },
+            size = VelaSizing.controlSm,
+        )
+        if (!drewMark) {
+            // Nothing to draw from the key itself: the method glyph, as before.
             Box(
                 modifier = Modifier
                     .size(VelaSizing.controlSm)
@@ -273,12 +279,6 @@ private fun KeyRow(
                     modifier = Modifier.size(VelaIconSize.md),
                 )
             }
-        } else {
-            PasskeyProviderMark(
-                aaguid = key.aaguid,
-                name = key.providerName,
-                size = VelaSizing.controlSm,
-            )
         }
         Spacer(modifier = Modifier.size(VelaSpacing.lg))
         Column(modifier = Modifier.weight(1f)) {

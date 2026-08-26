@@ -71,6 +71,24 @@ pub fn passkey_provider_png(
     rasterize(svg, size_px).map(Some)
 }
 
+/// **A fallback mark as PNG bytes** — the security-key artwork for a key the
+/// provider catalog cannot name. `Ok(None)` when the row deserves no mark of
+/// this kind (a platform authenticator), which the caller already draws.
+pub fn passkey_fallback_png(
+    authenticator_attachment: &str,
+    transports: &str,
+    chose_security_key: bool,
+    palette: crate::passkey::MarkPalette,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    let Some(mark) =
+        crate::passkey::fallback_mark(authenticator_attachment, transports, chose_security_key)
+    else {
+        return Ok(None);
+    };
+    rasterize(&crate::passkey::fallback_svg(mark, palette), size_px).map(Some)
+}
+
 /// **The wallet's identicon, as PNG bytes.** Circular variant rendered at
 /// `size_px` × `size_px`. Same seed contract as
 /// [`crate::identicon::identicon_svg_circular`]: invalid seeds are rejected, and
@@ -111,6 +129,27 @@ mod tests {
                 .map_or(0, u32::from_be_bytes)
         };
         (word(16), word(20))
+    }
+
+    #[test]
+    fn a_fallback_mark_renders_only_for_the_keys_that_have_one() {
+        let palette = crate::passkey::MarkPalette {
+            strong: "#6E6B62",
+            soft: "#D8D4CB",
+            hole: "#FAFAF8",
+        };
+        let png = passkey_fallback_png("cross-platform", "usb", false, palette, 40)
+            .expect("renders")
+            .expect("a usb key has a mark");
+        assert_eq!(png[..8], PNG_MAGIC);
+        assert_eq!(ihdr_dimensions(&png), (40, 40));
+
+        assert!(
+            passkey_fallback_png("platform", "internal", false, palette, 40)
+                .expect("renders")
+                .is_none(),
+            "a platform authenticator keeps the client's own glyph"
+        );
     }
 
     #[test]

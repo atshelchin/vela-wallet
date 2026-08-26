@@ -27,6 +27,17 @@ struct Theme {
     var bgSunken: Color { palette.bgSunken.color }
     var fgBase: Color { palette.fgBase.color }
     var fgMuted: Color { palette.fgMuted.color }
+
+    /// The three colour slots vela-core's fallback artwork wears. Read off the
+    /// active palette so the mark belongs to this app in either theme, rather
+    /// than carrying the greys it shipped with.
+    var markPalette: MarkPalette {
+        MarkPalette(
+            strong: palette.fgMuted.hex,
+            soft: palette.borderStrong.hex,
+            hole: palette.bgBase.hex
+        )
+    }
     var fgSubtle: Color { palette.fgSubtle.color }
     var accentBase: Color { palette.accentBase.color }
     var accentSoft: Color { palette.accentSoft.color }

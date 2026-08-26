@@ -39,7 +39,7 @@ use crate::ui::{
     ButtonState, ButtonVariant, NameFieldStrings, ack_row, name_field, spinner, vela_button_opts,
     vela_button_state,
 };
-use crate::wallet::components::{identicon_avatar, passkey_mark};
+use crate::wallet::components::{identicon_avatar, passkey_fallback_mark, passkey_mark};
 
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
 pub const MAX_KEYS: usize = 7;
@@ -768,6 +768,17 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
         host.theme.is_dark(),
         theme::KEY_ROW_MARK,
     ) {
+        row = row.child(mark);
+    } else if let Some(mark) = passkey_fallback_mark(
+        &mut host.identicons.borrow_mut(),
+        &key.authenticator_attachment,
+        &key.transports,
+        key.method == KeyMethod::SecurityKey,
+        theme,
+        theme::KEY_ROW_MARK,
+    ) {
+        // Not a brand, but not nothing either: the authenticator said it is a
+        // security key, and a USB transport says which kind.
         row = row.child(mark);
     }
 

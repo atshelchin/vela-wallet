@@ -97,9 +97,7 @@
 	<ul class="keys">
 		{#each keys as key, index (index)}
 			<li class="key">
-				{#if key.provider_name}
-					<PasskeyProviderMark aaguid={key.aaguid} name={key.provider_name} />
-				{/if}
+				<PasskeyProviderMark {key} label={key.provider_name} />
 				<span class="keyname">
 					{key.name}
 					{#if key.provider_name}<span class="provider">{key.provider_name}</span>{/if}

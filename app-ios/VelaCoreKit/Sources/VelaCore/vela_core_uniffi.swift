@@ -2767,6 +2767,28 @@ public func parsePublicKey(hex: String)throws  -> P256PublicKey  {
 })
 }
 /**
+ * **The security-key fallback mark as PNG bytes**, for a key whose AAGUID the
+ * catalog cannot name. `None` when the row deserves no mark of this kind — a
+ * platform authenticator, which the client already draws its own way.
+ *
+ * The three colours are the caller's tokens: the artwork ships in one theme,
+ * and one vendor's greys are not this app's greys in either.
+ */
+public func passkeyFallbackPng(authenticatorAttachment: String, transports: String, choseSecurityKey: Bool, strong: String, soft: String, hole: String, sizePx: UInt32)throws  -> Data?  {
+    return try  FfiConverterOptionData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_fallback_png(
+        FfiConverterString.lower(authenticatorAttachment),
+        FfiConverterString.lower(transports),
+        FfiConverterBool.lower(choseSecurityKey),
+        FfiConverterString.lower(strong),
+        FfiConverterString.lower(soft),
+        FfiConverterString.lower(hole),
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
+    )
+})
+}
+/**
  * The provider's brand name, or an empty string when the catalog has no entry.
  * The create view already carries this for its own key rows; this is for every
  * other surface that holds an AAGUID.
@@ -3043,6 +3065,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_parse_public_key() != 62646) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_fallback_png() != 54728) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_passkey_provider_name() != 54778) {

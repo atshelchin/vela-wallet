@@ -157,12 +157,12 @@ fun ColumnScope.DoneScreen(
                 modifier = Modifier.fillMaxWidth().padding(vertical = VelaSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                PasskeyProviderMark(
-                    aaguid = key.aaguid,
-                    name = key.providerName,
+                val drewMark = PasskeyProviderMark(
+                    key = key,
+                    label = key.providerName,
                     size = VelaIconSize.lg,
                 )
-                if (key.providerName.isNotEmpty()) {
+                if (drewMark) {
                     Spacer(modifier = Modifier.width(VelaSpacing.lg))
                 }
                 Column(modifier = Modifier.weight(1f)) {

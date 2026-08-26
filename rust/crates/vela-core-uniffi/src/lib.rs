@@ -484,6 +484,35 @@ pub fn passkey_provider_png(
     )?)
 }
 
+/// **The security-key fallback mark as PNG bytes**, for a key whose AAGUID the
+/// catalog cannot name. `None` when the row deserves no mark of this kind — a
+/// platform authenticator, which the client already draws its own way.
+///
+/// The three colours are the caller's tokens: the artwork ships in one theme,
+/// and one vendor's greys are not this app's greys in either.
+#[uniffi::export]
+pub fn passkey_fallback_png(
+    authenticator_attachment: String,
+    transports: String,
+    chose_security_key: bool,
+    strong: String,
+    soft: String,
+    hole: String,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    Ok(vela_core::identicon_raster::passkey_fallback_png(
+        &authenticator_attachment,
+        &transports,
+        chose_security_key,
+        vela_core::passkey::MarkPalette {
+            strong: &strong,
+            soft: &soft,
+            hole: &hole,
+        },
+        size_px,
+    )?)
+}
+
 /// The provider's brand name, or an empty string when the catalog has no entry.
 /// The create view already carries this for its own key rows; this is for every
 /// other surface that holds an AAGUID.

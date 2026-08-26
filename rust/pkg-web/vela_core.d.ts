@@ -696,6 +696,17 @@ export function matchSelector(sig: string, calldata: Uint8Array): boolean;
 export function parsePublicKey(hex: string): P256PublicKey;
 
 /**
+ * **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
+ * key whose AAGUID the catalog cannot name. `undefined` when the row deserves
+ * no mark of this kind — a platform authenticator, which the client already
+ * draws its own way.
+ *
+ * The three colours are the caller's tokens: the artwork ships in one theme,
+ * and one vendor's greys are not this app's greys in either.
+ */
+export function passkeyFallbackIconDataUri(authenticator_attachment: string, transports: string, chose_security_key: boolean, strong: string, soft: string, hole: string): string | undefined;
+
+/**
  * **A passkey provider's mark**, as an `image/svg+xml` data URI, from the
  * vendored AAGUID catalog. `undefined` when the catalog does not know the
  * model — the caller then shows what it showed before this existed.
@@ -883,6 +894,7 @@ export interface InitOutput {
     readonly networkadmincore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly networkadmincore_view: (a: number) => [number, number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];
+    readonly passkeyFallbackIconDataUri: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number];
     readonly passkeyProviderIconDataUri: (a: number, b: number, c: number) => [number, number];
     readonly passkeyProviderName: (a: number, b: number) => [number, number];
     readonly paymentrequestcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];

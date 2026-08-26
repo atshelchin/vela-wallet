@@ -103,11 +103,11 @@
 						says what it always said: the shape glyph and the generic line
 						for the method.
 					-->
-					{#if key.provider_name}
-						<PasskeyProviderMark aaguid={key.aaguid} name={key.provider_name} />
-					{:else}
-						<span class="glyph" aria-hidden="true" data-method={key.method}></span>
-					{/if}
+					<PasskeyProviderMark
+						{key}
+						label={key.provider_name || strings(providerLineFor(key.method))}
+						glyphFallback
+					/>
 					<span class="who">
 						<span class="name">{key.name}</span>
 						<span class="meta">
@@ -271,31 +271,6 @@
 		border: var(--border-hairline) solid var(--color-border-base);
 		border-radius: var(--radius-lg);
 		background: var(--color-bg-sunken);
-	}
-
-	/*
-	 * Proportion is the whole signal: a wide laptop, a tall phone, a squat
-	 * key. A person picks the row that looks like the thing in their hand, so
-	 * the three must not read as one rounded box — which is what they did when
-	 * they shared a height.
-	 */
-	.glyph {
-		flex: 0 0 var(--icon-xl);
-		width: var(--icon-xl);
-		height: var(--icon-sm);
-		border: var(--border-emphasis) solid var(--color-fg-muted);
-		border-radius: var(--radius-sm);
-	}
-
-	.glyph[data-method='hybrid'] {
-		flex-basis: var(--icon-sm);
-		width: var(--icon-sm);
-		height: var(--icon-xl);
-	}
-
-	.glyph[data-method='security_key'] {
-		height: var(--icon-xs);
-		border-radius: var(--radius-full);
 	}
 
 	.who {

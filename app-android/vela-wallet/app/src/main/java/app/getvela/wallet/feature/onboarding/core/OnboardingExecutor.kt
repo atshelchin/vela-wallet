@@ -177,7 +177,9 @@ class OnboardingExecutor(
             }
 
             "authenticate_passkey" -> {
-                val assertion = passkey.assert(passkey.random(CHALLENGE_BYTES), null)
+                val wire = operation.optString("method")
+                val method = if (wire.isEmpty()) KeyMethod.Platform else KeyMethod.of(wire)
+                val assertion = passkey.assert(passkey.random(CHALLENGE_BYTES), null, method = method)
                 result("passkey_authenticated") {
                     put("assertion", assertion.toWire())
                     put("now_iso", nowIso())

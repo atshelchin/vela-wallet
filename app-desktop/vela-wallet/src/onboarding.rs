@@ -244,7 +244,13 @@ impl OnboardingPage {
         if self.login_view.busy {
             return;
         }
-        let pending = self.login.dispatch(vela_core::app::login::Event::SignIn);
+        // The desktop's only authenticator is a security key (gpui has no
+        // system passkey service), so signing in IS a security-key ceremony —
+        // the method says so, even though this shell's assert has a single
+        // route regardless.
+        let pending = self.login.dispatch(vela_core::app::login::Event::SignIn {
+            method: vela_core::app::KeyMethod::SecurityKey,
+        });
         self.pump_login(pending, cx);
         cx.notify();
     }

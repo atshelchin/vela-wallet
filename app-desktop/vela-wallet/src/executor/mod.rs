@@ -146,7 +146,10 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             name: registry::legacy_name(credential_id),
         },
 
-        ShellOperation::AuthenticatePasskey => {
+        // The method is the person's sign-in choice; on desktop every route IS
+        // the app-owned CTAP path, so there is nothing to switch on — the
+        // security key is the only authenticator here.
+        ShellOperation::AuthenticatePasskey { method: _ } => {
             match passkey::assert(&passkey::random(32), None, ceremony) {
                 Ok(assertion) => ShellResult::PasskeyAuthenticated {
                     assertion,

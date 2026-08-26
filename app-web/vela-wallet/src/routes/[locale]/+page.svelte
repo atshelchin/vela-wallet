@@ -102,7 +102,7 @@
 				});
 				login.start({ type: 'start' });
 			}
-			login.dispatch({ type: 'sign_in' });
+			login.dispatch({ type: 'sign_in', method: 'platform' });
 		} finally {
 			// Handed over to `loginView.busy` — or released, if the core never
 			// came up, so the button can be pressed again.

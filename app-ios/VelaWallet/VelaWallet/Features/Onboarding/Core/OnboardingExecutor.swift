@@ -171,7 +171,8 @@ final class OnboardingExecutor {
         case "authenticate_passkey":
             let assertion = try await passkey.assert(
                 challenge: PasskeyExecutor.random(Self.challengeBytes),
-                credentialIdHex: nil
+                credentialIdHex: nil,
+                method: KeyMethod(rawValue: operation["method"] as? String ?? "") ?? .platform
             )
             return [
                 "type": "passkey_authenticated",

@@ -361,12 +361,21 @@ class PasskeyExecutor(
          * owner actually wants.
          */
         transports: String = "",
+        /**
+         * The method the person chose on the sign-in screen, for the "who are
+         * you?" ceremony that carries no transports. `SecurityKey` forces the
+         * app-owned path so a wallet living on a hardware key is reachable even
+         * when a platform passkey is also present and the system would silently
+         * use it.
+         */
+        method: KeyMethod = KeyMethod.Platform,
     ): Assertion {
-        // A credential that lives on a removable key: the app-owned USB path,
-        // on every device — the key's own PIN/fingerprint, no GMS, no domain
+        // A credential that lives on a removable key — or a sign-in explicitly
+        // asked to run on a security key — takes the app-owned USB path, on
+        // every device: the key's own PIN/fingerprint, no GMS, no domain
         // association, no OEM sheet. It prompts to plug the key in when it is
         // not present.
-        if (removable(transports) && usbSecurityKey != null) {
+        if ((removable(transports) || method == KeyMethod.SecurityKey) && usbSecurityKey != null) {
             VelaLog.event("passkey.assert", "asking (app-owned usb ctap)", "cred" to VelaLog.shortId(credentialIdHex))
             return usbSecurityKey.assert(challenge, credentialIdHex)
         }

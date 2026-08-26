@@ -258,18 +258,22 @@ final class PasskeyExecutor: NSObject {
     func assert(
         challenge: Data,
         credentialIdHex: String?,
-        transports: String = ""
+        transports: String = "",
+        method: KeyMethod = .platform
     ) async throws -> Assertion {
         let hints = Set(
             transports.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         )
-        // A credential that lives on a removable key: the app-owned CCID path
-        // when a card is present — the key's own PIN/UV, no Apple service, no
-        // domain association. It is how the create flow's member proof (a
-        // pinned assert over a usb-transport credential) signs the key that was
-        // just minted on the card.
+        // A credential that lives on a removable key — OR a sign-in the person
+        // explicitly asked to do on a security key — takes the app-owned CCID
+        // path when a card is present: the key's own PIN/UV, no Apple service,
+        // no domain association. The `method == .securityKey` case is the
+        // "who are you?" sign-in with no credential hint, where the person
+        // chose the hardware key on the welcome screen; without it the system
+        // would silently use a platform passkey and a wallet living only on the
+        // key would be unreachable.
         let removable = !hints.isDisjoint(with: ["usb", "nfc", "ble"])
-        if removable, let smartCard, await smartCard.deviceAvailable() {
+        if removable || method == .securityKey, let smartCard, await smartCard.deviceAvailable() {
             return try await smartCard.assert(challenge: challenge, credentialIdHex: credentialIdHex)
         }
 

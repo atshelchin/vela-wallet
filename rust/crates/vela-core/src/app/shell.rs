@@ -135,7 +135,15 @@ pub enum ShellOperation {
         credential_id: String,
     },
     /// `navigator.credentials.get()` with no credential hint — "who are you?".
-    AuthenticatePasskey,
+    /// `method` is the person's choice on the sign-in screen: `Platform` lets
+    /// the system sheet answer (a device passkey, or its own security-key/scan
+    /// routes), `SecurityKey` forces the app-owned CTAP path — the only way to
+    /// sign into a wallet on a security key when a platform passkey is also
+    /// present and the system would otherwise use it silently.
+    AuthenticatePasskey {
+        #[serde(default)]
+        method: KeyMethod,
+    },
     /// Read every locally stored account.
     LoadAccounts,
     SaveAccount {

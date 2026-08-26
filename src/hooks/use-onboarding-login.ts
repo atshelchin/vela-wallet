@@ -91,7 +91,7 @@ export function useOnboardingLogin(
     () => ({
       busy: view.busy,
       endpointUnreachable: view.endpoint_unreachable,
-      signIn: () => session.current?.dispatch({ type: 'sign_in' }),
+      signIn: () => session.current?.dispatch({ type: 'sign_in', method: 'platform' }),
     }),
     [view],
   );

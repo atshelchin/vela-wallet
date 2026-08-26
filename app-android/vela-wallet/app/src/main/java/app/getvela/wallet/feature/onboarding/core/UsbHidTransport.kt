@@ -38,8 +38,33 @@ class UsbHidTransport(private val context: Context) {
 
     /** The FIDO security keys plugged in right now (an HID interface with both
      *  an interrupt IN and an interrupt OUT endpoint). */
-    fun fidoDevices(): List<UsbDevice> =
-        usb.deviceList.values.filter { hidInterface(it) != null }
+    fun fidoDevices(): List<UsbDevice> {
+        val all = usb.deviceList.values.toList()
+        val fido = all.filter { hidInterface(it) != null }
+        // Logged because "no key plugged in" and "key plugged in but not
+        // recognised" are indistinguishable to a person, and on a single-port
+        // phone the USB port is often taken by the adb cable during a test. The
+        // per-device line says what enumerated and whether it looked like FIDO.
+        VelaLog.event(
+            "usb.hid",
+            "enumerated",
+            "total" to all.size,
+            "fido" to fido.size,
+        )
+        for (device in all) {
+            VelaLog.event(
+                "usb.hid",
+                "device",
+                "name" to (device.productName ?: "?"),
+                "vid" to device.vendorId,
+                "pid" to device.productId,
+                "class" to device.deviceClass,
+                "ifaces" to device.interfaceCount,
+                "isFido" to (hidInterface(device) != null),
+            )
+        }
+        return fido
+    }
 
     fun hasPermission(device: UsbDevice): Boolean = usb.hasPermission(device)
 

@@ -141,7 +141,18 @@ class SecurityKeyCeremony(private val activity: ComponentActivity) {
     private suspend fun awaitCeremony(
         start: suspend () -> android.app.PendingIntent,
     ): PublicKeyCredential {
-        val intent = start()
+        // `getRegisterPendingIntent`/`getSignPendingIntent` throw before any UI
+        // is shown when the GMS FIDO2 module is not provisioned on this device
+        // — "FIDO2_API is not available … SERVICE_INVALID", seen on a degraded
+        // GMS build (OnePlus 5T, Android 10, 2026-08-26). That is not a
+        // ceremony failure; it means this ROUTE does not exist here, and the
+        // caller must use the app-owned USB path instead. It is signalled with
+        // a distinct type so the executor can tell it apart from a cancellation.
+        val intent = try {
+            start()
+        } catch (error: Exception) {
+            throw Fido2Unavailable(error.message ?: "The FIDO2 service is unavailable")
+        }
         val answer: Intent? = suspendCancellableCoroutine { continuation ->
             pending = { data -> continuation.resume(data) }
             continuation.invokeOnCancellation { pending = null }
@@ -183,3 +194,11 @@ class SecurityKeyCeremony(private val activity: ComponentActivity) {
         }
     }
 }
+
+/**
+ * The GMS FIDO2 route does not exist on this device — its module is missing or
+ * degraded ("FIDO2_API is not available", `SERVICE_INVALID`). Raised BEFORE any
+ * UI is shown, so the executor can silently fall through to the app-owned USB
+ * path, which is the only route on a phone without a working GMS FIDO2 service.
+ */
+class Fido2Unavailable(message: String) : Exception(message)

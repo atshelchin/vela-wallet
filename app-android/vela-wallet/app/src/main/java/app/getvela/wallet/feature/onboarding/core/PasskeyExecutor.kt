@@ -17,6 +17,7 @@ import androidx.credentials.exceptions.CreateCredentialNoCreateOptionException
 import androidx.credentials.exceptions.CreateCredentialUnsupportedException
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
 import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import androidx.credentials.exceptions.NoCredentialException
 import androidx.credentials.exceptions.publickeycredential.CreatePublicKeyCredentialDomException
@@ -98,11 +99,17 @@ class PasskeyExecutor(
         method: KeyMethod,
     ): Registration {
         if (method == KeyMethod.SecurityKey) {
-            // The app-owned USB path first, when a key is plugged in: it is the
-            // only route on a phone without GMS, and it bypasses the OEM sheet
-            // everywhere. GMS FIDO2 is the fallback where a key is not (yet)
-            // plugged in but the OS can still run the ceremony.
-            if (usbSecurityKey?.deviceAvailable() == true) {
+            // The app-owned USB path IS the security-key route, on every device.
+            // It talks CTAP2 straight to the key — using the KEY's own PIN or
+            // fingerprint, never the phone's biometrics (an external key has
+            // nothing to do with the phone's screen lock), with no GMS, no
+            // domain association and no OEM sheet. It prompts to plug a key in
+            // when none is present. The GMS FIDO2 path was the source of every
+            // failure on a GMS-degraded phone — "FIDO2_API is not available",
+            // "no provider dependencies", "this device does not support
+            // biometrics" — so it is no longer used for this method where the
+            // app-owned path exists (device-found on a OnePlus 5T, 2026-08-26).
+            if (usbSecurityKey != null) {
                 VelaLog.event("passkey.register", "asking (app-owned usb ctap)", "excluded" to excludeCredentialIds.size)
                 return usbSecurityKey.register(name, excludeCredentialIds)
             }
@@ -263,16 +270,23 @@ class PasskeyExecutor(
             "asking (fido2 security key)",
             "excluded" to excludeCredentialIds.size,
         )
-        val credential = ceremony.register(
-            rpId = relyingPartyId,
-            rpName = RELYING_PARTY_NAME,
-            challenge = random(CHALLENGE_BYTES),
-            userId = encodeUserHandle(name).toByteArray(Charsets.UTF_8),
-            userName = name,
-            excludeCredentialIds = excludeCredentialIds.map {
-                uniffi.vela_core_uniffi.fromHex(it)
-            },
-        )
+        val credential = try {
+            ceremony.register(
+                rpId = relyingPartyId,
+                rpName = RELYING_PARTY_NAME,
+                challenge = random(CHALLENGE_BYTES),
+                userId = encodeUserHandle(name).toByteArray(Charsets.UTF_8),
+                userName = name,
+                excludeCredentialIds = excludeCredentialIds.map {
+                    uniffi.vela_core_uniffi.fromHex(it)
+                },
+            )
+        } catch (unavailable: Fido2Unavailable) {
+            // The GMS FIDO2 module is not usable here and this surface has no
+            // app-owned USB path to fall back to (the real activity always
+            // does, so this is a defensive translation, not a live route).
+            throw PasskeyFailure(FailureKind.NotSupported, "Plug in a USB security key and try again.")
+        }
         val response = credential.response as AuthenticatorAttestationResponse
         val credentialIdHex = toHex(credential.rawId ?: ByteArray(0), false)
         mintedAt = SystemClock.elapsedRealtime()
@@ -348,24 +362,23 @@ class PasskeyExecutor(
          */
         transports: String = "",
     ): Assertion {
-        // A credential that lives on a removable key: the app-owned USB path
-        // first (the only one on a GMS-free phone, and it bypasses the OEM
-        // sheet), GMS FIDO2 as the fallback. An UNPINNED "who are you?" over
-        // USB is also offered when a key is plugged in — a person signing in on
-        // a GMS-free phone reaches their wallet the same way they made it.
-        if (removable(transports) && usbSecurityKey?.deviceAvailable() == true) {
+        // A credential that lives on a removable key: the app-owned USB path,
+        // on every device — the key's own PIN/fingerprint, no GMS, no domain
+        // association, no OEM sheet. It prompts to plug the key in when it is
+        // not present.
+        if (removable(transports) && usbSecurityKey != null) {
             VelaLog.event("passkey.assert", "asking (app-owned usb ctap)", "cred" to VelaLog.shortId(credentialIdHex))
             return usbSecurityKey.assert(challenge, credentialIdHex)
+        }
+
+        if (credentialIdHex != null && removable(transports) && securityKey != null) {
+            return assertOnSecurityKey(challenge, credentialIdHex)
         }
 
         val credentialManager = manager ?: throw PasskeyFailure(
             FailureKind.NotSupported,
             "Credential Manager is unavailable on this device",
         )
-
-        if (credentialIdHex != null && removable(transports) && securityKey != null) {
-            return assertOnSecurityKey(challenge, credentialIdHex)
-        }
 
         val request = JSONObject().apply {
             put("challenge", toBase64url(challenge))
@@ -400,6 +413,19 @@ class PasskeyExecutor(
                     request = GetCredentialRequest(options),
                 )
             } catch (error: GetCredentialException) {
+                // The system route does not exist here — no passkey provider at
+                // all on a GMS-free phone ("no provider dependencies found"), or
+                // the relying party's domain association could not be verified
+                // (the developer's assetlinks server is down). Neither is a
+                // reason a person cannot reach THEIR OWN key: the app-owned USB
+                // path consults no provider and no domain association. It is the
+                // escape hatch, so offer it — it prompts to plug a key in, and
+                // runs the same "who are you?" ceremony on it.
+                // (device-found on a OnePlus 5T, 2026-08-26.)
+                if (usbSecurityKey != null && isSystemRouteUnavailable(error)) {
+                    VelaLog.event("passkey.assert", "system route unavailable → app-owned usb", "type" to error.type)
+                    return usbSecurityKey.assert(challenge, null)
+                }
                 val failure = classifyGet(error)
                 VelaLog.failure(
                     "passkey.assert",
@@ -463,11 +489,15 @@ class PasskeyExecutor(
             "asking (fido2 security key)",
             "cred" to VelaLog.shortId(credentialIdHex),
         )
-        val credential = ceremony.assert(
-            rpId = relyingPartyId,
-            challenge = challenge,
-            credentialId = uniffi.vela_core_uniffi.fromHex(credentialIdHex),
-        )
+        val credential = try {
+            ceremony.assert(
+                rpId = relyingPartyId,
+                challenge = challenge,
+                credentialId = uniffi.vela_core_uniffi.fromHex(credentialIdHex),
+            )
+        } catch (unavailable: Fido2Unavailable) {
+            throw PasskeyFailure(FailureKind.NotSupported, "Plug in a USB security key and try again.")
+        }
         val response = credential.response as AuthenticatorAssertionResponse
         VelaLog.event(
             "passkey.assert",
@@ -715,6 +745,31 @@ internal fun classifyCreate(error: CreateCredentialException): PasskeyFailure = 
 
     else -> PasskeyFailure(FailureKind.Other, describe(error))
 }
+
+/**
+ * Does this failure mean the SYSTEM passkey route does not exist here — as
+ * opposed to a cancellation or an honest "you have no passkey"?
+ *
+ * Two situations, both of which the app-owned CTAP path can step past because
+ * it consults neither a provider nor a domain association:
+ *
+ *  * **No provider at all** — a phone without (working) GMS has no passkey
+ *    provider, and Credential Manager throws
+ *    `GetCredentialProviderConfigurationException` ("no provider dependencies
+ *    found"). This is the OnePlus 5T sign-in error.
+ *  * **The relying party could not be verified** — if the developer's
+ *    `.well-known/assetlinks.json` is unreachable the association check fails,
+ *    which surfaces here too. A person must still be able to reach their own
+ *    key when the wallet's own domain server is down; that is the whole point
+ *    of an app-owned path (FR-009c).
+ *
+ * A plain `NoCredentialException` is deliberately NOT here: it means the route
+ * works and there simply is no passkey to sign in with, which is an honest
+ * answer, not a broken route.
+ */
+internal fun isSystemRouteUnavailable(error: GetCredentialException): Boolean =
+    error is GetCredentialProviderConfigurationException ||
+        error is GetCredentialUnsupportedException
 
 internal fun classifyGet(error: GetCredentialException): PasskeyFailure = when (error) {
     is GetCredentialCancellationException ->

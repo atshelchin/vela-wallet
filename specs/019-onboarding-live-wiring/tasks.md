@@ -369,12 +369,16 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   strings): touch prompt, PIN prompt with attempts, several-keys race — reuse the
   `create.pin*`/`create.touch*` corpus keys; only genuinely new keys go through the
   five-step corpus gate
-- [ ] T174 Hybrid (caBLE v2 / CTAP 2.3) client in core: QR payload (CBOR keys 0–6;
-  key 6 channel list emitted only when offering BLE — legacy-collision gotcha) + BLE
-  advert decrypt + Noise + tunnel + the CTAP 2.3 BLE-only data channel, sans-IO —
-  PORTED from the founder's proven demos (`transport/ble/cable/*.kt` and the iOS
-  `CableConn`/`CableQr`/`Noise`/`HybridBleClient`), with webauthn-rs `cable/mod.rs`
-  as the cross-check; transports (BLE scan/connect, WebSocket) live in each shell
+- [~] T174 Hybrid (caBLE v2 / CTAP 2.3) client in core — **foundations landed
+  (2026-08-27)**: `cable::base10` (QR digit encoding, Chromium vectors pinned),
+  `cable::tunnel_domain` (tunnel-server id → WebSocket domain), `cable::crypto`
+  (the eidKey/tunnelId/PSK HKDFs, the 20-byte BLE advert trial-decrypt, the EID
+  parse) — all sans-IO, 8 tests, clippy-clean. **Remaining**: the QR payload CBOR
+  (keys 0–6; key 6 channel list only when offering BLE — legacy-collision gotcha),
+  the Noise NKpsk0 handshake (needs an `aes-gcm` dep), the connection state
+  machine, then the per-shell BLE scan + WebSocket transports. Ref: demos
+  `transport/ble/cable/*.kt` + iOS `CableConn`/`CableQr`/`Noise`/`HybridBleClient`;
+  cross-check webauthn-rs `cable/mod.rs`.
 - [ ] T175 Desktop scan method: wire the caBLE client on macOS/Linux (QR render in gpui,
   `btleplug` scan, tunnel WebSocket); flip the method row from
   present-and-unavailable to live

@@ -187,6 +187,22 @@ struct RootView: View {
             // the machine has ASKED STORAGE whether any public key is still
             // unconfirmed — so the warning inside is an answer rather than this
             // screen's guess, and the sheet cannot open before there is one.
+            // The app-owned CCID ceremony's own dialogs — the PIN, the
+            // which-wallet picker and the touch prompt a system passkey sheet
+            // would otherwise draw. Hosted at the root for the same reason the
+            // flow sheet is.
+            .sheet(item: usbPinSheet) { pin in
+                UsbPinSheet(loc: loc, pending: pin, onSubmit: onboarding.answerPin)
+                    .themed(scheme)
+            }
+            .sheet(item: usbWalletPickSheet) { pick in
+                UsbWalletPickerSheet(loc: loc, pending: pick, onPick: onboarding.answerWalletPick)
+                    .themed(scheme)
+            }
+            .sheet(item: usbTouchSheet) { touch in
+                UsbTouchSheet(loc: loc, touch: touch)
+                    .themed(scheme)
+            }
             .sheet(item: signOutSheet) { sheet in
                 SignOutSheet(
                     loc: loc,
@@ -237,6 +253,21 @@ struct RootView: View {
         } else {
             WelcomeScreen(model: model, signingIn: onboarding.loginView.busy)
         }
+    }
+
+    // The CCID prompts: a nil-set (swipe-away) is a dismissal, which is a
+    // cancellation — the ceremony's background thread is waiting on the answer.
+    private var usbPinSheet: Binding<OnboardingModel.PendingPin?> {
+        Binding(get: { onboarding.pendingPin }, set: { if $0 == nil { onboarding.answerPin(nil) } })
+    }
+
+    private var usbWalletPickSheet: Binding<OnboardingModel.PendingWalletPick?> {
+        Binding(get: { onboarding.pendingWalletPick }, set: { if $0 == nil { onboarding.answerWalletPick(nil) } })
+    }
+
+    private var usbTouchSheet: Binding<OnboardingModel.UsbTouch?> {
+        // The touch prompt has no answer — it clears when the ceremony moves on.
+        Binding(get: { onboarding.usbTouch }, set: { _ in })
     }
 
     private var pendingPrompt: Binding<OnboardingModel.PendingPrompt?> {

@@ -116,6 +116,16 @@ enum I18nKeys {
         static let alertErrorTitle = "onboarding.create.alertErrorTitle"
         static let alertNotSupportedTitle = "onboarding.create.alertNotSupportedTitle"
         static let alertNotSupportedBody = "onboarding.create.alertNotSupportedBody"
+        // The app-owned CTAP path's own dialogs (spec 019 §5), shared with the desktop.
+        static let pinTitle = "onboarding.create.pinTitle"
+        static let pinBody = "onboarding.create.pinBody"
+        static let pinLabel = "onboarding.create.pinLabel"
+        static let pinAttemptsLeft = "onboarding.create.pinAttemptsLeft"
+        static let pinRejected = "onboarding.create.pinRejected"
+        static let touchTitle = "onboarding.create.touchTitle"
+        static let touchBody = "onboarding.create.touchBody"
+        static let touchFingerprintBody = "onboarding.create.touchFingerprintBody"
+        static let touchSelectBody = "onboarding.create.touchSelectBody"
     }
 
     enum Login {
@@ -133,6 +143,10 @@ enum I18nKeys {
         static let recoverCancel = "onboarding.login.recoverCancel"
         static let recoverFailedTitle = "onboarding.login.recoverFailedTitle"
         static let recoverFailedBody = "onboarding.login.recoverFailedBody"
+        // The which-wallet picker for the app-owned CTAP path, shared with the desktop.
+        static let pickTitle = "onboarding.login.pickTitle"
+        static let pickBody = "onboarding.login.pickBody"
+        static let pickUnnamed = "onboarding.login.pickUnnamed"
     }
 
     /// `onboarding.common.*` — the shared flow scaffolding.

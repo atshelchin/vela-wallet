@@ -25,5 +25,19 @@
 		<string>webcredentials:getvela.app</string>
 		<string>applinks:getvela.app</string>
 	</array>
+
+	<!--
+	  Smart-card access, for the app-owned CTAP2-over-CCID path (spec 019 T171b).
+
+	  CryptoTokenKit's `TKSmartCard` is the ONLY way a third-party iOS app can
+	  talk to an external security key over USB — iOS exposes no USB-HID host
+	  API. Without this entitlement `TKSmartCardSlotManager.default` is nil and
+	  the app-owned USB-C security-key route does not exist. Unlike the
+	  associated-domain above, this path consults NO domain association: it is
+	  the escape hatch a lapsed or down assetlinks server cannot padlock
+	  (FR-009c). Needs a YubiKey with firmware 5.8+ (FIDO over CCID).
+	-->
+	<key>com.apple.security.smartcard</key>
+	<true/>
 </dict>
 </plist>

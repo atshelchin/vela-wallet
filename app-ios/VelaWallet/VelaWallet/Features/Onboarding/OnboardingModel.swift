@@ -57,6 +57,53 @@ final class OnboardingModel {
         var id: String { kind.id }
     }
 
+    // MARK: - The app-owned CCID ceremony's prompts
+
+    /// The security key's PIN prompt (app-owned CCID path only). `answer` is
+    /// called by the UI and unblocks the ceremony's background thread.
+    private(set) var pendingPin: PendingPin?
+    /// Several wallets on one key — the picker.
+    private(set) var pendingWalletPick: PendingWalletPick?
+    /// Set while a card is blinking; the screen shows "touch your key".
+    private(set) var usbTouch: UsbTouch?
+
+    struct PendingPin: Identifiable {
+        let product: String
+        let retries: Int
+        let isRetry: Bool
+        let answer: (String?) -> Void
+        let id = UUID()
+    }
+
+    struct PendingWalletPick: Identifiable {
+        let choices: [CtapCredentialChoice]
+        let answer: (Int?) -> Void
+        let id = UUID()
+    }
+
+    struct UsbTouch: Identifiable {
+        let kind: String
+        let product: String
+        let id = UUID()
+    }
+
+    func answerPin(_ pin: String?) {
+        let prompt = pendingPin
+        pendingPin = nil
+        prompt?.answer(pin)
+    }
+
+    func answerWalletPick(_ index: Int?) {
+        let prompt = pendingWalletPick
+        pendingWalletPick = nil
+        prompt?.answer(index)
+    }
+
+    // Set from the (nonisolated) prompts bridge; the sheet reads them.
+    fileprivate func presentPin(_ pin: PendingPin) { pendingPin = pin }
+    fileprivate func presentWalletPick(_ pick: PendingWalletPick) { pendingWalletPick = pick }
+    fileprivate func presentTouch(_ touch: UsbTouch?) { usbTouch = touch }
+
     private let session: SessionController
     private let store: AccountStore
     private let registry: RegistryClient
@@ -69,6 +116,8 @@ final class OnboardingModel {
         self.session = session
         self.store = store
         self.registry = registry
+        // The app-owned CCID security-key path, wired to this model's prompts.
+        passkey.smartCard = SmartCardCtapCeremony(prompts: UsbPromptsBridge(model: self))
         Task {
             // The stored override, applied before any machine can ask a
             // question: a flow that started against the default and then
@@ -223,5 +272,64 @@ extension OnboardingModel: OnboardingExecutorDeps {
         loginView = .idle
         login?.dispose()
         login = nil
+    }
+}
+
+/// Bridges the app-owned CCID ceremony's SYNCHRONOUS host callbacks — called on
+/// a background thread — to the `@MainActor` model and back.
+///
+/// A CTAP host callback cannot suspend, so each one blocks its background thread
+/// on a semaphore while the main actor puts the prompt on screen; the UI's
+/// answer signals the semaphore. The main actor is never blocked (the ceremony
+/// runs off it), so there is no deadlock. `@unchecked Sendable` because the
+/// hand-off is guarded by the semaphore's happens-before, not by the type.
+private final class UsbPromptsBridge: SmartCardCtapCeremony.Prompts, @unchecked Sendable {
+    private weak var model: OnboardingModel?
+
+    init(model: OnboardingModel) {
+        self.model = model
+    }
+
+    private final class Box<T>: @unchecked Sendable {
+        var value: T
+        init(_ value: T) { self.value = value }
+    }
+
+    func askPin(product: String, retries: Int, isRetry: Bool) -> String? {
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = Box<String?>(nil)
+        Task { @MainActor [weak model] in
+            guard let model else { semaphore.signal(); return }
+            model.presentPin(
+                OnboardingModel.PendingPin(product: product, retries: retries, isRetry: isRetry) { pin in
+                    box.value = pin
+                    semaphore.signal()
+                }
+            )
+        }
+        semaphore.wait()
+        return box.value
+    }
+
+    func askWhichWallet(_ choices: [CtapCredentialChoice]) -> Int? {
+        let semaphore = DispatchSemaphore(value: 0)
+        let box = Box<Int?>(nil)
+        Task { @MainActor [weak model] in
+            guard let model else { semaphore.signal(); return }
+            model.presentWalletPick(
+                OnboardingModel.PendingWalletPick(choices: choices) { index in
+                    box.value = index
+                    semaphore.signal()
+                }
+            )
+        }
+        semaphore.wait()
+        return box.value
+    }
+
+    func touchWaiting(kind: String?, product: String) {
+        Task { @MainActor [weak model] in
+            model?.presentTouch(kind.map { OnboardingModel.UsbTouch(kind: $0, product: product) })
+        }
     }
 }

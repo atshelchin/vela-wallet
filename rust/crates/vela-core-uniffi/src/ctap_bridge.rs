@@ -18,6 +18,7 @@
 
 use std::sync::Arc;
 
+use vela_core::ctap::apdu_cable::{ApduCable, ApduError, ApduPort};
 use vela_core::ctap::ceremony::{self, CredentialChoice, Host, PinRequest, TouchKind};
 use vela_core::ctap::hid::HID_REPORT_SIZE;
 use vela_core::ctap::hid_cable::{HidCable, HidPort, PortError};
@@ -316,6 +317,160 @@ pub fn ctap_assert(
     credential_id_hex: String,
 ) -> Result<CtapAssertion, CtapError> {
     let mut cable = open_cable(port, Arc::clone(&host))?;
+    let host_adapter = HostAdapter { inner: host };
+    let pinned = if credential_id_hex.is_empty() {
+        None
+    } else {
+        Some(credential_id_hex.as_str())
+    };
+    let assertion = ceremony::Client {
+        cable: &mut cable,
+        host: &host_adapter,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .assert(&challenge, pinned)?;
+
+    Ok(CtapAssertion {
+        credential_id_hex: assertion.credential_id_hex,
+        signature_der_hex: assertion.signature_der_hex,
+        authenticator_data_hex: assertion.authenticator_data_hex,
+        client_data_json_hex: assertion.client_data_json_hex,
+        user_id_hex: assertion.user_id_hex.unwrap_or_default(),
+        authenticator_attachment: "cross-platform".to_owned(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// CCID / NFC — the APDU transport (iOS TKSmartCard, iOS/Android IsoDep)
+// ---------------------------------------------------------------------------
+//
+// The same ceremony over the other FIDO binding: CTAP2 in ISO 7816 APDUs. The
+// core's `ApduCable` owns the applet SELECT, the keepalive poll and the GET
+// RESPONSE chaining; the shell owns only one call — transmit a command APDU,
+// get its response bytes and status word back. iOS reaches a USB-C security key
+// this way (CryptoTokenKit has no HID host, but it has a smart-card interface),
+// and the same port serves NFC on both platforms.
+
+/// One APDU exchange with one card. Kotlin/Swift owns the reader; the framing
+/// above it is the core's.
+#[uniffi::export(with_foreign)]
+pub trait CcidPort: Send + Sync {
+    /// Transmit one command APDU; return the full response INCLUDING the two
+    /// trailing status-word bytes. No 61xx chaining or keepalive handling here.
+    fn transmit(&self, apdu: Vec<u8>) -> ApduOutcome;
+    /// Sleep the transport's keepalive poll interval (~100 ms). Called only
+    /// between `0x9100` keepalives.
+    fn poll_delay(&self);
+    fn product(&self) -> String;
+    fn path(&self) -> String;
+}
+
+/// What one [`CcidPort::transmit`] produced.
+#[derive(uniffi::Enum)]
+pub enum ApduOutcome {
+    /// The response APDU, data followed by the two status-word bytes.
+    Response { bytes: Vec<u8> },
+    /// No reader or card is present.
+    NoCard,
+    /// The transport failed in its own words.
+    Failed { detail: String },
+}
+
+/// The Kotlin/Swift card, as the core's [`ApduPort`].
+struct CcidPortAdapter {
+    inner: Arc<dyn CcidPort>,
+    product: String,
+    path: String,
+}
+
+impl ApduPort for CcidPortAdapter {
+    fn transmit(&mut self, apdu: &[u8]) -> Result<Vec<u8>, ApduError> {
+        match self.inner.transmit(apdu.to_vec()) {
+            ApduOutcome::Response { bytes } => Ok(bytes),
+            ApduOutcome::NoCard => Err(ApduError::NoCard),
+            ApduOutcome::Failed { detail } => Err(ApduError::Io(detail)),
+        }
+    }
+
+    fn poll_delay(&mut self) {
+        self.inner.poll_delay();
+    }
+
+    fn product(&self) -> &str {
+        &self.product
+    }
+
+    fn path(&self) -> &str {
+        &self.path
+    }
+}
+
+/// Open the APDU cable (SELECT the FIDO applet), wired to announce the touch
+/// moment through the host. Shared by the two CCID ceremonies.
+fn open_apdu_cable(
+    port: Arc<dyn CcidPort>,
+    host: Arc<dyn CtapCeremonyHost>,
+) -> Result<ApduCable<CcidPortAdapter>, CtapError> {
+    let adapter = CcidPortAdapter {
+        product: port.product(),
+        path: port.path(),
+        inner: port,
+    };
+    let mut cable = ApduCable::open(adapter)
+        .map_err(|error| CtapError::from(ceremony::failure_for(error)))?;
+    let touch_host = Arc::clone(&host);
+    cable.on_touch(Box::new(move |kind, product| {
+        let name = match kind {
+            TouchKind::Presence => "presence",
+            TouchKind::Fingerprint => "fingerprint",
+            TouchKind::Select => "select",
+        };
+        touch_host.touch(name.to_owned(), product.to_owned());
+    }));
+    Ok(cable)
+}
+
+/// `RegisterPasskey` over CCID/NFC: mint a founding key on the presented card.
+#[uniffi::export]
+pub fn ctap_register_ccid(
+    port: Arc<dyn CcidPort>,
+    host: Arc<dyn CtapCeremonyHost>,
+    name: String,
+    exclude_credential_ids: Vec<String>,
+) -> Result<CtapRegistration, CtapError> {
+    let mut cable = open_apdu_cable(port, Arc::clone(&host))?;
+    let host_adapter = HostAdapter { inner: host };
+    let registration = ceremony::Client {
+        cable: &mut cable,
+        host: &host_adapter,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .register(&name, &exclude_credential_ids)?;
+
+    Ok(CtapRegistration {
+        credential_id_hex: registration.credential_id_hex,
+        attestation_object_hex: registration.attestation_object_hex,
+        client_data_json_hex: registration.client_data_json_hex,
+        // The card path reports NFC alongside USB — a CCID key is the same key
+        // that answers over NFC, and both are removable transports.
+        authenticator_attachment: "cross-platform".to_owned(),
+        transports: "usb,nfc".to_owned(),
+    })
+}
+
+/// One assertion over CCID/NFC. `credential_id_hex` empty is sign-in.
+#[uniffi::export]
+pub fn ctap_assert_ccid(
+    port: Arc<dyn CcidPort>,
+    host: Arc<dyn CtapCeremonyHost>,
+    challenge: Vec<u8>,
+    credential_id_hex: String,
+) -> Result<CtapAssertion, CtapError> {
+    let mut cable = open_apdu_cable(port, Arc::clone(&host))?;
     let host_adapter = HostAdapter { inner: host };
     let pinned = if credential_id_hex.is_empty() {
         None

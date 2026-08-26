@@ -69,6 +69,17 @@ final class PasskeyExecutor: NSObject {
     private var continuation: CheckedContinuation<ASAuthorization, Error>?
     private var controller: ASAuthorizationController?
 
+    /// The app-owned CTAP2-over-CCID path (`vela_core::ctap`, the same protocol
+    /// the desktop and Android run), for a USB-C security key reached with NO
+    /// Apple service and NO domain association.
+    ///
+    /// Preferred over the system `ASAuthorizationSecurityKeyProvider` for the
+    /// security-key method when a card is present: it is the escape hatch a
+    /// lapsed or merely-down relying-party association cannot padlock
+    /// (FR-009c), and it uses the KEY's own PIN/fingerprint, never the phone's.
+    /// `nil` on surfaces with no UI to prompt through (previews, the gallery).
+    var smartCard: SmartCardCtapCeremony?
+
     init(relyingPartyId: String = PasskeyExecutor.relyingParty) {
         self.relyingPartyId = relyingPartyId
         super.init()
@@ -120,6 +131,15 @@ final class PasskeyExecutor: NSObject {
         excludeCredentialIds: [String],
         method: KeyMethod
     ) async throws -> Registration {
+        // The app-owned CCID path IS the security-key route when a card is
+        // present: the key's own PIN/fingerprint, no Apple service and no
+        // domain association. The system security-key provider stays available
+        // (it can guide an NFC tap / insertion through its sheet) for when no
+        // card is plugged in yet.
+        if method == .securityKey, let smartCard, await smartCard.deviceAvailable() {
+            return try await smartCard.register(name: name, excludeCredentialIds: excludeCredentialIds)
+        }
+
         let challenge = Self.random(32)
         let userId = Data(Self.encodeUserHandle(name).utf8)
         let excluded = try excludeCredentialIds.map { hex in
@@ -243,6 +263,16 @@ final class PasskeyExecutor: NSObject {
         let hints = Set(
             transports.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         )
+        // A credential that lives on a removable key: the app-owned CCID path
+        // when a card is present — the key's own PIN/UV, no Apple service, no
+        // domain association. It is how the create flow's member proof (a
+        // pinned assert over a usb-transport credential) signs the key that was
+        // just minted on the card.
+        let removable = !hints.isDisjoint(with: ["usb", "nfc", "ble"])
+        if removable, let smartCard, await smartCard.deviceAvailable() {
+            return try await smartCard.assert(challenge: challenge, credentialIdHex: credentialIdHex)
+        }
+
         // Only when it is known NOT to be a removable key — an unknown set
         // still offers both, which is what a mixed founding set needs.
         let platformOnly = !hints.isEmpty && hints.isDisjoint(with: ["usb", "nfc", "ble"])

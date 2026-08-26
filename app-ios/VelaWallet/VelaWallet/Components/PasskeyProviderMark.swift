@@ -6,10 +6,11 @@
 //  Windows Hello — rasterized by vela-core from the AAGUID the authenticator
 //  reported at registration (spec 019, founder call 2026-08-26).
 //
-//  Three sources, in order: the provider's own mark when the catalog names the
-//  model; the security-key artwork when the authenticator at least said what
-//  KIND it is (a hardware key is the one unknown whose kind is known); and, for
-//  a key list that wants its slot filled, the method glyph this row always had.
+//  Four sources, in order: the provider's own mark from the compiled catalog;
+//  the directory service's mark for a model no catalog carries (hardware keys);
+//  the security-key artwork when neither can name it but the authenticator at
+//  least said what KIND it is; and, for a key list that wants its slot filled,
+//  the method glyph this row always had.
 //  A platform authenticator the catalog cannot name gets the last of the three,
 //  because "a passkey on this device" is all that is known about it.
 //
@@ -121,6 +122,11 @@ struct PasskeyProviderMark: View {
                scale: displayScale
            ) {
             return provider
+        }
+        if !key.aaguid.isEmpty,
+           let listed = PasskeyDirectory.shared.entry(aaguid: key.aaguid, dark: dark),
+           let mark = PasskeyDirectory.shared.mark(for: listed, sizePx: pixels) {
+            return mark
         }
         return PasskeyMarkCache.fallback(
             key: key,

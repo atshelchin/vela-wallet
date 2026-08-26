@@ -44,6 +44,7 @@ use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::onboarding_flow::{FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, SHEET_PAD, SHEET_RADIUS, SHEET_W, outcome_sheet};
+use crate::passkey_directory::{self, PasskeyDirectory};
 use crate::session;
 use crate::theme::{
     self, FLOW_GAP_LG, FLOW_GAP_MD, GAP_BRAND_HERO, GAP_HERO_SUB, GAP_LOGO_WORDMARK,
@@ -108,6 +109,9 @@ pub struct OnboardingPage {
     launch: Option<LaunchAnimation>,
     /// The DONE card's avatar (spec 015 D1's rasterizer, reused).
     identicons: RefCell<IdenticonCache>,
+    /// Names and marks for models the compiled catalog cannot name — asked
+    /// once per AAGUID, from the render pass that first needs one.
+    directory: RefCell<PasskeyDirectory>,
 
     /// The create journey has taken over the page.
     creating: bool,
@@ -192,6 +196,7 @@ impl OnboardingPage {
             loc,
             focus_handle,
             identicons: RefCell::default(),
+            directory: RefCell::default(),
             creating: false,
             create,
             create_view,
@@ -875,6 +880,68 @@ fn scrim(theme: &Theme, id: &'static str) -> Stateful<Div> {
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
+impl OnboardingPage {
+    /// Ask the directory about every drafted key whose model this build cannot
+    /// name, and about the marks those answers point at.
+    ///
+    /// Driven from render because that is where the key list exists, and
+    /// guarded by `claim` so a redraw does not re-ask. Nothing here blocks the
+    /// frame: the answer arrives later and notifies.
+    fn ask_directory(&mut self, dark: bool, cx: &mut Context<Self>) {
+        let size = theme::KEY_ROW_MARK as u32;
+        for key in &self.create_view.keys {
+            if !key.provider_name.is_empty() || key.aaguid.is_empty() {
+                continue;
+            }
+            let aaguid = key.aaguid.clone();
+            let id = format!("{}|{dark}", aaguid.to_ascii_lowercase());
+            if self.directory.borrow_mut().claim(id) {
+                let asked = aaguid.clone();
+                cx.spawn(async move |page, cx| {
+                    let holder = cx
+                        .background_executor()
+                        .spawn({
+                            let asked = asked.clone();
+                            async move { passkey_directory::fetch_holder(&asked, dark) }
+                        })
+                        .await;
+                    page.update(cx, |page, cx| {
+                        page.directory.borrow_mut().settle(&asked, dark, holder);
+                        cx.notify();
+                    })
+                    .ok();
+                })
+                .detach();
+            }
+
+            let icon = self
+                .directory
+                .borrow()
+                .holder(&aaguid, dark)
+                .and_then(|holder| holder.icon_url.clone());
+            let Some(url) = icon else { continue };
+            if !self.directory.borrow_mut().claim_mark(&url, size) {
+                continue;
+            }
+            cx.spawn(async move |page, cx| {
+                let image = cx
+                    .background_executor()
+                    .spawn({
+                        let url = url.clone();
+                        async move { passkey_directory::fetch_mark(&url, size) }
+                    })
+                    .await;
+                page.update(cx, |page, cx| {
+                    page.directory.borrow_mut().settle_mark(&url, size, image);
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
+    }
+}
+
 impl Render for OnboardingPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(self.mode);
@@ -900,6 +967,7 @@ impl Render for OnboardingPage {
         }
 
         let content = if self.creating {
+            self.ask_directory(theme.is_dark(), cx);
             let entity = cx.entity();
             let sink: FlowSink = Rc::new(move |event, window, cx| {
                 entity.update(cx, |page, cx| page.on_flow_event(event, window, cx));
@@ -910,6 +978,7 @@ impl Render for OnboardingPage {
                 view: &self.create_view,
                 name_focus: &self.name_focus,
                 identicons: &self.identicons,
+                directory: &self.directory,
                 picker_open: self.picker_open,
                 copied: self.copied,
                 sink,

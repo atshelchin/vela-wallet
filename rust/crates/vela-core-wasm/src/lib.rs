@@ -548,6 +548,26 @@ pub fn passkey_provider_icon_data_uri(aaguid: &str, dark: bool) -> Option<String
     vela_core::passkey::provider_icon_data_uri(aaguid, dark)
 }
 
+/// **Where to ask about a model the compiled catalog cannot name**, or
+/// `undefined` when there is nothing to ask: a malformed or all-zero AAGUID, or
+/// one the catalog already answers offline.
+#[wasm_bindgen(js_name = passkeyDirectoryUrl)]
+#[must_use]
+pub fn passkey_directory_url(aaguid: &str) -> Option<String> {
+    vela_core::passkey::directory_lookup_url(aaguid)
+}
+
+/// **Read a directory answer.** `undefined` unless the body is about the AAGUID
+/// that was asked about and carries a usable name; `iconUrl` is present only
+/// when the path is the service's own shape.
+#[wasm_bindgen(js_name = passkeyDirectoryEntry)]
+pub fn passkey_directory_entry(aaguid: &str, json: &str, dark: bool) -> JsResult<JsValue> {
+    let Some(entry) = vela_core::passkey::directory_entry(aaguid, json, dark) else {
+        return Ok(JsValue::UNDEFINED);
+    };
+    serde_wasm_bindgen::to_value(&entry).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 /// **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
 /// key whose AAGUID the catalog cannot name. `undefined` when the row deserves
 /// no mark of this kind — a platform authenticator, which the client already

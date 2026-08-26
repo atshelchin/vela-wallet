@@ -14,13 +14,14 @@
 	 * tag names: svelte2tsx scans this block for them and would call the
 	 * script unclosed.)
 	 */
-	import { MediaQuery } from 'svelte/reactivity';
 	import { browser } from '$app/environment';
+	import { isDarkTheme } from '$lib/theme.svelte';
 	import {
 		passkeyFallbackIconDataUri,
 		passkeyProviderIconDataUri
 	} from '$lib/onboarding/core/wasm-client';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
+	import { directoryEntry } from '$lib/onboarding/core/passkey-directory.svelte';
 
 	interface Props {
 		/** The row this mark stands for; everything comes off it. */
@@ -38,9 +39,6 @@
 
 	let { key, label, glyphFallback = false }: Props = $props();
 
-	// The effective appearance, resolved the way `tokens.css` resolves it: a
-	// pinned `data-theme` first, the OS preference second (spec 012 FR-009).
-	const light = new MediaQuery('(prefers-color-scheme: light)', false);
 	/**
 	 * The fallback artwork's three slots, read off the live cascade rather than
 	 * hard-coded: it ships in one theme, and one vendor's greys are not this
@@ -53,18 +51,14 @@
 	const soft = $derived(token('--color-border-strong'));
 	const hole = $derived(token('--color-bg-base'));
 
-	const dark = $derived.by(() => {
-		const pinned = browser ? document.documentElement.dataset.theme : undefined;
-		if (pinned === 'dark') return true;
-		if (pinned === 'light') return false;
-		return !light.current;
-	});
+	const dark = $derived(isDarkTheme());
 
 	/**
-	 * Two sources, in order: the provider's own mark when the catalog names the
-	 * model, otherwise the security-key artwork when the authenticator at least
-	 * said what KIND it is. A platform authenticator the catalog cannot name
-	 * gets neither, and the row keeps the shape glyph it always drew.
+	 * Three sources, in order: the provider's own mark from the compiled
+	 * catalog; the directory service's mark for a model no catalog carries
+	 * (hardware keys); and the security-key artwork when neither can name it but
+	 * the authenticator at least said what KIND it is. A platform authenticator
+	 * nobody can name gets none of them, and the row keeps its shape glyph.
 	 */
 	const uri = $derived.by(() => {
 		// Nothing to draw before hydration: the artwork comes from the wasm core,
@@ -72,6 +66,8 @@
 		if (!browser) return undefined;
 		const provider = key.aaguid ? passkeyProviderIconDataUri(key.aaguid, dark) : undefined;
 		if (provider) return provider;
+		const listed = directoryEntry(key.aaguid, dark);
+		if (listed?.iconUrl) return listed.iconUrl;
 		return passkeyFallbackIconDataUri(
 			key.authenticator_attachment,
 			key.transports,

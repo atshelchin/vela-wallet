@@ -406,6 +406,9 @@ pub struct GalleryView {
     name_focus: FocusHandle,
     focus_handle: FocusHandle,
     identicons: RefCell<IdenticonCache>,
+    /// Always empty here: the gallery's keys are fixtures, and a review screen
+    /// that reached the network would be a review of the network.
+    directory: RefCell<crate::passkey_directory::PasskeyDirectory>,
 }
 
 impl GalleryView {
@@ -445,6 +448,7 @@ impl GalleryView {
             name_focus: cx.focus_handle(),
             focus_handle,
             identicons: RefCell::default(),
+            directory: RefCell::default(),
         }
     }
 
@@ -601,6 +605,10 @@ impl GalleryView {
                     view,
                     name_focus: &self.name_focus,
                     identicons: &self.identicons,
+                    // The gallery asks nobody: its keys are fixtures, and a
+                    // review screen that reached the network would be a review
+                    // of the network.
+                    directory: &self.directory,
                     picker_open: self.picker_open,
                     copied: self.copied,
                     sink,

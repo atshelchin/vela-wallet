@@ -484,6 +484,45 @@ pub fn passkey_provider_png(
     )?)
 }
 
+/// **Where to ask about a model the compiled catalog cannot name**, or `None`
+/// when there is nothing to ask: a malformed or all-zero AAGUID, or one the
+/// catalog already answers offline.
+///
+/// The shells own the transport; the core owns the contract, so four clients
+/// cannot ask four different questions or trust four different answers.
+#[uniffi::export]
+pub fn passkey_directory_url(aaguid: String) -> Option<String> {
+    vela_core::passkey::directory_lookup_url(&aaguid)
+}
+
+/// **Read a directory answer.** `None` unless the body is about the AAGUID that
+/// was asked about and carries a usable name; the icon URL is present only when
+/// the path is the service's own shape.
+#[uniffi::export]
+pub fn passkey_directory_entry(
+    aaguid: String,
+    json: String,
+    dark: bool,
+) -> Option<PasskeyDirectoryEntry> {
+    vela_core::passkey::directory_entry(&aaguid, &json, dark).map(Into::into)
+}
+
+/// What the directory said about a model.
+#[derive(uniffi::Record)]
+pub struct PasskeyDirectoryEntry {
+    pub name: String,
+    pub icon_url: Option<String>,
+}
+
+impl From<vela_core::passkey::DirectoryEntry> for PasskeyDirectoryEntry {
+    fn from(entry: vela_core::passkey::DirectoryEntry) -> Self {
+        Self {
+            name: entry.name,
+            icon_url: entry.icon_url,
+        }
+    }
+}
+
 /// **The security-key fallback mark as PNG bytes**, for a key whose AAGUID the
 /// catalog cannot name. `None` when the row deserves no mark of this kind — a
 /// platform authenticator, which the client already draws its own way.

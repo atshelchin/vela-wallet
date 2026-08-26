@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.passkey.PasskeyDirectory
 import app.getvela.wallet.core.passkey.PasskeyProviderMark
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
@@ -255,9 +256,14 @@ private fun KeyRow(
         // vault's own mark and its own name. When it does not — a hardware key,
         // an authenticator that reported nothing — the row says what it always
         // said, from `method`.
+        // Who is holding this key: the compiled catalog's name, then the
+        // directory's for a model no catalog carries, then the method line.
+        val holder = key.providerName.ifEmpty {
+            PasskeyDirectory.holder(key.aaguid, VelaTheme.isDark)?.name.orEmpty()
+        }
         val drewMark = PasskeyProviderMark(
             key = key,
-            label = key.providerName.ifEmpty { strings.t(providerLineFor(key.method)) },
+            label = holder.ifEmpty { strings.t(providerLineFor(key.method)) },
             size = VelaSizing.controlSm,
         )
         if (!drewMark) {
@@ -290,7 +296,7 @@ private fun KeyRow(
                 fontSize = VelaTextSize.lg,
             )
             Text(
-                text = key.providerName.ifEmpty { strings.t(providerLineFor(key.method)) },
+                text = holder.ifEmpty { strings.t(providerLineFor(key.method)) },
                 color = colors.fgMuted,
                 fontFamily = VelaFontFamily,
                 fontSize = VelaTextSize.sm,

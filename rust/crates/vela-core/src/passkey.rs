@@ -21,6 +21,8 @@
 //! cross-platform, the transports — which is what every client did before this
 //! module existed.
 
+use serde::{Deserialize, Serialize};
+
 use crate::passkey_catalog::{ICONS, NO_ICON, PROVIDERS};
 
 /// Artwork for the keys the catalog cannot name.
@@ -128,14 +130,114 @@ impl PasskeyProvider {
     }
 }
 
+/// The directory service that answers for models the compiled catalog does not
+/// carry — hardware keys, and anything published since this build.
+///
+/// **Ours, not a third party's** (founder, 2026-08-26): it is a lookup service
+/// that stores nothing, which is what makes asking it acceptable at all. The
+/// bundled catalog still answers first and answers offline; this fills the gaps.
+pub const AAGUID_DIRECTORY_ORIGIN: &str = "https://aaguid-explorer.awesometools.dev";
+
+/// What the directory said about a model.
+/// Serialized to the web as-is, hence camelCase: this crosses the wasm
+/// boundary as a plain object rather than through a generated view type.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryEntry {
+    /// The model's name, verbatim from the service.
+    pub name: String,
+    /// Absolute URL of its mark, when the entry has one this client can render.
+    pub icon_url: Option<String>,
+}
+
+/// Where to ask about `aaguid`, or `None` when there is nothing to ask.
+///
+/// Returns `None` for a malformed, empty or all-zero AAGUID, and for one the
+/// compiled catalog already answers: a request whose answer is already on the
+/// device is a request that should not be made.
+#[must_use]
+pub fn directory_lookup_url(aaguid: &str) -> Option<String> {
+    let key = canonical(aaguid)?;
+    if provider(&key).is_some() {
+        return None;
+    }
+    Some(format!(
+        "{AAGUID_DIRECTORY_ORIGIN}/api/v1/authenticators/{key}"
+    ))
+}
+
+/// Read a directory response for `aaguid`, choosing the mark for the theme.
+///
+/// `None` unless the body is an object whose `id` is the AAGUID that was asked
+/// about — the answer to somebody else's question is not an answer to this one
+/// — and unless it carries a usable name. The icon path is checked against the
+/// service's own shape before it becomes a URL: a client that will fetch
+/// whatever a field says is a client that can be pointed anywhere.
+#[must_use]
+pub fn directory_entry(aaguid: &str, json: &str, dark: bool) -> Option<DirectoryEntry> {
+    let key = canonical(aaguid)?;
+    let value: serde_json::Value = serde_json::from_str(json).ok()?;
+    let id = value.get("id")?.as_str()?.trim().to_ascii_lowercase();
+    if id != key {
+        return None;
+    }
+    let name = value.get("name")?.as_str()?.trim().to_owned();
+    if name.is_empty() {
+        return None;
+    }
+    // `iconDark` is optional and often absent; the light mark is the fallback
+    // in both directions, because a mark is better than no mark.
+    let field = |name: &str| {
+        value
+            .get(name)
+            .and_then(serde_json::Value::as_str)
+            .filter(|path| icon_path_is_safe(path))
+            .map(str::to_owned)
+    };
+    let icon_url = if dark {
+        field("iconDark").or_else(|| field("icon"))
+    } else {
+        field("icon").or_else(|| field("iconDark"))
+    }
+    .map(|path| format!("{AAGUID_DIRECTORY_ORIGIN}/data/{path}"));
+    Some(DirectoryEntry { name, icon_url })
+}
+
+/// `icons/<name>.svg|png`, and nothing else: no scheme, no traversal, no host.
+fn icon_path_is_safe(path: &str) -> bool {
+    let Some(file) = path.strip_prefix("icons/") else {
+        return false;
+    };
+    let (stem, extension) = match file.rsplit_once('.') {
+        Some(parts) => parts,
+        None => return false,
+    };
+    let extension = extension.to_ascii_lowercase();
+    (extension == "svg" || extension == "png")
+        && !stem.is_empty()
+        && stem
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// The lowercase canonical form, or `None` when there is no model to ask about.
+fn canonical(aaguid: &str) -> Option<String> {
+    let key = aaguid.trim().to_ascii_lowercase();
+    if key.len() != 36 || key.bytes().all(|b| b == b'0' || b == b'-') {
+        return None;
+    }
+    let shaped = key.bytes().enumerate().all(|(i, b)| match i {
+        8 | 13 | 18 | 23 => b == b'-',
+        _ => b.is_ascii_hexdigit(),
+    });
+    shaped.then_some(key)
+}
+
 /// Resolve an AAGUID to its provider. Input may be any case, with or without
 /// surrounding whitespace; an empty or all-zero AAGUID resolves to `None`.
 #[must_use]
 pub fn provider(aaguid: &str) -> Option<PasskeyProvider> {
-    let key = aaguid.trim().to_ascii_lowercase();
-    if key.is_empty() || key.bytes().all(|b| b == b'0' || b == b'-') {
-        return None;
-    }
+    let key = canonical(aaguid)?;
     let position = PROVIDERS
         .binary_search_by(|(candidate, ..)| (*candidate).cmp(key.as_str()))
         .ok()?;
@@ -304,6 +406,103 @@ mod tests {
                 !svg.to_ascii_lowercase().contains("white"),
                 "the cut-outs show the surface, not paper"
             );
+        }
+    }
+
+    #[test]
+    fn the_directory_is_asked_only_about_models_we_cannot_name() {
+        // Already in the compiled catalog: no request.
+        assert_eq!(
+            directory_lookup_url("fbfc3007-154e-4ecc-8c0b-6e020557d7bd"),
+            None
+        );
+        // A hardware key: ask.
+        assert_eq!(
+            directory_lookup_url("2FC0579F-8113-47EA-B116-BB5A8DB9202A").as_deref(),
+            Some(
+                "https://aaguid-explorer.awesometools.dev/api/v1/authenticators/\
+                 2fc0579f-8113-47ea-b116-bb5a8db9202a"
+            )
+        );
+        // Nothing to ask about.
+        assert_eq!(directory_lookup_url(""), None);
+        assert_eq!(
+            directory_lookup_url("00000000-0000-0000-0000-000000000000"),
+            None
+        );
+        assert_eq!(directory_lookup_url("../../etc/passwd"), None);
+    }
+
+    #[test]
+    fn a_directory_answer_must_be_about_the_question() {
+        let asked = "2fc0579f-8113-47ea-b116-bb5a8db9202a";
+        let entry = directory_entry(
+            asked,
+            r#"{"id":"2FC0579F-8113-47EA-B116-BB5A8DB9202A","name":"YubiKey 5 Series","icon":"icons/yubico.svg"}"#,
+            false,
+        )
+        .expect("a well-formed answer");
+        assert_eq!(entry.name, "YubiKey 5 Series");
+        assert_eq!(
+            entry.icon_url.as_deref(),
+            Some("https://aaguid-explorer.awesometools.dev/data/icons/yubico.svg")
+        );
+
+        // Someone else's model, an empty name, or no JSON at all: no answer.
+        assert_eq!(
+            directory_entry(
+                asked,
+                r#"{"id":"ea9b8d66-4d01-1d21-3ce4-b6b48cb575d4","name":"x"}"#,
+                false
+            ),
+            None
+        );
+        assert_eq!(
+            directory_entry(
+                asked,
+                r#"{"id":"2fc0579f-8113-47ea-b116-bb5a8db9202a","name":"  "}"#,
+                false
+            ),
+            None
+        );
+        assert_eq!(directory_entry(asked, "not json", false), None);
+
+        // The dark cut when there is one, the light cut when there is not.
+        let both = format!(
+            r#"{{"id":"{asked}","name":"K","icon":"icons/a.png","iconDark":"icons/b.png"}}"#
+        );
+        assert!(
+            directory_entry(asked, &both, true)
+                .and_then(|e| e.icon_url)
+                .is_some_and(|u| u.ends_with("icons/b.png"))
+        );
+        assert!(
+            directory_entry(asked, &both, false)
+                .and_then(|e| e.icon_url)
+                .is_some_and(|u| u.ends_with("icons/a.png"))
+        );
+        let light_only = format!(r#"{{"id":"{asked}","name":"K","icon":"icons/a.png"}}"#);
+        assert!(
+            directory_entry(asked, &light_only, true)
+                .and_then(|e| e.icon_url)
+                .is_some_and(|u| u.ends_with("icons/a.png")),
+            "a mark is better than no mark"
+        );
+    }
+
+    #[test]
+    fn an_icon_path_that_is_not_the_services_own_shape_is_dropped() {
+        let asked = "2fc0579f-8113-47ea-b116-bb5a8db9202a";
+        for icon in [
+            "https://evil.example/x.svg",
+            "icons/../../secret.svg",
+            "icons/x.js",
+            "/icons/x.svg",
+            "x.svg",
+        ] {
+            let body = format!(r#"{{"id":"{asked}","name":"Some Key","icon":"{icon}"}}"#);
+            let entry = directory_entry(asked, &body, false).expect("the name still stands");
+            assert_eq!(entry.icon_url, None, "rejected: {icon}");
         }
     }
 

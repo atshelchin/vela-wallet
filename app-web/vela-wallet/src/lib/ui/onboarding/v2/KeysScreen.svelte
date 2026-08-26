@@ -12,6 +12,8 @@
 	import AddMethodPicker from './AddMethodPicker.svelte';
 	import { providerLineFor } from '$lib/onboarding/core/copy';
 	import PasskeyProviderMark from './PasskeyProviderMark.svelte';
+	import { providerLabel } from '$lib/onboarding/core/passkey-directory.svelte';
+	import { isDarkTheme } from '$lib/theme.svelte';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
 	import type { KeyMethod } from '$lib/onboarding/generated/KeyMethod';
 
@@ -95,6 +97,7 @@
 		<ul class="rows">
 			{#each keys as key, index (index)}
 				{@const badge = badgeFor(key)}
+				{@const holder = providerLabel(key.provider_name, key.aaguid, isDarkTheme())}
 				<li class="row">
 					<!--
 						Who is holding this key, when the core's AAGUID catalog knows:
@@ -105,13 +108,13 @@
 					-->
 					<PasskeyProviderMark
 						{key}
-						label={key.provider_name || strings(providerLineFor(key.method))}
+						label={holder ?? strings(providerLineFor(key.method))}
 						glyphFallback
 					/>
 					<span class="who">
 						<span class="name">{key.name}</span>
 						<span class="meta">
-							{key.provider_name || strings(providerLineFor(key.method))}
+							{holder ?? strings(providerLineFor(key.method))}
 						</span>
 					</span>
 					<!--

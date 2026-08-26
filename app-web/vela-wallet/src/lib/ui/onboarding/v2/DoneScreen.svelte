@@ -13,6 +13,8 @@
 	 */
 	import Button from '$lib/ui/Button.svelte';
 	import PasskeyProviderMark from './PasskeyProviderMark.svelte';
+	import { providerLabel } from '$lib/onboarding/core/passkey-directory.svelte';
+	import { isDarkTheme } from '$lib/theme.svelte';
 	import { identiconNormalizeSeed, identiconSvgCircular } from '$lib/onboarding/core/wasm-client';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
 
@@ -96,11 +98,12 @@
 
 	<ul class="keys">
 		{#each keys as key, index (index)}
+			{@const holder = providerLabel(key.provider_name, key.aaguid, isDarkTheme())}
 			<li class="key">
-				<PasskeyProviderMark {key} label={key.provider_name} />
+				<PasskeyProviderMark {key} label={holder ?? ''} />
 				<span class="keyname">
 					{key.name}
-					{#if key.provider_name}<span class="provider">{key.provider_name}</span>{/if}
+					{#if holder}<span class="provider">{holder}</span>{/if}
 				</span>
 				<span class="badge" data-tone={key.synced ? 'synced' : 'local'}>
 					{key.synced

@@ -17,6 +17,7 @@ mod identicon;
 mod loc;
 mod onboarding;
 mod onboarding_flow;
+mod passkey_directory;
 mod outcome;
 mod raster;
 mod session;

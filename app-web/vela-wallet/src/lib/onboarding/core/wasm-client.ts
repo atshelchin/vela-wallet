@@ -28,6 +28,8 @@ import init, {
 	identiconNormalizeSeed,
 	identiconSvgCircular,
 	LoginCore,
+	passkeyDirectoryEntry,
+	passkeyDirectoryUrl,
 	passkeyFallbackIconDataUri,
 	passkeyProviderIconDataUri,
 	SessionCore,
@@ -48,6 +50,9 @@ export { passkeyProviderIconDataUri };
 // The security-key artwork for a key the catalog cannot name — the one unknown
 // whose KIND is still known, because the authenticator said so.
 export { passkeyFallbackIconDataUri };
+// The directory service, for models no compiled catalog can name. The core
+// decides what is worth asking and what counts as an answer.
+export { passkeyDirectoryEntry, passkeyDirectoryUrl };
 
 /**
  * The in-flight (or settled) initialization. Held as a promise rather than a

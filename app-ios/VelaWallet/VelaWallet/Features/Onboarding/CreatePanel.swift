@@ -328,12 +328,24 @@ struct KeysScreen: View {
 
 private struct KeyRow: View {
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     let loc: Loc
     let key: CreateKeyRow
     let busy: Bool
     let removable: Bool
     let onConfirm: () -> Void
     let onRemove: () -> Void
+
+    /// Who is holding this key: the compiled catalog's name, then the
+    /// directory's for a model no catalog carries, and nothing when neither
+    /// knows — the row then says what it always said about the METHOD.
+    private var holder: String? {
+        if !key.providerName.isEmpty { return key.providerName }
+        guard !key.aaguid.isEmpty else { return nil }
+        return PasskeyDirectory.shared
+            .entry(aaguid: key.aaguid, dark: colorScheme == .dark)?
+            .name
+    }
 
     var body: some View {
         HStack(spacing: Tokens.Space.s12) {
@@ -343,17 +355,13 @@ private struct KeyRow: View {
             // says what it always said, from `method`.
             PasskeyProviderMark(
                 key: key,
-                label: key.providerName.isEmpty
-                    ? loc.t(providerLineFor(key.method))
-                    : key.providerName,
+                label: holder ?? loc.t(providerLineFor(key.method)),
                 glyphFallback: true
             )
 
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text(key.name).typeRole(Typography.rowTitle).foregroundStyle(theme.fgBase)
-                Text(key.providerName.isEmpty
-                    ? loc.t(providerLineFor(key.method))
-                    : key.providerName)
+                Text(holder ?? loc.t(providerLineFor(key.method)))
                     .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.fgMuted)
             }
@@ -649,11 +657,22 @@ struct RetryScreen: View {
 /// somebody can fund before the wallet is reachable.
 struct DoneScreen: View {
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     let loc: Loc
     let address: String
     let walletName: String
     let keys: [CreateKeyRow]
     let onEnter: () -> Void
+
+    /// Who is holding this key: the compiled catalog first, the directory
+    /// second, nothing when neither knows.
+    private func doneHolder(_ key: CreateKeyRow) -> String? {
+        if !key.providerName.isEmpty { return key.providerName }
+        guard !key.aaguid.isEmpty else { return nil }
+        return PasskeyDirectory.shared
+            .entry(aaguid: key.aaguid, dark: colorScheme == .dark)?
+            .name
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -711,7 +730,7 @@ struct DoneScreen: View {
                             HStack(spacing: Tokens.Space.s12) {
                                 PasskeyProviderMark(
                                     key: key,
-                                    label: key.providerName,
+                                    label: doneHolder(key) ?? "",
                                     size: Tokens.Space.s20
                                 )
                                 VStack(alignment: .leading, spacing: Tokens.Space.s2) {
@@ -721,8 +740,8 @@ struct DoneScreen: View {
                                     // Where the key lives, under the name it was
                                     // given. Quieter than the name: one is the
                                     // person's word, the other the system's.
-                                    if !key.providerName.isEmpty {
-                                        Text(key.providerName)
+                                    if let holder = doneHolder(key) {
+                                        Text(holder)
                                             .typeRole(Typography.flowCaption)
                                             .foregroundStyle(theme.fgSubtle)
                                     }

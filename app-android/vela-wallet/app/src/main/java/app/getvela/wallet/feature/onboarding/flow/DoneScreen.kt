@@ -36,6 +36,7 @@ import app.getvela.wallet.core.designsystem.components.VelaAddressStrip
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.passkey.PasskeyDirectory
 import app.getvela.wallet.core.passkey.PasskeyProviderMark
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
@@ -157,9 +158,12 @@ fun ColumnScope.DoneScreen(
                 modifier = Modifier.fillMaxWidth().padding(vertical = VelaSpacing.md),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val holder = key.providerName.ifEmpty {
+                    PasskeyDirectory.holder(key.aaguid, VelaTheme.isDark)?.name.orEmpty()
+                }
                 val drewMark = PasskeyProviderMark(
                     key = key,
-                    label = key.providerName,
+                    label = holder,
                     size = VelaIconSize.lg,
                 )
                 if (drewMark) {
@@ -175,9 +179,9 @@ fun ColumnScope.DoneScreen(
                     // Where the key lives, under the name it was given. Quieter
                     // than the name: one is the person's word for it, the other
                     // is the system's.
-                    if (key.providerName.isNotEmpty()) {
+                    if (holder.isNotEmpty()) {
                         Text(
-                            text = key.providerName,
+                            text = holder,
                             color = colors.fgSubtle,
                             fontFamily = VelaFontFamily,
                             fontSize = VelaTextSize.sm,

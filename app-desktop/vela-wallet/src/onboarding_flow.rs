@@ -24,13 +24,13 @@ use std::rc::Rc;
 use gpui::{
     AnyElement, App, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement as _,
     ParentElement, SharedString, Stateful, StatefulInteractiveElement as _, Styled, Window, div,
-    px,
-};
+    px, ImageSource, img,};
 
 use vela_core::app::create_wallet::{CreateKeyRow, CreateStage, CreateView, SubmitLabel};
 use vela_core::app::{KeyMethod, StatusKey};
 
 use crate::identicon::IdenticonCache;
+use crate::passkey_directory::PasskeyDirectory;
 use crate::loc::Loc;
 use crate::theme::{
     self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD, Theme,
@@ -193,6 +193,9 @@ pub struct FlowHost<'a> {
     /// The DONE card's avatar. A `RefCell` because rasterizing needs `&mut`
     /// and the whole flow renders from a shared `&FlowHost`.
     pub identicons: &'a RefCell<IdenticonCache>,
+    /// Names and marks for models the compiled catalog cannot name. Read-only
+    /// here: the page does the asking, from its own render pass.
+    pub directory: &'a RefCell<PasskeyDirectory>,
     /// The add-method list is expanded.
     pub picker_open: bool,
     /// The Done screen's transient 已复制 feedback.
@@ -762,6 +765,28 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
     // The vault's own mark, when the catalog knows the model. Nothing when it
     // does not — the line below already says what is known, and an invented
     // placeholder logo would say something that is not.
+    // Who is holding this key: the compiled catalog's name, then the
+    // directory's for a model no catalog carries, then the method line.
+    let holder: Option<SharedString> = if key.provider_name.is_empty() {
+        host.directory
+            .borrow()
+            .holder(&key.aaguid, theme.is_dark())
+            .map(|found| SharedString::from(found.name.clone()))
+    } else {
+        Some(SharedString::from(key.provider_name.clone()))
+    };
+
+    let listed_mark = host
+        .directory
+        .borrow()
+        .holder(&key.aaguid, theme.is_dark())
+        .and_then(|holder| holder.icon_url.as_deref().map(str::to_owned))
+        .and_then(|url| {
+            host.directory
+                .borrow()
+                .mark(&url, theme::KEY_ROW_MARK as u32)
+        });
+
     if let Some(mark) = passkey_mark(
         &mut host.identicons.borrow_mut(),
         &key.aaguid,
@@ -769,6 +794,14 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
         theme::KEY_ROW_MARK,
     ) {
         row = row.child(mark);
+    } else if let Some(image) = listed_mark {
+        // The directory's own artwork for a model no build could carry.
+        row = row.child(
+            img(ImageSource::Render(image))
+                .w(px(theme::KEY_ROW_MARK))
+                .h(px(theme::KEY_ROW_MARK))
+                .flex_none(),
+        );
     } else if let Some(mark) = passkey_fallback_mark(
         &mut host.identicons.borrow_mut(),
         &key.authenticator_attachment,
@@ -801,11 +834,7 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
                     div()
                         .text_size(theme::text_row_meta())
                         .text_color(theme.fg_muted)
-                        .child(if key.provider_name.is_empty() {
-                            loc.t(provider_line(key))
-                        } else {
-                            SharedString::from(key.provider_name.clone())
-                        }),
+                        .child(holder.unwrap_or_else(|| loc.t(provider_line(key)))),
                 ),
         )
         .child(trailing);

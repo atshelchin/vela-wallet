@@ -5,6 +5,7 @@ import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,11 +25,11 @@ import uniffi.vela_core_uniffi.passkeyProviderPng
  * Windows Hello — rasterized by vela-core from the AAGUID the authenticator
  * reported at registration (spec 019, founder call 2026-08-26).
  *
- * Two sources, in order: the provider's own mark when the catalog names the
- * model, and the security-key artwork when the authenticator at least said what
- * KIND it is — a hardware key is the one unknown whose kind is known. A platform
- * authenticator the catalog cannot name gets neither, and the caller keeps the
- * glyph it always drew.
+ * Three sources, in order: the provider's own mark from the compiled catalog;
+ * the directory service's mark for a model no catalog carries (hardware keys);
+ * and the security-key artwork when neither can name it but the authenticator at
+ * least said what KIND it is. A platform authenticator nobody can name gets
+ * none of them, and the caller keeps the glyph it always drew.
  *
  * The lookup is offline by construction — a directory service would learn which
  * vault holds this wallet's key, and that is nobody's business.
@@ -54,9 +55,24 @@ fun PasskeyProviderMark(
         soft = colors.borderStrong.hex(),
         hole = colors.bgBase.hex(),
     )
+    // The directory is asked once per AAGUID; its answer arrives as state, so
+    // the row recomposes when it lands rather than blocking on it.
+    val listed = PasskeyDirectory.holder(key.aaguid, dark)
+    LaunchedEffect(key.aaguid, dark) {
+        if (key.aaguid.isNotBlank()) PasskeyDirectory.lookup(key.aaguid, dark)
+    }
+    LaunchedEffect(listed?.iconUrl, sizePx) {
+        listed?.iconUrl?.let { PasskeyDirectory.fetchMark(it, sizePx) }
+    }
+
     val bitmap = remember(key.aaguid, key.transports, key.method, dark, palette, sizePx) {
-        providerBitmap(key.aaguid, dark, sizePx) ?: fallbackBitmap(key, palette, sizePx)
-    } ?: return false
+        providerBitmap(key.aaguid, dark, sizePx)
+    }
+        ?: listed?.iconUrl?.let { PasskeyDirectory.mark(it, sizePx) }
+        ?: remember(key.authenticatorAttachment, key.transports, key.method, palette, sizePx) {
+            fallbackBitmap(key, palette, sizePx)
+        }
+        ?: return false
     Image(
         bitmap = bitmap,
         contentDescription = label.ifEmpty { null },

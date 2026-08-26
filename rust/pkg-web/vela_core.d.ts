@@ -696,6 +696,20 @@ export function matchSelector(sig: string, calldata: Uint8Array): boolean;
 export function parsePublicKey(hex: string): P256PublicKey;
 
 /**
+ * **Read a directory answer.** `undefined` unless the body is about the AAGUID
+ * that was asked about and carries a usable name; `iconUrl` is present only
+ * when the path is the service's own shape.
+ */
+export function passkeyDirectoryEntry(aaguid: string, json: string, dark: boolean): any;
+
+/**
+ * **Where to ask about a model the compiled catalog cannot name**, or
+ * `undefined` when there is nothing to ask: a malformed or all-zero AAGUID, or
+ * one the catalog already answers offline.
+ */
+export function passkeyDirectoryUrl(aaguid: string): string | undefined;
+
+/**
  * **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
  * key whose AAGUID the catalog cannot name. `undefined` when the row deserves
  * no mark of this kind — a platform authenticator, which the client already
@@ -894,6 +908,8 @@ export interface InitOutput {
     readonly networkadmincore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly networkadmincore_view: (a: number) => [number, number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];
+    readonly passkeyDirectoryEntry: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly passkeyDirectoryUrl: (a: number, b: number) => [number, number];
     readonly passkeyFallbackIconDataUri: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number];
     readonly passkeyProviderIconDataUri: (a: number, b: number, c: number) => [number, number];
     readonly passkeyProviderName: (a: number, b: number) => [number, number];

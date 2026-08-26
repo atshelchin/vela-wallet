@@ -3243,6 +3243,46 @@ export function parsePublicKey(hex) {
 }
 
 /**
+ * **Read a directory answer.** `undefined` unless the body is about the AAGUID
+ * that was asked about and carries a usable name; `iconUrl` is present only
+ * when the path is the service's own shape.
+ * @param {string} aaguid
+ * @param {string} json
+ * @param {boolean} dark
+ * @returns {any}
+ */
+export function passkeyDirectoryEntry(aaguid, json, dark) {
+    const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyDirectoryEntry(ptr0, len0, ptr1, len1, dark);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * **Where to ask about a model the compiled catalog cannot name**, or
+ * `undefined` when there is nothing to ask: a malformed or all-zero AAGUID, or
+ * one the catalog already answers offline.
+ * @param {string} aaguid
+ * @returns {string | undefined}
+ */
+export function passkeyDirectoryUrl(aaguid) {
+    const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyDirectoryUrl(ptr0, len0);
+    let v2;
+    if (ret[0] !== 0) {
+        v2 = getStringFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v2;
+}
+
+/**
  * **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
  * key whose AAGUID the catalog cannot name. `undefined` when the row deserves
  * no mark of this kind — a platform authenticator, which the client already

@@ -281,6 +281,83 @@ through the bridge and get a view back.
 
 ---
 
+## Phase 10: Scope expansion — the first key is a choice (2026-08-26)
+
+**Purpose**: the Samsung/Xiaomi lock-out fix. The core stops minting the first key with a
+default method; every founding key is chosen on the key screen. See spec *Scope
+expansion* and FR-009a.
+
+- [X] T160 Core: `Submit` lands on the (empty) key list after the group key; `AddKey`
+  mints every key including the first (label/display name = wallet name for key 1);
+  cancellation and failure return to the key list, never the form
+  (`rust/crates/vela-core/src/app/create_wallet.rs`)
+- [X] T161 Core tests: `registered()`/`device_bound_registered()` walk the new flow; new
+  pin `the_first_key_carries_the_persons_method_choice` (the Xiaomi fix);
+  `cancelling_registration_persists_nothing` asserts the return-to-list behaviour
+- [X] T162 All four v2 shells: the key screen keeps the three methods EXPANDED while the
+  list is empty (web `KeysScreen.svelte`, Android `KeysScreen.kt`, iOS
+  `CreatePanel.swift`, desktop `onboarding_flow.rs`); web gallery gains fixture `K0`
+- [X] T163 Shipping `src/` client: lands on the empty key list; its existing
+  "+ Add a passkey" row (hardcoded platform method) keeps FR-030 intact
+- [X] T164 Root e2e updated to the new flow (add-key click after Create Wallet) — plus
+  three pre-existing rot fixes found by running them: stale ack fragments, the stale
+  19,608 corpus pin, and the sign-in mock answering the registry's three query flavors
+  with one echoed record
+- [X] T165 Rebuild + verify the committed wasm (`build:wasm`, `verify:wasm`,
+  `sync:wasm`); root jest 2,498 green; web vitest 155 green (two pre-existing rail
+  token-gate failures fixed: `railSlot` gallery prop, rail/welcome px literals
+  tokenized); desktop 70 green; Android `compileDebugKotlin` green; iOS arm64 sim
+  build green
+- [~] T166 Device sweep on the Galaxy S22: create with the YubiKey 5C as the FIRST key
+  via the security-key method (app-owned path, no OEM sheet) — **verified on the S22 by
+  the founder, 2026-08-26 16:49–16:56**: empty key list → security-key method → GMS
+  FIDO2 "Connect your key" → minted + member proof signed, twice over, no OEM sheet and
+  no fingerprint window. The Xiaomi (alioth) half is untried — the device was not
+  connected
+- [X] T167 iOS simulator x86_64 slice: the xcframework's sim slice is arm64-only by
+  design (the pinned toolchain carries no `x86_64-apple-ios`), so the project now sets
+  `EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64` on the app target; `generic/platform=iOS
+  Simulator` builds green. Intel-Mac hosts are not a supported dev environment
+
+## Phase 11: Scope expansion — universal methods & the GMS-free path
+
+**Purpose**: the method × platform matrix, per FR-009/009b/009c. Ordered by audience
+impact: the app-owned Android USB path serves the GMS-free population (GrapheneOS/
+CalyxOS, China-market devices) that overlaps most with this wallet's target users.
+
+- [ ] T170 uniffi-export the core `ctap` module's ceremony surface (make-credential,
+  get-assertion, getInfo, PIN/UV flows) so Kotlin can drive it sans-IO — the transport
+  stays platform code
+- [ ] T171 Android USB-host transport: CTAPHID over `android.hardware.usb`
+  (interrupt/bulk endpoints, permission dialog, hot-plug via `ACTION_USB_DEVICE_ATTACHED`),
+  feeding the exported ctap client; wire it as the `SecurityKey` route in
+  `PasskeyExecutor` with GMS FIDO2 as the fallback where GMS exists — registration AND
+  assertion, create AND sign-in
+- [ ] T172 Android sign-in: a security-key entry on the welcome/login surface that does
+  not depend on the OEM sheet (unpinned get on the app-owned path; GMS FIDO2 unpinned
+  get as the GMS alternative)
+- [ ] T173 The CTAP UI vocabulary Android now needs (the desktop already has the
+  strings): touch prompt, PIN prompt with attempts, several-keys race — reuse the
+  `create.pin*`/`create.touch*` corpus keys; only genuinely new keys go through the
+  five-step corpus gate
+- [ ] T174 Hybrid (caBLE v2) client in core: QR payload + BLE advert decrypt + tunnel +
+  Noise, sans-IO, CTAP 2.2+ hybrid per webauthn-rs `cable/mod.rs` as the only public
+  protocol writing; transports (BLE scan, WebSocket) live in each shell
+- [ ] T175 Desktop scan method: wire the caBLE client on macOS/Linux (QR render in gpui,
+  `btleplug` scan, tunnel WebSocket); flip the method row from
+  present-and-unavailable to live
+- [ ] T176 Android scan method on GMS-free devices: same caBLE client over Android BLE;
+  where GMS exists the system sheet's cross-device route stays the default
+- [ ] T177 Probe-driven method availability: each shell reports at runtime which routes
+  exist (GMS present? BLE on? HID reachable?) and the key screen's method rows say so
+  with the true reason (FR-009); the probe result lands in VelaLog so a bug report
+  names the route that was tried
+- [ ] T178 Matrix verification sweep: per platform × method × (create, sign-in), record
+  pass/unavailable-with-reason in `results.md`; GMS-free case exercised on a device or
+  emulator image without Google services
+
+---
+
 ## Dependencies & Execution Order
 
 - **T001–T004** → everything. Baselines cannot be recovered after the fact.

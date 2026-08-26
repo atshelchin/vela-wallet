@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-24
 
-**Status**: Draft
+**Status**: Draft — scope expanded 2026-08-26 (see *Scope expansion* below)
 
 **Input**: User description: "接通真实 onboarding：把「创建钱包」与「登录钱包」从纯 UI 变成可用功能，在 app-web/vela-wallet（SvelteKit）、app-ios/VelaWallet（SwiftUI）、app-android/vela-wallet（Kotlin Compose）、app-desktop/vela-wallet（Rust gpui）四端同时落地。业务规则不重写：全部来自 vela-core 已有的两台 Crux 状态机 create_wallet.rs 与 login.rs，共享词汇在 shell.rs；每端只实现一个 executor 执行副作用并渲染 ViewModel，失败一律转成结果变体而非异常。UI/UX 权威是 design/onboarding-new 的 v2 设计，它整页分步（welcome → 名称 → 添加通行密钥列表 → 生成进度 → 完成），错误用底部弹层；v2 全面取代 spec 014 的容器，并新增「添加通行密钥」列表屏。同时把 session.rs 接到四端。核心两处修改：ACK_COUNT 4→2，加钥匙加上来源 KeyMethod。passkey 通路：web 用浏览器 WebAuthn；iOS 用 ASAuthorization；Android 用 CredentialManager；desktop 用 CTAP2 over USB HID 直连。不含 caBLE 扫码/BLE/NFC/CCID 与 iOS/Android 的自建 CTAP 通路（留给 020）。"
 
@@ -32,6 +32,66 @@ through an operating system's passkey service is a wallet a lapsed domain can pa
 the escape hatch is a passkey path the app owns end to end. This feature takes the first
 step of that — the desktop client, which has no system passkey service at all, talks
 CTAP2 straight to a security key — and leaves the full five-platform unification to 020.
+
+## Scope expansion (2026-08-26)
+
+Two device findings and a founder ruling widened this feature, absorbing most of
+what had been deferred to 020:
+
+1. **A Samsung with a YubiKey could not create a wallet.** The first founding key
+   was minted by the core with the *shell's* default method — the platform
+   authenticator — before any method choice existed, and Samsung's credential
+   sheet drops straight into a fingerprint prompt. The person holding the key
+   they intended to use saw only 「Setup was cancelled」.
+2. **A Xiaomi could not use a security key for the first key at all.** Its
+   system sheet offers no route to one, and the core never asked.
+3. **The founder ruled**: the three add methods — this device, a nearby device
+   by scan, a hardware security key — are not a per-platform nicety but the
+   product's shape, on **every** client (web, Android, iOS, macOS, Windows,
+   Linux), for **both** create and sign-in. Alongside them, the app-owned
+   ceremony paths that need **no relying-party domain association** are the
+   wallet's escape hatch and must stay first-class.
+
+What this changes in one sentence: **the person picks the authenticator, on a
+screen we own, for every founding key including the first — and each platform's
+executor routes that choice to a ceremony that actually works there.**
+
+### The method × platform matrix (authoritative)
+
+Who runs each ceremony, per platform. "app-owned" means this app is the WebAuthn
+client itself and **no domain association is consulted**; "system" means the
+OS/browser sheet arbitrates (and validates the RP domain association).
+
+| Method | Web | Android | iOS | macOS | Windows | Linux |
+| --- | --- | --- | --- | --- | --- | --- |
+| **This device** | browser sheet | Credential Manager (system; needs a provider — GMS or third-party) | AS platform provider (system) | ⛔ 019: none in gpui — AS platform API is future work | webauthn.dll (Hello; system, **no association needed**) | ⛔ no platform authenticator exists |
+| **USB security key** | browser sheet | **app-owned CTAP2 over USB host** (`android.hardware.usb`; **no GMS, no association, no OEM sheet**) — GMS FIDO2 direct stays as the already-working alternative where GMS exists | AS security-key provider (system) | app-owned CTAP2/USB | webauthn.dll (system UI, **no association needed**) | app-owned CTAP2/USB |
+| **Scan (hybrid, CTAP 2.2+ caBLE v2, BLE-proximity)** | browser sheet QR | system sheet's cross-device route where GMS exists; app-owned caBLE otherwise (shares the desktop client) | system sheet's cross-device route | app-owned caBLE client (**new build**) | webauthn.dll QR | app-owned caBLE client (**new build**) |
+| **Domain-association-free route exists** | ⛔ browser owns the client | ✅ app-owned CTAP USB (+ NFC via IsoDep APDU, staged next) | ⛔ (AS API requires AASA) | ✅ USB + hybrid | ✅ webauthn.dll asserts any rpId | ✅ USB + hybrid |
+
+Boundary statements the matrix encodes:
+
+- **GMS-free Android is a first-class citizen, not a degraded mode.** On
+  GrapheneOS/CalyxOS and the large China-market population without (full) GMS,
+  Credential Manager's passkey route and the GMS FIDO2 API are both absent —
+  and that population overlaps heavily with this wallet's target users. The
+  app-owned CTAP path (core `ctap` module over `android.hardware.usb`, NFC via
+  IsoDep to follow) is what makes the wallet fully usable there with a hardware
+  key: no GMS, no domain association, no OEM sheet — three dependencies gone at
+  once. The method probe decides at runtime which route serves the choice;
+  the person just picks "USB security key".
+- **The escape-hatch property is per-wallet, not per-platform.** Every wallet's
+  founding keys can sign on a desktop — and, with the app-owned Android path,
+  on any Android phone — through an association-free route (USB for hardware
+  keys, hybrid for phone-resident passkeys), so no lapsed domain can padlock
+  any wallet.
+- **A method that cannot work on a platform is shown, disabled, with the true
+  reason** — never hidden, never a dead click (macOS/Linux "this device";
+  anything else the probe finds missing at runtime, e.g. Bluetooth off for
+  scan).
+- **Sign-in mirrors create**: wherever a method exists for minting, the same
+  route must be reachable for asserting — including a security-key sign-in
+  entry on Android that does not depend on the OEM sheet.
 
 ## Design Authority
 
@@ -186,8 +246,16 @@ blocks with the explanation and unblocks the moment a second key is added.
    is unavailable and the reason is shown.
 5. **Given** a key whose membership confirmation was cancelled, **When** the list renders,
    **Then** that row alone offers a retry and finishing stays unavailable until it succeeds.
-6. **Given** the add control, **When** it is opened, **Then** the three methods are listed,
-   and the cross-device scan method is visibly unavailable with a stated reason.
+6. **Given** the add control, **When** it is opened, **Then** the three methods are
+   listed, and any method this platform cannot serve (per the method × platform matrix)
+   is visibly unavailable with the true reason.
+7. **Given** the key screen with no key yet (where the create flow now lands from the
+   name screen), **When** it renders, **Then** the three methods are already expanded —
+   the first key's method is the person's choice, and an empty list with a collapsed
+   "+" is a puzzle, not a step.
+8. **Given** a hardware security key and the security-key method, **When** the person
+   picks it, **Then** the ceremony runs on the app-controlled path — never the OEM
+   provider sheet — on Android with or without GMS.
 
 ---
 
@@ -302,8 +370,23 @@ the design authority table plus the full failure catalog.
 - **FR-008**: The key list MUST show, per key, its name, its provider/method line, and
   whether it is backed up to a sync fabric or exists only on this device.
 - **FR-009**: The client MUST offer three add methods — this device, a nearby device via
-  scan, and a USB security key — and MUST present the scan method as unavailable in this
-  feature with a stated reason.
+  scan, and a USB security key — for **every founding key, the first included**. A method
+  a platform cannot serve (per the method × platform matrix) MUST be presented as
+  unavailable with the true reason, never hidden and never a dead click.
+- **FR-009a**: The FIRST founding key's method MUST be the person's choice, made on the
+  key screen — the core MUST NOT mint a first key with a default method before that
+  screen is shown. (Device-found 2026-08-26: a default-platform first key locks
+  hardware-key owners out on OEMs whose system sheet cannot reach a security key.)
+- **FR-009b**: On Android, choosing the security-key method MUST run the ceremony on a
+  path this app controls end to end (not the OEM's provider sheet), for registration and
+  assertion both — including at sign-in — and that path MUST work **without GMS**: the
+  core's CTAP2 client over `android.hardware.usb`, with the GMS FIDO2 route kept only as
+  an already-working alternative where GMS exists. GMS-free devices (GrapheneOS/CalyxOS,
+  the China-market population) are a primary audience, not a fallback case.
+- **FR-009c**: The app-owned ceremony paths (Android USB, desktop USB, desktop/Android
+  scan) MUST NOT consult or depend on relying-party domain association or on any Google
+  service, and no future change may add such a dependency — they are the wallet's escape
+  hatch from a lapsed domain and from a platform gatekeeper alike.
 - **FR-010**: The chosen add method MUST reach the core, so that both the ceremony the
   client runs and the provider line the row shows follow from the person's choice.
 - **FR-011**: Adding a key MUST exclude the wallet's already-registered founding keys so an
@@ -410,14 +493,13 @@ the design authority table plus the full failure catalog.
 - **Five shells, not four.** The currently shipping web client is a fifth consumer of the
   same core and is updated in lockstep with the two core changes (FR-030). It is not
   redesigned to v2 in this feature.
-- **Desktop needs a security key.** The desktop app has no system passkey service to fall
-  back on, so it speaks to security keys itself; with the scan and wireless methods
-  excluded here, a person creating or entering a wallet on desktop must have a USB
-  security key. This matches the desktop design mocks, whose
-  first key is a USB key, and is lifted in 020.
-- **The scan method is designed but disabled.** Its entry point is present and explained
-  rather than hidden, so the key screen matches the design and the capability arrives in
-  020 without a layout change.
+- **macOS/Linux desktop needs a security key until the scan method lands there.** The
+  gpui app has no system passkey service; it speaks to security keys itself. The
+  app-owned caBLE client (scan) lifts that, and on Windows webauthn.dll already offers
+  Hello, security keys and the QR route in one sheet.
+- **The scan method ships enabled wherever a route exists** (see the matrix); where the
+  app-owned caBLE client has not landed yet, the entry point stays present and explained
+  rather than hidden, so no layout change is needed when it arrives.
 - **Platform passkeys stay.** "This device" remains one of the three methods permanently;
   the app-owned passkey path is an addition, not a replacement.
 - **Discoverability is assumed on platform passkeys.** Mobile platform credentials are
@@ -441,9 +523,18 @@ the design authority table plus the full failure catalog.
 
 ## Out of Scope
 
-- Cross-device passkey creation by scanning (caBLE / hybrid), and the wireless and
-  smart-card transports (BLE, NFC, CCID) — feature 020.
-- An app-owned passkey path on iOS, Android and the web — feature 020.
+*(Rewritten 2026-08-26 — the scope expansion absorbed most of what feature 020 held:
+the scan/hybrid method, the app-owned Android CTAP path, and the universal method
+choice are now IN scope, per the matrix above.)*
+
+- NFC (IsoDep APDU) and smart-card (CCID) transports for the app-owned CTAP paths —
+  staged immediately after USB; the transport seam in the core `ctap` module is built
+  so adding them touches no ceremony code.
+- An app-owned passkey path on **iOS** (the OS offers no HID access; hybrid-as-client
+  over CoreBluetooth is the eventual route) and on the **web** (the browser owns the
+  WebAuthn client; no app-owned route can exist).
+- A macOS platform-authenticator (Touch ID) route via the AS API — worth having, needs
+  an entitlement + AASA and a Swift shim from gpui; explicitly future work.
 - Making the wallet home's balances, assets and activity real.
 - Any change to the on-chain contracts, the registry service, or the index service.
 - Redesigning the currently shipping web client to the v2 flow.

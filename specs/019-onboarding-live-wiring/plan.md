@@ -185,3 +185,22 @@ ordered by how much each client teaches the next.
 
 MVP is Phases 1–3: one client creating and entering a real wallet proves the whole shape,
 and every later phase is the same shape in another language.
+
+## Addendum — scope expansion (2026-08-26)
+
+The founder pulled most of feature 020 into this one: the three add methods
+(this device / scan / hardware key) become universal across all six platforms,
+for create and sign-in, with the method × platform matrix in spec.md as the
+authoritative boundary. Two structural consequences:
+
+1. **The first key is a choice** — the core lands on the empty key list instead
+   of minting a default-platform key (phase 10, shipped). This is the fix for
+   the Samsung-YubiKey and Xiaomi lock-outs.
+2. **The app-owned CTAP paths are the product's spine, not desktop plumbing** —
+   the core `ctap` module gets a uniffi surface and an Android USB-host
+   transport so GMS-free devices (GrapheneOS/CalyxOS, China-market) are served
+   first-class, and a sans-IO caBLE v2 client gives macOS/Linux (and GMS-free
+   Android) the scan method (phase 11, sequenced by audience impact).
+
+No new core *rules*: the machines' transitions are untouched beyond phase 10's
+flow reordering; everything else is executors and transports.

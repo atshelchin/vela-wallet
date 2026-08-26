@@ -177,3 +177,37 @@ because each one is a *class* of mistake, not an incident:
    but nothing in the type says so. ⚠ Every view the shells read has this shape;
    a terminal state that keeps emitting a live-looking value is a trap the other
    machines can lay too.
+
+## 12. The first key stops being the shell's choice (2026-08-26)
+
+The spec as written had the core mint the first founding key on `Submit`, with
+`KeyMethod::default()` — the platform authenticator — because "the key screen
+where methods are offered does not exist yet" at that point in the flow. Two
+phones showed what that costs:
+
+- **Galaxy S22 + YubiKey 5C**: the OEM credential sheet drops straight into a
+  Samsung fingerprint window (its provider list is two password managers, the
+  Yubico provider frozen in the background by Freecess), so a person holding
+  the key they intended to use saw only 「Setup was cancelled」. Logcat showed
+  `TYPE_USER_CANCELED: User cancelled the selector` for every route out.
+- **Xiaomi (alioth)**: the system sheet offers no security-key route at all —
+  the first key was platform-or-nothing.
+
+The deviation: `Submit` now lands on the **empty** key list, and every founding
+key — the first included — is minted through `AddKey { method }` from the same
+three-method choice. Key 1's label and provider display name remain the wallet
+name (N=1 stays byte-identical to the single-key flow). Cancellation and
+failure of any registration return to the key list, never the form, because the
+list is where the person can pick a *different* authenticator. The shells keep
+the three methods expanded while the list is empty; the design's key screen
+layout is unchanged.
+
+Downstream fallout, all fixed in the same change: the root e2e suite had rotted
+against three earlier 019 commits (stale ack fragments, a stale 19,608 corpus
+pin, a sign-in mock answering the registry's three query flavors with one
+echoed record) and now runs green; the web token gates flagged the rail
+commit's raw px/color values, which are now tokens.
+
+⚠ The general lesson repeats №11's: "the screen does not exist yet at this
+point in the flow" is an architecture smell, not a constraint — the fix was to
+move the flow, not to guess for the person.

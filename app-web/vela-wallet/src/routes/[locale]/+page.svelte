@@ -18,6 +18,7 @@
 	 * by this page — `e2e/welcome-ssr.e2e.ts` holds that line.
 	 */
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import BrandMark from '$lib/ui/BrandMark.svelte';
@@ -45,12 +46,24 @@
 		fillTemplate(data.flow[key] ?? key, params);
 
 	const createHref = $derived(resolve('/[locale]/create', { locale }));
+	const walletHref = $derived(resolve('/[locale]/wallet', { locale }));
 
 	let loginView = $state<LoginView | null>(null);
 	let login: LoginSession | null = null;
 	let pending = $state<{ copy: PromptCopy; resolve: (accepted: boolean) => void } | null>(null);
 
-	const signingIn = $derived(loginView?.busy ?? false);
+	/**
+	 * The press has been accepted but the core is not up yet.
+	 *
+	 * `loginView.busy` cannot cover this window: the view does not exist until
+	 * the 3.4 MB wasm has been fetched and the machine constructed, so the
+	 * SLOWEST part of signing in was also the only part with no feedback at all
+	 * — and the guard below could not hold, which let a second press build a
+	 * second login session.
+	 */
+	let starting = $state(false);
+
+	const signingIn = $derived(starting || (loginView?.busy ?? false));
 
 	/**
 	 * The registry is unreachable. Sign-in stays attemptable — the core decides
@@ -67,6 +80,9 @@
 	async function complete(mode: CompletionMode): Promise<void> {
 		await session.boot();
 		session.accountEstablished(mode);
+		// Signing in ends where the wallet is, not back on the page that
+		// started it — the same landing all three native clients make.
+		await goto(walletHref, { replaceState: true });
 	}
 
 	/**
@@ -76,15 +92,22 @@
 	 */
 	async function signIn() {
 		if (signingIn) return;
-		if (!login) {
-			await loadOnboardingCore();
-			login = createLoginSession({
-				onView: (next) => (loginView = next),
-				deps: { prompt, complete }
-			});
-			login.start({ type: 'start' });
+		starting = true;
+		try {
+			if (!login) {
+				await loadOnboardingCore();
+				login = createLoginSession({
+					onView: (next) => (loginView = next),
+					deps: { prompt, complete }
+				});
+				login.start({ type: 'start' });
+			}
+			login.dispatch({ type: 'sign_in' });
+		} finally {
+			// Handed over to `loginView.busy` — or released, if the core never
+			// came up, so the button can be pressed again.
+			starting = false;
 		}
-		login.dispatch({ type: 'sign_in' });
 	}
 
 	onMount(() => () => {
@@ -118,16 +141,16 @@
 			</header>
 
 			<div class="hero">
-				<h1 class="headline">{m.heroTitle}</h1>
+				<h1 class="headline" class:long={m.heroTitleFit === 'long'}>{m.heroTitle}</h1>
 				<p class="sub">{m.heroSubtitle}</p>
 			</div>
 		</div>
 
 		<div class="actions">
-			<Button variant="primary" shape="rounded" href={createHref}>
+			<Button variant="primary" shape="rounded" disabled={signingIn} href={createHref}>
 				{m.createWallet}
 			</Button>
-			<Button variant="secondary" shape="rounded" disabled={signingIn} onclick={signIn}>
+			<Button variant="secondary" shape="rounded" loading={signingIn} onclick={signIn}>
 				{m.alreadyHaveWallet}
 			</Button>
 		</div>
@@ -228,6 +251,14 @@
 		letter-spacing: -0.02em;
 	}
 
+	/* A locale whose headline is too wide for its rung drops one step down the
+	   ladder — 46 → 38 → 31 — rather than wrapping into a third line the design
+	   has no room for. Which locales those are is not guessed here: the corpus
+	   carries `heroTitleFit` beside the string it describes. */
+	.headline.long {
+		font-size: var(--text-heroTight);
+	}
+
 	.sub {
 		margin: 0;
 		color: var(--color-fg-muted);
@@ -274,6 +305,10 @@
 
 		.headline {
 			font-size: var(--text-hero);
+		}
+
+		.headline.long {
+			font-size: var(--text-heroCompact);
 		}
 
 		/* Side by side, each at ITS LABEL'S width. A desktop dialog sizes a

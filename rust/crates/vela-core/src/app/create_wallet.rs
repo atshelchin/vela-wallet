@@ -208,6 +208,7 @@ impl Prepared {
                     credential_id: key.credential_id.clone(),
                     public_key_hex: key.public_key_hex.clone(),
                     name: key.name.clone(),
+                    transports: key.transports.clone(),
                 })
                 .collect(),
         }
@@ -334,8 +335,20 @@ pub struct CreateKeyRow {
     /// fail open.
     pub synced: bool,
     /// The authenticator model's AAGUID as a canonical uuid, or empty when
-    /// absent/all-zero. The shell resolves it to a provider name + icon.
+    /// absent/all-zero. Shells pass it back to the core for the provider's
+    /// mark (`passkey_provider_png` / `passkeyProviderIconDataUri`).
     pub aaguid: String,
+    /// The vault holding this key, resolved from [`Self::aaguid`] against the
+    /// vendored catalog: "Apple Passwords", "1Password", "Windows Hello".
+    /// Empty when the catalog does not know the model — hardware keys and
+    /// attestation-less registrations both land there — and the shells then
+    /// say what they always said, from [`Self::method`] and the two hint
+    /// fields above.
+    ///
+    /// Resolved HERE rather than in each shell so that four clients cannot
+    /// disagree about who holds a key (and so the lookup stays offline: asking
+    /// a directory service would tell it which vault holds a Vela wallet).
+    pub provider_name: String,
     /// Which kind of authenticator the person chose for this key. Drives the
     /// row's icon and provider line; distinct from the three fields above,
     /// which are what the authenticator reported about itself.
@@ -501,6 +514,9 @@ impl App for CreateWallet {
                 .iter()
                 .map(|draft| {
                     let (aaguid, synced) = attestation_signals(&draft.attestation_hex);
+                    let provider_name = crate::passkey::provider_name(&aaguid)
+                        .unwrap_or_default()
+                        .to_owned();
                     CreateKeyRow {
                         name: draft.name.clone(),
                         authenticator_attachment: draft.authenticator_attachment.clone(),
@@ -508,6 +524,7 @@ impl App for CreateWallet {
                         confirmed: draft.proof.is_some(),
                         synced,
                         aaguid,
+                        provider_name,
                         method: draft.method,
                     }
                 })
@@ -693,6 +710,7 @@ fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> 
             credential_id: draft.credential_id,
             public_key_hex: draft.public_key_hex,
             attestation_hex: draft.attestation_hex,
+            transports: draft.transports,
             group_public_key_hex,
         },
     )

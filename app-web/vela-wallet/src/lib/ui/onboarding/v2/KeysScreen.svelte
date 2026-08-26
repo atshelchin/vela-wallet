@@ -11,6 +11,9 @@
 	import Button from '$lib/ui/Button.svelte';
 	import AddMethodPicker from './AddMethodPicker.svelte';
 	import { providerLineFor } from '$lib/onboarding/core/copy';
+	import PasskeyProviderMark from './PasskeyProviderMark.svelte';
+	import { providerLabel } from '$lib/onboarding/core/passkey-directory.svelte';
+	import { isDarkTheme } from '$lib/theme.svelte';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
 	import type { KeyMethod } from '$lib/onboarding/generated/KeyMethod';
 
@@ -94,11 +97,25 @@
 		<ul class="rows">
 			{#each keys as key, index (index)}
 				{@const badge = badgeFor(key)}
+				{@const holder = providerLabel(key.provider_name, key.aaguid, isDarkTheme())}
 				<li class="row">
-					<span class="glyph" aria-hidden="true" data-method={key.method}></span>
+					<!--
+						Who is holding this key, when the core's AAGUID catalog knows:
+						the vault's own mark and its own name. When it does not — a
+						hardware key, an authenticator that reported nothing — the row
+						says what it always said: the shape glyph and the generic line
+						for the method.
+					-->
+					<PasskeyProviderMark
+						{key}
+						label={holder ?? strings(providerLineFor(key.method))}
+						glyphFallback
+					/>
 					<span class="who">
 						<span class="name">{key.name}</span>
-						<span class="meta">{strings(providerLineFor(key.method))}</span>
+						<span class="meta">
+							{holder ?? strings(providerLineFor(key.method))}
+						</span>
 					</span>
 					<!--
 						One trailing slot, as the design draws it. A key that has not
@@ -155,7 +172,7 @@
 
 	<p class="footnote">{strings('onboarding.create.keysHint')}</p>
 
-	<Button variant="primary" shape="rounded" disabled={!canFinish || busy} onclick={onFinish}>
+	<Button variant="primary" shape="rounded" disabled={!canFinish} loading={busy} onclick={onFinish}>
 		{needsSecondKey
 			? strings('onboarding.create.addSecondKeyBtn')
 			: strings('onboarding.create.createWalletBtn')}
@@ -257,31 +274,6 @@
 		border: var(--border-hairline) solid var(--color-border-base);
 		border-radius: var(--radius-lg);
 		background: var(--color-bg-sunken);
-	}
-
-	/*
-	 * Proportion is the whole signal: a wide laptop, a tall phone, a squat
-	 * key. A person picks the row that looks like the thing in their hand, so
-	 * the three must not read as one rounded box — which is what they did when
-	 * they shared a height.
-	 */
-	.glyph {
-		flex: 0 0 var(--icon-xl);
-		width: var(--icon-xl);
-		height: var(--icon-sm);
-		border: var(--border-emphasis) solid var(--color-fg-muted);
-		border-radius: var(--radius-sm);
-	}
-
-	.glyph[data-method='hybrid'] {
-		flex-basis: var(--icon-sm);
-		width: var(--icon-sm);
-		height: var(--icon-xl);
-	}
-
-	.glyph[data-method='security_key'] {
-		height: var(--icon-xs);
-		border-radius: var(--radius-full);
 	}
 
 	.who {

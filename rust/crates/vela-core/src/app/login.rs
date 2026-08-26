@@ -320,6 +320,9 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             request(
                 model,
                 ShellOperation::SignProof {
+                    // The same credential that just signed, so what it reported
+                    // about itself a moment ago still describes it.
+                    transports: transports_from_attachment(&assertion.authenticator_attachment),
                     credential_id: assertion.credential_id,
                     purpose: ProofPurpose::RecoverSecond,
                 },
@@ -502,6 +505,22 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
 // ---------------------------------------------------------------------------
 
 /// Build the account for a credential and a known public key.
+/// Where a credential lives, inferred from what an ASSERTION reported.
+///
+/// Registration reports transports outright; an assertion does not — it reports
+/// only `authenticatorAttachment`. So this is a hint, and it is deliberately a
+/// WIDE one for a cross-platform credential: "not on this device, could be a
+/// key or could be a phone" is the truth, and naming both routes lets the
+/// platform offer both. Naming neither is what makes Android pick the security
+/// key and strand somebody holding a phone.
+fn transports_from_attachment(attachment: &str) -> String {
+    match attachment {
+        "platform" => "internal".to_owned(),
+        "cross-platform" => "usb,nfc,ble,hybrid".to_owned(),
+        _ => String::new(),
+    }
+}
+
 fn account_from_key(assertion: &Assertion, public_key_hex: &str, now_iso: &str) -> Option<Account> {
     let address = address_from_public_key_hex(public_key_hex).ok()?;
     let name = account_name(assertion);
@@ -515,6 +534,7 @@ fn account_from_key(assertion: &Assertion, public_key_hex: &str, now_iso: &str) 
             credential_id: assertion.credential_id.clone(),
             public_key_hex: public_key_hex.to_owned(),
             name,
+            transports: transports_from_attachment(&assertion.authenticator_attachment),
         }],
     })
 }
@@ -654,6 +674,14 @@ fn reconstruct_account(
                 .get(index)
                 .cloned()
                 .unwrap_or_else(|| format!("Key {}", index + 1)),
+            // The registry stores no transports, and the one key that just
+            // signed is the only one this device saw. Empty is the honest
+            // answer for the others.
+            transports: if member.credential_id == assertion.credential_id {
+                transports_from_attachment(&assertion.authenticator_attachment)
+            } else {
+                String::new()
+            },
         })
         .collect();
     let first = keys.first()?;

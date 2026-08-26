@@ -139,8 +139,13 @@ describe('generated i18n resources', () => {
     // problem's clothes, and the code used to report it as "no security key is
     // plugged in" — which sends a person to look at the port instead of at
     // their udev rules.
+    // 19,608 = 19,593 plus welcome.heroTitleFit × 15: the one corpus value that
+    // is not prose but an enum — which rung of the hero type ladder that
+    // locale's headline needs. It rides with the string because the width is a
+    // property of the translation (6.9em in zh, 10.9em in ru), and all four
+    // clients read it through the `t()` they already call.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_593);
+    expect(total).toBe(19_608);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.passkey.PasskeyDirectory
+import app.getvela.wallet.core.passkey.PasskeyProviderMark
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
@@ -229,7 +231,8 @@ fun ColumnScope.KeysScreen(
             if (needsSecondKey) I18nKeys.Create.ADD_SECOND_KEY_BTN else I18nKeys.Create.CREATE_WALLET_BTN,
         ),
         onClick = onFinish,
-        enabled = canFinish && !busy,
+        enabled = canFinish,
+        loading = busy,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(modifier = Modifier.height(VelaSpacing.xl))
@@ -249,22 +252,39 @@ private fun KeyRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = VelaSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(VelaSizing.controlSm)
-                .clip(RoundedCornerShape(VelaRadius.md))
-                .background(colors.bgSunken),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = when (key.method) {
-                    KeyMethod.SecurityKey -> VelaIcons.Link2
-                    else -> VelaIcons.Wallet
-                },
-                contentDescription = null,
-                tint = colors.fgMuted,
-                modifier = Modifier.size(VelaIconSize.md),
-            )
+        // Who is holding this key, when the core's AAGUID catalog knows: the
+        // vault's own mark and its own name. When it does not — a hardware key,
+        // an authenticator that reported nothing — the row says what it always
+        // said, from `method`.
+        // Who is holding this key: the compiled catalog's name, then the
+        // directory's for a model no catalog carries, then the method line.
+        val holder = key.providerName.ifEmpty {
+            PasskeyDirectory.holder(key.aaguid, VelaTheme.isDark)?.name.orEmpty()
+        }
+        val drewMark = PasskeyProviderMark(
+            key = key,
+            label = holder.ifEmpty { strings.t(providerLineFor(key.method)) },
+            size = VelaSizing.controlSm,
+        )
+        if (!drewMark) {
+            // Nothing to draw from the key itself: the method glyph, as before.
+            Box(
+                modifier = Modifier
+                    .size(VelaSizing.controlSm)
+                    .clip(RoundedCornerShape(VelaRadius.md))
+                    .background(colors.bgSunken),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = when (key.method) {
+                        KeyMethod.SecurityKey -> VelaIcons.Link2
+                        else -> VelaIcons.Wallet
+                    },
+                    contentDescription = null,
+                    tint = colors.fgMuted,
+                    modifier = Modifier.size(VelaIconSize.md),
+                )
+            }
         }
         Spacer(modifier = Modifier.size(VelaSpacing.lg))
         Column(modifier = Modifier.weight(1f)) {
@@ -276,7 +296,7 @@ private fun KeyRow(
                 fontSize = VelaTextSize.lg,
             )
             Text(
-                text = strings.t(providerLineFor(key.method)),
+                text = holder.ifEmpty { strings.t(providerLineFor(key.method)) },
                 color = colors.fgMuted,
                 fontFamily = VelaFontFamily,
                 fontSize = VelaTextSize.sm,

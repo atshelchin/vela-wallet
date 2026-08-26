@@ -128,7 +128,7 @@ struct RootView: View {
     private func content(router path: Binding<[AppRoute]>) -> some View {
         switch PageOverride.page {
         case .wallet:
-            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc))
+            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc), loc: loc)
         case .gallery:
             GalleryScreen(loc: loc)
         case .contacts:
@@ -211,17 +211,21 @@ struct RootView: View {
 
     /// The wallet when the core says there is one, Welcome otherwise.
     ///
-    /// The wallet body is still the spec-015 fixture layer apart from the
-    /// address, which is now the real one: a home screen showing a fixture
-    /// address after a real create would be the app telling the person their
-    /// money is somewhere it is not.
+    /// The wallet body is still the spec-015 fixture layer apart from the two
+    /// things that identify the wallet — its address and its name, both now
+    /// the real ones. A home screen showing a fixture address after a real
+    /// create would be the app telling the person their money is somewhere it
+    /// is not; a fixture NAME over their own address and identicon told them
+    /// they were signed in as somebody else (device-found 2026-08-26).
     @ViewBuilder
     private var signedInOrWelcome: some View {
         if session.view.allowedRoute == .wallet {
             WalletScreen(
                 model: WalletFixtures
                     .buildMobileState(.h1, loc: loc)
-                    .withAddress(session.view.address),
+                    .withAddress(session.view.address)
+                    .withName(session.view.activeName),
+                loc: loc,
                 onSelectTab: { tab in
                     // Sign-out is the only thing behind Settings today. The
                     // other three tabs stay on this screen rather than
@@ -231,7 +235,7 @@ struct RootView: View {
                 }
             )
         } else {
-            WelcomeScreen(model: model)
+            WelcomeScreen(model: model, signingIn: onboarding.loginView.busy)
         }
     }
 
@@ -279,24 +283,19 @@ enum PageOverride {
     }()
 }
 
-/// Resolves every welcome-screen string from the corpus — the key list is
-/// FR-006's contract (existing keys only, no new corpus entries).
+/// Resolves every welcome-screen string from the corpus — existing keys only,
+/// no new corpus entries.
+///
+/// `featureNoMnemonic*` … `featureStablecoinGas*` are no longer resolved: the
+/// v2 screen has no cards to put them on (spec 019). They stay in the corpus
+/// rather than being deleted, because they are written marketing copy and the
+/// page they belong on may yet exist — the same call the web made.
 enum WelcomeContentBuilder {
-    static let featureKeys: [(title: String, body: String)] = [
-        ("onboarding.welcome.featureNoMnemonicTitle", "onboarding.welcome.featureNoMnemonicBody"),
-        ("onboarding.welcome.featureOneAddressTitle", "onboarding.welcome.featureOneAddressBody"),
-        ("onboarding.welcome.featureOpenSourceTitle", "onboarding.welcome.featureOpenSourceBody"),
-        ("onboarding.welcome.featureKeyCustodyTitle", "onboarding.welcome.featureKeyCustodyBody"),
-        ("onboarding.welcome.featureSafeContractTitle", "onboarding.welcome.featureSafeContractBody"),
-        ("onboarding.welcome.featureStablecoinGasTitle", "onboarding.welcome.featureStablecoinGasBody"),
-    ]
-
     static func build(loc: Loc) -> WelcomeContent {
         WelcomeContent(
-            tagline: loc.t("onboarding.welcome.desktopTagline"),
-            cards: featureKeys.enumerated().map { index, keys in
-                FeatureCardContent(id: index, title: loc.t(keys.title), body: loc.t(keys.body))
-            },
+            heroTitle: loc.t("onboarding.welcome.heroTitle"),
+            heroTitleFit: HeroFit(corpusValue: loc.t("onboarding.welcome.heroTitleFit")),
+            heroSubtitle: loc.t("onboarding.welcome.heroSubtitle"),
             createWallet: loc.t("onboarding.welcome.createWallet"),
             alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet")
         )

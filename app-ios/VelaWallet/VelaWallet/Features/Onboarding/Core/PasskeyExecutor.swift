@@ -183,7 +183,46 @@ final class PasskeyExecutor: NSObject {
 
     /// An assertion. `credentialIdHex` pins it to one credential; `nil` is the
     /// "who are you?" ceremony sign-in starts with.
-    func assert(challenge: Data, credentialIdHex: String?) async throws -> Assertion {
+    /// - Parameter transports: WHERE the credential lives, as its authenticator
+    ///   reported at registration (`hybrid,internal`, `usb,nfc`, …), or empty
+    ///   when unknown.
+    ///
+    ///   iOS routes through its own sheet rather than off this field, so it is
+    ///   not the emergency here that it is on Android — where an entry with no
+    ///   transports made Credential Manager guess REMOVABLE SECURITY KEY for a
+    ///   passkey living on another phone (device-found 2026-08-26). It still
+    ///   sharpens the sheet: a credential known to live on a phone has no
+    ///   business offering a security-key row, and one on a security key should
+    ///   say which cable.
+    /// The reported cables, or every supported one when nothing was reported.
+    private static func securityKeyTransports(
+        _ hints: Set<String>
+    ) -> [ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor.Transport] {
+        let mapped: [ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor.Transport] =
+            hints.compactMap { hint in
+                switch hint {
+                case "usb": return .usb
+                case "nfc": return .nfc
+                case "ble": return .bluetooth
+                default: return nil
+                }
+            }
+        return mapped.isEmpty
+            ? ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor.Transport.allSupported
+            : mapped
+    }
+
+    func assert(
+        challenge: Data,
+        credentialIdHex: String?,
+        transports: String = ""
+    ) async throws -> Assertion {
+        let hints = Set(
+            transports.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        )
+        // Only when it is known NOT to be a removable key — an unknown set
+        // still offers both, which is what a mixed founding set needs.
+        let platformOnly = !hints.isEmpty && hints.isDisjoint(with: ["usb", "nfc", "ble"])
         let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(
             relyingPartyIdentifier: relyingPartyId
         )
@@ -201,23 +240,27 @@ final class PasskeyExecutor: NSObject {
         // every assertion, not instead of it. A wallet whose founding set mixes
         // a phone passkey and a hardware key has to be able to sign with
         // whichever is at hand, and the person picks in the system sheet.
-        let securityKeyProvider = ASAuthorizationSecurityKeyPublicKeyCredentialProvider(
-            relyingPartyIdentifier: relyingPartyId
-        )
-        let securityKeyRequest = securityKeyProvider.createCredentialAssertionRequest(
-            challenge: challenge
-        )
-        securityKeyRequest.userVerificationPreference = .required
-        if let credentialIdHex {
-            securityKeyRequest.allowedCredentials = [
-                ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor(
-                    credentialID: try fromHex(s: credentialIdHex),
-                    transports: ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor.Transport.allSupported
-                )
-            ]
+        var requests: [ASAuthorizationRequest] = [request]
+        if !platformOnly {
+            let securityKeyProvider = ASAuthorizationSecurityKeyPublicKeyCredentialProvider(
+                relyingPartyIdentifier: relyingPartyId
+            )
+            let securityKeyRequest = securityKeyProvider.createCredentialAssertionRequest(
+                challenge: challenge
+            )
+            securityKeyRequest.userVerificationPreference = .required
+            if let credentialIdHex {
+                securityKeyRequest.allowedCredentials = [
+                    ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor(
+                        credentialID: try fromHex(s: credentialIdHex),
+                        transports: Self.securityKeyTransports(hints)
+                    )
+                ]
+            }
+            requests.append(securityKeyRequest)
         }
 
-        let authorization = try await perform([request, securityKeyRequest])
+        let authorization = try await perform(requests)
 
         guard let credential = authorization.credential
             as? ASAuthorizationPublicKeyCredentialAssertion

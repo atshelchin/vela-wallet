@@ -74,6 +74,10 @@ struct CreateKeyRow: Decodable, Equatable, Identifiable {
     /// display and the second-key gate both fail open.
     let synced: Bool
     let aaguid: String
+    /// The vault holding this key, resolved by the core from `aaguid`. Empty
+    /// when the catalog does not know the model — the row then says what it
+    /// always said, from `method`.
+    let providerName: String
     let method: KeyMethod
 
     /// Position-based, because the core's list has no ids and position IS the
@@ -145,6 +149,16 @@ struct SessionView: Decodable, Equatable {
     let accounts: [SessionAccountRow]
     let allowedRoute: SessionRoute
     let signOut: SessionSignOutView?
+
+    /// The active account's display NAME, `""` when there is none.
+    ///
+    /// The address rides in `SessionView` pre-derived; the name does not, so
+    /// every screen that wants it would otherwise re-index the account list —
+    /// and an out-of-range `activeIndex` from a torn view would crash rather
+    /// than render an empty header.
+    var activeName: String {
+        accounts.indices.contains(activeIndex) ? accounts[activeIndex].account.name : ""
+    }
 
     static let booting = SessionView(
         loading: true,

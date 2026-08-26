@@ -56,20 +56,29 @@ object FlowFixtures {
         syncErrorDetail = null,
     )
 
+    /**
+     * A security key is deliberately given NO provider: hardware models live in
+     * the FIDO metadata service, not the app's catalog, so the gallery shows
+     * both the named case and the degradation on one screen.
+     */
     private fun key(
         name: String,
         method: KeyMethod = KeyMethod.Platform,
         confirmed: Boolean = true,
         synced: Boolean = true,
-    ) = CreateKeyRow(
-        name = name,
-        authenticatorAttachment = if (method == KeyMethod.SecurityKey) "cross-platform" else "platform",
-        transports = if (method == KeyMethod.SecurityKey) "usb,nfc" else "internal,hybrid",
-        confirmed = confirmed,
-        synced = synced,
-        aaguid = "",
-        method = method,
-    )
+    ): CreateKeyRow {
+        val platformKey = method != KeyMethod.SecurityKey
+        return CreateKeyRow(
+            name = name,
+            authenticatorAttachment = if (platformKey) "platform" else "cross-platform",
+            transports = if (platformKey) "internal,hybrid" else "usb,nfc",
+            confirmed = confirmed,
+            synced = synced,
+            aaguid = if (platformKey) "fbfc3007-154e-4ecc-8c0b-6e020557d7bd" else "",
+            providerName = if (platformKey) "Apple Passwords" else "",
+            method = method,
+        )
+    }
 
     val all: List<StateFixture> = buildList {
         fun flow(code: String, view: CreateView) = add(StateFixture("Create", code, Fixture.Flow(view)))

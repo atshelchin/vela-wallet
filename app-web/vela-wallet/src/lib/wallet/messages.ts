@@ -62,6 +62,36 @@ export interface WalletMessages {
 		viewOnExplorer: string;
 		nativeToken: string;
 	};
+	/**
+	 * The way back out of a signed-in wallet (spec 019).
+	 *
+	 * `settings.signOut.desc` is deliberately absent, as on all three native
+	 * clients: it ends "your passkey stays in Face ID / fingerprint", and
+	 * `keeps` says the load-bearing part without naming one platform's
+	 * biometric to people on another.
+	 */
+	signOut: {
+		title: string;
+		keeps: string;
+		warning: string;
+		button: string;
+		anyway: string;
+		cancel: string;
+	};
+	/**
+	 * The identicon, big, with the address that drew it (spec 019 founder
+	 * call): the picture is a fingerprint of the address, and the two are only
+	 * useful together — seeing them side by side is what builds the habit of
+	 * recognising an account by its artwork.
+	 */
+	identiconViewer: {
+		title: string;
+		caption: string;
+		copyAddress: string;
+		copied: string;
+		close: string;
+		a11yOpen: string;
+	};
 	close: string;
 }
 
@@ -118,6 +148,16 @@ export const WALLET_KEYS = [
 	'tokenDetail.labelDecimals',
 	'tokenDetail.labelTransactions',
 	'tokenDetail.viewOnExplorer',
+	'settings.signOut.title',
+	'settings.signOut.keeps',
+	'settings.signOut.warning',
+	'settings.signOut.button',
+	'settings.signOut.anyway',
+	'settings.signOut.cancel',
+	'componentsUi.identiconViewer.title',
+	'componentsUi.identiconViewer.caption',
+	'componentsUi.identiconViewer.copied',
+	'componentsUi.identiconViewer.a11yOpen',
 	'addToken.labelNativeToken',
 	'componentsUi.identiconViewer.close'
 ] as const;

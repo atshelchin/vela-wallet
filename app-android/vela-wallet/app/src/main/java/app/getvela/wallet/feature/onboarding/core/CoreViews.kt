@@ -101,6 +101,12 @@ data class CreateKeyRow(
     val confirmed: Boolean,
     val synced: Boolean,
     val aaguid: String,
+    /**
+     * The vault holding this key, resolved by the core from [aaguid]. Empty
+     * when the catalog does not know the model — the row then says what it
+     * always said, from [method].
+     */
+    val providerName: String,
     val method: KeyMethod,
 )
 
@@ -144,6 +150,7 @@ data class CreateView(
                     confirmed = key.optBoolean("confirmed"),
                     synced = key.optBoolean("synced"),
                     aaguid = key.optString("aaguid"),
+                    providerName = key.optString("provider_name"),
                     method = KeyMethod.of(key.getString("method")),
                 )
             },
@@ -183,6 +190,16 @@ data class SessionView(
     val allowedRoute: SessionRoute,
     val signOut: SessionSignOutView?,
 ) {
+    /**
+     * The active account's display NAME, `""` when there is none.
+     *
+     * The address rides in the view pre-derived; the name does not, so every
+     * screen that wants it would otherwise re-index the account list — and an
+     * out-of-range [activeIndex] from a torn view would throw rather than
+     * render an empty header.
+     */
+    val activeName: String get() = accounts.getOrNull(activeIndex)?.name.orEmpty()
+
     companion object {
         fun from(json: JSONObject): SessionView = SessionView(
             loading = json.optBoolean("loading"),

@@ -132,7 +132,6 @@ fun GalleryScreen(systemDarkTheme: Boolean) {
                         }
                         WalletScreen(
                             model = model,
-                            onPillClick = { entry = GalleryEntry.H8 },
                             onSheetDismiss = { entry = GalleryEntry.H1 },
                         )
                     }

@@ -46,14 +46,15 @@ use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
 use crate::onboarding_flow::{self, FLOW_STEPS, FlowEvent, FlowHost, FlowSink, render_create_flow};
 use crate::outcome::{ActionId, Prompt, SHEET_PAD, SHEET_RADIUS, SHEET_W, outcome_sheet};
+use crate::passkey_directory::{self, PasskeyDirectory};
 use crate::session;
 use crate::theme::{
     self, CONTENT_PAD_X, CONTENT_PAD_Y, FLOW_COLUMN_W, FLOW_GAP_LG, FLOW_GAP_MD, GAP_HERO_CTA,
     GAP_HERO_SUB, GAP_WELCOME_CTA, Theme, ThemeMode,
 };
 use crate::ui::{
-    ButtonVariant, LaunchAnimation, NameFieldStrings, RailSlot, onboarding_rail, text_field,
-    vela_button, welcome_cta,
+    ButtonState, ButtonVariant, LaunchAnimation, NameFieldStrings, RailSlot, onboarding_rail,
+    text_field, vela_button, welcome_cta, welcome_cta_state,
 };
 use crate::window_frame::{
     CAPTION_H, FRAME_SHADOW, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
@@ -111,6 +112,9 @@ pub struct OnboardingPage {
     identicons: RefCell<IdenticonCache>,
     /// The rail's settings glyph.
     icons: IconCache,
+    /// Names and marks for models the compiled catalog cannot name — asked
+    /// once per AAGUID, from the render pass that first needs one.
+    directory: RefCell<PasskeyDirectory>,
 
     /// The create journey has taken over the page.
     creating: bool,
@@ -196,6 +200,7 @@ impl OnboardingPage {
             focus_handle,
             identicons: RefCell::default(),
             icons: IconCache::default(),
+            directory: RefCell::default(),
             creating: false,
             create,
             create_view,
@@ -552,17 +557,26 @@ impl OnboardingPage {
             .flex()
             .flex_col()
             .gap(px(GAP_HERO_SUB))
-            .child(
+            .child({
+                // The copy carries its own line break — every locale breaks
+                // where its own sentence wants to, not where the measure
+                // happens to run out — and it carries its own SIZE for the
+                // same reason: the widest authored line is twice as wide in
+                // French as in Chinese. An unrecognised value keeps the
+                // design's size.
+                let long = self.t("heroTitleFit").as_ref() == "long";
+                let (size, leading) = if long {
+                    (theme::text_hero_long(), theme::line_height_hero_long())
+                } else {
+                    (theme::text_hero(), theme::line_height_hero())
+                };
                 div()
-                    .text_size(theme::text_hero())
-                    .line_height(theme::line_height_hero())
+                    .text_size(size)
+                    .line_height(leading)
                     .font_weight(FontWeight::BOLD)
                     .text_color(theme.fg_base)
-                    // The copy carries its own line break — every locale
-                    // breaks where its own sentence wants to, not where the
-                    // measure happens to run out.
-                    .child(self.t("heroTitle")),
-            )
+                    .child(self.t("heroTitle"))
+            })
             .child(
                 div()
                     .text_size(theme::text_flow_sub())
@@ -596,15 +610,23 @@ impl OnboardingPage {
                 "create-wallet",
                 ButtonVariant::Primary,
                 self.t("createWallet"),
-                true,
+                !self.login_view.busy,
                 theme,
                 cx.listener(|this, _, _, cx| this.start_create(cx)),
             ))
-            .child(welcome_cta(
+            // Signing in has no screen of its own — the system passkey prompt
+            // is the next thing the person sees, and it does not arrive in the
+            // same frame as the press — so this button IS the progress
+            // indicator for that wait.
+            .child(welcome_cta_state(
                 "already-have-wallet",
                 ButtonVariant::Secondary,
                 self.t("alreadyHaveWallet"),
-                !self.login_view.busy,
+                if self.login_view.busy {
+                    ButtonState::Busy
+                } else {
+                    ButtonState::Enabled
+                },
                 theme,
                 cx.listener(|this, _, _, cx| this.sign_in(cx)),
             ));
@@ -836,6 +858,68 @@ fn scrim(theme: &Theme, id: &'static str) -> Stateful<Div> {
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
 }
 
+impl OnboardingPage {
+    /// Ask the directory about every drafted key whose model this build cannot
+    /// name, and about the marks those answers point at.
+    ///
+    /// Driven from render because that is where the key list exists, and
+    /// guarded by `claim` so a redraw does not re-ask. Nothing here blocks the
+    /// frame: the answer arrives later and notifies.
+    fn ask_directory(&mut self, dark: bool, cx: &mut Context<Self>) {
+        let size = theme::KEY_ROW_MARK as u32;
+        for key in &self.create_view.keys {
+            if !key.provider_name.is_empty() || key.aaguid.is_empty() {
+                continue;
+            }
+            let aaguid = key.aaguid.clone();
+            let id = format!("{}|{dark}", aaguid.to_ascii_lowercase());
+            if self.directory.borrow_mut().claim(id) {
+                let asked = aaguid.clone();
+                cx.spawn(async move |page, cx| {
+                    let holder = cx
+                        .background_executor()
+                        .spawn({
+                            let asked = asked.clone();
+                            async move { passkey_directory::fetch_holder(&asked, dark) }
+                        })
+                        .await;
+                    page.update(cx, |page, cx| {
+                        page.directory.borrow_mut().settle(&asked, dark, holder);
+                        cx.notify();
+                    })
+                    .ok();
+                })
+                .detach();
+            }
+
+            let icon = self
+                .directory
+                .borrow()
+                .holder(&aaguid, dark)
+                .and_then(|holder| holder.icon_url.clone());
+            let Some(url) = icon else { continue };
+            if !self.directory.borrow_mut().claim_mark(&url, size) {
+                continue;
+            }
+            cx.spawn(async move |page, cx| {
+                let image = cx
+                    .background_executor()
+                    .spawn({
+                        let url = url.clone();
+                        async move { passkey_directory::fetch_mark(&url, size) }
+                    })
+                    .await;
+                page.update(cx, |page, cx| {
+                    page.directory.borrow_mut().settle_mark(&url, size, image);
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+        }
+    }
+}
+
 impl Render for OnboardingPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(self.mode);
@@ -861,6 +945,7 @@ impl Render for OnboardingPage {
         }
 
         let content = if self.creating {
+            self.ask_directory(theme.is_dark(), cx);
             let entity = cx.entity();
             let sink: FlowSink = Rc::new(move |event, window, cx| {
                 entity.update(cx, |page, cx| page.on_flow_event(event, window, cx));
@@ -871,6 +956,7 @@ impl Render for OnboardingPage {
                 view: &self.create_view,
                 name_focus: &self.name_focus,
                 identicons: &self.identicons,
+                directory: &self.directory,
                 picker_open: self.picker_open,
                 copied: self.copied,
                 sink,

@@ -65,6 +65,7 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
 		metaDescription: t(locale, 'onboarding.welcomeWeb.meta.description'),
 		tagline: t(locale, 'onboarding.welcomeWeb.tagline'),
 		heroTitle: t(locale, 'onboarding.welcome.heroTitle'),
+		heroTitleFit: t(locale, 'onboarding.welcome.heroTitleFit'),
 		heroSubtitle: t(locale, 'onboarding.welcome.heroSubtitle'),
 		createWallet: t(locale, 'onboarding.welcome.createWallet'),
 		alreadyHaveWallet: t(locale, 'onboarding.welcome.alreadyHaveWallet')
@@ -155,6 +156,22 @@ export function resolveWalletMessages(locale: Locale): WalletMessages {
 			labelTransactions: k('tokenDetail.labelTransactions'),
 			viewOnExplorer: k('tokenDetail.viewOnExplorer'),
 			nativeToken: k('addToken.labelNativeToken')
+		},
+		identiconViewer: {
+			title: k('componentsUi.identiconViewer.title'),
+			caption: k('componentsUi.identiconViewer.caption'),
+			copyAddress: k('componentsUi.identiconViewer.copyAddress'),
+			copied: k('componentsUi.identiconViewer.copied'),
+			close: k('componentsUi.identiconViewer.close'),
+			a11yOpen: k('componentsUi.identiconViewer.a11yOpen')
+		},
+		signOut: {
+			title: k('settings.signOut.title'),
+			keeps: k('settings.signOut.keeps'),
+			warning: k('settings.signOut.warning'),
+			button: k('settings.signOut.button'),
+			anyway: k('settings.signOut.anyway'),
+			cancel: k('settings.signOut.cancel')
 		},
 		close: k('componentsUi.identiconViewer.close')
 	};

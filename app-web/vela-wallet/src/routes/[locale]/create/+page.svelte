@@ -27,6 +27,7 @@
 		fillTemplate(data.flow[key] ?? key, params);
 
 	const home = $derived(resolve('/[locale]', { locale: data.locale }));
+	const wallet = $derived(resolve('/[locale]/wallet', { locale: data.locale }));
 
 	/** The prompt currently on screen, and who is waiting for its answer. */
 	let pending = $state<{ copy: PromptCopy; resolve: (accepted: boolean) => void } | null>(null);
@@ -44,7 +45,10 @@
 	async function complete(mode: CompletionMode): Promise<void> {
 		await session.boot();
 		session.accountEstablished(mode);
-		await goto(home);
+		// Into the wallet, not back to Welcome: the journey ended in a wallet
+		// and the person should be standing in it, as they are on all three
+		// native clients. `replaceState` keeps Back out of a finished flow.
+		await goto(wallet, { replaceState: true });
 	}
 </script>
 

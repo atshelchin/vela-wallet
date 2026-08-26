@@ -96,7 +96,7 @@ fun ColumnScope.RetryScreen(
     VelaPrimaryButton(
         text = strings.t(I18nKeys.Create.RETRY_UPLOAD_BTN),
         onClick = onRetry,
-        enabled = !busy,
+        loading = busy,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(modifier = Modifier.height(VelaSpacing.lg))

@@ -127,7 +127,8 @@ final class OnboardingExecutor {
         case "sign_proof":
             let assertion = try await passkey.assert(
                 challenge: Self.challenge(for: operation["purpose"] as? String ?? ""),
-                credentialIdHex: operation["credential_id"] as? String
+                credentialIdHex: operation["credential_id"] as? String,
+                transports: operation["transports"] as? String ?? ""
             )
             return ["type": "proof_signed", "assertion": assertion.wire, "now_iso": Self.nowISO()]
 
@@ -156,7 +157,8 @@ final class OnboardingExecutor {
             )
             let assertion = try await passkey.assert(
                 challenge: try fromHex(s: Self.stripHex(challenge)),
-                credentialIdHex: operation["credential_id"] as? String
+                credentialIdHex: operation["credential_id"] as? String,
+                transports: operation["transports"] as? String ?? ""
             )
             return ["type": "member_proof_signed", "proof": try Self.memberProof(assertion)]
 

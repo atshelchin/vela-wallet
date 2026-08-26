@@ -59,8 +59,13 @@ internal fun ComponentBoard() {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = VelaSizing.screenPaddingX, vertical = VelaSpacing.xl),
     ) {
-        BoardLabel("WalletHeader + NetworkFilterPill")
-        WalletHeaderRow(header = h1.header, pill = h1.pill)
+        // The two no longer share a row on the wallet home — the header owns
+        // it (founder call, 2026-08-26) — but the pill is still a component of
+        // the vocabulary, so the board still shows both.
+        BoardLabel("WalletHeader · NetworkFilterPill")
+        WalletHeaderRow(header = h1.header)
+        Spacer(modifier = Modifier.height(VelaSpacing.lg))
+        NetworkFilterPill(model = h1.pill)
         Spacer(modifier = Modifier.height(VelaSpacing.lg))
         NetworkFilterPill(model = h7.pill)
 

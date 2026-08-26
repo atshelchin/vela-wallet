@@ -12,7 +12,9 @@
 	 * draw.
 	 */
 	import Button from '$lib/ui/Button.svelte';
-	import AddressStrip from '../AddressStrip.svelte';
+	import PasskeyProviderMark from './PasskeyProviderMark.svelte';
+	import { providerLabel } from '$lib/onboarding/core/passkey-directory.svelte';
+	import { isDarkTheme } from '$lib/theme.svelte';
 	import { identiconNormalizeSeed, identiconSvgCircular } from '$lib/onboarding/core/wasm-client';
 	import type { CreateKeyRow } from '$lib/onboarding/generated/CreateKeyRow';
 
@@ -25,6 +27,21 @@
 	}
 
 	let { address, walletName, keys, strings, onEnter }: Props = $props();
+
+	/** "Copied" stands in for the address, then the address comes back. */
+	let copied = $state(false);
+	let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+
+	async function copy() {
+		try {
+			await navigator.clipboard.writeText(address);
+		} catch {
+			return; // A refused clipboard is not an error worth a dialog here.
+		}
+		copied = true;
+		clearTimeout(copiedTimer);
+		copiedTimer = setTimeout(() => (copied = false), 2000);
+	}
 
 	// The core owns seed normalization (spec 003's drift rule: never a local
 	// toLowerCase). An unrenderable seed degrades to no artwork rather than
@@ -58,26 +75,36 @@
 					{@html identicon}
 				{/if}
 			</span>
-			<span class="names">
-				<span class="wallet">{walletName}</span>
-				<span class="identityhint">{strings('onboarding.create.identiconHint')}</span>
-			</span>
+			<span class="wallet">{walletName}</span>
 		</div>
 
-		<div class="addressblock">
-			<span class="addresslabel">{strings('onboarding.create.walletAddressLabel')}</span>
-			<AddressStrip
-				{address}
-				copyLabel={strings('onboarding.common.copyAddress')}
-				copiedLabel={strings('onboarding.common.copied')}
-			/>
-		</div>
+		<!--
+			The whole line is the copy target and the confirmation replaces it in
+			place. The caption that used to sit above DESCRIBED the identicon — a
+			sentence narrating a picture right next to it — and the "wallet
+			address" label went for the same reason: a 42-character 0x string in
+			mono under a wallet's name is not mistakable for anything else.
+		-->
+		<button
+			class="address"
+			type="button"
+			onclick={copy}
+			aria-label={strings('onboarding.common.copyAddress')}
+			class:copied
+		>
+			{copied ? strings('onboarding.common.copied') : address}
+		</button>
 	</div>
 
 	<ul class="keys">
 		{#each keys as key, index (index)}
+			{@const holder = providerLabel(key.provider_name, key.aaguid, isDarkTheme())}
 			<li class="key">
-				<span class="keyname">{key.name}</span>
+				<PasskeyProviderMark {key} label={holder ?? ''} />
+				<span class="keyname">
+					{key.name}
+					{#if holder}<span class="provider">{holder}</span>{/if}
+				</span>
 				<span class="badge" data-tone={key.synced ? 'synced' : 'local'}>
 					{key.synced
 						? strings('onboarding.create.keySyncedBadge')
@@ -180,38 +207,34 @@
 		height: 100%;
 	}
 
-	.names {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-xs);
-		min-width: 0;
-	}
-
 	.wallet {
+		min-width: 0;
 		color: var(--color-fg-base);
 		font-size: var(--text-lg);
 		font-weight: var(--weight-bold);
 	}
 
-	.identityhint {
-		color: var(--color-fg-muted);
-		font-size: var(--text-sm);
-	}
-
-	.addressblock {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-md);
-		padding-top: var(--space-lg);
+	.address {
+		padding: var(--space-lg) 0 0;
+		border: 0;
 		border-top: var(--border-hairline) solid var(--color-border-base);
+		background: none;
+		color: var(--color-fg-muted);
+		font-family: var(--font-mono);
+		font-size: var(--text-base);
+		font-weight: var(--weight-medium);
+		line-height: var(--leading-normal);
+		text-align: left;
+		overflow-wrap: anywhere;
+		cursor: pointer;
 	}
 
-	.addresslabel {
-		color: var(--color-fg-muted);
-		font-size: var(--text-sm);
-		font-weight: var(--weight-semibold);
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
+	.address:hover {
+		color: var(--color-fg-base);
+	}
+
+	.address.copied {
+		color: var(--color-success-base);
 	}
 
 	.keys {
@@ -225,14 +248,27 @@
 	.key {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: var(--space-lg);
 		padding-block: var(--space-lg);
 		border-bottom: var(--border-hairline) solid var(--color-border-base);
 	}
 
+	/* The badge keeps the trailing edge; the name block takes what is left. */
 	.keyname {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: var(--space-xs);
+		min-width: 0;
 		color: var(--color-fg-muted);
 		font-size: var(--text-base);
+	}
+
+	/* Where the key lives, under its name. Quieter than the name: the name is
+	   what the person chose, this is what the system reported. */
+	.provider {
+		color: var(--color-fg-subtle);
+		font-size: var(--text-sm);
 	}
 
 	.badge {

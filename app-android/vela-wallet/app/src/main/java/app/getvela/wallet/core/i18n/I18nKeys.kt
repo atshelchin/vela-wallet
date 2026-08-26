@@ -8,6 +8,10 @@ package app.getvela.wallet.core.i18n
 object I18nKeys {
     object Welcome {
         const val TAGLINE = "onboarding.welcome.desktopTagline"
+        const val HERO_TITLE = "onboarding.welcome.heroTitle"
+        /** The headline's type tier: `regular` or `long` (an enum, not prose). */
+        const val HERO_TITLE_FIT = "onboarding.welcome.heroTitleFit"
+        const val HERO_SUBTITLE = "onboarding.welcome.heroSubtitle"
         const val CREATE_WALLET = "onboarding.welcome.createWallet"
         const val ALREADY_HAVE_WALLET = "onboarding.welcome.alreadyHaveWallet"
 
@@ -281,6 +285,14 @@ object I18nKeys {
         // Shared component captions.
         const val QR_CAPTION = "componentsUi.qrPlaceholder.caption"
         const val COPY_ADDRESS = "componentsUi.identiconViewer.copyAddress"
+
+        // The identicon viewer (spec 019 founder call): the artwork, big,
+        // beside the address that drew it.
+        const val IDENTICON_TITLE = "componentsUi.identiconViewer.title"
+        const val IDENTICON_CAPTION = "componentsUi.identiconViewer.caption"
+        const val IDENTICON_COPIED = "componentsUi.identiconViewer.copied"
+        const val IDENTICON_CLOSE = "componentsUi.identiconViewer.close"
+        const val IDENTICON_A11Y_OPEN = "componentsUi.identiconViewer.a11yOpen"
     }
 
     /**

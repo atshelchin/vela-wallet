@@ -97,6 +97,7 @@ class OnboardingExecutor(
                 val assertion = passkey.assert(
                     challenge = challengeFor(operation.optString("purpose")),
                     credentialIdHex = operation.optString("credential_id"),
+                    transports = operation.optString("transports"),
                 )
                 result("proof_signed") {
                     put("assertion", assertion.toWire())
@@ -130,6 +131,7 @@ class OnboardingExecutor(
                 val assertion = passkey.assert(
                     challenge = uniffi.vela_core_uniffi.fromHex(stripHex(challenge)),
                     credentialIdHex = operation.optString("credential_id"),
+                    transports = operation.optString("transports"),
                 )
                 result("member_proof_signed") {
                     put("proof", JSONObject(memberProof(assertion)))

@@ -78,11 +78,12 @@ func screenFor(_ view: CreateView?) -> FlowScreen {
 
 /// Sizes the flow needs that the shared token set does not name.
 ///
-/// Both are flow-local by intent rather than by omission: the progress bar's
-/// 4pt track and the done screen's 56pt identicon appear on these screens and
-/// nowhere else, and promoting them to `Tokens` would invite a second caller to
-/// inherit a decision that was made about one layout.
+/// Flow-local by intent rather than by omission: they appear on these screens
+/// and nowhere else, and promoting them to `Tokens` would invite a second
+/// caller to inherit a decision that was made about one layout.
 enum FlowMetrics {
-    static let progressBar: CGFloat = 4
-    static let identicon: CGFloat = 56
+    /// The done card's identicon, and the disc the outcome tick sits in. The
+    /// desktop draws the same pair at 44/34.
+    static let identicon: CGFloat = 44
+    static let doneCheck: CGFloat = 34
 }

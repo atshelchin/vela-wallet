@@ -8,14 +8,17 @@
 	interface Props {
 		sidebar: SidebarModel;
 		onnav?: (id: SidebarModel['nav'][number]['id']) => void;
+		/** Open the identicon viewer; absent in the gallery. */
+		onidenticon?: () => void;
+		identiconLabel?: string;
 	}
 
-	let { sidebar, onnav }: Props = $props();
+	let { sidebar, onnav, onidenticon, identiconLabel }: Props = $props();
 </script>
 
 <aside class="sidebar">
 	<div class="top">
-		<WalletHeader header={sidebar.header} />
+		<WalletHeader header={sidebar.header} {onidenticon} {identiconLabel} />
 	</div>
 
 	<nav>

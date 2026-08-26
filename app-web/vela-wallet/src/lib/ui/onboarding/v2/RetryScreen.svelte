@@ -43,7 +43,7 @@
 	<div class="spacer"></div>
 
 	<div class="actions">
-		<Button variant="primary" shape="rounded" disabled={busy} onclick={onRetry}>
+		<Button variant="primary" shape="rounded" loading={busy} onclick={onRetry}>
 			{strings('onboarding.create.retryUploadBtn')}
 		</Button>
 		<Button variant="secondary" shape="rounded" disabled={busy} onclick={onStartOver}>

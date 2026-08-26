@@ -125,6 +125,7 @@ mod tests {
                 credential_id: "cred0".to_owned(),
                 public_key_hex: "04aa".to_owned(),
                 name: "Everyday wallet".to_owned(),
+                transports: "usb".to_owned(),
             }],
         }
     }

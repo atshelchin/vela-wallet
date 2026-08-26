@@ -1,9 +1,11 @@
 package app.getvela.wallet.feature.onboarding.core
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.credentials.CreatePublicKeyCredentialRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetCredentialResponse
 import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.PublicKeyCredential
 import androidx.credentials.exceptions.CreateCredentialCancellationException
@@ -18,6 +20,7 @@ import androidx.credentials.exceptions.publickeycredential.CreatePublicKeyCreden
 import androidx.credentials.exceptions.publickeycredential.GetPublicKeyCredentialDomException
 import java.security.SecureRandom
 import java.util.UUID
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
 import uniffi.vela_core_uniffi.fromBase64url
@@ -47,6 +50,10 @@ class PasskeyExecutor(
 ) {
     private val manager: CredentialManager? =
         runCatching { CredentialManager.create(context) }.getOrNull()
+
+    /** When this app last minted a credential, and which one (see `assert`). */
+    private var mintedAt: Long = 0
+    private var mintedCredentialIdHex: String? = null
 
     /**
      * Whether a passkey ceremony can be attempted at all.
@@ -154,8 +161,15 @@ class PasskeyExecutor(
         }
 
         val inner = json.getJSONObject("response")
+        val credentialIdHex = hexOfBase64url(json.getString("rawId"))
+        // When this credential was minted, and which one it was. The very next
+        // thing the create flow does is ASK FOR IT BACK (the membership proof),
+        // and on Android the provider is not always ready to answer yet — see
+        // `assert`.
+        mintedAt = SystemClock.elapsedRealtime()
+        mintedCredentialIdHex = credentialIdHex
         return Registration(
-            credentialIdHex = hexOfBase64url(json.getString("rawId")),
+            credentialIdHex = credentialIdHex,
             attestationObjectHex = hexOfBase64url(inner.getString("attestationObject")),
             clientDataJsonHex = hexOfBase64url(inner.getString("clientDataJSON")),
             authenticatorAttachment = json.optString("authenticatorAttachment"),
@@ -166,8 +180,58 @@ class PasskeyExecutor(
     /**
      * An assertion. [credentialIdHex] pins it to one credential; `null` is the
      * "who are you?" ceremony sign-in starts with.
+     *
+     * ## The freshly-minted-credential race (Android only)
+     *
+     * The create flow signs a membership proof with the passkey it minted
+     * seconds earlier. Credential Manager answers a get by asking every
+     * installed provider what it has for this rpId — and a provider answers
+     * from its own INDEX, which it updates asynchronously after a create. On a
+     * phone with several providers (this one has Google Password Manager,
+     * Samsung Pass, a YubiKey provider and our own security-keys app) the
+     * first get after a create can arrive before the one that stored the
+     * credential has indexed it. Nobody returns an entry, and the system draws
+     * its "no passkeys available" sheet over a wallet whose passkey was made
+     * moments ago. Cancelling and pressing the row's confirm — which sends the
+     * IDENTICAL request — then works, because the seconds spent tapping were
+     * what the provider needed (founder-found on device 2026-08-25; iOS does
+     * not do this).
+     *
+     * Two things stop that sheet from ever being drawn:
+     *
+     * * A pinned get for a credential we JUST minted waits until the mint is
+     *   at least [SETTLE_AFTER_CREATE_MS] old. The app is showing "creating
+     *   your wallet" at that moment, so the wait costs nothing visible.
+     * * Pinned attempts ask with `preferImmediatelyAvailableCredentials`, which
+     *   makes Credential Manager throw instead of drawing the fallback UI when
+     *   no provider has an entry. That turns "an unexplained sheet" into
+     *   "retry in a moment", which is what the situation actually is. Only the
+     *   LAST attempt drops the flag, so a genuinely-missing credential still
+     *   reaches the platform's own UI, where "use another device" lives.
+     *
+     * An UNPINNED assertion does none of this: there, "no credential" is the
+     * honest answer to "who are you?" on a device with no wallet, and the
+     * platform's UI is exactly what should be shown.
      */
-    suspend fun assert(challenge: ByteArray, credentialIdHex: String?): Assertion {
+    suspend fun assert(
+        challenge: ByteArray,
+        credentialIdHex: String?,
+        /**
+         * WHERE the credential lives, as its authenticator reported at
+         * registration (`hybrid,internal`, `usb,nfc`, …), or empty when unknown.
+         *
+         * **This is load-bearing, not a hint.** An `allowCredentials` entry with
+         * no transports leaves Credential Manager to guess where to look, and it
+         * guesses REMOVABLE SECURITY KEY: a passkey living in Apple Passwords on
+         * another phone drew "Connect your security key", which is a dead end
+         * the person cannot answer — they have no key to plug in, and the route
+         * that would work (scan the QR with the phone that holds it) is never
+         * offered (device-found 2026-08-26). With `hybrid` present the platform
+         * offers that route; with `usb` it offers the sheet a security key
+         * owner actually wants.
+         */
+        transports: String = "",
+    ): Assertion {
         val credentialManager = manager ?: throw PasskeyFailure(
             FailureKind.NotSupported,
             "Credential Manager is unavailable on this device",
@@ -178,26 +242,32 @@ class PasskeyExecutor(
             put("rpId", relyingPartyId)
             put("userVerification", "required")
             if (credentialIdHex != null) {
-                put(
-                    "allowCredentials",
-                    JSONArray().put(
-                        JSONObject()
-                            .put("type", PUBLIC_KEY)
-                            .put("id", base64urlOfHex(credentialIdHex)),
-                    ),
-                )
+                val descriptor = JSONObject()
+                    .put("type", PUBLIC_KEY)
+                    .put("id", base64urlOfHex(credentialIdHex))
+                val hints = transports.split(',')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                if (hints.isNotEmpty()) {
+                    descriptor.put("transports", JSONArray(hints))
+                }
+                put("allowCredentials", JSONArray().put(descriptor))
             }
         }
 
-        val response = try {
-            credentialManager.getCredential(
-                context = context,
-                request = GetCredentialRequest(
-                    listOf(GetPublicKeyCredentialOption(request.toString())),
-                ),
-            )
-        } catch (error: GetCredentialException) {
-            throw classifyGet(error)
+        val options = listOf(GetPublicKeyCredentialOption(request.toString()))
+        val response = if (credentialIdHex == null) {
+            try {
+                credentialManager.getCredential(
+                    context = context,
+                    request = GetCredentialRequest(options),
+                )
+            } catch (error: GetCredentialException) {
+                throw classifyGet(error)
+            }
+        } else {
+            settleAfterMint(credentialIdHex)
+            getPinned(credentialManager, options)
         }
 
         val credential = response.credential as? PublicKeyCredential
@@ -218,6 +288,49 @@ class PasskeyExecutor(
             userIdHex = inner.nullableString("userHandle")?.let { hexOfBase64url(it) },
             authenticatorAttachment = json.optString("authenticatorAttachment"),
         )
+    }
+
+    /**
+     * Do not ask a provider for a credential it may still be writing down.
+     * Only ever waits after THIS app minted THAT credential, so a sign-in or a
+     * later signature is never delayed.
+     */
+    private suspend fun settleAfterMint(credentialIdHex: String) {
+        if (!credentialIdHex.equals(mintedCredentialIdHex, ignoreCase = true)) return
+        val since = SystemClock.elapsedRealtime() - mintedAt
+        if (since in 0 until SETTLE_AFTER_CREATE_MS) {
+            delay(SETTLE_AFTER_CREATE_MS - since)
+        }
+    }
+
+    /**
+     * The pinned get, retried while providers catch up. Attempts before the
+     * last one ask for an immediately-available credential only, so a miss
+     * throws instead of drawing the platform's "no passkeys" sheet.
+     */
+    private suspend fun getPinned(
+        credentialManager: CredentialManager,
+        options: List<GetPublicKeyCredentialOption>,
+    ): GetCredentialResponse {
+        var attempt = 0
+        while (true) {
+            val last = attempt == RETRY_BACKOFF_MS.size
+            try {
+                return credentialManager.getCredential(
+                    context = context,
+                    request = GetCredentialRequest(
+                        credentialOptions = options,
+                        preferImmediatelyAvailableCredentials = !last,
+                    ),
+                )
+            } catch (error: NoCredentialException) {
+                if (last) throw classifyGet(error)
+                delay(RETRY_BACKOFF_MS[attempt])
+                attempt += 1
+            } catch (error: GetCredentialException) {
+                throw classifyGet(error)
+            }
+        }
     }
 
     fun random(bytes: Int): ByteArray = ByteArray(bytes).also(secureRandom::nextBytes)
@@ -246,6 +359,19 @@ class PasskeyExecutor(
         const val PUBLIC_KEY = "public-key"
         const val ES256 = -7
         const val CHALLENGE_BYTES = 32
+
+        /**
+         * How old a mint must be before this app asks for it back. Spent
+         * behind the "creating your wallet" screen, so it costs no visible
+         * time; a provider that is slower than this is covered by the retries.
+         */
+        const val SETTLE_AFTER_CREATE_MS = 1_200L
+
+        /**
+         * Waits between pinned attempts. Four tries over ~4.2 s in total, then
+         * one final attempt that lets the platform speak for itself.
+         */
+        val RETRY_BACKOFF_MS = longArrayOf(600L, 1_200L, 2_400L)
         const val NUL = '\u0000'
 
         /**

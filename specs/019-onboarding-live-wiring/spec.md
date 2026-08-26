@@ -46,7 +46,7 @@ Five screens plus one overlay pattern:
 
 | Screen | Content | Backed by |
 | --- | --- | --- |
-| **Welcome** | Mark + `VELA WALLET` wordmark, hero 「谁也关不掉的<br>以太坊钱包」, sub 「用通行密钥签名，密钥留在你的设备里。」, primary 创建钱包 / secondary 我已有钱包 | shell step + `LoginView` |
+| **Welcome** | Mark + `VELA WALLET` wordmark, hero 「真正由你掌控的<br>以太坊钱包」, sub 「用通行密钥签名，密钥留在你的设备里。」, primary 创建钱包 / secondary 我已有钱包 | shell step + `LoginView` |
 | **Name** | Account-name field, two static assurances, one agreement checkbox, 继续 | `CreateView` stage `form` |
 | **Keys** | Title flips 添加通行密钥 ⇄ 再加一把才能创建; `n / 7` counter; one row per founding key (icon, name, provider line, badge 已同步 / 仅本机 / 硬件); accent-soft warning strip while blocked; `+ 添加通行密钥` opening the three add methods; primary CTA flips 创建钱包 ⇄ 先添加第 2 把密钥 | `CreateView` stage `add_keys` |
 | **Progress** | 正在生成钱包, `DERIVING ADDRESS` + percentage, three task rows (校验通行密钥公钥 / 推导账户地址 / 写入密钥索引) | `CreateView` `busy` + `status` |

@@ -5,7 +5,7 @@
 		svg: string;
 		/** Diameter in px steps expressed via the icon token scale.
 		 *  `hero`/`detail` are the spec-018 contact-detail avatars (64 mobile / 48 desktop). */
-		size?: 'row' | 'header' | 'board' | 'hero' | 'detail';
+		size?: 'row' | 'header' | 'board' | 'hero' | 'detail' | 'viewer';
 		label?: string;
 	}
 
@@ -60,5 +60,10 @@
 	.detail {
 		width: var(--size-identiconDetail);
 		height: var(--size-identiconDetail);
+	}
+
+	.viewer {
+		width: var(--size-identiconViewer);
+		height: var(--size-identiconViewer);
 	}
 </style>

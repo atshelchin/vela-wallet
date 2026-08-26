@@ -149,20 +149,23 @@ fun VelaNavHost(
 
         composable(VelaDestinations.WALLET) {
             val strings = LocalVelaStrings.current
-            // Fixture-driven still (spec 015 FR-005) apart from the address,
-            // which is now the wallet's real one: a home screen showing a
-            // fixture address after a real create would be the app telling the
-            // person their money is somewhere it is not.
-            var sheetOpen by rememberSaveable { mutableStateOf(false) }
-            val model = remember(strings, sheetOpen, session.address) {
-                WalletFixtures.buildMobileState(
-                    if (sheetOpen) WalletScreenState.H8 else WalletScreenState.H1,
-                    strings,
-                ).withAddress(session.address)
+            // Fixture-driven still (spec 015 FR-005) apart from the two things
+            // that identify the wallet — its address and its name, both now the
+            // real ones. A home screen showing a fixture address after a real
+            // create would be the app telling the person their money is
+            // somewhere it is not; a fixture NAME over their own address and
+            // identicon told them they were signed in as somebody else
+            // (device-found 2026-08-26).
+            // The chain-select sheet used to open from the header's network
+            // pill; the pill is gone (founder call, 2026-08-26 — it cost the
+            // name and address their width), and with it this screen's H8
+            // state. The sheet keeps its fixtures for the gallery.
+            val model = remember(strings, session.address, session.activeName) {
+                WalletFixtures.buildMobileState(WalletScreenState.H1, strings)
+                    .withAddress(session.address).withName(session.activeName)
             }
             WalletScreen(
                 model = model,
-                onPillClick = { sheetOpen = true },
                 onSelectTab = { tab ->
                     // Sign-out is the only thing behind Settings today. The
                     // other three tabs stay on this screen rather than
@@ -170,7 +173,6 @@ fun VelaNavHost(
                     // their real data.
                     if (tab == VelaTab.Settings) application.container.session.signOut()
                 },
-                onSheetDismiss = { sheetOpen = false },
             )
         }
 

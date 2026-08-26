@@ -362,6 +362,7 @@ function header(m: WalletMessages, identicon: Identicon, long = false): WalletHe
 	return {
 		name: long ? IDENTITY.longName : IDENTITY.name,
 		addressDisplay: IDENTITY.addressDisplay,
+		addressFull: IDENTITY.addressFull,
 		identiconSvg: identicon(IDENTITY.addressFull)
 	};
 }

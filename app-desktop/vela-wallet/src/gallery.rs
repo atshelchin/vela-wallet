@@ -92,14 +92,35 @@ fn base_view() -> CreateView {
     }
 }
 
+/// A platform key carries a resolvable AAGUID; a security key deliberately
+/// carries none, so the gallery shows the named case and the degradation on one
+/// screen — hardware models live in the FIDO metadata service, not in the app's
+/// provider catalog.
 fn key(name: &str, method: KeyMethod, confirmed: bool, synced: bool) -> CreateKeyRow {
+    let platform_key = method != KeyMethod::SecurityKey;
+    let aaguid = if platform_key {
+        "fbfc3007-154e-4ecc-8c0b-6e020557d7bd"
+    } else {
+        ""
+    };
     CreateKeyRow {
         name: name.to_owned(),
-        authenticator_attachment: "cross-platform".to_owned(),
-        transports: "usb".to_owned(),
+        authenticator_attachment: if platform_key {
+            "platform".to_owned()
+        } else {
+            "cross-platform".to_owned()
+        },
+        transports: if platform_key {
+            "internal,hybrid".to_owned()
+        } else {
+            "usb".to_owned()
+        },
         confirmed,
         synced,
-        aaguid: String::new(),
+        aaguid: aaguid.to_owned(),
+        provider_name: vela_core::passkey::provider_name(aaguid)
+            .unwrap_or_default()
+            .to_owned(),
         method,
     }
 }
@@ -384,6 +405,9 @@ pub struct GalleryView {
     name_focus: FocusHandle,
     focus_handle: FocusHandle,
     identicons: RefCell<IdenticonCache>,
+    /// Always empty here: the gallery's keys are fixtures, and a review screen
+    /// that reached the network would be a review of the network.
+    directory: RefCell<crate::passkey_directory::PasskeyDirectory>,
 }
 
 impl GalleryView {
@@ -423,6 +447,7 @@ impl GalleryView {
             name_focus: cx.focus_handle(),
             focus_handle,
             identicons: RefCell::default(),
+            directory: RefCell::default(),
         }
     }
 
@@ -575,6 +600,10 @@ impl GalleryView {
                     view,
                     name_focus: &self.name_focus,
                     identicons: &self.identicons,
+                    // The gallery asks nobody: its keys are fixtures, and a
+                    // review screen that reached the network would be a review
+                    // of the network.
+                    directory: &self.directory,
                     picker_open: self.picker_open,
                     copied: self.copied,
                     sink,

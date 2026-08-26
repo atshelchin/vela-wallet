@@ -13,4 +13,12 @@ public_key_hex: string,
 /**
  * Per-key label; `keys[0].name` is the wallet name itself.
  */
-name: string, };
+name: string, 
+/**
+ * WHERE this credential lives, as its authenticator reported at
+ * registration, comma joined (`hybrid,internal`, `usb,nfc`). Empty for
+ * records written before this field existed, and for authenticators that
+ * reported nothing — a `get()` then falls back to letting the platform
+ * guess, which is what this field exists to stop.
+ */
+transports: string, };

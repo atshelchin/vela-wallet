@@ -31,6 +31,8 @@ mod identicon_features;
 #[cfg(feature = "identicon-raster")]
 pub mod identicon_raster;
 pub mod l10n;
+pub mod passkey;
+mod passkey_catalog;
 pub mod primitives;
 pub mod registry_metadata;
 pub mod registry_proof;
@@ -50,5 +52,7 @@ pub use identicon::{
     normalize_seed, Colors, IdenticonHash, IdenticonParams, Section, Sections,
 };
 #[cfg(feature = "identicon-raster")]
-pub use identicon_raster::{identicon_placeholder_png, identicon_png, rasterize_svg_png};
+pub use identicon_raster::{
+    identicon_placeholder_png, identicon_png, passkey_provider_png, rasterize_svg_png,
+};
 pub use types::{ClientDataKind, P256PublicKey, SafeAddressInfo, WebAuthnAssertion};

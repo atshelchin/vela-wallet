@@ -44,14 +44,17 @@ struct EngineSmokeTests {
             let loc = Loc(overrideTag: tag, preferredLanguages: [])
             #expect(loc.resolvedLanguage == expectedLang)
             let content = WelcomeContentBuilder.build(loc: loc)
-            #expect(content.cards.count == 6)
-            for card in content.cards {
-                #expect(!card.title.isEmpty && !card.title.hasPrefix("onboarding."))
-                #expect(!card.body.isEmpty && !card.body.hasPrefix("onboarding."))
-            }
-            #expect(!content.tagline.hasPrefix("onboarding."))
+            // The v2 screen (spec 019) is a headline, a supporting line and the
+            // two ways in; the six feature cards and the tagline this used to
+            // count went with the carousel.
+            #expect(!content.heroTitle.isEmpty && !content.heroTitle.hasPrefix("onboarding."))
+            #expect(!content.heroSubtitle.isEmpty && !content.heroSubtitle.hasPrefix("onboarding."))
             #expect(!content.createWallet.hasPrefix("onboarding."))
             #expect(!content.alreadyHaveWallet.hasPrefix("onboarding."))
+            // The headline's type tier is a corpus ENUM, so a key echo or a
+            // translated value would silently fall back to `.regular` at the
+            // call site. Assert the corpus really carries one of the two.
+            #expect(HeroFit(rawValue: loc.t("onboarding.welcome.heroTitleFit")) != nil)
         }
     }
 }

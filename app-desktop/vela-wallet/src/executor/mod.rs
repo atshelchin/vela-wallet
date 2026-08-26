@@ -74,6 +74,10 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
 
         ShellOperation::SignProof {
             credential_id,
+            // This client runs the ceremony itself — a cable, or Windows Hello
+            // — so it routes on its own build rather than on a transport hint.
+            // Named to keep the match exhaustive and the omission deliberate.
+            transports: _,
             purpose,
         } => match passkey::assert(&challenge_for(*purpose), Some(credential_id), ceremony) {
             Ok(assertion) => ShellResult::ProofSigned {
@@ -106,6 +110,7 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             credential_id,
             public_key_hex,
             attestation_hex,
+            transports: _,
             group_public_key_hex,
         } => {
             // Mixed failure modes: the challenge fetch and the ceremony can each

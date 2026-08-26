@@ -89,6 +89,12 @@ pub enum ShellOperation {
     /// `navigator.credentials.get()` against a known credential.
     SignProof {
         credential_id: String,
+        /// What the authenticator reported about ITSELF at registration, comma
+        /// joined (`hybrid,internal`, `usb,nfc`, …), or empty when unknown.
+        /// See [`ShellOperation::SignMemberProof::transports`] — this is the
+        /// same fact and the same reason.
+        #[serde(default)]
+        transports: String,
         purpose: ProofPurpose,
     },
     /// Mint the one-time software group key for a wallet's registry group.
@@ -106,6 +112,20 @@ pub enum ShellOperation {
         public_key_hex: String,
         /// Empty, or 20 versioned attestation bytes (hex).
         attestation_hex: String,
+        /// WHERE this credential lives, as the authenticator reported it at
+        /// registration (`getTransports()`), comma joined: `hybrid,internal`,
+        /// `usb,nfc`, `internal`. Empty when it reported nothing.
+        ///
+        /// **Load-bearing, not a hint.** A `get()` whose `allowCredentials`
+        /// entry carries no transports leaves the platform to guess where to
+        /// look, and Android's Credential Manager guesses "removable security
+        /// key" — it drew "Connect your security key" for a passkey living in
+        /// Apple Passwords on another phone, which is a dead end the person
+        /// cannot answer (device-found 2026-08-26). With `hybrid` present the
+        /// platform offers the other-device route instead, which is the one
+        /// that can actually complete.
+        #[serde(default)]
+        transports: String,
         group_public_key_hex: String,
     },
     /// The v1 index's display name for a credential — the only place a

@@ -22,9 +22,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, App, Div, FocusHandle, FontWeight, InteractiveElement as _, IntoElement as _,
-    ParentElement, SharedString, Stateful, StatefulInteractiveElement as _, Styled, Window, div,
-    px,
+    AnyElement, App, Div, FocusHandle, FontWeight, ImageSource, InteractiveElement as _,
+    IntoElement as _, ParentElement, SharedString, Stateful, StatefulInteractiveElement as _,
+    Styled, Window, div, img, px,
 };
 
 use vela_core::app::create_wallet::{CreateKeyRow, CreateStage, CreateView, SubmitLabel};
@@ -32,11 +32,15 @@ use vela_core::app::{KeyMethod, StatusKey};
 
 use crate::identicon::IdenticonCache;
 use crate::loc::Loc;
+use crate::passkey_directory::PasskeyDirectory;
 use crate::theme::{
     self, FLOW_GAP_LG, FLOW_GAP_MD, FLOW_GAP_SM, HAIRLINE, OPACITY_DISABLED, RADIUS_FIELD, Theme,
 };
-use crate::ui::{ButtonVariant, NameFieldStrings, ack_row, name_field, vela_button_opts};
-use crate::wallet::components::identicon_avatar;
+use crate::ui::{
+    ButtonState, ButtonVariant, NameFieldStrings, ack_row, name_field, spinner, vela_button_opts,
+    vela_button_state,
+};
+use crate::wallet::components::{identicon_avatar, passkey_fallback_mark, passkey_mark};
 
 /// The founding-set cap, mirroring the core's `MAX_MULTI_KEYS`.
 pub const MAX_KEYS: usize = 7;
@@ -130,9 +134,11 @@ pub fn status_key(status: StatusKey) -> &'static str {
 /// key. Labelling that row "Platform passkey" would be the shell repeating a
 /// default back to the person as though it were a fact.
 ///
-/// The design draws a richer line («YubiKey 5C · USB»), which needs the AAGUID
-/// resolved to a model name — a lookup the flow does not make. Until it does,
-/// this is the honest version of the same fact.
+/// This is the FALLBACK line. When the core's AAGUID catalog knows the model,
+/// the row shows the vault's own name and mark instead ("Apple Passwords",
+/// "1Password") — the richer line the design drew. The catalog covers software
+/// passkey providers, not the hundreds of hardware models in the FIDO metadata
+/// service, so this stays the answer for a USB key.
 fn provider_line(key: &CreateKeyRow) -> &'static str {
     if key.authenticator_attachment == "cross-platform"
         || key.transports.split(',').any(|t| t.trim() == "usb")
@@ -188,6 +194,9 @@ pub struct FlowHost<'a> {
     /// The DONE card's avatar. A `RefCell` because rasterizing needs `&mut`
     /// and the whole flow renders from a shared `&FlowHost`.
     pub identicons: &'a RefCell<IdenticonCache>,
+    /// Names and marks for models the compiled catalog cannot name. Read-only
+    /// here: the page does the asking, from its own render pass.
+    pub directory: &'a RefCell<PasskeyDirectory>,
     /// The add-method list is expanded.
     pub picker_open: bool,
     /// The Done screen's transient 已复制 feedback.
@@ -364,6 +373,21 @@ fn caption(theme: &Theme, text: SharedString) -> Div {
         .child(text)
 }
 
+/// A flow CTA's three states, out of the core's two flags.
+///
+/// `busy` wins: the machine is working on what this button started, so the
+/// button says so rather than dimming as if the action had become unavailable.
+/// Some of these waits swap the whole screen for the progress list, and some
+/// (a passkey prompt that has not opened yet) do not — this covers the second
+/// kind, which used to be a dimmed button and nothing else.
+fn submit_state(can_submit: bool, busy: bool) -> ButtonState {
+    if busy {
+        ButtonState::Busy
+    } else {
+        ButtonState::from_enabled(can_submit)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Name
 // ---------------------------------------------------------------------------
@@ -505,11 +529,11 @@ fn render_name(host: &FlowHost<'_>, window: &Window) -> Div {
         SubmitLabel::FinishVerify => "onboarding.create.finishVerifyBtn",
     };
     let sink_submit = host.sink.clone();
-    bottom = bottom.child(vela_button_opts(
+    bottom = bottom.child(vela_button_state(
         "flow-submit",
         ButtonVariant::Primary,
         loc.t(submit_key),
-        view.can_submit && !view.busy,
+        submit_state(view.can_submit, view.busy),
         theme,
         move |_, window, cx| sink_submit(FlowEvent::Submit, window, cx),
     ));
@@ -687,11 +711,11 @@ fn render_keys(host: &FlowHost<'_>) -> Div {
         loc.t("onboarding.create.createWalletBtn")
     };
     let sink_finish = host.sink.clone();
-    column.child(vela_button_opts(
+    column.child(vela_button_state(
         "flow-finish",
         ButtonVariant::Primary,
         finish_label,
-        view.can_finish && !view.busy,
+        submit_state(view.can_finish, view.busy),
         theme,
         move |_, window, cx| sink_finish(FlowEvent::FinishKeys, window, cx),
     ))
@@ -762,7 +786,62 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
         .rounded(px(RADIUS_FIELD))
         .bg(theme.bg_base)
         .border_1()
-        .border_color(theme.divider)
+        .border_color(theme.divider);
+
+    // The vault's own mark, when the catalog knows the model. Nothing when it
+    // does not — the line below already says what is known, and an invented
+    // placeholder logo would say something that is not.
+    // Who is holding this key: the compiled catalog's name, then the
+    // directory's for a model no catalog carries, then the method line.
+    let holder: Option<SharedString> = if key.provider_name.is_empty() {
+        host.directory
+            .borrow()
+            .holder(&key.aaguid, theme.is_dark())
+            .map(|found| SharedString::from(found.name.clone()))
+    } else {
+        Some(SharedString::from(key.provider_name.clone()))
+    };
+
+    let listed_mark = host
+        .directory
+        .borrow()
+        .holder(&key.aaguid, theme.is_dark())
+        .and_then(|holder| holder.icon_url.as_deref().map(str::to_owned))
+        .and_then(|url| {
+            host.directory
+                .borrow()
+                .mark(&url, theme::KEY_ROW_MARK as u32)
+        });
+
+    if let Some(mark) = passkey_mark(
+        &mut host.identicons.borrow_mut(),
+        &key.aaguid,
+        host.theme.is_dark(),
+        theme::KEY_ROW_MARK,
+    ) {
+        row = row.child(mark);
+    } else if let Some(image) = listed_mark {
+        // The directory's own artwork for a model no build could carry.
+        row = row.child(
+            img(ImageSource::Render(image))
+                .w(px(theme::KEY_ROW_MARK))
+                .h(px(theme::KEY_ROW_MARK))
+                .flex_none(),
+        );
+    } else if let Some(mark) = passkey_fallback_mark(
+        &mut host.identicons.borrow_mut(),
+        &key.authenticator_attachment,
+        &key.transports,
+        key.method == KeyMethod::SecurityKey,
+        theme,
+        theme::KEY_ROW_MARK,
+    ) {
+        // Not a brand, but not nothing either: the authenticator said it is a
+        // security key, and a USB transport says which kind.
+        row = row.child(mark);
+    }
+
+    let mut row = row
         .child(
             div()
                 .flex_1()
@@ -781,7 +860,7 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
                     div()
                         .text_size(theme::text_row_meta())
                         .text_color(theme.fg_muted)
-                        .child(loc.t(provider_line(key))),
+                        .child(holder.unwrap_or_else(|| loc.t(provider_line(key)))),
                 ),
         )
         .child(trailing);
@@ -918,10 +997,24 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
     // has happened, and v2 draws them as one.
     let mut tasks = div().w_full().flex().flex_col().gap(px(2.));
     for (index, key) in PROGRESS_TASKS.iter().enumerate() {
-        let (mark, color) = match index {
-            _ if index < active => ("✓", theme.success_base),
-            _ if index == active => ("●", theme.accent),
-            _ => ("○", theme.fg_subtle),
+        // The RUNNING row turns. Each of these three waits on something outside
+        // the app — a passkey prompt, a derivation, a network write — and a
+        // still dot says nothing about whether anything is still happening
+        // (founder call, 2026-08-25).
+        let mark: AnyElement = if index < active {
+            div()
+                .text_size(theme::text_row_meta())
+                .text_color(theme.success_base)
+                .child("✓")
+                .into_any_element()
+        } else if index == active {
+            spinner(theme.accent, px(FLOW_GAP_MD), px(theme::SPINNER_STROKE))
+        } else {
+            div()
+                .text_size(theme::text_row_meta())
+                .text_color(theme.fg_subtle)
+                .child("○")
+                .into_any_element()
         };
         tasks = tasks.child(
             div()
@@ -935,9 +1028,11 @@ fn render_progress(host: &FlowHost<'_>) -> Div {
                 .child(
                     div()
                         .w(px(FLOW_GAP_MD))
+                        .h(px(FLOW_GAP_MD))
                         .flex_none()
-                        .text_size(theme::text_row_meta())
-                        .text_color(color)
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .child(mark),
                 )
                 .child(
@@ -1026,11 +1121,12 @@ fn render_retry(host: &FlowHost<'_>) -> Div {
     let sink_retry = host.sink.clone();
     let sink_over = host.sink.clone();
     column
-        .child(vela_button_opts(
+        // The retry carries the wait; the way out beside it only closes.
+        .child(vela_button_state(
             "flow-retry-upload",
             ButtonVariant::Primary,
             loc.t("onboarding.create.retryUploadBtn"),
-            !view.busy,
+            submit_state(true, view.busy),
             theme,
             move |_, window, cx| sink_retry(FlowEvent::RetryUpload, window, cx),
         ))
@@ -1282,6 +1378,7 @@ mod tests {
             confirmed: true,
             synced: false,
             aaguid: String::new(),
+            provider_name: String::new(),
             method: KeyMethod::Platform,
         };
         assert_eq!(

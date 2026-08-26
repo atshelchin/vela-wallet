@@ -35,6 +35,7 @@ interface WelcomeCorpus {
 	alreadyHaveWallet: string;
 	metaTitle: string;
 	heroTitle: string;
+	heroTitleFit: string;
 	heroSubtitle: string;
 }
 
@@ -49,6 +50,7 @@ function corpus(locale: string): WelcomeCorpus {
 		alreadyHaveWallet: onboarding.welcome.alreadyHaveWallet,
 		metaTitle: onboarding.welcomeWeb.meta.title,
 		heroTitle: onboarding.welcome.heroTitle as string,
+		heroTitleFit: onboarding.welcome.heroTitleFit as string,
 		heroSubtitle: onboarding.welcome.heroSubtitle as string
 	};
 }
@@ -77,6 +79,60 @@ for (const locale of LOCALES) {
 		expect(html).toContain('rel="canonical"');
 	});
 }
+
+/**
+ * The headline fits the frame it was written for — in every locale.
+ *
+ * The copy authors its own line break, and `heroTitleFit` authors which rung of
+ * the type ladder (46/38/31) that break is meant to survive at. Both are corpus
+ * values, so both can drift the moment someone edits a translation: a line two
+ * words longer wraps into a third line the design has no room for, and nothing
+ * else in the suite would notice. This measures the rendered box instead of
+ * trusting the declaration — at 390×844, the design's own frame.
+ *
+ * 390 is the CONTRACT, not the floor (founder direction 2026-08-26). A 375pt
+ * iPhone SE or a 360dp Android has ~15pt less column than the widest headline
+ * needs, and those frames are allowed to wrap into a third line: the fix would
+ * be a SECOND shrink mechanism — by viewport, layered under this one by locale
+ * — and two mechanisms competing over one headline is worse than a tolerated
+ * wrap on the narrow tail. So this suite pins one width on purpose. Do not
+ * "fix" a narrow-device wrap by dropping a locale a rung: that shrinks it on
+ * every phone to serve the smallest.
+ */
+test.describe('the hero headline holds its authored line count', () => {
+	for (const locale of LOCALES) {
+		test(`/${locale} at 390×844`, async ({ page }) => {
+			await page.setViewportSize({ width: 390, height: 844 });
+			await page.goto(`/${locale}`);
+			const expected = corpus(locale);
+			const authoredLines = expected.heroTitle.split('\n').length;
+
+			const measured = await page.evaluate(async () => {
+				const h1 = document.querySelector('.headline');
+				if (!h1) throw new Error('no .headline on the page');
+				await document.fonts.ready;
+				const range = document.createRange();
+				range.selectNodeContents(h1);
+				// One client rect per rendered line box; sub-pixel tops of the
+				// same line collapse on rounding.
+				const tops = new Set(
+					[...range.getClientRects()]
+						.filter((r) => r.width > 0.5)
+						.map((r) => Math.round(r.top))
+				);
+				return { lines: tops.size, fontSize: getComputedStyle(h1).fontSize, long: h1.classList.contains('long') };
+			});
+
+			expect(measured.long, `${locale} class matches its corpus fit`).toBe(
+				expected.heroTitleFit === 'long'
+			);
+			expect(
+				measured.lines,
+				`${locale} headline wrapped past its ${authoredLines} authored lines at ${measured.fontSize} — shorten the copy or drop it a rung (heroTitleFit)`
+			).toBe(authoredLines);
+		});
+	}
+});
 
 test('/ negotiates Accept-Language into a 307 with Vary', async ({ request }) => {
 	const response = await request.get('/', {

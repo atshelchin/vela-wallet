@@ -1643,6 +1643,63 @@ public func FfiConverterTypeP256PublicKey_lower(_ value: P256PublicKey) -> RustB
 }
 
 
+/**
+ * What the directory said about a model.
+ */
+public struct PasskeyDirectoryEntry: Equatable, Hashable {
+    public var name: String
+    public var iconUrl: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, iconUrl: String?) {
+        self.name = name
+        self.iconUrl = iconUrl
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension PasskeyDirectoryEntry: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypePasskeyDirectoryEntry: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> PasskeyDirectoryEntry {
+        return
+            try PasskeyDirectoryEntry(
+                name: FfiConverterString.read(from: &buf), 
+                iconUrl: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: PasskeyDirectoryEntry, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterOptionString.write(value.iconUrl, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePasskeyDirectoryEntry_lift(_ buf: RustBuffer) throws -> PasskeyDirectoryEntry {
+    return try FfiConverterTypePasskeyDirectoryEntry.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypePasskeyDirectoryEntry_lower(_ value: PasskeyDirectoryEntry) -> RustBuffer {
+    return FfiConverterTypePasskeyDirectoryEntry.lower(value)
+}
+
+
 public struct SafeAddressInfo: Equatable, Hashable {
     public var address: String
     public var saltNonce: Data
@@ -2290,6 +2347,30 @@ fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
+    typealias SwiftType = Data?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterData.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterData.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeP256PublicKey: FfiConverterRustBuffer {
     typealias SwiftType = P256PublicKey?
 
@@ -2306,6 +2387,30 @@ fileprivate struct FfiConverterOptionTypeP256PublicKey: FfiConverterRustBuffer {
         switch try readInt(&buf) as Int8 {
         case 0: return nil
         case 1: return try FfiConverterTypeP256PublicKey.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypePasskeyDirectoryEntry: FfiConverterRustBuffer {
+    typealias SwiftType = PasskeyDirectoryEntry?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypePasskeyDirectoryEntry.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypePasskeyDirectoryEntry.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
     }
@@ -2743,6 +2848,91 @@ public func parsePublicKey(hex: String)throws  -> P256PublicKey  {
 })
 }
 /**
+ * **Read a directory answer.** `None` unless the body is about the AAGUID that
+ * was asked about and carries a usable name; the icon URL is present only when
+ * the path is the service's own shape.
+ */
+public func passkeyDirectoryEntry(aaguid: String, json: String, dark: Bool) -> PasskeyDirectoryEntry?  {
+    return try!  FfiConverterOptionTypePasskeyDirectoryEntry.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_directory_entry(
+        FfiConverterString.lower(aaguid),
+        FfiConverterString.lower(json),
+        FfiConverterBool.lower(dark),uniffiCallStatus
+    )
+})
+}
+/**
+ * **Where to ask about a model the compiled catalog cannot name**, or `None`
+ * when there is nothing to ask: a malformed or all-zero AAGUID, or one the
+ * catalog already answers offline.
+ *
+ * The shells own the transport; the core owns the contract, so four clients
+ * cannot ask four different questions or trust four different answers.
+ */
+public func passkeyDirectoryUrl(aaguid: String) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_directory_url(
+        FfiConverterString.lower(aaguid),uniffiCallStatus
+    )
+})
+}
+/**
+ * **The security-key fallback mark as PNG bytes**, for a key whose AAGUID the
+ * catalog cannot name. `None` when the row deserves no mark of this kind — a
+ * platform authenticator, which the client already draws its own way.
+ *
+ * The three colours are the caller's tokens: the artwork ships in one theme,
+ * and one vendor's greys are not this app's greys in either.
+ */
+public func passkeyFallbackPng(authenticatorAttachment: String, transports: String, choseSecurityKey: Bool, strong: String, soft: String, hole: String, sizePx: UInt32)throws  -> Data?  {
+    return try  FfiConverterOptionData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_fallback_png(
+        FfiConverterString.lower(authenticatorAttachment),
+        FfiConverterString.lower(transports),
+        FfiConverterBool.lower(choseSecurityKey),
+        FfiConverterString.lower(strong),
+        FfiConverterString.lower(soft),
+        FfiConverterString.lower(hole),
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
+    )
+})
+}
+/**
+ * The provider's brand name, or an empty string when the catalog has no entry.
+ * The create view already carries this for its own key rows; this is for every
+ * other surface that holds an AAGUID.
+ */
+public func passkeyProviderName(aaguid: String) -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_provider_name(
+        FfiConverterString.lower(aaguid),uniffiCallStatus
+    )
+})
+}
+/**
+ * **A passkey provider's mark as PNG bytes** (`size_px` × `size_px`), from the
+ * vendored AAGUID catalog. `None` when the catalog does not know the model —
+ * hardware keys and attestation-less registrations both land there — and the
+ * caller then shows what it showed before this existed.
+ *
+ * The lookup is offline by construction: asking a directory service would tell
+ * it which vault holds a Vela wallet's key.
+ */
+public func passkeyProviderPng(aaguid: String, dark: Bool, sizePx: UInt32)throws  -> Data?  {
+    return try  FfiConverterOptionData.lift(try rustCallWithError(FfiConverterTypeCoreError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_passkey_provider_png(
+        FfiConverterString.lower(aaguid),
+        FfiConverterBool.lower(dark),
+        FfiConverterUInt32.lower(sizePx),uniffiCallStatus
+    )
+})
+}
+/**
  * Rasterize app-authored SVG markup (the spec 015 lucide icon corpus) to a
  * square PNG. For platforms without an SVG renderer; callers pass constant
  * markup with the tint pre-substituted (or white, tinted as a template image).
@@ -2987,6 +3177,21 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_parse_public_key() != 62646) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_directory_entry() != 2835) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_directory_url() != 45909) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_fallback_png() != 54728) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_provider_name() != 54778) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_passkey_provider_png() != 59824) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_rasterize_svg_png() != 18592) {

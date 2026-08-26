@@ -46,11 +46,21 @@ const WEB_ADDITIONS = [
 	],
 	['size-identiconDetail', '48px', 'spec 018: contact-detail avatar, measured 48 in DC2 (desktop)'],
 	[
+		'size-identiconViewer',
+		'160px',
+		"spec 019: the identicon viewer's artwork — big enough to read as a picture rather than an avatar, and to fit beside a wrapped address on the narrowest phone"
+	],
+	[
 		'text-hero',
 		'46px',
 		'spec 019: the v2 Welcome headline. The DTCG type scale tops out at 40px (text-5xl), and the onboarding design specifies 46/38 — declared once here rather than sprinkled as literals'
 	],
 	['text-heroCompact', '38px', 'spec 019: the v2 Welcome headline below the desktop breakpoint'],
+	[
+		'text-heroTight',
+		'31px',
+		"spec 019 (2026-08-25): the third rung of the hero ladder, for locales whose headline is too wide for the second. 46/38/31 steps by ~0.82 each; measured at the shipped font the widest authored line runs 6.9em (zh) to 15.0em (id), and 31px is what fits ru's 10.88em in a 390pt phone's 342px column. 390 is the contract, not the floor: narrower frames are allowed to wrap (founder direction 2026-08-26)"
+	],
 	[
 		'layout-onboardingRail',
 		'320px',

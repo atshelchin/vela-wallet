@@ -39,6 +39,8 @@ impl ThemeMode {
 
 /// Semantic color tokens. Components read these; nobody reads hex.
 pub struct Theme {
+    /// True for the dark palette — see [`Theme::is_dark`].
+    pub dark: bool,
     // backgrounds
     pub bg_base: Hsla,
     pub bg_raised: Hsla,
@@ -107,6 +109,18 @@ fn c(hex: u32) -> Hsla {
 }
 
 impl Theme {
+    /// Which palette this is.
+    ///
+    /// Carried as a fact rather than inferred from a colour: artwork that is
+    /// CHOSEN rather than tinted — a passkey provider's own logo, which ships a
+    /// light and a dark cut — has to ask, and comparing a token against a
+    /// palette constant would be a guess that breaks the day two palettes share
+    /// a value.
+    #[must_use]
+    pub fn is_dark(&self) -> bool {
+        self.dark
+    }
+
     pub fn of(mode: ThemeMode) -> Self {
         match mode {
             ThemeMode::Light => Self::light(),
@@ -116,6 +130,7 @@ impl Theme {
 
     pub fn light() -> Self {
         Self {
+            dark: false,
             bg_base: c(0xfafaf8),
             bg_raised: c(0xffffff),
             bg_sunken: c(0xf5f3ef),
@@ -153,6 +168,7 @@ impl Theme {
 
     pub fn dark() -> Self {
         Self {
+            dark: true,
             bg_base: c(0x141412),
             bg_raised: c(0x1e1e1b),
             bg_sunken: c(0x262622),
@@ -500,6 +516,10 @@ pub const FLOW_HEADER_PAD_B: f32 = 28.;
 pub const FLOW_BACK_GAP: f32 = 7.;
 /// A key row is a bordered card, not a hairline-separated row.
 pub const KEY_ROW_PAD_X: f32 = 14.;
+/// The passkey provider's mark in a key row — the same optical weight as the
+/// row's two lines of text stacked, so the logo anchors the row without
+/// out-shouting the name.
+pub const KEY_ROW_MARK: f32 = 28.;
 pub const KEY_ROW_PAD_Y: f32 = 12.;
 pub const KEY_ROW_GAP: f32 = 8.;
 /// The tick beside the DONE title, and the identicon inside its card.
@@ -513,6 +533,13 @@ pub const DONE_ROW_PAD_Y: f32 = 10.;
 
 /// Disabled control emphasis (mock A1's dimmed-accent CTA — never a gray fill).
 pub const OPACITY_DISABLED: f32 = 0.45;
+/// The task spinner's stroke — the emphasis border weight, which is what a
+/// 16px arc needs to read as a ring rather than as a hair.
+pub const SPINNER_STROKE: f32 = 2.;
+/// The spinner a BUSY button turns in place of its label. A notch over the
+/// 15px CTA text, so it occupies the label's optical weight rather than
+/// looking like a dropped full stop.
+pub const BTN_SPINNER: f32 = 18.;
 /// Hairline rules (scaffold and outcome dividers).
 pub const HAIRLINE: f32 = 1.;
 /// The scaffold's close × hit target.
@@ -583,6 +610,18 @@ pub fn text_hero() -> Pixels {
 /// `line-height: 1.25` at the hero size.
 pub fn line_height_hero() -> Pixels {
     px(46. * 1.25)
+}
+/// One rung down the hero ladder (46/38/31), for a locale whose headline is too
+/// wide for the first. The corpus says which, in `heroTitleFit` — the width is a
+/// property of the translation, not of the client: measured at the shipped font
+/// the widest authored line runs 6.9em (zh) to 12.8em (fr), and at 46 px the
+/// widest of them overruns the 620 px column.
+pub fn text_hero_long() -> Pixels {
+    px(38.)
+}
+/// `line-height: 1.25` at the long-locale hero size.
+pub fn line_height_hero_long() -> Pixels {
+    px(38. * 1.25)
 }
 /// Flow-screen titles (spec 014). Not the welcome hero — that is `text_hero`.
 pub fn text_tagline() -> Pixels {

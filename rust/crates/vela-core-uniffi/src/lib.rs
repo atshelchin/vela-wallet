@@ -466,6 +466,102 @@ pub fn identicon_png(seed: String, size_px: u32) -> Result<Vec<u8>, CoreError> {
     Ok(vela_core::identicon_raster::identicon_png(&seed, size_px)?)
 }
 
+/// **A passkey provider's mark as PNG bytes** (`size_px` × `size_px`), from the
+/// vendored AAGUID catalog. `None` when the catalog does not know the model —
+/// hardware keys and attestation-less registrations both land there — and the
+/// caller then shows what it showed before this existed.
+///
+/// The lookup is offline by construction: asking a directory service would tell
+/// it which vault holds a Vela wallet's key.
+#[uniffi::export]
+pub fn passkey_provider_png(
+    aaguid: String,
+    dark: bool,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    Ok(vela_core::identicon_raster::passkey_provider_png(
+        &aaguid, dark, size_px,
+    )?)
+}
+
+/// **Where to ask about a model the compiled catalog cannot name**, or `None`
+/// when there is nothing to ask: a malformed or all-zero AAGUID, or one the
+/// catalog already answers offline.
+///
+/// The shells own the transport; the core owns the contract, so four clients
+/// cannot ask four different questions or trust four different answers.
+#[uniffi::export]
+pub fn passkey_directory_url(aaguid: String) -> Option<String> {
+    vela_core::passkey::directory_lookup_url(&aaguid)
+}
+
+/// **Read a directory answer.** `None` unless the body is about the AAGUID that
+/// was asked about and carries a usable name; the icon URL is present only when
+/// the path is the service's own shape.
+#[uniffi::export]
+pub fn passkey_directory_entry(
+    aaguid: String,
+    json: String,
+    dark: bool,
+) -> Option<PasskeyDirectoryEntry> {
+    vela_core::passkey::directory_entry(&aaguid, &json, dark).map(Into::into)
+}
+
+/// What the directory said about a model.
+#[derive(uniffi::Record)]
+pub struct PasskeyDirectoryEntry {
+    pub name: String,
+    pub icon_url: Option<String>,
+}
+
+impl From<vela_core::passkey::DirectoryEntry> for PasskeyDirectoryEntry {
+    fn from(entry: vela_core::passkey::DirectoryEntry) -> Self {
+        Self {
+            name: entry.name,
+            icon_url: entry.icon_url,
+        }
+    }
+}
+
+/// **The security-key fallback mark as PNG bytes**, for a key whose AAGUID the
+/// catalog cannot name. `None` when the row deserves no mark of this kind — a
+/// platform authenticator, which the client already draws its own way.
+///
+/// The three colours are the caller's tokens: the artwork ships in one theme,
+/// and one vendor's greys are not this app's greys in either.
+#[uniffi::export]
+pub fn passkey_fallback_png(
+    authenticator_attachment: String,
+    transports: String,
+    chose_security_key: bool,
+    strong: String,
+    soft: String,
+    hole: String,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    Ok(vela_core::identicon_raster::passkey_fallback_png(
+        &authenticator_attachment,
+        &transports,
+        chose_security_key,
+        vela_core::passkey::MarkPalette {
+            strong: &strong,
+            soft: &soft,
+            hole: &hole,
+        },
+        size_px,
+    )?)
+}
+
+/// The provider's brand name, or an empty string when the catalog has no entry.
+/// The create view already carries this for its own key rows; this is for every
+/// other surface that holds an AAGUID.
+#[uniffi::export]
+pub fn passkey_provider_name(aaguid: String) -> String {
+    vela_core::passkey::provider_name(&aaguid)
+        .unwrap_or_default()
+        .to_owned()
+}
+
 /// The shared placeholder artwork as PNG bytes — what platforms show for an
 /// invalid or empty seed instead of crashing or rendering blank.
 #[uniffi::export]

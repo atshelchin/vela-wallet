@@ -158,7 +158,8 @@ struct NameScreen: View {
             VelaButton(
                 title: loc.t(submitLabelToI18n(view.submitLabel)),
                 kind: .primary,
-                enabled: view.canSubmit && !view.busy,
+                enabled: view.canSubmit,
+                loading: view.busy,
                 action: onSubmit
             )
 
@@ -311,7 +312,8 @@ struct KeysScreen: View {
                     ? I18nKeys.Create.addSecondKeyBtn
                     : I18nKeys.Create.createWalletBtn),
                 kind: .primary,
-                enabled: view.canFinish && !view.busy,
+                enabled: view.canFinish,
+                loading: view.busy,
                 action: onFinish
             )
         }
@@ -326,6 +328,7 @@ struct KeysScreen: View {
 
 private struct KeyRow: View {
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     let loc: Loc
     let key: CreateKeyRow
     let busy: Bool
@@ -333,16 +336,32 @@ private struct KeyRow: View {
     let onConfirm: () -> Void
     let onRemove: () -> Void
 
+    /// Who is holding this key: the compiled catalog's name, then the
+    /// directory's for a model no catalog carries, and nothing when neither
+    /// knows — the row then says what it always said about the METHOD.
+    private var holder: String? {
+        if !key.providerName.isEmpty { return key.providerName }
+        guard !key.aaguid.isEmpty else { return nil }
+        return PasskeyDirectory.shared
+            .entry(aaguid: key.aaguid, dark: colorScheme == .dark)?
+            .name
+    }
+
     var body: some View {
         HStack(spacing: Tokens.Space.s12) {
-            Image(systemName: key.method == .securityKey ? "key.horizontal" : "person.badge.key")
-                .foregroundStyle(theme.fgMuted)
-                .frame(width: Tokens.Control.sm, height: Tokens.Control.sm)
-                .background(theme.bgSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.r8))
+            // Who is holding this key, when the core's AAGUID catalog knows:
+            // the vault's own mark and its own name. When it does not — a
+            // hardware key, an authenticator that reported nothing — the row
+            // says what it always said, from `method`.
+            PasskeyProviderMark(
+                key: key,
+                label: holder ?? loc.t(providerLineFor(key.method)),
+                glyphFallback: true
+            )
 
             VStack(alignment: .leading, spacing: Tokens.Space.s2) {
                 Text(key.name).typeRole(Typography.rowTitle).foregroundStyle(theme.fgBase)
-                Text(loc.t(providerLineFor(key.method)))
+                Text(holder ?? loc.t(providerLineFor(key.method)))
                     .typeRole(Typography.flowCaption)
                     .foregroundStyle(theme.fgMuted)
             }
@@ -437,10 +456,16 @@ private struct AddMethodPicker: View {
 
 /// Deriving the address.
 ///
-/// Three task rows and a percentage, both computed from the stage the core
-/// reported — never from elapsed time. This is why spec 014's elapsed-seconds
-/// ring is gone from the create flow: the percentage is the "still working"
-/// affordance the v2 design chose, and it is derived rather than animated.
+/// Three task rows, driven by the stage the core reported — never by elapsed
+/// time. This is why spec 014's elapsed-seconds ring is gone from the create
+/// flow.
+///
+/// The percentage meter that used to head them is gone too (founder call,
+/// 2026-08-25, and the desktop had already reached the same conclusion): it
+/// LOOKED measured and was not — the same three statuses the rows below name,
+/// divided by three — and its label named one phase while another was running.
+/// What is left is honest: what finished, what is running, what has not
+/// started, with the running one spinning because it is waiting on a network.
 struct ProgressScreen: View {
     @Environment(\.theme) private var theme
     let loc: Loc
@@ -458,30 +483,6 @@ struct ProgressScreen: View {
                     .foregroundStyle(theme.fgMuted)
             }
 
-            VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                HStack {
-                    Text(loc.t(I18nKeys.Create.progressMeterLabel))
-                        .typeRole(Typography.label)
-                        .foregroundStyle(theme.fgMuted)
-                    Spacer()
-                    Text("\(position.percent)%")
-                        .typeRole(Typography.mono)
-                        .foregroundStyle(theme.fgBase)
-                }
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(theme.borderBase)
-                        Capsule()
-                            .fill(theme.accentBase)
-                            .frame(width: proxy.size.width * Double(position.percent) / 100)
-                    }
-                }
-                .frame(height: FlowMetrics.progressBar)
-                .animation(.easeInOut(duration: Tokens.Motion.base), value: position.percent)
-                .accessibilityLabel(loc.t(I18nKeys.Create.progressMeterLabel))
-                .accessibilityValue("\(position.percent)%")
-            }
-
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(progressTasks.enumerated()), id: \.offset) { index, task in
                     let done = index < position.activeTask
@@ -490,9 +491,19 @@ struct ProgressScreen: View {
                         Group {
                             if done {
                                 Image(systemName: "checkmark").foregroundStyle(theme.successBase)
+                            } else if active {
+                                // A spinner, not a dot: this row is waiting on
+                                // a network round trip, and a still dot beside
+                                // "writing the key index" says nothing about
+                                // whether anything is happening (founder call,
+                                // 2026-08-25).
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .controlSize(.small)
+                                    .tint(theme.accentBase)
                             } else {
                                 Circle()
-                                    .fill(active ? theme.accentBase : theme.borderStrong)
+                                    .fill(theme.borderStrong)
                                     .frame(width: Tokens.Space.s8, height: Tokens.Space.s8)
                             }
                         }
@@ -509,6 +520,54 @@ struct ProgressScreen: View {
                 }
             }
             Spacer()
+        }
+    }
+}
+
+/// The done card's address: the WHOLE line is the copy target, and the
+/// confirmation replaces it in place.
+///
+/// Not `AddressStrip`: the v2 card draws the address as bare text under a
+/// rule, because it is the only 0x string on the screen and a sunken well
+/// around it made the card look like a form.
+private struct DoneAddressLine: View {
+    @Environment(\.theme) private var theme
+    let address: String
+    let copyLabel: String
+    let copiedLabel: String
+
+    @State private var copied = false
+
+    var body: some View {
+        Button(action: copy) {
+            Text(copied ? copiedLabel : address)
+                .typeRole(Typography.mono)
+                .foregroundStyle(copied ? theme.successBase : theme.fgMuted)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, Tokens.Space.s12)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(theme.borderBase)
+                        .frame(height: Tokens.BorderWidth.hairline)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: Tokens.Motion.fast), value: copied)
+        .accessibilityLabel(copyLabel)
+        .accessibilityValue(Text(verbatim: address))
+    }
+
+    private func copy() {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = address
+        #endif
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            copied = false
         }
     }
 }
@@ -567,7 +626,7 @@ struct RetryScreen: View {
                 VelaButton(
                     title: loc.t(I18nKeys.Create.retryUploadBtn),
                     kind: .primary,
-                    enabled: !busy,
+                    loading: busy,
                     action: onRetry
                 )
                 VelaButton(
@@ -598,19 +657,37 @@ struct RetryScreen: View {
 /// somebody can fund before the wallet is reachable.
 struct DoneScreen: View {
     @Environment(\.theme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     let loc: Loc
     let address: String
     let walletName: String
     let keys: [CreateKeyRow]
     let onEnter: () -> Void
 
+    /// Who is holding this key: the compiled catalog first, the directory
+    /// second, nothing when neither knows.
+    private func doneHolder(_ key: CreateKeyRow) -> String? {
+        if !key.providerName.isEmpty { return key.providerName }
+        guard !key.aaguid.isEmpty else { return nil }
+        return PasskeyDirectory.shared
+            .entry(aaguid: key.aaguid, dark: colorScheme == .dark)?
+            .name
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Tokens.Space.s24) {
                     VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                        HStack(spacing: Tokens.Space.s8) {
-                            Image(systemName: "checkmark").foregroundStyle(theme.successBase)
+                        HStack(spacing: Tokens.Space.s12) {
+                            // The tick is a badge, not a glyph beside the words:
+                            // this is the one screen in the flow that reports an
+                            // outcome, and the design gives it a disc.
+                            Text(verbatim: "✓")
+                                .typeRole(Typography.title)
+                                .foregroundStyle(theme.successBase)
+                                .frame(width: FlowMetrics.doneCheck, height: FlowMetrics.doneCheck)
+                                .background(theme.successSoft, in: Circle())
                             Text(loc.t(I18nKeys.Create.successTitle))
                                 .typeRole(Typography.display)
                                 .foregroundStyle(theme.fgBase)
@@ -620,43 +697,55 @@ struct DoneScreen: View {
                             .foregroundStyle(theme.fgMuted)
                     }
 
+                    // Avatar beside the name, then the address under a rule.
+                    // The caption that used to sit here DESCRIBED the identicon
+                    // ("an identity pattern generated from the address") — a
+                    // sentence narrating a picture that is right next to it —
+                    // and the "wallet address" label went for the same reason:
+                    // a 42-character 0x string in mono under a wallet's name is
+                    // not mistakable for anything else.
                     VStack(alignment: .leading, spacing: Tokens.Space.s16) {
                         HStack(spacing: Tokens.Space.s12) {
                             // Rendered from the address by the same core that
                             // derived it, so what the person memorises here is
                             // what every other client draws.
                             IdenticonAvatar(seed: address, size: FlowMetrics.identicon)
-                            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                                Text(walletName)
-                                    .typeRole(Typography.title)
-                                    .foregroundStyle(theme.fgBase)
-                                Text(loc.t(I18nKeys.Create.identiconHint))
-                                    .typeRole(Typography.flowCaption)
-                                    .foregroundStyle(theme.fgMuted)
-                            }
+                            Text(walletName)
+                                .typeRole(Typography.title)
+                                .foregroundStyle(theme.fgBase)
                         }
 
-                        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-                            Text(loc.t(I18nKeys.Create.walletAddressLabel))
-                                .typeRole(Typography.label)
-                                .foregroundStyle(theme.fgMuted)
-                            AddressStrip(
-                                address: address,
-                                copyLabel: loc.t(I18nKeys.Flow.copyAddress),
-                                copiedLabel: loc.t(I18nKeys.Flow.copied)
-                            )
-                        }
+                        DoneAddressLine(
+                            address: address,
+                            copyLabel: loc.t(I18nKeys.Flow.copyAddress),
+                            copiedLabel: loc.t(I18nKeys.Flow.copied)
+                        )
                     }
-                    .padding(Tokens.Space.s20)
+                    .padding(Tokens.Space.s16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(theme.bgRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.r16))
+                    .background(theme.bgRaised, in: RoundedRectangle(cornerRadius: Tokens.Radius.r12))
 
                     VStack(spacing: 0) {
                         ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
-                            HStack {
-                                Text(key.name)
-                                    .typeRole(Typography.body)
-                                    .foregroundStyle(theme.fgBase)
+                            HStack(spacing: Tokens.Space.s12) {
+                                PasskeyProviderMark(
+                                    key: key,
+                                    label: doneHolder(key) ?? "",
+                                    size: Tokens.Space.s20
+                                )
+                                VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                                    Text(key.name)
+                                        .typeRole(Typography.body)
+                                        .foregroundStyle(theme.fgBase)
+                                    // Where the key lives, under the name it was
+                                    // given. Quieter than the name: one is the
+                                    // person's word, the other the system's.
+                                    if let holder = doneHolder(key) {
+                                        Text(holder)
+                                            .typeRole(Typography.flowCaption)
+                                            .foregroundStyle(theme.fgSubtle)
+                                    }
+                                }
                                 Spacer()
                                 Text(loc.t(key.synced
                                     ? I18nKeys.Create.keySyncedBadge

@@ -68,12 +68,30 @@ link fragments but moves from `ack3` to `ack1`.
 
 ## 4. Added (32 leaves × 15 locales)
 
-### Welcome (v2 hero) — 2
+### Welcome (v2 hero) — 3
 
 | Key | zh | en |
 | --- | --- | --- |
-| `welcome.heroTitle` | 谁也关不掉的以太坊钱包 | The Ethereum wallet no one can switch off |
+| `welcome.heroTitle` | 真正由你掌控的以太坊钱包 | The unstoppable Ethereum wallet |
+| `welcome.heroTitleFit` | regular | regular |
 | `welcome.heroSubtitle` | 用通行密钥签名，密钥留在你的设备里。 | Sign with a passkey. The key never leaves your device. |
+
+`heroTitleFit` is the one corpus value that is not prose: an enum, `regular` or
+`long`, naming which rung of the hero type ladder (46 / 38 / 31) this locale's
+headline needs. It rides with the string because the width is a property of the
+translation — measured at the shipped font the widest authored line runs 6.9em
+(zh) to 10.9em (ru) — and all four clients read it through the `t()` they
+already call. `gen-i18n.mjs` refuses to generate if a locale carries anything
+else, and `welcome-ssr.e2e.ts` measures the rendered line count at 390×844 so a
+copy edit that outgrows its rung fails rather than ships.
+
+The rungs are sized for the 390pt design frame, which is the contract rather
+than the floor (founder direction 2026-08-26). Measured on a 375pt iPhone SE,
+`ru` wraps into a third and fourth line — it needs 337pt of column and has 327.
+That is accepted: closing it would mean a second, viewport-driven shrink layered
+under the locale one, and the narrow tail does not justify two mechanisms
+arguing over one headline. Dropping a locale a rung to serve the smallest phone
+is the wrong fix — it shrinks that headline on every phone.
 
 ### Name screen — 2
 

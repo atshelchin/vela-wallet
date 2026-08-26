@@ -326,6 +326,7 @@ pub(crate) mod tests {
                     credential_id: format!("cred{index}"),
                     public_key_hex: format!("04{index:02}"),
                     name: format!("Key {}", index + 1),
+                    transports: "usb".to_owned(),
                 })
                 .collect(),
         }

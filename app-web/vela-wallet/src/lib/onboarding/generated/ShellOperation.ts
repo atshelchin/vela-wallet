@@ -25,7 +25,14 @@ exclude_credential_ids: Array<string>,
  * about itself comes back on the registration and is not constrained
  * by this.
  */
-method: KeyMethod, } | { "type": "sign_proof", credential_id: string, purpose: ProofPurpose, } | { "type": "generate_group_key" } | { "type": "sign_member_proof", credential_id: string, 
+method: KeyMethod, } | { "type": "sign_proof", credential_id: string, 
+/**
+ * What the authenticator reported about ITSELF at registration, comma
+ * joined (`hybrid,internal`, `usb,nfc`, …), or empty when unknown.
+ * See [`ShellOperation::SignMemberProof::transports`] — this is the
+ * same fact and the same reason.
+ */
+transports: string, purpose: ProofPurpose, } | { "type": "generate_group_key" } | { "type": "sign_member_proof", credential_id: string, 
 /**
  * Uncompressed P-256 point, `04‖x‖y` hex.
  */
@@ -33,4 +40,19 @@ public_key_hex: string,
 /**
  * Empty, or 20 versioned attestation bytes (hex).
  */
-attestation_hex: string, group_public_key_hex: string, } | { "type": "lookup_legacy_name", credential_id: string, } | { "type": "authenticate_passkey" } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, group_seed_hex: string, group_public_key_hex: string, } | { "type": "registry_query_by_public_key", public_key_hex: string, } | { "type": "registry_query_unit", unit_id: number, } | { "type": "probe_index_health" } | { "type": "wait", ms: number, } | { "type": "prompt", kind: PromptKind, confirmable: boolean, } | { "type": "complete_onboarding", mode: CompletionMode, };
+attestation_hex: string, 
+/**
+ * WHERE this credential lives, as the authenticator reported it at
+ * registration (`getTransports()`), comma joined: `hybrid,internal`,
+ * `usb,nfc`, `internal`. Empty when it reported nothing.
+ *
+ * **Load-bearing, not a hint.** A `get()` whose `allowCredentials`
+ * entry carries no transports leaves the platform to guess where to
+ * look, and Android's Credential Manager guesses "removable security
+ * key" — it drew "Connect your security key" for a passkey living in
+ * Apple Passwords on another phone, which is a dead end the person
+ * cannot answer (device-found 2026-08-26). With `hybrid` present the
+ * platform offers the other-device route instead, which is the one
+ * that can actually complete.
+ */
+transports: string, group_public_key_hex: string, } | { "type": "lookup_legacy_name", credential_id: string, } | { "type": "authenticate_passkey" } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, group_seed_hex: string, group_public_key_hex: string, } | { "type": "registry_query_by_public_key", public_key_hex: string, } | { "type": "registry_query_unit", unit_id: number, } | { "type": "probe_index_health" } | { "type": "wait", ms: number, } | { "type": "prompt", kind: PromptKind, confirmable: boolean, } | { "type": "complete_onboarding", mode: CompletionMode, };

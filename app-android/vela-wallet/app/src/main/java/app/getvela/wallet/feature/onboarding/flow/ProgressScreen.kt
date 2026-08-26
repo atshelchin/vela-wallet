@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.designsystem.tokens.VelaBorder
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
 import app.getvela.wallet.core.designsystem.tokens.VelaIconSize
@@ -42,24 +44,26 @@ import app.getvela.wallet.core.i18n.LocalVelaStrings
 /**
  * Deriving the address.
  *
- * Three task rows and a percentage, both computed from the stage the core
- * reported — never from elapsed time. A bar that advances on a timer tells the
- * person something the wallet does not know, and the moment they are most owed
- * the truth is while their key set is being frozen.
+ * Three task rows, driven by the stage the core reported — never by elapsed
+ * time. A bar that advances on a timer tells the person something the wallet
+ * does not know, and the moment they are most owed the truth is while their key
+ * set is being frozen. This is why spec 014's elapsed-seconds ring is gone from
+ * the create flow.
  *
- * This is why spec 014's elapsed-seconds ring is gone from the create flow: the
- * percentage is the "still working" affordance the v2 design chose, and it is
- * derived rather than animated.
+ * The percentage meter that used to head the rows is gone too (founder call,
+ * 2026-08-25, and the desktop had already reached the same conclusion): it
+ * LOOKED measured and was not — the same three statuses the rows below name,
+ * divided by three — and its label named one phase while another was running.
+ * What is left is honest: what finished, what is running, what has not started.
+ *
+ * The running row SPINS. Every one of these three waits on something outside
+ * the app (a passkey prompt, a derivation, a network write), and a still dot
+ * says nothing about whether anything is still happening.
  */
 @Composable
 fun ColumnScope.ProgressScreen(position: ProgressPosition, keyCount: Int) {
     val strings = LocalVelaStrings.current
     val colors = VelaTheme.colors
-    val fraction by animateFloatAsState(
-        targetValue = position.percent / 100f,
-        animationSpec = tween(VelaMotion.durationNormal),
-        label = "deriveProgress",
-    )
 
     Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
         Text(
@@ -81,46 +85,6 @@ fun ColumnScope.ProgressScreen(position: ProgressPosition, keyCount: Int) {
             lineHeight = VelaLeading.normal * VelaTextSize.lg,
         )
 
-        Spacer(modifier = Modifier.height(VelaSpacing.xl5))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = strings.t(I18nKeys.Create.PROGRESS_METER_LABEL),
-                color = colors.fgMuted,
-                fontFamily = VelaFontFamily,
-                fontWeight = VelaFontWeight.semibold,
-                fontSize = VelaTextSize.sm,
-            )
-            Text(
-                text = "${position.percent}%",
-                color = colors.fgBase,
-                fontFamily = VelaMonoFontFamily,
-                fontWeight = VelaFontWeight.medium,
-                fontSize = VelaTextSize.lg,
-            )
-        }
-        Spacer(modifier = Modifier.height(VelaSpacing.md))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(VelaSizing.progressBar)
-                .clip(RoundedCornerShape(VelaRadius.full))
-                .background(colors.borderBase)
-                .semantics { contentDescription = strings.t(I18nKeys.Create.PROGRESS_METER_LABEL) },
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(fraction)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(VelaRadius.full))
-                    .background(colors.accentBase),
-            )
-        }
-
         Spacer(modifier = Modifier.height(VelaSpacing.xl4))
 
         PROGRESS_TASKS.forEachIndexed { index, task ->
@@ -138,11 +102,10 @@ fun ColumnScope.ProgressScreen(position: ProgressPosition, keyCount: Int) {
                             tint = colors.successBase,
                             modifier = Modifier.size(VelaIconSize.base),
                         )
-                        active -> Box(
-                            modifier = Modifier
-                                .size(VelaIconSize.xs)
-                                .clip(RoundedCornerShape(VelaRadius.full))
-                                .background(colors.accentBase),
+                        active -> CircularProgressIndicator(
+                            color = colors.accentBase,
+                            strokeWidth = VelaBorder.emphasis,
+                            modifier = Modifier.size(VelaIconSize.base),
                         )
                         else -> Box(
                             modifier = Modifier

@@ -13,6 +13,14 @@ export interface WelcomeMessages {
 	tagline: string;
 	/** The v2 headline and its one supporting line (spec 019). */
 	heroTitle: string;
+	/**
+	 * Which rung of the hero type ladder this locale's headline needs —
+	 * `'regular'` or `'long'`. It lives in the corpus beside the string it
+	 * describes because it is a property of the translation: measured at the
+	 * shipped font, the widest authored line runs from 6.9em (zh) to 15.0em
+	 * (id), and no single size serves both.
+	 */
+	heroTitleFit: string;
 	heroSubtitle: string;
 	createWallet: string;
 	alreadyHaveWallet: string;
@@ -36,6 +44,7 @@ export const WELCOME_KEYS = [
 	'onboarding.welcomeWeb.meta.description',
 	'onboarding.welcomeWeb.tagline',
 	'onboarding.welcome.heroTitle',
+	'onboarding.welcome.heroTitleFit',
 	'onboarding.welcome.heroSubtitle',
 	'onboarding.welcome.createWallet',
 	'onboarding.welcome.alreadyHaveWallet'

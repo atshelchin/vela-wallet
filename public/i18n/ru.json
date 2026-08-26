@@ -494,7 +494,8 @@
    "featureSafeContractBody": "Аккаунты построены на прошедших аудит контрактах Safe, а не на собственной реализации.",
    "featureStablecoinGasTitle": "Оплата газа стейблкоинами",
    "featureStablecoinGasBody": "В большинстве сетей комиссию можно платить стейблкоинами — не нужно сначала запасаться нативной монетой.",
-   "heroTitle": "Кошелёк Ethereum,\nкоторый никто не выключит",
+   "heroTitle": "Только вы управляете\nEthereum-кошельком",
+   "heroTitleFit": "long",
    "heroSubtitle": "Подпись через passkey. Vela никогда не видит ваш ключ."
   },
   "welcomeWeb": {

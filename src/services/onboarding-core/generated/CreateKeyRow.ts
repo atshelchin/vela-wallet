@@ -28,9 +28,23 @@ confirmed: boolean,
 synced: boolean, 
 /**
  * The authenticator model's AAGUID as a canonical uuid, or empty when
- * absent/all-zero. The shell resolves it to a provider name + icon.
+ * absent/all-zero. Shells pass it back to the core for the provider's
+ * mark (`passkey_provider_png` / `passkeyProviderIconDataUri`).
  */
 aaguid: string, 
+/**
+ * The vault holding this key, resolved from [`Self::aaguid`] against the
+ * vendored catalog: "Apple Passwords", "1Password", "Windows Hello".
+ * Empty when the catalog does not know the model — hardware keys and
+ * attestation-less registrations both land there — and the shells then
+ * say what they always said, from [`Self::method`] and the two hint
+ * fields above.
+ *
+ * Resolved HERE rather than in each shell so that four clients cannot
+ * disagree about who holds a key (and so the lookup stays offline: asking
+ * a directory service would tell it which vault holds a Vela wallet).
+ */
+provider_name: string, 
 /**
  * Which kind of authenticator the person chose for this key. Drives the
  * row's icon and provider line; distinct from the three fields above,

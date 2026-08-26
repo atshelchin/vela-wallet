@@ -14,6 +14,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -21,12 +25,15 @@ import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaSizing
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.i18n.I18nKeys
+import app.getvela.wallet.core.i18n.LocalVelaStrings
 import app.getvela.wallet.feature.wallet.components.ActionButtonRow
 import app.getvela.wallet.feature.wallet.components.ActivityRow
 import app.getvela.wallet.feature.wallet.components.AssetRow
 import app.getvela.wallet.feature.wallet.components.ChainSelectSheet
 import app.getvela.wallet.feature.wallet.components.DayLabel
 import app.getvela.wallet.feature.wallet.components.EmptyState
+import app.getvela.wallet.feature.wallet.components.IdenticonViewerSheet
 import app.getvela.wallet.feature.wallet.components.SectionHeader
 import app.getvela.wallet.feature.wallet.components.SkeletonActivityRow
 import app.getvela.wallet.feature.wallet.components.SkeletonAssetRow
@@ -44,7 +51,6 @@ import app.getvela.wallet.feature.wallet.components.BalanceDisplay
 fun WalletScreen(
     model: WalletHomeModel,
     modifier: Modifier = Modifier,
-    onPillClick: () -> Unit = {},
     /**
      * The Settings tab (spec 019).
      *
@@ -65,10 +71,10 @@ fun WalletScreen(
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, density.fontScale * model.textScale),
         ) {
-            WalletHomeContent(model, modifier, onPillClick, onSelectTab)
+            WalletHomeContent(model, modifier, onSelectTab)
         }
     } else {
-        WalletHomeContent(model, modifier, onPillClick, onSelectTab)
+        WalletHomeContent(model, modifier, onSelectTab)
     }
 
     model.sheet?.let { sheet ->
@@ -80,7 +86,6 @@ fun WalletScreen(
 private fun WalletHomeContent(
     model: WalletHomeModel,
     modifier: Modifier = Modifier,
-    onPillClick: () -> Unit = {},
     /**
      * The Settings tab (spec 019).
      *
@@ -96,6 +101,19 @@ private fun WalletHomeContent(
     onSelectTab: (VelaTab) -> Unit = {},
 ) {
     val colors = VelaTheme.colors
+    val strings = LocalVelaStrings.current
+    // The identicon viewer, opened from the artwork itself (founder call,
+    // 2026-08-26). Sheet state is this screen's, not the model's: it is a way
+    // of LOOKING at the wallet, not a state of it.
+    var viewingIdenticon by remember { mutableStateOf(false) }
+
+    if (viewingIdenticon) {
+        IdenticonViewerSheet(
+            address = model.header.identiconSeed,
+            onDismiss = { viewingIdenticon = false },
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -115,8 +133,8 @@ private fun WalletHomeContent(
                 Spacer(modifier = Modifier.height(VelaSpacing.xl))
                 WalletHeaderRow(
                     header = model.header,
-                    pill = model.pill,
-                    onPillClick = onPillClick,
+                    onIdenticon = { viewingIdenticon = true },
+                    identiconLabel = strings.t(I18nKeys.Wallet.IDENTICON_A11Y_OPEN),
                 )
                 Spacer(modifier = Modifier.height(VelaSpacing.xl3))
                 BalanceDisplay(model = model.balance)

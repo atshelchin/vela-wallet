@@ -15,6 +15,16 @@ import SwiftUI
 import VelaCore
 
 /// The security key's PIN. Dismissal (or Cancel) is a cancellation.
+///
+/// **An in-app numeric keypad, deliberately — not a `SecureField`.** A hardware
+/// key that also does OTP enumerates on the iPhone as a USB KEYBOARD, and iOS
+/// then suppresses the on-screen keyboard because it thinks one is attached.
+/// The person would have no way to type: the software keyboard is gone, and the
+/// key itself only emits an OTP on a touch, never a PIN. So the PIN is entered
+/// on this app's own keypad, which owes nothing to the system keyboard
+/// (device-found on iPhone, 2026-08-27). FIDO2 PINs are numeric in the
+/// overwhelming majority of cases; a key with an alphanumeric PIN is the one
+/// case this does not cover, and is noted for a follow-up.
 struct UsbPinSheet: View {
     @Environment(\.theme) private var theme
     let loc: Loc
@@ -23,6 +33,9 @@ struct UsbPinSheet: View {
 
     @State private var pin = ""
     @State private var answered = false
+
+    /// FIDO2 requires a PIN of at least 4 UTF-8 bytes.
+    private var canSubmit: Bool { pin.count >= 4 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s16) {
@@ -35,10 +48,18 @@ struct UsbPinSheet: View {
                 .foregroundStyle(theme.fgMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            SecureField(loc.t(I18nKeys.Create.pinLabel), text: $pin)
-                .textContentType(.password)
-                .keyboardType(.numberPad)
-                .textFieldStyle(.roundedBorder)
+            // The masked PIN — one dot per digit entered.
+            Text(String(repeating: "●", count: pin.count))
+                .typeRole(Typography.title)
+                .foregroundStyle(pin.isEmpty ? theme.fgSubtle : theme.fgBase)
+                .frame(maxWidth: .infinity, minHeight: Tokens.Space.s32, alignment: .center)
+                .overlay(alignment: .center) {
+                    if pin.isEmpty {
+                        Text(loc.t(I18nKeys.Create.pinLabel))
+                            .typeRole(Typography.body)
+                            .foregroundStyle(theme.fgSubtle)
+                    }
+                }
 
             if pending.isRetry {
                 Text(loc.t(I18nKeys.Create.pinRejected))
@@ -51,11 +72,15 @@ struct UsbPinSheet: View {
                     .foregroundStyle(theme.fgSubtle)
             }
 
+            PinKeypad(
+                onDigit: { digit in if pin.count < 63 { pin.append(digit) } },
+                onDelete: { if !pin.isEmpty { pin.removeLast() } }
+            )
+
             VelaButton(title: loc.t(I18nKeys.Create.confirmKeyBtn), kind: .primary) {
                 answer(pin)
             }
-            .disabled(pin.isEmpty)
-            .padding(.top, Tokens.Space.s16)
+            .disabled(!canSubmit)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Tokens.Layout.screenPaddingX)
@@ -69,6 +94,54 @@ struct UsbPinSheet: View {
         guard !answered else { return }
         answered = true
         onSubmit(pin)
+    }
+}
+
+/// A 3×4 numeric keypad, owing nothing to the system keyboard.
+private struct PinKeypad: View {
+    @Environment(\.theme) private var theme
+    let onDigit: (Character) -> Void
+    let onDelete: () -> Void
+
+    private let rows: [[String]] = [
+        ["1", "2", "3"],
+        ["4", "5", "6"],
+        ["7", "8", "9"],
+        ["", "0", "⌫"],
+    ]
+
+    var body: some View {
+        VStack(spacing: Tokens.Space.s8) {
+            ForEach(rows.indices, id: \.self) { r in
+                HStack(spacing: Tokens.Space.s8) {
+                    ForEach(rows[r], id: \.self) { label in
+                        key(label)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func key(_ label: String) -> some View {
+        if label.isEmpty {
+            Color.clear.frame(maxWidth: .infinity, minHeight: Tokens.Space.s48)
+        } else {
+            Button {
+                if label == "⌫" {
+                    onDelete()
+                } else if let digit = label.first {
+                    onDigit(digit)
+                }
+            } label: {
+                Text(label)
+                    .typeRole(Typography.title)
+                    .foregroundStyle(theme.fgBase)
+                    .frame(maxWidth: .infinity, minHeight: Tokens.Space.s48)
+                    .background(theme.bgSunken)
+                    .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+            }
+        }
     }
 }
 

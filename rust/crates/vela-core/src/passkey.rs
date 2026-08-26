@@ -63,6 +63,33 @@ pub struct MarkPalette<'a> {
     pub hole: &'a str,
 }
 
+/// The transports a `get()` may put in `allowCredentials`.
+///
+/// The authenticator's own report is kept verbatim in the record — it is what
+/// the device said about itself — but not all of it is safe to hand back to a
+/// client. A YubiKey reports `usb,smart-card`: `smart-card` is a WebAuthn L3
+/// transport, and while the spec says clients SHOULD ignore values they do not
+/// know, Android's does not merely ignore it. It batches `allowCredentials` by
+/// transport before talking CTAP, and an entry it cannot place is dropped —
+/// which can empty the list it just filtered:
+///
+///     no credential match found as non-empty allowlist reduced to empty
+///     when batching
+///
+/// (device-found 2026-08-26). So the wire carries only the five transports a
+/// client can actually route on. Dropping `smart-card` from a key that also
+/// says `usb` loses nothing: the same key, reachable the same way.
+#[must_use]
+pub fn allowlist_transports(reported: &str) -> String {
+    const ROUTABLE: [&str; 5] = ["usb", "nfc", "ble", "hybrid", "internal"];
+    reported
+        .split(',')
+        .map(str::trim)
+        .filter(|value| ROUTABLE.contains(value))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 /// Which fallback mark, if any, a key row should draw when the catalog has no
 /// entry for its AAGUID.
 ///
@@ -359,6 +386,20 @@ mod tests {
         soft: "#D8D4CB",
         hole: "#FAFAF8",
     };
+
+    #[test]
+    fn the_wire_carries_only_transports_a_client_can_route_on() {
+        // A YubiKey's own report. `smart-card` is real and true, and Android
+        // drops the whole descriptor over it.
+        assert_eq!(allowlist_transports("usb,smart-card"), "usb");
+        assert_eq!(allowlist_transports("nfc,usb,smart-card"), "nfc,usb");
+        assert_eq!(allowlist_transports("hybrid,internal"), "hybrid,internal");
+        assert_eq!(allowlist_transports(" usb , nfc "), "usb,nfc");
+        // Nothing routable left is the same as saying nothing: the platform
+        // then looks everywhere, which is better than looking nowhere.
+        assert_eq!(allowlist_transports("smart-card"), "");
+        assert_eq!(allowlist_transports(""), "");
+    }
 
     #[test]
     fn a_usb_key_and_a_tapped_key_get_different_marks() {

@@ -710,7 +710,7 @@ fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> 
             credential_id: draft.credential_id,
             public_key_hex: draft.public_key_hex,
             attestation_hex: draft.attestation_hex,
-            transports: draft.transports,
+            transports: crate::passkey::allowlist_transports(&draft.transports),
             group_public_key_hex,
         },
     )
@@ -757,7 +757,7 @@ fn finish_keys(model: &mut Model) -> Command<Effect, Event> {
             attestation_object_hex: draft.attestation_object_hex,
             attestation_hex: draft.attestation_hex,
             authenticator_attachment: draft.authenticator_attachment,
-            transports: draft.transports,
+            transports: crate::passkey::allowlist_transports(&draft.transports),
             proof: draft.proof,
         })
         .collect();

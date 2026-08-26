@@ -94,10 +94,24 @@ final class PasskeyExecutor: NSObject {
             ) != nil
     }
 
-    /// Registration. `method` selects the provider: the platform authenticator,
-    /// or a security key over the security-key provider.
+    /// Registration.
     ///
-    /// `Hybrid` never arrives — the key screen offers it as
+    /// `method` NARROWS the sheet; it does not define it. Asking for a security
+    /// key issues only the security-key request, because the person said which
+    /// object they were holding. Every other method offers the platform request
+    /// AND the security-key request together, so the system sheet lists Face ID,
+    /// another device, and a security key, and the person picks.
+    ///
+    /// That last part is a fix, not a flourish. The FIRST founding key is minted
+    /// from the name screen, before a key list exists, so it carries the core's
+    /// default method — platform — and iOS was therefore offering exactly two
+    /// ways in: this device, or a QR to another phone. Somebody holding a
+    /// YubiKey could not start a wallet with it at all, on a wallet whose whole
+    /// design is that a key set can mix (founder-found 2026-08-26). Android had
+    /// no such gap: its default request carries no attachment constraint, so
+    /// Credential Manager listed security keys from the start.
+    ///
+    /// `Hybrid` never arrives as a method — the key screen offers it as
     /// present-and-unavailable rather than issuing a ceremony no transport can
     /// run, because on iOS the QR flow is the SYSTEM's to offer inside the
     /// platform sheet, not ours to request.
@@ -112,8 +126,26 @@ final class PasskeyExecutor: NSObject {
             ASAuthorizationPlatformPublicKeyCredentialDescriptor(credentialID: try fromHex(s: hex))
         }
 
-        let request: ASAuthorizationRequest
-        if method == .securityKey {
+        var requests: [ASAuthorizationRequest] = []
+
+        if method != .securityKey {
+            let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(
+                relyingPartyIdentifier: relyingPartyId
+            )
+            let platformRequest = provider.createCredentialRegistrationRequest(
+                challenge: challenge,
+                name: name,
+                userID: userId
+            )
+            // The reason this feature raised the deployment target to 17.4
+            // (research D6): a multi-key wallet registers each founding key
+            // separately, and the provider must refuse to silently REPLACE an
+            // earlier one — the Safe address depends on every key in the set.
+            platformRequest.excludedCredentials = excluded
+            requests.append(platformRequest)
+        }
+
+        do {
             let provider = ASAuthorizationSecurityKeyPublicKeyCredentialProvider(
                 relyingPartyIdentifier: relyingPartyId
             )
@@ -143,25 +175,10 @@ final class PasskeyExecutor: NSObject {
                     transports: ASAuthorizationSecurityKeyPublicKeyCredentialDescriptor.Transport.allSupported
                 )
             }
-            request = securityKeyRequest
-        } else {
-            let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(
-                relyingPartyIdentifier: relyingPartyId
-            )
-            let platformRequest = provider.createCredentialRegistrationRequest(
-                challenge: challenge,
-                name: name,
-                userID: userId
-            )
-            // The reason this feature raised the deployment target to 17.4
-            // (research D6): a multi-key wallet registers each founding key
-            // separately, and the provider must refuse to silently REPLACE an
-            // earlier one — the Safe address depends on every key in the set.
-            platformRequest.excludedCredentials = excluded
-            request = platformRequest
+            requests.append(securityKeyRequest)
         }
 
-        let authorization = try await perform([request])
+        let authorization = try await perform(requests)
 
         guard let credential = authorization.credential
             as? ASAuthorizationPublicKeyCredentialRegistration
@@ -172,12 +189,18 @@ final class PasskeyExecutor: NSObject {
             throw PasskeyFailure(kind: .other, message: "The authenticator returned no attestation")
         }
 
+        // What the person actually used, not what was asked for. With both
+        // requests on the sheet the two can differ — that is the point of
+        // offering both — and a row labelled from the REQUEST would call a
+        // YubiKey "this device".
+        let usedSecurityKey =
+            credential is ASAuthorizationSecurityKeyPublicKeyCredentialRegistration
         return Registration(
             credentialIdHex: toHex(data: credential.credentialID, prefixed: false),
             attestationObjectHex: toHex(data: attestation, prefixed: false),
             clientDataJsonHex: toHex(data: credential.rawClientDataJSON, prefixed: false),
-            authenticatorAttachment: method == .securityKey ? "cross-platform" : "platform",
-            transports: method == .securityKey ? "usb,nfc" : "internal,hybrid"
+            authenticatorAttachment: usedSecurityKey ? "cross-platform" : "platform",
+            transports: usedSecurityKey ? "usb,nfc" : "internal,hybrid"
         )
     }
 

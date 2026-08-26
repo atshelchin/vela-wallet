@@ -437,14 +437,34 @@ class PasskeyExecutor(
      */
     private fun encodeUserHandle(name: String): String = name + NUL + UUID.randomUUID()
 
+    /**
+     * The `authenticatorAttachment` constraint to put on a registration — which
+     * on this platform is NONE, whatever the person picked.
+     *
+     * Naming `platform` would exclude a provider that is neither platform nor
+     * roaming, which on Android is the common case: the credential usually
+     * lives in a password manager rather than in the device itself.
+     *
+     * Naming `cross-platform` is worse. It is standard WebAuthn, and Credential
+     * Manager refuses it outright:
+     *
+     *     Create credential errorMsg=[28460] This provider does not support
+     *     creating cross-platform public key credentials.
+     *     Provider status changed: CANCELED, and source: REMOTE_PROVIDER
+     *
+     * The providers that could serve a security key decline, the selector falls
+     * back to whatever platform provider is left, and the person — holding the
+     * key they just chose in OUR picker — is told setup was cancelled
+     * (device-found on a Galaxy S22, 2026-08-26). Registering the SAME key with
+     * no constraint at all works: the selector offers "security key" among the
+     * ways in, and GMS runs the CTAP2 ceremony.
+     *
+     * So the method stays the person's stated intent — it labels the row and
+     * chooses the fallback artwork — and the system sheet remains the arbiter of
+     * which object actually answers, which is what the response reports back.
+     */
     private fun attachmentFor(method: KeyMethod): String? = when (method) {
-        // The platform authenticator is Credential Manager's default, and naming
-        // it explicitly would EXCLUDE a provider that is neither platform nor
-        // roaming — which is the common case on Android, where the credential
-        // usually lives in a password manager rather than in the device itself.
-        KeyMethod.Platform -> null
-        KeyMethod.SecurityKey -> "cross-platform"
-        KeyMethod.Hybrid -> null
+        KeyMethod.Platform, KeyMethod.SecurityKey, KeyMethod.Hybrid -> null
     }
 
     private companion object {

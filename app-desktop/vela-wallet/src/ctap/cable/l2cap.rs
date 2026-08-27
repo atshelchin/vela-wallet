@@ -10,21 +10,27 @@
 //! peripheral, open the L2CAP channel to the PSM, and present its input/output
 //! streams as a [`CablePort`] with the demo's 4-byte big-endian length framing.
 //!
-//! ## Threading
+//! ## Threading — why a dedicated thread, not the ceremony's
 //!
-//! The ceremony runs on a background thread and calls this synchronously. The
-//! CoreBluetooth manager and the two `NSStream`s are driven on a PRIVATE thread
-//! that owns a run loop (CoreBluetooth delivers nothing without one, and the
-//! ceremony thread must not depend on gpui's main loop). The delegate callbacks
-//! and the stream events land on that run loop; a mutex+condvar hands the opened
-//! channel and the buffered bytes across to the blocking `CablePort` calls.
+//! The ceremony runs on one of gpui's background-executor threads, which are
+//! **libdispatch worker threads**. Pumping a nested `CFRunLoop`
+//! (`runMode:beforeDate:`) on such a thread corrupts its run loop: the next task
+//! libdispatch schedules onto that same worker — `CheckPasskeySupport`, whose
+//! `hidapi::HidApi::new()` calls `IOHIDManagerScheduleWithRunLoop` — then traps
+//! in `CFRunLoopAddSource` (`__CFCheckCFInfoPACSignature`). caBLE looked fine;
+//! the app died a step later signing in with a USB key.
 //!
-//! DEVICE-GATED: this compiles against CoreBluetooth's types, but the run-loop
-//! and stream timing can only be confirmed against a real BLE authenticator.
+//! So every CoreBluetooth object and every run-loop pump lives on a PRIVATE
+//! `std::thread` this port spawns and owns. Its run loop is created, pumped, and
+//! torn down entirely there, never touching a shared worker. The ceremony thread
+//! only sends `Write`/`Read` commands down a channel and blocks on the reply —
+//! the objc types (all `!Send`) never cross the boundary.
 
 #![allow(unexpected_cfgs)]
 
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use objc2::rc::Retained;
@@ -48,6 +54,9 @@ use super::HybridError;
 
 /// How long to wait for each async CoreBluetooth step (power-on, connect, open).
 const STEP_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// How long a single frame's read/write may take before the peer is called dead.
+const IO_TIMEOUT: Duration = Duration::from_secs(130);
 
 /// The most a single L2CAP frame may claim, so a corrupt length prefix cannot
 /// ask us to allocate the world. caBLE messages are small.
@@ -74,7 +83,6 @@ impl Signal {
             cond: Condvar::new(),
         })
     }
-
 }
 
 declare_class!(
@@ -161,29 +169,184 @@ impl Delegate {
     }
 }
 
+/// A command from the ceremony thread to the private Bluetooth thread.
+enum Cmd {
+    /// Write these bytes in full.
+    Write(Vec<u8>),
+    /// Read exactly this many bytes.
+    Read(usize),
+    /// Tear the connection down and end the thread.
+    Shutdown,
+}
+
+/// The private thread's reply to a [`Cmd`].
+enum Reply {
+    Wrote(Result<(), PortError>),
+    Bytes(Result<Vec<u8>, PortError>),
+}
+
 /// One L2CAP CoC to a caBLE authenticator, as the core's [`CablePort`]. Framing
 /// is a 4-byte big-endian length prefix + payload, matching the demos.
+///
+/// This handle lives on the ceremony thread; the CoreBluetooth objects live on
+/// the private thread behind `cmd_tx`/`reply_rx`.
 pub struct L2capCablePort {
-    // Held so CoreBluetooth keeps the connection alive for the port's lifetime.
+    cmd_tx: Sender<Cmd>,
+    reply_rx: Receiver<Reply>,
+    worker: Option<JoinHandle<()>>,
+}
+
+impl L2capCablePort {
+    /// Connect the L2CAP CoC to `psm` on the peripheral named by `uuid` (the
+    /// string btleplug reported for the matched advert). Spawns the private
+    /// Bluetooth thread and blocks until it has the channel open or has failed.
+    pub fn connect(uuid: &str, psm: u16) -> Result<Self, HybridError> {
+        let (cmd_tx, cmd_rx) = channel::<Cmd>();
+        let (reply_tx, reply_rx) = channel::<Reply>();
+        let (ready_tx, ready_rx) = channel::<Result<(), HybridError>>();
+        let uuid = uuid.to_owned();
+
+        let worker = std::thread::Builder::new()
+            .name("vela-l2cap".to_owned())
+            .spawn(move || worker_main(&uuid, psm, &ready_tx, &cmd_rx, &reply_tx))
+            .map_err(|error| {
+                HybridError::Bluetooth(format!("could not start the Bluetooth thread: {error}"))
+            })?;
+
+        match ready_rx.recv() {
+            Ok(Ok(())) => Ok(Self {
+                cmd_tx,
+                reply_rx,
+                worker: Some(worker),
+            }),
+            Ok(Err(error)) => {
+                let _ = worker.join();
+                Err(error)
+            }
+            Err(_) => {
+                let _ = worker.join();
+                Err(HybridError::Bluetooth(
+                    "the Bluetooth thread stopped before connecting".to_owned(),
+                ))
+            }
+        }
+    }
+
+    /// Send one command and wait for its reply, mapping a dead thread to an I/O
+    /// error rather than a panic.
+    fn request(&mut self, cmd: Cmd) -> Result<Reply, PortError> {
+        self.cmd_tx
+            .send(cmd)
+            .map_err(|_| PortError::Io("the L2CAP thread has gone".to_owned()))?;
+        self.reply_rx
+            .recv()
+            .map_err(|_| PortError::Io("the L2CAP thread has gone".to_owned()))
+    }
+}
+
+impl CablePort for L2capCablePort {
+    fn write_frame(&mut self, frame: &[u8]) -> Result<(), PortError> {
+        #[allow(clippy::cast_possible_truncation)]
+        let len = frame.len() as u32;
+        let mut framed = Vec::with_capacity(frame.len() + 4);
+        framed.extend_from_slice(&len.to_be_bytes());
+        framed.extend_from_slice(frame);
+        match self.request(Cmd::Write(framed))? {
+            Reply::Wrote(result) => result,
+            Reply::Bytes(_) => Err(PortError::Io("L2CAP reply out of order".to_owned())),
+        }
+    }
+
+    fn read_frame(&mut self) -> Result<Vec<u8>, PortError> {
+        let header = match self.request(Cmd::Read(4))? {
+            Reply::Bytes(result) => result?,
+            Reply::Wrote(_) => return Err(PortError::Io("L2CAP reply out of order".to_owned())),
+        };
+        let Ok(header) = <[u8; 4]>::try_from(header.as_slice()) else {
+            return Err(PortError::Io("short L2CAP length prefix".to_owned()));
+        };
+        let len = u32::from_be_bytes(header) as usize;
+        if len > MAX_FRAME {
+            return Err(PortError::Io(format!("L2CAP frame too large: {len}")));
+        }
+        match self.request(Cmd::Read(len))? {
+            Reply::Bytes(result) => result,
+            Reply::Wrote(_) => Err(PortError::Io("L2CAP reply out of order".to_owned())),
+        }
+    }
+
+    fn channel(&self) -> &str {
+        "L2CAP"
+    }
+}
+
+impl Drop for L2capCablePort {
+    fn drop(&mut self) {
+        // Ask the private thread to close the streams and end; it tears its run
+        // loop down cleanly on its own stack. Joining keeps the objc teardown
+        // from racing the next ceremony.
+        let _ = self.cmd_tx.send(Cmd::Shutdown);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The private Bluetooth thread
+// ---------------------------------------------------------------------------
+
+/// The CoreBluetooth objects, owned entirely by the private thread.
+struct Conn {
+    // Held so CoreBluetooth keeps the connection alive for the connection's life.
     _manager: Retained<CBCentralManager>,
     _delegate: Retained<Delegate>,
-    channel: Retained<CBL2CAPChannel>,
+    _channel: Retained<CBL2CAPChannel>,
     input: Retained<NSInputStream>,
     output: Retained<NSOutputStream>,
 }
 
-// The port lives entirely on the ceremony's background thread; the objc types
-// are not `Send`, and it never crosses threads.
-impl L2capCablePort {
-    /// Connect the L2CAP CoC to `psm` on the peripheral named by `uuid` (the
-    /// string btleplug reported for the matched advert).
-    pub fn connect(uuid: &str, psm: u16) -> Result<Self, HybridError> {
+/// The private thread's entry point: connect, announce the result, then serve
+/// read/write commands until asked to shut down. Every objc call — and every
+/// run-loop pump — happens here, on a thread we own.
+fn worker_main(
+    uuid: &str,
+    psm: u16,
+    ready_tx: &Sender<Result<(), HybridError>>,
+    cmd_rx: &Receiver<Cmd>,
+    reply_tx: &Sender<Reply>,
+) {
+    let mut conn = match Conn::connect(uuid, psm) {
+        Ok(conn) => conn,
+        Err(error) => {
+            let _ = ready_tx.send(Err(error));
+            return;
+        }
+    };
+    if ready_tx.send(Ok(())).is_err() {
+        return;
+    }
+
+    while let Ok(cmd) = cmd_rx.recv() {
+        let reply = match cmd {
+            Cmd::Write(bytes) => Reply::Wrote(conn.write_all(&bytes)),
+            Cmd::Read(len) => Reply::Bytes(conn.read_exact(len)),
+            Cmd::Shutdown => break,
+        };
+        if reply_tx.send(reply).is_err() {
+            break;
+        }
+    }
+    // `conn` drops here, on this thread: the streams are unscheduled from THIS
+    // run loop and closed, and the run loop dies with the thread.
+}
+
+impl Conn {
+    fn connect(uuid: &str, psm: u16) -> Result<Self, HybridError> {
         let signal = Signal::new();
         let delegate = Delegate::new(Arc::clone(&signal));
         let delegate_proto = ProtocolObject::from_ref(&*delegate);
 
-        // A nil queue delivers callbacks on the current run loop's thread; the
-        // caller pumps that run loop below while it waits.
         let manager: Retained<CBCentralManager> = unsafe {
             let alloc = CBCentralManager::alloc();
             msg_send_id![alloc, initWithDelegate: delegate_proto, queue: std::ptr::null::<AnyObject>()]
@@ -235,8 +398,8 @@ impl L2capCablePort {
         let output = unsafe { channel.outputStream() }
             .ok_or_else(|| HybridError::Bluetooth("L2CAP channel has no output".to_owned()))?;
 
-        // Schedule the streams on this thread's run loop, then open them; the
-        // read/write helpers pump the run loop so bytes actually move.
+        // Schedule the streams on THIS thread's run loop, then open them; the
+        // read/write helpers pump this same loop so bytes actually move.
         let run_loop = unsafe { NSRunLoop::currentRunLoop() };
         unsafe {
             input.scheduleInRunLoop_forMode(&run_loop, NSDefaultRunLoopMode);
@@ -248,7 +411,7 @@ impl L2capCablePort {
         Ok(Self {
             _manager: manager,
             _delegate: delegate,
-            channel,
+            _channel: channel,
             input,
             output,
         })
@@ -257,13 +420,13 @@ impl L2capCablePort {
     /// Write exactly `buf`, pumping the run loop until the stream accepts space.
     fn write_all(&mut self, buf: &[u8]) -> Result<(), PortError> {
         let mut sent = 0;
-        let deadline = Instant::now() + Duration::from_secs(130);
+        let deadline = Instant::now() + IO_TIMEOUT;
         while sent < buf.len() {
             if Instant::now() >= deadline {
                 return Err(PortError::TimedOut);
             }
             if unsafe { self.output.hasSpaceAvailable() } {
-                let Some(ptr) = NonNull::new(buf[sent..].as_ptr() as *mut u8) else {
+                let Some(ptr) = NonNull::new(buf[sent..].as_ptr().cast_mut()) else {
                     return Ok(());
                 };
                 let n = unsafe { self.output.write_maxLength(ptr, buf.len() - sent) };
@@ -283,17 +446,18 @@ impl L2capCablePort {
         Ok(())
     }
 
-    /// Read exactly `buf.len()` bytes, pumping the run loop until they arrive.
-    fn read_exact(&mut self, buf: &mut [u8]) -> Result<(), PortError> {
+    /// Read exactly `len` bytes, pumping the run loop until they arrive.
+    fn read_exact(&mut self, len: usize) -> Result<Vec<u8>, PortError> {
+        let mut buf = vec![0u8; len];
         let mut got = 0;
-        let deadline = Instant::now() + Duration::from_secs(130);
+        let deadline = Instant::now() + IO_TIMEOUT;
         while got < buf.len() {
             if Instant::now() >= deadline {
                 return Err(PortError::TimedOut);
             }
             if unsafe { self.input.hasBytesAvailable() } {
                 let Some(ptr) = NonNull::new(buf[got..].as_mut_ptr()) else {
-                    return Ok(());
+                    return Ok(buf);
                 };
                 let n = unsafe { self.input.read_maxLength(ptr, buf.len() - got) };
                 if n > 0 {
@@ -308,54 +472,35 @@ impl L2capCablePort {
                 }
                 return Err(PortError::Io("L2CAP read failed".to_owned()));
             }
-            if unsafe { self.input.streamStatus() } == NSStreamStatus::Closed
-                || unsafe { self.input.streamStatus() } == NSStreamStatus::Error
-            {
+            let status = unsafe { self.input.streamStatus() };
+            if status == NSStreamStatus::Closed || status == NSStreamStatus::Error {
                 return Err(PortError::Io("L2CAP channel closed".to_owned()));
             }
             pump_run_loop();
         }
-        Ok(())
+        Ok(buf)
     }
 }
 
-impl CablePort for L2capCablePort {
-    fn write_frame(&mut self, frame: &[u8]) -> Result<(), PortError> {
-        #[allow(clippy::cast_possible_truncation)]
-        let len = frame.len() as u32;
-        self.write_all(&len.to_be_bytes())?;
-        self.write_all(frame)
-    }
-
-    fn read_frame(&mut self) -> Result<Vec<u8>, PortError> {
-        let mut header = [0u8; 4];
-        self.read_exact(&mut header)?;
-        let len = u32::from_be_bytes(header) as usize;
-        if len > MAX_FRAME {
-            return Err(PortError::Io(format!("L2CAP frame too large: {len}")));
-        }
-        let mut body = vec![0u8; len];
-        self.read_exact(&mut body)?;
-        Ok(body)
-    }
-
-    fn channel(&self) -> &str {
-        "L2CAP"
-    }
-}
-
-impl Drop for L2capCablePort {
+impl Drop for Conn {
     fn drop(&mut self) {
+        // Runs on the private thread that scheduled them, so currentRunLoop is
+        // the loop the streams sit on. Unschedule before closing so no dangling
+        // source is left behind.
+        let run_loop = unsafe { NSRunLoop::currentRunLoop() };
         unsafe {
+            self.input
+                .removeFromRunLoop_forMode(&run_loop, NSDefaultRunLoopMode);
+            self.output
+                .removeFromRunLoop_forMode(&run_loop, NSDefaultRunLoopMode);
             self.input.close();
             self.output.close();
-            let _ = &self.channel;
         }
     }
 }
 
 /// Run the current run loop for a short slice so CoreBluetooth delegate and
-/// stream events are delivered.
+/// stream events are delivered. Only ever called on the private thread.
 fn pump_run_loop() {
     let run_loop = unsafe { NSRunLoop::currentRunLoop() };
     let until = unsafe { objc2_foundation::NSDate::dateWithTimeIntervalSinceNow(0.02) };
@@ -364,7 +509,8 @@ fn pump_run_loop() {
     }
 }
 
-/// Pump the run loop until `ready` returns `Ok(true)` or times out.
+/// Pump the run loop until `ready` returns `Ok(true)` or times out. Only ever
+/// called on the private thread.
 fn pump_until<F>(signal: &Arc<Signal>, mut ready: F) -> Result<(), HybridError>
 where
     F: FnMut(&Shared) -> Result<bool, HybridError>,

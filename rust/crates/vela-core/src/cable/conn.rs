@@ -124,6 +124,11 @@ impl<P: CablePort> CableConnection<P> {
         let first = port.read_frame().map_err(port_to_cable_error)?;
         let post = transport.open(&first).map_err(to_cable_error)?;
         let get_info = parse_post_handshake(&post);
+        eprintln!(
+            "[vela-cable] post-handshake {} bytes; getInfo cached: {}",
+            post.len(),
+            get_info.is_some()
+        );
 
         let path = port.channel().to_owned();
         Ok(Self {
@@ -172,11 +177,7 @@ impl<P: CablePort> CableConnection<P> {
             Some(0x08) => "getNextAssertion",
             _ => "ctap",
         };
-        eprintln!(
-            "[vela-cable] → CTAP {command} ({} bytes): {:02x?}",
-            request.len(),
-            request
-        );
+        eprintln!("[vela-cable] → CTAP {command} ({} bytes)", request.len());
 
         let mut frame = Vec::with_capacity(request.len() + 1);
         frame.push(MSG_CTAP);

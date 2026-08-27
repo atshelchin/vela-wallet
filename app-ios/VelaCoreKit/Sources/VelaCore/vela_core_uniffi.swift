@@ -471,6 +471,22 @@ private let UNIFFI_CALLBACK_UNEXPECTED_ERROR: Int32 = 2
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt16: FfiConverterPrimitive {
+    typealias FfiType = UInt16
+    typealias SwiftType = UInt16
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt16 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
     typealias FfiType = UInt32
     typealias SwiftType = UInt32
@@ -512,6 +528,22 @@ fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
     }
 
     public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterInt64: FfiConverterPrimitive {
+    typealias FfiType = Int64
+    typealias SwiftType = Int64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> Int64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: Int64, into buf: inout [UInt8]) {
         writeInt(&buf, lower(value))
     }
 }
@@ -619,6 +651,303 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
         writeBytes(&buf, value)
     }
 }
+
+
+
+
+/**
+ * One message-oriented caBLE frame transport, as Kotlin/Swift sees it. The
+ * shell owns the WebSocket (or BLE L2CAP) socket; the Noise handshake and the
+ * CTAP framing above it are the core's.
+ */
+public protocol CableFramePort: AnyObject, Sendable {
+    
+    /**
+     * Write one whole message (a WS binary frame, or a length-prefixed L2CAP
+     * message — the port decides). `Some(detail)` is a failure.
+     */
+    func writeFrame(frame: Data)  -> String?
+    
+    /**
+     * Read the next whole message, blocking until one arrives or the transport
+     * gives up.
+     */
+    func readFrame()  -> CableFrameOutcome
+    
+    /**
+     * "WebSocket" / "L2CAP" — diagnostics and the PIN-cache identity, never UI.
+     */
+    func channel()  -> String
+    
+}
+/**
+ * One message-oriented caBLE frame transport, as Kotlin/Swift sees it. The
+ * shell owns the WebSocket (or BLE L2CAP) socket; the Noise handshake and the
+ * CTAP framing above it are the core's.
+ */
+open class CableFramePortImpl: CableFramePort, @unchecked Sendable {
+    fileprivate let handle: UInt64
+
+    /// Used to instantiate a [FFIObject] without an actual handle, for fakes in tests, mostly.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public struct NoHandle {
+        public init() {}
+    }
+
+    // TODO: We'd like this to be `private` but for Swifty reasons,
+    // we can't implement `FfiConverter` without making this `required` and we can't
+    // make it `required` without making it `public`.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    required public init(unsafeFromHandle handle: UInt64) {
+        self.handle = handle
+    }
+
+    // This constructor can be used to instantiate a fake object.
+    // - Parameter noHandle: Placeholder value so we can have a constructor separate from the default empty one that may be implemented for classes extending [FFIObject].
+    //
+    // - Warning:
+    //     Any object instantiated with this constructor cannot be passed to an actual Rust-backed object. Since there isn't a backing handle the FFI lower functions will crash.
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public init(noHandle: NoHandle) {
+        self.handle = 0
+    }
+
+#if swift(>=5.8)
+    @_documentation(visibility: private)
+#endif
+    public func uniffiCloneHandle() -> UInt64 {
+        return try! rustCall { uniffi_vela_core_uniffi_fn_clone_cableframeport(self.handle, $0) }
+    }
+    // No primary constructor declared for this class.
+
+    deinit {
+        if handle == 0 {
+            // Mock objects have handle=0 don't try to free them
+            return
+        }
+
+        try! rustCall { uniffi_vela_core_uniffi_fn_free_cableframeport(handle, $0) }
+    }
+
+    
+
+    
+    /**
+     * Write one whole message (a WS binary frame, or a length-prefixed L2CAP
+     * message — the port decides). `Some(detail)` is a failure.
+     */
+open func writeFrame(frame: Data) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_method_cableframeport_write_frame(
+            self.uniffiCloneHandle(),
+        FfiConverterData.lower(frame),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * Read the next whole message, blocking until one arrives or the transport
+     * gives up.
+     */
+open func readFrame() -> CableFrameOutcome  {
+    return try!  FfiConverterTypeCableFrameOutcome_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_method_cableframeport_read_frame(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+    /**
+     * "WebSocket" / "L2CAP" — diagnostics and the PIN-cache identity, never UI.
+     */
+open func channel() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_method_cableframeport_channel(
+            self.uniffiCloneHandle(),uniffiCallStatus
+    )
+})
+}
+    
+
+    
+}
+
+
+
+// Put the implementation in a struct so we don't pollute the top-level namespace
+fileprivate struct UniffiCallbackInterfaceCableFramePort {
+
+    // Create the VTable using a series of closures.
+    // Swift automatically converts these into C callback functions.
+    //
+    // Store the vtable directly.
+    static let vtable: UniffiVTableCallbackInterfaceCableFramePort = UniffiVTableCallbackInterfaceCableFramePort(
+        uniffiFree: { (uniffiHandle: UInt64) -> () in
+            do {
+                try FfiConverterTypeCableFramePort.handleMap.remove(handle: uniffiHandle)
+            } catch {
+                print("Uniffi callback interface CableFramePort: handle missing in uniffiFree")
+            }
+        },
+        uniffiClone: { (uniffiHandle: UInt64) -> UInt64 in
+            do {
+                return try FfiConverterTypeCableFramePort.handleMap.clone(handle: uniffiHandle)
+            } catch {
+                fatalError("Uniffi callback interface CableFramePort: handle missing in uniffiClone")
+            }
+        },
+        writeFrame: { (
+            uniffiHandle: UInt64,
+            frame: RustBuffer,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> String? in
+                guard let uniffiObj = try? FfiConverterTypeCableFramePort.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.writeFrame(
+                     frame: try FfiConverterData.lift(frame)
+                )
+            }
+
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterOptionString.lower($0) }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        readFrame: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> CableFrameOutcome in
+                guard let uniffiObj = try? FfiConverterTypeCableFramePort.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.readFrame(
+                )
+            }
+
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterTypeCableFrameOutcome_lower($0) }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        channel: { (
+            uniffiHandle: UInt64,
+            uniffiOutReturn: UnsafeMutablePointer<RustBuffer>,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> String in
+                guard let uniffiObj = try? FfiConverterTypeCableFramePort.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.channel(
+                )
+            }
+
+            
+            let writeReturn = { uniffiOutReturn.pointee = FfiConverterString.lower($0) }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        }
+    )
+
+    // Rust stores this pointer for future callback invocations, so it must live
+    // for the process lifetime (not just for the init function call).
+    //
+    // `nonisolated(unsafe)` is needed under Swift 6 strict concurrency.
+    // This is safe because the pointee is initialized once during static init
+    // and never mutated by either side of the FFI.  Its fields are C function pointers.
+    nonisolated(unsafe) static let vtablePtr: UnsafePointer<UniffiVTableCallbackInterfaceCableFramePort> = {
+        let ptr = UnsafeMutablePointer<UniffiVTableCallbackInterfaceCableFramePort>.allocate(capacity: 1)
+        ptr.initialize(to: vtable)
+        return UnsafePointer(ptr)
+    }()
+}
+
+private func uniffiCallbackInitCableFramePort() {
+    uniffi_vela_core_uniffi_fn_init_callback_vtable_cableframeport(UniffiCallbackInterfaceCableFramePort.vtablePtr)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCableFramePort: FfiConverter {
+    fileprivate static let handleMap = UniffiHandleMap<CableFramePort>()
+
+    typealias FfiType = UInt64
+    typealias SwiftType = CableFramePort
+
+    public static func lift(_ handle: UInt64) throws -> CableFramePort {
+        if ((handle & 1) == 0) {
+            // Rust-generated handle, construct a new class that uses the handle to implement the
+            // interface
+            return CableFramePortImpl(unsafeFromHandle: handle)
+        } else {
+            // Swift-generated handle, get the object from the handle map
+            return try handleMap.remove(handle: handle)
+        }
+    }
+
+    public static func lower(_ value: CableFramePort) -> UInt64 {
+         if let rustImpl = value as? CableFramePortImpl {
+             // Rust-implemented object.  Clone the handle and return it
+            return rustImpl.uniffiCloneHandle()
+         } else {
+            // Swift object, generate a new vtable handle and return that.
+            return handleMap.insert(obj: value)
+         }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CableFramePort {
+        let handle: UInt64 = try readInt(&buf)
+        return try lift(handle)
+    }
+
+    public static func write(_ value: CableFramePort, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCableFramePort_lift(_ handle: UInt64) throws -> CableFramePort {
+    return try FfiConverterTypeCableFramePort.lift(handle)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCableFramePort_lower(_ value: CableFramePort) -> UInt64 {
+    return FfiConverterTypeCableFramePort.lower(value)
+}
+
+
 
 
 
@@ -2496,6 +2825,103 @@ public func FfiConverterTypeAbiValue_lower(_ value: AbiValue) -> RustBuffer {
 
 
 /**
+ * The parsed BLE proximity advert that named this QR's phone.
+ */
+public struct CableAdvert: Equatable, Hashable {
+    /**
+     * The 16-byte decrypted EID plaintext — fed back to `cable_connect_url` and
+     * the assert/register calls (the PSK derives from it).
+     */
+    public var plaintext: Data
+    /**
+     * The 3-byte tunnel routing id (part of the WebSocket URL).
+     */
+    public var routingId: Data
+    /**
+     * The tunnel-server domain id.
+     */
+    public var tunnelDomainId: UInt16
+    /**
+     * The L2CAP PSM from the advert's CTAP 2.3 BLE suffix, when the
+     * authenticator offers the direct BLE channel. `Some` is the shell's cue
+     * to connect an L2CAP CoC to this port on the advertising peripheral — no
+     * tunnel, no internet; `None` means WebSocket-only (GMS-era phones).
+     */
+    public var psm: UInt16?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The 16-byte decrypted EID plaintext — fed back to `cable_connect_url` and
+         * the assert/register calls (the PSK derives from it).
+         */plaintext: Data, 
+        /**
+         * The 3-byte tunnel routing id (part of the WebSocket URL).
+         */routingId: Data, 
+        /**
+         * The tunnel-server domain id.
+         */tunnelDomainId: UInt16, 
+        /**
+         * The L2CAP PSM from the advert's CTAP 2.3 BLE suffix, when the
+         * authenticator offers the direct BLE channel. `Some` is the shell's cue
+         * to connect an L2CAP CoC to this port on the advertising peripheral — no
+         * tunnel, no internet; `None` means WebSocket-only (GMS-era phones).
+         */psm: UInt16?) {
+        self.plaintext = plaintext
+        self.routingId = routingId
+        self.tunnelDomainId = tunnelDomainId
+        self.psm = psm
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension CableAdvert: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCableAdvert: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CableAdvert {
+        return
+            try CableAdvert(
+                plaintext: FfiConverterData.read(from: &buf), 
+                routingId: FfiConverterData.read(from: &buf), 
+                tunnelDomainId: FfiConverterUInt16.read(from: &buf), 
+                psm: FfiConverterOptionUInt16.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: CableAdvert, into buf: inout [UInt8]) {
+        FfiConverterData.write(value.plaintext, into: &buf)
+        FfiConverterData.write(value.routingId, into: &buf)
+        FfiConverterUInt16.write(value.tunnelDomainId, into: &buf)
+        FfiConverterOptionUInt16.write(value.psm, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCableAdvert_lift(_ buf: RustBuffer) throws -> CableAdvert {
+    return try FfiConverterTypeCableAdvert.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCableAdvert_lower(_ value: CableAdvert) -> RustBuffer {
+    return FfiConverterTypeCableAdvert.lower(value)
+}
+
+
+/**
  * A completed assertion.
  */
 public struct CtapAssertion: Equatable, Hashable {
@@ -3046,6 +3472,77 @@ public func FfiConverterTypePasskeyDirectoryEntry_lower(_ value: PasskeyDirector
 }
 
 
+/**
+ * A QR code as a square module matrix, row-major, `true` = dark. The same
+ * encoder the desktop draws with, so every platform renders the same code for
+ * the same payload; the shells own only pixels.
+ */
+public struct QrMatrix: Equatable, Hashable {
+    /**
+     * Modules per side.
+     */
+    public var width: UInt32
+    /**
+     * `width * width` booleans, row-major.
+     */
+    public var modules: [Bool]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Modules per side.
+         */width: UInt32, 
+        /**
+         * `width * width` booleans, row-major.
+         */modules: [Bool]) {
+        self.width = width
+        self.modules = modules
+    }
+
+    
+
+    
+}
+
+#if compiler(>=6)
+extension QrMatrix: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeQrMatrix: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> QrMatrix {
+        return
+            try QrMatrix(
+                width: FfiConverterUInt32.read(from: &buf), 
+                modules: FfiConverterSequenceBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: QrMatrix, into buf: inout [UInt8]) {
+        FfiConverterUInt32.write(value.width, into: &buf)
+        FfiConverterSequenceBool.write(value.modules, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeQrMatrix_lift(_ buf: RustBuffer) throws -> QrMatrix {
+    return try FfiConverterTypeQrMatrix.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeQrMatrix_lower(_ value: QrMatrix) -> RustBuffer {
+    return FfiConverterTypeQrMatrix.lower(value)
+}
+
+
 public struct SafeAddressInfo: Equatable, Hashable {
     public var address: String
     public var saltNonce: Data
@@ -3421,6 +3918,97 @@ public func FfiConverterTypeApduOutcome_lift(_ buf: RustBuffer) throws -> ApduOu
 #endif
 public func FfiConverterTypeApduOutcome_lower(_ value: ApduOutcome) -> RustBuffer {
     return FfiConverterTypeApduOutcome.lower(value)
+}
+
+
+
+/**
+ * What one [`CableFramePort::read_frame`] produced.
+ */
+
+public enum CableFrameOutcome: Equatable, Hashable {
+    
+    /**
+     * One whole message.
+     */
+    case frame(bytes: Data
+    )
+    /**
+     * The peer went silent.
+     */
+    case timedOut
+    /**
+     * The transport failed in its own words.
+     */
+    case failed(detail: String
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension CableFrameOutcome: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeCableFrameOutcome: FfiConverterRustBuffer {
+    typealias SwiftType = CableFrameOutcome
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> CableFrameOutcome {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .frame(bytes: try FfiConverterData.read(from: &buf)
+        )
+        
+        case 2: return .timedOut
+        
+        case 3: return .failed(detail: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: CableFrameOutcome, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .frame(bytes):
+            writeInt(&buf, Int32(1))
+            FfiConverterData.write(bytes, into: &buf)
+            
+        
+        case .timedOut:
+            writeInt(&buf, Int32(2))
+        
+        
+        case let .failed(detail):
+            writeInt(&buf, Int32(3))
+            FfiConverterString.write(detail, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCableFrameOutcome_lift(_ buf: RustBuffer) throws -> CableFrameOutcome {
+    return try FfiConverterTypeCableFrameOutcome.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeCableFrameOutcome_lower(_ value: CableFrameOutcome) -> RustBuffer {
+    return FfiConverterTypeCableFrameOutcome.lower(value)
 }
 
 
@@ -3946,6 +4534,30 @@ public func FfiConverterTypeHidReadOutcome_lower(_ value: HidReadOutcome) -> Rus
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionUInt16: FfiConverterRustBuffer {
+    typealias SwiftType = UInt16?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt16.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt16.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionUInt32: FfiConverterRustBuffer {
     typealias SwiftType = UInt32?
 
@@ -4042,6 +4654,30 @@ fileprivate struct FfiConverterOptionData: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeCableAdvert: FfiConverterRustBuffer {
+    typealias SwiftType = CableAdvert?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeCableAdvert.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeCableAdvert.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionTypeP256PublicKey: FfiConverterRustBuffer {
     typealias SwiftType = P256PublicKey?
 
@@ -4084,6 +4720,55 @@ fileprivate struct FfiConverterOptionTypePasskeyDirectoryEntry: FfiConverterRust
         case 1: return try FfiConverterTypePasskeyDirectoryEntry.read(from: &buf)
         default: throw UniffiInternalError.unexpectedOptionalTag
         }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionTypeQrMatrix: FfiConverterRustBuffer {
+    typealias SwiftType = QrMatrix?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeQrMatrix.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeQrMatrix.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceBool: FfiConverterRustBuffer {
+    typealias SwiftType = [Bool]
+
+    public static func write(_ value: [Bool], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterBool.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [Bool] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [Bool]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterBool.read(from: &buf))
+        }
+        return seq
     }
 }
 
@@ -4749,6 +5434,79 @@ public func webauthnSigningHash(authenticatorData: Data, clientDataJson: Data) -
 })
 }
 /**
+ * The WebSocket tunnel URL to open, from the decrypted advert plaintext. `None`
+ * if the secrets or the advert are malformed, or the advert names an unknown
+ * tunnel domain.
+ */
+public func cableConnectUrl(staticSeed: Data, qrSecret: Data, advertPlaintext: Data) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_cable_connect_url(
+        FfiConverterData.lower(staticSeed),
+        FfiConverterData.lower(qrSecret),
+        FfiConverterData.lower(advertPlaintext),uniffiCallStatus
+    )
+})
+}
+/**
+ * The 64-byte advert key (AES-256 ‖ HMAC-SHA256) for a shell that trial-decrypts
+ * BLE adverts in native code rather than through [`cable_try_decrypt_advert`].
+ */
+public func cableEidKey(qrSecret: Data) -> Data  {
+    return try!  FfiConverterData.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_cable_eid_key(
+        FfiConverterData.lower(qrSecret),uniffiCallStatus
+    )
+})
+}
+/**
+ * Encode any text (the `FIDO:/…` payload) as a QR matrix. `None` only when the
+ * text cannot fit a QR code at all.
+ */
+public func cableQrMatrix(text: String) -> QrMatrix?  {
+    return try!  FfiConverterOptionTypeQrMatrix.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_cable_qr_matrix(
+        FfiConverterString.lower(text),uniffiCallStatus
+    )
+})
+}
+/**
+ * The `FIDO:/…` QR payload to render. `None` if the secrets are malformed
+ * (wrong length, or a static seed that is not a valid scalar — the shell
+ * retries with fresh randomness).
+ */
+public func cableQrPayload(staticSeed: Data, qrSecret: Data, epochSeconds: Int64, forGet: Bool) -> String?  {
+    return try!  FfiConverterOptionString.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_cable_qr_payload(
+        FfiConverterData.lower(staticSeed),
+        FfiConverterData.lower(qrSecret),
+        FfiConverterInt64.lower(epochSeconds),
+        FfiConverterBool.lower(forGet),uniffiCallStatus
+    )
+})
+}
+/**
+ * Trial-decrypt one BLE advert candidate; `Some` when it is this QR's phone.
+ * Pure crypto — needs only the QR secret.
+ *
+ * Pass the WHOLE service-data payload: the first 20 bytes are the sealed EID,
+ * and anything after them is the CTAP 2.3 BLE suffix — a CBOR map whose key 1
+ * is the L2CAP PSM. Handing the full payload here is what lets the shell get
+ * `psm` back without owning any CBOR of its own.
+ */
+public func cableTryDecryptAdvert(qrSecret: Data, candidate: Data) -> CableAdvert?  {
+    return try!  FfiConverterOptionTypeCableAdvert.lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_cable_try_decrypt_advert(
+        FfiConverterData.lower(qrSecret),
+        FfiConverterData.lower(candidate),uniffiCallStatus
+    )
+})
+}
+/**
  * `SignProof` / `SignMemberProof` / `AuthenticatePasskey` over USB: one
  * assertion. `credential_id_hex` empty is the "who are you?" sign-in ceremony.
  */
@@ -4758,6 +5516,25 @@ public func ctapAssert(port: UsbHidPort, host: CtapCeremonyHost, challenge: Data
     uniffi_vela_core_uniffi_fn_func_ctap_assert(
         FfiConverterTypeUsbHidPort_lower(port),
         FfiConverterTypeCtapCeremonyHost_lower(host),
+        FfiConverterData.lower(challenge),
+        FfiConverterString.lower(credentialIdHex),uniffiCallStatus
+    )
+})
+}
+/**
+ * One assertion over caBLE. `credential_id_hex` empty is the "who are you?"
+ * sign-in ceremony (the phone offers whatever Vela passkeys it holds).
+ */
+public func ctapAssertCable(port: CableFramePort, host: CtapCeremonyHost, staticSeed: Data, qrSecret: Data, advertPlaintext: Data, product: String, challenge: Data, credentialIdHex: String)throws  -> CtapAssertion  {
+    return try  FfiConverterTypeCtapAssertion_lift(try rustCallWithError(FfiConverterTypeCtapError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_ctap_assert_cable(
+        FfiConverterTypeCableFramePort_lower(port),
+        FfiConverterTypeCtapCeremonyHost_lower(host),
+        FfiConverterData.lower(staticSeed),
+        FfiConverterData.lower(qrSecret),
+        FfiConverterData.lower(advertPlaintext),
+        FfiConverterString.lower(product),
         FfiConverterData.lower(challenge),
         FfiConverterString.lower(credentialIdHex),uniffiCallStatus
     )
@@ -4788,6 +5565,24 @@ public func ctapRegister(port: UsbHidPort, host: CtapCeremonyHost, name: String,
     uniffi_vela_core_uniffi_fn_func_ctap_register(
         FfiConverterTypeUsbHidPort_lower(port),
         FfiConverterTypeCtapCeremonyHost_lower(host),
+        FfiConverterString.lower(name),
+        FfiConverterSequenceString.lower(excludeCredentialIds),uniffiCallStatus
+    )
+})
+}
+/**
+ * `RegisterPasskey` over caBLE: mint a founding key that lives on the phone.
+ */
+public func ctapRegisterCable(port: CableFramePort, host: CtapCeremonyHost, staticSeed: Data, qrSecret: Data, advertPlaintext: Data, product: String, name: String, excludeCredentialIds: [String])throws  -> CtapRegistration  {
+    return try  FfiConverterTypeCtapRegistration_lift(try rustCallWithError(FfiConverterTypeCtapError_lift) {
+        uniffiCallStatus in
+    uniffi_vela_core_uniffi_fn_func_ctap_register_cable(
+        FfiConverterTypeCableFramePort_lower(port),
+        FfiConverterTypeCtapCeremonyHost_lower(host),
+        FfiConverterData.lower(staticSeed),
+        FfiConverterData.lower(qrSecret),
+        FfiConverterData.lower(advertPlaintext),
+        FfiConverterString.lower(product),
         FfiConverterString.lower(name),
         FfiConverterSequenceString.lower(excludeCredentialIds),uniffiCallStatus
     )
@@ -4985,13 +5780,34 @@ private let initializationResult: InitializationResult = {
     if (uniffi_vela_core_uniffi_checksum_func_webauthn_signing_hash() != 22291) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_vela_core_uniffi_checksum_func_cable_connect_url() != 43371) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_cable_eid_key() != 25838) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_cable_qr_matrix() != 46091) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_cable_qr_payload() != 57500) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_cable_try_decrypt_advert() != 35997) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_vela_core_uniffi_checksum_func_ctap_assert() != 37376) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_ctap_assert_cable() != 11807) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_ctap_assert_ccid() != 57013) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_ctap_register() != 44834) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_func_ctap_register_cable() != 23638) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_func_ctap_register_ccid() != 13458) {
@@ -5025,6 +5841,15 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_method_i18n_t_first() != 10021) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_method_cableframeport_write_frame() != 33387) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_method_cableframeport_read_frame() != 52837) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_vela_core_uniffi_checksum_method_cableframeport_channel() != 61621) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_vela_core_uniffi_checksum_method_ccidport_transmit() != 32949) {
@@ -5109,6 +5934,7 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
 
+    uniffiCallbackInitCableFramePort()
     uniffiCallbackInitCcidPort()
     uniffiCallbackInitCtapCeremonyHost()
     uniffiCallbackInitUsbHidPort()

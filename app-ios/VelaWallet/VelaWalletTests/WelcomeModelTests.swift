@@ -29,7 +29,7 @@ struct WelcomeModelTests {
         var received: [OnboardingIntent] = []
         let model = makeModel { received.append($0) }
         model.send(.createWallet)
-        model.send(.importWallet)
-        #expect(received == [.createWallet, .importWallet])
+        model.send(.openSignIn)
+        #expect(received == [.createWallet, .openSignIn])
     }
 }

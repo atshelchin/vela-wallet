@@ -80,6 +80,16 @@ final class PasskeyExecutor: NSObject {
     /// `nil` on surfaces with no UI to prompt through (previews, the gallery).
     var smartCard: SmartCardCtapCeremony?
 
+    /// The caBLE "sign in with your phone" path (spec 019), for the scan
+    /// method — OUR initiator, not the system sheet's: it shows a QR, the
+    /// phone that holds the passkey scans it, and the ceremony runs over the
+    /// channel that phone opens — a direct L2CAP CoC when its advert offers a
+    /// PSM (CTAP 2.3, no internet), the WebSocket tunnel otherwise. This is
+    /// what reaches an Android/securitykeys authenticator, and what still
+    /// works when Apple's own cross-device flow cannot (no internet). `nil`
+    /// on surfaces with no UI (previews, the gallery).
+    var hybrid: HybridCeremony?
+
     init(relyingPartyId: String = PasskeyExecutor.relyingParty) {
         self.relyingPartyId = relyingPartyId
         super.init()
@@ -140,6 +150,11 @@ final class PasskeyExecutor: NSObject {
         // association (founder direction 2026-08-27).
         if method == .securityKey, let smartCard {
             return try await smartCard.register(name: name, excludeCredentialIds: excludeCredentialIds)
+        }
+        // The scan method mints the key on the OTHER phone over OUR caBLE —
+        // BLE-only capable, unlike the QR inside the system sheet.
+        if method == .hybrid, let hybrid {
+            return try await hybrid.register(name: name, excludeCredentialIds: excludeCredentialIds)
         }
 
         let challenge = Self.random(32)
@@ -277,6 +292,13 @@ final class PasskeyExecutor: NSObject {
         let removable = !hints.isDisjoint(with: ["usb", "nfc", "ble"])
         if removable || method == .securityKey, let smartCard {
             return try await smartCard.assert(challenge: challenge, credentialIdHex: credentialIdHex)
+        }
+        // The scan method reaches the credential on the OTHER phone over OUR
+        // caBLE — a sign-in (no credential id) offers whatever it holds, a
+        // proof (recovery's second signature) pins the same credential the
+        // first used.
+        if method == .hybrid, let hybrid {
+            return try await hybrid.assert(challenge: challenge, credentialIdHex: credentialIdHex)
         }
 
         // Only when it is known NOT to be a removable key — an unknown set

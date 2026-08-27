@@ -428,7 +428,9 @@ private struct AddMethodPicker: View {
                 .padding(.vertical, Tokens.Space.s8)
 
             ForEach(KeyMethod.allCases, id: \.self) { method in
-                let available = method != .hybrid
+                // All three routes are live now: platform, scan (our caBLE
+                // initiator, BLE-only capable), and a security key.
+                let available = true
                 let copy = methodCopy(method)
                 Button { onPick(method) } label: {
                     HStack {

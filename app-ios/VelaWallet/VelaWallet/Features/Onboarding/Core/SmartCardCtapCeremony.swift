@@ -212,7 +212,7 @@ private final class HostBridge: CtapCeremonyHost, @unchecked Sendable {
     }
 }
 
-private extension CtapRegistration {
+extension CtapRegistration {
     func toRegistration() -> Registration {
         Registration(
             credentialIdHex: credentialIdHex,
@@ -224,7 +224,7 @@ private extension CtapRegistration {
     }
 }
 
-private extension CtapAssertion {
+extension CtapAssertion {
     func toAssertion() -> Assertion {
         Assertion(
             credentialIdHex: credentialIdHex,
@@ -237,7 +237,7 @@ private extension CtapAssertion {
     }
 }
 
-private extension CtapError {
+extension CtapError {
     func toPasskeyFailure() -> PasskeyFailure {
         switch self {
         case .Cancelled:

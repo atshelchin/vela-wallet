@@ -128,7 +128,10 @@ final class OnboardingExecutor {
             let assertion = try await passkey.assert(
                 challenge: Self.challenge(for: operation["purpose"] as? String ?? ""),
                 credentialIdHex: operation["credential_id"] as? String,
-                transports: operation["transports"] as? String ?? ""
+                transports: operation["transports"] as? String ?? "",
+                // The route the person signed in with. Recovery's second
+                // signature over caBLE goes back to the same phone.
+                method: KeyMethod(rawValue: operation["method"] as? String ?? "") ?? .platform
             )
             return ["type": "proof_signed", "assertion": assertion.wire, "now_iso": Self.nowISO()]
 
@@ -158,7 +161,10 @@ final class OnboardingExecutor {
             let assertion = try await passkey.assert(
                 challenge: try fromHex(s: Self.stripHex(challenge)),
                 credentialIdHex: operation["credential_id"] as? String,
-                transports: operation["transports"] as? String ?? ""
+                transports: operation["transports"] as? String ?? "",
+                // The route that minted this key confirms it — a key created on
+                // a phone over caBLE is confirmed on that phone.
+                method: KeyMethod(rawValue: operation["method"] as? String ?? "") ?? .platform
             )
             return ["type": "member_proof_signed", "proof": try Self.memberProof(assertion)]
 
@@ -266,6 +272,10 @@ final class OnboardingExecutor {
         guard !members.isEmpty else {
             throw RegistryFailure(message: "registry publish needs at least one member", network: false)
         }
+        // The route a member with no replayable proof signs its live possession
+        // proof over — recovery's third signature. A caBLE-recovered wallet
+        // signs it on the same phone; a create replays and never reaches here.
+        let method = KeyMethod(rawValue: operation["method"] as? String ?? "") ?? .platform
 
         var seedHex = operation["group_seed_hex"] as? String ?? ""
         var groupPublicKey = operation["group_public_key_hex"] as? String ?? ""
@@ -297,7 +307,8 @@ final class OnboardingExecutor {
             }
             let assertion = try await passkey.assert(
                 challenge: try fromHex(s: Self.stripHex(memberChallenge)),
-                credentialIdHex: member.credentialIdHex
+                credentialIdHex: member.credentialIdHex,
+                method: method
             )
             proven.append(ProvenMember(member: member, proof: try Self.memberProof(assertion)))
         }

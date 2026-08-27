@@ -270,6 +270,11 @@ struct RootView: View {
         } else if let touch = onboarding.usbTouch {
             UsbTouchSheet(loc: loc, touch: touch)
                 .themed(scheme)
+        } else if let payload = onboarding.cableQr {
+            // Below touch on purpose: once the phone connects and the ceremony
+            // is waiting on ITS sheet, "look at your phone" replaces the QR.
+            CableQrSheet(loc: loc, payload: payload)
+                .themed(scheme)
         } else if let prompt = onboarding.pending {
             FlowSheet(
                 loc: loc,

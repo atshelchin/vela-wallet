@@ -66,6 +66,8 @@ final class OnboardingModel {
     private(set) var pendingWalletPick: PendingWalletPick?
     /// Set while a card is blinking; the screen shows "touch your key".
     private(set) var usbTouch: UsbTouch?
+    /// The caBLE QR to show (the OTHER phone scans it), or nil when none is up.
+    private(set) var cableQr: String?
 
     // MARK: - The one onboarding bottom sheet
 
@@ -95,7 +97,7 @@ final class OnboardingModel {
     /// single `.sheet(isPresented:)`; the content is chosen by priority.
     var onboardingSheetPresented: Bool {
         pendingPin != nil || pendingWalletPick != nil || usbTouch != nil
-            || pending != nil || signInConnecting || showSignInMethods
+            || cableQr != nil || pending != nil || signInConnecting || showSignInMethods
     }
 
     /// A swipe-to-dismiss on the shared sheet. Cancels whatever the active
@@ -164,6 +166,7 @@ final class OnboardingModel {
     fileprivate func presentPin(_ pin: PendingPin) { pendingPin = pin }
     fileprivate func presentWalletPick(_ pick: PendingWalletPick) { pendingWalletPick = pick }
     fileprivate func presentTouch(_ touch: UsbTouch?) { usbTouch = touch }
+    fileprivate func presentQr(_ payload: String?) { cableQr = payload }
 
     private let session: SessionController
     private let store: AccountStore
@@ -179,6 +182,12 @@ final class OnboardingModel {
         self.registry = registry
         // The app-owned CCID security-key path, wired to this model's prompts.
         passkey.smartCard = SmartCardCtapCeremony(prompts: UsbPromptsBridge(model: self))
+        // The caBLE "sign in with your phone" path — same prompts (the touch
+        // prompt reads "look at your phone"), plus the QR the other phone scans.
+        passkey.hybrid = HybridCeremony(
+            prompts: UsbPromptsBridge(model: self),
+            showQr: { [weak self] payload in self?.presentQr(payload) }
+        )
         Task {
             // The stored override, applied before any machine can ask a
             // question: a flow that started against the default and then

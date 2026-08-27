@@ -130,6 +130,10 @@ pub fn signin_method_card(
     on_pick: std::sync::Arc<dyn Fn(KeyMethod, &mut Window, &mut App)>,
     on_dismiss: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Div {
+    // "This device" is real on exactly one desktop. Windows has Windows Hello
+    // behind `webauthn.dll`; macOS and Linux reach no platform authenticator
+    // from gpui at all, so there the row stays greyed and says why.
+    let this_device = crate::executor::passkey::platform_supported();
     let entry = |method: KeyMethod, title_key: &str, body_key: &str, available: bool| {
         let on_pick = on_pick.clone();
         let row = div()
@@ -182,8 +186,12 @@ pub fn signin_method_card(
         .child(entry(
             KeyMethod::Platform,
             "onboarding.create.methodPlatformTitle",
-            "onboarding.create.securityKeyRequiredBody",
-            false,
+            if this_device {
+                "onboarding.create.methodPlatformBody"
+            } else {
+                "onboarding.create.securityKeyRequiredBody"
+            },
+            this_device,
         ))
         .child(vela_button(
             "signin-methods-cancel",

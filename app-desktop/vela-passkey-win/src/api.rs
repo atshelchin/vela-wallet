@@ -9,7 +9,7 @@ use windows::Win32::Foundation::{BOOL, HWND};
 use windows::Win32::Networking::WindowsWebServices::*;
 use windows::core::{HSTRING, PCWSTR};
 
-use crate::{Asserted, Registered, TIMEOUT_MS, WinError};
+use crate::{Asserted, Attachment, RegisterRequest, Registered, TIMEOUT_MS, WinError};
 
 /// ES256, and only ES256 — the same rule the CTAP2 path enforces, for the same
 /// reason: an RSA credential can never satisfy the RIP-7212 precompile, so
@@ -26,6 +26,44 @@ pub fn supported() -> bool {
     unsafe { WebAuthNGetApiVersionNumber() > 0 }
 }
 
+/// Is there a Windows Hello a person can actually use — enrolled, and backed by
+/// a user-verifying platform authenticator?
+///
+/// Distinct from [`supported`], which only asks whether the API exists. A
+/// machine with no TPM, or one where nobody has set up a PIN, face or
+/// fingerprint, answers `false` here and `true` there — and the difference is
+/// whether "This device" should be an offer or a greyed-out row. Asking is the
+/// only honest way: an enabled row that fails when tapped is worse than a row
+/// that says why it cannot be used.
+pub fn platform_available() -> bool {
+    if !supported() {
+        return false;
+    }
+    // The API returns an HRESULT and writes the answer out through a pointer.
+    // Any failure is "no": this gates an offer, and the safe reading of "I could
+    // not tell" is not to make one.
+    unsafe { WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable() }
+        .map(|available| available.as_bool())
+        .unwrap_or(false)
+}
+
+/// The `WEBAUTHN_AUTHENTICATOR_ATTACHMENT_*` value for a method.
+fn attachment_value(attachment: Attachment) -> u32 {
+    match attachment {
+        Attachment::SecurityKey => WEBAUTHN_AUTHENTICATOR_ATTACHMENT_CROSS_PLATFORM,
+        Attachment::ThisDevice => WEBAUTHN_AUTHENTICATOR_ATTACHMENT_PLATFORM,
+    }
+}
+
+/// The `WEBAUTHN_CTAP_TRANSPORT_*` mask an allow-list entry should carry for a
+/// method — the lever that narrows the Windows picker to one wire.
+fn allow_transports(attachment: Attachment) -> u32 {
+    match attachment {
+        Attachment::SecurityKey => WEBAUTHN_CTAP_TRANSPORT_USB,
+        Attachment::ThisDevice => WEBAUTHN_CTAP_TRANSPORT_INTERNAL,
+    }
+}
+
 /// Mint a credential. Windows draws its own dialog: the picker, the touch
 /// prompt, the PIN prompt, Windows Hello.
 ///
@@ -34,18 +72,23 @@ pub fn supported() -> bool {
 /// window of their own; gpui gives us a genuine one through
 /// `raw_window_handle`, so the dialog parents to the wallet and inherits its
 /// focus and z-order for free.
-pub fn register(
-    hwnd: isize,
-    rp_id: &str,
-    rp_name: &str,
-    user_id: &[u8],
-    user_name: &str,
-    client_data_json: &str,
-    exclude_credential_ids: &[Vec<u8>],
-) -> Result<Registered, WinError> {
+pub fn register(hwnd: isize, request: &RegisterRequest<'_>) -> Result<Registered, WinError> {
     if !supported() {
         return Err(WinError::Unavailable);
     }
+
+    // Destructured up front so the body below reads as it did when these were
+    // seven parameters — the grouping is for the CALLER's sake, not this
+    // function's.
+    let &RegisterRequest {
+        rp_id,
+        rp_name,
+        user_id,
+        user_name,
+        client_data_json,
+        exclude_credential_ids,
+        attachment,
+    } = request;
 
     // Every one of these owns a buffer that the native structs below point
     // into. They are bound to names so they outlive the call; a temporary here
@@ -91,7 +134,12 @@ pub fn register(
         pwszHashAlgId: PCWSTR(hash_algorithm.as_ptr()),
     };
 
-    let mut exclude = CredentialList::new(exclude_credential_ids, &credential_type);
+    // Zero transports, unlike the allow list in `assert`. These ids are every
+    // key this wallet already has, including ones minted over caBLE on a phone;
+    // naming a wire for them would tell Windows to look for a phone-resident
+    // credential on the USB key in the port, which is not a question with an
+    // answer.
+    let mut exclude = CredentialList::new(exclude_credential_ids, &credential_type, 0);
 
     let options = WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS {
         dwVersion: WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_CURRENT_VERSION,
@@ -104,11 +152,17 @@ pub fn register(
             pCredentials: std::ptr::null_mut(),
         },
         Extensions: WEBAUTHN_EXTENSIONS::default(),
-        // ANY authenticator: a security key or Windows Hello, whichever the
-        // person has. This is the one place the desktop client can honestly
-        // offer a platform authenticator, and refusing it here would throw
-        // that away to match a limitation of the OTHER two platforms.
-        dwAuthenticatorAttachment: WEBAUTHN_AUTHENTICATOR_ATTACHMENT_ANY,
+        // Never ANY. The person already chose a method on a screen this app
+        // drew, and `ANY` would throw that choice away and offer all three
+        // again in a dialog Windows draws. See [`Attachment`].
+        //
+        // This is the ONE lever `webauthn.dll` gives a caller over the picker
+        // at make-credential time: API version 7 (the newest these bindings
+        // know) has no transport filter and no credential hints on
+        // `WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS`. So a `SecurityKey`
+        // registration on Windows 11 22H2+ may still show "use your phone"
+        // beside the key. The ASSERTION path pins harder — see `assert`.
+        dwAuthenticatorAttachment: attachment_value(attachment),
         // Discoverable, required. A credential that cannot be found at sign-in
         // is a wallet that dies with this computer.
         bRequireResidentKey: BOOL::from(true),
@@ -180,6 +234,7 @@ pub fn assert(
     rp_id: &str,
     client_data_json: &str,
     credential_id: Option<&[u8]>,
+    attachment: Attachment,
 ) -> Result<Asserted, WinError> {
     if !supported() {
         return Err(WinError::Unavailable);
@@ -200,7 +255,13 @@ pub fn assert(
     let allow: Vec<Vec<u8>> = credential_id
         .map(|id| vec![id.to_vec()])
         .unwrap_or_default();
-    let mut allow = CredentialList::new(&allow, &credential_type);
+    // The wire, named rather than left to the authenticator. `dwTransports` on
+    // an allow-list entry filters the Windows picker down to where the
+    // credential actually lives — the one place the API lets a caller say "this
+    // is on the key in the port, do not offer the phone". Only reachable when
+    // the credential id is KNOWN; the discoverable-credential sign-in below
+    // passes a null list and gets whatever Windows shows for the attachment.
+    let mut allow = CredentialList::new(&allow, &credential_type, allow_transports(attachment));
 
     // Windows writes back into this through an `*const` request field — its
     // U2F AppId reply, which this wallet does not use and does not read.
@@ -215,7 +276,8 @@ pub fn assert(
             pCredentials: std::ptr::null_mut(),
         },
         Extensions: WEBAUTHN_EXTENSIONS::default(),
-        dwAuthenticatorAttachment: WEBAUTHN_AUTHENTICATOR_ATTACHMENT_ANY,
+        // As in `register`: whichever single method the person chose.
+        dwAuthenticatorAttachment: attachment_value(attachment),
         dwUserVerificationRequirement: WEBAUTHN_USER_VERIFICATION_REQUIREMENT_REQUIRED,
         dwFlags: 0,
         pwszU2fAppId: PCWSTR::null(),
@@ -290,7 +352,11 @@ struct CredentialList {
 }
 
 impl CredentialList {
-    fn new(ids: &[Vec<u8>], credential_type: &HSTRING) -> Self {
+    /// `transports` is the `WEBAUTHN_CTAP_TRANSPORT_*` mask every entry
+    /// carries. Zero means "the authenticator decides", which is right for an
+    /// exclude list; an allow list naming a credential this wallet knows is on
+    /// a USB key says so, and Windows narrows its picker to match.
+    fn new(ids: &[Vec<u8>], credential_type: &HSTRING, transports: u32) -> Self {
         let mut ids: Vec<Vec<u8>> = ids.to_vec();
         let mut entries: Vec<WEBAUTHN_CREDENTIAL_EX> = ids
             .iter_mut()
@@ -299,10 +365,7 @@ impl CredentialList {
                 cbId: id.len() as u32,
                 pbId: id.as_mut_ptr(),
                 pwszCredentialType: PCWSTR(credential_type.as_ptr()),
-                // Zero means "the authenticator decides", which is the honest
-                // answer: this wallet does not know or care which wire a
-                // credential came in on.
-                dwTransports: 0,
+                dwTransports: transports,
             })
             .collect();
         let mut pointers: Vec<*mut WEBAUTHN_CREDENTIAL_EX> =

@@ -138,7 +138,7 @@ same trade every browser flatpak makes.
 A permission error also reports as itself now (`UsbError::AccessDenied`), rather
 than as "no security key is plugged in".
 
-### Windows ✅ *(written, type-checked, never run)* — via the platform API
+### Windows ✅ *(compiled and unit-tested on Windows; no ceremony run there yet)* — app-owned wherever it can be, `webauthn.dll` where it cannot
 
 Since **Windows 10 1903**, a non-elevated process **cannot open a FIDO HID
 device at all**. The OS reserves them for `webauthn.dll`, which is why
@@ -146,17 +146,71 @@ device at all**. The OS reserves them for `webauthn.dll`, which is why
 
 This is not a bug to fix in `usb.rs`. It means:
 
-> On Windows, the platform's CTAP client is the ONLY route, and asking the user
-> to run a wallet as Administrator is not an answer.
+> For a key reached over **HID**, the platform's CTAP client is the only route,
+> and asking the user to run a wallet as Administrator is not an answer.
 
-The Windows desktop build therefore needs `WebAuthNAuthenticatorMakeCredential`
-/ `…GetAssertion` — which is the same call that gives Windows Hello for free,
-and which draws its own picker, PIN prompt and touch prompt. Everything in §1–§6
-becomes, on that one platform, work the OS does.
+**The scope of that is HID, and only HID** — which is narrower than "the USB
+port", and the difference turned out to be most of the Windows story. Three of
+the four things this app wants to do on Windows are not HID at all: **The phone (`KeyMethod::Hybrid`) — app-owned.** A BLE advertisement scan
+(WinRT's `BluetoothLEAdvertisementWatcher`, which `btleplug` wraps: non-elevated,
+no pairing, no manifest capability for an unpackaged Win32 process) and a TLS
+WebSocket. Neither is HID, so `ctap/cable.rs` runs on Windows exactly as it does
+on the other two desktops, and `KeyMethod::Hybrid` never reaches
+`vela-passkey-win`.
 
-**This inverts the premise for Windows, and it was not caught when the desktop
+That is not tidiness — it is coverage. `webauthn.dll` only grew its own QR flow
+in **Windows 11 22H2**. Delegating the phone to Windows would leave every Windows
+10 machine with no way to sign in from a phone at all.
+
+The one thing Windows takes with it is the CTAP 2.3 BLE-only data channel: there
+is no public LE L2CAP CoC API on Windows (WinRT's only connection-oriented
+Bluetooth socket is `Rfcomm`, which is classic Bluetooth). So
+`cable::BLE_CHANNEL_SUPPORTED` is macOS-only, the QR does not offer the BLE
+channel on Windows or Linux, and an advert that names a PSM anyway falls back to
+the tunnel instead of failing — which also fixes the Linux case, where a
+dual-channel Android phone used to hit a hard error.
+
+**The key in the port, over CCID — app-owned.** This is the one that was
+nearly missed. PC/SC is not part of the reservation: the 0xF1D0 DACL is on HID
+device *interfaces*, while `SCardEstablishContext` and `SCardTransmit` are
+ordinary unprivileged calls into a different subsystem entirely. And a modern
+security key answers CTAP2 on its **CCID** interface as well as on HID — YubiKey
+firmware 5.8+ does, which is exactly what the iOS `TKSmartCard` path (T171b) is
+built on, and what the founder's demo proved on device.
+
+So the same key on the same port is reachable two ways, and only one of them is
+barred. `ctap/ccid.rs` is the PC/SC port under the core's `ApduCable` — the same
+cable iOS CCID and iOS/Android NFC already run, so the ceremony above it is
+byte-identical on all of them. On Windows it is tried FIRST for
+`KeyMethod::SecurityKey`, which means the app draws its own picker, PIN prompt
+and touch prompt for a key on the desk, with no system sheet at all.
+
+*(An earlier revision of this document claimed the opposite — that essentially no
+key exposes FIDO over CCID and the route reaches no hardware. That was wrong, and
+it contradicted `spec.md`'s own matrix in this same folder. `pcsc` is not
+compiled on Linux: it links `libpcsclite`, which would put `pkgconf` +
+`libpcsclite-dev` on every Linux build host and a `pcsc-lite` module in the
+Flatpak manifest, for a platform whose HID path already reaches every key.
+Windows links `winscard.dll` and macOS the `PCSC` framework, both shipped with
+the OS.)*
+
+**Windows Hello (`KeyMethod::Platform`) — the platform's, and that is the
+point.** Windows is the one desktop with a system passkey service this shell can
+reach, so "This device" is a live method row there and greyed out on the other
+two. `passkey::platform_supported()` gates it on
+`WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable` — *enrolled*, not merely
+present — because a row that fails when tapped is worse than one that says why.
+
+**What is left for `webauthn.dll`, then**, is a security key that does not answer
+on CCID: firmware older than 5.8, CCID switched off in `ykman`, or a machine
+whose Smart Card service is stopped. For those it draws its own picker, PIN
+prompt and touch prompt, and §1–§6 become work the OS does.
+
+**This inverted the premise for Windows, and it was not caught when the desktop
 transport was chosen (research D3 evaluated HID crates and never asked whether
-the OS would let us use one).** It does not change macOS or Linux.
+the OS would let us use one).** It does not change macOS or Linux — except that
+macOS now falls back to CCID when no HID key answers, which costs it nothing and
+covers a key with its HID interface disabled.
 
 **Built**, in `app-desktop/vela-passkey-win`, after reading
 `webauthn-authenticator-rs`'s `win10` module. Three things carried over from it:
@@ -177,16 +231,45 @@ because `webauthn-authenticator-rs` is a library called from console apps with
 no window; gpui implements `raw_window_handle`, so the dialog parents to the
 wallet's real window and inherits its focus and z-order.
 
-**Windows Hello comes with it.** `WEBAUTHN_AUTHENTICATOR_ATTACHMENT_ANY` means a
-Windows user with a fingerprint reader and no security key can use this wallet —
-which on macOS and Linux they still cannot.
+**One dialog per method, never `ATTACHMENT_ANY`.** The person already chose —
+security key, phone, or this device — on a screen this app drew. `ANY` throws
+that choice away and offers all three again in a sheet Windows draws, so every
+call carries a `vela_passkey_win::Attachment`: `SecurityKey` → `CROSS_PLATFORM`,
+`ThisDevice` → `PLATFORM`. `Hybrid` never arrives, having been taken by the
+app's own caBLE client one level up.
 
-**The verification gap, stated plainly.** `scripts/check-windows.sh` type-checks
-the whole path from any machine (`cargo clippy --target x86_64-pc-windows-gnu`,
-wired into CI), which is why the crate is separate: the desktop app's own tree
-compiles C and cannot be cross-checked at all, so anything living there could
-only be compiled by a Windows machine. Type-checked is not tested. Every struct
-field and signature is verified; no behaviour is.
+What the attachment CANNOT do is take the phone out of the `SecurityKey` dialog,
+because hybrid is itself a cross-platform attachment. At API version 7 — the
+newest `windows` 0.58 binds — `WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS`
+has no transport filter and no credential hints, so a **registration** dialog on
+Windows 11 22H2+ may still show "use your phone" beside the security key. An
+**assertion for a known credential** is pinned properly: its allow-list entry
+carries `dwTransports` naming the wire, which is what narrows the picker. The
+discoverable-credential sign-in has no allow list and so no lever.
+
+That residual leak is the reason the CCID path is tried first rather than
+second. A key that answers on CCID never reaches this dialog at all, so for the
+hardware this wallet is actually used with, "USB security key" means the USB
+security key and nothing else.
+
+**What the separate crate could not catch, and did not.** `vela-passkey-win`
+was declared a few lines below `[target.'cfg(target_os = "macos")'.dependencies]`
+in the desktop's `Cargo.toml`, under a comment insisting it was unconditional.
+TOML reads a section header, not a comment: the crate was a **macOS-only
+dependency**, so on the one platform it exists for, the desktop shell did not
+link it and the whole Windows path failed to compile. `scripts/check-windows.sh`
+checks the crate *standalone* and passed throughout. The first real
+`cargo check` on a Windows machine found it immediately.
+
+**The verification gap, restated.** The path now compiles on Windows and the
+desktop's 67 unit tests pass there. `scripts/check-windows.sh` still type-checks
+it from any machine (`cargo clippy --target x86_64-pc-windows-gnu`, wired into
+CI), which is why the crate is separate — the desktop app's own tree compiles C
+and cannot be cross-checked at all. But compiled is not exercised: no ceremony
+has been run against a real key or a real phone on Windows, and the BLE scan in
+particular (does `btleplug`'s WinRT backend actually emit
+`CentralEvent::ServiceDataAdvertisement` for a caBLE advert?) is confirmed only
+by reading its source.
 
 ### The macOS platform authenticator, revisited
 

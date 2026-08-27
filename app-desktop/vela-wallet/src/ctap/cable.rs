@@ -74,6 +74,26 @@ const SERVICE_UUIDS: [Uuid; 2] = [
     Uuid::from_u128(0x0000_fde2_0000_1000_8000_00805f9b34fb),
 ];
 
+/// Can this desktop connect a Bluetooth LE L2CAP connection-oriented channel —
+/// the CTAP 2.3 local data channel, which needs no tunnel server?
+///
+/// macOS can, through `CBL2CAPChannel` (see [`l2cap`]). The other two cannot,
+/// for different reasons worth keeping apart:
+///
+///   * **Windows** has no public API at all. WinRT's only connection-oriented
+///     Bluetooth socket is `Rfcomm`, which is classic Bluetooth, not LE; there
+///     is no LE CoC surface short of a kernel driver.
+///   * **Linux** could — BlueZ takes `AF_BLUETOOTH`/`BTPROTO_L2CAP` sockets —
+///     but nothing here implements it, and `btleplug` exposes no L2CAP.
+///
+/// It is read twice, and both readings matter. The QR payload uses it to decide
+/// whether to OFFER the BLE channel: offering one that cannot be connected
+/// invites an authenticator to pick it and strands the ceremony. And
+/// [`establish_hybrid`] uses it as the guard on the L2CAP branch, so an
+/// authenticator that advertises a PSM anyway lands on the tunnel rather than
+/// on an error.
+pub const BLE_CHANNEL_SUPPORTED: bool = cfg!(target_os = "macos");
+
 /// The WebSocket subprotocol the tunnel server requires.
 const CABLE_SUBPROTOCOL: &str = "fido.cable";
 
@@ -227,41 +247,46 @@ pub fn establish_hybrid(
     // 2. The advert chooses the channel: a PSM means the CTAP 2.3 local BLE
     //    channel (direct L2CAP, no tunnel — the GFW-proof path); no PSM means
     //    the CTAP 2.2 WebSocket tunnel.
-    match hit.psm {
-        Some(psm) => {
-            log(&format!(
-                "advert offers the BLE channel (PSM {psm}); connecting L2CAP CoC — no tunnel"
-            ));
-            #[cfg(target_os = "macos")]
-            {
-                let port = l2cap::L2capCablePort::connect(&hit.peripheral, psm)?;
-                log("L2CAP channel open; starting Noise handshake");
-                let cable = session
-                    .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
-                    .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
-                log("handshake complete; channel is up (BLE)");
-                Ok(Box::new(cable))
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                let _ = (psm, &hit.peripheral, session, ephemeral_seed, product, on_touch);
-                Err(HybridError::Bluetooth(
-                    "the BLE-only channel is not supported on this desktop OS yet".to_owned(),
-                ))
-            }
-        }
-        None => {
-            let url = session.connect_url(&hit.plaintext).ok_or(HybridError::BadAdvert)?;
-            log(&format!("no BLE channel offered; opening tunnel: {url}"));
-            let port = WebSocketCablePort::connect(&url)?;
-            log("tunnel open; starting Noise handshake");
-            let cable = session
-                .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
-                .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
-            log("handshake complete; channel is up (WebSocket)");
-            Ok(Box::new(cable))
-        }
+    #[cfg(target_os = "macos")]
+    if let Some(psm) = hit.psm {
+        log(&format!(
+            "advert offers the BLE channel (PSM {psm}); connecting L2CAP CoC — no tunnel"
+        ));
+        let port = l2cap::L2capCablePort::connect(&hit.peripheral, psm)?;
+        log("L2CAP channel open; starting Noise handshake");
+        let cable = session
+            .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
+            .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
+        log("handshake complete; channel is up (BLE)");
+        return Ok(Box::new(cable));
     }
+
+    // A PSM on a desktop with no L2CAP is not a dead end: the 16-byte advert
+    // plaintext always carries the routing id and tunnel domain, so the CTAP
+    // 2.2 tunnel is still derivable and an authenticator that offers BOTH
+    // channels will meet us there. Only a BLE-ONLY authenticator is genuinely
+    // out of reach — and it should never have got this far, because the QR
+    // this desktop showed did not offer the BLE channel (`BLE_CHANNEL_SUPPORTED`
+    // gates `qr_payload`), so it would have declined the QR outright. Falling
+    // through beats the hard error this used to raise, which also caught every
+    // dual-channel phone.
+    #[cfg(not(target_os = "macos"))]
+    if let Some(psm) = hit.psm {
+        log(&format!(
+            "advert offers the BLE channel (PSM {psm}), but this desktop has no \
+             L2CAP CoC; using the tunnel instead"
+        ));
+    }
+
+    let url = session.connect_url(&hit.plaintext).ok_or(HybridError::BadAdvert)?;
+    log(&format!("opening tunnel: {url}"));
+    let port = WebSocketCablePort::connect(&url)?;
+    log("tunnel open; starting Noise handshake");
+    let cable = session
+        .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
+        .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
+    log("handshake complete; channel is up (WebSocket)");
+    Ok(Box::new(cable))
 }
 
 /// One diagnostics line to stderr. The hybrid path has no `Host` in reach, and
@@ -553,6 +578,11 @@ fn macos_system_proxy() -> Option<ProxyEndpoint> {
 struct AdvertHit {
     plaintext: [u8; 16],
     psm: Option<u16>,
+    /// Read only by the CoreBluetooth L2CAP connect, so on the desktops with no
+    /// L2CAP it is recorded and never looked at. Kept rather than cfg'd away:
+    /// the scan that fills it is shared, and a field that exists everywhere is
+    /// one less thing for the Linux and Windows builds to diverge on.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     peripheral: String,
 }
 

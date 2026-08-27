@@ -11,14 +11,40 @@
 //! and why `fido-key-manager` ships an elevation manifest — asking someone to
 //! run their wallet as Administrator is not an answer.
 //!
-//! So on Windows the platform's CTAP client is the only route. Everything the
-//! `ctap/` module does on macOS and Linux — choosing a device, the touch
-//! prompt, the PIN prompt, enumerating credentials, the picker — Windows does
-//! itself, in its own dialog. That is a smaller surface, not a bigger one.
+//! So for a key **on the USB port**, the platform's CTAP client is the only
+//! route. Everything `ctap/usb.rs` does on macOS and Linux — choosing a device,
+//! the touch prompt, the PIN prompt, enumerating credentials, the picker —
+//! Windows does itself, in its own dialog. That is a smaller surface, not a
+//! bigger one.
 //!
-//! It also arrives with something the CTAP2 path cannot have: **Windows Hello**.
-//! A person with a fingerprint reader and no security key can use this wallet,
-//! which on macOS and Linux they currently cannot.
+//! ## What this crate is NOT for
+//!
+//! **The phone.** The lockdown is on FIDO HID devices, and the hybrid (caBLE)
+//! transport touches none: it is a BLE advertisement scan and a WebSocket, both
+//! of which a non-elevated process may do. So `ctap/cable.rs` runs on Windows
+//! exactly as it does on the other two desktops, and `KeyMethod::Hybrid` never
+//! reaches this crate. That matters beyond tidiness — `webauthn.dll` only grew
+//! its own QR flow in Windows 11 22H2, so delegating the phone here would leave
+//! every Windows 10 machine with no way to sign in from a phone at all.
+//!
+//! ## One dialog per method, not one dialog for all three
+//!
+//! The wallet asks the person to choose — security key, phone, or this device —
+//! on a screen it draws itself, and that choice must survive into whatever
+//! Windows shows next. So every call carries an [`Attachment`]:
+//!
+//! * `SecurityKey` → `CROSS_PLATFORM`. Windows Hello stays out of the dialog.
+//! * `ThisDevice` → `PLATFORM`. Windows Hello, and nothing else.
+//!
+//! What the attachment CANNOT do is take the phone out of the `SecurityKey`
+//! dialog, because hybrid is itself a cross-platform attachment. At API version
+//! 7 there is no transport filter and no credential hints on the
+//! make-credential options, so a registration dialog on Windows 11 22H2+ may
+//! still offer "use your phone" beside the security key. An assertion for a
+//! KNOWN credential is pinned harder — its allow-list entry names the wire —
+//! and the discoverable-credential sign-in has no allow list and so no lever.
+//! Closing that last gap means not using `webauthn.dll` for the USB port at
+//! all; see the CCID note in the feature's `ctap-client-surface.md`.
 //!
 //! ## What is NOT delegated
 //!
@@ -43,6 +69,55 @@
 //! confirmed. Treat the first run on real hardware as the real review.
 
 #![cfg_attr(not(windows), allow(dead_code))]
+
+/// Which authenticator the Windows dialog is allowed to offer.
+///
+/// This is `dwAuthenticatorAttachment`, named for what the wallet's three key
+/// methods mean rather than for the WebAuthn word. It is the ONE lever a caller
+/// has over the picker `webauthn.dll` draws, and this wallet uses it to keep
+/// its own three methods from collapsing into one dialog that offers all of
+/// them: the person already chose, on a screen this app drew.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Attachment {
+    /// A removable security key — `CROSS_PLATFORM`. Windows Hello is excluded.
+    ///
+    /// It does NOT exclude the phone: hybrid is itself a cross-platform
+    /// attachment, and at API version 7 there is no transport filter on the
+    /// make-credential options. An assertion for a KNOWN credential is pinned
+    /// harder — its allow-list entry carries `WEBAUTHN_CTAP_TRANSPORT_USB`.
+    SecurityKey,
+    /// Windows Hello — `PLATFORM`. Nothing removable, no phone.
+    ///
+    /// A Hello credential is sealed to this machine's TPM: it cannot be carried
+    /// to the phone, the browser, or another desktop. That is a real limit, not
+    /// a defect, and the wallet answers it the same way it answers a single
+    /// security key — by asking for a second key before the wallet is finished.
+    ThisDevice,
+}
+
+/// Everything a make-credential needs, other than the window it hangs from.
+///
+/// A struct rather than seven positional parameters. Two of them are `&str`
+/// names and two are `&str` identities, which at a call site is four strings in
+/// a row with nothing but their order keeping them apart — and the order is the
+/// kind of thing that stays wrong for a long time, because swapping `rp_name`
+/// and `user_name` produces a credential that works and is labelled wrong.
+pub struct RegisterRequest<'a> {
+    /// The relying party. Part of the wallet's identity: change it and every
+    /// existing wallet becomes unreachable.
+    pub rp_id: &'a str,
+    pub rp_name: &'a str,
+    /// `name ‖ NUL ‖ uuid`, from the core's builder.
+    pub user_id: &'a [u8],
+    pub user_name: &'a str,
+    /// Built by this app, not by Windows — see the crate docs.
+    pub client_data_json: &'a str,
+    /// Credentials this wallet already holds, so the key refuses to mint a
+    /// second one on the same authenticator.
+    pub exclude_credential_ids: &'a [Vec<u8>],
+    /// Which single method the person chose.
+    pub attachment: Attachment,
+}
 
 /// A completed registration, as bytes.
 #[derive(Debug, Clone)]
@@ -122,7 +197,7 @@ pub const TIMEOUT_MS: u32 = 120_000;
 mod api;
 
 #[cfg(windows)]
-pub use api::{assert, register, supported};
+pub use api::{assert, platform_available, register, supported};
 
 #[cfg(windows)]
 mod wire;

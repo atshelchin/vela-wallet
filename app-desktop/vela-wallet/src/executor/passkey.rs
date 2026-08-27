@@ -33,8 +33,9 @@ use vela_core::primitives;
 #[cfg(any(windows, test))]
 use vela_core::types::ClientDataKind;
 
-#[cfg(not(windows))]
 use crate::ctap::cable::{self, HybridError};
+#[cfg(not(target_os = "linux"))]
+use crate::ctap::ccid;
 use crate::ctap::usb::{SecurityKey, TouchNotifier, TouchRequest, UsbError};
 
 /// The relying party every Vela passkey is bound to. A passkey cannot be moved
@@ -52,16 +53,22 @@ const ORIGIN: &str = "https://getvela.app";
 /// browser reports these from the credential; here they are what is true by
 /// construction — a removable key on a cable.
 const ATTACHMENT_CROSS_PLATFORM: &str = "cross-platform";
+// Unreachable on Windows, where `webauthn.dll` reports the transport itself.
+#[cfg_attr(windows, allow(dead_code))]
 const TRANSPORT_USB: &str = "usb";
+/// What a key reached over its smart-card interface reports. Both wires,
+/// because a CCID key is the same key that answers over NFC — this is the exact
+/// string `ctap_register_ccid` gives the iOS and Android clients, and a
+/// credential must read the same however it was minted.
+#[cfg(not(target_os = "linux"))]
+const TRANSPORT_USB_NFC: &str = "usb,nfc";
 /// A key reached over caBLE lives on a phone; it is a hybrid-transport
 /// authenticator, and the credential records that so a later flow knows the key
 /// is not on this desk.
-#[cfg(not(windows))]
 const TRANSPORT_HYBRID: &str = "hybrid";
 /// The label the touch prompt names while the phone shows its own approval
 /// sheet. Not localised yet — the QR card carries the localised copy; this is
 /// only interpolated into "waiting for {product}" during the brief assertion.
-#[cfg(not(windows))]
 const HYBRID_PRODUCT: &str = "your phone";
 
 /// A ceremony that failed, in the vocabulary the core branches on.
@@ -112,6 +119,8 @@ fn ceremony_failure(error: CeremonyError) -> PasskeyFailure {
 }
 
 /// What can go wrong on this platform's cable, in the ceremony's vocabulary.
+// Unreachable on Windows, where `webauthn.dll` runs the USB ceremony instead.
+#[cfg_attr(windows, allow(dead_code))]
 fn cable_error(error: UsbError) -> CableError {
     match error {
         UsbError::NoKeyPresent => CableError::NoKeyPresent,
@@ -123,6 +132,8 @@ fn cable_error(error: UsbError) -> CableError {
 }
 
 /// A device error, classified all the way to the flow's vocabulary.
+// Unreachable on Windows, where `webauthn.dll` runs the USB ceremony instead.
+#[cfg_attr(windows, allow(dead_code))]
 fn device_failure(error: UsbError) -> PasskeyFailure {
     ceremony_failure(ceremony::failure_for(cable_error(error)))
 }
@@ -130,7 +141,6 @@ fn device_failure(error: UsbError) -> PasskeyFailure {
 /// A hybrid-transport setup error, in the flow's vocabulary. Bluetooth being
 /// absent is `not_supported` — caBLE cannot run without a radio; everything else
 /// (no phone answered, a bad tunnel) is `other` carrying its own words.
-#[cfg(not(windows))]
 fn hybrid_failure(error: HybridError) -> PasskeyFailure {
     match error {
         HybridError::Bluetooth(_) => {
@@ -214,6 +224,8 @@ pub struct Ceremony {
 // ---------------------------------------------------------------------------
 
 /// The USB HID cable, as the core ceremony sees it.
+// Unreachable on Windows, where `webauthn.dll` runs the USB ceremony instead.
+#[cfg_attr(windows, allow(dead_code))]
 struct UsbCable<'a> {
     key: SecurityKey,
     touch: &'a TouchNotifier,
@@ -284,16 +296,24 @@ impl ceremony::Host for DesktopHost<'_> {
 // Windows: the OS runs the ceremony
 // ---------------------------------------------------------------------------
 //
-// Everything above this line talks to a security key over a cable. On Windows
-// it cannot: since Windows 10 build 1903 a non-elevated process may not open a
-// FIDO HID device, because the OS reserves them for `webauthn.dll`. So there,
-// the platform's CTAP client is the only route — and it draws its own picker,
-// touch prompt and PIN prompt, which is why none of this shell's three hardware
-// dialogs appear on that platform.
+// The USB half of this file talks to a security key over a cable. On Windows it
+// cannot: since Windows 10 build 1903 a non-elevated process may not open a
+// FIDO HID device, because the OS reserves them for `webauthn.dll`. So for the
+// key in the port, the platform's CTAP client is the only route — and it draws
+// its own picker, touch prompt and PIN prompt, which is why none of this
+// shell's three hardware dialogs appear there.
 //
-// It is not a downgrade. Windows Hello comes with it, so a Windows user with a
-// fingerprint reader and no security key can use this wallet — which on macOS
-// and Linux they currently cannot.
+// **The scope of that is the USB port and nothing else.** The caBLE half below
+// runs on Windows exactly as it does on the other two desktops: a BLE
+// advertisement scan and a WebSocket, neither of which the lockdown touches.
+// Delegating the phone to Windows as well would have been a real loss —
+// `webauthn.dll` only grew its own QR flow in Windows 11 22H2, so every Windows
+// 10 machine would have had no way to sign in from a phone at all.
+//
+// And the ceremony that IS delegated asks for a cross-platform authenticator,
+// so Windows Hello stays out of the dialog. A Hello credential is sealed to one
+// machine's TPM; a wallet founded on one cannot be reached from the phone, the
+// browser, or the other two desktops. The cross-device answer here is the QR.
 //
 // The clientDataJSON is still OURS. Windows takes it as bytes and hashes it; it
 // does not build it. So the join with the core's parsers is identical on all
@@ -322,11 +342,26 @@ fn win_failure(error: vela_passkey_win::WinError) -> PasskeyFailure {
     }
 }
 
+/// The person's chosen method, as the one lever Windows gives us over its own
+/// picker.
+///
+/// `Hybrid` never reaches here — `register` and `assert` hand it to the app's
+/// own caBLE client before the Windows half is consulted. It maps to the
+/// security key only so the match is total.
+#[cfg(windows)]
+fn win_attachment(method: KeyMethod) -> vela_passkey_win::Attachment {
+    match method {
+        KeyMethod::Platform => vela_passkey_win::Attachment::ThisDevice,
+        KeyMethod::SecurityKey | KeyMethod::Hybrid => vela_passkey_win::Attachment::SecurityKey,
+    }
+}
+
 #[cfg(windows)]
 fn register_windows(
     window: WindowHandle,
     name: &str,
     exclude_credential_ids: &[String],
+    method: KeyMethod,
 ) -> Result<Registration, PasskeyFailure> {
     let client_data = ceremony::client_data_json(ClientDataKind::Create, &random(32), ORIGIN);
     let exclude: Vec<Vec<u8>> = exclude_credential_ids
@@ -336,12 +371,15 @@ fn register_windows(
 
     vela_passkey_win::register(
         window,
-        RELYING_PARTY,
-        RELYING_PARTY_NAME,
-        &user_handle(name),
-        name,
-        &client_data,
-        &exclude,
+        &vela_passkey_win::RegisterRequest {
+            rp_id: RELYING_PARTY,
+            rp_name: RELYING_PARTY_NAME,
+            user_id: &user_handle(name),
+            user_name: name,
+            client_data_json: &client_data,
+            exclude_credential_ids: &exclude,
+            attachment: win_attachment(method),
+        },
     )
     .map(vela_passkey_win::registration_from)
     .map_err(win_failure)
@@ -352,13 +390,47 @@ fn assert_windows(
     window: WindowHandle,
     challenge: &[u8],
     credential_id: Option<&str>,
+    method: KeyMethod,
 ) -> Result<Assertion, PasskeyFailure> {
     let client_data = ceremony::client_data_json(ClientDataKind::Get, challenge, ORIGIN);
     let pinned = credential_id.and_then(|id| primitives::from_hex(id).ok());
 
-    vela_passkey_win::assert(window, RELYING_PARTY, &client_data, pinned.as_deref())
-        .map(vela_passkey_win::assertion_from)
-        .map_err(win_failure)
+    vela_passkey_win::assert(
+        window,
+        RELYING_PARTY,
+        &client_data,
+        pinned.as_deref(),
+        win_attachment(method),
+    )
+    .map(vela_passkey_win::assertion_from)
+    .map_err(win_failure)
+}
+
+/// Is there a system passkey service on this desktop — a real "This device"?
+///
+/// `false` on macOS and Linux: gpui reaches no platform authenticator on either
+/// (the AS API on macOS is future work), which is why the method row there is
+/// greyed with a sentence saying to plug a key in. `true` on Windows when
+/// Windows Hello is not merely present but ENROLLED — a machine with no TPM, or
+/// where nobody has set up a PIN, face or fingerprint, answers `false`, because
+/// a row that fails when tapped is worse than a row that says why.
+///
+/// **Cached for the life of the process.** The answer costs a `webauthn.dll`
+/// round trip that asks the TPM, and the method picker asks on every frame.
+/// Somebody who enrols a fingerprint while the wallet is open sees the row
+/// unlock on the next launch, which is the right trade for a per-frame call.
+pub fn platform_supported() -> bool {
+    static AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        #[cfg(windows)]
+        {
+            vela_passkey_win::platform_available()
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    })
 }
 
 /// Is a passkey ceremony possible on this machine at all?
@@ -374,6 +446,14 @@ pub fn supported() -> bool {
     {
         // Not the HID subsystem: on Windows that answer is always "no" for a
         // non-elevated process, and it would be the wrong question anyway.
+        //
+        // This answers for the USB ceremony only. The caBLE one needs no
+        // `webauthn.dll` and is not asked about here — probing for a Bluetooth
+        // adapter means standing a tokio runtime up on the support check, which
+        // is a lot of machinery for a case the answer barely moves: version 1
+        // of this API is build 1903, and every Windows that ships without it is
+        // out of support (1809 LTSC excepted, where a phone would in fact still
+        // work and this will still say no).
         vela_passkey_win::supported()
     }
     #[cfg(not(windows))]
@@ -384,23 +464,54 @@ pub fn supported() -> bool {
 
 /// `RegisterPasskey` — mint a founding key.
 ///
-/// Which half of the wallet's passkey story runs is decided HERE, once: over a
-/// cable everywhere, and through the OS on Windows, where a cable is not
-/// allowed. Every caller sees one function.
+/// Which ceremony runs is decided HERE, once, and the decision is about the
+/// WIRE rather than the operating system. A removable key has TWO wires — HID
+/// and CCID — and which is tried first is the one genuinely per-platform part:
+/// macOS leads with HID and falls back to CCID when no key answers; Windows can
+/// only do CCID, and falls back to `webauthn.dll`; Linux has HID alone.
+///
+///   * [`KeyMethod::Hybrid`] — the phone that scans the QR, over caBLE. All
+///     three desktops run this themselves, Windows included; nothing in it
+///     touches a FIDO HID device, so the 1903 lockdown has no say in it.
+///   * [`KeyMethod::Platform`] — "this device". Only Windows has one reachable
+///     from gpui (Windows Hello, through `webauthn.dll`); the method picker
+///     greys the row out everywhere else, so it does not arrive there.
+///   * [`KeyMethod::SecurityKey`] — the key in the USB port. macOS and Linux
+///     drive CTAP2 over HID themselves; Windows may not, and hands that one
+///     ceremony to `webauthn.dll`.
+///
+/// Every caller sees one function.
 pub fn register(
     name: &str,
     exclude_credential_ids: &[String],
     method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Registration, PasskeyFailure> {
+    // The scan method mints the key on a phone over caBLE. The choice labels the
+    // key row either way; here it only decides which transport carries the
+    // make-credential.
+    if method == KeyMethod::Hybrid {
+        return register_hybrid(name, exclude_credential_ids, ceremony);
+    }
     #[cfg(windows)]
     {
-        let _ = method;
-        register_windows(ceremony.window, name, exclude_credential_ids)
+        // A removable key, on Windows: the smart-card wire FIRST. It is the one
+        // route here where this app is its own CTAP client for a key on the
+        // desk — its own picker, PIN and touch prompts, no system sheet, and no
+        // chance of Windows offering Hello or a phone in a dialog nobody asked
+        // for. `webauthn.dll` catches everything that does not answer: a key
+        // older than YubiKey firmware 5.8, one with CCID switched off, or a
+        // machine whose Smart Card service is stopped.
+        if method == KeyMethod::SecurityKey
+            && let Some(result) = register_ccid(name, exclude_credential_ids, ceremony)
+        {
+            return result;
+        }
+        register_windows(ceremony.window, name, exclude_credential_ids, method)
     }
     #[cfg(not(windows))]
     {
-        register_ctap(name, exclude_credential_ids, method, ceremony)
+        register_ctap(name, exclude_credential_ids, ceremony)
     }
 }
 
@@ -408,20 +519,34 @@ pub fn register(
 ///
 /// `credential_id` is `None` for the "who are you?" ceremony a sign-in starts
 /// with: an empty allow list is what asks for any discoverable credential.
+///
+/// The hybrid branch is narrower than [`register`]'s, and the narrowing is the
+/// same on all three desktops: only the SIGN-IN goes to the phone. A proof names
+/// a credential id, and this client still takes a known id to be on the key in
+/// the port — asserting a phone-resident credential over caBLE is a later step,
+/// and the Windows path pins its allow list to USB on the same assumption.
 pub fn assert(
     challenge: &[u8],
     credential_id: Option<&str>,
     method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Assertion, PasskeyFailure> {
+    if method == KeyMethod::Hybrid && credential_id.is_none() {
+        return assert_hybrid(challenge, ceremony);
+    }
     #[cfg(windows)]
     {
-        let _ = method;
-        assert_windows(ceremony.window, challenge, credential_id)
+        // See `register`: the smart-card wire before the system dialog.
+        if method == KeyMethod::SecurityKey
+            && let Some(result) = assert_ccid(challenge, credential_id, ceremony)
+        {
+            return result;
+        }
+        assert_windows(ceremony.window, challenge, credential_id, method)
     }
     #[cfg(not(windows))]
     {
-        assert_ctap(challenge, credential_id, method, ceremony)
+        assert_ctap(challenge, credential_id, ceremony)
     }
 }
 
@@ -429,18 +554,28 @@ pub fn assert(
 fn register_ctap(
     name: &str,
     exclude_credential_ids: &[String],
-    method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Registration, PasskeyFailure> {
-    // The scan method mints the key on a phone over caBLE; every other method on
-    // this platform is the one USB ceremony (the picker presents platform as
-    // unavailable-with-a-reason). The choice labels the key row either way; here
-    // it only decides which transport carries the make-credential.
-    if method == KeyMethod::Hybrid {
-        return register_hybrid(name, exclude_credential_ids, ceremony);
-    }
-
-    let key = open(ceremony)?;
+    // Hybrid never arrives here — `register` took it. Every method that does is
+    // the one USB ceremony (the picker presents platform as
+    // unavailable-with-a-reason).
+    let key = match open(ceremony) {
+        Ok(key) => key,
+        // Nothing answered on HID. Before saying so, try the key's OTHER USB
+        // wire: a YubiKey with its HID interface switched off in `ykman` still
+        // answers on CCID, and so does a card in a PC/SC reader. Only
+        // `NoKeyPresent` falls through — a key that answered and then failed has
+        // already had its ceremony, and re-running it on another wire would ask
+        // a person the same question twice.
+        Err(UsbError::NoKeyPresent) => {
+            #[cfg(not(target_os = "linux"))]
+            if let Some(result) = register_ccid(name, exclude_credential_ids, ceremony) {
+                return result;
+            }
+            return Err(device_failure(UsbError::NoKeyPresent));
+        }
+        Err(error) => return Err(device_failure(error)),
+    };
     let mut cable = UsbCable {
         key,
         touch: &ceremony.touch,
@@ -469,19 +604,24 @@ fn register_ctap(
 fn assert_ctap(
     challenge: &[u8],
     credential_id: Option<&str>,
-    method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Assertion, PasskeyFailure> {
-    // Sign-in over caBLE: no credential id (the phone offers what it holds), and
-    // the person chose the scan method. A proof (credential id known) stays on
-    // the USB path — a phone-resident credential over caBLE is a later step.
-    if method == KeyMethod::Hybrid && credential_id.is_none() {
-        return assert_hybrid(challenge, ceremony);
-    }
-
-    let key = match credential_id {
-        Some(id) => open_for(id, ceremony)?,
-        None => open(ceremony)?,
+    // The caBLE sign-in never arrives here — `assert` took it.
+    let opened = match credential_id {
+        Some(id) => open_for(id, ceremony),
+        None => open(ceremony),
+    };
+    // See `register_ctap` for why only `NoKeyPresent` reaches the other wire.
+    let key = match opened {
+        Ok(key) => key,
+        Err(UsbError::NoKeyPresent) => {
+            #[cfg(not(target_os = "linux"))]
+            if let Some(result) = assert_ccid(challenge, credential_id, ceremony) {
+                return result;
+            }
+            return Err(device_failure(UsbError::NoKeyPresent));
+        }
+        Err(error) => return Err(device_failure(error)),
     };
     let mut cable = UsbCable {
         key,
@@ -509,6 +649,106 @@ fn assert_ctap(
 }
 
 // ---------------------------------------------------------------------------
+// CCID: the same removable key, on its smart-card interface
+// ---------------------------------------------------------------------------
+//
+// `Option<Result<..>>` rather than `Result<..>`, and the distinction is the
+// whole contract: `None` means NO CARD WAS EVER REACHED — nothing was asked of
+// anybody, so a caller is free to try another wire. `Some` means a card
+// answered and the ceremony ran; its outcome is final, because falling back
+// after a person has touched a key (or declined) would ask them the same
+// question a second time in a different dialog.
+
+/// The touch prompt for a key on this desk. `remote: false` — the prompt says
+/// "touch your security key", which is the caBLE path's one difference.
+#[cfg(not(target_os = "linux"))]
+fn desk_touch_announcer(ceremony: &Ceremony) -> TouchAnnouncer {
+    let touch = Arc::clone(&ceremony.touch);
+    Box::new(move |kind, product| {
+        touch(Some(TouchRequest {
+            kind,
+            product: product.to_owned(),
+            remote: false,
+        }));
+    })
+}
+
+/// Open the smart-card wire, or say why not — one line to stderr, because the
+/// caller's only response to a failure here is to try something else, and the
+/// reason it could not (no reader / no FIDO applet / no service) is worth having
+/// when somebody reports "it used the Windows dialog again".
+#[cfg(not(target_os = "linux"))]
+fn open_ccid(ceremony: &Ceremony) -> Option<ccid::ApduCableOnCard> {
+    match ccid::open_cable() {
+        Ok(mut cable) => {
+            cable.on_touch(desk_touch_announcer(ceremony));
+            Some(cable)
+        }
+        Err(reason) => {
+            eprintln!("[vela-wallet] no security key on the smart-card wire: {reason}");
+            None
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn register_ccid(
+    name: &str,
+    exclude_credential_ids: &[String],
+    ceremony: &Ceremony,
+) -> Option<Result<Registration, PasskeyFailure>> {
+    let mut cable = open_ccid(ceremony)?;
+    let host = DesktopHost { ceremony };
+    let registration = ceremony::Client {
+        cable: &mut cable,
+        host: &host,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .register(name, exclude_credential_ids)
+    .map_err(ceremony_failure);
+    (ceremony.touch)(None);
+
+    Some(registration.map(|registration| Registration {
+        credential_id: registration.credential_id_hex,
+        attestation_object_hex: registration.attestation_object_hex,
+        client_data_json_hex: registration.client_data_json_hex,
+        authenticator_attachment: ATTACHMENT_CROSS_PLATFORM.to_owned(),
+        transports: TRANSPORT_USB_NFC.to_owned(),
+    }))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn assert_ccid(
+    challenge: &[u8],
+    credential_id: Option<&str>,
+    ceremony: &Ceremony,
+) -> Option<Result<Assertion, PasskeyFailure>> {
+    let mut cable = open_ccid(ceremony)?;
+    let host = DesktopHost { ceremony };
+    let assertion = ceremony::Client {
+        cable: &mut cable,
+        host: &host,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .assert(challenge, credential_id)
+    .map_err(ceremony_failure);
+    (ceremony.touch)(None);
+
+    Some(assertion.map(|assertion| Assertion {
+        credential_id: assertion.credential_id_hex,
+        signature_der_hex: assertion.signature_der_hex,
+        authenticator_data_hex: assertion.authenticator_data_hex,
+        client_data_json_hex: assertion.client_data_json_hex,
+        user_id_hex: assertion.user_id_hex,
+        authenticator_attachment: ATTACHMENT_CROSS_PLATFORM.to_owned(),
+    }))
+}
+
+// ---------------------------------------------------------------------------
 // caBLE: the ceremony runs over a phone reached by scanning the QR
 // ---------------------------------------------------------------------------
 
@@ -516,7 +756,6 @@ fn assert_ctap(
 /// scanned phone opens — returning the [`Cable`] a ceremony drives. The QR is
 /// shown before the scan (scanning it is what makes the phone advertise) and
 /// cleared once the tunnel is up, however it ends.
-#[cfg(not(windows))]
 fn run_hybrid(
     ceremony: &Ceremony,
     for_get: bool,
@@ -526,11 +765,23 @@ fn run_hybrid(
     let session = CableInitiator::new(&static_seed, &qr_secret)
         .ok_or_else(|| PasskeyFailure::other("could not start a caBLE session"))?;
 
-    // Offer BOTH channels (QR key 6): a WebSocket-only authenticator (GMS)
-    // ignores the BLE offer and uses the tunnel as before, while a CTAP 2.3
-    // BLE-only authenticator needs to SEE the offer or it rejects the QR
-    // outright. The advert's PSM then tells us which channel it actually chose.
-    (ceremony.qr)(Some(session.qr_payload(true, unix_seconds(), for_get)));
+    // Offer the BLE channel (QR key 6) only where it can be CONNECTED. On macOS
+    // that is both channels: a WebSocket-only authenticator (GMS) ignores the
+    // BLE offer and uses the tunnel as before, while a CTAP 2.3 BLE-only
+    // authenticator needs to SEE the offer or it rejects the QR outright, and
+    // the advert's PSM then says which one it chose.
+    //
+    // Windows and Linux have no L2CAP CoC to connect (see
+    // [`cable::BLE_CHANNEL_SUPPORTED`]), so they must not make the offer.
+    // Offering a channel that cannot be opened invites a dual-channel phone to
+    // pick the one that strands the ceremony; withholding it makes that same
+    // phone use the tunnel, and makes a BLE-only authenticator decline the QR
+    // up front — which is the truth, said early.
+    (ceremony.qr)(Some(session.qr_payload(
+        cable::BLE_CHANNEL_SUPPORTED,
+        unix_seconds(),
+        for_get,
+    )));
 
     let ephemeral_seed = random(32);
     let touch_notify = Arc::clone(&ceremony.touch);
@@ -554,7 +805,6 @@ fn run_hybrid(
 
 /// Wall-clock seconds since the epoch, for the QR's freshness field. The core is
 /// clockless; the shell owns the clock.
-#[cfg(not(windows))]
 fn unix_seconds() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
@@ -563,7 +813,6 @@ fn unix_seconds() -> i64 {
         .unwrap_or(0)
 }
 
-#[cfg(not(windows))]
 fn register_hybrid(
     name: &str,
     exclude_credential_ids: &[String],
@@ -591,7 +840,6 @@ fn register_hybrid(
     })
 }
 
-#[cfg(not(windows))]
 fn assert_hybrid(challenge: &[u8], ceremony: &Ceremony) -> Result<Assertion, PasskeyFailure> {
     let mut cable = run_hybrid(ceremony, true)?;
     let host = DesktopHost { ceremony };
@@ -620,6 +868,8 @@ fn assert_hybrid(challenge: &[u8], ceremony: &Ceremony) -> Result<Assertion, Pas
 // Opening a device (the transport's business, so it stays here)
 // ---------------------------------------------------------------------------
 
+// Unreachable on Windows, where `webauthn.dll` runs the USB ceremony instead.
+#[cfg_attr(windows, allow(dead_code))]
 fn nonces() -> impl Fn() -> [u8; 8] {
     || match random(8).try_into() {
         Ok(nonce) => nonce,
@@ -629,8 +879,10 @@ fn nonces() -> impl Fn() -> [u8; 8] {
 
 /// The key to run a ceremony on when ANY key will do — a registration, or the
 /// "who are you?" sign-in. With several plugged in, the one touched wins.
-fn open(ceremony: &Ceremony) -> Result<SecurityKey, PasskeyFailure> {
-    SecurityKey::open_touched(&nonces(), Some(&ceremony.touch)).map_err(device_failure)
+// Unreachable on Windows, where `webauthn.dll` runs the USB ceremony instead.
+#[cfg_attr(windows, allow(dead_code))]
+fn open(ceremony: &Ceremony) -> Result<SecurityKey, UsbError> {
+    SecurityKey::open_touched(&nonces(), Some(&ceremony.touch))
 }
 
 /// The key that already holds this credential.
@@ -643,7 +895,9 @@ fn open(ceremony: &Ceremony) -> Result<SecurityKey, PasskeyFailure> {
 /// The probe hash is fresh random bytes, never the ceremony's real client-data
 /// hash: a probe is discarded, and an assertion signed over the real hash by a
 /// key that then loses the race would be a signature nobody asked for.
-fn open_for(credential_id: &str, ceremony: &Ceremony) -> Result<SecurityKey, PasskeyFailure> {
+// Unreachable on Windows, where `webauthn.dll` runs the USB ceremony instead.
+#[cfg_attr(windows, allow(dead_code))]
+fn open_for(credential_id: &str, ceremony: &Ceremony) -> Result<SecurityKey, UsbError> {
     let Ok(id) = primitives::from_hex(credential_id) else {
         return open(ceremony);
     };
@@ -654,7 +908,6 @@ fn open_for(credential_id: &str, ceremony: &Ceremony) -> Result<SecurityKey, Pas
         &nonces(),
         Some(&ceremony.touch),
     )
-    .map_err(device_failure)
 }
 
 /// `name ‖ NUL ‖ uuid`, from the core's builder and this shell's randomness.

@@ -905,6 +905,9 @@ fn key_row(host: &FlowHost<'_>, index: usize, key: &CreateKeyRow) -> Div {
 fn method_picker(host: &FlowHost<'_>) -> Div {
     let theme = host.theme;
     let loc = host.loc;
+    // See `hardware::signin_method_card`: only Windows has a platform
+    // authenticator this shell can reach, and only when Hello is enrolled.
+    let this_device = crate::executor::passkey::platform_supported();
 
     let entry = |method: KeyMethod, title_key: &str, body: SharedString, available: bool| {
         let sink = host.sink.clone();
@@ -960,8 +963,12 @@ fn method_picker(host: &FlowHost<'_>) -> Div {
         .child(entry(
             KeyMethod::Platform,
             "onboarding.create.methodPlatformTitle",
-            loc.t("onboarding.create.securityKeyRequiredBody"),
-            false,
+            loc.t(if this_device {
+                "onboarding.create.methodPlatformBody"
+            } else {
+                "onboarding.create.securityKeyRequiredBody"
+            }),
+            this_device,
         ))
         .child(entry(
             // The scan method is live on desktop now: it shows a QR, and a phone

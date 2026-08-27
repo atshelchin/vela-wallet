@@ -123,6 +123,28 @@ p256 = { version = "0.13", features = ["ecdh"] }
 # each land in their own convention rather than in a hand-rolled `~/.vela`.
 dirs = "6"
 
+# The Windows passkey path — `webauthn.dll`, for the one ceremony Windows will
+# not let this process run itself (since Windows 10 build 1903 a non-elevated
+# process cannot open a FIDO HID device; see the crate's docs). The caBLE half
+# below is NOT delegated — it touches no HID device — so this covers the USB
+# security key and nothing else.
+#
+# **In `[dependencies]`, deliberately, and it has to stay here.** It compiles to
+# almost nothing off Windows: the `windows` crate is behind its own
+# `cfg(windows)` target section INSIDE it. A
+# `[target.'cfg(windows)'.dependencies]` entry would mean the module can only be
+# COMPILED by a Windows machine, and the whole reason it is a separate crate is
+# that `cargo check -p vela-passkey-win --target x86_64-pc-windows-gnu` runs
+# anywhere.
+#
+# It spent a while below instead, a few lines under
+# `[target.'cfg(target_os = "macos")'.dependencies]` — which TOML reads as "part
+# of that section", so the crate was a macOS-only dependency and the entire
+# Windows path failed to link on the one platform it exists for. A comment
+# saying "unconditional" is not a section header. Anything moved past line 150
+# of this file lands in a target section; check which one.
+vela-passkey-win = { path = "../vela-passkey-win" }
+
 # The caBLE / hybrid "sign in with your phone" transport (spec 019 T174). The
 # Noise handshake and CTAP framing are the core's (`vela_core::cable`); these
 # three are the pure platform I/O the core cannot do:
@@ -141,6 +163,22 @@ qrcode = { version = "0.14", default-features = false }
 # btleplug keys its service-data map by `uuid::Uuid`; name the type to match
 # on the caBLE service UUIDs. Same major as btleplug pulls, so no second copy.
 uuid = "1"
+
+# CTAP2 over the key's CCID (smart-card) interface — the removable key's other
+# USB wire, and on Windows the ONLY one this app may drive itself (the FIDO HID
+# lockdown does not extend to PC/SC). The protocol is the core's `ApduCable`;
+# this crate is only the platform I/O under it.
+#
+# **Not Linux, deliberately.** `pcsc-sys` links `winscard.dll` on Windows and the
+# `PCSC` framework on macOS — both ship with the OS, so those two pay nothing. On
+# Linux it wants `pkgconf` + `libpcsclite-dev` at build time and `libpcsclite.so.1`
+# at run time, which would add a system dependency to every Linux build host and a
+# `pcsc-lite` module to the Flatpak manifest. Linux's HID path already reaches
+# every key, so CCID buys it almost nothing — the one case it adds is a key whose
+# HID interface is switched off. Turning it on later is this section header plus
+# the manifest, and nothing else.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+pcsc = "2.9"
 
 # The CTAP 2.3 BLE-only data channel (spec 019 T174): once a BLE-capable
 # authenticator advertises an L2CAP PSM, the platform connects a CoC directly —
@@ -168,17 +206,6 @@ objc2-core-bluetooth = { version = "0.2.2", features = [
     "CBUUID",
     "CBAttribute",
 ] }
-
-# The Windows passkey path.
-#
-# Depended on UNCONDITIONALLY, and it compiles to almost nothing off Windows —
-# the `windows` crate is behind its own `cfg(windows)` target section inside it.
-# A `[target.'cfg(windows)'.dependencies]` entry here would mean the module can
-# only be COMPILED by a Windows machine, and the whole reason it is a separate
-# crate is that `cargo check -p vela-passkey-win --target x86_64-pc-windows-gnu`
-# runs anywhere. See its crate docs for why Windows needs it at all: since
-# Windows 10 build 1903 a non-elevated process cannot open a FIDO HID device.
-vela-passkey-win = { path = "../vela-passkey-win" }
 
 # Reading the HWND out of the gpui window to parent the passkey dialog to it.
 # gpui already depends on this crate and re-exports the trait impl, but a trait

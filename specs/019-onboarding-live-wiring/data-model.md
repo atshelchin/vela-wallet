@@ -16,8 +16,8 @@ beside `FailureKind` and `PromptKind`.
 
 | Variant | Design label | Design caption | This feature |
 | --- | --- | --- | --- |
-| `Platform` | 这台电脑 / 这台设备 | Touch ID 或 Windows Hello | usable on web, iOS, Android |
-| `Hybrid` | 手机或平板 | 扫码，用附近设备创建 | **present but unavailable** everywhere except web (where the browser owns the QR); feature 020 |
+| `Platform` | 这台电脑 / 这台设备 | Touch ID 或 Windows Hello | usable on web, iOS, Android, and Windows desktop (Hello via webauthn.dll, gated on it being enrolled); greyed on macOS/Linux desktop, which reach no platform authenticator from gpui |
+| `Hybrid` | 手机或平板 | 扫码，用附近设备创建 | live on web (the browser owns the QR) and on all three desktops (the app-owned caBLE client, T174) |
 | `SecurityKey` | USB 安全密钥 | 插入后轻触 | usable on web and desktop |
 
 Serialised `snake_case` (`platform` / `hybrid` / `security_key`), consistent with every

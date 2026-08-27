@@ -64,10 +64,10 @@ OS/browser sheet arbitrates (and validates the RP domain association).
 
 | Method | Web | Android | iOS | macOS | Windows | Linux |
 | --- | --- | --- | --- | --- | --- | --- |
-| **This device** | browser sheet | Credential Manager (system; needs a provider — GMS or third-party) | AS platform provider (system) | ⛔ 019: none in gpui — AS platform API is future work | webauthn.dll (Hello; system, **no association needed**) | ⛔ no platform authenticator exists |
-| **USB security key** | browser sheet | **app-owned CTAP2 over USB host** (`android.hardware.usb`, CTAPHID; **no GMS, no association, no OEM sheet**) — GMS FIDO2 direct stays as the already-working alternative where GMS exists | **app-owned FIDO over CCID** (CryptoTokenKit `TKSmartCard`, `com.apple.security.smartcard` entitlement; CTAP2 in ISO 7816 APDUs, byte-identical to the NFC binding; YubiKey firmware 5.8+; founder-proven in the demo) — the AS security-key provider stays as the system alternative | app-owned CTAP2/USB | webauthn.dll (system UI, **no association needed**) | app-owned CTAP2/USB |
-| **Scan (hybrid caBLE v2 / CTAP 2.3, incl. the BLE-only data channel — no tunnel server)** | browser sheet QR | system sheet's cross-device route where GMS exists; app-owned caBLE otherwise | system sheet's cross-device route, **plus the app-owned caBLE client** (founder-proven in the demo: QR + Noise + WebSocket tunnel AND the CTAP 2.3 BLE data channel) | app-owned caBLE client | webauthn.dll QR | app-owned caBLE client |
-| **Domain-association-free route exists** | ⛔ browser owns the client | ✅ app-owned CTAP USB + NFC (IsoDep) + caBLE | ✅ **app-owned CCID USB + NFC + caBLE** | ✅ USB + hybrid | ✅ webauthn.dll asserts any rpId | ✅ USB + hybrid |
+| **This device** | browser sheet | Credential Manager (system; needs a provider — GMS or third-party) | AS platform provider (system) | ⛔ 019: none in gpui — AS platform API is future work | webauthn.dll with `ATTACHMENT_PLATFORM` (Hello; system, **no association needed**) — the only desktop where "This device" is a live method row, gated on `WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable` so it is greyed until Hello is actually enrolled | ⛔ no platform authenticator exists |
+| **USB security key** | browser sheet | **app-owned CTAP2 over USB host** (`android.hardware.usb`, CTAPHID; **no GMS, no association, no OEM sheet**) — GMS FIDO2 direct stays as the already-working alternative where GMS exists | **app-owned FIDO over CCID** (CryptoTokenKit `TKSmartCard`, `com.apple.security.smartcard` entitlement; CTAP2 in ISO 7816 APDUs, byte-identical to the NFC binding; YubiKey firmware 5.8+; founder-proven in the demo) — the AS security-key provider stays as the system alternative | app-owned CTAP2/USB | **app-owned CTAP2 over CCID** (PC/SC `WinSCard`, the core's `ApduCable`, no elevation — the HID lockdown does not reach the smart-card subsystem; YubiKey firmware 5.8+), falling back to webauthn.dll for keys that do not answer on CCID | app-owned CTAP2/USB |
+| **Scan (hybrid caBLE v2 / CTAP 2.3, incl. the BLE-only data channel — no tunnel server)** | browser sheet QR | system sheet's cross-device route where GMS exists; app-owned caBLE otherwise | system sheet's cross-device route, **plus the app-owned caBLE client** (founder-proven in the demo: QR + Noise + WebSocket tunnel AND the CTAP 2.3 BLE data channel) | app-owned caBLE client | **app-owned caBLE client** — the same one macOS and Linux run. The HID lockdown reaches neither a BLE scan nor a WebSocket, and `webauthn.dll`'s own QR is Windows 11 22H2+, so delegating it would strand every Windows 10 machine | app-owned caBLE client |
+| **Domain-association-free route exists** | ⛔ browser owns the client | ✅ app-owned CTAP USB + NFC (IsoDep) + caBLE | ✅ **app-owned CCID USB + NFC + caBLE** | ✅ USB + hybrid | ✅ app-owned CCID + hybrid, and webauthn.dll asserts any rpId anyway | ✅ USB + hybrid |
 
 **Reference implementations (founder-built, protocol-proven on device)**:
 `/Volumes/data/production2/apppasskeysdemo` (Android: `transport/usb/UsbCtap.kt`,
@@ -507,8 +507,10 @@ the design authority table plus the full failure catalog.
   redesigned to v2 in this feature.
 - **macOS/Linux desktop needs a security key until the scan method lands there.** The
   gpui app has no system passkey service; it speaks to security keys itself. The
-  app-owned caBLE client (scan) lifts that, and on Windows webauthn.dll already offers
-  Hello, security keys and the QR route in one sheet.
+  app-owned caBLE client (scan) lifts that, and it lifts it on Windows too — the scan
+  method is the one ceremony all three desktops run themselves. Windows keeps its own
+  "this device" (Hello) on top, and delegates to webauthn.dll only a security key that
+  does not answer on CCID.
 - **The scan method ships enabled wherever a route exists** (see the matrix); where the
   app-owned caBLE client has not landed yet, the entry point stays present and explained
   rather than hidden, so no layout change is needed when it arrives.

@@ -229,7 +229,14 @@ jobs:
       # desktop APP — that tree compiles C and needs a mingw toolchain — so it
       # lives in its own crate with no C in it, and this is the only thing
       # standing between a Windows-only file and nobody ever compiling it.
-      # Checked, never run: nobody on the project has a Windows machine.
+      #
+      # Know what this gate does NOT cover: it checks the crate STANDALONE, so
+      # it says nothing about how the desktop app depends on it. That blind spot
+      # cost us once — the dependency sat inside
+      # `[target.'cfg(target_os = "macos")'.dependencies]` under a comment
+      # claiming it was unconditional, so the entire Windows path went unlinked
+      # while this job stayed green. Only a real Windows build finds that class
+      # of bug, and desktop-windows-packages runs on `desktop-v*` tags, not PRs.
       - name: Windows passkey path (type-check only)
         run: ../app-desktop/vela-wallet/scripts/check-windows.sh
       - name: Install wasm-pack

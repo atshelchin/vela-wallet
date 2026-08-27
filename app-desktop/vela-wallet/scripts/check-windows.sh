@@ -9,8 +9,14 @@
 # at all — including the mapping into the core's wire types, which would
 # otherwise be the one part of the Windows path nobody could check.
 #
-# What this does NOT do is run anything. Nobody on this project has a Windows
-# machine yet; every line here is checked and none of it is confirmed.
+# What this does NOT do is run anything: every line here is checked and none of
+# its BEHAVIOUR is confirmed — no ceremony has been run against a real key.
+#
+# It also checks this crate STANDALONE, which is the point (it runs anywhere)
+# and also its blind spot: it cannot see how the desktop app depends on it. The
+# app once declared this crate under
+# `[target.'cfg(target_os = "macos")'.dependencies]` and left the Windows path
+# unlinked, with this gate green throughout.
 set -euo pipefail
 cd "$(dirname "$0")/../../vela-passkey-win"
 

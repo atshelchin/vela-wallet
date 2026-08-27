@@ -603,6 +603,62 @@ fn the_chosen_add_method_reaches_the_shell_and_the_key_row() {
     );
 }
 
+/// The creation-time confirmation must run on the route that MINTED the key.
+///
+/// `SignMemberProof` is a `get()` against the credential the previous step just
+/// created, so it has to reach the same authenticator. A key minted on a phone
+/// over caBLE lives on that phone and nowhere else: confirming it against the
+/// USB port cannot succeed, and a shell that is its own CTAP client has only
+/// this field to route from — `transports` is for platforms that route for
+/// themselves. The desktop hard-coded a security key here, which made a
+/// scan-created wallet impossible to confirm.
+#[test]
+fn the_confirmation_runs_on_the_route_that_minted_the_key() {
+    let mut sut = registered("Ann");
+
+    let next = sut.dispatch(Event::AddKey {
+        name: "Phone".to_owned(),
+        method: KeyMethod::Hybrid,
+    });
+    assert!(
+        matches!(next.as_slice(), [ShellOperation::RegisterPasskey { .. }]),
+        "expected a registration, got {next:?}"
+    );
+
+    let next = sut.resolve(ShellResult::PasskeyRegistered {
+        registration: support::second_registration(CRED2),
+        now_iso: NOW.to_owned(),
+    });
+    match next.as_slice() {
+        [ShellOperation::SignMemberProof { method, .. }] => {
+            assert_eq!(
+                *method,
+                KeyMethod::Hybrid,
+                "the confirmation must return to the authenticator that minted the key"
+            );
+        }
+        other => panic!("expected the membership confirmation, got {other:?}"),
+    }
+
+    // The row's own retry carries it too — a cancelled confirmation must not
+    // come back on a different route than the one that can answer it.
+    sut.resolve(ShellResult::PasskeyFailed {
+        kind: FailureKind::Cancelled,
+        message: None,
+    });
+    let next = sut.dispatch(Event::ConfirmKey { index: 1 });
+    match next.as_slice() {
+        [ShellOperation::SignMemberProof { method, .. }] => {
+            assert_eq!(
+                *method,
+                KeyMethod::Hybrid,
+                "the retry must run on the same route as the first attempt"
+            );
+        }
+        other => panic!("expected the per-key confirmation retry, got {other:?}"),
+    }
+}
+
 /// The FIRST key's method is the person's choice too. This is the Xiaomi
 /// lock-out fix (device-found 2026-08-26): the core used to mint key 1 with
 /// `KeyMethod::default()` before the key screen existed, so on an OEM whose

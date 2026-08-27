@@ -722,6 +722,10 @@ fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> 
             public_key_hex: draft.public_key_hex,
             attestation_hex: draft.attestation_hex,
             transports: crate::passkey::allowlist_transports(&draft.transports),
+            // The route that minted this key confirms it. The draft recorded
+            // the person's choice at registration precisely so a later step can
+            // return to the same authenticator.
+            method: draft.method,
             group_public_key_hex,
         },
     )

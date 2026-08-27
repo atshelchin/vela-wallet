@@ -134,6 +134,19 @@ pub enum ShellOperation {
         /// that can actually complete.
         #[serde(default)]
         transports: String,
+        /// Which authenticator route to sign over — the same fact, and the same
+        /// reason, as [`ShellOperation::SignProof::method`]. The confirmation
+        /// must reach the key that was JUST minted, so it runs on the route
+        /// that minted it: a key created on a phone over caBLE is confirmed on
+        /// that phone, not on whatever is in the USB port.
+        ///
+        /// `transports` above says the same thing to a platform that ROUTES for
+        /// itself (a browser, Android's Credential Manager). A shell that is its
+        /// own CTAP client picks the transport itself and has nothing to read it
+        /// from — which is why both fields ride along and neither replaces the
+        /// other.
+        #[serde(default)]
+        method: KeyMethod,
         group_public_key_hex: String,
     },
     /// The v1 index's display name for a credential — the only place a

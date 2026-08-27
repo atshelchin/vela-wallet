@@ -36,7 +36,7 @@ pub mod storage;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use vela_core::app::{FailureKind, KeyMethod};
+use vela_core::app::FailureKind;
 use vela_core::app::session::{SessionOperation, SessionShellResult};
 use vela_core::app::shell::{ProofPurpose, ShellOperation, ShellResult};
 use vela_core::l10n::datetime::Civil;
@@ -117,7 +117,10 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             credential_id,
             public_key_hex,
             attestation_hex,
+            // `transports` steers a platform that routes for itself; this shell
+            // is its own CTAP client, so it routes on `method` instead.
             transports: _,
+            method,
             group_public_key_hex,
         } => {
             // Mixed failure modes: the challenge fetch and the ceremony can each
@@ -131,7 +134,7 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
                         message: format!("the registry challenge is not hex: {error}"),
                         network: false,
                     },
-                    Ok(bytes) => match passkey::assert(&bytes, Some(credential_id), KeyMethod::SecurityKey, ceremony) {
+                    Ok(bytes) => match passkey::assert(&bytes, Some(credential_id), *method, ceremony) {
                         Err(failure) => passkey_failed(failure),
                         Ok(assertion) => match build_member_proof(
                             &assertion.authenticator_data_hex,

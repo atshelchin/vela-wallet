@@ -64,7 +64,21 @@ attestation_hex: string,
  * platform offers the other-device route instead, which is the one
  * that can actually complete.
  */
-transports: string, group_public_key_hex: string, } | { "type": "lookup_legacy_name", credential_id: string, } | { "type": "authenticate_passkey", method: KeyMethod, } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, group_seed_hex: string, group_public_key_hex: string, 
+transports: string, 
+/**
+ * Which authenticator route to sign over — the same fact, and the same
+ * reason, as [`ShellOperation::SignProof::method`]. The confirmation
+ * must reach the key that was JUST minted, so it runs on the route
+ * that minted it: a key created on a phone over caBLE is confirmed on
+ * that phone, not on whatever is in the USB port.
+ *
+ * `transports` above says the same thing to a platform that ROUTES for
+ * itself (a browser, Android's Credential Manager). A shell that is its
+ * own CTAP client picks the transport itself and has nothing to read it
+ * from — which is why both fields ride along and neither replaces the
+ * other.
+ */
+method: KeyMethod, group_public_key_hex: string, } | { "type": "lookup_legacy_name", credential_id: string, } | { "type": "authenticate_passkey", method: KeyMethod, } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, group_seed_hex: string, group_public_key_hex: string, 
 /**
  * Which authenticator route a member with no replayable proof must sign
  * its live possession proof over. It matters only on desktop, and only

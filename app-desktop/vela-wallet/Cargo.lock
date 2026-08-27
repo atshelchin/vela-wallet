@@ -9032,7 +9032,6 @@ dependencies = [
  "resvg 0.45.1",
  "serde",
  "serde_json",
- "socks",
  "tokio",
  "tungstenite",
  "ureq",

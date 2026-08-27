@@ -141,11 +141,6 @@ qrcode = { version = "0.14", default-features = false }
 # btleplug keys its service-data map by `uuid::Uuid`; name the type to match
 # on the caBLE service UUIDs. Same major as btleplug pulls, so no second copy.
 uuid = "1"
-# SOCKS5 for the caBLE WebSocket tunnel. A GFW-blocked tunnel server (Google's
-# cable.ua5v.com) is only reachable through the same proxy the rest of the app
-# uses, and tungstenite connects a raw socket that would bypass it — so the
-# tunnel is dialed through the proxy explicitly, resolving the host AT the proxy.
-socks = "0.3"
 
 # The Windows passkey path.
 #

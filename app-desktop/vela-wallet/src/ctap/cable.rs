@@ -141,8 +141,10 @@ impl WebSocketCablePort {
         // of blocking it until the process exits.
         let _ = stream.set_read_timeout(Some(TUNNEL_READ_TIMEOUT));
 
+        log("socket connected; TLS + WebSocket handshake…");
         let (ws, _response) = tungstenite::client_tls(request, stream)
             .map_err(|error| HybridError::Tunnel(error.to_string()))?;
+        log("WebSocket tunnel established (fido.cable)");
 
         Ok(Self { ws })
     }
@@ -263,16 +265,120 @@ impl ProxyEndpoint {
     /// at the proxy (so a name the local resolver cannot reach still connects).
     fn connect(&self, host: &str, port: u16) -> Result<TcpStream, HybridError> {
         if self.socks {
-            // A domain target makes the `socks` crate resolve at the proxy
-            // (socks5h), which is the whole point here.
-            let stream = socks::Socks5Stream::connect((self.host.as_str(), self.port), (host, port))
-                .map_err(|error| {
-                    HybridError::Tunnel(format!("SOCKS5 proxy {self} failed: {error}"))
-                })?;
-            Ok(stream.into_inner())
+            socks5_connect(&self.host, self.port, host, port)
         } else {
             http_connect(&self.host, self.port, host, port)
         }
+    }
+}
+
+/// A SOCKS5 CONNECT tunnel to `host:port` through the proxy, with the host
+/// resolved AT the proxy (socks5h). Hand-rolled rather than via a crate so every
+/// step carries a timeout — a proxy that stalls must fail, not hang the sign-in
+/// — and so the proxy's own reply code becomes a sentence a person can act on.
+fn socks5_connect(
+    proxy_host: &str,
+    proxy_port: u16,
+    host: &str,
+    port: u16,
+) -> Result<TcpStream, HybridError> {
+    use std::io::{Read, Write};
+
+    let host_bytes = host.as_bytes();
+    if host_bytes.len() > 255 {
+        return Err(HybridError::Tunnel("tunnel host name too long for SOCKS5".to_owned()));
+    }
+
+    let address = (proxy_host, proxy_port)
+        .to_socket_addrs()
+        .map_err(|error| HybridError::Tunnel(format!("cannot resolve proxy {proxy_host}: {error}")))?
+        .next()
+        .ok_or_else(|| HybridError::Tunnel(format!("no address for proxy {proxy_host}")))?;
+    let mut stream = TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
+        .map_err(|error| HybridError::Tunnel(format!("cannot reach proxy {proxy_host}: {error}")))?;
+    // The handshake must not outlast the connect budget; the long read timeout is
+    // restored once the tunnel is up (for the person approving on their phone).
+    let _ = stream.set_read_timeout(Some(TUNNEL_CONNECT_TIMEOUT));
+    let _ = stream.set_write_timeout(Some(TUNNEL_CONNECT_TIMEOUT));
+
+    let socks_err = |detail: String| HybridError::Tunnel(format!("SOCKS5 proxy: {detail}"));
+
+    // Greeting: version 5, one method, "no authentication".
+    stream
+        .write_all(&[0x05, 0x01, 0x00])
+        .map_err(|error| socks_err(format!("greeting failed: {error}")))?;
+    let mut method = [0u8; 2];
+    stream
+        .read_exact(&mut method)
+        .map_err(|error| socks_err(format!("no greeting reply: {error}")))?;
+    if method[0] != 0x05 || method[1] != 0x00 {
+        return Err(socks_err(format!(
+            "proxy would not accept unauthenticated SOCKS5 (reply {method:02x?})"
+        )));
+    }
+
+    // CONNECT to the domain (ATYP 3), the proxy resolving it.
+    let mut request = vec![0x05, 0x01, 0x00, 0x03];
+    #[allow(clippy::cast_possible_truncation)]
+    request.push(host_bytes.len() as u8);
+    request.extend_from_slice(host_bytes);
+    request.extend_from_slice(&port.to_be_bytes());
+    stream
+        .write_all(&request)
+        .map_err(|error| socks_err(format!("CONNECT failed: {error}")))?;
+
+    let mut head = [0u8; 4];
+    stream
+        .read_exact(&mut head)
+        .map_err(|error| socks_err(format!("no CONNECT reply: {error}")))?;
+    if head[0] != 0x05 {
+        return Err(socks_err(format!("bad reply version {:#x}", head[0])));
+    }
+    if head[1] != 0x00 {
+        return Err(socks_err(format!(
+            "the proxy could not reach {host}:{port} ({})",
+            socks_reply_reason(head[1])
+        )));
+    }
+    // Drain the bound address the reply carries, per its address type.
+    match head[3] {
+        0x01 => drain(&mut stream, 4 + 2).map_err(socks_err)?,
+        0x04 => drain(&mut stream, 16 + 2).map_err(socks_err)?,
+        0x03 => {
+            let mut len = [0u8; 1];
+            stream
+                .read_exact(&mut len)
+                .map_err(|error| socks_err(format!("truncated reply: {error}")))?;
+            drain(&mut stream, len[0] as usize + 2).map_err(socks_err)?;
+        }
+        other => return Err(socks_err(format!("unknown reply address type {other:#x}"))),
+    }
+
+    let _ = stream.set_read_timeout(Some(TUNNEL_READ_TIMEOUT));
+    Ok(stream)
+}
+
+/// Read and discard `n` bytes (a SOCKS reply's bound address).
+fn drain(stream: &mut TcpStream, n: usize) -> Result<(), String> {
+    use std::io::Read;
+    let mut buffer = vec![0u8; n];
+    stream
+        .read_exact(&mut buffer)
+        .map_err(|error| format!("truncated reply: {error}"))
+}
+
+/// A SOCKS5 reply code as a short reason.
+fn socks_reply_reason(code: u8) -> &'static str {
+    match code {
+        0x01 => "general proxy failure",
+        0x02 => "connection not allowed by the proxy",
+        0x03 => "network unreachable",
+        0x04 => "host unreachable",
+        0x05 => "connection refused",
+        0x06 => "TTL expired",
+        0x07 => "command not supported",
+        0x08 => "address type not supported",
+        _ => "unknown SOCKS error",
     }
 }
 

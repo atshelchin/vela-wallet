@@ -152,7 +152,7 @@ final class HybridCableScanner: NSObject, CBCentralManagerDelegate, CBPeripheral
             p.openL2CAPChannel(CBL2CAPPSM(psm))
         }
         print("[vela-cable] L2CAP channel open")
-        return L2capCableConn(channel)
+        return L2capCableConn(channel, peripheral: p)
     }
 
     nonisolated func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) {

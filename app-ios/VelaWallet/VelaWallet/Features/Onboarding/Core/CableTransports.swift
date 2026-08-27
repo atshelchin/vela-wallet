@@ -112,6 +112,18 @@ final class CableConnPort: CableFramePort, @unchecked Sendable {
 final class L2capCableConn: NSObject, CableConn {
     nonisolated let channel = "L2CAP"
 
+    /// Held so CoreBluetooth keeps the connection alive for the port's
+    /// lifetime — the streams do NOT retain their channel, and a deallocated
+    /// CBL2CAPChannel tears the link down. Without this the channel died
+    /// ~150ms after opening, before the first Noise byte ("connection closed
+    /// by client" on the authenticator; device-found 2026-08-28, two-sided
+    /// logs). The desktop's Rust port keeps the identical reference for the
+    /// identical reason.
+    private let l2capChannel: CBL2CAPChannel
+    /// Same story one level up: CoreBluetooth cancels the connection when the
+    /// last strong reference to the peripheral goes away.
+    private let peripheral: CBPeripheral?
+
     private let input: InputStream
     private let output: OutputStream
     private var rxBuffer = Data()
@@ -121,7 +133,9 @@ final class L2capCableConn: NSObject, CableConn {
 
     private static let maxFrame = 1 << 20
 
-    init(_ ch: CBL2CAPChannel) {
+    init(_ ch: CBL2CAPChannel, peripheral: CBPeripheral? = nil) {
+        self.l2capChannel = ch
+        self.peripheral = peripheral
         self.input = ch.inputStream
         self.output = ch.outputStream
         super.init()
@@ -152,6 +166,14 @@ final class L2capCableConn: NSObject, CableConn {
         // frame that arrives first cancels it via the normal resume path.
         let watchdog = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 130_000_000_000)
+            // Load-bearing: cancelling a sleeping Task makes the sleep THROW
+            // IMMEDIATELY, and `try?` swallows that — without this check the
+            // "cancelled" watchdog fell through and killed the connection the
+            // instant a frame arrived. That was the whole BLE-only failure:
+            // msg2 read fine, the deferred cancel fired the watchdog, and the
+            // very next read found the channel "closed" (device-found
+            // 2026-08-28, two-sided logs, 51ms from success to teardown).
+            guard !Task.isCancelled else { return }
             guard let self, !self.closed else { return }
             self.fail(CableConnError.timeout)
         }

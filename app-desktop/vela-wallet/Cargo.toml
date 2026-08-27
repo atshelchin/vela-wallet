@@ -157,7 +157,18 @@ vela-passkey-win = { path = "../vela-passkey-win" }
 #   * qrcode — the FIDO:/ payload as a module matrix the onboarding screen draws.
 tungstenite = { version = "0.24", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
 btleplug = "0.11"
-tokio = { version = "1", default-features = false, features = ["rt", "time", "macros"] }
+# `net` here is the I/O DRIVER, not networking — nothing in this shell opens a
+# socket through tokio (the tunnel is blocking tungstenite). tokio gates
+# `Builder::enable_io` behind `cfg_io_driver` = `net`, or unix-only `process` /
+# `signal`; without one of them `scan_for_advert`'s `.enable_io()` does not
+# exist, and the error reads "private field, not a method" because the Builder
+# carries a field of that name unconditionally while the method is cfg'd.
+# It built on Linux only by accident: btleplug's BlueZ backend pulls
+# `dbus-tokio`, whose own `net` unifies onto this tokio — and that dependency is
+# cfg'd out of the macOS and Windows graphs, where btleplug is CoreBluetooth and
+# WinRT. So the driver the scan needs is named here rather than inherited from a
+# transport that only one of the three desktops compiles.
+tokio = { version = "1", default-features = false, features = ["rt", "time", "macros", "net"] }
 futures = { version = "0.3", default-features = false, features = ["std"] }
 qrcode = { version = "0.14", default-features = false }
 # btleplug keys its service-data map by `uuid::Uuid`; name the type to match

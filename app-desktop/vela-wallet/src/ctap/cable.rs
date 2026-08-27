@@ -17,7 +17,7 @@
 //! current-thread [`tokio`] runtime drives JUST the scan: the advert bytes come
 //! back and the runtime is done, before the blocking socket is ever opened.
 
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 use btleplug::api::{Central, CentralEvent, Manager as _, ScanFilter};
@@ -83,6 +83,14 @@ const SCAN_TIMEOUT: Duration = Duration::from_secs(90);
 /// then some), short enough that a dropped tunnel does not hang forever.
 const TUNNEL_READ_TIMEOUT: Duration = Duration::from_secs(130);
 
+/// How long to wait for the TCP connection to the tunnel server. Bounded so an
+/// unreachable tunnel — e.g. a network that cannot reach that server at all —
+/// fails cleanly instead of hanging the sign-in forever. (This is exactly the
+/// failure an Android phone hits when its assigned tunnel is Google's
+/// `cable.ua5v.com` and the network cannot reach it — the BLE-only channel is
+/// the answer there, not a longer wait.)
+const TUNNEL_CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
 /// The CTAP 2.2 WebSocket tunnel, as the core's [`CablePort`]: one binary frame
 /// per message.
 pub struct WebSocketCablePort {
@@ -91,7 +99,7 @@ pub struct WebSocketCablePort {
 
 impl WebSocketCablePort {
     /// Open the tunnel at `url` (`wss://…/cable/connect/<routing>/<tunnel>`),
-    /// negotiating the `fido.cable` subprotocol.
+    /// negotiating the `fido.cable` subprotocol, with a bounded TCP-connect wait.
     pub fn connect(url: &str) -> Result<Self, HybridError> {
         let mut request = url
             .into_client_request()
@@ -100,21 +108,29 @@ impl WebSocketCablePort {
             "Sec-WebSocket-Protocol",
             HeaderValue::from_static(CABLE_SUBPROTOCOL),
         );
-        let (ws, _response) =
-            tungstenite::connect(request).map_err(|error| HybridError::Tunnel(error.to_string()))?;
 
+        // Connect the TCP socket ourselves with a deadline — `tungstenite::connect`
+        // has none, so an unreachable tunnel would block the ceremony thread
+        // indefinitely. Then hand the connected socket to `client_tls`, which
+        // does the TLS and WebSocket handshakes over it.
+        let host = url
+            .strip_prefix("wss://")
+            .and_then(|rest| rest.split('/').next())
+            .filter(|host| !host.is_empty())
+            .ok_or_else(|| HybridError::Tunnel(format!("not a wss:// URL: {url}")))?;
+        let address = (host, 443u16)
+            .to_socket_addrs()
+            .map_err(|error| HybridError::Tunnel(format!("cannot resolve {host}: {error}")))?
+            .next()
+            .ok_or_else(|| HybridError::Tunnel(format!("no address for {host}")))?;
+        let stream = TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
+            .map_err(|error| HybridError::Tunnel(format!("cannot reach {host}: {error}")))?;
         // A bounded read so a phone that never answers frees the thread instead
-        // of blocking it until the process exits. Best effort: a stream whose
-        // inner socket cannot be reached just keeps the default (blocking) read.
-        match ws.get_ref() {
-            MaybeTlsStream::Plain(stream) => {
-                let _ = stream.set_read_timeout(Some(TUNNEL_READ_TIMEOUT));
-            }
-            MaybeTlsStream::Rustls(stream) => {
-                let _ = stream.get_ref().set_read_timeout(Some(TUNNEL_READ_TIMEOUT));
-            }
-            _ => {}
-        }
+        // of blocking it until the process exits.
+        let _ = stream.set_read_timeout(Some(TUNNEL_READ_TIMEOUT));
+
+        let (ws, _response) = tungstenite::client_tls(request, stream)
+            .map_err(|error| HybridError::Tunnel(error.to_string()))?;
 
         Ok(Self { ws })
     }

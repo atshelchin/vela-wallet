@@ -267,24 +267,41 @@ pub fn establish_hybrid(
 
     #[cfg(target_os = "linux")]
     if let Some(psm) = hit.psm {
-        if let Some((address, random)) = hit.address {
-            log(&format!(
-                "advert offers the BLE channel (PSM {psm}); connecting L2CAP CoC — no tunnel"
-            ));
-            let port = l2cap_linux::L2capCablePort::connect(address, random, psm)?;
-            log("L2CAP channel open; starting Noise handshake");
-            let cable = session
-                .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
-                .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
-            log("handshake complete; channel is up (BLE)");
-            return Ok(Box::new(cable));
+        match hit.address {
+            Some((address, random)) => {
+                log(&format!(
+                    "advert offers the BLE channel (PSM {psm}); connecting L2CAP CoC — no tunnel"
+                ));
+                // A refused or timed-out CoC is not the end of the ceremony: the
+                // advert plaintext still carries the routing id and tunnel
+                // domain, so a dual-channel phone is reachable on the tunnel
+                // even though it named a PSM. Only a BLE-ONLY authenticator is
+                // genuinely out of reach here, and it will simply not be at the
+                // other end of the tunnel — an honest failure one step later,
+                // rather than one that also strands every phone that offered
+                // both. Bounded by `CONNECT_TIMEOUT`, so the fall-through is
+                // reached in seconds rather than on the kernel's own schedule.
+                match l2cap_linux::L2capCablePort::connect(address, random, psm) {
+                    Ok(port) => {
+                        log("L2CAP channel open; starting Noise handshake");
+                        let cable = session
+                            .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
+                            .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
+                        log("handshake complete; channel is up (BLE)");
+                        return Ok(Box::new(cable));
+                    }
+                    Err(error) => log(&format!(
+                        "the BLE channel would not open ({error}); using the tunnel instead"
+                    )),
+                }
+            }
+            // The scan matched but BlueZ would not say the device's LE address —
+            // fall through to the tunnel, which needs no addressing.
+            None => log(&format!(
+                "advert offers the BLE channel (PSM {psm}) but the device's LE address \
+                 is unavailable; using the tunnel instead"
+            )),
         }
-        // The scan matched but BlueZ would not say the device's LE address —
-        // fall through to the tunnel, which needs no addressing.
-        log(&format!(
-            "advert offers the BLE channel (PSM {psm}) but the device's LE address \
-             is unavailable; using the tunnel instead"
-        ));
     }
 
     // A PSM on a desktop with no L2CAP is not a dead end: the 16-byte advert
@@ -621,7 +638,19 @@ struct AdvertHit {
 }
 
 fn scan_for_advert(eid_key: Vec<u8>) -> Result<AdvertHit, HybridError> {
+    // BOTH drivers, and the I/O one is not optional. On Linux `btleplug` reaches
+    // `bluetoothd` over D-Bus, and `dbus-tokio` registers that socket with the
+    // runtime's I/O driver: without `enable_io` its connection task panics with
+    // "A Tokio 1.x context was found, but IO is disabled", and because the panic
+    // lands on a spawned task rather than here, the failure SURFACES ~25s later
+    // as `org.freedesktop.DBus.Error.Timeout` from the first adapter call — a
+    // Bluetooth error that names D-Bus and nothing else. macOS and Windows never
+    // noticed: CoreBluetooth answers through a delegate and WinRT through its own
+    // async, so neither touches the reactor and a time-only runtime was enough.
+    // The scan is the common ancestor of both transports, so on Linux this one
+    // missing line took the BLE channel and the WebSocket tunnel down together.
     let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_io()
         .enable_time()
         .build()
         .map_err(|error| HybridError::Bluetooth(error.to_string()))?;

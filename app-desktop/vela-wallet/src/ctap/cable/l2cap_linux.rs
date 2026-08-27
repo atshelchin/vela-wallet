@@ -38,6 +38,14 @@ const BTPROTO_L2CAP: libc::c_int = 0;
 const BDADDR_LE_PUBLIC: u8 = 0x01;
 const BDADDR_LE_RANDOM: u8 = 0x02;
 
+/// How long the LE connect itself may take, matching the macOS module's
+/// per-step budget. `SO_RCVTIMEO` does NOT cover `connect(2)`, so without this
+/// the blocking connect sits on the kernel's own LE timeout while the sign-in
+/// screen shows nothing — and a phone that advertised a PSM but will not accept
+/// the channel is exactly the case that has to fail fast enough to fall back to
+/// the tunnel.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+
 /// How long a single frame's read may take before the peer is called dead —
 /// the same budget as the macOS module and the WebSocket tunnel (a person is
 /// approving on their phone inside it).
@@ -62,6 +70,80 @@ struct SockaddrL2 {
     l2_bdaddr: [u8; 6],
     l2_cid: u16,
     l2_bdaddr_type: u8,
+}
+
+/// `connect(2)` to `remote`, bounded by `timeout`.
+///
+/// The socket goes non-blocking for the call and is restored after, so the rest
+/// of the port — written throughout against a blocking socket whose reads are
+/// bounded by `SO_RCVTIMEO` — sees the socket it expects. A connect that is
+/// still in flight reports POLLOUT either way, so the real answer is read back
+/// out of `SO_ERROR` rather than inferred from the poll.
+fn connect_within(fd: &OwnedFd, remote: &SockaddrL2, timeout: Duration) -> io::Result<()> {
+    let raw = fd.as_raw_fd();
+    let flags = unsafe { libc::fcntl(raw, libc::F_GETFL) };
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if unsafe { libc::fcntl(raw, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let restore = |result: io::Result<()>| {
+        unsafe { libc::fcntl(raw, libc::F_SETFL, flags) };
+        result
+    };
+
+    let started = unsafe {
+        libc::connect(
+            raw,
+            (remote as *const SockaddrL2).cast(),
+            std::mem::size_of::<SockaddrL2>() as libc::socklen_t,
+        )
+    };
+    if started == 0 {
+        return restore(Ok(()));
+    }
+    let error = io::Error::last_os_error();
+    if error.raw_os_error() != Some(libc::EINPROGRESS) {
+        return restore(Err(error));
+    }
+
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    let millis = timeout.as_millis() as libc::c_int;
+    let mut watch = libc::pollfd {
+        fd: raw,
+        events: libc::POLLOUT,
+        revents: 0,
+    };
+    let ready = unsafe { libc::poll(std::ptr::addr_of_mut!(watch), 1, millis) };
+    if ready < 0 {
+        return restore(Err(io::Error::last_os_error()));
+    }
+    if ready == 0 {
+        return restore(Err(io::Error::new(
+            io::ErrorKind::TimedOut,
+            "the authenticator did not accept the channel",
+        )));
+    }
+
+    let mut pending: libc::c_int = 0;
+    let mut len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
+    let read_back = unsafe {
+        libc::getsockopt(
+            raw,
+            libc::SOL_SOCKET,
+            libc::SO_ERROR,
+            std::ptr::addr_of_mut!(pending).cast(),
+            std::ptr::addr_of_mut!(len),
+        )
+    };
+    if read_back < 0 {
+        return restore(Err(io::Error::last_os_error()));
+    }
+    if pending != 0 {
+        return restore(Err(io::Error::from_raw_os_error(pending)));
+    }
+    restore(Ok(()))
 }
 
 /// One L2CAP CoC to a caBLE authenticator, as the core's [`CablePort`].
@@ -131,19 +213,9 @@ impl L2capCablePort {
         remote.l2_psm = psm.to_le();
         remote.l2_bdaddr = bdaddr;
         remote.l2_bdaddr_type = if random { BDADDR_LE_RANDOM } else { BDADDR_LE_PUBLIC };
-        let connected = unsafe {
-            libc::connect(
-                fd.as_raw_fd(),
-                std::ptr::addr_of!(remote).cast(),
-                std::mem::size_of::<SockaddrL2>() as libc::socklen_t,
-            )
-        };
-        if connected < 0 {
-            return Err(HybridError::Bluetooth(format!(
-                "L2CAP connect (PSM {psm}): {}",
-                io::Error::last_os_error()
-            )));
-        }
+        connect_within(&fd, &remote, CONNECT_TIMEOUT).map_err(|error| {
+            HybridError::Bluetooth(format!("L2CAP connect (PSM {psm}): {error}"))
+        })?;
 
         Ok(Self {
             fd,

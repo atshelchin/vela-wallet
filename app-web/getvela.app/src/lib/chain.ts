@@ -26,7 +26,7 @@ import { gnosis } from 'viem/chains';
  * These are store-only display data — never part of any signed binding — so
  * the wallet address a passkey derives is unaffected by them.
  */
-export const CONTRACT_ADDRESS = '0x5266DfF591B9F9EecfEdb8E7EfEf6c687854edaf' as const;
+export const CONTRACT_ADDRESS = '0x94fD1A891EB6c5F340622Baf2F3A0cb70A941EA9' as const;
 
 /**
  * The legacy index (`WebAuthnP256PublicKeyIndex`): a server-signed store, kept

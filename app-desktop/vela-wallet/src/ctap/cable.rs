@@ -109,22 +109,34 @@ impl WebSocketCablePort {
             HeaderValue::from_static(CABLE_SUBPROTOCOL),
         );
 
-        // Connect the TCP socket ourselves with a deadline — `tungstenite::connect`
-        // has none, so an unreachable tunnel would block the ceremony thread
-        // indefinitely. Then hand the connected socket to `client_tls`, which
-        // does the TLS and WebSocket handshakes over it.
+        // Connect the TCP socket ourselves — `tungstenite::connect` has no
+        // deadline and, worse, dials a RAW socket that ignores the app's proxy.
+        // The tunnel server may be reachable only through that proxy (Google's
+        // cable.ua5v.com behind the GFW), so it is dialed through the proxy when
+        // one is configured, resolving the host at the proxy. Then the connected
+        // socket goes to `client_tls` for the TLS + WebSocket handshakes.
         let host = url
             .strip_prefix("wss://")
             .and_then(|rest| rest.split('/').next())
             .filter(|host| !host.is_empty())
             .ok_or_else(|| HybridError::Tunnel(format!("not a wss:// URL: {url}")))?;
-        let address = (host, 443u16)
-            .to_socket_addrs()
-            .map_err(|error| HybridError::Tunnel(format!("cannot resolve {host}: {error}")))?
-            .next()
-            .ok_or_else(|| HybridError::Tunnel(format!("no address for {host}")))?;
-        let stream = TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
-            .map_err(|error| HybridError::Tunnel(format!("cannot reach {host}: {error}")))?;
+
+        let stream = match resolve_proxy() {
+            Some(proxy) => {
+                log(&format!("dialing {host}:443 through {proxy}"));
+                proxy.connect(host, 443)?
+            }
+            None => {
+                log(&format!("dialing {host}:443 directly (no proxy configured)"));
+                let address = (host, 443u16)
+                    .to_socket_addrs()
+                    .map_err(|error| HybridError::Tunnel(format!("cannot resolve {host}: {error}")))?
+                    .next()
+                    .ok_or_else(|| HybridError::Tunnel(format!("no address for {host}")))?;
+                TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
+                    .map_err(|error| HybridError::Tunnel(format!("cannot reach {host}: {error}")))?
+            }
+        };
         // A bounded read so a phone that never answers frees the thread instead
         // of blocking it until the process exits.
         let _ = stream.set_read_timeout(Some(TUNNEL_READ_TIMEOUT));
@@ -214,6 +226,174 @@ fn log(line: &str) {
     eprintln!("[vela-cable] {line}");
 }
 
+/// Lowercase hex for a byte slice, for the diagnostic logs.
+fn hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        out.push_str(&format!("{byte:02x}"));
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
+// Proxy — the tunnel is reached through the same proxy the rest of the app uses
+// ---------------------------------------------------------------------------
+
+/// A configured forward proxy to dial the tunnel through.
+struct ProxyEndpoint {
+    socks: bool,
+    host: String,
+    port: u16,
+}
+
+impl std::fmt::Display for ProxyEndpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}://{}:{}",
+            if self.socks { "socks5" } else { "http" },
+            self.host,
+            self.port
+        )
+    }
+}
+
+impl ProxyEndpoint {
+    /// Open a TCP connection to `host:port` THROUGH the proxy, resolving `host`
+    /// at the proxy (so a name the local resolver cannot reach still connects).
+    fn connect(&self, host: &str, port: u16) -> Result<TcpStream, HybridError> {
+        if self.socks {
+            // A domain target makes the `socks` crate resolve at the proxy
+            // (socks5h), which is the whole point here.
+            let stream = socks::Socks5Stream::connect((self.host.as_str(), self.port), (host, port))
+                .map_err(|error| {
+                    HybridError::Tunnel(format!("SOCKS5 proxy {self} failed: {error}"))
+                })?;
+            Ok(stream.into_inner())
+        } else {
+            http_connect(&self.host, self.port, host, port)
+        }
+    }
+}
+
+/// An HTTP `CONNECT` tunnel through a forward proxy.
+fn http_connect(
+    proxy_host: &str,
+    proxy_port: u16,
+    host: &str,
+    port: u16,
+) -> Result<TcpStream, HybridError> {
+    use std::io::{Read, Write};
+
+    let address = (proxy_host, proxy_port)
+        .to_socket_addrs()
+        .map_err(|error| HybridError::Tunnel(format!("cannot resolve proxy {proxy_host}: {error}")))?
+        .next()
+        .ok_or_else(|| HybridError::Tunnel(format!("no address for proxy {proxy_host}")))?;
+    let mut stream = TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
+        .map_err(|error| HybridError::Tunnel(format!("cannot reach proxy {proxy_host}: {error}")))?;
+    stream
+        .write_all(
+            format!("CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\nProxy-Connection: keep-alive\r\n\r\n")
+                .as_bytes(),
+        )
+        .map_err(|error| HybridError::Tunnel(format!("proxy CONNECT write failed: {error}")))?;
+
+    let mut header = Vec::new();
+    let mut byte = [0u8; 1];
+    while !header.ends_with(b"\r\n\r\n") {
+        let read = stream
+            .read(&mut byte)
+            .map_err(|error| HybridError::Tunnel(format!("proxy CONNECT read failed: {error}")))?;
+        if read == 0 || header.len() > 8192 {
+            return Err(HybridError::Tunnel("proxy closed during CONNECT".to_owned()));
+        }
+        header.push(byte[0]);
+    }
+    let status = String::from_utf8_lossy(&header);
+    if !status.starts_with("HTTP/1.1 200") && !status.starts_with("HTTP/1.0 200") {
+        let first = status.lines().next().unwrap_or("").to_owned();
+        return Err(HybridError::Tunnel(format!("proxy refused CONNECT: {first}")));
+    }
+    Ok(stream)
+}
+
+/// The forward proxy to dial the tunnel through, or `None` for a direct
+/// connection. Reads the same environment `ureq` does, then (on macOS) the
+/// system network proxy — so a GUI proxy tool's system setting is honoured even
+/// when the app was launched from Finder with no proxy environment.
+fn resolve_proxy() -> Option<ProxyEndpoint> {
+    for name in [
+        "ALL_PROXY",
+        "all_proxy",
+        "HTTPS_PROXY",
+        "https_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+    ] {
+        if let Ok(spec) = std::env::var(name) {
+            if let Some(proxy) = parse_proxy_spec(spec.trim()) {
+                return Some(proxy);
+            }
+        }
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(proxy) = macos_system_proxy() {
+        return Some(proxy);
+    }
+    None
+}
+
+/// Parse `scheme://[user:pass@]host:port` into an endpoint. Auth is dropped —
+/// the local proxies this meets do not use it, and carrying it wrong is worse
+/// than not carrying it.
+fn parse_proxy_spec(spec: &str) -> Option<ProxyEndpoint> {
+    if spec.is_empty() {
+        return None;
+    }
+    let (scheme, rest) = spec.split_once("://").unwrap_or(("http", spec));
+    let socks = match scheme {
+        "socks5" | "socks5h" | "socks" | "socks4" | "socks4a" => true,
+        "http" | "https" => false,
+        _ => return None,
+    };
+    let authority = rest.rsplit_once('@').map_or(rest, |(_, host)| host);
+    let authority = authority.trim_end_matches('/');
+    let (host, port) = authority.rsplit_once(':')?;
+    if host.is_empty() {
+        return None;
+    }
+    Some(ProxyEndpoint {
+        socks,
+        host: host.to_owned(),
+        port: port.parse().ok()?,
+    })
+}
+
+/// The macOS system network proxy (SOCKS preferred, then HTTPS), via `scutil`.
+#[cfg(target_os = "macos")]
+fn macos_system_proxy() -> Option<ProxyEndpoint> {
+    let output = std::process::Command::new("scutil").arg("--proxy").output().ok()?;
+    let text = String::from_utf8_lossy(&output.stdout);
+    let field = |key: &str| -> Option<String> {
+        text.lines()
+            .find_map(|line| line.trim().strip_prefix(&format!("{key} : ")).map(str::to_owned))
+    };
+    let enabled = |key: &str| field(key).as_deref() == Some("1");
+
+    if enabled("SOCKSEnable") {
+        if let (Some(host), Some(port)) = (field("SOCKSProxy"), field("SOCKSPort").and_then(|p| p.parse().ok())) {
+            return Some(ProxyEndpoint { socks: true, host, port });
+        }
+    }
+    if enabled("HTTPSEnable") {
+        if let (Some(host), Some(port)) = (field("HTTPSProxy"), field("HTTPSPort").and_then(|p| p.parse().ok())) {
+            return Some(ProxyEndpoint { socks: false, host, port });
+        }
+    }
+    None
+}
+
 /// Scan the Bluetooth radio for a proximity advert that decrypts under this
 /// session's EID key, and return its 16-byte plaintext. Blocks (on a private
 /// current-thread runtime) up to [`SCAN_TIMEOUT`].
@@ -273,11 +453,24 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
             let Some(data) = service_data.get(&uuid) else {
                 continue;
             };
-            log(&format!("candidate under {uuid} ({} bytes)", data.len()));
+            log(&format!(
+                "candidate under {uuid} ({} bytes): {}",
+                data.len(),
+                hex(data)
+            ));
             if data.len() < 20 {
                 continue;
             }
             if let Some(plaintext) = cable_crypto::try_decrypt_advert(&data[0..20], eid_key) {
+                // Bytes past the first 20 are the CTAP 2.3 BLE suffix — a CBOR
+                // map whose key 1 is the L2CAP PSM for the local Bluetooth data
+                // channel. Its presence is what says "this phone offers BLE-only".
+                let suffix = &data[20..];
+                let psm = cable_crypto::parse_advert_psm(suffix);
+                log(&format!(
+                    "decrypted; suffix={} PSM={psm:?}",
+                    if suffix.is_empty() { "(none)".to_owned() } else { hex(suffix) }
+                ));
                 let _ = adapter.stop_scan().await;
                 return Ok(plaintext);
             }

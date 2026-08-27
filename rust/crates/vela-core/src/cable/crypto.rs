@@ -92,6 +92,33 @@ pub fn try_decrypt_advert(candidate: &[u8], eid_key: &[u8]) -> Option<[u8; 16]> 
     Some(block)
 }
 
+/// The L2CAP PSM from a CTAP 2.3 BLE advert suffix, or `None` when the advert
+/// offers no local Bluetooth data channel.
+///
+/// The service data past the first 20 bytes (the encrypted EID) is a CBOR map
+/// whose key `1` is the PSM the responder is listening on for an L2CAP
+/// connection-oriented channel. A responder that offers only the WebSocket
+/// tunnel sends no suffix, so this is `None` — the caller then falls back to the
+/// tunnel. Ported from the founder's proven demo (`HybridBleClient` `parsePsm`).
+#[must_use]
+pub fn parse_advert_psm(suffix: &[u8]) -> Option<u16> {
+    if suffix.is_empty() {
+        return None;
+    }
+    let value: ciborium::Value = ciborium::de::from_reader(suffix).ok()?;
+    let ciborium::Value::Map(entries) = value else {
+        return None;
+    };
+    for (key, val) in entries {
+        if matches!(key, ciborium::Value::Integer(i) if i == 1.into()) {
+            if let ciborium::Value::Integer(psm) = val {
+                return u16::try_from(i128::from(psm)).ok();
+            }
+        }
+    }
+    None
+}
+
 /// The parsed 16-byte EID plaintext from a BLE proximity advert.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdvertEid {
@@ -126,6 +153,7 @@ impl AdvertEid {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use ciborium::Value;
 
     /// The derivations are deterministic and the right length, and the three
     /// purposes never collide (different `info` ⇒ different output).
@@ -170,6 +198,27 @@ mod tests {
         let mut forged = advert;
         forged[19] ^= 0x01;
         assert_eq!(try_decrypt_advert(&forged, &key), None);
+    }
+
+    #[test]
+    fn a_psm_suffix_parses_and_an_empty_one_is_none() {
+        // A CBOR map {1: 0x0080} — PSM 128.
+        let mut suffix = Vec::new();
+        ciborium::ser::into_writer(
+            &Value::Map(vec![(Value::Integer(1.into()), Value::Integer(128.into()))]),
+            &mut suffix,
+        )
+        .unwrap();
+        assert_eq!(parse_advert_psm(&suffix), Some(128));
+        assert_eq!(parse_advert_psm(&[]), None, "no suffix ⇒ WebSocket-only");
+        // A map without key 1 has no PSM.
+        let mut other = Vec::new();
+        ciborium::ser::into_writer(
+            &Value::Map(vec![(Value::Integer(2.into()), Value::Integer(1.into()))]),
+            &mut other,
+        )
+        .unwrap();
+        assert_eq!(parse_advert_psm(&other), None);
     }
 
     #[test]

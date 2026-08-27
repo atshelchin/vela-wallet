@@ -260,7 +260,7 @@ pub struct Assertion {
 /// One ceremony's worth of context: a cable that is already talking to one
 /// authenticator, a host that can answer for the person, and the relying
 /// party this wallet lives under.
-pub struct Client<'a, C: Cable, H: Host> {
+pub struct Client<'a, C: Cable + ?Sized, H: Host> {
     pub cable: &'a mut C,
     pub host: &'a H,
     pub rp_id: &'a str,
@@ -276,7 +276,7 @@ pub struct Client<'a, C: Cable, H: Host> {
 /// looping.
 const MAX_ENUMERATED_CREDENTIALS: u32 = 16;
 
-impl<C: Cable, H: Host> Client<'_, C, H> {
+impl<C: Cable + ?Sized, H: Host> Client<'_, C, H> {
     /// Mint a discoverable ES256 credential on the authenticator.
     pub fn register(
         &mut self,

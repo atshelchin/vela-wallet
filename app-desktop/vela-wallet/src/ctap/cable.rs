@@ -29,11 +29,14 @@ use tungstenite::stream::MaybeTlsStream;
 use tungstenite::{Message, WebSocket};
 use uuid::Uuid;
 
-use vela_core::cable::conn::{CableConnection, CablePort};
+use vela_core::cable::conn::CablePort;
 use vela_core::cable::crypto as cable_crypto;
 use vela_core::cable::session::CableInitiator;
-use vela_core::ctap::ceremony::TouchAnnouncer;
+use vela_core::ctap::ceremony::{Cable, TouchAnnouncer};
 use vela_core::ctap::hid_cable::PortError;
+
+#[cfg(target_os = "macos")]
+mod l2cap;
 
 /// What can go wrong standing a hybrid connection up, BEFORE the `Cable` exists.
 /// Once the handshake runs, failures are the core's `CableError`.
@@ -215,29 +218,50 @@ pub fn establish_hybrid(
     product: String,
     ephemeral_seed: &[u8],
     on_touch: Option<TouchAnnouncer>,
-) -> Result<CableConnection<WebSocketCablePort>, HybridError> {
-    // 1. Find the phone by its BLE proximity advert.
+) -> Result<Box<dyn Cable>, HybridError> {
+    // 1. Find the authenticator by its BLE proximity advert.
     log("scanning for the phone's Bluetooth advert…");
-    let advert = scan_for_advert(session.eid_key())?;
+    let hit = scan_for_advert(session.eid_key())?;
     log("advert found; decrypted");
 
-    // 2. The advert names the tunnel server and routing; build the URL.
-    let url = session.connect_url(&advert).ok_or(HybridError::BadAdvert)?;
-    log(&format!("opening tunnel: {url}"));
-
-    // 3. Open the tunnel.
-    let port = WebSocketCablePort::connect(&url)?;
-    log("tunnel open; starting Noise handshake");
-
-    // 4. Run the Noise handshake over it → a Cable.
-    let result = session
-        .establish(port, &advert, ephemeral_seed, product, on_touch)
-        .map_err(|error| HybridError::Handshake(format!("{error:?}")));
-    match &result {
-        Ok(_) => log("handshake complete; channel is up"),
-        Err(error) => log(&format!("handshake failed: {error}")),
+    // 2. The advert chooses the channel: a PSM means the CTAP 2.3 local BLE
+    //    channel (direct L2CAP, no tunnel — the GFW-proof path); no PSM means
+    //    the CTAP 2.2 WebSocket tunnel.
+    match hit.psm {
+        Some(psm) => {
+            log(&format!(
+                "advert offers the BLE channel (PSM {psm}); connecting L2CAP CoC — no tunnel"
+            ));
+            #[cfg(target_os = "macos")]
+            {
+                let port = l2cap::L2capCablePort::connect(&hit.peripheral, psm)?;
+                log("L2CAP channel open; starting Noise handshake");
+                let cable = session
+                    .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
+                    .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
+                log("handshake complete; channel is up (BLE)");
+                Ok(Box::new(cable))
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = (psm, &hit.peripheral, session, ephemeral_seed, product, on_touch);
+                Err(HybridError::Bluetooth(
+                    "the BLE-only channel is not supported on this desktop OS yet".to_owned(),
+                ))
+            }
+        }
+        None => {
+            let url = session.connect_url(&hit.plaintext).ok_or(HybridError::BadAdvert)?;
+            log(&format!("no BLE channel offered; opening tunnel: {url}"));
+            let port = WebSocketCablePort::connect(&url)?;
+            log("tunnel open; starting Noise handshake");
+            let cable = session
+                .establish(port, &hit.plaintext, ephemeral_seed, product, on_touch)
+                .map_err(|error| HybridError::Handshake(format!("{error:?}")))?;
+            log("handshake complete; channel is up (WebSocket)");
+            Ok(Box::new(cable))
+        }
     }
-    result
 }
 
 /// One diagnostics line to stderr. The hybrid path has no `Host` in reach, and
@@ -523,7 +547,16 @@ fn macos_system_proxy() -> Option<ProxyEndpoint> {
 /// Scan the Bluetooth radio for a proximity advert that decrypts under this
 /// session's EID key, and return its 16-byte plaintext. Blocks (on a private
 /// current-thread runtime) up to [`SCAN_TIMEOUT`].
-fn scan_for_advert(eid_key: Vec<u8>) -> Result<[u8; 16], HybridError> {
+/// The matched advert: the decrypted 16-byte EID, the L2CAP PSM if the
+/// authenticator offered the BLE channel, and the peripheral it came from (as a
+/// UUID string, for a CoreBluetooth L2CAP connect).
+struct AdvertHit {
+    plaintext: [u8; 16],
+    psm: Option<u16>,
+    peripheral: String,
+}
+
+fn scan_for_advert(eid_key: Vec<u8>) -> Result<AdvertHit, HybridError> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_time()
         .build()
@@ -539,7 +572,7 @@ fn scan_for_advert(eid_key: Vec<u8>) -> Result<[u8; 16], HybridError> {
 
 /// The async half of the scan: watch service-data adverts, trial-decrypting the
 /// first 20 bytes of each under the two caBLE service UUIDs.
-async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
+async fn scan_loop(eid_key: &[u8]) -> Result<AdvertHit, HybridError> {
     let manager = Manager::new()
         .await
         .map_err(|error| HybridError::Bluetooth(error.to_string()))?;
@@ -572,7 +605,7 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
 
     while let Some(event) = events.next().await {
         // The caBLE advert is service data under 0xFFF9 / 0xFDE2.
-        let CentralEvent::ServiceDataAdvertisement { service_data, .. } = event else {
+        let CentralEvent::ServiceDataAdvertisement { id, service_data } = event else {
             continue;
         };
         for uuid in SERVICE_UUIDS {
@@ -585,15 +618,20 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
             if let Some(plaintext) = cable_crypto::try_decrypt_advert(&data[0..20], eid_key) {
                 // Bytes past the first 20 are the CTAP 2.3 BLE suffix — a CBOR
                 // map whose key 1 is the L2CAP PSM for the local Bluetooth data
-                // channel. Its presence is what says "this phone offers BLE-only".
+                // channel. Its presence is what says "this authenticator offers
+                // the direct BLE channel"; absence means WebSocket-only (GMS).
                 let suffix = &data[20..];
                 let psm = cable_crypto::parse_advert_psm(suffix);
                 log(&format!(
-                    "matched this QR; suffix={} PSM={psm:?}",
+                    "matched this QR on {id}; suffix={} PSM={psm:?}",
                     if suffix.is_empty() { "(none)".to_owned() } else { hex(suffix) }
                 ));
                 let _ = adapter.stop_scan().await;
-                return Ok(plaintext);
+                return Ok(AdvertHit {
+                    plaintext,
+                    psm,
+                    peripheral: id.to_string(),
+                });
             }
             // A caBLE advert that is not ours. Log each distinct one once.
             if unmatched.insert(data.to_vec()) {

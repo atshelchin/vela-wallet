@@ -142,6 +142,33 @@ qrcode = { version = "0.14", default-features = false }
 # on the caBLE service UUIDs. Same major as btleplug pulls, so no second copy.
 uuid = "1"
 
+# The CTAP 2.3 BLE-only data channel (spec 019 T174): once a BLE-capable
+# authenticator advertises an L2CAP PSM, the platform connects a CoC directly —
+# no tunnel server, no relay, no GFW. btleplug has NO L2CAP, so the connection
+# is CoreBluetooth via objc2 (macOS only). Pinned to the exact versions gpui
+# already pulls, so no second copy of any objc2 crate enters the tree.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-foundation = { version = "0.2", features = [
+    "NSStream",
+    "NSData",
+    "NSError",
+    "NSString",
+    "NSArray",
+    "NSObject",
+    "NSRunLoop",
+    "NSDate",
+] }
+objc2-core-bluetooth = { version = "0.2.2", features = [
+    "CBCentralManager",
+    "CBManager",
+    "CBPeripheral",
+    "CBPeer",
+    "CBL2CAPChannel",
+    "CBUUID",
+    "CBAttribute",
+] }
+
 # The Windows passkey path.
 #
 # Depended on UNCONDITIONALLY, and it compiles to almost nothing off Windows —

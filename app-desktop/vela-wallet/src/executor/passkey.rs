@@ -26,7 +26,6 @@
 use std::sync::Arc;
 
 use vela_core::app::{Assertion, FailureKind, KeyMethod, Registration};
-use vela_core::cable::conn::CableConnection;
 use vela_core::cable::session::CableInitiator;
 use vela_core::ctap::ceremony::{self, Cable, CableError, CeremonyError, TouchAnnouncer, TouchKind};
 use vela_core::primitives;
@@ -35,7 +34,7 @@ use vela_core::primitives;
 use vela_core::types::ClientDataKind;
 
 #[cfg(not(windows))]
-use crate::ctap::cable::{self, HybridError, WebSocketCablePort};
+use crate::ctap::cable::{self, HybridError};
 use crate::ctap::usb::{SecurityKey, TouchNotifier, TouchRequest, UsbError};
 
 /// The relying party every Vela passkey is bound to. A passkey cannot be moved
@@ -521,13 +520,17 @@ fn assert_ctap(
 fn run_hybrid(
     ceremony: &Ceremony,
     for_get: bool,
-) -> Result<CableConnection<WebSocketCablePort>, PasskeyFailure> {
+) -> Result<Box<dyn Cable>, PasskeyFailure> {
     let static_seed = random(32);
     let qr_secret = random(16);
     let session = CableInitiator::new(&static_seed, &qr_secret)
         .ok_or_else(|| PasskeyFailure::other("could not start a caBLE session"))?;
 
-    (ceremony.qr)(Some(session.qr_payload(false, unix_seconds(), for_get)));
+    // Offer BOTH channels (QR key 6): a WebSocket-only authenticator (GMS)
+    // ignores the BLE offer and uses the tunnel as before, while a CTAP 2.3
+    // BLE-only authenticator needs to SEE the offer or it rejects the QR
+    // outright. The advert's PSM then tells us which channel it actually chose.
+    (ceremony.qr)(Some(session.qr_payload(true, unix_seconds(), for_get)));
 
     let ephemeral_seed = random(32);
     let touch_notify = Arc::clone(&ceremony.touch);
@@ -569,7 +572,7 @@ fn register_hybrid(
     let mut cable = run_hybrid(ceremony, false)?;
     let host = DesktopHost { ceremony };
     let registration = ceremony::Client {
-        cable: &mut cable,
+        cable: cable.as_mut(),
         host: &host,
         rp_id: RELYING_PARTY,
         rp_name: RELYING_PARTY_NAME,
@@ -593,7 +596,7 @@ fn assert_hybrid(challenge: &[u8], ceremony: &Ceremony) -> Result<Assertion, Pas
     let mut cable = run_hybrid(ceremony, true)?;
     let host = DesktopHost { ceremony };
     let assertion = ceremony::Client {
-        cable: &mut cable,
+        cable: cable.as_mut(),
         host: &host,
         rp_id: RELYING_PARTY,
         rp_name: RELYING_PARTY_NAME,

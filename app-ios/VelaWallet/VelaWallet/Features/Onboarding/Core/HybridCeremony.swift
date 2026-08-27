@@ -110,10 +110,12 @@ final class HybridCeremony {
         await MainActor.run { showQr(qr) }
         defer { Task { @MainActor in self.showQr(nil) } }
 
+        print("[vela-cable] QR on screen; scanning for the phone's advert…")
         guard let hit = await scanner.findResponder(
             qrSecret: session.qrSecret,
             timeoutMs: Self.scanTimeoutMs
         ) else {
+            print("[vela-cable] no advert matched within the scan window")
             throw PasskeyFailure(
                 kind: .other,
                 message: "No phone answered the code. Scan it with the other device and try again."
@@ -124,8 +126,10 @@ final class HybridCeremony {
         // channel (no tunnel, no internet); none means the CTAP 2.2 tunnel.
         let conn: CableConn
         if let psm = hit.advert.psm {
+            print("[vela-cable] advert offers BLE (PSM \(psm)) — L2CAP CoC, no tunnel")
             conn = try await scanner.openL2cap(hit, psm: psm, timeoutMs: Self.connectTimeoutMs)
         } else {
+            print("[vela-cable] advert has no PSM — WebSocket tunnel")
             guard let urlString = cableConnectUrl(
                 staticSeed: session.staticSeed,
                 qrSecret: session.qrSecret,
@@ -144,11 +148,13 @@ final class HybridCeremony {
             port.close()
         }
 
+        print("[vela-cable] channel up; starting the ceremony (Noise + CTAP in Rust)")
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     continuation.resume(returning: try body(port, plaintext, host, session))
                 } catch let error as CtapError {
+                    print("[vela-cable] ceremony failed: \(error)")
                     continuation.resume(throwing: error.toPasskeyFailure())
                 } catch {
                     continuation.resume(

@@ -63,7 +63,11 @@ final class HybridCableScanner: NSObject, CBCentralManagerDelegate, CBPeripheral
 
     private func startScanIfReady() {
         // Wait for didUpdateState when the radio is still warming up.
-        guard central.state == .poweredOn else { return }
+        guard central.state == .poweredOn else {
+            print("[vela-cable] bluetooth not ready (state=\(central.state.rawValue)); waiting")
+            return
+        }
+        print("[vela-cable] scan started (no service filter, trial-decrypting service data)")
         // `withServices: nil`, NOT the FIDO UUIDs: the caBLE proximity advert
         // carries them inside Service Data (AD type 0x16), and CoreBluetooth's
         // service filter matches only the advertised service-UUID list — it
@@ -85,9 +89,12 @@ final class HybridCableScanner: NSObject, CBCentralManagerDelegate, CBPeripheral
 
     nonisolated func centralManagerDidUpdateState(_ c: CBCentralManager) {
         MainActor.assumeIsolated {
+            print("[vela-cable] bluetooth state -> \(c.state.rawValue)")
             switch c.state {
             case .poweredOn: if scanCont != nil { startScanIfReady() }
-            case .unauthorized, .poweredOff: finishScan(nil)
+            case .unauthorized, .poweredOff:
+                print("[vela-cable] bluetooth unavailable/denied — scan over")
+                finishScan(nil)
             default: break
             }
         }
@@ -105,7 +112,11 @@ final class HybridCableScanner: NSObject, CBCentralManagerDelegate, CBPeripheral
                 guard let sd = sdMap[uuid], sd.count >= 20 else { continue }
                 // The WHOLE payload: bytes past 20 are the CTAP 2.3 BLE suffix
                 // the core reads the PSM from.
-                guard let advert = cableTryDecryptAdvert(qrSecret: qrSecret, candidate: sd) else { continue }
+                guard let advert = cableTryDecryptAdvert(qrSecret: qrSecret, candidate: sd) else {
+                    print("[vela-cable] caBLE advert for a DIFFERENT QR (\(sd.count) bytes)")
+                    continue
+                }
+                print("[vela-cable] matched this QR; PSM=\(advert.psm.map(String.init) ?? "none") rssi=\(RSSI)")
                 connectingPeripheral = p
                 finishScan(AdvertHit(peripheral: p, advert: advert))
                 return
@@ -134,11 +145,13 @@ final class HybridCableScanner: NSObject, CBCentralManagerDelegate, CBPeripheral
             }
         }
         connectWatchdog?.cancel(); connectWatchdog = nil
+        print("[vela-cable] GATT connected; opening L2CAP CoC (PSM \(psm))")
 
         let channel = try await withCheckedThrowingContinuation { (cont: CheckedContinuation<CBL2CAPChannel, Error>) in
             self.openCont = cont
             p.openL2CAPChannel(CBL2CAPPSM(psm))
         }
+        print("[vela-cable] L2CAP channel open")
         return L2capCableConn(channel)
     }
 

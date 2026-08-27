@@ -69,6 +69,9 @@ final class CableConnPort: CableFramePort, @unchecked Sendable {
             semaphore.signal()
         }
         semaphore.wait()
+        if let failure { print("[vela-cable] → write FAILED: \(failure)") } else {
+            print("[vela-cable] → frame (\(frame.count) bytes) via \(name)")
+        }
         return failure
     }
 
@@ -76,7 +79,9 @@ final class CableConnPort: CableFramePort, @unchecked Sendable {
         let semaphore = DispatchSemaphore(value: 0)
         var outcome: CableFrameOutcome = .timedOut
         Task { @MainActor [conn] in
-            do { outcome = .frame(bytes: try await conn.readFrame()) } catch CableConnError.timeout {
+            do {
+                outcome = .frame(bytes: try await conn.readFrame())
+            } catch CableConnError.timeout {
                 outcome = .timedOut
             } catch {
                 outcome = .failed(detail: "\(error)")
@@ -84,18 +89,20 @@ final class CableConnPort: CableFramePort, @unchecked Sendable {
             semaphore.signal()
         }
         semaphore.wait()
+        switch outcome {
+        case let .frame(bytes): print("[vela-cable] ← frame (\(bytes.count) bytes) via \(name)")
+        case .timedOut: print("[vela-cable] ← read timed out via \(name)")
+        case let .failed(detail): print("[vela-cable] ← read FAILED via \(name): \(detail)")
+        }
         return outcome
     }
 
     func channel() -> String { name }
 
+    /// Fire-and-forget: called from the ceremony's `defer`, whose executor must
+    /// not block on the main actor just to close a socket.
     func close() {
-        let semaphore = DispatchSemaphore(value: 0)
-        Task { @MainActor [conn] in
-            conn.close()
-            semaphore.signal()
-        }
-        semaphore.wait()
+        Task { @MainActor [conn] in conn.close() }
     }
 }
 
@@ -139,7 +146,17 @@ final class L2capCableConn: NSObject, CableConn {
     }
 
     func readFrame() async throws -> Data {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
+        // A read must not outlive the ceremony budget (the person approving on
+        // the other phone): a stream that never delivers would otherwise pin
+        // the Rust thread forever. The watchdog fails ALL pending reads; a
+        // frame that arrives first cancels it via the normal resume path.
+        let watchdog = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 130_000_000_000)
+            guard let self, !self.closed else { return }
+            self.fail(CableConnError.timeout)
+        }
+        defer { watchdog.cancel() }
+        return try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Data, Error>) in
             if closed { cont.resume(throwing: CableConnError.closed); return }
             pendingReads.append(cont)
             drainFrames()
@@ -236,21 +253,24 @@ final class WebSocketCableConn: NSObject, CableConn {
         // delegateQueue = .main so the delegate callbacks land on the MainActor.
         c.session = URLSession(configuration: cfg, delegate: c, delegateQueue: .main)
         c.task = c.session.webSocketTask(with: url, protocols: [subprotocol])
+        print("[vela-cable] opening tunnel: \(url)")
 
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { @MainActor in
-                try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-                    c.openCont = cont
-                    c.task.resume()
-                }
+        // A watchdog that resumes the SAME continuation, not a task-group race:
+        // a group would wait for the continuation child to finish, and a
+        // continuation ignores cancellation — a tunnel that never answered
+        // would have hung the ceremony forever exactly where a timeout was due.
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            c.openCont = cont
+            c.task.resume()
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: UInt64(timeoutMs) * 1_000_000)
+                guard let pending = c.openCont else { return }
+                c.openCont = nil
+                c.task.cancel()
+                pending.resume(throwing: CableConnError.timeout)
             }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeoutMs) * 1_000_000)
-                throw CableConnError.timeout
-            }
-            try await group.next()
-            group.cancelAll()
         }
+        print("[vela-cable] WebSocket tunnel established (fido.cable)")
         return c
     }
 

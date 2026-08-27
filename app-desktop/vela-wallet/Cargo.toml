@@ -196,6 +196,36 @@ objc2-foundation = { version = "0.2", features = [
     "NSObject",
     "NSRunLoop",
     "NSDate",
+    "NSProcessInfo",
+] }
+# "This device" — the platform passkey vault (Touch ID / iCloud Keychain)
+# through AuthenticationServices. Same objc2 generation as the rest, so cargo
+# unifies rather than compiling a second binding layer.
+objc2-authentication-services = { version = "0.2.2", features = [
+    "ASAuthorization",
+    "ASAuthorizationController",
+    "ASAuthorizationCredential",
+    "ASAuthorizationRequest",
+    "ASAuthorizationPlatformPublicKeyCredentialProvider",
+    "ASAuthorizationPlatformPublicKeyCredentialRegistration",
+    "ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest",
+    "ASAuthorizationPlatformPublicKeyCredentialAssertion",
+    "ASAuthorizationPlatformPublicKeyCredentialAssertionRequest",
+    "ASAuthorizationPlatformPublicKeyCredentialDescriptor",
+    "ASAuthorizationPublicKeyCredentialRegistration",
+    "ASAuthorizationPublicKeyCredentialRegistrationRequest",
+    "ASAuthorizationPublicKeyCredentialAssertion",
+    "ASAuthorizationPublicKeyCredentialAssertionRequest",
+    "ASAuthorizationPublicKeyCredentialDescriptor",
+    "ASPublicKeyCredential",
+    "ASFoundation",
+] }
+# The presentation anchor for the system passkey sheet is our NSWindow; gpui
+# already links AppKit, this direct dep only puts the types in scope.
+objc2-app-kit = { version = "0.2.2", features = [
+    "NSApplication",
+    "NSWindow",
+    "NSResponder",
 ] }
 objc2-core-bluetooth = { version = "0.2.2", features = [
     "CBCentralManager",

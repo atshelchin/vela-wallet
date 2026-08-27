@@ -5500,6 +5500,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "objc2-authentication-services"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18d45be2bc6f30949ac1fb82acb823a7dc29a85138425b72ed0099f3be8d4c35"
+dependencies = [
+ "bitflags 2.13.1",
+ "block2 0.5.1",
+ "objc2 0.5.2",
+ "objc2-app-kit 0.2.2",
+ "objc2-foundation 0.2.2",
+]
+
+[[package]]
 name = "objc2-core-bluetooth"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9045,7 +9058,10 @@ dependencies = [
  "gpui_platform",
  "hidapi",
  "image",
+ "libc",
  "objc2 0.5.2",
+ "objc2-app-kit 0.2.2",
+ "objc2-authentication-services",
  "objc2-core-bluetooth",
  "objc2-foundation 0.2.2",
  "p256 0.13.2",

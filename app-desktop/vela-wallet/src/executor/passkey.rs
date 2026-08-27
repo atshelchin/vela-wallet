@@ -80,14 +80,22 @@ pub struct PasskeyFailure {
     pub message: Option<String>,
 }
 
-// Only the Windows mapping constructs these directly; everywhere else the
-// classification arrives from the core ceremony.
-#[cfg_attr(not(windows), allow(dead_code))]
+// Only the Windows mapping and the macOS platform-vault module construct these
+// directly; everywhere else the classification arrives from the core ceremony.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 impl PasskeyFailure {
-    fn other(message: impl Into<String>) -> Self {
+    pub(crate) fn other(message: impl Into<String>) -> Self {
         Self {
             kind: FailureKind::Other,
             message: Some(message.into()),
+        }
+    }
+
+    /// The person closed the sheet. Not an error, and the UI knows the kind.
+    pub(crate) fn cancelled() -> Self {
+        Self {
+            kind: FailureKind::Cancelled,
+            message: None,
         }
     }
 
@@ -426,7 +434,14 @@ pub fn platform_supported() -> bool {
         {
             vela_passkey_win::platform_available()
         }
-        #[cfg(not(windows))]
+        #[cfg(target_os = "macos")]
+        {
+            // The AS platform-passkey API (macOS 12+). Whether the SIGNATURE
+            // satisfies the getvela.app association is not probed — the
+            // ceremony's own error names the fix better than a greyed row.
+            super::platform_macos::available()
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
         {
             false
         }
@@ -515,6 +530,16 @@ pub fn register(
     if method == KeyMethod::Hybrid {
         return register_hybrid(name, exclude_credential_ids, ceremony);
     }
+    // "This device" on macOS: the AS platform vault (Touch ID / iCloud
+    // Keychain). The exclude list is deliberately not forwarded yet —
+    // `excludedCredentials` exists only from macOS 14, and the platform vault
+    // cannot hold one of OUR keys the person is excluding unless it minted it,
+    // which this same path would have refused; revisit when a second platform
+    // key per wallet is a real flow.
+    #[cfg(target_os = "macos")]
+    if method == KeyMethod::Platform {
+        return super::platform_macos::register(name, user_handle(name), random(32));
+    }
     #[cfg(windows)]
     {
         // A removable key, on Windows: the smart-card wire FIRST. It is the one
@@ -559,6 +584,13 @@ pub fn assert(
     // phone from answering with a different passkey than the first).
     if method == KeyMethod::Hybrid {
         return assert_hybrid(challenge, credential_id, ceremony);
+    }
+    // "This device" on macOS: the platform vault signs, pinned or discoverable
+    // exactly like the caBLE branch above. A proof whose sign-in ran here comes
+    // back here — the method travels with the operation for that reason.
+    #[cfg(target_os = "macos")]
+    if method == KeyMethod::Platform {
+        return super::platform_macos::assert(challenge, credential_id);
     }
     #[cfg(windows)]
     {
@@ -960,7 +992,7 @@ fn open_for(credential_id: &str, ceremony: &Ceremony) -> Result<SecurityKey, Usb
 }
 
 /// `name ‖ NUL ‖ uuid`, from the core's builder and this shell's randomness.
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 fn user_handle(name: &str) -> Vec<u8> {
     let mut uuid = [0u8; 16];
     uuid.copy_from_slice(&random(16));

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The entitlements for a TEAM-signed bundle (VELA_SIGN_IDENTITY set): the
+  associated-domains claim that unlocks the platform authenticator, plus the
+  two identifier entitlements a provisioning profile validates against —
+  Xcode writes these automatically for its own projects; this build script has
+  to say them itself. Must match packaging/macos/Info.plist.in's bundle id and
+  the team in the embedded profile.
+
+  The ad-hoc build uses entitlements.plist (associated-domains only): without a
+  team signature the system ignores the claims, and carrying identifier
+  entitlements under an ad-hoc signature is a launch-time kill on some systems.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.application-identifier</key>
+    <string>F9W689P9NE.app.getvela.VelaWallet</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>F9W689P9NE</string>
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <!--
+          Plain, no `?mode=developer`: the proven working recipe
+          (gpui-demo/bundle.sh, same appID, same domain) associates through
+          the normal CDN route with exactly this string. The developer-mode
+          variant was tried while debugging and only added a moving part.
+        -->
+        <string>webcredentials:getvela.app</string>
+    </array>
+</dict>
+</plist>

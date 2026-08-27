@@ -28,6 +28,8 @@
 //! is why [`Performed`] exists.
 
 pub mod passkey;
+#[cfg(target_os = "macos")]
+mod platform_macos;
 pub mod proxy;
 pub mod registry;
 pub mod storage;

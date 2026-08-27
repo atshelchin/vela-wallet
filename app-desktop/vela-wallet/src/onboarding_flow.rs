@@ -964,10 +964,12 @@ fn method_picker(host: &FlowHost<'_>) -> Div {
             false,
         ))
         .child(entry(
+            // The scan method is live on desktop now: it shows a QR, and a phone
+            // that scans it becomes the authenticator over caBLE.
             KeyMethod::Hybrid,
             "onboarding.create.methodHybridTitle",
-            loc.t("onboarding.create.methodHybridUnavailable"),
-            false,
+            loc.t("onboarding.create.methodHybridBody"),
+            true,
         ))
 }
 

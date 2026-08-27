@@ -483,7 +483,7 @@ pub fn publish(
                         |error| RegistryError::answered(format!("challenge is not hex: {error}")),
                     )?;
                 let assertion =
-                    passkey::assert(&challenge_bytes, Some(&member.credential_id), ceremony)
+                    passkey::assert(&challenge_bytes, Some(&member.credential_id), vela_core::app::KeyMethod::SecurityKey, ceremony)
                         .map_err(|failure| {
                             // A ceremony failure inside a publish is not a
                             // network failure. It is reported as an answered

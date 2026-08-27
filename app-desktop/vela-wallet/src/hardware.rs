@@ -16,8 +16,11 @@
 
 use gpui::{
     App, Div, FontWeight, InteractiveElement as _, ParentElement, SharedString,
-    StatefulInteractiveElement as _, Styled, Window, div, px,
+    StatefulInteractiveElement as _, Styled, Window, div, px, rgb,
 };
+use qrcode::{Color as QrColor, QrCode};
+
+use vela_core::app::KeyMethod;
 
 use crate::ctap::usb::{TouchKind, TouchRequest};
 use crate::executor::passkey::{CredentialChoice, PinRequest};
@@ -101,6 +104,133 @@ pub fn touch_card(theme: &Theme, loc: &Loc, waiting: &TouchRequest) -> Div {
             theme,
             loc.t_text(body_key, "product", &waiting.product),
         ))
+}
+
+/// The three ways to sign in — this device, a phone by scan, a security key —
+/// the same set creating a wallet offers per key. A wallet that lives on a
+/// security key (or a phone) is reachable even where a platform passkey would be
+/// the silent default. `Platform` has no route on the desktop and shows as
+/// unavailable-with-a-reason, exactly as it does in the create picker.
+pub fn signin_method_card(
+    theme: &Theme,
+    loc: &Loc,
+    on_pick: std::sync::Arc<dyn Fn(KeyMethod, &mut Window, &mut App)>,
+    on_dismiss: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
+) -> Div {
+    let entry = |method: KeyMethod, title_key: &str, body_key: &str, available: bool| {
+        let on_pick = on_pick.clone();
+        let row = div()
+            .id(("signin-method", method as u64))
+            .w_full()
+            .flex()
+            .items_center()
+            .gap(px(FLOW_GAP_MD))
+            .py(px(FLOW_GAP_MD))
+            .border_b_1()
+            .border_color(theme.border_card)
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(0.))
+                    .flex()
+                    .flex_col()
+                    .gap(px(2.))
+                    .child(
+                        div()
+                            .text_size(theme::text_card_title())
+                            .text_color(theme.fg_base)
+                            .child(loc.t(title_key)),
+                    )
+                    .child(body(theme, loc.t(body_key))),
+            );
+        if available {
+            row.cursor_pointer()
+                .hover(|s| s.bg(theme.bg_well))
+                .on_click(move |_, window, cx| on_pick(method, window, cx))
+        } else {
+            row.opacity(0.4)
+        }
+    };
+
+    card(theme)
+        .child(title(theme, loc.t("onboarding.login.header")))
+        .child(entry(
+            KeyMethod::SecurityKey,
+            "onboarding.create.methodSecurityKeyTitle",
+            "onboarding.create.methodSecurityKeyBody",
+            true,
+        ))
+        .child(entry(
+            KeyMethod::Hybrid,
+            "onboarding.create.methodHybridTitle",
+            "onboarding.create.methodHybridBody",
+            true,
+        ))
+        .child(entry(
+            KeyMethod::Platform,
+            "onboarding.create.methodPlatformTitle",
+            "onboarding.create.securityKeyRequiredBody",
+            false,
+        ))
+        .child(vela_button(
+            "signin-methods-cancel",
+            ButtonVariant::Secondary,
+            loc.t("onboarding.common.close"),
+            theme,
+            on_dismiss,
+        ))
+}
+
+/// The caBLE QR the person scans with their phone to sign in or add a key over
+/// the hybrid transport.
+///
+/// **Black on white, always — not themed.** A QR is not UI chrome; it is a
+/// scannable target, and a phone camera needs dark modules on a light field
+/// whatever the app's theme is. So the matrix ignores the palette and draws its
+/// own white quiet-zone box, the one place in this file that names a literal
+/// colour on purpose.
+///
+/// **No buttons.** The answer is the phone; there is nothing to press. It clears
+/// itself the moment the tunnel is up.
+pub fn qr_card(theme: &Theme, loc: &Loc, payload: &str) -> Div {
+    // A module size that keeps a typical caBLE payload (~40 modules a side) to a
+    // card-sized target without a second layout pass.
+    const MODULE_PX: f32 = 5.0;
+
+    let matrix: Div = match QrCode::new(payload.as_bytes()) {
+        Ok(code) => {
+            let width = code.width();
+            let colors = code.to_colors();
+            let mut grid = div().flex().flex_col();
+            for row in 0..width {
+                let mut line = div().flex().flex_row();
+                for col in 0..width {
+                    let dark = matches!(colors.get(row * width + col), Some(QrColor::Dark));
+                    let mut cell = div().size(px(MODULE_PX));
+                    if dark {
+                        cell = cell.bg(rgb(0x000000));
+                    }
+                    line = line.child(cell);
+                }
+                grid = grid.child(line);
+            }
+            grid
+        }
+        // A payload too large for a QR should never reach here (the caBLE payload
+        // is well within capacity); fall back to nothing rather than panic.
+        Err(_) => div(),
+    };
+
+    card(theme).items_center().child(title(theme, loc.t("onboarding.create.methodHybridTitle")))
+        .child(
+            // The white quiet-zone box the matrix needs to scan.
+            div()
+                .p(px(FLOW_GAP_MD))
+                .rounded(px(SHEET_RADIUS))
+                .bg(rgb(0xffffff))
+                .child(matrix),
+        )
+        .child(body(theme, loc.t("onboarding.create.methodHybridBody")))
 }
 
 /// The PIN a security key without a sensor verifies with.

@@ -123,6 +123,9 @@ pub struct OnboardingPage {
     name_focus: FocusHandle,
     picker_open: bool,
     copied: bool,
+    /// The sign-in method picker is open — the person tapped "I already have a
+    /// wallet" and is choosing this device, a phone by scan, or a security key.
+    signin_methods_open: bool,
 
     login: CoreHost<Login>,
     login_view: LoginView,
@@ -207,6 +210,7 @@ impl OnboardingPage {
             name_focus: cx.focus_handle(),
             picker_open: false,
             copied: false,
+            signin_methods_open: false,
             login,
             login_view,
             channel: CeremonyChannel::new(),
@@ -240,17 +244,17 @@ impl OnboardingPage {
         cx.notify();
     }
 
-    fn sign_in(&mut self, cx: &mut Context<Self>) {
+    fn sign_in(&mut self, method: vela_core::app::KeyMethod, cx: &mut Context<Self>) {
+        self.signin_methods_open = false;
         if self.login_view.busy {
             return;
         }
-        // The desktop's only authenticator is a security key (gpui has no
-        // system passkey service), so signing in IS a security-key ceremony —
-        // the method says so, even though this shell's assert has a single
-        // route regardless.
-        let pending = self.login.dispatch(vela_core::app::login::Event::SignIn {
-            method: vela_core::app::KeyMethod::SecurityKey,
-        });
+        // The method routes: `SecurityKey` runs the app-owned USB ceremony,
+        // `Hybrid` shows a QR and signs in through a phone over caBLE. (Platform
+        // has no route on the desktop and the picker presents it as unavailable.)
+        let pending = self
+            .login
+            .dispatch(vela_core::app::login::Event::SignIn { method });
         self.pump_login(pending, cx);
         cx.notify();
     }
@@ -634,7 +638,10 @@ impl OnboardingPage {
                     ButtonState::Enabled
                 },
                 theme,
-                cx.listener(|this, _, _, cx| this.sign_in(cx)),
+                cx.listener(|this, _, _, cx| {
+                    this.signin_methods_open = true;
+                    cx.notify();
+                }),
             ));
 
         div()
@@ -656,6 +663,39 @@ impl OnboardingPage {
     fn touch_prompt(&self, theme: &Theme) -> Option<Stateful<Div>> {
         let waiting = self.channel.touch_waiting()?;
         Some(scrim(theme, "touch-scrim").child(hardware::touch_card(theme, &self.loc, &waiting)))
+    }
+
+    /// The caBLE QR, while a hybrid ceremony waits for the phone to scan it. It
+    /// clears itself the moment the tunnel is up (the ceremony sets it to
+    /// `None`), before the on-phone touch prompt takes its place.
+    fn qr_prompt(&self, theme: &Theme) -> Option<Stateful<Div>> {
+        let payload = self.channel.qr_showing()?;
+        Some(scrim(theme, "qr-scrim").child(hardware::qr_card(theme, &self.loc, &payload)))
+    }
+
+    /// The sign-in method picker — the same three methods creating a wallet
+    /// offers, so a wallet living on a phone or a security key is reachable, not
+    /// just whatever a platform passkey would default to.
+    fn signin_method_prompt(&self, theme: &Theme, cx: &mut Context<Self>) -> Option<Stateful<Div>> {
+        if !self.signin_methods_open {
+            return None;
+        }
+        let on_pick: std::sync::Arc<dyn Fn(vela_core::app::KeyMethod, &mut Window, &mut App)> = {
+            let page = cx.entity();
+            std::sync::Arc::new(move |method, _window, cx| {
+                page.update(cx, |page, cx| page.sign_in(method, cx));
+            })
+        };
+        let card = hardware::signin_method_card(
+            theme,
+            &self.loc,
+            on_pick,
+            cx.listener(|this, _, _, cx| {
+                this.signin_methods_open = false;
+                cx.notify();
+            }),
+        );
+        Some(scrim(theme, "signin-methods-scrim").child(card))
     }
 
     fn wallet_picker(&self, theme: &Theme, cx: &mut Context<Self>) -> Option<Stateful<Div>> {
@@ -1054,6 +1094,12 @@ impl Render for OnboardingPage {
                     entity.update(cx, |page, cx| page.on_sheet_action(id, cx));
                 },
             ));
+        }
+        if let Some(picker) = self.signin_method_prompt(&theme, cx) {
+            root = root.child(picker);
+        }
+        if let Some(qr) = self.qr_prompt(&theme) {
+            root = root.child(qr);
         }
         if let Some(prompt) = self.touch_prompt(&theme) {
             root = root.child(prompt);

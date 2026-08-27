@@ -26,13 +26,17 @@
 use std::sync::Arc;
 
 use vela_core::app::{Assertion, FailureKind, KeyMethod, Registration};
-use vela_core::ctap::ceremony::{self, Cable, CableError, CeremonyError, TouchKind};
+use vela_core::cable::conn::CableConnection;
+use vela_core::cable::session::CableInitiator;
+use vela_core::ctap::ceremony::{self, Cable, CableError, CeremonyError, TouchAnnouncer, TouchKind};
 use vela_core::primitives;
 // The windows path and the client-data tests build the envelope directly.
 #[cfg(any(windows, test))]
 use vela_core::types::ClientDataKind;
 
-use crate::ctap::usb::{SecurityKey, TouchNotifier, UsbError};
+#[cfg(not(windows))]
+use crate::ctap::cable::{self, HybridError, WebSocketCablePort};
+use crate::ctap::usb::{SecurityKey, TouchNotifier, TouchRequest, UsbError};
 
 /// The relying party every Vela passkey is bound to. A passkey cannot be moved
 /// between relying parties, so this string is part of the wallet's identity:
@@ -50,6 +54,16 @@ const ORIGIN: &str = "https://getvela.app";
 /// construction — a removable key on a cable.
 const ATTACHMENT_CROSS_PLATFORM: &str = "cross-platform";
 const TRANSPORT_USB: &str = "usb";
+/// A key reached over caBLE lives on a phone; it is a hybrid-transport
+/// authenticator, and the credential records that so a later flow knows the key
+/// is not on this desk.
+#[cfg(not(windows))]
+const TRANSPORT_HYBRID: &str = "hybrid";
+/// The label the touch prompt names while the phone shows its own approval
+/// sheet. Not localised yet — the QR card carries the localised copy; this is
+/// only interpolated into "waiting for {product}" during the brief assertion.
+#[cfg(not(windows))]
+const HYBRID_PRODUCT: &str = "your phone";
 
 /// A ceremony that failed, in the vocabulary the core branches on.
 #[derive(Debug)]
@@ -114,6 +128,19 @@ fn device_failure(error: UsbError) -> PasskeyFailure {
     ceremony_failure(ceremony::failure_for(cable_error(error)))
 }
 
+/// A hybrid-transport setup error, in the flow's vocabulary. Bluetooth being
+/// absent is `not_supported` — caBLE cannot run without a radio; everything else
+/// (no phone answered, a bad tunnel) is `other` carrying its own words.
+#[cfg(not(windows))]
+fn hybrid_failure(error: HybridError) -> PasskeyFailure {
+    match error {
+        HybridError::Bluetooth(_) => {
+            PasskeyFailure::classified(FailureKind::NotSupported, error.to_string())
+        }
+        other => PasskeyFailure::other(other.to_string()),
+    }
+}
+
 /// Asks the person for their security key's PIN, and blocks until they answer.
 ///
 /// `None` means they dismissed the dialog, which is a cancellation and not an
@@ -159,6 +186,11 @@ pub struct CredentialChoice {
 /// reports more than one: a single credential is not a choice.
 pub type CredentialPicker = Arc<dyn Fn(Vec<CredentialChoice>) -> Option<usize> + Send + Sync>;
 
+/// Shows (or clears) the caBLE QR the person scans with their phone. `Some` with
+/// the `FIDO:/…` payload while the hybrid handshake waits for a scan; `None`
+/// once the tunnel is up or the attempt ends.
+pub type QrNotifier = Arc<dyn Fn(Option<String>) + Send + Sync>;
+
 /// Everything a ceremony needs from the screen that started it.
 #[derive(Clone)]
 pub struct Ceremony {
@@ -167,6 +199,8 @@ pub struct Ceremony {
     pub touch: TouchNotifier,
     pub pin: PinRequester,
     pub pick: CredentialPicker,
+    /// Shows the caBLE QR while a hybrid ceremony waits for the phone.
+    pub qr: QrNotifier,
     /// The app window the Windows dialog parents itself to.
     ///
     /// Read on exactly one platform, because it is the only one where the
@@ -378,15 +412,17 @@ pub fn register(
 pub fn assert(
     challenge: &[u8],
     credential_id: Option<&str>,
+    method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Assertion, PasskeyFailure> {
     #[cfg(windows)]
     {
+        let _ = method;
         assert_windows(ceremony.window, challenge, credential_id)
     }
     #[cfg(not(windows))]
     {
-        assert_ctap(challenge, credential_id, ceremony)
+        assert_ctap(challenge, credential_id, method, ceremony)
     }
 }
 
@@ -397,14 +433,13 @@ fn register_ctap(
     method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Registration, PasskeyFailure> {
-    // `method` is IGNORED here, deliberately: on this platform exactly one
-    // ceremony is possible, and the picker already presents the other two
-    // methods as unavailable-with-a-reason. The choice still travels to the
-    // core and still labels the key row; what it must not do is decide whether
-    // a ceremony can run. (Refusing a non-`SecurityKey` method here is what
-    // once made the very first press of 继续 answer "device not supported" on
-    // a machine with a key plugged in.)
-    let _ = method;
+    // The scan method mints the key on a phone over caBLE; every other method on
+    // this platform is the one USB ceremony (the picker presents platform as
+    // unavailable-with-a-reason). The choice labels the key row either way; here
+    // it only decides which transport carries the make-credential.
+    if method == KeyMethod::Hybrid {
+        return register_hybrid(name, exclude_credential_ids, ceremony);
+    }
 
     let key = open(ceremony)?;
     let mut cable = UsbCable {
@@ -435,8 +470,16 @@ fn register_ctap(
 fn assert_ctap(
     challenge: &[u8],
     credential_id: Option<&str>,
+    method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Assertion, PasskeyFailure> {
+    // Sign-in over caBLE: no credential id (the phone offers what it holds), and
+    // the person chose the scan method. A proof (credential id known) stays on
+    // the USB path — a phone-resident credential over caBLE is a later step.
+    if method == KeyMethod::Hybrid && credential_id.is_none() {
+        return assert_hybrid(challenge, ceremony);
+    }
+
     let key = match credential_id {
         Some(id) => open_for(id, ceremony)?,
         None => open(ceremony)?,
@@ -455,6 +498,104 @@ fn assert_ctap(
     }
     .assert(challenge, credential_id)
     .map_err(ceremony_failure)?;
+
+    Ok(Assertion {
+        credential_id: assertion.credential_id_hex,
+        signature_der_hex: assertion.signature_der_hex,
+        authenticator_data_hex: assertion.authenticator_data_hex,
+        client_data_json_hex: assertion.client_data_json_hex,
+        user_id_hex: assertion.user_id_hex,
+        authenticator_attachment: ATTACHMENT_CROSS_PLATFORM.to_owned(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// caBLE: the ceremony runs over a phone reached by scanning the QR
+// ---------------------------------------------------------------------------
+
+/// Fresh secrets, the QR on screen, and the Noise handshake over the tunnel the
+/// scanned phone opens — returning the [`Cable`] a ceremony drives. The QR is
+/// shown before the scan (scanning it is what makes the phone advertise) and
+/// cleared once the tunnel is up, however it ends.
+#[cfg(not(windows))]
+fn run_hybrid(ceremony: &Ceremony) -> Result<CableConnection<WebSocketCablePort>, PasskeyFailure> {
+    let static_seed = random(32);
+    let qr_secret = random(16);
+    let session = CableInitiator::new(&static_seed, &qr_secret)
+        .ok_or_else(|| PasskeyFailure::other("could not start a caBLE session"))?;
+
+    (ceremony.qr)(Some(session.qr_payload(false, unix_seconds())));
+
+    let ephemeral_seed = random(32);
+    let touch_notify = Arc::clone(&ceremony.touch);
+    let on_touch: TouchAnnouncer = Box::new(move |kind, product| {
+        touch_notify(Some(TouchRequest {
+            kind,
+            product: product.to_owned(),
+        }));
+    });
+
+    let result =
+        cable::establish_hybrid(&session, HYBRID_PRODUCT.to_owned(), &ephemeral_seed, Some(on_touch));
+    // The QR has done its job the moment the tunnel is up (or failed); take it
+    // down either way rather than leaving it on screen behind the next step.
+    (ceremony.qr)(None);
+    result.map_err(hybrid_failure)
+}
+
+/// Wall-clock seconds since the epoch, for the QR's freshness field. The core is
+/// clockless; the shell owns the clock.
+#[cfg(not(windows))]
+fn unix_seconds() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| i64::try_from(d.as_secs()).unwrap_or(0))
+        .unwrap_or(0)
+}
+
+#[cfg(not(windows))]
+fn register_hybrid(
+    name: &str,
+    exclude_credential_ids: &[String],
+    ceremony: &Ceremony,
+) -> Result<Registration, PasskeyFailure> {
+    let mut cable = run_hybrid(ceremony)?;
+    let host = DesktopHost { ceremony };
+    let registration = ceremony::Client {
+        cable: &mut cable,
+        host: &host,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .register(name, exclude_credential_ids)
+    .map_err(ceremony_failure)?;
+    (ceremony.touch)(None);
+
+    Ok(Registration {
+        credential_id: registration.credential_id_hex,
+        attestation_object_hex: registration.attestation_object_hex,
+        client_data_json_hex: registration.client_data_json_hex,
+        authenticator_attachment: ATTACHMENT_CROSS_PLATFORM.to_owned(),
+        transports: TRANSPORT_HYBRID.to_owned(),
+    })
+}
+
+#[cfg(not(windows))]
+fn assert_hybrid(challenge: &[u8], ceremony: &Ceremony) -> Result<Assertion, PasskeyFailure> {
+    let mut cable = run_hybrid(ceremony)?;
+    let host = DesktopHost { ceremony };
+    let assertion = ceremony::Client {
+        cable: &mut cable,
+        host: &host,
+        rp_id: RELYING_PARTY,
+        rp_name: RELYING_PARTY_NAME,
+        origin: ORIGIN,
+    }
+    .assert(challenge, None)
+    .map_err(ceremony_failure)?;
+    (ceremony.touch)(None);
 
     Ok(Assertion {
         credential_id: assertion.credential_id_hex,
@@ -759,6 +900,7 @@ mod hardware_tests {
                     eprintln!("  >>> TOUCH YOUR KEY ({:?}) <<<", request.kind);
                 }
             }),
+            qr: Arc::new(|_| {}),
             pin: Arc::new(|request| {
                 let pin = std::env::var("VELA_TEST_PIN").ok();
                 eprintln!(
@@ -807,6 +949,7 @@ mod hardware_tests {
         let assertion = assert(
             b"vela-hardware-test-challenge",
             Some(&registration.credential_id),
+            KeyMethod::SecurityKey,
             &ceremony,
         )
         .expect("getAssertion against the credential just minted");
@@ -856,6 +999,7 @@ mod hardware_tests {
                     eprintln!("  >>> TOUCH YOUR KEY ({:?}) <<<", request.kind);
                 }
             }),
+            qr: Arc::new(|_| {}),
             pin: Arc::new(|_| std::env::var("VELA_TEST_PIN").ok()),
             pick: Arc::new(|_| Some(0)),
             window: 0,

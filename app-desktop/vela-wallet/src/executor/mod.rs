@@ -34,7 +34,7 @@ pub mod storage;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use vela_core::app::FailureKind;
+use vela_core::app::{FailureKind, KeyMethod};
 use vela_core::app::session::{SessionOperation, SessionShellResult};
 use vela_core::app::shell::{ProofPurpose, ShellOperation, ShellResult};
 use vela_core::l10n::datetime::Civil;
@@ -79,7 +79,7 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             // Named to keep the match exhaustive and the omission deliberate.
             transports: _,
             purpose,
-        } => match passkey::assert(&challenge_for(*purpose), Some(credential_id), ceremony) {
+        } => match passkey::assert(&challenge_for(*purpose), Some(credential_id), KeyMethod::SecurityKey, ceremony) {
             Ok(assertion) => ShellResult::ProofSigned {
                 assertion,
                 now_iso: now_iso(),
@@ -124,7 +124,7 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
                         message: format!("the registry challenge is not hex: {error}"),
                         network: false,
                     },
-                    Ok(bytes) => match passkey::assert(&bytes, Some(credential_id), ceremony) {
+                    Ok(bytes) => match passkey::assert(&bytes, Some(credential_id), KeyMethod::SecurityKey, ceremony) {
                         Err(failure) => passkey_failed(failure),
                         Ok(assertion) => match build_member_proof(
                             &assertion.authenticator_data_hex,
@@ -146,11 +146,11 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             name: registry::legacy_name(credential_id),
         },
 
-        // The method is the person's sign-in choice; on desktop every route IS
-        // the app-owned CTAP path, so there is nothing to switch on — the
-        // security key is the only authenticator here.
-        ShellOperation::AuthenticatePasskey { method: _ } => {
-            match passkey::assert(&passkey::random(32), None, ceremony) {
+        // The method is the person's sign-in choice, and now it routes: the scan
+        // method signs in through a phone over caBLE, every other method through
+        // the plugged-in security key. `passkey::assert` owns the branch.
+        ShellOperation::AuthenticatePasskey { method } => {
+            match passkey::assert(&passkey::random(32), None, *method, ceremony) {
                 Ok(assertion) => ShellResult::PasskeyAuthenticated {
                     assertion,
                     now_iso: now_iso(),

@@ -76,6 +76,9 @@ pub struct CeremonyChannel {
     /// which physical act is being asked for — a bool could only say "some
     /// key wants something".
     touch: Mutex<Option<TouchRequest>>,
+    /// The caBLE QR payload the person scans with their phone, while a hybrid
+    /// ceremony waits for the scan. `None` when no QR is up.
+    qr: Mutex<Option<String>>,
     pin: Mutex<PinState>,
     pick: Mutex<PickState>,
     /// ONE CONDVAR PER MUTEX, and that is not a style choice.
@@ -102,12 +105,18 @@ impl CeremonyChannel {
     /// own prompts and the value is ignored.
     pub fn ceremony(self: &Arc<Self>, window: WindowHandle) -> Ceremony {
         let touch_channel = Arc::clone(self);
+        let qr_channel = Arc::clone(self);
         let pin_channel = Arc::clone(self);
         let pick_channel = Arc::clone(self);
         Ceremony {
             touch: Arc::new(move |waiting| {
                 if let Ok(mut slot) = touch_channel.touch.lock() {
                     *slot = waiting;
+                }
+            }),
+            qr: Arc::new(move |payload| {
+                if let Ok(mut slot) = qr_channel.qr.lock() {
+                    *slot = payload;
                 }
             }),
             pin: Arc::new(move |request| pin_channel.request_pin(request)),
@@ -119,6 +128,11 @@ impl CeremonyChannel {
     /// What a key is waiting for right now, if anything.
     pub fn touch_waiting(&self) -> Option<TouchRequest> {
         self.touch.lock().ok()?.clone()
+    }
+
+    /// The caBLE QR to show right now, if a hybrid ceremony is waiting for a scan.
+    pub fn qr_showing(&self) -> Option<String> {
+        self.qr.lock().ok()?.clone()
     }
 
     /// Called on the ceremony thread. Blocks until the screen answers.
@@ -231,6 +245,9 @@ impl CeremonyChannel {
             state.answer = Some(None);
         }
         if let Ok(mut slot) = self.touch.lock() {
+            *slot = None;
+        }
+        if let Ok(mut slot) = self.qr.lock() {
             *slot = None;
         }
         self.pin_answered.notify_all();

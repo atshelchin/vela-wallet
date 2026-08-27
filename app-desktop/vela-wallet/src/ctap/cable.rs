@@ -1,9 +1,3 @@
-// The transport layer landed ahead of the executor/UI that drives it: the
-// handshake and framing are verified against the core here, and the next commit
-// wires `establish_hybrid` into the `KeyMethod::Hybrid` ceremony path and draws
-// the QR. Until then its surface is reachable only from that pending caller.
-#![allow(dead_code)]
-
 //! The caBLE / hybrid transport — "sign in with your phone" — and nothing else.
 //!
 //! Everything about the PROTOCOL — the QR payload, the BLE advert decrypt, the

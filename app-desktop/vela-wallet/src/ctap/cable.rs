@@ -160,18 +160,35 @@ pub fn establish_hybrid(
     on_touch: Option<TouchAnnouncer>,
 ) -> Result<CableConnection<WebSocketCablePort>, HybridError> {
     // 1. Find the phone by its BLE proximity advert.
+    log("scanning for the phone's Bluetooth advert…");
     let advert = scan_for_advert(session.eid_key())?;
+    log("advert found; decrypted");
 
     // 2. The advert names the tunnel server and routing; build the URL.
     let url = session.connect_url(&advert).ok_or(HybridError::BadAdvert)?;
+    log(&format!("opening tunnel: {url}"));
 
     // 3. Open the tunnel.
     let port = WebSocketCablePort::connect(&url)?;
+    log("tunnel open; starting Noise handshake");
 
     // 4. Run the Noise handshake over it → a Cable.
-    session
+    let result = session
         .establish(port, &advert, ephemeral_seed, product, on_touch)
-        .map_err(|error| HybridError::Handshake(format!("{error:?}")))
+        .map_err(|error| HybridError::Handshake(format!("{error:?}")));
+    match &result {
+        Ok(_) => log("handshake complete; channel is up"),
+        Err(error) => log(&format!("handshake failed: {error}")),
+    }
+    result
+}
+
+/// One diagnostics line to stderr. The hybrid path has no `Host` in reach, and
+/// its failures happen off-screen (a scan, a socket) where the login machine's
+/// one generic "sign-in failed" body cannot say what broke — so the detail goes
+/// here, visible when the app is launched from a terminal or Console.app.
+fn log(line: &str) {
+    eprintln!("[vela-cable] {line}");
 }
 
 /// Scan the Bluetooth radio for a proximity advert that decrypts under this
@@ -204,6 +221,7 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
         .into_iter()
         .next()
         .ok_or_else(|| HybridError::Bluetooth("no Bluetooth adapter".to_owned()))?;
+    log("Bluetooth adapter opened");
 
     let mut events = adapter
         .events()
@@ -213,15 +231,26 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
         .start_scan(ScanFilter::default())
         .await
         .map_err(|error| HybridError::Bluetooth(error.to_string()))?;
+    log("scan started");
 
+    let mut seen = 0u32;
     while let Some(event) = events.next().await {
+        // The caBLE advert is service data under 0xFFF9 / 0xFDE2; log every
+        // service-data event's UUIDs so a phone advertising under an unexpected
+        // one (or not at all) is visible rather than a silent 90-second wait.
         let CentralEvent::ServiceDataAdvertisement { service_data, .. } = event else {
             continue;
         };
+        seen += 1;
+        if seen <= 40 {
+            let uuids: Vec<String> = service_data.keys().map(|u| u.to_string()).collect();
+            log(&format!("service-data advert #{seen}: {uuids:?}"));
+        }
         for uuid in SERVICE_UUIDS {
             let Some(data) = service_data.get(&uuid) else {
                 continue;
             };
+            log(&format!("candidate under {uuid} ({} bytes)", data.len()));
             if data.len() < 20 {
                 continue;
             }
@@ -229,6 +258,7 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
                 let _ = adapter.stop_scan().await;
                 return Ok(plaintext);
             }
+            log("candidate did not decrypt under this QR's key");
         }
     }
 

@@ -348,24 +348,111 @@ pub fn probe_health() -> bool {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct LegacyRecord {
-    #[serde(default)]
-    name: String,
+/// The v1 index CONTRACT on Gnosis — the only place a v1-era wallet's display
+/// name survives. The v2 server never stored names, so this read is on-chain,
+/// exactly like the web client's `queryLegacyName` (public-key-index.ts): an
+/// `eth_call` of `getRecord(rpId, credentialId)` with the name decoded out of
+/// the returned struct's fifth slot.
+const LEGACY_INDEX_CONTRACT: &str = "0xdd93420BD49baaBdFF4A363DdD300622Ae87E9c3";
+
+/// Gnosis RPC endpoints, tried in order. Same set the wallet's rpc pool pins
+/// for chain 100; this module keeps its own copy because the onboarding
+/// executor has no pool.
+const GNOSIS_RPC_URLS: &[&str] = &[
+    "https://rpc.gnosischain.com",
+    "https://gnosis-rpc.publicnode.com",
+    "https://1rpc.io/gnosis",
+];
+
+/// The v1 index's display name for a credential. Best effort and read-only; a
+/// lost name degrades the label ("Wallet"), never the flow.
+pub fn legacy_name(credential_id: &str) -> Option<String> {
+    let data = encode_get_record(RELYING_PARTY, credential_id);
+    let data_hex = format!("0x{}", vela_core::primitives::to_hex(&data, false));
+    for url in GNOSIS_RPC_URLS {
+        match eth_call(url, LEGACY_INDEX_CONTRACT, &data_hex) {
+            // An empty (reverted) result is a definite "no record" — a v2-era
+            // wallet. Do not burn two more RPCs re-asking the same question.
+            Ok(result) if result.is_empty() => return None,
+            Ok(result) => return decode_record_name(&result),
+            Err(_) => continue,
+        }
+    }
+    None
 }
 
-/// The v1 index's display name for a credential — the only place a v1-era
-/// wallet's name survives. Best effort and read-only; a lost name degrades the
-/// label, never the flow.
-pub fn legacy_name(credential_id: &str) -> Option<String> {
-    let record: LegacyRecord = get_json(
-        &format!("/api/query?credentialId={}", urlencode(credential_id)),
-        "Legacy name",
-        READ_TIMEOUT,
-    )
-    .ok()?;
-    let name = record.name.trim();
+/// ABI-encode `getRecord(string,string)`: selector, two head offsets, then the
+/// two length-prefixed, 32-padded tails.
+fn encode_get_record(rp_id: &str, credential_id: &str) -> Vec<u8> {
+    fn tail(bytes: &[u8]) -> Vec<u8> {
+        let mut out = [0u8; 32].to_vec();
+        out[24..32].copy_from_slice(&(bytes.len() as u64).to_be_bytes());
+        out.extend_from_slice(bytes);
+        out.resize(out.len() + (32 - bytes.len() % 32) % 32, 0);
+        out
+    }
+    fn word(value: u64) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        out[24..32].copy_from_slice(&value.to_be_bytes());
+        out
+    }
+    let rp_tail = tail(rp_id.as_bytes());
+    let mut out = vela_core::primitives::function_selector("getRecord(string,string)")
+        .unwrap_or_else(|_| vec![0; 4]);
+    out.extend_from_slice(&word(64)); // offset of rpId (2 head slots)
+    out.extend_from_slice(&word(64 + rp_tail.len() as u64)); // offset of credentialId
+    out.extend_from_slice(&rp_tail);
+    out.extend_from_slice(&tail(credential_id.as_bytes()));
+    out
+}
+
+/// Decode `PublicKeyRecord.name` out of a `getRecord` return: one struct (via a
+/// top-level offset) whose slot 4 holds the offset of the dynamic `name` field,
+/// relative to the struct start. Mirrors the web client's `decodeRecordName`.
+fn decode_record_name(data: &[u8]) -> Option<String> {
+    fn word_at(data: &[u8], at: usize) -> Option<usize> {
+        let slice = data.get(at..at + 32)?;
+        // Offsets and lengths in a sane return fit far below 2^53; reject the
+        // rest instead of wrapping.
+        let mut out = 0usize;
+        for &byte in slice {
+            out = out.checked_mul(256)?.checked_add(byte as usize)?;
+        }
+        Some(out)
+    }
+    let struct_start = word_at(data, 0)?;
+    let name_offset = struct_start.checked_add(word_at(data, struct_start.checked_add(4 * 32)?)?)?;
+    let name_length = word_at(data, name_offset)?;
+    let name_bytes = data.get(name_offset + 32..name_offset.checked_add(32)?.checked_add(name_length)?)?;
+    let name = std::str::from_utf8(name_bytes).ok()?.trim();
     (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// One `eth_call` against `url`, through the app's proxy-aware agent. The
+/// result is the raw return bytes ( empty when the call reverted — v1's
+/// `getRecord` reverts for an unknown credential).
+fn eth_call(url: &str, to: &str, data_hex: &str) -> Result<Vec<u8>> {
+    #[derive(Debug, Deserialize)]
+    struct RpcReply {
+        #[serde(default)]
+        result: Option<String>,
+    }
+    let reply: RpcReply = agent(READ_TIMEOUT)
+        .post(url)
+        .send_json(serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_call",
+            "params": [{ "to": to, "data": data_hex }, "latest"],
+        }))
+        .map_err(|error| classify("Legacy name", error))?
+        .body_mut()
+        .read_json()
+        .map_err(|error| RegistryError::answered(format!("Legacy name: bad JSON: {error}")))?;
+    let result = reply.result.unwrap_or_default();
+    let stripped = result.strip_prefix("0x").unwrap_or(&result);
+    vela_core::primitives::from_hex(stripped)
+        .map_err(|error| RegistryError::answered(format!("Legacy name: bad hex: {error}")))
 }
 
 // ---------------------------------------------------------------------------

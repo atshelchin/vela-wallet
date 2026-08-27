@@ -57,14 +57,16 @@ impl CableInitiator {
     /// The `FIDO:/…` payload to render as a QR. `offer_ble` advertises the
     /// CTAP 2.3 BLE data channel alongside the WebSocket tunnel; leave it off for
     /// a WebSocket-only initiator (a pre-2.3 responder hard-rejects the channel
-    /// list).
+    /// list). `for_get` chooses the flow hint the phone offers: `true` to sign in
+    /// with an existing passkey, `false` to create one on the phone.
     #[must_use]
-    pub fn qr_payload(&self, offer_ble: bool, epoch_seconds: i64) -> String {
+    pub fn qr_payload(&self, offer_ble: bool, epoch_seconds: i64, for_get: bool) -> String {
         // The seed was validated in `new`, so this keypair always builds.
         let compressed = KeyPair::from_seed(&self.static_seed)
             .map(|kp| kp.public_compressed())
             .unwrap_or_default();
-        qr::build_payload(&compressed, &self.qr_secret, offer_ble, epoch_seconds)
+        let hint = if for_get { qr::HINT_GET } else { qr::HINT_MAKE };
+        qr::build_payload(&compressed, &self.qr_secret, offer_ble, epoch_seconds, hint)
     }
 
     /// The 64-byte advert key (AES-256 ‖ HMAC-SHA256) a BLE scanner trial-decrypts
@@ -188,7 +190,7 @@ mod tests {
     #[test]
     fn the_qr_carries_this_session_s_own_public_key() {
         let session = CableInitiator::new(&[9u8; 32], &[7u8; 16]).unwrap();
-        let payload = session.qr_payload(false, 1_700_000_000);
+        let payload = session.qr_payload(false, 1_700_000_000, true);
         assert!(payload.starts_with("FIDO:/"));
         // The compressed key in the QR is this session's static key.
         let expected = KeyPair::from_seed(&[9u8; 32]).unwrap().public_compressed();

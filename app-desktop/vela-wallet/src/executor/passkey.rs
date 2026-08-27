@@ -518,13 +518,16 @@ fn assert_ctap(
 /// shown before the scan (scanning it is what makes the phone advertise) and
 /// cleared once the tunnel is up, however it ends.
 #[cfg(not(windows))]
-fn run_hybrid(ceremony: &Ceremony) -> Result<CableConnection<WebSocketCablePort>, PasskeyFailure> {
+fn run_hybrid(
+    ceremony: &Ceremony,
+    for_get: bool,
+) -> Result<CableConnection<WebSocketCablePort>, PasskeyFailure> {
     let static_seed = random(32);
     let qr_secret = random(16);
     let session = CableInitiator::new(&static_seed, &qr_secret)
         .ok_or_else(|| PasskeyFailure::other("could not start a caBLE session"))?;
 
-    (ceremony.qr)(Some(session.qr_payload(false, unix_seconds())));
+    (ceremony.qr)(Some(session.qr_payload(false, unix_seconds(), for_get)));
 
     let ephemeral_seed = random(32);
     let touch_notify = Arc::clone(&ceremony.touch);
@@ -560,7 +563,7 @@ fn register_hybrid(
     exclude_credential_ids: &[String],
     ceremony: &Ceremony,
 ) -> Result<Registration, PasskeyFailure> {
-    let mut cable = run_hybrid(ceremony)?;
+    let mut cable = run_hybrid(ceremony, false)?;
     let host = DesktopHost { ceremony };
     let registration = ceremony::Client {
         cable: &mut cable,
@@ -584,7 +587,7 @@ fn register_hybrid(
 
 #[cfg(not(windows))]
 fn assert_hybrid(challenge: &[u8], ceremony: &Ceremony) -> Result<Assertion, PasskeyFailure> {
-    let mut cable = run_hybrid(ceremony)?;
+    let mut cable = run_hybrid(ceremony, true)?;
     let host = DesktopHost { ceremony };
     let assertion = ceremony::Client {
         cable: &mut cable,

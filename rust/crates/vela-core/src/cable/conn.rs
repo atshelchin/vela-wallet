@@ -48,6 +48,10 @@ pub trait CablePort {
 const MSG_CTAP: u8 = 0x01;
 const MSG_SHUTDOWN: u8 = 0x00;
 
+/// `authenticatorGetInfo` — a bare command byte, answered from the cache over
+/// caBLE (see `cbor`).
+const GET_INFO_COMMAND: u8 = 0x04;
+
 fn to_cable_error(error: NoiseError) -> CableError {
     CableError::Other(format!("caBLE Noise failure: {error:?}"))
 }
@@ -141,6 +145,22 @@ impl<P: CablePort> CableConnection<P> {
     /// One CTAP request → response over the sealed channel, before status
     /// interpretation. Mirrors the HID cable's `cbor`.
     fn cbor(&mut self, request: &[u8]) -> Result<Vec<u8>, CableError> {
+        // `authenticatorGetInfo` is answered from the cache, never the wire.
+        //
+        // A caBLE responder VOLUNTEERS its getInfo in the post-handshake message
+        // (read at `establish`), and a real one — iOS — is a one-shot: it runs
+        // the single operation the QR hinted and closes the tunnel the instant it
+        // receives any other command first. The shared ceremony opens with a
+        // getInfo (the USB flow needs it to read versions and PIN protocols), so
+        // without this that getInfo would be the first thing on the wire and the
+        // phone would hang up before the operation ever ran. Returning the cached
+        // copy makes the operation the first — and only — command the phone sees.
+        if request.first() == Some(&GET_INFO_COMMAND) {
+            if let Some(info) = &self.get_info {
+                return Ok(info.clone());
+            }
+        }
+
         let mut frame = Vec::with_capacity(request.len() + 1);
         frame.push(MSG_CTAP);
         frame.extend_from_slice(request);
@@ -326,6 +346,13 @@ mod tests {
 
         assert_eq!(conn.get_info(), Some(&[0xde, 0xad][..]));
         assert_eq!(conn.product(), "iPhone");
+
+        // authenticatorGetInfo (0x04) is answered from the post-handshake cache,
+        // NOT the wire — the single scripted reply below is left for the real
+        // operation, proving no frame went out for the getInfo. (A real caBLE
+        // phone closes the tunnel if getInfo is the first thing it receives.)
+        let info = conn.exchange(&[0x04], None).unwrap();
+        assert_eq!(info, vec![0xde, 0xad]);
 
         // A CTAP exchange round-trips the encrypted channel and strips the
         // status byte, exactly like the HID/CCID cables.

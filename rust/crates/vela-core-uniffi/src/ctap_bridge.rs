@@ -586,9 +586,10 @@ pub fn cable_qr_payload(
     qr_secret: Vec<u8>,
     offer_ble: bool,
     epoch_seconds: i64,
+    for_get: bool,
 ) -> Option<String> {
     CableInitiator::new(&static_seed, &qr_secret)
-        .map(|session| session.qr_payload(offer_ble, epoch_seconds))
+        .map(|session| session.qr_payload(offer_ble, epoch_seconds, for_get))
 }
 
 /// The 64-byte advert key (AES-256 ‖ HMAC-SHA256) for a shell that trial-decrypts

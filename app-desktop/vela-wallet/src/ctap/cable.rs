@@ -122,6 +122,7 @@ impl WebSocketCablePort {
 
 impl CablePort for WebSocketCablePort {
     fn write_frame(&mut self, frame: &[u8]) -> Result<(), PortError> {
+        log(&format!("→ tunnel frame ({} bytes)", frame.len()));
         self.ws
             .send(Message::Binary(frame.to_vec().into()))
             .map_err(|error| PortError::Io(error.to_string()))
@@ -130,8 +131,14 @@ impl CablePort for WebSocketCablePort {
     fn read_frame(&mut self) -> Result<Vec<u8>, PortError> {
         loop {
             match self.ws.read() {
-                Ok(Message::Binary(bytes)) => return Ok(bytes.to_vec()),
-                Ok(Message::Close(_)) => return Err(PortError::Io("the tunnel closed".to_owned())),
+                Ok(Message::Binary(bytes)) => {
+                    log(&format!("← tunnel frame ({} bytes)", bytes.len()));
+                    return Ok(bytes.to_vec());
+                }
+                Ok(Message::Close(frame)) => {
+                    log(&format!("← tunnel CLOSE {frame:?}"));
+                    return Err(PortError::Io("the tunnel closed".to_owned()));
+                }
                 // Ping/pong/text are tunnel housekeeping, not caBLE frames.
                 Ok(_) => continue,
                 Err(error) => return Err(PortError::Io(error.to_string())),

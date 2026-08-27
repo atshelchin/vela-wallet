@@ -8,6 +8,11 @@ use ciborium::Value;
 
 use super::base10;
 
+/// Flow hint (QR key 5): sign in with an existing passkey.
+pub const HINT_GET: &str = "ga";
+/// Flow hint (QR key 5): create a passkey on the phone.
+pub const HINT_MAKE: &str = "mc";
+
 /// The QR the phone scans — `FIDO:/<base10(cbor)>`.
 ///
 /// * `identity_pub_compressed` — the initiator's 33-byte compressed P-256 key.
@@ -18,12 +23,18 @@ use super::base10;
 ///   hard-rejects a QR that carries the list, so it must be absent otherwise.
 /// * `epoch_seconds` — the current time (the core has no clock; the shell
 ///   passes it).
+/// * `hint` — the flow the phone should offer: [`HINT_GET`] to sign in with an
+///   existing passkey, [`HINT_MAKE`] to create one. It is not merely cosmetic —
+///   the phone shows "sign in" for `ga` and looks for an existing credential, so
+///   a make-credential flow behind a `ga` QR is offered as a sign-in the phone
+///   then fails for want of a passkey.
 #[must_use]
 pub fn build_payload(
     identity_pub_compressed: &[u8],
     qr_secret: &[u8],
     offer_ble: bool,
     epoch_seconds: i64,
+    hint: &str,
 ) -> String {
     let mut entries = vec![
         (Value::Integer(0.into()), Value::Bytes(identity_pub_compressed.to_vec())),
@@ -33,8 +44,8 @@ pub fn build_payload(
         (Value::Integer(3.into()), Value::Integer(epoch_seconds.into())),
         // Not state-assisted / not linkable.
         (Value::Integer(4.into()), Value::Bool(false)),
-        // Flow hint (UX only): getAssertion.
-        (Value::Integer(5.into()), Value::Text("ga".to_owned())),
+        // Flow hint: getAssertion (`ga`) or makeCredential (`mc`).
+        (Value::Integer(5.into()), Value::Text(hint.to_owned())),
     ];
     if offer_ble {
         // [0]=WebSocket (fallback), [1]=BLE (local, no tunnel).
@@ -79,7 +90,7 @@ mod tests {
     fn the_payload_round_trips_through_base10_and_cbor() {
         let pub_key = [0x02u8; 33];
         let secret = [0x11u8; 16];
-        let payload = build_payload(&pub_key, &secret, true, 1_700_000_000);
+        let payload = build_payload(&pub_key, &secret, true, 1_700_000_000, HINT_GET);
 
         assert!(payload.starts_with("FIDO:/"));
         let entries = decode_map(&payload);
@@ -94,10 +105,10 @@ mod tests {
     /// legacy-collision rule.
     #[test]
     fn the_ble_channel_list_is_present_only_when_ble_is_offered() {
-        let with_ble = decode_map(&build_payload(&[2u8; 33], &[0u8; 16], true, 0));
+        let with_ble = decode_map(&build_payload(&[2u8; 33], &[0u8; 16], true, 0, HINT_GET));
         assert!(matches!(get(&with_ble, 6), Some(Value::Array(_))));
 
-        let without_ble = decode_map(&build_payload(&[2u8; 33], &[0u8; 16], false, 0));
+        let without_ble = decode_map(&build_payload(&[2u8; 33], &[0u8; 16], false, 0, HINT_MAKE));
         assert!(get(&without_ble, 6).is_none(), "no channel list without BLE");
     }
 }

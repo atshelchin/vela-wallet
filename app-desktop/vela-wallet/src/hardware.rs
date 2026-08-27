@@ -359,12 +359,39 @@ pub fn pick_card(
         .map(|choice| choice.product.clone())
         .unwrap_or_default();
 
-    let mut rows = div().w_full().flex().flex_col();
+    // The rows scroll INSIDE the card: a key can hold a dozen wallets, and
+    // without a height cap the card grows past the window — title pushed off
+    // the top, cancel unreachable below (seen live with 12 credentials).
+    // Title, body and cancel stay outside this region, always on screen.
+    let mut rows = div()
+        .id("wallet-pick-rows")
+        .w_full()
+        .max_h(px(360.))
+        .min_h(px(0.))
+        .overflow_y_scroll()
+        .flex()
+        .flex_col()
+        .gap(px(2.));
     for (index, choice) in choices.iter().enumerate() {
-        let name = if choice.name.trim().is_empty() {
+        let unnamed = choice.name.trim().is_empty();
+        let name = if unnamed {
             loc.t("onboarding.login.pickUnnamed")
         } else {
             SharedString::from(choice.name.clone())
+        };
+        // The leading disc carries the wallet's monogram — its name's first
+        // grapheme. NOT an identicon: identicons are seeded from ADDRESSES
+        // (the anti-poisoning rule), and no address exists before the pick.
+        // A neutral monogram distinguishes rows without claiming an identity.
+        let monogram: SharedString = if unnamed {
+            SharedString::from("?")
+        } else {
+            SharedString::from(
+                name.chars()
+                    .next()
+                    .map(|c| c.to_uppercase().collect::<String>())
+                    .unwrap_or_default(),
+            )
         };
         // The second line is the KEY, the way a browser's own picker labels
         // these rows — every wallet here lives on the same authenticator, so it
@@ -396,27 +423,46 @@ pub fn pick_card(
                 .id(("wallet-choice", index as u64))
                 .w_full()
                 .flex()
-                .flex_col()
-                .gap(px(2.))
+                .items_center()
+                .gap(px(12.))
                 .py(px(FLOW_GAP_MD))
                 .px(px(FLOW_GAP_SM))
-                .rounded(px(8.))
+                .rounded(px(10.))
                 .cursor_pointer()
-                .border_b_1()
-                .border_color(theme.divider)
                 .hover(|style| style.bg(theme.bg_sunken))
                 .on_click(move |_, window, cx| on_pick(&index, window, cx))
                 .child(
                     div()
+                        .flex_none()
+                        .size(px(36.))
+                        .rounded_full()
+                        .bg(theme.bg_sunken)
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .text_size(theme::text_card_title())
+                        .font_weight(FontWeight::SEMIBOLD)
                         .text_color(theme.fg_base)
-                        .child(name),
+                        .child(monogram),
                 )
                 .child(
                     div()
-                        .text_size(theme::text_flow_caption())
-                        .text_color(theme.fg_subtle)
-                        .child(subtitle),
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.))
+                        .min_w_0()
+                        .child(
+                            div()
+                                .text_size(theme::text_card_title())
+                                .text_color(theme.fg_base)
+                                .child(name),
+                        )
+                        .child(
+                            div()
+                                .text_size(theme::text_flow_caption())
+                                .text_color(theme.fg_subtle)
+                                .child(subtitle),
+                        ),
                 ),
         );
     }

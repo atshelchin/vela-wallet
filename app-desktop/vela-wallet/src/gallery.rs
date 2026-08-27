@@ -330,6 +330,22 @@ fn entries() -> Vec<Entry> {
             choice("", "ee55ff66aa77bb88"),
         ]),
     );
+    // A dozen rows — the case that once grew the card past the window (no
+    // scroll, title off-screen, cancel unreachable). The rows region must
+    // scroll inside the card while title and cancel stay put.
+    hardware(
+        "pick · a dozen wallets",
+        Fixture::Pick(
+            (0..12)
+                .map(|index| {
+                    choice(
+                        &format!("Wallet {}", index + 1),
+                        &format!("{index:02}11bb22cc33dd44"),
+                    )
+                })
+                .collect(),
+        ),
+    );
 
     // The failure sheet, one row per outcome the catalog names. The two that
     // carry a detail string are driven through the refinement rather than

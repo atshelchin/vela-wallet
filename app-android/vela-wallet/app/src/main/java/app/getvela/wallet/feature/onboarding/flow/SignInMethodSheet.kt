@@ -36,9 +36,10 @@ import app.getvela.wallet.feature.onboarding.core.KeyMethod
  * lives on a security key is reachable even when a platform passkey is also
  * present, which the plain system route would use silently.
  *
- * The scan (`Hybrid`) is present-but-unavailable until the caBLE client lands,
- * exactly as it is on the create key screen. The rows are the same shape as
- * the create picker's, deliberately.
+ * The scan (`Hybrid`) is "sign in with your phone" over caBLE (spec 019): this
+ * device shows a QR, the phone that holds the passkey scans it, and the ceremony
+ * runs over the BLE/tunnel channel that phone opens. The rows are the same shape
+ * as the create picker's, deliberately.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +71,9 @@ fun SignInMethodSheet(
                 modifier = Modifier.padding(bottom = VelaSpacing.md),
             )
             KeyMethod.entries.forEach { method ->
-                val available = method != KeyMethod.Hybrid
+                // All three routes are live now: platform (this device), scan
+                // (a phone over caBLE), and a security key.
+                val available = true
                 val (titleKey, bodyKey) = signInMethodCopy(method)
                 Row(
                     modifier = Modifier

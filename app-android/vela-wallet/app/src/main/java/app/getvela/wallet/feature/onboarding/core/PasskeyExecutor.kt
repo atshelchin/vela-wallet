@@ -69,6 +69,19 @@ class PasskeyExecutor(
      */
     private val usbSecurityKey: UsbSecurityKeyCeremony? = null,
     /**
+     * The caBLE "sign in with your phone" path (spec 019), for [KeyMethod.Hybrid]
+     * — the scan method. Shows a QR the OTHER phone scans, then runs the ceremony
+     * over the BLE/tunnel channel that phone opens. `null` on surfaces with no
+     * activity (previews, the gallery).
+     */
+    private val hybrid: HybridCeremony? = null,
+    /**
+     * Show (or clear, with `null`) the caBLE QR. The ViewModel renders it; the
+     * ceremony calls this the moment the payload is ready and again to clear it,
+     * exactly as the desktop shows its QR card.
+     */
+    private val showQr: (String?) -> Unit = {},
+    /**
      * The relying party. A passkey is bound to it: change it and every existing
      * wallet becomes unreachable from this app.
      */
@@ -98,6 +111,12 @@ class PasskeyExecutor(
         excludeCredentialIds: List<String>,
         method: KeyMethod,
     ): Registration {
+        if (method == KeyMethod.Hybrid && hybrid != null) {
+            // The scan method mints the key on the OTHER phone over caBLE.
+            return runHybrid(forGet = false) { session ->
+                hybrid.register(session, name, excludeCredentialIds)
+            }
+        }
         if (method == KeyMethod.SecurityKey) {
             // The app-owned USB path IS the security-key route, on every device.
             // It talks CTAP2 straight to the key — using the KEY's own PIN or
@@ -370,6 +389,14 @@ class PasskeyExecutor(
          */
         method: KeyMethod = KeyMethod.Platform,
     ): Assertion {
+        // The scan method reaches the credential on the OTHER phone over caBLE —
+        // a sign-in (no credential id) offers whatever it holds, a proof
+        // (recovery's second signature) pins the same credential the first used.
+        if (method == KeyMethod.Hybrid && hybrid != null) {
+            return runHybrid(forGet = true) { session ->
+                hybrid.assert(session, challenge, credentialIdHex)
+            }
+        }
         // A credential that lives on a removable key — or a sign-in explicitly
         // asked to run on a security key — takes the app-owned USB path, on
         // every device: the key's own PIN/fingerprint, no GMS, no domain
@@ -618,6 +645,40 @@ class PasskeyExecutor(
         transports.split(',').map { it.trim() }.any { it == "usb" || it == "nfc" || it == "ble" }
 
     fun random(bytes: Int): ByteArray = ByteArray(bytes).also(secureRandom::nextBytes)
+
+    /**
+     * Run one caBLE ceremony: mint fresh secrets, put the QR on screen, run
+     * [body], and clear the QR however it ends. A malformed payload (a static
+     * seed that is not a valid scalar — rare, from the CSPRNG) is retried with
+     * new secrets a few times before giving up.
+     */
+    private suspend inline fun <T> runHybrid(
+        forGet: Boolean,
+        body: (HybridCeremony.Session) -> T,
+    ): T {
+        val ceremony = hybrid ?: throw PasskeyFailure(
+            FailureKind.NotSupported,
+            "Sign in with your phone is unavailable here.",
+        )
+        var session = ceremony.newSession()
+        var payload = ceremony.qrPayload(session, forGet)
+        var tries = 0
+        while (payload == null && tries < 4) {
+            session = ceremony.newSession()
+            payload = ceremony.qrPayload(session, forGet)
+            tries++
+        }
+        val qr = payload ?: throw PasskeyFailure(
+            FailureKind.Other,
+            "Could not start sign in with your phone.",
+        )
+        showQr(qr)
+        return try {
+            body(session)
+        } finally {
+            showQr(null)
+        }
+    }
 
     /**
      * `name` + NUL + `uuid` — the handle shape every Vela client mints and

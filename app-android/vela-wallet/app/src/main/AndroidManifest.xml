@@ -25,6 +25,34 @@
     -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!--
+      Bluetooth (spec 019, caBLE "sign in with your phone" as INITIATOR).
+
+      This app SHOWS the QR; the other phone scans it and starts advertising a
+      BLE proximity EID. Finding that advert needs BLUETOOTH_SCAN, and the CTAP
+      2.3 BLE-only channel connects an L2CAP CoC to the advertised PSM, which
+      needs BLUETOOTH_CONNECT. `neverForLocation`: the scan looks for one
+      service-data advert and derives no position from anything, which also
+      spares the flow the location-permission dialog on API 31+.
+
+      The maxSdkVersion pair is the same capability on API ≤30, where the
+      runtime permissions did not exist yet and legacy BLUETOOTH/ADMIN gate the
+      scan instead (plus fine location, which pre-31 scanning requires).
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+
     <application
         android:name=".VelaWalletApplication"
         android:allowBackup="false"

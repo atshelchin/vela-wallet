@@ -30,6 +30,7 @@ import app.getvela.wallet.feature.onboarding.WelcomeViewModel
 import app.getvela.wallet.feature.onboarding.core.KeyMethod
 import app.getvela.wallet.feature.onboarding.core.RegistryClient
 import app.getvela.wallet.feature.onboarding.core.SessionRoute
+import app.getvela.wallet.feature.onboarding.flow.CableQrSheet
 import app.getvela.wallet.feature.onboarding.flow.CreateFlowScreen
 import app.getvela.wallet.feature.onboarding.flow.EndpointSheet
 import app.getvela.wallet.feature.onboarding.flow.FlowSheet
@@ -276,6 +277,9 @@ fun VelaNavHost(
     }
     onboarding.usbTouchWaiting?.let { touch ->
         UsbTouchIndicator(kind = touch.kind, product = touch.product)
+    }
+    onboarding.cableQr?.let { payload ->
+        CableQrSheet(payload = payload)
     }
 
     // The way back out of a signed-in wallet.

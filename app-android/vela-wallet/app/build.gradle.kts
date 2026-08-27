@@ -183,6 +183,9 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.play.services.fido)
+    // The caBLE WebSocket tunnel — the CTAP 2.2 channel of "sign in with your
+    // phone". The BLE-only CTAP 2.3 channel needs no HTTP library at all.
+    implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.datastore.preferences)

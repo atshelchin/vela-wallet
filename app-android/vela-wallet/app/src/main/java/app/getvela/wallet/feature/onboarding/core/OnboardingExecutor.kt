@@ -128,10 +128,14 @@ class OnboardingExecutor(
             }
 
             "sign_proof" -> {
+                val wire = operation.optString("method")
                 val assertion = passkey.assert(
                     challenge = challengeFor(operation.optString("purpose")),
                     credentialIdHex = operation.optString("credential_id"),
                     transports = operation.optString("transports"),
+                    // The route the person signed in with. Recovery's second
+                    // signature over caBLE goes back to the same phone.
+                    method = if (wire.isEmpty()) KeyMethod.Platform else KeyMethod.of(wire),
                 )
                 result("proof_signed") {
                     put("assertion", assertion.toWire())
@@ -162,10 +166,14 @@ class OnboardingExecutor(
                     attestation = operation.optString("attestation_hex"),
                     rpId = passkey.relyingPartyId,
                 )
+                val memberWire = operation.optString("method")
                 val assertion = passkey.assert(
                     challenge = uniffi.vela_core_uniffi.fromHex(stripHex(challenge)),
                     credentialIdHex = operation.optString("credential_id"),
                     transports = operation.optString("transports"),
+                    // The route that minted this key confirms it — a key created
+                    // on the phone over caBLE is confirmed on that phone.
+                    method = if (memberWire.isEmpty()) KeyMethod.Platform else KeyMethod.of(memberWire),
                 )
                 result("member_proof_signed") {
                     put("proof", JSONObject(memberProof(assertion)))
@@ -281,6 +289,11 @@ class OnboardingExecutor(
         if (members.isEmpty()) {
             throw RegistryFailure("registry publish needs at least one member", network = false)
         }
+        // The route a member with no replayable proof signs its live possession
+        // proof over — recovery's third signature. A caBLE-recovered wallet
+        // signs it on the same phone; a create replays and never reaches here.
+        val wire = operation.optString("method")
+        val method = if (wire.isEmpty()) KeyMethod.Platform else KeyMethod.of(wire)
 
         var seedHex = operation.optString("group_seed_hex")
         var groupPublicKey = operation.optString("group_public_key_hex")
@@ -310,6 +323,7 @@ class OnboardingExecutor(
                 val assertion = passkey.assert(
                     challenge = uniffi.vela_core_uniffi.fromHex(stripHex(memberChallenge)),
                     credentialIdHex = member.credentialIdHex,
+                    method = method,
                 )
                 ProvenMember(member, JSONObject(memberProof(assertion)))
             }

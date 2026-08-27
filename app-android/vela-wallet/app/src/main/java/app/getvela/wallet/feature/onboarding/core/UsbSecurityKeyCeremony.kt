@@ -137,7 +137,7 @@ class UsbSecurityKeyCeremony(
     }
 }
 
-private fun CtapRegistration.toRegistration() = Registration(
+internal fun CtapRegistration.toRegistration() = Registration(
     credentialIdHex = credentialIdHex,
     attestationObjectHex = attestationObjectHex,
     clientDataJsonHex = clientDataJsonHex,
@@ -145,7 +145,7 @@ private fun CtapRegistration.toRegistration() = Registration(
     transports = transports,
 )
 
-private fun CtapAssertion.toAssertion() = Assertion(
+internal fun CtapAssertion.toAssertion() = Assertion(
     credentialIdHex = credentialIdHex,
     signatureDerHex = signatureDerHex,
     authenticatorDataHex = authenticatorDataHex,
@@ -154,8 +154,9 @@ private fun CtapAssertion.toAssertion() = Assertion(
     authenticatorAttachment = authenticatorAttachment,
 )
 
-/** The core's `FailureKind`, from the classified CTAP error. */
-private fun CtapException.toPasskeyFailure(): PasskeyFailure = when (this) {
+/** The core's `FailureKind`, from the classified CTAP error. Shared with the
+ *  caBLE ceremony ([HybridCeremony]), which classifies the same errors. */
+internal fun CtapException.toPasskeyFailure(): PasskeyFailure = when (this) {
     is CtapException.Cancelled -> PasskeyFailure(FailureKind.Cancelled, "User cancelled the operation")
     is CtapException.NotSupported -> PasskeyFailure(FailureKind.NotSupported, detail)
     is CtapException.NotDiscoverable -> PasskeyFailure(FailureKind.NotDiscoverable, detail)

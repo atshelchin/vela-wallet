@@ -52,6 +52,39 @@ class MainActivity : ComponentActivity() {
         private set
 
     /**
+     * Runtime Bluetooth permission for the caBLE scan/connect (spec 019). Like
+     * [securityKeyCeremony] it must be registered before STARTED, so it lives
+     * here and the onboarding flow calls [requestBluetoothPermission].
+     */
+    private lateinit var bluetoothPermissionLauncher:
+        androidx.activity.result.ActivityResultLauncher<Array<String>>
+    private var bluetoothPermissionAnswer:
+        kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+
+    /** The permissions the caBLE scan needs on this API level. */
+    private fun bluetoothPermissions(): Array<String> =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            arrayOf(
+                android.Manifest.permission.BLUETOOTH_SCAN,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+            )
+        } else {
+            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
+    /** Grant (or confirm) the Bluetooth permissions; `true` if all are held. */
+    suspend fun requestBluetoothPermission(): Boolean {
+        val needed = bluetoothPermissions().filter {
+            checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (needed.isEmpty()) return true
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        bluetoothPermissionAnswer = answer
+        bluetoothPermissionLauncher.launch(needed.toTypedArray())
+        return answer.await()
+    }
+
+    /**
      * Deterministic disable for instrumented tests (FR-029).
      *
      * An intent extra rather than a build flag: existing tests must be able to
@@ -97,6 +130,12 @@ class MainActivity : ComponentActivity() {
         val coldStart = savedInstanceState == null && !launchAnimationDisabled() && !galleryRequested()
         super.onCreate(savedInstanceState)
         securityKeyCeremony = SecurityKeyCeremony(this)
+        bluetoothPermissionLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+        ) { grants ->
+            bluetoothPermissionAnswer?.complete(grants.values.all { it })
+            bluetoothPermissionAnswer = null
+        }
         enableEdgeToEdge()
 
         val container = (application as VelaWalletApplication).container

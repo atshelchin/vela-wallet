@@ -10,6 +10,7 @@ import app.getvela.wallet.VelaWalletApplication
 import app.getvela.wallet.core.diagnostics.VelaLog
 import app.getvela.wallet.feature.onboarding.core.AccountStore
 import app.getvela.wallet.feature.onboarding.core.CoreDriver
+import app.getvela.wallet.feature.onboarding.core.HybridCeremony
 import app.getvela.wallet.feature.onboarding.core.CreateView
 import app.getvela.wallet.feature.onboarding.core.KeyMethod
 import app.getvela.wallet.feature.onboarding.core.LoginView
@@ -116,6 +117,10 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
     data class UsbTouch(val kind: String, val product: String)
 
+    /** The caBLE QR to show (the OTHER phone scans it), or null when none is up. */
+    var cableQr by mutableStateOf<String?>(null)
+        private set
+
     /**
      * The app-owned USB ceremony's UI seam. Every method BLOCKS the calling
      * (IO) thread until the person answers on the main thread — a synchronous
@@ -191,6 +196,15 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 } else {
                     null
                 },
+                // The caBLE "sign in with your phone" path. Reuses the USB touch
+                // prompt ("look at your phone") and needs a real activity for
+                // the Bluetooth-permission launcher.
+                hybrid = if (isRealActivity) {
+                    HybridCeremony(activityContext, usbPrompts)
+                } else {
+                    null
+                },
+                showQr = { qr -> viewModelScope.launch { cableQr = qr } },
             )
         }
     }

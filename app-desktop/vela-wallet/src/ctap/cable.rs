@@ -542,28 +542,23 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
         .map_err(|error| HybridError::Bluetooth(error.to_string()))?;
     log("scan started");
 
-    let mut seen = 0u32;
+    // Distinct caBLE candidates that did NOT match this QR — logged once each,
+    // not once per advertisement (a phone re-broadcasts several times a second).
+    // Their presence means a caBLE authenticator is advertising for a DIFFERENT
+    // QR, which is the tell-tale of a stale scan: a previous attempt still live
+    // on the phone, or the wrong QR scanned.
+    let mut unmatched: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+    let mut hinted = false;
+
     while let Some(event) = events.next().await {
-        // The caBLE advert is service data under 0xFFF9 / 0xFDE2; log every
-        // service-data event's UUIDs so a phone advertising under an unexpected
-        // one (or not at all) is visible rather than a silent 90-second wait.
+        // The caBLE advert is service data under 0xFFF9 / 0xFDE2.
         let CentralEvent::ServiceDataAdvertisement { service_data, .. } = event else {
             continue;
         };
-        seen += 1;
-        if seen <= 40 {
-            let uuids: Vec<String> = service_data.keys().map(|u| u.to_string()).collect();
-            log(&format!("service-data advert #{seen}: {uuids:?}"));
-        }
         for uuid in SERVICE_UUIDS {
             let Some(data) = service_data.get(&uuid) else {
                 continue;
             };
-            log(&format!(
-                "candidate under {uuid} ({} bytes): {}",
-                data.len(),
-                hex(data)
-            ));
             if data.len() < 20 {
                 continue;
             }
@@ -574,13 +569,28 @@ async fn scan_loop(eid_key: &[u8]) -> Result<[u8; 16], HybridError> {
                 let suffix = &data[20..];
                 let psm = cable_crypto::parse_advert_psm(suffix);
                 log(&format!(
-                    "decrypted; suffix={} PSM={psm:?}",
+                    "matched this QR; suffix={} PSM={psm:?}",
                     if suffix.is_empty() { "(none)".to_owned() } else { hex(suffix) }
                 ));
                 let _ = adapter.stop_scan().await;
                 return Ok(plaintext);
             }
-            log("candidate did not decrypt under this QR's key");
+            // A caBLE advert that is not ours. Log each distinct one once.
+            if unmatched.insert(data.to_vec()) {
+                log(&format!(
+                    "caBLE advert for a DIFFERENT QR ({} bytes): {}",
+                    data.len(),
+                    hex(data)
+                ));
+                if !hinted {
+                    hinted = true;
+                    log(
+                        "→ a phone is advertising for another QR. Make sure it is \
+                         scanning the QR currently on screen — dismiss any earlier \
+                         sign-in attempt on the phone and scan the fresh code.",
+                    );
+                }
+            }
         }
     }
 

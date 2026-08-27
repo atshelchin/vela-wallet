@@ -342,6 +342,11 @@ extension OnboardingModel: OnboardingExecutorDeps {
         // machine's ruling, not this model's.
         session.accountEstablished(mode: mode)
         finished = true
+        // Drop the connecting hold HERE, not from the busy transition: a
+        // successful login parks in `Stage::Completing` forever (see below),
+        // so `busy` never falls and the hold sheet sat on top of the wallet
+        // the person had just entered (device-found 2026-08-28).
+        signInConnecting = false
 
         // A FINISHED machine is not a BUSY one.
         //

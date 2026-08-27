@@ -102,66 +102,93 @@ final class HybridCeremony {
             throw PasskeyFailure(kind: .other, message: "Could not start sign in with your phone.")
         }
 
+        // Everything below runs through ONE exit (the do/catch tail) so the QR
+        // clear, the touch clear, the port close and the Bluetooth teardown are
+        // STRUCTURED — they complete before this ceremony returns. The old
+        // fire-and-forget clears raced the NEXT ceremony: recovery's second
+        // signature starts the moment this one resolves, and the deferred
+        // `showQr(nil)` from signature one wiped signature two's fresh QR off
+        // the screen; the undismantled GATT link from a BLE ceremony likewise
+        // fouled the next scan (device-found 2026-08-28).
         let scanner = await MainActor.run { () -> HybridCableScanner in
             let s = HybridCableScanner()
             self.scanner = s
             return s
         }
         await MainActor.run { showQr(qr) }
-        defer { Task { @MainActor in self.showQr(nil) } }
 
-        print("[vela-cable] QR on screen; scanning for the phone's advert…")
-        guard let hit = await scanner.findResponder(
-            qrSecret: session.qrSecret,
-            timeoutMs: Self.scanTimeoutMs
-        ) else {
-            print("[vela-cable] no advert matched within the scan window")
-            throw PasskeyFailure(
-                kind: .other,
-                message: "No phone answered the code. Scan it with the other device and try again."
-            )
-        }
-
-        // The advert chooses the channel: a PSM means the CTAP 2.3 local BLE
-        // channel (no tunnel, no internet); none means the CTAP 2.2 tunnel.
-        let conn: CableConn
-        if let psm = hit.advert.psm {
-            print("[vela-cable] advert offers BLE (PSM \(psm)) — L2CAP CoC, no tunnel")
-            conn = try await scanner.openL2cap(hit, psm: psm, timeoutMs: Self.connectTimeoutMs)
-        } else {
-            print("[vela-cable] advert has no PSM — WebSocket tunnel")
-            guard let urlString = cableConnectUrl(
-                staticSeed: session.staticSeed,
+        var openPort: CableConnPort?
+        do {
+            print("[vela-cable] QR on screen; scanning for the phone's advert…")
+            guard let hit = await scanner.findResponder(
                 qrSecret: session.qrSecret,
-                advertPlaintext: hit.advert.plaintext
-            ), let url = URL(string: urlString) else {
-                throw PasskeyFailure(kind: .other, message: "the phone's advertisement named an unknown tunnel")
+                timeoutMs: Self.scanTimeoutMs
+            ) else {
+                print("[vela-cable] no advert matched within the scan window")
+                throw PasskeyFailure(
+                    kind: .other,
+                    message: "No phone answered the code. Scan it with the other device and try again."
+                )
             }
-            conn = try await WebSocketCableConn.connect(url: url, timeoutMs: Self.connectTimeoutMs)
-        }
 
-        let port = await CableConnPort(conn)
-        let host = CableHostBridge(prompts: prompts)
-        let plaintext = hit.advert.plaintext
-        defer {
-            prompts.touchWaiting(kind: nil, product: "")
-            port.close()
-        }
+            // The advert chooses the channel: a PSM means the CTAP 2.3 local
+            // BLE channel (no tunnel, no internet); none means the CTAP 2.2
+            // tunnel.
+            let conn: CableConn
+            if let psm = hit.advert.psm {
+                print("[vela-cable] advert offers BLE (PSM \(psm)) — L2CAP CoC, no tunnel")
+                conn = try await scanner.openL2cap(hit, psm: psm, timeoutMs: Self.connectTimeoutMs)
+            } else {
+                print("[vela-cable] advert has no PSM — WebSocket tunnel")
+                guard let urlString = cableConnectUrl(
+                    staticSeed: session.staticSeed,
+                    qrSecret: session.qrSecret,
+                    advertPlaintext: hit.advert.plaintext
+                ), let url = URL(string: urlString) else {
+                    throw PasskeyFailure(kind: .other, message: "the phone's advertisement named an unknown tunnel")
+                }
+                conn = try await WebSocketCableConn.connect(url: url, timeoutMs: Self.connectTimeoutMs)
+            }
 
-        print("[vela-cable] channel up; starting the ceremony (Noise + CTAP in Rust)")
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                do {
-                    continuation.resume(returning: try body(port, plaintext, host, session))
-                } catch let error as CtapError {
-                    print("[vela-cable] ceremony failed: \(error)")
-                    continuation.resume(throwing: error.toPasskeyFailure())
-                } catch {
-                    continuation.resume(
-                        throwing: PasskeyFailure(kind: .other, message: error.localizedDescription)
-                    )
+            let port = await CableConnPort(conn)
+            openPort = port
+            let host = CableHostBridge(prompts: prompts)
+            let plaintext = hit.advert.plaintext
+
+            print("[vela-cable] channel up; starting the ceremony (Noise + CTAP in Rust)")
+            let outcome = try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        continuation.resume(returning: try body(port, plaintext, host, session))
+                    } catch let error as CtapError {
+                        print("[vela-cable] ceremony failed: \(error)")
+                        continuation.resume(throwing: error.toPasskeyFailure())
+                    } catch {
+                        continuation.resume(
+                            throwing: PasskeyFailure(kind: .other, message: error.localizedDescription)
+                        )
+                    }
                 }
             }
+            await finish(scanner: scanner, port: openPort)
+            return outcome
+        } catch {
+            await finish(scanner: scanner, port: openPort)
+            throw error
+        }
+    }
+
+    /// The one cleanup path, awaited before `run` returns on EVERY exit: clear
+    /// the prompts, close the channel, and dismantle this ceremony's Bluetooth
+    /// (stop the scan, drop the GATT link) so the next ceremony starts on a
+    /// silent radio and a fresh screen.
+    private func finish(scanner: HybridCableScanner, port: CableConnPort?) async {
+        prompts.touchWaiting(kind: nil, product: "")
+        port?.close()
+        await MainActor.run {
+            scanner.cancel()
+            if self.scanner === scanner { self.scanner = nil }
+            self.showQr(nil)
         }
     }
 

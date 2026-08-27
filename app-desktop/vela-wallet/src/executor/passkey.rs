@@ -823,23 +823,14 @@ fn run_hybrid(
     let session = CableInitiator::new(&static_seed, &qr_secret)
         .ok_or_else(|| PasskeyFailure::other("could not start a caBLE session"))?;
 
-    // Offer the BLE channel (QR key 6) only where it can be CONNECTED. On macOS
-    // that is both channels: a WebSocket-only authenticator (GMS) ignores the
-    // BLE offer and uses the tunnel as before, while a CTAP 2.3 BLE-only
-    // authenticator needs to SEE the offer or it rejects the QR outright, and
-    // the advert's PSM then says which one it chose.
-    //
-    // Windows and Linux have no L2CAP CoC to connect (see
-    // [`cable::BLE_CHANNEL_SUPPORTED`]), so they must not make the offer.
-    // Offering a channel that cannot be opened invites a dual-channel phone to
-    // pick the one that strands the ceremony; withholding it makes that same
-    // phone use the tunnel, and makes a BLE-only authenticator decline the QR
-    // up front — which is the truth, said early.
-    (ceremony.qr)(Some(session.qr_payload(
-        cable::BLE_CHANNEL_SUPPORTED,
-        unix_seconds(),
-        for_get,
-    )));
+    // The QR is exactly Chrome's shape — no channel offer. GMS's caBLE-v2.1
+    // parser hard-rejects a QR whose key 6 is anything but its legacy bool
+    // (device-found 2026-08-28: GMS phones never connected, iPhones did), and
+    // our own authenticators never needed the offer: the channel is chosen by
+    // the ADVERT — a PSM in its suffix means BLE, none means the tunnel — and
+    // `establish_hybrid` only takes the L2CAP branch where this desktop can
+    // connect it (`cable::BLE_CHANNEL_SUPPORTED` gates the branch, not the QR).
+    (ceremony.qr)(Some(session.qr_payload(unix_seconds(), for_get)));
 
     let ephemeral_seed = random(32);
     let touch_notify = Arc::clone(&ceremony.touch);

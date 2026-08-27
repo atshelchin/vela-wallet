@@ -17,10 +17,6 @@ pub const HINT_MAKE: &str = "mc";
 ///
 /// * `identity_pub_compressed` — the initiator's 33-byte compressed P-256 key.
 /// * `qr_secret` — 16 random bytes; every caBLE key derives from it.
-/// * `offer_ble` — advertise the CTAP 2.3 BLE data channel alongside the
-///   WebSocket tunnel. Key 6 (the channel list) is emitted ONLY when this is
-///   set: caBLE v2 treated key 6 as a bool, and a pre-2.3 responder
-///   hard-rejects a QR that carries the list, so it must be absent otherwise.
 /// * `epoch_seconds` — the current time (the core has no clock; the shell
 ///   passes it).
 /// * `hint` — the flow the phone should offer: [`HINT_GET`] to sign in with an
@@ -28,15 +24,30 @@ pub const HINT_MAKE: &str = "mc";
 ///   the phone shows "sign in" for `ga` and looks for an existing credential, so
 ///   a make-credential flow behind a `ga` QR is offered as a sign-in the phone
 ///   then fails for want of a passkey.
+///
+/// ## Why the payload is exactly Chrome's shape — keys 0..=5 and NOTHING else
+///
+/// This used to emit key 6 as the CTAP 2.3 channel list (`[0, 1]`) to offer the
+/// BLE data channel. Device-found (2026-08-28): Google Password Manager's
+/// parser is caBLE v2.1-era — it knows key 6 only as a BOOL
+/// (`supports_non_discoverable_make_credential`, see webauthn-rs and Chromium)
+/// and hard-rejects the whole QR when the type does not match. The symptom was
+/// exactly asymmetric: iPhones (tolerant parser) connected, GMS phones never
+/// did, while Chrome's own QR (no array) worked everywhere.
+///
+/// And the list was carrying no information anyone needed: channel selection is
+/// driven by the AUTHENTICATOR's advert (a PSM in the suffix = BLE-only
+/// offered), and our own authenticators proceed with the BLE channel whether or
+/// not the QR mentioned it. So the QR stays maximally compatible and the advert
+/// stays the single source of truth for the channel.
 #[must_use]
 pub fn build_payload(
     identity_pub_compressed: &[u8],
     qr_secret: &[u8],
-    offer_ble: bool,
     epoch_seconds: i64,
     hint: &str,
 ) -> String {
-    let mut entries = vec![
+    let entries = vec![
         (Value::Integer(0.into()), Value::Bytes(identity_pub_compressed.to_vec())),
         (Value::Integer(1.into()), Value::Bytes(qr_secret.to_vec())),
         // The number of assigned tunnel-server domains this initiator knows.
@@ -47,13 +58,6 @@ pub fn build_payload(
         // Flow hint: getAssertion (`ga`) or makeCredential (`mc`).
         (Value::Integer(5.into()), Value::Text(hint.to_owned())),
     ];
-    if offer_ble {
-        // [0]=WebSocket (fallback), [1]=BLE (local, no tunnel).
-        entries.push((
-            Value::Integer(6.into()),
-            Value::Array(vec![Value::Integer(0.into()), Value::Integer(1.into())]),
-        ));
-    }
 
     let map = Value::Map(entries);
     let mut cbor = Vec::new();
@@ -90,7 +94,7 @@ mod tests {
     fn the_payload_round_trips_through_base10_and_cbor() {
         let pub_key = [0x02u8; 33];
         let secret = [0x11u8; 16];
-        let payload = build_payload(&pub_key, &secret, true, 1_700_000_000, HINT_GET);
+        let payload = build_payload(&pub_key, &secret, 1_700_000_000, HINT_GET);
 
         assert!(payload.starts_with("FIDO:/"));
         let entries = decode_map(&payload);
@@ -101,14 +105,17 @@ mod tests {
         assert!(matches!(get(&entries, 5), Some(Value::Text(s)) if s == "ga"));
     }
 
-    /// Key 6 (the channel list) is present iff BLE is offered — the
-    /// legacy-collision rule.
+    /// Key 6 must NEVER appear: Google Password Manager's caBLE v2.1-era parser
+    /// knows it only as a bool and hard-rejects a QR whose key 6 is anything
+    /// else (device-found 2026-08-28 — GMS phones could not connect while
+    /// iPhones could). The BLE channel is offered by the authenticator's
+    /// ADVERT (the PSM suffix), never by the QR.
     #[test]
-    fn the_ble_channel_list_is_present_only_when_ble_is_offered() {
-        let with_ble = decode_map(&build_payload(&[2u8; 33], &[0u8; 16], true, 0, HINT_GET));
-        assert!(matches!(get(&with_ble, 6), Some(Value::Array(_))));
-
-        let without_ble = decode_map(&build_payload(&[2u8; 33], &[0u8; 16], false, 0, HINT_MAKE));
-        assert!(get(&without_ble, 6).is_none(), "no channel list without BLE");
+    fn the_payload_is_exactly_chromes_shape_with_no_key_6() {
+        for hint in [HINT_GET, HINT_MAKE] {
+            let entries = decode_map(&build_payload(&[2u8; 33], &[0u8; 16], 0, hint));
+            assert!(get(&entries, 6).is_none(), "key 6 poisons GMS parsers");
+            assert_eq!(entries.len(), 6, "keys 0..=5, nothing else");
+        }
     }
 }

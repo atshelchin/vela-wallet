@@ -50,14 +50,15 @@ class HybridCeremony(
 
     /**
      * The `FIDO:/…` QR to render, or null if the fresh secrets were malformed
-     * (the caller retries with a new [Session]). `offerBle` is always true here:
-     * Android can connect the BLE-only channel, so it advertises it; a phone
-     * that only speaks the tunnel ignores the offer.
+     * (the caller retries with a new [Session]). The payload is exactly
+     * Chrome's shape — the BLE channel is chosen by the AUTHENTICATOR's advert
+     * (its PSM suffix), never offered in the QR, because GMS's caBLE-v2.1
+     * parser hard-rejects any QR whose key 6 is not its legacy bool
+     * (device-found 2026-08-28).
      */
     fun qrPayload(session: Session, forGet: Boolean): String? = cableQrPayload(
         staticSeed = session.staticSeed,
         qrSecret = session.qrSecret,
-        offerBle = true,
         epochSeconds = System.currentTimeMillis() / 1000,
         forGet = forGet,
     )

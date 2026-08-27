@@ -172,7 +172,11 @@ impl<P: CablePort> CableConnection<P> {
             Some(0x08) => "getNextAssertion",
             _ => "ctap",
         };
-        eprintln!("[vela-cable] → CTAP {command} ({} bytes)", request.len());
+        eprintln!(
+            "[vela-cable] → CTAP {command} ({} bytes): {:02x?}",
+            request.len(),
+            request
+        );
 
         let mut frame = Vec::with_capacity(request.len() + 1);
         frame.push(MSG_CTAP);

@@ -320,13 +320,13 @@ impl GetAssertion {
         }
 
         let mut options = Vec::new();
-        if self.user_presence {
-            options.push((Value::Text("up".to_string()), Value::Bool(true)));
-        } else {
-            // Emitted EXPLICITLY when false. CTAP2 defaults `up` to true when
-            // the key is absent, so a silent probe that merely omits it is a
-            // request that makes the key blink — the opposite of what it is
-            // for.
+        if !self.user_presence {
+            // `up` is emitted ONLY for the silent probe, explicitly false. A
+            // normal request omits it: CTAP2 defaults `up` to true, so leaving
+            // it out is the same request — and it is what real authenticators
+            // expect. A redundant explicit `up:true` alongside `uv:true` is
+            // rejected by some (GMS over caBLE drops the tunnel on it), and the
+            // founder's proven demo never sends it.
             options.push((Value::Text("up".to_string()), Value::Bool(false)));
         }
         if self.user_verification {

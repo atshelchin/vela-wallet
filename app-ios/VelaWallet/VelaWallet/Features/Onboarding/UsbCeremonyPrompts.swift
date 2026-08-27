@@ -254,21 +254,43 @@ struct UsbTouchSheet: View {
     }
 }
 
-/// The brief "connecting to your security key…" state that keeps the single
-/// bottom sheet up between the person picking a method and the first ceremony
-/// prompt arriving — so the sheet never dismisses and re-presents (the nesting
-/// bug), it only swaps content.
+/// The brief "connecting…" state that keeps the single bottom sheet up between
+/// the person picking a method and the first ceremony prompt arriving — so the
+/// sheet never dismisses and re-presents (the nesting bug), it only swaps
+/// content. It ALSO covers the gaps between ceremony steps (the registry
+/// queries after a signature), so its words must match the route the person
+/// picked: it used to hardcode the USB copy, and a person mid-scan sat staring
+/// at "USB security key — plug it in and touch it" (device-found 2026-08-28).
 struct UsbConnectingSheet: View {
     @Environment(\.theme) private var theme
     let loc: Loc
+    let method: KeyMethod
+
+    private var title: String {
+        switch method {
+        case .hybrid: "Check your phone"
+        case .securityKey: loc.t(I18nKeys.Create.methodSecurityKeyTitle)
+        case .platform: loc.t(I18nKeys.Create.methodPlatformTitle)
+        }
+    }
+
+    private var body_: String {
+        switch method {
+        // Same words as the remote touch prompt and the desktop; the corpus
+        // key for them is the standing i18n follow-up.
+        case .hybrid: "Follow the steps on your device"
+        case .securityKey: loc.t(I18nKeys.Create.methodSecurityKeyBody)
+        case .platform: loc.t(I18nKeys.Create.methodPlatformBody)
+        }
+    }
 
     var body: some View {
         VStack(spacing: Tokens.Space.s16) {
             ProgressView()
-            Text(loc.t(I18nKeys.Create.methodSecurityKeyTitle))
+            Text(title)
                 .typeRole(Typography.title)
                 .foregroundStyle(theme.fgBase)
-            Text(loc.t(I18nKeys.Create.methodSecurityKeyBody))
+            Text(body_)
                 .typeRole(Typography.body)
                 .foregroundStyle(theme.fgMuted)
                 .multilineTextAlignment(.center)

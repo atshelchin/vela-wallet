@@ -123,12 +123,17 @@ final class OnboardingModel {
     /// `signInConnecting` while the ceremony spins up.
     func pickSignInMethod(_ method: KeyMethod) {
         showSignInMethods = false
+        signInMethod = method
         if method != .platform {
             signInConnecting = true
             sawBusySinceConnect = false
         }
         signIn(method: method)
     }
+
+    /// The route the person picked, so the connecting hold's words match it —
+    /// a scan must never sit behind "plug in your USB security key".
+    private(set) var signInMethod: KeyMethod = .platform
 
     struct PendingPin: Identifiable {
         let product: String

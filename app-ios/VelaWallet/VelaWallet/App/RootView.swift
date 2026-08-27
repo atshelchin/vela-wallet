@@ -284,7 +284,7 @@ struct RootView: View {
             )
             .themed(scheme)
         } else if onboarding.signInConnecting {
-            UsbConnectingSheet(loc: loc)
+            UsbConnectingSheet(loc: loc, method: onboarding.signInMethod)
                 .themed(scheme)
         } else if onboarding.showSignInMethods {
             SignInMethodSheet(loc: loc, onPick: onboarding.pickSignInMethod)

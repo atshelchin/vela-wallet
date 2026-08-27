@@ -374,10 +374,8 @@ private fun KeyBadge(synced: Boolean) {
  * choice — so the person's selection here is honoured at the ceremony rather
  * than merely recorded.
  *
- * `Hybrid` is rendered present-and-explained rather than hidden: the design
- * draws it, the core models it, and a later feature adds the transport. An
- * absent row would read as "this wallet cannot do that"; a disabled row with its
- * reason reads as "not yet", which is the truth.
+ * All three routes are live now: platform (this device), scan (mint the key on
+ * a phone over caBLE), and a security key.
  */
 @Composable
 private fun AddMethodPicker(onPick: (KeyMethod) -> Unit) {
@@ -393,7 +391,7 @@ private fun AddMethodPicker(onPick: (KeyMethod) -> Unit) {
             modifier = Modifier.padding(vertical = VelaSpacing.md),
         )
         KeyMethod.entries.forEach { method ->
-            val available = method != KeyMethod.Hybrid
+            val available = true
             val (titleKey, bodyKey) = methodCopy(method)
             Row(
                 modifier = Modifier

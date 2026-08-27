@@ -204,7 +204,18 @@ struct UsbTouchSheet: View {
     let loc: Loc
     let touch: OnboardingModel.UsbTouch
 
+    /// Over caBLE the "authenticator" is the person's phone, and the approval
+    /// happens THERE — "touch your security key" would send them hunting for
+    /// hardware they never owned (device-found 2026-08-28). Same copy the
+    /// desktop uses for its remote prompt; a corpus key is the i18n follow-up.
+    private var remote: Bool { touch.product == "your phone" }
+
+    private var title: String {
+        remote ? "Check your phone" : loc.t(I18nKeys.Create.touchTitle)
+    }
+
     private var message: String {
+        if remote { return "Follow the steps on your device" }
         switch touch.kind {
         case "fingerprint":
             return loc.t(I18nKeys.Create.touchFingerprintBody, vars: ["product": touch.product])
@@ -217,12 +228,12 @@ struct UsbTouchSheet: View {
 
     var body: some View {
             VStack(spacing: Tokens.Space.s16) {
-                Image(systemName: "key.radiowaves.forward")
+                Image(systemName: remote ? "iphone.radiowaves.left.and.right" : "key.radiowaves.forward")
                     .font(.system(size: 44, weight: .regular))
                     .foregroundStyle(theme.accentBase)
                     .symbolEffect(.pulse, options: .repeating)
 
-                Text(loc.t(I18nKeys.Create.touchTitle))
+                Text(title)
                     .typeRole(Typography.title)
                     .foregroundStyle(theme.fgBase)
                     .multilineTextAlignment(.center)

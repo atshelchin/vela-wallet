@@ -281,6 +281,19 @@ final class PasskeyExecutor: NSObject {
         let hints = Set(
             transports.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         )
+        // THE METHOD OUTRANKS THE TRANSPORT HINTS, and the order of these two
+        // branches is load-bearing. A caBLE credential is cross-platform, so
+        // its recovery proof arrives carrying the WIDE hint set
+        // ("usb,nfc,ble,hybrid") — with the removable branch first, a person
+        // who had just signed in by scanning a QR was told to plug in a USB
+        // security key they never owned (device-found 2026-08-28). The scan
+        // method reaches the credential on the OTHER phone over OUR caBLE — a
+        // sign-in (no credential id) offers whatever it holds, a proof
+        // (recovery's second signature) pins the same credential the first
+        // used.
+        if method == .hybrid, let hybrid {
+            return try await hybrid.assert(challenge: challenge, credentialIdHex: credentialIdHex)
+        }
         // A credential that lives on a removable key — OR a sign-in the person
         // explicitly asked to do on a security key — takes the app-owned CCID
         // path, ALWAYS, never the system's security-key provider. The
@@ -292,13 +305,6 @@ final class PasskeyExecutor: NSObject {
         let removable = !hints.isDisjoint(with: ["usb", "nfc", "ble"])
         if removable || method == .securityKey, let smartCard {
             return try await smartCard.assert(challenge: challenge, credentialIdHex: credentialIdHex)
-        }
-        // The scan method reaches the credential on the OTHER phone over OUR
-        // caBLE — a sign-in (no credential id) offers whatever it holds, a
-        // proof (recovery's second signature) pins the same credential the
-        // first used.
-        if method == .hybrid, let hybrid {
-            return try await hybrid.assert(challenge: challenge, credentialIdHex: credentialIdHex)
         }
 
         // Only when it is known NOT to be a removable key — an unknown set

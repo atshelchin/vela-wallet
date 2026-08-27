@@ -316,14 +316,12 @@ impl<C: Cable, H: Host> Client<'_, C, H> {
                 .map(|id| CredentialDescriptor { id })
                 .collect(),
             resident_key: true,
-            // A PIN token, when present, IS the user verification (CTAP 2.1
-            // §6.1.2 rejects a request that carries both it and `uv:true`).
-            // Without one, the legacy `uv:true` option is NOT sent: a phone over
-            // caBLE verifies on its own (it creates the passkey behind a
-            // fingerprint), and GMS — a FIDO_2_1 authenticator with no
-            // pinUvAuthToken — drops the tunnel on `uv:true`. The founder's
-            // proven demo omits it for the same reason.
-            user_verification: false,
+            // With a `pinUvAuthParam` present the token IS the user
+            // verification; CTAP 2.1 §6.1.2 has the authenticator reject a
+            // request that asks for both. Without one, the `uv` option is the
+            // only way to ask — which is what webauthn-rs does for an
+            // authenticator with built-in UV and no token.
+            user_verification: token.is_none(),
             pin_uv_auth: token.as_ref().map(|token| token.param(&client_data_hash)),
         };
 
@@ -368,14 +366,12 @@ impl<C: Cable, H: Host> Client<'_, C, H> {
             client_data_hash: client_data_hash.clone(),
             allow,
             user_presence: true,
-            // Never the LEGACY `uv:true` option. When a PIN token was obtained it
-            // carries verification (below); otherwise the authenticator verifies
-            // on its own — a phone over caBLE always does (it cannot answer
-            // without being unlocked), and a FIDO_2_1 authenticator with no
-            // pinUvAuthToken (which is exactly what GMS presents over caBLE)
-            // DROPS THE TUNNEL on a request that carries `uv:true`. The founder's
-            // proven demo sends no `uv` option for the same reason.
-            user_verification: false,
+            // `uv:true` when the authenticator has built-in UV but no PIN token —
+            // matching webauthn-rs, whose `get_pin_uv_auth_session` returns
+            // `UvTrue` on `|| uv` and sends `{uv:true}` to exactly this kind of
+            // authenticator (GMS over caBLE). `up` is never emitted (see the
+            // encoder); that redundant option is the one webauthn-rs omits.
+            user_verification: token.is_none(),
             pin_uv_auth: token.as_ref().map(|token| token.param(&client_data_hash)),
         };
 

@@ -245,6 +245,10 @@ fn awaiting_second_signature(first: Assertion) -> Sut {
             // "platform", so the shell is pointed at the device's own vault
             // rather than left to guess (and Android guesses "security key").
             transports: "internal".to_owned(),
+            // The route carries the sign-in method through, so the second
+            // signature reaches the same authenticator the first did — here the
+            // platform vault this walk signed in with.
+            method: KeyMethod::Platform,
             purpose: ProofPurpose::RecoverSecond,
         }],
         "accepting asks for the disambiguating second signature"

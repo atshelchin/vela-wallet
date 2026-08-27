@@ -1161,6 +1161,10 @@ fn registry_publish_op(
             .collect(),
         group_seed_hex,
         group_public_key_hex,
+        // Every member above replays its creation-time proof, so no live
+        // signature happens and no route is consulted; the default satisfies
+        // the field.
+        method: KeyMethod::default(),
     })
 }
 

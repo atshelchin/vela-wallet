@@ -339,6 +339,10 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                     // about itself a moment ago still describes it.
                     transports: transports_from_attachment(&assertion.authenticator_attachment),
                     credential_id: assertion.credential_id,
+                    // Run the second signature on the SAME route as the first: a
+                    // phone over caBLE stays on caBLE (a USB proof would look for a
+                    // security key that was never plugged in, and no QR would show).
+                    method: model.method,
                     purpose: ProofPurpose::RecoverSecond,
                 },
             )
@@ -776,7 +780,7 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
         .as_ref()
         .map(|assertion| assertion.authenticator_attachment.clone())
         .unwrap_or_default();
-    match registry_publish_op(&account, &attachment) {
+    match registry_publish_op(&account, &attachment, model.method) {
         Ok(operation) => {
             model.stage = Stage::Publishing;
             request(model, operation)
@@ -789,6 +793,7 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
 fn registry_publish_op(
     account: &Account,
     authenticator_attachment: &str,
+    method: KeyMethod,
 ) -> Result<ShellOperation, CoreError> {
     let metadata = RegistryMetadata {
         version: REGISTRY_METADATA_VERSION,
@@ -815,6 +820,9 @@ fn registry_publish_op(
         }],
         group_seed_hex: String::new(),
         group_public_key_hex: String::new(),
+        // The live possession signature runs on the same route the sign-in and
+        // the recovery signature did.
+        method,
     })
 }
 

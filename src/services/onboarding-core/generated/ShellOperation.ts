@@ -32,7 +32,16 @@ method: KeyMethod, } | { "type": "sign_proof", credential_id: string,
  * See [`ShellOperation::SignMemberProof::transports`] — this is the
  * same fact and the same reason.
  */
-transports: string, purpose: ProofPurpose, } | { "type": "generate_group_key" } | { "type": "sign_member_proof", credential_id: string, 
+transports: string, 
+/**
+ * Which authenticator route to sign over. A proof must reach the SAME
+ * key the first signature did: recovery's second signature runs on the
+ * route the person signed in with (a phone over caBLE, or a plugged-in
+ * security key), so the platform cannot silently answer it with a
+ * different credential. Defaults to the platform authenticator, the
+ * value a shell that never sets it would expect.
+ */
+method: KeyMethod, purpose: ProofPurpose, } | { "type": "generate_group_key" } | { "type": "sign_member_proof", credential_id: string, 
 /**
  * Uncompressed P-256 point, `04‖x‖y` hex.
  */
@@ -55,4 +64,13 @@ attestation_hex: string,
  * platform offers the other-device route instead, which is the one
  * that can actually complete.
  */
-transports: string, group_public_key_hex: string, } | { "type": "lookup_legacy_name", credential_id: string, } | { "type": "authenticate_passkey", method: KeyMethod, } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, group_seed_hex: string, group_public_key_hex: string, } | { "type": "registry_query_by_public_key", public_key_hex: string, } | { "type": "registry_query_unit", unit_id: number, } | { "type": "probe_index_health" } | { "type": "wait", ms: number, } | { "type": "prompt", kind: PromptKind, confirmable: boolean, } | { "type": "complete_onboarding", mode: CompletionMode, };
+transports: string, group_public_key_hex: string, } | { "type": "lookup_legacy_name", credential_id: string, } | { "type": "authenticate_passkey", method: KeyMethod, } | { "type": "load_accounts" } | { "type": "save_account", account: Account, } | { "type": "save_pending_upload", record: PendingUpload, } | { "type": "remove_pending_upload", credential_id: string, } | { "type": "registry_publish", metadata_hex: string, members: Array<RegistryPublishMember>, group_seed_hex: string, group_public_key_hex: string, 
+/**
+ * Which authenticator route a member with no replayable proof must sign
+ * its live possession proof over. It matters only on desktop, and only
+ * for the recovery re-publish (a phone credential signs over caBLE, not
+ * the USB path — which would find no key and show no QR); a create
+ * replays its creation-time proof and never signs live. Defaults to the
+ * platform authenticator, what a shell that never sets it expects.
+ */
+method: KeyMethod, } | { "type": "registry_query_by_public_key", public_key_hex: string, } | { "type": "registry_query_unit", unit_id: number, } | { "type": "probe_index_health" } | { "type": "wait", ms: number, } | { "type": "prompt", kind: PromptKind, confirmable: boolean, } | { "type": "complete_onboarding", mode: CompletionMode, };

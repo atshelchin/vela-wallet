@@ -520,19 +520,23 @@ pub fn register(
 /// `credential_id` is `None` for the "who are you?" ceremony a sign-in starts
 /// with: an empty allow list is what asks for any discoverable credential.
 ///
-/// The hybrid branch is narrower than [`register`]'s, and the narrowing is the
-/// same on all three desktops: only the SIGN-IN goes to the phone. A proof names
-/// a credential id, and this client still takes a known id to be on the key in
-/// the port — asserting a phone-resident credential over caBLE is a later step,
-/// and the Windows path pins its allow list to USB on the same assumption.
+/// The hybrid branch routes on the method the person chose, not on whether a
+/// credential id is known: a scan-method sign-in reaches the phone with no allow
+/// list, and a scan-method proof (recovery's second signature) reaches the SAME
+/// phone credential through an allow list pinned to it. The USB and Windows paths
+/// keep a known id on the key in the port, as before.
 pub fn assert(
     challenge: &[u8],
     credential_id: Option<&str>,
     method: KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<Assertion, PasskeyFailure> {
-    if method == KeyMethod::Hybrid && credential_id.is_none() {
-        return assert_hybrid(challenge, ceremony);
+    // The scan method signs over caBLE, whether the phone offers what it holds
+    // (sign-in, no credential id) or is pinned to one credential (recovery's
+    // second signature, credential id known — the allow list keeps a multi-key
+    // phone from answering with a different passkey than the first).
+    if method == KeyMethod::Hybrid {
+        return assert_hybrid(challenge, credential_id, ceremony);
     }
     #[cfg(windows)]
     {
@@ -830,6 +834,8 @@ fn register_hybrid(
     .register(name, exclude_credential_ids)
     .map_err(ceremony_failure)?;
     (ceremony.touch)(None);
+    // See `assert_hybrid`: the shutdown frame is the polite goodbye.
+    cable.cancel();
 
     Ok(Registration {
         credential_id: registration.credential_id_hex,
@@ -840,9 +846,16 @@ fn register_hybrid(
     })
 }
 
-fn assert_hybrid(challenge: &[u8], ceremony: &Ceremony) -> Result<Assertion, PasskeyFailure> {
+fn assert_hybrid(
+    challenge: &[u8],
+    credential_id: Option<&str>,
+    ceremony: &Ceremony,
+) -> Result<Assertion, PasskeyFailure> {
     let mut cable = run_hybrid(ceremony, true)?;
     let host = DesktopHost { ceremony };
+    // `credential_id` is `None` for a sign-in (any discoverable credential) and
+    // `Some` for recovery's second signature, where the allow list pins the same
+    // credential the first signature used.
     let assertion = ceremony::Client {
         cable: cable.as_mut(),
         host: &host,
@@ -850,9 +863,23 @@ fn assert_hybrid(challenge: &[u8], ceremony: &Ceremony) -> Result<Assertion, Pas
         rp_name: RELYING_PARTY_NAME,
         origin: ORIGIN,
     }
-    .assert(challenge, None)
+    .assert(challenge, credential_id)
     .map_err(ceremony_failure)?;
     (ceremony.touch)(None);
+    // Say goodbye before dropping the channel: the caBLE shutdown frame lets the
+    // phone end its session loop cleanly instead of decrypting the transport
+    // teardown as a garbled frame (a BAD_DECRYPT in its log after every success).
+    cable.cancel();
+    // The user handle is where a recovered wallet's NAME survives; when a
+    // recovery lands on the "Wallet" fallback, this line says which link broke
+    // (handle absent vs. handle present but not `name‖NUL‖uuid`).
+    eprintln!(
+        "[vela-cable] assertion user handle: {}",
+        match assertion.user_id_hex.as_deref() {
+            None => "absent".to_owned(),
+            Some(hex) => format!("{} bytes", hex.len() / 2),
+        }
+    );
 
     Ok(Assertion {
         credential_id: assertion.credential_id_hex,

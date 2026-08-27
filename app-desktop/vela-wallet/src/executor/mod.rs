@@ -78,8 +78,13 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             // — so it routes on its own build rather than on a transport hint.
             // Named to keep the match exhaustive and the omission deliberate.
             transports: _,
+            // The route the person signed in with. A caBLE sign-in's recovery
+            // second signature must go back over caBLE (pinned to the same
+            // credential), not down the USB path — which would find no key and
+            // show no QR.
+            method,
             purpose,
-        } => match passkey::assert(&challenge_for(*purpose), Some(credential_id), KeyMethod::SecurityKey, ceremony) {
+        } => match passkey::assert(&challenge_for(*purpose), Some(credential_id), *method, ceremony) {
             Ok(assertion) => ShellResult::ProofSigned {
                 assertion,
                 now_iso: now_iso(),
@@ -196,11 +201,13 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             members,
             group_seed_hex,
             group_public_key_hex,
+            method,
         } => match registry::publish(
             metadata_hex,
             members,
             group_seed_hex,
             group_public_key_hex,
+            *method,
             ceremony,
         ) {
             Ok(()) => ShellResult::RegistryPublished,
@@ -311,6 +318,13 @@ fn passkey_failed(failure: PasskeyFailure) -> ShellResult {
 }
 
 fn index_failed(error: registry::RegistryError) -> ShellResult {
+    // The one place every registry failure funnels through; without this line a
+    // publish that fails after three signatures vanishes without a trace (the
+    // recovery flow deliberately enters the wallet anyway).
+    eprintln!(
+        "[vela-registry] index operation failed (network={}): {}",
+        error.network, error.message
+    );
     ShellResult::IndexFailed {
         message: error.message,
         network: error.network,

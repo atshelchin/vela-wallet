@@ -421,6 +421,7 @@ pub fn publish(
     members: &[RegistryPublishMember],
     seed_hex: &str,
     group_public_key_hex: &str,
+    method: vela_core::app::KeyMethod,
     ceremony: &Ceremony,
 ) -> Result<()> {
     if members.is_empty() {
@@ -482,8 +483,12 @@ pub fn publish(
                     vela_core::primitives::from_hex(strip_hex(&derived.challenge)).map_err(
                         |error| RegistryError::answered(format!("challenge is not hex: {error}")),
                     )?;
+                // The route the person signed in with: a phone credential signs
+                // its possession proof over caBLE (a fresh QR), a USB one on the
+                // key in the port. Hardcoding SecurityKey here was why a caBLE
+                // recovery silently entered the wallet unpublished.
                 let assertion =
-                    passkey::assert(&challenge_bytes, Some(&member.credential_id), vela_core::app::KeyMethod::SecurityKey, ceremony)
+                    passkey::assert(&challenge_bytes, Some(&member.credential_id), method, ceremony)
                         .map_err(|failure| {
                             // A ceremony failure inside a publish is not a
                             // network failure. It is reported as an answered

@@ -95,6 +95,14 @@ pub enum ShellOperation {
         /// same fact and the same reason.
         #[serde(default)]
         transports: String,
+        /// Which authenticator route to sign over. A proof must reach the SAME
+        /// key the first signature did: recovery's second signature runs on the
+        /// route the person signed in with (a phone over caBLE, or a plugged-in
+        /// security key), so the platform cannot silently answer it with a
+        /// different credential. Defaults to the platform authenticator, the
+        /// value a shell that never sets it would expect.
+        #[serde(default)]
+        method: KeyMethod,
         purpose: ProofPurpose,
     },
     /// Mint the one-time software group key for a wallet's registry group.
@@ -169,6 +177,14 @@ pub enum ShellOperation {
         group_seed_hex: String,
         #[serde(default)]
         group_public_key_hex: String,
+        /// Which authenticator route a member with no replayable proof must sign
+        /// its live possession proof over. It matters only on desktop, and only
+        /// for the recovery re-publish (a phone credential signs over caBLE, not
+        /// the USB path — which would find no key and show no QR); a create
+        /// replays its creation-time proof and never signs live. Defaults to the
+        /// platform authenticator, what a shell that never sets it expects.
+        #[serde(default)]
+        method: KeyMethod,
     },
     /// Is this public key already an entry in the registry? Lets a sign-in
     /// skip a redundant re-publish (and its extra signature).

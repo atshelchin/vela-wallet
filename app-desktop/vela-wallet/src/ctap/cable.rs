@@ -171,7 +171,10 @@ impl CablePort for WebSocketCablePort {
                 }
                 // Ping/pong/text are tunnel housekeeping, not caBLE frames.
                 Ok(_) => continue,
-                Err(error) => return Err(PortError::Io(error.to_string())),
+                Err(error) => {
+                    log(&format!("← tunnel read error (phone dropped?): {error}"));
+                    return Err(PortError::Io(error.to_string()));
+                }
             }
         }
     }

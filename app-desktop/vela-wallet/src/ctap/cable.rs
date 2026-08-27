@@ -169,10 +169,27 @@ impl CablePort for WebSocketCablePort {
                     log(&format!("← tunnel CLOSE {frame:?}"));
                     return Err(PortError::Io("the tunnel closed".to_owned()));
                 }
-                // Ping/pong/text are tunnel housekeeping, not caBLE frames.
+                // The relay keeps the pair alive with pings and kills BOTH legs
+                // when one stops answering — and the phone-side selector can
+                // hold the tunnel idle for a long time. tungstenite queues the
+                // pong automatically but only writes it on the NEXT read/write,
+                // so it is flushed here, immediately, and logged so a keepalive
+                // failure is visible instead of a mystery ~30s hangup.
+                Ok(Message::Ping(payload)) => {
+                    match self.ws.flush() {
+                        Ok(()) => log(&format!("← ping ({} bytes) → pong flushed", payload.len())),
+                        Err(error) => log(&format!("← ping, but pong flush FAILED: {error}")),
+                    }
+                    continue;
+                }
+                Ok(Message::Pong(_)) => {
+                    log("← pong");
+                    continue;
+                }
+                // Text frames are tunnel housekeeping, not caBLE frames.
                 Ok(_) => continue,
                 Err(error) => {
-                    log(&format!("← tunnel read error (phone dropped?): {error}"));
+                    log(&format!("← tunnel read error (peer/relay dropped?): {error}"));
                     return Err(PortError::Io(error.to_string()));
                 }
             }

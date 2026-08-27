@@ -6,4 +6,5 @@
 //! because it is made of platform: enumerating HID devices, opening one, and
 //! moving 64-byte reports.
 
+pub mod cable;
 pub mod usb;

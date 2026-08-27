@@ -123,6 +123,25 @@ p256 = { version = "0.13", features = ["ecdh"] }
 # each land in their own convention rather than in a hand-rolled `~/.vela`.
 dirs = "6"
 
+# The caBLE / hybrid "sign in with your phone" transport (spec 019 T174). The
+# Noise handshake and CTAP framing are the core's (`vela_core::cable`); these
+# three are the pure platform I/O the core cannot do:
+#   * tungstenite — the CTAP 2.2 WebSocket tunnel, blocking, matching this
+#     shell's blocking-thread ceremony model (no async runtime for the socket).
+#   * btleplug + tokio — the BLE central scan for the responder's proximity
+#     advert (CoreBluetooth on macOS, BlueZ on Linux, WinRT on Windows). btleplug
+#     is async-only, so a small current-thread runtime drives just the scan; the
+#     advert bytes come back and the runtime is done.
+#   * qrcode — the FIDO:/ payload as a module matrix the onboarding screen draws.
+tungstenite = { version = "0.24", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
+btleplug = "0.11"
+tokio = { version = "1", default-features = false, features = ["rt", "time", "macros"] }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+qrcode = { version = "0.14", default-features = false }
+# btleplug keys its service-data map by `uuid::Uuid`; name the type to match
+# on the caBLE service UUIDs. Same major as btleplug pulls, so no second copy.
+uuid = "1"
+
 # The Windows passkey path.
 #
 # Depended on UNCONDITIONALLY, and it compiles to almost nothing off Windows —

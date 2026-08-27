@@ -535,6 +535,9 @@ fn run_hybrid(
         touch_notify(Some(TouchRequest {
             kind,
             product: product.to_owned(),
+            // Over caBLE the "authenticator" is the person's phone; the prompt
+            // must say so, not "touch your security key".
+            remote: true,
         }));
     });
 

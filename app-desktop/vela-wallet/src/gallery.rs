@@ -263,6 +263,7 @@ fn entries() -> Vec<Entry> {
         Fixture::Touch(TouchRequest {
             kind: TouchKind::Presence,
             product: "YubiKey 5C NFC".to_owned(),
+            remote: false,
         }),
     );
     hardware(
@@ -270,6 +271,7 @@ fn entries() -> Vec<Entry> {
         Fixture::Touch(TouchRequest {
             kind: TouchKind::Fingerprint,
             product: "YubiKey Bio".to_owned(),
+            remote: false,
         }),
     );
     hardware(
@@ -277,6 +279,7 @@ fn entries() -> Vec<Entry> {
         Fixture::Touch(TouchRequest {
             kind: TouchKind::Select,
             product: String::new(),
+            remote: false,
         }),
     );
     hardware(

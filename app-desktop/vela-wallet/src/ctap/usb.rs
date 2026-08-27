@@ -114,6 +114,10 @@ pub struct TouchRequest {
     pub kind: TouchKind,
     /// The key's own product string, so the prompt names the thing on the desk.
     pub product: String,
+    /// The authenticator is a REMOTE device reached over caBLE (a phone), not a
+    /// security key on the desk — the prompt says "follow the steps on your
+    /// device" instead of "touch your security key".
+    pub remote: bool,
 }
 
 /// Told when the authenticator starts waiting for a person, and when it stops.
@@ -329,6 +333,7 @@ impl SecurityKey {
             notify(Some(TouchRequest {
                 kind: TouchKind::Select,
                 product: String::new(),
+                remote: false,
             }));
         }
 
@@ -350,6 +355,7 @@ impl SecurityKey {
             notify(Some(TouchRequest {
                 kind: TouchKind::Select,
                 product: String::new(),
+                remote: false,
             }));
         }
         Self::finish_race(keys, touch)
@@ -502,6 +508,7 @@ impl SecurityKey {
                             notify(Some(TouchRequest {
                                 kind,
                                 product: self.product.clone(),
+                                remote: false,
                             }));
                         }
                     }

@@ -71,12 +71,28 @@ fn body(theme: &Theme, text: SharedString) -> Div {
 /// and a Cancel would only be a second way to do what walking away already does
 /// (the exchange times out and reports it).
 pub fn touch_card(theme: &Theme, loc: &Loc, waiting: &TouchRequest) -> Div {
-    let body_key = match waiting.kind {
-        TouchKind::Presence => "onboarding.create.touchBody",
-        TouchKind::Fingerprint => "onboarding.create.touchFingerprintBody",
-        // No `{{product}}` to fill: several keys are blinking, and naming one
-        // of them would be naming the wrong one.
-        TouchKind::Select => "onboarding.create.touchSelectBody",
+    // A phone reached over caBLE is not a security key on the desk — it runs the
+    // approval behind its own fingerprint/passkey UI, so the prompt tells the
+    // person to look at the phone, not to "touch" anything here.
+    // TODO(i18n): promote these two strings to the corpus once the caBLE flow is
+    // confirmed on-device (they are the copy the founder specified).
+    let (title_text, body_text) = if waiting.remote {
+        (
+            SharedString::from("Follow the steps on your device"),
+            SharedString::from("Approve the request on your phone to continue."),
+        )
+    } else {
+        let body_key = match waiting.kind {
+            TouchKind::Presence => "onboarding.create.touchBody",
+            TouchKind::Fingerprint => "onboarding.create.touchFingerprintBody",
+            // No `{{product}}` to fill: several keys are blinking, and naming one
+            // of them would be naming the wrong one.
+            TouchKind::Select => "onboarding.create.touchSelectBody",
+        };
+        (
+            loc.t("onboarding.create.touchTitle"),
+            loc.t_text(body_key, "product", &waiting.product),
+        )
     };
 
     card(theme)
@@ -99,11 +115,8 @@ pub fn touch_card(theme: &Theme, loc: &Loc, waiting: &TouchRequest) -> Div {
                         .bg(theme.accent),
                 ),
         )
-        .child(title(theme, loc.t("onboarding.create.touchTitle")))
-        .child(body(
-            theme,
-            loc.t_text(body_key, "product", &waiting.product),
-        ))
+        .child(title(theme, title_text))
+        .child(body(theme, body_text))
 }
 
 /// The three ways to sign in — this device, a phone by scan, a security key —

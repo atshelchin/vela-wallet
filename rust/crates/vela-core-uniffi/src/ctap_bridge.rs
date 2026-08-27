@@ -548,6 +548,11 @@ pub struct CableAdvert {
     pub routing_id: Vec<u8>,
     /// The tunnel-server domain id.
     pub tunnel_domain_id: u16,
+    /// The L2CAP PSM from the advert's CTAP 2.3 BLE suffix, when the
+    /// authenticator offers the direct BLE channel. `Some` is the shell's cue
+    /// to connect an L2CAP CoC to this port on the advertising peripheral — no
+    /// tunnel, no internet; `None` means WebSocket-only (GMS-era phones).
+    pub psm: Option<u16>,
 }
 
 /// The Kotlin/Swift port, as the core's [`CoreCablePort`].
@@ -599,17 +604,53 @@ pub fn cable_eid_key(qr_secret: Vec<u8>) -> Vec<u8> {
     cable_crypto::eid_key(&qr_secret)
 }
 
-/// Trial-decrypt one 20-byte BLE advert candidate; `Some` when it is this QR's
-/// phone. Pure crypto — needs only the QR secret.
+/// A QR code as a square module matrix, row-major, `true` = dark. The same
+/// encoder the desktop draws with, so every platform renders the same code for
+/// the same payload; the shells own only pixels.
+#[derive(uniffi::Record)]
+pub struct QrMatrix {
+    /// Modules per side.
+    pub width: u32,
+    /// `width * width` booleans, row-major.
+    pub modules: Vec<bool>,
+}
+
+/// Encode any text (the `FIDO:/…` payload) as a QR matrix. `None` only when the
+/// text cannot fit a QR code at all.
+#[uniffi::export]
+pub fn cable_qr_matrix(text: String) -> Option<QrMatrix> {
+    let code = qrcode::QrCode::new(text.as_bytes()).ok()?;
+    let width = u32::try_from(code.width()).ok()?;
+    Some(QrMatrix {
+        width,
+        modules: code
+            .to_colors()
+            .into_iter()
+            .map(|color| color == qrcode::Color::Dark)
+            .collect(),
+    })
+}
+
+/// Trial-decrypt one BLE advert candidate; `Some` when it is this QR's phone.
+/// Pure crypto — needs only the QR secret.
+///
+/// Pass the WHOLE service-data payload: the first 20 bytes are the sealed EID,
+/// and anything after them is the CTAP 2.3 BLE suffix — a CBOR map whose key 1
+/// is the L2CAP PSM. Handing the full payload here is what lets the shell get
+/// `psm` back without owning any CBOR of its own.
 #[uniffi::export]
 pub fn cable_try_decrypt_advert(qr_secret: Vec<u8>, candidate: Vec<u8>) -> Option<CableAdvert> {
+    if candidate.len() < 20 {
+        return None;
+    }
     let key = cable_crypto::eid_key(&qr_secret);
-    let plaintext = cable_crypto::try_decrypt_advert(&candidate, &key)?;
+    let plaintext = cable_crypto::try_decrypt_advert(&candidate[0..20], &key)?;
     let eid = cable_crypto::AdvertEid::parse(&plaintext)?;
     Some(CableAdvert {
         plaintext: plaintext.to_vec(),
         routing_id: eid.routing_id.to_vec(),
         tunnel_domain_id: eid.tunnel_domain_id,
+        psm: cable_crypto::parse_advert_psm(&candidate[20..]),
     })
 }
 
@@ -688,6 +729,8 @@ pub fn ctap_register_cable(
         origin: ORIGIN,
     }
     .register(&name, &exclude_credential_ids)?;
+    // See `ctap_assert_cable`: the shutdown frame is the polite goodbye.
+    vela_core::ctap::ceremony::Cable::cancel(&mut cable);
 
     Ok(CtapRegistration {
         credential_id_hex: registration.credential_id_hex,
@@ -735,6 +778,11 @@ pub fn ctap_assert_cable(
         origin: ORIGIN,
     }
     .assert(&challenge, pinned)?;
+    // Say goodbye before the shell drops the socket: the caBLE shutdown frame
+    // lets the phone end its session loop cleanly instead of decrypting the
+    // transport teardown as a garbled frame (a BAD_DECRYPT in its log after
+    // every success — observed live against the securitykeys authenticator).
+    vela_core::ctap::ceremony::Cable::cancel(&mut cable);
 
     Ok(CtapAssertion {
         credential_id_hex: assertion.credential_id_hex,

@@ -25,6 +25,11 @@ path = "uniffi-bindgen.rs"
 # app-android are not Hermes; see the note in `vela-core/Cargo.toml`.
 vela-core = { workspace = true, features = ["identicon-raster", "crux"] }
 uniffi = { workspace = true, features = ["cli"] }
+# The FIDO:/ payload as a module matrix the onboarding screens draw — the SAME
+# encoder the desktop uses (hardware.rs), so every platform renders the same
+# code for the same payload. Android/iOS get it through `cable_qr_matrix`
+# rather than each vendoring a QR library.
+qrcode = { version = "0.14", default-features = false }
 thiserror = { workspace = true }
 crux_core = { workspace = true }
 serde = { workspace = true }

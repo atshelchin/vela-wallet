@@ -161,6 +161,19 @@ impl<P: CablePort> CableConnection<P> {
             }
         }
 
+        // A diagnostic line naming the CTAP command over the wire: the desktop's
+        // one generic "sign-in failed" body cannot say whether a phone refused a
+        // getAssertion (no passkey) or a makeCredential (create), and this is the
+        // only place that knows.
+        let command = match request.first() {
+            Some(0x01) => "makeCredential",
+            Some(0x02) => "getAssertion",
+            Some(0x06) => "clientPin",
+            Some(0x08) => "getNextAssertion",
+            _ => "ctap",
+        };
+        eprintln!("[vela-cable] → CTAP {command} ({} bytes)", request.len());
+
         let mut frame = Vec::with_capacity(request.len() + 1);
         frame.push(MSG_CTAP);
         frame.extend_from_slice(request);

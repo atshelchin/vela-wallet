@@ -154,10 +154,14 @@ impl WebSocketCablePort {
                 proxy.connect(host, 443)?
             }
             None => {
-                log(&format!("dialing {host}:443 directly (no proxy configured)"));
+                log(&format!(
+                    "dialing {host}:443 directly (no proxy configured)"
+                ));
                 let address = (host, 443u16)
                     .to_socket_addrs()
-                    .map_err(|error| HybridError::Tunnel(format!("cannot resolve {host}: {error}")))?
+                    .map_err(|error| {
+                        HybridError::Tunnel(format!("cannot resolve {host}: {error}"))
+                    })?
                     .next()
                     .ok_or_else(|| HybridError::Tunnel(format!("no address for {host}")))?;
                 TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
@@ -216,7 +220,9 @@ impl CablePort for WebSocketCablePort {
                 // Text frames are tunnel housekeeping, not caBLE frames.
                 Ok(_) => continue,
                 Err(error) => {
-                    log(&format!("← tunnel read error (peer/relay dropped?): {error}"));
+                    log(&format!(
+                        "← tunnel read error (peer/relay dropped?): {error}"
+                    ));
                     return Err(PortError::Io(error.to_string()));
                 }
             }
@@ -321,7 +327,9 @@ pub fn establish_hybrid(
         ));
     }
 
-    let url = session.connect_url(&hit.plaintext).ok_or(HybridError::BadAdvert)?;
+    let url = session
+        .connect_url(&hit.plaintext)
+        .ok_or(HybridError::BadAdvert)?;
     log(&format!("opening tunnel: {url}"));
     let port = WebSocketCablePort::connect(&url)?;
     log("tunnel open; starting Noise handshake");
@@ -398,16 +406,22 @@ fn socks5_connect(
 
     let host_bytes = host.as_bytes();
     if host_bytes.len() > 255 {
-        return Err(HybridError::Tunnel("tunnel host name too long for SOCKS5".to_owned()));
+        return Err(HybridError::Tunnel(
+            "tunnel host name too long for SOCKS5".to_owned(),
+        ));
     }
 
     let address = (proxy_host, proxy_port)
         .to_socket_addrs()
-        .map_err(|error| HybridError::Tunnel(format!("cannot resolve proxy {proxy_host}: {error}")))?
+        .map_err(|error| {
+            HybridError::Tunnel(format!("cannot resolve proxy {proxy_host}: {error}"))
+        })?
         .next()
         .ok_or_else(|| HybridError::Tunnel(format!("no address for proxy {proxy_host}")))?;
-    let mut stream = TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
-        .map_err(|error| HybridError::Tunnel(format!("cannot reach proxy {proxy_host}: {error}")))?;
+    let mut stream =
+        TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT).map_err(|error| {
+            HybridError::Tunnel(format!("cannot reach proxy {proxy_host}: {error}"))
+        })?;
     // The handshake must not outlast the connect budget; the long read timeout is
     // restored once the tunnel is up (for the person approving on their phone).
     let _ = stream.set_read_timeout(Some(TUNNEL_CONNECT_TIMEOUT));
@@ -505,11 +519,15 @@ fn http_connect(
 
     let address = (proxy_host, proxy_port)
         .to_socket_addrs()
-        .map_err(|error| HybridError::Tunnel(format!("cannot resolve proxy {proxy_host}: {error}")))?
+        .map_err(|error| {
+            HybridError::Tunnel(format!("cannot resolve proxy {proxy_host}: {error}"))
+        })?
         .next()
         .ok_or_else(|| HybridError::Tunnel(format!("no address for proxy {proxy_host}")))?;
-    let mut stream = TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT)
-        .map_err(|error| HybridError::Tunnel(format!("cannot reach proxy {proxy_host}: {error}")))?;
+    let mut stream =
+        TcpStream::connect_timeout(&address, TUNNEL_CONNECT_TIMEOUT).map_err(|error| {
+            HybridError::Tunnel(format!("cannot reach proxy {proxy_host}: {error}"))
+        })?;
     stream
         .write_all(
             format!("CONNECT {host}:{port} HTTP/1.1\r\nHost: {host}:{port}\r\nProxy-Connection: keep-alive\r\n\r\n")
@@ -524,14 +542,18 @@ fn http_connect(
             .read(&mut byte)
             .map_err(|error| HybridError::Tunnel(format!("proxy CONNECT read failed: {error}")))?;
         if read == 0 || header.len() > 8192 {
-            return Err(HybridError::Tunnel("proxy closed during CONNECT".to_owned()));
+            return Err(HybridError::Tunnel(
+                "proxy closed during CONNECT".to_owned(),
+            ));
         }
         header.push(byte[0]);
     }
     let status = String::from_utf8_lossy(&header);
     if !status.starts_with("HTTP/1.1 200") && !status.starts_with("HTTP/1.0 200") {
         let first = status.lines().next().unwrap_or("").to_owned();
-        return Err(HybridError::Tunnel(format!("proxy refused CONNECT: {first}")));
+        return Err(HybridError::Tunnel(format!(
+            "proxy refused CONNECT: {first}"
+        )));
     }
     Ok(stream)
 }
@@ -591,22 +613,42 @@ fn parse_proxy_spec(spec: &str) -> Option<ProxyEndpoint> {
 /// The macOS system network proxy (SOCKS preferred, then HTTPS), via `scutil`.
 #[cfg(target_os = "macos")]
 fn macos_system_proxy() -> Option<ProxyEndpoint> {
-    let output = std::process::Command::new("scutil").arg("--proxy").output().ok()?;
+    let output = std::process::Command::new("scutil")
+        .arg("--proxy")
+        .output()
+        .ok()?;
     let text = String::from_utf8_lossy(&output.stdout);
     let field = |key: &str| -> Option<String> {
-        text.lines()
-            .find_map(|line| line.trim().strip_prefix(&format!("{key} : ")).map(str::to_owned))
+        text.lines().find_map(|line| {
+            line.trim()
+                .strip_prefix(&format!("{key} : "))
+                .map(str::to_owned)
+        })
     };
     let enabled = |key: &str| field(key).as_deref() == Some("1");
 
     if enabled("SOCKSEnable") {
-        if let (Some(host), Some(port)) = (field("SOCKSProxy"), field("SOCKSPort").and_then(|p| p.parse().ok())) {
-            return Some(ProxyEndpoint { socks: true, host, port });
+        if let (Some(host), Some(port)) = (
+            field("SOCKSProxy"),
+            field("SOCKSPort").and_then(|p| p.parse().ok()),
+        ) {
+            return Some(ProxyEndpoint {
+                socks: true,
+                host,
+                port,
+            });
         }
     }
     if enabled("HTTPSEnable") {
-        if let (Some(host), Some(port)) = (field("HTTPSProxy"), field("HTTPSPort").and_then(|p| p.parse().ok())) {
-            return Some(ProxyEndpoint { socks: false, host, port });
+        if let (Some(host), Some(port)) = (
+            field("HTTPSProxy"),
+            field("HTTPSPort").and_then(|p| p.parse().ok()),
+        ) {
+            return Some(ProxyEndpoint {
+                socks: false,
+                host,
+                port,
+            });
         }
     }
     None
@@ -717,7 +759,11 @@ async fn scan_loop(eid_key: &[u8]) -> Result<AdvertHit, HybridError> {
                 let psm = cable_crypto::parse_advert_psm(suffix);
                 log(&format!(
                     "matched this QR on {id}; suffix={} PSM={psm:?}",
-                    if suffix.is_empty() { "(none)".to_owned() } else { hex(suffix) }
+                    if suffix.is_empty() {
+                        "(none)".to_owned()
+                    } else {
+                        hex(suffix)
+                    }
                 ));
                 // BlueZ's L2CAP socket needs the device's LE (address,
                 // namespace) pair; btleplug has both on the peripheral's
@@ -727,15 +773,20 @@ async fn scan_loop(eid_key: &[u8]) -> Result<AdvertHit, HybridError> {
                 let address = {
                     use btleplug::api::Peripheral as _;
                     match adapter.peripheral(&id).await {
-                        Ok(peripheral) => peripheral.properties().await.ok().flatten().map(
-                            |properties| {
-                                let random = matches!(
-                                    properties.address_type,
-                                    Some(btleplug::api::AddressType::Random)
-                                );
-                                (properties.address.into_inner(), random)
-                            },
-                        ),
+                        Ok(peripheral) => {
+                            peripheral
+                                .properties()
+                                .await
+                                .ok()
+                                .flatten()
+                                .map(|properties| {
+                                    let random = matches!(
+                                        properties.address_type,
+                                        Some(btleplug::api::AddressType::Random)
+                                    );
+                                    (properties.address.into_inner(), random)
+                                })
+                        }
                         Err(_) => None,
                     }
                 };
@@ -757,11 +808,9 @@ async fn scan_loop(eid_key: &[u8]) -> Result<AdvertHit, HybridError> {
                 ));
                 if !hinted {
                     hinted = true;
-                    log(
-                        "→ a phone is advertising for another QR. Make sure it is \
+                    log("→ a phone is advertising for another QR. Make sure it is \
                          scanning the QR currently on screen — dismiss any earlier \
-                         sign-in attempt on the phone and scan the fresh code.",
-                    );
+                         sign-in attempt on the phone and scan the fresh code.");
                 }
             }
         }

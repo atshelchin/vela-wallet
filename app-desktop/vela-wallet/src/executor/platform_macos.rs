@@ -29,24 +29,28 @@
 #![allow(unexpected_cfgs)]
 
 use std::ffi::c_void;
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{Sender, channel};
 use std::time::Duration;
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2::{ClassType, DeclaredClass, declare_class, msg_send_id, mutability};
 use objc2_app_kit::NSApplication;
 use objc2_authentication_services::{
-    ASAuthorization, ASAuthorizationController, ASAuthorizationControllerDelegate,
+    ASAuthorization,
+    ASAuthorizationController,
+    ASAuthorizationControllerDelegate,
     ASAuthorizationControllerPresentationContextProviding,
     ASAuthorizationPlatformPublicKeyCredentialAssertion,
     ASAuthorizationPlatformPublicKeyCredentialDescriptor,
     ASAuthorizationPlatformPublicKeyCredentialProvider,
-    ASAuthorizationPlatformPublicKeyCredentialRegistration, ASAuthorizationRequest,
+    ASAuthorizationPlatformPublicKeyCredentialRegistration,
     // The WebAuthn artefact accessors live on the PROTOCOL traits, not the
     // classes — imported anonymously so their methods resolve.
     ASAuthorizationPublicKeyCredentialAssertion as _,
-    ASAuthorizationPublicKeyCredentialRegistration as _, ASPresentationAnchor,
+    ASAuthorizationPublicKeyCredentialRegistration as _,
+    ASAuthorizationRequest,
+    ASPresentationAnchor,
     ASPublicKeyCredential as _,
 };
 use objc2_foundation::{
@@ -152,10 +156,7 @@ pub fn register(
 /// One assertion on the platform vault. `credential_id` pins the allow list
 /// (a proof, recovery's second signature); `None` asks for any discoverable
 /// credential (sign-in).
-pub fn assert(
-    challenge: &[u8],
-    credential_id: Option<&str>,
-) -> Result<Assertion, PasskeyFailure> {
+pub fn assert(challenge: &[u8], credential_id: Option<&str>) -> Result<Assertion, PasskeyFailure> {
     let pinned = credential_id.and_then(|id| primitives::from_hex(id).ok());
     let outcome = run(JobKind::Assert {
         challenge: challenge.to_vec(),
@@ -268,9 +269,8 @@ extern "C" fn perform_on_main(context: *mut c_void) {
                     ]
                 };
                 let allowed = NSArray::from_slice(&[&*descriptor]);
-                let _: () = unsafe {
-                    objc2::msg_send![&*request, setAllowedCredentials: &*allowed]
-                };
+                let _: () =
+                    unsafe { objc2::msg_send![&*request, setAllowedCredentials: &*allowed] };
             }
             // Safety: as above.
             unsafe { Retained::cast(request) }

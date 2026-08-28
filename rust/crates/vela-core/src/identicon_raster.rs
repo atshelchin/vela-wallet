@@ -114,6 +114,7 @@ pub fn rasterize_svg_png(svg: &str, size_px: u32) -> Result<Vec<u8>, CoreError> 
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 
@@ -164,7 +165,9 @@ mod tests {
 
     #[test]
     fn an_unknown_aaguid_is_none_not_an_error() {
-        assert!(passkey_provider_png("", false, 48).expect("no error").is_none());
+        assert!(passkey_provider_png("", false, 48)
+            .expect("no error")
+            .is_none());
         assert!(
             passkey_provider_png("2fc0579f-8113-47ea-b116-bb5a8db9202a", true, 48)
                 .expect("no error")

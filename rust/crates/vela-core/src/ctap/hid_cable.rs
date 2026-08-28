@@ -15,11 +15,11 @@
 //! to retry, what a status means, whether a credential is discoverable — lives
 //! above this, in [`super::ceremony`].
 
+use crate::ctap::ceremony::{Cable, CableError, TouchAnnouncer, TouchKind};
 use crate::ctap::commands::{split_response, Status};
 use crate::ctap::hid::{
     self, CtapHidCommand, HidError, Message, Reassembler, BROADCAST_CHANNEL, HID_REPORT_SIZE,
 };
-use crate::ctap::ceremony::{Cable, CableError, TouchAnnouncer, TouchKind};
 
 /// `KEEPALIVE` status byte: the authenticator is waiting for user presence.
 /// The one moment a client can honestly say "touch your key".
@@ -137,8 +137,7 @@ impl<P: HidPort> HidCable<P> {
         command: CtapHidCommand,
         payload: &[u8],
     ) -> Result<Vec<u8>, CableError> {
-        let frames =
-            hid::encode(self.channel, command, payload).map_err(framing)?;
+        let frames = hid::encode(self.channel, command, payload).map_err(framing)?;
         for frame in &frames {
             self.port.write_report(frame).map_err(port_error)?;
         }
@@ -163,9 +162,7 @@ impl<P: HidPort> HidCable<P> {
                 })) => {
                     if payload.first() == Some(&KEEPALIVE_UP_NEEDED) && !announced_touch {
                         announced_touch = true;
-                        if let (Some(kind), Some(callback)) =
-                            (self.touch, self.on_touch.as_mut())
-                        {
+                        if let (Some(kind), Some(callback)) = (self.touch, self.on_touch.as_mut()) {
                             callback(kind, self.port.product());
                         }
                     }
@@ -326,11 +323,9 @@ mod tests {
     fn a_cbor_success_returns_the_body_without_the_status_byte() {
         let mut cable = open_fake([0x22; 8]);
         // A CBOR response: status 0x00 (success) then a one-byte body.
-        cable.port.reply(init_report(
-            ALLOCATED,
-            CtapHidCommand::Cbor,
-            &[0x00, 0xa0],
-        ));
+        cable
+            .port
+            .reply(init_report(ALLOCATED, CtapHidCommand::Cbor, &[0x00, 0xa0]));
         let body = cable.exchange(&get_info_request().unwrap(), None).unwrap();
         assert_eq!(body, vec![0xa0]);
     }
@@ -339,7 +334,9 @@ mod tests {
     fn a_cbor_error_status_becomes_a_ctap_error() {
         let mut cable = open_fake([0x33; 8]);
         // status 0x31 = PIN_INVALID → Status::PinRequired in this codebase's map.
-        cable.port.reply(init_report(ALLOCATED, CtapHidCommand::Cbor, &[0x31]));
+        cable
+            .port
+            .reply(init_report(ALLOCATED, CtapHidCommand::Cbor, &[0x31]));
         let result = cable.exchange(&get_info_request().unwrap(), None);
         assert!(matches!(result, Err(CableError::Ctap(_))));
     }
@@ -353,12 +350,16 @@ mod tests {
             seen.set(seen.get() + 1);
         }));
         // Two UP_NEEDED keepalives, then the real answer.
-        cable
-            .port
-            .reply(init_report(ALLOCATED, CtapHidCommand::KeepAlive, &[KEEPALIVE_UP_NEEDED]));
-        cable
-            .port
-            .reply(init_report(ALLOCATED, CtapHidCommand::KeepAlive, &[KEEPALIVE_UP_NEEDED]));
+        cable.port.reply(init_report(
+            ALLOCATED,
+            CtapHidCommand::KeepAlive,
+            &[KEEPALIVE_UP_NEEDED],
+        ));
+        cable.port.reply(init_report(
+            ALLOCATED,
+            CtapHidCommand::KeepAlive,
+            &[KEEPALIVE_UP_NEEDED],
+        ));
         cable
             .port
             .reply(init_report(ALLOCATED, CtapHidCommand::Cbor, &[0x00]));
@@ -366,7 +367,11 @@ mod tests {
             .exchange(&get_info_request().unwrap(), Some(TouchKind::Presence))
             .unwrap();
         assert!(body.is_empty());
-        assert_eq!(fired.get(), 1, "the touch is announced once, not per keepalive");
+        assert_eq!(
+            fired.get(),
+            1,
+            "the touch is announced once, not per keepalive"
+        );
     }
 
     #[test]

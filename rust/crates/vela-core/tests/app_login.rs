@@ -31,7 +31,9 @@ fn mounted() -> Sut {
 /// …→ signed in with a genuine, Safe-compatible assertion, accounts loaded next.
 fn authenticated() -> Sut {
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     sut.resolve(ShellResult::PasskeyAuthenticated {
         assertion: support::assertion(CRED),
@@ -186,7 +188,9 @@ fn walk_to_recover_offer(sut: &mut Sut) {
 #[test]
 fn an_incompatible_provider_stops_before_any_resolution() {
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeySupport { supported: true });
 
     let next = sut.resolve(ShellResult::PasskeyAuthenticated {
@@ -228,7 +232,9 @@ fn declining_recovery_persists_nothing() {
 /// requested.
 fn awaiting_second_signature(first: Assertion) -> Sut {
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     sut.resolve(ShellResult::PasskeyAuthenticated {
         assertion: first,
@@ -341,7 +347,9 @@ fn an_unrecoverable_signature_pair_persists_nothing() {
 #[test]
 fn a_cancelled_ceremony_is_silent() {
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeySupport { supported: true });
 
     let next = sut.resolve(ShellResult::PasskeyFailed {
@@ -371,7 +379,9 @@ fn a_cancelled_ceremony_is_silent() {
 #[test]
 fn late_result_after_supersede_cannot_overwrite() {
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     let stale_prompt = sut.resolve(ShellResult::PasskeySupport { supported: false });
     assert!(matches!(
         stale_prompt.as_slice(),
@@ -379,7 +389,9 @@ fn late_result_after_supersede_cannot_overwrite() {
     ));
 
     // A new attempt starts while the alert is still up.
-    let fresh = sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    let fresh = sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     assert_eq!(fresh, vec![ShellOperation::CheckPasskeySupport]);
 
     // The old alert is dismissed now.
@@ -396,7 +408,12 @@ fn late_result_after_supersede_cannot_overwrite() {
         |op| matches!(op, ShellOperation::CheckPasskeySupport),
         ShellResult::PasskeySupport { supported: true },
     );
-    assert_eq!(next, vec![ShellOperation::AuthenticatePasskey { method: KeyMethod::Platform }]);
+    assert_eq!(
+        next,
+        vec![ShellOperation::AuthenticatePasskey {
+            method: KeyMethod::Platform
+        }]
+    );
 }
 
 /// The sign-in method choice reaches the ceremony. Signing in with a security
@@ -423,8 +440,12 @@ fn the_sign_in_method_choice_reaches_the_ceremony() {
 #[test]
 fn sign_in_while_busy_is_a_no_op() {
     let mut sut = mounted();
-    let first = sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
-    let second = sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    let first = sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
+    let second = sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
 
     assert_eq!(first.len(), 1);
     assert!(second.is_empty());
@@ -598,7 +619,9 @@ fn a_failed_unit_fetch_fails_the_sign_in_instead_of_guessing() {
 #[test]
 fn a_sibling_credential_matches_the_local_multikey_account() {
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     // Authenticated with the SECOND founding key's credential.
     sut.resolve(ShellResult::PasskeyAuthenticated {
@@ -644,7 +667,9 @@ fn a_sibling_credential_matches_the_local_multikey_account() {
 /// userHandle yields no name): the resolved name falls to the fallback.
 fn authenticated_nameless() -> Sut {
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     sut.resolve(ShellResult::PasskeyAuthenticated {
         assertion: Assertion {
@@ -787,7 +812,9 @@ fn an_uppercase_uuid_handle_still_yields_its_name() {
     // (Direct: the mod-level unit test covers the decode; this pins the
     // login-visible behavior.)
     let mut sut = mounted();
-    sut.dispatch(Event::SignIn { method: KeyMethod::Platform });
+    sut.dispatch(Event::SignIn {
+        method: KeyMethod::Platform,
+    });
     sut.resolve(ShellResult::PasskeySupport { supported: true });
     sut.resolve(ShellResult::PasskeyAuthenticated {
         assertion: Assertion {

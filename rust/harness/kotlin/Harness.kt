@@ -443,7 +443,9 @@ fun checkOnboardingBridge() {
     dispatch("""{"type":"start"}""")
     dispatch("""{"type":"name_changed","name":"Ada"}""")
     dispatch("""{"type":"ack_toggled","index":0}""")
-    val acked = dispatch("""{"type":"ack_toggled","index":1}""")
+    dispatch("""{"type":"ack_toggled","index":1}""")
+    // ACK_COUNT is 3 since the privacy/terms ack joined the form.
+    val acked = dispatch("""{"type":"ack_toggled","index":2}""")
     if (acked.getJSONArray("effects").length() != 0) {
         fail("filling the form asked the shell to do something")
     }

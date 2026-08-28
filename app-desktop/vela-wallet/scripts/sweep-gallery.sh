@@ -46,6 +46,8 @@ echo "sweeping $COUNT states, ${DWELL}s each"
 failed=0
 for i in $(seq 0 $((COUNT - 1))); do
   if run_state "$i"; then
+    # The backticks are a sed pattern, not an expansion.
+    # shellcheck disable=SC2016
     printf '  ok   %s\n' "$(sed -n 's/.*opening `\(.*\)`.*/\1/p' "$LOG" | head -1)"
   else
     failed=$((failed + 1))

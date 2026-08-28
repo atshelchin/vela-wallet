@@ -28,7 +28,7 @@
 
 #![allow(unexpected_cfgs)]
 
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -37,7 +37,7 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use std::ptr::NonNull;
 
-use objc2::{declare_class, msg_send_id, mutability, ClassType, DeclaredClass};
+use objc2::{ClassType, DeclaredClass, declare_class, msg_send_id, mutability};
 use objc2_core_bluetooth::{
     CBCentralManager, CBCentralManagerDelegate, CBL2CAPChannel, CBManagerState, CBPeripheral,
     CBPeripheralDelegate,
@@ -527,7 +527,9 @@ where
             }
         }
         if Instant::now() >= deadline {
-            return Err(HybridError::Bluetooth("Bluetooth step timed out".to_owned()));
+            return Err(HybridError::Bluetooth(
+                "Bluetooth step timed out".to_owned(),
+            ));
         }
         pump_run_loop();
     }

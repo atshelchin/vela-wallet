@@ -746,7 +746,9 @@ do {
     _ = try core.dispatch(eventJson: #"{"type":"start"}"#)
     _ = try core.dispatch(eventJson: #"{"type":"name_changed","name":"Ada"}"#)
     _ = try core.dispatch(eventJson: #"{"type":"ack_toggled","index":0}"#)
-    let acked = bridgeObject(try core.dispatch(eventJson: #"{"type":"ack_toggled","index":1}"#))
+    _ = try core.dispatch(eventJson: #"{"type":"ack_toggled","index":1}"#)
+    // ACK_COUNT is 3 since the privacy/terms ack joined the form.
+    let acked = bridgeObject(try core.dispatch(eventJson: #"{"type":"ack_toggled","index":2}"#))
     guard let ackedEffects = acked["effects"] as? [Any], ackedEffects.isEmpty else {
         bridgeFail("filling the form asked the shell to do something")
     }

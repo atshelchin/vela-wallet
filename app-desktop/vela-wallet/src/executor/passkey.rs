@@ -27,7 +27,9 @@ use std::sync::Arc;
 
 use vela_core::app::{Assertion, FailureKind, KeyMethod, Registration};
 use vela_core::cable::session::CableInitiator;
-use vela_core::ctap::ceremony::{self, Cable, CableError, CeremonyError, TouchAnnouncer, TouchKind};
+use vela_core::ctap::ceremony::{
+    self, Cable, CableError, CeremonyError, TouchAnnouncer, TouchKind,
+};
 use vela_core::primitives;
 // The windows path and the client-data tests build the envelope directly.
 #[cfg(any(windows, test))]
@@ -814,10 +816,7 @@ fn assert_ccid(
 /// scanned phone opens — returning the [`Cable`] a ceremony drives. The QR is
 /// shown before the scan (scanning it is what makes the phone advertise) and
 /// cleared once the tunnel is up, however it ends.
-fn run_hybrid(
-    ceremony: &Ceremony,
-    for_get: bool,
-) -> Result<Box<dyn Cable>, PasskeyFailure> {
+fn run_hybrid(ceremony: &Ceremony, for_get: bool) -> Result<Box<dyn Cable>, PasskeyFailure> {
     let static_seed = random(32);
     let qr_secret = random(16);
     let session = CableInitiator::new(&static_seed, &qr_secret)
@@ -844,8 +843,12 @@ fn run_hybrid(
         }));
     });
 
-    let result =
-        cable::establish_hybrid(&session, HYBRID_PRODUCT.to_owned(), &ephemeral_seed, Some(on_touch));
+    let result = cable::establish_hybrid(
+        &session,
+        HYBRID_PRODUCT.to_owned(),
+        &ephemeral_seed,
+        Some(on_touch),
+    );
     // The QR has done its job the moment the tunnel is up (or failed); take it
     // down either way rather than leaving it on screen behind the next step.
     (ceremony.qr)(None);

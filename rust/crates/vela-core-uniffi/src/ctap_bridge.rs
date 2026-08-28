@@ -257,14 +257,11 @@ fn open_cable(
         path: port.path(),
         inner: port,
     };
-    let nonce: [u8; 8] = host
-        .random(8)
-        .try_into()
-        .map_err(|_| CtapError::Other {
-            detail: "the host CSPRNG did not return 8 bytes".to_owned(),
-        })?;
-    let mut cable =
-        HidCable::open(adapter, nonce).map_err(|error| CtapError::from(ceremony::failure_for(error)))?;
+    let nonce: [u8; 8] = host.random(8).try_into().map_err(|_| CtapError::Other {
+        detail: "the host CSPRNG did not return 8 bytes".to_owned(),
+    })?;
+    let mut cable = HidCable::open(adapter, nonce)
+        .map_err(|error| CtapError::from(ceremony::failure_for(error)))?;
     let touch_host = Arc::clone(&host);
     cable.on_touch(Box::new(move |kind, product| {
         let name = match kind {
@@ -418,8 +415,8 @@ fn open_apdu_cable(
         path: port.path(),
         inner: port,
     };
-    let mut cable = ApduCable::open(adapter)
-        .map_err(|error| CtapError::from(ceremony::failure_for(error)))?;
+    let mut cable =
+        ApduCable::open(adapter).map_err(|error| CtapError::from(ceremony::failure_for(error)))?;
     let touch_host = Arc::clone(&host);
     cable.on_touch(Box::new(move |kind, product| {
         let name = match kind {
@@ -676,9 +673,10 @@ fn establish_cable(
     advert_plaintext: Vec<u8>,
     product: String,
 ) -> Result<CableConnection<CablePortAdapter>, CtapError> {
-    let session = CableInitiator::new(&static_seed, &qr_secret).ok_or_else(|| CtapError::Other {
-        detail: "the caBLE session secrets are malformed".to_owned(),
-    })?;
+    let session =
+        CableInitiator::new(&static_seed, &qr_secret).ok_or_else(|| CtapError::Other {
+            detail: "the caBLE session secrets are malformed".to_owned(),
+        })?;
     let adapter = CablePortAdapter {
         channel: port.channel(),
         inner: port,
@@ -694,7 +692,13 @@ fn establish_cable(
         touch_host.touch(name.to_owned(), product.to_owned());
     });
     session
-        .establish(adapter, &advert_plaintext, &ephemeral_seed, product, Some(on_touch))
+        .establish(
+            adapter,
+            &advert_plaintext,
+            &ephemeral_seed,
+            product,
+            Some(on_touch),
+        )
         .map_err(|error| CtapError::from(ceremony::failure_for(error)))
 }
 

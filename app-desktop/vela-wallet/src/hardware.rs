@@ -242,7 +242,9 @@ pub fn qr_card(theme: &Theme, loc: &Loc, payload: &str) -> Div {
         Err(_) => div(),
     };
 
-    card(theme).items_center().child(title(theme, loc.t("onboarding.create.methodHybridTitle")))
+    card(theme)
+        .items_center()
+        .child(title(theme, loc.t("onboarding.create.methodHybridTitle")))
         .child(
             // The white quiet-zone box the matrix needs to scan.
             div()

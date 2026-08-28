@@ -602,7 +602,9 @@ impl<C: Cable + ?Sized, H: Host> Client<'_, C, H> {
                         CeremonyError::other("the security key returned no pinUvAuthToken")
                     })?;
                     return secret.decrypt_token(&encrypted).map(Some).map_err(|error| {
-                        CeremonyError::other(format!("the PIN token could not be unwrapped: {error}"))
+                        CeremonyError::other(format!(
+                            "the PIN token could not be unwrapped: {error}"
+                        ))
                     });
                 }
                 // A refused PIN is not a failed ceremony — it is one wrong
@@ -699,8 +701,7 @@ impl<C: Cable + ?Sized, H: Host> Client<'_, C, H> {
                 break secret;
             }
         };
-        let shared =
-            p256::ecdh::diffie_hellman(ephemeral.to_nonzero_scalar(), peer.as_affine());
+        let shared = p256::ecdh::diffie_hellman(ephemeral.to_nonzero_scalar(), peer.as_affine());
         let secret = SharedSecret::derive(protocol, shared.raw_secret_bytes().as_slice())
             .map_err(|error| CeremonyError::other(format!("PIN key derivation failed: {error}")))?;
 

@@ -25,7 +25,11 @@ pub fn encode(data: &[u8]) -> String {
         for j in 0..chunk {
             value |= u64::from(data[i + j]) << (8 * j);
         }
-        let width = if chunk == 7 { FULL_WIDTH } else { PARTIAL_WIDTH[chunk] };
+        let width = if chunk == 7 {
+            FULL_WIDTH
+        } else {
+            PARTIAL_WIDTH[chunk]
+        };
         let digits = value.to_string();
         for _ in 0..width.saturating_sub(digits.len()) {
             out.push('0');
@@ -48,7 +52,11 @@ pub fn decode(digits: &str) -> Option<Vec<u8>> {
     let mut i = 0;
     while i < bytes.len() {
         let remaining = bytes.len() - i;
-        let width = if remaining >= FULL_WIDTH { FULL_WIDTH } else { remaining };
+        let width = if remaining >= FULL_WIDTH {
+            FULL_WIDTH
+        } else {
+            remaining
+        };
         let chunk_len = match width {
             FULL_WIDTH => 7,
             3 => 1,
@@ -90,7 +98,11 @@ mod tests {
             &[0xff; 13],
             &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         ] {
-            assert_eq!(decode(&encode(sample)).as_deref(), Some(sample), "{sample:?}");
+            assert_eq!(
+                decode(&encode(sample)).as_deref(),
+                Some(sample),
+                "{sample:?}"
+            );
         }
     }
 

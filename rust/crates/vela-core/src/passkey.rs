@@ -327,6 +327,7 @@ fn percent_encode(svg: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 
@@ -514,16 +515,12 @@ mod tests {
         let both = format!(
             r#"{{"id":"{asked}","name":"K","icon":"icons/a.png","iconDark":"icons/b.png"}}"#
         );
-        assert!(
-            directory_entry(asked, &both, true)
-                .and_then(|e| e.icon_url)
-                .is_some_and(|u| u.ends_with("icons/b.png"))
-        );
-        assert!(
-            directory_entry(asked, &both, false)
-                .and_then(|e| e.icon_url)
-                .is_some_and(|u| u.ends_with("icons/a.png"))
-        );
+        assert!(directory_entry(asked, &both, true)
+            .and_then(|e| e.icon_url)
+            .is_some_and(|u| u.ends_with("icons/b.png")));
+        assert!(directory_entry(asked, &both, false)
+            .and_then(|e| e.icon_url)
+            .is_some_and(|u| u.ends_with("icons/a.png")));
         let light_only = format!(r#"{{"id":"{asked}","name":"K","icon":"icons/a.png"}}"#);
         assert!(
             directory_entry(asked, &light_only, true)

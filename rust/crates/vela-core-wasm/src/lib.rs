@@ -585,8 +585,11 @@ pub fn passkey_fallback_icon_data_uri(
     soft: &str,
     hole: &str,
 ) -> Option<String> {
-    let mark =
-        vela_core::passkey::fallback_mark(authenticator_attachment, transports, chose_security_key)?;
+    let mark = vela_core::passkey::fallback_mark(
+        authenticator_attachment,
+        transports,
+        chose_security_key,
+    )?;
     Some(vela_core::passkey::fallback_icon_data_uri(
         mark,
         vela_core::passkey::MarkPalette { strong, soft, hole },

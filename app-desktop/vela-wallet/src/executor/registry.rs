@@ -421,9 +421,11 @@ fn decode_record_name(data: &[u8]) -> Option<String> {
         Some(out)
     }
     let struct_start = word_at(data, 0)?;
-    let name_offset = struct_start.checked_add(word_at(data, struct_start.checked_add(4 * 32)?)?)?;
+    let name_offset =
+        struct_start.checked_add(word_at(data, struct_start.checked_add(4 * 32)?)?)?;
     let name_length = word_at(data, name_offset)?;
-    let name_bytes = data.get(name_offset + 32..name_offset.checked_add(32)?.checked_add(name_length)?)?;
+    let name_bytes =
+        data.get(name_offset + 32..name_offset.checked_add(32)?.checked_add(name_length)?)?;
     let name = std::str::from_utf8(name_bytes).ok()?.trim();
     (!name.is_empty()).then(|| name.to_owned())
 }
@@ -574,19 +576,23 @@ pub fn publish(
                 // its possession proof over caBLE (a fresh QR), a USB one on the
                 // key in the port. Hardcoding SecurityKey here was why a caBLE
                 // recovery silently entered the wallet unpublished.
-                let assertion =
-                    passkey::assert(&challenge_bytes, Some(&member.credential_id), method, ceremony)
-                        .map_err(|failure| {
-                            // A ceremony failure inside a publish is not a
-                            // network failure. It is reported as an answered
-                            // one so the core does not offer to change the
-                            // endpoint over a cancelled touch.
-                            RegistryError::answered(
-                                failure
-                                    .message
-                                    .unwrap_or_else(|| "the signature was refused".to_owned()),
-                            )
-                        })?;
+                let assertion = passkey::assert(
+                    &challenge_bytes,
+                    Some(&member.credential_id),
+                    method,
+                    ceremony,
+                )
+                .map_err(|failure| {
+                    // A ceremony failure inside a publish is not a
+                    // network failure. It is reported as an answered
+                    // one so the core does not offer to change the
+                    // endpoint over a cancelled touch.
+                    RegistryError::answered(
+                        failure
+                            .message
+                            .unwrap_or_else(|| "the signature was refused".to_owned()),
+                    )
+                })?;
                 build_member_proof(
                     &assertion.authenticator_data_hex,
                     &assertion.client_data_json_hex,

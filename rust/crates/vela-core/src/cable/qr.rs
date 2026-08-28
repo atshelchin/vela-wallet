@@ -48,11 +48,17 @@ pub fn build_payload(
     hint: &str,
 ) -> String {
     let entries = vec![
-        (Value::Integer(0.into()), Value::Bytes(identity_pub_compressed.to_vec())),
+        (
+            Value::Integer(0.into()),
+            Value::Bytes(identity_pub_compressed.to_vec()),
+        ),
         (Value::Integer(1.into()), Value::Bytes(qr_secret.to_vec())),
         // The number of assigned tunnel-server domains this initiator knows.
         (Value::Integer(2.into()), Value::Integer(2.into())),
-        (Value::Integer(3.into()), Value::Integer(epoch_seconds.into())),
+        (
+            Value::Integer(3.into()),
+            Value::Integer(epoch_seconds.into()),
+        ),
         // Not state-assisted / not linkable.
         (Value::Integer(4.into()), Value::Bool(false)),
         // Flow hint: getAssertion (`ga`) or makeCredential (`mc`).
@@ -101,7 +107,9 @@ mod tests {
 
         assert!(matches!(get(&entries, 0), Some(Value::Bytes(b)) if b == &pub_key));
         assert!(matches!(get(&entries, 1), Some(Value::Bytes(b)) if b == &secret));
-        assert!(matches!(get(&entries, 3), Some(Value::Integer(i)) if *i == 1_700_000_000i64.into()));
+        assert!(
+            matches!(get(&entries, 3), Some(Value::Integer(i)) if *i == 1_700_000_000i64.into())
+        );
         assert!(matches!(get(&entries, 5), Some(Value::Text(s)) if s == "ga"));
     }
 

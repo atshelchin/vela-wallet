@@ -102,8 +102,9 @@ impl<P: CablePort> CableConnection<P> {
         product: String,
         on_touch: Option<TouchAnnouncer>,
     ) -> Result<Self, CableError> {
-        let static_keys = KeyPair::from_seed(static_seed)
-            .ok_or_else(|| CableError::Other("caBLE static seed is not a valid scalar".to_owned()))?;
+        let static_keys = KeyPair::from_seed(static_seed).ok_or_else(|| {
+            CableError::Other("caBLE static seed is not a valid scalar".to_owned())
+        })?;
         let ephemeral = KeyPair::from_seed(ephemeral_seed).ok_or_else(|| {
             CableError::Other("caBLE ephemeral seed is not a valid scalar".to_owned())
         })?;
@@ -183,7 +184,9 @@ impl<P: CablePort> CableConnection<P> {
         frame.push(MSG_CTAP);
         frame.extend_from_slice(request);
         let sealed = self.transport.seal(&frame).map_err(to_cable_error)?;
-        self.port.write_frame(&sealed).map_err(port_to_cable_error)?;
+        self.port
+            .write_frame(&sealed)
+            .map_err(port_to_cable_error)?;
 
         let reply = self.port.read_frame().map_err(port_to_cable_error)?;
         let payload = self.transport.open(&reply).map_err(to_cable_error)?;
@@ -374,7 +377,9 @@ mod tests {
 
         // A CTAP exchange round-trips the encrypted channel and strips the
         // status byte, exactly like the HID/CCID cables.
-        let body = conn.exchange(&[0x02, 0x11], Some(TouchKind::Presence)).unwrap();
+        let body = conn
+            .exchange(&[0x02, 0x11], Some(TouchKind::Presence))
+            .unwrap();
         assert_eq!(body, vec![0xa0]);
     }
 
@@ -401,9 +406,15 @@ mod tests {
                 post_handshake_cbor: vec![0xa0], // empty map, no getInfo
             },
         };
-        let mut conn =
-            CableConnection::establish(port, &init_static_seed, &[2u8; 32], &psk, "phone".to_owned(), None)
-                .unwrap();
+        let mut conn = CableConnection::establish(
+            port,
+            &init_static_seed,
+            &[2u8; 32],
+            &psk,
+            "phone".to_owned(),
+            None,
+        )
+        .unwrap();
         assert_eq!(conn.get_info(), None);
         match conn.exchange(&[0x02], None) {
             Err(CableError::Ctap(Status::NoCredentials)) => {}

@@ -71,7 +71,9 @@ pub enum CcidError {
 impl std::fmt::Display for CcidError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unavailable(detail) => write!(f, "the smart-card service is unavailable: {detail}"),
+            Self::Unavailable(detail) => {
+                write!(f, "the smart-card service is unavailable: {detail}")
+            }
             Self::NoReader => write!(f, "no smart-card reader is attached"),
             Self::NoFidoApplet => write!(f, "no attached card offers a FIDO applet"),
         }
@@ -175,11 +177,7 @@ pub fn open_cable() -> Result<ApduCable<SmartCard>, CcidError> {
     Err(CcidError::NoFidoApplet)
 }
 
-fn connect(
-    context: &Context,
-    reader: &std::ffi::CStr,
-    mode: ShareMode,
-) -> Result<Card, PcscError> {
+fn connect(context: &Context, reader: &std::ffi::CStr, mode: ShareMode) -> Result<Card, PcscError> {
     // `Protocols::ANY` lets the resource manager negotiate T=0 or T=1; the
     // cable above speaks APDUs and does not care which was chosen.
     context.connect(reader, mode, Protocols::ANY)

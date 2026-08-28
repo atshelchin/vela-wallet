@@ -86,7 +86,12 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
             // show no QR.
             method,
             purpose,
-        } => match passkey::assert(&challenge_for(*purpose), Some(credential_id), *method, ceremony) {
+        } => match passkey::assert(
+            &challenge_for(*purpose),
+            Some(credential_id),
+            *method,
+            ceremony,
+        ) {
             Ok(assertion) => ShellResult::ProofSigned {
                 assertion,
                 now_iso: now_iso(),
@@ -134,20 +139,24 @@ pub fn perform(operation: &ShellOperation, ceremony: &Ceremony) -> Performed {
                         message: format!("the registry challenge is not hex: {error}"),
                         network: false,
                     },
-                    Ok(bytes) => match passkey::assert(&bytes, Some(credential_id), *method, ceremony) {
-                        Err(failure) => passkey_failed(failure),
-                        Ok(assertion) => match build_member_proof(
-                            &assertion.authenticator_data_hex,
-                            &assertion.client_data_json_hex,
-                            &assertion.signature_der_hex,
-                        ) {
-                            Ok(proof) => ShellResult::MemberProofSigned { proof },
-                            Err(error) => ShellResult::IndexFailed {
-                                message: format!("could not assemble the member proof: {error}"),
-                                network: false,
+                    Ok(bytes) => {
+                        match passkey::assert(&bytes, Some(credential_id), *method, ceremony) {
+                            Err(failure) => passkey_failed(failure),
+                            Ok(assertion) => match build_member_proof(
+                                &assertion.authenticator_data_hex,
+                                &assertion.client_data_json_hex,
+                                &assertion.signature_der_hex,
+                            ) {
+                                Ok(proof) => ShellResult::MemberProofSigned { proof },
+                                Err(error) => ShellResult::IndexFailed {
+                                    message: format!(
+                                        "could not assemble the member proof: {error}"
+                                    ),
+                                    network: false,
+                                },
                             },
-                        },
-                    },
+                        }
+                    }
                 },
             }
         }

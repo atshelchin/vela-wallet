@@ -17,8 +17,8 @@
 //! it identically. `TKSmartCard.transmit` and `NFCISO7816Tag.sendCommand` are
 //! each one `transmit`.
 
-use crate::ctap::commands::split_response;
 use crate::ctap::ceremony::{Cable, CableError, TouchAnnouncer, TouchKind};
+use crate::ctap::commands::split_response;
 
 /// The FIDO applet's AID: RID `0xA000000647` ‖ PIX `0x2F0001`. `SELECT`ed once
 /// when the cable opens.
@@ -214,7 +214,9 @@ impl<P: ApduPort> ApduCable<P> {
     fn transceive(&mut self, apdu: &[u8]) -> Result<(Vec<u8>, u16), CableError> {
         let resp = self.port.transmit(apdu).map_err(apdu_error)?;
         if resp.len() < 2 {
-            return Err(CableError::Other("APDU response shorter than a status word".to_owned()));
+            return Err(CableError::Other(
+                "APDU response shorter than a status word".to_owned(),
+            ));
         }
         let sw = (u16::from(resp[resp.len() - 2]) << 8) | u16::from(resp[resp.len() - 1]);
         Ok((resp[..resp.len() - 2].to_vec(), sw))
@@ -351,7 +353,10 @@ mod tests {
             .unwrap();
         assert!(body.is_empty());
         assert_eq!(fired.get(), 1, "announced once, not per keepalive");
-        assert_eq!(cable.port.polls, 2, "each keepalive waits one poll interval");
+        assert_eq!(
+            cable.port.polls, 2,
+            "each keepalive waits one poll interval"
+        );
     }
 
     #[test]
@@ -372,7 +377,10 @@ mod tests {
     #[test]
     fn a_short_request_uses_a_short_apdu_with_an_le_byte() {
         let apdu = ApduCable::<FakeCard>::first_command_apdu(&[0xDE, 0xAD]).unwrap();
-        assert_eq!(apdu, vec![CLA, INS_MSG, P1_MSG, 0x00, 0x02, 0xDE, 0xAD, 0x00]);
+        assert_eq!(
+            apdu,
+            vec![CLA, INS_MSG, P1_MSG, 0x00, 0x02, 0xDE, 0xAD, 0x00]
+        );
     }
 
     #[test]

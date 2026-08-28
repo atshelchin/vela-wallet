@@ -212,7 +212,11 @@ impl L2capCablePort {
         remote.l2_family = AF_BLUETOOTH as libc::sa_family_t;
         remote.l2_psm = psm.to_le();
         remote.l2_bdaddr = bdaddr;
-        remote.l2_bdaddr_type = if random { BDADDR_LE_RANDOM } else { BDADDR_LE_PUBLIC };
+        remote.l2_bdaddr_type = if random {
+            BDADDR_LE_RANDOM
+        } else {
+            BDADDR_LE_PUBLIC
+        };
         connect_within(&fd, &remote, CONNECT_TIMEOUT).map_err(|error| {
             HybridError::Bluetooth(format!("L2CAP connect (PSM {psm}): {error}"))
         })?;
@@ -239,7 +243,10 @@ impl L2capCablePort {
         }
         if got < 0 {
             let error = io::Error::last_os_error();
-            if matches!(error.kind(), io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut) {
+            if matches!(
+                error.kind(),
+                io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+            ) {
                 return Err(PortError::TimedOut);
             }
             return Err(PortError::Io(format!("L2CAP read: {error}")));
@@ -259,14 +266,8 @@ impl CablePort for L2capCablePort {
         let mut framed = Vec::with_capacity(frame.len() + 4);
         framed.extend_from_slice(&len.to_be_bytes());
         framed.extend_from_slice(frame);
-        let sent = unsafe {
-            libc::send(
-                self.fd.as_raw_fd(),
-                framed.as_ptr().cast(),
-                framed.len(),
-                0,
-            )
-        };
+        let sent =
+            unsafe { libc::send(self.fd.as_raw_fd(), framed.as_ptr().cast(), framed.len(), 0) };
         if sent < 0 {
             return Err(PortError::Io(format!(
                 "L2CAP write: {}",

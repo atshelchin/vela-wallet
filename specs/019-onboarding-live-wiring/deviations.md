@@ -264,3 +264,40 @@ one cannot be relied on to appear).
 platform's to interpret, and the OTP-as-keyboard one reaches into UI that has
 nothing to do with the ceremony. It is worth asking, for every peripheral the
 app talks to, what ELSE the OS thinks that peripheral is.
+
+## 15. Availability rows become interactive gates (2026-08-28, closes T177)
+
+T177 imagined the method rows greying out with a reason when a route is
+unavailable ("BLE off", "no GMS"). What actually shipped is stronger, and the
+founder approved it as the closing form ("按你最佳实践来，用户体验要好"): the
+rows stay live, and each blocker is handled AT THE MOMENT it bites, as a
+recoverable step rather than a verdict —
+
+- **Bluetooth off** (scan method): the system's own enable dialog; declining is
+  a cancel, not an alert.
+- **Location services off** (scan on API ≤30, where the platform silently
+  withholds BLE scan results): an explainer sheet first — why location, and
+  that Vela never reads the position — then the jump to the system toggle,
+  resuming when the person walks back.
+- **No key plugged in** (USB method): an "insert your security key" sheet that
+  polls enumeration — plugging the key in IS the confirm — with an OEM hint
+  when the phone's OTG switch reads off (`oem_otg_read` = 0 on OxygenOS; other
+  phones read the default and show no hint).
+- **No provider at all** (platform method on GMS-free Android): the CredMan
+  provider-configuration exception reroutes to the app-owned path where one
+  exists, and otherwise surfaces the honest sentence.
+
+A greyed row would have told the person what they cannot do; the gates walk
+them through making it work. Every gate logs its probe result and outcome to
+VelaLog, so a bug report still names the route and the reason — the half of
+T177 that was about diagnosis survives unchanged.
+
+## 16. The iOS CCID firmware floor is real: YubiKey 5.8+ only (2026-08-28)
+
+Device-verified by the founder on an iPhone 15 Pro (USB-C): a YubiKey on
+firmware 5.8 completes the app-owned FIDO-over-CCID ceremony; the same flow
+against firmware 5.7 does not — FIDO over CCID simply is not offered below
+5.8, exactly as the spec's matrix predicted. This is a hardware boundary, not
+a bug: older keys on iOS use the scan method or the system security-key sheet
+instead. Worth one line in any future support doc: "security key on iPhone
+needs YubiKey firmware 5.8 or newer (2021+ keys)".

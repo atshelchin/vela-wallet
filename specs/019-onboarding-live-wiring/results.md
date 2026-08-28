@@ -1229,3 +1229,40 @@ change cannot drift on one.
 The bugs worth remembering are in `deviations.md` §11, as classes rather than
 incidents: a comment that documented an obsolete invariant, a lesson recorded
 but not generalised, and a view field read outside its lifecycle.
+
+---
+
+## The matrix, at the close — 2026-08-28
+
+T178's record: platform × method × (create, sign-in), each cell **pass** with its
+evidence, **unavailable** with its reason, or **not exercised** by name. "app-owned"
+cells consult no domain association and no Google service (FR-009c).
+
+| Platform | This device | USB security key | Scan (caBLE) |
+| --- | --- | --- | --- |
+| **Web** | pass — browser sheet; the golden e2e suite drives create and sign-in | browser sheet (same ceremony, the browser arbitrates) | browser sheet QR |
+| **Android, GMS** (S22, Xiaomi) | pass — create + sign-in via Credential Manager (2026-08-25/26); Samsung Android 15 sign-in capped by the CredMan parcel ceiling at ~50 stored wallets — platform defect, documented in deviations and reportable to Google, create unaffected | pass — app-owned CTAP over USB host, YubiKey 5C as FIRST key, three clean runs (2026-08-26); assert likewise | responder role proven daily; initiator on GMS devices rides the system sheet's cross-device route — *not separately exercised* (the app-owned client below is the same code) |
+| **Android, GMS-free** (OnePlus 5T) | unavailable with reason — no provider; the CredMan provider-configuration exception reroutes to the app-owned paths | pass — app-owned CTAP (2026-08-26), now behind the insert-key waiter with the OTG hint (2026-08-28) | **pass — full sign-in E2E on a device with no Google services (2026-08-28)**, behind the Bluetooth-enable and location gates |
+| **iOS** (iPhone 15 Pro) | pass — ASAuthorization platform provider, in daily use through create/sign-in/recovery | pass at YubiKey firmware **5.8+** (app-owned FIDO over CCID, device-verified 2026-08-28); firmware 5.7 does not offer FIDO over CCID — unavailable with reason, the spec's floor is real | pass — app-owned client, BLE-only L2CAP **and** WebSocket tunnel, recovery's full two-signature chain (2026-08-28) |
+| **Desktop, macOS** | unavailable by design — gpui has no platform-authenticator API (spec matrix ⛔) | pass — CTAP2 over USB HID, the founding path since Phase 5, one-touch assert pinned on hardware (2026-08-25) | pass — QR + btleplug scan + tunnel, E2E against an iPhone and an Android responder (2026-08-27) |
+| **Desktop, Windows / Linux** | *not exercised* — no built client has run on either; the spec matrix's columns describe the design, and closing them is future work, not a silent claim | *not exercised* | *not exercised* |
+
+Android NFC (IsoDep over the core's `ApduCable`) has its cable in the core and no
+shell transport — deliberately out of this feature's task list; the matrix row it
+would fill stays honest by not existing.
+
+### The final human sweep (closes T091 / T121 / T142)
+
+Everything below is the residue of three older sweep tasks, consolidated. One
+pass each, tick and date them here:
+
+- [ ] Desktop: start create with NO key plugged in, recover from that state by
+  plugging one in (T091's last scenario)
+- [ ] Android: a two-key founding set on device; the endpoint sheet opened and
+  a custom registry URL round-tripped; one publish retry exercised (T121's
+  scenarios 3 / 5 / 6)
+- [ ] iOS: quickstart scenarios walked once on the iPhone 15 Pro — create,
+  sign-in, sign-out, recover (T142's sweep, on current hardware)
+
+When those three boxes are ticked, every task in `tasks.md` is closed and 019
+is done.

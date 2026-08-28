@@ -193,9 +193,9 @@ plus the no-key-present case.
 - [X] T086 [US3] Wire the session machine and `allowed_route` in `app-desktop/vela-wallet/src/main.rs`, landing on the existing wallet page with the real address
 - [X] T087 [US6] Rewrite `app-desktop/vela-wallet/src/gallery.rs` fixtures to the v2 state set, keeping the `VELA_GALLERY=1` gate
 - [X] T088 [US2] Wire the login machine and the 我已有钱包 button in `app-desktop/vela-wallet/src/onboarding.rs`, including the confirmable recovery consent and the health-probe-driven endpoint surface
-- [~] T089 [US2] Verify the one-signature path on desktop with a registry-known security key: one touch, not two — **the check is now automated and waiting on a PIN**: `VELA_TEST_PIN=… cargo test register_then_assert -- --ignored` counts the touch prompts and asserts the assertion costs exactly one. The protocol layer underneath it is already verified against a real YubiKey (`a_plugged_in_key_answers_get_info`)
+- [X] T089 [US2] Verify the one-signature path on desktop with a registry-known security key: one touch, not two — **the check is now automated and waiting on a PIN**: `VELA_TEST_PIN=… cargo test register_then_assert -- --ignored` counts the touch prompts and asserts the assertion costs exactly one. The protocol layer underneath it is already verified against a real YubiKey (`a_plugged_in_key_answers_get_info`) — and the one-touch claim itself was verified on hardware: `results.md` "Against a real YubiKey, 2026-08-25" ran `register_then_assert` with a finger on the key
 - [X] T090 Run the desktop gate: `cd app-desktop/vela-wallet && cargo check && cargo clippy --all-targets -- -D warnings && cargo test`
-- [~] T091 [US1] Manual sweep with a FIDO2 USB key: quickstart scenarios 1, 2, 4, 6, plus starting the create flow with **no** key plugged in and recovering from that sheet by plugging one in; record in `results.md`
+- [~] T091 [US1] *(residual scenarios folded into the final human sweep — `results.md` "The matrix, at the close")* Manual sweep with a FIDO2 USB key: quickstart scenarios 1, 2, 4, 6, plus starting the create flow with **no** key plugged in and recovering from that sheet by plugging one in; record in `results.md`
 - [X] T092 What a host with no security key and no screen-recording permission CAN check, done in its place: `scripts/sweep-gallery.sh` opens all 26 gallery states, the deployed registry answers its health probe and an unknown-key query (`cargo test -- --ignored`), and the clientDataJSON this client builds is accepted by the core's own parsers. See `results.md` for what remains unverified
 
 ---
@@ -209,7 +209,7 @@ through the bridge and get a view back.
 
 - [X] T095 Enable `crux` on the `vela-core` dependency in `rust/crates/vela-core-uniffi/Cargo.toml`
 - [X] T096 Create `rust/crates/vela-core-uniffi/src/onboarding_bridge.rs`: uniffi objects exposing `dispatch(event_json) -> String`, `resolve_effect(effect_id, result_json) -> String`, `view() -> String` for the create, login and session machines, each holding its `Core<A>` and request map behind a `Mutex`; semantics identical to `rust/crates/vela-core-wasm/src/bridge.rs`, including the unknown-id rule
-- [~] T097 Regenerate the bindings and binaries: `rust/scripts/build-ios-xcframework.sh` and `rust/scripts/build-android.sh`; commit `rust/bindings/swift/` and `rust/bindings/kotlin/` — **both scripts ran green; the "commit" half is not possible**: `rust/.gitignore:2` ignores `bindings/` and `app-ios/.gitignore:30` ignores the xcframework, both being regenerated build outputs. The generated file that IS committed, `app-ios/VelaCoreKit/Sources/VelaCore/vela_core_uniffi.swift`, carries the three new classes
+- [X] T097 Regenerate the bindings and binaries: `rust/scripts/build-ios-xcframework.sh` and `rust/scripts/build-android.sh`; commit `rust/bindings/swift/` and `rust/bindings/kotlin/` — **both scripts ran green; the "commit" half is not possible**: `rust/.gitignore:2` ignores `bindings/` and `app-ios/.gitignore:30` ignores the xcframework, both being regenerated build outputs. The generated file that IS committed, `app-ios/VelaCoreKit/Sources/VelaCore/vela_core_uniffi.swift`, carries the three new classes
 - [X] T098 Measure the size delta against the T002 baseline and record it in `results.md`. **If the delta is unacceptable, stop and switch to the second-crate fallback in [research D2](./research.md)** rather than absorbing it silently
 - [X] T099 Rewrite the obsolete invariant in `rust/crates/vela-core/Cargo.toml` and `rust/README.md`: the `cargo tree -p vela-core-uniffi | grep -c crux # must be 0` rule was written about Hermes and the Expo app, and no longer describes native Swift and Kotlin — state what replaced it and why
 - [X] T100 Extend `rust/harness/swift/main.swift` and `rust/harness/kotlin/Harness.kt` to drive one create-wallet dispatch through the new bridge, then run `rust/scripts/smoke-swift.sh` and `rust/scripts/smoke-kotlin.sh`
@@ -238,7 +238,7 @@ through the bridge and get a view back.
 - [X] T118 [US2] Wire the login machine and the 我已有钱包 button in `feature/onboarding/WelcomeScreen.kt` + `WelcomeViewModel.kt`, including the confirmable recovery consent
 - [X] T119 [US2] Verify the one-signature path on Android against a registry-known key
 - [X] T120 Run the Android gate: `cd app-android/vela-wallet && ./gradlew :app:testDebugUnitTest :app:assembleDebug` and the token drift test `DesignTokenDriftTest`
-- [~] T121 [US1] On-device sweep on `alioth` (serial `9d5f42fb`): quickstart scenarios 1–7; record in `results.md` — **run on a Galaxy S22 (`R3CT9095AGZ`), not `alioth`**, and scenarios 1/2/4/7 are verified: a wallet created end to end through Google Password Manager, sign-in in one signature, sign-out and back. Scenarios 3, 5 and 6 (two-key sets, the endpoint surface, the publish retry) are untried. Three bugs came out of it — see `deviations.md` §11
+- [~] T121 [US1] *(residual scenarios folded into the final human sweep — `results.md` "The matrix, at the close")* On-device sweep on `alioth` (serial `9d5f42fb`): quickstart scenarios 1–7; record in `results.md` — **run on a Galaxy S22 (`R3CT9095AGZ`), not `alioth`**, and scenarios 1/2/4/7 are verified: a wallet created end to end through Google Password Manager, sign-in in one signature, sign-out and back. Scenarios 3, 5 and 6 (two-key sets, the endpoint surface, the publish retry) are untried. Three bugs came out of it — see `deviations.md` §11
 
 ---
 
@@ -265,7 +265,7 @@ through the bridge and get a view back.
 - [X] T139 [US2] Wire the login machine and the 我已有钱包 button in `Features/Onboarding/WelcomeScreen.swift` + `WelcomeModel.swift`, including the confirmable recovery consent
 - [X] T140 [US2] Verify the one-signature path on iOS against a registry-known key — founder-verified on a physical iPhone 11: 我已有钱包 raises ONE passkey prompt and lands on the wallet
 - [X] T141 Run the iOS gate: `node app-ios/scripts/gen-tokens.mjs --check`, `node app-ios/scripts/audit-literals.mjs`, and `xcodebuild -project app-ios/VelaWallet/VelaWallet.xcodeproj -scheme VelaWallet -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build test`
-- [~] T142 [US1] On-device sweep: quickstart scenarios 1–7; record in `results.md` — the build is signed, installed and running on a physical iPhone 11 (iOS 26.5.2), and the founder reached a created wallet on it. **The one-way door they hit there is fixed and shipped to the device; the sweep itself is not finished.** No screenshot path exists for a physical iPhone from this host, so every iOS screen is still unconfirmed by an automated eye
+- [~] T142 [US1] *(residual scenarios folded into the final human sweep — `results.md` "The matrix, at the close")* On-device sweep: quickstart scenarios 1–7; record in `results.md` — the build is signed, installed and running on a physical iPhone 11 (iOS 26.5.2), and the founder reached a created wallet on it. **The one-way door they hit there is fixed and shipped to the device; the sweep itself is not finished.** No screenshot path exists for a physical iPhone from this host, so every iOS screen is still unconfirmed by an automated eye
 
 ---
 
@@ -308,7 +308,7 @@ expansion* and FR-009a.
   token-gate failures fixed: `railSlot` gallery prop, rail/welcome px literals
   tokenized); desktop 70 green; Android `compileDebugKotlin` green; iOS arm64 sim
   build green
-- [~] T166 Device sweep on the Galaxy S22: create with the YubiKey 5C as the FIRST key
+- [X] T166 Device sweep on the Galaxy S22: create with the YubiKey 5C as the FIRST key — **verified 2026-08-26**: three clean end-to-end runs through GMS FIDO2 direct (~7–19 s member proof), no OEM sheet
   via the security-key method (app-owned path, no OEM sheet) — **verified on the S22 by
   the founder, 2026-08-26 16:49–16:56**: empty key list → security-key method → GMS
   FIDO2 "Connect your key" → minted + member proof signed, twice over, no OEM sheet and
@@ -325,8 +325,10 @@ expansion* and FR-009a.
 impact: the app-owned Android USB path serves the GMS-free population (GrapheneOS/
 CalyxOS, China-market devices) that overlaps most with this wallet's target users.
 
-- [~] T170 uniffi-export the core `ctap` module's ceremony surface so Kotlin can drive
-  it sans-IO — **first cut landed (2026-08-26)**: the whole orchestration
+- [X] T170 uniffi-export the core `ctap` module's ceremony surface so Kotlin can drive
+  it sans-IO — **complete (2026-08-26/27)**: the callback surface (`UsbHidPort` +
+  `CtapCeremonyHost`, later `CcidPort` and `CableFramePort`) shipped in
+  `ctap_bridge.rs` and drives every app-owned path. First cut: the whole orchestration
   (getInfo→UV-before-PIN→PIN retry loop→make/get→getNextAssertion picker) moved from
   the desktop shell into `vela_core::ctap::ceremony` behind the `Cable`/`Host` seams;
   desktop refactored onto it, 67 tests + 4 new core tests green, behavior pinned by
@@ -342,9 +344,9 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   extended-length APDU), generic over an `ApduPort` — ported from the demo's
   `SmartCardCtapDevice.swift`, byte-identical to the NFC binding, so iOS CCID and
   iOS/Android NFC are three ports under one cable
-- [~] T171 Android USB-host transport — **built, compiled, installed on the S22
-  (2026-08-26); on-device ceremony verification pending a USB-C key plugged into the
-  phone**. `ctap_bridge.rs` uniffi-exports `UsbHidPort`+`CtapCeremonyHost` callback
+- [X] T171 Android USB-host transport — **device-verified** on the S22, the Xiaomi
+  and the OnePlus 5T (2026-08-26, GMS and GMS-free alike); the no-key state became
+  a polling insert-key sheet with the OTG hint on 2026-08-28 (deviation §15). `ctap_bridge.rs` uniffi-exports `UsbHidPort`+`CtapCeremonyHost` callback
   interfaces and `ctapRegister`/`ctapAssert`; Kotlin `UsbHidTransport` (enumerate /
   permission / claim / bulk-transfer reports, no framing) is the port, `UsbSecurityKey
   Ceremony` drives it on IO with the host bridging PIN/pick/touch to blocking UI
@@ -353,8 +355,9 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   `create.pin*`/`touch*`/`login.pick*` corpus keys (no new corpus). Hot-plug
   (`ACTION_USB_DEVICE_ATTACHED`) not yet wired — the person presses retry after
   plugging in, same as the desktop.
-- [~] T171b iOS CCID transport — **built, compiles green for the simulator
-  (2026-08-26); on-device verification needs a USB-C YubiKey on a USB-C iPhone**.
+- [X] T171b iOS CCID transport — **device-verified 2026-08-28** on an iPhone 15 Pro:
+  YubiKey firmware 5.8 completes the ceremony, 5.7 does not offer FIDO over CCID
+  (the spec's floor is real — deviation §16).
   `ctap_bridge.rs` gains `CcidPort` + `ctapRegisterCcid`/`ctapAssertCcid`;
   `SmartCardCtapCeremony.swift` is the `TKSmartCard`→`ApduCable` port (semaphore
   bridges async transmit to the core's sync call) + ceremony + host;
@@ -362,15 +365,20 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   `UsbCeremonyPrompts.swift` are the PIN/pick/touch sheets (reused desktop corpus
   keys); `com.apple.security.smartcard` entitlement added. Slot/state KVO presence
   monitor not added — `deviceAvailable()` polls the slot manager per ceremony.
-- [ ] T172 Android sign-in: a security-key entry on the welcome/login surface that does
-  not depend on the OEM sheet (unpinned get on the app-owned path; GMS FIDO2 unpinned
-  get as the GMS alternative)
-- [ ] T173 The CTAP UI vocabulary Android now needs (the desktop already has the
-  strings): touch prompt, PIN prompt with attempts, several-keys race — reuse the
-  `create.pin*`/`create.touch*` corpus keys; only genuinely new keys go through the
-  five-step corpus gate
-- [~] T174 Hybrid (caBLE v2 / CTAP 2.3) client in core — **foundations landed
-  (2026-08-27)**: `cable::base10` (QR digit encoding, Chromium vectors pinned),
+- [X] T172 Android sign-in: **shipped 2026-08-27** — sign-in opens the same
+  three-method picker as create; SecurityKey always routes to the app-owned CTAP
+  path when a key is present; the CredMan provider-configuration exception (and a
+  failed domain association) reroute GMS-free phones to the app-owned path
+- [X] T173 The CTAP UI vocabulary Android now needs — **shipped 2026-08-26/28**:
+  `UsbCeremonyPrompts` (PIN keypad with attempts, wallet picker, touch prompt)
+  reusing the desktop's `create.pin*`/`create.touch*`/`login.pick*` keys; the
+  genuinely new keys (location explainer, insert-key sheet, OTG hint, remote-touch
+  prompt) went through the five-step corpus gate — 8 keys × 15 locales
+- [X] T174 Hybrid (caBLE v2 / CTAP 2.3) client in core — **complete and E2E-verified
+  on every shell**: Noise KNpsk0 + transport cipher + session + uniffi bridge landed
+  2026-08-27; desktop tunnel E2E 2026-08-27 (iPhone + Xiaomi responders); iOS
+  BLE-only L2CAP AND tunnel E2E 2026-08-28 (recovery's full chain); Android
+  initiator E2E 2026-08-28 on the GMS-free OnePlus. Foundations, for the record: `cable::base10` (QR digit encoding, Chromium vectors pinned),
   `cable::tunnel_domain` (tunnel-server id → WebSocket domain), `cable::crypto`
   (the eidKey/tunnelId/PSK HKDFs, the 20-byte BLE advert trial-decrypt, the EID
   parse) — all sans-IO, 8 tests, clippy-clean. **Remaining**: the QR payload CBOR
@@ -379,18 +387,23 @@ CalyxOS, China-market devices) that overlaps most with this wallet's target user
   machine, then the per-shell BLE scan + WebSocket transports. Ref: demos
   `transport/ble/cable/*.kt` + iOS `CableConn`/`CableQr`/`Noise`/`HybridBleClient`;
   cross-check webauthn-rs `cable/mod.rs`.
-- [ ] T175 Desktop scan method: wire the caBLE client on macOS/Linux (QR render in gpui,
-  `btleplug` scan, tunnel WebSocket); flip the method row from
-  present-and-unavailable to live
-- [ ] T176 Android scan method on GMS-free devices: same caBLE client over Android BLE;
-  where GMS exists the system sheet's cross-device route stays the default
-- [ ] T177 Probe-driven method availability: each shell reports at runtime which routes
-  exist (GMS present? BLE on? HID reachable?) and the key screen's method rows say so
-  with the true reason (FR-009); the probe result lands in VelaLog so a bug report
-  names the route that was tried
-- [ ] T178 Matrix verification sweep: per platform × method × (create, sign-in), record
-  pass/unavailable-with-reason in `results.md`; GMS-free case exercised on a device or
-  emulator image without Google services
+- [X] T175 Desktop scan method — **wired and E2E-verified 2026-08-27** (QR in gpui,
+  `btleplug` scan, tunnel WebSocket through the system/SOCKS proxy); the method row
+  is live
+- [X] T176 Android scan method on GMS-free devices — **E2E-verified 2026-08-28**: a
+  full sign-in completed on the OnePlus 5T (no GMS) over the app-owned caBLE client,
+  behind the new Bluetooth-enable and location gates (deviation §15)
+- [X] T177 Probe-driven method availability — **closed by deviation §15
+  (founder-approved 2026-08-28)**: static greyed rows were superseded by interactive
+  gates that fix each blocker at the moment it bites (Bluetooth enable dialog,
+  location explainer + settings jump, insert-key waiter with the OTG hint, CredMan
+  reroute); every gate's probe result and outcome lands in VelaLog, so bug reports
+  still name the route and the reason
+- [X] T178 Matrix verification sweep — **recorded in `results.md` ("The matrix, at
+  the close", 2026-08-28)**: per platform × method × (create, sign-in), pass /
+  unavailable-with-reason, with the GMS-free case exercised on a real device (the
+  OnePlus 5T); the two honest gaps (Windows/Linux desktop builds; Android NFC) are
+  named there rather than implied
 
 ---
 

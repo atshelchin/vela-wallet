@@ -133,6 +133,13 @@ pub struct AccountKey {
     pub public_key_hex: String,
     /// Per-key label; `keys[0].name` is the wallet name itself.
     pub name: String,
+    /// WHERE this credential lives, as its authenticator reported at
+    /// registration, comma joined (`hybrid,internal`, `usb,nfc`). Empty for
+    /// records written before this field existed, and for authenticators that
+    /// reported nothing — a `get()` then falls back to letting the platform
+    /// guess, which is what this field exists to stop.
+    #[serde(default)]
+    pub transports: String,
 }
 
 /// The persisted wallet. Serialises 1:1 to `StoredAccount`.
@@ -253,6 +260,32 @@ pub struct RegistryUnitMember {
     pub authenticator_attachment: String,
     #[serde(default)]
     pub transports: String,
+}
+
+/// How the person chose to mint a founding key.
+///
+/// This is the **choice**, not the report. `CreateKeyRow` also carries
+/// `authenticator_attachment` / `transports` / `aaguid`, which are what the
+/// authenticator said about *itself* — and the two can legitimately disagree
+/// (a "this device" choice that resolves to a cross-platform authenticator).
+/// The ceremony follows the choice; the row's provider line shows the report.
+/// Neither is inferred from the other.
+///
+/// [`KeyMethod::Hybrid`] exists before anything can execute it. A later feature
+/// adds the transport, not a core type, and until then a shell can render the
+/// method as present-and-explained rather than absent — which is what the
+/// design draws.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub enum KeyMethod {
+    /// The authenticator built into the device the app is running on.
+    #[default]
+    Platform,
+    /// A nearby device, reached by scanning a code.
+    Hybrid,
+    /// A removable authenticator — a USB/NFC security key.
+    SecurityKey,
 }
 
 /// How a ceremony failed. The **shell** reports the raw platform error; the

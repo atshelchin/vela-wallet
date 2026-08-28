@@ -225,6 +225,20 @@ jobs:
         run: cargo test --workspace --features vela-core/i18n-all
       - name: Wasm build (getrandom canary)
         run: cargo build --target wasm32-unknown-unknown -p vela-core-wasm
+      # The Windows passkey path. It cannot be built by any job that builds the
+      # desktop APP — that tree compiles C and needs a mingw toolchain — so it
+      # lives in its own crate with no C in it, and this is the only thing
+      # standing between a Windows-only file and nobody ever compiling it.
+      #
+      # Know what this gate does NOT cover: it checks the crate STANDALONE, so
+      # it says nothing about how the desktop app depends on it. That blind spot
+      # cost us once — the dependency sat inside
+      # `[target.'cfg(target_os = "macos")'.dependencies]` under a comment
+      # claiming it was unconditional, so the entire Windows path went unlinked
+      # while this job stayed green. Only a real Windows build finds that class
+      # of bug, and desktop-windows-packages runs on `desktop-v*` tags, not PRs.
+      - name: Windows passkey path (type-check only)
+        run: ../app-desktop/vela-wallet/scripts/check-windows.sh
       - name: Install wasm-pack
         run: cargo install wasm-pack --locked --version 0.15.0
       - name: Web build is current (rust/pkg-web committed and matching)

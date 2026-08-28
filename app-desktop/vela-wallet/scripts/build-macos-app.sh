@@ -136,15 +136,42 @@ iconset="$packaging/icons/macos/AppIcon.iconset"
 [[ -d "$iconset" ]] || die "missing $iconset - run ./scripts/generate-desktop-icons.sh"
 iconutil --convert icns "$iconset" --output "$app/Contents/Resources/AppIcon.icns"
 
-# An ad-hoc signature is not a Developer ID signature and does not avoid
-# Gatekeeper, but an unsigned bundle is refused outright on Apple silicon, so
-# this is the difference between "warns on first launch" and "will not run".
+# Signing. With VELA_SIGN_IDENTITY set (a "Developer ID Application: …" or
+# "Apple Development: …" identity from the F9W689P9NE team), the bundle is
+# signed with the associated-domains entitlement — which is what unlocks the
+# macOS platform authenticator ("This device": Touch ID / iCloud passkeys for
+# getvela.app). Without it, an ad-hoc signature: not a Developer ID signature
+# and does not avoid Gatekeeper, but an unsigned bundle is refused outright on
+# Apple silicon, so it is the difference between "warns on first launch" and
+# "will not run" — and the entitlement is carried but ignored.
 if command -v codesign >/dev/null 2>&1; then
-  note "ad-hoc code signature"
-  codesign --force --deep --sign - "$app"
+  entitlements="$packaging/macos/entitlements.plist"
+  # associated-domains is a RESTRICTED entitlement: under a real team signature
+  # it only takes effect with a provisioning profile (portal: App ID
+  # app.getvela.VelaWallet + Associated Domains capability + a Developer ID
+  # profile) embedded in the bundle. Without one, newer macOS may refuse to
+  # launch a team-signed bundle that claims the entitlement.
+  if [[ -n "${VELA_PROVISION_PROFILE:-}" ]]; then
+    note "embedding provisioning profile: $VELA_PROVISION_PROFILE"
+    install -m644 "$VELA_PROVISION_PROFILE" "$app/Contents/embedded.provisionprofile"
+  fi
+  if [[ -n "${VELA_SIGN_IDENTITY:-}" ]]; then
+    # The team-signed entitlements add the identifier claims the embedded
+    # profile validates against; see entitlements-signed.plist. NOT --deep:
+    # the proven recipe (gpui-demo/bundle.sh) signs the app seal only, and
+    # deep-signing re-signs nested code with the app's entitlements, which is
+    # never what a restricted entitlement should spread onto.
+    note "code signature: $VELA_SIGN_IDENTITY (+ associated-domains entitlement)"
+    codesign --force --timestamp=none --options runtime \
+      --entitlements "$packaging/macos/entitlements-signed.plist" \
+      --sign "$VELA_SIGN_IDENTITY" "$app"
+  else
+    note "ad-hoc code signature (set VELA_SIGN_IDENTITY for platform passkeys)"
+    codesign --force --deep --entitlements "$entitlements" --sign - "$app"
+  fi
   # `|| die`, not `&& echo`: under set -e a failure on the left of && does not
   # abort, and an unverifiable bundle must never reach the .dmg.
-  codesign --verify --strict "$app" || die "the ad-hoc signature does not verify"
+  codesign --verify --strict "$app" || die "the signature does not verify"
   echo "  signature verifies"
 fi
 

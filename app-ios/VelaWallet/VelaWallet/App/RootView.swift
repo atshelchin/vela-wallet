@@ -8,12 +8,11 @@
 
 import SwiftUI
 
-/// Navigation state — future features push their real flows here (FR-010).
-/// `presentedFlow` is the spec-014 flow sheet (nil = Welcome only).
+/// Navigation state. Since spec 019 the create journey is a pushed route
+/// rather than a presented sheet — `presentedFlow` is gone with the 014 sheet.
 @Observable
 final class Router {
     var path: [AppRoute] = []
-    var presentedFlow: WelcomeFlow?
 }
 
 struct RootView: View {
@@ -22,6 +21,8 @@ struct RootView: View {
     let loc: Loc
     @State private var router: Router
     @State private var model: WelcomeModel
+    @State private var session: SessionController
+    @State private var onboarding: OnboardingModel
 
     // Spec 012. `true` only for the first construction in this process — a
     // cold start (FR-008); SwiftUI never rebuilds `RootView`'s State on a
@@ -34,13 +35,22 @@ struct RootView: View {
         self.loc = loc
         let router = Router()
         _router = State(initialValue: router)
+        let store = AccountStore()
+        let session = SessionController(store: store)
+        let onboarding = OnboardingModel(session: session, store: store)
+        _session = State(initialValue: session)
+        _onboarding = State(initialValue: onboarding)
         _model = State(initialValue: WelcomeModel(content: WelcomeContentBuilder.build(loc: loc)) { intent in
-            // Spec 014 (US2/D3): the intents present the flow sheet with the
-            // flow's initial state. The AppRoute placeholder cases remain for
-            // the future wiring feature, but nothing pushes them anymore.
             switch intent {
-            case .createWallet: router.presentedFlow = .create
-            case .importWallet: router.presentedFlow = .login
+            case .createWallet:
+                router.path.append(.create)
+            case .openSignIn:
+                // Open the sign-in method picker — the person then chooses the
+                // authenticator, and the login machine runs the "who are you?"
+                // ceremony on that route. The picker rides the ONE onboarding
+                // sheet, so its choice can hand straight to the PIN/touch prompts
+                // without a sheet dismissing between them.
+                onboarding.showSignInMethods = true
             }
         })
     }
@@ -71,7 +81,7 @@ struct RootView: View {
         return ZStack {
             themedBackground
 
-            content(router: $router.path, flow: $router.presentedFlow)
+            content(router: $router.path)
                 // Composed from the first frame, hidden by the opaque overlay,
                 // so the hand-off has nothing left to build (FR-013a).
                 .opacity(pageOpacity)
@@ -118,13 +128,11 @@ struct RootView: View {
     }
 
     @ViewBuilder
-    private func content(router path: Binding<[AppRoute]>, flow: Binding<WelcomeFlow?>) -> some View {
+    private func content(router path: Binding<[AppRoute]>) -> some View {
         switch PageOverride.page {
         case .wallet:
-            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc))
+            WalletScreen(model: WalletFixtures.buildMobileState(.h1, loc: loc), loc: loc)
         case .gallery:
-            // Spec 015's wallet-home gallery; the spec 014 onboarding-state
-            // gallery is OnboardingGalleryScreen behind VELA_GALLERY=1.
             GalleryScreen(loc: loc)
         case .contacts:
             ContactsStateHost(state: .c1, loc: loc)
@@ -132,25 +140,175 @@ struct RootView: View {
             ContactsGalleryScreen(loc: loc)
         case nil:
             NavigationStack(path: path) {
-                WelcomeScreen(model: model)
+                signedInOrWelcome
                     .navigationDestination(for: AppRoute.self) { route in
                         switch route {
-                        case .createWalletPlaceholder:
-                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.createWallet"))
-                        case .importWalletPlaceholder:
-                            IntentPlaceholderScreen(title: loc.t("onboarding.welcome.alreadyHaveWallet"))
+                        case .create:
+                            CreateFlowScreen(
+                                loc: loc,
+                                model: onboarding,
+                                onExit: { router.path.removeLast() },
+                                onLink: openPolicy
+                            )
+                            .navigationBarBackButtonHidden()
                         }
                     }
             }
-            // Spec 014 flow container (contract §3): FlowSheet supplies the
-            // content-height detent, drag indicator, and bgRaised presentation.
-            .sheet(item: flow) { presented in
-                WelcomeFlowHost(flow: presented, loc: loc)
-                    // Sheets are their own presentation root — re-apply the
-                    // active theme, mirroring the gallery's container contract.
-                    .themed(scheme)
+            // The route guard.
+            //
+            // `allowedRoute` is the core's ruling about WHAT is allowed; when to
+            // move is this view's call. It moves only for the two settled
+            // routes: `loading` is deliberately not navigated to, because the
+            // launch animation already covers that frame and bouncing through a
+            // spinner route would make a cold start flicker.
+            .onChange(of: session.view.allowedRoute) { _, route in
+                if route == .onboarding { router.path.removeAll() }
             }
+            .onChange(of: onboarding.finished) { _, finished in
+                if finished {
+                    router.path.removeAll()
+                    onboarding.consumeFinished()
+                }
+            }
+            // The ONE onboarding sheet. Every app-owned ceremony prompt — the
+            // sign-in method picker, the "connecting…" hold, the security key's
+            // PIN, the touch, the which-wallet picker, and the create/login flow
+            // prompts — shares this single `.sheet`, its content chosen by
+            // priority. Presenting a second sheet while a first is dismissing
+            // fails silently on iOS (the nesting bug the founder hit on iPhone,
+            // 2026-08-27): the PIN would arrive as the method picker dismissed
+            // and simply never appear. One sheet whose CONTENT swaps never
+            // dismisses between steps, so nothing is dropped.
+            //
+            // Hosted at the ROOT deliberately: a prompt can be raised by either
+            // machine, and the login machine runs while Welcome is on screen, so
+            // a sheet attached to one route's view would vanish the moment the
+            // guard moved and leave the core waiting for an answer nobody can
+            // give.
+            .sheet(isPresented: onboardingSheet) {
+                onboardingSheetContent
+            }
+            // The way back out of a signed-in wallet.
+            //
+            // Rendered from `session.view.signOut`, which is non-null only after
+            // the machine has ASKED STORAGE whether any public key is still
+            // unconfirmed — so the warning inside is an answer rather than this
+            // screen's guess, and the sheet cannot open before there is one.
+            .sheet(item: signOutSheet) { sheet in
+                SignOutSheet(
+                    loc: loc,
+                    pendingUploadWarning: sheet.pendingUploadWarning,
+                    onConfirm: { session.signOutConfirmed() },
+                    onDismiss: { session.signOutDismissed() }
+                )
+                .themed(scheme)
+            }
+            .sheet(isPresented: endpointSheet) {
+                EndpointSheet(
+                    loc: loc,
+                    defaultURL: RegistryClient.defaultURL,
+                    draft: onboarding.endpointURL,
+                    onSave: onboarding.saveEndpoint
+                )
+                .themed(scheme)
+            }
+            .task { session.boot() }
         }
+    }
+
+    /// The wallet when the core says there is one, Welcome otherwise.
+    ///
+    /// The wallet body is still the spec-015 fixture layer apart from the two
+    /// things that identify the wallet — its address and its name, both now
+    /// the real ones. A home screen showing a fixture address after a real
+    /// create would be the app telling the person their money is somewhere it
+    /// is not; a fixture NAME over their own address and identicon told them
+    /// they were signed in as somebody else (device-found 2026-08-26).
+    @ViewBuilder
+    private var signedInOrWelcome: some View {
+        if session.view.allowedRoute == .wallet {
+            WalletScreen(
+                model: WalletFixtures
+                    .buildMobileState(.h1, loc: loc)
+                    .withAddress(session.view.address)
+                    .withName(session.view.activeName),
+                loc: loc,
+                onSelectTab: { tab in
+                    // Sign-out is the only thing behind Settings today. The
+                    // other three tabs stay on this screen rather than
+                    // navigating to fixtures a signed-in person would read as
+                    // their real data.
+                    if tab == .settings { session.signOut() }
+                }
+            )
+        } else {
+            WelcomeScreen(loc: loc, model: model, signingIn: onboarding.loginView.busy)
+        }
+    }
+
+    /// The single onboarding sheet's presentation. A swipe-to-dismiss routes to
+    /// `dismissOnboardingSheet`, which cancels whatever the active prompt is
+    /// waiting for; the touch and connecting states disable interactive dismiss,
+    /// so they never reach it.
+    private var onboardingSheet: Binding<Bool> {
+        Binding(
+            get: { onboarding.onboardingSheetPresented },
+            set: { if !$0 { onboarding.dismissOnboardingSheet() } }
+        )
+    }
+
+    /// The onboarding sheet's content, chosen by priority so a later step wins
+    /// over the state it replaces: pin > wallet pick > touch > flow prompt >
+    /// connecting hold > method picker.
+    @ViewBuilder private var onboardingSheetContent: some View {
+        if let pin = onboarding.pendingPin {
+            UsbPinSheet(loc: loc, pending: pin, onSubmit: onboarding.answerPin)
+                .themed(scheme)
+        } else if let pick = onboarding.pendingWalletPick {
+            UsbWalletPickerSheet(loc: loc, pending: pick, onPick: onboarding.answerWalletPick)
+                .themed(scheme)
+        } else if let touch = onboarding.usbTouch {
+            UsbTouchSheet(loc: loc, touch: touch)
+                .themed(scheme)
+        } else if let payload = onboarding.cableQr {
+            // Below touch on purpose: once the phone connects and the ceremony
+            // is waiting on ITS sheet, "look at your phone" replaces the QR.
+            CableQrSheet(loc: loc, payload: payload)
+                .themed(scheme)
+        } else if let prompt = onboarding.pending {
+            FlowSheet(
+                loc: loc,
+                kind: prompt.kind,
+                confirmable: prompt.confirmable,
+                onAnswer: onboarding.answerPrompt
+            )
+            .themed(scheme)
+        } else if onboarding.signInConnecting {
+            UsbConnectingSheet(loc: loc, method: onboarding.signInMethod)
+                .themed(scheme)
+        } else if onboarding.showSignInMethods {
+            SignInMethodSheet(loc: loc, onPick: onboarding.pickSignInMethod)
+                .themed(scheme)
+        }
+    }
+
+    private var signOutSheet: Binding<SessionSignOutView?> {
+        Binding(
+            get: { session.view.signOut },
+            set: { if $0 == nil { session.signOutDismissed() } }
+        )
+    }
+
+    private var endpointSheet: Binding<Bool> {
+        Binding(get: { onboarding.endpointSheetOpen }, set: { onboarding.endpointSheetOpen = $0 })
+    }
+
+    private func openPolicy(_ action: ActionId) {
+        let url = switch action {
+        case .openPrivacyPolicy: URL(string: "https://getvela.app/privacy")
+        case .openTerms: URL(string: "https://getvela.app/terms")
+        }
+        if let url { UIApplication.shared.open(url) }
     }
 }
 
@@ -174,24 +332,19 @@ enum PageOverride {
     }()
 }
 
-/// Resolves every welcome-screen string from the corpus — the key list is
-/// FR-006's contract (existing keys only, no new corpus entries).
+/// Resolves every welcome-screen string from the corpus — existing keys only,
+/// no new corpus entries.
+///
+/// `featureNoMnemonic*` … `featureStablecoinGas*` are no longer resolved: the
+/// v2 screen has no cards to put them on (spec 019). They stay in the corpus
+/// rather than being deleted, because they are written marketing copy and the
+/// page they belong on may yet exist — the same call the web made.
 enum WelcomeContentBuilder {
-    static let featureKeys: [(title: String, body: String)] = [
-        ("onboarding.welcome.featureNoMnemonicTitle", "onboarding.welcome.featureNoMnemonicBody"),
-        ("onboarding.welcome.featureOneAddressTitle", "onboarding.welcome.featureOneAddressBody"),
-        ("onboarding.welcome.featureOpenSourceTitle", "onboarding.welcome.featureOpenSourceBody"),
-        ("onboarding.welcome.featureKeyCustodyTitle", "onboarding.welcome.featureKeyCustodyBody"),
-        ("onboarding.welcome.featureSafeContractTitle", "onboarding.welcome.featureSafeContractBody"),
-        ("onboarding.welcome.featureStablecoinGasTitle", "onboarding.welcome.featureStablecoinGasBody"),
-    ]
-
     static func build(loc: Loc) -> WelcomeContent {
         WelcomeContent(
-            tagline: loc.t("onboarding.welcome.desktopTagline"),
-            cards: featureKeys.enumerated().map { index, keys in
-                FeatureCardContent(id: index, title: loc.t(keys.title), body: loc.t(keys.body))
-            },
+            heroTitle: loc.t("onboarding.welcome.heroTitle"),
+            heroTitleFit: HeroFit(corpusValue: loc.t("onboarding.welcome.heroTitleFit")),
+            heroSubtitle: loc.t("onboarding.welcome.heroSubtitle"),
             createWallet: loc.t("onboarding.welcome.createWallet"),
             alreadyHaveWallet: loc.t("onboarding.welcome.alreadyHaveWallet")
         )

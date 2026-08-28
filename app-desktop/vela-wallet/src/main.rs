@@ -5,14 +5,22 @@
     windows_subsystem = "windows"
 )]
 
+mod ceremony;
 mod contacts;
+mod core_host;
+mod ctap;
+mod executor;
 mod gallery;
+mod hardware;
 mod icons;
 mod identicon;
 mod loc;
 mod onboarding;
 mod onboarding_flow;
+mod outcome;
+mod passkey_directory;
 mod raster;
+mod session;
 mod theme;
 mod ui;
 mod wallet;
@@ -20,12 +28,81 @@ mod window_frame;
 
 use gallery::GalleryView;
 use gpui::{
-    App, AppContext as _, Bounds, KeyBinding, Menu, MenuItem, QuitMode, TitlebarOptions,
-    WindowBounds, WindowOptions, actions, point, px, size,
+    App, AppContext as _, Bounds, Context, Div, IntoElement, KeyBinding, Menu, MenuItem,
+    ParentElement as _, QuitMode, Render, Styled as _, TitlebarOptions, Window, WindowBounds,
+    WindowOptions, actions, div, point, px, size,
 };
 use onboarding::OnboardingPage;
 use theme::{WINDOW_H, WINDOW_W};
-use wallet::page::WalletPage;
+use vela_core::app::session::SessionRoute;
+use wallet::page::{Identity, WalletPage};
+
+/// The window's one child, and the only thing in this app that decides which
+/// screen a person is on.
+///
+/// **The core decides WHAT is allowed; this decides WHEN to navigate.** It
+/// renders `SessionView::allowed_route` and concludes nothing of its own — in
+/// particular it does not read the account list and infer a route, because
+/// during the storage read there is no answer yet and `Loading` is how the core
+/// says so. Rendering onboarding in that gap would flash the welcome screen at
+/// somebody who already has a wallet.
+struct Root {
+    onboarding: Option<gpui::Entity<OnboardingPage>>,
+    wallet: Option<gpui::Entity<WalletPage>>,
+}
+
+impl Root {
+    fn new(cx: &mut Context<Self>) -> Self {
+        // Re-render whenever the session changes: the hand-off out of
+        // onboarding is a global write, and this is what turns it into a
+        // navigation.
+        cx.observe_global::<session::SessionState>(|_, cx| cx.notify())
+            .detach();
+        Self {
+            onboarding: None,
+            wallet: None,
+        }
+    }
+}
+
+impl Render for Root {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let view = session::view(cx);
+        let root: Div = div().size_full();
+        match view.allowed_route {
+            // Storage unread. Paint the surface and nothing else — a splash
+            // that lasts one frame is invisible, and a wrong screen is not.
+            SessionRoute::Loading => {
+                root.bg(theme::Theme::of(theme::ThemeMode::detect(window)).bg_base)
+            }
+            SessionRoute::Onboarding => {
+                // Dropped on the way out, so a second sign-in starts from a
+                // fresh machine rather than resuming a finished one.
+                self.wallet = None;
+                let page = self
+                    .onboarding
+                    .get_or_insert_with(|| cx.new(|cx| OnboardingPage::new(window, cx)))
+                    .clone();
+                root.child(page)
+            }
+            SessionRoute::Wallet => {
+                self.onboarding = None;
+                let identity = Identity {
+                    name: view
+                        .accounts
+                        .get(view.active_index)
+                        .map_or_else(|| "".into(), |row| row.account.name.clone().into()),
+                    address: view.address.clone(),
+                };
+                let page = self
+                    .wallet
+                    .get_or_insert_with(|| cx.new(|cx| WalletPage::signed_in(identity, window, cx)))
+                    .clone();
+                root.child(page)
+            }
+        }
+    }
+}
 
 /// Which root the window hosts. `VELA_PAGE=wallet|contacts|gallery` (spec 015
 /// research.md D4, extended by spec 018 research.md D1) — same env-pin family
@@ -63,24 +140,17 @@ fn open_main_window(cx: &mut App) {
         return;
     }
     match RootPage::from_env() {
-        RootPage::Onboarding => {
-            open_window_with(cx, |window, cx| cx.new(|cx| OnboardingPage::new(window, cx)))
-        }
-        RootPage::Wallet => {
-            open_window_with(cx, |window, cx| {
-                cx.new(|cx| WalletPage::new(false, window, cx))
-            })
-        }
-        RootPage::Contacts => {
-            open_window_with(cx, |window, cx| {
-                cx.new(|cx| WalletPage::contacts(window, cx))
-            })
-        }
-        RootPage::Gallery => {
-            open_window_with(cx, |window, cx| {
-                cx.new(|cx| WalletPage::new(true, window, cx))
-            })
-        }
+        // The default: the session's route guard picks the screen.
+        RootPage::Onboarding => open_window_with(cx, |_window, cx| cx.new(Root::new)),
+        RootPage::Wallet => open_window_with(cx, |window, cx| {
+            cx.new(|cx| WalletPage::new(false, window, cx))
+        }),
+        RootPage::Contacts => open_window_with(cx, |window, cx| {
+            cx.new(|cx| WalletPage::contacts(window, cx))
+        }),
+        RootPage::Gallery => open_window_with(cx, |window, cx| {
+            cx.new(|cx| WalletPage::new(true, window, cx))
+        }),
     }
 }
 
@@ -138,6 +208,10 @@ fn main() {
     });
 
     app.run(|cx: &mut App| {
+        // Storage is read before the first window opens, so the route guard has
+        // a real answer to give on frame one.
+        session::boot(cx);
+
         cx.on_action(|_: &Quit, cx| cx.quit());
         cx.on_action(|_: &HideApp, cx| cx.hide());
         cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());

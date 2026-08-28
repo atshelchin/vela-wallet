@@ -79,24 +79,28 @@ impl Loc {
             .into()
     }
 
+    /// `t` with ONE text variable.
+    ///
+    /// Separate from [`Self::t_vars`] rather than folded into it because the
+    /// only strings that take text are the ones naming a piece of hardware —
+    /// the product string a USB device reports about itself. Everything else
+    /// interpolates numbers, and keeping the two apart means a caller cannot
+    /// accidentally put a device's own words where a count belongs.
+    pub fn t_text(&self, key: &str, name: &str, value: &str) -> SharedString {
+        let vars = [(name, Var::Str(value))];
+        let opts = Options {
+            vars: &vars,
+            ..Options::default()
+        };
+        self.engine
+            .t(key, &opts)
+            .unwrap_or_else(|_| key.to_owned())
+            .into()
+    }
+
     /// The BCP-47 tag actually resolved (used only for logging).
     pub fn language(&self) -> &str {
         self.engine.language()
-    }
-
-    /// Test-only: a `Loc` pinned to `lng` regardless of the environment — the
-    /// fixture/catalog invariants in `onboarding_flow` need deterministic
-    /// strings on any machine.
-    #[cfg(test)]
-    pub(crate) fn pinned(lng: &str) -> Self {
-        let mut engine = I18n::embedded().expect("en catalog compiled in");
-        let state = engine.change_language(lng);
-        if let Some(resolved) = state.resolved_language.as_deref()
-            && resolved != "en"
-        {
-            engine.load_catalog(Catalog::embedded(resolved).expect("catalog compiled in"));
-        }
-        Self { engine }
     }
 }
 
@@ -132,63 +136,181 @@ mod tests {
         "onboarding.welcome.tagline",
     ];
 
-    /// The 48 NEW spec-014 flow keys (contracts/i18n-keys.md) plus the reused
-    /// root `common.cancel` (E1's secondary). The EXISTS onboarding keys the
-    /// flow reuses were pinned by their own specs; this sweep guards the ones
-    /// this feature introduced. Var-bearing keys (`{{seconds}}` …) resolve
-    /// with the placeholder left in place under default options — still a
-    /// non-echo, non-empty value, which is all this sweep asserts.
-    const FLOW_KEYS: [&str; 49] = [
-        "onboarding.common.headerShared",
-        "onboarding.common.stepCounter",
-        "onboarding.common.confirmInPrompt",
-        "onboarding.common.waitedSeconds",
-        "onboarding.common.networkTitle",
-        "onboarding.common.networkBody",
-        "onboarding.common.serverTitle",
-        "onboarding.common.serverBody",
-        "onboarding.common.timeoutTitle",
-        "onboarding.common.timeoutBody",
-        "onboarding.common.unknownTitle",
-        "onboarding.common.unknownBody",
-        "onboarding.common.cancelledSetupTitle",
-        "onboarding.common.cancelledSetupBody",
-        "onboarding.common.cancelledVerifyTitle",
-        "onboarding.common.cancelledVerifyBody",
-        "onboarding.common.unsupportedTitle",
-        "onboarding.common.unsupportedBody",
-        "onboarding.common.incompatibleTitle",
-        "onboarding.common.incompatibleBody",
-        "onboarding.common.notDiscoverableTitle",
-        "onboarding.common.notDiscoverableBody",
-        "onboarding.common.notFoundTitle",
-        "onboarding.common.notFoundBody",
-        "onboarding.common.back",
-        "onboarding.common.retry",
-        "onboarding.common.recreateWallet",
-        "onboarding.common.editIndexEndpoint",
-        "onboarding.common.reportError",
-        "onboarding.common.openBiometricSettings",
-        "onboarding.common.openCredentialManagerSettings",
-        "onboarding.common.verifyStuckTitle",
-        "onboarding.common.verifyStuckBody",
-        "onboarding.common.syncFailedBody",
-        "onboarding.common.copyAddress",
-        "onboarding.common.copied",
-        "onboarding.common.close",
-        "onboarding.login.header",
-        "onboarding.login.statusAwaitingPasskey",
-        "onboarding.login.statusAwaitingPasskeyHint",
-        "onboarding.login.statusCancelledTitle",
-        "onboarding.login.statusCancelledBody",
-        "onboarding.login.successTitle",
-        "onboarding.login.successMessage",
-        "onboarding.login.signInFailedBody",
-        "onboarding.login.retryLoginBtn",
-        "onboarding.login.createNewWalletBtn",
-        "onboarding.create.retryVerifyBtn",
+    /// Every corpus key this client renders outside the wallet fixtures — the
+    /// create flow, the failure sheet, the welcome page and its modals, and the
+    /// sign-out confirmation.
+    ///
+    /// Rewritten for the v2 design: spec 014's list named the keys ITS
+    /// container used, and eleven of those are now unreachable from any screen
+    /// while forty-six are new. A stale entry would keep asserting that copy
+    /// nobody renders is translated; a missing one would let a real hole ship.
+    /// So the list is the client's surface, maintained with it.
+    ///
+    /// Var-bearing keys (`{{seconds}}` …) resolve with the placeholder left in
+    /// place under default options — still a non-echo, non-empty value, which
+    /// is all this sweep asserts about them.
+    const FLOW_KEYS: [&str; 120] = [
         "common.cancel",
+        "onboarding.create.keyUnreadableTitle",
+        "onboarding.create.keyUnreadableBody",
+        "onboarding.create.touchSelectBody",
+        "onboarding.create.touchTitle",
+        "onboarding.create.touchBody",
+        "onboarding.create.touchFingerprintBody",
+        "onboarding.login.pickTitle",
+        "onboarding.login.pickBody",
+        "onboarding.login.pickUnnamed",
+        "onboarding.create.pinTitle",
+        "onboarding.create.pinBody",
+        "onboarding.create.pinLabel",
+        "onboarding.create.pinAttemptsLeft",
+        "onboarding.create.pinRejected",
+        "settings.signOut.button",
+        "settings.signOut.title",
+        "settings.signOut.keeps",
+        "settings.signOut.warning",
+        "settings.signOut.anyway",
+        "settings.signOut.cancel",
+        "onboarding.common.back",
+        "onboarding.common.close",
+        "onboarding.common.confirmInPrompt",
+        "onboarding.common.copied",
+        "onboarding.common.editIndexEndpoint",
+        "onboarding.common.incompatibleBody",
+        "onboarding.common.incompatibleTitle",
+        "onboarding.common.networkBody",
+        "onboarding.common.networkTitle",
+        "onboarding.common.notDiscoverableBody",
+        "onboarding.common.notDiscoverableTitle",
+        "onboarding.common.reportError",
+        "onboarding.common.retry",
+        "onboarding.common.serverBody",
+        "onboarding.common.serverTitle",
+        "onboarding.common.timeoutBody",
+        "onboarding.common.timeoutTitle",
+        "onboarding.common.unknownBody",
+        "onboarding.common.unknownTitle",
+        "onboarding.common.unsupportedBody",
+        "onboarding.common.unsupportedTitle",
+        "onboarding.create.accountNamePlaceholder",
+        "onboarding.create.ack0",
+        "onboarding.create.ack1",
+        "onboarding.create.ack2",
+        "onboarding.create.ack2And",
+        "onboarding.create.ack2Period",
+        "onboarding.create.ack2PrivacyPolicy",
+        "onboarding.create.ack2Terms",
+        "onboarding.create.addKeyBtn",
+        "onboarding.create.addMethodLabel",
+        "onboarding.create.addSecondKeyBtn",
+        "onboarding.create.confirmKeyBtn",
+        "onboarding.create.createWalletBtn",
+        "onboarding.create.enterWalletBtn",
+        "onboarding.create.finishVerifyBtn",
+        "onboarding.create.headerDefault",
+        "onboarding.create.identiconHint",
+        "onboarding.create.keyCount",
+        "onboarding.create.keyDeviceOnlyBadge",
+        "onboarding.create.keyLimitReached",
+        "onboarding.create.keySyncedBadge",
+        "onboarding.create.keysHint",
+        "onboarding.create.keysLabel",
+        "onboarding.create.keysSubtitle",
+        "onboarding.create.keysSubtitleBlocked",
+        "onboarding.create.keysSubtitleFull",
+        "onboarding.create.keysTitle",
+        "onboarding.create.keysTitleBlocked",
+        "onboarding.create.methodHybridTitle",
+        "onboarding.create.methodHybridUnavailable",
+        "onboarding.create.methodPlatformTitle",
+        "onboarding.create.methodSecurityKeyBody",
+        "onboarding.create.methodSecurityKeyTitle",
+        "onboarding.create.nameTitle",
+        "onboarding.create.nameTooLong",
+        "onboarding.create.needSecondKeyHint",
+        "onboarding.create.nextBtn",
+        "onboarding.create.progressMeterLabel",
+        "onboarding.create.progressSubtitle",
+        "onboarding.create.progressTitle",
+        "onboarding.create.providerGeneric",
+        "onboarding.create.providerPlatform",
+        "onboarding.create.providerSecurityKey",
+        "onboarding.create.retryUploadBtn",
+        "onboarding.create.securityKeyRequiredBody",
+        "onboarding.create.securityKeyRequiredTitle",
+        "onboarding.create.startOverBtn",
+        "onboarding.create.statusComputingAddress",
+        "onboarding.create.statusExtractingKey",
+        "onboarding.create.statusSettingUpIdentity",
+        "onboarding.create.statusSetupCancelled",
+        "onboarding.create.statusSyncingKey",
+        "onboarding.create.statusVerifyCancelled",
+        "onboarding.create.statusVerifyingIdentity",
+        "onboarding.create.successMessage",
+        "onboarding.create.successTitle",
+        "onboarding.create.syncFailedHint",
+        "onboarding.create.syncFailedMessage",
+        "onboarding.create.syncFailedTitle",
+        "onboarding.create.taskDeriveAddress",
+        "onboarding.create.taskVerifyKey",
+        "onboarding.create.taskWriteIndex",
+        "onboarding.create.technicalDetails",
+        "onboarding.create.verifyHint",
+        "onboarding.create.walletAddressLabel",
+        "onboarding.login.alertSignInFailedTitle",
+        "onboarding.login.recoverCancel",
+        "onboarding.login.recoverConfirm",
+        "onboarding.login.recoverFailedBody",
+        "onboarding.login.recoverFailedTitle",
+        "onboarding.login.recoverOfferBody",
+        "onboarding.login.recoverOfferTitle",
+        "onboarding.login.signInFailedBody",
+        "onboarding.settings.endpointUrlLabel",
+        "onboarding.settings.passkeyHint",
+        "onboarding.settings.resetToDefault",
+        "onboarding.settings.sectionPasskeyIndex",
+        "onboarding.settings.warningText",
     ];
+
+    /// Where a translation is CORRECTLY identical to the English.
+    ///
+    /// One entry, and it is a loanword: German-language passkey UI — Apple's,
+    /// Google's, and the browsers' — says "Passkey". Translating it would make
+    /// the wallet the odd one out on the same screen as the system's own
+    /// prompt. Listed rather than exempted by rule, so a second entry has to be
+    /// argued for in a diff.
+    const SAME_AS_ENGLISH: [(&str, &str); 1] = [("de", "onboarding.create.providerGeneric")];
+
+    /// Keys whose value is a term of art that most locales keep verbatim.
+    ///
+    /// "PIN" is an international acronym — German, Italian, Indonesian,
+    /// Turkish, Japanese, Korean, Spanish and Portuguese all print those three
+    /// letters, while Chinese, French, Russian and Vietnamese put a word for
+    /// "code" around them. Listing nine locale/key pairs would be a list of
+    /// coincidences; the fact is about the KEY, so it is stated once about the
+    /// key. Every other string in that dialog is still checked per locale.
+    const SAME_AS_ENGLISH_KEYS: [&str; 1] = ["onboarding.create.pinLabel"];
+
+    /// Does this value contain anything a translator could translate?
+    ///
+    /// `{{var}}` names are wire identifiers, not words: `{{current}} / {{max}}`
+    /// is the same string in all fifteen locales, by design.
+    fn has_words(value: &str) -> bool {
+        let mut rest = value;
+        let mut stripped = String::new();
+        while let Some(open) = rest.find("{{") {
+            stripped.push_str(&rest[..open]);
+            match rest[open..].find("}}") {
+                Some(close) => rest = &rest[open + close + 2..],
+                None => {
+                    rest = "";
+                    break;
+                }
+            }
+        }
+        stripped.push_str(rest);
+        stripped.chars().any(char::is_alphabetic)
+    }
 
     fn engine_for(lng: &str) -> I18n {
         let mut engine = I18n::embedded().expect("en catalog compiled in");
@@ -233,7 +355,18 @@ mod tests {
                 let value = engine.t(key, &Options::default()).expect("t() is total");
                 assert_ne!(value, key, "{lng}: `{key}` echoed the key");
                 assert!(!value.is_empty(), "{lng}: `{key}` resolved empty");
-                if lng != "en" {
+                // "Same as English" is the signal for an untranslated key —
+                // EXCEPT where there is nothing to translate. Strip the
+                // `{{var}}` placeholders (which are part of the WIRE, identical
+                // in every locale) and what is left of `{{current}} / {{max}}`
+                // or `.` has no words in it at all. Asserting a difference
+                // there would demand a translator change a string that says
+                // nothing.
+                if lng != "en"
+                    && has_words(&value)
+                    && !SAME_AS_ENGLISH.contains(&(lng, key))
+                    && !SAME_AS_ENGLISH_KEYS.contains(&key)
+                {
                     let en_value = en.t(key, &Options::default()).expect("t() is total");
                     assert_ne!(value, en_value, "{lng}: `{key}` fell back to English");
                 }

@@ -3243,6 +3243,127 @@ export function parsePublicKey(hex) {
 }
 
 /**
+ * **Read a directory answer.** `undefined` unless the body is about the AAGUID
+ * that was asked about and carries a usable name; `iconUrl` is present only
+ * when the path is the service's own shape.
+ * @param {string} aaguid
+ * @param {string} json
+ * @param {boolean} dark
+ * @returns {any}
+ */
+export function passkeyDirectoryEntry(aaguid, json, dark) {
+    const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyDirectoryEntry(ptr0, len0, ptr1, len1, dark);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * **Where to ask about a model the compiled catalog cannot name**, or
+ * `undefined` when there is nothing to ask: a malformed or all-zero AAGUID, or
+ * one the catalog already answers offline.
+ * @param {string} aaguid
+ * @returns {string | undefined}
+ */
+export function passkeyDirectoryUrl(aaguid) {
+    const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyDirectoryUrl(ptr0, len0);
+    let v2;
+    if (ret[0] !== 0) {
+        v2 = getStringFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v2;
+}
+
+/**
+ * **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
+ * key whose AAGUID the catalog cannot name. `undefined` when the row deserves
+ * no mark of this kind — a platform authenticator, which the client already
+ * draws its own way.
+ *
+ * The three colours are the caller's tokens: the artwork ships in one theme,
+ * and one vendor's greys are not this app's greys in either.
+ * @param {string} authenticator_attachment
+ * @param {string} transports
+ * @param {boolean} chose_security_key
+ * @param {string} strong
+ * @param {string} soft
+ * @param {string} hole
+ * @returns {string | undefined}
+ */
+export function passkeyFallbackIconDataUri(authenticator_attachment, transports, chose_security_key, strong, soft, hole) {
+    const ptr0 = passStringToWasm0(authenticator_attachment, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(transports, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passStringToWasm0(strong, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(soft, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ptr4 = passStringToWasm0(hole, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len4 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyFallbackIconDataUri(ptr0, len0, ptr1, len1, chose_security_key, ptr2, len2, ptr3, len3, ptr4, len4);
+    let v6;
+    if (ret[0] !== 0) {
+        v6 = getStringFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v6;
+}
+
+/**
+ * **A passkey provider's mark**, as an `image/svg+xml` data URI, from the
+ * vendored AAGUID catalog. `undefined` when the catalog does not know the
+ * model — the caller then shows what it showed before this existed.
+ *
+ * A data URI rather than markup to inline: these marks carry `<style>` blocks
+ * and `clipPath` ids, and several of them inlined into one document would
+ * fight over both. The lookup is offline by construction — asking a directory
+ * service would tell it which vault holds a Vela wallet's key.
+ * @param {string} aaguid
+ * @param {boolean} dark
+ * @returns {string | undefined}
+ */
+export function passkeyProviderIconDataUri(aaguid, dark) {
+    const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.passkeyProviderIconDataUri(ptr0, len0, dark);
+    let v2;
+    if (ret[0] !== 0) {
+        v2 = getStringFromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    }
+    return v2;
+}
+
+/**
+ * The provider's brand name, or an empty string when the catalog has no entry.
+ * @param {string} aaguid
+ * @returns {string}
+ */
+export function passkeyProviderName(aaguid) {
+    let deferred2_0;
+    let deferred2_1;
+    try {
+        const ptr0 = passStringToWasm0(aaguid, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.passkeyProviderName(ptr0, len0);
+        deferred2_0 = ret[0];
+        deferred2_1 = ret[1];
+        return getStringFromWasm0(ret[0], ret[1]);
+    } finally {
+        wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+    }
+}
+
+/**
  * Returns `null` when the two assertions do not pin down exactly one key
  * (different credentials, or the same signature twice) — that is a legitimate
  * outcome, not an error.

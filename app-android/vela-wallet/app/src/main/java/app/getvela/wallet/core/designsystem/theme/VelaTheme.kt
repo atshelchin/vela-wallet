@@ -16,10 +16,23 @@ import app.getvela.wallet.core.designsystem.tokens.VelaOnAccent
 
 val LocalVelaColors = staticCompositionLocalOf { VelaColorsLight }
 
+/**
+ * Which palette is active, as a fact rather than an inference.
+ *
+ * Colours alone cannot answer it — comparing a token against a palette constant
+ * is a guess that breaks the day two palettes share a value — and artwork that
+ * is chosen rather than tinted (a passkey provider's own logo) has to ask.
+ */
+val LocalVelaDarkTheme = staticCompositionLocalOf { false }
+
 /** Token access for composables: `VelaTheme.colors.…`. */
 object VelaTheme {
     val colors: VelaColors
         @Composable get() = LocalVelaColors.current
+
+    /** True when the dark palette is active. */
+    val isDark: Boolean
+        @Composable get() = LocalVelaDarkTheme.current
 }
 
 @Composable
@@ -40,7 +53,10 @@ fun VelaTheme(
     content: @Composable () -> Unit,
 ) {
     val colors = if (darkTheme) VelaColorsDark else VelaColorsLight
-    CompositionLocalProvider(LocalVelaColors provides colors) {
+    CompositionLocalProvider(
+        LocalVelaColors provides colors,
+        LocalVelaDarkTheme provides darkTheme,
+    ) {
         MaterialTheme(
             colorScheme = colors.toMaterialScheme(darkTheme),
             content = content,

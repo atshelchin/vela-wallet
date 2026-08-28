@@ -8,7 +8,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { SUPPORTED_LOCALES, textDirectionOf } from './locales';
-import { FEATURE_SLUGS, FLOW_KEYS, WELCOME_KEYS } from './messages';
+import { FLOW_KEYS, WELCOME_KEYS } from './messages';
 import { fillTemplate } from './fill';
 import {
 	rawResolve,
@@ -26,18 +26,8 @@ describe('welcome messages resolve through the vela-core engine', () => {
 			expect(messages.tagline.length).toBeGreaterThan(0);
 			expect(messages.createWallet.length).toBeGreaterThan(0);
 			expect(messages.alreadyHaveWallet.length).toBeGreaterThan(0);
-			expect(messages.features).toHaveLength(FEATURE_SLUGS.length);
-			for (const feature of messages.features) {
-				expect(feature.title.length).toBeGreaterThan(0);
-				expect(feature.description.length).toBeGreaterThan(0);
-			}
 		});
 	}
-
-	it('numbers cards 01–06 in design order', () => {
-		const { features } = resolveWelcomeMessages('en');
-		expect(features.map((f) => f.number)).toEqual(['01', '02', '03', '04', '05', '06']);
-	});
 
 	it('actually loads per-locale catalogs (en/zh/ja taglines all differ)', () => {
 		const taglines = (['en', 'zh', 'ja'] as const).map(
@@ -51,8 +41,8 @@ describe('welcome messages resolve through the vela-core engine', () => {
 			const messages = resolveWelcomeMessages(locale);
 			expect(messages.tagline).toBe(rawResolve(locale, 'onboarding.welcomeWeb.tagline'));
 			expect(messages.createWallet).toBe(rawResolve(locale, 'onboarding.welcome.createWallet'));
-			expect(messages.features[0].title).toBe(
-				rawResolve(locale, 'onboarding.welcomeWeb.features.noSeedPhrase.title')
+			expect(messages.alreadyHaveWallet).toBe(
+				rawResolve(locale, 'onboarding.welcome.alreadyHaveWallet')
 			);
 		}
 	});
@@ -75,19 +65,25 @@ describe('welcome messages resolve through the vela-core engine', () => {
 describe('onboarding flow messages resolve through the vela-core engine (spec 014 T033)', () => {
 	it('FLOW_KEYS covers the whole per-state key map, without duplicates', () => {
 		expect(new Set(FLOW_KEYS).size).toBe(FLOW_KEYS.length);
-		// Sentinels from each contract section: chrome, form, progress,
-		// outcome copy, action labels, and the deliberate root-common reuse.
+		// One sentinel per screen the v2 flow can show, plus the prompts.
+		//
+		// The outcome-catalog sentinels are gone with spec 019: the eighteen
+		// `OutcomeKind`s were a design taxonomy the core does not express — a
+		// transport failure and a 503 both arrive as `CreateFailed { detail }`,
+		// so telling them apart would mean classifying error strings in
+		// TypeScript. `onboarding.common.*` still holds that copy for a shell
+		// that IS handed a classification; it is not a state the core emits.
 		for (const sentinel of [
 			'onboarding.common.close',
-			'onboarding.create.accountNameLabel',
-			'onboarding.common.stepCounter',
+			'onboarding.create.ack2PrivacyPolicy',
+			'onboarding.create.keysTitleBlocked',
+			'onboarding.create.methodSecurityKeyBody',
+			'onboarding.create.taskDeriveAddress',
+			'onboarding.create.walletAddressLabel',
 			'onboarding.create.statusSyncingKey',
 			'onboarding.login.statusAwaitingPasskey',
-			'onboarding.common.networkTitle',
-			'onboarding.common.headerShared',
-			'onboarding.create.retryVerifyBtn',
-			'onboarding.login.retryLoginBtn',
-			'common.cancel'
+			'onboarding.login.recoverOfferBody',
+			'onboarding.common.notDiscoverableTitle'
 		]) {
 			expect(FLOW_KEYS, sentinel).toContain(sentinel);
 		}
@@ -114,19 +110,20 @@ describe('onboarding flow messages resolve through the vela-core engine (spec 01
 
 	it('zh copy is the mocks’ verbatim source (contracts/i18n-keys.md)', () => {
 		const flow = resolveFlowMessages('zh');
-		expect(flow['onboarding.common.networkTitle']).toBe('网络连接不稳定');
-		expect(flow['onboarding.common.headerShared']).toBe('创建钱包 / 登录');
+		expect(flow['onboarding.create.keysTitleBlocked']).toBe('再加一把才能创建');
+		expect(flow['onboarding.create.taskDeriveAddress']).toBe('推导账户地址');
 		expect(flow['onboarding.login.statusAwaitingPasskey']).toBe('正在等待通行密钥');
-		expect(flow['onboarding.create.retryVerifyBtn']).toBe('重试验证');
+		expect(flow['onboarding.common.notDiscoverableTitle']).toBe('这台设备上没有可用的通行密钥');
 	});
 
 	it('interpolation templates ship raw and fill client-side (FR-011 frozen numbers)', () => {
 		const flow = resolveFlowMessages('en');
-		expect(flow['onboarding.common.stepCounter']).toContain('{{current}}');
-		expect(flow['onboarding.common.timeoutBody']).toContain('{{seconds}}');
-		const filled = fillTemplate(flow['onboarding.common.stepCounter'], { current: 1, total: 5 });
+		expect(flow['onboarding.create.keyCount']).toContain('{{current}}');
+		expect(flow['onboarding.create.progressSubtitle']).toContain('{{count}}');
+		const filled = fillTemplate(flow['onboarding.create.keyCount'], { current: 1, max: 7 });
 		expect(filled).not.toContain('{{');
 		expect(filled).toContain('1');
+		expect(filled).toContain('7');
 	});
 });
 

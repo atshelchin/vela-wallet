@@ -28,10 +28,15 @@ pub(crate) fn icon_img(
     color: gpui::Hsla,
     size: f32,
 ) -> impl IntoElement {
-    img(ImageSource::Render(icons.image(icon, solid, color, size as u32)))
-        .w(px(size))
-        .h(px(size))
-        .flex_none()
+    img(ImageSource::Render(icons.image(
+        icon,
+        solid,
+        color,
+        size as u32,
+    )))
+    .w(px(size))
+    .h(px(size))
+    .flex_none()
 }
 
 /// Small tinted glyphs the page composes into its own rows.
@@ -60,6 +65,50 @@ pub fn identicon_avatar(
         .h(px(size))
         .rounded(px(size / 2.))
         .flex_none()
+}
+
+/// A passkey provider's mark, or nothing when the catalog does not know the
+/// authenticator model (a hardware key, or one that reported no AAGUID). Square
+/// with a soft corner, not a circle: it is a logo, not a person.
+pub fn passkey_mark(
+    identicons: &mut IdenticonCache,
+    aaguid: &str,
+    dark: bool,
+    size: f32,
+) -> Option<impl IntoElement> {
+    let image = identicons.passkey_mark(aaguid, dark, size as u32)?;
+    Some(
+        img(ImageSource::Render(image))
+            .w(px(size))
+            .h(px(size))
+            .rounded(px(theme::RADIUS_ACK))
+            .flex_none(),
+    )
+}
+
+/// The security-key mark for a key the provider catalog cannot name, or nothing
+/// when the row deserves none (a platform authenticator).
+pub fn passkey_fallback_mark(
+    identicons: &mut IdenticonCache,
+    attachment: &str,
+    transports: &str,
+    chose_security_key: bool,
+    theme: &Theme,
+    size: f32,
+) -> Option<impl IntoElement> {
+    let image = identicons.passkey_fallback(
+        attachment,
+        transports,
+        chose_security_key,
+        theme,
+        size as u32,
+    )?;
+    Some(
+        img(ImageSource::Render(image))
+            .w(px(size))
+            .h(px(size))
+            .flex_none(),
+    )
 }
 
 /// Sidebar header: avatar + name + chevron + mono address.
@@ -95,7 +144,13 @@ pub fn wallet_header(
                                 .truncate()
                                 .child(name),
                         )
-                        .child(icon_img(icons, Icon::ChevronDown, false, theme.fg_subtle, 14.)),
+                        .child(icon_img(
+                            icons,
+                            Icon::ChevronDown,
+                            false,
+                            theme.fg_subtle,
+                            14.,
+                        )),
                 )
                 .child(
                     div()
@@ -117,7 +172,11 @@ pub fn nav_row(
     label: SharedString,
     selected: bool,
 ) -> Stateful<Div> {
-    let fg = if selected { theme.fg_base } else { theme.fg_muted };
+    let fg = if selected {
+        theme.fg_base
+    } else {
+        theme.fg_muted
+    };
     let row = div()
         .id(id)
         .flex()
@@ -241,16 +300,13 @@ pub fn balance_display(theme: &Theme, icons: &mut IconCache, model: &BalanceMode
                 .child(icon_img(icons, Icon::EyeOff, false, theme.fg_subtle, 20.)),
         ),
         BalanceState::Normal | BalanceState::ZeroLive => {
-            let mut amount = div()
-                .flex()
-                .items_end()
-                .child(
-                    div()
-                        .text_size(theme::text_balance_hero())
-                        .font_weight(gpui::FontWeight::BOLD)
-                        .text_color(theme.fg_base)
-                        .child(model.integer.clone()),
-                );
+            let mut amount = div().flex().items_end().child(
+                div()
+                    .text_size(theme::text_balance_hero())
+                    .font_weight(gpui::FontWeight::BOLD)
+                    .text_color(theme.fg_base)
+                    .child(model.integer.clone()),
+            );
             if let Some(decimals) = model.decimals.clone() {
                 amount = amount.child(
                     div()
@@ -355,7 +411,13 @@ pub fn section_header(
                 .text_size(theme::text_row_sub())
                 .text_color(theme.fg_muted)
                 .child(action)
-                .child(icon_img(icons, Icon::ChevronRight, false, theme.fg_muted, 12.)),
+                .child(icon_img(
+                    icons,
+                    Icon::ChevronRight,
+                    false,
+                    theme.fg_muted,
+                    12.,
+                )),
         )
 }
 
@@ -686,10 +748,7 @@ pub fn qr_placeholder(theme: &Theme, caption: SharedString, side: Pixels) -> Div
                                 width: px(cell + 0.5),
                                 height: px(cell + 0.5),
                             };
-                            window.paint_quad(quad_fill(
-                                gpui::Bounds { origin, size },
-                                ink,
-                            ));
+                            window.paint_quad(quad_fill(gpui::Bounds { origin, size }, ink));
                         }
                     },
                 )

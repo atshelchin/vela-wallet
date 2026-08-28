@@ -1,16 +1,24 @@
 <script lang="ts">
 	/**
-	 * Labeled account-name field (spec 014, A1–A3 anatomy): label → input →
-	 * (error) red inline over-length hint → helper caption. The error line
-	 * appears WITHOUT shifting the field above it and coexists with the
-	 * helper caption below (spec edge case). Typing is local visual state
-	 * only (FR-011).
+	 * Labeled account-name field: label → input → (error) red inline
+	 * over-length line. The error appears WITHOUT shifting the field above it.
+	 *
+	 * The v2 design gives the label the small uppercase treatment it uses for
+	 * every field label, and drops the helper caption entirely — the
+	 * placeholder is an EXAMPLE of a good answer, which explains the field
+	 * better than a sentence under it. `hint` is therefore optional.
+	 *
+	 * So is `label`: on the create screen the heading directly above the field
+	 * already says "name your wallet", and a label there restated it in smaller
+	 * type. Omitted, the input keeps its accessible name from `aria-label`, so
+	 * the label is gone from the SCREEN and not from the accessibility tree.
 	 */
 	interface Props {
-		/** Resolved strings. */
-		label: string;
+		/** Resolved strings. Omit `label` to render the field unlabelled; it
+		 *  still names itself to assistive technology via `placeholder`. */
+		label?: string;
 		placeholder: string;
-		hint: string;
+		hint?: string;
 		/** Present → error styling + red inline line (A3). */
 		errorText?: string;
 		/** Initial value from state; edits stay local, reported via oninput. */
@@ -31,7 +39,9 @@
 </script>
 
 <div class="field">
-	<label class="label" for={id}>{label}</label>
+	{#if label}
+		<label class="label" for={id}>{label}</label>
+	{/if}
 	<input
 		class="input"
 		class:error={hasError}
@@ -40,15 +50,20 @@
 		{placeholder}
 		autocomplete="off"
 		spellcheck="false"
+		aria-label={label ? undefined : placeholder}
 		aria-invalid={hasError}
-		aria-describedby={hasError ? `${id}-error ${id}-hint` : `${id}-hint`}
+		aria-describedby={[hasError ? `${id}-error` : null, hint !== undefined ? `${id}-hint` : null]
+			.filter(Boolean)
+			.join(' ') || undefined}
 		bind:value={text}
 		oninput={() => oninput?.(text)}
 	/>
 	{#if errorText !== undefined}
 		<p class="errorline" id="{id}-error">{errorText}</p>
 	{/if}
-	<p class="hint" id="{id}-hint">{hint}</p>
+	{#if hint !== undefined}
+		<p class="hint" id="{id}-hint">{hint}</p>
+	{/if}
 </div>
 
 <style>
@@ -58,10 +73,27 @@
 		gap: var(--space-md);
 	}
 
+	.input:focus-visible {
+		/* ONE highlight, not two. The global `:focus-visible` halo in app.css
+		   is meant for controls that have no border of their own; on a field
+		   that already draws one it read as a second ring around the first
+		   (founder-found 2026-08-25), and the halo's own `radius-sm` squared
+		   off the corners of a field the tokens make `radius-lg`.
+		   The inset line thickens the accent border in place — no ring, no
+		   reflow, and the same "border turns accent" focus the Android, iOS
+		   and desktop fields use. */
+		border-color: var(--color-accent-base);
+		border-radius: var(--radius-lg);
+		outline: none;
+		box-shadow: inset 0 0 0 var(--border-hairline) var(--color-accent-base);
+	}
+
 	.label {
-		font-size: var(--text-base);
+		color: var(--color-fg-muted);
+		font-size: var(--text-sm);
 		font-weight: var(--weight-semibold);
-		color: var(--color-fg-base);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
 	}
 
 	.input {

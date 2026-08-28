@@ -39,6 +39,8 @@ impl ThemeMode {
 
 /// Semantic color tokens. Components read these; nobody reads hex.
 pub struct Theme {
+    /// True for the dark palette — see [`Theme::is_dark`].
+    pub dark: bool,
     // backgrounds
     pub bg_base: Hsla,
     pub bg_raised: Hsla,
@@ -48,6 +50,17 @@ pub struct Theme {
     pub fg_muted: Hsla,
     pub fg_subtle: Hsla,
     pub fg_inverse: Hsla,
+    /// The onboarding rail's surface. Light steps DOWN to the sunken tone and
+    /// dark stays on the base — the same pair the wallet home's sidebar uses
+    /// (spec 015 deviation 4: dark `bg_sunken` is LIGHTER than the canvas and
+    /// would invert the hierarchy), so the two rails are visibly one app.
+    pub rail_surface: Hsla,
+    /// The onboarding rail's step ordinal and its `/03`. A WATERMARK on the
+    /// rail's own surface — one step above the background and well below any
+    /// text — so the number reads as a graphic the eye can rest on rather than
+    /// as something to read.
+    pub rail_ordinal: Hsla,
+    pub rail_ordinal_soft: Hsla,
     // brand accent + interaction states
     pub accent: Hsla,
     pub accent_hover: Hsla,
@@ -96,6 +109,18 @@ fn c(hex: u32) -> Hsla {
 }
 
 impl Theme {
+    /// Which palette this is.
+    ///
+    /// Carried as a fact rather than inferred from a colour: artwork that is
+    /// CHOSEN rather than tinted — a passkey provider's own logo, which ships a
+    /// light and a dark cut — has to ask, and comparing a token against a
+    /// palette constant would be a guess that breaks the day two palettes share
+    /// a value.
+    #[must_use]
+    pub fn is_dark(&self) -> bool {
+        self.dark
+    }
+
     pub fn of(mode: ThemeMode) -> Self {
         match mode {
             ThemeMode::Light => Self::light(),
@@ -105,6 +130,7 @@ impl Theme {
 
     pub fn light() -> Self {
         Self {
+            dark: false,
             bg_base: c(0xfafaf8),
             bg_raised: c(0xffffff),
             bg_sunken: c(0xf5f3ef),
@@ -112,6 +138,9 @@ impl Theme {
             fg_muted: c(0x6e6b62),
             fg_subtle: c(0x8c887e),
             fg_inverse: c(0xffffff),
+            rail_surface: c(0xf5f3ef),
+            rail_ordinal: c(0xe1dcd1),
+            rail_ordinal_soft: c(0xd3cdc0),
             accent: c(0xe8572a),
             accent_hover: c(0xd14a20),
             accent_active: c(0xbf421c),
@@ -139,6 +168,7 @@ impl Theme {
 
     pub fn dark() -> Self {
         Self {
+            dark: true,
             bg_base: c(0x141412),
             bg_raised: c(0x1e1e1b),
             bg_sunken: c(0x262622),
@@ -146,6 +176,9 @@ impl Theme {
             fg_muted: c(0x9a9790),
             fg_subtle: c(0x85827a),
             fg_inverse: c(0xffffff),
+            rail_surface: c(0x141412),
+            rail_ordinal: c(0x2e2e27),
+            rail_ordinal_soft: c(0x3b3b33),
             accent: c(0xe8572a),
             accent_hover: c(0xf26a40),
             accent_active: c(0xd44d22),
@@ -181,27 +214,59 @@ impl Theme {
 pub const WINDOW_W: f32 = 1280.;
 pub const WINDOW_H: f32 = 800.;
 
-/// Left content column inset from the window edge.
-pub const CONTENT_INSET: f32 = 96.;
-/// Right inset of the left column (content → panel edge). Sized so the card
-/// grid lands exactly on the mock at the 1280 design width: 96 + 3×204 + 2×14
-/// + 32 = 768 = window − panel.
-pub const CONTENT_INSET_RIGHT: f32 = 32.;
-/// Fixed width of the right action panel.
-pub const PANEL_W: f32 = 512.;
-/// Horizontal inset of the action panel's content.
-pub const PANEL_INSET: f32 = 84.;
-
-/// Top of the brand row, then the two vertical gaps of the left column rhythm.
-pub const BRAND_TOP: f32 = 104.;
-pub const GAP_BRAND_TAGLINE: f32 = 56.;
-pub const GAP_TAGLINE_GRID: f32 = 40.;
-
-/// The mocks indent the brand row 14 px beyond the column inset
-/// (logo ink at x = 110, tagline/cards at 96 — review measurement).
-pub const BRAND_INDENT: f32 = 14.;
 pub const LOGO_SIZE: f32 = 60.;
-pub const GAP_LOGO_WORDMARK: f32 = 34.;
+
+// ---------------------------------------------------------------------------
+// Onboarding, v2 desktop (design/onboarding-desktop-b.html).
+//
+// Two columns. A rail carries the brand and, during the create journey, which
+// step you are on; the screen itself is a measure-width column beside it,
+// LEFT-ALIGNED and at its natural height.
+//
+// That last part is the whole point. The single-column version stretched to
+// the window (`flex: 1` + `space-between`), so its empty middle grew with
+// every pixel of window height — which is what made a 1280×800 desktop read
+// as a phone page pulled tall. A rail uses the width for orientation instead
+// of padding, and content that ends where it ends does not gape.
+// ---------------------------------------------------------------------------
+
+/// The rail, sized and toned like the wallet home's sidebar so onboarding and
+/// the app behind it are visibly the same program.
+pub const RAIL_W: f32 = 320.;
+pub const RAIL_PAD_X: f32 = 32.;
+pub const RAIL_PAD_Y: f32 = 40.;
+/// The measure of the rail's step detail and tagline — narrow on purpose, so
+/// they wrap into a block rather than running the rail's full width.
+pub const RAIL_TEXT_W: f32 = 214.;
+/// The short accent rule under the tagline.
+pub const RAIL_RULE_W: f32 = 28.;
+pub const RAIL_RULE_H: f32 = 2.;
+
+/// Padding of the screen column beside the rail.
+pub const CONTENT_PAD_X: f32 = 72.;
+pub const CONTENT_PAD_Y: f32 = 64.;
+
+/// Mark ↔ wordmark, in the rail's brand row.
+pub const GAP_LOGO_WORDMARK: f32 = 12.;
+/// Hero ↔ subtitle.
+pub const GAP_HERO_SUB: f32 = 12.;
+/// Subtitle ↔ the CTA row.
+pub const GAP_HERO_CTA: f32 = 32.;
+/// Between the two welcome CTAs, which share one row.
+pub const GAP_WELCOME_CTA: f32 = 12.;
+
+/// `letter-spacing: .11em` on the wordmark, as a fraction of the em. gpui has
+/// no letter-spacing property at all, so this is applied by hand — see
+/// `ui::vela_wordmark`.
+pub const WORDMARK_TRACKING: f32 = 0.11;
+
+/// The welcome CTAs are rectangles with a 12px radius, and they sit side by
+/// side at their labels' width — a desktop dialog sizes a button to its label;
+/// a full-width button is a phone's answer to a thumb.
+pub const RADIUS_CTA: f32 = 12.;
+pub const CTA_MIN_W: f32 = 176.;
+pub const CTA_PAD_X: f32 = 32.;
+pub const CTA_H: f32 = 52.;
 
 // ---------------------------------------------------------------------------
 // Wallet home (spec 015). Geometry measured on the D1–D3 mocks at their
@@ -397,16 +462,6 @@ pub fn launch_box(viewport_w: f32) -> (f32, f32) {
     (w, w * LAUNCH_CANVAS_H / LAUNCH_CANVAS_W)
 }
 
-/// At the 1280 design size the flex math lands each card at the mock's 204 px;
-/// cards share the left column equally, so a wider window widens all three.
-pub const CARD_MIN_H: f32 = 140.;
-pub const CARD_GAP_X: f32 = 14.;
-pub const CARD_GAP_Y: f32 = 16.;
-pub const CARD_PAD: f32 = 16.;
-/// Card interior rhythm: numeral → title → body (mock-measured; the 6 is off
-/// the 4 px grid the same way the 14 px column gap is).
-pub const CARD_GAP_NUMERAL_TITLE: f32 = 8.;
-pub const CARD_GAP_TITLE_BODY: f32 = 6.;
 pub const RADIUS_CARD: f32 = 16.;
 
 /// The mocks size the two capsules differently: primary 52, secondary 48
@@ -417,8 +472,6 @@ pub const BTN_H_SECONDARY: f32 = 48.;
 // needs breathing room inside the capsule (spec 014 long-locale fix).
 pub const BTN_PAD_X: f32 = 24.;
 pub const BTN_PAD_Y: f32 = 10.;
-/// Vertical gap between the two CTAs (24/25 in the mocks, review-measured).
-pub const GAP_BUTTONS: f32 = 24.;
 
 // ---------------------------------------------------------------------------
 // Onboarding create/login flow patterns (spec 014, design/onboarding mocks).
@@ -427,49 +480,78 @@ pub const GAP_BUTTONS: f32 = 24.;
 
 /// Outcome status badge: the circle behind the ✓/×/! glyph.
 pub const BADGE_CIRCLE: f32 = 56.;
-/// Elapsed-seconds ring (the `c` progress variants): outer size and stroke.
-pub const RING_SIZE: f32 = 40.;
+/// Stroke width of the small drawn glyphs (the copy icon, the badge's clock
+/// face). Named for the elapsed ring it was measured on; the ring itself is
+/// gone with spec 014's progress pattern, the weight it established is not.
 pub const RING_STROKE: f32 = 4.;
-/// Progress bars: segment height and the gap between the 5 create segments.
-pub const STEP_BAR_H: f32 = 5.;
-pub const STEP_BAR_GAP: f32 = 8.;
-/// The login waiting bar's filled share (single-bar mode, mock B1 ~40%).
-pub const LOGIN_BAR_FILL: f32 = 0.4;
+/// The touch prompt's target disc. Sized like the outcome badge, because it
+/// sits in the same place on the same card and is asking for the same amount
+/// of attention.
+pub const TOUCH_DISC: f32 = 56.;
 /// Name field / address strip well height, and the wells' corner radius.
 pub const INPUT_H: f32 = 52.;
 pub const RADIUS_FIELD: f32 = 12.;
-/// Acknowledgment checkbox square.
-pub const ACK_BOX: f32 = 20.;
+/// Acknowledgment checkbox square, and its corner radius.
+pub const ACK_BOX: f32 = 22.;
+pub const RADIUS_ACK: f32 = 6.;
 /// Flow rhythm gaps (mock-measured: 8 within a group, 16 between rows,
 /// 24 between pattern blocks).
 pub const FLOW_GAP_SM: f32 = 8.;
 pub const FLOW_GAP_MD: f32 = 16.;
 pub const FLOW_GAP_LG: f32 = 24.;
+/// The progress screen's block rhythm, which is looser than the rest.
+pub const FLOW_GAP_XL: f32 = 28.;
+/// The gap v2 uses inside a row — mark to sentence, icon to label. Between
+/// `FLOW_GAP_SM` and `FLOW_GAP_MD`, and the design uses it everywhere a small
+/// leading element sits beside text.
+pub const FLOW_GAP_MD_SNUG: f32 = 12.;
+
+// -- v2 flow shell (design/onboarding-new) ----------------------------------
+
+/// The measure of the screen column beside the rail — the SAME on every
+/// onboarding screen now, welcome included. A maximum, not a width.
+pub const FLOW_COLUMN_W: f32 = 520.;
+pub const FLOW_HEADER_PAD_B: f32 = 28.;
+/// The ‹ chevron sits closer to its label than the flow rhythm would put it.
+pub const FLOW_BACK_GAP: f32 = 7.;
+/// A key row is a bordered card, not a hairline-separated row.
+pub const KEY_ROW_PAD_X: f32 = 14.;
+/// The passkey provider's mark in a key row — the same optical weight as the
+/// row's two lines of text stacked, so the logo anchors the row without
+/// out-shouting the name.
+pub const KEY_ROW_MARK: f32 = 28.;
+pub const KEY_ROW_PAD_Y: f32 = 12.;
+pub const KEY_ROW_GAP: f32 = 8.;
+/// The tick beside the DONE title, and the identicon inside its card.
+pub const DONE_CHECK: f32 = 34.;
+pub const DONE_AVATAR: f32 = 44.;
+/// Vertical padding of a progress task row, which is separated by a rule
+/// rather than by a gap.
+pub const TASK_ROW_PAD_Y: f32 = 11.;
+/// Vertical padding of a DONE key row — the same rule pattern, tighter.
+pub const DONE_ROW_PAD_Y: f32 = 10.;
+
 /// Disabled control emphasis (mock A1's dimmed-accent CTA — never a gray fill).
 pub const OPACITY_DISABLED: f32 = 0.45;
+/// The task spinner's stroke — the emphasis border weight, which is what a
+/// 16px arc needs to read as a ring rather than as a hair.
+pub const SPINNER_STROKE: f32 = 2.;
+/// The spinner a BUSY button turns in place of its label. A notch over the
+/// 15px CTA text, so it occupies the label's optical weight rather than
+/// looking like a dropped full stop.
+pub const BTN_SPINNER: f32 = 18.;
 /// Hairline rules (scaffold and outcome dividers).
 pub const HAIRLINE: f32 = 1.;
 /// The scaffold's close × hit target.
 pub const FLOW_CLOSE_HIT: f32 = 32.;
-/// Small drawn glyphs: disclosure chevron box, copy icon box.
-pub const FLOW_ICON_SM: f32 = 12.;
-pub const FLOW_ICON_MD: f32 = 16.;
 /// Name-field caret width; also the stroke of the thin drawn glyphs.
 pub const FLOW_CARET_W: f32 = 1.5;
 /// Dev-only state gallery: fixture list column width.
 pub const GALLERY_SIDEBAR_W: f32 = 280.;
 
-/// Flow scaffold title (创建钱包 / 登录 row).
-pub fn text_flow_title() -> Pixels {
-    px(20.)
-}
 /// Progress/outcome headline.
 pub fn text_flow_headline() -> Pixels {
     px(17.)
-}
-/// Form field label.
-pub fn text_flow_label() -> Pixels {
-    px(14.)
 }
 /// Step counter / helper captions.
 pub fn text_flow_caption() -> Pixels {
@@ -479,16 +561,69 @@ pub fn text_flow_caption() -> Pixels {
 pub fn text_badge_glyph() -> Pixels {
     px(26.)
 }
-/// The number inside the elapsed ring (2-digit capable without resizing).
-pub fn text_ring() -> Pixels {
-    px(14.)
-}
 
-/// The mock wordmark's cap height is ~30.5 px, which for the system font is a
-/// ~42 px em size (review-verified; a 30 px em renders ~30% small).
-pub fn text_brand() -> Pixels {
-    px(42.)
+/// The v2 wordmark is small, heavy and widely tracked — a label beside the
+/// mark, not a title. v1's 42 px display treatment is gone with the two-column
+/// welcome it belonged to.
+pub fn text_wordmark() -> Pixels {
+    px(19.)
 }
+/// The rail's step ordinal, set in the mono face at display size. It is
+/// TYPOGRAPHY, not a widget: a stepper drawn as a control reads as chrome
+/// bolted to the side of the page, which is exactly what it looked like.
+pub fn text_step_ordinal() -> Pixels {
+    px(104.)
+}
+pub fn line_height_step_ordinal() -> Pixels {
+    px(104. * 0.82)
+}
+/// The `/03` that follows it.
+pub fn text_step_total() -> Pixels {
+    px(20.)
+}
+/// The step's name, under the ordinal.
+pub fn text_step_name() -> Pixels {
+    px(20.)
+}
+/// The rail's tagline, shown before the journey starts and after it ends.
+///
+/// 26, not the mock's 30: the mock hard-wrapped it after the comma, and the
+/// string cannot carry that break — Android and iOS render the same key on
+/// one line, and an iOS test asserts its exact value. At 26 the CJK taglines
+/// fit the rail's 256px inner measure whole, and the longer latin ones wrap
+/// into two lines instead of orphaning a glyph.
+pub fn text_rail_tagline() -> Pixels {
+    px(26.)
+}
+pub fn line_height_rail_tagline() -> Pixels {
+    px(26. * 1.35)
+}
+/// The one sentence under a step's name.
+pub fn line_height_rail_detail() -> Pixels {
+    px(13. * 1.6)
+}
+/// The v2 welcome hero. It carries the screen, so it is nearly twice v1's
+/// tagline; the copy ships its own line break rather than relying on a wrap.
+pub fn text_hero() -> Pixels {
+    px(46.)
+}
+/// `line-height: 1.25` at the hero size.
+pub fn line_height_hero() -> Pixels {
+    px(46. * 1.25)
+}
+/// One rung down the hero ladder (46/38/31), for a locale whose headline is too
+/// wide for the first. The corpus says which, in `heroTitleFit` — the width is a
+/// property of the translation, not of the client: measured at the shipped font
+/// the widest authored line runs 6.9em (zh) to 12.8em (fr), and at 46 px the
+/// widest of them overruns the 620 px column.
+pub fn text_hero_long() -> Pixels {
+    px(38.)
+}
+/// `line-height: 1.25` at the long-locale hero size.
+pub fn line_height_hero_long() -> Pixels {
+    px(38. * 1.25)
+}
+/// Flow-screen titles (spec 014). Not the welcome hero — that is `text_hero`.
 pub fn text_tagline() -> Pixels {
     px(26.)
 }
@@ -501,8 +636,41 @@ pub fn text_body() -> Pixels {
 pub fn text_numeral() -> Pixels {
     px(12.)
 }
-pub fn text_button() -> Pixels {
-    px(16.)
+/// Every v2 button label — welcome, flow, sheet — is this size and BOLD.
+pub fn text_cta() -> Pixels {
+    px(15.)
+}
+/// Flow subtitles and the name field's own text. One notch under
+/// `text_card_title`, which the wallet home still uses at 16.
+pub fn text_flow_sub() -> Pixels {
+    px(15.)
+}
+/// `line-height: 1.5` at 15.
+pub fn line_height_flow_sub() -> Pixels {
+    px(22.5)
+}
+/// `line-height: 1.55` at 13 — the acknowledgement and hint sentences, which
+/// wrap more than anything else on the screen.
+pub fn line_height_ack() -> Pixels {
+    px(13. * 1.55)
+}
+/// `line-height: 1.2` on the 26px flow titles.
+pub fn line_height_title() -> Pixels {
+    px(26. * 1.2)
+}
+/// The uppercase field/section label above an input or a list. Tiny, heavy and
+/// tracked in the design; gpui cannot track, so the case and the weight carry
+/// it (see `ui::vela_wordmark` for the one place hand-tracking was worth it).
+pub fn text_section_label() -> Pixels {
+    px(11.)
+}
+/// A key row's name, and a progress task's label.
+pub fn text_row_name() -> Pixels {
+    px(14.)
+}
+/// A key row's provider line, and the mono counters beside a section label.
+pub fn text_row_meta() -> Pixels {
+    px(12.)
 }
 /// Relaxed body line height (~1.55 at 13 px).
 pub fn line_height_body() -> Pixels {

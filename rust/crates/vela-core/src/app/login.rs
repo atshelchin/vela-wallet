@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use super::shell::{CompletionMode, Effect, ProofPurpose, ShellOperation, ShellResult};
 use super::{
     address_from_public_key_hex, valid_display_name, Account, AccountKey, Assertion, FailureKind,
-    PromptKind, RegistryPublishMember,
+    KeyMethod, PromptKind, RegistryPublishMember,
 };
 use crate::error::CoreError;
 use crate::primitives;
@@ -60,8 +60,14 @@ const WALLET_VERSION: &str = "safe-1.4.1";
 pub enum Event {
     /// Screen mounted — starts the reachability probe.
     Start,
-    /// "I already have a wallet".
-    SignIn,
+    /// "I already have a wallet". `method` is which authenticator to sign in
+    /// with — `Platform` (the default) lets the system choose; `SecurityKey`
+    /// forces the app-owned CTAP path, so a wallet on a hardware key is
+    /// reachable even when a platform passkey is also present.
+    SignIn {
+        #[serde(default)]
+        method: KeyMethod,
+    },
     /// Internal: a sign-in effect resolved, tagged with the attempt that asked.
     #[serde(skip)]
     ShellCompleted { attempt: u64, result: ShellResult },
@@ -138,6 +144,9 @@ pub struct Model {
     querying: Option<String>,
     /// Where the flow continues once the name resolution answers.
     after_name: AfterName,
+    /// The authenticator the person chose on the sign-in screen. Carried so the
+    /// "who are you?" ceremony runs on the route they asked for.
+    method: KeyMethod,
     attempt: u64,
     health: Health,
     abort: Option<AbortHandle>,
@@ -176,7 +185,7 @@ impl App for Login {
                 model.health = Health::default();
                 Command::all([probe_health(), render()])
             }
-            Event::SignIn => sign_in(model),
+            Event::SignIn { method } => sign_in(model, method),
             Event::HealthCompleted { result } => accept_health(model, result),
             Event::HealIgnored => Command::done(),
             Event::ShellCompleted { attempt, result } => {
@@ -233,7 +242,7 @@ fn probe_health() -> Command<Effect, Event> {
 // Sign-in
 // ---------------------------------------------------------------------------
 
-fn sign_in(model: &mut Model) -> Command<Effect, Event> {
+fn sign_in(model: &mut Model, method: KeyMethod) -> Command<Effect, Event> {
     if model.stage != Stage::Idle {
         return Command::done(); // one ceremony at a time
     }
@@ -242,6 +251,7 @@ fn sign_in(model: &mut Model) -> Command<Effect, Event> {
     model.pending = None;
     model.candidates = Vec::new();
     model.querying = None;
+    model.method = method;
     model.stage = Stage::CheckingSupport;
     request(model, ShellOperation::CheckPasskeySupport)
 }
@@ -252,7 +262,12 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         (Stage::CheckingSupport, ShellResult::PasskeySupport { supported }) => {
             if supported {
                 model.stage = Stage::Authenticating;
-                request(model, ShellOperation::AuthenticatePasskey)
+                request(
+                    model,
+                    ShellOperation::AuthenticatePasskey {
+                        method: model.method,
+                    },
+                )
             } else {
                 idle_with_prompt(model, PromptKind::NotSupportedLogin)
             }
@@ -320,7 +335,14 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
             request(
                 model,
                 ShellOperation::SignProof {
+                    // The same credential that just signed, so what it reported
+                    // about itself a moment ago still describes it.
+                    transports: transports_from_attachment(&assertion.authenticator_attachment),
                     credential_id: assertion.credential_id,
+                    // Run the second signature on the SAME route as the first: a
+                    // phone over caBLE stays on caBLE (a USB proof would look for a
+                    // security key that was never plugged in, and no QR would show).
+                    method: model.method,
                     purpose: ProofPurpose::RecoverSecond,
                 },
             )
@@ -502,6 +524,22 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
 // ---------------------------------------------------------------------------
 
 /// Build the account for a credential and a known public key.
+/// Where a credential lives, inferred from what an ASSERTION reported.
+///
+/// Registration reports transports outright; an assertion does not — it reports
+/// only `authenticatorAttachment`. So this is a hint, and it is deliberately a
+/// WIDE one for a cross-platform credential: "not on this device, could be a
+/// key or could be a phone" is the truth, and naming both routes lets the
+/// platform offer both. Naming neither is what makes Android pick the security
+/// key and strand somebody holding a phone.
+fn transports_from_attachment(attachment: &str) -> String {
+    match attachment {
+        "platform" => "internal".to_owned(),
+        "cross-platform" => "usb,nfc,ble,hybrid".to_owned(),
+        _ => String::new(),
+    }
+}
+
 fn account_from_key(assertion: &Assertion, public_key_hex: &str, now_iso: &str) -> Option<Account> {
     let address = address_from_public_key_hex(public_key_hex).ok()?;
     let name = account_name(assertion);
@@ -515,6 +553,7 @@ fn account_from_key(assertion: &Assertion, public_key_hex: &str, now_iso: &str) 
             credential_id: assertion.credential_id.clone(),
             public_key_hex: public_key_hex.to_owned(),
             name,
+            transports: transports_from_attachment(&assertion.authenticator_attachment),
         }],
     })
 }
@@ -654,6 +693,14 @@ fn reconstruct_account(
                 .get(index)
                 .cloned()
                 .unwrap_or_else(|| format!("Key {}", index + 1)),
+            // The registry stores no transports, and the one key that just
+            // signed is the only one this device saw. Empty is the honest
+            // answer for the others.
+            transports: if member.credential_id == assertion.credential_id {
+                transports_from_attachment(&assertion.authenticator_attachment)
+            } else {
+                String::new()
+            },
         })
         .collect();
     let first = keys.first()?;
@@ -733,7 +780,7 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
         .as_ref()
         .map(|assertion| assertion.authenticator_attachment.clone())
         .unwrap_or_default();
-    match registry_publish_op(&account, &attachment) {
+    match registry_publish_op(&account, &attachment, model.method) {
         Ok(operation) => {
             model.stage = Stage::Publishing;
             request(model, operation)
@@ -746,6 +793,7 @@ fn begin_publish(model: &mut Model) -> Command<Effect, Event> {
 fn registry_publish_op(
     account: &Account,
     authenticator_attachment: &str,
+    method: KeyMethod,
 ) -> Result<ShellOperation, CoreError> {
     let metadata = RegistryMetadata {
         version: REGISTRY_METADATA_VERSION,
@@ -772,6 +820,9 @@ fn registry_publish_op(
         }],
         group_seed_hex: String::new(),
         group_public_key_hex: String::new(),
+        // The live possession signature runs on the same route the sign-in and
+        // the recovery signature did.
+        method,
     })
 }
 

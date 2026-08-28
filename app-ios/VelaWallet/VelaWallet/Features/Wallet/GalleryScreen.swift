@@ -114,7 +114,7 @@ struct GalleryScreen: View {
         switch entry {
         case .state(let state):
             // .id resets @State (H8's auto-presented sheet) per selection.
-            WalletScreen(model: WalletFixtures.buildMobileState(state, loc: loc))
+            WalletScreen(model: WalletFixtures.buildMobileState(state, loc: loc), loc: loc)
                 .id(state)
         case .identicons:
             identiconBoard

@@ -22,6 +22,9 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
 # language switch needs no I/O (spec 004 FR-014 leaves this choice per-platform).
 vela-core = { path = "../../rust/crates/vela-core", features = [
   "i18n-all",
+  # The onboarding, login and session state machines (spec 019). Desktop runs
+  # them in-process through `CoreHost<A>`; there is no bridge and no JSON.
+  "crux",
   # Identicon avatars as PNG bytes (spec 015 research.md D1): gpui's svg() is a
   # monochrome-mask renderer with a null AssetSource at rev c97b7c0, so the
   # desktop draws the same rasterization Android/iOS decode.
@@ -56,6 +59,209 @@ dotlottie-rs = { git = "https://github.com/LottieFiles/dotlottie-rs", tag = "v0.
 # The frame pump hands ThorVG's buffer to gpui as an `image::Frame`; this is the
 # same `image` version gpui itself re-exports through `RenderImage`.
 image = "0.25"
+
+# ---------------------------------------------------------------------------
+# Live onboarding (spec 019)
+# ---------------------------------------------------------------------------
+
+# The onboarding/login/session state machines. `crux` is DEFAULT OFF in
+# vela-core so the uniffi crate cannot grow (see its Cargo.toml); desktop is
+# the one client that runs `Core<A>` directly rather than through a bridge, so
+# it is the one client that turns the feature on here.
+crux_core = "0.19"
+
+# FIDO2 over USB HID (research D3). The desktop has no system passkey service,
+# so a removable security key is the only authenticator it can reach, and FIDO
+# over USB is HID — the kernel HID driver owns the device, so a raw-USB crate
+# cannot claim it.
+#
+# `linux-native-basic-udev`, NOT `linux-native`. D3 asked whether the native
+# backend removes the libudev link; measured, it does not:
+#
+#   --features linux-native             ⇒ udev v0.9.3 + libudev-sys v0.1.4
+#   --features linux-native-basic-udev  ⇒ basic-udev (pure Rust /sys walk)
+#
+# Both skip cc-compiling the vendored hidapi C, but only the `basic-udev`
+# variant drops the `libudev-sys` link, and with it the libudev-dev build
+# requirement — which is what the offline-and-deterministic posture below (see
+# the dotlottie-rs block) actually asks for. hidapi's build.rs re-exports
+# `feature="linux-native"` for it, so the same backend code runs either way,
+# and exactly one Linux backend may be selected — hence `default-features =
+# false`, which also drops `illumos-static-libusb`. Inert on macOS and Windows,
+# where the vendored IOKit/Win32 backends are used.
+hidapi = { version = "2.6", default-features = false, features = [
+    "linux-native-basic-udev",
+] }
+
+# The registry/index client. rustls + webpki-roots rather than the platform
+# verifier: the trust anchors are compiled in, so a build needs no system CA
+# store and behaves identically on the three desktops. `json` is ureq's
+# serde_json integration — the same serde_json the shell already needs for the
+# account file.
+#
+# `win-system-proxy` makes `Proxy::try_from_env()` also read the WinINET
+# registry keys, which is where a Windows proxy is actually configured — the
+# environment variables this crate otherwise relies on are a shell convention,
+# and a GUI process started from the Start menu has none of them. The Linux
+# half of the same problem is `executor/proxy.rs`, which reads GNOME's setting;
+# macOS needs neither, because a system proxy there sits in the network stack.
+ureq = { version = "3.4", features = [
+    "json",
+    "socks-proxy",
+    "win-system-proxy",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The 32-byte software group-key seed, and CTAP2's PIN/UV key agreement. ALL
+# randomness in the flow lives in the shell — vela-core's ctap module takes the
+# shared secret as an input precisely so it can stay a pure function.
+getrandom = "0.3"
+p256 = { version = "0.13", features = ["ecdh"] }
+
+# Where the account file lives: the platform config dir, so the three desktops
+# each land in their own convention rather than in a hand-rolled `~/.vela`.
+dirs = "6"
+
+# The Windows passkey path — `webauthn.dll`, for the one ceremony Windows will
+# not let this process run itself (since Windows 10 build 1903 a non-elevated
+# process cannot open a FIDO HID device; see the crate's docs). The caBLE half
+# below is NOT delegated — it touches no HID device — so this covers the USB
+# security key and nothing else.
+#
+# **In `[dependencies]`, deliberately, and it has to stay here.** It compiles to
+# almost nothing off Windows: the `windows` crate is behind its own
+# `cfg(windows)` target section INSIDE it. A
+# `[target.'cfg(windows)'.dependencies]` entry would mean the module can only be
+# COMPILED by a Windows machine, and the whole reason it is a separate crate is
+# that `cargo check -p vela-passkey-win --target x86_64-pc-windows-gnu` runs
+# anywhere.
+#
+# It spent a while below instead, a few lines under
+# `[target.'cfg(target_os = "macos")'.dependencies]` — which TOML reads as "part
+# of that section", so the crate was a macOS-only dependency and the entire
+# Windows path failed to link on the one platform it exists for. A comment
+# saying "unconditional" is not a section header. Anything moved past line 150
+# of this file lands in a target section; check which one.
+vela-passkey-win = { path = "../vela-passkey-win" }
+
+# The caBLE / hybrid "sign in with your phone" transport (spec 019 T174). The
+# Noise handshake and CTAP framing are the core's (`vela_core::cable`); these
+# three are the pure platform I/O the core cannot do:
+#   * tungstenite — the CTAP 2.2 WebSocket tunnel, blocking, matching this
+#     shell's blocking-thread ceremony model (no async runtime for the socket).
+#   * btleplug + tokio — the BLE central scan for the responder's proximity
+#     advert (CoreBluetooth on macOS, BlueZ on Linux, WinRT on Windows). btleplug
+#     is async-only, so a small current-thread runtime drives just the scan; the
+#     advert bytes come back and the runtime is done.
+#   * qrcode — the FIDO:/ payload as a module matrix the onboarding screen draws.
+tungstenite = { version = "0.24", default-features = false, features = ["handshake", "rustls-tls-native-roots"] }
+btleplug = "0.11"
+# `net` here is the I/O DRIVER, not networking — nothing in this shell opens a
+# socket through tokio (the tunnel is blocking tungstenite). tokio gates
+# `Builder::enable_io` behind `cfg_io_driver` = `net`, or unix-only `process` /
+# `signal`; without one of them `scan_for_advert`'s `.enable_io()` does not
+# exist, and the error reads "private field, not a method" because the Builder
+# carries a field of that name unconditionally while the method is cfg'd.
+# It built on Linux only by accident: btleplug's BlueZ backend pulls
+# `dbus-tokio`, whose own `net` unifies onto this tokio — and that dependency is
+# cfg'd out of the macOS and Windows graphs, where btleplug is CoreBluetooth and
+# WinRT. So the driver the scan needs is named here rather than inherited from a
+# transport that only one of the three desktops compiles.
+tokio = { version = "1", default-features = false, features = ["rt", "time", "macros", "net"] }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+qrcode = { version = "0.14", default-features = false }
+# btleplug keys its service-data map by `uuid::Uuid`; name the type to match
+# on the caBLE service UUIDs. Same major as btleplug pulls, so no second copy.
+uuid = "1"
+
+# CTAP2 over the key's CCID (smart-card) interface — the removable key's other
+# USB wire, and on Windows the ONLY one this app may drive itself (the FIDO HID
+# lockdown does not extend to PC/SC). The protocol is the core's `ApduCable`;
+# this crate is only the platform I/O under it.
+#
+# **Not Linux, deliberately.** `pcsc-sys` links `winscard.dll` on Windows and the
+# `PCSC` framework on macOS — both ship with the OS, so those two pay nothing. On
+# Linux it wants `pkgconf` + `libpcsclite-dev` at build time and `libpcsclite.so.1`
+# at run time, which would add a system dependency to every Linux build host and a
+# `pcsc-lite` module to the Flatpak manifest. Linux's HID path already reaches
+# every key, so CCID buys it almost nothing — the one case it adds is a key whose
+# HID interface is switched off. Turning it on later is this section header plus
+# the manifest, and nothing else.
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+pcsc = "2.9"
+
+# The CTAP 2.3 BLE-only data channel (spec 019 T174): once a BLE-capable
+# authenticator advertises an L2CAP PSM, the platform connects a CoC directly —
+# no tunnel server, no relay, no GFW. btleplug has NO L2CAP, so the connection
+# is CoreBluetooth via objc2 (macOS only). Pinned to the exact versions gpui
+# already pulls, so no second copy of any objc2 crate enters the tree.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-foundation = { version = "0.2", features = [
+    "NSStream",
+    "NSData",
+    "NSError",
+    "NSString",
+    "NSArray",
+    "NSObject",
+    "NSRunLoop",
+    "NSDate",
+    "NSProcessInfo",
+] }
+# "This device" — the platform passkey vault (Touch ID / iCloud Keychain)
+# through AuthenticationServices. Same objc2 generation as the rest, so cargo
+# unifies rather than compiling a second binding layer.
+objc2-authentication-services = { version = "0.2.2", features = [
+    "ASAuthorization",
+    "ASAuthorizationController",
+    "ASAuthorizationCredential",
+    "ASAuthorizationRequest",
+    "ASAuthorizationPlatformPublicKeyCredentialProvider",
+    "ASAuthorizationPlatformPublicKeyCredentialRegistration",
+    "ASAuthorizationPlatformPublicKeyCredentialRegistrationRequest",
+    "ASAuthorizationPlatformPublicKeyCredentialAssertion",
+    "ASAuthorizationPlatformPublicKeyCredentialAssertionRequest",
+    "ASAuthorizationPlatformPublicKeyCredentialDescriptor",
+    "ASAuthorizationPublicKeyCredentialRegistration",
+    "ASAuthorizationPublicKeyCredentialRegistrationRequest",
+    "ASAuthorizationPublicKeyCredentialAssertion",
+    "ASAuthorizationPublicKeyCredentialAssertionRequest",
+    "ASAuthorizationPublicKeyCredentialDescriptor",
+    "ASPublicKeyCredential",
+    "ASFoundation",
+] }
+# The presentation anchor for the system passkey sheet is our NSWindow; gpui
+# already links AppKit, this direct dep only puts the types in scope.
+objc2-app-kit = { version = "0.2.2", features = [
+    "NSApplication",
+    "NSWindow",
+    "NSResponder",
+] }
+objc2-core-bluetooth = { version = "0.2.2", features = [
+    "CBCentralManager",
+    "CBManager",
+    "CBPeripheral",
+    "CBPeer",
+    "CBL2CAPChannel",
+    "CBUUID",
+    "CBAttribute",
+] }
+
+# The same BLE-only channel on Linux: BlueZ exposes LE L2CAP CoC as a plain
+# `AF_BLUETOOTH` socket, so the whole transport is raw libc socket calls (see
+# `ctap/cable/l2cap_linux.rs`). gpui's Linux build already pulls libc; naming it
+# unifies on that copy.
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+# Reading the HWND out of the gpui window to parent the passkey dialog to it.
+# gpui already depends on this crate and re-exports the trait impl, but a trait
+# has to be in scope through a direct dependency to be usable, so it is named
+# here too — same "0.6", so cargo unifies it onto gpui's 0.6.2 rather than
+# compiling a second copy whose `RawWindowHandle` would be a different type.
+[target.'cfg(windows)'.dependencies]
+raw-window-handle = "0.6"
 
 # Embeds the application icon into vela-wallet.exe as resource id 1, which is
 # where gpui's LoadImageW looks for it. Declared unconditionally rather than

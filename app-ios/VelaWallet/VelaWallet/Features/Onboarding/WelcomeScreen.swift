@@ -2,162 +2,149 @@
 //  WelcomeScreen.swift
 //  VelaWallet
 //
-//  The onboarding welcome screen — composition only (FR-009), reproducing
-//  design/onboarding/W1 (dark) and W1L (light) at the 390×844 design frame.
+//  The onboarding welcome screen — composition only (FR-009).
+//
+//  The v2 design (design/onboarding-new, founder direction 2026-08-25), which
+//  the web and the desktop already draw: brand row, a two-line headline with
+//  one supporting sentence, and the two ways in at the bottom. The six-card
+//  carousel is gone — the design is one column that says what the wallet IS
+//  before it says what to do about it, and a deck of feature cards nobody
+//  swipes past the first of was the opposite of that.
 //
 
 import SwiftUI
 
 struct WelcomeScreen: View {
     @Environment(\.theme) private var theme
+    let loc: Loc
     @Bindable var model: WelcomeModel
+    /// The login machine's `busy`. Signing in has no screen of its own — the
+    /// system passkey sheet is the next thing the person sees, and it does not
+    /// arrive in the same frame as the press — so this button IS the progress
+    /// indicator for that wait. It stays at full emphasis with a spinner in
+    /// place of its label; a control that dimmed instead would read as the app
+    /// having gone unavailable rather than gone to work.
+    var signingIn: Bool = false
+
+    private var heroRole: TypeRole { model.content.heroTitleFit.role }
 
     var body: some View {
-        // Android's structure, ported: a flexible hero region whose two big gaps
-        // are FRACTIONS OF ITS OWN HEIGHT, plus a CTA block pinned at the bottom.
-        // The previous version used two fixed `Spacer(minLength: 32)`, which is
-        // why the screen read as cramped next to Android on the same content.
-        VStack(spacing: 0) {
-            GeometryReader { proxy in
-                let region = proxy.size.height
-                VStack(spacing: 0) {
-                    Spacer().frame(height: region * WelcomeGeometry.heroTopFraction)
+        // Two blocks, not one centred stack: brand and copy ride the top edge,
+        // the CTAs ride the bottom, and the space between them is whatever the
+        // phone has left over.
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: WelcomeGeometry.brandHeroGap) {
+                BrandRow()
 
-                    BrandRow()
+                VStack(alignment: .leading, spacing: WelcomeGeometry.heroSubGap) {
+                    // The copy carries its own line break: every locale breaks
+                    // where its own sentence wants to, not where 390pt runs out.
+                    // Its SIZE comes from the same place for the same reason —
+                    // a line that is 10.9em wide in Russian and 6.9em in Chinese
+                    // cannot be set at one size and still fit 342pt.
+                    Text(model.content.heroTitle)
+                        .typeRole(heroRole)
+                        .tracking(heroRole.size * WelcomeGeometry.heroTracking)
+                        .foregroundStyle(theme.fgBase)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    Text(model.content.tagline)
-                        .typeRole(Typography.tagline)
+                    Text(model.content.heroSubtitle)
+                        .typeRole(Typography.body)
                         .foregroundStyle(theme.fgMuted)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, WelcomeGeometry.brandTaglineGap)
-
-                    Spacer().frame(height: region * WelcomeGeometry.taglineCarouselFraction)
-
-                    carousel
-
-                    PagerDots(count: model.content.cards.count, current: $model.currentPage)
-                        .padding(.top, WelcomeGeometry.cardDotsGap)
-
-                    // Absorbs whatever the fractions did not spend, so the hero
-                    // never fights the pinned CTAs for space.
-                    Spacer(minLength: 0)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(width: proxy.size.width)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: WelcomeGeometry.heroCtaMinGap)
 
             VStack(spacing: WelcomeGeometry.ctaGap) {
-                VelaButton(title: model.content.createWallet, kind: .primary) {
+                VelaButton(title: model.content.createWallet, kind: .primary, enabled: !signingIn) {
                     model.send(.createWallet)
                 }
-                VelaButton(title: model.content.alreadyHaveWallet, kind: .secondary) {
-                    model.send(.importWallet)
+                // Signing in offers the SAME three authenticators creating does
+                // — this device, a nearby device by scan, a hardware key — so a
+                // wallet that lives on a security key is reachable even when a
+                // platform passkey is also present. The picker opens on tap.
+                VelaButton(title: model.content.alreadyHaveWallet, kind: .secondary, loading: signingIn) {
+                    model.send(.openSignIn)
                 }
             }
-            .padding(.top, WelcomeGeometry.dotsCtaGap)
         }
+        .padding(.top, Tokens.Space.s32)
         .padding(.horizontal, Tokens.Layout.screenPaddingX)
         .padding(.bottom, Tokens.Space.s8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(theme.bgBase.ignoresSafeArea())
     }
-
-    /// Single-card paging carousel; height follows the tallest card of the
-    /// active locale (long-copy edge case) via a hidden measuring stack.
-    private var carousel: some View {
-        TabView(selection: $model.currentPage) {
-            ForEach(model.content.cards) { card in
-                FeatureCard(content: card)
-                    .tag(card.id)
-                    .frame(maxHeight: .infinity, alignment: .top)
-            }
-        }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .frame(height: max(measuredCardHeight, WelcomeGeometry.cardBandMinHeight))
-        .animation(.easeOut(duration: Tokens.Motion.base), value: model.currentPage)
-        .background {
-            // Invisible measuring pass: tallest card defines the band height.
-            ZStack {
-                ForEach(model.content.cards) { card in
-                    FeatureCard(content: card)
-                        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
-                            cardHeights[card.id] = height
-                        }
-                }
-            }
-            .hidden()
-        }
-    }
-
-    @State private var cardHeights: [Int: CGFloat] = [:]
-    private var measuredCardHeight: CGFloat {
-        cardHeights.values.max() ?? 0
-    }
 }
 
-// MARK: - Flow presentation (spec 014, US2)
-
-/// Which flow a Welcome intent presents; `nil` on the router = closed.
-enum WelcomeFlow: String, Identifiable {
-    case create
-    case login
-
-    var id: String { rawValue }
-}
-
-/// Production host for the flow sheet (contract §2/§3): FlowSheet + the
-/// flow's initial state (create → empty Form, login → Waiting nil). The
-/// action sink is a no-op log, except the closing ids which dismiss —
-/// real progression arrives with the wiring feature (FR-011, D3).
-struct WelcomeFlowHost: View {
-    let flow: WelcomeFlow
+/// The three ways to sign in — this device, a nearby device by scan, a hardware
+/// security key — the same set creating a wallet offers per key. `hybrid` (the
+/// scan) is present-but-unavailable until the caBLE client lands (feature 020's
+/// remnant in T174), exactly as it is on the create key screen.
+struct SignInMethodSheet: View {
+    @Environment(\.theme) private var theme
     let loc: Loc
-    @Environment(\.dismiss) private var dismiss
-
-    private var createInitial: CreatePanelState { .form(FormState()) }
-    private var loginInitial: LoginPanelState { .waiting(elapsedSecs: nil) }
+    let onPick: (KeyMethod) -> Void
 
     var body: some View {
-        FlowSheet(
-            title: loc.t(titleKey),
-            closeLabel: loc.t("onboarding.common.close"),
-            onClose: { dismiss() }
-        ) {
-            switch flow {
-            case .create:
-                CreatePanel(loc: loc, state: createInitial, sink: sink)
-            case .login:
-                LoginPanel(loc: loc, state: loginInitial, sink: sink)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(loc.t(I18nKeys.Login.header))
+                .typeRole(Typography.title)
+                .foregroundStyle(theme.fgBase)
+                .padding(.bottom, Tokens.Space.s16)
+
+            ForEach(KeyMethod.allCases, id: \.self) { method in
+                // All three routes are live now: platform, scan (our caBLE
+                // initiator, BLE-only capable), and a security key.
+                let available = true
+                let copy = methodCopy(method)
+                Button { if available { onPick(method) } } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                            Text(loc.t(copy.title))
+                                .typeRole(Typography.rowTitle)
+                                .foregroundStyle(theme.fgBase)
+                            Text(loc.t(available ? copy.body : I18nKeys.Create.methodHybridUnavailable))
+                                .typeRole(Typography.flowCaption)
+                                .foregroundStyle(theme.fgMuted)
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                        if available {
+                            Image(systemName: "chevron.right").foregroundStyle(theme.fgSubtle)
+                        }
+                    }
+                    .frame(minHeight: Tokens.Layout.hitTarget)
+                    .padding(.vertical, Tokens.Space.s8)
+                }
+                .disabled(!available)
+                .opacity(available ? 1 : Tokens.Opacity.disabled)
             }
         }
-    }
-
-    private var titleKey: String {
-        switch flow {
-        case .create: CreatePanel.scaffoldTitleKey(for: createInitial)
-        case .login: LoginPanel.scaffoldTitleKey(for: loginInitial)
-        }
-    }
-
-    private func sink(_ action: ActionId) {
-        switch action {
-        case .back, .cancel, .notNow, .close:
-            dismiss()
-        default:
-            // No-op log per contract §2 — the desktop on_intent pattern.
-            print("[welcome] \(flow.rawValue) → \(action.rawValue)")
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Tokens.Layout.screenPaddingX)
+        .padding(.vertical, Tokens.Space.s32)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(theme.bgRaised)
     }
 }
 
-#Preview("Welcome (en placeholder)") {
-    WelcomeScreen(model: WelcomeModel(
-        content: WelcomeContent(
-            tagline: "Your keys, your assets",
-            cards: (0..<6).map { FeatureCardContent(id: $0, title: "Card \($0 + 1)", body: "Body copy for card \($0 + 1).") },
-            createWallet: "Create Wallet",
-            alreadyHaveWallet: "I already have a wallet"
-        ),
-        onIntent: { _ in }
-    ))
-    .themed(.dark)
-    .preferredColorScheme(.dark)
+#Preview("Welcome") {
+    WelcomeScreen(
+        loc: Loc(),
+        model: WelcomeModel(
+            content: WelcomeContent(
+                heroTitle: "The unstoppable\nEthereum wallet",
+                heroTitleFit: .regular,
+                heroSubtitle: "Sign with a passkey. Vela never sees your key.",
+                createWallet: "Create Wallet",
+                alreadyHaveWallet: "I already have a wallet"
+            ),
+            onIntent: { _ in }
+        )
+    )
+    .themed(.light)
 }

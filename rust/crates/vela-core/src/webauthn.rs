@@ -72,6 +72,50 @@ pub fn extract_attestation_public_key(
     let key = coset::CoseKey::from_slice(&cose_slice[..key_len])
         .map_err(|e| CoreError::InvalidCoseKey(format!("COSE parse: {e}")))?;
 
+    p256_from_cose_key(&key)
+}
+
+/// The credential id inside attested credential data.
+///
+/// The browser hands a credential id back as `rawId`; a CTAP2 authenticator
+/// does not — it is only ever inside `authData`, at a length-prefixed offset
+/// after the AAGUID. Parsing it belongs here, beside the public-key extraction
+/// that walks the same bytes, and not in a shell: a client that got the offset
+/// wrong would store a credential id that no later assertion can match, and
+/// the wallet would be unopenable from the key that created it.
+pub fn attested_credential_id(auth_data: &[u8]) -> Result<Vec<u8>, CoreError> {
+    if auth_data.len() <= 55 {
+        return Err(CoreError::InvalidCbor(format!(
+            "authData too short for attested credential data: {} bytes",
+            auth_data.len()
+        )));
+    }
+    if auth_data[32] & 0x40 == 0 {
+        return Err(CoreError::InvalidCbor(
+            "AT flag not set — no attested credential data".to_owned(),
+        ));
+    }
+    let len = usize::from(auth_data[53]) << 8 | usize::from(auth_data[54]);
+    auth_data
+        .get(55..55 + len)
+        .map(<[u8]>::to_vec)
+        .ok_or_else(|| {
+            CoreError::InvalidCbor(format!(
+                "authData declares a {len}-byte credential id it does not contain"
+            ))
+        })
+}
+
+/// The P-256 point inside a COSE_Key, checked.
+///
+/// Shared, deliberately: an attested credential's public key and a CTAP2
+/// `getKeyAgreement` response are the same structure arriving by different
+/// roads, and the checks that matter — EC2, P-256, 32-byte coordinates, and a
+/// point that actually lies on the curve — must not exist twice with a chance
+/// to differ. `ctap::commands` reads the key-agreement key through this
+/// function for exactly that reason; it is also why the CTAP module has no
+/// COSE parser of its own.
+pub fn p256_from_cose_key(key: &coset::CoseKey) -> Result<P256PublicKey, CoreError> {
     if key.kty != coset::KeyType::Assigned(iana::KeyType::EC2) {
         return Err(CoreError::InvalidCoseKey(format!(
             "kty is {:?}, expected EC2",
@@ -111,7 +155,8 @@ pub fn extract_attestation_public_key(
         )));
     }
     // On-curve check: a fabricated (x, y) that is not a P-256 point must never
-    // become a wallet identity.
+    // become a wallet identity — nor, through the key-agreement path, a shared
+    // secret with an attacker-chosen structure.
     let mut sec1 = vec![0x04u8];
     sec1.extend_from_slice(&x);
     sec1.extend_from_slice(&y);

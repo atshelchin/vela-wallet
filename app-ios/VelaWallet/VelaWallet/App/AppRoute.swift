@@ -2,11 +2,10 @@
 //  AppRoute.swift
 //  VelaWallet
 //
-//  Typed navigation routes — future features attach real flows here
-//  without touching onboarding components (FR-010).
+//  Typed navigation routes.
 //
 
 enum AppRoute: Hashable {
-    case createWalletPlaceholder
-    case importWalletPlaceholder
+    /// The v2 create journey — a full screen, not a sheet (spec 019).
+    case create
 }

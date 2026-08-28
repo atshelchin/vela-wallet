@@ -27,6 +27,17 @@ struct Theme {
     var bgSunken: Color { palette.bgSunken.color }
     var fgBase: Color { palette.fgBase.color }
     var fgMuted: Color { palette.fgMuted.color }
+
+    /// The three colour slots vela-core's fallback artwork wears. Read off the
+    /// active palette so the mark belongs to this app in either theme, rather
+    /// than carrying the greys it shipped with.
+    var markPalette: MarkPalette {
+        MarkPalette(
+            strong: palette.fgMuted.hex,
+            soft: palette.borderStrong.hex,
+            hole: palette.bgBase.hex
+        )
+    }
     var fgSubtle: Color { palette.fgSubtle.color }
     var accentBase: Color { palette.accentBase.color }
     var accentSoft: Color { palette.accentSoft.color }
@@ -50,6 +61,17 @@ struct Theme {
     var infoSoft: Color { palette.infoSoft.color }
 }
 
+/// UIKit colors, for the few places a `UIView` has to be handed one.
+///
+/// The ack row's legal line is drawn by TextKit, because SwiftUI's `Text`
+/// cannot say which character a tap landed on and the row needs to know
+/// (`AckRow`). This is the one bridge that needs; nothing else should.
+extension TokenColor {
+    var uiColor: UIColor {
+        UIColor(red: red, green: green, blue: blue, alpha: alpha)
+    }
+}
+
 /// Brand constants from design-system.md's brand section (mode-dependent by
 /// rule, not part of the Penpot color sets — see spec 007 logo tokens).
 enum Brand {
@@ -64,48 +86,42 @@ enum Brand {
 /// (@2x pixels ÷ 2). Licensed by design-system.md ("if a needed token doesn't
 /// exist… propose a semantic name") — kept here, never inline in views.
 enum WelcomeGeometry {
-    /// Brand mark glyph size in the brand row (mock: 74 px @2x).
-    static let markSize: CGFloat = 37
-    /// Gap between mark and wordmark (mock ≈ 22 px @2x → space grid 12).
+    /// The v2 mark: a 60pt glyph beside a small tracked wordmark, not v1's
+    /// 37pt mark under a 42pt display title (design/onboarding-new; the web
+    /// and the desktop draw the same pair at the same size).
+    static let markSize: CGFloat = 60
+    /// Gap between mark and wordmark.
     static let markWordmarkGap: CGFloat = Tokens.Space.s12
-    /// Brand row → tagline gap. Was s48; matched to Android's `xl4` (32) —
-    /// the founder's reference for how this screen should feel.
-    static let brandTaglineGap: CGFloat = Tokens.Space.s32
-    /// Feature-card inner padding (mock ≈ 19 pt → space.s20).
-    static let cardPadding: CGFloat = Tokens.Space.s20
-    /// Card numeral → title gap / title → body gap (space.s8).
-    static let cardInnerGap: CGFloat = Tokens.Space.s8
-    /// Card → pager dots gap. Was s12; Android uses `md` (8).
-    static let cardDotsGap: CGFloat = Tokens.Space.s8
-    /// Dots → primary CTA gap. Was s24; Android uses `lg` (12).
-    static let dotsCtaGap: CGFloat = Tokens.Space.s12
-    /// Primary → secondary CTA gap. Was s12; Android uses `xl` (16).
+    /// The wordmark is a LABEL beside the mark — heavy and widely tracked, but
+    /// not so small that a 60pt mark dwarfs it: at t17 the pair read as a big
+    /// boat with a caption (founder-found 2026-08-25).
+    static let wordmarkSize: CGFloat = Tokens.TextSize.t20
+    static let wordmarkTracking: CGFloat = 0.11
+    /// Brand row → hero, and hero → its supporting line.
+    static let brandHeroGap: CGFloat = Tokens.Space.s24
+    static let heroSubGap: CGFloat = Tokens.Space.s12
+    /// The hero headline. The DTCG scale tops out at 40 and the design asks
+    /// for 46/38 — this is the compact one, which is what a phone gets (web
+    /// precedent: WEB_ADDITIONS `text-heroCompact`).
+    static let heroSize: CGFloat = 38
+    /// One rung down, for a locale whose headline is too wide for `heroSize`
+    /// (the corpus says which, in `heroTitleFit`). The ladder is 46/38/31,
+    /// stepping ~0.82 each; measured at the shipped font the widest authored
+    /// line runs 6.9em (zh) to 10.9em (ru), and 31 is what fits the widest of
+    /// them in the 342pt the 390pt design frame leaves between its gutters.
+    /// 390 is the contract, not the floor: a 375pt phone has ~15pt less than
+    /// the widest headline needs and is allowed to wrap (founder direction
+    /// 2026-08-26). Do not shrink a locale a rung to serve it — that shrinks
+    /// the headline on every phone.
+    static let heroSizeLong: CGFloat = 31
+    static let heroLeading: CGFloat = 1.25
+    /// Optical tightening on a headline this large, as the web sets it.
+    static let heroTracking: CGFloat = -0.02
+    /// Between the two ways in.
     static let ctaGap: CGFloat = Tokens.Space.s16
-    /// Pager dot diameter (mock 12 px @2x).
-    static let dotSize: CGFloat = 6
-    /// Active dot pill width (mock ≈ 28 px @2x).
-    static let dotActiveWidth: CGFloat = 14
-    /// Edge-to-edge dot gap. Was 8 pt "for touch comfort" — but touch comfort is
-    /// the ROW's job (see `dotRowHeight` and PagerDots), not the gap's, and
-    /// inflating it made the dots read as six scattered specks rather than one
-    /// indicator. Matched to Android's 4 dp, which the founder called out as the
-    /// one that looks right.
-    static let dotGap: CGFloat = Tokens.Space.s4
-    /// The pager row is the tap target: one 44 pt band, taps mapped to the
-    /// nearest dot by x. Keeps the dots at their true pitch.
-    static let dotRowHeight: CGFloat = 44
-    /// The two big vertical gaps are FRACTIONS OF THE HERO REGION, not fixed
-    /// points — this is the thing that makes Android's version breathe on every
-    /// screen size while a fixed `Spacer(minLength: 32)` left iOS cramped on a
-    /// tall phone and loose on a short one. Ported verbatim from
-    /// `WelcomeScreen.kt` (`region * 0.20f`, `region * 0.12f`), where `region`
-    /// is the height left over after the pinned CTA block.
-    static let heroTopFraction: CGFloat = 0.20
-    static let taglineCarouselFraction: CGFloat = 0.12
-
-    /// Minimum height of the card band (mock card ≈ 134 pt, zh 2-line copy);
-    /// the band grows to the tallest card of the active locale.
-    static let cardBandMinHeight: CGFloat = 134
+    /// The least air between the hero block and the CTAs; on a tall phone the
+    /// gap is whatever is left over.
+    static let heroCtaMinGap: CGFloat = Tokens.Space.s32
 }
 
 /// Onboarding-flow (create/login sheet) geometry the token set does not

@@ -111,6 +111,25 @@
 	--motion-bubble-out: 80ms; /* web addition: spec 018 FR-011: index-rail letter bubble fade-out */
 	--size-identiconHero: 64px; /* web addition: spec 018: contact-detail hero avatar, measured 64 in C2 (mobile) */
 	--size-identiconDetail: 48px; /* web addition: spec 018: contact-detail avatar, measured 48 in DC2 (desktop) */
+	--size-identiconViewer: 160px; /* web addition: spec 019: the identicon viewer's artwork — big enough to read as a picture rather than an avatar, and to fit beside a wrapped address on the narrowest phone */
+	--text-hero: 46px; /* web addition: spec 019: the v2 Welcome headline. The DTCG type scale tops out at 40px (text-5xl), and the onboarding design specifies 46/38 — declared once here rather than sprinkled as literals */
+	--text-heroCompact: 38px; /* web addition: spec 019: the v2 Welcome headline below the desktop breakpoint */
+	--text-heroTight: 31px; /* web addition: spec 019 (2026-08-25): the third rung of the hero ladder, for locales whose headline is too wide for the second. 46/38/31 steps by ~0.82 each; measured at the shipped font the widest authored line runs 6.9em (zh) to 15.0em (id), and 31px is what fits ru's 10.88em in a 390pt phone's 342px column. 390 is the contract, not the floor: narrower frames are allowed to wrap (founder direction 2026-08-26) */
+	--layout-onboardingRail: 320px; /* web addition: spec 019: the onboarding rail, at and above the desktop breakpoint only. Below it the page keeps its single column — a rail is an answer to spare width, and a phone has none */
+	--layout-onboardingColumn: 520px; /* web addition: spec 019: the screen column beside the rail. Content ends where it ends there; the mobile layout anchors its CTA to the bottom of the viewport, which is a phone pattern and stays on phones */
+	--layout-onboardingFrameGutter: 72px; /* web addition: spec 019: the desktop flow frame's horizontal breathing room — the column plus twice this is the frame's max width */
+	--text-stepOrdinal: 104px; /* web addition: spec 019: the rail step ordinal, set as display TYPE rather than drawn as a stepper widget */
+	--layout-railRuleW: 28px; /* web addition: spec 019: the accent rule under the rail's tagline — a mark, not a divider, so it has a width of its own */
+	--layout-railDetailMeasure: 214px; /* web addition: spec 019: the step detail's measure inside the rail — wraps at a readable line, not at the rail's edge */
+	--space-railOrdinalGap: 6px; /* web addition: spec 019: between the rail ordinal and its /03 — tighter than the space scale steps, per the design */
+	--space-railNameGap: 22px; /* web addition: spec 019: between the rail ordinal block and the step name, per the design */
+	--layout-welcomeCtaMin: 176px; /* web addition: spec 019: the desktop welcome CTAs' minimum width — side-by-side buttons sized to their labels, not to the column */
+	--text-stepTotal: 20px; /* web addition: spec 019: the /03 beside the ordinal, and the step name under it */
+	--text-railTagline: 26px; /* web addition: spec 019: the rail line outside the journey. 26, not the design 30 — the string cannot carry the design hard break (Android and iOS render the same key on one line), and 26 fits the CJK taglines in the rail measure whole */
+	--color-rail-ordinal: color-mix(in srgb, var(--color-fg-base) 14%, var(--color-bg-sunken)); /* web addition: spec 019: the ordinal is a WATERMARK on the rail surface. Mixed rather than declared per mode because WEB_ADDITIONS land in :root only — and a mix off the two tokens that already flip is the more honest statement anyway: one step off the background, whichever background that is */
+	--color-rail-ordinalSoft: color-mix(in srgb, var(--color-fg-base) 22%, var(--color-bg-sunken)); /* web addition: spec 019: the /03, a step further up from the background than the ordinal */
+	--layout-flowColumn: 440px; /* web addition: spec 019: the v2 onboarding flow column. The design centres every step in one column of this width at every viewport; the Welcome hero is the only wider one */
+	--layout-welcomeColumn: 620px; /* web addition: spec 019: the v2 Welcome column, wider than the flow it starts */
 	--layout-contactsRailW: 216px; /* web addition: spec 018 research D9: desktop group-rail width (DC1) */
 	--layout-contactsMenuW: 216px; /* web addition: spec 018 research D9: dropdown/context menu width (M1/M2) */
 	--color-onAccent: #FFFFFF; /* web addition: CTA label on accent.base, white in BOTH modes per mocks (fg.inverse flips) */

@@ -42,6 +42,26 @@ finish-args:
   - --socket=fallback-x11
   # The wallet talks to EVM RPC endpoints and a bundler.
   - --share=network
+  # Security keys. The sandbox hides /dev/hidraw* even when the HOST permissions
+  # are correct, and flatpak has no narrower FIDO permission than this — the
+  # same trade every browser flatpak makes to support security keys at all.
+  # Without it the key enumerates inside the sandbox and cannot be opened, and
+  # the wallet has no way to create or sign in to anything on this build.
+  - --device=all
+  # The phone that scans the QR, over caBLE. Two permissions, because the flow
+  # uses two different kernel surfaces and --device=all covers neither:
+  #
+  #   * the BLE scan for the proximity advert goes through btleplug, which
+  #     reaches bluetoothd on the SYSTEM bus — a name the sandbox blocks by
+  #     default, so without this the scan dies on a D-Bus timeout.
+  #   * the CTAP 2.3 BLE-only data channel is an AF_BLUETOOTH socket, and
+  #     flatpak's seccomp filter rejects that address family unless the app
+  #     asks for it.
+  #
+  # Without both, the packaged build has no QR sign-in at all: neither the BLE
+  # channel nor the WebSocket tunnel can start, because both begin with the scan.
+  - --system-talk-name=org.bluez
+  - --allow=bluetooth
   # No --filesystem: the app writes nothing outside its own sandbox data dir,
   # and a wallet is exactly the kind of program that should not hold host
   # filesystem access it does not use.

@@ -696,6 +696,48 @@ export function matchSelector(sig: string, calldata: Uint8Array): boolean;
 export function parsePublicKey(hex: string): P256PublicKey;
 
 /**
+ * **Read a directory answer.** `undefined` unless the body is about the AAGUID
+ * that was asked about and carries a usable name; `iconUrl` is present only
+ * when the path is the service's own shape.
+ */
+export function passkeyDirectoryEntry(aaguid: string, json: string, dark: boolean): any;
+
+/**
+ * **Where to ask about a model the compiled catalog cannot name**, or
+ * `undefined` when there is nothing to ask: a malformed or all-zero AAGUID, or
+ * one the catalog already answers offline.
+ */
+export function passkeyDirectoryUrl(aaguid: string): string | undefined;
+
+/**
+ * **The security-key fallback mark**, as an `image/svg+xml` data URI, for a
+ * key whose AAGUID the catalog cannot name. `undefined` when the row deserves
+ * no mark of this kind — a platform authenticator, which the client already
+ * draws its own way.
+ *
+ * The three colours are the caller's tokens: the artwork ships in one theme,
+ * and one vendor's greys are not this app's greys in either.
+ */
+export function passkeyFallbackIconDataUri(authenticator_attachment: string, transports: string, chose_security_key: boolean, strong: string, soft: string, hole: string): string | undefined;
+
+/**
+ * **A passkey provider's mark**, as an `image/svg+xml` data URI, from the
+ * vendored AAGUID catalog. `undefined` when the catalog does not know the
+ * model — the caller then shows what it showed before this existed.
+ *
+ * A data URI rather than markup to inline: these marks carry `<style>` blocks
+ * and `clipPath` ids, and several of them inlined into one document would
+ * fight over both. The lookup is offline by construction — asking a directory
+ * service would tell it which vault holds a Vela wallet's key.
+ */
+export function passkeyProviderIconDataUri(aaguid: string, dark: boolean): string | undefined;
+
+/**
+ * The provider's brand name, or an empty string when the catalog has no entry.
+ */
+export function passkeyProviderName(aaguid: string): string;
+
+/**
  * Returns `null` when the two assertions do not pin down exactly one key
  * (different credentials, or the same signature twice) — that is a legitimate
  * outcome, not an error.
@@ -866,6 +908,11 @@ export interface InitOutput {
     readonly networkadmincore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];
     readonly networkadmincore_view: (a: number) => [number, number, number, number];
     readonly parsePublicKey: (a: number, b: number) => [number, number, number];
+    readonly passkeyDirectoryEntry: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
+    readonly passkeyDirectoryUrl: (a: number, b: number) => [number, number];
+    readonly passkeyFallbackIconDataUri: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number];
+    readonly passkeyProviderIconDataUri: (a: number, b: number, c: number) => [number, number];
+    readonly passkeyProviderName: (a: number, b: number) => [number, number];
     readonly paymentrequestcore_dispatch: (a: number, b: number, c: number) => [number, number, number, number];
     readonly paymentrequestcore_new: () => number;
     readonly paymentrequestcore_resolve_effect: (a: number, b: bigint, c: number, d: number) => [number, number, number, number];

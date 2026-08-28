@@ -67,7 +67,7 @@
 	// Wallets created on-chain = the current possession-proven registry's group
 	// count PLUS the legacy index's count, so the number reflects the new
 	// contract without dropping the pre-migration wallets.
-	const CURRENT_CONTRACT = '0x5266DfF591B9F9EecfEdb8E7EfEf6c687854edaf';
+	const CURRENT_CONTRACT = '0x94fD1A891EB6c5F340622Baf2F3A0cb70A941EA9';
 	// getGroupsByRpId("getvela.app", 0, 0, false) — the wallet (group) count under
 	// Vela's rpId. NOT getTotalUnits(): that is a global count across every rpId,
 	// so probe/localhost dev wallets would inflate the number and it would disagree

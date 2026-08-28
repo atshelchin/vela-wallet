@@ -63,4 +63,49 @@ final class VelaWalletUITests: XCTestCase {
     // IS measurable here (frozen playback); the smoothness of the dissolve is
     // currently verified by eye.
 
+    /// Every gate ticks from its SENTENCE, not only from its 16pt box.
+    ///
+    /// Founder-found 2026-08-25: two of the three did nothing when their text
+    /// was tapped. Nothing below the UI layer could see it — the core toggles
+    /// fine, the rows render fine, and only a real tap at a real coordinate
+    /// tells you whether the gesture is reachable. The third row is the one
+    /// that matters most: it carries the two policy links, and it is drawn by
+    /// TextKit precisely so that a tap on its plain words reaches the checkbox.
+    func testEveryGateTicksFromItsSentence() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["VELA_LANG"] = "en"
+        app.launch()
+
+        let create = app.buttons["Create Wallet"]
+        XCTAssertTrue(create.waitForExistence(timeout: 12))
+        // Past the launch animation's hand-off before touching anything.
+        Thread.sleep(forTimeInterval: 2.5)
+        create.tap()
+
+        // The gates are the only controls on the screen carrying a checked
+        // value, which is a sturdier handle than their copy.
+        let boxes = app.buttons.matching(NSPredicate(format: "value == '0' OR value == '1'"))
+        XCTAssertTrue(app.staticTexts["Name your wallet"].waitForExistence(timeout: 5))
+        XCTAssertEqual(boxes.count, 3, "the name screen has three gates")
+
+        // Rows without links are SwiftUI text; the row-wide gesture is what a
+        // tap on the label reaches.
+        for index in 0..<2 {
+            let label = boxes.element(boundBy: index).label
+            app.staticTexts[label].tap()
+        }
+
+        // The legal row is the TextKit one. Tap near the START of it, which is
+        // plain sentence in every locale — the links come later in the line.
+        let legal = app.textViews.firstMatch
+        XCTAssertTrue(legal.waitForExistence(timeout: 2), "the legal row should be a text view")
+        legal.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.25)).tap()
+
+        for index in 0..<3 {
+            XCTAssertEqual(
+                boxes.element(boundBy: index).value as? String, "1",
+                "gate \(index) did not tick from its sentence"
+            )
+        }
+    }
 }

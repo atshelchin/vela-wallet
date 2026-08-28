@@ -8,6 +8,13 @@
 
 uniffi::setup_scaffolding!();
 
+// The Crux state machines (spec 019-onboarding-live-wiring), exported with the
+// same JSON surface the web gets from `vela-core-wasm`.
+mod ctap_bridge;
+mod onboarding_bridge;
+
+pub use onboarding_bridge::{CreateWalletCore, LoginCore, SessionCore};
+
 // ---------------------------------------------------------------------------
 // Error (flat: foreign side sees variant + Display message)
 // ---------------------------------------------------------------------------
@@ -460,6 +467,102 @@ pub fn identicon_png(seed: String, size_px: u32) -> Result<Vec<u8>, CoreError> {
     Ok(vela_core::identicon_raster::identicon_png(&seed, size_px)?)
 }
 
+/// **A passkey provider's mark as PNG bytes** (`size_px` × `size_px`), from the
+/// vendored AAGUID catalog. `None` when the catalog does not know the model —
+/// hardware keys and attestation-less registrations both land there — and the
+/// caller then shows what it showed before this existed.
+///
+/// The lookup is offline by construction: asking a directory service would tell
+/// it which vault holds a Vela wallet's key.
+#[uniffi::export]
+pub fn passkey_provider_png(
+    aaguid: String,
+    dark: bool,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    Ok(vela_core::identicon_raster::passkey_provider_png(
+        &aaguid, dark, size_px,
+    )?)
+}
+
+/// **Where to ask about a model the compiled catalog cannot name**, or `None`
+/// when there is nothing to ask: a malformed or all-zero AAGUID, or one the
+/// catalog already answers offline.
+///
+/// The shells own the transport; the core owns the contract, so four clients
+/// cannot ask four different questions or trust four different answers.
+#[uniffi::export]
+pub fn passkey_directory_url(aaguid: String) -> Option<String> {
+    vela_core::passkey::directory_lookup_url(&aaguid)
+}
+
+/// **Read a directory answer.** `None` unless the body is about the AAGUID that
+/// was asked about and carries a usable name; the icon URL is present only when
+/// the path is the service's own shape.
+#[uniffi::export]
+pub fn passkey_directory_entry(
+    aaguid: String,
+    json: String,
+    dark: bool,
+) -> Option<PasskeyDirectoryEntry> {
+    vela_core::passkey::directory_entry(&aaguid, &json, dark).map(Into::into)
+}
+
+/// What the directory said about a model.
+#[derive(uniffi::Record)]
+pub struct PasskeyDirectoryEntry {
+    pub name: String,
+    pub icon_url: Option<String>,
+}
+
+impl From<vela_core::passkey::DirectoryEntry> for PasskeyDirectoryEntry {
+    fn from(entry: vela_core::passkey::DirectoryEntry) -> Self {
+        Self {
+            name: entry.name,
+            icon_url: entry.icon_url,
+        }
+    }
+}
+
+/// **The security-key fallback mark as PNG bytes**, for a key whose AAGUID the
+/// catalog cannot name. `None` when the row deserves no mark of this kind — a
+/// platform authenticator, which the client already draws its own way.
+///
+/// The three colours are the caller's tokens: the artwork ships in one theme,
+/// and one vendor's greys are not this app's greys in either.
+#[uniffi::export]
+pub fn passkey_fallback_png(
+    authenticator_attachment: String,
+    transports: String,
+    chose_security_key: bool,
+    strong: String,
+    soft: String,
+    hole: String,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    Ok(vela_core::identicon_raster::passkey_fallback_png(
+        &authenticator_attachment,
+        &transports,
+        chose_security_key,
+        vela_core::passkey::MarkPalette {
+            strong: &strong,
+            soft: &soft,
+            hole: &hole,
+        },
+        size_px,
+    )?)
+}
+
+/// The provider's brand name, or an empty string when the catalog has no entry.
+/// The create view already carries this for its own key rows; this is for every
+/// other surface that holds an AAGUID.
+#[uniffi::export]
+pub fn passkey_provider_name(aaguid: String) -> String {
+    vela_core::passkey::provider_name(&aaguid)
+        .unwrap_or_default()
+        .to_owned()
+}
+
 /// The shared placeholder artwork as PNG bytes — what platforms show for an
 /// invalid or empty seed instead of crashing or rendering blank.
 #[uniffi::export]
@@ -719,4 +822,53 @@ pub fn i18n_plural_suffixes_legacy() -> Vec<String> {
 #[uniffi::export]
 pub fn i18n_text_direction(lng: String) -> String {
     vela_core::l10n::text_direction(&lng).as_str().to_owned()
+}
+
+// -- registry proofs (spec 019) -----------------------------------------------
+//
+// Returned as JSON strings rather than as uniffi records, deliberately. Both
+// consumers of these values want JSON and want it in the SAME shape: the core
+// takes the member proof back as part of a `member_proof_signed` shell result,
+// and the registry's HTTP API takes it as a camelCase request body. A mirror
+// record would mean two more FFI types on both platforms and a hand-written
+// re-serialization on each — three ways for the field names to drift apart on
+// the one payload where a wrong name means the server rejects a wallet the
+// person has already minted every key for.
+
+/// The uncompressed public key (`04‖x‖y` hex) of the one-time group key a
+/// 32-byte `seed_hex` derives. Needed before the group's challenge can be
+/// requested, because the contract binds the challenge to this key.
+#[uniffi::export]
+pub fn registry_group_public_key_from_seed(seed_hex: String) -> Result<String, CoreError> {
+    Ok(vela_core::registry_proof::group_public_key_from_seed(
+        &seed_hex,
+    )?)
+}
+
+/// The group's closing proof, as `{"groupPublicKey": …, "proof": { … }}`.
+#[uniffi::export]
+pub fn registry_build_group_proof(
+    seed_hex: String,
+    rp_id: String,
+    challenge_hex: String,
+) -> Result<String, CoreError> {
+    let proof = vela_core::registry_proof::build_group_proof(&seed_hex, &rp_id, &challenge_hex)?;
+    serde_json::to_string(&proof)
+        .map_err(|error| CoreError::Internal(format!("could not serialize group proof: {error}")))
+}
+
+/// One member's possession proof, as the registry's camelCase object.
+#[uniffi::export]
+pub fn registry_build_member_proof(
+    authenticator_data_hex: String,
+    client_data_json_hex: String,
+    signature_der_hex: String,
+) -> Result<String, CoreError> {
+    let proof = vela_core::registry_proof::build_member_proof(
+        &authenticator_data_hex,
+        &client_data_json_hex,
+        &signature_der_hex,
+    )?;
+    serde_json::to_string(&proof)
+        .map_err(|error| CoreError::Internal(format!("could not serialize member proof: {error}")))
 }

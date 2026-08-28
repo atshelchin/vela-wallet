@@ -3,10 +3,35 @@
 //! i18n (spec 007 FR-009).
 
 use crate::theme::{self, BTN_H_PRIMARY, BTN_H_SECONDARY, OPACITY_DISABLED, Theme};
+use crate::ui::spinner;
 use gpui::{
-    App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, ParentElement, SharedString,
-    Stateful, StatefulInteractiveElement, Styled, Window, div, px,
+    AnyElement, App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, IntoElement,
+    ParentElement, SharedString, Stateful, StatefulInteractiveElement, Styled, Window, div, px,
 };
+
+/// What the button is doing, which is three things and not two.
+///
+/// `Busy` is NOT `Disabled`: the action is running and this button is what the
+/// person is waiting on. It keeps full emphasis and turns a spinner where its
+/// label was, because a dimmed control reads as "unavailable" — the one thing
+/// "working" must never look like (DESIGN_SYSTEM.md, "Loading state").
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ButtonState {
+    Enabled,
+    Disabled,
+    Busy,
+}
+
+impl ButtonState {
+    /// The two-state callers' spelling.
+    pub fn from_enabled(enabled: bool) -> Self {
+        if enabled {
+            Self::Enabled
+        } else {
+            Self::Disabled
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ButtonVariant {
@@ -35,11 +60,35 @@ pub fn vela_button(
 /// `vela_button` plus the disabled treatment (spec 014 form CTA): the same
 /// fill at `OPACITY_DISABLED` emphasis — mock A1's dimmed accent, never a gray
 /// swap — with the pointer affordance and the click handler withheld.
+///
+/// The shape is v2's: a 12px rectangle. **There is no capsule anywhere in
+/// design/onboarding-new** — every button in it, on every screen and in the
+/// sheet, is `border-radius: 12px` — so the pill went with v1 rather than
+/// surviving as a second shape nothing calls for.
 pub fn vela_button_opts(
     id: impl Into<ElementId>,
     variant: ButtonVariant,
     label: SharedString,
     enabled: bool,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    vela_button_state(
+        id,
+        variant,
+        label,
+        ButtonState::from_enabled(enabled),
+        theme,
+        on_click,
+    )
+}
+
+/// `vela_button_opts` over the full three-state vocabulary.
+pub fn vela_button_state(
+    id: impl Into<ElementId>,
+    variant: ButtonVariant,
+    label: SharedString,
+    state: ButtonState,
     theme: &Theme,
     on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
@@ -49,37 +98,120 @@ pub fn vela_button_opts(
     };
     // The height is a MINIMUM: long-locale labels wrap inside a
     // width-constrained, centered block and grow the row instead of
-    // escaping the capsule (radius stays at the single-line value).
-    let label_block = div()
-        .w_full()
-        .min_w(px(0.))
-        .text_center()
-        .child(label);
+    // escaping the button (the radius is fixed, so growth is safe).
+    let label_block = div().w_full().min_w(px(0.)).text_center().child(label);
     let base = div()
         .id(id)
         .min_h(px(height))
         .w_full()
         .flex_none()
-        .rounded(px(height / 2.))
+        .rounded(px(theme::RADIUS_CTA))
         .flex()
         .items_center()
         .justify_center()
         .px(px(theme::BTN_PAD_X))
         .py(px(theme::BTN_PAD_Y))
-        .text_size(theme::text_button())
-        .font_weight(FontWeight::SEMIBOLD);
+        .text_size(theme::text_cta())
+        .font_weight(FontWeight::BOLD);
 
-    if !enabled {
+    finish(base, variant, label_block, state, theme, on_click)
+}
+
+/// The welcome pair: the same rectangle as every other button, except that it
+/// sits beside its sibling at ITS LABEL'S WIDTH rather than filling the
+/// column. A desktop dialog sizes a button to what it says; a full-width
+/// button is a phone's answer to a thumb, and two of them stacked is what made
+/// the welcome read as a phone screen.
+///
+/// Same fills, hovers and disabled treatment as `vela_button` — only the
+/// sizing differs, which is why they share `finish` below.
+pub fn welcome_cta(
+    id: impl Into<ElementId>,
+    variant: ButtonVariant,
+    label: SharedString,
+    enabled: bool,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    welcome_cta_state(
+        id,
+        variant,
+        label,
+        ButtonState::from_enabled(enabled),
+        theme,
+        on_click,
+    )
+}
+
+/// `welcome_cta` over the full three-state vocabulary.
+pub fn welcome_cta_state(
+    id: impl Into<ElementId>,
+    variant: ButtonVariant,
+    label: SharedString,
+    state: ButtonState,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    let label_block = div().min_w(px(0.)).text_center().child(label);
+    let base = div()
+        .id(id)
+        .flex_none()
+        .min_w(px(theme::CTA_MIN_W))
+        .min_h(px(theme::CTA_H))
+        .rounded(px(theme::RADIUS_CTA))
+        .flex()
+        .items_center()
+        .justify_center()
+        .px(px(theme::CTA_PAD_X))
+        .py(px(theme::BTN_PAD_Y))
+        .text_size(theme::text_cta())
+        .font_weight(FontWeight::BOLD);
+
+    finish(base, variant, label_block, state, theme, on_click)
+}
+
+/// The part every button shape shares: the variant's fill, its hover/active
+/// pair, and either the click handler or the disabled dimming.
+fn finish(
+    base: Stateful<Div>,
+    variant: ButtonVariant,
+    label_block: Div,
+    state: ButtonState,
+    theme: &Theme,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+) -> Stateful<Div> {
+    if state == ButtonState::Disabled {
         let styled = match variant {
             ButtonVariant::Primary => base.bg(theme.accent).text_color(theme.fg_inverse),
             ButtonVariant::Secondary => base
-                .bg(theme.bg_raised)
                 .text_color(theme.fg_base)
                 .border_1()
-                .border_color(theme.outline_strong),
+                .border_color(theme.divider),
             ButtonVariant::Row => base.bg(theme.bg_well).text_color(theme.fg_base),
         };
         return styled.opacity(OPACITY_DISABLED).child(label_block);
+    }
+
+    // Busy: the fill at full strength, the label swapped for the turning arc,
+    // and no click handler — a second press cannot start the work twice.
+    if state == ButtonState::Busy {
+        let (styled, arc) = match variant {
+            ButtonVariant::Primary => (
+                base.bg(theme.accent).text_color(theme.fg_inverse),
+                theme.fg_inverse,
+            ),
+            ButtonVariant::Secondary => (
+                base.text_color(theme.fg_base)
+                    .border_1()
+                    .border_color(theme.divider),
+                theme.fg_base,
+            ),
+            ButtonVariant::Row => (
+                base.bg(theme.bg_well).text_color(theme.fg_base),
+                theme.fg_base,
+            ),
+        };
+        return styled.child(busy_arc(arc));
     }
 
     let styled = match variant {
@@ -91,11 +223,15 @@ pub fn vela_button_opts(
                 .active(move |s| s.bg(active))
         }
         ButtonVariant::Secondary => {
+            // Transparent on a hairline, not white-on-a-dark-outline: v2 draws
+            // the secondary as `background: transparent; border: 1px solid
+            // var(--border)`, and `divider` is the token that equals
+            // `--border` in BOTH modes (#ECEBE4 / #2C2C28). `outline_strong`
+            // is v1's heavy brown edge and belongs to the old capsule.
             let (hover_bg, active_bg) = (theme.bg_sunken, theme.divider);
-            base.bg(theme.bg_raised)
-                .text_color(theme.fg_base)
+            base.text_color(theme.fg_base)
                 .border_1()
-                .border_color(theme.outline_strong)
+                .border_color(theme.divider)
                 .hover(move |s| s.bg(hover_bg))
                 .active(move |s| s.bg(active_bg))
         }
@@ -108,5 +244,22 @@ pub fn vela_button_opts(
         }
     };
 
-    styled.cursor_pointer().child(label_block).on_click(on_click)
+    styled
+        .cursor_pointer()
+        .child(label_block)
+        .on_click(on_click)
+}
+
+/// The busy spinner, sized to stand where the label stood.
+fn busy_arc(color: gpui::Hsla) -> AnyElement {
+    div()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(spinner::spinner(
+            color,
+            px(theme::BTN_SPINNER),
+            px(theme::SPINNER_STROKE),
+        ))
+        .into_any_element()
 }

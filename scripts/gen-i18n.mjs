@@ -125,6 +125,22 @@ for (const lng of LOCALES) {
   }
 }
 
+// `onboarding.welcome.heroTitleFit` is the one corpus value that is NOT prose:
+// it is the enum that picks the Welcome headline's type tier, because the tier
+// is a property OF the translation (how wide its two authored lines are) and
+// travels with it to all four clients through the same `t()` they already call.
+// A corpus value is a translator's to edit, so the one thing that must never
+// happen — someone translating "long" into their language and every client
+// silently falling back to the untranslated tier — fails generation here.
+const HERO_FIT_KEY = 'onboarding.welcome.heroTitleFit';
+const HERO_FIT_VALUES = new Set(['regular', 'long']);
+for (const lng of LOCALES) {
+  const value = HERO_FIT_KEY.split('.').reduce((o, k) => (o ?? {})[k], bundles[lng]);
+  if (!HERO_FIT_VALUES.has(value)) {
+    fail(`locale ${lng}: ${HERO_FIT_KEY} is ${JSON.stringify(value)} — expected one of ${[...HERO_FIT_VALUES].join(', ')}. It is an enum, not prose; do not translate it.`);
+  }
+}
+
 const PATHS = [...new Set([...leafSet, ...branchSet])].sort();
 const IS_BRANCH = PATHS.map((p) => (branchSet.has(p) ? 1 : 0));
 
@@ -162,12 +178,55 @@ for (let i = 1; i < PATHS.length; i++) {
 //   batchSendHintTitled,importFile,importAll,exportAll,importGroup,
 //   exportGroup,groupRename,moveGroup,recentActivity,viewAllActivity,
 //   deleteContact,actionQr,edit} — existing `contacts` branch, no new branches).
-// Merged 017 + 018: the base's 1234 leaf + 78 branch, plus 017's 12 leaves
-// and its one `settings.eraseDevice` branch, plus 018's 21 contacts leaves
-// and no new branch. The three checks below are the arithmetic's witness —
+// + 30 net onboarding leaves (spec 019: the v2 create journey). 31 added —
+//   welcome.{heroTitle,heroSubtitle}, the key screen's titles/subtitles/
+//   counter/badges/CTAs, the three add methods, the progress screen's meter
+//   and three task rows, the done screen's address label and identicon hint,
+//   the desktop security-key sheet, and login.switchDeviceBtn — against 1
+//   removed, `create.ack2`, when the acknowledgement gate went from four
+//   boxes to two. The six `create.ack1`/`ack3*` moves are renames and net
+//   zero, and no branch was added or removed.
+// + 1 more onboarding leaf: `create.nameTitle`. The design's name screen is
+//   titled 「给钱包起个名字」, which is not the flow's own label — a screen that
+//   asks one question should say what the question is.
+// Merged 017 + 018 + 019: the base's 1234 leaf + 78 branch, plus 017's 12
+// leaves and its one `settings.eraseDevice` branch, plus 018's 21 contacts
+// leaves, plus 019's 30. The three checks below are the arithmetic's witness —
 // they fail loudly rather than let a merge invent a corpus.
-if (PATHS.length !== 1359) fail(`expected 1359 paths (1280 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1280) fail(`expected 1280 leaf paths, got ${leafSet.size}`);
+// + 5 more onboarding leaves, `create.pin*`: the desktop is the only client
+//   that speaks CTAP2 itself, so it is the only one that ever has to ask for a
+//   security key's PIN. That dialog shipped reading `securityKeyRequiredTitle`
+//   ("Plug in a security key") as its heading, which is a different sentence
+//   about a different moment; these five are its own.
+// + 3 more, `create.touch*`: the desktop is also the only client that has to
+//   tell someone their key is BLINKING. Every other client hands the ceremony
+//   to a system sheet that says so itself; here the app is the only thing on
+//   screen, and shipping without these meant a person watched a spinner while a
+//   key waited for a finger three feet away.
+// + 3 more, `login.pick*`: a security key can hold several of one person's
+//   wallets, and "who are you?" then has more than one answer. Every other
+//   client gets that picker from the system sheet; here the app draws it, and
+//   without it the first credential the key happens to return wins and the
+//   others are unreachable from that computer.
+// + 1 more, `create.touchSelectBody`: with two keys plugged in BOTH blink, and
+//   the one the person touches is the one that gets used. "Touch it" is the
+//   wrong sentence there — it has to say touch the ONE you want.
+// + 2 more, `create.keyUnreadable*`: a key that is plugged in and cannot be
+//   OPENED is a permissions problem wearing a hardware problem's clothes.
+//   Reporting it as "no security key is plugged in" — which is what the code
+//   did — sends a person looking at the port instead of at their udev rules.
+// + 6 more, `create.step{Naming,Keys,Create}{Label,Detail}`: the desktop's v2
+//   onboarding is two columns, and the left one names the step you are on and
+//   what it decides. Those are not the screen titles — a rail that repeated
+//   the H1 beside it would be saying everything twice — so they are their own
+//   short pair per step. Desktop draws them today; the other clients have the
+//   strings and can adopt the layout without a corpus change.
+// + 1 more, `welcome.heroTitleFit`: the headline's type tier. Measured at the
+//   shipped font, the widest authored line runs from 6.9em (zh) to 15.0em (id)
+//   — a 2.2x spread that one font size cannot serve, so the tier rides with the
+//   copy instead of being guessed per client.
+if (PATHS.length !== 1419) fail(`expected 1419 paths (1340 leaf + 79 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1340) fail(`expected 1340 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

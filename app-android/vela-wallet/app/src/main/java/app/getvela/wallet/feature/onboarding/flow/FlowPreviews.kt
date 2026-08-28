@@ -2,7 +2,11 @@ package app.getvela.wallet.feature.onboarding.flow
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import app.getvela.wallet.core.designsystem.tokens.VelaSizing
+import app.getvela.wallet.feature.onboarding.core.CreateView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -15,29 +19,24 @@ import app.getvela.wallet.core.i18n.VelaStrings
 /**
  * Preview-only translation fake (never shipped): the tooling process cannot
  * load the native engine (WelcomePreviews precedent). Sample copy mirrors
- * locales/en; unknown keys echo their leaf so previews stay legible while the
- * spec-014 corpus batch lands.
+ * locales/en; unknown keys echo their leaf so previews stay legible.
  */
 private object PreviewStrings : VelaStrings {
     private val sample = mapOf(
         I18nKeys.Create.HEADER to "Create Wallet",
-        I18nKeys.Create.ACCOUNT_NAME_LABEL to "Account Name",
         I18nKeys.Create.ACCOUNT_NAME_PLACEHOLDER to "Enter a name for your account",
-        I18nKeys.Create.ACCOUNT_NAME_HINT to
-            "This name is stored with your public key on-chain for cross-device sign-in.",
         I18nKeys.Create.NAME_TOO_LONG to
             "This name is too long to fit in a passkey — please shorten it.",
         I18nKeys.Create.ACK0 to
-            "This is a self-custodial wallet. Your passkey private key is managed by your " +
-            "device's password manager. Vela Wallet cannot access or recover it.",
+            "My public key and wallet name are written into the on-chain contract.",
         I18nKeys.Create.ACK1 to
-            "If you lose your device, you can restore your wallet on a new device through " +
-            "your iCloud or Google account.",
-        I18nKeys.Create.ACK3 to "I agree to the ",
-        I18nKeys.Create.ACK3_PRIVACY_POLICY to "Privacy Policy",
-        I18nKeys.Create.ACK3_AND to " and ",
-        I18nKeys.Create.ACK3_TERMS to "Terms of Service",
-        I18nKeys.Create.ACK3_PERIOD to ".",
+            "My private key stays in my device's password manager or security key. " +
+            "Vela never sees it.",
+        I18nKeys.Create.ACK2 to "I have read and agree to the ",
+        I18nKeys.Create.ACK2_PRIVACY_POLICY to "Privacy Policy",
+        I18nKeys.Create.ACK2_AND to " and ",
+        I18nKeys.Create.ACK2_TERMS to "Terms of Service",
+        I18nKeys.Create.ACK2_PERIOD to ".",
         I18nKeys.Create.CREATE_WALLET_BTN to "Create Wallet",
         I18nKeys.Create.STATUS_SETTING_UP_IDENTITY to "Setting up secure identity...",
         I18nKeys.Create.SUCCESS_TITLE to "Your wallet is ready!",
@@ -79,87 +78,135 @@ private object PreviewStrings : VelaStrings {
 }
 
 @Composable
-private fun FlowPreviewSurface(darkTheme: Boolean, content: @Composable () -> Unit) {
+private fun FlowPreviewSurface(darkTheme: Boolean, content: @Composable ColumnScope.() -> Unit) {
     VelaTheme(darkTheme = darkTheme) {
         CompositionLocalProvider(LocalVelaStrings provides PreviewStrings) {
-            // Panels preview on the sheet surface color they ship on.
+            // The v2 journey is a full screen on its own background, not a panel
+            // on a sheet surface — previewing it on bgRaised would show a
+            // contrast pairing the app never renders.
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(VelaTheme.colors.bgRaised),
-            ) {
-                content()
-            }
+                    .fillMaxSize()
+                    .background(VelaTheme.colors.bgBase)
+                    .padding(horizontal = VelaSizing.screenPaddingX),
+                content = content,
+            )
         }
     }
 }
 
-@Preview(name = "Create form · incomplete — dark (A1)")
+private fun view(code: String): CreateView {
+    val fixture = FlowFixtures.byCode(code)?.fixture
+    // A renamed fixture must say which name went missing. The bare cast would
+    // fail as an unattributed NPE inside the tooling process, where there is no
+    // stack trace worth reading.
+    check(fixture is Fixture.Flow) { "no flow fixture named \"$code\"" }
+    return fixture.view
+}
+
+@Preview(name = "Name - empty (dark)", heightDp = 900)
 @Composable
-private fun CreateFormPreviewDark() {
+private fun NameEmptyDark() = NamePreview(darkTheme = true, code = "name · empty")
+
+@Preview(name = "Name - empty (light)", heightDp = 900)
+@Composable
+private fun NameEmptyLight() = NamePreview(darkTheme = false, code = "name · empty")
+
+@Preview(name = "Name - draft waiting", heightDp = 900)
+@Composable
+private fun NameDraftWaiting() = NamePreview(darkTheme = true, code = "name · draft waiting")
+
+@Preview(name = "Keys - needs a second (dark)", heightDp = 900)
+@Composable
+private fun KeysBlockedDark() = KeysPreview(darkTheme = true, code = "keys · one, needs a second")
+
+@Preview(name = "Keys - two, ready (light)", heightDp = 900)
+@Composable
+private fun KeysReadyLight() = KeysPreview(darkTheme = false, code = "keys · two, ready")
+
+@Preview(name = "Progress - derive", heightDp = 900)
+@Composable
+private fun ProgressDerive() {
+    val v = view("progress · derive")
     FlowPreviewSurface(darkTheme = true) {
-        CreatePanel(state = FlowFixtures.byCode("A1").createState(), onAction = {})
+        ProgressScreen(position = progressFor(v.status)!!, keyCount = v.keys.size)
     }
 }
 
-@Preview(name = "Create form · incomplete — light (A1)")
+@Preview(name = "Retry - publish failed", heightDp = 900)
 @Composable
-private fun CreateFormPreviewLight() {
-    FlowPreviewSurface(darkTheme = false) {
-        CreatePanel(state = FlowFixtures.byCode("A1").createState(), onAction = {})
-    }
-}
-
-@Preview(name = "Create form · ready — dark (A2)")
-@Composable
-private fun CreateFormReadyPreviewDark() {
+private fun RetryPreview() {
+    val v = view("retry · publish failed")
     FlowPreviewSurface(darkTheme = true) {
-        CreatePanel(state = FlowFixtures.byCode("A2").createState(), onAction = {})
+        RetryScreen(
+            detail = v.syncErrorDetail,
+            busy = false,
+            onRetry = {},
+            onStartOver = {},
+            onEditEndpoint = {},
+        )
     }
 }
 
-@Preview(name = "Create progress · step 1 waiting — dark (A4c)")
+@Preview(name = "Done (dark)", heightDp = 900)
 @Composable
-private fun CreateProgressRingPreviewDark() {
-    FlowPreviewSurface(darkTheme = true) {
-        CreatePanel(state = FlowFixtures.byCode("A4c").createState(), onAction = {})
-    }
-}
+private fun DonePreviewDark() = DonePreview(darkTheme = true)
 
-@Preview(name = "Create success — dark (A11)")
+@Preview(name = "Done (light)", heightDp = 900)
 @Composable
-private fun CreateSuccessPreviewDark() {
-    FlowPreviewSurface(darkTheme = true) {
-        CreatePanel(state = FlowFixtures.byCode("A11").createState(), onAction = {})
-    }
-}
+private fun DonePreviewLight() = DonePreview(darkTheme = false)
 
-@Preview(name = "Server error · details expanded — dark (E2x)")
 @Composable
-private fun ServerErrorExpandedPreviewDark() {
-    FlowPreviewSurface(darkTheme = true) {
-        CreatePanel(state = FlowFixtures.byCode("E2x").createState(), onAction = {})
+private fun NamePreview(darkTheme: Boolean, code: String) {
+    val v = view(code)
+    FlowPreviewSurface(darkTheme = darkTheme) {
+        NameScreen(
+            name = v.name,
+            nameEditable = v.nameEditable,
+            nameTooLong = v.nameTooLong,
+            acks = v.acks,
+            canSubmit = v.canSubmit,
+            busy = v.busy,
+            submitLabel = PreviewStrings.t(submitLabelToI18n(v.submitLabel)),
+            statusText = v.status?.let { PreviewStrings.t(statusKeyToI18n(it)) },
+            showStartOver = v.showStartOver,
+            onName = {},
+            onToggleAck = {},
+            onSubmit = {},
+            onStartOver = {},
+            onOpenPrivacy = {},
+            onOpenTerms = {},
+        )
     }
 }
 
-@Preview(name = "Login waiting · ring — dark (B1c)")
 @Composable
-private fun LoginWaitingPreviewDark() {
-    FlowPreviewSurface(darkTheme = true) {
-        LoginPanel(state = FlowFixtures.byCode("B1c").loginState(), onAction = {})
+private fun KeysPreview(darkTheme: Boolean, code: String) {
+    val v = view(code)
+    FlowPreviewSurface(darkTheme = darkTheme) {
+        KeysScreen(
+            keys = v.keys,
+            canAddKey = v.canAddKey,
+            canFinish = v.canFinish,
+            needsSecondKey = v.needsSecondKey,
+            busy = v.busy,
+            onAddKey = {},
+            onConfirmKey = {},
+            onRemoveKey = {},
+            onFinish = {},
+        )
     }
 }
 
-@Preview(name = "Login recover offer — dark (B2)")
 @Composable
-private fun LoginRecoverOfferPreviewDark() {
-    FlowPreviewSurface(darkTheme = true) {
-        LoginPanel(state = FlowFixtures.byCode("B2").loginState(), onAction = {})
+private fun DonePreview(darkTheme: Boolean) {
+    val v = view("done")
+    FlowPreviewSurface(darkTheme = darkTheme) {
+        DoneScreen(
+            address = v.address.orEmpty(),
+            walletName = v.keys.first().name,
+            keys = v.keys,
+            onEnter = {},
+        )
     }
 }
-
-private fun StateFixture.createState(): CreatePanelState =
-    (panel as FixturePanel.Create).state
-
-private fun StateFixture.loginState(): LoginPanelState =
-    (panel as FixturePanel.Login).state

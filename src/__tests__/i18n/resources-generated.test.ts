@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 18,918 leaves across 15 locales', () => {
+  it('carries the whole corpus — 19,818 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -113,15 +113,53 @@ describe('generated i18n resources', () => {
     // 18,918 = 18,723 at the 018 base, plus multi-passkey onboarding's
     // 13 keys × 15 locales = 195 (5 add-keys strings, confirmKeyBtn for the
     // interleaved flow, then the sync-badge/provider/second-key-gate set).
+    // 19,368 = 18,918 plus spec 019's net 30 × 15 = 450: 31 keys added for the
+    // v2 create journey (the hero, the key screen, the three add methods, the
+    // progress tasks, the done screen's labels, the desktop security-key
+    // sheet, login.switchDeviceBtn) against 1 removed — create.ack2, when the
+    // acknowledgement gate went from four boxes to two. The six ack1/ack3
+    // moves are renames and net zero.
+    // 19,383 = 19,368 plus `create.nameTitle` × 15: the design's name screen
+    // is titled 「给钱包起个名字」, which is not the flow's own label.
+    // 19,563 = 19,383 plus 12 desktop-only keys × 15. The desktop is the only
+    // client that speaks CTAP2 itself, so it is the only one that has to say
+    // any of this on its own behalf — every other client hands the ceremony to
+    // a system passkey sheet that says it for them:
+    //   create.pin*   (5) the PIN prompt, which shipped reading
+    //                     `securityKeyRequiredTitle` ("Plug in a security key")
+    //                     as its heading — a different sentence about a
+    //                     different moment.
+    //   create.touch* (4) "your key is blinking, touch it" — with a separate
+    //                     body for a sensor, because pressing a button and
+    //                     resting a finger are different physical acts, and a
+    //                     third for when SEVERAL keys are blinking at once.
+    //   login.pick*   (3) which of several wallets on one key to sign in to.
+    // 19,593 = 19,563 plus create.keyUnreadable* × 15: a key that is plugged in
+    // and cannot be OPENED is a permissions problem wearing a hardware
+    // problem's clothes, and the code used to report it as "no security key is
+    // plugged in" — which sends a person to look at the port instead of at
+    // their udev rules.
+    // 19,608 = 19,593 plus welcome.heroTitleFit × 15: the one corpus value that
+    // is not prose but an enum — which rung of the hero type ladder that
+    // locale's headline needs. It rides with the string because the width is a
+    // property of the translation (6.9em in zh, 10.9em in ru), and all four
+    // clients read it through the `t()` they already call.
+    // 19,698 = 19,608 plus the desktop rail's 6 `create.step*` keys × 15: the
+    // three journey steps (Name / Keys / Create), each a label plus a detail
+    // sentence, for the rail that replaced the phone-page-pulled-tall layout.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(18_918);
+    expect(total).toBe(19_818);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {
     // 39 values are sentence fragments concatenated at render time, and
     // zh/zh-TW/zh-HK deliberately OMIT the spaces — so no uniform trim rule is
     // safe, and any trimming step in the pipeline shows up right here.
-    expect(en.onboarding.create.ack3).toMatch(/ $/);
+    // `ack2`, not `ack1`: the legal line moved to index 2 when the checklist
+    // went two rows to three (create_wallet.rs `ACK_COUNT`), and its fragments
+    // were renamed with it — a fragment key whose name disagrees with the row it
+    // renders is exactly how the ack3 -> ack1 confusion started.
+    expect(en.onboarding.create.ack2).toMatch(/ $/);
     expect(en.home.switcherAccountCount).toMatch(/ $/);
   });
 });

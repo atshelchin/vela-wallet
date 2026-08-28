@@ -415,6 +415,128 @@ val fragmentIndex = mutableMapOf<String, Int>()
 fun sectionIndex(section: String, svg: String): Any =
     fragmentIndex["$section:$svg"] ?: JSONObject.NULL
 
+
+/**
+ * Drive one create-wallet dispatch through the Crux bridge (spec 019, T100).
+ *
+ * The conformance corpus above proves the PURE functions agree across surfaces.
+ * It says nothing about the state machines, which arrived on this crate in spec
+ * 019 and are what the Android app actually runs. This is the narrow claim the
+ * smoke can make without a passkey provider: the bridge accepts an event as
+ * JSON, advances the machine, hands back the effect the core is waiting on, and
+ * honours the correlation rules.
+ *
+ * It deliberately stops before `register_passkey` — performing that needs
+ * Credential Manager and an Activity, neither of which exists in a JVM harness.
+ */
+fun checkOnboardingBridge() {
+    val core = CreateWalletCore()
+
+    fun dispatch(event: String): JSONObject = JSONObject(core.dispatch(event))
+    fun fail(why: String): Nothing {
+        System.err.println("smoke-kotlin: onboarding bridge — $why")
+        System.exit(1)
+        throw IllegalStateException()
+    }
+
+    // The form is pure model: it must advance with no effect at all.
+    dispatch("""{"type":"start"}""")
+    dispatch("""{"type":"name_changed","name":"Ada"}""")
+    dispatch("""{"type":"ack_toggled","index":0}""")
+    dispatch("""{"type":"ack_toggled","index":1}""")
+    // ACK_COUNT is 3 since the privacy/terms ack joined the form.
+    val acked = dispatch("""{"type":"ack_toggled","index":2}""")
+    if (acked.getJSONArray("effects").length() != 0) {
+        fail("filling the form asked the shell to do something")
+    }
+    if (!acked.getJSONObject("view").getBoolean("can_submit")) {
+        fail("a named, fully-acked form is not submittable")
+    }
+
+    // Submitting is where the shell is first asked for anything.
+    val submitted = dispatch("""{"type":"submit"}""")
+    val effects = submitted.getJSONArray("effects")
+    if (effects.length() != 1) fail("submit produced ${effects.length()} effects, want 1")
+    val first = effects.getJSONObject(0)
+    val id = first.getLong("id")
+    if (id != 1L) fail("effect ids are not monotonic from 1 — got $id")
+    val operation = first.getJSONObject("operation").getString("type")
+    if (operation != "check_passkey_support") fail("submit asked for `$operation`")
+
+    // Answering it advances the machine and asks for the next thing.
+    val supported =
+        JSONObject(core.resolveEffect(id.toULong(), """{"type":"passkey_support","supported":true}"""))
+    val next = supported.getJSONArray("effects")
+    if (next.length() != 1 || next.getJSONObject(0).getJSONObject("operation").getString("type") != "generate_group_key") {
+        fail("answering passkey support did not lead to `generate_group_key`")
+    }
+
+    // Rule 2: an answer that outlived its question changes nothing and is not
+    // an error. A bridge that threw here would turn every raced ceremony on a
+    // phone into a crash.
+    val stale =
+        JSONObject(core.resolveEffect(id.toULong(), """{"type":"passkey_support","supported":true}"""))
+    if (stale.getJSONArray("effects").length() != 0) {
+        fail("re-answering a resolved effect id produced work")
+    }
+    if (stale.getJSONObject("view").getString("status") != "setting_up_identity") {
+        fail("a stale answer moved the view")
+    }
+
+    // A malformed event is a shell bug and must be reported as one, not swallowed.
+    try {
+        core.dispatch("not json")
+        fail("a malformed event was accepted")
+    } catch (e: CoreException) {
+        if (!(e.message ?: "").contains("invalid event from shell")) {
+            fail("a malformed event threw the wrong thing: ${e.message}")
+        }
+    }
+
+    // The other two machines must at least stand up and render.
+    JSONObject(LoginCore().dispatch("""{"type":"start"}""")).getJSONArray("effects").let {
+        if (it.length() != 1 || it.getJSONObject(0).getJSONObject("operation").getString("type") != "probe_index_health") {
+            fail("login start did not probe the index")
+        }
+    }
+    if (JSONObject(SessionCore().view()).getString("allowed_route") != "loading") {
+        fail("a fresh session is not in `loading`")
+    }
+
+    println("smoke-kotlin: onboarding bridge green (create → login → session, correlation rules held)")
+}
+
+
+/**
+ * The golden multi-key Safe, through this surface (spec 019 T145 / SC-003).
+ *
+ * SC-003 asks that a multi-key wallet created on one client resolve to a
+ * CHARACTER-IDENTICAL address on the other three. The property behind that
+ * requirement is not really about four devices: all four clients derive the
+ * address by calling `compute_safe_address_multi` in this crate, so what has to
+ * agree is the four SURFACES the one function is reached through — Rust, wasm,
+ * Kotlin and Swift. Four people with four phones would be testing the same
+ * function four times and calling it evidence.
+ *
+ * The keys are the three parallel-space fixture keys, and the address is the
+ * frozen golden Safe that `src/__tests__/services/passkey-fixture.test.ts`
+ * already locks on the web side. A derivation change must be a conscious edit
+ * in every one of these places, never a silent drift in one.
+ */
+fun checkGoldenMultiKeySafe() {
+    val keys = listOf(
+        "04197db9030a1e166bec2cee05e0ddb94b26ee0b6d6f429f1748cda4eedac36f04fe546861a9c9dfaf75719b53c75e0b933d4aad6d325f18c75776a260d507647b",
+        "047802f2cc39cc6ed85c41268a580c5f0df36df3f065facfb40f84265927b7ed678438b2084cb84f0d00708e40d44ed8c9901d979bbcb390117089847672c12eec",
+        "043eb2ae2f4e8090837820048baca2db04a7e7ca7dc6742f342a30c6855e7d96947f36ac5a4538dc3a8a7cbf0deea1c0ecb80bfb96a3f8ca57c98f8f400548cd56",
+    ).map { parsePublicKey(it) }
+    val derived = computeSafeAddressMulti(keys).address
+    if (derived != "0x88cCA0EeDbF2C4426110bbFc998F048689266894") {
+        System.err.println("smoke-kotlin: golden multi-key Safe drifted - got $derived")
+        System.exit(1)
+    }
+    println("smoke-kotlin: golden multi-key Safe agrees ($derived)")
+}
+
 fun main(args: Array<String>) {
     val vectorsDir = File(args.getOrElse(0) { "crates/vela-core/tests/vectors" })
     val failures = mutableListOf<String>()
@@ -604,4 +726,8 @@ fun main(args: Array<String>) {
         }
         println("smoke-kotlin: flat-error Display message preserved (\"$msg\")")
     }
+
+    checkOnboardingBridge()
+    checkGoldenMultiKeySafe()
 }
+

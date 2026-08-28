@@ -7,6 +7,15 @@
 //  individually activatable and wrap with the text (the spec-011 e2e
 //  click-target lesson) — they emit ActionIds without toggling the box.
 //
+//  The WHOLE ROW toggles, sentence included, as it does on web. A row with
+//  links cannot get that from SwiftUI: a container `onTapGesture` wins over
+//  the inline links and swallows them, which is why this row used to opt out
+//  of row-wide toggling — and then a tap anywhere but the 16pt box did
+//  nothing at all (founder-found 2026-08-25). So a link row is drawn by
+//  TextKit instead, where the tap can be resolved to a character and the
+//  answer read off the same layout that drew it. Rows without links stay
+//  pure SwiftUI.
+//
 
 import SwiftUI
 
@@ -28,21 +37,27 @@ struct AckRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: Tokens.Space.s12) {
             checkbox
-            Text(attributed)
-                .typeRole(Typography.flowCaption)
-                .foregroundStyle(theme.fgMuted)
-                .tint(theme.accentBase)
-                .environment(\.openURL, OpenURLAction { url in
-                    if let id = ActionId(rawValue: url.lastPathComponent) {
-                        onLink(id)
-                    }
-                    return .handled
-                })
+            if hasLinks {
+                LinkedSentence(
+                    segments: segments,
+                    role: Typography.flowCaption,
+                    textColor: theme.palette.fgMuted.uiColor,
+                    linkColor: theme.palette.accentBase.uiColor,
+                    onLink: onLink,
+                    onElsewhere: { checked.toggle() }
+                )
                 .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(fullText)
+                    .typeRole(Typography.flowCaption)
+                    .foregroundStyle(theme.fgMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .contentShape(Rectangle())
-        // Row-wide toggling only when no inline links compete for taps;
-        // link rows toggle via the checkbox itself.
+        // A row without links is one target from edge to edge. A link row
+        // resolves its own taps inside `LinkedSentence`, and adding a gesture
+        // here would take them back.
         .onTapGesture {
             if !hasLinks { checked.toggle() }
         }
@@ -76,18 +91,115 @@ struct AckRow: View {
         .accessibilityValue(Text(verbatim: checked ? "1" : "0"))
         .accessibilityAddTraits(checked ? [.isSelected] : [])
     }
+}
 
-    private var attributed: AttributedString {
-        var result = AttributedString()
+/// The legal sentence, drawn by TextKit so a tap can be resolved to the
+/// character it landed on: a link phrase opens that document, anything else
+/// is part of the checkbox.
+///
+/// TextKit 1 on purpose (`usingTextLayoutManager: false`) — `characterIndex`
+/// and `boundingRect(forGlyphRange:)` are what answer "which character is
+/// under this point", and they belong to the layout manager.
+private struct LinkedSentence: UIViewRepresentable {
+    let segments: [AckSegment]
+    let role: TypeRole
+    let textColor: UIColor
+    let linkColor: UIColor
+    let onLink: (ActionId) -> Void
+    let onElsewhere: () -> Void
+
+    static let actionKey = NSAttributedString.Key("velaAction")
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView(usingTextLayoutManager: false)
+        view.isEditable = false
+        // NOT selectable: selection would fight the tap, and this view's own
+        // recognizer already routes every tap, links included.
+        view.isSelectable = false
+        view.isScrollEnabled = false
+        view.backgroundColor = .clear
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.adjustsFontForContentSizeCategory = true
+        view.addGestureRecognizer(
+            UITapGestureRecognizer(
+                target: context.coordinator,
+                action: #selector(Coordinator.handleTap(_:))
+            )
+        )
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        context.coordinator.parent = self
+        view.attributedText = attributed
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        guard let width = proposal.width, width > 0 else { return nil }
+        let fitted = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: ceil(fitted.height))
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    private var attributed: NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = role.lineSpacing
+        let result = NSMutableAttributedString()
         for segment in segments {
-            var part = AttributedString(segment.text)
+            var attributes: [NSAttributedString.Key: Any] = [
+                .font: role.uiFont,
+                .paragraphStyle: paragraph,
+                .foregroundColor: segment.action == nil ? textColor : linkColor,
+            ]
             if let action = segment.action {
-                part.link = URL(string: "vela-flow://action/\(action.rawValue)")
-                part.foregroundColor = theme.accentBase
+                attributes[Self.actionKey] = action.rawValue
             }
-            result += part
+            result.append(NSAttributedString(string: segment.text, attributes: attributes))
         }
         return result
+    }
+
+    final class Coordinator: NSObject {
+        var parent: LinkedSentence
+
+        init(parent: LinkedSentence) { self.parent = parent }
+
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view as? UITextView else { return }
+            let point = gesture.location(in: view)
+            if let action = actionAt(point, in: view) {
+                parent.onLink(action)
+            } else {
+                parent.onElsewhere()
+            }
+        }
+
+        private func actionAt(_ point: CGPoint, in view: UITextView) -> ActionId? {
+            let storage = view.textStorage
+            guard storage.length > 0 else { return nil }
+            let index = view.layoutManager.characterIndex(
+                for: point,
+                in: view.textContainer,
+                fractionOfDistanceBetweenInsertionPoints: nil
+            )
+            guard index < storage.length else { return nil }
+            // `characterIndex` snaps to the nearest character, so a tap in the
+            // empty run after a line's last word would claim that word. The
+            // glyph's own box is the check that says it did not.
+            let box = view.layoutManager.boundingRect(
+                forGlyphRange: NSRange(location: index, length: 1),
+                in: view.textContainer
+            )
+            guard box.contains(point) else { return nil }
+            guard
+                let raw = storage.attribute(actionKey, at: index, effectiveRange: nil) as? String
+            else { return nil }
+            return ActionId(rawValue: raw)
+        }
+
+        private var actionKey: NSAttributedString.Key { LinkedSentence.actionKey }
     }
 }
 

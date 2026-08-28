@@ -1,5 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<!--
+	  The relying-party association (spec 019 T138).
+
+	  Without this entry the passkey provider refuses every ceremony for
+	  getvela.app, so the app cannot create OR use a wallet — the whole feature
+	  is inert. The file was empty until this feature checked it, which is
+	  exactly the kind of gap that only shows up on a device.
+
+	  The other half already exists and was verified live: the
+	  apple-app-site-association file on the production domain returns 200 as
+	  application/json and lists this app under `webcredentials`:
+
+	      {"webcredentials":{"apps":["F9W689P9NE.app.getvela.VelaWallet", …]}}
+
+	  Both halves must name the same domain. `webcredentials:` is what passkeys
+	  read; `applinks:` is the separate association the /sign deep link uses, and
+	  it is listed in the same AASA file.
+	-->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>webcredentials:getvela.app</string>
+		<string>applinks:getvela.app</string>
+	</array>
+
+	<!--
+	  Smart-card access, for the app-owned CTAP2-over-CCID path (spec 019 T171b).
+
+	  CryptoTokenKit's `TKSmartCard` is the ONLY way a third-party iOS app can
+	  talk to an external security key over USB — iOS exposes no USB-HID host
+	  API. Without this entitlement `TKSmartCardSlotManager.default` is nil and
+	  the app-owned USB-C security-key route does not exist. Unlike the
+	  associated-domain above, this path consults NO domain association: it is
+	  the escape hatch a lapsed or down assetlinks server cannot padlock
+	  (FR-009c). Needs a YubiKey with firmware 5.8+ (FIDO over CCID).
+	-->
+	<key>com.apple.security.smartcard</key>
+	<true/>
+</dict>
 </plist>

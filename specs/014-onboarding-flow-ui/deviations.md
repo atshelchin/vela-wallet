@@ -1,5 +1,22 @@
 # Deviations & follow-ups — spec 014 implementation (2026-08-08)
 
+> **PARTLY SUPERSEDED (2026-08-25) by spec 019-onboarding-live-wiring.** Spec 014
+> shipped the onboarding UI as pure fixtures, and 019 wired it to the core — which
+> meant rebuilding rather than connecting most of what this file describes. The
+> items below that are no longer about shipped UI:
+>
+> | 014 item | What 019 did |
+> | --- | --- |
+> | 1, 4, 5 — `OutcomeSpec` fields, A11 title, A11 headline tint | `OutcomeSpec` no longer exists on any client. Success is the Done SCREEN, not an outcome sheet, so its title and tint are that screen's. |
+> | 2 — `TechDetails` on non-pinned states | Only the Retry screen carries a disclosure now, and its content is the publish's real error rather than a representative fixture. |
+> | 3 — the frozen elapsed-ring arc | **The ring is gone from the create flow** (research D9). It was a "still working" affordance derived from nothing; v2 replaced it with a percentage derived from the stage the core reports. The unify-the-sweep follow-up is therefore moot. |
+> | 6 — the shared `E10` fixture in both gallery groups | The fixture set is the v2 one: thirteen flow steps and nine prompt kinds, and no fixture is shared between groups. |
+> | The two flow CONTAINERS (mobile bottom sheet, desktop action-column swap) | Both replaced by a full-screen stepped flow. A sheet is now reserved for failures, where an interruption genuinely is modal. |
+>
+> Eight of 014's eighteen `OutcomeKind` values stopped being sheets because v2 gave
+> them somewhere better; see `specs/019-onboarding-live-wiring/deviations.md` for
+> that table. Everything not named above still stands.
+
 Consolidated from the four platform tracks + corpus track. Items marked ⚠ need a founder
 decision or a later feature; unmarked items are documented-and-accepted.
 

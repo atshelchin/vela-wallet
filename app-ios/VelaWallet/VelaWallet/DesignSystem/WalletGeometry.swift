@@ -13,6 +13,10 @@ import SwiftUI
 enum WalletGeometry {
     /// Identicon avatar in the wallet header (mock: 80 px @2x).
     static let avatar: CGFloat = 40
+    /// The identicon viewer's artwork (spec 019 founder call) — big enough to
+    /// read as a picture rather than an avatar, and to sit above a wrapped
+    /// address on the narrowest phone.
+    static let identiconViewer: CGFloat = 160
     /// Leading circle of activity/asset rows (mock: 80 px @2x).
     static let rowIcon: CGFloat = 40
     /// Chain-dot badge on row icons (mock: 24 px @2x).

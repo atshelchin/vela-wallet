@@ -16,6 +16,12 @@ export type NetworkPillModel =
 export interface WalletHeaderModel {
 	name: string;
 	addressDisplay: string;
+	/**
+	 * The seed the identicon was drawn from — the account's full address.
+	 * The viewer shows it beside the artwork, which is the whole point of the
+	 * viewer: a fingerprint is only legible next to the thing it fingerprints.
+	 */
+	addressFull: string;
 	/** Inline SVG markup from vela-core (circular variant, no ids). */
 	identiconSvg: string;
 }

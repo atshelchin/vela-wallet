@@ -17,7 +17,7 @@ use crux_core::render::RenderOperation;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Account, Assertion, FailureKind, PendingUpload, PromptKind, Registration,
+    Account, Assertion, FailureKind, KeyMethod, PendingUpload, PromptKind, Registration,
     RegistryPublishMember, RegistryUnitMember,
 };
 use crate::registry_proof::RegistryProof;
@@ -78,10 +78,31 @@ pub enum ShellOperation {
         /// user adds another key. Empty for the first key.
         #[serde(default)]
         exclude_credential_ids: Vec<String>,
+        /// Which authenticator the *person* asked for. Selects the ceremony —
+        /// the platform authenticator, a nearby device, or a removable security
+        /// key — and nothing else. What the authenticator turns out to report
+        /// about itself comes back on the registration and is not constrained
+        /// by this.
+        #[serde(default)]
+        method: KeyMethod,
     },
     /// `navigator.credentials.get()` against a known credential.
     SignProof {
         credential_id: String,
+        /// What the authenticator reported about ITSELF at registration, comma
+        /// joined (`hybrid,internal`, `usb,nfc`, …), or empty when unknown.
+        /// See [`ShellOperation::SignMemberProof::transports`] — this is the
+        /// same fact and the same reason.
+        #[serde(default)]
+        transports: String,
+        /// Which authenticator route to sign over. A proof must reach the SAME
+        /// key the first signature did: recovery's second signature runs on the
+        /// route the person signed in with (a phone over caBLE, or a plugged-in
+        /// security key), so the platform cannot silently answer it with a
+        /// different credential. Defaults to the platform authenticator, the
+        /// value a shell that never sets it would expect.
+        #[serde(default)]
+        method: KeyMethod,
         purpose: ProofPurpose,
     },
     /// Mint the one-time software group key for a wallet's registry group.
@@ -99,6 +120,33 @@ pub enum ShellOperation {
         public_key_hex: String,
         /// Empty, or 20 versioned attestation bytes (hex).
         attestation_hex: String,
+        /// WHERE this credential lives, as the authenticator reported it at
+        /// registration (`getTransports()`), comma joined: `hybrid,internal`,
+        /// `usb,nfc`, `internal`. Empty when it reported nothing.
+        ///
+        /// **Load-bearing, not a hint.** A `get()` whose `allowCredentials`
+        /// entry carries no transports leaves the platform to guess where to
+        /// look, and Android's Credential Manager guesses "removable security
+        /// key" — it drew "Connect your security key" for a passkey living in
+        /// Apple Passwords on another phone, which is a dead end the person
+        /// cannot answer (device-found 2026-08-26). With `hybrid` present the
+        /// platform offers the other-device route instead, which is the one
+        /// that can actually complete.
+        #[serde(default)]
+        transports: String,
+        /// Which authenticator route to sign over — the same fact, and the same
+        /// reason, as [`ShellOperation::SignProof::method`]. The confirmation
+        /// must reach the key that was JUST minted, so it runs on the route
+        /// that minted it: a key created on a phone over caBLE is confirmed on
+        /// that phone, not on whatever is in the USB port.
+        ///
+        /// `transports` above says the same thing to a platform that ROUTES for
+        /// itself (a browser, Android's Credential Manager). A shell that is its
+        /// own CTAP client picks the transport itself and has nothing to read it
+        /// from — which is why both fields ride along and neither replaces the
+        /// other.
+        #[serde(default)]
+        method: KeyMethod,
         group_public_key_hex: String,
     },
     /// The v1 index's display name for a credential — the only place a
@@ -108,7 +156,15 @@ pub enum ShellOperation {
         credential_id: String,
     },
     /// `navigator.credentials.get()` with no credential hint — "who are you?".
-    AuthenticatePasskey,
+    /// `method` is the person's choice on the sign-in screen: `Platform` lets
+    /// the system sheet answer (a device passkey, or its own security-key/scan
+    /// routes), `SecurityKey` forces the app-owned CTAP path — the only way to
+    /// sign into a wallet on a security key when a platform passkey is also
+    /// present and the system would otherwise use it silently.
+    AuthenticatePasskey {
+        #[serde(default)]
+        method: KeyMethod,
+    },
     /// Read every locally stored account.
     LoadAccounts,
     SaveAccount {
@@ -134,6 +190,14 @@ pub enum ShellOperation {
         group_seed_hex: String,
         #[serde(default)]
         group_public_key_hex: String,
+        /// Which authenticator route a member with no replayable proof must sign
+        /// its live possession proof over. It matters only on desktop, and only
+        /// for the recovery re-publish (a phone credential signs over caBLE, not
+        /// the USB path — which would find no key and show no QR); a create
+        /// replays its creation-time proof and never signs live. Defaults to the
+        /// platform authenticator, what a shell that never sets it expects.
+        #[serde(default)]
+        method: KeyMethod,
     },
     /// Is this public key already an entry in the registry? Lets a sign-in
     /// skip a redundant re-publish (and its extra signature).

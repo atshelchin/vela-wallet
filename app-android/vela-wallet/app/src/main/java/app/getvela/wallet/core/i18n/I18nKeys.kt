@@ -8,6 +8,10 @@ package app.getvela.wallet.core.i18n
 object I18nKeys {
     object Welcome {
         const val TAGLINE = "onboarding.welcome.desktopTagline"
+        const val HERO_TITLE = "onboarding.welcome.heroTitle"
+        /** The headline's type tier: `regular` or `long` (an enum, not prose). */
+        const val HERO_TITLE_FIT = "onboarding.welcome.heroTitleFit"
+        const val HERO_SUBTITLE = "onboarding.welcome.heroSubtitle"
         const val CREATE_WALLET = "onboarding.welcome.createWallet"
         const val ALREADY_HAVE_WALLET = "onboarding.welcome.alreadyHaveWallet"
 
@@ -31,6 +35,27 @@ object I18nKeys {
         const val THEME_LIGHT = "onboarding.settings.themeLabelLight"
         const val THEME_DARK = "onboarding.settings.themeLabelDark"
         const val THEME_AUTO = "onboarding.settings.themeLabelAuto"
+
+        // --- spec 019: the endpoint surface an unreachable index opens -----
+        const val SECTION_PASSKEY_INDEX = "onboarding.settings.sectionPasskeyIndex"
+        const val ENDPOINT_URL_LABEL = "onboarding.settings.endpointUrlLabel"
+        const val PASSKEY_HINT = "onboarding.settings.passkeyHint"
+        const val RESET_TO_DEFAULT = "onboarding.settings.resetToDefault"
+        const val WARNING_TEXT = "onboarding.settings.warningText"
+
+        // --- spec 019: the way back out of a signed-in wallet --------------
+        //
+        // `settings.*`, not `onboarding.settings.*`: sign-out belongs to the
+        // wallet, and the copy already existed in all fifteen locales because
+        // desktop needed it first. `settings.signOut.desc` is deliberately
+        // absent — it ends "your passkey stays in Face ID / fingerprint", which
+        // names the wrong platform's biometric on Android.
+        const val SIGN_OUT_BUTTON = "settings.signOut.button"
+        const val SIGN_OUT_TITLE = "settings.signOut.title"
+        const val SIGN_OUT_KEEPS = "settings.signOut.keeps"
+        const val SIGN_OUT_WARNING = "settings.signOut.warning"
+        const val SIGN_OUT_ANYWAY = "settings.signOut.anyway"
+        const val SIGN_OUT_CANCEL = "settings.signOut.cancel"
     }
 
     object Create {
@@ -39,18 +64,18 @@ object I18nKeys {
         // Spec 014 create-flow keys (contracts/i18n-keys.md). All EXISTS in the
         // corpus except RETRY_VERIFY_BTN, which lands with the spec-014 corpus batch.
         const val HEADER_SYNC_FAILED = "onboarding.create.headerSyncFailed"
-        const val ACCOUNT_NAME_LABEL = "onboarding.create.accountNameLabel"
         const val ACCOUNT_NAME_PLACEHOLDER = "onboarding.create.accountNamePlaceholder"
-        const val ACCOUNT_NAME_HINT = "onboarding.create.accountNameHint"
         const val NAME_TOO_LONG = "onboarding.create.nameTooLong"
         const val TECHNICAL_DETAILS = "onboarding.create.technicalDetails"
+        // THREE acknowledgements, each a fact about where something ends up:
+        // the public key and the name go on-chain, the private key stays in the
+        // device or on a security key, and the legal assent. The legal line's
+        // link fragments are named for the row they render on — `ack2*` — because
+        // a fragment key that disagrees with its index is how the earlier
+        // `ack3` → `ack1` confusion started.
         const val ACK0 = "onboarding.create.ack0"
         const val ACK1 = "onboarding.create.ack1"
-        const val ACK3 = "onboarding.create.ack3"
-        const val ACK3_PRIVACY_POLICY = "onboarding.create.ack3PrivacyPolicy"
-        const val ACK3_AND = "onboarding.create.ack3And"
-        const val ACK3_TERMS = "onboarding.create.ack3Terms"
-        const val ACK3_PERIOD = "onboarding.create.ack3Period"
+        const val ACK2 = "onboarding.create.ack2"
         const val CREATE_WALLET_BTN = "onboarding.create.createWalletBtn"
         const val STATUS_SETTING_UP_IDENTITY = "onboarding.create.statusSettingUpIdentity"
         const val STATUS_VERIFYING_IDENTITY = "onboarding.create.statusVerifyingIdentity"
@@ -66,6 +91,82 @@ object I18nKeys {
         const val SYNC_FAILED_TITLE = "onboarding.create.syncFailedTitle"
         const val RETRY_UPLOAD_BTN = "onboarding.create.retryUploadBtn"
         const val RETRY_VERIFY_BTN = "onboarding.create.retryVerifyBtn"
+
+        // --- spec 019, the v2 create journey -------------------------------
+        //
+        // Name screen.
+        const val NAME_TITLE = "onboarding.create.nameTitle"
+        const val ACK2_PRIVACY_POLICY = "onboarding.create.ack2PrivacyPolicy"
+        const val ACK2_AND = "onboarding.create.ack2And"
+        const val ACK2_TERMS = "onboarding.create.ack2Terms"
+        const val ACK2_PERIOD = "onboarding.create.ack2Period"
+        const val NEXT_BTN = "onboarding.create.nextBtn"
+        const val STATUS_SETUP_CANCELLED = "onboarding.create.statusSetupCancelled"
+        const val STATUS_VERIFY_CANCELLED = "onboarding.create.statusVerifyCancelled"
+
+        // Keys screen.
+        const val KEYS_TITLE = "onboarding.create.keysTitle"
+        const val KEYS_TITLE_BLOCKED = "onboarding.create.keysTitleBlocked"
+        const val KEYS_SUBTITLE = "onboarding.create.keysSubtitle"
+        const val KEYS_SUBTITLE_BLOCKED = "onboarding.create.keysSubtitleBlocked"
+        const val KEYS_SUBTITLE_FULL = "onboarding.create.keysSubtitleFull"
+        const val KEYS_LABEL = "onboarding.create.keysLabel"
+        const val KEYS_HINT = "onboarding.create.keysHint"
+        const val KEY_COUNT = "onboarding.create.keyCount"
+        const val KEY_SYNCED_BADGE = "onboarding.create.keySyncedBadge"
+        const val KEY_DEVICE_ONLY_BADGE = "onboarding.create.keyDeviceOnlyBadge"
+        const val KEY_LIMIT_REACHED = "onboarding.create.keyLimitReached"
+        const val NEED_SECOND_KEY_HINT = "onboarding.create.needSecondKeyHint"
+        const val ADD_KEY_BTN = "onboarding.create.addKeyBtn"
+        const val ADD_SECOND_KEY_BTN = "onboarding.create.addSecondKeyBtn"
+        const val CONFIRM_KEY_BTN = "onboarding.create.confirmKeyBtn"
+        const val REMOVE_KEY_BTN = "onboarding.create.removeKeyBtn"
+        const val FINISH_KEYS_BTN = "onboarding.create.finishKeysBtn"
+        const val ADD_METHOD_LABEL = "onboarding.create.addMethodLabel"
+        const val METHOD_PLATFORM_TITLE = "onboarding.create.methodPlatformTitle"
+        const val METHOD_PLATFORM_BODY = "onboarding.create.methodPlatformBody"
+        const val METHOD_HYBRID_TITLE = "onboarding.create.methodHybridTitle"
+        const val METHOD_HYBRID_BODY = "onboarding.create.methodHybridBody"
+        const val METHOD_HYBRID_UNAVAILABLE = "onboarding.create.methodHybridUnavailable"
+        const val METHOD_SECURITY_KEY_TITLE = "onboarding.create.methodSecurityKeyTitle"
+        const val METHOD_SECURITY_KEY_BODY = "onboarding.create.methodSecurityKeyBody"
+        const val PROVIDER_PLATFORM = "onboarding.create.providerPlatform"
+        const val PROVIDER_GENERIC = "onboarding.create.providerGeneric"
+        const val PROVIDER_SECURITY_KEY = "onboarding.create.providerSecurityKey"
+
+        // Progress screen.
+        const val PROGRESS_TITLE = "onboarding.create.progressTitle"
+        const val PROGRESS_SUBTITLE = "onboarding.create.progressSubtitle"
+        const val PROGRESS_METER_LABEL = "onboarding.create.progressMeterLabel"
+        const val TASK_VERIFY_KEY = "onboarding.create.taskVerifyKey"
+        const val TASK_DERIVE_ADDRESS = "onboarding.create.taskDeriveAddress"
+        const val TASK_WRITE_INDEX = "onboarding.create.taskWriteIndex"
+
+        // Retry screen.
+        const val SYNC_FAILED_MESSAGE = "onboarding.create.syncFailedMessage"
+        const val SYNC_FAILED_HINT = "onboarding.create.syncFailedHint"
+
+        // Done screen.
+        const val HEADER_CREATED = "onboarding.create.headerCreated"
+        const val IDENTICON_HINT = "onboarding.create.identiconHint"
+        const val WALLET_ADDRESS_LABEL = "onboarding.create.walletAddressLabel"
+
+        // Prompts (data-model 5).
+        const val ALERT_ERROR_TITLE = "onboarding.create.alertErrorTitle"
+        const val ALERT_NOT_SUPPORTED_TITLE = "onboarding.create.alertNotSupportedTitle"
+        const val ALERT_NOT_SUPPORTED_BODY = "onboarding.create.alertNotSupportedBody"
+
+        // The app-owned CTAP path's own dialogs — the ceremony a system passkey
+        // sheet would otherwise draw. Shared with the desktop (spec 019 §5).
+        const val PIN_TITLE = "onboarding.create.pinTitle"
+        const val PIN_BODY = "onboarding.create.pinBody"
+        const val PIN_LABEL = "onboarding.create.pinLabel"
+        const val PIN_ATTEMPTS_LEFT = "onboarding.create.pinAttemptsLeft"
+        const val PIN_REJECTED = "onboarding.create.pinRejected"
+        const val TOUCH_TITLE = "onboarding.create.touchTitle"
+        const val TOUCH_BODY = "onboarding.create.touchBody"
+        const val TOUCH_FINGERPRINT_BODY = "onboarding.create.touchFingerprintBody"
+        const val TOUCH_SELECT_BODY = "onboarding.create.touchSelectBody"
     }
 
     /** onboarding.login.* — spec 014 login flow (mix of EXISTS + NEW corpus keys). */
@@ -87,6 +188,21 @@ object I18nKeys {
         const val RECOVER_CANCEL = "onboarding.login.recoverCancel"
         const val RECOVER_FAILED_TITLE = "onboarding.login.recoverFailedTitle"
         const val RECOVER_FAILED_BODY = "onboarding.login.recoverFailedBody"
+
+        // --- spec 019 ------------------------------------------------------
+        const val ALERT_NOT_SUPPORTED_TITLE = "onboarding.login.alertNotSupportedTitle"
+        const val ALERT_NOT_SUPPORTED_BODY = "onboarding.login.alertNotSupportedBody"
+        const val ALERT_INCOMPATIBLE_TITLE = "onboarding.login.alertIncompatibleTitle"
+        const val ALERT_INCOMPATIBLE_BODY = "onboarding.login.alertIncompatibleBody"
+        const val ALERT_INCOMPATIBLE_BODY_CREATE = "onboarding.login.alertIncompatibleBodyCreate"
+        const val ALERT_SIGN_IN_FAILED_BODY = "onboarding.login.alertSignInFailedBody"
+        const val SWITCH_DEVICE_BTN = "onboarding.login.switchDeviceBtn"
+
+        // The which-wallet picker for the app-owned CTAP path — a key that
+        // holds more than one Vela wallet. Shared with the desktop.
+        const val PICK_TITLE = "onboarding.login.pickTitle"
+        const val PICK_BODY = "onboarding.login.pickBody"
+        const val PICK_UNNAMED = "onboarding.login.pickUnnamed"
     }
 
     /**
@@ -128,6 +244,14 @@ object I18nKeys {
         const val EDIT_INDEX_ENDPOINT = "onboarding.common.editIndexEndpoint"
         const val REPORT_ERROR = "onboarding.common.reportError"
         const val OPEN_BIOMETRIC_SETTINGS = "onboarding.common.openBiometricSettings"
+        const val LOCATION_NEEDED_TITLE = "onboarding.common.locationNeededTitle"
+        const val LOCATION_NEEDED_BODY = "onboarding.common.locationNeededBody"
+        const val OPEN_LOCATION_SETTINGS = "onboarding.common.openLocationSettings"
+        const val INSERT_KEY_TITLE = "onboarding.common.insertKeyTitle"
+        const val INSERT_KEY_BODY = "onboarding.common.insertKeyBody"
+        const val OTG_OFF_HINT = "onboarding.common.otgOffHint"
+        const val TOUCH_REMOTE_TITLE = "onboarding.common.touchRemoteTitle"
+        const val TOUCH_REMOTE_BODY = "onboarding.common.touchRemoteBody"
         const val OPEN_CREDENTIAL_MANAGER_SETTINGS = "onboarding.common.openCredentialManagerSettings"
         const val COPY_ADDRESS = "onboarding.common.copyAddress"
         const val COPIED = "onboarding.common.copied"
@@ -187,6 +311,14 @@ object I18nKeys {
         // Shared component captions.
         const val QR_CAPTION = "componentsUi.qrPlaceholder.caption"
         const val COPY_ADDRESS = "componentsUi.identiconViewer.copyAddress"
+
+        // The identicon viewer (spec 019 founder call): the artwork, big,
+        // beside the address that drew it.
+        const val IDENTICON_TITLE = "componentsUi.identiconViewer.title"
+        const val IDENTICON_CAPTION = "componentsUi.identiconViewer.caption"
+        const val IDENTICON_COPIED = "componentsUi.identiconViewer.copied"
+        const val IDENTICON_CLOSE = "componentsUi.identiconViewer.close"
+        const val IDENTICON_A11Y_OPEN = "componentsUi.identiconViewer.a11yOpen"
     }
 
     /**

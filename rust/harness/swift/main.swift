@@ -711,3 +711,144 @@ do {
     }
     print("smoke-swift: flat-error message preserved (\"\(msg)\")")
 }
+
+// ---------------------------------------------------------------------------
+// The Crux bridge (spec 019, T100)
+// ---------------------------------------------------------------------------
+//
+// The corpus above proves the PURE functions agree across surfaces. It says
+// nothing about the state machines, which arrived on this crate in spec 019 and
+// are what the iOS app actually runs. This is the narrow claim the smoke can
+// make without a passkey provider: the bridge accepts an event as JSON,
+// advances the machine, hands back the effect the core is waiting on, and
+// honours the correlation rules.
+//
+// It deliberately stops before `register_passkey` — performing that needs
+// AuthenticationServices and a presentation anchor, neither of which exists in
+// a command-line harness.
+
+func bridgeFail(_ why: String) -> Never {
+    FileHandle.standardError.write("smoke-swift: onboarding bridge — \(why)\n".data(using: .utf8)!)
+    exit(1)
+}
+
+func bridgeObject(_ json: String) -> [String: Any] {
+    guard let data = json.data(using: .utf8),
+          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { bridgeFail("the bridge returned something that is not a JSON object: \(json)") }
+    return object
+}
+
+do {
+    let core = CreateWalletCore()
+
+    // The form is pure model: it must advance with no effect at all.
+    _ = try core.dispatch(eventJson: #"{"type":"start"}"#)
+    _ = try core.dispatch(eventJson: #"{"type":"name_changed","name":"Ada"}"#)
+    _ = try core.dispatch(eventJson: #"{"type":"ack_toggled","index":0}"#)
+    _ = try core.dispatch(eventJson: #"{"type":"ack_toggled","index":1}"#)
+    // ACK_COUNT is 3 since the privacy/terms ack joined the form.
+    let acked = bridgeObject(try core.dispatch(eventJson: #"{"type":"ack_toggled","index":2}"#))
+    guard let ackedEffects = acked["effects"] as? [Any], ackedEffects.isEmpty else {
+        bridgeFail("filling the form asked the shell to do something")
+    }
+    guard let ackedView = acked["view"] as? [String: Any],
+          ackedView["can_submit"] as? Bool == true
+    else { bridgeFail("a named, fully-acked form is not submittable") }
+
+    // Submitting is where the shell is first asked for anything.
+    let submitted = bridgeObject(try core.dispatch(eventJson: #"{"type":"submit"}"#))
+    guard let effects = submitted["effects"] as? [[String: Any]], effects.count == 1 else {
+        bridgeFail("submit did not produce exactly one effect")
+    }
+    guard let rawId = effects[0]["id"] as? NSNumber, rawId.uint64Value == 1 else {
+        bridgeFail("effect ids are not monotonic from 1")
+    }
+    let effectId = rawId.uint64Value
+    guard let operation = effects[0]["operation"] as? [String: Any],
+          operation["type"] as? String == "check_passkey_support"
+    else { bridgeFail("submit asked for the wrong operation") }
+
+    // Answering it advances the machine and asks for the next thing.
+    let supported = bridgeObject(
+        try core.resolveEffect(
+            effectId: effectId, resultJson: #"{"type":"passkey_support","supported":true}"#))
+    guard let next = supported["effects"] as? [[String: Any]], next.count == 1,
+          let nextOp = next[0]["operation"] as? [String: Any],
+          nextOp["type"] as? String == "generate_group_key"
+    else { bridgeFail("answering passkey support did not lead to `generate_group_key`") }
+
+    // Rule 2: an answer that outlived its question changes nothing and is not
+    // an error. A bridge that threw here would turn every raced ceremony on a
+    // phone into a crash.
+    let stale = bridgeObject(
+        try core.resolveEffect(
+            effectId: effectId, resultJson: #"{"type":"passkey_support","supported":true}"#))
+    guard let staleEffects = stale["effects"] as? [Any], staleEffects.isEmpty else {
+        bridgeFail("re-answering a resolved effect id produced work")
+    }
+    guard let staleView = stale["view"] as? [String: Any],
+          staleView["status"] as? String == "setting_up_identity"
+    else { bridgeFail("a stale answer moved the view") }
+
+    // A malformed event is a shell bug and must be reported as one, not swallowed.
+    do {
+        _ = try core.dispatch(eventJson: "not json")
+        bridgeFail("a malformed event was accepted")
+    } catch let error as CoreError {
+        guard errorMessage(error).contains("invalid event from shell") else {
+            bridgeFail("a malformed event threw the wrong thing: \(errorMessage(error))")
+        }
+    }
+
+    // The other two machines must at least stand up and render.
+    let login = bridgeObject(try LoginCore().dispatch(eventJson: #"{"type":"start"}"#))
+    guard let loginEffects = login["effects"] as? [[String: Any]], loginEffects.count == 1,
+          let loginOp = loginEffects[0]["operation"] as? [String: Any],
+          loginOp["type"] as? String == "probe_index_health"
+    else { bridgeFail("login start did not probe the index") }
+
+    let session = bridgeObject(try SessionCore().view())
+    guard session["allowed_route"] as? String == "loading" else {
+        bridgeFail("a fresh session is not in `loading`")
+    }
+
+    print("smoke-swift: onboarding bridge green (create → login → session, correlation rules held)")
+} catch {
+    bridgeFail("threw: \(error)")
+}
+
+// ---------------------------------------------------------------------------
+// The golden multi-key Safe (spec 019 T145 / SC-003)
+// ---------------------------------------------------------------------------
+//
+// SC-003 asks that a multi-key wallet created on one client resolve to a
+// CHARACTER-IDENTICAL address on the other three. The property behind that
+// requirement is not really about four devices: all four clients derive the
+// address by calling `compute_safe_address_multi` in this crate, so what has to
+// agree is the four SURFACES the one function is reached through — Rust, wasm,
+// Kotlin and Swift. Four people with four phones would be testing the same
+// function four times and calling it evidence.
+//
+// The keys are the three parallel-space fixture keys, and the address is the
+// frozen golden Safe that `src/__tests__/services/passkey-fixture.test.ts`
+// already locks on the web side.
+
+do {
+    let keys = try [
+        "04197db9030a1e166bec2cee05e0ddb94b26ee0b6d6f429f1748cda4eedac36f04fe546861a9c9dfaf75719b53c75e0b933d4aad6d325f18c75776a260d507647b",
+        "047802f2cc39cc6ed85c41268a580c5f0df36df3f065facfb40f84265927b7ed678438b2084cb84f0d00708e40d44ed8c9901d979bbcb390117089847672c12eec",
+        "043eb2ae2f4e8090837820048baca2db04a7e7ca7dc6742f342a30c6855e7d96947f36ac5a4538dc3a8a7cbf0deea1c0ecb80bfb96a3f8ca57c98f8f400548cd56",
+    ].map { try parsePublicKey(hex: $0) }
+    let derived = try computeSafeAddressMulti(keys: keys).address
+    guard derived == "0x88cCA0EeDbF2C4426110bbFc998F048689266894" else {
+        FileHandle.standardError.write(
+            "smoke-swift: golden multi-key Safe drifted — got \(derived)\n".data(using: .utf8)!)
+        exit(1)
+    }
+    print("smoke-swift: golden multi-key Safe agrees (\(derived))")
+} catch {
+    FileHandle.standardError.write(
+        "smoke-swift: golden multi-key Safe threw — \(error)\n".data(using: .utf8)!)
+    exit(1)
+}

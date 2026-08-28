@@ -1,80 +1,119 @@
 <script lang="ts">
-	import { MediaQuery } from 'svelte/reactivity';
+	/**
+	 * Welcome — the v2 design (spec 019).
+	 *
+	 * One column at every width: brand, headline, and the two ways in. Desktop
+	 * gets a wider column and a side-by-side button row; below the breakpoint
+	 * the column narrows and the buttons stack. Nothing reflows into a second
+	 * pane, because there is no second pane — the flow this page starts is a
+	 * full page of its own.
+	 *
+	 * Creating a wallet NAVIGATES: it is a stepped journey, so it owns a URL and
+	 * back works. Signing in has no steps — one system passkey sheet and you are
+	 * either in or you are not — so it runs here, in place, and speaks only
+	 * through the button's busy state and the failure sheet.
+	 *
+	 * This page is also the site's landing page: prerendered in 15 locales with
+	 * canonical + hreflang. The wasm the flow needs is fetched by the flow, not
+	 * by this page — `e2e/welcome-ssr.e2e.ts` holds that line.
+	 */
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import type { PageProps } from './$types';
 	import BrandMark from '$lib/ui/BrandMark.svelte';
 	import Button from '$lib/ui/Button.svelte';
-	import Carousel from '$lib/ui/Carousel.svelte';
-	import FeatureCard from '$lib/ui/FeatureCard.svelte';
-	import CreatePanel from '$lib/ui/onboarding/CreatePanel.svelte';
-	import LoginPanel from '$lib/ui/onboarding/LoginPanel.svelte';
-	import Sheet from '$lib/ui/onboarding/Sheet.svelte';
-	import type {
-		ActionId,
-		CreatePanelState,
-		LoginPanelState,
-		StringResolver
-	} from '$lib/onboarding/states';
-	import { scaffoldTitleI18nKey } from '$lib/onboarding/outcomes';
+	import OnboardingRail from '$lib/ui/onboarding/v2/OnboardingRail.svelte';
+	import PromptSheet from '$lib/ui/onboarding/v2/PromptSheet.svelte';
 	import { fillTemplate } from '$lib/i18n/fill';
 	import { SUPPORTED_LOCALES, FALLBACK_LOCALE } from '$lib/i18n/locales';
-	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { SITE_ORIGIN } from '$lib/site';
+	import { loadOnboardingCore } from '$lib/onboarding/core/wasm-client';
+	import { createLoginSession, type LoginSession } from '$lib/onboarding/core/sessions';
+	import { promptCopy, type PromptCopy } from '$lib/onboarding/core/copy';
+	import { session } from '$lib/session/core/session.svelte';
+	import type { CompletionMode } from '$lib/onboarding/generated/CompletionMode';
+	import type { LoginView } from '$lib/onboarding/generated/LoginView';
+	import type { PromptKind } from '$lib/onboarding/generated/PromptKind';
 
 	let { data }: PageProps = $props();
 
 	const m = $derived(data.messages);
 	const locale = $derived(data.locale);
 
-	/* ------------------------------------------------------------------ */
-	/* Onboarding flow containers (spec 014 US2 / T025).                    */
-	/* ≥ 1280px: the flow panel swaps the .actions column content in place  */
-	/* (FR-008); below: the bottom sheet presentation (FR-009). The hero    */
-	/* column is untouched either way — the aside keeps its dimensions.     */
-	/* ------------------------------------------------------------------ */
+	/** Serialized flow copy from the layout load; numbers filled here. */
+	const strings = (key: string, params?: Record<string, string | number>) =>
+		fillTemplate(data.flow[key] ?? key, params);
 
-	type Flow = 'create' | 'login';
+	const createHref = $derived(resolve('/[locale]/create', { locale }));
+	const walletHref = $derived(resolve('/[locale]/wallet', { locale }));
 
-	const desktop = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
-
-	let openFlow = $state<Flow | null>(null);
-	let sheet = $state<{ requestClose: () => void }>();
-
-	/** Initial states per contract §3: create → empty Form, login → Waiting(null). */
-	const CREATE_INITIAL: CreatePanelState = {
-		kind: 'form',
-		name: '',
-		nameTooLong: false,
-		acks: [false, false, false],
-		canSubmit: false,
-		busy: false
-	};
-	const LOGIN_INITIAL: LoginPanelState = { kind: 'waiting' };
-
-	/** Serialized flow copy from the layout load; frozen numbers filled here. */
-	const flowStrings: StringResolver = (key, params) => fillTemplate(data.flow[key] ?? key, params);
-
-	const sheetLabel = $derived(
-		openFlow === null
-			? ''
-			: flowStrings(
-					scaffoldTitleI18nKey(openFlow === 'create' ? CREATE_INITIAL : LOGIN_INITIAL, openFlow)
-				)
-	);
+	let loginView = $state<LoginView | null>(null);
+	let login: LoginSession | null = null;
+	let pending = $state<{ copy: PromptCopy; resolve: (accepted: boolean) => void } | null>(null);
 
 	/**
-	 * Host action sink (contract §2): every ActionId is a no-op in this
-	 * feature (FR-011 — the wiring feature routes them later), except the
-	 * dismissal semantics, which close the container.
+	 * The press has been accepted but the core is not up yet.
+	 *
+	 * `loginView.busy` cannot cover this window: the view does not exist until
+	 * the 3.4 MB wasm has been fetched and the machine constructed, so the
+	 * SLOWEST part of signing in was also the only part with no feedback at all
+	 * — and the guard below could not hold, which let a second press build a
+	 * second login session.
 	 */
-	function onFlowAction(id: ActionId) {
-		if (id === 'back' || id === 'cancel' || id === 'close' || id === 'not_now') closeFlow();
+	let starting = $state(false);
+
+	const signingIn = $derived(starting || (loginView?.busy ?? false));
+
+	/**
+	 * The registry is unreachable. Sign-in stays attemptable — the core decides
+	 * that, not this screen — so this only surfaces the warning.
+	 */
+	const endpointUnreachable = $derived(loginView?.endpoint_unreachable ?? false);
+
+	function prompt(kind: PromptKind): Promise<boolean> {
+		return new Promise((settle) => {
+			pending = { copy: promptCopy(kind, strings), resolve: settle };
+		});
 	}
 
-	function closeFlow() {
-		// Sheet presentation: play the exit animation, then unmount via onClose.
-		if (sheet) sheet.requestClose();
-		else openFlow = null;
+	async function complete(mode: CompletionMode): Promise<void> {
+		await session.boot();
+		session.accountEstablished(mode);
+		// Signing in ends where the wallet is, not back on the page that
+		// started it — the same landing all three native clients make.
+		await goto(walletHref, { replaceState: true });
 	}
+
+	/**
+	 * Sign-in loads the core on FIRST USE, never on mount: this page is
+	 * prerendered and must stay wasm-free until someone commits. The health
+	 * probe the core starts is part of that commitment.
+	 */
+	async function signIn() {
+		if (signingIn) return;
+		starting = true;
+		try {
+			if (!login) {
+				await loadOnboardingCore();
+				login = createLoginSession({
+					onView: (next) => (loginView = next),
+					deps: { prompt, complete }
+				});
+				login.start({ type: 'start' });
+			}
+			login.dispatch({ type: 'sign_in', method: 'platform' });
+		} finally {
+			// Handed over to `loginView.busy` — or released, if the core never
+			// came up, so the button can be pressed again.
+			starting = false;
+		}
+	}
+
+	onMount(() => () => {
+		login?.dispose();
+		login = null;
+	});
 </script>
 
 <svelte:head>
@@ -88,189 +127,203 @@
 </svelte:head>
 
 <main class="welcome">
-	<section class="content">
-		<header class="brand">
-			<BrandMark />
-			<h1 class="wordmark">Vela Wallet</h1>
-		</header>
+	<OnboardingRail
+		rail={{ kind: 'tagline', text: strings('onboarding.welcome.desktopTagline') }}
+	/>
 
-		<p class="tagline">{m.tagline}</p>
+	<div class="column">
+		<div class="top">
+			<!-- The rail carries the brand at desktop widths; below the breakpoint
+			     there is no rail, and it belongs here as it always did. -->
+			<header class="brand">
+				<BrandMark size={60} />
+				<span class="wordmark">VELA WALLET</span>
+			</header>
 
-		<!-- Desktop: 2×3 grid. Mobile: one-card carousel. Same content, one source. -->
-		<div class="grid">
-			{#each m.features as feature (feature.number)}
-				<FeatureCard {...feature} />
-			{/each}
+			<div class="hero">
+				<h1 class="headline" class:long={m.heroTitleFit === 'long'}>{m.heroTitle}</h1>
+				<p class="sub">{m.heroSubtitle}</p>
+			</div>
 		</div>
 
-		<div class="slides">
-			<Carousel items={m.features} label={m.tagline}>
-				{#snippet slide(feature: (typeof m.features)[number])}
-					<FeatureCard {...feature} />
-				{/snippet}
-			</Carousel>
+		<div class="actions">
+			<Button variant="primary" shape="rounded" disabled={signingIn} href={createHref}>
+				{m.createWallet}
+			</Button>
+			<Button variant="secondary" shape="rounded" loading={signingIn} onclick={signIn}>
+				{m.alreadyHaveWallet}
+			</Button>
 		</div>
-	</section>
 
-	<aside class="actions">
-		{#if openFlow !== null && desktop.current}
-			<div class="flowPanel">
-				{#if openFlow === 'create'}
-					<CreatePanel state={CREATE_INITIAL} strings={flowStrings} onAction={onFlowAction} />
-				{:else}
-					<LoginPanel state={LOGIN_INITIAL} strings={flowStrings} onAction={onFlowAction} />
-				{/if}
-			</div>
-		{:else}
-			<div class="stack">
-				<Button variant="primary" onclick={() => (openFlow = 'create')}>
-					{m.createWallet}
-				</Button>
-				<Button variant="secondary" onclick={() => (openFlow = 'login')}>
-					{m.alreadyHaveWallet}
-				</Button>
-			</div>
+		{#if endpointUnreachable}
+			<p class="endpointWarning" role="status">
+				{strings('onboarding.settings.warningText')}
+			</p>
 		{/if}
-	</aside>
+	</div>
 </main>
 
-{#if openFlow !== null && !desktop.current}
-	<Sheet bind:this={sheet} label={sheetLabel} onClose={() => (openFlow = null)}>
-		{#if openFlow === 'create'}
-			<CreatePanel
-				state={CREATE_INITIAL}
-				strings={flowStrings}
-				onAction={onFlowAction}
-				showHandle
-			/>
-		{:else}
-			<LoginPanel state={LOGIN_INITIAL} strings={flowStrings} onAction={onFlowAction} showHandle />
-		{/if}
-	</Sheet>
+{#if pending}
+	<PromptSheet
+		copy={pending.copy}
+		dismissLabel={strings('onboarding.common.back')}
+		onAnswer={(accepted) => {
+			pending?.resolve(accepted);
+			pending = null;
+		}}
+	/>
 {/if}
 
 <style>
-	/* ------------------------------------------------------------------ */
-	/* Mobile (< 1280px): centered brand, carousel, bottom-anchored CTAs. */
-	/* ------------------------------------------------------------------ */
-
 	.welcome {
 		display: flex;
-		flex-direction: column;
+		justify-content: center;
 		min-height: 100dvh;
-		padding: var(--space-3xl) var(--layout-screenPaddingX) var(--space-4xl);
-		gap: var(--space-3xl);
+		padding: var(--space-4xl) var(--layout-screenPaddingX) var(--space-5xl);
+		background: var(--color-bg-base);
 	}
 
-	.content {
+	/* The rail brings its own padding and has to reach both edges, so the page
+	   gives up its own once the rail is showing. */
+	@media (min-width: 1280px) {
+		.welcome {
+			justify-content: flex-start;
+			padding: 0;
+		}
+	}
+
+	/*
+	 * PHONE WIDTHS: `space-between`, so the brand and headline sit at the top
+	 * of the frame and the two ways in ride the bottom, within a thumb. That
+	 * only works if the column fills the height — centre it and space-between
+	 * has nothing to distribute, which is how the first pass ended up with the
+	 * buttons riding up under the subtitle.
+	 *
+	 * At desktop widths it is centred instead, beside the rail. Stretching this
+	 * rule to a desktop window is what opened the hole in the middle of the
+	 * page and made it read like a phone screen pulled tall.
+	 */
+	.column {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		justify-content: space-between;
+		gap: var(--space-5xl);
+		width: 100%;
+		max-width: var(--layout-flowColumn);
+	}
+
+	.top {
 		display: flex;
 		flex-direction: column;
-		flex: 1;
-		min-height: 0;
+		gap: var(--space-3xl);
 	}
 
 	.brand {
 		display: flex;
+		gap: var(--space-lg);
 		align-items: center;
-		justify-content: center;
-		gap: var(--space-xl);
-		margin-top: auto;
 	}
 
 	.wordmark {
-		margin: 0;
-		font-size: var(--text-4xl);
-		font-weight: var(--weight-bold);
 		color: var(--color-fg-base);
+		font-size: var(--text-xl);
+		font-weight: var(--weight-bold);
+		letter-spacing: 0.11em;
 	}
 
-	.tagline {
-		margin: var(--space-4xl) 0 auto;
-		text-align: center;
-		font-size: var(--text-2xl);
+	.hero {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
+
+	.headline {
+		margin: 0;
+		color: var(--color-fg-base);
+		font-size: var(--text-heroCompact);
+		font-weight: var(--weight-bold);
+		/* The design breaks the headline across two lines. The break lives in
+		   the corpus as a newline rather than as markup, so each locale picks
+		   its own — a Chinese line length is not a German one. */
+		white-space: pre-line;
+		line-height: var(--leading-tight);
+		letter-spacing: -0.02em;
+	}
+
+	/* A locale whose headline is too wide for its rung drops one step down the
+	   ladder — 46 → 38 → 31 — rather than wrapping into a third line the design
+	   has no room for. Which locales those are is not guessed here: the corpus
+	   carries `heroTitleFit` beside the string it describes. */
+	.headline.long {
+		font-size: var(--text-heroTight);
+	}
+
+	.sub {
+		margin: 0;
 		color: var(--color-fg-muted);
-	}
-
-	.grid {
-		display: none;
-	}
-
-	.slides {
-		margin-top: var(--space-4xl);
+		font-size: var(--text-lg);
+		line-height: var(--leading-normal);
 	}
 
 	.actions {
 		display: flex;
 		flex-direction: column;
-	}
-
-	.stack {
-		display: flex;
-		flex-direction: column;
 		gap: var(--space-lg);
-		width: 100%;
 	}
 
-	/* In-place swap target: same column, same width envelope as the stack. */
-	.flowPanel {
-		width: 100%;
-		max-width: var(--layout-frameW);
+	.endpointWarning {
+		margin: 0;
+		color: var(--color-warning-base);
+		font-size: var(--text-base);
+		line-height: var(--leading-normal);
 	}
 
-	/* ------------------------------------------------------------- */
-	/* Desktop (>= 1280px): content pane + raised action pane right. */
-	/* ------------------------------------------------------------- */
+	/* ------------------------------------------------------------------ */
+	/* Desktop: a rail on the left, and the two ways in side by side.      */
+	/* ------------------------------------------------------------------ */
 
 	@media (min-width: 1280px) {
-		.welcome {
-			flex-direction: row;
-			padding: 0;
-			gap: 0;
-		}
-
-		.content {
-			flex: 1 1 auto;
+		/* Beside the rail: left-aligned, vertically centred, and at its natural
+		   height. The mobile layout anchors the two ways in to the bottom of the
+		   viewport, which is right on a phone and opens a hole on a desktop. */
+		.column {
+			flex: 0 1 auto;
 			justify-content: center;
-			padding: var(--space-5xl);
+			gap: 0;
+			/* box-sizing is border-box globally, so the measure has to carry its own
+			   padding — 520 of text plus 72 a side. */
+			max-width: calc(
+				var(--layout-onboardingColumn) + var(--layout-onboardingFrameGutter) * 2
+			);
+			margin-inline: 0;
+			padding: var(--space-5xl) var(--layout-onboardingFrameGutter);
 		}
 
+		/* The rail has it. */
 		.brand {
-			justify-content: flex-start;
-			margin-top: 0;
-		}
-
-		.wordmark {
-			font-size: var(--text-5xl);
-		}
-
-		.tagline {
-			margin: var(--space-5xl) 0 var(--space-5xl);
-			text-align: start;
-			font-size: var(--text-4xl);
-		}
-
-		.grid {
-			display: grid;
-			grid-template-columns: repeat(3, 1fr);
-			gap: var(--space-2xl);
-			max-width: calc(var(--layout-maxContentWidth) + var(--space-5xl) * 4);
-		}
-
-		.slides {
 			display: none;
 		}
 
-		.actions {
-			flex: 0 0 38%;
-			align-items: center;
-			justify-content: center;
-			background: var(--color-bg-raised);
-			border-inline-start: var(--border-hairline) solid var(--color-border-base);
-			padding: var(--space-5xl);
+		.headline {
+			font-size: var(--text-hero);
 		}
 
-		.stack {
-			max-width: var(--layout-frameW);
+		.headline.long {
+			font-size: var(--text-heroCompact);
+		}
+
+		/* Side by side, each at ITS LABEL'S width. A desktop dialog sizes a
+		   button to what it says; a full-width button is a phone's answer to a
+		   thumb, and two of them stacked is what made this read as a phone. */
+		.actions {
+			flex-direction: row;
+			margin-block-start: var(--space-4xl);
+		}
+
+		.actions :global(.button) {
+			flex: 0 0 auto;
+			min-width: var(--layout-welcomeCtaMin);
 		}
 	}
 </style>

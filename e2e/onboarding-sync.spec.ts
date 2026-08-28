@@ -17,19 +17,60 @@
 import { test, expect, type Page } from '@playwright/test';
 
 /** Block every external host; the app bundle + routes are served from localhost. */
-async function blockExternal(page: Page) {
+/**
+ * Let the founding key be minted and confirmed, then kill the PUBLISH.
+ *
+ * "Block every external host" used to be enough, because the single-key flow's
+ * only network call was the upload. The interleaved multi-key flow calls
+ * `/api/challenge` once per key BEFORE the publish exists, so blocking
+ * everything now fails at membership confirmation — which lands on the key
+ * list with an unconfirmed row, not on the sync-failed screen this test is
+ * about. Challenge and health are therefore served; register and task are not.
+ */
+async function blockPublish(page: Page) {
   await page.route('**/*', (route) => {
-    const h = new URL(route.request().url()).hostname;
-    if (h === 'localhost' || h === '127.0.0.1') route.continue();
-    else route.abort();
+    const url = route.request().url();
+    const h = new URL(url).hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return route.continue();
+
+    if (url.includes('/api/health')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ service: 'webauthn-p256-publickey-registry', status: 'ok' }),
+      });
+    }
+    if (url.includes('/api/challenge')) {
+      const body = route.request().postDataJSON() as {
+        members?: { publicKey: string; attestation?: string }[];
+      };
+      const value = (seed: string) => ({
+        challenge: `0x${seed.padEnd(64, '0').slice(0, 64)}`,
+        challengeBase64url: Buffer.from(seed.padEnd(32, '0').slice(0, 32)).toString('base64url'),
+      });
+      const payload = body.members
+        ? {
+            contentHash: `0x${'c0'.repeat(32)}`,
+            groupChallenge: value('a1'),
+            members: body.members.map((m, i) => ({ ...value(`b${i}`), publicKey: m.publicKey })),
+          }
+        : value('b0');
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) });
+    }
+    // Everything the publish needs is dead — that is the scenario.
+    return route.abort();
   });
 }
 
+// Two gates now, not four (spec 019): self-custody, and legal assent. The
+// recovery line is still on the screen but is an assurance, not a checkbox —
+// so it deliberately does NOT appear here. Clicking it would be a no-op and
+// the Create button would stay disabled, which is exactly the failure this
+// list exists to make impossible.
 const ACK_FRAGMENTS = [
-  'This is a self-custodial wallet',
-  'If you lose your device',
-  'If your iCloud or Google account is compromised',
-  'I agree to the',
+  'My public key and wallet name are written',
+  "My private key stays in my device's password manager",
+  'I have read and agree to the',
 ];
 
 test.describe('Onboarding — wallet is NOT persisted until the key syncs (US 1.3)', () => {
@@ -46,20 +87,24 @@ test.describe('Onboarding — wallet is NOT persisted until the key syncs (US 1.
         hasUserVerification: true,
         isUserVerified: true,
         automaticPresenceSimulation: true,
+        // Backed up, so the sole founding key clears the second-key gate and
+        // this test stays about the publish rather than about that gate.
+        defaultBackupEligibility: true,
+        defaultBackupState: true,
       },
     });
 
-    // 2. Block the index server (and every other external host) → upload fails.
-    await blockExternal(page);
+    // 2. Serve the challenge, kill the publish → the group never lands.
+    await blockPublish(page);
 
     // 3. Land straight on the create form.
     await page.goto('/onboarding?mode=create');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toContainText('Create Wallet', { timeout: 40_000 });
 
-    // 4. Name + acknowledge all four checkboxes (the Create button is disabled
+    // 4. Name + acknowledge both checkboxes (the Create button is disabled
     //    until name is set and every box is checked).
-    await page.getByPlaceholder('Enter a name for your account').fill('E2E Sync Test');
+    await page.getByPlaceholder('Everyday wallet').fill('E2E Sync Test');
     // Click the checkbox itself, not the row's centre. The last row's text wraps
     // around inline "Privacy Policy" / "Terms of Service" links, and a
     // centre-of-box click can land on one of them — opening a tab instead of
@@ -74,6 +119,14 @@ test.describe('Onboarding — wallet is NOT persisted until the key syncs (US 1.
     //    (1s + 2s backoff) and fails. The header and the button share the label
     //    "Create Wallet", so target the button (last in DOM order).
     await page.getByText('Create Wallet', { exact: true }).last().click();
+    // The key list now opens EMPTY — the first key's method is the person's
+    // choice too (2026-08-26) — so the first passkey is minted from it.
+    await page.getByText('Add a passkey', { exact: true }).last().click();
+
+    // 5b. The founding-key list, then finish the set — the publish happens on
+    //     the far side of this step.
+    await expect(page.locator('body')).toContainText('Added', { timeout: 30_000 });
+    await page.getByText('Continue', { exact: true }).last().click();
 
     // 6. The sync-failed state must appear with retry + bug-report affordances.
     await expect(page.locator('body')).toContainText('Sync failed', { timeout: 30_000 });

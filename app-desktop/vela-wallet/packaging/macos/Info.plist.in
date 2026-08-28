@@ -23,5 +23,12 @@
     <key>LSMinimumSystemVersion</key>    <string>11.0</string>
     <key>LSApplicationCategoryType</key> <string>public.app-category.finance</string>
     <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+    <!-- caBLE / "sign in with your phone": the app scans for the phone's
+         Bluetooth proximity advert to find the relay tunnel it opened. macOS
+         refuses CoreBluetooth entirely to a process without this usage string —
+         a bare `cargo run` binary cannot scan at all, so the hybrid transport
+         MUST be exercised from the bundled .app. -->
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Vela scans for your phone's Bluetooth signal to sign in with a passkey on it.</string>
 </dict>
 </plist>

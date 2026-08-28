@@ -474,6 +474,7 @@ export function buildDesktopState(
 			header: {
 				name: IDENTITY.name,
 				addressDisplay: IDENTITY.addressDisplay,
+				addressFull: IDENTITY.addressFull,
 				identiconSvg: identicon(IDENTITY.addressFull)
 			},
 			nav: [

@@ -52,6 +52,43 @@ fn rasterize(svg: &str, size_px: u32) -> Result<Vec<u8>, CoreError> {
         .map_err(|e| CoreError::Internal(format!("identicon raster: png encode: {e}")))
 }
 
+/// **A passkey provider's mark, as PNG bytes.**
+///
+/// Same argument as the identicon below: SwiftUI, Compose and gpui have no SVG
+/// renderer, so the one renderer that already lives here draws the catalog's
+/// artwork for them, while the web takes the same markup as a data URI.
+///
+/// `Ok(None)` when the AAGUID is unknown or the provider ships no mark — the
+/// caller degrades to what it knew before it asked, which is never an error.
+pub fn passkey_provider_png(
+    aaguid: &str,
+    dark: bool,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    let Some(svg) = crate::passkey::provider(aaguid).and_then(|p| p.icon_svg(dark)) else {
+        return Ok(None);
+    };
+    rasterize(svg, size_px).map(Some)
+}
+
+/// **A fallback mark as PNG bytes** — the security-key artwork for a key the
+/// provider catalog cannot name. `Ok(None)` when the row deserves no mark of
+/// this kind (a platform authenticator), which the caller already draws.
+pub fn passkey_fallback_png(
+    authenticator_attachment: &str,
+    transports: &str,
+    chose_security_key: bool,
+    palette: crate::passkey::MarkPalette,
+    size_px: u32,
+) -> Result<Option<Vec<u8>>, CoreError> {
+    let Some(mark) =
+        crate::passkey::fallback_mark(authenticator_attachment, transports, chose_security_key)
+    else {
+        return Ok(None);
+    };
+    rasterize(&crate::passkey::fallback_svg(mark, palette), size_px).map(Some)
+}
+
 /// **The wallet's identicon, as PNG bytes.** Circular variant rendered at
 /// `size_px` × `size_px`. Same seed contract as
 /// [`crate::identicon::identicon_svg_circular`]: invalid seeds are rejected, and
@@ -77,6 +114,7 @@ pub fn rasterize_svg_png(svg: &str, size_px: u32) -> Result<Vec<u8>, CoreError> 
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
 
@@ -92,6 +130,50 @@ mod tests {
                 .map_or(0, u32::from_be_bytes)
         };
         (word(16), word(20))
+    }
+
+    #[test]
+    fn a_fallback_mark_renders_only_for_the_keys_that_have_one() {
+        let palette = crate::passkey::MarkPalette {
+            strong: "#6E6B62",
+            soft: "#D8D4CB",
+            hole: "#FAFAF8",
+        };
+        let png = passkey_fallback_png("cross-platform", "usb", false, palette, 40)
+            .expect("renders")
+            .expect("a usb key has a mark");
+        assert_eq!(png[..8], PNG_MAGIC);
+        assert_eq!(ihdr_dimensions(&png), (40, 40));
+
+        assert!(
+            passkey_fallback_png("platform", "internal", false, palette, 40)
+                .expect("renders")
+                .is_none(),
+            "a platform authenticator keeps the client's own glyph"
+        );
+    }
+
+    #[test]
+    fn a_provider_mark_renders_at_the_requested_size() {
+        // Windows Hello: four blue squares, published in both themes.
+        let png = passkey_provider_png("08987058-cadc-4b81-b6e1-30de50dcbe96", false, 48)
+            .expect("known provider rasterizes")
+            .expect("and ships a mark");
+        assert_eq!(png[..8], PNG_MAGIC);
+        assert_eq!(ihdr_dimensions(&png), (48, 48));
+    }
+
+    #[test]
+    fn an_unknown_aaguid_is_none_not_an_error() {
+        assert!(passkey_provider_png("", false, 48)
+            .expect("no error")
+            .is_none());
+        assert!(
+            passkey_provider_png("2fc0579f-8113-47ea-b116-bb5a8db9202a", true, 48)
+                .expect("no error")
+                .is_none(),
+            "hardware keys are not in this catalog"
+        );
     }
 
     #[test]

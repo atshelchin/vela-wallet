@@ -31,6 +31,7 @@ import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.theme.isDarkEffective
 import app.getvela.wallet.core.i18n.LocalVelaStrings
 import app.getvela.wallet.core.i18n.VelaStrings
+import app.getvela.wallet.feature.onboarding.core.SecurityKeyCeremony
 import app.getvela.wallet.feature.onboarding.gallery.GalleryScreen
 import app.getvela.wallet.navigation.VelaDestinations
 import app.getvela.wallet.navigation.VelaNavHost
@@ -41,6 +42,92 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * The security-key ceremony, built HERE because an activity-result launcher
+     * must be registered before the activity is STARTED — `attach()` runs from
+     * composition, which is already too late and throws.
+     */
+    lateinit var securityKeyCeremony: SecurityKeyCeremony
+        private set
+
+    /**
+     * Runtime Bluetooth permission for the caBLE scan/connect (spec 019). Like
+     * [securityKeyCeremony] it must be registered before STARTED, so it lives
+     * here and the onboarding flow calls [requestBluetoothPermission].
+     */
+    private lateinit var bluetoothPermissionLauncher:
+        androidx.activity.result.ActivityResultLauncher<Array<String>>
+    private var bluetoothPermissionAnswer:
+        kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+    private lateinit var bluetoothEnableLauncher:
+        androidx.activity.result.ActivityResultLauncher<android.content.Intent>
+    private var bluetoothEnableAnswer:
+        kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+    private lateinit var locationSettingsLauncher:
+        androidx.activity.result.ActivityResultLauncher<android.content.Intent>
+    private var locationSettingsAnswer:
+        kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /** The permissions the caBLE scan needs on this API level. */
+    private fun bluetoothPermissions(): Array<String> =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            arrayOf(
+                android.Manifest.permission.BLUETOOTH_SCAN,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+            )
+        } else {
+            arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+
+    /** Grant (or confirm) the Bluetooth permissions; `true` if all are held. */
+    suspend fun requestBluetoothPermission(): Boolean {
+        val needed = bluetoothPermissions().filter {
+            checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+        if (needed.isEmpty()) return true
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        bluetoothPermissionAnswer = answer
+        bluetoothPermissionLauncher.launch(needed.toTypedArray())
+        return answer.await()
+    }
+
+    /**
+     * Ask the SYSTEM to turn Bluetooth on (its own localized dialog), rather
+     * than dead-ending the scan method on a radio that is merely off. `true`
+     * once the adapter is on. Ordering matters on API 31+: the caller has
+     * already granted BLUETOOTH_CONNECT ([requestBluetoothPermission]), which
+     * ACTION_REQUEST_ENABLE requires.
+     *
+     * Device-found on a OnePlus 5T (2026-08-28): Bluetooth off surfaced as
+     * "this device does not support biometrics" — a NotSupported alert for a
+     * state the person can fix with one tap, and a sentence about the wrong
+     * subject entirely.
+     */
+    suspend fun requestEnableBluetooth(): Boolean {
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        bluetoothEnableAnswer = answer
+        bluetoothEnableLauncher.launch(
+            android.content.Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE),
+        )
+        return answer.await()
+    }
+
+    /**
+     * Take the person straight to the system Location page and return when they
+     * come back. AOSP has no in-place enable dialog for location (that is a
+     * Play-services SettingsClient exclusive, and GMS-less devices are exactly
+     * where the API ≤30 scan gate bites), so the deepest link available IS the
+     * settings page — the caller re-checks the toggle on return.
+     */
+    suspend fun openLocationSettings() {
+        val answer = kotlinx.coroutines.CompletableDeferred<Unit>()
+        locationSettingsAnswer = answer
+        locationSettingsLauncher.launch(
+            android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS),
+        )
+        answer.await()
+    }
 
     /**
      * Deterministic disable for instrumented tests (FR-029).
@@ -87,6 +174,25 @@ class MainActivity : ComponentActivity() {
         // The gallery skips the launch animation for deterministic walkthroughs.
         val coldStart = savedInstanceState == null && !launchAnimationDisabled() && !galleryRequested()
         super.onCreate(savedInstanceState)
+        securityKeyCeremony = SecurityKeyCeremony(this)
+        bluetoothPermissionLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+        ) { grants ->
+            bluetoothPermissionAnswer?.complete(grants.values.all { it })
+            bluetoothPermissionAnswer = null
+        }
+        bluetoothEnableLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            bluetoothEnableAnswer?.complete(result.resultCode == RESULT_OK)
+            bluetoothEnableAnswer = null
+        }
+        locationSettingsLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+        ) {
+            locationSettingsAnswer?.complete(Unit)
+            locationSettingsAnswer = null
+        }
         enableEdgeToEdge()
 
         val container = (application as VelaWalletApplication).container

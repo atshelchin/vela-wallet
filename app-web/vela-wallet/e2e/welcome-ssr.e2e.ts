@@ -34,7 +34,9 @@ interface WelcomeCorpus {
 	createWallet: string;
 	alreadyHaveWallet: string;
 	metaTitle: string;
-	featureTitles: string[];
+	heroTitle: string;
+	heroTitleFit: string;
+	heroSubtitle: string;
 }
 
 function corpus(locale: string): WelcomeCorpus {
@@ -47,9 +49,9 @@ function corpus(locale: string): WelcomeCorpus {
 		createWallet: onboarding.welcome.createWallet,
 		alreadyHaveWallet: onboarding.welcome.alreadyHaveWallet,
 		metaTitle: onboarding.welcomeWeb.meta.title,
-		featureTitles: Object.values(
-			onboarding.welcomeWeb.features as Record<string, { title: string }>
-		).map((f) => f.title)
+		heroTitle: onboarding.welcome.heroTitle as string,
+		heroTitleFit: onboarding.welcome.heroTitleFit as string,
+		heroSubtitle: onboarding.welcome.heroSubtitle as string
 	};
 }
 
@@ -63,19 +65,74 @@ for (const locale of LOCALES) {
 		const html = await response.text();
 		const expected = corpus(locale);
 		expect(html).toContain(`<html lang="${locale}" dir="ltr"`);
-		expect(html).toContain(escapeHtml(expected.tagline));
+		// The v2 Welcome (spec 019): brand, headline, two ways in. The tagline
+		// survives only in the meta description now, so the headline is what
+		// proves the page itself is localized.
+		expect(html).toContain(escapeHtml(expected.heroTitle));
+		expect(html).toContain(escapeHtml(expected.heroSubtitle));
 		expect(html).toContain(escapeHtml(expected.createWallet));
 		expect(html).toContain(escapeHtml(expected.alreadyHaveWallet));
 		expect(html).toContain(`<title>${escapeHtml(expected.metaTitle)}</title>`);
-		for (const title of expected.featureTitles) {
-			expect(html).toContain(escapeHtml(title));
-		}
 		// 15 locale alternates + x-default
 		expect(html.match(/hreflang=/g)).toHaveLength(16);
 		expect(html).toContain('hreflang="x-default"');
 		expect(html).toContain('rel="canonical"');
 	});
 }
+
+/**
+ * The headline fits the frame it was written for — in every locale.
+ *
+ * The copy authors its own line break, and `heroTitleFit` authors which rung of
+ * the type ladder (46/38/31) that break is meant to survive at. Both are corpus
+ * values, so both can drift the moment someone edits a translation: a line two
+ * words longer wraps into a third line the design has no room for, and nothing
+ * else in the suite would notice. This measures the rendered box instead of
+ * trusting the declaration — at 390×844, the design's own frame.
+ *
+ * 390 is the CONTRACT, not the floor (founder direction 2026-08-26). A 375pt
+ * iPhone SE or a 360dp Android has ~15pt less column than the widest headline
+ * needs, and those frames are allowed to wrap into a third line: the fix would
+ * be a SECOND shrink mechanism — by viewport, layered under this one by locale
+ * — and two mechanisms competing over one headline is worse than a tolerated
+ * wrap on the narrow tail. So this suite pins one width on purpose. Do not
+ * "fix" a narrow-device wrap by dropping a locale a rung: that shrinks it on
+ * every phone to serve the smallest.
+ */
+test.describe('the hero headline holds its authored line count', () => {
+	for (const locale of LOCALES) {
+		test(`/${locale} at 390×844`, async ({ page }) => {
+			await page.setViewportSize({ width: 390, height: 844 });
+			await page.goto(`/${locale}`);
+			const expected = corpus(locale);
+			const authoredLines = expected.heroTitle.split('\n').length;
+
+			const measured = await page.evaluate(async () => {
+				const h1 = document.querySelector('.headline');
+				if (!h1) throw new Error('no .headline on the page');
+				await document.fonts.ready;
+				const range = document.createRange();
+				range.selectNodeContents(h1);
+				// One client rect per rendered line box; sub-pixel tops of the
+				// same line collapse on rounding.
+				const tops = new Set(
+					[...range.getClientRects()]
+						.filter((r) => r.width > 0.5)
+						.map((r) => Math.round(r.top))
+				);
+				return { lines: tops.size, fontSize: getComputedStyle(h1).fontSize, long: h1.classList.contains('long') };
+			});
+
+			expect(measured.long, `${locale} class matches its corpus fit`).toBe(
+				expected.heroTitleFit === 'long'
+			);
+			expect(
+				measured.lines,
+				`${locale} headline wrapped past its ${authoredLines} authored lines at ${measured.fontSize} — shorten the copy or drop it a rung (heroTitleFit)`
+			).toBe(authoredLines);
+		});
+	}
+});
 
 test('/ negotiates Accept-Language into a 307 with Vary', async ({ request }) => {
 	const response = await request.get('/', {
@@ -129,25 +186,29 @@ test('unknown locale segment is a 404', async ({ request }) => {
 test.describe('with JavaScript disabled', () => {
 	test.use({ javaScriptEnabled: false });
 
-	test('all six features and both CTAs are still readable', async ({ page }) => {
+	test('the headline and both CTAs are still readable', async ({ page }) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto('/zh');
 		const expected = corpus('zh');
-		for (const title of expected.featureTitles) {
-			// titles exist twice by design: desktop grid + mobile carousel
-			await expect(page.getByText(title).first()).toBeAttached();
-		}
+		await expect(page.getByText(expected.heroTitle)).toBeVisible();
 		await expect(page.getByText(expected.createWallet)).toBeVisible();
 		await expect(page.getByText(expected.alreadyHaveWallet)).toBeVisible();
 	});
 });
 
-test('the DEPLOY bundle contains no wasm (engine is build-time only)', () => {
+test('the DEPLOY bundle contains no wasm (the i18n engine is build-time only)', () => {
 	/* .svelte-kit/cloudflare/_worker.js is only a ~4KB adapter shim — grepping
 	   it proves nothing. `wrangler deploy --dry-run` produces the bundle that
 	   actually ships (hooks + the / endpoint + everything manifest-reachable);
 	   if anything ever imports engine.server.ts from runtime code, the wasm
-	   base64 lands HERE and this test goes red. */
+	   base64 lands HERE and this test goes red.
+
+	   Spec 019 added a SECOND wasm path — the onboarding state machines, which
+	   run in the browser because that is where the passkey ceremony happens.
+	   That does not weaken this test: the machines are fetched by the client
+	   from a static asset, and a Worker still cannot compile wasm from bytes.
+	   The client-side half of the promise (Welcome itself fetches nothing) is
+	   the test below. */
 	test.setTimeout(120_000);
 	const outdir = mkdtempSync(join(tmpdir(), 'vela-worker-dry-run-'));
 	execSync(`pnpm exec wrangler deploy --dry-run --outdir ${JSON.stringify(outdir)}`, {
@@ -160,4 +221,20 @@ test('the DEPLOY bundle contains no wasm (engine is build-time only)', () => {
 		const bundle = readFileSync(join(outdir, name), 'utf8');
 		expect(bundle.includes('WASM_BASE64'), name).toBe(false);
 	}
+});
+
+test('the Welcome page loads no wasm until someone commits to a flow', async ({ page }) => {
+	/* The onboarding core is 3.4 MB and carries all 25 state machines — wasm is
+	   not tree-shaken, so it arrives whole or not at all. The whole reason the
+	   flow lives behind a route is that this page, which is also the site's
+	   landing page in 15 locales, must not pay for it. */
+	const wasmRequests: string[] = [];
+	page.on('request', (request) => {
+		if (request.url().endsWith('.wasm')) wasmRequests.push(request.url());
+	});
+
+	await page.goto('/zh');
+	await page.waitForLoadState('networkidle');
+
+	expect(wasmRequests, 'Welcome must not fetch the onboarding core').toEqual([]);
 });

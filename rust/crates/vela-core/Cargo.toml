@@ -24,17 +24,36 @@ crate-type = ["lib"]
 [features]
 default = []
 
-# Portable onboarding state machines (spec 011-crux-onboarding-state).
+# Portable state machines (spec 011-crux-onboarding-state, 016/017, 019).
 #
-# DEFAULT OFF, and that is the whole point: with the feature off `crux_core` is
-# not in the dependency graph at all, so `vela-core-uniffi` — and therefore the
-# iOS static library and the Android .so — cannot change. Only
-# `vela-core-wasm` turns it on, because web is the only runtime that can execute
-# it (Hermes has no WebAssembly).
+# DEFAULT OFF so a consumer that does not run a machine does not pay for one —
+# `crux_core`, `futures` and their trees stay out of its dependency graph
+# entirely.
 #
-# Verify, do not assume:
+# The rule this replaces (spec 019-onboarding-live-wiring, research D2). Until
+# 019 this feature carried a hard invariant:
+#
 #   cargo tree -p vela-core-uniffi | grep -c crux   # must be 0
-#   cargo tree -p vela-core-wasm   | grep -c crux   # must be > 0
+#
+# with the reason "web is the only runtime that can execute it (Hermes has no
+# WebAssembly)". That was true of the RUNTIME it was written about: the Expo
+# React Native client, whose JavaScript engine cannot load wasm and therefore
+# could not have run the machines at all. It stopped describing reality when
+# `app-ios` and `app-android` became native Swift and Kotlin — they have no
+# Hermes, no wasm, and reach Rust only through uniffi. Holding the old rule
+# would not have kept anything safe; it would have forced the two native
+# clients to re-implement the onboarding rules by hand, which is precisely the
+# duplication this crate exists to prevent.
+#
+# What replaced it is a MEASUREMENT, not a prohibition. `crux` is on for
+# `vela-core-uniffi`, and the price is recorded rather than assumed:
+# +785,864 bytes stripped on arm64-v8a (2,369,528 → 3,155,392), the figure in
+# specs/019-onboarding-live-wiring/results.md T098. That number is the gate — a
+# future change that moves it materially is a decision to take again, not a
+# diff to wave through.
+#
+# Still true, and still worth verifying:
+#   cargo tree -p vela-core-wasm | grep -c crux     # must be > 0
 crux = ["dep:crux_core"]
 
 # PNG rasterization of the circular identicon (spec 015-wallet-home-ui,
@@ -74,9 +93,18 @@ alloy-primitives = { workspace = true }
 alloy-dyn-abi = { workspace = true }
 alloy-json-abi = { workspace = true }
 sha2 = { workspace = true }
-p256 = { workspace = true }
+# `ecdh` for the CTAP2 PIN/UV key agreement in `ctap::ceremony` — the ephemeral
+# scalar's randomness still comes from the shell, through the `Host` seam.
+p256 = { workspace = true, features = ["ecdh"] }
 ecdsa = { workspace = true }
 ciborium = { workspace = true }
+# CTAP2 PIN/UV auth protocols One and Two — the only place this crate encrypts
+# anything. Everything else it does is hashing, parsing and assembly.
+hkdf = { workspace = true }
+hmac = { workspace = true }
+aes = { workspace = true }
+aes-gcm = { workspace = true }
+cbc = { workspace = true }
 ciborium-io = { workspace = true }
 coset = { workspace = true }
 base64 = { workspace = true }
@@ -96,6 +124,11 @@ required-features = ["bindings"]
 [[bin]]
 name = "generate_wallet_state_bindings"
 path = "src/bin/generate_wallet_state_bindings.rs"
+required-features = ["bindings"]
+
+[[bin]]
+name = "generate_session_bindings"
+path = "src/bin/generate_session_bindings.rs"
 required-features = ["bindings"]
 
 [dev-dependencies]

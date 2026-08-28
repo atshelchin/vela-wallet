@@ -31,11 +31,60 @@ struct TypeRole {
     var font: Font { .custom(fontName, size: size, relativeTo: relativeTo) }
     /// Extra spacing SwiftUI needs to reach the token line height.
     var lineSpacing: CGFloat { size * (leading - 1) }
+
+    /// The same role as a `UIFont`, Dynamic-Type scaled like the SwiftUI one.
+    /// For the single TextKit-drawn view in the app (`AckRow`'s legal line).
+    var uiFont: UIFont {
+        let base = UIFont(name: fontName, size: size) ?? .systemFont(ofSize: size)
+        return UIFontMetrics(forTextStyle: relativeTo.uiStyle).scaledFont(for: base)
+    }
+}
+
+private extension Font.TextStyle {
+    var uiStyle: UIFont.TextStyle {
+        switch self {
+        case .largeTitle: .largeTitle
+        case .title: .title1
+        case .title2: .title2
+        case .title3: .title3
+        case .headline: .headline
+        case .subheadline: .subheadline
+        case .callout: .callout
+        case .footnote: .footnote
+        case .caption: .caption1
+        case .caption2: .caption2
+        default: .body
+        }
+    }
 }
 
 enum Typography {
     /// Wordmark / hero display — text.t32, bold, single-line.
     static let display = TypeRole(fontName: FontName.bold, size: Tokens.TextSize.t32, relativeTo: .largeTitle, leading: Tokens.Leading.none)
+    /// The v2 Welcome headline (spec 019). Sized by `WelcomeGeometry`, which
+    /// is where the design's 46/38 pair lives — the DTCG scale stops at 40.
+    static let hero = TypeRole(
+        fontName: FontName.bold,
+        size: WelcomeGeometry.heroSize,
+        relativeTo: .largeTitle,
+        leading: WelcomeGeometry.heroLeading
+    )
+    /// The same headline for a locale that needs the next rung down; picked by
+    /// `HeroFit`, never by the view.
+    static let heroLong = TypeRole(
+        fontName: FontName.bold,
+        size: WelcomeGeometry.heroSizeLong,
+        relativeTo: .largeTitle,
+        leading: WelcomeGeometry.heroLeading
+    )
+    /// The v2 wordmark beside the mark: small, heavy, widely tracked — a label,
+    /// not a title. The tracking itself is applied at the call site.
+    static let wordmark = TypeRole(
+        fontName: FontName.bold,
+        size: WelcomeGeometry.wordmarkSize,
+        relativeTo: .body,
+        leading: Tokens.Leading.none
+    )
     /// Screen tagline — text.t17, regular.
     static let tagline = TypeRole(fontName: FontName.regular, size: Tokens.TextSize.t17, relativeTo: .body, leading: Tokens.Leading.normal)
     /// Card / section title — text.t20, semibold.

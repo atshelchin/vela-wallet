@@ -2,7 +2,9 @@
 //  WelcomeModelTests.swift
 //  VelaWalletTests
 //
-//  Carousel state: clamped, no wrap (US2); single intent sink (FR-010).
+//  Single intent sink (FR-010). The carousel-clamp tests went with the
+//  carousel: the v2 welcome is a headline and two buttons (spec 019), and
+//  there is no page position left to bound.
 //
 
 import Testing
@@ -13,8 +15,9 @@ struct WelcomeModelTests {
     private func makeModel(onIntent: @escaping (OnboardingIntent) -> Void = { _ in }) -> WelcomeModel {
         WelcomeModel(
             content: WelcomeContent(
-                tagline: "t",
-                cards: (0..<6).map { FeatureCardContent(id: $0, title: "T\($0)", body: "B\($0)") },
+                heroTitle: "hero",
+                heroTitleFit: .regular,
+                heroSubtitle: "sub",
                 createWallet: "create",
                 alreadyHaveWallet: "import"
             ),
@@ -22,38 +25,11 @@ struct WelcomeModelTests {
         )
     }
 
-    @Test func pageClampsLow() {
-        let model = makeModel()
-        model.currentPage = -1
-        #expect(model.currentPage == 0)
-    }
-
-    @Test func pageClampsHigh() {
-        let model = makeModel()
-        model.currentPage = 99
-        #expect(model.currentPage == 5)
-    }
-
-    @Test func pageAcceptsValidRangeNoWrap() {
-        let model = makeModel()
-        for page in 0...5 {
-            model.currentPage = page
-            #expect(model.currentPage == page)
-        }
-        model.currentPage = 6 // one past the end must clamp, not wrap to 0
-        #expect(model.currentPage == 5)
-    }
-
     @Test func intentSinkForwardsBothIntents() {
         var received: [OnboardingIntent] = []
         let model = makeModel { received.append($0) }
         model.send(.createWallet)
-        model.send(.importWallet)
-        #expect(received == [.createWallet, .importWallet])
-    }
-
-    @Test func numeralsAreGeneratedTwoDigit() {
-        let model = makeModel()
-        #expect(model.content.cards.map(\.numeral) == ["01", "02", "03", "04", "05", "06"])
+        model.send(.openSignIn)
+        #expect(received == [.createWallet, .openSignIn])
     }
 }

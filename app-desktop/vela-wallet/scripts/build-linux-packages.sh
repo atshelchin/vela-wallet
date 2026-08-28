@@ -111,6 +111,12 @@ mkdir -p "$dist_dir"
 install -Dm755 "$release_binary" "$stage/usr/bin/$binary_name"
 install -Dm644 "$packaging_dir/$appid.desktop" "$stage/usr/share/applications/$appid.desktop"
 install -Dm644 "$packaging_dir/$appid.metainfo.xml" "$stage/usr/share/metainfo/$appid.metainfo.xml"
+# The FIDO udev rule. Without it a security key enumerates and every attempt to
+# OPEN it fails with EACCES, which the app reports as "your security key can't
+# be opened" — accurate, but a package that ships the wallet should ship the
+# rule that lets it reach the hardware it needs.
+install -Dm644 "$packaging_dir/70-vela-fido.rules" \
+  "$stage/usr/lib/udev/rules.d/70-vela-fido.rules"
 for size in "${icon_sizes[@]}"; do
   install -Dm644 "$packaging_dir/icons/${size}x${size}/$appid.png" \
     "$stage/usr/share/icons/hicolor/${size}x${size}/apps/$appid.png"

@@ -73,11 +73,13 @@ fn multi(id: &str, name: &str, address: &str) -> Account {
                 credential_id: id.to_owned(),
                 public_key_hex: support::expected_public_key_hex(),
                 name: name.to_owned(),
+                transports: "internal".to_owned(),
             },
             AccountKey {
                 credential_id: format!("{id}-second"),
                 public_key_hex: SECOND_KEY_HEX.to_owned(),
                 name: "Key 2".to_owned(),
+                transports: "usb,nfc".to_owned(),
             },
         ],
         ..support::account(id, name, address)

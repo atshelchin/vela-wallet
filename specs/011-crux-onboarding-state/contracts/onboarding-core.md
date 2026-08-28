@@ -1,5 +1,24 @@
 # Contract: Onboarding Core ↔ Web Shell
 
+> **SUPERSEDED (2026-08-25) by
+> [`specs/019-onboarding-live-wiring/contracts/shell-operations.md`](../../019-onboarding-live-wiring/contracts/shell-operations.md).**
+>
+> What had drifted, in the words this file still uses below: it names
+> `index_create_record` / `index_query_record` / `wallet_ref` and a four-variant
+> `CreateStage` of `form|working|sync_failed|created`. The shipped Rust has
+> `registry_publish` / `registry_query_by_public_key` / `registry_query_unit` /
+> `generate_group_key` / `sign_member_proof` / `lookup_legacy_name`, and
+> `CreateStage = Form | AddKeys | SyncFailed | Created`. The operation count went
+> from eleven to eighteen when multi-key creation landed.
+>
+> Its title is also no longer true: "↔ Web Shell" was accurate when web was the
+> only runtime that could execute the machines. Four clients run them now, and
+> the 019 contract is written for all four.
+>
+> Kept because the reasoning below — why the core declares effects instead of
+> performing them, and why the bridge treats a late answer as expected — is the
+> reasoning 019 inherited rather than replaced.
+
 **Feature**: 011-crux-onboarding-state | **Date**: 2026-08-05
 
 This is the authoritative wire surface. The TypeScript types under

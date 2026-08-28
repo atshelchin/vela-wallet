@@ -1,0 +1,28 @@
+# FIDO2 security keys, readable by the logged-in user.
+#
+# Vela Wallet talks to security keys itself — the desktop has no system passkey
+# service to hand the ceremony to — which means it opens /dev/hidraw* directly.
+# Without a rule like this one, that open fails with EACCES: the key enumerates,
+# and every attempt to use it dies at the door.
+#
+# systemd (udev) v252 and later already does this, tagging any HID device that
+# declares the FIDO usage page. This file is for everything older, and it is a
+# no-op alongside the systemd rule — `uaccess` applied twice is applied once.
+#
+# The match is on the USAGE PAGE, not on a list of vendor ids. Vendor-id rules
+# (the older `libu2f-udev` approach) go stale the moment somebody buys a key
+# from a manufacturer the list predates, and the failure then looks like a
+# broken key rather than a missing rule.
+#
+# `uaccess` hands the device to whoever is physically logged in, which is the
+# right scope for a thing you touch with a finger — not a group anyone can be
+# added to, and not 0666.
+ACTION!="add|change", GOTO="vela_fido_end"
+SUBSYSTEM=="hidraw", ATTRS{bInterfaceClass}=="03", \
+  ENV{ID_USB_INTERFACES}=="*:0300*:*", TAG+="uaccess"
+# hidraw nodes do not always carry the interface attributes above (a key on an
+# internal hub, a kernel without them). The FIDO usage page appears in the
+# report descriptor, which udev exposes for HID devices as this property.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="?*", \
+  ENV{ID_FIDO_TOKEN}=="1", TAG+="uaccess"
+LABEL="vela_fido_end"

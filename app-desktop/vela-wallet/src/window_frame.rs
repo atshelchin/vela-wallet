@@ -18,10 +18,10 @@
 use crate::theme::Theme;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
-    Bounds, BoxShadow, CursorStyle, Decorations, Div, Global, HitboxBehavior, Hsla,
+    App, Bounds, BoxShadow, CursorStyle, Decorations, Div, Global, HitboxBehavior, Hsla,
     InteractiveElement as _, IntoElement, MouseButton, ParentElement as _, Pixels, Point,
-    ResizeEdge, Size, Stateful, Styled, Tiling, Window, canvas, div, point, px,
-    transparent_black,
+    ResizeEdge, Size, Stateful, StatefulInteractiveElement as _, Styled, Tiling, Window,
+    WindowControlArea, canvas, div, point, px, transparent_black,
 };
 
 /// Shadow reach outside the visible window. It is also the resize grab band —
@@ -65,6 +65,158 @@ pub fn round_to_frame<E: Styled>(mut el: E, tiling: Tiling) -> E {
     el
 }
 
+/// True when the page has to draw its own caption row, because nothing else
+/// will: Linux client decorations, and Windows — where `appears_transparent`
+/// on `TitlebarOptions` maps to gpui_windows' `hide_title_bar`, taking the
+/// system caption (and with it drag, minimize, maximize and close) away.
+/// macOS keeps its transparent titlebar and traffic lights, so it stays false.
+pub fn owns_titlebar(window: &Window) -> bool {
+    frame_tiling(window).is_some() || cfg!(target_os = "windows")
+}
+
+/// Height of the caption buttons, and the shortest a drag strip may be — the
+/// buttons live inside the strip, and a strip shorter than its buttons would
+/// leave them overhanging content they then swallow clicks from.
+pub const CAPTION_H: f32 = 34.;
+
+/// Left button down inside a drag area, no movement yet. A `Global` rather
+/// than view state so the drag strip is a free function any page can drop in
+/// (same device as `LastResizeEdge` below).
+struct DragPending(bool);
+impl Global for DragPending {}
+
+/// Window-drag behaviour for an element: press-then-move hands the window to
+/// the compositor, double-click zooms, right-click opens the system menu.
+///
+/// The press-then-move flag is what keeps double-click alive — starting the
+/// move on mouse *down* would hand the pointer grab over before the second
+/// click could arrive.
+pub fn draggable(el: Stateful<Div>) -> Stateful<Div> {
+    el.window_control_area(WindowControlArea::Drag)
+        .on_mouse_down(MouseButton::Left, |_, _, cx: &mut App| {
+            cx.set_global(DragPending(true))
+        })
+        .on_mouse_up(MouseButton::Left, |_, _, cx: &mut App| {
+            cx.set_global(DragPending(false))
+        })
+        .on_mouse_down_out(|_, _, cx: &mut App| cx.set_global(DragPending(false)))
+        .on_mouse_move(|_, window, cx: &mut App| {
+            if cx.try_global::<DragPending>().is_some_and(|g| g.0) {
+                cx.set_global(DragPending(false));
+                window.start_window_move();
+            }
+        })
+        .on_click(|event, window, _| {
+            if event.click_count() == 2 {
+                window.zoom_window();
+            }
+        })
+        .on_mouse_down(MouseButton::Right, |event, window, _| {
+            window.show_window_menu(event.position);
+        })
+}
+
+/// The band across the top of the page that behaves like a titlebar.
+///
+/// It spans the full width, so a page must keep the top `height` pixels clear
+/// of anything clickable: on Windows this region hit-tests as `HTCAPTION`, and
+/// the OS then routes its mouse input to the non-client path, where the page
+/// never sees it. Content *underneath* an interactive element does not help —
+/// gpui's hit test collects every hitbox under the cursor, so the drag area is
+/// found whether it is above or below.
+fn drag_strip(height: Pixels) -> Stateful<Div> {
+    draggable(
+        div()
+            .id("drag-strip")
+            .absolute()
+            .top_0()
+            .left_0()
+            .w_full()
+            .h(height),
+    )
+}
+
+/// Minimize / maximize / close, in the Windows order and at the Windows size.
+fn window_controls(theme: &Theme, window: &Window) -> Stateful<Div> {
+    let control = |id: &'static str, icon: &'static str, area: WindowControlArea| {
+        div()
+            .id(id)
+            .w(px(46.))
+            .h(px(CAPTION_H))
+            .flex_none()
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .text_size(px(18.))
+            .text_color(theme.fg_base)
+            // Load-bearing, not cosmetic: the drag strip underneath is also a
+            // window-control area, and gpui resolves the OS hit test to the
+            // FIRST such area painted, which is the strip. `occlude` stops the
+            // hit test at this button, so a click on it is a click on it —
+            // without this the buttons drag the window instead. Same reason
+            // Zed's `WindowsCaptionButton` occludes.
+            .occlude()
+            .window_control_area(area)
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(icon)
+    };
+
+    let minimize = control("window-minimize", "−", WindowControlArea::Min)
+        .hover(|el| el.bg(theme.bg_sunken))
+        .active(|el| el.bg(theme.border_card))
+        .on_click(|_, window, cx| {
+            cx.stop_propagation();
+            window.minimize_window();
+        });
+    let maximize_icon = if window.is_maximized() { "❐" } else { "□" };
+    let maximize = control("window-maximize", maximize_icon, WindowControlArea::Max)
+        .hover(|el| el.bg(theme.bg_sunken))
+        .active(|el| el.bg(theme.border_card))
+        .on_click(|_, window, cx| {
+            cx.stop_propagation();
+            window.zoom_window();
+        });
+    let close = control("window-close", "×", WindowControlArea::Close)
+        .text_size(px(22.))
+        .hover(|el| el.bg(theme.accent).text_color(theme.fg_inverse))
+        .active(|el| el.bg(theme.accent_active).text_color(theme.fg_inverse))
+        .on_click(|_, window, cx| {
+            cx.stop_propagation();
+            window.remove_window();
+        });
+
+    div()
+        .id("window-controls")
+        .absolute()
+        .top_0()
+        .right_0()
+        .w(px(138.))
+        .h(px(CAPTION_H))
+        .flex()
+        .flex_row()
+        .children([minimize, maximize, close])
+}
+
+/// The whole caption row: drag strip plus buttons. Add it as the LAST child of
+/// the page root, so the buttons paint over the page rather than under it.
+///
+/// `height` is the drag strip's; the buttons are always `CAPTION_H`. A page
+/// with an empty top region can afford a tall strip (onboarding uses 96) and
+/// gets a generous grab area for it; a page with content up there passes
+/// something close to `CAPTION_H`.
+pub fn titlebar(theme: &Theme, window: &Window, height: Pixels) -> Stateful<Div> {
+    div()
+        .id("custom-titlebar")
+        .absolute()
+        .top_0()
+        .left_0()
+        .w_full()
+        .h(height.max(px(CAPTION_H)))
+        .child(drag_strip(height))
+        .child(window_controls(theme, window))
+}
+
 /// The resize edge the cursor was over on the previous frame. A change means
 /// the cursor style is stale, so the frame repaints (Zed's `GlobalResizeEdge`
 /// device, minus the workspace entity it notifies).
@@ -74,7 +226,11 @@ impl Global for LastResizeEdge {}
 /// Wraps the page in the window chrome. Under server decorations this is a
 /// transparent passthrough; under client decorations it owns the shadow, the
 /// border, the rounding and every resize interaction.
-pub fn window_frame(content: impl IntoElement, theme: &Theme, window: &mut Window) -> Stateful<Div> {
+pub fn window_frame(
+    content: impl IntoElement,
+    theme: &Theme,
+    window: &mut Window,
+) -> Stateful<Div> {
     let decorations = window.window_decorations();
 
     // The compositor must know how much of the surface is shadow, so input

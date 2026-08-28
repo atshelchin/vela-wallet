@@ -18,6 +18,14 @@ pub mod abi;
 /// state-machine framework. See `specs/011-crux-onboarding-state/`.
 #[cfg(feature = "crux")]
 pub mod app;
+/// The hybrid / caBLE v2 initiator, sans-IO: QR payload, key derivations, BLE
+/// advert decrypt, tunnel-server domain decode. The radio and the socket
+/// belong to a platform shell. See `specs/019-onboarding-live-wiring/`.
+pub mod cable;
+/// A CTAP2 client with no I/O in it: framing, commands, COSE, PIN/UV. The
+/// transport belongs to a platform shell; what is identical on every one of
+/// them lives here. See `specs/019-onboarding-live-wiring/research.md` D4.
+pub mod ctap;
 pub mod eip712;
 pub mod error;
 pub mod i18n;
@@ -27,6 +35,8 @@ mod identicon_features;
 #[cfg(feature = "identicon-raster")]
 pub mod identicon_raster;
 pub mod l10n;
+pub mod passkey;
+mod passkey_catalog;
 pub mod primitives;
 pub mod registry_metadata;
 pub mod registry_proof;
@@ -46,5 +56,7 @@ pub use identicon::{
     normalize_seed, Colors, IdenticonHash, IdenticonParams, Section, Sections,
 };
 #[cfg(feature = "identicon-raster")]
-pub use identicon_raster::{identicon_placeholder_png, identicon_png, rasterize_svg_png};
+pub use identicon_raster::{
+    identicon_placeholder_png, identicon_png, passkey_provider_png, rasterize_svg_png,
+};
 pub use types::{ClientDataKind, P256PublicKey, SafeAddressInfo, WebAuthnAssertion};

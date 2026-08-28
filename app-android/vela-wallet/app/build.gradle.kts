@@ -17,7 +17,11 @@ android {
 
     defaultConfig {
         applicationId = "app.getvela.wallet"
-        minSdk = 31
+        // 29 (Android 10) is the lowest level we can regression-test on real
+        // hardware; every library floor is ≤23 and passkeys need only 28+, but
+        // shipping below what we can reproduce bugs on is a support trap.
+        // Keep rust/scripts/build-android.sh --platform in sync.
+        minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -44,6 +48,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // `BuildConfig.DEBUG` is the whole gate on the on-device diagnostic log
+        // (spec 019): a release build carries the calls and does nothing.
+        buildConfig = true
     }
 
     sourceSets {
@@ -173,6 +180,13 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.play.services.fido)
+    // The caBLE WebSocket tunnel — the CTAP 2.2 channel of "sign in with your
+    // phone". The BLE-only CTAP 2.3 channel needs no HTTP library at all.
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.lifecycle.runtime.ktx)

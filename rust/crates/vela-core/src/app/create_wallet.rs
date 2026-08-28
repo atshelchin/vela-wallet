@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use super::shell::{CompletionMode, Effect, ShellOperation, ShellResult};
 use super::{
     name_fits_user_handle, public_key_hex_from_attestation, Account, AccountKey, FailureKind,
-    PendingUpload, PromptKind, RegistryPublishMember, StatusKey,
+    KeyMethod, PendingUpload, PromptKind, RegistryPublishMember, StatusKey,
 };
 use crate::error::CoreError;
 use crate::registry_metadata::{RegistryMetadata, REGISTRY_METADATA_VERSION};
@@ -39,9 +39,31 @@ use crate::registry_proof::RegistryProof;
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
 
-/// The acknowledgment checklist. Four rows, all required — the gate is a
+/// The acknowledgment checklist. Three rows, all required — the gate is a
 /// business rule, not a UI decoration.
-pub const ACK_COUNT: usize = 4;
+///
+/// Each row is a FACT about where something ends up, and the three together are
+/// the whole custody story a person is agreeing to:
+///
+/// * Row 0 — the public key and the wallet name are written into the on-chain
+///   contract. Public, permanent, and not deletable later.
+/// * Row 1 — the private key stays in the device's credential manager or on a
+///   security key. Vela never sees it, and therefore cannot recover it.
+/// * Row 2 — legal assent to the privacy policy and the terms.
+///
+/// It was four, then two, and is three. The four included two rows that said
+/// true things about recovery and about a compromised provider account, and a
+/// checklist people tick without reading records nothing — so those became
+/// assurances beside the gate. Two turned out to be the wrong two: the pair
+/// named where the PRIVATE key lives and what the user agrees to, and never
+/// said that the public key and the chosen name go on-chain in the clear. That
+/// is the one consequence of creating a wallet that cannot be undone
+/// afterwards, so it is now a gate rather than something a person discovers.
+///
+/// The recovery assurance that used to sit between them is gone from this
+/// screen: it described a benefit, and this list is only for the facts a person
+/// is consenting to.
+pub const ACK_COUNT: usize = 3;
 
 /// The Safe deployment this wallet uses, recorded in the registry metadata.
 const WALLET_VERSION: &str = "safe-1.4.1";
@@ -65,9 +87,12 @@ pub enum Event {
     /// draft is waiting.
     Submit,
     /// From the key list: mint one more founding passkey with this label
-    /// (empty ⇒ "Key N"). Capped at `MAX_MULTI_KEYS`.
+    /// (empty ⇒ "Key N") through the chosen kind of authenticator. Capped at
+    /// `MAX_MULTI_KEYS`.
     AddKey {
         name: String,
+        #[serde(default)]
+        method: KeyMethod,
     },
     /// Drop a not-yet-published draft key. Index 0 (the wallet's pinned first
     /// key) is only removable via `StartOver`.
@@ -118,6 +143,10 @@ pub struct Draft {
     /// Browser-reported display hints from the create() credential.
     pub authenticator_attachment: String,
     pub transports: String,
+    /// Which kind of authenticator the person asked for. Recorded so the key
+    /// list can label the row by the choice rather than guessing from the
+    /// hints above, which describe what the authenticator reported instead.
+    pub method: KeyMethod,
     /// Extracted at registration (the create() response carries the COSE
     /// key), so a duplicate authenticator is caught the moment it appears.
     pub public_key_hex: String,
@@ -179,6 +208,7 @@ impl Prepared {
                     credential_id: key.credential_id.clone(),
                     public_key_hex: key.public_key_hex.clone(),
                     name: key.name.clone(),
+                    transports: key.transports.clone(),
                 })
                 .collect(),
         }
@@ -248,6 +278,8 @@ pub struct Model {
     /// The label of the registration currently in flight, claimed by the
     /// `PasskeyRegistered` result.
     registering_label: String,
+    /// The method of that same in-flight registration, claimed alongside it.
+    registering_method: KeyMethod,
     /// The one-time group key the shell minted for this run. Every member's
     /// creation-time proof binds to its public key; the seed closes the
     /// group at publish. Cleared by StartOver.
@@ -303,8 +335,24 @@ pub struct CreateKeyRow {
     /// fail open.
     pub synced: bool,
     /// The authenticator model's AAGUID as a canonical uuid, or empty when
-    /// absent/all-zero. The shell resolves it to a provider name + icon.
+    /// absent/all-zero. Shells pass it back to the core for the provider's
+    /// mark (`passkey_provider_png` / `passkeyProviderIconDataUri`).
     pub aaguid: String,
+    /// The vault holding this key, resolved from [`Self::aaguid`] against the
+    /// vendored catalog: "Apple Passwords", "1Password", "Windows Hello".
+    /// Empty when the catalog does not know the model — hardware keys and
+    /// attestation-less registrations both land there — and the shells then
+    /// say what they always said, from [`Self::method`] and the two hint
+    /// fields above.
+    ///
+    /// Resolved HERE rather than in each shell so that four clients cannot
+    /// disagree about who holds a key (and so the lookup stays offline: asking
+    /// a directory service would tell it which vault holds a Vela wallet).
+    pub provider_name: String,
+    /// Which kind of authenticator the person chose for this key. Drives the
+    /// row's icon and provider line; distinct from the three fields above,
+    /// which are what the authenticator reported about itself.
+    pub method: KeyMethod,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -377,7 +425,7 @@ impl App for CreateWallet {
                 render()
             }
             Event::Submit => submit(model),
-            Event::AddKey { name } => add_key(model, name),
+            Event::AddKey { name, method } => add_key(model, name, method),
             Event::RemoveKey { index } => remove_key(model, index),
             Event::KeyNameChanged { index, name } => key_name_changed(model, index, name),
             Event::ConfirmKey { index } => confirm_key(model, index),
@@ -386,6 +434,19 @@ impl App for CreateWallet {
             Event::RetryUpload => retry_upload(model),
             Event::EnterWallet => enter_wallet(model),
             Event::GoBack => {
+                // The ONLY step this machine can return to is the form, and
+                // only from the key list. From the form itself there is
+                // nowhere to go but out of the flow, which is the host's to
+                // do — `can_go_back` says so, and a host that asked anyway
+                // used to get a re-render that changed nothing and a back
+                // affordance that did nothing (device-found 2026-08-25).
+                //
+                // The drafts survive: the form re-entered with drafts is the
+                // "finish verification" state, and its submit returns here.
+                if model.stage != Stage::AddKeys {
+                    return Command::done();
+                }
+                model.stage = Stage::Form;
                 model.status = None;
                 render()
             }
@@ -411,9 +472,10 @@ impl App for CreateWallet {
             Stage::SyncFailed => CreateStage::SyncFailed,
             Stage::Created | Stage::Completing => CreateStage::Created,
             Stage::AddKeys => CreateStage::AddKeys,
-            // An in-flight registration or membership confirmation keeps the
-            // key list on screen once it exists.
-            Stage::Registering | Stage::SigningKey if has_draft => CreateStage::AddKeys,
+            // Every registration and membership confirmation is launched from
+            // the key list, so an in-flight one keeps it on screen — including
+            // the first key's, whose list is still empty.
+            Stage::Registering | Stage::SigningKey => CreateStage::AddKeys,
             _ => CreateStage::Form,
         };
 
@@ -444,12 +506,18 @@ impl App for CreateWallet {
                 CreateStage::SyncFailed => model.sync.last_error.clone(),
                 _ => None,
             },
-            can_go_back: model.stage != Stage::SyncFailed,
+            // Does the CORE have a step to go back to? Only the key list
+            // does — everywhere else "back" means leaving the flow, which
+            // the host owns because the core cannot see what contains it.
+            can_go_back: model.stage == Stage::AddKeys,
             keys: model
                 .drafts
                 .iter()
                 .map(|draft| {
                     let (aaguid, synced) = attestation_signals(&draft.attestation_hex);
+                    let provider_name = crate::passkey::provider_name(&aaguid)
+                        .unwrap_or_default()
+                        .to_owned();
                     CreateKeyRow {
                         name: draft.name.clone(),
                         authenticator_attachment: draft.authenticator_attachment.clone(),
@@ -457,6 +525,8 @@ impl App for CreateWallet {
                         confirmed: draft.proof.is_some(),
                         synced,
                         aaguid,
+                        provider_name,
+                        method: draft.method,
                     }
                 })
                 .collect(),
@@ -516,12 +586,18 @@ fn passkey_display_name(wallet: &str, label: &str) -> String {
     }
 }
 
-fn add_key(model: &mut Model, label: String) -> Command<Effect, Event> {
+fn add_key(model: &mut Model, label: String, method: KeyMethod) -> Command<Effect, Event> {
     if model.stage != Stage::AddKeys || model.drafts.len() >= crate::safe::MAX_MULTI_KEYS {
         return Command::done();
     }
+    // Key 1's label and provider display name ARE the wallet name (N=1 stays
+    // byte-identical to the single-key flow); later keys compose "wallet ·
+    // label" and fall back to the label alone when that would not fit.
+    let first = model.drafts.is_empty();
     let label = label.trim().to_owned();
-    let label = if label.is_empty() {
+    let label = if first {
+        model.name.trim().to_owned()
+    } else if label.is_empty() {
         format!("Key {}", model.drafts.len() + 1)
     } else {
         label
@@ -531,9 +607,14 @@ fn add_key(model: &mut Model, label: String) -> Command<Effect, Event> {
     }
     model.attempt += 1;
     model.registering_label = label.clone();
+    model.registering_method = method;
     model.stage = Stage::Registering;
     model.status = Some(StatusKey::SettingUpIdentity);
-    let name = passkey_display_name(model.name.trim(), &label);
+    let name = if first {
+        label.clone()
+    } else {
+        passkey_display_name(model.name.trim(), &label)
+    };
     // The provider must refuse to reuse an already-founding authenticator
     // entry — a silent replacement would drop a key the address depends on.
     let exclude_credential_ids = model
@@ -546,6 +627,7 @@ fn add_key(model: &mut Model, label: String) -> Command<Effect, Event> {
         ShellOperation::RegisterPasskey {
             name,
             exclude_credential_ids,
+            method,
         },
     )
 }
@@ -639,6 +721,11 @@ fn begin_sign_member(model: &mut Model, index: usize) -> Command<Effect, Event> 
             credential_id: draft.credential_id,
             public_key_hex: draft.public_key_hex,
             attestation_hex: draft.attestation_hex,
+            transports: crate::passkey::allowlist_transports(&draft.transports),
+            // The route that minted this key confirms it. The draft recorded
+            // the person's choice at registration precisely so a later step can
+            // return to the same authenticator.
+            method: draft.method,
             group_public_key_hex,
         },
     )
@@ -685,7 +772,7 @@ fn finish_keys(model: &mut Model) -> Command<Effect, Event> {
             attestation_object_hex: draft.attestation_object_hex,
             attestation_hex: draft.attestation_hex,
             authenticator_attachment: draft.authenticator_attachment,
-            transports: draft.transports,
+            transports: crate::passkey::allowlist_transports(&draft.transports),
             proof: draft.proof,
         })
         .collect();
@@ -827,19 +914,17 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         ) => {
             model.group_seed_hex = Some(seed_hex);
             model.group_public_key_hex = Some(group_public_key_hex);
-            model.stage = Stage::Registering;
-            model.status = Some(StatusKey::SettingUpIdentity);
-            // Key 1's provider display name IS the wallet name (N=1 stays
-            // byte-identical to the single-key flow); its label too.
-            let name = model.name.trim().to_owned();
-            model.registering_label = name.clone();
-            request(
-                model,
-                ShellOperation::RegisterPasskey {
-                    name,
-                    exclude_credential_ids: Vec::new(),
-                },
-            )
+            // Land on the (empty) key list instead of minting a first key
+            // here. The first key used to be the one choice the shell made
+            // instead of the person — `KeyMethod::default()`, i.e. the
+            // platform authenticator — which on an OEM whose system sheet
+            // cannot reach a security key locked hardware-key owners out of
+            // creating a wallet at all (device-found on a Xiaomi, 2026-08-26).
+            // Every founding key, the first included, is now minted from the
+            // key screen through the same method choice.
+            model.stage = Stage::AddKeys;
+            model.status = None;
+            render()
         }
         (Stage::GeneratingGroupKey, ShellResult::StorageFailed { message }) => {
             fail_to_form(model, PromptKind::CreateFailed { detail: message }, None)
@@ -894,6 +979,7 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
                 registered_at_iso: now_iso,
                 authenticator_attachment: registration.authenticator_attachment,
                 transports: registration.transports,
+                method: model.registering_method,
                 public_key_hex,
                 attestation_hex,
                 proof: None,
@@ -907,14 +993,11 @@ fn accept(model: &mut Model, result: ShellResult) -> Command<Effect, Event> {
         }
         (Stage::Registering, ShellResult::PasskeyFailed { kind, message }) => match kind {
             FailureKind::Cancelled => {
-                // Cancelling an ADDED key's ceremony returns to the key list
-                // with the existing drafts intact; cancelling the first one
-                // returns to the form.
-                model.stage = if model.drafts.is_empty() {
-                    Stage::Form
-                } else {
-                    Stage::AddKeys
-                };
+                // Back to the key list with the existing drafts intact — for
+                // the first key that list is empty, and returning THERE rather
+                // than to the form is what lets the person try again with a
+                // different method.
+                model.stage = Stage::AddKeys;
                 model.status = Some(StatusKey::SetupCancelled);
                 render()
             }
@@ -1082,6 +1165,10 @@ fn registry_publish_op(
             .collect(),
         group_seed_hex,
         group_public_key_hex,
+        // Every member above replays its creation-time proof, so no live
+        // signature happens and no route is consulted; the default satisfies
+        // the field.
+        method: KeyMethod::default(),
     })
 }
 
@@ -1103,11 +1190,10 @@ fn save_account(model: &mut Model) -> Command<Effect, Event> {
 /// A registration failure returns to wherever the drafts live: the key list
 /// when founding keys already exist (they stay intact), the form otherwise.
 fn fail_registration(model: &mut Model, prompt: PromptKind) -> Command<Effect, Event> {
-    if model.drafts.is_empty() {
-        fail_to_form(model, prompt, None)
-    } else {
-        fail_to_add_keys(model, prompt)
-    }
+    // Always back to the key list — even for the first key, whose list is
+    // empty. The list is where the method choice lives, and a failed
+    // authenticator is exactly when a person wants to pick a different one.
+    fail_to_add_keys(model, prompt)
 }
 
 /// Return to the key list, telling the user why. The drafts are kept — the

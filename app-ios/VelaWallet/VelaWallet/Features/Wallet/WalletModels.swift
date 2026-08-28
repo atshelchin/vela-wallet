@@ -159,7 +159,7 @@ struct ActionsModel {
 
 struct WalletHomeModel {
     let state: MobileStateId
-    let header: WalletHeaderModel
+    var header: WalletHeaderModel
     let pill: NetworkPillModel
     let balance: BalanceModel
     let actions: ActionsModel
@@ -171,4 +171,52 @@ struct WalletHomeModel {
     var sheet: ChainSheetModel?
     /// 1 or 1.35 — multiplies wallet type roles via walletTextScale (FR-011).
     let textScale: CGFloat
+
+    /// Swap in the signed-in wallet's real address (spec 019).
+    ///
+    /// The rest of this screen is still the spec-015 fixture layer, and that is
+    /// the point of doing it here rather than inside the fixtures: an address is
+    /// the ONE thing on the home screen a person acts on, and showing a fixture
+    /// address after a real create would be the app telling them their money is
+    /// somewhere it is not. Everything else on the page is
+    /// visibly-placeholder balance data; an address is not.
+    ///
+    /// An empty address changes nothing — the developer routes reach this
+    /// screen with no session at all.
+    func withAddress(_ address: String) -> WalletHomeModel {
+        guard !address.isEmpty else { return self }
+        var copy = self
+        copy.header = WalletHeaderModel(
+            name: header.name,
+            addressDisplay: Self.shorten(address),
+            identiconSeed: address
+        )
+        return copy
+    }
+
+    /// Swap in the signed-in wallet's real NAME (spec 019).
+    ///
+    /// Same argument as the address, and found the same way — on a device.
+    /// The header drew the fixture's 大表哥 over a real address and a real
+    /// identicon, so the one line on the screen that was wrong was the one
+    /// line a person reads as "this is my wallet".
+    ///
+    /// An empty name changes nothing: the developer routes reach this screen
+    /// with no session, and a blank header is worse than a placeholder one.
+    func withName(_ name: String) -> WalletHomeModel {
+        guard !name.isEmpty else { return self }
+        var copy = self
+        copy.header = WalletHeaderModel(
+            name: name,
+            addressDisplay: header.addressDisplay,
+            identiconSeed: header.identiconSeed
+        )
+        return copy
+    }
+
+    /// `0x1234…cdef` — the house short form, matching the other three clients.
+    private static func shorten(_ address: String) -> String {
+        guard address.count > 10 else { return address }
+        return "\(address.prefix(6))\u{2026}\(address.suffix(4))"
+    }
 }

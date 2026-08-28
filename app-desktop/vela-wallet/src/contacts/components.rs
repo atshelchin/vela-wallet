@@ -14,8 +14,8 @@ use gpui::{
 use crate::icons::{Icon, IconCache};
 use crate::identicon::IdenticonCache;
 use crate::theme::{
-    self, CONTACTS_MENU_ROW_H, CONTACTS_MENU_W, CONTACTS_RAIL_LABEL_H, CONTACTS_RAIL_ROW_H,
-    CONTACTS_BUTTON_H, CONTACTS_ROW_AVATAR, CONTACTS_SEARCH_W, Theme, WALLET_CONTROL_H,
+    self, CONTACTS_BUTTON_H, CONTACTS_MENU_ROW_H, CONTACTS_MENU_W, CONTACTS_RAIL_LABEL_H,
+    CONTACTS_RAIL_ROW_H, CONTACTS_ROW_AVATAR, CONTACTS_SEARCH_W, Theme, WALLET_CONTROL_H,
 };
 use crate::wallet::components::{empty_state, icon_img, identicon_avatar};
 

@@ -6,51 +6,48 @@
  * `onboarding.welcome.*` actions). This module is client-safe: it names keys
  * and shapes; resolution happens only in `engine.server.ts`.
  */
-import { catalogI18nKeys, CREATE_STATUS_I18N } from '$lib/onboarding/outcomes';
-
-/** Order matches the reference designs: cards 01–06. */
-export const FEATURE_SLUGS = [
-	'noSeedPhrase',
-	'oneAddress',
-	'openSource',
-	'keysInPasswordManager',
-	'safeContracts',
-	'stablecoinGas'
-] as const;
-
-export type FeatureSlug = (typeof FEATURE_SLUGS)[number];
-
-export interface FeatureCardMessages {
-	/** Zero-padded display number, '01'…'06'. */
-	number: string;
-	title: string;
-	description: string;
-}
 
 export interface WelcomeMessages {
 	metaTitle: string;
 	metaDescription: string;
 	tagline: string;
+	/** The v2 headline and its one supporting line (spec 019). */
+	heroTitle: string;
+	/**
+	 * Which rung of the hero type ladder this locale's headline needs —
+	 * `'regular'` or `'long'`. It lives in the corpus beside the string it
+	 * describes because it is a property of the translation: measured at the
+	 * shipped font, the widest authored line runs from 6.9em (zh) to 15.0em
+	 * (id), and no single size serves both.
+	 */
+	heroTitleFit: string;
+	heroSubtitle: string;
 	createWallet: string;
 	alreadyHaveWallet: string;
-	features: FeatureCardMessages[];
 }
 
 /**
  * Every corpus key the Welcome page consumes (tests iterate this).
- * `onboarding.welcomeWeb.passkeyIndexLink` stays in the corpus for the future
- * settings screen but left the page per founder direction (2026-08-01).
+ *
+ * `onboarding.welcomeWeb.features.*` left the page with the v2 design (spec
+ * 019, founder direction 2026-08-25): the design is one column — brand,
+ * headline, two ways in — and the six feature cards have no place in it. The
+ * twelve strings stay in the corpus rather than being deleted, because they are
+ * written marketing copy and the page they belong on may yet exist; nothing
+ * resolves them today.
+ *
+ * `onboarding.welcomeWeb.passkeyIndexLink` likewise stays for the future
+ * settings screen (founder direction 2026-08-01).
  */
 export const WELCOME_KEYS = [
 	'onboarding.welcomeWeb.meta.title',
 	'onboarding.welcomeWeb.meta.description',
 	'onboarding.welcomeWeb.tagline',
+	'onboarding.welcome.heroTitle',
+	'onboarding.welcome.heroTitleFit',
+	'onboarding.welcome.heroSubtitle',
 	'onboarding.welcome.createWallet',
-	'onboarding.welcome.alreadyHaveWallet',
-	...FEATURE_SLUGS.flatMap((slug) => [
-		`onboarding.welcomeWeb.features.${slug}.title`,
-		`onboarding.welcomeWeb.features.${slug}.description`
-	])
+	'onboarding.welcome.alreadyHaveWallet'
 ] as const;
 
 /* ------------------------------------------------------------------------ */
@@ -68,41 +65,152 @@ const FLOW_CHROME_KEYS = [
 	'onboarding.common.waitedSeconds'
 ] as const;
 
-/** Form pattern (A1–A3) — all EXISTS keys per contracts/i18n-keys.md. */
+/**
+ * The v2 name screen. Three gates: where the PUBLIC key goes, where the PRIVATE
+ * key stays, and the legal assent — whose fragments are named `ack2*` because
+ * they render at index 2, and a fragment key that disagrees with its row is how
+ * the `ack3` -> `ack1` confusion started.
+ *
+ * `accountNameLabel` is gone from this screen: the field sat under a heading
+ * that already said "name your wallet", so the label restated it. Its helper
+ * line went too — what it said (the name is stored on-chain) is now `ack0`,
+ * where a person has to actually look at it.
+ */
 const FLOW_FORM_KEYS = [
-	'onboarding.create.accountNameLabel',
+	'onboarding.create.headerDefault',
+	'onboarding.create.nameTitle',
 	'onboarding.create.accountNamePlaceholder',
-	'onboarding.create.accountNameHint',
 	'onboarding.create.nameTooLong',
 	'onboarding.create.ack0',
 	'onboarding.create.ack1',
-	'onboarding.create.ack3',
-	'onboarding.create.ack3PrivacyPolicy',
-	'onboarding.create.ack3And',
-	'onboarding.create.ack3Terms',
-	'onboarding.create.ack3Period',
+	'onboarding.create.ack2',
+	'onboarding.create.ack2PrivacyPolicy',
+	'onboarding.create.ack2And',
+	'onboarding.create.ack2Terms',
+	'onboarding.create.ack2Period',
+	'onboarding.create.nextBtn',
+	'onboarding.create.finishVerifyBtn',
+	'onboarding.create.startOverBtn',
 	'onboarding.create.createWalletBtn'
 ] as const;
 
-/** Login waiting pattern (B1/B1c). */
+/** The founding-key list and its three add methods (spec 019). */
+const FLOW_KEYS_SCREEN_KEYS = [
+	'onboarding.create.keysTitle',
+	'onboarding.create.keysTitleBlocked',
+	'onboarding.create.keysSubtitle',
+	'onboarding.create.keysSubtitleBlocked',
+	'onboarding.create.keysSubtitleFull',
+	'onboarding.create.keysLabel',
+	'onboarding.create.keysHint',
+	'onboarding.create.keyCount',
+	'onboarding.create.keyLimitReached',
+	'onboarding.create.keySyncedBadge',
+	'onboarding.create.keyDeviceOnlyBadge',
+	'onboarding.create.keyHardwareBadge',
+	'onboarding.create.providerPlatform',
+	'onboarding.create.providerGeneric',
+	'onboarding.create.providerSecurityKey',
+	'onboarding.create.needSecondKeyHint',
+	'onboarding.create.addKeyBtn',
+	'onboarding.create.addSecondKeyBtn',
+	'onboarding.create.addMethodLabel',
+	'onboarding.create.confirmKeyBtn',
+	'onboarding.create.removeKeyBtn',
+	'onboarding.create.methodPlatformTitle',
+	'onboarding.create.methodPlatformBody',
+	'onboarding.create.methodHybridTitle',
+	'onboarding.create.methodHybridBody',
+	'onboarding.create.methodHybridUnavailable',
+	'onboarding.create.methodSecurityKeyTitle',
+	'onboarding.create.methodSecurityKeyBody'
+] as const;
+
+/** The progress, retry and done screens (spec 019). */
+const FLOW_OUTCOME_SCREEN_KEYS = [
+	'onboarding.create.progressTitle',
+	'onboarding.create.progressSubtitle',
+	'onboarding.create.progressMeterLabel',
+	'onboarding.create.taskVerifyKey',
+	'onboarding.create.taskDeriveAddress',
+	'onboarding.create.taskWriteIndex',
+	'onboarding.create.syncFailedTitle',
+	'onboarding.create.syncFailedMessage',
+	'onboarding.create.syncFailedHint',
+	'onboarding.create.retryUploadBtn',
+	'onboarding.create.successTitle',
+	'onboarding.create.successMessage',
+	'onboarding.create.walletAddressLabel',
+	'onboarding.create.identiconHint',
+	'onboarding.create.enterWalletBtn'
+] as const;
+
+/** Every prompt the two machines can raise (spec 019). */
+const FLOW_PROMPT_KEYS = [
+	'onboarding.create.alertErrorTitle',
+	'onboarding.create.alertNotSupportedTitle',
+	'onboarding.create.alertNotSupportedBody',
+	'onboarding.common.notDiscoverableTitle',
+	'onboarding.common.notDiscoverableBody',
+	'onboarding.common.recreateWallet',
+	'onboarding.common.retry',
+	'onboarding.common.back',
+	'onboarding.login.alertNotSupportedTitle',
+	'onboarding.login.alertNotSupportedBody',
+	'onboarding.login.alertIncompatibleTitle',
+	'onboarding.login.alertIncompatibleBody',
+	'onboarding.login.alertIncompatibleBodyCreate',
+	'onboarding.login.alertSignInFailedTitle',
+	'onboarding.login.alertSignInFailedBody',
+	'onboarding.login.recoverOfferTitle',
+	'onboarding.login.recoverOfferBody',
+	'onboarding.login.recoverConfirm',
+	'onboarding.login.recoverCancel',
+	'onboarding.login.recoverFailedTitle',
+	'onboarding.login.recoverFailedBody',
+	'onboarding.login.switchDeviceBtn',
+	'onboarding.login.statusCancelledTitle',
+	'onboarding.login.statusCancelledBody',
+	'onboarding.settings.warningText'
+] as const;
+
+/** The transient status line the create machine reports. */
+const FLOW_STATUS_KEYS = [
+	'onboarding.create.statusSettingUpIdentity',
+	'onboarding.create.statusVerifyingIdentity',
+	'onboarding.create.statusExtractingKey',
+	'onboarding.create.statusComputingAddress',
+	'onboarding.create.statusSyncingKey',
+	'onboarding.create.statusSetupCancelled',
+	'onboarding.create.statusVerifyCancelled'
+] as const;
+
+/** Login waiting pattern. */
 const FLOW_LOGIN_WAIT_KEYS = [
 	'onboarding.login.statusAwaitingPasskey',
 	'onboarding.login.statusAwaitingPasskeyHint'
 ] as const;
 
 /**
- * Every corpus key `CreatePanel`/`LoginPanel` can resolve at runtime
- * (contracts/i18n-keys.md per-state map). Outcome copy — titles, headlines,
- * bodies, captions, action labels — is derived from the one authoritative
- * catalog in `$lib/onboarding/outcomes.ts` so this manifest cannot drift.
+ * Every corpus key the v2 onboarding screens can resolve at runtime.
+ *
+ * Spelled out rather than derived from a catalog, because the catalog it used
+ * to be derived from is gone: spec 014's eighteen `OutcomeKind`s were a design
+ * taxonomy the core does not express. A transport failure and a 503 both reach
+ * a shell as `CreateFailed { detail }` with the platform's own words, so
+ * rendering them as distinct screens would mean classifying error strings in
+ * TypeScript — the one thing the architecture exists to prevent. What the core
+ * actually emits is nine prompts, and those are listed above.
  */
 export const FLOW_KEYS: readonly string[] = [
 	...new Set([
 		...FLOW_CHROME_KEYS,
 		...FLOW_FORM_KEYS,
-		...Object.values(CREATE_STATUS_I18N),
-		...FLOW_LOGIN_WAIT_KEYS,
-		...catalogI18nKeys()
+		...FLOW_KEYS_SCREEN_KEYS,
+		...FLOW_OUTCOME_SCREEN_KEYS,
+		...FLOW_PROMPT_KEYS,
+		...FLOW_STATUS_KEYS,
+		...FLOW_LOGIN_WAIT_KEYS
 	])
 ];
 

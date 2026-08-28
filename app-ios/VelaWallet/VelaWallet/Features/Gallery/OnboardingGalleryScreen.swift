@@ -1,21 +1,25 @@
 //
-//  GalleryScreen.swift
+//  OnboardingGalleryScreen.swift
 //  VelaWallet
 //
-//  Dev-only state gallery (spec 014, FR-013/FR-014): lists all fixture
-//  codes grouped Create / Login (E10 in both), renders the selected
-//  fixture inside the REAL FlowSheet presentation, and toggles theme by
-//  re-applying .themed(...). Compiled out of Release entirely; in Debug
-//  it is reachable only with the env switch VELA_GALLERY=1
-//  (SIMCTL_CHILD_VELA_GALLERY=1 on the simulator, house style).
+//  Dev-only state gallery, rewritten to the v2 state set (spec 019 T136).
+//
+//  The important property is not the list but the RENDERER: every entry goes
+//  through `screenFor` and the same five screens production uses, so a fixture
+//  cannot look right here and wrong in the app. The 014 gallery drove a separate
+//  presentation type, which meant it could — and is the whole reason those types
+//  are gone.
+//
+//  Compiled out of Release entirely; in Debug it is reachable only with
+//  VELA_GALLERY=1 (SIMCTL_CHILD_VELA_GALLERY=1 on the simulator, house style).
 //
 
 #if DEBUG
 
 import SwiftUI
 
-/// The gallery gate — env-read once, static (house style: LaunchAnimation
-/// / ThemeOverride switches).
+/// The gallery gate — env-read once, static (house style: LaunchAnimation /
+/// ThemeOverride switches).
 enum GalleryMode {
     static let isEnabled = ProcessInfo.processInfo.environment["VELA_GALLERY"] == "1"
 }
@@ -23,23 +27,37 @@ enum GalleryMode {
 struct OnboardingGalleryScreen: View {
     let loc: Loc
     @State private var scheme: ColorScheme = ThemeOverride.launchScheme ?? .dark
-    // VELA_GALLERY_FIXTURE=<code> preselects a fixture at launch so a
-    // screenshot loop can walk states without GUI scripting (dev-only).
-    @State private var selected: FlowFixtures.Fixture? = ProcessInfo.processInfo
+    /// VELA_GALLERY_FIXTURE=<code> preselects a fixture at launch so a
+    /// screenshot loop can walk states without GUI scripting (dev-only).
+    @State private var selected: StateFixture? = ProcessInfo.processInfo
         .environment["VELA_GALLERY_FIXTURE"]
-        .flatMap { code in FlowFixtures.all.first { $0.code == code } }
+        .flatMap(FlowFixtures.byCode)
+
+    private var groups: [(String, [StateFixture])] {
+        // `Dictionary(grouping:)` has no order, and a gallery whose sections
+        // shuffle between launches is one nobody can navigate by memory.
+        let names = ["Create", "Failures"]
+        return names.map { name in (name, FlowFixtures.all.filter { $0.group == name }) }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Create") {
-                    rows(FlowFixtures.createGroup)
-                }
-                Section("Login") {
-                    rows(FlowFixtures.loginGroup)
+                ForEach(groups, id: \.0) { name, fixtures in
+                    Section(name) {
+                        ForEach(fixtures) { fixture in
+                            Button {
+                                selected = fixture
+                            } label: {
+                                // The fixture's own name is data, not UI copy —
+                                // it never translates.
+                                Text(verbatim: fixture.code)
+                            }
+                        }
+                    }
                 }
             }
-            .navigationTitle("Flow Gallery")
+            .navigationTitle(Text(verbatim: "Flow Gallery"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -51,82 +69,116 @@ struct OnboardingGalleryScreen: View {
                 }
             }
         }
-        .sheet(item: $selected) { fixture in
-            GalleryFixtureSheet(fixture: fixture, loc: loc)
-                // Re-apply the active theme to the presented container —
-                // the gallery's contract for the light/dark walkthrough.
-                .themed(scheme)
-        }
         .themed(scheme)
         .preferredColorScheme(scheme)
-    }
-
-    private func rows(_ fixtures: [FlowFixtures.Fixture]) -> some View {
-        ForEach(fixtures) { fixture in
-            Button {
-                selected = fixture
-            } label: {
-                HStack(spacing: Tokens.Space.s12) {
-                    Text(fixture.code)
-                        .typeRole(Typography.label)
-                        .frame(minWidth: Tokens.Space.s48, alignment: .leading)
-                    Text(fixture.name)
-                        .typeRole(Typography.body)
-                    Spacer(minLength: 0)
-                }
+        .fullScreenCover(item: flowBinding) { fixture in
+            if case .flow(let view) = fixture.fixture {
+                GalleryFlowHost(loc: loc, view: view) { selected = nil }
+                    .themed(scheme)
+                    .preferredColorScheme(scheme)
+            }
+        }
+        .sheet(item: sheetBinding) { fixture in
+            if case .sheet(let kind, let confirmable) = fixture.fixture {
+                FlowSheet(loc: loc, kind: kind, confirmable: confirmable) { _ in selected = nil }
+                    .themed(scheme)
             }
         }
     }
+
+    /// A flow step covers the list entirely, as it does in production — it IS a
+    /// full screen there, and showing it in a sheet would be a picture of a
+    /// layout the app never draws. The two presentations therefore need two
+    /// bindings, each nil unless its own kind is selected.
+    private var flowBinding: Binding<StateFixture?> {
+        Binding(
+            get: { if case .flow = selected?.fixture { selected } else { nil } },
+            set: { if $0 == nil { selected = nil } }
+        )
+    }
+
+    private var sheetBinding: Binding<StateFixture?> {
+        Binding(
+            get: { if case .sheet = selected?.fixture { selected } else { nil } },
+            set: { if $0 == nil { selected = nil } }
+        )
+    }
 }
 
-/// One fixture inside the real container: FlowSheet + panel, with the
-/// production close semantics (back/cancel/not_now/close dismiss; every
-/// other ActionId is logged only — FR-011, contract §2).
-private struct GalleryFixtureSheet: View {
-    let fixture: FlowFixtures.Fixture
+/// One flow step, rendered by the production screens with every control inert.
+///
+/// A fixture has no core behind it, so a button that appeared to work would be
+/// lying. The only live control is the way out.
+private struct GalleryFlowHost: View {
     let loc: Loc
-    @Environment(\.dismiss) private var dismiss
+    let view: CreateView
+    let onClose: () -> Void
+
+    @State private var name: String = ""
+
+    private var screen: FlowScreen { screenFor(view) }
+
+    private var statusText: String? {
+        guard let status = view.status, progressFor(status) == nil else { return nil }
+        return loc.t(statusKeyToI18n(status))
+    }
 
     var body: some View {
-        FlowSheet(
-            title: loc.t(titleKey),
-            closeLabel: loc.t("onboarding.common.close"),
-            onClose: { dismiss() }
+        FlowShell(
+            backLabel: loc.t(I18nKeys.Flow.back),
+            canGoBack: true,
+            onBack: onClose
         ) {
-            switch fixture.state {
-            case .create(let state):
-                CreatePanel(loc: loc, state: state, sink: sink)
-            case .login(let state):
-                LoginPanel(loc: loc, state: state, sink: sink)
+            switch screen {
+            case .loading:
+                Color.clear
+            case .name:
+                NameScreen(
+                    loc: loc,
+                    view: view,
+                    statusText: statusText,
+                    name: $name,
+                    onToggleAck: { _ in },
+                    onSubmit: {},
+                    onStartOver: {},
+                    onLink: { _ in }
+                )
+            case .keys:
+                KeysScreen(
+                    loc: loc,
+                    view: view,
+                    onAddKey: { _ in },
+                    onConfirmKey: { _ in },
+                    onRemoveKey: { _ in },
+                    onFinish: {}
+                )
+            case .progress:
+                ProgressScreen(
+                    loc: loc,
+                    position: progressFor(view.status) ?? ProgressPosition(activeTask: 0, percent: 33),
+                    keyCount: view.keys.count
+                )
+            case .retry:
+                RetryScreen(
+                    loc: loc,
+                    detail: view.syncErrorDetail,
+                    busy: false,
+                    onRetry: {},
+                    onStartOver: {},
+                    onEditEndpoint: {}
+                )
+            case .done:
+                DoneScreen(
+                    loc: loc,
+                    address: view.address ?? "",
+                    walletName: view.keys.first?.name ?? view.name,
+                    keys: view.keys,
+                    onEnter: onClose
+                )
             }
         }
+        .onAppear { name = view.name }
     }
-
-    private var titleKey: String {
-        switch fixture.state {
-        case .create(let state): CreatePanel.scaffoldTitleKey(for: state)
-        case .login(let state): LoginPanel.scaffoldTitleKey(for: state)
-        }
-    }
-
-    private func sink(_ action: ActionId) {
-        switch action {
-        case .back, .cancel, .notNow, .close:
-            dismiss()
-        default:
-            print("[gallery] \(fixture.code) → \(action.rawValue)")
-        }
-    }
-}
-
-#Preview("Gallery") {
-    OnboardingGalleryScreen(loc: Loc())
-}
-
-#Preview("Gallery fixture sheet dark") {
-    GalleryFixtureSheet(fixture: FlowFixtures.all[0], loc: Loc())
-        .background(Tokens.dark.bgRaised.color)
-        .themed(.dark)
 }
 
 #endif

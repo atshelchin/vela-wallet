@@ -43,6 +43,7 @@ import app.getvela.wallet.feature.onboarding.flow.ProgressScreen
 import app.getvela.wallet.feature.onboarding.flow.RetryScreen
 import app.getvela.wallet.feature.onboarding.flow.Screen
 import app.getvela.wallet.feature.onboarding.flow.StateFixture
+import app.getvela.wallet.feature.onboarding.flow.InsertKeySheet
 import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
 import app.getvela.wallet.feature.onboarding.flow.progressFor
 import app.getvela.wallet.feature.onboarding.flow.screenFor
@@ -126,6 +127,11 @@ fun GalleryScreen(initialDarkTheme: Boolean) {
                 retries = fixture.retries,
                 isRetry = fixture.isRetry,
                 onSubmit = { selectedCode = null },
+            )
+
+            is Fixture.InsertKey -> InsertKeySheet(
+                otgLooksOff = fixture.otgLooksOff,
+                onCancel = { selectedCode = null },
             )
 
             // A flow step covers the list entirely, as it does in production —

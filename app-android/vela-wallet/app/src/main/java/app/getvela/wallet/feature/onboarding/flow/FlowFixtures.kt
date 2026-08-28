@@ -32,6 +32,9 @@ sealed interface Fixture {
      *  clipped (device-found 2026-08-28); in the gallery so a layout that
      *  hides its own confirm button is visible without a key in hand. */
     data class UsbPin(val retries: Int, val isRetry: Boolean) : Fixture
+
+    /** The "insert your security key" waiter, with and without the OTG hint. */
+    data class InsertKey(val otgLooksOff: Boolean) : Fixture
 }
 
 data class StateFixture(val group: String, val code: String, val fixture: Fixture)
@@ -212,6 +215,8 @@ object FlowFixtures {
 
         add(StateFixture("Usb prompts", "usb pin", Fixture.UsbPin(retries = -1, isRetry = false)))
         add(StateFixture("Usb prompts", "usb pin · retry", Fixture.UsbPin(retries = 5, isRetry = true)))
+        add(StateFixture("Usb prompts", "insert key", Fixture.InsertKey(otgLooksOff = false)))
+        add(StateFixture("Usb prompts", "insert key · otg off", Fixture.InsertKey(otgLooksOff = true)))
     }
 
     fun byCode(code: String): StateFixture? = all.firstOrNull { it.code == code }

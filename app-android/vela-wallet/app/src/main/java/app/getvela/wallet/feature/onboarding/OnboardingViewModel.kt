@@ -127,6 +127,15 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
 
     data class PendingLocationAsk(val answer: CompletableDeferred<Boolean>)
 
+    /** The "insert your security key" waiter, with the OEM OTG-off hint. */
+    var pendingInsertKey by mutableStateOf<PendingInsertKey?>(null)
+        private set
+
+    data class PendingInsertKey(
+        val otgLooksOff: Boolean,
+        val answer: CompletableDeferred<Boolean>,
+    )
+
     /**
      * The app-owned USB ceremony's UI seam. Every method BLOCKS the calling
      * (IO) thread until the person answers on the main thread — a synchronous
@@ -157,6 +166,25 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
             viewModelScope.launch { pendingLocationAsk = PendingLocationAsk(answer) }
             return runBlocking { answer.await() }
         }
+
+        override fun awaitKeyInsertion(otgLooksOff: Boolean, probe: () -> Boolean): Boolean {
+            val answer = CompletableDeferred<Boolean>()
+            viewModelScope.launch {
+                pendingInsertKey = PendingInsertKey(otgLooksOff, answer)
+                // Hot-plug broadcasts aren't wired (ACTION_USB_DEVICE_ATTACHED),
+                // so the sheet polls; the moment the key enumerates, it answers
+                // itself and the ceremony carries on.
+                while (answer.isActive) {
+                    if (probe()) {
+                        answer.complete(true)
+                        break
+                    }
+                    kotlinx.coroutines.delay(800)
+                }
+                pendingInsertKey = null
+            }
+            return runBlocking { answer.await() }
+        }
     }
 
     fun answerPin(pin: String?) {
@@ -175,6 +203,11 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         val prompt = pendingLocationAsk ?: return
         pendingLocationAsk = null
         prompt.answer.complete(agree)
+    }
+
+    fun cancelInsertKey() {
+        // The poll loop clears the state after completion.
+        pendingInsertKey?.answer?.complete(false)
     }
 
     init {

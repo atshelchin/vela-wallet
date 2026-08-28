@@ -65,6 +65,13 @@ class UsbSecurityKeyCeremony(
          *  why before jumping to settings. `true` means "take me there". Only
          *  the caBLE ceremony asks; the USB path never does, hence the default. */
         fun askEnableLocation(): Boolean = false
+
+        /** No key present: show "insert your security key" and poll [probe]
+         *  until one appears (`true`) or the person closes the sheet (`false`).
+         *  [otgLooksOff] adds the OEM hint that the phone's OTG switch is off —
+         *  the state that eats the key silently on phones that auto-disable
+         *  OTG. Default `false` = surfaces that never show the sheet. */
+        fun awaitKeyInsertion(otgLooksOff: Boolean, probe: () -> Boolean): Boolean = false
     }
 
     suspend fun register(
@@ -90,11 +97,28 @@ class UsbSecurityKeyCeremony(
     private suspend fun <T> runCeremony(
         body: (uniffi.vela_core_uniffi.UsbHidPort, CtapCeremonyHost) -> T,
     ): T {
-        val device = transport.fidoDevices().firstOrNull()
-            ?: throw PasskeyFailure(
+        var device = transport.fidoDevices().firstOrNull()
+        if (device == null) {
+            // No key is a WAITABLE state, not a diagnosis: the person is
+            // holding the key they are about to plug in — and NotSupported
+            // rendered as the biometrics alert, a sentence about the wrong
+            // subject entirely (device-found on a OnePlus 5T, 2026-08-28,
+            // second occurrence — the first was Bluetooth-off on the scan
+            // path). The sheet polls; plugging the key in continues the
+            // ceremony by itself, closing the sheet is a cancel.
+            val inserted = withContext(Dispatchers.IO) {
+                prompts.awaitKeyInsertion(otgLooksOff = otgSwitchLooksOff()) {
+                    transport.fidoDevices().isNotEmpty()
+                }
+            }
+            if (!inserted) {
+                throw PasskeyFailure(FailureKind.Cancelled, "No key was inserted")
+            }
+            device = transport.fidoDevices().firstOrNull() ?: throw PasskeyFailure(
                 FailureKind.NotSupported,
                 "No security key is plugged in. Insert one and try again.",
             )
+        }
         if (!transport.hasPermission(device)) {
             VelaLog.event("usb.hid", "asking permission", "product" to (device.productName ?: "?"))
             val granted = transport.requestPermission(device)
@@ -117,6 +141,20 @@ class UsbSecurityKeyCeremony(
                 prompts.touchWaiting(null, "")
             }
         }
+    }
+
+    /**
+     * Does this phone's OTG switch look OFF? There is no Android API for the
+     * toggle — it is an OEM concept — but OxygenOS mirrors it into a readable
+     * settings key (`oem_otg_read`, 0 = off, verified on the OnePlus 5T whose
+     * auto-off ate the key). Phones without the key read the default and show
+     * no hint, which is the honest answer there.
+     */
+    private fun otgSwitchLooksOff(): Boolean {
+        val resolver = context.contentResolver
+        val system = android.provider.Settings.System.getInt(resolver, "oem_otg_read", 1)
+        val global = android.provider.Settings.Global.getInt(resolver, "oem_otg_read", 1)
+        return system == 0 || global == 0
     }
 
     /** The [CtapCeremonyHost], bridging Rust's synchronous callbacks to the UI. */

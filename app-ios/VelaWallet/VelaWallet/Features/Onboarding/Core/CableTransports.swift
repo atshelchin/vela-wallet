@@ -69,9 +69,7 @@ final class CableConnPort: CableFramePort, @unchecked Sendable {
             semaphore.signal()
         }
         semaphore.wait()
-        if let failure { print("[vela-cable] → write FAILED: \(failure)") } else {
-            print("[vela-cable] → frame (\(frame.count) bytes) via \(name)")
-        }
+        if let failure { print("[vela-cable] → write FAILED via \(name): \(failure)") }
         return failure
     }
 
@@ -90,7 +88,7 @@ final class CableConnPort: CableFramePort, @unchecked Sendable {
         }
         semaphore.wait()
         switch outcome {
-        case let .frame(bytes): print("[vela-cable] ← frame (\(bytes.count) bytes) via \(name)")
+        case .frame: break // proven path; the stage lines narrate enough
         case .timedOut: print("[vela-cable] ← read timed out via \(name)")
         case let .failed(detail): print("[vela-cable] ← read FAILED via \(name): \(detail)")
         }

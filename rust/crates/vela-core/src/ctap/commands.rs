@@ -212,12 +212,17 @@ fn credential_list(items: &[CredentialDescriptor]) -> Value {
         items
             .iter()
             .map(|item| {
+                // "id" BEFORE "type": CTAP2 canonical CBOR orders text keys by
+                // encoded length first. GMS's caBLE responder enforces it and
+                // answers INVALID_CTAP to the reverse (device-found 2026-08-28:
+                // recovery's second getAssertion — the first with an allowList —
+                // died on it).
                 Value::Map(vec![
+                    (Value::Text("id".to_string()), Value::Bytes(item.id.clone())),
                     (
                         Value::Text("type".to_string()),
                         Value::Text("public-key".to_string()),
                     ),
-                    (Value::Text("id".to_string()), Value::Bytes(item.id.clone())),
                 ])
             })
             .collect(),

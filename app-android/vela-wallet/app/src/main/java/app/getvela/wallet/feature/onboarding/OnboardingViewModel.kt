@@ -121,6 +121,12 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     var cableQr by mutableStateOf<String?>(null)
         private set
 
+    /** The "scan needs Location on" explainer (API ≤30), and its answer. */
+    var pendingLocationAsk by mutableStateOf<PendingLocationAsk?>(null)
+        private set
+
+    data class PendingLocationAsk(val answer: CompletableDeferred<Boolean>)
+
     /**
      * The app-owned USB ceremony's UI seam. Every method BLOCKS the calling
      * (IO) thread until the person answers on the main thread — a synchronous
@@ -145,6 +151,12 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
                 usbTouchWaiting = kind?.let { UsbTouch(it, product) }
             }
         }
+
+        override fun askEnableLocation(): Boolean {
+            val answer = CompletableDeferred<Boolean>()
+            viewModelScope.launch { pendingLocationAsk = PendingLocationAsk(answer) }
+            return runBlocking { answer.await() }
+        }
     }
 
     fun answerPin(pin: String?) {
@@ -157,6 +169,12 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
         val prompt = pendingWalletPick ?: return
         pendingWalletPick = null
         prompt.answer.complete(index)
+    }
+
+    fun answerLocationAsk(agree: Boolean) {
+        val prompt = pendingLocationAsk ?: return
+        pendingLocationAsk = null
+        prompt.answer.complete(agree)
     }
 
     init {

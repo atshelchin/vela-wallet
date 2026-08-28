@@ -60,6 +60,14 @@ class MainActivity : ComponentActivity() {
         androidx.activity.result.ActivityResultLauncher<Array<String>>
     private var bluetoothPermissionAnswer:
         kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+    private lateinit var bluetoothEnableLauncher:
+        androidx.activity.result.ActivityResultLauncher<android.content.Intent>
+    private var bluetoothEnableAnswer:
+        kotlinx.coroutines.CompletableDeferred<Boolean>? = null
+    private lateinit var locationSettingsLauncher:
+        androidx.activity.result.ActivityResultLauncher<android.content.Intent>
+    private var locationSettingsAnswer:
+        kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
     /** The permissions the caBLE scan needs on this API level. */
     private fun bluetoothPermissions(): Array<String> =
@@ -82,6 +90,43 @@ class MainActivity : ComponentActivity() {
         bluetoothPermissionAnswer = answer
         bluetoothPermissionLauncher.launch(needed.toTypedArray())
         return answer.await()
+    }
+
+    /**
+     * Ask the SYSTEM to turn Bluetooth on (its own localized dialog), rather
+     * than dead-ending the scan method on a radio that is merely off. `true`
+     * once the adapter is on. Ordering matters on API 31+: the caller has
+     * already granted BLUETOOTH_CONNECT ([requestBluetoothPermission]), which
+     * ACTION_REQUEST_ENABLE requires.
+     *
+     * Device-found on a OnePlus 5T (2026-08-28): Bluetooth off surfaced as
+     * "this device does not support biometrics" — a NotSupported alert for a
+     * state the person can fix with one tap, and a sentence about the wrong
+     * subject entirely.
+     */
+    suspend fun requestEnableBluetooth(): Boolean {
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        bluetoothEnableAnswer = answer
+        bluetoothEnableLauncher.launch(
+            android.content.Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE),
+        )
+        return answer.await()
+    }
+
+    /**
+     * Take the person straight to the system Location page and return when they
+     * come back. AOSP has no in-place enable dialog for location (that is a
+     * Play-services SettingsClient exclusive, and GMS-less devices are exactly
+     * where the API ≤30 scan gate bites), so the deepest link available IS the
+     * settings page — the caller re-checks the toggle on return.
+     */
+    suspend fun openLocationSettings() {
+        val answer = kotlinx.coroutines.CompletableDeferred<Unit>()
+        locationSettingsAnswer = answer
+        locationSettingsLauncher.launch(
+            android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS),
+        )
+        answer.await()
     }
 
     /**
@@ -135,6 +180,18 @@ class MainActivity : ComponentActivity() {
         ) { grants ->
             bluetoothPermissionAnswer?.complete(grants.values.all { it })
             bluetoothPermissionAnswer = null
+        }
+        bluetoothEnableLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            bluetoothEnableAnswer?.complete(result.resultCode == RESULT_OK)
+            bluetoothEnableAnswer = null
+        }
+        locationSettingsLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+        ) {
+            locationSettingsAnswer?.complete(Unit)
+            locationSettingsAnswer = null
         }
         enableEdgeToEdge()
 

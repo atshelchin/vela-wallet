@@ -99,7 +99,32 @@ class HybridCeremony(
             throw PasskeyFailure(FailureKind.Cancelled, "Bluetooth permission was declined")
         }
         if (!scanner.bluetoothReady()) {
-            throw PasskeyFailure(FailureKind.NotSupported, "Turn on Bluetooth and try again.")
+            // A radio that is merely OFF is not "not supported" — NotSupported
+            // renders as the biometrics alert, a sentence about the wrong
+            // subject (device-found on a OnePlus 5T, 2026-08-28). Ask the
+            // system to turn it on (its dialog, its localization); declining is
+            // a cancel, exactly like declining the permission above.
+            val enabled = (context as? MainActivity)?.requestEnableBluetooth() ?: false
+            if (!enabled || !awaitBluetoothReady()) {
+                throw PasskeyFailure(FailureKind.Cancelled, "Bluetooth stayed off")
+            }
+        }
+        if (!locationReadyForScan()) {
+            // API ≤30 gates BLE SCAN RESULTS on location services — off means a
+            // silent empty scan, which would misreport as "no phone answered"
+            // after the full window. Explain first (an unannounced jump into
+            // system settings reads as broken), then send the person to the
+            // system toggle — there is no in-place enable dialog without GMS —
+            // and continue when they return with it on. Declining either step
+            // is a cancel, exactly like declining the permission above.
+            val agreed = withContext(Dispatchers.IO) { prompts.askEnableLocation() }
+            if (!agreed) {
+                throw PasskeyFailure(FailureKind.Cancelled, "Location explainer declined")
+            }
+            (context as? MainActivity)?.openLocationSettings()
+            if (!locationReadyForScan()) {
+                throw PasskeyFailure(FailureKind.Cancelled, "Location stayed off")
+            }
         }
 
         return withContext(Dispatchers.IO) {
@@ -130,6 +155,31 @@ class HybridCeremony(
                 prompts.touchWaiting(null, "")
             }
         }
+    }
+
+    /**
+     * The enable dialog answers OK when the adapter has ACCEPTED the turn-on,
+     * which can be a beat before it reports enabled — poll briefly rather than
+     * failing a scan the person just approved.
+     */
+    private suspend fun awaitBluetoothReady(): Boolean {
+        repeat(20) {
+            if (scanner.bluetoothReady()) return true
+            kotlinx.coroutines.delay(100)
+        }
+        return scanner.bluetoothReady()
+    }
+
+    /**
+     * On API ≤30 the platform withholds BLE scan results unless location
+     * services are on (the runtime permission alone is not enough); 31+ with
+     * BLUETOOTH_SCAN `neverForLocation` has no such gate.
+     */
+    private fun locationReadyForScan(): Boolean {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) return true
+        val manager = context.getSystemService(Context.LOCATION_SERVICE)
+            as? android.location.LocationManager ?: return false
+        return androidx.core.location.LocationManagerCompat.isLocationEnabled(manager)
     }
 
     /** The [CtapCeremonyHost] for a phone-resident credential: no PIN, no picker

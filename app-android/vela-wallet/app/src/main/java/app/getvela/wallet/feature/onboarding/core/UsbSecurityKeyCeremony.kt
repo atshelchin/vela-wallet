@@ -60,6 +60,11 @@ class UsbSecurityKeyCeremony(
         /** The key is blinking. `kind` is "presence" / "fingerprint" /
          *  "select". Called with `null` clears the prompt. */
         fun touchWaiting(kind: String?, product: String)
+
+        /** The hybrid scan needs system Location services (API ≤30) — explain
+         *  why before jumping to settings. `true` means "take me there". Only
+         *  the caBLE ceremony asks; the USB path never does, hence the default. */
+        fun askEnableLocation(): Boolean = false
     }
 
     suspend fun register(

@@ -34,6 +34,7 @@ import app.getvela.wallet.feature.onboarding.flow.CableQrSheet
 import app.getvela.wallet.feature.onboarding.flow.CreateFlowScreen
 import app.getvela.wallet.feature.onboarding.flow.EndpointSheet
 import app.getvela.wallet.feature.onboarding.flow.FlowSheet
+import app.getvela.wallet.feature.onboarding.flow.LocationAskSheet
 import app.getvela.wallet.feature.onboarding.flow.SignInMethodSheet
 import app.getvela.wallet.feature.onboarding.flow.SignOutSheet
 import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
@@ -280,6 +281,11 @@ fun VelaNavHost(
     }
     onboarding.cableQr?.let { payload ->
         CableQrSheet(payload = payload)
+    }
+    // The scan method's "Location needs to be on" explainer (API ≤30) — ABOVE
+    // the QR sheet, since the ceremony that raised it is the one showing the QR.
+    onboarding.pendingLocationAsk?.let {
+        LocationAskSheet(onAnswer = onboarding::answerLocationAsk)
     }
 
     // The way back out of a signed-in wallet.

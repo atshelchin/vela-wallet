@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 19,698 leaves across 15 locales', () => {
+  it('carries the whole corpus — 19,743 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -148,7 +148,7 @@ describe('generated i18n resources', () => {
     // three journey steps (Name / Keys / Create), each a label plus a detail
     // sentence, for the rail that replaced the phone-page-pulled-tall layout.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_698);
+    expect(total).toBe(19_743);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

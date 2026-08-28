@@ -250,6 +250,8 @@ object I18nKeys {
         const val INSERT_KEY_TITLE = "onboarding.common.insertKeyTitle"
         const val INSERT_KEY_BODY = "onboarding.common.insertKeyBody"
         const val OTG_OFF_HINT = "onboarding.common.otgOffHint"
+        const val TOUCH_REMOTE_TITLE = "onboarding.common.touchRemoteTitle"
+        const val TOUCH_REMOTE_BODY = "onboarding.common.touchRemoteBody"
         const val OPEN_CREDENTIAL_MANAGER_SETTINGS = "onboarding.common.openCredentialManagerSettings"
         const val COPY_ADDRESS = "onboarding.common.copyAddress"
         const val COPIED = "onboarding.common.copied"

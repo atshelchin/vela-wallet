@@ -577,6 +577,8 @@
    "insertKeyTitle": "Cắm khóa bảo mật của bạn",
    "insertKeyBody": "Cắm khóa bảo mật FIDO2 vào cổng USB của điện thoại này — sẽ tự động tiếp tục khi nhận diện được.",
    "otgOffHint": "Công tắc OTG của điện thoại này có vẻ đang tắt — một số điện thoại tự tắt nó. Hãy bật OTG trong cài đặt hệ thống rồi cắm lại khóa.",
+   "touchRemoteTitle": "Kiểm tra điện thoại của bạn",
+   "touchRemoteBody": "Làm theo các bước trên thiết bị của bạn",
    "openCredentialManagerSettings": "Mở cài đặt hệ thống để đổi trình quản lý mật khẩu",
    "verifyStuckTitle": "Xác minh cứ thất bại?",
    "verifyStuckBody": "Thiết bị của bạn có thể chưa lưu passkey này đúng cách. Chưa có gì được tạo cả.",

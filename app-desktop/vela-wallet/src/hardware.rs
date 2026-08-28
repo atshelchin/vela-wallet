@@ -73,13 +73,13 @@ fn body(theme: &Theme, text: SharedString) -> Div {
 pub fn touch_card(theme: &Theme, loc: &Loc, waiting: &TouchRequest) -> Div {
     // A phone reached over caBLE is not a security key on the desk — it runs the
     // approval behind its own fingerprint/passkey UI, so the prompt tells the
-    // person to look at the phone, not to "touch" anything here.
-    // TODO(i18n): promote these two strings to the corpus once the caBLE flow is
-    // confirmed on-device (they are the copy the founder specified).
+    // person to look at the phone, not to "touch" anything here. The two
+    // strings are the shared corpus keys iOS and Android render for the same
+    // moment (promoted 2026-08-28, closing the standing i18n follow-up).
     let (title_text, body_text) = if waiting.remote {
         (
-            SharedString::from("Follow the steps on your device"),
-            SharedString::from("Approve the request on your phone to continue."),
+            loc.t("onboarding.common.touchRemoteTitle"),
+            loc.t("onboarding.common.touchRemoteBody"),
         )
     } else {
         let body_key = match waiting.kind {

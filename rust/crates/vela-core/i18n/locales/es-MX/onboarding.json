@@ -106,6 +106,8 @@
 			"insertKeyTitle": "Conecta tu llave de seguridad",
 			"insertKeyBody": "Conecta tu llave de seguridad FIDO2 al puerto USB de este teléfono; continuará automáticamente al detectarla.",
 			"otgOffHint": "El interruptor OTG de este teléfono parece apagado; algunos teléfonos lo apagan automáticamente. Activa OTG en los ajustes del sistema y vuelve a conectar la llave.",
+			"touchRemoteTitle": "Revisa tu teléfono",
+			"touchRemoteBody": "Sigue los pasos en tu dispositivo",
 			"openCredentialManagerSettings": "Abrir ajustes del sistema para cambiar el gestor de contraseñas",
 			"verifyStuckTitle": "¿La verificación sigue fallando?",
 			"verifyStuckBody": "Puede que tu dispositivo no haya guardado bien esta passkey. Aún no se creó nada.",

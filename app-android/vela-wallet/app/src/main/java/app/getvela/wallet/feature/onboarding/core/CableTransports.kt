@@ -80,9 +80,25 @@ class L2capCableConn private constructor(private val socket: BluetoothSocket) : 
     }
 
     override fun readFrame(): ByteArray {
-        val len = input.readInt()
-        if (len < 0 || len > MAX_FRAME) throw IOException("bad L2CAP frame length $len")
-        return ByteArray(len).also { input.readFully(it) }
+        // A Bluetooth stream read has no SO_TIMEOUT; closing the socket is the
+        // one way to unblock it. Without this, a responder that dies silently
+        // would pin the Rust ceremony thread forever — the WebSocket tunnel and
+        // both iOS channels already carry the same 130s ceremony-budget guard.
+        val fired = java.util.concurrent.atomic.AtomicBoolean(false)
+        val watchdog = WATCHDOG.schedule({
+            fired.set(true)
+            runCatching { socket.close() }
+        }, READ_TIMEOUT_S, TimeUnit.SECONDS)
+        try {
+            val len = input.readInt()
+            if (len < 0 || len > MAX_FRAME) throw IOException("bad L2CAP frame length $len")
+            return ByteArray(len).also { input.readFully(it) }
+        } catch (error: IOException) {
+            if (fired.get()) throw java.net.SocketTimeoutException("the L2CAP channel went silent")
+            throw error
+        } finally {
+            watchdog.cancel(false)
+        }
     }
 
     override fun close() {
@@ -92,6 +108,17 @@ class L2capCableConn private constructor(private val socket: BluetoothSocket) : 
     companion object {
         /** The most a frame may claim, so a corrupt prefix cannot allocate the world. */
         private const val MAX_FRAME = 1 shl 20
+
+        /** One read may wait this long — the CTAP user-presence budget and then
+         *  some, matching the tunnel's. */
+        private const val READ_TIMEOUT_S = 130L
+
+        /** Daemon timer shared by every L2CAP read; a fired task only closes a
+         *  socket, so one thread serves all ceremonies. */
+        private val WATCHDOG =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor { runnable ->
+                Thread(runnable, "l2cap-read-watchdog").apply { isDaemon = true }
+            }
 
         @SuppressLint("MissingPermission")
         fun connect(device: BluetoothDevice, psm: Int): L2capCableConn {

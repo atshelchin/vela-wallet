@@ -23,6 +23,7 @@
 
 import Foundation
 import CoreBluetooth
+import os
 import VelaCore
 
 nonisolated enum CableConnError: Error, CustomStringConvertible {
@@ -305,10 +306,28 @@ final class WebSocketCableConn: NSObject, CableConn {
 
     func readFrame() async throws -> Data {
         if let e = sendError { throw e }
-        switch try await task.receive() {
-        case let .data(d): return d
-        case .string: throw CableConnError.closed // text frames illegal on the tunnel
-        @unknown default: throw CableConnError.closed
+        // The same 130s ceremony-budget watchdog the L2CAP channel carries:
+        // `receive()` on an idle socket is not bounded by
+        // `timeoutIntervalForRequest`, so a tunnel that goes silent while the
+        // person walks away would pin the Rust ceremony thread forever.
+        // Cancelling the task fails the pending receive; the flag tells a
+        // deliberate timeout apart from an ordinary socket error.
+        let timedOut = OSAllocatedUnfairLock(initialState: false)
+        let watchdog = Task { @MainActor [task] in
+            try? await Task.sleep(nanoseconds: 130_000_000_000)
+            timedOut.withLock { $0 = true }
+            task?.cancel()
+        }
+        defer { watchdog.cancel() }
+        do {
+            switch try await task.receive() {
+            case let .data(d): return d
+            case .string: throw CableConnError.closed // text frames illegal on the tunnel
+            @unknown default: throw CableConnError.closed
+            }
+        } catch {
+            if timedOut.withLock({ $0 }) { throw CableConnError.timeout }
+            throw error
         }
     }
 

@@ -151,6 +151,8 @@ enum I18nKeys {
 
     /// `onboarding.common.*` — the shared flow scaffolding.
     enum Flow {
+        static let touchRemoteTitle = "onboarding.common.touchRemoteTitle"
+        static let touchRemoteBody = "onboarding.common.touchRemoteBody"
         static let back = "onboarding.common.back"
         static let retry = "onboarding.common.retry"
         static let close = "onboarding.common.close"

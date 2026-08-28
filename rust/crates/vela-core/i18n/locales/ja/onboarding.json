@@ -106,6 +106,8 @@
 			"insertKeyTitle": "セキュリティキーを挿してください",
 			"insertKeyBody": "FIDO2 セキュリティキーをこのスマートフォンの USB ポートに挿してください。検出されると自動的に続行します。",
 			"otgOffHint": "この端末の OTG スイッチがオフのようです。自動的にオフになる機種があります。システム設定で OTG をオンにして、キーを挿し直してください。",
+			"touchRemoteTitle": "スマートフォンを確認してください",
+			"touchRemoteBody": "デバイスの画面の手順に従ってください",
 			"openCredentialManagerSettings": "システム設定でパスワードマネージャーを切り替える",
 			"verifyStuckTitle": "確認が何度も失敗しますか？",
 			"verifyStuckBody": "端末がこのパスキーを正しく保存できていない可能性があります。まだ何も作成されていません。",

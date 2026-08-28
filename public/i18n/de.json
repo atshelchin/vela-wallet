@@ -577,6 +577,8 @@
    "insertKeyTitle": "Sicherheitsschlüssel einstecken",
    "insertKeyBody": "Stecke deinen FIDO2-Sicherheitsschlüssel in den USB-Anschluss dieses Telefons — sobald er erkannt wird, geht es automatisch weiter.",
    "otgOffHint": "Der OTG-Schalter dieses Telefons scheint aus zu sein — manche Telefone schalten ihn automatisch ab. Aktiviere OTG in den Systemeinstellungen und stecke den Schlüssel erneut ein.",
+   "touchRemoteTitle": "Sieh auf dein Telefon",
+   "touchRemoteBody": "Folge den Schritten auf deinem Gerät",
    "openCredentialManagerSettings": "Systemeinstellungen öffnen und Passwortmanager wechseln",
    "verifyStuckTitle": "Die Bestätigung schlägt immer wieder fehl?",
    "verifyStuckBody": "Ihr Gerät hat diesen Passkey möglicherweise nicht richtig gespeichert. Es wurde noch nichts erstellt.",

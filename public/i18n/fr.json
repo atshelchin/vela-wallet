@@ -580,6 +580,8 @@
    "insertKeyTitle": "Insérez votre clé de sécurité",
    "insertKeyBody": "Branchez votre clé de sécurité FIDO2 sur le port USB de ce téléphone — la suite est automatique dès qu'elle est détectée.",
    "otgOffHint": "L'interrupteur OTG de ce téléphone semble désactivé — certains téléphones le coupent automatiquement. Activez l'OTG dans les réglages système, puis rebranchez la clé.",
+   "touchRemoteTitle": "Regardez votre téléphone",
+   "touchRemoteBody": "Suivez les étapes sur votre appareil",
    "openCredentialManagerSettings": "Ouvrir les réglages système pour changer de gestionnaire de mots de passe",
    "verifyStuckTitle": "La vérification échoue encore ?",
    "verifyStuckBody": "Votre appareil n'a peut-être pas bien enregistré cette clé d'accès. Rien n'a encore été créé.",

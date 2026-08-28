@@ -106,6 +106,8 @@
 			"insertKeyTitle": "插入安全密钥",
 			"insertKeyBody": "把 FIDO2 安全密钥插到手机的 USB 接口，检测到后会自动继续。",
 			"otgOffHint": "手机的 OTG 开关可能已关闭——部分手机会自动关闭它。请到系统设置开启 OTG 后重新插入。",
+			"touchRemoteTitle": "查看你的手机",
+			"touchRemoteBody": "在你的设备上按提示继续操作",
 			"openCredentialManagerSettings": "前往系统设置切换密码管理器",
 			"verifyStuckTitle": "验证一直失败？",
 			"verifyStuckBody": "设备可能没有正确保存这枚通行密钥。还没有创建任何内容。",

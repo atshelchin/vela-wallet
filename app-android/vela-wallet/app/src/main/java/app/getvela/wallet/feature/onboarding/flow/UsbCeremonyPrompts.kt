@@ -284,11 +284,10 @@ fun UsbTouchIndicator(kind: String, product: String) {
     val colors = VelaTheme.colors
     // Over caBLE the "authenticator" is the person's phone, and the approval
     // happens THERE — "touch your security key" would send them hunting for
-    // hardware they never owned. Same copy the desktop uses for its remote
-    // prompt; a corpus key is the i18n follow-up.
+    // hardware they never owned. Same corpus keys the desktop and iOS use.
     val remote = product == "your phone"
     val body = when {
-        remote -> "Follow the steps on your device"
+        remote -> strings.t(I18nKeys.Flow.TOUCH_REMOTE_BODY)
         kind == "fingerprint" -> strings.t(I18nKeys.Create.TOUCH_FINGERPRINT_BODY, mapOf("product" to product))
         kind == "select" -> strings.t(I18nKeys.Create.TOUCH_SELECT_BODY)
         else -> strings.t(I18nKeys.Create.TOUCH_BODY, mapOf("product" to product))
@@ -309,7 +308,7 @@ fun UsbTouchIndicator(kind: String, product: String) {
             verticalArrangement = Arrangement.spacedBy(VelaSpacing.md),
         ) {
             Text(
-                text = if (remote) "Check your phone" else strings.t(I18nKeys.Create.TOUCH_TITLE),
+                text = if (remote) strings.t(I18nKeys.Flow.TOUCH_REMOTE_TITLE) else strings.t(I18nKeys.Create.TOUCH_TITLE),
                 color = colors.fgBase,
                 fontFamily = VelaFontFamily,
                 fontWeight = VelaFontWeight.bold,

@@ -206,16 +206,16 @@ struct UsbTouchSheet: View {
 
     /// Over caBLE the "authenticator" is the person's phone, and the approval
     /// happens THERE — "touch your security key" would send them hunting for
-    /// hardware they never owned (device-found 2026-08-28). Same copy the
-    /// desktop uses for its remote prompt; a corpus key is the i18n follow-up.
+    /// hardware they never owned (device-found 2026-08-28). Same corpus keys
+    /// the desktop and Android use.
     private var remote: Bool { touch.product == "your phone" }
 
     private var title: String {
-        remote ? "Check your phone" : loc.t(I18nKeys.Create.touchTitle)
+        remote ? loc.t(I18nKeys.Flow.touchRemoteTitle) : loc.t(I18nKeys.Create.touchTitle)
     }
 
     private var message: String {
-        if remote { return "Follow the steps on your device" }
+        if remote { return loc.t(I18nKeys.Flow.touchRemoteBody) }
         switch touch.kind {
         case "fingerprint":
             return loc.t(I18nKeys.Create.touchFingerprintBody, vars: ["product": touch.product])
@@ -268,7 +268,7 @@ struct UsbConnectingSheet: View {
 
     private var title: String {
         switch method {
-        case .hybrid: "Check your phone"
+        case .hybrid: loc.t(I18nKeys.Flow.touchRemoteTitle)
         case .securityKey: loc.t(I18nKeys.Create.methodSecurityKeyTitle)
         case .platform: loc.t(I18nKeys.Create.methodPlatformTitle)
         }
@@ -276,9 +276,8 @@ struct UsbConnectingSheet: View {
 
     private var body_: String {
         switch method {
-        // Same words as the remote touch prompt and the desktop; the corpus
-        // key for them is the standing i18n follow-up.
-        case .hybrid: "Follow the steps on your device"
+        // Same words as the remote touch prompt, from the shared corpus.
+        case .hybrid: loc.t(I18nKeys.Flow.touchRemoteBody)
         case .securityKey: loc.t(I18nKeys.Create.methodSecurityKeyBody)
         case .platform: loc.t(I18nKeys.Create.methodPlatformBody)
         }

@@ -43,6 +43,7 @@ import app.getvela.wallet.feature.onboarding.flow.ProgressScreen
 import app.getvela.wallet.feature.onboarding.flow.RetryScreen
 import app.getvela.wallet.feature.onboarding.flow.Screen
 import app.getvela.wallet.feature.onboarding.flow.StateFixture
+import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
 import app.getvela.wallet.feature.onboarding.flow.progressFor
 import app.getvela.wallet.feature.onboarding.flow.screenFor
 import app.getvela.wallet.feature.onboarding.flow.statusKeyToI18n
@@ -118,6 +119,13 @@ fun GalleryScreen(initialDarkTheme: Boolean) {
                 kind = fixture.kind,
                 confirmable = fixture.confirmable,
                 onAnswer = { selectedCode = null },
+            )
+
+            is Fixture.UsbPin -> UsbPinDialog(
+                product = "YubiKey 5C NFC",
+                retries = fixture.retries,
+                isRetry = fixture.isRetry,
+                onSubmit = { selectedCode = null },
             )
 
             // A flow step covers the list entirely, as it does in production —

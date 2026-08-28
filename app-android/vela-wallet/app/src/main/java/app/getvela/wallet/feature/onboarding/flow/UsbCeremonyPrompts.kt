@@ -2,6 +2,8 @@ package app.getvela.wallet.feature.onboarding.flow
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,7 +72,13 @@ fun UsbPinDialog(
     val strings = LocalVelaStrings.current
     val colors = VelaTheme.colors
     var pin by remember { mutableStateOf("") }
-    val sheetState = rememberModalBottomSheetState()
+    // Fully expanded from the start: the default half-expanded stop fits this
+    // content only at fontScale 1.0 — a large system font (elderly settings)
+    // pushed the keypad's last row and the confirm button below the fold, and
+    // nothing suggested dragging (device-found on a OnePlus 5T at 1.3×,
+    // 2026-08-28). The scroll is the second half of the same fix: whatever
+    // still overflows a short screen stays reachable.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = { onSubmit(null) },
@@ -80,6 +88,7 @@ fun UsbPinDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = VelaSpacing.xl2)
                 .padding(bottom = VelaSpacing.xl2),
             verticalArrangement = Arrangement.spacedBy(VelaSpacing.lg),

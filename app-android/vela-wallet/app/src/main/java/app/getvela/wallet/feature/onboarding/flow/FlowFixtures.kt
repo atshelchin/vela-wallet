@@ -27,6 +27,11 @@ sealed interface Fixture {
 
     /** The failure sheet, one entry per outcome the catalog names. */
     data class Sheet(val kind: PromptKind, val confirmable: Boolean) : Fixture
+
+    /** The app-owned USB path's PIN keypad — the sheet a large system font
+     *  clipped (device-found 2026-08-28); in the gallery so a layout that
+     *  hides its own confirm button is visible without a key in hand. */
+    data class UsbPin(val retries: Int, val isRetry: Boolean) : Fixture
 }
 
 data class StateFixture(val group: String, val code: String, val fixture: Fixture)
@@ -204,6 +209,9 @@ object FlowFixtures {
             "sign_in_failed",
             detail = "No passkey for getvela.app on this device",
         )
+
+        add(StateFixture("Usb prompts", "usb pin", Fixture.UsbPin(retries = -1, isRetry = false)))
+        add(StateFixture("Usb prompts", "usb pin · retry", Fixture.UsbPin(retries = 5, isRetry = true)))
     }
 
     fun byCode(code: String): StateFixture? = all.firstOrNull { it.code == code }

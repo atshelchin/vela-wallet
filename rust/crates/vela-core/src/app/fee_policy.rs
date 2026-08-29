@@ -84,6 +84,13 @@ const BUNDLER_MARGIN_DEN: u128 = 100;
 /// In-band reimbursement markup: gas basis × 3 (`safe-transaction.ts:336`).
 const INBAND_MARKUP: u128 = 3;
 
+/// A bundler gas quote is refused, not signed, when it exceeds the client's
+/// OWN on-chain gas measurement (`derive_chain_gas_price`) by more than this
+/// multiple. A quote that far above real cost is not one we pay 3× on top of;
+/// rejecting it protects the user from a runaway or hostile relayer quote
+/// (requirement G05 / manual-test clue #14, "GasQuoteTooHigh").
+const MAX_QUOTE_VS_CHAIN_MULTIPLE: u128 = 3;
+
 /// USD prices are fixed-point with 8 decimals (`safe-transaction.ts:337-339`).
 pub const USD_PRICE_DECIMALS: u32 = 8;
 const USD_PRICE_SCALE: u128 = 100_000_000;
@@ -505,6 +512,10 @@ pub enum FeeFailure {
     /// Gas estimation failed and no honest fallback exists (large calldata,
     /// missing account context, or a Tempo contract call).
     EstimateFailed,
+    /// The bundler quoted a gas price more than `MAX_QUOTE_VS_CHAIN_MULTIPLE`
+    /// times the client's own on-chain measurement — refused rather than
+    /// signed, to protect the user from a runaway or hostile relayer quote.
+    GasQuoteTooHigh,
 }
 
 // ---------------------------------------------------------------------------
@@ -1099,6 +1110,10 @@ pub struct FeeEstimate {
     pub network_fee_per_gas: u128,
     pub relayer_fee_per_gas: u128,
     pub bundler_gas_price: u128,
+    /// `max(chain gas price, bundler network fee)` — the gas basis the in-band
+    /// reimbursement was priced against (and re-priced against when the fee
+    /// asset is switched). See `MAX_QUOTE_VS_CHAIN_MULTIPLE`.
+    pub in_band_gas_basis: u128,
     pub total_gas: u128,
     pub deployed: bool,
     pub tier: FeeTier,
@@ -1196,6 +1211,11 @@ enum PricePlan {
         network_fee_per_gas: u128,
         relayer_fee_per_gas: u128,
         bundler_gas_price: u128,
+        /// `max(chain gas price, bundler network fee)` — the basis the in-band
+        /// reimbursement is priced against, so the 3× buffer rides on the
+        /// larger of our own measurement and the bundler's quote, never on an
+        /// unvetted quote alone.
+        in_band_gas_basis: u128,
         quoted: bool,
         est_calldata_len: usize,
     },
@@ -1254,6 +1274,7 @@ pub struct FeeEstimateView {
     pub network_fee_per_gas: String,
     pub relayer_fee_per_gas: String,
     pub bundler_gas_price: String,
+    pub in_band_gas_basis: String,
     pub total_gas: String,
     pub deployed: bool,
     pub tier: FeeTier,
@@ -1692,6 +1713,22 @@ fn advance_generic(
         }
     };
 
+    // Protect the user (requirement G05): a bundler quote more than
+    // `MAX_QUOTE_VS_CHAIN_MULTIPLE` times our own on-chain gas measurement is
+    // refused, not signed. Only a real bundler quote is vetted — the local
+    // fallback derives from the same measurement and cannot be "too high".
+    let chain_gas_price = gas.gas_price;
+    if quoted
+        && chain_gas_price > 0
+        && network_fee_per_gas > chain_gas_price.saturating_mul(MAX_QUOTE_VS_CHAIN_MULTIPLE)
+    {
+        return fail(model, FeeFailure::GasQuoteTooHigh);
+    }
+    // Anchor the in-band reimbursement on the LARGER of our own measurement and
+    // the bundler's quote: never underpay when the bundler under-reports the
+    // network fee, and never let the 3× buffer ride on an unvetted quote alone.
+    let in_band_gas_basis = network_fee_per_gas.max(chain_gas_price);
+
     // The in-band quote is mandatory on every supported network
     // (`safe-transaction.ts:645-661`).
     let Some(rows) = quotes else {
@@ -1722,6 +1759,7 @@ fn advance_generic(
         network_fee_per_gas,
         relayer_fee_per_gas,
         bundler_gas_price,
+        in_band_gas_basis,
         quoted,
         est_calldata_len,
     });
@@ -1898,6 +1936,7 @@ fn price_generic(
         network_fee_per_gas,
         relayer_fee_per_gas,
         bundler_gas_price,
+        in_band_gas_basis,
         quoted,
         ..
     } = plan
@@ -1912,7 +1951,7 @@ fn price_generic(
     };
     let Some(fee_amount) = calculate_in_band_fee_amount(
         total_gas,
-        *network_fee_per_gas,
+        *in_band_gas_basis,
         &selected.pricing(),
         &native.pricing(),
     ) else {
@@ -1953,6 +1992,7 @@ fn price_generic(
         network_fee_per_gas: *network_fee_per_gas,
         relayer_fee_per_gas: *relayer_fee_per_gas,
         bundler_gas_price: *bundler_gas_price,
+        in_band_gas_basis: *in_band_gas_basis,
         total_gas,
         deployed: ctx.deployed,
         tier: ctx.tier,
@@ -1998,6 +2038,10 @@ fn price_tempo(
         network_fee_per_gas: *gas_price_atto,
         relayer_fee_per_gas: 0,
         bundler_gas_price: *gas_price_atto,
+        // Tempo prices in pathUSD attodollars, not the generic gas basis; this
+        // field is unused on the Tempo path (fee_amount_for_option reads
+        // network_fee_per_gas there) and mirrors it for shape completeness.
+        in_band_gas_basis: *gas_price_atto,
         total_gas: expected_gas,
         deployed: ctx.deployed,
         tier: ctx.tier,
@@ -2163,7 +2207,7 @@ fn fee_amount_for_option(model: &Model, option: &ParsedQuote) -> Option<u128> {
     let native = find_quote(&model.quotes, None)?;
     calculate_in_band_fee_amount(
         estimate.total_gas,
-        estimate.network_fee_per_gas,
+        estimate.in_band_gas_basis,
         &option.pricing(),
         &native.pricing(),
     )
@@ -2181,6 +2225,7 @@ fn estimate_view(estimate: &FeeEstimate) -> FeeEstimateView {
         network_fee_per_gas: estimate.network_fee_per_gas.to_string(),
         relayer_fee_per_gas: estimate.relayer_fee_per_gas.to_string(),
         bundler_gas_price: estimate.bundler_gas_price.to_string(),
+        in_band_gas_basis: estimate.in_band_gas_basis.to_string(),
         total_gas: estimate.total_gas.to_string(),
         deployed: estimate.deployed,
         tier: estimate.tier,

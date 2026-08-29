@@ -6,4 +6,4 @@ import type { FeeTier } from "./FeeTier";
  * Wire projection of [`FeeEstimate`] — amounts as decimal strings (never
  * JSON numbers; inventory open question 4).
  */
-export type FeeEstimateView = { chain_id: number, total_wei: string, max_fee_per_gas: string, network_fee_per_gas: string, relayer_fee_per_gas: string, bundler_gas_price: string, total_gas: string, deployed: boolean, tier: FeeTier, quoted: boolean, fee_asset: FeeAssetView, fee_recipient: string | null, };
+export type FeeEstimateView = { chain_id: number, total_wei: string, max_fee_per_gas: string, network_fee_per_gas: string, relayer_fee_per_gas: string, bundler_gas_price: string, in_band_gas_basis: string, total_gas: string, deployed: boolean, tier: FeeTier, quoted: boolean, fee_asset: FeeAssetView, fee_recipient: string | null, };

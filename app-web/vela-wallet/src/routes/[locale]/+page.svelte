@@ -127,9 +127,7 @@
 </svelte:head>
 
 <main class="welcome">
-	<OnboardingRail
-		rail={{ kind: 'tagline', text: strings('onboarding.welcome.desktopTagline') }}
-	/>
+	<OnboardingRail rail={{ kind: 'tagline', text: strings('onboarding.welcome.desktopTagline') }} />
 
 	<div class="column">
 		<div class="top">
@@ -293,9 +291,7 @@
 			gap: 0;
 			/* box-sizing is border-box globally, so the measure has to carry its own
 			   padding — 520 of text plus 72 a side. */
-			max-width: calc(
-				var(--layout-onboardingColumn) + var(--layout-onboardingFrameGutter) * 2
-			);
+			max-width: calc(var(--layout-onboardingColumn) + var(--layout-onboardingFrameGutter) * 2);
 			margin-inline: 0;
 			padding: var(--space-5xl) var(--layout-onboardingFrameGutter);
 		}

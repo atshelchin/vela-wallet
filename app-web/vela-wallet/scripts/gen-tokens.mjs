@@ -76,12 +76,36 @@ const WEB_ADDITIONS = [
 		'72px',
 		"spec 019: the desktop flow frame's horizontal breathing room — the column plus twice this is the frame's max width"
 	],
-	['text-stepOrdinal', '104px', 'spec 019: the rail step ordinal, set as display TYPE rather than drawn as a stepper widget'],
-	['layout-railRuleW', '28px', "spec 019: the accent rule under the rail's tagline — a mark, not a divider, so it has a width of its own"],
-	['layout-railDetailMeasure', '214px', "spec 019: the step detail's measure inside the rail — wraps at a readable line, not at the rail's edge"],
-	['space-railOrdinalGap', '6px', 'spec 019: between the rail ordinal and its /03 — tighter than the space scale steps, per the design'],
-	['space-railNameGap', '22px', 'spec 019: between the rail ordinal block and the step name, per the design'],
-	['layout-welcomeCtaMin', '176px', "spec 019: the desktop welcome CTAs' minimum width — side-by-side buttons sized to their labels, not to the column"],
+	[
+		'text-stepOrdinal',
+		'104px',
+		'spec 019: the rail step ordinal, set as display TYPE rather than drawn as a stepper widget'
+	],
+	[
+		'layout-railRuleW',
+		'28px',
+		"spec 019: the accent rule under the rail's tagline — a mark, not a divider, so it has a width of its own"
+	],
+	[
+		'layout-railDetailMeasure',
+		'214px',
+		"spec 019: the step detail's measure inside the rail — wraps at a readable line, not at the rail's edge"
+	],
+	[
+		'space-railOrdinalGap',
+		'6px',
+		'spec 019: between the rail ordinal and its /03 — tighter than the space scale steps, per the design'
+	],
+	[
+		'space-railNameGap',
+		'22px',
+		'spec 019: between the rail ordinal block and the step name, per the design'
+	],
+	[
+		'layout-welcomeCtaMin',
+		'176px',
+		"spec 019: the desktop welcome CTAs' minimum width — side-by-side buttons sized to their labels, not to the column"
+	],
 	['text-stepTotal', '20px', 'spec 019: the /03 beside the ordinal, and the step name under it'],
 	[
 		'text-railTagline',
@@ -90,13 +114,13 @@ const WEB_ADDITIONS = [
 	],
 	[
 		'color-rail-ordinal',
-		'color-mix(in srgb, var(--color-fg-base) 14%, var(--color-bg-sunken))'
-		, 'spec 019: the ordinal is a WATERMARK on the rail surface. Mixed rather than declared per mode because WEB_ADDITIONS land in :root only — and a mix off the two tokens that already flip is the more honest statement anyway: one step off the background, whichever background that is'
+		'color-mix(in srgb, var(--color-fg-base) 14%, var(--color-bg-sunken))',
+		'spec 019: the ordinal is a WATERMARK on the rail surface. Mixed rather than declared per mode because WEB_ADDITIONS land in :root only — and a mix off the two tokens that already flip is the more honest statement anyway: one step off the background, whichever background that is'
 	],
 	[
 		'color-rail-ordinalSoft',
-		'color-mix(in srgb, var(--color-fg-base) 22%, var(--color-bg-sunken))'
-		, 'spec 019: the /03, a step further up from the background than the ordinal'
+		'color-mix(in srgb, var(--color-fg-base) 22%, var(--color-bg-sunken))',
+		'spec 019: the /03, a step further up from the background than the ordinal'
 	],
 	[
 		'layout-flowColumn',

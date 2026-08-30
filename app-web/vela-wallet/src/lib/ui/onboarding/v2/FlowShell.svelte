@@ -75,9 +75,7 @@
 			   opened the hole that made this read as a phone page pulled tall. */
 			/* box-sizing is border-box globally, so the measure has to carry its own
 			   padding — 520 of text plus 72 a side. */
-			max-width: calc(
-				var(--layout-onboardingColumn) + var(--layout-onboardingFrameGutter) * 2
-			);
+			max-width: calc(var(--layout-onboardingColumn) + var(--layout-onboardingFrameGutter) * 2);
 			margin-inline: 0;
 			padding: var(--space-5xl) var(--layout-onboardingFrameGutter);
 		}

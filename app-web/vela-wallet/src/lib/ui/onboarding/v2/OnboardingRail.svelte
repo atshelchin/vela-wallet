@@ -24,7 +24,7 @@
 	import BrandMark from '$lib/ui/BrandMark.svelte';
 	import type { RailSlot } from './rail';
 
-// NOT `slot`: that is a reserved attribute name in Svelte, and a prop
+	// NOT `slot`: that is a reserved attribute name in Svelte, and a prop
 	// called it would collide with the legacy slot API at every call site.
 	let { rail }: { rail: RailSlot } = $props();
 

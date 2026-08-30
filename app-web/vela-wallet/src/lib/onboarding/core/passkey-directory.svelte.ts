@@ -25,6 +25,7 @@ export interface DirectoryEntry {
 type Slot = DirectoryEntry | null | undefined;
 
 /** One request per AAGUID per session, whatever the answer. */
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- dedup guard, not render state; `entries` is the reactive channel
 const inFlight = new Set<string>();
 
 const entries = $state<Record<string, DirectoryEntry | null>>({});

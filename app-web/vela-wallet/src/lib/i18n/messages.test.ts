@@ -153,3 +153,53 @@ describe('mock annotation strings never ship (spec 014 FR-002 / SC-006)', () => 
 		}
 	});
 });
+
+describe('every key the onboarding surfaces can request is in FLOW_KEYS', () => {
+	// The flow dict echoes unknown keys (`data.flow[key] ?? key`), so a key
+	// missing from FLOW_KEYS ships as raw text with no gate tripping — the
+	// spec-019 rail did exactly that. This scan closes the loop: every
+	// `strings('…')` literal in the onboarding components and the two routes
+	// that resolve through `data.flow` must be prerendered.
+	const SRC_ROOT = join(import.meta.dirname, '..', '..');
+	const SURFACES = [
+		join(SRC_ROOT, 'lib', 'ui', 'onboarding'),
+		join(SRC_ROOT, 'routes', '[locale]', '+page.svelte'),
+		join(SRC_ROOT, 'routes', '[locale]', 'create', '+page.svelte')
+	];
+
+	const collect = (path: string): string[] =>
+		statSync(path).isDirectory()
+			? readdirSync(path).flatMap((name) => collect(join(path, name)))
+			: [path];
+
+	// The rail builds its step keys from a template, which hides them from the
+	// literal scan — so the template's shape is pinned here and expanded by hand.
+	const RAIL_TEMPLATE = /^onboarding\.create\.step\$\{key\}(Label|Detail)$/;
+	const RAIL_STEPS = ['Naming', 'Keys', 'Create'];
+
+	it('scan finds the surfaces and no literal falls outside FLOW_KEYS', () => {
+		const requested = new Set<string>();
+		const files = SURFACES.flatMap(collect).filter(
+			(f) => f.endsWith('.svelte') || f.endsWith('.ts')
+		);
+		expect(files.length).toBeGreaterThan(5);
+		for (const file of files) {
+			const text = readFileSync(file, 'utf8');
+			for (const m of text.matchAll(/strings\(\s*'([^']+)'/g)) requested.add(m[1]);
+			for (const m of text.matchAll(/strings\(\s*`([^`]+)`/g)) {
+				const suffix = RAIL_TEMPLATE.exec(m[1])?.[1];
+				expect(
+					suffix,
+					`${relative(SRC_ROOT, file)}: strings(\`${m[1]}\`) is not the pinned rail template — ` +
+						'list its expansions here and in FLOW_KEYS'
+				).toBeDefined();
+				for (const step of RAIL_STEPS) requested.add(`onboarding.create.step${step}${suffix}`);
+			}
+		}
+		expect(requested.size).toBeGreaterThan(30);
+		const provided = new Set<string>(FLOW_KEYS);
+		for (const key of requested) {
+			expect(provided.has(key), `"${key}" is requested but missing from FLOW_KEYS`).toBe(true);
+		}
+	});
+});

@@ -116,11 +116,13 @@ test.describe('the hero headline holds its authored line count', () => {
 				// One client rect per rendered line box; sub-pixel tops of the
 				// same line collapse on rounding.
 				const tops = new Set(
-					[...range.getClientRects()]
-						.filter((r) => r.width > 0.5)
-						.map((r) => Math.round(r.top))
+					[...range.getClientRects()].filter((r) => r.width > 0.5).map((r) => Math.round(r.top))
 				);
-				return { lines: tops.size, fontSize: getComputedStyle(h1).fontSize, long: h1.classList.contains('long') };
+				return {
+					lines: tops.size,
+					fontSize: getComputedStyle(h1).fontSize,
+					long: h1.classList.contains('long')
+				};
 			});
 
 			expect(measured.long, `${locale} class matches its corpus fit`).toBe(

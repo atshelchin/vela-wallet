@@ -66,6 +66,22 @@ const FLOW_CHROME_KEYS = [
 ] as const;
 
 /**
+ * The desktop rail's one slot (spec 019): a numbered step per screen, and the
+ * brand line outside the journey. `CreateFlow.svelte` builds the step keys
+ * from a template (`step${Naming|Keys|Create}${Label|Detail}`), so all six
+ * expansions must be listed here — a template hides its keys from grep.
+ */
+const FLOW_RAIL_KEYS = [
+	'onboarding.create.stepNamingLabel',
+	'onboarding.create.stepNamingDetail',
+	'onboarding.create.stepKeysLabel',
+	'onboarding.create.stepKeysDetail',
+	'onboarding.create.stepCreateLabel',
+	'onboarding.create.stepCreateDetail',
+	'onboarding.welcome.desktopTagline'
+] as const;
+
+/**
  * The v2 name screen. Three gates: where the PUBLIC key goes, where the PRIVATE
  * key stays, and the legal assent — whose fragments are named `ack2*` because
  * they render at index 2, and a fragment key that disagrees with its row is how
@@ -205,6 +221,7 @@ const FLOW_LOGIN_WAIT_KEYS = [
 export const FLOW_KEYS: readonly string[] = [
 	...new Set([
 		...FLOW_CHROME_KEYS,
+		...FLOW_RAIL_KEYS,
 		...FLOW_FORM_KEYS,
 		...FLOW_KEYS_SCREEN_KEYS,
 		...FLOW_OUTCOME_SCREEN_KEYS,

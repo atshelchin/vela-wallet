@@ -464,15 +464,23 @@ export function calculateInBandFeeAmount(
 ): bigint | null {
   if (totalGas < 0n || gasPrice < 0n || nativeAsset.asset !== 'native') return null;
   const nativeUnit = 10n ** BigInt(nativeAsset.decimals);
-  // Minimum is 0.00001 native coin. For an unusual native precision below 5,
-  // one base unit is the smallest representable safe floor.
-  const nativeMinimum = nativeAsset.decimals >= 5
+  // 0.00001 native coin — the relay's admission floor; the client never
+  // reimburses below it. Below 5 decimals it collapses to one base unit.
+  const admissionFloor = nativeAsset.decimals >= 5
     ? 10n ** BigInt(nativeAsset.decimals - 5)
     : 1n;
+  // Client-self-imposed value floor, harmonizing the native minimum with the
+  // stablecoin $0.01 floor: at least $0.01 worth of native when priceable (but
+  // never below the 0.00001-coin admission floor — on a coin dearer than $1000,
+  // $0.01 is worth less than that), else a flat 0.001-coin blind floor (below 3
+  // decimals, one base unit). `!nativeUsdPrice` is falsy for 0n too — unpriceable.
+  const nativeUsdPrice = usdPriceScaled(nativeAsset.usdPrice, true);
+  const nativeMinimum = nativeUsdPrice
+    ? bigintMax(ceilDiv(STABLE_MIN_USD_SCALED * nativeUnit, nativeUsdPrice), admissionFloor)
+    : (nativeAsset.decimals >= 3 ? 10n ** BigInt(nativeAsset.decimals - 3) : 1n);
   const nativeAmount = bigintMax(totalGas * gasPrice * INBAND_MARKUP, nativeMinimum);
   if (feeAsset.asset === 'native') return nativeAmount;
 
-  const nativeUsdPrice = usdPriceScaled(nativeAsset.usdPrice, true);
   const feeTokenUsdPrice = usdPriceScaled(feeAsset.usdPrice, false);
   if (!nativeUsdPrice || !feeTokenUsdPrice) return null;
   const feeTokenUnit = 10n ** BigInt(feeAsset.decimals);

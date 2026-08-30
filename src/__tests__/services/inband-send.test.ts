@@ -192,8 +192,13 @@ describe('calculateInBandFeeAmount', () => {
     expect(calculateInBandFeeAmount(200_000n, 1_000_000_000n, native, native))
       .toBe(600_000_000_000_000n);
     const nativeWithoutPrice = { asset: 'native' as const, decimals: 18, usdPrice: null };
+    // Native works without a price, flooring at 0.001 of the coin (the blind
+    // fallback) when the fee is below it (6e14 < 1e15)…
     expect(calculateInBandFeeAmount(200_000n, 1_000_000_000n, nativeWithoutPrice, nativeWithoutPrice))
-      .toBe(600_000_000_000_000n);
+      .toBe(1_000_000_000_000_000n);
+    // …and passing the real gas fee through when it beats the fallback.
+    expect(calculateInBandFeeAmount(2_000_000n, 1_000_000_000n, nativeWithoutPrice, nativeWithoutPrice))
+      .toBe(6_000_000_000_000_000n);
     // A stablecoin conversion without an oracle price is unsafe; native payment remains the
     // usable default until both conversion prices are available.
     expect(calculateInBandFeeAmount(200_000n, 1_000_000_000n, usdc, nativeWithoutPrice))

@@ -354,7 +354,9 @@ fn in_band_fee_native_is_gas_times_price_times_three() {
         calculate_in_band_fee_amount(200_000, 1_000_000_000, &native, &native),
         Some(600_000_000_000_000)
     );
-    // Native payment works without any oracle price…
+    // Native payment works without any oracle price — it just floors at 0.001 of
+    // the coin (the blind fallback) when the real fee is below it. Here the fee
+    // (6e14) is under 0.001 native (1e15), so the floor binds.
     assert_eq!(
         calculate_in_band_fee_amount(
             200_000,
@@ -362,7 +364,17 @@ fn in_band_fee_native_is_gas_times_price_times_three() {
             &native_without_price,
             &native_without_price
         ),
-        Some(600_000_000_000_000)
+        Some(1_000_000_000_000_000)
+    );
+    // Above the 0.001-coin fallback, the real gas fee flows through unpriced.
+    assert_eq!(
+        calculate_in_band_fee_amount(
+            2_000_000,
+            1_000_000_000,
+            &native_without_price,
+            &native_without_price
+        ),
+        Some(6_000_000_000_000_000)
     );
     // …but a stablecoin conversion without one is unsafe → cannot quote.
     assert_eq!(

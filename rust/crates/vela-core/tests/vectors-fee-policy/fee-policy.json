@@ -39,7 +39,7 @@
       "expect": { "amount": "600000000000000" }
     },
     {
-      "name": "in-band native fee needs no USD price at all",
+      "name": "in-band native, unpriced, floors to 0.001 of the coin",
       "fn": "in_band_fee",
       "input": {
         "total_gas": "200000",
@@ -47,7 +47,18 @@
         "fee_asset": { "is_native": true, "decimals": 18, "usd_price": null },
         "native_asset": { "is_native": true, "decimals": 18, "usd_price": null }
       },
-      "expect": { "amount": "600000000000000" }
+      "expect": { "amount": "1000000000000000" }
+    },
+    {
+      "name": "in-band native, unpriced, uses the gas fee when it beats the 0.001 floor",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "2000000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": true, "decimals": 18, "usd_price": null },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": null }
+      },
+      "expect": { "amount": "6000000000000000" }
     },
     {
       "name": "in-band native floor is 0.00001 of the native coin",
@@ -61,7 +72,7 @@
       "expect": { "amount": "10000000000000" }
     },
     {
-      "name": "in-band native floor degrades to one base unit below 5 decimals",
+      "name": "in-band native, low-decimal coin, floors to $0.01 worth when priced",
       "fn": "in_band_fee",
       "input": {
         "total_gas": "0",
@@ -69,7 +80,40 @@
         "fee_asset": { "is_native": true, "decimals": 4, "usd_price": "1" },
         "native_asset": { "is_native": true, "decimals": 4, "usd_price": "1" }
       },
+      "expect": { "amount": "100" }
+    },
+    {
+      "name": "in-band native, unpriced sub-3-decimal coin, degrades to one base unit",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "0",
+        "gas_price": "0",
+        "fee_asset": { "is_native": true, "decimals": 2, "usd_price": null },
+        "native_asset": { "is_native": true, "decimals": 2, "usd_price": null }
+      },
       "expect": { "amount": "1" }
+    },
+    {
+      "name": "in-band native, cheap $0.40 coin, floors to $0.01 worth (0.025 coin)",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "100000",
+        "gas_price": "1000000000",
+        "fee_asset": { "is_native": true, "decimals": 18, "usd_price": "0.40000000" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "0.40000000" }
+      },
+      "expect": { "amount": "25000000000000000" }
+    },
+    {
+      "name": "in-band native, dear $3000 coin, admission 0.00001 floor beats $0.01 worth",
+      "fn": "in_band_fee",
+      "input": {
+        "total_gas": "1",
+        "gas_price": "1",
+        "fee_asset": { "is_native": true, "decimals": 18, "usd_price": "3000.00000000" },
+        "native_asset": { "is_native": true, "decimals": 18, "usd_price": "3000.00000000" }
+      },
+      "expect": { "amount": "10000000000000" }
     },
     {
       "name": "in-band stable fee converts through the 8-dp USD scale",

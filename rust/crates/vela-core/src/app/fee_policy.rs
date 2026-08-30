@@ -574,9 +574,12 @@ pub fn usd_price_scaled(value: Option<&str>, round_up: bool) -> Option<u128> {
 
 /// Exact in-band reimbursement from the transaction's gas basis
 /// (`safe-transaction.ts:359-390`). `requiredAmount` from the RPC is
-/// intentionally not used. Returns `None` when it cannot price safely — a
-/// zero/absent USD price is "cannot quote", never rate 1 (invariant ④'s
-/// sibling: 0 is not a price).
+/// intentionally not used. The native minimum is value-consistent — $0.01 worth
+/// of native (never below the 0.00001-coin admission floor), or a flat 0.001-coin
+/// fallback when the coin is unpriced — so a native reimbursement can still be
+/// computed without a price. The STABLECOIN path, however, returns `None` when it
+/// cannot price safely: a zero/absent USD price is "cannot quote", never rate 1
+/// (invariant ④'s sibling: 0 is not a price).
 ///
 /// Every step runs in `U256`, because the numerator here is where the port's
 /// worst bug lived: for an 18-decimal fee asset the exact numerator is ~1.26e46
@@ -595,11 +598,29 @@ pub fn calculate_in_band_fee_amount(
         return None;
     }
     let native_unit = pow10_wide(native_asset.decimals)?;
-    // Minimum is 0.00001 native coin; below 5 decimals, one base unit.
-    let native_minimum = if native_asset.decimals >= 5 {
+    // 0.00001 native coin — the relay's admission floor (`admission.rs`); the
+    // client never reimburses below it. Below 5 decimals it collapses to one
+    // base unit.
+    let admission_floor = if native_asset.decimals >= 5 {
         pow10_wide(native_asset.decimals - 5)?
     } else {
         U256::from(1u64)
+    };
+    // Client-self-imposed value floor, harmonizing the native minimum with the
+    // stablecoin $0.01 floor: reimburse at least $0.01 worth of the native coin
+    // when we can price it — but never below the 0.00001-coin admission floor (on
+    // a coin dearer than $1000, $0.01 is worth *less* than 0.00001 of it, and the
+    // admission floor must still be met). With no native USD price we cannot value
+    // it, so a flat 0.001-coin blind floor applies (below 3 decimals, one base
+    // unit). `!nativeUsdPrice` is falsy for 0 too — a zero price is unpriceable.
+    let native_usd = usd_price_scaled(native_asset.usd_price.as_deref(), true).filter(|v| *v != 0);
+    let native_minimum = match native_usd {
+        Some(price) => {
+            ceil_div_wide(w(STABLE_MIN_USD_SCALED).checked_mul(native_unit)?, w(price))?
+                .max(admission_floor)
+        }
+        None if native_asset.decimals >= 3 => pow10_wide(native_asset.decimals - 3)?,
+        None => U256::from(1u64),
     };
     let native_amount = mul_wide(total_gas, gas_price)
         .checked_mul(w(INBAND_MARKUP))?
@@ -607,9 +628,9 @@ pub fn calculate_in_band_fee_amount(
     if fee_asset.is_native {
         return narrow(native_amount);
     }
-    // JS `!nativeUsdPrice` is falsy for 0n too — a zero price is unpriceable.
-    let native_usd =
-        usd_price_scaled(native_asset.usd_price.as_deref(), true).filter(|v| *v != 0)?;
+    // Stablecoin path needs the native USD price (parsed above) and the fee
+    // token's; either absent/zero is "cannot quote", never rate 1.
+    let native_usd = native_usd?;
     let fee_usd = usd_price_scaled(fee_asset.usd_price.as_deref(), false).filter(|v| *v != 0)?;
     let fee_unit = pow10_wide(fee_asset.decimals)?;
     let converted = ceil_div_wide(

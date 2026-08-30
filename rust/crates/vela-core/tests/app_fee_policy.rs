@@ -1578,8 +1578,8 @@ fn failed_gas_price_read_uses_five_gwei_default() {
 fn rejects_a_bundler_quote_far_above_the_chain_rate() {
     let mut sut = Sut::new();
     sut.dispatch(request(CHAIN, vec![]));
-    sut.resolve(gas_ok()); // chain price 1 gwei
-    // 4 gwei network fee > 3 × 1 gwei chain price → refused.
+    // Chain price 1 gwei; the 4 gwei network fee > 3 × 1 gwei chain price → refused.
+    sut.resolve(gas_ok());
     sut.resolve(Res::BundlerQuote {
         quote: Some(FeeBundlerQuote {
             max_fee_per_gas: "8000000000".to_owned(),
@@ -1624,8 +1624,8 @@ fn accepts_a_bundler_quote_at_the_three_times_boundary() {
 fn a_bundler_under_report_is_floored_at_the_chain_measurement() {
     let mut sut = Sut::new();
     sut.dispatch(request(CHAIN, vec![]));
-    sut.resolve(gas_ok()); // chain price 1 gwei
-    // Bundler reports only 0.5 gwei — below our own measurement.
+    // Chain price 1 gwei; the bundler reports only 0.5 gwei — below our own measurement.
+    sut.resolve(gas_ok());
     sut.resolve(Res::BundlerQuote {
         quote: Some(FeeBundlerQuote {
             max_fee_per_gas: "1000000000".to_owned(),

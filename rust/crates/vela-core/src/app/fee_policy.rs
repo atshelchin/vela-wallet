@@ -615,10 +615,8 @@ pub fn calculate_in_band_fee_amount(
     // unit). `!nativeUsdPrice` is falsy for 0 too — a zero price is unpriceable.
     let native_usd = usd_price_scaled(native_asset.usd_price.as_deref(), true).filter(|v| *v != 0);
     let native_minimum = match native_usd {
-        Some(price) => {
-            ceil_div_wide(w(STABLE_MIN_USD_SCALED).checked_mul(native_unit)?, w(price))?
-                .max(admission_floor)
-        }
+        Some(price) => ceil_div_wide(w(STABLE_MIN_USD_SCALED).checked_mul(native_unit)?, w(price))?
+            .max(admission_floor),
         None if native_asset.decimals >= 3 => pow10_wide(native_asset.decimals - 3)?,
         None => U256::from(1u64),
     };

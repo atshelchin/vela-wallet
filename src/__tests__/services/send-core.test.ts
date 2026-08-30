@@ -201,6 +201,7 @@ const FEE = {
   networkFeePerGas: 3n,
   relayerFeePerGas: 2n,
   bundlerGasPrice: 3n,
+  inBandGasBasis: 3n, // max(chain gas, networkFeePerGas) — here C ≤ R = 3
   totalGas: 21_000n,
   deployed: true,
   tier: 'fast' as const,

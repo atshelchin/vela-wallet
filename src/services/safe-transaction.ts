@@ -348,6 +348,13 @@ export interface TransactionFeeEstimate {
   relayerFeePerGas: bigint;
   /** Intended outer tx gas price (≈ networkFeePerGas). */
   bundlerGasPrice: bigint;
+  /**
+   * max(chain gas price, bundler network fee) — the basis the in-band
+   * reimbursement is priced against, so the 3× buffer rides on the larger of
+   * our own on-chain measurement and the bundler's quote, never on an unvetted
+   * quote alone. See MAX_QUOTE_VS_CHAIN_MULTIPLE.
+   */
+  inBandGasBasis: bigint;
   /** Total gas units (verification + call + preVerification). */
   totalGas: bigint;
   /** Whether the wallet is already deployed on this chain. */
@@ -415,6 +422,15 @@ export interface QuotedInBandFee {
 }
 
 const INBAND_MARKUP = 3n;
+
+/**
+ * A bundler gas quote is refused, not signed, when it exceeds the client's OWN
+ * on-chain gas measurement (`deriveChainGasPrice`) by more than this multiple.
+ * A quote that far above real cost is not one we pay 3× on top of; rejecting it
+ * protects the user from a runaway or hostile relayer quote (requirement G05 /
+ * manual-test clue #14, "GasQuoteTooHighError").
+ */
+const MAX_QUOTE_VS_CHAIN_MULTIPLE = 3n;
 const USD_PRICE_DECIMALS = 8;
 const USD_PRICE_SCALE = 10n ** BigInt(USD_PRICE_DECIMALS);
 const STABLE_MIN_USD_SCALED = USD_PRICE_SCALE / 100n; // $0.01
@@ -448,15 +464,23 @@ export function calculateInBandFeeAmount(
 ): bigint | null {
   if (totalGas < 0n || gasPrice < 0n || nativeAsset.asset !== 'native') return null;
   const nativeUnit = 10n ** BigInt(nativeAsset.decimals);
-  // Minimum is 0.00001 native coin. For an unusual native precision below 5,
-  // one base unit is the smallest representable safe floor.
-  const nativeMinimum = nativeAsset.decimals >= 5
+  // 0.00001 native coin — the relay's admission floor; the client never
+  // reimburses below it. Below 5 decimals it collapses to one base unit.
+  const admissionFloor = nativeAsset.decimals >= 5
     ? 10n ** BigInt(nativeAsset.decimals - 5)
     : 1n;
+  // Client-self-imposed value floor, harmonizing the native minimum with the
+  // stablecoin $0.01 floor: at least $0.01 worth of native when priceable (but
+  // never below the 0.00001-coin admission floor — on a coin dearer than $1000,
+  // $0.01 is worth less than that), else a flat 0.001-coin blind floor (below 3
+  // decimals, one base unit). `!nativeUsdPrice` is falsy for 0n too — unpriceable.
+  const nativeUsdPrice = usdPriceScaled(nativeAsset.usdPrice, true);
+  const nativeMinimum = nativeUsdPrice
+    ? bigintMax(ceilDiv(STABLE_MIN_USD_SCALED * nativeUnit, nativeUsdPrice), admissionFloor)
+    : (nativeAsset.decimals >= 3 ? 10n ** BigInt(nativeAsset.decimals - 3) : 1n);
   const nativeAmount = bigintMax(totalGas * gasPrice * INBAND_MARKUP, nativeMinimum);
   if (feeAsset.asset === 'native') return nativeAmount;
 
-  const nativeUsdPrice = usdPriceScaled(nativeAsset.usdPrice, true);
   const feeTokenUsdPrice = usdPriceScaled(feeAsset.usdPrice, false);
   if (!nativeUsdPrice || !feeTokenUsdPrice) return null;
   const feeTokenUnit = 10n ** BigInt(feeAsset.decimals);
@@ -496,7 +520,7 @@ export async function requoteInBandFee(
   const q = findInBandGasQuote(quotes, gasFeeToken);
   const nativeQuote = findInBandGasQuote(quotes);
   if (!q || !nativeQuote) return null;
-  const amount = calculateInBandFeeAmount(prev.totalGas, prev.networkFeePerGas, q, nativeQuote);
+  const amount = calculateInBandFeeAmount(prev.totalGas, prev.inBandGasBasis, q, nativeQuote);
   if (amount === null) return null;
   return {
     ...prev,
@@ -619,6 +643,10 @@ async function estimateTempoFee(
     networkFeePerGas: gasPrice,
     relayerFeePerGas: 0n,
     bundlerGasPrice: gasPrice,
+    // Tempo prices in pathUSD attodollars, not the generic gas basis; this
+    // field is unused on the Tempo path and mirrors the atto price for shape
+    // completeness (parity with the Rust core's price_tempo).
+    inBandGasBasis: gasPrice,
     totalGas: expectedGas,
     deployed,
     tier,
@@ -693,6 +721,18 @@ export async function estimateTransactionFee(
     networkFeePerGas = bundlerGasPrice;
     relayerFeePerGas = localMaxFee > bundlerGasPrice ? localMaxFee - bundlerGasPrice : 0n;
   }
+
+  // Protect the user (requirement G05): a bundler quote more than
+  // MAX_QUOTE_VS_CHAIN_MULTIPLE times our own on-chain gas measurement is
+  // refused, not signed. Only a real bundler quote is vetted — the local
+  // fallback derives from the same measurement and cannot be "too high".
+  if (quoted && gasPrice > 0n && networkFeePerGas > gasPrice * MAX_QUOTE_VS_CHAIN_MULTIPLE) {
+    throw new Error('The gas relayer quoted a price far above the current network rate. Please try again.');
+  }
+  // Anchor the in-band reimbursement on the LARGER of our own measurement and
+  // the bundler's quote: never underpay when the bundler under-reports the
+  // network fee, and never let the 3× buffer ride on an unvetted quote alone.
+  const inBandGasBasis = networkFeePerGas > gasPrice ? networkFeePerGas : gasPrice;
 
   // Estimate against the REAL call when we have it (dApp tx); otherwise call the EVM identity
   // precompile with an ERC-20-sized payload. Do not target `from`: its all-zero payload invokes
@@ -821,7 +861,7 @@ export async function estimateTransactionFee(
   // Every signed UserOp pays maxFeePerGas = 0. The wallet derives reimbursement from
   // the displayed gas basis (totalGas × network gas price × 3), applying the native/stable floors;
   // the address-only quote supplies the selectable assets, balances, recipient and USD prices.
-  const feeAmount = calculateInBandFeeAmount(totalGas, networkFeePerGas, inBandQuote, nativeInBandQuote);
+  const feeAmount = calculateInBandFeeAmount(totalGas, inBandGasBasis, inBandQuote, nativeInBandQuote);
   if (feeAmount === null) {
     throw new Error('Could not calculate the in-band gas fee. Please try again.');
   }
@@ -829,7 +869,7 @@ export async function estimateTransactionFee(
   // feeRecipient rides along so the submit path signs EXACTLY this quote (displayed = signed
   // — never a silent mismatch).
   const common = {
-    chainId, networkFeePerGas, relayerFeePerGas, bundlerGasPrice, totalGas, deployed, tier, quoted,
+    chainId, networkFeePerGas, relayerFeePerGas, bundlerGasPrice, inBandGasBasis, totalGas, deployed, tier, quoted,
     inBand: true as const, feeRecipient: inBandQuote.recipient,
   };
   if (inBandQuote.asset === 'erc20' && inBandQuote.feeToken) {
@@ -1591,7 +1631,20 @@ async function sendUserOpInBand(
       throw new Error('The gas relayer is unavailable right now. Please try again.');
     }
     const outerQuote = await getBundlerGasQuote(chainId, 'fast').catch(() => null);
-    const gasPrice = outerQuote?.networkFeePerGas ?? (await getGasPrices(chainId)).gasPrice;
+    const chainGasPrice = (await getGasPrices(chainId)).gasPrice;
+    const reportedNetwork = outerQuote?.networkFeePerGas ?? 0n;
+    // Protect the user (requirement G05): refuse a bundler quote more than
+    // MAX_QUOTE_VS_CHAIN_MULTIPLE times our own on-chain measurement.
+    if (
+      reportedNetwork > 0n &&
+      chainGasPrice > 0n &&
+      reportedNetwork > chainGasPrice * MAX_QUOTE_VS_CHAIN_MULTIPLE
+    ) {
+      throw new Error('The gas relayer quoted a price far above the current network rate. Please try again.');
+    }
+    // Anchor on the larger of our measurement and the bundler's quote — never
+    // let the 3× buffer ride on an unvetted quote alone.
+    const gasPrice = reportedNetwork > chainGasPrice ? reportedNetwork : chainGasPrice;
     const totalGas = userOp.verificationGasLimit + userOp.callGasLimit + userOp.preVerificationGas;
     const amount = calculateInBandFeeAmount(totalGas, gasPrice, quote, nativeQuote);
     if (amount === null) {

@@ -24,9 +24,13 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const gasSignalReads: { chainId: number; wantTip: boolean }[] = [];
+// The chain's own measurement. `accept_bundler_quote` refuses a bundler quote
+// more than 3× above it (GasQuoteTooHigh), so tests that accept a quote must
+// keep this consistent with the quote they feed in.
+let chainGasPrice = '1000000000';
 const mockGasSignals = jest.fn(async (chainId: number, wantTip: boolean) => {
   gasSignalReads.push({ chainId, wantTip });
-  return { ethGasPrice: '1000000000', baseFee: '1000000000', priorityFee: '0' };
+  return { ethGasPrice: chainGasPrice, baseFee: chainGasPrice, priorityFee: '0' };
 });
 const mockBundlerQuote = jest.fn(async (): Promise<unknown> => null);
 const mockSimulate = jest.fn(async (_params: unknown): Promise<unknown> => ({
@@ -210,6 +214,7 @@ const wiredGasOutcome = {
 beforeEach(() => {
   simulations.length = 0;
   gasSignalReads.length = 0;
+  chainGasPrice = '1000000000';
   mockGasSignals.mockClear();
   mockBundlerQuote.mockReset();
   mockBundlerQuote.mockResolvedValue(null);
@@ -257,6 +262,9 @@ describe('fee_policy is wired into the web shell', () => {
 
   it('settles on the CORPUS number, through the real core and the real executor', async () => {
     mockInBandQuotes.mockResolvedValue([nativeRow(), daiRow()]);
+    // The chain corroborates the 30 gwei the quote reports — otherwise the
+    // outrageous-quote guard refuses it instead of pricing the corpus case.
+    chainGasPrice = WIRED_GAS_PRICE.toString();
     mockBundlerQuote.mockResolvedValue(wiredBundlerQuote);
     mockSimulate.mockResolvedValue(wiredGasOutcome);
 

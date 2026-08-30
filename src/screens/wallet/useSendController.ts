@@ -389,10 +389,14 @@ export function useSendController(): SendController {
             tr('send.alertEstimateFailedTitle'),
             // The 15 s race's rejection message was never localized; every other
             // refusal used the generic body (the raw service message the core
-            // deliberately no longer carries — invariant ⑮).
+            // deliberately no longer carries — invariant ⑮). The gas-quote-too-high
+            // refusal (G05) gets its own line so the user knows the relayer's
+            // price — not their input — was rejected.
             kind.kind === 'timeout'
               ? 'Could not estimate gas in time. Please try again.'
-              : tr('send.alertEstimateFailedBody'),
+              : kind.kind === 'gas_quote_too_high'
+                ? 'The gas relayer quoted a price far above the current network rate. Please try again.'
+                : tr('send.alertEstimateFailedBody'),
           );
           return;
         case 'account_unavailable':
@@ -585,9 +589,10 @@ export function useSendController(): SendController {
               portAnswered.current = feeKey(outcome.estimate);
               return { type: 'ok', estimate: outcome.estimate };
             case 'failed':
-              // `FeeFailure` and `SendEstimateFailure` share their five
-              // variants by construction — the send vocabulary is the fee
-              // vocabulary plus a timeout. No mapping, no lossy `other`.
+              // `FeeFailure` and `SendEstimateFailure` share their in-band
+              // failure variants by construction — the send vocabulary is the
+              // fee vocabulary plus a timeout/other. No mapping, no lossy
+              // `other` (gas_quote_too_high crosses verbatim, G05).
               return { type: 'failed', kind: outcome.failure };
             case 'context_unavailable':
             case 'abandoned':

@@ -354,7 +354,9 @@ fn in_band_fee_native_is_gas_times_price_times_three() {
         calculate_in_band_fee_amount(200_000, 1_000_000_000, &native, &native),
         Some(600_000_000_000_000)
     );
-    // Native payment works without any oracle price…
+    // Native payment works without any oracle price — it just floors at 0.001 of
+    // the coin (the blind fallback) when the real fee is below it. Here the fee
+    // (6e14) is under 0.001 native (1e15), so the floor binds.
     assert_eq!(
         calculate_in_band_fee_amount(
             200_000,
@@ -362,7 +364,17 @@ fn in_band_fee_native_is_gas_times_price_times_three() {
             &native_without_price,
             &native_without_price
         ),
-        Some(600_000_000_000_000)
+        Some(1_000_000_000_000_000)
+    );
+    // Above the 0.001-coin fallback, the real gas fee flows through unpriced.
+    assert_eq!(
+        calculate_in_band_fee_amount(
+            2_000_000,
+            1_000_000_000,
+            &native_without_price,
+            &native_without_price
+        ),
+        Some(6_000_000_000_000_000)
     );
     // …but a stablecoin conversion without one is unsafe → cannot quote.
     assert_eq!(
@@ -623,6 +635,7 @@ fn erc20_fee_estimate() -> FeeEstimate {
         network_fee_per_gas: 1,
         relayer_fee_per_gas: 0,
         bundler_gas_price: 1,
+        in_band_gas_basis: 1,
         total_gas: 1,
         deployed: true,
         tier: FeeTier::Fast,
@@ -1556,6 +1569,79 @@ fn failed_gas_price_read_uses_five_gwei_default() {
     let fee = sut.view().fee.expect("defaulted quote");
     // 5 gwei × 2.0 (fast) = 10 gwei.
     assert_eq!(fee.network_fee_per_gas, "10000000000");
+}
+
+/// G05 — a bundler quote more than 3× the client's own on-chain gas
+/// measurement is refused, not signed: the client will not pay 3× on top of a
+/// runaway or hostile relayer price.
+#[test]
+fn rejects_a_bundler_quote_far_above_the_chain_rate() {
+    let mut sut = Sut::new();
+    sut.dispatch(request(CHAIN, vec![]));
+    // Chain price 1 gwei; the 4 gwei network fee > 3 × 1 gwei chain price → refused.
+    sut.resolve(gas_ok());
+    sut.resolve(Res::BundlerQuote {
+        quote: Some(FeeBundlerQuote {
+            max_fee_per_gas: "8000000000".to_owned(),
+            network_fee_per_gas: Some("4000000000".to_owned()),
+            relayer_fee_per_gas: Some("4000000000".to_owned()),
+        }),
+    });
+    sut.resolve(quotes_ok());
+    let view = sut.view();
+    assert_eq!(view.failed, Some(FeeFailure::GasQuoteTooHigh));
+    assert!(
+        sut.view().fee.is_none(),
+        "no fee is priced against a rejected quote"
+    );
+}
+
+/// A quote at exactly 3× the chain rate is the boundary — still accepted, and
+/// priced on the quote (which is ≥ our measurement).
+#[test]
+fn accepts_a_bundler_quote_at_the_three_times_boundary() {
+    let mut sut = Sut::new();
+    sut.dispatch(request(CHAIN, vec![]));
+    sut.resolve(gas_ok()); // 1 gwei
+    sut.resolve(Res::BundlerQuote {
+        quote: Some(FeeBundlerQuote {
+            max_fee_per_gas: "6000000000".to_owned(),
+            network_fee_per_gas: Some("3000000000".to_owned()), // exactly 3×
+            relayer_fee_per_gas: Some("3000000000".to_owned()),
+        }),
+    });
+    sut.resolve(quotes_ok());
+    sut.resolve(estimated());
+    let fee = sut.view().fee.expect("boundary quote accepted");
+    assert_eq!(fee.in_band_gas_basis, "3000000000");
+    assert_eq!(fee.total_wei, (TOTAL_GAS * 3_000_000_000 * 3).to_string());
+}
+
+/// When the bundler UNDER-reports the network fee, the in-band charge anchors
+/// on the client's own (larger) on-chain measurement — never underpaid on a
+/// low quote, even though the quote's reported network fee is shown verbatim.
+#[test]
+fn a_bundler_under_report_is_floored_at_the_chain_measurement() {
+    let mut sut = Sut::new();
+    sut.dispatch(request(CHAIN, vec![]));
+    // Chain price 1 gwei; the bundler reports only 0.5 gwei — below our own measurement.
+    sut.resolve(gas_ok());
+    sut.resolve(Res::BundlerQuote {
+        quote: Some(FeeBundlerQuote {
+            max_fee_per_gas: "1000000000".to_owned(),
+            network_fee_per_gas: Some("500000000".to_owned()),
+            relayer_fee_per_gas: Some("500000000".to_owned()),
+        }),
+    });
+    sut.resolve(quotes_ok());
+    sut.resolve(estimated());
+    let fee = sut.view().fee.expect("under-report priced");
+    // The quote still SHOWS the reported 0.5 gwei network fee...
+    assert_eq!(fee.network_fee_per_gas, "500000000");
+    // ...but the in-band charge anchors on max(1 gwei chain, 0.5 gwei quote) =
+    // 1 gwei, so a low quote can never make the payment underpay.
+    assert_eq!(fee.in_band_gas_basis, "1000000000");
+    assert_eq!(fee.total_wei, (TOTAL_GAS * 1_000_000_000 * 3).to_string());
 }
 
 /// Invariant ⑤ — an undeployed account without its public key can never build

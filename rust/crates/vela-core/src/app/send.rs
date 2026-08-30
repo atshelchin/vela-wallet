@@ -543,6 +543,10 @@ pub enum SendEstimateFailure {
     QuoteUnavailable,
     CalculationFailed,
     EstimateFailed,
+    /// The bundler quoted a gas price far above the client's own on-chain
+    /// measurement — refused, not signed (mirrors `FeeFailure::GasQuoteTooHigh`;
+    /// the send vocabulary is the fee vocabulary).
+    GasQuoteTooHigh,
     /// The 15s race lost (`useSendController.ts:768-770`).
     Timeout,
     Other,
@@ -4102,6 +4106,7 @@ fn fee_to_view(fee: &FeeEstimate) -> FeeEstimateView {
         network_fee_per_gas: fee.network_fee_per_gas.to_string(),
         relayer_fee_per_gas: fee.relayer_fee_per_gas.to_string(),
         bundler_gas_price: fee.bundler_gas_price.to_string(),
+        in_band_gas_basis: fee.in_band_gas_basis.to_string(),
         total_gas: fee.total_gas.to_string(),
         deployed: fee.deployed,
         tier: fee.tier,
@@ -4133,6 +4138,7 @@ fn parse_fee_view(view: &FeeEstimateView) -> Option<FeeEstimate> {
         network_fee_per_gas: parse(&view.network_fee_per_gas)?,
         relayer_fee_per_gas: parse(&view.relayer_fee_per_gas)?,
         bundler_gas_price: parse(&view.bundler_gas_price)?,
+        in_band_gas_basis: parse(&view.in_band_gas_basis)?,
         total_gas: parse(&view.total_gas)?,
         deployed: view.deployed,
         tier: view.tier,

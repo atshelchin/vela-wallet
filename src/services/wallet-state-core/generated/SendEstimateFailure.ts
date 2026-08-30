@@ -4,4 +4,4 @@
  * Estimate failure vocabulary — `fee_policy::FeeFailure` plus the send-side
  * timeout; the shell maps service errors into these.
  */
-export type SendEstimateFailure = "missing_public_key" | "fee_token_unavailable" | "quote_unavailable" | "calculation_failed" | "estimate_failed" | "timeout" | "other";
+export type SendEstimateFailure = "missing_public_key" | "fee_token_unavailable" | "quote_unavailable" | "calculation_failed" | "estimate_failed" | "gas_quote_too_high" | "timeout" | "other";

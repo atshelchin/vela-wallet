@@ -37,6 +37,7 @@ describe('safe-transaction', () => {
       networkFeePerGas: 1n,
       relayerFeePerGas: 0n,
       bundlerGasPrice: 1n,
+      inBandGasBasis: 1n,
       totalGas: 1n,
       deployed: true,
       tier: 'fast',

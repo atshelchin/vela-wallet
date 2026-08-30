@@ -192,8 +192,13 @@ describe('calculateInBandFeeAmount', () => {
     expect(calculateInBandFeeAmount(200_000n, 1_000_000_000n, native, native))
       .toBe(600_000_000_000_000n);
     const nativeWithoutPrice = { asset: 'native' as const, decimals: 18, usdPrice: null };
+    // Native works without a price, flooring at 0.001 of the coin (the blind
+    // fallback) when the fee is below it (6e14 < 1e15)…
     expect(calculateInBandFeeAmount(200_000n, 1_000_000_000n, nativeWithoutPrice, nativeWithoutPrice))
-      .toBe(600_000_000_000_000n);
+      .toBe(1_000_000_000_000_000n);
+    // …and passing the real gas fee through when it beats the fallback.
+    expect(calculateInBandFeeAmount(2_000_000n, 1_000_000_000n, nativeWithoutPrice, nativeWithoutPrice))
+      .toBe(6_000_000_000_000_000n);
     // A stablecoin conversion without an oracle price is unsafe; native payment remains the
     // usable default until both conversion prices are available.
     expect(calculateInBandFeeAmount(200_000n, 1_000_000_000n, usdc, nativeWithoutPrice))
@@ -259,11 +264,11 @@ function routeRpc() {
       case 'pimlico_getUserOperationGasPrice':
         return Promise.resolve({ result: { slow: HEALTHY_QUOTE, standard: HEALTHY_QUOTE, fast: HEALTHY_QUOTE } });
       case 'eth_gasPrice':
-        return Promise.resolve({ result: '0x3b9aca00' }); // 1 gwei
+        return Promise.resolve({ result: '0x12a05f200' }); // 5 gwei; with the 5 gwei base+tip below, chain C = max(5, 5+5) = 10 gwei = the quote's networkFeePerGas — a healthy 1:1 that clears the GasQuoteTooHigh guard
       case 'eth_getBlockByNumber':
-        return Promise.resolve({ result: { baseFeePerGas: '0x3b9aca00' } });
+        return Promise.resolve({ result: { baseFeePerGas: '0x12a05f200' } });
       case 'eth_maxPriorityFeePerGas':
-        return Promise.resolve({ result: '0x3b9aca00' });
+        return Promise.resolve({ result: '0x12a05f200' });
       case 'eth_getCode':
         // Safe + splitter both read as deployed.
         return Promise.resolve({ result: '0x6080' });
@@ -301,11 +306,11 @@ describe('estimateTransactionFee — in-band branch', () => {
         case 'pimlico_getUserOperationGasPrice':
           return Promise.resolve({ result: { slow: HEALTHY_QUOTE, standard: HEALTHY_QUOTE, fast: HEALTHY_QUOTE } });
         case 'eth_gasPrice':
-          return Promise.resolve({ result: '0x3b9aca00' });
+          return Promise.resolve({ result: '0x12a05f200' });
         case 'eth_getBlockByNumber':
-          return Promise.resolve({ result: { baseFeePerGas: '0x3b9aca00' } });
+          return Promise.resolve({ result: { baseFeePerGas: '0x12a05f200' } });
         case 'eth_maxPriorityFeePerGas':
-          return Promise.resolve({ result: '0x3b9aca00' });
+          return Promise.resolve({ result: '0x12a05f200' });
         case 'eth_getCode':
           return Promise.resolve({ result: '0x6080' });
         case 'eth_call':
@@ -343,9 +348,9 @@ describe('estimateTransactionFee — in-band branch', () => {
           return Promise.resolve({ result: { slow: HEALTHY_QUOTE, standard: HEALTHY_QUOTE, fast: HEALTHY_QUOTE } });
         case 'eth_gasPrice':
         case 'eth_maxPriorityFeePerGas':
-          return Promise.resolve({ result: '0x3b9aca00' });
+          return Promise.resolve({ result: '0x12a05f200' });
         case 'eth_getBlockByNumber':
-          return Promise.resolve({ result: { baseFeePerGas: '0x3b9aca00' } });
+          return Promise.resolve({ result: { baseFeePerGas: '0x12a05f200' } });
         case 'eth_getCode':
           return Promise.resolve({ result: '0x6080' });
         case 'eth_call':
@@ -383,11 +388,11 @@ describe('estimateTransactionFee — in-band branch', () => {
         case 'pimlico_getUserOperationGasPrice':
           return Promise.resolve({ result: { slow: HEALTHY_QUOTE, standard: HEALTHY_QUOTE, fast: HEALTHY_QUOTE } });
         case 'eth_gasPrice':
-          return Promise.resolve({ result: '0x3b9aca00' });
+          return Promise.resolve({ result: '0x12a05f200' });
         case 'eth_getBlockByNumber':
-          return Promise.resolve({ result: { baseFeePerGas: '0x3b9aca00' } });
+          return Promise.resolve({ result: { baseFeePerGas: '0x12a05f200' } });
         case 'eth_maxPriorityFeePerGas':
-          return Promise.resolve({ result: '0x3b9aca00' });
+          return Promise.resolve({ result: '0x12a05f200' });
         case 'eth_getCode':
           return Promise.resolve({ result: '0x' });
         case 'eth_call':
@@ -485,6 +490,61 @@ describe('estimateTransactionFee — in-band branch', () => {
 });
 
 // ---------------------------------------------------------------------------
+// estimateTransactionFee — GasQuoteTooHigh guard (client protection, requirement G05)
+//
+// The client does not blindly pay whatever the relay quotes. It measures chain gas
+// independently (deriveChainGasPrice, C = max(eth_gasPrice, base+tip)) and refuses a
+// bundler quote R more than MAX_QUOTE_VS_CHAIN_MULTIPLE (3×) above it — protecting the
+// user from an outrageous (malicious or buggy) quote instead of signing it. Parity with
+// the Rust twin's rejects_a_bundler_quote_far_above_the_chain_rate / _at_the_boundary.
+// ---------------------------------------------------------------------------
+
+describe('estimateTransactionFee — GasQuoteTooHigh guard', () => {
+  /** A quote whose networkFeePerGas is `r` (hex); the chain from routeRpc is C = 10 gwei. */
+  const quoteAt = (r: string) => {
+    const q = { maxFeePerGas: '0x9502f9000', maxPriorityFeePerGas: '0x9502f9000', networkFeePerGas: r, relayerFeePerGas: r };
+    return { result: { slow: q, standard: q, fast: q } };
+  };
+  function routeWithQuote(r: string) {
+    routeRpc(); // chain C = 10 gwei
+    const base = rpcCallMock.getMockImplementation()!;
+    rpcCallMock.mockImplementation((method: string, ...args: any[]) => (
+      method === 'pimlico_getUserOperationGasPrice' ? Promise.resolve(quoteAt(r)) : base(method, ...args)
+    ));
+    poolBundlerCallMock.mockResolvedValue(quoteResponse(inBandQuote()));
+  }
+
+  test('rejects a bundler quote far above the chain rate (R > 3×C) before simulating', async () => {
+    routeWithQuote('0x9502f9000'); // R = 40 gwei > 3×C (30 gwei)
+
+    await expect(estimateTransactionFee(SAFE, freshChain(), 'standard'))
+      .rejects.toThrow('far above the current network rate');
+    // Fail-closed: no UserOp is ever simulated against a rejected quote.
+    expect(rpcCallMock.mock.calls.some(([m]) => m === 'eth_estimateUserOperationGas')).toBe(false);
+  });
+
+  test('accepts a bundler quote exactly at the 3×C boundary and anchors the basis on it', async () => {
+    routeWithQuote('0x6fc23ac00'); // R = 30 gwei = 3×C, strict > guard allows it
+
+    const est = await estimateTransactionFee(SAFE, freshChain(), 'standard');
+    expect(est.inBand).toBe(true);
+    // basis = max(C = 10 gwei, R = 30 gwei) = 30 gwei — the reimbursement rides on the quote.
+    expect(est.inBandGasBasis).toBe(30_000_000_000n);
+  });
+
+  test('floors the basis at the chain measurement when the bundler under-reports (R < C)', async () => {
+    routeWithQuote('0x12a05f200'); // R = 5 gwei < C = 10 gwei
+
+    const est = await estimateTransactionFee(SAFE, freshChain(), 'standard');
+    expect(est.inBand).toBe(true);
+    // The bundler's compatibility field still shows its own R…
+    expect(est.networkFeePerGas).toBe(5_000_000_000n);
+    // …but the reimbursement is anchored on the larger chain measurement, never underpaying.
+    expect(est.inBandGasBasis).toBe(10_000_000_000n);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // estimateInBandBasisGas — the precise charge basis (real batch calldata, not the
 // padded model that over-charged ~8× on Arbitrum)
 // ---------------------------------------------------------------------------
@@ -549,7 +609,7 @@ describe('requoteInBandFee', () => {
   const base: TransactionFeeEstimate = {
     chainId: CHAIN_ID,
     totalWei: 3_000n, maxFeePerGas: 0n, networkFeePerGas: 1n, relayerFeePerGas: 0n,
-    bundlerGasPrice: 1n, totalGas: 300_000n, deployed: true, tier: 'fast', quoted: true,
+    bundlerGasPrice: 1n, inBandGasBasis: 1n, totalGas: 300_000n, deployed: true, tier: 'fast', quoted: true,
     inBand: true, feeRecipient: RECIPIENT, feeAsset: { kind: 'native' },
   };
 

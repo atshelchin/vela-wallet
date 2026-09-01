@@ -119,6 +119,24 @@
     "scanAria": "Pindai kode QR",
     "multiSendNoFundsAfterGas": "Tidak cukup untuk gas setelah cadangan.",
     "gasReserved": "gas dicadangkan",
-    "feeTokenLabel": "Token biaya"
+    "feeTokenLabel": "Token biaya",
+    "balanceLabel": "Saldo {{amount}}",
+    "fromContacts": "Dari kontak",
+    "splitTotalLabel": "Total",
+    "multiSendChainNotice": "{{network}} dipilih — kirim banyak token harus dalam satu jaringan, jadi yang lain diredupkan",
+    "multiSendSameRecipient": "Semua token dikirim ke alamat yang sama",
+    "pickContactTitle": "Pilih kontak",
+    "pickContactSearch": "Cari kontak atau tempel alamat",
+    "scanToFill": "Pindai untuk mengisi alamat",
+    "feeTokenHint": "Dipakai untuk membayar biaya jaringan transfer ini. Perkiraannya mengikuti jaringan secara real time.",
+    "feeTokenEstimate": "Perkiraan biaya",
+    "batchRateHint": "Nominal di lembar dibaca sebagai {{code}} dan dikonversi ke {{sym}} dengan kurs ini.",
+    "batchParsedCount": "Terbaca · {{n}} baris",
+    "confirmTotalLine": "Total ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "Menyiapkan transaksi dan menunggu konfirmasi biometrik",
+    "txBackgroundHint": "Menutup halaman ini tidak menghentikan transaksi",
+    "txCloseBackground": "Tutup · tetap jalan",
+    "txSubmittedTitle": "Terkirim ke jaringan",
+    "txConfirmedTitle": "Terkirim {{amount}} {{symbol}}"
   }
 }

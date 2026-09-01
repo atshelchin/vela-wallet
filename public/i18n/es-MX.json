@@ -305,7 +305,25 @@
   "recipientPickAria": "Elegir destinatario o escanear",
   "multiSendNoFundsAfterGas": "No alcanza para el gas tras la reserva.",
   "gasReserved": "gas reservado",
-  "feeTokenLabel": "Token de comisión"
+  "feeTokenLabel": "Token de comisión",
+  "balanceLabel": "Saldo {{amount}}",
+  "fromContacts": "De contactos",
+  "splitTotalLabel": "Total",
+  "multiSendChainNotice": "{{network}} seleccionada — un envío de varios tokens se queda en una sola red, así que las demás quedan atenuadas",
+  "multiSendSameRecipient": "Todos los tokens van a la misma dirección",
+  "pickContactTitle": "Elige un contacto",
+  "pickContactSearch": "Busca contactos o pega una dirección",
+  "scanToFill": "Escanea para llenar la dirección",
+  "feeTokenHint": "Paga la comisión de red de esta transferencia. La estimación sigue a la red en tiempo real.",
+  "feeTokenEstimate": "Comisión estimada",
+  "batchRateHint": "Los montos de la hoja se leen como {{code}} y se convierten a {{sym}} con este tipo de cambio.",
+  "batchParsedCount": "Analizado · {{n}} filas",
+  "confirmTotalLine": "Total ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "Preparando la transacción y esperando la confirmación biométrica",
+  "txBackgroundHint": "Si cierras esta página la transacción sigue su curso",
+  "txCloseBackground": "Cerrar · seguir en segundo plano",
+  "txSubmittedTitle": "Enviada a la red",
+  "txConfirmedTitle": "Enviaste {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "Recibir",
@@ -375,7 +393,13 @@
    "invalidTitle": "Enlace de pago inválido",
    "invalidBody": "A este enlace le falta un destinatario o una red válida. Pídele uno nuevo a quien te lo envió."
   },
-  "addressLabel": "Tu dirección para recibir"
+  "addressLabel": "Tu dirección para recibir",
+  "searchNetworkPlaceholder": "Buscar redes",
+  "searchNetworkEmpty": "Ninguna red coincide con “{{query}}”",
+  "qrTitleNetwork": "Usa esta dirección para recibir activos en {{network}}",
+  "qrTitleAsset": "Usa esta dirección para recibir {{symbol}} en {{network}}",
+  "shareCardNetworkNote": "Solo pagos en {{network}}",
+  "tokenContract": "Contrato del token"
  },
  "assets": {
   "sectionTitle": "Activos",
@@ -399,7 +423,10 @@
   "rpcProvidersTitle": "Dónde conseguir un RPC confiable",
   "rpcProvidersHint": "Endpoints gratis — regístrate, copia tu URL y pégala arriba.",
   "rpcReport": "¿Sigue sin funcionar? Repórtalo",
-  "chainFallback": "Cadena {{chainId}}"
+  "chainFallback": "Cadena {{chainId}}",
+  "addByAddress": "Agregar un token por dirección",
+  "notShowingTitle": "¿Recibiste un token y no aparece?",
+  "notShowingBody": "Las transferencias confirmadas se agregan solas. Si el token sigue sin aparecer, agrégalo por dirección de contrato o agrega la red donde vive."
  },
  "addToken": {
   "addedTokensLabel": "Tokens agregados",
@@ -439,7 +466,9 @@
   "errorAddNetwork": "No se pudo agregar la red.",
   "errorAlreadyAdded": "Esta red ya está agregada",
   "errorChainNotFound": "No se encontró información de la cadena",
-  "errorNotCompatible": "No es compatible con Vela Wallet"
+  "errorNotCompatible": "No es compatible con Vela Wallet",
+  "invalidAddress": "Dirección de contrato no válida",
+  "notCompatible": "No compatible"
  },
  "tokenDetail": {
   "send": "Enviar",
@@ -1240,7 +1269,11 @@
    "errorImage": "No se pudo procesar la imagen.",
    "errorPicker": "No se pudo abrir el selector de imágenes.",
    "torchLabel": "Alternar linterna",
-   "zoomLabel": "Zoom"
+   "zoomLabel": "Zoom",
+   "gallery": "Fotos",
+   "fromGallery": "Desde fotos",
+   "torch": "Linterna",
+   "flipCamera": "Voltear"
   },
   "gas": {
    "estFee": "Comisión est.",

@@ -67,6 +67,12 @@
       "invalidTitle": "Liên kết thanh toán không hợp lệ",
       "invalidBody": "Liên kết này thiếu người nhận hoặc mạng hợp lệ. Hãy yêu cầu người gửi gửi liên kết mới."
     },
-    "addressLabel": "Địa chỉ nhận của bạn"
+    "addressLabel": "Địa chỉ nhận của bạn",
+    "searchNetworkPlaceholder": "Tìm mạng",
+    "searchNetworkEmpty": "Không có mạng nào khớp với “{{query}}”",
+    "qrTitleNetwork": "Dùng địa chỉ này để nhận tài sản trên {{network}}",
+    "qrTitleAsset": "Dùng địa chỉ này để nhận {{symbol}} trên {{network}}",
+    "shareCardNetworkNote": "Chỉ thanh toán trên {{network}}",
+    "tokenContract": "Hợp đồng token"
   }
 }

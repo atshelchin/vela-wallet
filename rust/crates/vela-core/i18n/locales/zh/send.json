@@ -126,6 +126,24 @@
     "batchCurrencyLabel": "计价货币",
     "batchOverBalance": "总额超出 {{sym}} 余额。",
     "batchClose": "关闭",
-    "feeTokenLabel": "手续费币种"
+    "feeTokenLabel": "手续费币种",
+    "balanceLabel": "余额 {{amount}}",
+    "fromContacts": "从通讯录",
+    "splitTotalLabel": "合计",
+    "multiSendChainNotice": "已选 {{network}} · 多币发送需同一网络，其他网络已置灰",
+    "multiSendSameRecipient": "多币发送时收款人为同一地址",
+    "pickContactTitle": "选择联系人",
+    "pickContactSearch": "搜索联系人或粘贴地址",
+    "scanToFill": "扫码填写地址",
+    "feeTokenHint": "用于支付这笔转账的网络费，费用按当前网络实时估算",
+    "feeTokenEstimate": "预估费用",
+    "batchRateHint": "表格金额按 {{code}} 读取，导入时按此汇率换算为 {{sym}}",
+    "batchParsedCount": "解析结果 · {{n}} 条",
+    "confirmTotalLine": "合计 ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "正在准备交易并等待生物识别确认",
+    "txBackgroundHint": "关闭此页交易会在后台继续",
+    "txCloseBackground": "关闭 · 后台继续",
+    "txSubmittedTitle": "交易已提交至网络",
+    "txConfirmedTitle": "已发送 {{amount}} {{symbol}}"
   }
 }

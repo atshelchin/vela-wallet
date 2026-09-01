@@ -167,7 +167,11 @@
       "errorImage": "處理圖片失敗。",
       "errorPicker": "開啟圖片選擇器失敗。",
       "torchLabel": "開關電筒",
-      "zoomLabel": "縮放"
+      "zoomLabel": "縮放",
+      "gallery": "相簿",
+      "fromGallery": "喺相簿揀",
+      "torch": "電筒",
+      "flipCamera": "反轉"
     },
     "gas": {
       "estFee": "預估費用",

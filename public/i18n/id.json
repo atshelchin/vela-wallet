@@ -302,7 +302,25 @@
   "scanAria": "Pindai kode QR",
   "multiSendNoFundsAfterGas": "Tidak cukup untuk gas setelah cadangan.",
   "gasReserved": "gas dicadangkan",
-  "feeTokenLabel": "Token biaya"
+  "feeTokenLabel": "Token biaya",
+  "balanceLabel": "Saldo {{amount}}",
+  "fromContacts": "Dari kontak",
+  "splitTotalLabel": "Total",
+  "multiSendChainNotice": "{{network}} dipilih — kirim banyak token harus dalam satu jaringan, jadi yang lain diredupkan",
+  "multiSendSameRecipient": "Semua token dikirim ke alamat yang sama",
+  "pickContactTitle": "Pilih kontak",
+  "pickContactSearch": "Cari kontak atau tempel alamat",
+  "scanToFill": "Pindai untuk mengisi alamat",
+  "feeTokenHint": "Dipakai untuk membayar biaya jaringan transfer ini. Perkiraannya mengikuti jaringan secara real time.",
+  "feeTokenEstimate": "Perkiraan biaya",
+  "batchRateHint": "Nominal di lembar dibaca sebagai {{code}} dan dikonversi ke {{sym}} dengan kurs ini.",
+  "batchParsedCount": "Terbaca · {{n}} baris",
+  "confirmTotalLine": "Total ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "Menyiapkan transaksi dan menunggu konfirmasi biometrik",
+  "txBackgroundHint": "Menutup halaman ini tidak menghentikan transaksi",
+  "txCloseBackground": "Tutup · tetap jalan",
+  "txSubmittedTitle": "Terkirim ke jaringan",
+  "txConfirmedTitle": "Terkirim {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "Terima",
@@ -372,7 +390,13 @@
    "invalidTitle": "Tautan pembayaran tidak valid",
    "invalidBody": "Tautan ini tidak memiliki penerima atau jaringan yang valid. Minta yang baru kepada pengirim."
   },
-  "addressLabel": "Alamat penerimaan Anda"
+  "addressLabel": "Alamat penerimaan Anda",
+  "searchNetworkPlaceholder": "Cari jaringan",
+  "searchNetworkEmpty": "Tidak ada jaringan yang cocok dengan “{{query}}”",
+  "qrTitleNetwork": "Gunakan alamat ini untuk menerima aset di {{network}}",
+  "qrTitleAsset": "Gunakan alamat ini untuk menerima {{symbol}} di {{network}}",
+  "shareCardNetworkNote": "Hanya pembayaran {{network}}",
+  "tokenContract": "Kontrak token"
  },
  "assets": {
   "sectionTitle": "Aset",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "Tempat mendapatkan RPC yang andal",
   "rpcProvidersHint": "Endpoint gratis — daftar, salin URL Anda, lalu tempel di atas.",
   "rpcReport": "Masih tidak berfungsi? Laporkan",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "addByAddress": "Tambah token lewat alamat",
+  "notShowingTitle": "Sudah menerima token tapi tidak muncul?",
+  "notShowingBody": "Transfer yang sudah dikonfirmasi ditambahkan otomatis. Jika token belum muncul, tambahkan lewat alamat kontrak, atau tambahkan jaringannya."
  },
  "addToken": {
   "addedTokensLabel": "Token yang Ditambahkan",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "Gagal menambahkan jaringan.",
   "errorAlreadyAdded": "Jaringan ini sudah ditambahkan",
   "errorChainNotFound": "Info chain tidak ditemukan",
-  "errorNotCompatible": "Tidak kompatibel dengan Vela Wallet"
+  "errorNotCompatible": "Tidak kompatibel dengan Vela Wallet",
+  "invalidAddress": "Alamat kontrak tidak valid",
+  "notCompatible": "Tidak kompatibel"
  },
  "tokenDetail": {
   "send": "Kirim",
@@ -1237,7 +1266,11 @@
    "errorImage": "Gagal memproses gambar.",
    "errorPicker": "Gagal membuka pemilih gambar.",
    "torchLabel": "Alihkan senter",
-   "zoomLabel": "Zoom"
+   "zoomLabel": "Zoom",
+   "gallery": "Foto",
+   "fromGallery": "Pilih dari foto",
+   "torch": "Senter",
+   "flipCamera": "Balik"
   },
   "gas": {
    "estFee": "Biaya jaringan",

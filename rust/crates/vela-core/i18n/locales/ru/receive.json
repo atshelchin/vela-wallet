@@ -67,6 +67,12 @@
       "invalidTitle": "Неверная ссылка для оплаты",
       "invalidBody": "В этой ссылке отсутствует корректный получатель или сеть. Попросите отправителя прислать новую."
     },
-    "addressLabel": "Ваш адрес для получения"
+    "addressLabel": "Ваш адрес для получения",
+    "searchNetworkPlaceholder": "Поиск сетей",
+    "searchNetworkEmpty": "Нет сетей, соответствующих “{{query}}”",
+    "qrTitleNetwork": "Используйте этот адрес для получения активов в сети {{network}}",
+    "qrTitleAsset": "Используйте этот адрес для получения {{symbol}} в сети {{network}}",
+    "shareCardNetworkNote": "Только платежи в сети {{network}}",
+    "tokenContract": "Контракт токена"
   }
 }

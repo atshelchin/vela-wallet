@@ -122,6 +122,24 @@
     "batchImportFailedTitle": "Impossibile leggere il file",
     "batchImportFailedBody": "Usa un file CSV, TSV, TXT o Excel.",
     "batchCurrencyLabel": "Prezzato in",
-    "feeTokenLabel": "Token di commissione"
+    "feeTokenLabel": "Token di commissione",
+    "balanceLabel": "Saldo {{amount}}",
+    "fromContacts": "Dai contatti",
+    "splitTotalLabel": "Totale",
+    "multiSendChainNotice": "{{network}} selezionata — un invio multi-token resta su una sola rete, quindi le altre sono in grigio",
+    "multiSendSameRecipient": "Tutti i token vanno allo stesso indirizzo",
+    "pickContactTitle": "Scegli un contatto",
+    "pickContactSearch": "Cerca contatti o incolla un indirizzo",
+    "scanToFill": "Scansiona per inserire l’indirizzo",
+    "feeTokenHint": "Paga la commissione di rete di questo trasferimento. La stima segue la rete in tempo reale.",
+    "feeTokenEstimate": "Commissione stimata",
+    "batchRateHint": "Gli importi del foglio sono letti come {{code}} e convertiti in {{sym}} a questo tasso.",
+    "batchParsedCount": "Analizzate · {{n}} righe",
+    "confirmTotalLine": "Totale ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "Preparazione della transazione, in attesa della conferma biometrica",
+    "txBackgroundHint": "Chiudere questa pagina non ferma la transazione",
+    "txCloseBackground": "Chiudi · continua in background",
+    "txSubmittedTitle": "Inviata alla rete",
+    "txConfirmedTitle": "Inviati {{amount}} {{symbol}}"
   }
 }

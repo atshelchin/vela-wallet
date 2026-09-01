@@ -119,6 +119,24 @@
     "batchImportFailedTitle": "파일을 읽을 수 없습니다",
     "batchImportFailedBody": "CSV, TSV, TXT 또는 Excel 파일을 사용하세요.",
     "batchCurrencyLabel": "기준 통화",
-    "feeTokenLabel": "수수료 토큰"
+    "feeTokenLabel": "수수료 토큰",
+    "balanceLabel": "잔액 {{amount}}",
+    "fromContacts": "연락처에서",
+    "splitTotalLabel": "합계",
+    "multiSendChainNotice": "{{network}} 선택됨 — 여러 토큰을 함께 보내려면 같은 네트워크여야 해서 나머지는 비활성화됩니다",
+    "multiSendSameRecipient": "모든 토큰이 같은 주소로 전송됩니다",
+    "pickContactTitle": "연락처 선택",
+    "pickContactSearch": "연락처 검색 또는 주소 붙여넣기",
+    "scanToFill": "스캔해서 주소 채우기",
+    "feeTokenHint": "이 전송의 네트워크 수수료로 쓰입니다. 예상액은 현재 네트워크 상황을 실시간으로 따릅니다.",
+    "feeTokenEstimate": "예상 수수료",
+    "batchRateHint": "시트의 금액은 {{code}}로 읽고, 이 환율로 {{sym}}으로 환산합니다.",
+    "batchParsedCount": "분석 결과 · {{n}}건",
+    "confirmTotalLine": "합계 ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "거래를 준비하고 생체 인증을 기다리는 중",
+    "txBackgroundHint": "이 페이지를 닫아도 거래는 계속 진행됩니다",
+    "txCloseBackground": "닫기 · 계속 진행",
+    "txSubmittedTitle": "네트워크에 제출됨",
+    "txConfirmedTitle": "{{amount}} {{symbol}} 전송 완료"
   }
 }

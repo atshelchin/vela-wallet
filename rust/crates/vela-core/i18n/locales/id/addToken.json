@@ -37,6 +37,8 @@
     "errorAddNetwork": "Gagal menambahkan jaringan.",
     "errorAlreadyAdded": "Jaringan ini sudah ditambahkan",
     "errorChainNotFound": "Info chain tidak ditemukan",
-    "errorNotCompatible": "Tidak kompatibel dengan Vela Wallet"
+    "errorNotCompatible": "Tidak kompatibel dengan Vela Wallet",
+    "invalidAddress": "Alamat kontrak tidak valid",
+    "notCompatible": "Tidak kompatibel"
   }
 }

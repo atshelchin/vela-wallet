@@ -167,7 +167,11 @@
       "errorImage": "处理图片失败。",
       "errorPicker": "打开图片选择器失败。",
       "torchLabel": "开关手电筒",
-      "zoomLabel": "缩放"
+      "zoomLabel": "缩放",
+      "gallery": "相册",
+      "fromGallery": "从相册选择",
+      "torch": "手电筒",
+      "flipCamera": "翻转"
     },
     "gas": {
       "estFee": "网络费",

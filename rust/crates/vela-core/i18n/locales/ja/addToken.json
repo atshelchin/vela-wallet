@@ -37,6 +37,8 @@
     "errorAddNetwork": "ネットワークの追加に失敗しました。",
     "errorAlreadyAdded": "このネットワークはすでに追加されています",
     "errorChainNotFound": "チェーン情報が見つかりません",
-    "errorNotCompatible": "Vela Wallet と互換性がありません"
+    "errorNotCompatible": "Vela Wallet と互換性がありません",
+    "invalidAddress": "コントラクトアドレスが正しくありません",
+    "notCompatible": "非対応"
   }
 }

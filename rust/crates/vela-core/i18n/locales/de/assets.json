@@ -21,6 +21,9 @@
     "rpcProvidersTitle": "Wo Sie einen zuverlässigen RPC bekommen",
     "rpcProvidersHint": "Kostenlose Endpunkte — registrieren Sie sich, kopieren Sie Ihre URL und fügen Sie sie oben ein.",
     "rpcReport": "Funktioniert immer noch nicht? Melden",
-    "chainFallback": "Chain {{chainId}}"
+    "chainFallback": "Chain {{chainId}}",
+    "addByAddress": "Token über Adresse hinzufügen",
+    "notShowingTitle": "Token erhalten, aber nicht zu sehen?",
+    "notShowingBody": "Bestätigte Überweisungen werden von selbst hinzugefügt. Fehlt ein Token weiterhin, füge es über die Vertragsadresse hinzu oder ergänze sein Netzwerk."
   }
 }

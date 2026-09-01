@@ -21,6 +21,9 @@
     "rpcProvidersTitle": "在哪里获取可靠的 RPC",
     "rpcProvidersHint": "以下为免费节点服务——注册后复制你的 URL，粘贴到上方。",
     "rpcReport": "仍无法解决？反馈给我们",
-    "chainFallback": "链 {{chainId}}"
+    "chainFallback": "链 {{chainId}}",
+    "addByAddress": "通过地址添加代币",
+    "notShowingTitle": "已经收到代币但没有显示？",
+    "notShowingBody": "确认到账的转账会自动入账。若代币仍未出现，可通过合约地址手动添加，或添加对应网络。"
   }
 }

@@ -225,8 +225,16 @@ for (let i = 1; i < PATHS.length; i++) {
 //   shipped font, the widest authored line runs from 6.9em (zh) to 15.0em (id)
 //   — a 2.2x spread that one font size cannot serve, so the tier rides with the
 //   copy instead of being guessed per client.
-if (PATHS.length !== 1429) fail(`expected 1429 paths (1349 leaf + 80 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1349) fail(`expected 1349 leaf paths, got ${leafSet.size}`);
+// + 33 more, spec 021's receive / send / assets / addToken / scanner leaves:
+//   the wallet-2 flows resolve almost entirely against keys the legacy React
+//   Native app already left in the corpus. These are the remainder — the ones
+//   the mocks say and nothing existing says: two add-token failure labels, the
+//   receive network search and its two QR headlines, the share card's network
+//   note, the assets "you received it but can't see it" card, and the send
+//   flow's split / sweep / fee-token / import / receipt copy. No new branch:
+//   every one hangs off a namespace that already exists.
+if (PATHS.length !== 1462) fail(`expected 1462 paths (1382 leaf + 80 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1382) fail(`expected 1382 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 80) fail(`expected 80 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

@@ -21,6 +21,9 @@
     "rpcProvidersTitle": "Tempat mendapatkan RPC yang andal",
     "rpcProvidersHint": "Endpoint gratis — daftar, salin URL Anda, lalu tempel di atas.",
     "rpcReport": "Masih tidak berfungsi? Laporkan",
-    "chainFallback": "Chain {{chainId}}"
+    "chainFallback": "Chain {{chainId}}",
+    "addByAddress": "Tambah token lewat alamat",
+    "notShowingTitle": "Sudah menerima token tapi tidak muncul?",
+    "notShowingBody": "Transfer yang sudah dikonfirmasi ditambahkan otomatis. Jika token belum muncul, tambahkan lewat alamat kontrak, atau tambahkan jaringannya."
   }
 }

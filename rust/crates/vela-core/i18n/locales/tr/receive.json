@@ -67,6 +67,12 @@
       "invalidTitle": "Geçersiz ödeme bağlantısı",
       "invalidBody": "Bu bağlantıda geçerli bir alıcı veya ağ eksik. Gönderenden yeni bir bağlantı isteyin."
     },
-    "addressLabel": "Alma adresiniz"
+    "addressLabel": "Alma adresiniz",
+    "searchNetworkPlaceholder": "Ağ ara",
+    "searchNetworkEmpty": "“{{query}}” ile eşleşen ağ yok",
+    "qrTitleNetwork": "{{network}} üzerindeki varlıkları bu adresle alın",
+    "qrTitleAsset": "{{network}} üzerindeki {{symbol}} varlığını bu adresle alın",
+    "shareCardNetworkNote": "Yalnızca {{network}} ödemeleri",
+    "tokenContract": "Token sözleşmesi"
   }
 }

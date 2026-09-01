@@ -308,7 +308,25 @@
   "batchImportFailedTitle": "Не удалось прочитать файл",
   "batchImportFailedBody": "Используйте файл CSV, TSV, TXT или Excel.",
   "batchCurrencyLabel": "В валюте",
-  "feeTokenLabel": "Токен комиссии"
+  "feeTokenLabel": "Токен комиссии",
+  "balanceLabel": "Баланс {{amount}}",
+  "fromContacts": "Из контактов",
+  "splitTotalLabel": "Итого",
+  "multiSendChainNotice": "Выбрана сеть {{network}} — отправка нескольких токенов идёт в одной сети, поэтому остальные затемнены",
+  "multiSendSameRecipient": "Все токены уходят на один адрес",
+  "pickContactTitle": "Выберите контакт",
+  "pickContactSearch": "Найдите контакт или вставьте адрес",
+  "scanToFill": "Отсканируйте, чтобы вставить адрес",
+  "feeTokenHint": "Оплачивает сетевую комиссию этого перевода. Оценка следует за сетью в реальном времени.",
+  "feeTokenEstimate": "Оценка комиссии",
+  "batchRateHint": "Суммы в таблице читаются как {{code}} и переводятся в {{sym}} по этому курсу.",
+  "batchParsedCount": "Разобрано · {{n}} строк",
+  "confirmTotalLine": "Итого ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "Готовим транзакцию и ждём подтверждения по биометрии",
+  "txBackgroundHint": "Если закрыть страницу, транзакция продолжится",
+  "txCloseBackground": "Закрыть · продолжить в фоне",
+  "txSubmittedTitle": "Отправлено в сеть",
+  "txConfirmedTitle": "Отправлено {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "Получить",
@@ -378,7 +396,13 @@
    "invalidTitle": "Неверная ссылка для оплаты",
    "invalidBody": "В этой ссылке отсутствует корректный получатель или сеть. Попросите отправителя прислать новую."
   },
-  "addressLabel": "Ваш адрес для получения"
+  "addressLabel": "Ваш адрес для получения",
+  "searchNetworkPlaceholder": "Поиск сетей",
+  "searchNetworkEmpty": "Нет сетей, соответствующих “{{query}}”",
+  "qrTitleNetwork": "Используйте этот адрес для получения активов в сети {{network}}",
+  "qrTitleAsset": "Используйте этот адрес для получения {{symbol}} в сети {{network}}",
+  "shareCardNetworkNote": "Только платежи в сети {{network}}",
+  "tokenContract": "Контракт токена"
  },
  "assets": {
   "sectionTitle": "Активы",
@@ -402,7 +426,10 @@
   "rpcProvidersTitle": "Где взять надёжный RPC",
   "rpcProvidersHint": "Бесплатные эндпоинты — зарегистрируйтесь, скопируйте свой URL и вставьте его выше.",
   "rpcReport": "Всё ещё не работает? Сообщите нам",
-  "chainFallback": "Сеть {{chainId}}"
+  "chainFallback": "Сеть {{chainId}}",
+  "addByAddress": "Добавить токен по адресу",
+  "notShowingTitle": "Получили токен, но не видите его?",
+  "notShowingBody": "Подтверждённые переводы добавляются сами. Если токен всё ещё не появился, добавьте его по адресу контракта или добавьте сеть, в которой он живёт."
  },
  "addToken": {
   "addedTokensLabel": "Добавленные токены",
@@ -442,7 +469,9 @@
   "errorAddNetwork": "Не удалось добавить сеть.",
   "errorAlreadyAdded": "Эта сеть уже добавлена",
   "errorChainNotFound": "Информация о сети не найдена",
-  "errorNotCompatible": "Несовместимо с Vela Wallet"
+  "errorNotCompatible": "Несовместимо с Vela Wallet",
+  "invalidAddress": "Неверный адрес контракта",
+  "notCompatible": "Несовместимо"
  },
  "tokenDetail": {
   "send": "Отправить",
@@ -1243,7 +1272,11 @@
    "errorImage": "Не удалось обработать изображение.",
    "errorPicker": "Не удалось открыть выбор изображений.",
    "torchLabel": "Переключить фонарик",
-   "zoomLabel": "Масштаб"
+   "zoomLabel": "Масштаб",
+   "gallery": "Фото",
+   "fromGallery": "Из фотографий",
+   "torch": "Фонарик",
+   "flipCamera": "Развернуть"
   },
   "gas": {
    "estFee": "Прибл. комиссия",

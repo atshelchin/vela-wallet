@@ -37,6 +37,8 @@
     "errorAddNetwork": "Не удалось добавить сеть.",
     "errorAlreadyAdded": "Эта сеть уже добавлена",
     "errorChainNotFound": "Информация о сети не найдена",
-    "errorNotCompatible": "Несовместимо с Vela Wallet"
+    "errorNotCompatible": "Несовместимо с Vela Wallet",
+    "invalidAddress": "Неверный адрес контракта",
+    "notCompatible": "Несовместимо"
   }
 }

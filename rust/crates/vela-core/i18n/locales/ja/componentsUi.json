@@ -206,7 +206,11 @@
       "errorImage": "画像の処理に失敗しました。",
       "errorPicker": "画像ピッカーを開けませんでした。",
       "torchLabel": "ライトを切り替え",
-      "zoomLabel": "ズーム"
+      "zoomLabel": "ズーム",
+      "gallery": "写真",
+      "fromGallery": "写真から選ぶ",
+      "torch": "ライト",
+      "flipCamera": "切り替え"
     },
     "gas": {
       "estFee": "ネットワーク手数料",

@@ -21,6 +21,9 @@
     "rpcProvidersTitle": "Dove trovare un RPC affidabile",
     "rpcProvidersHint": "Endpoint gratuiti — registrati, copia il tuo URL e incollalo qui sopra.",
     "rpcReport": "Ancora non funziona? Segnalalo",
-    "chainFallback": "Rete {{chainId}}"
+    "chainFallback": "Rete {{chainId}}",
+    "addByAddress": "Aggiungi un token tramite indirizzo",
+    "notShowingTitle": "Hai ricevuto un token ma non lo vedi?",
+    "notShowingBody": "I trasferimenti confermati si aggiungono da soli. Se un token non compare ancora, aggiungilo tramite l’indirizzo del contratto, oppure aggiungi la sua rete."
   }
 }

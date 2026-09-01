@@ -206,7 +206,11 @@
       "errorImage": "No se pudo procesar la imagen.",
       "errorPicker": "No se pudo abrir el selector de imágenes.",
       "torchLabel": "Alternar linterna",
-      "zoomLabel": "Zoom"
+      "zoomLabel": "Zoom",
+      "gallery": "Fotos",
+      "fromGallery": "Desde fotos",
+      "torch": "Linterna",
+      "flipCamera": "Voltear"
     },
     "gas": {
       "estFee": "Comisión est.",

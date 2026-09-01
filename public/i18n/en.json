@@ -309,7 +309,25 @@
   "batchCurrencyLabel": "Priced in",
   "batchOverBalance": "Total exceeds your {{sym}} balance.",
   "batchClose": "Close",
-  "feeTokenLabel": "Fee token"
+  "feeTokenLabel": "Fee token",
+  "balanceLabel": "Balance {{amount}}",
+  "fromContacts": "From contacts",
+  "splitTotalLabel": "Total",
+  "multiSendChainNotice": "{{network}} selected — a multi-token send stays on one network, so the others are greyed out",
+  "multiSendSameRecipient": "Every token goes to the same address",
+  "pickContactTitle": "Choose a contact",
+  "pickContactSearch": "Search contacts or paste an address",
+  "scanToFill": "Scan to fill the address",
+  "feeTokenHint": "Pays this transfer’s network fee. The estimate follows the network in real time.",
+  "feeTokenEstimate": "Estimated fee",
+  "batchRateHint": "Amounts in the sheet are read as {{code}} and converted to {{sym}} at this rate.",
+  "batchParsedCount": "Parsed · {{n}} rows",
+  "confirmTotalLine": "Total ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "Preparing the transaction and waiting for biometric confirmation",
+  "txBackgroundHint": "Closing this page keeps the transaction running",
+  "txCloseBackground": "Close · keep running",
+  "txSubmittedTitle": "Submitted to the network",
+  "txConfirmedTitle": "Sent {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "Receive",
@@ -379,7 +397,13 @@
    "invalidTitle": "Invalid payment link",
    "invalidBody": "This link is missing a valid recipient or network. Ask the sender for a new one."
   },
-  "addressLabel": "Your receive address"
+  "addressLabel": "Your receive address",
+  "searchNetworkPlaceholder": "Search networks",
+  "searchNetworkEmpty": "No networks match “{{query}}”",
+  "qrTitleNetwork": "Use this address to receive assets on {{network}}",
+  "qrTitleAsset": "Use this address to receive {{symbol}} on {{network}}",
+  "shareCardNetworkNote": "{{network}} payments only",
+  "tokenContract": "Token contract"
  },
  "assets": {
   "sectionTitle": "Assets",
@@ -403,7 +427,10 @@
   "rpcProvidersTitle": "Where to get a reliable RPC",
   "rpcProvidersHint": "Free endpoints — sign up, copy your URL, and paste it above.",
   "rpcReport": "Still not working? Report it",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "addByAddress": "Add a token by address",
+  "notShowingTitle": "Received a token but don’t see it?",
+  "notShowingBody": "Confirmed transfers are added on their own. If a token still hasn’t appeared, add it by contract address, or add the network it lives on."
  },
  "addToken": {
   "addedTokensLabel": "Added Tokens",
@@ -443,7 +470,9 @@
   "errorAddNetwork": "Failed to add network.",
   "errorAlreadyAdded": "This network is already added",
   "errorChainNotFound": "Chain info not found",
-  "errorNotCompatible": "Not compatible with Vela Wallet"
+  "errorNotCompatible": "Not compatible with Vela Wallet",
+  "invalidAddress": "Invalid contract address",
+  "notCompatible": "Not compatible"
  },
  "tokenDetail": {
   "send": "Send",
@@ -1231,7 +1260,11 @@
    "errorImage": "Failed to process the image.",
    "errorPicker": "Failed to open image picker.",
    "torchLabel": "Toggle flashlight",
-   "zoomLabel": "Zoom"
+   "zoomLabel": "Zoom",
+   "gallery": "Photos",
+   "fromGallery": "From photos",
+   "torch": "Torch",
+   "flipCamera": "Flip"
   },
   "gas": {
    "estFee": "Network fee",

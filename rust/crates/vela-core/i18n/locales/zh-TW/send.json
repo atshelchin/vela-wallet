@@ -119,6 +119,24 @@
     "scanAria": "掃描 QR code",
     "multiSendNoFundsAfterGas": "扣除 gas 儲備後餘額不足。",
     "gasReserved": "已留 gas",
-    "feeTokenLabel": "手續費代幣"
+    "feeTokenLabel": "手續費代幣",
+    "balanceLabel": "餘額 {{amount}}",
+    "fromContacts": "從通訊錄",
+    "splitTotalLabel": "合計",
+    "multiSendChainNotice": "已選 {{network}} · 多幣發送需同一網路，其他網路已變灰",
+    "multiSendSameRecipient": "多幣發送時收款人為同一位址",
+    "pickContactTitle": "選擇聯絡人",
+    "pickContactSearch": "搜尋聯絡人或貼上位址",
+    "scanToFill": "掃碼填入位址",
+    "feeTokenHint": "用來支付這筆轉帳的網路費，費用按目前網路即時估算",
+    "feeTokenEstimate": "預估費用",
+    "batchRateHint": "表格金額按 {{code}} 讀取，匯入時按此匯率換算為 {{sym}}",
+    "batchParsedCount": "解析結果 · {{n}} 筆",
+    "confirmTotalLine": "合計 ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "正在準備交易並等待生物辨識確認",
+    "txBackgroundHint": "關閉此頁交易會在背景繼續",
+    "txCloseBackground": "關閉 · 背景繼續",
+    "txSubmittedTitle": "交易已提交至網路",
+    "txConfirmedTitle": "已發送 {{amount}} {{symbol}}"
   }
 }

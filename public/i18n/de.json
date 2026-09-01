@@ -302,7 +302,25 @@
   "batchImportFailedTitle": "Datei konnte nicht gelesen werden",
   "batchImportFailedBody": "Bitte verwenden Sie eine CSV-, TSV-, TXT- oder Excel-Datei.",
   "batchCurrencyLabel": "Bepreist in",
-  "feeTokenLabel": "Gebühren-Token"
+  "feeTokenLabel": "Gebühren-Token",
+  "balanceLabel": "Guthaben {{amount}}",
+  "fromContacts": "Aus Kontakten",
+  "splitTotalLabel": "Gesamt",
+  "multiSendChainNotice": "{{network}} ausgewählt — ein Multi-Token-Versand bleibt in einem Netzwerk, die anderen sind ausgegraut",
+  "multiSendSameRecipient": "Alle Token gehen an dieselbe Adresse",
+  "pickContactTitle": "Kontakt wählen",
+  "pickContactSearch": "Kontakte suchen oder Adresse einfügen",
+  "scanToFill": "Scannen, um die Adresse einzutragen",
+  "feeTokenHint": "Zahlt die Netzwerkgebühr dieser Überweisung. Die Schätzung folgt dem Netzwerk in Echtzeit.",
+  "feeTokenEstimate": "Geschätzte Gebühr",
+  "batchRateHint": "Beträge in der Tabelle werden als {{code}} gelesen und zu diesem Kurs in {{sym}} umgerechnet.",
+  "batchParsedCount": "Gelesen · {{n}} Zeilen",
+  "confirmTotalLine": "Gesamt ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "Transaktion wird vorbereitet, warte auf die biometrische Bestätigung",
+  "txBackgroundHint": "Diese Seite zu schließen hält die Transaktion nicht an",
+  "txCloseBackground": "Schließen · weiterlaufen lassen",
+  "txSubmittedTitle": "An das Netzwerk gesendet",
+  "txConfirmedTitle": "{{amount}} {{symbol}} gesendet"
  },
  "receive": {
   "title": "Empfangen",
@@ -372,7 +390,13 @@
    "invalidTitle": "Ungültiger Zahlungslink",
    "invalidBody": "In diesem Link fehlt ein gültiger Empfänger oder ein gültiges Netzwerk. Bitten Sie den Absender um einen neuen."
   },
-  "addressLabel": "Ihre Empfangsadresse"
+  "addressLabel": "Ihre Empfangsadresse",
+  "searchNetworkPlaceholder": "Netzwerke suchen",
+  "searchNetworkEmpty": "Keine Netzwerke passen zu „{{query}}“",
+  "qrTitleNetwork": "Mit dieser Adresse Werte auf {{network}} empfangen",
+  "qrTitleAsset": "Mit dieser Adresse {{symbol}} auf {{network}} empfangen",
+  "shareCardNetworkNote": "Nur Zahlungen über {{network}}",
+  "tokenContract": "Token-Vertrag"
  },
  "assets": {
   "sectionTitle": "Assets",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "Wo Sie einen zuverlässigen RPC bekommen",
   "rpcProvidersHint": "Kostenlose Endpunkte — registrieren Sie sich, kopieren Sie Ihre URL und fügen Sie sie oben ein.",
   "rpcReport": "Funktioniert immer noch nicht? Melden",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "addByAddress": "Token über Adresse hinzufügen",
+  "notShowingTitle": "Token erhalten, aber nicht zu sehen?",
+  "notShowingBody": "Bestätigte Überweisungen werden von selbst hinzugefügt. Fehlt ein Token weiterhin, füge es über die Vertragsadresse hinzu oder ergänze sein Netzwerk."
  },
  "addToken": {
   "addedTokensLabel": "Hinzugefügte Token",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "Netzwerk konnte nicht hinzugefügt werden.",
   "errorAlreadyAdded": "Dieses Netzwerk ist bereits hinzugefügt",
   "errorChainNotFound": "Chain-Informationen nicht gefunden",
-  "errorNotCompatible": "Nicht kompatibel mit Vela Wallet"
+  "errorNotCompatible": "Nicht kompatibel mit Vela Wallet",
+  "invalidAddress": "Ungültige Vertragsadresse",
+  "notCompatible": "Nicht kompatibel"
  },
  "tokenDetail": {
   "send": "Senden",
@@ -1237,7 +1266,11 @@
    "errorImage": "Bild konnte nicht verarbeitet werden.",
    "errorPicker": "Bildauswahl konnte nicht geöffnet werden.",
    "torchLabel": "Taschenlampe umschalten",
-   "zoomLabel": "Zoom"
+   "zoomLabel": "Zoom",
+   "gallery": "Fotos",
+   "fromGallery": "Aus Fotos wählen",
+   "torch": "Licht",
+   "flipCamera": "Wechseln"
   },
   "gas": {
    "estFee": "Geschätzte Gebühr",

@@ -67,6 +67,12 @@
       "invalidTitle": "Invalid payment link",
       "invalidBody": "This link is missing a valid recipient or network. Ask the sender for a new one."
     },
-    "addressLabel": "Your receive address"
+    "addressLabel": "Your receive address",
+    "searchNetworkPlaceholder": "Search networks",
+    "searchNetworkEmpty": "No networks match “{{query}}”",
+    "qrTitleNetwork": "Use this address to receive assets on {{network}}",
+    "qrTitleAsset": "Use this address to receive {{symbol}} on {{network}}",
+    "shareCardNetworkNote": "{{network}} payments only",
+    "tokenContract": "Token contract"
   }
 }

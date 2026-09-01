@@ -150,8 +150,11 @@ describe('generated i18n resources', () => {
     // 19,953 = 19,818 plus the intro carousel's 9 `welcome.intro.*` keys × 15:
     // two chrome labels (skip / next), the page-of counter, and the three
     // slides' title + body pairs (spec 020).
+    // 20,448 = 19,953 plus spec 021's 33 wallet-flow keys × 15. The Receive /
+    // Send / Activity / Assets mocks are mostly spoken by keys the legacy
+    // React Native app already left behind; these 33 are the remainder.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_953);
+    expect(total).toBe(20_448);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

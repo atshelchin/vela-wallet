@@ -33,6 +33,10 @@ struct WalletScreen: View {
     /// ⚠ Sign-out is currently the ONLY thing behind it. A real settings screen
     /// is a later feature; an unreachable wallet is not something to wait for it.
     var onSelectTab: (WalletTab) -> Void = { _ in }
+    /// Spec 021: the dock, the two section actions and the rows are the
+    /// entries into Receive / Send / Scan / Activity / Assets. Absent in the
+    /// gallery, where this screen is a picture.
+    var onFlow: ((WalletFlowEntry) -> Void)?
     @State private var sheetShown = false
     @State private var viewingIdenticon = false
 
@@ -44,8 +48,13 @@ struct WalletScreen: View {
                         .padding(.top, Tokens.Space.s8)
                     BalanceDisplay(model: model.balance)
                         .padding(.top, Tokens.Space.s24)
-                    ActionButtonRow(model: model.actions)
-                        .padding(.top, Tokens.Space.s24)
+                    ActionButtonRow(
+                        model: model.actions,
+                        onReceive: onFlow.map { flow in { flow(.receive) } },
+                        onSend: onFlow.map { flow in { flow(.send) } },
+                        onScan: onFlow.map { flow in { flow(.scan) } }
+                    )
+                    .padding(.top, Tokens.Space.s24)
                     section(model.activitySection, isActivity: true)
                         .padding(.top, Tokens.Space.s32)
                     section(model.assetsSection, isActivity: false)
@@ -101,7 +110,13 @@ struct WalletScreen: View {
     @ViewBuilder
     private func section(_ section: SectionModel, isActivity: Bool) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s0) {
-            WalletSectionHeader(title: section.title, action: section.action)
+            WalletSectionHeader(
+                title: section.title,
+                action: section.action,
+                onAction: onFlow.map { flow in
+                    { flow(isActivity ? .activity : .assets) }
+                }
+            )
             switch section.mode {
             case .rows:
                 if isActivity {
@@ -136,7 +151,14 @@ struct WalletScreen: View {
                     if index > 0 {
                         rowDivider
                     }
-                    ActivityRowView(model: row)
+                    if let onFlow {
+                        Button { onFlow(.txDetail) } label: {
+                            ActivityRowView(model: row).contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        ActivityRowView(model: row)
+                    }
                 }
             }
         }
@@ -148,7 +170,14 @@ struct WalletScreen: View {
                 if index > 0 {
                     rowDivider
                 }
-                AssetRowView(model: row)
+                if let onFlow {
+                    Button { onFlow(.tokenDetail) } label: {
+                        AssetRowView(model: row).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    AssetRowView(model: row)
+                }
             }
         }
         .padding(.top, Tokens.Space.s8)

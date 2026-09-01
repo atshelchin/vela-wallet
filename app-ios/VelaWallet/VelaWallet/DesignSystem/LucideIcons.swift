@@ -32,6 +32,8 @@ enum LucideGlyph: String {
     case userRoundPlus, usersRound, folderPlus
     case download, upload, pencil, trash2
     case ellipsis, qrCode, plus, chevronLeft
+    // Wallet-flow glyphs (spec 021 — lucide v1.11.0).
+    case clock, userRound, chevronsUpDown, creditCard, fileText, image, zap, rotateCcw
 
     /// Complete SVG document, white paint, 24×24 viewBox.
     var svg: String {
@@ -111,6 +113,26 @@ enum LucideGlyph: String {
             return ##"<rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>"##
         case .plus:
             return ##"<path d="M5 12h14"/><path d="M12 5v14"/>"##
+        case .clock:
+            return ##"<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>"##
+        // The single-person glyph. `usersRound` is the group; SD2's recipient
+        // field opens a picker for exactly one person, and two heads there read
+        // as "add several".
+        case .userRound:
+            return ##"<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>"##
+        // SD2's denomination toggle: token or display currency.
+        case .chevronsUpDown:
+            return ##"<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>"##
+        case .creditCard:
+            return ##"<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>"##
+        case .fileText:
+            return ##"<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>"##
+        case .image:
+            return ##"<rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>"##
+        case .zap:
+            return ##"<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>"##
+        case .rotateCcw:
+            return ##"<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>"##
         case .chevronLeft:
             return ##"<path d="m15 18-6-6 6-6"/>"##
         }
@@ -136,4 +158,9 @@ enum LucideIconSize {
     static let ghostPlus: CGFloat = 16
     static let chipPlus: CGFloat = 12
     static let addressCopy: CGFloat = 18
+    // Wallet-flow slots (spec 021).
+    static let flowBack: CGFloat = 20
+    static let flowRowAction: CGFloat = 18
+    static let flowStatus: CGFloat = 26
+    static let flowScanTool: CGFloat = 18
 }

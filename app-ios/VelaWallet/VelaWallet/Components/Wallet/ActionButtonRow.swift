@@ -15,6 +15,9 @@ struct ActionCardItem: Identifiable {
     let id = UUID()
     let icon: LucideGlyph
     let label: String
+    /// Spec 021: the card is an entry into a flow. Absent in the gallery,
+    /// where the dock is a picture.
+    var action: (() -> Void)?
 }
 
 struct ActionButtonRow: View {
@@ -28,18 +31,30 @@ struct ActionButtonRow: View {
     }
 
     /// Wallet home (spec 015): 收款 / 转账 / 扫码.
-    init(model: ActionsModel) {
+    init(
+        model: ActionsModel,
+        onReceive: (() -> Void)? = nil,
+        onSend: (() -> Void)? = nil,
+        onScan: (() -> Void)? = nil
+    ) {
         self.items = [
-            ActionCardItem(icon: .arrowDownLeft, label: model.receive),
-            ActionCardItem(icon: .arrowUpRight, label: model.send),
-            ActionCardItem(icon: .scanLine, label: model.scan),
+            ActionCardItem(icon: .arrowDownLeft, label: model.receive, action: onReceive),
+            ActionCardItem(icon: .arrowUpRight, label: model.send, action: onSend),
+            ActionCardItem(icon: .scanLine, label: model.scan, action: onScan),
         ]
     }
 
     var body: some View {
         HStack(spacing: Tokens.Space.s12) {
             ForEach(items) { item in
-                card(icon: item.icon, label: item.label)
+                if let action = item.action {
+                    Button(action: action) {
+                        card(icon: item.icon, label: item.label).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    card(icon: item.icon, label: item.label)
+                }
             }
         }
     }

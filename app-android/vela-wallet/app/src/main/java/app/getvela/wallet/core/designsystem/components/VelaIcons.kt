@@ -428,6 +428,65 @@ object VelaIcons {
     }
 
     /** lucide chevron-left — mobile back affordance (C2/C4). */
+    // --- spec 021 additions (design/wallet-2) ----------------------------
+    /**
+     * The single-person glyph. `UsersRound` is the group; SD2's recipient
+     * field opens a picker for exactly one person, and two heads there read
+     * as "add several".
+     */
+    val UserRound: ImageVector by lazy {
+        strokeIcon("UserRound", "M12 3a5 5 0 1 1 0 10 5 5 0 0 1 0-10z", "M20 21a8 8 0 0 0-16 0")
+    }
+
+    /** SD2's denomination toggle: token or display currency. */
+    val ChevronsUpDown: ImageVector by lazy {
+        strokeIcon("ChevronsUpDown", "m7 15 5 5 5-5", "m7 9 5-5 5 5")
+    }
+
+    /** T4's empty-assets mark. */
+    val CreditCard: ImageVector by lazy {
+        strokeIcon(
+            "CreditCard",
+            "M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z",
+            "M2 10h20",
+        )
+    }
+
+    /** SD2c's "import a file". */
+    val FileText: ImageVector by lazy {
+        strokeIcon(
+            "FileText",
+            "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+            "M14 2v4a2 2 0 0 0 2 2h4",
+            "M10 9H8",
+            "M16 13H8",
+            "M16 17H8",
+        )
+    }
+
+    /** S1's photo-library tool. */
+    val Image: ImageVector by lazy {
+        strokeIcon(
+            "Image",
+            "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+            "M9 7a2 2 0 1 1 0 4 2 2 0 0 1 0-4z",
+            "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",
+        )
+    }
+
+    /** S1's torch. */
+    val Zap: ImageVector by lazy {
+        strokeIcon(
+            "Zap",
+            "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z",
+        )
+    }
+
+    /** S1's camera flip. */
+    val RotateCcw: ImageVector by lazy {
+        strokeIcon("RotateCcw", "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5")
+    }
+
     val ChevronLeft: ImageVector by lazy {
         strokeIcon("VelaChevronLeft", "m15 18-6-6 6-6")
     }

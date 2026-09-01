@@ -75,6 +75,21 @@ object VelaSizing {
     /** Flow sheet drag-handle bar (token-tinted custom handle, research D2). */
     val sheetHandleWidth: Dp = 36.dp
     val sheetHandleHeight: Dp = 4.dp
+
+    // Spec 021 wallet-flow geometry, measured off design/wallet-2 (not in the
+    // DTCG export — kept outside the drift test like the two blocks above).
+    /**
+     * The receive QR card, measured 344x344 in R2. Fixed, NOT fluid: the SPEC
+     * sheet pins it at 1.35x text scale too, because a code that shrinks with
+     * its caption stops scanning.
+     */
+    val qrCard: Dp = 344.dp
+
+    /** The send-receipt status disc, measured 88 in SD4a/SD4c. */
+    val statusHero: Dp = 88.dp
+
+    /** The receive network-row chain badge, measured 40 in R1. */
+    val chainBadge: Dp = 40.dp
 }
 
 /** core.icon sizes. */

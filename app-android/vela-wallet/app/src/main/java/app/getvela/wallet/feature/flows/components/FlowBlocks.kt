@@ -1,0 +1,746 @@
+package app.getvela.wallet.feature.flows.components
+
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import app.getvela.wallet.core.designsystem.components.VelaIcons
+import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.designsystem.tokens.VelaBorder
+import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
+import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
+import app.getvela.wallet.core.designsystem.tokens.VelaIconSize
+import app.getvela.wallet.core.designsystem.tokens.VelaLeading
+import app.getvela.wallet.core.designsystem.tokens.VelaMonoFontFamily
+import app.getvela.wallet.core.designsystem.tokens.VelaMotion
+import app.getvela.wallet.core.designsystem.tokens.VelaOnAccent
+import app.getvela.wallet.core.designsystem.tokens.VelaRadius
+import app.getvela.wallet.core.designsystem.tokens.VelaSizing
+import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
+import app.getvela.wallet.core.identicon.IdenticonImage
+import app.getvela.wallet.feature.flows.AddressCardModel
+import app.getvela.wallet.feature.flows.AmountFieldModel
+import app.getvela.wallet.feature.flows.FeeRowModel
+import app.getvela.wallet.feature.flows.ReceiptStage
+import app.getvela.wallet.feature.flows.RecipientActionModel
+import app.getvela.wallet.feature.flows.RecipientFieldModel
+import app.getvela.wallet.feature.flows.SendTokenCardModel
+import app.getvela.wallet.feature.flows.SummaryLineModel
+import app.getvela.wallet.feature.flows.TokenMarkModel
+import app.getvela.wallet.feature.wallet.components.TokenIcon
+import kotlin.math.min
+
+/** The blocks of the wallet flows (spec 021 components 8, 16–22, 24–26). */
+
+/**
+ * The account card above every QR (component 17): whose address this is,
+ * spelled out in full, with one copy button.
+ *
+ * The address wraps to exactly two lines and never truncates. R2 is the screen
+ * a person reads an address OFF, and an ellipsis in the middle of it would
+ * defeat the only job the screen has.
+ */
+@Composable
+fun AddressCard(
+    account: AddressCardModel,
+    modifier: Modifier = Modifier,
+    copied: Boolean = false,
+    onCopy: () -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = VelaSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IdenticonImage(seed = account.identiconSeed, size = VelaSizing.doneAvatar)
+        Spacer(modifier = Modifier.width(VelaSpacing.lg))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = account.name,
+                color = colors.fgBase,
+                fontFamily = VelaFontFamily,
+                fontWeight = VelaFontWeight.semibold,
+                fontSize = VelaTextSize.lg,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            listOf(account.lines.first, account.lines.second)
+                .filter { it.isNotEmpty() }
+                .forEach { line ->
+                    Text(
+                        text = line,
+                        color = colors.fgMuted,
+                        fontFamily = VelaMonoFontFamily,
+                        fontSize = VelaTextSize.sm,
+                        maxLines = 1,
+                    )
+                }
+        }
+        FlowIconButton(
+            icon = if (copied) VelaIcons.Check else VelaIcons.Copy,
+            label = account.copyLabel,
+            tint = if (copied) colors.successBase else colors.fgMuted,
+            onClick = onCopy,
+        )
+    }
+}
+
+/**
+ * The receive QR card (component 18) — R2, R3 and R4.
+ *
+ * Two decisions carried from the SPEC sheet:
+ *
+ * - **A fixed square.** The card does not scale with the text. At 1.35x the
+ *   copy around it grows and the screen scrolls; the code stays the size it
+ *   was, because a code that shrinks to make room for its caption stops
+ *   scanning.
+ * - **Something in the middle.** The network mark on R2, the token on R3, the
+ *   account's own identicon on the share card — R4's centre is an anti-forgery
+ *   mark: a card whose address was doctored would carry artwork that no longer
+ *   matches the characters printed under it.
+ *
+ * The modules are the deterministic demo pattern spec 015 established, never
+ * real encoded data — a code that looked scannable but was not would be worse
+ * than one that plainly is not.
+ */
+@Composable
+fun QrCard(
+    label: String,
+    modifier: Modifier = Modifier,
+    centre: (@Composable () -> Unit)? = null,
+) {
+    val ink = VelaTheme.colors.fixed.shadowInk
+    Box(
+        modifier = modifier
+            .size(VelaSizing.qrCard)
+            .semantics { contentDescription = label }
+            // White in BOTH appearances: a code is read by a camera, and
+            // inverting it in dark mode is the classic way to make one
+            // unscannable.
+            .background(VelaOnAccent, RoundedCornerShape(VelaRadius.xl))
+            .padding(VelaSpacing.xl3),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(VelaSizing.qrCard - VelaSpacing.xl3 * 2)) {
+            val cells = QR_MODULES
+            val module = min(size.width, size.height) / cells
+            for (r in 0 until cells) {
+                for (c in 0 until cells) {
+                    if (qrCell(r, c)) {
+                        drawRect(
+                            color = ink,
+                            topLeft = androidx.compose.ui.geometry.Offset(c * module, r * module),
+                            size = Size(module, module),
+                        )
+                    }
+                }
+            }
+        }
+        centre?.let {
+            Box(
+                modifier = Modifier
+                    // The cut-out reads as part of the card, so it takes the
+                    // card's white rather than a theme surface that would flip
+                    // underneath it.
+                    .background(VelaOnAccent, CircleShape)
+                    .padding(VelaSpacing.xs),
+            ) { it() }
+        }
+    }
+}
+
+/**
+ * The deterministic demo pattern (spec 015 data-model.md, ported here).
+ *
+ * Three standard finder squares plus xorshift32-seeded noise. Identical on
+ * every platform and every run, so screenshots diff cleanly. Denser than the
+ * spec-015 placeholder because R2 draws the code large, where 21 modules read
+ * as a chequerboard rather than a code.
+ */
+private const val QR_MODULES = 29
+private const val QR_SEED = 0xbeef
+
+private val QR_CELLS: Array<BooleanArray> by lazy {
+    var s = QR_SEED
+    fun next(): Int {
+        s = s xor (s shl 13)
+        s = s xor (s ushr 17)
+        s = s xor (s shl 5)
+        return s
+    }
+
+    val n = QR_MODULES
+    Array(n) { r ->
+        BooleanArray(n) { c ->
+            val inFinder = (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7)
+            if (inFinder) {
+                val lr = if (r < 7) r else r - (n - 7)
+                val lc = if (c < 7) c else c - (n - 7)
+                minOf(lr, lc, 6 - lr, 6 - lc) != 1
+            } else {
+                if ((next() and 3) == 0) false else next() % 2 == 0
+            }
+        }
+    }
+}
+
+private fun qrCell(r: Int, c: Int): Boolean = QR_CELLS[r][c]
+
+/**
+ * SD2's amount (component 8): the number, big and centred, with its fiat
+ * equivalent and the toggle that swaps which of the two you type.
+ *
+ * The figure is the largest type on the screen because it is the one thing the
+ * person came to decide. The fiat line stays subordinate even when the
+ * denominations swap — the amount being ENTERED leads, whichever it is.
+ */
+@Composable
+fun AmountInput(
+    amount: AmountFieldModel,
+    modifier: Modifier = Modifier,
+    onDenom: () -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = VelaSpacing.xl3),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = amount.value,
+            color = colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.bold,
+            fontSize = VelaTextSize.xl5,
+            maxLines = 1,
+        )
+        Spacer(modifier = Modifier.height(VelaSpacing.sm))
+        Row(
+            modifier = Modifier.clickable(onClick = onDenom).padding(VelaSpacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = amount.fiat,
+                color = colors.fgMuted,
+                fontFamily = VelaFontFamily,
+                fontSize = VelaTextSize.lg,
+                maxLines = 1,
+            )
+            Spacer(modifier = Modifier.width(VelaSpacing.xs))
+            Icon(
+                imageVector = VelaIcons.ChevronsUpDown,
+                contentDescription = amount.denomLabel,
+                tint = colors.fgMuted,
+                modifier = Modifier.size(VelaIconSize.sm),
+            )
+        }
+    }
+}
+
+/**
+ * The big signed amount (component 19): A2's and A3's transaction figure, T2's
+ * balance, SD3's confirmation total.
+ *
+ * Money in is green; money out is plain ink, not red. Red in this product means
+ * something went wrong, and a transfer you chose to make did not.
+ */
+@Composable
+fun AmountHero(
+    amount: String,
+    fiat: String,
+    modifier: Modifier = Modifier,
+    positive: Boolean = false,
+    centred: Boolean = false,
+) {
+    val colors = VelaTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = VelaSpacing.lg, bottom = VelaSpacing.xl),
+        horizontalAlignment = if (centred) Alignment.CenterHorizontally else Alignment.Start,
+    ) {
+        Text(
+            text = amount,
+            color = if (positive) colors.successBase else colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.bold,
+            fontSize = VelaTextSize.xl4,
+            maxLines = 1,
+        )
+        Text(
+            text = fiat,
+            color = colors.fgSubtle,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.lg,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * The send receipt's centrepiece (component 20) — SD4a's spinner, SD4b's clock,
+ * SD4c's tick, and the failure cross.
+ *
+ * One disc size for all four so the mark does not resize as the transaction
+ * moves between them: the person is watching this circle, and a circle that
+ * jumps when the state changes reads as a new screen rather than as progress on
+ * the one they were already looking at.
+ */
+@Composable
+fun StatusHero(
+    stage: ReceiptStage,
+    title: String,
+    captions: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    val colors = VelaTheme.colors
+    val (disc, tint) = when (stage) {
+        ReceiptStage.Submitting -> colors.bgSunken to colors.accentBase
+        ReceiptStage.Submitted -> colors.bgSunken to colors.fgMuted
+        ReceiptStage.Confirmed -> colors.successSoft to colors.successBase
+        ReceiptStage.Failed -> colors.errorSoft to colors.errorBase
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = VelaSpacing.xl6, bottom = VelaSpacing.xl3),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(VelaSizing.statusHero)
+                .background(disc, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            when (stage) {
+                ReceiptStage.Submitting -> SpinnerArc(color = tint)
+                ReceiptStage.Submitted -> Icon(
+                    imageVector = VelaIcons.Clock,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(VelaIconSize.xl2),
+                )
+                ReceiptStage.Confirmed -> Icon(
+                    imageVector = VelaIcons.Check,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(VelaIconSize.xl2),
+                )
+                ReceiptStage.Failed -> Icon(
+                    imageVector = VelaIcons.Close,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(VelaIconSize.xl2),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(VelaSpacing.xl))
+        Text(
+            text = title,
+            color = colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.bold,
+            fontSize = VelaTextSize.xl2,
+            textAlign = TextAlign.Center,
+        )
+        captions.forEachIndexed { index, caption ->
+            Spacer(modifier = Modifier.height(VelaSpacing.sm))
+            Text(
+                text = caption,
+                // The second caption is the one that says "you can leave" —
+                // true, useful, and not what the person is waiting to read.
+                color = if (index == 0) colors.fgMuted else colors.fgSubtle,
+                fontFamily = VelaFontFamily,
+                fontSize = if (index == 0) VelaTextSize.base else VelaTextSize.sm,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+/** One revolution at the CTA spinner's speed: one wait speed in the product. */
+@Composable
+private fun SpinnerArc(color: Color, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "receiptSpinner")
+    val angle = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = VelaMotion.durationSlow * 2, easing = LinearEasing),
+        ),
+        label = "receiptSpinnerAngle",
+    )
+    Canvas(
+        modifier = modifier
+            .size(VelaIconSize.xl2)
+            .rotate(angle.value),
+    ) {
+        drawArc(
+            color = color,
+            startAngle = 0f,
+            sweepAngle = 270f,
+            useCenter = false,
+            style = Stroke(width = VelaBorder.emphasis.toPx() * 2, cap = StrokeCap.Round),
+        )
+    }
+}
+
+/**
+ * T4's guidance card (component 21): the CTA on top, then the question a person
+ * with an empty asset list is actually asking — "it arrived, so why can't I see
+ * it?" — and its answer.
+ *
+ * The question is set as a heading rather than as body copy because it is the
+ * part someone scanning the screen needs to recognise as theirs.
+ */
+@Composable
+fun HintCard(
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+    cta: (@Composable () -> Unit)? = null,
+) {
+    val colors = VelaTheme.colors
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(VelaBorder.hairline, colors.borderBase, RoundedCornerShape(VelaRadius.xl))
+            .padding(VelaSpacing.lg),
+    ) {
+        cta?.let {
+            it()
+            Spacer(modifier = Modifier.height(VelaSpacing.lg))
+        }
+        Text(
+            text = title,
+            color = colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.semibold,
+            fontSize = VelaTextSize.base,
+        )
+        Spacer(modifier = Modifier.height(VelaSpacing.md))
+        Text(
+            text = body,
+            color = colors.fgMuted,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.sm,
+            lineHeight = VelaTextSize.sm * VelaLeading.relaxed,
+        )
+    }
+}
+
+/**
+ * The inline explanation banner (component 22): SD1b's "these are greyed out
+ * because a multi-token send stays on one network", SD2d's "every token goes to
+ * the same address".
+ *
+ * It exists because both screens do something surprising — grey out rows a
+ * person can see, or accept one address for several tokens — and the cheapest
+ * fix for a surprise is to say why, next to it.
+ */
+@Composable
+fun NoticeBanner(
+    text: String,
+    modifier: Modifier = Modifier,
+    mark: TokenMarkModel? = null,
+) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.bgRaised, RoundedCornerShape(VelaRadius.lg))
+            .padding(horizontal = VelaSpacing.lg, vertical = VelaSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        mark?.let {
+            TokenIcon(ticker = it.ticker, badgeColor = it.badgeColor, inline = true)
+            Spacer(modifier = Modifier.width(VelaSpacing.md))
+        }
+        Text(
+            text = text,
+            color = colors.fgMuted,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.sm,
+            lineHeight = VelaTextSize.sm * VelaLeading.normal,
+        )
+    }
+}
+
+/**
+ * The send form's token card (component 16): which token is being sent, off
+ * which chain, out of how much — and the Max that fills the amount with all of
+ * it.
+ */
+@Composable
+fun TokenHeaderCard(
+    token: SendTokenCardModel,
+    modifier: Modifier = Modifier,
+    onMax: () -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.bgRaised, RoundedCornerShape(VelaRadius.lg))
+            .padding(VelaSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TokenIcon(ticker = token.mark.ticker, badgeColor = token.mark.badgeColor)
+        Spacer(modifier = Modifier.width(VelaSpacing.lg))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = token.symbol,
+                color = colors.fgBase,
+                fontFamily = VelaFontFamily,
+                fontWeight = VelaFontWeight.semibold,
+                fontSize = VelaTextSize.lg,
+                maxLines = 1,
+            )
+            Text(
+                text = token.detail,
+                color = colors.fgMuted,
+                fontFamily = VelaFontFamily,
+                fontSize = VelaTextSize.sm,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        token.max?.let { max ->
+            Spacer(modifier = Modifier.width(VelaSpacing.md))
+            Box(
+                modifier = Modifier
+                    .background(colors.bgSunken, CircleShape)
+                    .clickable(onClick = onMax)
+                    .padding(horizontal = VelaSpacing.lg, vertical = VelaSpacing.sm),
+            ) {
+                Text(
+                    text = max,
+                    color = colors.fgBase,
+                    fontFamily = VelaFontFamily,
+                    fontWeight = VelaFontWeight.semibold,
+                    fontSize = VelaTextSize.sm,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * SD2's and SD2d's recipient field.
+ *
+ * The identicon sits INSIDE the field, next to the characters it is drawn from.
+ * Address poisoning works by matching the first and last few characters of an
+ * address you have used before; the artwork is the part that does not match,
+ * and it only helps if it is where the eye already is.
+ */
+@Composable
+fun RecipientField(
+    field: RecipientFieldModel,
+    modifier: Modifier = Modifier,
+    onPick: () -> Unit = {},
+    onScan: () -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = field.label,
+            color = colors.fgSubtle,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.sm,
+        )
+        Spacer(modifier = Modifier.height(VelaSpacing.sm))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.bgRaised, RoundedCornerShape(VelaRadius.lg))
+                .padding(VelaSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IdenticonImage(seed = field.identiconSeed, size = VelaIconSize.xl2)
+            Spacer(modifier = Modifier.width(VelaSpacing.md))
+            Column(modifier = Modifier.weight(1f)) {
+                listOf(field.lines.first, field.lines.second)
+                    .filter { it.isNotEmpty() }
+                    .forEach { line ->
+                        Text(
+                            text = line,
+                            color = colors.fgBase,
+                            fontFamily = VelaMonoFontFamily,
+                            fontSize = VelaTextSize.base,
+                        )
+                    }
+            }
+            FlowIconButton(
+                icon = VelaIcons.UserRound,
+                label = field.pickLabel,
+                onClick = onPick,
+            )
+            field.scanLabel?.let {
+                FlowIconButton(icon = VelaIcons.QrCode, label = it, onClick = onScan)
+            }
+        }
+        field.note?.let {
+            Spacer(modifier = Modifier.height(VelaSpacing.sm))
+            Text(
+                text = it,
+                color = colors.fgSubtle,
+                fontFamily = VelaFontFamily,
+                fontSize = VelaTextSize.sm,
+            )
+        }
+    }
+}
+
+/**
+ * SD2b's three ways to add a recipient (component 24): by hand, from contacts,
+ * or from a spreadsheet.
+ *
+ * Outline pills, never accent: they add a ROW to a form, and the accent in this
+ * product is reserved for the button that actually moves the money.
+ */
+@Composable
+fun GhostPillRow(
+    items: List<RecipientActionModel>,
+    modifier: Modifier = Modifier,
+    onSelect: (RecipientActionModel) -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(VelaSpacing.sm),
+    ) {
+        items.forEach { item ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .border(VelaBorder.hairline, colors.borderStrong, CircleShape)
+                    .clickable { onSelect(item) }
+                    .padding(vertical = VelaSpacing.md),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = item.label,
+                    color = colors.fgBase,
+                    fontFamily = VelaFontFamily,
+                    fontWeight = VelaFontWeight.medium,
+                    fontSize = VelaTextSize.sm,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The total line above the fee (component 25).
+ *
+ * Deliberately not a fact row: that row is a fact ABOUT the transaction inside a
+ * card, and this is a running sum of what the form above it currently says.
+ */
+@Composable
+fun SummaryLine(summary: SummaryLineModel, modifier: Modifier = Modifier) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = VelaSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = summary.label,
+            color = colors.fgSubtle,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.sm,
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = summary.value,
+            color = colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.semibold,
+            fontSize = VelaTextSize.base,
+        )
+    }
+}
+
+/**
+ * The network-fee row (component 26), on every send form.
+ *
+ * A row and not a card: the fee is a fact about the transfer, and the only
+ * thing to DO with it is change which token pays it — which is what the chevron
+ * opens. The SPEC sheet is explicit that the tier picker does not live here:
+ * the fee is shown, not chosen.
+ */
+@Composable
+fun FeeRow(fee: FeeRowModel, modifier: Modifier = Modifier, onOpen: () -> Unit = {}) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.bgRaised, RoundedCornerShape(VelaRadius.lg))
+            .clickable(onClick = onOpen)
+            .padding(VelaSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = fee.label,
+            color = colors.fgMuted,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.base,
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        TokenIcon(ticker = fee.mark.ticker, badgeColor = fee.mark.badgeColor, inline = true)
+        Spacer(modifier = Modifier.width(VelaSpacing.sm))
+        Text(
+            text = fee.value,
+            color = colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.base,
+            maxLines = 1,
+        )
+        Spacer(modifier = Modifier.width(VelaSpacing.sm))
+        Icon(
+            imageVector = VelaIcons.ChevronRight,
+            contentDescription = fee.openLabel,
+            tint = colors.fgMuted,
+            modifier = Modifier.size(VelaIconSize.sm),
+        )
+    }
+}

@@ -391,4 +391,185 @@ object I18nKeys {
         const val NAV_EXPLORE = "componentsUi.mainNav.explore"
         const val NAV_SETTINGS = "componentsUi.mainNav.settings"
     }
+
+    /**
+     * Receive / Send / Activity / Assets (spec 021, design/wallet-2).
+     *
+     * Most of this vocabulary already existed: the legacy React Native app left
+     * `receive.*`, `send.*`, `history.*`, `assets.*`, `addToken.*`,
+     * `tokenDetail.*`, `componentsTx.*` and `componentsUi.scanner.*` in the
+     * corpus, and about nine strings in ten resolve against a key that was
+     * already there. Only the thirty-three the mocks genuinely added are new.
+     */
+    object Flows {
+        // Chrome shared by every flow screen.
+        const val BACK = "receive.a11yBack"
+        const val CLOSE = "componentsUi.identiconViewer.close"
+        const val COPY_ADDRESS = "componentsUi.identiconViewer.copyAddress"
+        const val PILL_ALL = "componentsUi.networkFilter.pillAll"
+        const val DAY_TODAY = "componentsUi.dayGroup.today"
+        const val DAY_YESTERDAY = "componentsUi.dayGroup.yesterday"
+        const val DOCK_SEND = "componentsUi.dock.send"
+
+        // Receive.
+        const val RECEIVE_TITLE = "receive.title"
+        const val RECEIVE_NETWORKS_LINE = "receive.networksLine"
+        const val RECEIVE_SEARCH = "receive.searchNetworkPlaceholder"
+        const val RECEIVE_SEARCH_EMPTY = "receive.searchNetworkEmpty"
+        const val RECEIVE_QR_NETWORK = "receive.qrTitleNetwork"
+        const val RECEIVE_QR_ASSET = "receive.qrTitleAsset"
+        const val RECEIVE_TOKEN_CONTRACT = "receive.tokenContract"
+        const val RECEIVE_WARNING = "receive.warningReminder"
+        const val RECEIVE_COPIED = "receive.copied"
+        const val RECEIVE_SAVE_IMAGE = "receive.request.saveImage"
+        const val SHARE_CARD_HEADLINE = "receive.shareCardHeadline"
+        const val SHARE_CARD_NETWORK_NOTE = "receive.shareCardNetworkNote"
+
+        // Scan.
+        const val SCAN_TITLE = "componentsUi.scanner.title"
+        const val SCAN_HINT = "componentsUi.scanner.hint"
+        const val SCAN_GALLERY = "componentsUi.scanner.gallery"
+        const val SCAN_FROM_GALLERY = "componentsUi.scanner.fromGallery"
+        const val SCAN_TORCH = "componentsUi.scanner.torch"
+        const val SCAN_FLIP = "componentsUi.scanner.flipCamera"
+
+        // Activity.
+        const val HISTORY_TITLE = "history.navTitle"
+        const val HISTORY_LOADING = "history.loadingText"
+        const val HISTORY_EMPTY_FILTER = "history.emptyFilter"
+        const val LABEL_SENT = "history.labelSent"
+        const val LABEL_RECEIVED = "history.labelReceived"
+        const val TX_LABEL_SENT = "history.txLabelSent"
+        const val TX_LABEL_RECEIVED = "history.txLabelReceived"
+        const val TO_NAME = "history.toName"
+        const val FROM_NAME = "history.fromName"
+        const val VIEW_ON_EXPLORER = "history.viewOnExplorer"
+        const val STATUS_CONFIRMED = "componentsTx.receipt.statusConfirmed"
+        const val DETAIL_FROM = "componentsTx.detail.from"
+        const val DETAIL_TO = "componentsTx.detail.to"
+        const val DETAIL_CHAIN = "componentsTx.detail.labelChain"
+        const val DETAIL_DATE = "componentsTx.detail.labelDate"
+        const val DETAIL_HASH = "componentsTx.detail.labelHash"
+        const val DETAIL_SECTION_TITLE = "componentsTx.detail.sectionTitle"
+
+        // Assets.
+        const val ASSETS_TITLE = "assets.sectionTitle"
+        const val ASSETS_ADD = "assets.addToken"
+        const val ASSETS_SEARCH = "assets.searchPlaceholder"
+        const val ASSETS_ADD_BY_ADDRESS = "assets.addByAddress"
+        const val ASSETS_EMPTY_TITLE = "assets.emptyTitle"
+        const val ASSETS_EMPTY_SUBTEXT = "assets.emptySubtext"
+        const val ASSETS_NOT_SHOWING_TITLE = "assets.notShowingTitle"
+        const val ASSETS_NOT_SHOWING_BODY = "assets.notShowingBody"
+        const val TOKEN_SEND = "tokenDetail.send"
+        const val TOKEN_RECEIVE = "tokenDetail.receive"
+        const val TOKEN_PRICE = "tokenDetail.labelPrice"
+        const val TOKEN_PRICE_VALUE = "tokenDetail.priceValue"
+        const val TOKEN_CONTRACT = "tokenDetail.labelContract"
+        const val TOKEN_DECIMALS = "tokenDetail.labelDecimals"
+        const val TOKEN_TRANSACTIONS = "tokenDetail.labelTransactions"
+        const val TOKEN_EXPLORER = "tokenDetail.viewOnExplorer"
+
+        // Add token / add network.
+        const val ADD_TOKEN_TITLE = "addToken.navTitle"
+        const val ADD_TAB_ERC20 = "addToken.tabErc20"
+        const val ADD_TAB_NATIVE = "addToken.tabNative"
+        const val ADD_LABEL_NETWORK = "addToken.labelNetwork"
+        const val ADD_TOKEN_ADDRESS = "addToken.tokenAddressLabel"
+        const val ADD_TO_WALLET = "addToken.addToWalletBtn"
+        const val ADD_TOKEN_ADDED = "addToken.tokenAdded"
+        const val ADD_INVALID_ADDRESS = "addToken.invalidAddress"
+        const val ADD_NOT_FOUND_TITLE = "addToken.notFoundTitle"
+        const val ADD_NOT_FOUND_MESSAGE = "addToken.notFoundMessage"
+        const val ADD_NET_SEARCH_LABEL = "addToken.netSearchLabel"
+        const val ADD_NET_SEARCH_PLACEHOLDER = "addToken.netSearchPlaceholder"
+        const val ADD_NET_PICKER_EMPTY = "addToken.netPickerEmpty"
+        const val ADD_NET_PICKER_SEARCH = "addToken.netPickerSearchPlaceholder"
+        const val ADD_CHAIN_ID = "addToken.labelChainId"
+        const val ADD_NATIVE_TOKEN = "addToken.labelNativeToken"
+        const val ADD_COMPATIBLE = "addToken.compatible"
+        const val ADD_NOT_COMPATIBLE = "addToken.notCompatible"
+        const val ADD_NETWORK_ADDED = "addToken.networkAdded"
+        const val ADD_NETWORK_BTN = "addToken.addNetworkBtn"
+        const val ADD_DEPLOY_CONTRACTS = "addToken.deployContracts"
+        const val ADD_ERROR_NOT_COMPATIBLE = "addToken.errorNotCompatible"
+
+        // Send.
+        const val SELECT_TOKEN_TITLE = "send.selectTokenTitle"
+        const val SEND_SEARCH = "send.searchPlaceholder"
+        const val FILTER_ALL = "history.filterAll"
+        const val FILTER_STABLE = "send.filterStable"
+        const val FILTER_GAS = "send.filterGas"
+        const val FILTER_OTHER = "send.filterOther"
+        const val MULTI_SEND_TITLE = "send.multiSendTitle"
+        const val MULTI_SEND_SUMMARY = "send.multiSendSummary"
+        const val MULTI_SEND_NOTICE = "send.multiSendChainNotice"
+        const val MULTI_SEND_SAME_RECIPIENT = "send.multiSendSameRecipient"
+        const val MULTI_SEND_CONTINUE = "send.multiSendContinue"
+        const val SELECT_ALL_VALUABLE = "send.selectAllValuable"
+        const val SEND_TITLE = "send.sendTitle"
+        const val MAX = "send.maxBtn"
+        const val BALANCE_LABEL = "send.balanceLabel"
+        const val RECIPIENT_LABEL = "send.recipientLabel"
+        const val RECIPIENT_N = "send.recipientN"
+        const val RECIPIENT_COUNT = "send.recipientCount_other"
+        const val ADD_RECIPIENT = "send.addRecipient"
+        const val FROM_CONTACTS = "send.fromContacts"
+        const val BATCH_IMPORT = "send.batchImport"
+        const val REMOVE_RECIPIENT = "send.removeRecipient"
+        const val RECIPIENT_PICK_ARIA = "send.recipientPickAria"
+        const val SCAN_ARIA = "send.scanAria"
+        const val SPLIT_TOTAL = "send.splitTotalLabel"
+        const val CONTINUE = "send.continueBtn"
+        const val NETWORK_FEE = "componentsUi.gas.networkFee"
+
+        // Send · fee token.
+        const val FEE_TOKEN_LABEL = "send.feeTokenLabel"
+        const val FEE_TOKEN_HINT = "send.feeTokenHint"
+        const val FEE_TOKEN_ESTIMATE = "send.feeTokenEstimate"
+
+        // Send · contact picker.
+        const val PICK_CONTACT_TITLE = "send.pickContactTitle"
+        const val PICK_CONTACT_SEARCH = "send.pickContactSearch"
+        const val SCAN_TO_FILL = "send.scanToFill"
+        const val CONTACTS_GROUPS = "contacts.sectionGroups"
+        const val CONTACTS_TITLE = "contacts.title"
+        const val GROUP_MEMBERS = "contacts.groupMembers"
+
+        // Send · batch import.
+        const val BATCH_TITLE = "send.batchTitle"
+        const val BATCH_UNIT_FIAT = "send.batchUnitFiat"
+        const val BATCH_UNIT_TOKEN = "send.batchUnitToken"
+        const val BATCH_PASTE_PLACEHOLDER = "send.batchPastePlaceholder"
+        const val BATCH_IMPORT_FILE = "send.batchImportFile"
+        const val BATCH_TEMPLATE = "send.batchTemplate"
+        const val BATCH_RATE_SECTION = "send.batchRateSection"
+        const val BATCH_RATE_LABEL = "send.batchRateLabel"
+        const val BATCH_RATE_HINT = "send.batchRateHint"
+        const val BATCH_PARSED_COUNT = "send.batchParsedCount"
+        const val BATCH_BAD_ADDRESS = "send.batchBadAddress"
+        const val BATCH_REJECTED_ONE = "send.batchRejected_one"
+        const val BATCH_APPLY_OTHER = "send.batchApply_other"
+
+        // Send · confirm.
+        const val CONFIRM_TITLE = "send.confirmTitle"
+        const val FROM_LABEL = "send.fromLabel"
+        const val TO_LABEL = "send.toLabel"
+        const val EST_FEE = "send.estFeeLabel"
+        const val CONFIRM_SEND = "send.confirmSendBtn"
+        const val CONFIRM_TOTAL_LINE = "send.confirmTotalLine"
+        const val ASSETS_COUNT = "componentsTx.receipt.assetsCount"
+
+        // Send · receipt.
+        const val TX_SUBMITTING = "send.txSubmitting"
+        const val TX_PREPARING_BIOMETRIC = "send.txPreparingBiometric"
+        const val TX_BACKGROUND_HINT = "send.txBackgroundHint"
+        const val TX_CLOSE_BACKGROUND = "send.txCloseBackground"
+        const val TX_SUBMITTED_TITLE = "send.txSubmittedTitle"
+        const val TX_CONFIRMED_TITLE = "send.txConfirmedTitle"
+        const val TX_WAITING_CONFIRM = "send.txWaitingConfirm"
+        const val TX_TYPICAL_TIME = "send.txTypicalTime"
+        const val TX_HASH = "componentsTx.receipt.txHash"
+        const val DONE = "componentsTx.receipt.done"
+    }
 }

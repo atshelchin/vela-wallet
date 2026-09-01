@@ -492,6 +492,17 @@
    "heroTitleFit": "regular",
    "heroSubtitle": "Passkey ile imzalayın. Vela anahtarınızı asla görmez."
   },
+  "intro": {
+   "skip": "Atla",
+   "next": "Devam",
+   "pageOf": "Sayfa {{current}} / {{total}}",
+   "noSeedTitle": "Kurtarma ifadesi yok",
+   "noSeedBody": "Cüzdanınızı bu cihazın parmak izi veya yüzüyle oluşturun. Kâğıda yazılıp çekmeceye saklanacak, bir gün nereye koyduğunuzu unutacağınız 12 kelime yok.",
+   "custodyTitle": "Anahtarlar sizde kalır",
+   "custodyBody": "Geçiş anahtarlarınız sizde durur: cihazın parola yöneticisinde ya da bir donanım güvenlik anahtarında. Vela onlara ne dokunabilir ne de sizin yerinize harcayabilir.",
+   "chainsTitle": "Tek adres, tüm ağlar",
+   "chainsBody": "Aynı adres 12+ ağda geçerli ve ücretler stablecoin ile ödenebilir — her zincir için ayrı yerel coin biriktirmeniz gerekmez."
+  },
   "welcomeWeb": {
    "meta": {
     "title": "Vela Wallet — geçiş anahtarlı cüzdan",

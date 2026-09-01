@@ -492,6 +492,17 @@
    "heroTitleFit": "long",
    "heroSubtitle": "Tanda tangani dengan passkey. Vela tidak pernah melihat kunci Anda."
   },
+  "intro": {
+   "skip": "Lewati",
+   "next": "Lanjut",
+   "pageOf": "Halaman {{current}} dari {{total}}",
+   "noSeedTitle": "Tanpa frasa pemulihan",
+   "noSeedBody": "Buat dompet dengan sidik jari atau wajah di perangkat ini. Tidak ada 12 kata yang harus disalin ke kertas, disimpan di laci, lalu suatu hari lupa ditaruh di mana.",
+   "custodyTitle": "Kuncinya ada di tangan Anda",
+   "custodyBody": "Passkey tersimpan di tempat Anda: pengelola kata sandi perangkat, atau kunci keamanan perangkat keras. Vela tidak bisa menyentuhnya, apalagi membelanjakannya.",
+   "chainsTitle": "Satu alamat, semua jaringan",
+   "chainsBody": "Alamat yang sama berlaku di 12+ jaringan, dan biayanya bisa dibayar dengan stablecoin — tak perlu menimbun koin asli tiap rantai."
+  },
   "welcomeWeb": {
    "meta": {
     "title": "Vela Wallet — dompet passkey",

@@ -5,7 +5,11 @@
  * (strings, identicons) happens here at build time.
  */
 import { error } from '@sveltejs/kit';
-import { resolveContactsMessages, resolveWalletMessages } from '$lib/i18n/engine.server';
+import {
+	resolveContactsMessages,
+	resolveIntroMessages,
+	resolveWalletMessages
+} from '$lib/i18n/engine.server';
 import { toLocale } from '$lib/i18n/locales';
 import {
 	buildDesktopState,
@@ -59,6 +63,8 @@ export const load: PageServerLoad = ({ params }) => {
 	return {
 		messages,
 		contactsMessages,
+		/** Spec 020: the first-run intro's copy, for the slide board. */
+		intro: resolveIntroMessages(locale),
 		models,
 		mobileStates: MOBILE_STATES,
 		desktopStates: DESKTOP_STATES,

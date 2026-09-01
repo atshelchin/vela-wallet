@@ -132,6 +132,30 @@ const WEB_ADDITIONS = [
 		'620px',
 		'spec 019: the v2 Welcome column, wider than the flow it starts'
 	],
+	[
+		'text-introTitle',
+		'28px',
+		'spec 020: the intro slide headline. Measured 28 on the boards, and the DTCG scale steps 26 -> 32 straight past it'
+	],
+	[
+		'text-introBody',
+		'16px',
+		"spec 020: the intro slide's supporting paragraph. Measured 16 — a step above the 15 the Welcome subtitle uses, because this copy is the slide's whole point rather than a line under a headline"
+	],
+	[
+		'size-introArtW',
+		'160px',
+		'spec 020: the illustration box. One size for all three slides, so the artwork does not resize as the carousel pages'
+	],
+	['size-introArtH', '128px', 'spec 020: the illustration box, see size-introArtW'],
+	['layout-introGapTitle', '64px', 'spec 020: headline to illustration, measured off the boards'],
+	['layout-introGapBody', '72px', 'spec 020: illustration to body copy, measured off the boards'],
+	[
+		'layout-introBodyMeasure',
+		'320px',
+		"spec 020: the body's line length. Narrower than the content column — the boards wrap this copy well inside the 24px screen padding"
+	],
+	['size-introDot', '8px', 'spec 020: one page dot; the gap between two is the same 8'],
 	['layout-contactsRailW', '216px', 'spec 018 research D9: desktop group-rail width (DC1)'],
 	['layout-contactsMenuW', '216px', 'spec 018 research D9: dropdown/context menu width (M1/M2)'],
 	[

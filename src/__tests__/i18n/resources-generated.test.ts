@@ -147,8 +147,11 @@ describe('generated i18n resources', () => {
     // 19,698 = 19,608 plus the desktop rail's 6 `create.step*` keys × 15: the
     // three journey steps (Name / Keys / Create), each a label plus a detail
     // sentence, for the rail that replaced the phone-page-pulled-tall layout.
+    // 19,953 = 19,818 plus the intro carousel's 9 `welcome.intro.*` keys × 15:
+    // two chrome labels (skip / next), the page-of counter, and the three
+    // slides' title + body pairs (spec 020).
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(19_818);
+    expect(total).toBe(19_953);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

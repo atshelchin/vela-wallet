@@ -225,9 +225,9 @@ for (let i = 1; i < PATHS.length; i++) {
 //   shipped font, the widest authored line runs from 6.9em (zh) to 15.0em (id)
 //   — a 2.2x spread that one font size cannot serve, so the tier rides with the
 //   copy instead of being guessed per client.
-if (PATHS.length !== 1419) fail(`expected 1419 paths (1340 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1340) fail(`expected 1340 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
+if (PATHS.length !== 1429) fail(`expected 1429 paths (1349 leaf + 80 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1349) fail(`expected 1349 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 80) fail(`expected 80 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

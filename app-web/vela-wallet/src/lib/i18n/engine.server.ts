@@ -18,6 +18,7 @@ import { FALLBACK_LOCALE, type Locale } from './locales';
 import { FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
 import type { WalletMessages } from '$lib/wallet/messages';
 import type { ContactsMessages } from '$lib/contacts/messages';
+import { INTRO_KEYS } from '$lib/intro/slides';
 
 /** Generated runtime catalogs (gen-i18n.mjs stage 4), one per locale. */
 const CATALOGS = import.meta.glob('../../../../../public/i18n/*.json', {
@@ -81,6 +82,16 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
 export function resolveFlowMessages(locale: Locale): FlowMessages {
 	activate(locale);
 	return Object.fromEntries(FLOW_KEYS.map((key) => [key, t(locale, key)])) as FlowMessages;
+}
+
+/**
+ * The first-run intro's copy (spec 020). Same shape as the flow's: dotted key →
+ * resolved template, filled client-side, so the carousel can be handed one map
+ * instead of a field per string.
+ */
+export function resolveIntroMessages(locale: Locale): Readonly<Record<string, string>> {
+	activate(locale);
+	return Object.fromEntries(INTRO_KEYS.map((key) => [key, t(locale, key)]));
 }
 
 /** The serializable strings the wallet screens render (spec 015, research.md D3). */

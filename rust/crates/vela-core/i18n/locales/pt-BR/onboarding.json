@@ -21,6 +21,17 @@
 			"heroTitleFit": "long",
 			"heroSubtitle": "Assine com uma passkey. A Vela nunca vê sua chave."
 		},
+		"intro": {
+			"skip": "Pular",
+			"next": "Continuar",
+			"pageOf": "Página {{current}} de {{total}}",
+			"noSeedTitle": "Sem frase de recuperação",
+			"noSeedBody": "Crie sua carteira com a digital ou o rosto deste aparelho. Não há 12 palavras para copiar no papel, guardar numa gaveta e um dia não achar.",
+			"custodyTitle": "As chaves ficam com você",
+			"custodyBody": "Suas chaves de acesso ficam onde você as guarda: no gerenciador de senhas do aparelho ou numa chave de segurança física. A Vela não alcança nem gasta por você.",
+			"chainsTitle": "Um endereço, todas as redes",
+			"chainsBody": "O mesmo endereço vale em mais de 12 redes, e as taxas podem ser pagas em stablecoins — sem precisar estocar a moeda nativa de cada rede."
+		},
 		"welcomeWeb": {
 			"meta": {
 				"title": "Vela Wallet — a carteira com passkey",

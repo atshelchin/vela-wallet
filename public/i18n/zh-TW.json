@@ -492,6 +492,17 @@
    "heroTitleFit": "regular",
    "heroSubtitle": "用通行密鑰簽署，Vela 看不到你的金鑰。"
   },
+  "intro": {
+   "skip": "略過",
+   "next": "繼續",
+   "pageOf": "第 {{current}} 頁，共 {{total}} 頁",
+   "noSeedTitle": "不用抄助記詞",
+   "noSeedBody": "用這台裝置的指紋或臉部辨識建立錢包。沒有 12 個單字要抄在紙上、藏進抽屜，然後某天想不起來放哪了。",
+   "custodyTitle": "鑰匙在你自己手上",
+   "custodyBody": "通行密鑰存在你自己手上：裝置的密碼管理程式，或一把硬體安全金鑰。Vela 碰不到，也沒辦法替你花錢。",
+   "chainsTitle": "一個地址，走遍鏈上",
+   "chainsBody": "同一個地址在 12+ 條網路上通用，手續費可以用穩定幣付，不用先幫每條鏈準備一份原生幣。"
+  },
   "welcomeWeb": {
    "meta": {
     "title": "Vela Wallet — 通行密鑰錢包",

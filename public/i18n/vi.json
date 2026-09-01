@@ -492,6 +492,17 @@
    "heroTitleFit": "long",
    "heroSubtitle": "Ký bằng passkey. Vela không bao giờ thấy khoá của bạn."
   },
+  "intro": {
+   "skip": "Bỏ qua",
+   "next": "Tiếp tục",
+   "pageOf": "Trang {{current}} trên {{total}}",
+   "noSeedTitle": "Không phải chép cụm từ",
+   "noSeedBody": "Tạo ví bằng vân tay hoặc khuôn mặt ngay trên thiết bị này. Không có 12 từ nào phải chép ra giấy, cất vào ngăn kéo rồi một ngày không nhớ để đâu.",
+   "custodyTitle": "Chìa khoá nằm trong tay bạn",
+   "custodyBody": "Passkey được giữ ở nơi của bạn: trình quản lý mật khẩu của thiết bị, hoặc một khoá bảo mật phần cứng. Vela không chạm tới được và cũng không thể tiêu thay bạn.",
+   "chainsTitle": "Một địa chỉ, mọi chuỗi",
+   "chainsBody": "Cùng một địa chỉ dùng được trên hơn 12 mạng, và phí có thể trả bằng stablecoin — không cần trữ sẵn đồng gốc cho từng chuỗi."
+  },
   "welcomeWeb": {
    "meta": {
     "title": "Vela Wallet — ví passkey",

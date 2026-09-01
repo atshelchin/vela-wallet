@@ -499,6 +499,17 @@
    "heroTitleFit": "regular",
    "heroSubtitle": "Sign with a passkey. Vela never sees your key."
   },
+  "intro": {
+   "skip": "Skip",
+   "next": "Continue",
+   "pageOf": "Page {{current}} of {{total}}",
+   "noSeedTitle": "No seed phrase to copy",
+   "noSeedBody": "Create your wallet with this device's fingerprint or face. No twelve words to write on paper, hide in a drawer, and fail to find one day.",
+   "custodyTitle": "The keys stay with you",
+   "custodyBody": "Your passkeys live where you keep them: this device's password manager, or a hardware security key. Vela can't reach them, and can't spend for you.",
+   "chainsTitle": "One address, every chain",
+   "chainsBody": "The same address works on 12+ networks, and fees can be paid in stablecoins — no stocking up on a native coin for each one."
+  },
   "welcomeWeb": {
    "meta": {
     "title": "Vela Wallet — the passkey wallet",

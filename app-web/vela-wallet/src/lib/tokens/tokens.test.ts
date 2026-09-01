@@ -60,6 +60,8 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		...collect(join(APP_ROOT, 'src/lib/ui')),
 		// spec 018 T018: the contacts feature layer is audited too.
 		...collect(join(APP_ROOT, 'src/lib/contacts')),
+		// spec 021: and the wallet-flow layer, on the same terms.
+		...collect(join(APP_ROOT, 'src/lib/flows')),
 		...collect(join(APP_ROOT, 'src/routes')),
 		join(APP_ROOT, 'src/app.css')
 	].filter((path) => !path.includes('/tokens/') && !path.endsWith('.test.ts'));

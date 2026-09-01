@@ -6,11 +6,19 @@
 	interface Props {
 		title: string;
 		closeLabel: string;
+		/**
+		 * Spec 021: the panel stacks. Receive opens a network list, a network
+		 * opens its QR; Send runs a picker, a form, a confirmation, a receipt.
+		 * When there is somewhere to go back TO, the header says so — closing
+		 * the whole column is not the same gesture as stepping back one.
+		 */
+		backLabel?: string;
+		onback?: () => void;
 		onclose?: () => void;
 		children: Snippet;
 	}
 
-	let { title, closeLabel, onclose, children }: Props = $props();
+	let { title, closeLabel, backLabel, onback, onclose, children }: Props = $props();
 
 	function onkeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape') onclose?.();
@@ -21,6 +29,11 @@
 
 <aside class="panel">
 	<header>
+		{#if backLabel !== undefined}
+			<button type="button" class="back" aria-label={backLabel} onclick={onback}>
+				<Icon icon={UTILITY_ICONS['chevron-left']} size="lg" />
+			</button>
+		{/if}
 		<h2>{title}</h2>
 		<button type="button" aria-label={closeLabel} onclick={onclose}>
 			<Icon icon={UTILITY_ICONS.x} size="lg" />
@@ -45,8 +58,19 @@
 	header {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		gap: var(--space-md);
 		padding: var(--space-xl) var(--space-3xl);
+	}
+
+	/* The title takes the slack, so the close button stays pinned to the
+	   trailing edge whether or not a back chevron precedes it. */
+	h2 {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.back {
+		margin-inline-start: calc(var(--space-lg) * -1);
 	}
 
 	h2 {
@@ -60,6 +84,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		flex-shrink: 0;
 		width: var(--size-control-sm);
 		height: var(--size-control-sm);
 		border: none;

@@ -156,6 +156,27 @@ const WEB_ADDITIONS = [
 		"spec 020: the body's line length. Narrower than the content column — the boards wrap this copy well inside the 24px screen padding"
 	],
 	['size-introDot', '8px', 'spec 020: one page dot; the gap between two is the same 8'],
+	[
+		'size-qrCard',
+		'344px',
+		'spec 021: the receive QR card, measured 344x344 in R2. Fixed, NOT fluid — the SPEC sheet pins it at 1.35x text scale too, because a QR that shrinks with its caption stops scanning'
+	],
+	[
+		'size-statusHero',
+		'88px',
+		'spec 021: the send-receipt status circle, measured 88 in SD4a/SD4c. One size for all four outcomes so the disc does not resize as the transaction moves through them'
+	],
+	[
+		'size-chainBadge',
+		'40px',
+		'spec 021: the network-row chain badge, measured 40 in R1. Larger than the 32 token icon because this row IS the network, not a token that happens to be on one'
+	],
+	[
+		'layout-shareCardW',
+		'480px',
+		'spec 021: the receive share card (R4) — a render product saved to the photo library, so its geometry is fixed rather than responsive'
+	],
+	['layout-shareCardH', '700px', 'spec 021: the receive share card, see layout-shareCardW'],
 	['layout-contactsRailW', '216px', 'spec 018 research D9: desktop group-rail width (DC1)'],
 	['layout-contactsMenuW', '216px', 'spec 018 research D9: dropdown/context menu width (M1/M2)'],
 	[

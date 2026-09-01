@@ -360,7 +360,7 @@
 				</figure>
 			{/each}
 		</div>
-		{#each INTRO_SLIDES as _, i (i)}
+		{#each [...INTRO_SLIDES.keys()] as i (i)}
 			<div class="cell" id="gallery-intro-dots-{i}">
 				<PageDots total={INTRO_SLIDES.length} current={i} label="{i + 1} / {INTRO_SLIDES.length}" />
 			</div>

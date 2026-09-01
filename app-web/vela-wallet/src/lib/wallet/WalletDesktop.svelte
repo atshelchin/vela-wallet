@@ -17,9 +17,16 @@
 		/** Open the identicon viewer; absent in the gallery. */
 		onidenticon?: () => void;
 		identiconViewerLabel?: string;
+		/**
+		 * Spec 021: the dock and the two section actions open a flow in the
+		 * third column. When it is wired the flow host owns that column, so
+		 * this component stops drawing its own spec-015 panels — two things
+		 * cannot occupy one column.
+		 */
+		onflow?: (entry: 'receive' | 'send' | 'scan' | 'activity' | 'add-token' | 'tx-detail') => void;
 	}
 
-	let { model, onnav, onidenticon, identiconViewerLabel }: Props = $props();
+	let { model, onnav, onidenticon, identiconViewerLabel, onflow }: Props = $props();
 
 	// The third column replaces the mobile bottom sheet (research.md D5).
 	// Pure UI state: which content it hosts, seeded by the fixture state.
@@ -39,20 +46,33 @@
 					receive={model.actions.receive}
 					send={model.actions.send}
 					scan={model.actions.scan}
-					onreceive={() => (panel = 'receive')}
+					onreceive={() => (onflow === undefined ? (panel = 'receive') : onflow('receive'))}
+					onsend={() => onflow?.('send')}
+					onscan={() => onflow?.('scan')}
 				/>
 			</div>
 
-			<SectionHeader title={model.activitySection.title} action={model.activitySection.action} />
+			<SectionHeader
+				title={model.activitySection.title}
+				action={model.activitySection.action}
+				onaction={() => onflow?.('activity')}
+			/>
 			{#each model.activityGroups as group (group.label)}
 				<ul>
 					{#each group.rows as row, i (i)}
-						<li><ActivityRow {row} /></li>
+						<li><ActivityRow {row} onclick={() => onflow?.('tx-detail')} /></li>
 					{/each}
 				</ul>
 			{/each}
 
-			<SectionHeader title={model.assetsSection.title} action={model.assetsSection.action} />
+			<!-- The desktop's assets action reads 添加, so it opens the add-token
+			     panel stacked on the assets one — which is what makes the back
+			     chevron in the DT3L mock lead somewhere. -->
+			<SectionHeader
+				title={model.assetsSection.title}
+				action={model.assetsSection.action}
+				onaction={() => onflow?.('add-token')}
+			/>
 			<ul>
 				{#each model.assetRows as row, i (i)}
 					<li><AssetRow {row} onclick={() => (panel = 'asset-detail')} /></li>
@@ -61,7 +81,11 @@
 		</div>
 	</main>
 
-	{#if panel === 'receive'}
+	<!-- Only when no flow host is wired: in the real app the third column
+	     belongs to the flows, and in the gallery it belongs to these. -->
+	{#if onflow !== undefined}
+		<!-- the flow host draws the column -->
+	{:else if panel === 'receive'}
 		<ThirdPanel
 			title={model.panels.receive.title}
 			closeLabel={model.closeLabel}

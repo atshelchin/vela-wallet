@@ -5,6 +5,9 @@
 	import WalletHome from '$lib/wallet/WalletHome.svelte';
 	import ContactsDesktop from '$lib/contacts/ContactsDesktop.svelte';
 	import ContactsHome from '$lib/contacts/ContactsHome.svelte';
+	import FlowsMobile from '$lib/flows/FlowsMobile.svelte';
+	import FlowsPanel from '$lib/flows/FlowsPanel.svelte';
+	import ScanSurface from '$lib/flows/ui/ScanSurface.svelte';
 	import Controls from '../Controls.svelte';
 
 	let { data } = $props();
@@ -15,6 +18,8 @@
 	const expanded = $derived(state === 'h1s');
 	/** dc2n is pinned to a 1024 stage so the <1120 overlay mode is visible. */
 	const narrowStage = $derived(state === 'dc2n');
+	/** r4 is a render product, not a screen — it gets no phone frame. */
+	const bare = $derived(state === 'r4');
 </script>
 
 <svelte:head>
@@ -36,6 +41,28 @@
 			<ContactsHome model={data.model} />
 		</div>
 	</div>
+{:else if data.kind === 'flow-mobile'}
+	<div class="stage">
+		{#if bare}
+			<FlowsMobile model={data.model} />
+		{:else}
+			<div class="frame"><FlowsMobile model={data.model} /></div>
+		{/if}
+	</div>
+{:else if data.kind === 'flow-desktop'}
+	<!-- The panel is only ever seen beside the wallet it opened from, so the
+	     stage draws the same two columns the real window has. -->
+	<div class="desktop-stage flow">
+		<WalletDesktop model={data.wallet} />
+		{#if state !== 'ds1'}
+			<FlowsPanel model={data.model} />
+		{/if}
+	</div>
+	{#if state === 'ds1'}
+		<div class="scan-scrim" role="presentation">
+			<div class="scan-modal"><ScanSurface model={data.scan} variant="modal" /></div>
+		</div>
+	{/if}
 {:else if data.kind === 'contacts-desktop'}
 	<div class="desktop-stage" class:narrow={narrowStage}>
 		<ContactsDesktop model={data.model} />
@@ -75,6 +102,28 @@
 	.desktop-stage {
 		height: 100dvh;
 		min-width: var(--breakpoint-desktop);
+	}
+
+	.desktop-stage.flow {
+		display: flex;
+		overflow: hidden;
+	}
+
+	.scan-scrim {
+		position: fixed;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-fixed-backdrop);
+	}
+
+	.scan-modal {
+		width: min(90vw, calc(var(--size-qrCard) + var(--space-5xl) * 2));
+		border-radius: var(--radius-2xl);
+		background: var(--color-bg-base);
+		box-shadow: var(--shadow-lg);
+		overflow: hidden;
 	}
 
 	/* 800 + 216 + 8 = 1024: the narrow stage that shows the overlay column. */

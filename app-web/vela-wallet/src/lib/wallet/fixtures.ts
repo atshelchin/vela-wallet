@@ -30,7 +30,11 @@ export const CHAIN_COLORS = {
 	arbitrum: '#28A0F0',
 	gnosis: '#21BCA5',
 	base: '#0052FF',
-	polygon: '#8247E5'
+	polygon: '#8247E5',
+	// Spec 021: the receive list is the first screen to draw all eight
+	// supported networks, not just the six the home screen holds balances on.
+	optimism: '#FF0420',
+	avalanche: '#E84142'
 } as const;
 
 export const PILL_DOTS = [CHAIN_COLORS.ethereum, CHAIN_COLORS.polygon, CHAIN_COLORS.bnb];

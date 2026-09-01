@@ -4,7 +4,11 @@
  * fixture-driven and offline.
  */
 import { error } from '@sveltejs/kit';
-import { resolveContactsMessages, resolveWalletMessages } from '$lib/i18n/engine.server';
+import {
+	resolveContactsMessages,
+	resolveWalletFlowMessages,
+	resolveWalletMessages
+} from '$lib/i18n/engine.server';
 import { toLocale } from '$lib/i18n/locales';
 import {
 	buildDesktopState,
@@ -18,9 +22,17 @@ import {
 	DESKTOP_STATES as CONTACTS_DESKTOP_STATES,
 	MOBILE_STATES as CONTACTS_MOBILE_STATES
 } from '$lib/contacts/fixtures';
+import {
+	buildDesktopFlowState,
+	buildDesktopScan,
+	buildFlowState,
+	DESKTOP_FLOW_STATES,
+	MOBILE_FLOW_STATES
+} from '$lib/flows/fixtures';
 import { identiconSvgFor } from '$lib/wallet/identicon.server';
 import type { DesktopStateId, MobileStateId } from '$lib/wallet/model';
 import type { DesktopContactsStateId, MobileContactsStateId } from '$lib/contacts/model';
+import type { DesktopFlowStateId, FlowStateId } from '$lib/flows/model';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
 export const entries: EntryGenerator = () =>
@@ -29,7 +41,9 @@ export const entries: EntryGenerator = () =>
 			...MOBILE_STATES,
 			...DESKTOP_STATES,
 			...CONTACTS_MOBILE_STATES,
-			...CONTACTS_DESKTOP_STATES
+			...CONTACTS_DESKTOP_STATES,
+			...MOBILE_FLOW_STATES,
+			...DESKTOP_FLOW_STATES
 		].map((state) => ({ locale, state }))
 	);
 
@@ -61,6 +75,26 @@ export const load: PageServerLoad = ({ params }) => {
 		return {
 			kind: 'contacts-desktop' as const,
 			model: buildContactsDesktopState(state, messages, identiconSvgFor)
+		};
+	}
+	if ((MOBILE_FLOW_STATES as string[]).includes(params.state)) {
+		const messages = resolveWalletFlowMessages(locale);
+		const state = params.state as FlowStateId;
+		return {
+			kind: 'flow-mobile' as const,
+			model: buildFlowState(state, messages, identiconSvgFor)
+		};
+	}
+	if ((DESKTOP_FLOW_STATES as string[]).includes(params.state)) {
+		const messages = resolveWalletFlowMessages(locale);
+		const state = params.state as DesktopFlowStateId;
+		return {
+			kind: 'flow-desktop' as const,
+			model: buildDesktopFlowState(state, messages, identiconSvgFor),
+			// `ds1` is a modal over the window, not a panel — the page needs
+			// the scanner model to draw it that way.
+			scan: buildDesktopScan(messages),
+			wallet: buildDesktopState('d1', resolveWalletMessages(locale), identiconSvgFor)
 		};
 	}
 	error(404, `unknown state "${params.state}"`);

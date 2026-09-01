@@ -143,7 +143,16 @@ export type UtilityIconId =
 	| 'ellipsis'
 	| 'qr-code'
 	| 'plus'
-	| 'chevron-left';
+	| 'chevron-left'
+	// spec 021 additions (specs/021-wallet-flows-ui/contracts/icons.json)
+	| 'user-round'
+	| 'chevrons-up-down'
+	| 'credit-card'
+	| 'clock'
+	| 'file-text'
+	| 'image'
+	| 'zap'
+	| 'rotate-ccw';
 
 export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 	'arrow-down-left': {
@@ -363,7 +372,74 @@ export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 			{ tag: 'path', d: 'M12 5v14' }
 		]
 	},
-	'chevron-left': { style: 'stroke', elements: [{ tag: 'path', d: 'm15 18-6-6 6-6' }] }
+	'chevron-left': { style: 'stroke', elements: [{ tag: 'path', d: 'm15 18-6-6 6-6' }] },
+	// The single-person glyph. `users-round` (spec 018) is the group; SD2's
+	// recipient field opens a picker for exactly one person, and drawing two
+	// heads there reads as "add several".
+	'user-round': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '8', r: '5' },
+			{ tag: 'path', d: 'M20 21a8 8 0 0 0-16 0' }
+		]
+	},
+	// SD2's denomination toggle: the amount is enterable in the token or in
+	// the display currency, and this is the affordance that says so.
+	'chevrons-up-down': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'm7 15 5 5 5-5' },
+			{ tag: 'path', d: 'm7 9 5-5 5 5' }
+		]
+	},
+	'credit-card': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '20', height: '14', x: '2', y: '5', rx: '2' },
+			{ tag: 'line', x1: '2', x2: '22', y1: '10', y2: '10' }
+		]
+	},
+	clock: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '10' },
+			{ tag: 'polyline', points: '12 6 12 12 16 14' }
+		]
+	},
+	'file-text': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' },
+			{ tag: 'path', d: 'M14 2v4a2 2 0 0 0 2 2h4' },
+			{ tag: 'path', d: 'M10 9H8' },
+			{ tag: 'path', d: 'M16 13H8' },
+			{ tag: 'path', d: 'M16 17H8' }
+		]
+	},
+	image: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '18', height: '18', x: '3', y: '3', rx: '2' },
+			{ tag: 'circle', cx: '9', cy: '9', r: '2' },
+			{ tag: 'path', d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }
+		]
+	},
+	zap: {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'
+			}
+		]
+	},
+	'rotate-ccw': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' },
+			{ tag: 'path', d: 'M3 3v5h5' }
+		]
+	}
 };
 
 export function navIcon(id: NavIconId, selected: boolean): IconDef {

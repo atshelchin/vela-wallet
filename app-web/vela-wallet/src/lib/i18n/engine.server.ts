@@ -19,6 +19,7 @@ import { FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
 import type { WalletMessages } from '$lib/wallet/messages';
 import type { ContactsMessages } from '$lib/contacts/messages';
 import { INTRO_KEYS } from '$lib/intro/slides';
+import { WALLET_FLOW_KEYS, type WalletFlowMessages } from '$lib/flows/messages';
 
 /** Generated runtime catalogs (gen-i18n.mjs stage 4), one per locale. */
 const CATALOGS = import.meta.glob('../../../../../public/i18n/*.json', {
@@ -252,6 +253,19 @@ export function resolveContactsMessages(locale: Locale): ContactsMessages {
 			close: k('componentsUi.identiconViewer.close')
 		}
 	};
+}
+
+/**
+ * The Receive / Send / Activity / Assets copy (spec 021). Flat, like the
+ * onboarding flow's and the intro's: with ~120 strings across four journeys a
+ * nested manifest would be more field declarations than copy, and each one
+ * would have to be restated here by hand.
+ */
+export function resolveWalletFlowMessages(locale: Locale): WalletFlowMessages {
+	activate(locale);
+	return Object.fromEntries(
+		WALLET_FLOW_KEYS.map((key) => [key, t(locale, key)])
+	) as WalletFlowMessages;
 }
 
 /** Direct engine access for the differential test only. */

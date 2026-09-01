@@ -23,7 +23,7 @@
 </script>
 
 <p class="dots" role="status" aria-label={label}>
-	{#each { length: total } as _, i (i)}
+	{#each Array.from({ length: total }, (_, i) => i) as i (i)}
 		<span class="dot" class:on={i === current} aria-hidden="true"></span>
 	{/each}
 </p>

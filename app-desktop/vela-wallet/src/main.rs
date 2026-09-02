@@ -10,6 +10,7 @@ mod contacts;
 mod core_host;
 mod ctap;
 mod executor;
+mod flows;
 mod gallery;
 mod hardware;
 mod icons;

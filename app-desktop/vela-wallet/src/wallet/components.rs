@@ -391,34 +391,48 @@ pub fn section_header(
     title: SharedString,
     action: SharedString,
 ) -> Div {
-    div()
-        .flex()
-        .items_center()
-        .justify_between()
-        .py(px(10.))
-        .child(
-            div()
-                .text_size(theme::text_section())
-                .font_weight(gpui::FontWeight::BOLD)
-                .text_color(theme.fg_base)
-                .child(title),
-        )
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(2.))
-                .text_size(theme::text_row_sub())
-                .text_color(theme.fg_muted)
-                .child(action)
-                .child(icon_img(
-                    icons,
-                    Icon::ChevronRight,
-                    false,
-                    theme.fg_muted,
-                    12.,
-                )),
-        )
+    let (title, action) = section_header_parts(theme, icons, title, action);
+    section_header_row().child(title).child(action)
+}
+
+/// The header's frame, for callers that bind the halves separately.
+pub fn section_header_row() -> Div {
+    div().flex().items_center().justify_between().py(px(10.))
+}
+
+/// `section_header`, taken apart.
+///
+/// The assets header names one panel and its action opens another — a header
+/// whose action reads "add" must not open the list, and a title that names the
+/// section must not open the add form. Both halves come from here so the two
+/// destinations cannot drift into two different-looking headers.
+pub fn section_header_parts(
+    theme: &Theme,
+    icons: &mut IconCache,
+    title: SharedString,
+    action: SharedString,
+) -> (Div, Div) {
+    (
+        div()
+            .text_size(theme::text_section())
+            .font_weight(gpui::FontWeight::BOLD)
+            .text_color(theme.fg_base)
+            .child(title),
+        div()
+            .flex()
+            .items_center()
+            .gap(px(2.))
+            .text_size(theme::text_row_sub())
+            .text_color(theme.fg_muted)
+            .child(action)
+            .child(icon_img(
+                icons,
+                Icon::ChevronRight,
+                false,
+                theme.fg_muted,
+                12.,
+            )),
+    )
 }
 
 fn lead_circle(theme: &Theme, inner: impl IntoElement, badge: gpui::Hsla) -> Div {

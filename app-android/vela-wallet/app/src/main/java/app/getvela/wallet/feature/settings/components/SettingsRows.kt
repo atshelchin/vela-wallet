@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
@@ -521,6 +522,9 @@ fun VelaStorageGroup(
                 color = colors.infoBase,
                 fontFamily = VelaFontFamily,
                 fontSize = VelaTextSize.base,
+                // Centred, so it reads as the group's own action rather than as
+                // one more left-aligned row in the list it follows.
+                textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onGroupAction)

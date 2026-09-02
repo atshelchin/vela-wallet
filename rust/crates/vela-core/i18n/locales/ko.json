@@ -105,7 +105,8 @@
       "custom": "사용자 지정",
       "builtinNote": "기본 제공 네트워크 · 삭제할 수 없음",
       "saveHint": "입력란에서 벗어나면 저장됩니다. RPC가 다른 체인 ID를 알려줄 때만 저장이 거부됩니다.",
-      "online": "온라인"
+      "online": "온라인",
+      "slow": "느림"
     },
     "storage": {
       "title": "기기 저장 공간",

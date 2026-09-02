@@ -91,6 +91,8 @@ fun VelaNavHost(
     themePreference: ThemePreference,
     onThemeSelected: (ThemePreference) -> Unit,
     startDestination: String = VelaDestinations.WELCOME,
+    settingsState: String? = null,
+    settingsDark: Boolean? = null,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -296,7 +298,10 @@ fun VelaNavHost(
         }
 
         composable(VelaDestinations.SETTINGS_GALLERY) {
-            SettingsGalleryScreen(systemDarkTheme = darkTheme)
+            SettingsGalleryScreen(
+                systemDarkTheme = settingsDark ?: darkTheme,
+                initialState = settingsState,
+            )
         }
     }
 

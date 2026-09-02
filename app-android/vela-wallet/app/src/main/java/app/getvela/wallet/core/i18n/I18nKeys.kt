@@ -465,6 +465,7 @@ object I18nKeys {
         const val NETWORK_BUILTIN_NOTE = "settings.networks.builtinNote"
         const val NETWORK_SAVE_HINT = "settings.networks.saveHint"
         const val NETWORK_ONLINE = "settings.networks.online"
+        const val NETWORK_SLOW = "settings.networks.slow"
         const val NETWORK_OFFLINE = "settingsModals.health.offline"
         const val CHAIN_ID = "settingsModals.network.chainId"
         const val FIELD_RPC_URL = "settingsModals.network.fieldRpcUrl"

@@ -105,7 +105,8 @@
       "custom": "Custom",
       "builtinNote": "Built-in network · cannot be removed",
       "saveHint": "Saved as soon as you leave the field. It is refused only when the RPC reports a different chain ID.",
-      "online": "Online"
+      "online": "Online",
+      "slow": "Slower"
     },
     "storage": {
       "title": "Device storage",

@@ -105,7 +105,8 @@
       "custom": "Benutzerdefiniert",
       "builtinNote": "Integriertes Netzwerk · nicht entfernbar",
       "saveHint": "Wird gespeichert, sobald Sie das Feld verlassen. Abgelehnt nur, wenn der RPC eine andere Chain-ID meldet.",
-      "online": "Online"
+      "online": "Online",
+      "slow": "Langsamer"
     },
     "storage": {
       "title": "Gerätespeicher",

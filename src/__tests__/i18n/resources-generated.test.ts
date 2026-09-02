@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 20,658 leaves across 15 locales', () => {
+  it('carries the whole corpus — 20,673 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -153,7 +153,7 @@ describe('generated i18n resources', () => {
     // group, and the labels the bug-report disclosure prints beside the values
     // it is about to send.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(20_658);
+    expect(total).toBe(20_673);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

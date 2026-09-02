@@ -46,9 +46,16 @@ import app.getvela.wallet.feature.settings.SettingsScreenState
 fun SettingsGalleryScreen(
     systemDarkTheme: Boolean,
     modifier: Modifier = Modifier,
+    initialState: String? = null,
 ) {
     val strings = LocalVelaStrings.current
-    var state by rememberSaveable { mutableStateOf(SettingsScreenState.ST1) }
+    // An unknown or absent pin lands on ST1 rather than crashing: this is a
+    // launch argument typed by hand, not a value the app controls.
+    val pinned = remember(initialState) {
+        SettingsScreenState.entries.firstOrNull { it.name.equals(initialState, ignoreCase = true) }
+            ?: SettingsScreenState.ST1
+    }
+    var state by rememberSaveable { mutableStateOf(pinned) }
     var dark by rememberSaveable { mutableStateOf(systemDarkTheme) }
 
     VelaTheme(darkTheme = dark) {

@@ -105,7 +105,8 @@
       "custom": "Tùy chỉnh",
       "builtinNote": "Mạng tích hợp · không thể xoá",
       "saveHint": "Lưu ngay khi bạn rời khỏi ô nhập. Chỉ bị từ chối khi RPC báo một Chain ID khác.",
-      "online": "Trực tuyến"
+      "online": "Trực tuyến",
+      "slow": "Chậm hơn"
     },
     "storage": {
       "title": "Bộ nhớ thiết bị",

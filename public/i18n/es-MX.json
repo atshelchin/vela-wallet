@@ -105,7 +105,8 @@
    "custom": "Personalizada",
    "builtinNote": "Red integrada · no se puede eliminar",
    "saveHint": "Se guarda al salir del campo. Solo se rechaza si el RPC informa un Chain ID distinto.",
-   "online": "En línea"
+   "online": "En línea",
+   "slow": "Más lento"
   },
   "storage": {
    "title": "Almacenamiento del dispositivo",

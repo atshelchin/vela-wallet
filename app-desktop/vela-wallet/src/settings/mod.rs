@@ -71,6 +71,8 @@ pub struct SettingsStrings {
     pub rpc_url: SharedString,
     pub explorer: SharedString,
     pub network_custom: SharedString,
+    /// The prefix a slow endpoint's pill wears: "Slower · 1.2s".
+    pub network_slow: SharedString,
     pub network_save_hint: SharedString,
     pub compatible: SharedString,
     pub compatibility_check: SharedString,
@@ -200,6 +202,7 @@ impl SettingsStrings {
             rpc_url: s("settingsModals.network.fieldRpcUrl"),
             explorer: s("settingsModals.network.fieldExplorer"),
             network_custom: s("settings.networks.custom"),
+            network_slow: s("settings.networks.slow"),
             network_save_hint: s("settings.networks.saveHint"),
             compatible: s("settingsModals.addNetwork.compatible"),
             compatibility_check: s("settingsModals.addNetwork.compatibilityCheck"),

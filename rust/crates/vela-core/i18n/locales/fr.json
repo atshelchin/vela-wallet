@@ -105,7 +105,8 @@
       "custom": "Personnalisé",
       "builtinNote": "Réseau intégré · non supprimable",
       "saveHint": "Enregistré dès que vous quittez le champ. Refusé uniquement si le RPC annonce un autre Chain ID.",
-      "online": "En ligne"
+      "online": "En ligne",
+      "slow": "Plus lent"
     },
     "storage": {
       "title": "Stockage de l’appareil",

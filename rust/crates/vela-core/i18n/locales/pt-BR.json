@@ -105,7 +105,8 @@
       "custom": "Personalizada",
       "builtinNote": "Rede integrada · não pode ser removida",
       "saveHint": "Salvo assim que você sai do campo. Só é recusado se o RPC informar um Chain ID diferente.",
-      "online": "Online"
+      "online": "Online",
+      "slow": "Mais lento"
     },
     "storage": {
       "title": "Armazenamento do dispositivo",

@@ -372,7 +372,7 @@ enum SettingsFixtures {
                               hint: loc.t(k.endpointRelayHint), badge: latency(104)),
                 UrlFieldModel(id: "fiat", label: loc.t(k.endpointFiat),
                               value: "https://vela-currency.getvela.app/v2/…",
-                              hint: loc.t(k.endpointFiatHint), badge: latency(1200, prefix: "较慢")),
+                              hint: loc.t(k.endpointFiatHint), badge: latency(1200, prefix: loc.t(k.networkSlow))),
             ],
             reset: loc.t(k.endpointsReset)
         )

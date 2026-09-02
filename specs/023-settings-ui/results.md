@@ -90,6 +90,52 @@ Two process fixes came out of it, both worth keeping:
 
 All ten desktop states re-verified after the fix.
 
+## Device sweep, 2026-09-02 — Android, and five more bugs
+
+The Android device had never been looked at. A Xiaomi alioth (392dp x 872dp,
+font scale 1.0 — near enough the mocks' 392x844 to compare directly) made all
+28 mobile states screenshottable, and five defects came out of it. Four are
+Android's; the fifth was on three clients at once.
+
+1. **The account switcher dropped the identicon and the address.** ST2 reused
+   the generic `VelaSelectRow` — a label and a note — so a model that already
+   carried `addressFull` and `addressDisplay` rendered as three bare names with
+   no way to tell which key each one is. Now its own row.
+2. **Sheets had no ✕.** `closeLabel` was in the model and never drawn. It now
+   lives in the sheet host rather than in each body, so no sheet can forget it.
+3. **Sheets did not scroll.** Fifteen locales are taller than the screen: four
+   languages and the whole contribute footer were simply unreachable — you
+   could not pick German. Fixed with a height cap on the host plus
+   `verticalScroll`; the cap is the load-bearing half, since a wrap-height
+   column has no overflow to scroll and `verticalScroll` alone did nothing.
+4. **"清除全部缓存" was left-aligned**, reading as one more row in the list
+   above it rather than as the group's action.
+5. **"较慢" was hard-coded** in the Android, iOS and web fixtures, so every
+   non-Chinese reader saw Chinese on the fiat-rates pill; desktop had no prefix
+   at all, leaving an amber "1.2s" to explain itself. New corpus key
+   `settings.networks.slow` across 15 locales, wired on all four.
+
+Two harness lessons, both of which produced a wrong "verified" before they were
+caught:
+
+- **A screenshot of a launching app is a screenshot of the splash.** The first
+  sweep slept 1.6s and filed ten splash screens as states — visible only
+  because their file sizes clustered. Captures now wait for two identical
+  consecutive frames.
+- **`gradle … | head -5` kills the build.** `head` closes the pipe, gradle
+  takes the SIGPIPE, and `adb install` cheerfully reports Success for the APK
+  already on disk. Two rounds of "the fix didn't work" were a stale APK. Build
+  output goes to a file now, and the APK's mtime is checked against the source.
+
+`vela.settingsState`, `vela.settingsDark` and `vela.skipLaunchAnimation` make
+each Android state a one-line launch — the same seam iOS and desktop have.
+
+Gates after the fixes: vela-core `cargo test --features crux,i18n-all` green;
+Android 79 unit tests; desktop fmt/clippy/72 tests; web check + lint + 41
+tests; iOS `xcodebuild test` exit 0. Android `lintDebug` reports 3 NewApi
+errors inside the generated `rust/bindings/kotlin` uniffi file — pre-existing,
+not from this work.
+
 ## Deliberate calls worth a founder eye
 
 1. **Currency names are provider data, not corpus copy.** The mock shows 美元 /

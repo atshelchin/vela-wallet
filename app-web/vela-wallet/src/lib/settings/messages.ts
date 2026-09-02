@@ -72,6 +72,8 @@ export interface SettingsMessages {
 		builtinNote: string;
 		saveHint: string;
 		online: string;
+		/** The prefix a slow endpoint's pill wears: "Slower · 1.2s". */
+		slow: string;
 		offline: string;
 		/** Template with `{{chainId}}`. */
 		chainId: string;
@@ -341,6 +343,7 @@ export const SETTINGS_KEYS = [
 	'settings.networks.builtinNote',
 	'settings.networks.saveHint',
 	'settings.networks.online',
+	'settings.networks.slow',
 	'settingsModals.health.offline',
 	'settingsModals.network.chainId',
 	'settingsModals.network.fieldRpcUrl',

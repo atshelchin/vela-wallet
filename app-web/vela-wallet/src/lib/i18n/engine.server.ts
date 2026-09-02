@@ -319,6 +319,7 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 		networks: {
 			count: k('settings.networks.count'),
 			custom: k('settings.networks.custom'),
+			slow: k('settings.networks.slow'),
 			builtinNote: k('settings.networks.builtinNote'),
 			saveHint: k('settings.networks.saveHint'),
 			online: k('settings.networks.online'),

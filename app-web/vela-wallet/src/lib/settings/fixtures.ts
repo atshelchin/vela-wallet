@@ -482,7 +482,7 @@ function endpoints(m: SettingsMessages, withGuide: boolean): EndpointsModel {
 				label: m.endpoints.fiatLabel,
 				value: 'https://vela-currency.getvela.app/v2/…',
 				hint: m.endpoints.fiatHint,
-				badge: latencyPill(1200, '较慢')
+				badge: latencyPill(1200, m.networks.slow)
 			}
 		],
 		reset: m.endpoints.reset,

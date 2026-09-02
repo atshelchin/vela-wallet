@@ -105,7 +105,8 @@
       "custom": "Kustom",
       "builtinNote": "Jaringan bawaan · tidak dapat dihapus",
       "saveHint": "Disimpan begitu Anda meninggalkan kolom. Hanya ditolak jika RPC melaporkan Chain ID yang berbeda.",
-      "online": "Online"
+      "online": "Online",
+      "slow": "Lebih lambat"
     },
     "storage": {
       "title": "Penyimpanan perangkat",

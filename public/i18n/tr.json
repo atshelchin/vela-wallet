@@ -105,7 +105,8 @@
    "custom": "Özel",
    "builtinNote": "Yerleşik ağ · kaldırılamaz",
    "saveHint": "Alandan çıktığınız anda kaydedilir. Yalnızca RPC farklı bir zincir kimliği bildirirse reddedilir.",
-   "online": "Çevrimiçi"
+   "online": "Çevrimiçi",
+   "slow": "Daha yavaş"
   },
   "storage": {
    "title": "Cihaz depolaması",

@@ -2653,7 +2653,14 @@ impl WalletPage {
         );
         for (i, endpoint) in settings_fixtures::ENDPOINTS.iter().enumerate() {
             let (label, hint) = copy[i].clone();
-            let badge = latency(endpoint.latency_ms, None);
+            // Over a second the pill says WHY it is amber. Without the word a
+            // reader has to know that 1.2s is bad and 45ms is not, which is
+            // exactly the comparison the unit change already breaks.
+            let slow = self.settings.network_slow.clone();
+            let badge = latency(
+                endpoint.latency_ms,
+                (endpoint.latency_ms >= 1000).then_some(slow.as_ref()),
+            );
             col = col.child(url_field(
                 theme,
                 Some(label),

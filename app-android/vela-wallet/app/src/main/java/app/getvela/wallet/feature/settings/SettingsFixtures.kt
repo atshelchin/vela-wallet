@@ -488,7 +488,7 @@ object SettingsFixtures {
                 s.t(I18nKeys.SettingsUi.ENDPOINT_FIAT),
                 "https://vela-currency.getvela.app/v2/…",
                 hint = s.t(I18nKeys.SettingsUi.ENDPOINT_FIAT_HINT),
-                badge = latency(1200, "较慢"),
+                badge = latency(1200, s.t(I18nKeys.SettingsUi.NETWORK_SLOW)),
             ),
         ),
         reset = s.t(I18nKeys.SettingsUi.ENDPOINTS_RESET),

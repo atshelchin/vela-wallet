@@ -105,7 +105,8 @@
    "custom": "自訂",
    "builtinNote": "內建網絡 · 不可移除",
    "saveHint": "離開輸入框就會儲存。淨係當該 RPC 回報嘅鏈 ID 同呢個網絡唔夾嗰陣先會拒絕。",
-   "online": "在線"
+   "online": "在線",
+   "slow": "較慢"
   },
   "storage": {
    "title": "裝置儲存空間",

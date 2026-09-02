@@ -233,8 +233,8 @@ for (let i = 1; i < PATHS.length; i++) {
 //   badges, an average latency, About's links heading, SR3's "updated" group,
 //   the restored-RPC line and the six labels the bug-report disclosure prints.
 //   The other ~200 strings those forty mocks need were already in the corpus.
-if (PATHS.length !== 1478) fail(`expected 1478 paths (1396 leaf + 82 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1396) fail(`expected 1396 leaf paths, got ${leafSet.size}`);
+if (PATHS.length !== 1479) fail(`expected 1479 paths (1397 leaf + 82 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1397) fail(`expected 1397 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 82) fail(`expected 82 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

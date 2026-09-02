@@ -105,7 +105,8 @@
       "custom": "自定义",
       "builtinNote": "内置网络 · 不可移除",
       "saveHint": "离开输入框即保存。仅当该 RPC 报告的链 ID 与本网络不符时才拒绝保存。",
-      "online": "在线"
+      "online": "在线",
+      "slow": "较慢"
     },
     "storage": {
       "title": "设备存储",

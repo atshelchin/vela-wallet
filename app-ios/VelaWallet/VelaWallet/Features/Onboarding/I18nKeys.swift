@@ -290,6 +290,7 @@ enum I18nKeys {
         static let networkBuiltinNote = "settings.networks.builtinNote"
         static let networkSaveHint = "settings.networks.saveHint"
         static let networkOnline = "settings.networks.online"
+        static let networkSlow = "settings.networks.slow"
         static let networkOffline = "settingsModals.health.offline"
         static let chainId = "settingsModals.network.chainId"
         static let fieldRpcUrl = "settingsModals.network.fieldRpcUrl"

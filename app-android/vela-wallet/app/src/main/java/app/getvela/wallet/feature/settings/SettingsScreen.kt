@@ -10,13 +10,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -28,7 +32,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import app.getvela.wallet.core.designsystem.components.VelaDangerButton
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
@@ -42,6 +50,8 @@ import app.getvela.wallet.core.designsystem.tokens.VelaOpacity
 import app.getvela.wallet.core.designsystem.tokens.VelaSizing
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
+import app.getvela.wallet.core.identicon.IdenticonImage
+import app.getvela.wallet.feature.settings.components.SettingsDivider
 import app.getvela.wallet.feature.settings.components.SettingsSectionLabel
 import app.getvela.wallet.feature.settings.components.VelaAccountRow
 import app.getvela.wallet.feature.settings.components.VelaCallout
@@ -798,9 +808,24 @@ private fun SettingsSheet(
         sheetState = sheetState,
         containerColor = colors.bgBase,
     ) {
+        // The ✕ lives in the host, not in each body: every sheet opens with a
+        // SheetTitle, so one overlay anchored top-end lands on the title line
+        // for all of them — and none of them can forget it. The drag handle
+        // alone is not an affordance a first-time reader recognises.
+        // The cap is what makes the scroll below mean anything: a wrap-height
+        // column has no overflow to scroll, so verticalScroll alone silently
+        // did nothing and the sheet still ended at Português.
+        val maxSheetHeight = (LocalConfiguration.current.screenHeightDp * 0.88f).dp
+        Box(modifier = Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                // Without this the language sheet simply ends at Português:
+                // fifteen locales are taller than the sheet, and the three
+                // below the fold — plus the contribute footer — were
+                // unreachable. Every sheet here can outgrow the screen once a
+                // translation runs long, so the scroll belongs to the host.
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = VelaSizing.screenPaddingX)
                 .padding(bottom = VelaSpacing.xl3),
         ) {
@@ -831,6 +856,29 @@ private fun SettingsSheet(
                 SettingsOverlay.BalanceDetail -> BalanceDetailSheetBody(model.balanceDetail)
                 SettingsOverlay.Relayer -> RelayerSheetBody(model.relayer, onDismiss)
                 SettingsOverlay.None -> Unit
+            }
+        }
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = VelaSizing.screenPaddingX),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(VelaSpacing.xl4)
+                        .clip(CircleShape)
+                        .background(colors.bgRaised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = VelaIcons.Close,
+                        contentDescription = model.closeLabel,
+                        tint = colors.fgMuted,
+                        modifier = Modifier.size(VelaIconSize.md),
+                    )
+                }
             }
         }
     }
@@ -938,15 +986,60 @@ private fun AccountsSheetBody(sheet: AccountsSheetModel) {
         fontSize = VelaTextSize.base,
         modifier = Modifier.padding(bottom = VelaSpacing.lg),
     )
-    sheet.rows.forEach { row ->
-        VelaSelectRow(
-            SelectRowModel(
-                id = row.addressFull,
-                label = row.name,
-                note = row.amount,
-                selected = row.selected,
-            ),
-        )
+    // Not VelaSelectRow: a select row is a label and a note, so reusing it
+    // silently dropped the identicon and the address, and three accounts became
+    // three names with no way to tell which key each one is.
+    sheet.rows.forEachIndexed { index, row ->
+        if (index > 0) SettingsDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {}
+                .padding(vertical = VelaSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(VelaSpacing.lg),
+        ) {
+            IdenticonImage(
+                seed = row.addressFull,
+                size = VelaSpacing.xl4,
+                contentDescription = row.name,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(VelaSpacing.xs),
+            ) {
+                Text(
+                    text = row.name,
+                    color = if (row.selected) colors.accentBase else colors.fgBase,
+                    fontFamily = VelaFontFamily,
+                    fontWeight = VelaFontWeight.semibold,
+                    fontSize = VelaTextSize.lg,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = row.addressDisplay,
+                    color = colors.fgSubtle,
+                    fontFamily = VelaMonoFontFamily,
+                    fontSize = VelaTextSize.sm,
+                )
+            }
+            Text(
+                text = row.amount,
+                color = colors.fgBase,
+                fontFamily = VelaFontFamily,
+                fontSize = VelaTextSize.base,
+            )
+            if (row.selected) {
+                Spacer(modifier = Modifier.width(VelaSpacing.sm))
+                Icon(
+                    imageVector = VelaIcons.Check,
+                    contentDescription = null,
+                    tint = colors.accentBase,
+                    modifier = Modifier.size(VelaIconSize.md),
+                )
+            }
+        }
     }
     Spacer(modifier = Modifier.height(VelaSpacing.xl3))
     VelaPrimaryButton(sheet.primary, onClick = {}, modifier = Modifier.fillMaxWidth())

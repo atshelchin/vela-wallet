@@ -28,8 +28,8 @@ contact roster so identicon artwork matches across features and clients.
   screen. `AssetRow` gained dimmed/selected/trailing/onClick and
   `TokenIcon` an inline size. `WalletFlowFixturesTest` (17) +
   `DeveloperRoutesTest`. **Device pass done** on a Xiaomi alioth
-  (`9d5f42fb`): fifteen states walked — R1, R2X, R4, S1, A2, T3B, T4, T5,
-  SD1B, SD2, SD2C, SD2D, SD3B, SD4A, SD4C.
+  (`9d5f42fb`): **all 30 states walked**, plus spec 015's H1 and H7 to
+  place the activity-row finding below.
 - **iOS** (`7d384d8d`): `Features/Flows/` + `Components/Flows/` +
   `WalletFlowGeometry`, reached from `RootView` with a real flow stack.
   `WalletFlowFixturesTests` (19). Verified on an iPhone simulator.
@@ -115,6 +115,11 @@ and passed `testDebugUnitTest` first.
 17. **Two-line titles collided.** Nine large texts had no explicit
     leading, so 发送多个代币 wrapped at 360 dp and drew its second line
     through its first. Each now takes the leading its role calls for.
+18. **The add-a-token link was blue** (`info-base`) on all three mobile
+    clients. T1 and DT1L both draw it centred and muted under the list —
+    the way out of "my token is missing", not an action competing with
+    the rows. Fixed on web, Android and iOS (`4be8f5a3`); the desktop
+    panel was already corrected in the panel pass.
 
 ## Recorded deviations (documented choices, no action needed)
 
@@ -148,7 +153,11 @@ and passed `testDebugUnitTest` first.
    state, beside the existing route extra. Same reason as `VELA_FLOW` on
    the desktop: a thirty-state chip strip walked by hand is not a
    repeatable device pass.
-8. **`section_header` was split, not duplicated**, so the assets
+8. **SD1's title and CTA differ from DSD1L's, because the mocks do.**
+   The phone says 选择代币 with a full ghost button; the desktop panel
+   says 转账 with a quiet centred link. Same for T4's empty-card CTA
+   order. Each client follows its own mock rather than the other's.
+9. **`section_header` was split, not duplicated**, so the assets
    header's title and its 添加 action can lead to two different panels
    without two different-looking headers.
 
@@ -170,12 +179,25 @@ and passed `testDebugUnitTest` first.
 4. **SD1B's title wraps to two lines at 360 dp** where the 392-wide mock
    fits one. The leading now makes that legible rather than overlapping;
    whether to drop the title a size on narrow phones is a design call.
-5. **Local gradle JDK**: `org.gradle.configuration-cache=true` plus a
+5. **The shared `ActivityRow` truncates its subtitle on a 360 dp phone,
+   and the timestamp is what it drops.** A1 shows 来自 0x9F3c…21aE · …
+   where the mock shows · 11:20. The cause is in spec 015's row
+   (`feature/wallet/components/ActivityRow.kt`): the amount sits in a
+   `Modifier.weight(1f)` box beside a `weight(1f)` text column, so the
+   amount reserves half the row however short it is. **Pre-existing and
+   worse on the wallet home** — H1 on the device drops the time from
+   every row and elides `PancakeSwap · BNB…`; H7's extreme amounts fit
+   inside half the row without ever using the wrap the comment there
+   describes. Left alone deliberately: it is spec 015's component, shared
+   with a shipped screen, and re-proportioning it needs H1–H8 re-checked.
+   Recommended fix is `weight(1f, fill = false)` on the amount or a
+   capped width, so a short amount stops reserving space it does not use.
+6. **Local gradle JDK**: `org.gradle.configuration-cache=true` plus a
    stale daemon picks up the VS Code Red Hat JRE, which has no `jlink`,
    and `assembleDebug` dies in `JdkImageTransform`. Build with
    `JAVA_HOME=<Android Studio>/Contents/jbr/Contents/Home` and
    `--no-configuration-cache`. Environment, not product.
-6. **Web e2e is inherited-red**: 30 Welcome failures trace to spec 020's
+7. **Web e2e is inherited-red**: 30 Welcome failures trace to spec 020's
    first-run intro gate hiding `.headline` while those tests never pass
    the `skipIntro` hook. Present at `de343e7f` and `62f4598c`, untouched
    by this branch.
@@ -194,8 +216,8 @@ Visual passes, and exactly what each covered:
 
 - **desktop** — all 19 panels via `VELA_FLOW`, light, plus a dark spot
   check on DR2/DSD2.
-- **android** — 15 of 30 states on a Xiaomi alioth via `vela.flowState`,
-  light.
+- **android** — all 30 states on a Xiaomi alioth via `vela.flowState`,
+  light, plus spec 015's H1/H7 for the activity-row finding.
 - **ios** — the flow states on an iPhone 17 Pro simulator, light.
 - **web** — the flows screens and the `d1`/`r1` gallery states in a
   browser. The signed-in `/[locale]/wallet` route itself was checked at

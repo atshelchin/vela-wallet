@@ -5,6 +5,8 @@
 	import WalletHome from '$lib/wallet/WalletHome.svelte';
 	import ContactsDesktop from '$lib/contacts/ContactsDesktop.svelte';
 	import ContactsHome from '$lib/contacts/ContactsHome.svelte';
+	import SettingsDesktop from '$lib/settings/SettingsDesktop.svelte';
+	import SettingsHome from '$lib/settings/SettingsHome.svelte';
 	import Controls from '../Controls.svelte';
 
 	let { data } = $props();
@@ -35,6 +37,16 @@
 		<div class="frame">
 			<ContactsHome model={data.model} />
 		</div>
+	</div>
+{:else if data.kind === 'settings-mobile'}
+	<div class="stage">
+		<div class="frame">
+			<SettingsHome model={data.model} />
+		</div>
+	</div>
+{:else if data.kind === 'settings-desktop'}
+	<div class="desktop-stage">
+		<SettingsDesktop model={data.model} sidebar={data.sidebar} />
 	</div>
 {:else if data.kind === 'contacts-desktop'}
 	<div class="desktop-stage" class:narrow={narrowStage}>

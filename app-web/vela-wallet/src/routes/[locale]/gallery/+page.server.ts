@@ -5,7 +5,11 @@
  * (strings, identicons) happens here at build time.
  */
 import { error } from '@sveltejs/kit';
-import { resolveContactsMessages, resolveWalletMessages } from '$lib/i18n/engine.server';
+import {
+	resolveContactsMessages,
+	resolveSettingsMessages,
+	resolveWalletMessages
+} from '$lib/i18n/engine.server';
 import { toLocale } from '$lib/i18n/locales';
 import {
 	buildDesktopState,
@@ -26,6 +30,11 @@ import {
 	headerDropdown,
 	MOBILE_STATES as CONTACTS_MOBILE_STATES
 } from '$lib/contacts/fixtures';
+import {
+	buildMobileState as buildSettingsMobileState,
+	DESKTOP_STATES as SETTINGS_DESKTOP_STATES,
+	MOBILE_STATES as SETTINGS_MOBILE_STATES
+} from '$lib/settings/fixtures';
 import { fill } from '$lib/wallet/messages';
 import { identiconSvgFor } from '$lib/wallet/identicon.server';
 import type { WalletHomeModel } from '$lib/wallet/model';
@@ -39,6 +48,7 @@ export const load: PageServerLoad = ({ params }) => {
 	if (locale === undefined) error(404, `unsupported locale "${params.locale}"`);
 	const messages = resolveWalletMessages(locale);
 	const contactsMessages = resolveContactsMessages(locale);
+	const settingsMessages = resolveSettingsMessages(locale);
 	const identicon = identiconSvgFor;
 
 	const models: Partial<Record<string, WalletHomeModel>> = {};
@@ -56,9 +66,47 @@ export const load: PageServerLoad = ({ params }) => {
 	const dc1 = buildContactsDesktopState('dc1', contactsMessages, identicon);
 	const dc4 = buildContactsDesktopState('dc4', contactsMessages, identicon);
 
+	// One settings state feeds most of the component board: every primitive the
+	// forty mocks use appears somewhere in ST1b's model or in the sub-pages it
+	// carries, so the board never has to invent data of its own.
+	const st1b = buildSettingsMobileState('st1b', settingsMessages, identicon);
+	const st9b = buildSettingsMobileState('st9b', settingsMessages, identicon);
+	const st10b = buildSettingsMobileState('st10b', settingsMessages, identicon);
+	const st10c = buildSettingsMobileState('st10c', settingsMessages, identicon);
+	const sr1 = buildSettingsMobileState('sr1', settingsMessages, identicon);
+	const sr2b = buildSettingsMobileState('sr2b', settingsMessages, identicon);
+
 	return {
 		messages,
 		contactsMessages,
+		settingsMessages,
+		settingsMobileStates: SETTINGS_MOBILE_STATES,
+		settingsDesktopStates: SETTINGS_DESKTOP_STATES,
+		settings: {
+			sections: st1b.sections,
+			account: st1b.account,
+			appearance: st1b.appearance,
+			networks: st1b.networks,
+			networkDetail: st9b.networkDetail,
+			storage: st1b.storage,
+			about: st1b.about,
+			erase: st1b.erase,
+			languageSheet: st1b.languageSheet,
+			currencySheet: st1b.currencySheet,
+			numberSheet: st1b.numberSheet,
+			signOutSheet: st1b.signOutSheet,
+			clearCachesSheet: st1b.clearCachesSheet,
+			checks: { compatible: st10b.addNetwork, incompatible: st10c.addNetwork },
+			banner: sr1.rpcBanner,
+			rpcFixFailing: st1b.rpcFix,
+			rpcFixRestored: sr2b.rpcFix,
+			balanceDetail: st1b.balanceDetail,
+			relayer: st1b.relayer,
+			indexDown: st1b.indexDown,
+			rpcProviders: st1b.rpcProviders,
+			endpoints: st1b.endpoints,
+			feedback: st1b.feedback
+		},
 		models,
 		mobileStates: MOBILE_STATES,
 		desktopStates: DESKTOP_STATES,

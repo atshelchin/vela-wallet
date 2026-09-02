@@ -261,7 +261,13 @@
       "fallbackBody": "Otomatik olarak gönderemedik, ama ayrıntıları içeren bir GitHub formunu sizin için doldurduk.",
       "openGithub": "GitHub formunu aç",
       "openGithubForm": "GitHub'ı mı tercih edersiniz? Sorun formunu aç →",
-      "done": "Bitti"
+      "done": "Bitti",
+      "previewVersion": "Uygulama sürümü",
+      "previewPlatform": "Platform",
+      "previewLanguage": "Dil",
+      "previewRpc": "Ulaşılamayan RPC",
+      "previewFailures": "Son hatalar",
+      "previewNone": "Yok"
     },
     "identiconViewer": {
       "title": "Identicon",

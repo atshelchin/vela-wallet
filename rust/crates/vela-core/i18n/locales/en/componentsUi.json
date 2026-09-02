@@ -54,7 +54,13 @@
       "fallbackBody": "We couldn't submit automatically, but we've prefilled a GitHub form with the details.",
       "openGithub": "Open GitHub form",
       "openGithubForm": "Prefer GitHub? Open the issue form →",
-      "done": "Done"
+      "done": "Done",
+      "previewVersion": "App version",
+      "previewPlatform": "Platform",
+      "previewLanguage": "Language",
+      "previewRpc": "Unreachable RPC",
+      "previewFailures": "Recent failures",
+      "previewNone": "None"
     },
     "signing": {
       "loading": "Loading...",

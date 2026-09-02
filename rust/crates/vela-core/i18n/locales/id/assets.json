@@ -21,6 +21,7 @@
     "rpcProvidersTitle": "Tempat mendapatkan RPC yang andal",
     "rpcProvidersHint": "Endpoint gratis — daftar, salin URL Anda, lalu tempel di atas.",
     "rpcReport": "Masih tidak berfungsi? Laporkan",
-    "chainFallback": "Chain {{chainId}}"
+    "chainFallback": "Chain {{chainId}}",
+    "rpcFixRestored": "Koneksi pulih — mengambil ulang saldo dan catatan jaringan ini."
   }
 }

@@ -21,6 +21,7 @@
     "rpcProvidersTitle": "Güvenilir bir RPC nereden alınır",
     "rpcProvidersHint": "Ücretsiz uç noktalar — kaydolun, URL'nizi kopyalayıp yukarıya yapıştırın.",
     "rpcReport": "Hâlâ çalışmıyor mu? Bildirin",
-    "chainFallback": "Zincir {{chainId}}"
+    "chainFallback": "Zincir {{chainId}}",
+    "rpcFixRestored": "Bağlantı geri geldi — bu ağın bakiyeleri ve kayıtları yeniden alınıyor."
   }
 }

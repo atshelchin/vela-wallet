@@ -17,6 +17,7 @@
     "linkWebsite": "Website",
     "linkGitHub": "GitHub",
     "linkSafeWallet": "Safe Wallet",
-    "footer": "Built with care. Your keys, your coins."
+    "footer": "Built with care. Your keys, your coins.",
+    "sectionLinks": "Links"
   }
 }

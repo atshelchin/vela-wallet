@@ -5,7 +5,8 @@
   "automatic": "自動",
   "error": "エラー",
   "somethingWrong": "問題が発生しました",
-  "tryAgain": "再試行"
+  "tryAgain": "再試行",
+  "done": "完了"
  },
  "language": {
   "title": "言語",
@@ -27,14 +28,18 @@
    "developer": "開発者向け"
   },
   "account": {
-   "switch": "アカウントを切り替える"
+   "switch": "アカウントを切り替える",
+   "contactsSubtitle": "保存済みのアドレスと最近の送金先"
   },
   "appearance": {
    "themeLight": "ライト",
    "themeDark": "ダーク",
    "themeAuto": "システムに合わせる",
    "avatarInitials": "イニシャル",
-   "avatarIdenticon": "識別アイコン"
+   "avatarIdenticon": "識別アイコン",
+   "themeTitle": "テーマ",
+   "textScale": "文字サイズ",
+   "avatarTitle": "アバターの表示"
   },
   "localization": {
    "currencyTitle": "通貨",
@@ -94,6 +99,47 @@
    "indian": "インド式",
    "h24": "24時間制",
    "h12": "12時間制"
+  },
+  "networks": {
+   "count": "{{count}} 個のネットワーク",
+   "custom": "カスタム",
+   "builtinNote": "組み込みネットワーク · 削除できません",
+   "saveHint": "入力欄を離れると保存されます。拒否されるのは、その RPC が別のチェーン ID を返した場合だけです。",
+   "online": "オンライン"
+  },
+  "storage": {
+   "title": "端末のストレージ",
+   "subtitle": "ローカルデータとキャッシュ",
+   "summary": "合計 {{count}} 件",
+   "userData": "ユーザーデータ · 消すと元に戻せません",
+   "caches": "キャッシュ · 自動で作り直されます",
+   "connections": "接続 · 消すと dApp との接続も切れます",
+   "legendUserData": "ユーザーデータ",
+   "legendCaches": "キャッシュ",
+   "legendSessions": "接続セッション",
+   "itemTransactions": "取引履歴",
+   "itemContacts": "連絡先とグループ",
+   "itemCustom": "カスタムトークンとネットワーク",
+   "itemBrowsing": "閲覧履歴",
+   "itemBalances": "残高とトークンのキャッシュ",
+   "itemRates": "為替レートのキャッシュ",
+   "itemScan": "スキャンの進捗",
+   "itemDapps": "dApp の許可とセッション",
+   "records": "{{count}} 件",
+   "contactsCount": "{{count}} 人",
+   "itemsCount": "{{count}} 項目",
+   "sitesCount": "{{count}} サイト",
+   "clear": "削除",
+   "clearAllCaches": "すべてのキャッシュを削除",
+   "disconnectAll": "すべて切断",
+   "clearTitle": "すべてのキャッシュを削除しますか？",
+   "clearBody": "残高・トークン・為替レートのキャッシュを削除します。次回起動時に自動で取得し直します。取引履歴、連絡先、各種設定はそのままです。",
+   "clearConfirm": "キャッシュを削除"
+  },
+  "indexDown": {
+   "title": "サービスを一時的に利用できません",
+   "subtitle": "パスキーインデックスに接続できません。作成もサインインもこのサービスを必要とします。",
+   "editEndpoint": "インデックスサービスのアドレスを変更"
   }
  },
  "time": {
@@ -180,7 +226,8 @@
   "a11yHideBalance": "残高を隠す",
   "a11yShowBalance": "残高を表示",
   "a11ySwitchAccount": "アカウント {{name}}。アカウントを切り替える",
-  "a11yOpenSettings": "設定"
+  "a11yOpenSettings": "設定",
+  "balanceDetailUpdatedLabel": "更新済み"
  },
  "send": {
   "filterStable": "ステーブルコイン",
@@ -396,7 +443,8 @@
   "rpcProvidersTitle": "信頼できる RPC の入手先",
   "rpcProvidersHint": "無料のエンドポイント — 登録して URL をコピーし、上に貼り付けてください。",
   "rpcReport": "まだ動作しませんか？報告する",
-  "chainFallback": "チェーン {{chainId}}"
+  "chainFallback": "チェーン {{chainId}}",
+  "rpcFixRestored": "接続が回復しました。このネットワークの残高と履歴を再取得しています。"
  },
  "addToken": {
   "addedTokensLabel": "追加済みのトークン",
@@ -880,7 +928,8 @@
   "linkWebsite": "ウェブサイト",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "心を込めて作りました。鍵もコインも、あなたのもの。"
+  "footer": "心を込めて作りました。鍵もコインも、あなたのもの。",
+  "sectionLinks": "リンク"
  },
  "clearSigning": {
   "title": "Clear Signing テスト",
@@ -1281,7 +1330,13 @@
    "fallbackBody": "自動で送信できませんでしたが、詳細を入力済みの GitHub フォームをご用意しました。",
    "openGithub": "GitHub フォームを開く",
    "openGithubForm": "GitHub をお使いですか？課題フォームを開く →",
-   "done": "完了"
+   "done": "完了",
+   "previewVersion": "アプリのバージョン",
+   "previewPlatform": "プラットフォーム",
+   "previewLanguage": "言語",
+   "previewRpc": "到達できない RPC",
+   "previewFailures": "直近の失敗",
+   "previewNone": "なし"
   },
   "identiconViewer": {
    "title": "Identicon",
@@ -1348,7 +1403,8 @@
    "checkKey": "キーを確認",
    "activeNetworks": "{{count}} ネットワーク",
    "supportsCount": "{{total}} 件中 {{count}} 件のネットワークに対応",
-   "unavailable": "利用不可"
+   "unavailable": "利用不可",
+   "avgLatency": "平均 {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "サービスエンドポイント",
@@ -1361,7 +1417,8 @@
    "bundlerHint": "Vela Relay 互換のエンドポイントが必要です",
    "fiatLabel": "法定通貨レート",
    "fiatHint": "USD ベースの為替レート。通貨リストを構成します — より広いカバレッジのソースに差し替え可能。",
-   "resetToDefaults": "デフォルトに戻す"
+   "resetToDefaults": "デフォルトに戻す",
+   "selfHostGuide": "セルフホスティング手順 →"
   },
   "addNetwork": {
    "modalTitle": "ネットワークを追加",
@@ -1383,7 +1440,12 @@
    "recheck": "再確認",
    "chainIdLabel": "チェーン ID: {{chainId}}",
    "nativeLabel": "ネイティブ: {{symbol}}",
-   "testnet": "テストネット"
+   "testnet": "テストネット",
+   "compatible": "対応",
+   "incompatible": "非対応",
+   "checkSafe": "Safe L2 コントラクト",
+   "checkSigner": "WebAuthn 署名モジュール",
+   "checkRemaining": "その他 {{count}} 件のコントラクト"
   },
   "treasury": {
    "modalTitle": "Treasury",

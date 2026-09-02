@@ -64,6 +64,7 @@
     "a11yHideBalance": "Sembunyikan saldo",
     "a11yShowBalance": "Tampilkan saldo",
     "a11ySwitchAccount": "Akun {{name}}. Ganti akun",
-    "a11yOpenSettings": "Pengaturan"
+    "a11yOpenSettings": "Pengaturan",
+    "balanceDetailUpdatedLabel": "Diperbarui"
   }
 }

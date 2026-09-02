@@ -261,7 +261,13 @@
       "fallbackBody": "Kami tidak dapat mengirimnya otomatis, tapi kami sudah mengisi formulir GitHub dengan detailnya.",
       "openGithub": "Buka formulir GitHub",
       "openGithubForm": "Lebih suka GitHub? Buka formulir isu →",
-      "done": "Selesai"
+      "done": "Selesai",
+      "previewVersion": "Versi aplikasi",
+      "previewPlatform": "Platform",
+      "previewLanguage": "Bahasa",
+      "previewRpc": "RPC tak terjangkau",
+      "previewFailures": "Kegagalan terbaru",
+      "previewNone": "Tidak ada"
     },
     "identiconViewer": {
       "title": "Identicon",

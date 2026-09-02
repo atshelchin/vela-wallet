@@ -27,7 +27,8 @@
       "checkKey": "檢查金鑰",
       "activeNetworks": "{{count}} 個網路",
       "supportsCount": "支援 {{total}} 個網路中的 {{count}} 個",
-      "unavailable": "無法使用"
+      "unavailable": "無法使用",
+      "avgLatency": "平均 {{ms}}ms"
     },
     "endpoints": {
       "modalTitle": "服務端點",
@@ -40,7 +41,8 @@
       "bundlerHint": "需要與 Vela Relay 相容的端點",
       "fiatLabel": "法幣匯率",
       "fiatHint": "以 USD 為基準的匯率，決定可選貨幣清單——可替換為涵蓋更廣的匯率來源。",
-      "resetToDefaults": "重設為預設值"
+      "resetToDefaults": "重設為預設值",
+      "selfHostGuide": "自行部署指南 →"
     },
     "addNetwork": {
       "modalTitle": "新增網路",
@@ -62,7 +64,12 @@
       "recheck": "重新檢查",
       "chainIdLabel": "Chain ID：{{chainId}}",
       "nativeLabel": "原生代幣：{{symbol}}",
-      "testnet": "測試網"
+      "testnet": "測試網",
+      "compatible": "相容",
+      "incompatible": "不相容",
+      "checkSafe": "Safe L2 合約",
+      "checkSigner": "WebAuthn 簽名模組",
+      "checkRemaining": "其餘 {{count}} 項合約"
     },
     "treasury": {
       "modalTitle": "金庫",

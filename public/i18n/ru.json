@@ -5,7 +5,8 @@
   "automatic": "Автоматически",
   "error": "Ошибка",
   "somethingWrong": "Что-то пошло не так",
-  "tryAgain": "Повторить"
+  "tryAgain": "Повторить",
+  "done": "Готово"
  },
  "language": {
   "title": "Язык",
@@ -27,14 +28,18 @@
    "developer": "Для разработчиков"
   },
   "account": {
-   "switch": "Сменить аккаунт"
+   "switch": "Сменить аккаунт",
+   "contactsSubtitle": "Сохранённые адреса и недавние получатели"
   },
   "appearance": {
    "themeLight": "Светлая",
    "themeDark": "Тёмная",
    "themeAuto": "Как в системе",
    "avatarInitials": "Инициалы",
-   "avatarIdenticon": "Идентикон"
+   "avatarIdenticon": "Идентикон",
+   "themeTitle": "Тема",
+   "textScale": "Размер текста",
+   "avatarTitle": "Стиль аватара"
   },
   "localization": {
    "currencyTitle": "Валюта",
@@ -94,6 +99,47 @@
    "indian": "Индийский",
    "h24": "24-часовой",
    "h12": "12-часовой"
+  },
+  "networks": {
+   "count": "Сетей: {{count}}",
+   "custom": "Своя",
+   "builtinNote": "Встроенная сеть · удалить нельзя",
+   "saveHint": "Сохраняется, как только вы покидаете поле. Отклоняется только если RPC сообщает другой ID сети.",
+   "online": "В сети"
+  },
+  "storage": {
+   "title": "Хранилище устройства",
+   "subtitle": "Локальные данные и кэш",
+   "summary": "Всего записей: {{count}}",
+   "userData": "Ваши данные · после удаления не восстановить",
+   "caches": "Кэш · соберётся заново сам",
+   "connections": "Подключения · очистка отключает dApp",
+   "legendUserData": "Ваши данные",
+   "legendCaches": "Кэш",
+   "legendSessions": "Сеансы",
+   "itemTransactions": "История транзакций",
+   "itemContacts": "Контакты и группы",
+   "itemCustom": "Свои токены и сети",
+   "itemBrowsing": "История посещений",
+   "itemBalances": "Кэш балансов и токенов",
+   "itemRates": "Кэш курсов валют",
+   "itemScan": "Прогресс сканирования",
+   "itemDapps": "Разрешения и сеансы dApp",
+   "records": "{{count}} зап.",
+   "contactsCount": "{{count}} конт.",
+   "itemsCount": "{{count}} эл.",
+   "sitesCount": "Сайтов: {{count}}",
+   "clear": "Очистить",
+   "clearAllCaches": "Очистить весь кэш",
+   "disconnectAll": "Отключить все",
+   "clearTitle": "Очистить весь кэш?",
+   "clearBody": "Кэш балансов, токенов и курсов будет очищен и загружен заново при следующем запуске. История транзакций, контакты и настройки не пострадают.",
+   "clearConfirm": "Очистить кэш"
+  },
+  "indexDown": {
+   "title": "Сервис временно недоступен",
+   "subtitle": "Индекс passkey недоступен, а он нужен и для создания кошелька, и для входа.",
+   "editEndpoint": "Изменить адрес сервиса индекса"
   }
  },
  "time": {
@@ -180,7 +226,8 @@
   "a11yHideBalance": "Скрыть баланс",
   "a11yShowBalance": "Показать баланс",
   "a11ySwitchAccount": "Аккаунт {{name}}. Сменить аккаунт",
-  "a11yOpenSettings": "Настройки"
+  "a11yOpenSettings": "Настройки",
+  "balanceDetailUpdatedLabel": "Обновлено"
  },
  "send": {
   "filterStable": "Стейблкоины",
@@ -402,7 +449,8 @@
   "rpcProvidersTitle": "Где взять надёжный RPC",
   "rpcProvidersHint": "Бесплатные эндпоинты — зарегистрируйтесь, скопируйте свой URL и вставьте его выше.",
   "rpcReport": "Всё ещё не работает? Сообщите нам",
-  "chainFallback": "Сеть {{chainId}}"
+  "chainFallback": "Сеть {{chainId}}",
+  "rpcFixRestored": "Соединение восстановлено — заново загружаем балансы и записи этой сети."
  },
  "addToken": {
   "addedTokensLabel": "Добавленные токены",
@@ -886,7 +934,8 @@
   "linkWebsite": "Сайт",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "Сделано с заботой. Ваши ключи — ваши монеты."
+  "footer": "Сделано с заботой. Ваши ключи — ваши монеты.",
+  "sectionLinks": "Ссылки"
  },
  "clearSigning": {
   "title": "Тест Clear Signing",
@@ -1287,7 +1336,13 @@
    "fallbackBody": "Не удалось отправить автоматически, но мы уже заполнили форму GitHub этими данными.",
    "openGithub": "Открыть форму GitHub",
    "openGithubForm": "Предпочитаете GitHub? Откройте форму задачи →",
-   "done": "Готово"
+   "done": "Готово",
+   "previewVersion": "Версия приложения",
+   "previewPlatform": "Платформа",
+   "previewLanguage": "Язык",
+   "previewRpc": "Недоступные RPC",
+   "previewFailures": "Недавние сбои",
+   "previewNone": "Нет"
   },
   "identiconViewer": {
    "title": "Идентикон",
@@ -1354,7 +1409,8 @@
    "checkKey": "Проверьте ключ",
    "activeNetworks": "сетей: {{count}}",
    "supportsCount": "Поддерживает {{count}} из {{total}} сетей",
-   "unavailable": "Недоступно"
+   "unavailable": "Недоступно",
+   "avgLatency": "сред. {{ms}}мс"
   },
   "endpoints": {
    "modalTitle": "Сервисные эндпоинты",
@@ -1367,7 +1423,8 @@
    "bundlerHint": "Требуется эндпоинт, совместимый с Vela Relay",
    "fiatLabel": "КУРСЫ ВАЛЮТ",
    "fiatHint": "Курсы валют на основе USD, формирующие список валют — можно заменить для более широкого охвата.",
-   "resetToDefaults": "Сбросить к стандартным"
+   "resetToDefaults": "Сбросить к стандартным",
+   "selfHostGuide": "Руководство по self-hosting →"
   },
   "addNetwork": {
    "modalTitle": "Добавить сеть",
@@ -1389,7 +1446,12 @@
    "recheck": "Перепроверить",
    "chainIdLabel": "ID сети: {{chainId}}",
    "nativeLabel": "Нативный токен: {{symbol}}",
-   "testnet": "Тестовая сеть"
+   "testnet": "Тестовая сеть",
+   "compatible": "Совместима",
+   "incompatible": "Несовместима",
+   "checkSafe": "Контракты Safe L2",
+   "checkSigner": "Модуль подписи WebAuthn",
+   "checkRemaining": "ещё контрактов: {{count}}"
   },
   "treasury": {
    "modalTitle": "Treasury",

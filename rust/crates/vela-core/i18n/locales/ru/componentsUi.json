@@ -261,7 +261,13 @@
       "fallbackBody": "Не удалось отправить автоматически, но мы уже заполнили форму GitHub этими данными.",
       "openGithub": "Открыть форму GitHub",
       "openGithubForm": "Предпочитаете GitHub? Откройте форму задачи →",
-      "done": "Готово"
+      "done": "Готово",
+      "previewVersion": "Версия приложения",
+      "previewPlatform": "Платформа",
+      "previewLanguage": "Язык",
+      "previewRpc": "Недоступные RPC",
+      "previewFailures": "Недавние сбои",
+      "previewNone": "Нет"
     },
     "identiconViewer": {
       "title": "Идентикон",

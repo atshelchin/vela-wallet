@@ -261,7 +261,13 @@
       "fallbackBody": "Non siamo riusciti a inviarla automaticamente, ma abbiamo precompilato un modulo GitHub con i dettagli.",
       "openGithub": "Apri il modulo GitHub",
       "openGithubForm": "Preferisci GitHub? Apri il modulo della issue →",
-      "done": "Fatto"
+      "done": "Fatto",
+      "previewVersion": "Versione app",
+      "previewPlatform": "Piattaforma",
+      "previewLanguage": "Lingua",
+      "previewRpc": "RPC irraggiungibile",
+      "previewFailures": "Errori recenti",
+      "previewNone": "Nessuno"
     },
     "identiconViewer": {
       "title": "Identicon",

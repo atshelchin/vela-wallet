@@ -64,6 +64,7 @@
     "a11yHideBalance": "Ẩn số dư",
     "a11yShowBalance": "Hiện số dư",
     "a11ySwitchAccount": "Tài khoản {{name}}. Chuyển tài khoản",
-    "a11yOpenSettings": "Cài đặt"
+    "a11yOpenSettings": "Cài đặt",
+    "balanceDetailUpdatedLabel": "Đã cập nhật"
   }
 }

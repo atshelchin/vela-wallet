@@ -5,7 +5,8 @@
     "automatic": "Automatico",
     "error": "Errore",
     "somethingWrong": "Qualcosa è andato storto",
-    "tryAgain": "Riprova"
+    "tryAgain": "Riprova",
+    "done": "Fatto"
   },
   "language": {
     "title": "Lingua",
@@ -27,14 +28,18 @@
       "developer": "Sviluppatore"
     },
     "account": {
-      "switch": "Cambia account"
+      "switch": "Cambia account",
+      "contactsSubtitle": "Indirizzi salvati e destinatari recenti"
     },
     "appearance": {
       "themeLight": "Chiaro",
       "themeDark": "Scuro",
       "themeAuto": "Come il sistema",
       "avatarInitials": "Iniziali",
-      "avatarIdenticon": "Identicon"
+      "avatarIdenticon": "Identicon",
+      "themeTitle": "Tema",
+      "textScale": "Dimensione del testo",
+      "avatarTitle": "Stile avatar"
     },
     "localization": {
       "currencyTitle": "Valuta",
@@ -94,6 +99,47 @@
       "indian": "Indiano",
       "h24": "24 ore",
       "h12": "12 ore"
+    },
+    "networks": {
+      "count": "{{count}} reti",
+      "custom": "Personalizzata",
+      "builtinNote": "Rete integrata · non rimovibile",
+      "saveHint": "Salvato non appena esci dal campo. Viene rifiutato solo se l’RPC dichiara un Chain ID diverso.",
+      "online": "Online"
+    },
+    "storage": {
+      "title": "Spazio del dispositivo",
+      "subtitle": "Dati locali e cache",
+      "summary": "{{count}} record in totale",
+      "userData": "I tuoi dati · non recuperabili dopo la cancellazione",
+      "caches": "Cache · ricostruita automaticamente",
+      "connections": "Connessioni · cancellarle disconnette le dApp",
+      "legendUserData": "I tuoi dati",
+      "legendCaches": "Cache",
+      "legendSessions": "Sessioni",
+      "itemTransactions": "Cronologia transazioni",
+      "itemContacts": "Contatti e gruppi",
+      "itemCustom": "Token e reti personalizzati",
+      "itemBrowsing": "Cronologia di navigazione",
+      "itemBalances": "Cache di saldi e token",
+      "itemRates": "Cache dei tassi di cambio",
+      "itemScan": "Avanzamento della scansione",
+      "itemDapps": "Permessi e sessioni dApp",
+      "records": "{{count}} record",
+      "contactsCount": "{{count}} contatti",
+      "itemsCount": "{{count}} elementi",
+      "sitesCount": "{{count}} siti",
+      "clear": "Cancella",
+      "clearAllCaches": "Cancella tutte le cache",
+      "disconnectAll": "Disconnetti tutto",
+      "clearTitle": "Cancellare tutte le cache?",
+      "clearBody": "Le cache di saldi, token e tassi vengono cancellate e riscaricate alla prossima apertura. Cronologia, contatti e impostazioni non vengono toccati.",
+      "clearConfirm": "Cancella cache"
+    },
+    "indexDown": {
+      "title": "Servizio temporaneamente non disponibile",
+      "subtitle": "L’indice delle passkey non è raggiungibile, e serve sia per creare sia per accedere.",
+      "editEndpoint": "Cambia l’indirizzo del servizio di indice"
     }
   },
   "time": {

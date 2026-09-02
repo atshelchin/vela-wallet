@@ -5,7 +5,8 @@
     "automatic": "Automatisch",
     "error": "Fehler",
     "somethingWrong": "Etwas ist schiefgelaufen",
-    "tryAgain": "Erneut versuchen"
+    "tryAgain": "Erneut versuchen",
+    "done": "Fertig"
   },
   "language": {
     "title": "Sprache",
@@ -27,14 +28,18 @@
       "developer": "Entwickler"
     },
     "account": {
-      "switch": "Konto wechseln"
+      "switch": "Konto wechseln",
+      "contactsSubtitle": "Gespeicherte Adressen und letzte Empfänger"
     },
     "appearance": {
       "themeLight": "Hell",
       "themeDark": "Dunkel",
       "themeAuto": "System folgen",
       "avatarInitials": "Initialen",
-      "avatarIdenticon": "Identicon"
+      "avatarIdenticon": "Identicon",
+      "themeTitle": "Design",
+      "textScale": "Schriftgröße",
+      "avatarTitle": "Avatar-Stil"
     },
     "localization": {
       "currencyTitle": "Währung",
@@ -94,6 +99,47 @@
       "indian": "Indisch",
       "h24": "24-Stunden",
       "h12": "12-Stunden"
+    },
+    "networks": {
+      "count": "{{count}} Netzwerke",
+      "custom": "Benutzerdefiniert",
+      "builtinNote": "Integriertes Netzwerk · nicht entfernbar",
+      "saveHint": "Wird gespeichert, sobald Sie das Feld verlassen. Abgelehnt nur, wenn der RPC eine andere Chain-ID meldet.",
+      "online": "Online"
+    },
+    "storage": {
+      "title": "Gerätespeicher",
+      "subtitle": "Lokale Daten und Cache",
+      "summary": "{{count}} Einträge insgesamt",
+      "userData": "Ihre Daten · nach dem Löschen nicht wiederherstellbar",
+      "caches": "Cache · wird automatisch neu aufgebaut",
+      "connections": "Verbindungen · Löschen trennt dApps",
+      "legendUserData": "Ihre Daten",
+      "legendCaches": "Cache",
+      "legendSessions": "Sitzungen",
+      "itemTransactions": "Transaktionsverlauf",
+      "itemContacts": "Kontakte und Gruppen",
+      "itemCustom": "Eigene Token und Netzwerke",
+      "itemBrowsing": "Browserverlauf",
+      "itemBalances": "Guthaben- und Token-Cache",
+      "itemRates": "Wechselkurs-Cache",
+      "itemScan": "Scan-Fortschritt",
+      "itemDapps": "dApp-Berechtigungen und -Sitzungen",
+      "records": "{{count}} Einträge",
+      "contactsCount": "{{count}} Kontakte",
+      "itemsCount": "{{count}} Objekte",
+      "sitesCount": "{{count}} Websites",
+      "clear": "Löschen",
+      "clearAllCaches": "Alle Caches löschen",
+      "disconnectAll": "Alle trennen",
+      "clearTitle": "Alle Caches löschen?",
+      "clearBody": "Guthaben-, Token- und Kurs-Caches werden gelöscht und beim nächsten Start neu geladen. Transaktionsverlauf, Kontakte und Einstellungen bleiben unberührt.",
+      "clearConfirm": "Caches löschen"
+    },
+    "indexDown": {
+      "title": "Dienst vorübergehend nicht verfügbar",
+      "subtitle": "Der Passkey-Index ist nicht erreichbar — Erstellen und Anmelden brauchen ihn beide.",
+      "editEndpoint": "Adresse des Index-Dienstes ändern"
     }
   },
   "time": {

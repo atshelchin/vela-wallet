@@ -21,6 +21,7 @@
     "rpcProvidersTitle": "Where to get a reliable RPC",
     "rpcProvidersHint": "Free endpoints — sign up, copy your URL, and paste it above.",
     "rpcReport": "Still not working? Report it",
-    "chainFallback": "Chain {{chainId}}"
+    "chainFallback": "Chain {{chainId}}",
+    "rpcFixRestored": "Connection restored — re-fetching this network’s balances and records."
   }
 }

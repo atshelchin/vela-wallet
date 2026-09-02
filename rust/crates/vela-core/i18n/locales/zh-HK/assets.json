@@ -21,6 +21,7 @@
     "rpcProvidersTitle": "在哪裡取得可靠的 RPC",
     "rpcProvidersHint": "以下為免費節點服務——註冊後複製你的 URL，再貼到上方。",
     "rpcReport": "仍然無法使用？回報給我們",
-    "chainFallback": "Chain {{chainId}}"
+    "chainFallback": "Chain {{chainId}}",
+    "rpcFixRestored": "連線已經恢復——而家重新攞緊呢個網絡嘅餘額同記錄。"
   }
 }

@@ -21,6 +21,7 @@
     "rpcProvidersTitle": "信頼できる RPC の入手先",
     "rpcProvidersHint": "無料のエンドポイント — 登録して URL をコピーし、上に貼り付けてください。",
     "rpcReport": "まだ動作しませんか？報告する",
-    "chainFallback": "チェーン {{chainId}}"
+    "chainFallback": "チェーン {{chainId}}",
+    "rpcFixRestored": "接続が回復しました。このネットワークの残高と履歴を再取得しています。"
   }
 }

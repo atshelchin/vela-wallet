@@ -21,6 +21,7 @@
     "rpcProvidersTitle": "Wo Sie einen zuverlässigen RPC bekommen",
     "rpcProvidersHint": "Kostenlose Endpunkte — registrieren Sie sich, kopieren Sie Ihre URL und fügen Sie sie oben ein.",
     "rpcReport": "Funktioniert immer noch nicht? Melden",
-    "chainFallback": "Chain {{chainId}}"
+    "chainFallback": "Chain {{chainId}}",
+    "rpcFixRestored": "Verbindung wiederhergestellt — Guthaben und Einträge dieses Netzwerks werden neu geladen."
   }
 }

@@ -27,7 +27,8 @@
       "checkKey": "Anahtarı kontrol et",
       "activeNetworks": "{{count}} ağ",
       "supportsCount": "{{total}} ağdan {{count}} tanesini destekliyor",
-      "unavailable": "Kullanılamıyor"
+      "unavailable": "Kullanılamıyor",
+      "avgLatency": "ort. {{ms}}ms"
     },
     "endpoints": {
       "modalTitle": "Servis Uç Noktaları",
@@ -40,7 +41,8 @@
       "bundlerHint": "Vela Relay uyumlu bir uç nokta gereklidir",
       "fiatLabel": "FİAT KURLARI",
       "fiatHint": "Para birimi listesini belirleyen USD tabanlı döviz kurları — daha geniş kapsam için değiştirilebilir.",
-      "resetToDefaults": "Varsayılanlara Sıfırla"
+      "resetToDefaults": "Varsayılanlara Sıfırla",
+      "selfHostGuide": "Kendin barındırma kılavuzu →"
     },
     "addNetwork": {
       "modalTitle": "Ağ Ekle",
@@ -62,7 +64,12 @@
       "recheck": "Yeniden kontrol et",
       "chainIdLabel": "Zincir ID: {{chainId}}",
       "nativeLabel": "Yerel: {{symbol}}",
-      "testnet": "Test ağı"
+      "testnet": "Test ağı",
+      "compatible": "Uyumlu",
+      "incompatible": "Uyumsuz",
+      "checkSafe": "Safe L2 sözleşmeleri",
+      "checkSigner": "WebAuthn imza modülü",
+      "checkRemaining": "diğer {{count}} sözleşme"
     },
     "treasury": {
       "modalTitle": "Hazine",

@@ -5,7 +5,8 @@
     "automatic": "自動",
     "error": "錯誤",
     "somethingWrong": "發生問題",
-    "tryAgain": "重試"
+    "tryAgain": "重試",
+    "done": "完成"
   },
   "language": {
     "title": "語言",
@@ -27,14 +28,18 @@
       "developer": "開發者"
     },
     "account": {
-      "switch": "切換帳戶"
+      "switch": "切換帳戶",
+      "contactsSubtitle": "已儲存嘅地址同最近收款人"
     },
     "appearance": {
       "themeLight": "淺色",
       "themeDark": "深色",
       "themeAuto": "跟隨系統",
       "avatarInitials": "首字母",
-      "avatarIdenticon": "圖案頭像"
+      "avatarIdenticon": "圖案頭像",
+      "themeTitle": "主題",
+      "textScale": "文字大小",
+      "avatarTitle": "頭像樣式"
     },
     "localization": {
       "currencyTitle": "貨幣",
@@ -94,6 +99,47 @@
       "indian": "印度",
       "h24": "24 小時制",
       "h12": "12 小時制"
+    },
+    "networks": {
+      "count": "{{count}} 個網絡",
+      "custom": "自訂",
+      "builtinNote": "內建網絡 · 不可移除",
+      "saveHint": "離開輸入框就會儲存。淨係當該 RPC 回報嘅鏈 ID 同呢個網絡唔夾嗰陣先會拒絕。",
+      "online": "在線"
+    },
+    "storage": {
+      "title": "裝置儲存空間",
+      "subtitle": "本機資料同快取管理",
+      "summary": "共 {{count}} 項記錄",
+      "userData": "用戶資料 · 清除咗就搵唔返",
+      "caches": "快取 · 清除後會自動重建",
+      "connections": "連線 · 清除即斷開 dApp",
+      "legendUserData": "用戶資料",
+      "legendCaches": "快取",
+      "legendSessions": "連線工作階段",
+      "itemTransactions": "交易記錄",
+      "itemContacts": "聯絡人同分組",
+      "itemCustom": "自訂代幣同網絡",
+      "itemBrowsing": "瀏覽記錄",
+      "itemBalances": "餘額同代幣快取",
+      "itemRates": "匯率快取",
+      "itemScan": "掃描進度",
+      "itemDapps": "dApp 授權同工作階段",
+      "records": "{{count}} 項",
+      "contactsCount": "{{count}} 位",
+      "itemsCount": "{{count}} 項",
+      "sitesCount": "{{count}} 個網站",
+      "clear": "清除",
+      "clearAllCaches": "清除全部快取",
+      "disconnectAll": "斷開全部",
+      "clearTitle": "清除全部快取？",
+      "clearBody": "餘額、代幣同匯率快取會被清除，下次開返個 App 會自動攞多次。你嘅交易記錄、聯絡人同各項設定唔會受影響。",
+      "clearConfirm": "清除快取"
+    },
+    "indexDown": {
+      "title": "服務暫時用唔到",
+      "subtitle": "連唔到通行密鑰索引服務，開新錢包同登入都要用到佢。",
+      "editEndpoint": "改索引服務網址"
     }
   },
   "time": {

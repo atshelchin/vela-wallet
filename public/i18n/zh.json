@@ -5,7 +5,8 @@
   "automatic": "自动",
   "error": "错误",
   "somethingWrong": "出错了",
-  "tryAgain": "重试"
+  "tryAgain": "重试",
+  "done": "完成"
  },
  "language": {
   "title": "语言",
@@ -27,14 +28,18 @@
    "developer": "开发者"
   },
   "account": {
-   "switch": "切换账户"
+   "switch": "切换账户",
+   "contactsSubtitle": "已保存地址与最近收款人"
   },
   "appearance": {
    "themeLight": "浅色",
    "themeDark": "深色",
    "themeAuto": "跟随系统",
    "avatarInitials": "首字母",
-   "avatarIdenticon": "图形头像"
+   "avatarIdenticon": "图形头像",
+   "themeTitle": "主题",
+   "textScale": "文字大小",
+   "avatarTitle": "头像样式"
   },
   "localization": {
    "currencyTitle": "货币",
@@ -94,6 +99,47 @@
    "indian": "印度计数",
    "h24": "24 小时制",
    "h12": "12 小时制"
+  },
+  "networks": {
+   "count": "{{count}} 个网络",
+   "custom": "自定义",
+   "builtinNote": "内置网络 · 不可移除",
+   "saveHint": "离开输入框即保存。仅当该 RPC 报告的链 ID 与本网络不符时才拒绝保存。",
+   "online": "在线"
+  },
+  "storage": {
+   "title": "设备存储",
+   "subtitle": "本地数据与缓存管理",
+   "summary": "共 {{count}} 条记录",
+   "userData": "用户数据 · 清除后无法找回",
+   "caches": "缓存 · 清除后自动重建",
+   "connections": "连接 · 清除即断开 dApp",
+   "legendUserData": "用户数据",
+   "legendCaches": "缓存",
+   "legendSessions": "连接会话",
+   "itemTransactions": "交易记录",
+   "itemContacts": "联系人与分组",
+   "itemCustom": "自定义代币与网络",
+   "itemBrowsing": "浏览记录",
+   "itemBalances": "余额与代币缓存",
+   "itemRates": "汇率缓存",
+   "itemScan": "扫描进度",
+   "itemDapps": "dApp 授权与会话",
+   "records": "{{count}} 条",
+   "contactsCount": "{{count}} 位",
+   "itemsCount": "{{count}} 项",
+   "sitesCount": "{{count}} 个站点",
+   "clear": "清除",
+   "clearAllCaches": "清除全部缓存",
+   "disconnectAll": "断开全部",
+   "clearTitle": "清除全部缓存？",
+   "clearBody": "余额、代币与汇率缓存将被清除，下次打开时自动重新拉取。你的交易记录、联系人和各项设置不受影响。",
+   "clearConfirm": "清除缓存"
+  },
+  "indexDown": {
+   "title": "服务暂时不可用",
+   "subtitle": "通行密钥索引服务无法访问，创建和登录都需要它。",
+   "editEndpoint": "修改索引服务地址"
   }
  },
  "time": {
@@ -180,7 +226,8 @@
   "a11yHideBalance": "隐藏余额",
   "a11yShowBalance": "显示余额",
   "a11ySwitchAccount": "账户 {{name}}。切换账户",
-  "a11yOpenSettings": "设置"
+  "a11yOpenSettings": "设置",
+  "balanceDetailUpdatedLabel": "已更新"
  },
  "send": {
   "selectTokenTitle": "选择代币",
@@ -403,7 +450,8 @@
   "rpcProvidersTitle": "在哪里获取可靠的 RPC",
   "rpcProvidersHint": "以下为免费节点服务——注册后复制你的 URL，粘贴到上方。",
   "rpcReport": "仍无法解决？反馈给我们",
-  "chainFallback": "链 {{chainId}}"
+  "chainFallback": "链 {{chainId}}",
+  "rpcFixRestored": "已恢复连接——正在重新拉取该网络的余额与记录。"
  },
  "addToken": {
   "addedTokensLabel": "已添加的代币",
@@ -887,7 +935,8 @@
   "linkWebsite": "官网",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "用心构建。您的密钥，您的资产。"
+  "footer": "用心构建。您的密钥，您的资产。",
+  "sectionLinks": "链接"
  },
  "clearSigning": {
   "title": "清晰签名测试",
@@ -1291,7 +1340,13 @@
    "fallbackBody": "我们无法自动提交，但已为你预填好一份带有详情的 GitHub 表单。",
    "openGithub": "打开 GitHub 表单",
    "openGithubForm": "更想用 GitHub？打开问题表单 →",
-   "done": "完成"
+   "done": "完成",
+   "previewVersion": "应用版本",
+   "previewPlatform": "平台",
+   "previewLanguage": "语言",
+   "previewRpc": "不可达 RPC",
+   "previewFailures": "最近失败",
+   "previewNone": "无"
   },
   "identiconViewer": {
    "title": "身份图标",
@@ -1358,7 +1413,8 @@
    "checkKey": "检查密钥",
    "activeNetworks": "{{count}} 个网络",
    "supportsCount": "支持 {{count}} 个网络，共 {{total}} 个",
-   "unavailable": "不可用"
+   "unavailable": "不可用",
+   "avgLatency": "平均 {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "服务节点",
@@ -1371,7 +1427,8 @@
    "bundlerHint": "需要兼容 Vela Relay 的节点",
    "fiatLabel": "法币汇率",
    "fiatHint": "以 USD 为基准的汇率，决定可选货币列表——可替换为覆盖范围更广的数据源。",
-   "resetToDefaults": "恢复默认"
+   "resetToDefaults": "恢复默认",
+   "selfHostGuide": "自行部署指南 →"
   },
   "addNetwork": {
    "modalTitle": "添加网络",
@@ -1393,7 +1450,12 @@
    "recheck": "重新检查",
    "chainIdLabel": "Chain ID: {{chainId}}",
    "nativeLabel": "原生代币：{{symbol}}",
-   "testnet": "测试网"
+   "testnet": "测试网",
+   "compatible": "兼容",
+   "incompatible": "不兼容",
+   "checkSafe": "Safe L2 合约",
+   "checkSigner": "WebAuthn 签名模块",
+   "checkRemaining": "其余 {{count}} 项合约"
   },
   "treasury": {
    "modalTitle": "金库",

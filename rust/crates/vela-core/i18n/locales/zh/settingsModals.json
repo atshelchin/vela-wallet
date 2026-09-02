@@ -27,7 +27,8 @@
       "checkKey": "检查密钥",
       "activeNetworks": "{{count}} 个网络",
       "supportsCount": "支持 {{count}} 个网络，共 {{total}} 个",
-      "unavailable": "不可用"
+      "unavailable": "不可用",
+      "avgLatency": "平均 {{ms}}ms"
     },
     "endpoints": {
       "modalTitle": "服务节点",
@@ -40,7 +41,8 @@
       "bundlerHint": "需要兼容 Vela Relay 的节点",
       "fiatLabel": "法币汇率",
       "fiatHint": "以 USD 为基准的汇率，决定可选货币列表——可替换为覆盖范围更广的数据源。",
-      "resetToDefaults": "恢复默认"
+      "resetToDefaults": "恢复默认",
+      "selfHostGuide": "自行部署指南 →"
     },
     "addNetwork": {
       "modalTitle": "添加网络",
@@ -62,7 +64,12 @@
       "recheck": "重新检查",
       "chainIdLabel": "Chain ID: {{chainId}}",
       "nativeLabel": "原生代币：{{symbol}}",
-      "testnet": "测试网"
+      "testnet": "测试网",
+      "compatible": "兼容",
+      "incompatible": "不兼容",
+      "checkSafe": "Safe L2 合约",
+      "checkSigner": "WebAuthn 签名模块",
+      "checkRemaining": "其余 {{count}} 项合约"
     },
     "treasury": {
       "modalTitle": "金库",

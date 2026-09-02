@@ -27,7 +27,8 @@
       "checkKey": "Check key",
       "activeNetworks": "{{count}} networks",
       "supportsCount": "Supports {{count}} of {{total}} networks",
-      "unavailable": "Unavailable"
+      "unavailable": "Unavailable",
+      "avgLatency": "avg {{ms}}ms"
     },
     "endpoints": {
       "modalTitle": "Service Endpoints",
@@ -40,7 +41,8 @@
       "bundlerHint": "Vela Relay compatible endpoint required",
       "fiatLabel": "FIAT RATES",
       "fiatHint": "USD-based exchange rates that drive the currency list — swap for wider coverage.",
-      "resetToDefaults": "Reset to Defaults"
+      "resetToDefaults": "Reset to Defaults",
+      "selfHostGuide": "Self-hosting guide →"
     },
     "addNetwork": {
       "modalTitle": "Add Network",
@@ -62,7 +64,12 @@
       "recheck": "Re-check",
       "chainIdLabel": "Chain ID: {{chainId}}",
       "nativeLabel": "Native: {{symbol}}",
-      "testnet": "Testnet"
+      "testnet": "Testnet",
+      "compatible": "Compatible",
+      "incompatible": "Incompatible",
+      "checkSafe": "Safe L2 contracts",
+      "checkSigner": "WebAuthn signer module",
+      "checkRemaining": "{{count}} more contracts"
     },
     "treasury": {
       "modalTitle": "Treasury",

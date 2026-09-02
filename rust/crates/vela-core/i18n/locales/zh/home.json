@@ -64,6 +64,7 @@
     "a11yHideBalance": "隐藏余额",
     "a11yShowBalance": "显示余额",
     "a11ySwitchAccount": "账户 {{name}}。切换账户",
-    "a11yOpenSettings": "设置"
+    "a11yOpenSettings": "设置",
+    "balanceDetailUpdatedLabel": "已更新"
   }
 }

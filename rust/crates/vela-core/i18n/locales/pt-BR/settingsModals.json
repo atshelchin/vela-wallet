@@ -27,7 +27,8 @@
       "checkKey": "Verificar chave",
       "activeNetworks": "{{count}} redes",
       "supportsCount": "Suporta {{count}} de {{total}} redes",
-      "unavailable": "Indisponível"
+      "unavailable": "Indisponível",
+      "avgLatency": "méd. {{ms}}ms"
     },
     "endpoints": {
       "modalTitle": "Endpoints de serviço",
@@ -40,7 +41,8 @@
       "bundlerHint": "É necessário um endpoint compatível com o Vela Relay",
       "fiatLabel": "COTAÇÕES FIAT",
       "fiatHint": "Taxas de câmbio baseadas em USD que definem a lista de moedas — substituível por uma cobertura mais ampla.",
-      "resetToDefaults": "Restaurar padrões"
+      "resetToDefaults": "Restaurar padrões",
+      "selfHostGuide": "Guia de auto-hospedagem →"
     },
     "addNetwork": {
       "modalTitle": "Adicionar rede",
@@ -62,7 +64,12 @@
       "recheck": "Verificar de novo",
       "chainIdLabel": "Chain ID: {{chainId}}",
       "nativeLabel": "Nativo: {{symbol}}",
-      "testnet": "Testnet"
+      "testnet": "Testnet",
+      "compatible": "Compatível",
+      "incompatible": "Incompatível",
+      "checkSafe": "Contratos Safe L2",
+      "checkSigner": "Módulo de assinatura WebAuthn",
+      "checkRemaining": "outros {{count}} contratos"
     },
     "treasury": {
       "modalTitle": "Tesouraria",

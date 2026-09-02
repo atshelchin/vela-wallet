@@ -5,7 +5,8 @@
     "automatic": "自動",
     "error": "エラー",
     "somethingWrong": "問題が発生しました",
-    "tryAgain": "再試行"
+    "tryAgain": "再試行",
+    "done": "完了"
   },
   "language": {
     "title": "言語",
@@ -27,14 +28,18 @@
       "developer": "開発者向け"
     },
     "account": {
-      "switch": "アカウントを切り替える"
+      "switch": "アカウントを切り替える",
+      "contactsSubtitle": "保存済みのアドレスと最近の送金先"
     },
     "appearance": {
       "themeLight": "ライト",
       "themeDark": "ダーク",
       "themeAuto": "システムに合わせる",
       "avatarInitials": "イニシャル",
-      "avatarIdenticon": "識別アイコン"
+      "avatarIdenticon": "識別アイコン",
+      "themeTitle": "テーマ",
+      "textScale": "文字サイズ",
+      "avatarTitle": "アバターの表示"
     },
     "localization": {
       "currencyTitle": "通貨",
@@ -94,6 +99,47 @@
       "indian": "インド式",
       "h24": "24時間制",
       "h12": "12時間制"
+    },
+    "networks": {
+      "count": "{{count}} 個のネットワーク",
+      "custom": "カスタム",
+      "builtinNote": "組み込みネットワーク · 削除できません",
+      "saveHint": "入力欄を離れると保存されます。拒否されるのは、その RPC が別のチェーン ID を返した場合だけです。",
+      "online": "オンライン"
+    },
+    "storage": {
+      "title": "端末のストレージ",
+      "subtitle": "ローカルデータとキャッシュ",
+      "summary": "合計 {{count}} 件",
+      "userData": "ユーザーデータ · 消すと元に戻せません",
+      "caches": "キャッシュ · 自動で作り直されます",
+      "connections": "接続 · 消すと dApp との接続も切れます",
+      "legendUserData": "ユーザーデータ",
+      "legendCaches": "キャッシュ",
+      "legendSessions": "接続セッション",
+      "itemTransactions": "取引履歴",
+      "itemContacts": "連絡先とグループ",
+      "itemCustom": "カスタムトークンとネットワーク",
+      "itemBrowsing": "閲覧履歴",
+      "itemBalances": "残高とトークンのキャッシュ",
+      "itemRates": "為替レートのキャッシュ",
+      "itemScan": "スキャンの進捗",
+      "itemDapps": "dApp の許可とセッション",
+      "records": "{{count}} 件",
+      "contactsCount": "{{count}} 人",
+      "itemsCount": "{{count}} 項目",
+      "sitesCount": "{{count}} サイト",
+      "clear": "削除",
+      "clearAllCaches": "すべてのキャッシュを削除",
+      "disconnectAll": "すべて切断",
+      "clearTitle": "すべてのキャッシュを削除しますか？",
+      "clearBody": "残高・トークン・為替レートのキャッシュを削除します。次回起動時に自動で取得し直します。取引履歴、連絡先、各種設定はそのままです。",
+      "clearConfirm": "キャッシュを削除"
+    },
+    "indexDown": {
+      "title": "サービスを一時的に利用できません",
+      "subtitle": "パスキーインデックスに接続できません。作成もサインインもこのサービスを必要とします。",
+      "editEndpoint": "インデックスサービスのアドレスを変更"
     }
   },
   "time": {

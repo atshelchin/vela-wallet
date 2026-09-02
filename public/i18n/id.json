@@ -5,7 +5,8 @@
   "automatic": "Otomatis",
   "error": "Kesalahan",
   "somethingWrong": "Terjadi kesalahan",
-  "tryAgain": "Coba Lagi"
+  "tryAgain": "Coba Lagi",
+  "done": "Selesai"
  },
  "language": {
   "title": "Bahasa",
@@ -27,14 +28,18 @@
    "developer": "Developer"
   },
   "account": {
-   "switch": "Ganti akun"
+   "switch": "Ganti akun",
+   "contactsSubtitle": "Alamat tersimpan dan penerima terbaru"
   },
   "appearance": {
    "themeLight": "Terang",
    "themeDark": "Gelap",
    "themeAuto": "Ikuti Sistem",
    "avatarInitials": "Inisial",
-   "avatarIdenticon": "Identicon"
+   "avatarIdenticon": "Identicon",
+   "themeTitle": "Tema",
+   "textScale": "Ukuran teks",
+   "avatarTitle": "Gaya avatar"
   },
   "localization": {
    "currencyTitle": "Mata uang",
@@ -94,6 +99,47 @@
    "indian": "India",
    "h24": "24 jam",
    "h12": "12 jam"
+  },
+  "networks": {
+   "count": "{{count}} jaringan",
+   "custom": "Kustom",
+   "builtinNote": "Jaringan bawaan · tidak dapat dihapus",
+   "saveHint": "Disimpan begitu Anda meninggalkan kolom. Hanya ditolak jika RPC melaporkan Chain ID yang berbeda.",
+   "online": "Online"
+  },
+  "storage": {
+   "title": "Penyimpanan perangkat",
+   "subtitle": "Data lokal dan cache",
+   "summary": "Total {{count}} catatan",
+   "userData": "Data Anda · tidak dapat dipulihkan setelah dihapus",
+   "caches": "Cache · dibangun ulang otomatis",
+   "connections": "Koneksi · menghapus akan memutus dApp",
+   "legendUserData": "Data Anda",
+   "legendCaches": "Cache",
+   "legendSessions": "Sesi koneksi",
+   "itemTransactions": "Riwayat transaksi",
+   "itemContacts": "Kontak dan grup",
+   "itemCustom": "Token dan jaringan kustom",
+   "itemBrowsing": "Riwayat penjelajahan",
+   "itemBalances": "Cache saldo dan token",
+   "itemRates": "Cache nilai tukar",
+   "itemScan": "Progres pemindaian",
+   "itemDapps": "Izin dan sesi dApp",
+   "records": "{{count}} catatan",
+   "contactsCount": "{{count}} kontak",
+   "itemsCount": "{{count}} item",
+   "sitesCount": "{{count}} situs",
+   "clear": "Hapus",
+   "clearAllCaches": "Hapus semua cache",
+   "disconnectAll": "Putuskan semua",
+   "clearTitle": "Hapus semua cache?",
+   "clearBody": "Cache saldo, token, dan nilai tukar akan dihapus dan diambil ulang saat aplikasi dibuka lagi. Riwayat transaksi, kontak, dan pengaturan tidak terpengaruh.",
+   "clearConfirm": "Hapus cache"
+  },
+  "indexDown": {
+   "title": "Layanan sementara tidak tersedia",
+   "subtitle": "Indeks passkey tidak dapat dihubungi, padahal membuat dan masuk sama-sama membutuhkannya.",
+   "editEndpoint": "Ubah alamat layanan indeks"
   }
  },
  "time": {
@@ -180,7 +226,8 @@
   "a11yHideBalance": "Sembunyikan saldo",
   "a11yShowBalance": "Tampilkan saldo",
   "a11ySwitchAccount": "Akun {{name}}. Ganti akun",
-  "a11yOpenSettings": "Pengaturan"
+  "a11yOpenSettings": "Pengaturan",
+  "balanceDetailUpdatedLabel": "Diperbarui"
  },
  "send": {
   "filterStable": "Stablecoin",
@@ -396,7 +443,8 @@
   "rpcProvidersTitle": "Tempat mendapatkan RPC yang andal",
   "rpcProvidersHint": "Endpoint gratis — daftar, salin URL Anda, lalu tempel di atas.",
   "rpcReport": "Masih tidak berfungsi? Laporkan",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "rpcFixRestored": "Koneksi pulih — mengambil ulang saldo dan catatan jaringan ini."
  },
  "addToken": {
   "addedTokensLabel": "Token yang Ditambahkan",
@@ -880,7 +928,8 @@
   "linkWebsite": "Situs Web",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "Dibuat dengan sepenuh hati. Kunci Anda, koin Anda."
+  "footer": "Dibuat dengan sepenuh hati. Kunci Anda, koin Anda.",
+  "sectionLinks": "Tautan"
  },
  "clearSigning": {
   "title": "Uji Clear Signing",
@@ -1281,7 +1330,13 @@
    "fallbackBody": "Kami tidak dapat mengirimnya otomatis, tapi kami sudah mengisi formulir GitHub dengan detailnya.",
    "openGithub": "Buka formulir GitHub",
    "openGithubForm": "Lebih suka GitHub? Buka formulir isu →",
-   "done": "Selesai"
+   "done": "Selesai",
+   "previewVersion": "Versi aplikasi",
+   "previewPlatform": "Platform",
+   "previewLanguage": "Bahasa",
+   "previewRpc": "RPC tak terjangkau",
+   "previewFailures": "Kegagalan terbaru",
+   "previewNone": "Tidak ada"
   },
   "identiconViewer": {
    "title": "Identicon",
@@ -1348,7 +1403,8 @@
    "checkKey": "Periksa kunci",
    "activeNetworks": "{{count}} jaringan",
    "supportsCount": "Mendukung {{count}} dari {{total}} jaringan",
-   "unavailable": "Tidak tersedia"
+   "unavailable": "Tidak tersedia",
+   "avgLatency": "rata-rata {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "Endpoint Layanan",
@@ -1361,7 +1417,8 @@
    "bundlerHint": "Endpoint yang kompatibel dengan Vela Relay diperlukan",
    "fiatLabel": "KURS FIAT",
    "fiatHint": "Kurs berbasis USD yang menentukan daftar mata uang — ganti untuk cakupan lebih luas.",
-   "resetToDefaults": "Setel Ulang ke Bawaan"
+   "resetToDefaults": "Setel Ulang ke Bawaan",
+   "selfHostGuide": "Panduan self-hosting →"
   },
   "addNetwork": {
    "modalTitle": "Tambah Jaringan",
@@ -1383,7 +1440,12 @@
    "recheck": "Periksa ulang",
    "chainIdLabel": "Chain ID: {{chainId}}",
    "nativeLabel": "Native: {{symbol}}",
-   "testnet": "Testnet"
+   "testnet": "Testnet",
+   "compatible": "Kompatibel",
+   "incompatible": "Tidak kompatibel",
+   "checkSafe": "Kontrak Safe L2",
+   "checkSigner": "Modul penanda tangan WebAuthn",
+   "checkRemaining": "{{count}} kontrak lainnya"
   },
   "treasury": {
    "modalTitle": "Treasury",

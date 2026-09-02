@@ -5,7 +5,8 @@
     "automatic": "Automático",
     "error": "Erro",
     "somethingWrong": "Algo deu errado",
-    "tryAgain": "Tentar de novo"
+    "tryAgain": "Tentar de novo",
+    "done": "Concluído"
   },
   "language": {
     "title": "Idioma",
@@ -27,14 +28,18 @@
       "developer": "Desenvolvedor"
     },
     "account": {
-      "switch": "Trocar de conta"
+      "switch": "Trocar de conta",
+      "contactsSubtitle": "Endereços salvos e destinatários recentes"
     },
     "appearance": {
       "themeLight": "Claro",
       "themeDark": "Escuro",
       "themeAuto": "Seguir o sistema",
       "avatarInitials": "Iniciais",
-      "avatarIdenticon": "Identicon"
+      "avatarIdenticon": "Identicon",
+      "themeTitle": "Tema",
+      "textScale": "Tamanho do texto",
+      "avatarTitle": "Estilo do avatar"
     },
     "localization": {
       "currencyTitle": "Moeda",
@@ -94,6 +99,47 @@
       "indian": "Indiano",
       "h24": "24 horas",
       "h12": "12 horas"
+    },
+    "networks": {
+      "count": "{{count}} redes",
+      "custom": "Personalizada",
+      "builtinNote": "Rede integrada · não pode ser removida",
+      "saveHint": "Salvo assim que você sai do campo. Só é recusado se o RPC informar um Chain ID diferente.",
+      "online": "Online"
+    },
+    "storage": {
+      "title": "Armazenamento do dispositivo",
+      "subtitle": "Dados locais e cache",
+      "summary": "{{count}} registros no total",
+      "userData": "Seus dados · não podem ser recuperados após a limpeza",
+      "caches": "Cache · reconstruído automaticamente",
+      "connections": "Conexões · limpar desconecta os dApps",
+      "legendUserData": "Seus dados",
+      "legendCaches": "Cache",
+      "legendSessions": "Sessões",
+      "itemTransactions": "Histórico de transações",
+      "itemContacts": "Contatos e grupos",
+      "itemCustom": "Tokens e redes personalizados",
+      "itemBrowsing": "Histórico de navegação",
+      "itemBalances": "Cache de saldos e tokens",
+      "itemRates": "Cache de câmbio",
+      "itemScan": "Progresso da varredura",
+      "itemDapps": "Permissões e sessões de dApps",
+      "records": "{{count}} registros",
+      "contactsCount": "{{count}} contatos",
+      "itemsCount": "{{count}} itens",
+      "sitesCount": "{{count}} sites",
+      "clear": "Limpar",
+      "clearAllCaches": "Limpar todo o cache",
+      "disconnectAll": "Desconectar tudo",
+      "clearTitle": "Limpar todo o cache?",
+      "clearBody": "Os caches de saldos, tokens e câmbio são limpos e obtidos de novo na próxima vez que você abrir o app. Seu histórico, contatos e configurações não são afetados.",
+      "clearConfirm": "Limpar cache"
+    },
+    "indexDown": {
+      "title": "Serviço temporariamente indisponível",
+      "subtitle": "Não foi possível acessar o índice de passkeys, e tanto criar quanto entrar dependem dele.",
+      "editEndpoint": "Alterar o endereço do serviço de índice"
     }
   },
   "time": {

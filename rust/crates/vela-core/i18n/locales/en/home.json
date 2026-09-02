@@ -64,6 +64,7 @@
     "a11yHideBalance": "Hide balance",
     "a11yShowBalance": "Show balance",
     "a11ySwitchAccount": "Account {{name}}. Switch account",
-    "a11yOpenSettings": "Settings"
+    "a11yOpenSettings": "Settings",
+    "balanceDetailUpdatedLabel": "Updated"
   }
 }

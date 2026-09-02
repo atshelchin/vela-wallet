@@ -261,7 +261,13 @@
       "fallbackBody": "自動で送信できませんでしたが、詳細を入力済みの GitHub フォームをご用意しました。",
       "openGithub": "GitHub フォームを開く",
       "openGithubForm": "GitHub をお使いですか？課題フォームを開く →",
-      "done": "完了"
+      "done": "完了",
+      "previewVersion": "アプリのバージョン",
+      "previewPlatform": "プラットフォーム",
+      "previewLanguage": "言語",
+      "previewRpc": "到達できない RPC",
+      "previewFailures": "直近の失敗",
+      "previewNone": "なし"
     },
     "identiconViewer": {
       "title": "Identicon",

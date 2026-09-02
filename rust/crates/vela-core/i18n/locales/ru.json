@@ -5,7 +5,8 @@
     "automatic": "Автоматически",
     "error": "Ошибка",
     "somethingWrong": "Что-то пошло не так",
-    "tryAgain": "Повторить"
+    "tryAgain": "Повторить",
+    "done": "Готово"
   },
   "language": {
     "title": "Язык",
@@ -27,14 +28,18 @@
       "developer": "Для разработчиков"
     },
     "account": {
-      "switch": "Сменить аккаунт"
+      "switch": "Сменить аккаунт",
+      "contactsSubtitle": "Сохранённые адреса и недавние получатели"
     },
     "appearance": {
       "themeLight": "Светлая",
       "themeDark": "Тёмная",
       "themeAuto": "Как в системе",
       "avatarInitials": "Инициалы",
-      "avatarIdenticon": "Идентикон"
+      "avatarIdenticon": "Идентикон",
+      "themeTitle": "Тема",
+      "textScale": "Размер текста",
+      "avatarTitle": "Стиль аватара"
     },
     "localization": {
       "currencyTitle": "Валюта",
@@ -94,6 +99,47 @@
       "indian": "Индийский",
       "h24": "24-часовой",
       "h12": "12-часовой"
+    },
+    "networks": {
+      "count": "Сетей: {{count}}",
+      "custom": "Своя",
+      "builtinNote": "Встроенная сеть · удалить нельзя",
+      "saveHint": "Сохраняется, как только вы покидаете поле. Отклоняется только если RPC сообщает другой ID сети.",
+      "online": "В сети"
+    },
+    "storage": {
+      "title": "Хранилище устройства",
+      "subtitle": "Локальные данные и кэш",
+      "summary": "Всего записей: {{count}}",
+      "userData": "Ваши данные · после удаления не восстановить",
+      "caches": "Кэш · соберётся заново сам",
+      "connections": "Подключения · очистка отключает dApp",
+      "legendUserData": "Ваши данные",
+      "legendCaches": "Кэш",
+      "legendSessions": "Сеансы",
+      "itemTransactions": "История транзакций",
+      "itemContacts": "Контакты и группы",
+      "itemCustom": "Свои токены и сети",
+      "itemBrowsing": "История посещений",
+      "itemBalances": "Кэш балансов и токенов",
+      "itemRates": "Кэш курсов валют",
+      "itemScan": "Прогресс сканирования",
+      "itemDapps": "Разрешения и сеансы dApp",
+      "records": "{{count}} зап.",
+      "contactsCount": "{{count}} конт.",
+      "itemsCount": "{{count}} эл.",
+      "sitesCount": "Сайтов: {{count}}",
+      "clear": "Очистить",
+      "clearAllCaches": "Очистить весь кэш",
+      "disconnectAll": "Отключить все",
+      "clearTitle": "Очистить весь кэш?",
+      "clearBody": "Кэш балансов, токенов и курсов будет очищен и загружен заново при следующем запуске. История транзакций, контакты и настройки не пострадают.",
+      "clearConfirm": "Очистить кэш"
+    },
+    "indexDown": {
+      "title": "Сервис временно недоступен",
+      "subtitle": "Индекс passkey недоступен, а он нужен и для создания кошелька, и для входа.",
+      "editEndpoint": "Изменить адрес сервиса индекса"
     }
   },
   "time": {

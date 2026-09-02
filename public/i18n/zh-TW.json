@@ -5,7 +5,8 @@
   "automatic": "自動",
   "error": "錯誤",
   "somethingWrong": "發生錯誤",
-  "tryAgain": "重試"
+  "tryAgain": "重試",
+  "done": "完成"
  },
  "language": {
   "title": "語言",
@@ -27,14 +28,18 @@
    "developer": "開發者"
   },
   "account": {
-   "switch": "切換帳戶"
+   "switch": "切換帳戶",
+   "contactsSubtitle": "已儲存的地址與最近收款人"
   },
   "appearance": {
    "themeLight": "淺色",
    "themeDark": "深色",
    "themeAuto": "跟隨系統",
    "avatarInitials": "首字母",
-   "avatarIdenticon": "圖形頭像"
+   "avatarIdenticon": "圖形頭像",
+   "themeTitle": "主題",
+   "textScale": "文字大小",
+   "avatarTitle": "頭像樣式"
   },
   "localization": {
    "currencyTitle": "貨幣",
@@ -94,6 +99,47 @@
    "indian": "印度式",
    "h24": "24 小時制",
    "h12": "12 小時制"
+  },
+  "networks": {
+   "count": "{{count}} 個網路",
+   "custom": "自訂",
+   "builtinNote": "內建網路 · 無法移除",
+   "saveHint": "離開輸入框即儲存。僅當該 RPC 回報的鏈 ID 與本網路不符時才拒絕儲存。",
+   "online": "在線"
+  },
+  "storage": {
+   "title": "裝置儲存空間",
+   "subtitle": "本機資料與快取管理",
+   "summary": "共 {{count}} 筆記錄",
+   "userData": "使用者資料 · 清除後無法復原",
+   "caches": "快取 · 清除後會自動重建",
+   "connections": "連線 · 清除即中斷 dApp",
+   "legendUserData": "使用者資料",
+   "legendCaches": "快取",
+   "legendSessions": "連線工作階段",
+   "itemTransactions": "交易記錄",
+   "itemContacts": "聯絡人與分組",
+   "itemCustom": "自訂代幣與網路",
+   "itemBrowsing": "瀏覽記錄",
+   "itemBalances": "餘額與代幣快取",
+   "itemRates": "匯率快取",
+   "itemScan": "掃描進度",
+   "itemDapps": "dApp 授權與工作階段",
+   "records": "{{count}} 筆",
+   "contactsCount": "{{count}} 位",
+   "itemsCount": "{{count}} 項",
+   "sitesCount": "{{count}} 個網站",
+   "clear": "清除",
+   "clearAllCaches": "清除所有快取",
+   "disconnectAll": "中斷全部",
+   "clearTitle": "清除所有快取？",
+   "clearBody": "餘額、代幣與匯率快取將被清除，下次開啟時會自動重新取得。你的交易記錄、聯絡人與各項設定不受影響。",
+   "clearConfirm": "清除快取"
+  },
+  "indexDown": {
+   "title": "服務暫時無法使用",
+   "subtitle": "無法連線到通行密鑰索引服務，建立與登入都需要它。",
+   "editEndpoint": "變更索引服務網址"
   }
  },
  "time": {
@@ -180,7 +226,8 @@
   "a11yHideBalance": "隱藏餘額",
   "a11yShowBalance": "顯示餘額",
   "a11ySwitchAccount": "帳戶 {{name}}。切換帳戶",
-  "a11yOpenSettings": "設定"
+  "a11yOpenSettings": "設定",
+  "balanceDetailUpdatedLabel": "已更新"
  },
  "send": {
   "filterStable": "穩定幣",
@@ -396,7 +443,8 @@
   "rpcProvidersTitle": "在哪裡取得可靠的 RPC",
   "rpcProvidersHint": "以下為免費節點服務——註冊後複製您的網址，貼到上方。",
   "rpcReport": "仍無法解決？回報給我們",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "rpcFixRestored": "已恢復連線——正在重新取得該網路的餘額與記錄。"
  },
  "addToken": {
   "addedTokensLabel": "已新增的代幣",
@@ -880,7 +928,8 @@
   "linkWebsite": "官方網站",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "用心打造。您的金鑰，您的幣。"
+  "footer": "用心打造。您的金鑰，您的幣。",
+  "sectionLinks": "連結"
  },
  "clearSigning": {
   "title": "清晰簽署測試",
@@ -1281,7 +1330,13 @@
    "fallbackBody": "我們無法自動送出，但已為你預先填好一份 GitHub 表單。",
    "openGithub": "開啟 GitHub 表單",
    "openGithubForm": "想用 GitHub？開啟問題表單 →",
-   "done": "完成"
+   "done": "完成",
+   "previewVersion": "應用版本",
+   "previewPlatform": "平台",
+   "previewLanguage": "語言",
+   "previewRpc": "無法連線的 RPC",
+   "previewFailures": "最近失敗",
+   "previewNone": "無"
   },
   "identiconViewer": {
    "title": "Identicon",
@@ -1348,7 +1403,8 @@
    "checkKey": "檢查金鑰",
    "activeNetworks": "{{count}} 個網路",
    "supportsCount": "支援 {{total}} 個網路中的 {{count}} 個",
-   "unavailable": "無法使用"
+   "unavailable": "無法使用",
+   "avgLatency": "平均 {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "服務端點",
@@ -1361,7 +1417,8 @@
    "bundlerHint": "需要與 Vela Relay 相容的端點",
    "fiatLabel": "法幣匯率",
    "fiatHint": "以 USD 為基準的匯率，決定可選貨幣清單——可替換為涵蓋更廣的匯率來源。",
-   "resetToDefaults": "重設為預設值"
+   "resetToDefaults": "重設為預設值",
+   "selfHostGuide": "自行部署指南 →"
   },
   "addNetwork": {
    "modalTitle": "新增網路",
@@ -1383,7 +1440,12 @@
    "recheck": "重新檢查",
    "chainIdLabel": "Chain ID：{{chainId}}",
    "nativeLabel": "原生代幣：{{symbol}}",
-   "testnet": "測試網"
+   "testnet": "測試網",
+   "compatible": "相容",
+   "incompatible": "不相容",
+   "checkSafe": "Safe L2 合約",
+   "checkSigner": "WebAuthn 簽名模組",
+   "checkRemaining": "其餘 {{count}} 項合約"
   },
   "treasury": {
    "modalTitle": "金庫",

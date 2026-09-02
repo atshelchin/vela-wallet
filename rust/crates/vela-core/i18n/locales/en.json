@@ -5,7 +5,8 @@
     "automatic": "Automatic",
     "error": "Error",
     "somethingWrong": "Something went wrong",
-    "tryAgain": "Try Again"
+    "tryAgain": "Try Again",
+    "done": "Done"
   },
   "language": {
     "title": "Language",
@@ -27,14 +28,18 @@
       "developer": "Developer"
     },
     "account": {
-      "switch": "Switch account"
+      "switch": "Switch account",
+      "contactsSubtitle": "Saved addresses and recent payees"
     },
     "appearance": {
       "themeLight": "Light",
       "themeDark": "Dark",
       "themeAuto": "Follow System",
       "avatarInitials": "Initials",
-      "avatarIdenticon": "Identicon"
+      "avatarIdenticon": "Identicon",
+      "themeTitle": "Theme",
+      "textScale": "Text size",
+      "avatarTitle": "Avatar style"
     },
     "localization": {
       "currencyTitle": "Currency",
@@ -94,6 +99,47 @@
       "indian": "Indian",
       "h24": "24-hour",
       "h12": "12-hour"
+    },
+    "networks": {
+      "count": "{{count}} networks",
+      "custom": "Custom",
+      "builtinNote": "Built-in network · cannot be removed",
+      "saveHint": "Saved as soon as you leave the field. It is refused only when the RPC reports a different chain ID.",
+      "online": "Online"
+    },
+    "storage": {
+      "title": "Device storage",
+      "subtitle": "Local data and cache",
+      "summary": "{{count}} records in total",
+      "userData": "Your data · cannot be recovered once cleared",
+      "caches": "Cache · rebuilt automatically",
+      "connections": "Connections · clearing disconnects dApps",
+      "legendUserData": "Your data",
+      "legendCaches": "Cache",
+      "legendSessions": "Sessions",
+      "itemTransactions": "Transaction history",
+      "itemContacts": "Contacts and groups",
+      "itemCustom": "Custom tokens and networks",
+      "itemBrowsing": "Browsing history",
+      "itemBalances": "Balance and token cache",
+      "itemRates": "Exchange-rate cache",
+      "itemScan": "Scan progress",
+      "itemDapps": "dApp permissions and sessions",
+      "records": "{{count}} records",
+      "contactsCount": "{{count}} contacts",
+      "itemsCount": "{{count}} items",
+      "sitesCount": "{{count}} sites",
+      "clear": "Clear",
+      "clearAllCaches": "Clear all caches",
+      "disconnectAll": "Disconnect all",
+      "clearTitle": "Clear all caches?",
+      "clearBody": "Balance, token and rate caches are cleared and re-fetched the next time you open the app. Your transaction history, contacts and settings are not affected.",
+      "clearConfirm": "Clear caches"
+    },
+    "indexDown": {
+      "title": "Service temporarily unavailable",
+      "subtitle": "The passkey index can’t be reached, and both creating and signing in need it.",
+      "editEndpoint": "Change index service address"
     }
   },
   "time": {

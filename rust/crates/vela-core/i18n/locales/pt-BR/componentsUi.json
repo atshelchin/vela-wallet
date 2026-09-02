@@ -261,7 +261,13 @@
       "fallbackBody": "Não conseguimos enviar automaticamente, mas já preenchemos um formulário do GitHub com os detalhes.",
       "openGithub": "Abrir formulário do GitHub",
       "openGithubForm": "Prefere o GitHub? Abrir o formulário de issue →",
-      "done": "Concluído"
+      "done": "Concluído",
+      "previewVersion": "Versão do app",
+      "previewPlatform": "Plataforma",
+      "previewLanguage": "Idioma",
+      "previewRpc": "RPC inacessível",
+      "previewFailures": "Falhas recentes",
+      "previewNone": "Nenhum"
     },
     "identiconViewer": {
       "title": "Identicon",

@@ -21,6 +21,7 @@
     "rpcProvidersTitle": "Dónde conseguir un RPC confiable",
     "rpcProvidersHint": "Endpoints gratis — regístrate, copia tu URL y pégala arriba.",
     "rpcReport": "¿Sigue sin funcionar? Repórtalo",
-    "chainFallback": "Cadena {{chainId}}"
+    "chainFallback": "Cadena {{chainId}}",
+    "rpcFixRestored": "Conexión restablecida: volviendo a obtener los saldos y registros de esta red."
   }
 }

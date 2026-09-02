@@ -225,9 +225,17 @@ for (let i = 1; i < PATHS.length; i++) {
 //   shipped font, the widest authored line runs from 6.9em (zh) to 15.0em (id)
 //   — a 2.2x spread that one font size cannot serve, so the tier rides with the
 //   copy instead of being guessed per client.
-if (PATHS.length !== 1419) fail(`expected 1419 paths (1340 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1340) fail(`expected 1340 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
+// + 56 more (spec 023, the settings UI): three new sub-namespaces —
+//   `settings.storage.*` (device storage, ST13/DST7), `settings.networks.*`
+//   (list + detail chrome, ST9/ST9b) and `settings.indexDown.*` (the SR5
+//   rescue screen) — plus the two appearance titles the desktop rows need,
+//   `common.done`, the compatibility checklist's three prose rows and two
+//   badges, an average latency, About's links heading, SR3's "updated" group,
+//   the restored-RPC line and the six labels the bug-report disclosure prints.
+//   The other ~200 strings those forty mocks need were already in the corpus.
+if (PATHS.length !== 1478) fail(`expected 1478 paths (1396 leaf + 82 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1396) fail(`expected 1396 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 82) fail(`expected 82 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

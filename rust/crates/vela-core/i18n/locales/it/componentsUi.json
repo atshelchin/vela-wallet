@@ -249,7 +249,11 @@
       "errorImage": "Impossibile elaborare l'immagine.",
       "errorPicker": "Impossibile aprire il selettore di immagini.",
       "torchLabel": "Attiva/disattiva torcia",
-      "zoomLabel": "Zoom"
+      "zoomLabel": "Zoom",
+      "gallery": "Foto",
+      "fromGallery": "Dalle foto",
+      "torch": "Torcia",
+      "flipCamera": "Ruota"
     },
     "gas": {
       "estFee": "Commissione di rete",

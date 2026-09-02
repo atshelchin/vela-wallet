@@ -302,7 +302,25 @@
   "batchImportFailedTitle": "Dosya okunamadı",
   "batchImportFailedBody": "Lütfen bir CSV, TSV, TXT veya Excel dosyası kullanın.",
   "batchCurrencyLabel": "Fiyat birimi",
-  "feeTokenLabel": "Ücret token'ı"
+  "feeTokenLabel": "Ücret token'ı",
+  "balanceLabel": "Bakiye {{amount}}",
+  "fromContacts": "Kişilerden",
+  "splitTotalLabel": "Toplam",
+  "multiSendChainNotice": "{{network}} seçildi — çoklu token gönderimi tek ağda kalır, diğerleri soluklaştırıldı",
+  "multiSendSameRecipient": "Tüm tokenlar aynı adrese gider",
+  "pickContactTitle": "Kişi seç",
+  "pickContactSearch": "Kişi ara ya da adres yapıştır",
+  "scanToFill": "Adresi doldurmak için tara",
+  "feeTokenHint": "Bu transferin ağ ücretini öder. Tahmin, ağı gerçek zamanlı izler.",
+  "feeTokenEstimate": "Tahmini ücret",
+  "batchRateHint": "Tablodaki tutarlar {{code}} olarak okunur ve bu kurla {{sym}} birimine çevrilir.",
+  "batchParsedCount": "Okunan · {{n}} satır",
+  "confirmTotalLine": "Toplam ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "İşlem hazırlanıyor, biyometrik onay bekleniyor",
+  "txBackgroundHint": "Bu sayfayı kapatsanız da işlem devam eder",
+  "txCloseBackground": "Kapat · çalışmaya devam",
+  "txSubmittedTitle": "Ağa gönderildi",
+  "txConfirmedTitle": "{{amount}} {{symbol}} gönderildi"
  },
  "receive": {
   "title": "Al",
@@ -372,7 +390,13 @@
    "invalidTitle": "Geçersiz ödeme bağlantısı",
    "invalidBody": "Bu bağlantıda geçerli bir alıcı veya ağ eksik. Gönderenden yeni bir bağlantı isteyin."
   },
-  "addressLabel": "Alma adresiniz"
+  "addressLabel": "Alma adresiniz",
+  "searchNetworkPlaceholder": "Ağ ara",
+  "searchNetworkEmpty": "“{{query}}” ile eşleşen ağ yok",
+  "qrTitleNetwork": "{{network}} üzerindeki varlıkları bu adresle alın",
+  "qrTitleAsset": "{{network}} üzerindeki {{symbol}} varlığını bu adresle alın",
+  "shareCardNetworkNote": "Yalnızca {{network}} ödemeleri",
+  "tokenContract": "Token sözleşmesi"
  },
  "assets": {
   "sectionTitle": "Varlıklar",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "Güvenilir bir RPC nereden alınır",
   "rpcProvidersHint": "Ücretsiz uç noktalar — kaydolun, URL'nizi kopyalayıp yukarıya yapıştırın.",
   "rpcReport": "Hâlâ çalışmıyor mu? Bildirin",
-  "chainFallback": "Zincir {{chainId}}"
+  "chainFallback": "Zincir {{chainId}}",
+  "addByAddress": "Adresle token ekle",
+  "notShowingTitle": "Token geldi ama görünmüyor mu?",
+  "notShowingBody": "Onaylanan transferler kendiliğinden eklenir. Token hâlâ görünmüyorsa sözleşme adresiyle ekleyin ya da bulunduğu ağı ekleyin."
  },
  "addToken": {
   "addedTokensLabel": "Eklenen Token'lar",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "Ağ eklenemedi.",
   "errorAlreadyAdded": "Bu ağ zaten eklenmiş",
   "errorChainNotFound": "Zincir bilgisi bulunamadı",
-  "errorNotCompatible": "Vela Wallet ile uyumlu değil"
+  "errorNotCompatible": "Vela Wallet ile uyumlu değil",
+  "invalidAddress": "Geçersiz sözleşme adresi",
+  "notCompatible": "Uyumlu değil"
  },
  "tokenDetail": {
   "send": "Gönder",
@@ -491,6 +520,17 @@
    "heroTitle": "Sadece sizin olan\nEthereum cüzdanı",
    "heroTitleFit": "regular",
    "heroSubtitle": "Passkey ile imzalayın. Vela anahtarınızı asla görmez."
+  },
+  "intro": {
+   "skip": "Atla",
+   "next": "Devam",
+   "pageOf": "Sayfa {{current}} / {{total}}",
+   "noSeedTitle": "Kurtarma ifadesi yok",
+   "noSeedBody": "Cüzdanınızı bu cihazın parmak izi veya yüzüyle oluşturun. Kâğıda yazılıp çekmeceye saklanacak, bir gün nereye koyduğunuzu unutacağınız 12 kelime yok.",
+   "custodyTitle": "Anahtarlar sizde kalır",
+   "custodyBody": "Geçiş anahtarlarınız sizde durur: cihazın parola yöneticisinde ya da bir donanım güvenlik anahtarında. Vela onlara ne dokunabilir ne de sizin yerinize harcayabilir.",
+   "chainsTitle": "Tek adres, tüm ağlar",
+   "chainsBody": "Aynı adres 12+ ağda geçerli ve ücretler stablecoin ile ödenebilir — her zincir için ayrı yerel coin biriktirmeniz gerekmez."
   },
   "welcomeWeb": {
    "meta": {
@@ -1269,7 +1309,11 @@
    "errorImage": "Görsel işlenemedi.",
    "errorPicker": "Görsel seçici açılamadı.",
    "torchLabel": "Feneri aç/kapat",
-   "zoomLabel": "Yakınlaştır"
+   "zoomLabel": "Yakınlaştır",
+   "gallery": "Fotoğraflar",
+   "fromGallery": "Fotoğraflardan seç",
+   "torch": "Fener",
+   "flipCamera": "Çevir"
   },
   "gas": {
    "estFee": "Ağ ücreti",

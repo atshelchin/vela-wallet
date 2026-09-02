@@ -1,0 +1,229 @@
+//
+//  FlowHost.swift
+//  VelaWallet
+//
+//  The phone host: one flow state, rendered.
+//
+//  Takes a FlowScreenModel and draws its base screen plus, where the state
+//  has one, the sheet over it. Every screen in the four journeys goes
+//  through here, so the gallery and the real app render the same thing by
+//  construction rather than by discipline — there is no second code path
+//  for either to drift down.
+//
+//  The 1.35× text scale rides through `walletTextScale`, exactly as spec
+//  015's H7x does, so one mechanism serves both features.
+//
+
+import SwiftUI
+
+/// Where a screen can go next. Names match the web host's navigation intents.
+enum FlowStep {
+    case receiveQr
+    case txDetail
+    case tokenDetail
+    case addToken
+    case sendForm
+    case sendConfirm
+    case sendReceipt
+    case contactPick
+    case feeToken
+    case batchImport
+    case sendMulti
+    case addRecipient
+    case scan
+    case receive
+    case chains
+    case done
+}
+
+struct FlowHost: View {
+    @Environment(\.theme) private var theme
+
+    let model: FlowScreenModel
+    var onBack: () -> Void = {}
+    var onNavigate: (FlowStep) -> Void = { _ in }
+
+    /// The sheet's own dismissal. A new state means a new sheet, so the flag
+    /// is keyed on the model's state — closing one must not suppress the next.
+    @State private var sheetDismissed: FlowStateId?
+
+    private var sheetShown: Bool {
+        model.sheet != nil && sheetDismissed != model.state
+    }
+
+    var body: some View {
+        base
+            .environment(\.walletTextScale, model.textScale)
+            .sheet(
+                isPresented: Binding(
+                    get: { sheetShown },
+                    set: { if !$0 { sheetDismissed = model.state } }
+                )
+            ) {
+                if let sheet = model.sheet {
+                    FlowSheetHost(sheet: sheet, onNavigate: onNavigate)
+                        .environment(\.walletTextScale, model.textScale)
+                        .presentationDragIndicator(.hidden)
+                        .presentationCornerRadius(Tokens.Radius.r20)
+                        .presentationBackground(theme.bgBase)
+                }
+            }
+    }
+
+    @ViewBuilder private var base: some View {
+        switch model.base {
+        case .scan(let m):
+            ScanSurfaceView(model: m, onClose: onBack)
+        case .share(let m):
+            // Not a screen: the saved image, shown on its own so the gallery
+            // and the save path render the very same artwork.
+            ScrollView {
+                ShareCardArtwork(model: m).padding(.vertical, Tokens.Space.s24)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(theme.bgSunken.ignoresSafeArea())
+        case .receive(let m):
+            FlowScaffold(header: m.header, onBack: onBack) {
+                ReceiveListBody(model: m, onQr: { _ in onNavigate(.receiveQr) })
+            }
+        case .history(let m):
+            FlowScaffold(header: m.header, onBack: onBack, onPill: { onNavigate(.chains) }) {
+                HistoryBody(model: m, onSelect: { _, _ in onNavigate(.txDetail) })
+            }
+        case .assets(let m):
+            FlowScaffold(
+                header: m.header,
+                onBack: onBack,
+                onAction: { onNavigate(.addToken) },
+                onPill: { onNavigate(.chains) }
+            ) {
+                AssetsBody(
+                    model: m,
+                    onSelect: { _ in onNavigate(.tokenDetail) },
+                    onAdd: { onNavigate(.addToken) },
+                    onReceive: { onNavigate(.receive) }
+                )
+            }
+        case .sendPick(let m):
+            FlowScaffold(header: m.header, onBack: onBack, onPill: { onNavigate(.chains) }) {
+                SendPickBody(
+                    model: m,
+                    onSelect: { _ in onNavigate(.sendForm) },
+                    onCta: { onNavigate(.sendMulti) }
+                )
+            }
+        case .sendForm(let m):
+            FlowScaffold(header: m.header, onBack: onBack) {
+                SendFormBody(
+                    model: m,
+                    onPickRecipient: { onNavigate(.contactPick) },
+                    onScan: { onNavigate(.scan) },
+                    onRecipientAction: { action in
+                        switch action {
+                        case .importList: onNavigate(.batchImport)
+                        case .contacts: onNavigate(.contactPick)
+                        case .add: onNavigate(.addRecipient)
+                        }
+                    },
+                    onFee: { onNavigate(.feeToken) },
+                    onAddRecipient: { onNavigate(.addRecipient) },
+                    onContinue: { onNavigate(.sendConfirm) }
+                )
+            }
+        case .sendConfirm(let m):
+            FlowScaffold(header: m.header, onBack: onBack) {
+                SendConfirmBody(model: m)
+            } footer: {
+                FlowFooter { VelaButton(title: m.cta, kind: .primary) { onNavigate(.sendReceipt) } }
+            }
+        case .sendReceipt(let m):
+            FlowScaffold(header: m.header, onBack: onBack) {
+                SendReceiptBody(model: m)
+            } footer: {
+                FlowFooter {
+                    VelaButton(
+                        title: m.cta,
+                        kind: m.ctaAccent ? .primary : .secondary
+                    ) { onNavigate(.done) }
+                }
+            }
+        }
+    }
+}
+
+/// The pinned bottom bar. Confirming and the receipt's exit are the two
+/// screens whose CTA the mocks anchor to the bottom of the frame rather than
+/// letting it ride under the content.
+struct FlowFooter<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .padding(.horizontal, Tokens.Layout.screenPaddingX)
+            .padding(.vertical, Tokens.Space.s12)
+    }
+}
+
+/// The sheets, over whichever screen raised them.
+private struct FlowSheetHost: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.theme) private var theme
+    @Environment(\.walletTextScale) private var textScale
+
+    let sheet: WalletFlowSheet
+    var onNavigate: (FlowStep) -> Void = { _ in }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tokens.Space.s0) {
+                titleRow
+                body_
+            }
+            .padding(.horizontal, Tokens.Layout.screenPaddingX)
+            .padding(.bottom, Tokens.Space.s32)
+        }
+        .background(theme.bgBase)
+    }
+
+    /// The sheet's own title row.
+    ///
+    /// The × is always there even though the grabber already dismisses by
+    /// drag: a sheet reached mid-transfer needs a way out that does not depend
+    /// on knowing a gesture.
+    private var titleRow: some View {
+        HStack(spacing: Tokens.Space.s8) {
+            if let title = sheet.chromeTitle {
+                Text(verbatim: title)
+                    .typeRole(Typography.title.scaled(textScale))
+                    .foregroundStyle(theme.fgBase)
+            }
+            Spacer(minLength: Tokens.Space.s8)
+            Button { dismiss() } label: {
+                LucideIcon(.close, size: LucideIconSize.flowBack)
+                    .foregroundStyle(theme.fgMuted)
+                    .frame(width: Tokens.Layout.hitTarget, height: Tokens.Layout.hitTarget)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(sheet.closeLabel)
+        }
+        .padding(.top, Tokens.Space.s16)
+    }
+
+    @ViewBuilder private var body_: some View {
+        switch sheet {
+        case .receiveQr(let m): ReceiveQrBody(model: m)
+        case .txDetail(let m): TxDetailBody(model: m)
+        case .tokenDetail(let m):
+            TokenDetailBody(
+                model: m,
+                onReceive: { onNavigate(.receive) },
+                onSend: { onNavigate(.sendForm) }
+            )
+        case .addToken(let m): AddTokenBody(model: m)
+        case .contactPick(let m): ContactPickBody(model: m, onScan: { onNavigate(.scan) })
+        case .feeToken(let m): FeeTokenBody(model: m)
+        case .batchImport(let m): BatchImportBody(model: m)
+        }
+    }
+}

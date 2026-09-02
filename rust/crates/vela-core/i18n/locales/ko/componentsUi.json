@@ -249,7 +249,11 @@
       "errorImage": "이미지를 처리하지 못했습니다.",
       "errorPicker": "이미지 선택기를 열지 못했습니다.",
       "torchLabel": "손전등 켜기/끄기",
-      "zoomLabel": "확대/축소"
+      "zoomLabel": "확대/축소",
+      "gallery": "사진",
+      "fromGallery": "사진에서 선택",
+      "torch": "손전등",
+      "flipCamera": "전환"
     },
     "gas": {
       "estFee": "예상 수수료",

@@ -6,6 +6,7 @@
 import { error } from '@sveltejs/kit';
 import {
 	resolveContactsMessages,
+	resolveWalletFlowMessages,
 	resolveExploreMessages,
 	resolveSigningMessages,
 	resolveWalletMessages
@@ -24,6 +25,17 @@ import {
 	MOBILE_STATES as CONTACTS_MOBILE_STATES
 } from '$lib/contacts/fixtures';
 import {
+	buildDesktopFlowState,
+	buildDesktopScan,
+	buildFlowState,
+	DESKTOP_FLOW_STATES,
+	MOBILE_FLOW_STATES
+} from '$lib/flows/fixtures';
+import { identiconSvgFor } from '$lib/wallet/identicon.server';
+import type { DesktopStateId, MobileStateId } from '$lib/wallet/model';
+import type { DesktopContactsStateId, MobileContactsStateId } from '$lib/contacts/model';
+import type { DesktopFlowStateId, FlowStateId } from '$lib/flows/model';
+import {
 	buildDesktopState as buildExploreDesktopState,
 	buildMobileState as buildExploreMobileState,
 	DESKTOP_STATES as EXPLORE_DESKTOP_STATES,
@@ -31,9 +43,6 @@ import {
 	MOBILE_STATES as EXPLORE_MOBILE_STATES
 } from '$lib/explore/fixtures';
 import { ALL_STATES as SIGNING_STATES, buildSigningState } from '$lib/signing/fixtures';
-import { identiconSvgFor } from '$lib/wallet/identicon.server';
-import type { DesktopStateId, MobileStateId } from '$lib/wallet/model';
-import type { DesktopContactsStateId, MobileContactsStateId } from '$lib/contacts/model';
 import type { ExploreDesktopStateId, ExploreStateId } from '$lib/explore/model';
 import type { SigningStateId } from '$lib/signing/model';
 import type { EntryGenerator, PageServerLoad } from './$types';
@@ -45,6 +54,8 @@ export const entries: EntryGenerator = () =>
 			...DESKTOP_STATES,
 			...CONTACTS_MOBILE_STATES,
 			...CONTACTS_DESKTOP_STATES,
+			...MOBILE_FLOW_STATES,
+			...DESKTOP_FLOW_STATES,
 			...EXPLORE_MOBILE_STATES,
 			...EXPLORE_DESKTOP_STATES,
 			...SIGNING_STATES
@@ -79,6 +90,26 @@ export const load: PageServerLoad = ({ params }) => {
 		return {
 			kind: 'contacts-desktop' as const,
 			model: buildContactsDesktopState(state, messages, identiconSvgFor)
+		};
+	}
+	if ((MOBILE_FLOW_STATES as string[]).includes(params.state)) {
+		const messages = resolveWalletFlowMessages(locale);
+		const state = params.state as FlowStateId;
+		return {
+			kind: 'flow-mobile' as const,
+			model: buildFlowState(state, messages, identiconSvgFor)
+		};
+	}
+	if ((DESKTOP_FLOW_STATES as string[]).includes(params.state)) {
+		const messages = resolveWalletFlowMessages(locale);
+		const state = params.state as DesktopFlowStateId;
+		return {
+			kind: 'flow-desktop' as const,
+			model: buildDesktopFlowState(state, messages, identiconSvgFor),
+			// `ds1` is a modal over the window, not a panel — the page needs
+			// the scanner model to draw it that way.
+			scan: buildDesktopScan(messages),
+			wallet: buildDesktopState('d1', resolveWalletMessages(locale), identiconSvgFor)
 		};
 	}
 	// spec 022. The explore states carry a signing model too: E4's page can

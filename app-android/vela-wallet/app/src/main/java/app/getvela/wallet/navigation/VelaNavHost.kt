@@ -42,6 +42,12 @@ import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
 import app.getvela.wallet.feature.onboarding.flow.UsbTouchIndicator
 import app.getvela.wallet.feature.onboarding.flow.UsbWalletPicker
 import app.getvela.wallet.feature.onboarding.placeholder.ImportPlaceholderScreen
+import androidx.activity.compose.BackHandler
+import app.getvela.wallet.feature.flows.FlowFixtures
+import app.getvela.wallet.feature.flows.FlowHost
+import app.getvela.wallet.feature.flows.gallery.FlowGalleryScreen
+import app.getvela.wallet.feature.flows.WalletFlowEntry
+import app.getvela.wallet.feature.flows.rememberFlowNavState
 import app.getvela.wallet.feature.wallet.WalletFixtures
 import app.getvela.wallet.feature.wallet.WalletScreen
 import app.getvela.wallet.feature.wallet.WalletScreenState
@@ -61,8 +67,25 @@ object VelaDestinations {
     const val CONTACTS = "contacts"
     const val CONTACTS_GALLERY = "contacts-gallery"
 
+    /**
+     * Spec 021: the wallet-flow preview gallery. The flows THEMSELVES are not
+     * destinations — they are a stack inside [WALLET], because they are still
+     * fixtures and a `composable(...)` per state would put them in the app's
+     * real back stack and let `vela.startDestination` launch one.
+     */
+    const val FLOWS_GALLERY = "flows-gallery"
+
     /** Routes the `vela.startDestination` intent extra may select. */
-    val ALL = setOf(WELCOME, CREATE, IMPORT, WALLET, GALLERY, CONTACTS, CONTACTS_GALLERY)
+    val ALL = setOf(
+        WELCOME,
+        CREATE,
+        IMPORT,
+        WALLET,
+        GALLERY,
+        CONTACTS,
+        CONTACTS_GALLERY,
+        FLOWS_GALLERY,
+    )
 }
 
 @Composable
@@ -71,6 +94,7 @@ fun VelaNavHost(
     themePreference: ThemePreference,
     onThemeSelected: (ThemePreference) -> Unit,
     startDestination: String = VelaDestinations.WELCOME,
+    startFlowState: String? = null,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -207,16 +231,37 @@ fun VelaNavHost(
                 WalletFixtures.buildMobileState(WalletScreenState.H1, strings)
                     .withAddress(session.address).withName(session.activeName)
             }
-            WalletScreen(
-                model = model,
-                onSelectTab = { tab ->
-                    // Sign-out is the only thing behind Settings today. The
-                    // other three tabs stay on this screen rather than
-                    // navigating to fixtures a signed-in person would read as
-                    // their real data.
-                    if (tab == VelaTab.Settings) application.container.session.signOut()
-                },
-            )
+            // Spec 021: Receive / Send / Activity / Assets, as pushed screens
+            // inside this route. The system Back unwinds the flow stack before
+            // it leaves the wallet — on a phone that is the most common way out
+            // of a flow, and losing the whole wallet from four screens deep is
+            // not what the gesture means.
+            val flows = rememberFlowNavState()
+            BackHandler(enabled = flows.isOpen) { flows.back() }
+
+            val flowState = flows.top
+            if (flowState != null) {
+                val flowModel = remember(flowState, strings) {
+                    FlowFixtures.build(flowState, strings)
+                }
+                FlowHost(
+                    model = flowModel,
+                    onBack = { flows.back() },
+                    onNavigate = { flows.push(it) },
+                )
+            } else {
+                WalletScreen(
+                    model = model,
+                    onSelectTab = { tab ->
+                        // Sign-out is the only thing behind Settings today. The
+                        // other three tabs stay on this screen rather than
+                        // navigating to fixtures a signed-in person would read
+                        // as their real data.
+                        if (tab == VelaTab.Settings) application.container.session.signOut()
+                    },
+                    onFlow = { flows.enter(it) },
+                )
+            }
         }
 
         composable(VelaDestinations.GALLERY) {
@@ -243,6 +288,10 @@ fun VelaNavHost(
 
         composable(VelaDestinations.CONTACTS_GALLERY) {
             ContactsGalleryScreen(systemDarkTheme = darkTheme)
+        }
+
+        composable(VelaDestinations.FLOWS_GALLERY) {
+            FlowGalleryScreen(systemDarkTheme = darkTheme, initialState = startFlowState)
         }
     }
 
@@ -357,10 +406,11 @@ private fun android.content.Context.openUrl(url: String) {
 }
 
 /** Reached only by the `vela.startDestination` extra; the guard leaves them alone. */
-private val DEVELOPER_ROUTES = setOf(
+internal val DEVELOPER_ROUTES = setOf(
     VelaDestinations.GALLERY,
     VelaDestinations.CONTACTS_GALLERY,
     VelaDestinations.CONTACTS,
+    VelaDestinations.FLOWS_GALLERY,
     VelaDestinations.IMPORT,
 )
 

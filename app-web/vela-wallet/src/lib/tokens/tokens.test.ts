@@ -66,6 +66,8 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		...collect(join(APP_ROOT, 'src/lib/ui')),
 		// spec 018 T018: the contacts feature layer is audited too.
 		...collect(join(APP_ROOT, 'src/lib/contacts')),
+		// spec 021: and the wallet-flow layer, on the same terms.
+		...collect(join(APP_ROOT, 'src/lib/flows')),
 		// spec 022: so are explore and signing. Their `fixtures.ts` is exempt for
 		// the same reason the wallet's is — a site's brand colour and a token's
 		// chain colour are CONTENT, and a design token cannot name them.

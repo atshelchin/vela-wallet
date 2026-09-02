@@ -82,6 +82,10 @@ enum ChainPalette {
     static let gnosis = TokenColor(argb: 0xFF21BCA5).color // #21BCA5
     static let base = TokenColor(argb: 0xFF0052FF).color // #0052FF
     static let polygon = TokenColor(argb: 0xFF8247E5).color // #8247E5
+    // Spec 021: the receive list is the first screen to draw all eight
+    // supported networks, not just the six the home holds balances on.
+    static let optimism = TokenColor(argb: 0xFFFF0420).color // #FF0420
+    static let avalanche = TokenColor(argb: 0xFFE84142).color // #E84142
     /// All-networks pill dots, in mock order (Ethereum, Polygon, BNB).
     static let pillDots: [Color] = [ethereum, polygon, bnb]
 }

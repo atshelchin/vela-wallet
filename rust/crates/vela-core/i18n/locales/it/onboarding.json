@@ -21,6 +21,17 @@
 			"heroTitleFit": "long",
 			"heroSubtitle": "Firma con una passkey. Vela non vede mai la tua chiave."
 		},
+		"intro": {
+			"skip": "Salta",
+			"next": "Continua",
+			"pageOf": "Pagina {{current}} di {{total}}",
+			"noSeedTitle": "Nessuna frase da ricopiare",
+			"noSeedBody": "Crea il portafoglio con l'impronta o il volto di questo dispositivo. Nessuna lista di 12 parole da ricopiare su carta, nascondere in un cassetto e un giorno non ritrovare.",
+			"custodyTitle": "Le chiavi restano a te",
+			"custodyBody": "Le tue passkey restano dove le tieni tu: nel gestore di password del dispositivo o su una chiave di sicurezza fisica. Vela non può toccarle né spendere al posto tuo.",
+			"chainsTitle": "Un indirizzo, tutte le chain",
+			"chainsBody": "Lo stesso indirizzo vale su 12+ reti e le commissioni si pagano in stablecoin — niente scorte di moneta nativa per ogni chain."
+		},
 		"welcomeWeb": {
 			"meta": {
 				"title": "Vela Wallet — il wallet con passkey",

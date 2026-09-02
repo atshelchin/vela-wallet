@@ -302,7 +302,25 @@
   "batchImportFailedTitle": "파일을 읽을 수 없습니다",
   "batchImportFailedBody": "CSV, TSV, TXT 또는 Excel 파일을 사용하세요.",
   "batchCurrencyLabel": "기준 통화",
-  "feeTokenLabel": "수수료 토큰"
+  "feeTokenLabel": "수수료 토큰",
+  "balanceLabel": "잔액 {{amount}}",
+  "fromContacts": "연락처에서",
+  "splitTotalLabel": "합계",
+  "multiSendChainNotice": "{{network}} 선택됨 — 여러 토큰을 함께 보내려면 같은 네트워크여야 해서 나머지는 비활성화됩니다",
+  "multiSendSameRecipient": "모든 토큰이 같은 주소로 전송됩니다",
+  "pickContactTitle": "연락처 선택",
+  "pickContactSearch": "연락처 검색 또는 주소 붙여넣기",
+  "scanToFill": "스캔해서 주소 채우기",
+  "feeTokenHint": "이 전송의 네트워크 수수료로 쓰입니다. 예상액은 현재 네트워크 상황을 실시간으로 따릅니다.",
+  "feeTokenEstimate": "예상 수수료",
+  "batchRateHint": "시트의 금액은 {{code}}로 읽고, 이 환율로 {{sym}}으로 환산합니다.",
+  "batchParsedCount": "분석 결과 · {{n}}건",
+  "confirmTotalLine": "합계 ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "거래를 준비하고 생체 인증을 기다리는 중",
+  "txBackgroundHint": "이 페이지를 닫아도 거래는 계속 진행됩니다",
+  "txCloseBackground": "닫기 · 계속 진행",
+  "txSubmittedTitle": "네트워크에 제출됨",
+  "txConfirmedTitle": "{{amount}} {{symbol}} 전송 완료"
  },
  "receive": {
   "title": "받기",
@@ -372,7 +390,13 @@
    "invalidTitle": "잘못된 결제 링크",
    "invalidBody": "이 링크에는 올바른 받는 사람 또는 네트워크 정보가 없습니다. 보내는 사람에게 새 링크를 요청하세요."
   },
-  "addressLabel": "받기 주소"
+  "addressLabel": "받기 주소",
+  "searchNetworkPlaceholder": "네트워크 검색",
+  "searchNetworkEmpty": "“{{query}}”와 일치하는 네트워크가 없습니다",
+  "qrTitleNetwork": "이 주소로 {{network}}의 자산을 받으세요",
+  "qrTitleAsset": "이 주소로 {{network}}의 {{symbol}}을 받으세요",
+  "shareCardNetworkNote": "{{network}} 결제만 가능",
+  "tokenContract": "토큰 컨트랙트"
  },
  "assets": {
   "sectionTitle": "자산",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "신뢰할 수 있는 RPC를 구하는 방법",
   "rpcProvidersHint": "무료 엔드포인트 — 가입한 뒤 URL을 복사해서 위에 붙여넣으세요.",
   "rpcReport": "여전히 안 되나요? 신고하기",
-  "chainFallback": "체인 {{chainId}}"
+  "chainFallback": "체인 {{chainId}}",
+  "addByAddress": "주소로 토큰 추가",
+  "notShowingTitle": "토큰을 받았는데 보이지 않나요?",
+  "notShowingBody": "확인된 전송은 자동으로 추가됩니다. 그래도 토큰이 보이지 않으면 컨트랙트 주소로 추가하거나 해당 네트워크를 추가하세요."
  },
  "addToken": {
   "addedTokensLabel": "추가된 토큰",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "네트워크를 추가하지 못했습니다.",
   "errorAlreadyAdded": "이미 추가된 네트워크입니다",
   "errorChainNotFound": "체인 정보를 찾을 수 없습니다",
-  "errorNotCompatible": "Vela Wallet과(와) 호환되지 않습니다"
+  "errorNotCompatible": "Vela Wallet과(와) 호환되지 않습니다",
+  "invalidAddress": "잘못된 컨트랙트 주소입니다",
+  "notCompatible": "호환되지 않음"
  },
  "tokenDetail": {
   "send": "보내기",
@@ -491,6 +520,17 @@
    "heroTitle": "오직 나만 관리하는\n이더리움 지갑",
    "heroTitleFit": "regular",
    "heroSubtitle": "패스키로 서명합니다. Vela는 키를 볼 수 없습니다."
+  },
+  "intro": {
+   "skip": "건너뛰기",
+   "next": "계속",
+   "pageOf": "{{total}}페이지 중 {{current}}페이지",
+   "noSeedTitle": "시드 구문이 없습니다",
+   "noSeedBody": "이 기기의 지문이나 얼굴로 지갑을 만듭니다. 12개 단어를 종이에 적어 서랍에 넣어 두고 언젠가 찾지 못하는 일이 없습니다.",
+   "custodyTitle": "열쇠는 당신 손안에",
+   "custodyBody": "패스키는 당신이 보관합니다. 기기의 비밀번호 관리자 또는 하드웨어 보안 키에 저장되며, Vela는 만질 수도 대신 쓸 수도 없습니다.",
+   "chainsTitle": "주소 하나로 모든 체인",
+   "chainsBody": "같은 주소가 12개 이상의 네트워크에서 통합니다. 수수료는 스테이블코인으로 낼 수 있어 체인마다 네이티브 코인을 준비할 필요가 없습니다."
   },
   "welcomeWeb": {
    "meta": {
@@ -1269,7 +1309,11 @@
    "errorImage": "이미지를 처리하지 못했습니다.",
    "errorPicker": "이미지 선택기를 열지 못했습니다.",
    "torchLabel": "손전등 켜기/끄기",
-   "zoomLabel": "확대/축소"
+   "zoomLabel": "확대/축소",
+   "gallery": "사진",
+   "fromGallery": "사진에서 선택",
+   "torch": "손전등",
+   "flipCamera": "전환"
   },
   "gas": {
    "estFee": "예상 수수료",

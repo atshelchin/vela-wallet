@@ -168,6 +168,16 @@ class MainActivity : ComponentActivity() {
             ?.takeIf { it in VelaDestinations.ALL }
             ?: VelaDestinations.WELCOME
 
+    /**
+     * Opens a gallery straight onto one state (spec 021). Same family as the
+     * route extra, and the same reason the desktop has `VELA_FLOW`: walking a
+     * thirty-state chip strip by hand is not a repeatable device pass.
+     *
+     *   adb shell am start -n app.getvela.wallet/.MainActivity \
+     *     --es vela.startDestination flows-gallery --es vela.flowState SD2B
+     */
+    private fun startFlowState(): String? = intent?.getStringExtra("vela.flowState")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         // A fresh process, not a configuration change or a restored activity.
@@ -275,6 +285,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     startDestination = startDestination(),
+                                    startFlowState = startFlowState(),
                                 )
                             }
 

@@ -16,6 +16,14 @@
 	 * This page is also the site's landing page: prerendered in 15 locales with
 	 * canonical + hreflang. The wasm the flow needs is fetched by the flow, not
 	 * by this page — `e2e/welcome-ssr.e2e.ts` holds that line.
+	 *
+	 * On a FIRST run this page opens on the intro instead (spec 020): three
+	 * slides that argue the product before asking for anything. It is decided
+	 * in `onMount` and never on the server, for the same reason the launch
+	 * animation is — the prerendered HTML is one document served to everybody,
+	 * and what it must contain is the landing page. The intro's own two CTAs
+	 * reach the same `signIn` and the same create href as the ones below it, so
+	 * there is one implementation of "the two ways in", not two.
 	 */
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -24,6 +32,8 @@
 	import BrandMark from '$lib/ui/BrandMark.svelte';
 	import Button from '$lib/ui/Button.svelte';
 	import OnboardingRail from '$lib/ui/onboarding/v2/OnboardingRail.svelte';
+	import IntroCarousel from '$lib/ui/intro/IntroCarousel.svelte';
+	import { markIntroSeen, shouldShowIntro } from '$lib/intro/gate';
 	import PromptSheet from '$lib/ui/onboarding/v2/PromptSheet.svelte';
 	import { fillTemplate } from '$lib/i18n/fill';
 	import { SUPPORTED_LOCALES, FALLBACK_LOCALE } from '$lib/i18n/locales';
@@ -62,6 +72,17 @@
 	 * second login session.
 	 */
 	let starting = $state(false);
+
+	/**
+	 * The first-run intro is up. Starts false so the prerendered document is the
+	 * landing page; `onMount` raises it when this browser has not seen it.
+	 */
+	let intro = $state(false);
+
+	function leaveIntro() {
+		markIntroSeen();
+		intro = false;
+	}
 
 	const signingIn = $derived(starting || (loginView?.busy ?? false));
 
@@ -110,9 +131,12 @@
 		}
 	}
 
-	onMount(() => () => {
-		login?.dispose();
-		login = null;
+	onMount(() => {
+		if (shouldShowIntro()) intro = true;
+		return () => {
+			login?.dispose();
+			login = null;
+		};
 	});
 </script>
 
@@ -126,40 +150,59 @@
 	<link rel="alternate" hreflang="x-default" href="{SITE_ORIGIN}/{FALLBACK_LOCALE}" />
 </svelte:head>
 
-<main class="welcome">
-	<OnboardingRail rail={{ kind: 'tagline', text: strings('onboarding.welcome.desktopTagline') }} />
+{#if intro}
+	<IntroCarousel
+		strings={data.intro}
+		{signingIn}
+		{createHref}
+		onSkip={leaveIntro}
+		onCreate={leaveIntro}
+		onSignIn={() => {
+			// Seen: whichever way this ends, they have read it. Marking it on the
+			// press rather than on success means a cancelled passkey prompt drops
+			// them on Welcome, not back into the introduction they just read.
+			leaveIntro();
+			void signIn();
+		}}
+	/>
+{:else}
+	<main class="welcome">
+		<OnboardingRail
+			rail={{ kind: 'tagline', text: strings('onboarding.welcome.desktopTagline') }}
+		/>
 
-	<div class="column">
-		<div class="top">
-			<!-- The rail carries the brand at desktop widths; below the breakpoint
+		<div class="column">
+			<div class="top">
+				<!-- The rail carries the brand at desktop widths; below the breakpoint
 			     there is no rail, and it belongs here as it always did. -->
-			<header class="brand">
-				<BrandMark size={60} />
-				<span class="wordmark">VELA WALLET</span>
-			</header>
+				<header class="brand">
+					<BrandMark size={60} />
+					<span class="wordmark">VELA WALLET</span>
+				</header>
 
-			<div class="hero">
-				<h1 class="headline" class:long={m.heroTitleFit === 'long'}>{m.heroTitle}</h1>
-				<p class="sub">{m.heroSubtitle}</p>
+				<div class="hero">
+					<h1 class="headline" class:long={m.heroTitleFit === 'long'}>{m.heroTitle}</h1>
+					<p class="sub">{m.heroSubtitle}</p>
+				</div>
 			</div>
-		</div>
 
-		<div class="actions">
-			<Button variant="primary" shape="rounded" disabled={signingIn} href={createHref}>
-				{m.createWallet}
-			</Button>
-			<Button variant="secondary" shape="rounded" loading={signingIn} onclick={signIn}>
-				{m.alreadyHaveWallet}
-			</Button>
-		</div>
+			<div class="actions">
+				<Button variant="primary" shape="rounded" disabled={signingIn} href={createHref}>
+					{m.createWallet}
+				</Button>
+				<Button variant="secondary" shape="rounded" loading={signingIn} onclick={signIn}>
+					{m.alreadyHaveWallet}
+				</Button>
+			</div>
 
-		{#if endpointUnreachable}
-			<p class="endpointWarning" role="status">
-				{strings('onboarding.settings.warningText')}
-			</p>
-		{/if}
-	</div>
-</main>
+			{#if endpointUnreachable}
+				<p class="endpointWarning" role="status">
+					{strings('onboarding.settings.warningText')}
+				</p>
+			{/if}
+		</div>
+	</main>
+{/if}
 
 {#if pending}
 	<PromptSheet

@@ -302,7 +302,25 @@
   "batchImportFailedTitle": "Không đọc được tệp",
   "batchImportFailedBody": "Vui lòng dùng tệp CSV, TSV, TXT hoặc Excel.",
   "batchCurrencyLabel": "Định giá bằng",
-  "feeTokenLabel": "Token trả phí"
+  "feeTokenLabel": "Token trả phí",
+  "balanceLabel": "Số dư {{amount}}",
+  "fromContacts": "Từ danh bạ",
+  "splitTotalLabel": "Tổng cộng",
+  "multiSendChainNotice": "Đã chọn {{network}} — gửi nhiều token phải cùng một mạng, nên các mạng khác bị mờ đi",
+  "multiSendSameRecipient": "Mọi token đều được gửi tới cùng một địa chỉ",
+  "pickContactTitle": "Chọn liên hệ",
+  "pickContactSearch": "Tìm liên hệ hoặc dán địa chỉ",
+  "scanToFill": "Quét mã để điền địa chỉ",
+  "feeTokenHint": "Dùng để trả phí mạng cho lần chuyển này. Ước tính bám theo mạng theo thời gian thực.",
+  "feeTokenEstimate": "Phí ước tính",
+  "batchRateHint": "Số tiền trong bảng được đọc theo {{code}} và quy đổi sang {{sym}} theo tỷ giá này.",
+  "batchParsedCount": "Đã đọc · {{n}} dòng",
+  "confirmTotalLine": "Tổng ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "Đang chuẩn bị giao dịch và chờ xác nhận sinh trắc học",
+  "txBackgroundHint": "Đóng trang này thì giao dịch vẫn chạy tiếp",
+  "txCloseBackground": "Đóng · vẫn chạy tiếp",
+  "txSubmittedTitle": "Đã gửi lên mạng",
+  "txConfirmedTitle": "Đã gửi {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "Nhận",
@@ -372,7 +390,13 @@
    "invalidTitle": "Liên kết thanh toán không hợp lệ",
    "invalidBody": "Liên kết này thiếu người nhận hoặc mạng hợp lệ. Hãy yêu cầu người gửi gửi liên kết mới."
   },
-  "addressLabel": "Địa chỉ nhận của bạn"
+  "addressLabel": "Địa chỉ nhận của bạn",
+  "searchNetworkPlaceholder": "Tìm mạng",
+  "searchNetworkEmpty": "Không có mạng nào khớp với “{{query}}”",
+  "qrTitleNetwork": "Dùng địa chỉ này để nhận tài sản trên {{network}}",
+  "qrTitleAsset": "Dùng địa chỉ này để nhận {{symbol}} trên {{network}}",
+  "shareCardNetworkNote": "Chỉ thanh toán trên {{network}}",
+  "tokenContract": "Hợp đồng token"
  },
  "assets": {
   "sectionTitle": "Tài sản",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "Nơi lấy RPC đáng tin cậy",
   "rpcProvidersHint": "Điểm cuối miễn phí — đăng ký, sao chép URL của bạn và dán vào ô phía trên.",
   "rpcReport": "Vẫn không hoạt động? Báo cáo",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "addByAddress": "Thêm token bằng địa chỉ",
+  "notShowingTitle": "Đã nhận token nhưng không thấy?",
+  "notShowingBody": "Các giao dịch đã xác nhận sẽ tự được thêm vào. Nếu token vẫn chưa xuất hiện, hãy thêm bằng địa chỉ hợp đồng, hoặc thêm mạng chứa nó."
  },
  "addToken": {
   "addedTokensLabel": "Token đã thêm",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "Không thêm được mạng.",
   "errorAlreadyAdded": "Mạng này đã được thêm",
   "errorChainNotFound": "Không tìm thấy thông tin chain",
-  "errorNotCompatible": "Không tương thích với Vela Wallet"
+  "errorNotCompatible": "Không tương thích với Vela Wallet",
+  "invalidAddress": "Địa chỉ hợp đồng không hợp lệ",
+  "notCompatible": "Không tương thích"
  },
  "tokenDetail": {
   "send": "Gửi",
@@ -491,6 +520,17 @@
    "heroTitle": "Chỉ bạn kiểm soát\nví Ethereum của mình",
    "heroTitleFit": "long",
    "heroSubtitle": "Ký bằng passkey. Vela không bao giờ thấy khoá của bạn."
+  },
+  "intro": {
+   "skip": "Bỏ qua",
+   "next": "Tiếp tục",
+   "pageOf": "Trang {{current}} trên {{total}}",
+   "noSeedTitle": "Không phải chép cụm từ",
+   "noSeedBody": "Tạo ví bằng vân tay hoặc khuôn mặt ngay trên thiết bị này. Không có 12 từ nào phải chép ra giấy, cất vào ngăn kéo rồi một ngày không nhớ để đâu.",
+   "custodyTitle": "Chìa khoá nằm trong tay bạn",
+   "custodyBody": "Passkey được giữ ở nơi của bạn: trình quản lý mật khẩu của thiết bị, hoặc một khoá bảo mật phần cứng. Vela không chạm tới được và cũng không thể tiêu thay bạn.",
+   "chainsTitle": "Một địa chỉ, mọi chuỗi",
+   "chainsBody": "Cùng một địa chỉ dùng được trên hơn 12 mạng, và phí có thể trả bằng stablecoin — không cần trữ sẵn đồng gốc cho từng chuỗi."
   },
   "welcomeWeb": {
    "meta": {
@@ -1269,7 +1309,11 @@
    "errorImage": "Không xử lý được ảnh.",
    "errorPicker": "Không mở được trình chọn ảnh.",
    "torchLabel": "Bật/tắt đèn pin",
-   "zoomLabel": "Thu phóng"
+   "zoomLabel": "Thu phóng",
+   "gallery": "Ảnh",
+   "fromGallery": "Chọn từ ảnh",
+   "torch": "Đèn pin",
+   "flipCamera": "Lật"
   },
   "gas": {
    "estFee": "Phí mạng",

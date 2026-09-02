@@ -249,7 +249,11 @@
       "errorImage": "Không xử lý được ảnh.",
       "errorPicker": "Không mở được trình chọn ảnh.",
       "torchLabel": "Bật/tắt đèn pin",
-      "zoomLabel": "Thu phóng"
+      "zoomLabel": "Thu phóng",
+      "gallery": "Ảnh",
+      "fromGallery": "Chọn từ ảnh",
+      "torch": "Đèn pin",
+      "flipCamera": "Lật"
     },
     "gas": {
       "estFee": "Phí mạng",

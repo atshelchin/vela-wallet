@@ -1,0 +1,209 @@
+<script lang="ts">
+	/**
+	 * SD2 / SD2b / SD2d / DSD2L — the send form, in its three modes.
+	 *
+	 * One component, because the three ARE one form: single is a token, an
+	 * amount and a person; split is the same token to several people; sweep is
+	 * several tokens to one person. The SPEC sheet makes them mutually
+	 * exclusive — entering one greys the door to the other — so they share a
+	 * mode rather than living in three screens that would each need their own
+	 * fee row, summary line and CTA.
+	 */
+	import Button from '$lib/ui/Button.svelte';
+	import AssetRow from '$lib/wallet/ui/AssetRow.svelte';
+	import AmountInput from '../ui/AmountInput.svelte';
+	import FeeRow from '../ui/FeeRow.svelte';
+	import GhostPillRow from '../ui/GhostPillRow.svelte';
+	import RecipientCard from '../ui/RecipientCard.svelte';
+	import RecipientField from '../ui/RecipientField.svelte';
+	import SummaryLine from '../ui/SummaryLine.svelte';
+	import TokenHeaderCard from '../ui/TokenHeaderCard.svelte';
+	import type { SendFormModel } from '../model';
+
+	interface Props {
+		model: SendFormModel;
+		onpickRecipient?: () => void;
+		onscan?: () => void;
+		onrecipientAction?: (id: 'add' | 'contacts' | 'import') => void;
+		onremoveRecipient?: (index: number) => void;
+		onfee?: () => void;
+		ondenom?: () => void;
+		onmax?: (index: number) => void;
+		onaddRecipient?: () => void;
+	}
+
+	let {
+		model,
+		onpickRecipient,
+		onscan,
+		onrecipientAction,
+		onremoveRecipient,
+		onfee,
+		ondenom,
+		onmax,
+		onaddRecipient
+	}: Props = $props();
+</script>
+
+<div class="form">
+	{#if model.token !== undefined}
+		<TokenHeaderCard token={model.token} onmax={() => onmax?.(0)} />
+	{/if}
+
+	{#if model.sweepSummary !== undefined}
+		<p class="sweep-summary">{model.sweepSummary}</p>
+	{/if}
+
+	{#if model.sweepRows !== undefined}
+		<ul class="sweep">
+			{#each model.sweepRows as row, i (row.symbol)}
+				<li>
+					<AssetRow
+						row={{
+							ticker: row.symbol,
+							chain: row.balanceLabel,
+							badgeColor: row.mark.badgeColor,
+							balance: row.amount,
+							fiat: { kind: 'none' },
+							masked: false
+						}}
+					>
+						{#snippet trailing()}
+							<button type="button" class="max" onclick={() => onmax?.(i)}>{row.max}</button>
+						{/snippet}
+					</AssetRow>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	{#if model.amount !== undefined}
+		<AmountInput
+			value={model.amount.value}
+			fiat={model.amount.fiat}
+			denomLabel={model.amount.denomLabel}
+			{ondenom}
+		/>
+	{/if}
+
+	{#if model.recipient !== undefined}
+		<RecipientField
+			label={model.recipient.label}
+			lines={model.recipient.lines}
+			identiconSvg={model.recipient.identiconSvg}
+			pickLabel={model.recipient.pickLabel}
+			scanLabel={model.recipient.scanLabel}
+			note={model.recipient.note}
+			onpick={onpickRecipient}
+			{onscan}
+		/>
+	{/if}
+
+	{#if model.addRecipient !== undefined}
+		<button type="button" class="add" onclick={onaddRecipient}>
+			<span class="plus" aria-hidden="true">+</span>
+			{model.addRecipient}
+		</button>
+	{/if}
+
+	{#if model.recipients !== undefined}
+		<ul class="recipients">
+			{#each model.recipients as recipient, i (recipient.ordinal)}
+				<li>
+					<RecipientCard {recipient} onremove={() => onremoveRecipient?.(i)} />
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	{#if model.recipientActions !== undefined}
+		<GhostPillRow
+			items={model.recipientActions}
+			onselect={(id) => onrecipientAction?.(id as 'add' | 'contacts' | 'import')}
+		/>
+	{/if}
+
+	{#if model.summary !== undefined}
+		<SummaryLine label={model.summary.label} value={model.summary.value} />
+	{/if}
+
+	<FeeRow fee={model.fee} onopen={onfee} />
+
+	<div class="cta">
+		<Button variant="primary" shape="rounded">{model.cta}</Button>
+	</div>
+</div>
+
+<style>
+	.form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-lg);
+	}
+
+	.sweep-summary {
+		margin: 0;
+		font-size: calc(var(--text-base) * var(--text-scale, 1));
+		color: var(--color-fg-muted);
+	}
+
+	ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.sweep {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.sweep li {
+		padding-inline: var(--space-lg);
+		border-radius: var(--radius-lg);
+		background: var(--color-bg-raised);
+	}
+
+	.recipients {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+
+	.max {
+		padding: var(--space-xs) var(--space-md);
+		border: none;
+		border-radius: var(--radius-full);
+		background: var(--color-bg-sunken);
+		font-family: var(--font-ui);
+		font-size: calc(var(--text-xs) * var(--text-scale, 1));
+		font-weight: var(--weight-semibold);
+		color: var(--color-fg-base);
+		cursor: pointer;
+	}
+
+	/* The door from a single send into a split. Quiet on purpose: most sends
+	   have one recipient, and this is the affordance for the ones that don't. */
+	.add {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-sm);
+		align-self: flex-start;
+		padding: var(--space-sm) 0;
+		border: none;
+		background: none;
+		font-family: var(--font-ui);
+		font-size: calc(var(--text-base) * var(--text-scale, 1));
+		color: var(--color-fg-muted);
+		cursor: pointer;
+	}
+
+	.plus {
+		font-size: calc(var(--text-lg) * var(--text-scale, 1));
+	}
+
+	.cta {
+		padding-block: var(--space-md) var(--space-xl);
+	}
+</style>

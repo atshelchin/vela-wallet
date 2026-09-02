@@ -21,6 +21,17 @@
 			"heroTitleFit": "regular",
 			"heroSubtitle": "패스키로 서명합니다. Vela는 키를 볼 수 없습니다."
 		},
+		"intro": {
+			"skip": "건너뛰기",
+			"next": "계속",
+			"pageOf": "{{total}}페이지 중 {{current}}페이지",
+			"noSeedTitle": "시드 구문이 없습니다",
+			"noSeedBody": "이 기기의 지문이나 얼굴로 지갑을 만듭니다. 12개 단어를 종이에 적어 서랍에 넣어 두고 언젠가 찾지 못하는 일이 없습니다.",
+			"custodyTitle": "열쇠는 당신 손안에",
+			"custodyBody": "패스키는 당신이 보관합니다. 기기의 비밀번호 관리자 또는 하드웨어 보안 키에 저장되며, Vela는 만질 수도 대신 쓸 수도 없습니다.",
+			"chainsTitle": "주소 하나로 모든 체인",
+			"chainsBody": "같은 주소가 12개 이상의 네트워크에서 통합니다. 수수료는 스테이블코인으로 낼 수 있어 체인마다 네이티브 코인을 준비할 필요가 없습니다."
+		},
 		"welcomeWeb": {
 			"meta": {
 				"title": "Vela Wallet — 패스키 지갑",

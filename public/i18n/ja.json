@@ -302,7 +302,25 @@
   "batchClose": "閉じる",
   "scanAria": "QR コードをスキャン",
   "batchCurrencyLabel": "価格の基準通貨",
-  "feeTokenLabel": "手数料トークン"
+  "feeTokenLabel": "手数料トークン",
+  "balanceLabel": "残高 {{amount}}",
+  "fromContacts": "連絡先から",
+  "splitTotalLabel": "合計",
+  "multiSendChainNotice": "{{network}} を選択中 — 複数トークンの送金は同一ネットワーク内のみ。他のネットワークは選べません",
+  "multiSendSameRecipient": "すべてのトークンが同じアドレスに送られます",
+  "pickContactTitle": "連絡先を選ぶ",
+  "pickContactSearch": "連絡先を検索、またはアドレスを貼り付け",
+  "scanToFill": "スキャンしてアドレスを入力",
+  "feeTokenHint": "この送金のネットワーク手数料に使われます。見積もりはネットワークの状況に合わせて変わります。",
+  "feeTokenEstimate": "手数料の目安",
+  "batchRateHint": "表の金額は {{code}} として読み取り、このレートで {{sym}} に換算します。",
+  "batchParsedCount": "解析結果 · {{n}} 件",
+  "confirmTotalLine": "合計 ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "取引を準備し、生体認証の確認を待っています",
+  "txBackgroundHint": "このページを閉じても取引はバックグラウンドで続きます",
+  "txCloseBackground": "閉じる · バックグラウンドで続行",
+  "txSubmittedTitle": "ネットワークに送信しました",
+  "txConfirmedTitle": "{{amount}} {{symbol}} を送金しました"
  },
  "receive": {
   "title": "受け取る",
@@ -372,7 +390,13 @@
    "invalidTitle": "無効な支払いリンク",
    "invalidBody": "このリンクには有効な受取人またはネットワークがありません。送金者に新しいリンクを依頼してください。"
   },
-  "addressLabel": "受け取りアドレス"
+  "addressLabel": "受け取りアドレス",
+  "searchNetworkPlaceholder": "ネットワークを検索",
+  "searchNetworkEmpty": "「{{query}}」に一致するネットワークはありません",
+  "qrTitleNetwork": "このアドレスで {{network}} 上の資産を受け取れます",
+  "qrTitleAsset": "このアドレスで {{network}} 上の {{symbol}} を受け取れます",
+  "shareCardNetworkNote": "{{network}} での支払いのみ",
+  "tokenContract": "トークンコントラクト"
  },
  "assets": {
   "sectionTitle": "資産",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "信頼できる RPC の入手先",
   "rpcProvidersHint": "無料のエンドポイント — 登録して URL をコピーし、上に貼り付けてください。",
   "rpcReport": "まだ動作しませんか？報告する",
-  "chainFallback": "チェーン {{chainId}}"
+  "chainFallback": "チェーン {{chainId}}",
+  "addByAddress": "アドレスからトークンを追加",
+  "notShowingTitle": "トークンを受け取ったのに表示されない？",
+  "notShowingBody": "着金が確認された送金は自動で追加されます。それでも表示されない場合は、コントラクトアドレスから追加するか、対応するネットワークを追加してください。"
  },
  "addToken": {
   "addedTokensLabel": "追加済みのトークン",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "ネットワークの追加に失敗しました。",
   "errorAlreadyAdded": "このネットワークはすでに追加されています",
   "errorChainNotFound": "チェーン情報が見つかりません",
-  "errorNotCompatible": "Vela Wallet と互換性がありません"
+  "errorNotCompatible": "Vela Wallet と互換性がありません",
+  "invalidAddress": "コントラクトアドレスが正しくありません",
+  "notCompatible": "非対応"
  },
  "tokenDetail": {
   "send": "送る",
@@ -491,6 +520,17 @@
    "heroTitle": "あなただけが管理する\nイーサリアムウォレット",
    "heroTitleFit": "long",
    "heroSubtitle": "パスキーで署名します。鍵を Vela が見ることはありません。"
+  },
+  "intro": {
+   "skip": "スキップ",
+   "next": "次へ",
+   "pageOf": "{{total}} ページ中 {{current}} ページ目",
+   "noSeedTitle": "シードフレーズなし",
+   "noSeedBody": "この端末の指紋や顔認証でウォレットを作ります。12 個の単語を紙に書き写し、引き出しにしまい、いつか見つからなくなる——それがありません。",
+   "custodyTitle": "鍵はあなたの手の中に",
+   "custodyBody": "パスキーはあなたの手元に残ります。端末のパスワードマネージャー、またはハードウェアセキュリティキーです。Vela は触れられず、代わりに使うこともできません。",
+   "chainsTitle": "ひとつのアドレスで全チェーン",
+   "chainsBody": "同じアドレスが 12 以上のネットワークで使えます。手数料はステーブルコインで払えるので、チェーンごとにネイティブコインを用意する必要はありません。"
   },
   "welcomeWeb": {
    "meta": {
@@ -1269,7 +1309,11 @@
    "errorImage": "画像の処理に失敗しました。",
    "errorPicker": "画像ピッカーを開けませんでした。",
    "torchLabel": "ライトを切り替え",
-   "zoomLabel": "ズーム"
+   "zoomLabel": "ズーム",
+   "gallery": "写真",
+   "fromGallery": "写真から選ぶ",
+   "torch": "ライト",
+   "flipCamera": "切り替え"
   },
   "gas": {
    "estFee": "ネットワーク手数料",

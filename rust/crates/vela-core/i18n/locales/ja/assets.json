@@ -21,6 +21,9 @@
     "rpcProvidersTitle": "信頼できる RPC の入手先",
     "rpcProvidersHint": "無料のエンドポイント — 登録して URL をコピーし、上に貼り付けてください。",
     "rpcReport": "まだ動作しませんか？報告する",
-    "chainFallback": "チェーン {{chainId}}"
+    "chainFallback": "チェーン {{chainId}}",
+    "addByAddress": "アドレスからトークンを追加",
+    "notShowingTitle": "トークンを受け取ったのに表示されない？",
+    "notShowingBody": "着金が確認された送金は自動で追加されます。それでも表示されない場合は、コントラクトアドレスから追加するか、対応するネットワークを追加してください。"
   }
 }

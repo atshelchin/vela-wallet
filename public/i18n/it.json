@@ -305,7 +305,25 @@
   "batchImportFailedTitle": "Impossibile leggere il file",
   "batchImportFailedBody": "Usa un file CSV, TSV, TXT o Excel.",
   "batchCurrencyLabel": "Prezzato in",
-  "feeTokenLabel": "Token di commissione"
+  "feeTokenLabel": "Token di commissione",
+  "balanceLabel": "Saldo {{amount}}",
+  "fromContacts": "Dai contatti",
+  "splitTotalLabel": "Totale",
+  "multiSendChainNotice": "{{network}} selezionata — un invio multi-token resta su una sola rete, quindi le altre sono in grigio",
+  "multiSendSameRecipient": "Tutti i token vanno allo stesso indirizzo",
+  "pickContactTitle": "Scegli un contatto",
+  "pickContactSearch": "Cerca contatti o incolla un indirizzo",
+  "scanToFill": "Scansiona per inserire l’indirizzo",
+  "feeTokenHint": "Paga la commissione di rete di questo trasferimento. La stima segue la rete in tempo reale.",
+  "feeTokenEstimate": "Commissione stimata",
+  "batchRateHint": "Gli importi del foglio sono letti come {{code}} e convertiti in {{sym}} a questo tasso.",
+  "batchParsedCount": "Analizzate · {{n}} righe",
+  "confirmTotalLine": "Totale ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "Preparazione della transazione, in attesa della conferma biometrica",
+  "txBackgroundHint": "Chiudere questa pagina non ferma la transazione",
+  "txCloseBackground": "Chiudi · continua in background",
+  "txSubmittedTitle": "Inviata alla rete",
+  "txConfirmedTitle": "Inviati {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "Ricevi",
@@ -375,7 +393,13 @@
    "invalidTitle": "Link di pagamento non valido",
    "invalidBody": "A questo link manca un destinatario o una rete valida. Chiedi al mittente un nuovo link."
   },
-  "addressLabel": "Il tuo indirizzo di ricezione"
+  "addressLabel": "Il tuo indirizzo di ricezione",
+  "searchNetworkPlaceholder": "Cerca reti",
+  "searchNetworkEmpty": "Nessuna rete corrisponde a “{{query}}”",
+  "qrTitleNetwork": "Usa questo indirizzo per ricevere asset su {{network}}",
+  "qrTitleAsset": "Usa questo indirizzo per ricevere {{symbol}} su {{network}}",
+  "shareCardNetworkNote": "Solo pagamenti su {{network}}",
+  "tokenContract": "Contratto del token"
  },
  "assets": {
   "sectionTitle": "Asset",
@@ -399,7 +423,10 @@
   "rpcProvidersTitle": "Dove trovare un RPC affidabile",
   "rpcProvidersHint": "Endpoint gratuiti — registrati, copia il tuo URL e incollalo qui sopra.",
   "rpcReport": "Ancora non funziona? Segnalalo",
-  "chainFallback": "Rete {{chainId}}"
+  "chainFallback": "Rete {{chainId}}",
+  "addByAddress": "Aggiungi un token tramite indirizzo",
+  "notShowingTitle": "Hai ricevuto un token ma non lo vedi?",
+  "notShowingBody": "I trasferimenti confermati si aggiungono da soli. Se un token non compare ancora, aggiungilo tramite l’indirizzo del contratto, oppure aggiungi la sua rete."
  },
  "addToken": {
   "addedTokensLabel": "Token aggiunti",
@@ -439,7 +466,9 @@
   "errorAddNetwork": "Impossibile aggiungere la rete.",
   "errorAlreadyAdded": "Questa rete è già stata aggiunta",
   "errorChainNotFound": "Informazioni sulla rete non trovate",
-  "errorNotCompatible": "Non compatibile con Vela Wallet"
+  "errorNotCompatible": "Non compatibile con Vela Wallet",
+  "invalidAddress": "Indirizzo del contratto non valido",
+  "notCompatible": "Non compatibile"
  },
  "tokenDetail": {
   "send": "Invia",
@@ -494,6 +523,17 @@
    "heroTitle": "Solo tu controlli\nil tuo wallet Ethereum",
    "heroTitleFit": "long",
    "heroSubtitle": "Firma con una passkey. Vela non vede mai la tua chiave."
+  },
+  "intro": {
+   "skip": "Salta",
+   "next": "Continua",
+   "pageOf": "Pagina {{current}} di {{total}}",
+   "noSeedTitle": "Nessuna frase da ricopiare",
+   "noSeedBody": "Crea il portafoglio con l'impronta o il volto di questo dispositivo. Nessuna lista di 12 parole da ricopiare su carta, nascondere in un cassetto e un giorno non ritrovare.",
+   "custodyTitle": "Le chiavi restano a te",
+   "custodyBody": "Le tue passkey restano dove le tieni tu: nel gestore di password del dispositivo o su una chiave di sicurezza fisica. Vela non può toccarle né spendere al posto tuo.",
+   "chainsTitle": "Un indirizzo, tutte le chain",
+   "chainsBody": "Lo stesso indirizzo vale su 12+ reti e le commissioni si pagano in stablecoin — niente scorte di moneta nativa per ogni chain."
   },
   "welcomeWeb": {
    "meta": {
@@ -1272,7 +1312,11 @@
    "errorImage": "Impossibile elaborare l'immagine.",
    "errorPicker": "Impossibile aprire il selettore di immagini.",
    "torchLabel": "Attiva/disattiva torcia",
-   "zoomLabel": "Zoom"
+   "zoomLabel": "Zoom",
+   "gallery": "Foto",
+   "fromGallery": "Dalle foto",
+   "torch": "Torcia",
+   "flipCamera": "Ruota"
   },
   "gas": {
    "estFee": "Commissione di rete",

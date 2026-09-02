@@ -119,6 +119,24 @@
     "batchImportFailedTitle": "無法讀取檔案",
     "batchImportFailedBody": "請使用 CSV、TSV、TXT 或 Excel 檔案。",
     "batchCurrencyLabel": "計價貨幣",
-    "feeTokenLabel": "費用代幣"
+    "feeTokenLabel": "費用代幣",
+    "balanceLabel": "餘額 {{amount}}",
+    "fromContacts": "喺通訊錄揀",
+    "splitTotalLabel": "總數",
+    "multiSendChainNotice": "揀咗 {{network}} · 多幣一次過發送要同一個網絡，其他網絡已經灰咗",
+    "multiSendSameRecipient": "多幣發送嘅時候，收款人係同一個地址",
+    "pickContactTitle": "揀個聯絡人",
+    "pickContactSearch": "搵聯絡人或者貼個地址",
+    "scanToFill": "掃碼填地址",
+    "feeTokenHint": "用嚟俾呢筆轉賬嘅網絡費，個估算跟住而家個網絡即時計",
+    "feeTokenEstimate": "估算費用",
+    "batchRateHint": "表格入面嘅金額當 {{code}} 睇，匯入嗰陣按呢個匯率換做 {{sym}}",
+    "batchParsedCount": "睇到 {{n}} 行",
+    "confirmTotalLine": "總數 ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "喺度準備緊交易，等你用指紋或者面容確認",
+    "txBackgroundHint": "閂咗呢頁，筆交易都會喺背景繼續行",
+    "txCloseBackground": "閂咗 · 背景繼續",
+    "txSubmittedTitle": "交易已經交咗上網絡",
+    "txConfirmedTitle": "發咗 {{amount}} {{symbol}}"
   }
 }

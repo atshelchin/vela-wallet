@@ -21,6 +21,9 @@
     "rpcProvidersTitle": "Où trouver un RPC fiable",
     "rpcProvidersHint": "Points d'accès gratuits — inscrivez-vous, copiez votre URL et collez-la ci-dessus.",
     "rpcReport": "Toujours pas ? Signalez-le",
-    "chainFallback": "Chaîne {{chainId}}"
+    "chainFallback": "Chaîne {{chainId}}",
+    "addByAddress": "Ajouter un jeton par adresse",
+    "notShowingTitle": "Vous avez reçu un jeton qui n’apparaît pas ?",
+    "notShowingBody": "Les transferts confirmés s’ajoutent tout seuls. Si un jeton n’apparaît toujours pas, ajoutez-le par adresse de contrat, ou ajoutez son réseau."
   }
 }

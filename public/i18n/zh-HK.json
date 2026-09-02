@@ -302,7 +302,25 @@
   "batchImportFailedTitle": "無法讀取檔案",
   "batchImportFailedBody": "請使用 CSV、TSV、TXT 或 Excel 檔案。",
   "batchCurrencyLabel": "計價貨幣",
-  "feeTokenLabel": "費用代幣"
+  "feeTokenLabel": "費用代幣",
+  "balanceLabel": "餘額 {{amount}}",
+  "fromContacts": "喺通訊錄揀",
+  "splitTotalLabel": "總數",
+  "multiSendChainNotice": "揀咗 {{network}} · 多幣一次過發送要同一個網絡，其他網絡已經灰咗",
+  "multiSendSameRecipient": "多幣發送嘅時候，收款人係同一個地址",
+  "pickContactTitle": "揀個聯絡人",
+  "pickContactSearch": "搵聯絡人或者貼個地址",
+  "scanToFill": "掃碼填地址",
+  "feeTokenHint": "用嚟俾呢筆轉賬嘅網絡費，個估算跟住而家個網絡即時計",
+  "feeTokenEstimate": "估算費用",
+  "batchRateHint": "表格入面嘅金額當 {{code}} 睇，匯入嗰陣按呢個匯率換做 {{sym}}",
+  "batchParsedCount": "睇到 {{n}} 行",
+  "confirmTotalLine": "總數 ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "喺度準備緊交易，等你用指紋或者面容確認",
+  "txBackgroundHint": "閂咗呢頁，筆交易都會喺背景繼續行",
+  "txCloseBackground": "閂咗 · 背景繼續",
+  "txSubmittedTitle": "交易已經交咗上網絡",
+  "txConfirmedTitle": "發咗 {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "收款",
@@ -372,7 +390,13 @@
    "invalidTitle": "無效的付款連結",
    "invalidBody": "此連結缺少有效的收款人或網絡，請向發送方索取新連結。"
   },
-  "addressLabel": "你的收款地址"
+  "addressLabel": "你的收款地址",
+  "searchNetworkPlaceholder": "搵網絡",
+  "searchNetworkEmpty": "搵唔到同「{{query}}」夾嘅網絡",
+  "qrTitleNetwork": "用呢個地址收 {{network}} 上面嘅資產",
+  "qrTitleAsset": "用呢個地址收 {{network}} 上面嘅 {{symbol}}",
+  "shareCardNetworkNote": "淨係收 {{network}} 網絡嘅付款",
+  "tokenContract": "代幣合約"
  },
  "assets": {
   "sectionTitle": "資產",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "在哪裡取得可靠的 RPC",
   "rpcProvidersHint": "以下為免費節點服務——註冊後複製你的 URL，再貼到上方。",
   "rpcReport": "仍然無法使用？回報給我們",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "addByAddress": "用地址加代幣",
+  "notShowingTitle": "收咗代幣但係唔見？",
+  "notShowingBody": "確認咗嘅轉賬會自動入數。如果隻代幣仲未出現，可以用合約地址自己加，或者加返對應嘅網絡。"
  },
  "addToken": {
   "addedTokensLabel": "已新增的代幣",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "新增網絡失敗。",
   "errorAlreadyAdded": "此網絡已新增",
   "errorChainNotFound": "找不到區塊鏈資料",
-  "errorNotCompatible": "與 Vela Wallet 不兼容"
+  "errorNotCompatible": "與 Vela Wallet 不兼容",
+  "invalidAddress": "合約地址唔啱",
+  "notCompatible": "唔兼容"
  },
  "tokenDetail": {
   "send": "發送",
@@ -491,6 +520,17 @@
    "heroTitle": "真正由你話事嘅\n以太坊錢包",
    "heroTitleFit": "regular",
    "heroSubtitle": "用通行密鑰簽名，Vela 睇唔到你條鑰匙。"
+  },
+  "intro": {
+   "skip": "略過",
+   "next": "繼續",
+   "pageOf": "第 {{current}} 頁，共 {{total}} 頁",
+   "noSeedTitle": "唔使抄助記詞",
+   "noSeedBody": "用呢部機嘅指紋或者面容開錢包。冇 12 個字要抄喺紙度、擺入櫃桶，然後有日搵唔返。",
+   "custodyTitle": "條匙喺你自己手上",
+   "custodyBody": "通行密鑰擺喺你自己度：部機嘅密碼管理程式，或者一條硬件安全鎖匙。Vela 掂唔到，亦冇辦法幫你使錢。",
+   "chainsTitle": "一個地址，行勻成條鏈",
+   "chainsBody": "同一個地址喺 12+ 條網絡上通用，手續費可以用穩定幣畀，唔使預先幫每條鏈準備原生幣。"
   },
   "welcomeWeb": {
    "meta": {
@@ -1230,7 +1270,11 @@
    "errorImage": "處理圖片失敗。",
    "errorPicker": "開啟圖片選擇器失敗。",
    "torchLabel": "開關電筒",
-   "zoomLabel": "縮放"
+   "zoomLabel": "縮放",
+   "gallery": "相簿",
+   "fromGallery": "喺相簿揀",
+   "torch": "電筒",
+   "flipCamera": "反轉"
   },
   "gas": {
    "estFee": "預估費用",

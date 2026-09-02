@@ -61,7 +61,15 @@ export interface ActivityGroupModel {
 }
 
 export type AssetFiatModel =
-	{ kind: 'value'; text: string } | { kind: 'no-price'; text: string } | { kind: 'masked' };
+	| { kind: 'value'; text: string }
+	| { kind: 'no-price'; text: string }
+	| { kind: 'masked' }
+	/**
+	 * Spec 021 SD2d: the row has no fiat line at all. Distinct from `masked`,
+	 * which HIDES a figure that exists — a sweep row is an editable amount, and
+	 * dots under it would read as a concealed second number.
+	 */
+	| { kind: 'none' };
 
 export interface AssetRowModel {
 	ticker: string;

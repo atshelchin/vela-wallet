@@ -97,6 +97,10 @@ enum AssetFiatModel {
     /// Orange 无价格 marker (H4).
     case noPrice(String)
     case masked
+    /// Spec 021 SD2d: the row has no fiat line at all. Distinct from `masked`,
+    /// which HIDES a figure that exists — a sweep row is an editable amount,
+    /// and dots under it read as a concealed second number.
+    case none
 }
 
 struct AssetRowModel: Identifiable {

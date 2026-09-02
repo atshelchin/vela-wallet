@@ -21,6 +21,9 @@
     "rpcProvidersTitle": "Güvenilir bir RPC nereden alınır",
     "rpcProvidersHint": "Ücretsiz uç noktalar — kaydolun, URL'nizi kopyalayıp yukarıya yapıştırın.",
     "rpcReport": "Hâlâ çalışmıyor mu? Bildirin",
-    "chainFallback": "Zincir {{chainId}}"
+    "chainFallback": "Zincir {{chainId}}",
+    "addByAddress": "Adresle token ekle",
+    "notShowingTitle": "Token geldi ama görünmüyor mu?",
+    "notShowingBody": "Onaylanan transferler kendiliğinden eklenir. Token hâlâ görünmüyorsa sözleşme adresiyle ekleyin ya da bulunduğu ağı ekleyin."
   }
 }

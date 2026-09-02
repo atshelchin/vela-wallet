@@ -72,6 +72,13 @@ sealed interface AssetFiatModel {
     data class Value(val text: String) : AssetFiatModel
     data class NoPrice(val text: String) : AssetFiatModel
     data object Masked : AssetFiatModel
+
+    /**
+     * Spec 021 SD2d: the row has no fiat line at all. Distinct from [Masked],
+     * which HIDES a figure that exists — a sweep row is an editable amount, and
+     * dots under it read as a concealed second number.
+     */
+    data object None : AssetFiatModel
 }
 
 @Immutable

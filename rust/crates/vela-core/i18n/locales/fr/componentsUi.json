@@ -249,7 +249,11 @@
       "errorImage": "Échec du traitement de l'image.",
       "errorPicker": "Échec de l'ouverture du sélecteur d'images.",
       "torchLabel": "Activer la lampe",
-      "zoomLabel": "Zoom"
+      "zoomLabel": "Zoom",
+      "gallery": "Photos",
+      "fromGallery": "Depuis les photos",
+      "torch": "Lampe",
+      "flipCamera": "Retourner"
     },
     "gas": {
       "estFee": "Frais estim.",

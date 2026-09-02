@@ -1,6 +1,7 @@
 package app.getvela.wallet.feature.wallet
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -27,6 +28,7 @@ import app.getvela.wallet.core.designsystem.tokens.VelaSizing
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
 import app.getvela.wallet.core.i18n.I18nKeys
 import app.getvela.wallet.core.i18n.LocalVelaStrings
+import app.getvela.wallet.feature.flows.WalletFlowEntry
 import app.getvela.wallet.feature.wallet.components.ActionButtonRow
 import app.getvela.wallet.feature.wallet.components.ActivityRow
 import app.getvela.wallet.feature.wallet.components.AssetRow
@@ -65,16 +67,22 @@ fun WalletScreen(
      */
     onSelectTab: (VelaTab) -> Unit = {},
     onSheetDismiss: () -> Unit = {},
+    /**
+     * Spec 021: the dock, the two section actions and the rows are the entries
+     * into Receive / Send / Scan / Activity / Assets. Absent in the gallery,
+     * where this screen is a picture.
+     */
+    onFlow: (WalletFlowEntry) -> Unit = {},
 ) {
     if (model.textScale != 1f) {
         val density = LocalDensity.current
         CompositionLocalProvider(
             LocalDensity provides Density(density.density, density.fontScale * model.textScale),
         ) {
-            WalletHomeContent(model, modifier, onSelectTab)
+            WalletHomeContent(model, modifier, onSelectTab, onFlow)
         }
     } else {
-        WalletHomeContent(model, modifier, onSelectTab)
+        WalletHomeContent(model, modifier, onSelectTab, onFlow)
     }
 
     model.sheet?.let { sheet ->
@@ -99,6 +107,7 @@ private fun WalletHomeContent(
      * is a later feature; an unreachable wallet is not something to wait for it.
      */
     onSelectTab: (VelaTab) -> Unit = {},
+    onFlow: (WalletFlowEntry) -> Unit = {},
 ) {
     val colors = VelaTheme.colors
     val strings = LocalVelaStrings.current
@@ -139,17 +148,27 @@ private fun WalletHomeContent(
                 Spacer(modifier = Modifier.height(VelaSpacing.xl3))
                 BalanceDisplay(model = model.balance)
                 Spacer(modifier = Modifier.height(VelaSpacing.xl3))
-                ActionButtonRow(actions = model.actions)
+                ActionButtonRow(
+                    actions = model.actions,
+                    onReceive = { onFlow(WalletFlowEntry.Receive) },
+                    onSend = { onFlow(WalletFlowEntry.Send) },
+                    onScan = { onFlow(WalletFlowEntry.Scan) },
+                )
                 Spacer(modifier = Modifier.height(VelaSpacing.xl4))
 
                 SectionHeader(
                     title = model.activitySection.title,
                     action = model.activitySection.action,
+                    onAction = { onFlow(WalletFlowEntry.Activity) },
                 )
                 when (model.activitySection.mode) {
                     SectionMode.Rows -> model.activityGroups.forEach { group ->
                         DayLabel(label = group.label)
-                        group.rows.forEach { row -> ActivityRow(model = row) }
+                        group.rows.forEach { row ->
+                            Box(modifier = Modifier.clickable { onFlow(WalletFlowEntry.TxDetail) }) {
+                                ActivityRow(model = row)
+                            }
+                        }
                     }
                     SectionMode.Empty -> model.activitySection.empty?.let {
                         EmptyState(icon = VelaIcons.Inbox, model = it)
@@ -164,11 +183,17 @@ private fun WalletHomeContent(
                 SectionHeader(
                     title = model.assetsSection.title,
                     action = model.assetsSection.action,
+                    onAction = { onFlow(WalletFlowEntry.Assets) },
                 )
                 when (model.assetsSection.mode) {
                     SectionMode.Rows -> {
                         Spacer(modifier = Modifier.height(VelaSpacing.sm))
-                        model.assetRows.forEach { row -> AssetRow(model = row) }
+                        model.assetRows.forEach { row ->
+                            AssetRow(
+                                model = row,
+                                onClick = { onFlow(WalletFlowEntry.TokenDetail) },
+                            )
+                        }
                     }
                     SectionMode.Empty -> model.assetsSection.empty?.let {
                         EmptyState(icon = VelaIcons.Wallet, model = it)

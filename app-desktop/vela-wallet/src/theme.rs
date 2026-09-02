@@ -45,6 +45,11 @@ pub struct Theme {
     pub bg_base: Hsla,
     pub bg_raised: Hsla,
     pub bg_sunken: Hsla,
+    /// The veil behind a modal. Ink at low alpha in BOTH palettes — the design
+    /// system's `color.fixed.backdrop`, which the web already uses. Deriving it
+    /// from `bg_base` instead makes it white-on-white in the light palette, so
+    /// the dialog it is meant to lift off the page does not lift.
+    pub backdrop: Hsla,
     // foreground ladder
     pub fg_base: Hsla,
     pub fg_muted: Hsla,
@@ -134,6 +139,7 @@ impl Theme {
             bg_base: c(0xfafaf8),
             bg_raised: c(0xffffff),
             bg_sunken: c(0xf5f3ef),
+            backdrop: c(0x000000).opacity(0.35),
             fg_base: c(0x1a1a18),
             fg_muted: c(0x6e6b62),
             fg_subtle: c(0x8c887e),
@@ -172,6 +178,7 @@ impl Theme {
             bg_base: c(0x141412),
             bg_raised: c(0x1e1e1b),
             bg_sunken: c(0x262622),
+            backdrop: c(0x000000).opacity(0.35),
             fg_base: c(0xe8e6e1),
             fg_muted: c(0x9a9790),
             fg_subtle: c(0x85827a),

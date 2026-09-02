@@ -249,7 +249,11 @@
       "errorImage": "Görsel işlenemedi.",
       "errorPicker": "Görsel seçici açılamadı.",
       "torchLabel": "Feneri aç/kapat",
-      "zoomLabel": "Yakınlaştır"
+      "zoomLabel": "Yakınlaştır",
+      "gallery": "Fotoğraflar",
+      "fromGallery": "Fotoğraflardan seç",
+      "torch": "Fener",
+      "flipCamera": "Çevir"
     },
     "gas": {
       "estFee": "Ağ ücreti",

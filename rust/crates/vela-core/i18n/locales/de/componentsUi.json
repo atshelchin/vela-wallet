@@ -249,7 +249,11 @@
       "errorImage": "Bild konnte nicht verarbeitet werden.",
       "errorPicker": "Bildauswahl konnte nicht geöffnet werden.",
       "torchLabel": "Taschenlampe umschalten",
-      "zoomLabel": "Zoom"
+      "zoomLabel": "Zoom",
+      "gallery": "Fotos",
+      "fromGallery": "Aus Fotos wählen",
+      "torch": "Licht",
+      "flipCamera": "Wechseln"
     },
     "gas": {
       "estFee": "Geschätzte Gebühr",

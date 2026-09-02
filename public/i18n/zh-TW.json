@@ -302,7 +302,25 @@
   "scanAria": "掃描 QR code",
   "multiSendNoFundsAfterGas": "扣除 gas 儲備後餘額不足。",
   "gasReserved": "已留 gas",
-  "feeTokenLabel": "手續費代幣"
+  "feeTokenLabel": "手續費代幣",
+  "balanceLabel": "餘額 {{amount}}",
+  "fromContacts": "從通訊錄",
+  "splitTotalLabel": "合計",
+  "multiSendChainNotice": "已選 {{network}} · 多幣發送需同一網路，其他網路已變灰",
+  "multiSendSameRecipient": "多幣發送時收款人為同一位址",
+  "pickContactTitle": "選擇聯絡人",
+  "pickContactSearch": "搜尋聯絡人或貼上位址",
+  "scanToFill": "掃碼填入位址",
+  "feeTokenHint": "用來支付這筆轉帳的網路費，費用按目前網路即時估算",
+  "feeTokenEstimate": "預估費用",
+  "batchRateHint": "表格金額按 {{code}} 讀取，匯入時按此匯率換算為 {{sym}}",
+  "batchParsedCount": "解析結果 · {{n}} 筆",
+  "confirmTotalLine": "合計 ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "正在準備交易並等待生物辨識確認",
+  "txBackgroundHint": "關閉此頁交易會在背景繼續",
+  "txCloseBackground": "關閉 · 背景繼續",
+  "txSubmittedTitle": "交易已提交至網路",
+  "txConfirmedTitle": "已發送 {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "收款",
@@ -372,7 +390,13 @@
    "invalidTitle": "無效的收款連結",
    "invalidBody": "此連結缺少有效的收款地址或網路，請向發送方索取新連結。"
   },
-  "addressLabel": "你的收款地址"
+  "addressLabel": "你的收款地址",
+  "searchNetworkPlaceholder": "搜尋網路",
+  "searchNetworkEmpty": "沒有符合「{{query}}」的網路",
+  "qrTitleNetwork": "用這個位址接收 {{network}} 上的資產",
+  "qrTitleAsset": "用這個位址接收 {{network}} 上的 {{symbol}}",
+  "shareCardNetworkNote": "僅支援 {{network}} 網路付款",
+  "tokenContract": "代幣合約"
  },
  "assets": {
   "sectionTitle": "資產",
@@ -396,7 +420,10 @@
   "rpcProvidersTitle": "在哪裡取得可靠的 RPC",
   "rpcProvidersHint": "以下為免費節點服務——註冊後複製您的網址，貼到上方。",
   "rpcReport": "仍無法解決？回報給我們",
-  "chainFallback": "Chain {{chainId}}"
+  "chainFallback": "Chain {{chainId}}",
+  "addByAddress": "用位址新增代幣",
+  "notShowingTitle": "已經收到代幣但沒有顯示？",
+  "notShowingBody": "確認到帳的轉帳會自動入帳。若代幣仍未出現，可透過合約位址手動新增，或新增對應網路。"
  },
  "addToken": {
   "addedTokensLabel": "已新增的代幣",
@@ -436,7 +463,9 @@
   "errorAddNetwork": "新增網路失敗。",
   "errorAlreadyAdded": "此網路已新增過",
   "errorChainNotFound": "找不到鏈資訊",
-  "errorNotCompatible": "與 Vela Wallet 不相容"
+  "errorNotCompatible": "與 Vela Wallet 不相容",
+  "invalidAddress": "無效的合約位址",
+  "notCompatible": "不相容"
  },
  "tokenDetail": {
   "send": "發送",
@@ -491,6 +520,17 @@
    "heroTitle": "真正由你掌控的\n以太坊錢包",
    "heroTitleFit": "regular",
    "heroSubtitle": "用通行密鑰簽署，Vela 看不到你的金鑰。"
+  },
+  "intro": {
+   "skip": "略過",
+   "next": "繼續",
+   "pageOf": "第 {{current}} 頁，共 {{total}} 頁",
+   "noSeedTitle": "不用抄助記詞",
+   "noSeedBody": "用這台裝置的指紋或臉部辨識建立錢包。沒有 12 個單字要抄在紙上、藏進抽屜，然後某天想不起來放哪了。",
+   "custodyTitle": "鑰匙在你自己手上",
+   "custodyBody": "通行密鑰存在你自己手上：裝置的密碼管理程式，或一把硬體安全金鑰。Vela 碰不到，也沒辦法替你花錢。",
+   "chainsTitle": "一個地址，走遍鏈上",
+   "chainsBody": "同一個地址在 12+ 條網路上通用，手續費可以用穩定幣付，不用先幫每條鏈準備一份原生幣。"
   },
   "welcomeWeb": {
    "meta": {
@@ -1230,7 +1270,11 @@
    "errorImage": "處理圖片失敗。",
    "errorPicker": "開啟圖片選擇器失敗。",
    "torchLabel": "開關手電筒",
-   "zoomLabel": "縮放"
+   "zoomLabel": "縮放",
+   "gallery": "相簿",
+   "fromGallery": "從相簿選擇",
+   "torch": "手電筒",
+   "flipCamera": "翻轉"
   },
   "gas": {
    "estFee": "預估手續費",

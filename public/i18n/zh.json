@@ -309,7 +309,25 @@
   "batchCurrencyLabel": "计价货币",
   "batchOverBalance": "总额超出 {{sym}} 余额。",
   "batchClose": "关闭",
-  "feeTokenLabel": "手续费币种"
+  "feeTokenLabel": "手续费币种",
+  "balanceLabel": "余额 {{amount}}",
+  "fromContacts": "从通讯录",
+  "splitTotalLabel": "合计",
+  "multiSendChainNotice": "已选 {{network}} · 多币发送需同一网络，其他网络已置灰",
+  "multiSendSameRecipient": "多币发送时收款人为同一地址",
+  "pickContactTitle": "选择联系人",
+  "pickContactSearch": "搜索联系人或粘贴地址",
+  "scanToFill": "扫码填写地址",
+  "feeTokenHint": "用于支付这笔转账的网络费，费用按当前网络实时估算",
+  "feeTokenEstimate": "预估费用",
+  "batchRateHint": "表格金额按 {{code}} 读取，导入时按此汇率换算为 {{sym}}",
+  "batchParsedCount": "解析结果 · {{n}} 条",
+  "confirmTotalLine": "合计 ≈ {{fiat}} · {{network}}",
+  "txPreparingBiometric": "正在准备交易并等待生物识别确认",
+  "txBackgroundHint": "关闭此页交易会在后台继续",
+  "txCloseBackground": "关闭 · 后台继续",
+  "txSubmittedTitle": "交易已提交至网络",
+  "txConfirmedTitle": "已发送 {{amount}} {{symbol}}"
  },
  "receive": {
   "title": "收款",
@@ -379,7 +397,13 @@
    "invalidTitle": "无效的收款链接",
    "invalidBody": "此链接缺少有效的收款地址或网络，请向发送方索取新链接。"
   },
-  "addressLabel": "你的收款地址"
+  "addressLabel": "你的收款地址",
+  "searchNetworkPlaceholder": "搜索网络",
+  "searchNetworkEmpty": "没有匹配「{{query}}」的网络",
+  "qrTitleNetwork": "使用这个地址接收 {{network}} 上的资产",
+  "qrTitleAsset": "使用这个地址接收 {{network}} 上的 {{symbol}}",
+  "shareCardNetworkNote": "仅支持 {{network}} 网络付款",
+  "tokenContract": "代币合约"
  },
  "assets": {
   "sectionTitle": "资产",
@@ -403,7 +427,10 @@
   "rpcProvidersTitle": "在哪里获取可靠的 RPC",
   "rpcProvidersHint": "以下为免费节点服务——注册后复制你的 URL，粘贴到上方。",
   "rpcReport": "仍无法解决？反馈给我们",
-  "chainFallback": "链 {{chainId}}"
+  "chainFallback": "链 {{chainId}}",
+  "addByAddress": "通过地址添加代币",
+  "notShowingTitle": "已经收到代币但没有显示？",
+  "notShowingBody": "确认到账的转账会自动入账。若代币仍未出现，可通过合约地址手动添加，或添加对应网络。"
  },
  "addToken": {
   "addedTokensLabel": "已添加的代币",
@@ -443,7 +470,9 @@
   "errorAddNetwork": "添加网络失败。",
   "errorAlreadyAdded": "该网络已添加",
   "errorChainNotFound": "未找到链信息",
-  "errorNotCompatible": "与 Vela Wallet 不兼容"
+  "errorNotCompatible": "与 Vela Wallet 不兼容",
+  "invalidAddress": "无效的合约地址",
+  "notCompatible": "不兼容"
  },
  "tokenDetail": {
   "send": "转账",
@@ -498,6 +527,17 @@
    "heroTitle": "真正由你掌控的\n以太坊钱包",
    "heroTitleFit": "regular",
    "heroSubtitle": "用通行密钥签名，Vela 看不到你的密钥。"
+  },
+  "intro": {
+   "skip": "跳过",
+   "next": "继续",
+   "pageOf": "第 {{current}} 页，共 {{total}} 页",
+   "noSeedTitle": "不用抄助记词",
+   "noSeedBody": "用这台设备的指纹或面容创建钱包。没有 12 个单词要抄在纸上、藏进抽屉、然后某天想不起来放哪了。",
+   "custodyTitle": "钥匙在你自己手里",
+   "custodyBody": "通行密钥存在你自己手上：设备的密码管理器，或一把硬件安全密钥。Vela 接触不到，也没法替你花钱。",
+   "chainsTitle": "一个地址，走遍链上",
+   "chainsBody": "同一个地址在 12+ 条网络上通用，手续费可以用稳定币付，不用先给每条链备一份原生币。"
   },
   "welcomeWeb": {
    "meta": {
@@ -1240,7 +1280,11 @@
    "errorImage": "处理图片失败。",
    "errorPicker": "打开图片选择器失败。",
    "torchLabel": "开关手电筒",
-   "zoomLabel": "缩放"
+   "zoomLabel": "缩放",
+   "gallery": "相册",
+   "fromGallery": "从相册选择",
+   "torch": "手电筒",
+   "flipCamera": "翻转"
   },
   "gas": {
    "estFee": "网络费",

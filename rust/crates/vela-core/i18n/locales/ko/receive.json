@@ -67,6 +67,12 @@
       "invalidTitle": "잘못된 결제 링크",
       "invalidBody": "이 링크에는 올바른 받는 사람 또는 네트워크 정보가 없습니다. 보내는 사람에게 새 링크를 요청하세요."
     },
-    "addressLabel": "받기 주소"
+    "addressLabel": "받기 주소",
+    "searchNetworkPlaceholder": "네트워크 검색",
+    "searchNetworkEmpty": "“{{query}}”와 일치하는 네트워크가 없습니다",
+    "qrTitleNetwork": "이 주소로 {{network}}의 자산을 받으세요",
+    "qrTitleAsset": "이 주소로 {{network}}의 {{symbol}}을 받으세요",
+    "shareCardNetworkNote": "{{network}} 결제만 가능",
+    "tokenContract": "토큰 컨트랙트"
   }
 }

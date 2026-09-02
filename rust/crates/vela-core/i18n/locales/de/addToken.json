@@ -37,6 +37,8 @@
     "errorAddNetwork": "Netzwerk konnte nicht hinzugefügt werden.",
     "errorAlreadyAdded": "Dieses Netzwerk ist bereits hinzugefügt",
     "errorChainNotFound": "Chain-Informationen nicht gefunden",
-    "errorNotCompatible": "Nicht kompatibel mit Vela Wallet"
+    "errorNotCompatible": "Nicht kompatibel mit Vela Wallet",
+    "invalidAddress": "Ungültige Vertragsadresse",
+    "notCompatible": "Nicht kompatibel"
   }
 }

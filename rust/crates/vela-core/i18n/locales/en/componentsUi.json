@@ -233,7 +233,11 @@
       "errorImage": "Failed to process the image.",
       "errorPicker": "Failed to open image picker.",
       "torchLabel": "Toggle flashlight",
-      "zoomLabel": "Zoom"
+      "zoomLabel": "Zoom",
+      "gallery": "Photos",
+      "fromGallery": "From photos",
+      "torch": "Torch",
+      "flipCamera": "Flip"
     },
     "gas": {
       "estFee": "Network fee",

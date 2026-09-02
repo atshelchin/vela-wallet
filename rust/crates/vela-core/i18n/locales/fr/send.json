@@ -122,6 +122,24 @@
     "batchOverBalance": "Le total dépasse votre solde de {{sym}}.",
     "batchClose": "Fermer",
     "scanAria": "Scanner un QR code",
-    "feeTokenLabel": "Token de frais"
+    "feeTokenLabel": "Token de frais",
+    "balanceLabel": "Solde {{amount}}",
+    "fromContacts": "Depuis les contacts",
+    "splitTotalLabel": "Total",
+    "multiSendChainNotice": "{{network}} sélectionné — un envoi multi-jetons reste sur un seul réseau, les autres sont grisés",
+    "multiSendSameRecipient": "Tous les jetons vont à la même adresse",
+    "pickContactTitle": "Choisir un contact",
+    "pickContactSearch": "Rechercher un contact ou coller une adresse",
+    "scanToFill": "Scanner pour remplir l’adresse",
+    "feeTokenHint": "Paie les frais de réseau de ce transfert. L’estimation suit le réseau en temps réel.",
+    "feeTokenEstimate": "Frais estimés",
+    "batchRateHint": "Les montants de la feuille sont lus en {{code}} et convertis en {{sym}} à ce taux.",
+    "batchParsedCount": "Analysé · {{n}} lignes",
+    "confirmTotalLine": "Total ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "Préparation de la transaction et attente de la confirmation biométrique",
+    "txBackgroundHint": "Fermer cette page n’interrompt pas la transaction",
+    "txCloseBackground": "Fermer · continuer en arrière-plan",
+    "txSubmittedTitle": "Envoyée au réseau",
+    "txConfirmedTitle": "{{amount}} {{symbol}} envoyés"
   }
 }

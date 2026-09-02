@@ -427,8 +427,145 @@ object VelaIcons {
         strokeIcon("VelaPlus", "M5 12h14", "M12 5v14")
     }
 
+    // --- spec 021 additions (design/wallet-2) ----------------------------
+    /**
+     * The single-person glyph. `UsersRound` is the group; SD2's recipient
+     * field opens a picker for exactly one person, and two heads there read
+     * as "add several".
+     */
+    val UserRound: ImageVector by lazy {
+        strokeIcon("UserRound", "M12 3a5 5 0 1 1 0 10 5 5 0 0 1 0-10z", "M20 21a8 8 0 0 0-16 0")
+    }
+
+    /** SD2's denomination toggle: token or display currency. */
+    val ChevronsUpDown: ImageVector by lazy {
+        strokeIcon("ChevronsUpDown", "m7 15 5 5 5-5", "m7 9 5-5 5 5")
+    }
+
+    /** T4's empty-assets mark. */
+    val CreditCard: ImageVector by lazy {
+        strokeIcon(
+            "CreditCard",
+            "M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z",
+            "M2 10h20",
+        )
+    }
+
+    /** SD2c's "import a file". */
+    val FileText: ImageVector by lazy {
+        strokeIcon(
+            "FileText",
+            "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+            "M14 2v4a2 2 0 0 0 2 2h4",
+            "M10 9H8",
+            "M16 13H8",
+            "M16 17H8",
+        )
+    }
+
+    /** S1's photo-library tool. */
+    val Image: ImageVector by lazy {
+        strokeIcon(
+            "Image",
+            "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+            "M9 7a2 2 0 1 1 0 4 2 2 0 0 1 0-4z",
+            "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",
+        )
+    }
+
+    /** S1's torch. */
+    val Zap: ImageVector by lazy {
+        strokeIcon(
+            "Zap",
+            "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z",
+        )
+    }
+
+    /** S1's camera flip. */
+    val RotateCcw: ImageVector by lazy {
+        strokeIcon("RotateCcw", "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5")
+    }
+
     /** lucide chevron-left — mobile back affordance (C2/C4). */
     val ChevronLeft: ImageVector by lazy {
         strokeIcon("VelaChevronLeft", "m15 18-6-6 6-6")
+    }
+
+    // --- spec 022 additions (design/explore + the signing sheet) ----------
+    // Spec 022's Android screens were written against these eight names and the
+    // registry never got them, so `explore` and `signing` did not compile. Path
+    // data is the web's `icons.ts`, which is where spec 022 authored the same
+    // glyphs — one vocabulary, four clients. `Star` is a computed five-point
+    // path, not a remembered lucide one: a mis-recalled star draws a shape
+    // nobody can name.
+
+    /** lucide arrow-right — the browser's Forward, and the slide-to-confirm knob. */
+    val ArrowRight: ImageVector by lazy {
+        strokeIcon("VelaArrowRight", "M5 12h14", "m12 5 7 7-7 7")
+    }
+
+    /** lucide arrow-down — the signing sheet's "what comes back" leg. */
+    val ArrowDown: ImageVector by lazy {
+        strokeIcon("VelaArrowDown", "M12 5v14", "m19 12-7 7-7-7")
+    }
+
+    /** The bookmark affordance in the browsing toolbar. */
+    val Star: ImageVector by lazy {
+        strokeIcon(
+            "VelaStar",
+            "M12.00 2.70 L14.35 8.76 L20.84 9.13 L15.80 13.24 L17.47 19.52 " +
+                "L12.00 16.00 L6.53 19.52 L8.20 13.24 L3.16 9.13 L9.65 8.76 Z",
+        )
+    }
+
+    /** lucide lock — the address pill's https mark and the site sheets'. */
+    val Lock: ImageVector by lazy {
+        strokeIcon(
+            "VelaLock",
+            // rect x=3 y=11 w=18 h=11 rx=2
+            "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z",
+            "M7 11V7a5 5 0 0 1 10 0v4",
+        )
+    }
+
+    /** lucide share-2 — the site menu's share row. */
+    val Share2: ImageVector by lazy {
+        strokeIcon(
+            "VelaShare2",
+            // circles cx/cy 18,5 · 6,12 · 18,19, r=3
+            "M18 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z",
+            "M6 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z",
+            "M18 16a3 3 0 1 1 0 6 3 3 0 0 1 0-6z",
+            "M8.59 13.51 15.42 17.49",
+            "M15.41 6.51 8.59 10.49",
+        )
+    }
+
+    /** lucide power — the site menu's disconnect row. */
+    val Power: ImageVector by lazy {
+        strokeIcon("VelaPower", "M12 2v10", "M18.4 6.6a9 9 0 1 1-12.77.04")
+    }
+
+    /** lucide external-link — open in the system browser, and the explorer link. */
+    val ExternalLink: ImageVector by lazy {
+        strokeIcon(
+            "VelaExternalLink",
+            "M15 3h6v6",
+            "M10 14 21 3",
+            "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
+        )
+    }
+
+    /** lucide grip-vertical — the drag handle on a reorderable group row. */
+    val GripVertical: ImageVector by lazy {
+        fillIcon(
+            "VelaGripVertical",
+            "M10 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z",
+            "M10 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z",
+            "M10 18.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z",
+            "M17 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z",
+            "M17 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z",
+            "M17 18.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z",
+        )
     }
 }

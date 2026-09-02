@@ -67,6 +67,12 @@
       "invalidTitle": "無效的付款連結",
       "invalidBody": "此連結缺少有效的收款人或網絡，請向發送方索取新連結。"
     },
-    "addressLabel": "你的收款地址"
+    "addressLabel": "你的收款地址",
+    "searchNetworkPlaceholder": "搵網絡",
+    "searchNetworkEmpty": "搵唔到同「{{query}}」夾嘅網絡",
+    "qrTitleNetwork": "用呢個地址收 {{network}} 上面嘅資產",
+    "qrTitleAsset": "用呢個地址收 {{network}} 上面嘅 {{symbol}}",
+    "shareCardNetworkNote": "淨係收 {{network}} 網絡嘅付款",
+    "tokenContract": "代幣合約"
   }
 }

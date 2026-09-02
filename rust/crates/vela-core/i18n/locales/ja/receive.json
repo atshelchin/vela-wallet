@@ -67,6 +67,12 @@
       "invalidTitle": "無効な支払いリンク",
       "invalidBody": "このリンクには有効な受取人またはネットワークがありません。送金者に新しいリンクを依頼してください。"
     },
-    "addressLabel": "受け取りアドレス"
+    "addressLabel": "受け取りアドレス",
+    "searchNetworkPlaceholder": "ネットワークを検索",
+    "searchNetworkEmpty": "「{{query}}」に一致するネットワークはありません",
+    "qrTitleNetwork": "このアドレスで {{network}} 上の資産を受け取れます",
+    "qrTitleAsset": "このアドレスで {{network}} 上の {{symbol}} を受け取れます",
+    "shareCardNetworkNote": "{{network}} での支払いのみ",
+    "tokenContract": "トークンコントラクト"
   }
 }

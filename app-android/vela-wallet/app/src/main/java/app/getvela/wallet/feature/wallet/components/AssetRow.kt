@@ -1,6 +1,7 @@
 package app.getvela.wallet.feature.wallet.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,16 +11,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
+import app.getvela.wallet.core.designsystem.tokens.VelaIconSize
+import app.getvela.wallet.core.designsystem.tokens.VelaOpacity
+import app.getvela.wallet.core.designsystem.tokens.VelaRadius
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 import app.getvela.wallet.feature.wallet.AssetFiatModel
@@ -33,12 +39,23 @@ private const val FIAT_MASK = "••••"
  * a bottom-trailing chain-dot badge.
  */
 @Composable
-fun TokenIcon(ticker: String, badgeColor: Color, modifier: Modifier = Modifier) {
+fun TokenIcon(
+    ticker: String,
+    badgeColor: Color,
+    modifier: Modifier = Modifier,
+    /**
+     * Spec 021: `inline` is the mark inside a line of text — the fee row's fee
+     * token, a fact row's network, a notice banner's chain. A size PROP and not
+     * a scaled wrapper: the glyph has to shrink with the circle, and scaling
+     * only the box clips a three-letter ticker out of it.
+     */
+    inline: Boolean = false,
+) {
     val colors = VelaTheme.colors
     Box(modifier = modifier, contentAlignment = Alignment.BottomEnd) {
         Box(
             modifier = Modifier
-                .size(WalletMetrics.avatarSize)
+                .size(if (inline) VelaIconSize.xl else WalletMetrics.avatarSize)
                 .background(colors.bgSunken, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
@@ -47,11 +64,16 @@ fun TokenIcon(ticker: String, badgeColor: Color, modifier: Modifier = Modifier) 
                 color = colors.fgMuted,
                 fontFamily = VelaFontFamily,
                 fontWeight = VelaFontWeight.bold,
-                fontSize = VelaTextSize.xs,
+                // Two thirds of the row glyph, which keeps a three-letter
+                // ticker inside the smaller circle.
+                fontSize = if (inline) VelaTextSize.xs * 0.66f else VelaTextSize.xs,
                 maxLines = 1,
             )
         }
-        ChainBadge(color = badgeColor)
+        // The inline mark carries no chain dot: at that diameter the dot is a
+        // few pixels of colour on an already-crowded glyph, and the row it sits
+        // in has said which chain this is.
+        if (!inline) ChainBadge(color = badgeColor)
     }
 }
 
@@ -61,11 +83,42 @@ fun TokenIcon(ticker: String, badgeColor: Color, modifier: Modifier = Modifier) 
  * (both lines dotted, mock H5), long-value truncation (H7).
  */
 @Composable
-fun AssetRow(model: AssetRowModel, modifier: Modifier = Modifier) {
+fun AssetRow(
+    model: AssetRowModel,
+    modifier: Modifier = Modifier,
+    /**
+     * Spec 021 SD1b: the row is off the network the multi-send is locked to.
+     * Still readable and still there — it is a token the person owns — but not
+     * selectable, and saying so by weight rather than by hiding it.
+     */
+    dimmed: Boolean = false,
+    /** Spec 021 SD1b: chosen for a multi-token send. */
+    selected: Boolean = false,
+    /** Spec 021 SD2d: a trailing control (Max) after the numbers. */
+    trailing: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+) {
     val colors = VelaTheme.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (selected) {
+                    // The whole row lifts rather than growing a checkbox: the
+                    // list IS the selection, and a column of empty boxes down
+                    // the leading edge would push the token marks off the
+                    // margin every other screen aligns to.
+                    Modifier
+                        .background(colors.bgRaised, RoundedCornerShape(VelaRadius.lg))
+                        .padding(horizontal = VelaSpacing.md)
+                } else {
+                    Modifier
+                }
+            )
+            .then(
+                if (onClick != null && !dimmed) Modifier.clickable(onClick = onClick) else Modifier
+            )
+            .alpha(if (dimmed) VelaOpacity.disabled else 1f)
             .padding(vertical = VelaSpacing.lg),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -133,7 +186,12 @@ fun AssetRow(model: AssetRowModel, modifier: Modifier = Modifier) {
                     maxLines = 1,
                     textAlign = TextAlign.End,
                 )
+                AssetFiatModel.None -> Unit
             }
+        }
+        if (trailing != null) {
+            Spacer(modifier = Modifier.width(VelaSpacing.lg))
+            trailing()
         }
     }
 }

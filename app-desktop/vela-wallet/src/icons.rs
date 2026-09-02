@@ -57,6 +57,18 @@ pub enum Icon {
     /// source; the desktop shell navigates by sidebar and has no back row.
     #[allow(dead_code, reason = "cross-platform icon contract, mobile-only glyph")]
     ChevronLeft,
+    // settings (spec 023, lucide v1.11.0, stroke style)
+    Sun,
+    Moon,
+    Monitor,
+    Coins,
+    Network,
+    Server,
+    Zap,
+    HardDrive,
+    Info,
+    LogOut,
+    ExternalLink,
 }
 
 /// Inner SVG markup per icon. `{c}` is substituted with the tint. Nav-solid
@@ -153,6 +165,39 @@ fn body(icon: Icon, solid: bool) -> &'static str {
         }
         Icon::Plus => r##"<path d="M5 12h14"/><path d="M12 5v14"/>"##,
         Icon::ChevronLeft => r##"<path d="m15 18-6-6 6-6"/>"##,
+        Icon::Sun => {
+            r##"<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>"##
+        }
+        Icon::Moon => {
+            r##"<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>"##
+        }
+        Icon::Monitor => {
+            r##"<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>"##
+        }
+        Icon::Coins => {
+            r##"<path d="M13.744 17.736a6 6 0 1 1-7.48-7.48"/><path d="M15 6h1v4"/><path d="m6.134 14.768.866-.5 2 3.464"/><circle cx="16" cy="8" r="6"/>"##
+        }
+        Icon::Network => {
+            r##"<rect width="6" height="6" x="16" y="16" rx="1"/><rect width="6" height="6" x="2" y="16" rx="1"/><rect width="6" height="6" x="9" y="2" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/>"##
+        }
+        Icon::Server => {
+            r##"<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/>"##
+        }
+        Icon::Zap => {
+            r##"<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>"##
+        }
+        Icon::HardDrive => {
+            r##"<path d="M10 16h.01"/><path d="M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><path d="M21.946 12.013H2.054"/><path d="M6 16h.01"/>"##
+        }
+        Icon::Info => {
+            r##"<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>"##
+        }
+        Icon::LogOut => {
+            r##"<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>"##
+        }
+        Icon::ExternalLink => {
+            r##"<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>"##
+        }
     }
 }
 

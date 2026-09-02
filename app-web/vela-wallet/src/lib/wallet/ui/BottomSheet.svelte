@@ -7,23 +7,48 @@
 		title: string;
 		/** Optional trailing icon-button slot in the title row (mock H8: search). */
 		trailingIcon?: 'search';
+		/**
+		 * Spec 023: the settings sheets carry a whole form — a callout, a field,
+		 * a CTA and a row of links — where the wallet's carries a chain list.
+		 * 60% cuts the last line off; the mocks show these opening past
+		 * three-quarters of the frame.
+		 */
+		tall?: boolean;
+		/**
+		 * Spec 023: every settings sheet ends its title row in a circular ✕.
+		 * The label is what makes it a button rather than decoration, so the
+		 * affordance appears only when a caller has a name for it.
+		 */
+		closeLabel?: string;
 		/** Spec 018 C5/C6: action sheets show no visible title, only the a11y name. */
 		hideTitle?: boolean;
 		onclose?: () => void;
 		children: Snippet;
 	}
 
-	let { title, trailingIcon, hideTitle = false, onclose, children }: Props = $props();
+	let {
+		title,
+		trailingIcon,
+		closeLabel,
+		tall = false,
+		hideTitle = false,
+		onclose,
+		children
+	}: Props = $props();
 </script>
 
 <div class="scrim" role="presentation" onclick={onclose}></div>
-<div class="sheet" role="dialog" aria-modal="true" aria-label={title}>
+<div class="sheet" class:tall role="dialog" aria-modal="true" aria-label={title}>
 	<span class="handle" aria-hidden="true"></span>
 	{#if !hideTitle}
 		<header>
 			<h2>{title}</h2>
 			{#if trailingIcon === 'search'}
 				<span class="trailing"><Icon icon={UTILITY_ICONS.search} size="lg" /></span>
+			{:else if closeLabel !== undefined}
+				<button type="button" class="close" aria-label={closeLabel} onclick={onclose}>
+					<Icon icon={UTILITY_ICONS.x} size="md" />
+				</button>
 			{/if}
 		</header>
 	{/if}
@@ -52,6 +77,10 @@
 		padding-inline: var(--layout-screenPaddingX);
 		padding-bottom: var(--space-3xl);
 		animation: rise var(--motion-sheet-in) ease-out;
+	}
+
+	.sheet.tall {
+		max-height: 88%;
 	}
 
 	@keyframes rise {
@@ -98,6 +127,20 @@
 	.trailing {
 		color: var(--color-fg-muted);
 		display: flex;
+	}
+
+	.close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--space-4xl);
+		height: var(--space-4xl);
+		border: none;
+		border-radius: var(--radius-full);
+		background: var(--color-bg-raised);
+		color: var(--color-fg-muted);
+		cursor: pointer;
+		flex-shrink: 0;
 	}
 
 	.content {

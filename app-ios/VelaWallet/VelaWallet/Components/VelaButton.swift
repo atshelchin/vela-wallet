@@ -13,6 +13,11 @@ struct VelaButton: View {
     enum Kind {
         case primary
         case secondary
+        /// Spec 023: 退出登录 / 仍然退出 / 全部清除 are filled buttons in the
+        /// error colour, not accent ones. Accent is reserved for the action
+        /// that moves value (design review 2026-07), and signing out or
+        /// erasing a device moves none — it destroys.
+        case danger
     }
 
     let title: String
@@ -57,7 +62,7 @@ private struct VelaButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let labelColor = kind == .primary ? theme.onAccent : theme.fgBase
+        let labelColor = kind == .secondary ? theme.fgBase : theme.onAccent
         // minHeight, not a fixed height: long-locale labels wrap centered and
         // grow the capsule instead of being clipped (spec 014 long-label fix).
         return configuration.label
@@ -82,6 +87,8 @@ private struct VelaButtonStyle: ButtonStyle {
                 switch kind {
                 case .primary:
                     Capsule().fill(theme.accentBase)
+                case .danger:
+                    Capsule().fill(theme.errorBase)
                 case .secondary:
                     Capsule().strokeBorder(theme.borderStrong, lineWidth: Tokens.BorderWidth.hairline)
                 }

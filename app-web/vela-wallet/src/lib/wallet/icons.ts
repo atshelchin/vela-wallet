@@ -143,7 +143,25 @@ export type UtilityIconId =
 	| 'ellipsis'
 	| 'qr-code'
 	| 'plus'
-	| 'chevron-left';
+	| 'chevron-left'
+	// spec 023 additions (the settings rows' leading glyphs + their chrome)
+	| 'globe'
+	| 'sun'
+	| 'moon'
+	| 'monitor'
+	| 'coins'
+	| 'hash'
+	| 'calendar'
+	| 'clock'
+	| 'network'
+	| 'server'
+	| 'zap'
+	| 'hard-drive'
+	| 'info'
+	| 'log-out'
+	| 'message-square-text'
+	| 'external-link'
+	| 'circle-alert';
 
 export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 	'arrow-down-left': {
@@ -363,7 +381,165 @@ export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 			{ tag: 'path', d: 'M12 5v14' }
 		]
 	},
-	'chevron-left': { style: 'stroke', elements: [{ tag: 'path', d: 'm15 18-6-6 6-6' }] }
+	'chevron-left': { style: 'stroke', elements: [{ tag: 'path', d: 'm15 18-6-6 6-6' }] },
+	// spec 023 — lucide v1.11.0, verbatim stroke defs like every glyph above.
+	globe: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '10' },
+			{ tag: 'path', d: 'M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20' },
+			{ tag: 'path', d: 'M2 12h20' }
+		]
+	},
+	sun: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '4' },
+			{ tag: 'path', d: 'M12 2v2' },
+			{ tag: 'path', d: 'M12 20v2' },
+			{ tag: 'path', d: 'm4.93 4.93 1.41 1.41' },
+			{ tag: 'path', d: 'm17.66 17.66 1.41 1.41' },
+			{ tag: 'path', d: 'M2 12h2' },
+			{ tag: 'path', d: 'M20 12h2' },
+			{ tag: 'path', d: 'm6.34 17.66-1.41 1.41' },
+			{ tag: 'path', d: 'm19.07 4.93-1.41 1.41' }
+		]
+	},
+	moon: {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401'
+			}
+		]
+	},
+	monitor: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '20', height: '14', x: '2', y: '3', rx: '2' },
+			{ tag: 'line', x1: '8', x2: '16', y1: '21', y2: '21' },
+			{ tag: 'line', x1: '12', x2: '12', y1: '17', y2: '21' }
+		]
+	},
+	coins: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M13.744 17.736a6 6 0 1 1-7.48-7.48' },
+			{ tag: 'path', d: 'M15 6h1v4' },
+			{ tag: 'path', d: 'm6.134 14.768.866-.5 2 3.464' },
+			{ tag: 'circle', cx: '16', cy: '8', r: '6' }
+		]
+	},
+	hash: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'line', x1: '4', x2: '20', y1: '9', y2: '9' },
+			{ tag: 'line', x1: '4', x2: '20', y1: '15', y2: '15' },
+			{ tag: 'line', x1: '10', x2: '8', y1: '3', y2: '21' },
+			{ tag: 'line', x1: '16', x2: '14', y1: '3', y2: '21' }
+		]
+	},
+	calendar: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M8 2v4' },
+			{ tag: 'path', d: 'M16 2v4' },
+			{ tag: 'rect', width: '18', height: '18', x: '3', y: '4', rx: '2' },
+			{ tag: 'path', d: 'M3 10h18' }
+		]
+	},
+	clock: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '10' },
+			{ tag: 'path', d: 'M12 6v6l4 2' }
+		]
+	},
+	network: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '6', height: '6', x: '16', y: '16', rx: '1' },
+			{ tag: 'rect', width: '6', height: '6', x: '2', y: '16', rx: '1' },
+			{ tag: 'rect', width: '6', height: '6', x: '9', y: '2', rx: '1' },
+			{ tag: 'path', d: 'M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3' },
+			{ tag: 'path', d: 'M12 12V8' }
+		]
+	},
+	server: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '20', height: '8', x: '2', y: '2', rx: '2' },
+			{ tag: 'rect', width: '20', height: '8', x: '2', y: '14', rx: '2' },
+			{ tag: 'line', x1: '6', x2: '6.01', y1: '6', y2: '6' },
+			{ tag: 'line', x1: '6', x2: '6.01', y1: '18', y2: '18' }
+		]
+	},
+	zap: {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'
+			}
+		]
+	},
+	'hard-drive': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M10 16h.01' },
+			{
+				tag: 'path',
+				d: 'M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z'
+			},
+			{ tag: 'path', d: 'M21.946 12.013H2.054' },
+			{ tag: 'path', d: 'M6 16h.01' }
+		]
+	},
+	info: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '10' },
+			{ tag: 'path', d: 'M12 16v-4' },
+			{ tag: 'path', d: 'M12 8h.01' }
+		]
+	},
+	'log-out': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'm16 17 5-5-5-5' },
+			{ tag: 'path', d: 'M21 12H9' },
+			{ tag: 'path', d: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4' }
+		]
+	},
+	'message-square-text': {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'
+			},
+			{ tag: 'path', d: 'M7 11h10' },
+			{ tag: 'path', d: 'M7 15h6' },
+			{ tag: 'path', d: 'M7 7h8' }
+		]
+	},
+	'external-link': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M15 3h6v6' },
+			{ tag: 'path', d: 'M10 14 21 3' },
+			{ tag: 'path', d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }
+		]
+	},
+	'circle-alert': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '10' },
+			{ tag: 'line', x1: '12', x2: '12', y1: '8', y2: '12' },
+			{ tag: 'line', x1: '12', x2: '12.01', y1: '16', y2: '16' }
+		]
+	}
 };
 
 export function navIcon(id: NavIconId, selected: boolean): IconDef {

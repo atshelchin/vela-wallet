@@ -431,4 +431,160 @@ object VelaIcons {
     val ChevronLeft: ImageVector by lazy {
         strokeIcon("VelaChevronLeft", "m15 18-6-6 6-6")
     }
+
+    // -- spec 023: the settings rows' leading glyphs and their chrome --------
+
+    /** lucide globe — 语言 row. */
+    val Globe: ImageVector by lazy {
+        strokeIcon(
+            "VelaGlobe",
+            "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+            "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20",
+            "M2 12h20",
+        )
+    }
+
+    /** lucide sun — 浅色 segment · 外观 nav. */
+    val Sun: ImageVector by lazy {
+        strokeIcon(
+            "VelaSun",
+            "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+            "M12 2v2",
+            "M12 20v2",
+            "m4.93 4.93 1.41 1.41",
+            "m17.66 17.66 1.41 1.41",
+            "M2 12h2",
+            "M20 12h2",
+            "m6.34 17.66-1.41 1.41",
+            "m19.07 4.93-1.41 1.41",
+        )
+    }
+
+    /** lucide moon — 深色 segment. */
+    val Moon: ImageVector by lazy {
+        strokeIcon(
+            "VelaMoon",
+            "M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401",
+        )
+    }
+
+    /** lucide monitor — 跟随系统 segment. */
+    val Monitor: ImageVector by lazy {
+        strokeIcon(
+            "VelaMonitor",
+            "M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+            "M8 21h8",
+            "M12 17v4",
+        )
+    }
+
+    /** lucide coins — 货币 row · 区域格式 nav. */
+    val Coins: ImageVector by lazy {
+        strokeIcon(
+            "VelaCoins",
+            "M13.744 17.736a6 6 0 1 1-7.48-7.48",
+            "M15 6h1v4",
+            "m6.134 14.768.866-.5 2 3.464",
+            "M16 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z",
+        )
+    }
+
+    /** lucide hash — 数字格式 row. */
+    val Hash: ImageVector by lazy {
+        strokeIcon("VelaHash", "M4 9h16", "M4 15h16", "M10 3 8 21", "M16 3l-2 18")
+    }
+
+    /** lucide calendar — 日期格式 row. */
+    val Calendar: ImageVector by lazy {
+        strokeIcon(
+            "VelaCalendar",
+            "M8 2v4",
+            "M16 2v4",
+            "M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z",
+            "M3 10h18",
+        )
+    }
+
+    /** lucide network — 网络 row. */
+    val Network: ImageVector by lazy {
+        strokeIcon(
+            "VelaNetwork",
+            "M17 16h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z",
+            "M3 16h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z",
+            "M10 2h4a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z",
+            "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3",
+            "M12 12V8",
+        )
+    }
+
+    /** lucide server — RPC 供应商 row. */
+    val Server: ImageVector by lazy {
+        strokeIcon(
+            "VelaServer",
+            "M4 2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z",
+            "M4 14h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2z",
+            "M6 6h.01",
+            "M6 18h.01",
+        )
+    }
+
+    /** lucide zap — 服务节点 row. */
+    val Zap: ImageVector by lazy {
+        strokeIcon(
+            "VelaZap",
+            "M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z",
+        )
+    }
+
+    /** lucide hard-drive — 设备存储 row. */
+    val HardDrive: ImageVector by lazy {
+        strokeIcon(
+            "VelaHardDrive",
+            "M10 16h.01",
+            "M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+            "M21.946 12.013H2.054",
+            "M6 16h.01",
+        )
+    }
+
+    /** lucide info — 关于 row. */
+    val Info: ImageVector by lazy {
+        strokeIcon(
+            "VelaInfo",
+            "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+            "M12 16v-4",
+            "M12 8h.01",
+        )
+    }
+
+    /** lucide log-out — 退出登录. */
+    val LogOut: ImageVector by lazy {
+        strokeIcon(
+            "VelaLogOut",
+            "m16 17 5-5-5-5",
+            "M21 12H9",
+            "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4",
+        )
+    }
+
+    /** lucide message-square-text — 反馈 row. */
+    val MessageSquareText: ImageVector by lazy {
+        strokeIcon(
+            "VelaMessageSquareText",
+            "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z",
+            "M7 11h10",
+            "M7 15h6",
+            "M7 7h8",
+        )
+    }
+
+    /** lucide external-link — the 反馈 row's trailing mark and About's links. */
+    val ExternalLink: ImageVector by lazy {
+        strokeIcon(
+            "VelaExternalLink",
+            "M15 3h6v6",
+            "M10 14 21 3",
+            "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
+        )
+    }
 }

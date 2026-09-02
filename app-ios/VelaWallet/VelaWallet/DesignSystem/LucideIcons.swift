@@ -34,6 +34,13 @@ enum LucideGlyph: String {
     case ellipsis, qrCode, plus, chevronLeft
     // Wallet-flow glyphs (spec 021 — lucide v1.11.0).
     case clock, userRound, chevronsUpDown, creditCard, fileText, image, zap, rotateCcw
+    // Explore + signing glyphs (spec 022 — lucide v1.11.0, except `star`,
+    // which is a computed five-point path: a mis-recalled star draws a shape
+    // nobody can name). Spec 022's screens were written against these names
+    // and the corpus never got them, so `Explore` and `Signing` did not build.
+    case arrowLeft, arrowRight, arrowDown
+    case eye
+    case lock, star, share2, power, externalLink, gripVertical
 
     /// Complete SVG document, white paint, 24×24 viewBox.
     var svg: String {
@@ -133,6 +140,26 @@ enum LucideGlyph: String {
             return ##"<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>"##
         case .rotateCcw:
             return ##"<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>"##
+        case .eye:
+            return ##"<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>"##
+        case .arrowLeft:
+            return ##"<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>"##
+        case .arrowRight:
+            return ##"<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>"##
+        case .arrowDown:
+            return ##"<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>"##
+        case .lock:
+            return ##"<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>"##
+        case .star:
+            return ##"<path d="M12.00 2.70 L14.35 8.76 L20.84 9.13 L15.80 13.24 L17.47 19.52 L12.00 16.00 L6.53 19.52 L8.20 13.24 L3.16 9.13 L9.65 8.76 Z"/>"##
+        case .share2:
+            return ##"<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>"##
+        case .power:
+            return ##"<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>"##
+        case .externalLink:
+            return ##"<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>"##
+        case .gripVertical:
+            return ##"<circle cx="8.5" cy="5.5" r="1.5" fill="#FFFFFF" stroke="none"/><circle cx="8.5" cy="12" r="1.5" fill="#FFFFFF" stroke="none"/><circle cx="8.5" cy="18.5" r="1.5" fill="#FFFFFF" stroke="none"/><circle cx="15.5" cy="5.5" r="1.5" fill="#FFFFFF" stroke="none"/><circle cx="15.5" cy="12" r="1.5" fill="#FFFFFF" stroke="none"/><circle cx="15.5" cy="18.5" r="1.5" fill="#FFFFFF" stroke="none"/>"##
         case .chevronLeft:
             return ##"<path d="m15 18-6-6 6-6"/>"##
         }
@@ -163,4 +190,14 @@ enum LucideIconSize {
     static let flowRowAction: CGFloat = 18
     static let flowStatus: CGFloat = 26
     static let flowScanTool: CGFloat = 18
+    // Explore + signing slots (spec 022). The four names its screens read and
+    // the corpus never carried; sized off the same mocks the Android and web
+    // clients measured — the browser bar's back/forward/star, the https mark
+    // beside an address, a disclosure chevron, the slide-to-confirm arrow and
+    // the favourites tile's glyph.
+    static let browserBarGlyph: CGFloat = 20
+    static let addressLock: CGFloat = 12
+    static let disclosure: CGFloat = 14
+    static let slideArrow: CGFloat = 20
+    static let tileGlyph: CGFloat = 24
 }

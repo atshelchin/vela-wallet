@@ -177,6 +177,30 @@ const WEB_ADDITIONS = [
 		'spec 021: the receive share card (R4) — a render product saved to the photo library, so its geometry is fixed rather than responsive'
 	],
 	['layout-shareCardH', '700px', 'spec 021: the receive share card, see layout-shareCardW'],
+	// spec 022 (explore + signing), every value MEASURED off design/explore
+	['size-siteTile', '56px', 'spec 022: favourites tile avatar, measured 56 in E2 (x33–88)'],
+	['size-siteRow', '40px', 'spec 022: site-row avatar, measured 40 in E2 recent rows'],
+	['size-searchField', '48px', 'spec 022: start-page search box, measured 48 in E2 (y116–163)'],
+	['size-addressPill', '40px', 'spec 022: browsing address pill, measured 40 in E4'],
+	['size-browserBar', '56px', 'spec 022: browsing toolbar row, measured 56 in E4'],
+	['size-signingAvatar', '36px', 'spec 022: dApp avatar in the signing header, measured 36 in CS1'],
+	['size-networkChip', '26px', 'spec 022: the network chip beside it, measured 26 in CS1'],
+	['size-slideTrack', '56px', 'spec 022: slide-to-confirm track, measured 342x56 in CS1'],
+	[
+		'size-slideKnob',
+		'48px',
+		'spec 022: its knob; the 4px inset either side is what makes the travel W-56'
+	],
+	[
+		'size-tabCount',
+		'26px',
+		'spec 022: the boxed tab count — the header chip in E2 and the toolbar box in E4 are the same square'
+	],
+	['size-desktopTabStrip', '36px', 'spec 022: desktop tab strip height, measured 36 in DE3'],
+	['size-desktopTab', '32px', 'spec 022: one desktop tab inside it'],
+	['size-desktopToolbar', '56px', 'spec 022: desktop browser toolbar, measured 56 in DE3'],
+	['size-desktopControl', '32px', 'spec 022: its icon buttons and address field'],
+	['layout-desktopTabW', '200px', 'spec 022: one desktop tab’s width, measured in DE3'],
 	['layout-contactsRailW', '216px', 'spec 018 research D9: desktop group-rail width (DC1)'],
 	['layout-contactsMenuW', '216px', 'spec 018 research D9: dropdown/context menu width (M1/M2)'],
 	[

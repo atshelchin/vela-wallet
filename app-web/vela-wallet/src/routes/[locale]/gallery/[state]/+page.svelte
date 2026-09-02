@@ -8,6 +8,9 @@
 	import FlowsMobile from '$lib/flows/FlowsMobile.svelte';
 	import FlowsPanel from '$lib/flows/FlowsPanel.svelte';
 	import ScanSurface from '$lib/flows/ui/ScanSurface.svelte';
+	import ExploreDesktop from '$lib/explore/ExploreDesktop.svelte';
+	import ExploreHome from '$lib/explore/ExploreHome.svelte';
+	import SigningSheet from '$lib/signing/SigningSheet.svelte';
 	import Controls from '../Controls.svelte';
 
 	let { data } = $props();
@@ -63,6 +66,30 @@
 			<div class="scan-modal"><ScanSurface model={data.scan} variant="modal" /></div>
 		</div>
 	{/if}
+{:else if data.kind === 'explore-mobile'}
+	<div class="stage">
+		<div class="frame">
+			<ExploreHome model={data.model} copy={data.copy} signing={data.signing} />
+		</div>
+	</div>
+{:else if data.kind === 'signing'}
+	<!-- A CS state IS the sheet over the page that asked for it, so the mock is
+	     reproduced whole rather than as a floating panel. -->
+	<div class="stage">
+		<div class="frame">
+			<ExploreHome model={data.model} copy={data.copy} />
+			<SigningSheet model={data.signing} />
+		</div>
+	</div>
+{:else if data.kind === 'explore-desktop'}
+	<div class="desktop-stage">
+		<ExploreDesktop
+			model={data.model}
+			copy={data.copy}
+			sidebar={data.sidebar}
+			signing={data.signing}
+		/>
+	</div>
 {:else if data.kind === 'contacts-desktop'}
 	<div class="desktop-stage" class:narrow={narrowStage}>
 		<ContactsDesktop model={data.model} />
@@ -84,6 +111,7 @@
 	}
 
 	.frame {
+		position: relative;
 		width: var(--layout-frameW);
 		height: var(--layout-frameH);
 		border: var(--border-hairline) solid var(--color-border-strong);

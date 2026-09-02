@@ -34,6 +34,17 @@
 	import FlowsPanel from '$lib/flows/FlowsPanel.svelte';
 	import ScanSurface from '$lib/flows/ui/ScanSurface.svelte';
 	import { FlowNav, type FlowEntry } from '$lib/flows/nav.svelte';
+
+	/** The sidebar's own copy of the rule above: three rows, not four. */
+	function webNav(model: typeof data.desktop) {
+		return {
+			...model,
+			sidebar: {
+				...model.sidebar,
+				nav: model.sidebar.nav.filter((item) => item.id !== 'explore')
+			}
+		};
+	}
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -75,6 +86,18 @@
 	const nav = new FlowNav();
 	const flowState = $derived(nav.mobileTop);
 	const desktopFlow = $derived(nav.desktopTop);
+
+	/**
+	 * The destinations THIS client has (spec 022 founder call).
+	 *
+	 * 探索 is the in-app dApp browser, and this client already lives inside a
+	 * browser: a page cannot host another site's dApp with a wallet injected
+	 * into it, so there is nothing behind that tab here. The native clients
+	 * have it; the web shows three tabs rather than a fourth that opens
+	 * nothing. The explore/signing vocabulary still ships — the gallery boards
+	 * are the design source all four clients are reviewed against.
+	 */
+	const DESTINATIONS = ['wallet', 'contacts', 'settings'] as const;
 
 	onMount(() => {
 		void session.boot();
@@ -124,7 +147,7 @@
 	{#if wide.current}
 		<div class="desktop-shell">
 			<WalletDesktop
-				model={desktopWithIdentity(data.desktop, identity)}
+				model={webNav(desktopWithIdentity(data.desktop, identity))}
 				onnav={select}
 				onidenticon={() => (viewing = true)}
 				identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
@@ -158,6 +181,7 @@
 	{:else}
 		<WalletHome
 			model={homeWithIdentity(data.home, identity)}
+			destinations={DESTINATIONS}
 			onselect={select}
 			onidenticon={() => (viewing = true)}
 			identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}

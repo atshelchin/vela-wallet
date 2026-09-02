@@ -7,6 +7,8 @@ import { error } from '@sveltejs/kit';
 import {
 	resolveContactsMessages,
 	resolveWalletFlowMessages,
+	resolveExploreMessages,
+	resolveSigningMessages,
 	resolveWalletMessages
 } from '$lib/i18n/engine.server';
 import { toLocale } from '$lib/i18n/locales';
@@ -33,6 +35,16 @@ import { identiconSvgFor } from '$lib/wallet/identicon.server';
 import type { DesktopStateId, MobileStateId } from '$lib/wallet/model';
 import type { DesktopContactsStateId, MobileContactsStateId } from '$lib/contacts/model';
 import type { DesktopFlowStateId, FlowStateId } from '$lib/flows/model';
+import {
+	buildDesktopState as buildExploreDesktopState,
+	buildMobileState as buildExploreMobileState,
+	DESKTOP_STATES as EXPLORE_DESKTOP_STATES,
+	exploreSidebar,
+	MOBILE_STATES as EXPLORE_MOBILE_STATES
+} from '$lib/explore/fixtures';
+import { ALL_STATES as SIGNING_STATES, buildSigningState } from '$lib/signing/fixtures';
+import type { ExploreDesktopStateId, ExploreStateId } from '$lib/explore/model';
+import type { SigningStateId } from '$lib/signing/model';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
 export const entries: EntryGenerator = () =>
@@ -43,7 +55,10 @@ export const entries: EntryGenerator = () =>
 			...CONTACTS_MOBILE_STATES,
 			...CONTACTS_DESKTOP_STATES,
 			...MOBILE_FLOW_STATES,
-			...DESKTOP_FLOW_STATES
+			...DESKTOP_FLOW_STATES,
+			...EXPLORE_MOBILE_STATES,
+			...EXPLORE_DESKTOP_STATES,
+			...SIGNING_STATES
 		].map((state) => ({ locale, state }))
 	);
 
@@ -95,6 +110,38 @@ export const load: PageServerLoad = ({ params }) => {
 			// the scanner model to draw it that way.
 			scan: buildDesktopScan(messages),
 			wallet: buildDesktopState('d1', resolveWalletMessages(locale), identiconSvgFor)
+		};
+	}
+	// spec 022. The explore states carry a signing model too: E4's page can
+	// raise the sheet, and DE4 IS the third column holding one — a browser
+	// whose signing request is somewhere else is not the thing being reviewed.
+	if ((EXPLORE_MOBILE_STATES as readonly string[]).includes(params.state)) {
+		const state = params.state as ExploreStateId;
+		return {
+			kind: 'explore-mobile' as const,
+			model: buildExploreMobileState(state, resolveExploreMessages(locale), identiconSvgFor),
+			copy: resolveExploreMessages(locale),
+			signing: buildSigningState('cs12', resolveSigningMessages(locale), identiconSvgFor)
+		};
+	}
+	if ((EXPLORE_DESKTOP_STATES as readonly string[]).includes(params.state)) {
+		const state = params.state as ExploreDesktopStateId;
+		const walletMessages = resolveWalletMessages(locale);
+		return {
+			kind: 'explore-desktop' as const,
+			model: buildExploreDesktopState(state, resolveExploreMessages(locale), identiconSvgFor),
+			copy: resolveExploreMessages(locale),
+			sidebar: exploreSidebar(buildDesktopState('d1', walletMessages, identiconSvgFor).sidebar),
+			signing: buildSigningState('cs12', resolveSigningMessages(locale), identiconSvgFor)
+		};
+	}
+	if ((SIGNING_STATES as readonly string[]).includes(params.state)) {
+		const state = params.state as SigningStateId;
+		return {
+			kind: 'signing' as const,
+			model: buildExploreMobileState('e4', resolveExploreMessages(locale), identiconSvgFor),
+			copy: resolveExploreMessages(locale),
+			signing: buildSigningState(state, resolveSigningMessages(locale), identiconSvgFor)
 		};
 	}
 	error(404, `unknown state "${params.state}"`);

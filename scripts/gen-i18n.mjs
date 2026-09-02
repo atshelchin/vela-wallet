@@ -51,7 +51,7 @@ const LOCALES = ['en', 'zh', 'zh-TW', 'zh-HK', 'ja', 'ko', 'vi', 'id', 'tr', 'es
 const NAMESPACE_FILES = [
   'home', 'send', 'receive', 'assets', 'addToken', 'tokenDetail', 'history',
   'onboarding', 'connect', 'about', 'clearSigning', 'componentsTx',
-  'componentsUi', 'settingsModals', 'contacts',
+  'componentsUi', 'settingsModals', 'contacts', 'explore',
 ];
 
 /** `es-MX` -> `es-mx`, matching the cargo feature name. */
@@ -233,9 +233,16 @@ for (let i = 1; i < PATHS.length; i++) {
 //   note, the assets "you received it but can't see it" card, and the send
 //   flow's split / sweep / fee-token / import / receipt copy. No new branch:
 //   every one hangs off a namespace that already exists.
-if (PATHS.length !== 1462) fail(`expected 1462 paths (1382 leaf + 80 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1382) fail(`expected 1382 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 80) fail(`expected 80 branch paths, got ${branchSet.size}`);
+// + 98 more (spec 022, explore + dApp signing): a whole new `explore.*`
+//   namespace (54 keys — the browser home, tabs, the three sheets and the
+//   browsing chrome) and 43 additions under `componentsUi.signing` for the
+//   rungs of the ERC-7730 degradation ladder the 33 CS mocks walk down —
+//   verified-ABI decode, 4byte best-effort, the un-simulatable case, the drain
+//   reveal, Safe's inner call, deploy, and the slide-to-confirm labels. The
+//   other ~95% of the signing copy was already here, which is why this is 43.
+if (PATHS.length !== 1560) fail(`expected 1560 paths (1479 leaf + 81 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1479) fail(`expected 1479 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 81) fail(`expected 81 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

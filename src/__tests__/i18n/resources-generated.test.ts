@@ -42,7 +42,7 @@ const CORPUS = join(__dirname, '../../../rust/crates/vela-core/i18n/locales');
 const NAMESPACE_FILES = [
   'home', 'send', 'receive', 'assets', 'addToken', 'tokenDetail', 'history',
   'onboarding', 'connect', 'about', 'clearSigning', 'componentsTx',
-  'componentsUi', 'settingsModals', 'contacts',
+  'componentsUi', 'settingsModals', 'contacts', 'explore',
 ];
 
 function mergeLocale(lng: string): Record<string, unknown> {
@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 19,818 leaves across 15 locales', () => {
+  it('carries the whole corpus — 21,273 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -153,8 +153,14 @@ describe('generated i18n resources', () => {
     // 20,448 = 19,953 plus spec 021's 33 wallet-flow keys × 15. The Receive /
     // Send / Activity / Assets mocks are mostly spoken by keys the legacy
     // React Native app already left behind; these 33 are the remainder.
+    // 21,903 = 20,448 plus spec 022's 97 keys × 15 = 1,455: the whole
+    // `explore.*` namespace (54 — the browser home, tabs, the three sheets and
+    // the browsing chrome) plus 43 under `componentsUi.signing` for the rungs
+    // of the ERC-7730 ladder the 33 CS mocks walk down. Roughly 95% of the
+    // signing copy was already in the corpus, which is why 33 scenarios cost
+    // 43 strings and not 400.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(20_448);
+    expect(total).toBe(21_903);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

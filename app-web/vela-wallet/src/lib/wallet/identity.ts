@@ -42,7 +42,8 @@ export function shortenAddress(address: string): string {
 	return `${address.slice(0, 8)}…${address.slice(-6)}`;
 }
 
-function header(identity: WalletIdentity): WalletHeaderModel {
+/** The wallet header for an identity — also the explore sidebar's (spec 022). */
+export function identityHeader(identity: WalletIdentity): WalletHeaderModel {
 	return {
 		name: identity.name,
 		addressDisplay: shortenAddress(identity.address),
@@ -56,7 +57,7 @@ export function homeWithIdentity(
 	model: WalletHomeModel,
 	identity: WalletIdentity
 ): WalletHomeModel {
-	return { ...model, header: header(identity) };
+	return { ...model, header: identityHeader(identity) };
 }
 
 /** The desktop model, whose header lives in the sidebar. */
@@ -64,5 +65,5 @@ export function desktopWithIdentity(
 	model: WalletDesktopModel,
 	identity: WalletIdentity
 ): WalletDesktopModel {
-	return { ...model, sidebar: { ...model.sidebar, header: header(identity) } };
+	return { ...model, sidebar: { ...model.sidebar, header: identityHeader(identity) } };
 }

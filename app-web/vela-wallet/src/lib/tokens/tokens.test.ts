@@ -44,8 +44,14 @@ describe('drift gate', () => {
 });
 
 describe('literal audit — product UI references tokens, never raw values', () => {
-	/** BrandMark carries asset colors verbatim from the design SVGs. */
-	const HEX_WHITELIST = new Set(['BrandMark.svelte']);
+	/**
+	 * BrandMark carries asset colors verbatim from the design SVGs. DemoPage is
+	 * the other kind of exception: it draws a STAND-IN WEB PAGE inside the
+	 * explore browser (spec 022), and a website's palette and type scale are
+	 * not ours to express in our tokens — the day it becomes a real WebView,
+	 * those values leave with it.
+	 */
+	const LITERAL_WHITELIST = new Set(['BrandMark.svelte', 'DemoPage.svelte']);
 
 	const collect = (dir: string): string[] =>
 		readdirSync(dir).flatMap((name) => {
@@ -60,9 +66,17 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		...collect(join(APP_ROOT, 'src/lib/ui')),
 		// spec 018 T018: the contacts feature layer is audited too.
 		...collect(join(APP_ROOT, 'src/lib/contacts')),
+		// spec 022: so are explore and signing. Their `fixtures.ts` is exempt for
+		// the same reason the wallet's is — a site's brand colour and a token's
+		// chain colour are CONTENT, and a design token cannot name them.
+		...collect(join(APP_ROOT, 'src/lib/explore')),
+		...collect(join(APP_ROOT, 'src/lib/signing')),
 		...collect(join(APP_ROOT, 'src/routes')),
 		join(APP_ROOT, 'src/app.css')
-	].filter((path) => !path.includes('/tokens/') && !path.endsWith('.test.ts'));
+	].filter(
+		(path) =>
+			!path.includes('/tokens/') && !path.endsWith('.test.ts') && !path.endsWith('/fixtures.ts')
+	);
 
 	it('audits a non-trivial file set', () => {
 		expect(sources.length).toBeGreaterThanOrEqual(10);
@@ -70,7 +84,7 @@ describe('literal audit — product UI references tokens, never raw values', () 
 
 	it('no hex colors outside the whitelist', () => {
 		for (const path of sources) {
-			if (HEX_WHITELIST.has(path.split('/').at(-1)!)) continue;
+			if (LITERAL_WHITELIST.has(path.split('/').at(-1)!)) continue;
 			const text = readFileSync(path, 'utf8');
 			expect(text.match(/#[0-9a-fA-F]{3,8}\b/g), relative(APP_ROOT, path)).toBeNull();
 		}
@@ -87,6 +101,7 @@ describe('literal audit — product UI references tokens, never raw values', () 
 
 	it('the only px literals are the breakpoints, and they equal the token exports', () => {
 		for (const path of sources) {
+			if (LITERAL_WHITELIST.has(path.split('/').at(-1)!)) continue;
 			const text = readFileSync(path, 'utf8');
 			const pxLiterals = text.match(/\b\d+(?:\.\d+)?px\b/g) ?? [];
 			const offenders = pxLiterals.filter((v) => !BREAKPOINT_LITERALS.includes(v));

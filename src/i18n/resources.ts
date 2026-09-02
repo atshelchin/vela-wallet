@@ -33,6 +33,7 @@ import enComponentsTx from '../../rust/crates/vela-core/i18n/locales/en/componen
 import enComponentsUi from '../../rust/crates/vela-core/i18n/locales/en/componentsUi.json';
 import enSettingsModals from '../../rust/crates/vela-core/i18n/locales/en/settingsModals.json';
 import enContacts from '../../rust/crates/vela-core/i18n/locales/en/contacts.json';
+import enExplore from '../../rust/crates/vela-core/i18n/locales/en/explore.json';
 import zhCore from '../../rust/crates/vela-core/i18n/locales/zh.json';
 import zhHome from '../../rust/crates/vela-core/i18n/locales/zh/home.json';
 import zhSend from '../../rust/crates/vela-core/i18n/locales/zh/send.json';
@@ -49,6 +50,7 @@ import zhComponentsTx from '../../rust/crates/vela-core/i18n/locales/zh/componen
 import zhComponentsUi from '../../rust/crates/vela-core/i18n/locales/zh/componentsUi.json';
 import zhSettingsModals from '../../rust/crates/vela-core/i18n/locales/zh/settingsModals.json';
 import zhContacts from '../../rust/crates/vela-core/i18n/locales/zh/contacts.json';
+import zhExplore from '../../rust/crates/vela-core/i18n/locales/zh/explore.json';
 import zhTWCore from '../../rust/crates/vela-core/i18n/locales/zh-TW.json';
 import zhTWHome from '../../rust/crates/vela-core/i18n/locales/zh-TW/home.json';
 import zhTWSend from '../../rust/crates/vela-core/i18n/locales/zh-TW/send.json';
@@ -65,6 +67,7 @@ import zhTWComponentsTx from '../../rust/crates/vela-core/i18n/locales/zh-TW/com
 import zhTWComponentsUi from '../../rust/crates/vela-core/i18n/locales/zh-TW/componentsUi.json';
 import zhTWSettingsModals from '../../rust/crates/vela-core/i18n/locales/zh-TW/settingsModals.json';
 import zhTWContacts from '../../rust/crates/vela-core/i18n/locales/zh-TW/contacts.json';
+import zhTWExplore from '../../rust/crates/vela-core/i18n/locales/zh-TW/explore.json';
 import zhHKCore from '../../rust/crates/vela-core/i18n/locales/zh-HK.json';
 import zhHKHome from '../../rust/crates/vela-core/i18n/locales/zh-HK/home.json';
 import zhHKSend from '../../rust/crates/vela-core/i18n/locales/zh-HK/send.json';
@@ -81,6 +84,7 @@ import zhHKComponentsTx from '../../rust/crates/vela-core/i18n/locales/zh-HK/com
 import zhHKComponentsUi from '../../rust/crates/vela-core/i18n/locales/zh-HK/componentsUi.json';
 import zhHKSettingsModals from '../../rust/crates/vela-core/i18n/locales/zh-HK/settingsModals.json';
 import zhHKContacts from '../../rust/crates/vela-core/i18n/locales/zh-HK/contacts.json';
+import zhHKExplore from '../../rust/crates/vela-core/i18n/locales/zh-HK/explore.json';
 import jaCore from '../../rust/crates/vela-core/i18n/locales/ja.json';
 import jaHome from '../../rust/crates/vela-core/i18n/locales/ja/home.json';
 import jaSend from '../../rust/crates/vela-core/i18n/locales/ja/send.json';
@@ -97,6 +101,7 @@ import jaComponentsTx from '../../rust/crates/vela-core/i18n/locales/ja/componen
 import jaComponentsUi from '../../rust/crates/vela-core/i18n/locales/ja/componentsUi.json';
 import jaSettingsModals from '../../rust/crates/vela-core/i18n/locales/ja/settingsModals.json';
 import jaContacts from '../../rust/crates/vela-core/i18n/locales/ja/contacts.json';
+import jaExplore from '../../rust/crates/vela-core/i18n/locales/ja/explore.json';
 import koCore from '../../rust/crates/vela-core/i18n/locales/ko.json';
 import koHome from '../../rust/crates/vela-core/i18n/locales/ko/home.json';
 import koSend from '../../rust/crates/vela-core/i18n/locales/ko/send.json';
@@ -113,6 +118,7 @@ import koComponentsTx from '../../rust/crates/vela-core/i18n/locales/ko/componen
 import koComponentsUi from '../../rust/crates/vela-core/i18n/locales/ko/componentsUi.json';
 import koSettingsModals from '../../rust/crates/vela-core/i18n/locales/ko/settingsModals.json';
 import koContacts from '../../rust/crates/vela-core/i18n/locales/ko/contacts.json';
+import koExplore from '../../rust/crates/vela-core/i18n/locales/ko/explore.json';
 import viCore from '../../rust/crates/vela-core/i18n/locales/vi.json';
 import viHome from '../../rust/crates/vela-core/i18n/locales/vi/home.json';
 import viSend from '../../rust/crates/vela-core/i18n/locales/vi/send.json';
@@ -129,6 +135,7 @@ import viComponentsTx from '../../rust/crates/vela-core/i18n/locales/vi/componen
 import viComponentsUi from '../../rust/crates/vela-core/i18n/locales/vi/componentsUi.json';
 import viSettingsModals from '../../rust/crates/vela-core/i18n/locales/vi/settingsModals.json';
 import viContacts from '../../rust/crates/vela-core/i18n/locales/vi/contacts.json';
+import viExplore from '../../rust/crates/vela-core/i18n/locales/vi/explore.json';
 import idCore from '../../rust/crates/vela-core/i18n/locales/id.json';
 import idHome from '../../rust/crates/vela-core/i18n/locales/id/home.json';
 import idSend from '../../rust/crates/vela-core/i18n/locales/id/send.json';
@@ -145,6 +152,7 @@ import idComponentsTx from '../../rust/crates/vela-core/i18n/locales/id/componen
 import idComponentsUi from '../../rust/crates/vela-core/i18n/locales/id/componentsUi.json';
 import idSettingsModals from '../../rust/crates/vela-core/i18n/locales/id/settingsModals.json';
 import idContacts from '../../rust/crates/vela-core/i18n/locales/id/contacts.json';
+import idExplore from '../../rust/crates/vela-core/i18n/locales/id/explore.json';
 import trCore from '../../rust/crates/vela-core/i18n/locales/tr.json';
 import trHome from '../../rust/crates/vela-core/i18n/locales/tr/home.json';
 import trSend from '../../rust/crates/vela-core/i18n/locales/tr/send.json';
@@ -161,6 +169,7 @@ import trComponentsTx from '../../rust/crates/vela-core/i18n/locales/tr/componen
 import trComponentsUi from '../../rust/crates/vela-core/i18n/locales/tr/componentsUi.json';
 import trSettingsModals from '../../rust/crates/vela-core/i18n/locales/tr/settingsModals.json';
 import trContacts from '../../rust/crates/vela-core/i18n/locales/tr/contacts.json';
+import trExplore from '../../rust/crates/vela-core/i18n/locales/tr/explore.json';
 import esMXCore from '../../rust/crates/vela-core/i18n/locales/es-MX.json';
 import esMXHome from '../../rust/crates/vela-core/i18n/locales/es-MX/home.json';
 import esMXSend from '../../rust/crates/vela-core/i18n/locales/es-MX/send.json';
@@ -177,6 +186,7 @@ import esMXComponentsTx from '../../rust/crates/vela-core/i18n/locales/es-MX/com
 import esMXComponentsUi from '../../rust/crates/vela-core/i18n/locales/es-MX/componentsUi.json';
 import esMXSettingsModals from '../../rust/crates/vela-core/i18n/locales/es-MX/settingsModals.json';
 import esMXContacts from '../../rust/crates/vela-core/i18n/locales/es-MX/contacts.json';
+import esMXExplore from '../../rust/crates/vela-core/i18n/locales/es-MX/explore.json';
 import ptBRCore from '../../rust/crates/vela-core/i18n/locales/pt-BR.json';
 import ptBRHome from '../../rust/crates/vela-core/i18n/locales/pt-BR/home.json';
 import ptBRSend from '../../rust/crates/vela-core/i18n/locales/pt-BR/send.json';
@@ -193,6 +203,7 @@ import ptBRComponentsTx from '../../rust/crates/vela-core/i18n/locales/pt-BR/com
 import ptBRComponentsUi from '../../rust/crates/vela-core/i18n/locales/pt-BR/componentsUi.json';
 import ptBRSettingsModals from '../../rust/crates/vela-core/i18n/locales/pt-BR/settingsModals.json';
 import ptBRContacts from '../../rust/crates/vela-core/i18n/locales/pt-BR/contacts.json';
+import ptBRExplore from '../../rust/crates/vela-core/i18n/locales/pt-BR/explore.json';
 import frCore from '../../rust/crates/vela-core/i18n/locales/fr.json';
 import frHome from '../../rust/crates/vela-core/i18n/locales/fr/home.json';
 import frSend from '../../rust/crates/vela-core/i18n/locales/fr/send.json';
@@ -209,6 +220,7 @@ import frComponentsTx from '../../rust/crates/vela-core/i18n/locales/fr/componen
 import frComponentsUi from '../../rust/crates/vela-core/i18n/locales/fr/componentsUi.json';
 import frSettingsModals from '../../rust/crates/vela-core/i18n/locales/fr/settingsModals.json';
 import frContacts from '../../rust/crates/vela-core/i18n/locales/fr/contacts.json';
+import frExplore from '../../rust/crates/vela-core/i18n/locales/fr/explore.json';
 import deCore from '../../rust/crates/vela-core/i18n/locales/de.json';
 import deHome from '../../rust/crates/vela-core/i18n/locales/de/home.json';
 import deSend from '../../rust/crates/vela-core/i18n/locales/de/send.json';
@@ -225,6 +237,7 @@ import deComponentsTx from '../../rust/crates/vela-core/i18n/locales/de/componen
 import deComponentsUi from '../../rust/crates/vela-core/i18n/locales/de/componentsUi.json';
 import deSettingsModals from '../../rust/crates/vela-core/i18n/locales/de/settingsModals.json';
 import deContacts from '../../rust/crates/vela-core/i18n/locales/de/contacts.json';
+import deExplore from '../../rust/crates/vela-core/i18n/locales/de/explore.json';
 import ruCore from '../../rust/crates/vela-core/i18n/locales/ru.json';
 import ruHome from '../../rust/crates/vela-core/i18n/locales/ru/home.json';
 import ruSend from '../../rust/crates/vela-core/i18n/locales/ru/send.json';
@@ -241,6 +254,7 @@ import ruComponentsTx from '../../rust/crates/vela-core/i18n/locales/ru/componen
 import ruComponentsUi from '../../rust/crates/vela-core/i18n/locales/ru/componentsUi.json';
 import ruSettingsModals from '../../rust/crates/vela-core/i18n/locales/ru/settingsModals.json';
 import ruContacts from '../../rust/crates/vela-core/i18n/locales/ru/contacts.json';
+import ruExplore from '../../rust/crates/vela-core/i18n/locales/ru/explore.json';
 import itCore from '../../rust/crates/vela-core/i18n/locales/it.json';
 import itHome from '../../rust/crates/vela-core/i18n/locales/it/home.json';
 import itSend from '../../rust/crates/vela-core/i18n/locales/it/send.json';
@@ -257,6 +271,7 @@ import itComponentsTx from '../../rust/crates/vela-core/i18n/locales/it/componen
 import itComponentsUi from '../../rust/crates/vela-core/i18n/locales/it/componentsUi.json';
 import itSettingsModals from '../../rust/crates/vela-core/i18n/locales/it/settingsModals.json';
 import itContacts from '../../rust/crates/vela-core/i18n/locales/it/contacts.json';
+import itExplore from '../../rust/crates/vela-core/i18n/locales/it/explore.json';
 
 export const en = {
   ...enCore,
@@ -275,6 +290,7 @@ export const en = {
   ...enComponentsUi,
   ...enSettingsModals,
   ...enContacts,
+  ...enExplore,
 };
 
 const zh = {
@@ -294,6 +310,7 @@ const zh = {
   ...zhComponentsUi,
   ...zhSettingsModals,
   ...zhContacts,
+  ...zhExplore,
 };
 
 const zhTW = {
@@ -313,6 +330,7 @@ const zhTW = {
   ...zhTWComponentsUi,
   ...zhTWSettingsModals,
   ...zhTWContacts,
+  ...zhTWExplore,
 };
 
 const zhHK = {
@@ -332,6 +350,7 @@ const zhHK = {
   ...zhHKComponentsUi,
   ...zhHKSettingsModals,
   ...zhHKContacts,
+  ...zhHKExplore,
 };
 
 const ja = {
@@ -351,6 +370,7 @@ const ja = {
   ...jaComponentsUi,
   ...jaSettingsModals,
   ...jaContacts,
+  ...jaExplore,
 };
 
 const ko = {
@@ -370,6 +390,7 @@ const ko = {
   ...koComponentsUi,
   ...koSettingsModals,
   ...koContacts,
+  ...koExplore,
 };
 
 const vi = {
@@ -389,6 +410,7 @@ const vi = {
   ...viComponentsUi,
   ...viSettingsModals,
   ...viContacts,
+  ...viExplore,
 };
 
 const id = {
@@ -408,6 +430,7 @@ const id = {
   ...idComponentsUi,
   ...idSettingsModals,
   ...idContacts,
+  ...idExplore,
 };
 
 const tr = {
@@ -427,6 +450,7 @@ const tr = {
   ...trComponentsUi,
   ...trSettingsModals,
   ...trContacts,
+  ...trExplore,
 };
 
 const esMX = {
@@ -446,6 +470,7 @@ const esMX = {
   ...esMXComponentsUi,
   ...esMXSettingsModals,
   ...esMXContacts,
+  ...esMXExplore,
 };
 
 const ptBR = {
@@ -465,6 +490,7 @@ const ptBR = {
   ...ptBRComponentsUi,
   ...ptBRSettingsModals,
   ...ptBRContacts,
+  ...ptBRExplore,
 };
 
 const fr = {
@@ -484,6 +510,7 @@ const fr = {
   ...frComponentsUi,
   ...frSettingsModals,
   ...frContacts,
+  ...frExplore,
 };
 
 const de = {
@@ -503,6 +530,7 @@ const de = {
   ...deComponentsUi,
   ...deSettingsModals,
   ...deContacts,
+  ...deExplore,
 };
 
 const ru = {
@@ -522,6 +550,7 @@ const ru = {
   ...ruComponentsUi,
   ...ruSettingsModals,
   ...ruContacts,
+  ...ruExplore,
 };
 
 const it = {
@@ -541,6 +570,7 @@ const it = {
   ...itComponentsUi,
   ...itSettingsModals,
   ...itContacts,
+  ...itExplore,
 };
 
 export const resources = {

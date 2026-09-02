@@ -6,13 +6,25 @@
 	interface Props {
 		tabs: TabsModel;
 		selected?: NavIconId;
+		/**
+		 * Which destinations this client actually has (spec 022 founder call).
+		 * The mocks — and every gallery board — draw all four; the WEB app
+		 * drops 探索, because a page inside a browser cannot host a browser,
+		 * and a tab that opens nothing is worse than a tab that is not there.
+		 */
+		destinations?: readonly NavIconId[];
 		onselect?: (id: NavIconId) => void;
 	}
 
-	let { tabs, selected = 'wallet', onselect }: Props = $props();
+	let {
+		tabs,
+		selected = 'wallet',
+		destinations = ['wallet', 'contacts', 'explore', 'settings'],
+		onselect
+	}: Props = $props();
 
 	const items = $derived(
-		(['wallet', 'contacts', 'explore', 'settings'] as const).map((id) => ({
+		destinations.map((id) => ({
 			id,
 			label: tabs[id],
 			selected: id === selected

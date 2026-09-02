@@ -1175,6 +1175,7 @@ fn i18n_exhaustive_corpus_via_runtime_json() {
             "componentsUi",
             "settingsModals",
             "contacts",
+            "explore",
         ] {
             absorb(corpus.join(lng).join(format!("{ns}.json")));
         }

@@ -92,6 +92,8 @@
 
 	/* A link, not a button: adding a token by hand is the rare path out of a
 	   list that normally fills itself, and it should read as one. */
+	/* T1 sets this quiet, not as a link: it is the way out of "my token is
+	   missing", not an action competing with the rows above it. */
 	.by-address {
 		align-self: center;
 		padding: var(--space-md);
@@ -99,7 +101,7 @@
 		background: none;
 		font-family: var(--font-ui);
 		font-size: calc(var(--text-base) * var(--text-scale, 1));
-		color: var(--color-info-base);
+		color: var(--color-fg-muted);
 		cursor: pointer;
 	}
 </style>

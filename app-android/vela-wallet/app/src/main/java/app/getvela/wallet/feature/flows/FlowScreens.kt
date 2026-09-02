@@ -405,11 +405,14 @@ fun AssetsBody(
                 AssetRow(model = entry.value, onClick = { onSelect(entry.index) })
             }
             Spacer(modifier = Modifier.height(VelaSpacing.lg))
+                // T1 sets this quiet and centred, not as a link: it is the way
+                // out of "my token is missing", not an action competing with
+                // the rows above it.
             Text(
                 // A link, not a button: adding a token by hand is the rare path
                 // out of a list that normally fills itself.
                 text = model.addByAddress,
-                color = colors.infoBase,
+                color = colors.fgMuted,
                 fontFamily = VelaFontFamily,
                 fontSize = VelaTextSize.base,
                 textAlign = TextAlign.Center,

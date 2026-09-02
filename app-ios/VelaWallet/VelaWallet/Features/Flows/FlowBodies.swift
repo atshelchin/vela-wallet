@@ -294,7 +294,10 @@ struct AssetsBody: View {
                     // path out of a list that normally fills itself.
                     Text(verbatim: model.addByAddress)
                         .typeRole(Typography.body.scaled(textScale))
-                        .foregroundStyle(theme.infoBase)
+                        // T1 sets this quiet and centred, not as a link: it is
+                        // the way out of "my token is missing", not an action
+                        // competing with the rows above it.
+                        .foregroundStyle(theme.fgMuted)
                         .frame(maxWidth: .infinity)
                         .padding(Tokens.Space.s8)
                         .contentShape(Rectangle())

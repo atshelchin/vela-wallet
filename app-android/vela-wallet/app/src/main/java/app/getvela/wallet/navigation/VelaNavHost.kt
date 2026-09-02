@@ -42,6 +42,11 @@ import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
 import app.getvela.wallet.feature.onboarding.flow.UsbTouchIndicator
 import app.getvela.wallet.feature.onboarding.flow.UsbWalletPicker
 import app.getvela.wallet.feature.onboarding.placeholder.ImportPlaceholderScreen
+import app.getvela.wallet.feature.settings.SettingsActions
+import app.getvela.wallet.feature.settings.SettingsFixtures
+import app.getvela.wallet.feature.settings.SettingsRoute
+import app.getvela.wallet.feature.settings.SettingsScreenState
+import app.getvela.wallet.feature.settings.gallery.SettingsGalleryScreen
 import app.getvela.wallet.feature.wallet.WalletFixtures
 import app.getvela.wallet.feature.wallet.WalletScreen
 import app.getvela.wallet.feature.wallet.WalletScreenState
@@ -61,8 +66,23 @@ object VelaDestinations {
     const val CONTACTS = "contacts"
     const val CONTACTS_GALLERY = "contacts-gallery"
 
+    // Spec 023: the settings screen a signed-in person reaches from the tab bar,
+    // plus its preview gallery.
+    const val SETTINGS = "settings"
+    const val SETTINGS_GALLERY = "settings-gallery"
+
     /** Routes the `vela.startDestination` intent extra may select. */
-    val ALL = setOf(WELCOME, CREATE, IMPORT, WALLET, GALLERY, CONTACTS, CONTACTS_GALLERY)
+    val ALL = setOf(
+        WELCOME,
+        CREATE,
+        IMPORT,
+        WALLET,
+        GALLERY,
+        CONTACTS,
+        CONTACTS_GALLERY,
+        SETTINGS,
+        SETTINGS_GALLERY,
+    )
 }
 
 @Composable
@@ -210,11 +230,13 @@ fun VelaNavHost(
             WalletScreen(
                 model = model,
                 onSelectTab = { tab ->
-                    // Sign-out is the only thing behind Settings today. The
-                    // other three tabs stay on this screen rather than
-                    // navigating to fixtures a signed-in person would read as
-                    // their real data.
-                    if (tab == VelaTab.Settings) application.container.session.signOut()
+                    // 设置 has a screen now (spec 023), and the 退出登录 row
+                    // inside it is where signing out lives. Until then the TAB
+                    // itself signed you out — which meant tapping 设置 to change
+                    // your language logged you out instead. 通讯录 and 探索 stay
+                    // on this screen rather than navigating to fixtures a
+                    // signed-in person would read as their real data.
+                    if (tab == VelaTab.Settings) navController.push(VelaDestinations.SETTINGS)
                 },
             )
         }
@@ -243,6 +265,38 @@ fun VelaNavHost(
 
         composable(VelaDestinations.CONTACTS_GALLERY) {
             ContactsGalleryScreen(systemDarkTheme = darkTheme)
+        }
+
+        composable(VelaDestinations.SETTINGS) {
+            val strings = LocalVelaStrings.current
+            // Fixture-driven still (spec 023 scope) apart from the two things
+            // that identify the account — its name and address, both the real
+            // ones. A fixture name over a real address would tell somebody they
+            // are signed in as a stranger (spec 019's finding).
+            val model = remember(strings, session.address, session.activeName) {
+                SettingsFixtures.buildState(SettingsScreenState.ST1, strings)
+                    .withIdentity(
+                        name = session.activeName,
+                        address = session.address,
+                        display = shortenAddress(session.address),
+                    )
+            }
+            SettingsRoute(
+                model = model,
+                actions = SettingsActions(
+                    onSelectTab = { tab ->
+                        if (tab == VelaTab.Wallet) navController.popBackStack()
+                    },
+                    // The way out of a signed-in wallet, on the row a person
+                    // would look for it.
+                    onSignOut = { application.container.session.signOut() },
+                    onOpenContacts = { navController.push(VelaDestinations.CONTACTS) },
+                ),
+            )
+        }
+
+        composable(VelaDestinations.SETTINGS_GALLERY) {
+            SettingsGalleryScreen(systemDarkTheme = darkTheme)
         }
     }
 
@@ -348,6 +402,13 @@ private fun NavHostController.navigateSingleTop(route: String) {
     }
 }
 
+/**
+ * `0x14fB1f…D1eA5c` — the phone's short form, matching the wallet header's own
+ * truncation so one account never reads as two.
+ */
+private fun shortenAddress(address: String): String =
+    if (address.length <= 14) address else "${address.take(6)}…${address.takeLast(4)}"
+
 private fun android.content.Context.openUrl(url: String) {
     runCatching {
         startActivity(
@@ -361,6 +422,7 @@ private val DEVELOPER_ROUTES = setOf(
     VelaDestinations.GALLERY,
     VelaDestinations.CONTACTS_GALLERY,
     VelaDestinations.CONTACTS,
+    VelaDestinations.SETTINGS_GALLERY,
     VelaDestinations.IMPORT,
 )
 

@@ -51,11 +51,44 @@ convention for `{{count}}` without CLDR plurals, deliberate), `verify:i18n`,
 
 - **Web** — screenshotted ST1, ST1b, ST2, ST4, ST5, ST9, ST10c, ST13, ST15, ST16, SR2, SR5, DST1, DST3, DST4, DST4b, DST7 against the PNGs at 480×940 / 1280×800, dark.
 - **iOS** — simulator screenshots of ST1, ST2, ST13, ST10c, SR2 (zh, dark).
-- **Desktop** — launched `VELA_PAGE=settings`; DST1 verified on screen (light).
+- **Desktop** — all ten states (DST1–DST8, DST4b, DSR1) screenshotted by window id and compared to the PNGs, after the founder review below.
 - **Android** — NOT eyeballed. The OnePlus 5T (`e93a3fa`) is pattern-locked and
   cannot be unlocked from here. It compiles, installs and its tests pass; a
   human needs to unlock the phone and run
   `adb shell am start -n app.getvela.wallet/.MainActivity --es vela.startDestination settings-gallery`.
+
+## Founder review, 2026-09-02 — four desktop bugs
+
+The founder opened DST7 in a wide window and it was visibly wrong. I had
+screenshotted DST1 ONLY, in a narrower window, and read the gap as padding.
+Four defects, all in the desktop panel:
+
+1. **The panel was centred, not left-aligned.** `justify_center` on a fixed
+   640 column: nearly flush at the 1280 the mocks are drawn at, and a gap the
+   width of the nav column at 2000. The wallet's own content column has always
+   been `flex_1 + px`; the panel now matches it, padded 48 with the content
+   capped at 640 (measured off DST7: the storage bar runs 505 -> 1146).
+2. **The nav column stopped at its last row.** `h_full` without `flex()` does
+   not resolve in gpui, so the 216px column's background and right border
+   ended under 关于 and the rest of the height was panel. `sidebar()` had
+   `.flex()` all along; this did not.
+3. **The open dropdown was painted over.** gpui paints in child order, so a
+   menu opened inside form row 2 was covered by rows 3 and 4 — the date and
+   time triggers sat on top of it and one option was invisible. Now
+   `deferred(...).with_priority(1)`, the same escape the contacts menus use.
+4. **The expanded row's caret pointed the wrong way**, and About had no brand
+   mark.
+
+Two process fixes came out of it, both worth keeping:
+
+- `VELA_SETTINGS_STATE=dst7` picks the panel, so a screenshot pass can cover
+  all ten desktop states instead of whichever one opens first. iOS grew the
+  same seam for the same reason.
+- Screenshots are taken by CGWindowID (`screencapture -l`), not by screen
+  region — a full-screen grab caught whatever window had focus, which on a
+  busy machine was usually somebody else's.
+
+All ten desktop states re-verified after the fix.
 
 ## Deliberate calls worth a founder eye
 

@@ -37,8 +37,8 @@ use crate::settings::fixtures::{self as settings_fixtures, SettingsPage, Tone, l
 use crate::theme::{
     self, CONTACTS_BODY_PAD_TOP, CONTACTS_BUTTON_H, CONTACTS_HEADER_H, CONTACTS_HERO_AVATAR,
     CONTACTS_RAIL_LABEL_H, CONTACTS_RAIL_ROW_H, CONTACTS_RAIL_W, GALLERY_BAR_H, SETTINGS_DIALOG_W,
-    SETTINGS_NAV_W, SETTINGS_PANEL_W, SIDEBAR_PAD, SIDEBAR_TOP, SIDEBAR_W, THIRD_PANEL_W, Theme,
-    ThemeMode, WALLET_PAD_TOP, WALLET_PAD_X,
+    SETTINGS_NAV_W, SETTINGS_PANEL_PAD_X, SETTINGS_PANEL_W, SIDEBAR_PAD, SIDEBAR_TOP, SIDEBAR_W,
+    THIRD_PANEL_W, Theme, ThemeMode, WALLET_PAD_TOP, WALLET_PAD_X,
 };
 use crate::window_frame::{
     CAPTION_H, frame_tiling, owns_titlebar, round_to_frame, titlebar, window_frame,
@@ -164,8 +164,15 @@ impl GalleryTab {
 
     /// The contacts state code this chip reproduces, if any
     /// (data-model.md §Screen states — `dc1`…`dc6`).
+    /// The chip `VELA_SETTINGS_STATE` names, if it names one.
+    fn from_settings_env() -> Option<GalleryTab> {
+        let want = std::env::var("VELA_SETTINGS_STATE").ok()?;
+        GalleryTab::ALL
+            .into_iter()
+            .find_map(|(tab, _)| (tab.settings_state()? == want).then_some(tab))
+    }
+
     /// The settings state code this chip reproduces, if any (spec 023).
-    #[allow(dead_code, reason = "gallery inventory contract, asserted by tests")]
     fn settings_state(self) -> Option<&'static str> {
         match self {
             GalleryTab::Dst1 => Some("dst1"),
@@ -282,8 +289,17 @@ impl WalletPage {
     }
 
     /// `VELA_PAGE=settings` opens straight onto 设置 (spec 023).
+    ///
+    /// `VELA_SETTINGS_STATE=dst7` picks WHICH panel, the same env-pin family as
+    /// `VELA_PAGE`/`VELA_THEME`/`VELA_LANG` and the same seam iOS has. Without
+    /// it a screenshot pass can only ever see DST1 — which is how a
+    /// left-alignment bug survived review on seven panels it also broke.
     pub fn settings(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        Self::with_section(Section::Settings, false, window, cx)
+        let mut page = Self::with_section(Section::Settings, false, window, cx);
+        if let Some(tab) = GalleryTab::from_settings_env() {
+            page.select_tab(tab, window);
+        }
+        page
     }
 
     /// `VELA_PAGE=contacts` opens straight onto 通讯录 (spec 018 research D1).
@@ -2045,6 +2061,11 @@ impl WalletPage {
             .w(px(SETTINGS_NAV_W))
             .h_full()
             .flex_none()
+            // `.flex()` is load-bearing, not decoration: without it `h_full`
+            // does not resolve and the column stopped at its last row, leaving
+            // its background and right border hanging in mid-air.
+            .flex()
+            .flex_col()
             .bg(theme.bg_sunken)
             .border_r_1()
             .border_color(theme.divider)
@@ -2176,15 +2197,16 @@ impl WalletPage {
             .min_w(px(0.))
             .h_full()
             .overflow_y_scroll()
-            .flex()
-            .justify_center()
+            // Left-aligned against the nav column, exactly as the wallet's own
+            // content column is. The padding is the panel's, the cap is the
+            // content's: a settings form stretched to a 2000px window is a
+            // different screen from the one that was designed.
+            .px(px(SETTINGS_PANEL_PAD_X))
+            .pt(px(WALLET_PAD_TOP))
+            .pb(px(48.))
             .child(
                 div()
-                    .w(px(SETTINGS_PANEL_W))
-                    .flex_none()
-                    .pt(px(WALLET_PAD_TOP))
-                    .pb(px(48.))
-                    .px(px(WALLET_PAD_X))
+                    .max_w(px(SETTINGS_PANEL_W))
                     .child(head)
                     .when_some(banner, |el, banner| {
                         el.child(div().pb(px(24.)).child(banner))
@@ -2462,7 +2484,11 @@ impl WalletPage {
                     cx.notify();
                 }))
                 .child(trigger)
-                .when_some(menu, |el, menu| el.child(menu));
+                // `deferred`, the same escape the contacts menus take: gpui
+                // paints in child order, so an open menu drawn inside row 2 was
+                // painted over by rows 3 and 4 — the date and time triggers sat
+                // on top of it and swallowed one of its options.
+                .when_some(menu, |el, menu| el.child(deferred(menu).with_priority(1)));
             col = col.child(form_row(theme, label, control));
         }
         col
@@ -2734,25 +2760,33 @@ impl WalletPage {
             .flex()
             .flex_col()
             .child(
-                div().flex().items_center().gap(px(16.)).pb(px(24.)).child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(4.))
-                        .child(
-                            div()
-                                .text_size(theme::text_row_title())
-                                .text_color(theme.fg_muted)
-                                .child(s.about_tagline.clone()),
-                        )
-                        .child(
-                            div()
-                                .font_family(theme::font_mono())
-                                .text_size(theme::text_row_sub())
-                                .text_color(theme.fg_subtle)
-                                .child(settings_fixtures::about_version(s)),
-                        ),
-                ),
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(16.))
+                    .pb(px(24.))
+                    // DST8 draws the mark beside the tagline; without it the
+                    // panel opens on two lines of grey text and no brand.
+                    .child(crate::ui::vela_mark(theme, px(44.)))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.))
+                            .child(
+                                div()
+                                    .text_size(theme::text_row_title())
+                                    .text_color(theme.fg_muted)
+                                    .child(s.about_tagline.clone()),
+                            )
+                            .child(
+                                div()
+                                    .font_family(theme::font_mono())
+                                    .text_size(theme::text_row_sub())
+                                    .text_color(theme.fg_subtle)
+                                    .child(settings_fixtures::about_version(s)),
+                            ),
+                    ),
             )
             .child(
                 div()

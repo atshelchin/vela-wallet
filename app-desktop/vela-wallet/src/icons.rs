@@ -35,6 +35,7 @@ pub enum Icon {
     Copy,
     ChevronRight,
     ChevronDown,
+    ChevronUp,
     Link2,
     TriangleAlert,
     RefreshCw,
@@ -119,6 +120,7 @@ fn body(icon: Icon, solid: bool) -> &'static str {
         }
         Icon::ChevronRight => r##"<path d="m9 18 6-6-6-6"/>"##,
         Icon::ChevronDown => r##"<path d="m6 9 6 6 6-6"/>"##,
+        Icon::ChevronUp => r##"<path d="m18 15-6-6-6 6"/>"##,
         Icon::Link2 => {
             r##"<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>"##
         }

@@ -315,8 +315,15 @@ pub const SETTINGS_CONTROL_W: f32 = 280.;
 /// face without becoming a second page.
 pub const SETTINGS_DIALOG_W: f32 = 520.;
 
-/// The panel's own content column, before its padding (DST1 measures 640).
+/// The panel's own content column. Measured on DST7: the storage bar runs
+/// 505 -> 1146 inside the 1280 frame, so the content is 640 wide and starts
+/// 48 past the nav column's right edge (240 + 216 + 48 = 504).
 pub const SETTINGS_PANEL_W: f32 = 640.;
+
+/// That 48. Left-aligned like the wallet's own content column, never centred:
+/// centring parks the form in the middle of a wide window and opens a gap the
+/// size of the nav column beside it (founder-found, 2026-09-02).
+pub const SETTINGS_PANEL_PAD_X: f32 = 48.;
 /// Rail row height (全部联系人 / group rows / 新建分组).
 pub const CONTACTS_RAIL_ROW_H: f32 = 36.;
 /// The `分组` caption block between the 全部联系人 row and the group rows.

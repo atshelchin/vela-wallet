@@ -471,12 +471,15 @@ pub fn network_row(
             GLYPH_SM,
         ));
     }
+    // The caret says what the tap DOES, which is why it flips rather than
+    // pointing at the row: down opens this network's editor, up closes it. A
+    // right-facing chevron would promise a page that does not exist here.
     row.child(icon_img(
         icons,
         if expanded {
-            Icon::ChevronDown
+            Icon::ChevronUp
         } else {
-            Icon::ChevronRight
+            Icon::ChevronDown
         },
         false,
         theme.fg_subtle,

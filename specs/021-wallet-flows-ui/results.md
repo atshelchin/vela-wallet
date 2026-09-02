@@ -22,10 +22,14 @@ contact roster so identicon artwork matches across features and clients.
   (`AssetRow`, `BottomSheet`, `ThirdPanel`, `TokenIcon`) extended in
   place, never forked. `check` (721 files, 0 errors) and `test:unit`
   (208) green.
-- **Android** (`49c87dab`): `feature/flows/` — models, fixtures, screens,
-  host, nav, plus `components/{FlowChrome,FlowRows,FlowBlocks,ScanSurface}`
-  and a gallery screen. `AssetRow` gained dimmed/selected/trailing/onClick
-  and `TokenIcon` an inline size. `WalletFlowFixturesTest` (17).
+- **Android** (`49c87dab`, device fixes `5495c9d0`): `feature/flows/` —
+  models, fixtures, screens, host, nav, plus
+  `components/{FlowChrome,FlowRows,FlowBlocks,ScanSurface}` and a gallery
+  screen. `AssetRow` gained dimmed/selected/trailing/onClick and
+  `TokenIcon` an inline size. `WalletFlowFixturesTest` (17) +
+  `DeveloperRoutesTest`. **Device pass done** on a Xiaomi alioth
+  (`9d5f42fb`): fifteen states walked — R1, R2X, R4, S1, A2, T3B, T4, T5,
+  SD1B, SD2, SD2C, SD2D, SD3B, SD4A, SD4C.
 - **iOS** (`7d384d8d`): `Features/Flows/` + `Components/Flows/` +
   `WalletFlowGeometry`, reached from `RootView` with a real flow stack.
   `WalletFlowFixturesTests` (19). Verified on an iPhone simulator.
@@ -85,6 +89,33 @@ Each of these compiled, typechecked and passed its unit tests first.
 13. **DT3L printed "USDT · Network 6 · Ethereum"** — `label_network`
     where the mock says 精度 (decimals).
 
+## Defects found on the device (Android, `5495c9d0`)
+
+The same rule as the desktop list: each of these compiled, typechecked
+and passed `testDebugUnitTest` first.
+
+14. **The flows gallery was unreachable.** `flows-gallery` was accepted
+    by the `vela.startDestination` extra but missing from
+    `DEVELOPER_ROUTES`, so the session guard bounced it to Welcome before
+    it painted — on a device with no wallet, which is every device a
+    fixture gallery is useful on. The comment above that set warns about
+    exactly this failure. `DeveloperRoutesTest` now asserts every
+    launchable gallery route is exempt.
+15. **R1's subtitle was missing on three of four clients.** Android and
+    iOS carried `subtitle` in the model and a comment calling it "the
+    whole idea", and drew neither. Web hid it under a
+    `.chrome .subtitle { display: none }` whose comment claimed the phone
+    frame printed it — `FlowScreen` has no subtitle slot, so nothing did.
+    Only the desktop panel showed it. Fixed on all three; verified on
+    device, simulator and in the browser.
+16. **The last row ran under the navigation bar.** `FlowScaffold` gave
+    its footer `navigationBarsPadding()`; screens with no footer — R1
+    among them — got no bottom inset at all, so the eighth network sat
+    behind the gesture bar.
+17. **Two-line titles collided.** Nine large texts had no explicit
+    leading, so 发送多个代币 wrapped at 360 dp and drew its second line
+    through its first. Each now takes the leading its role calls for.
+
 ## Recorded deviations (documented choices, no action needed)
 
 1. **Desktop hosts 19 of the 30 states by design.** The share card, the
@@ -110,7 +141,14 @@ Each of these compiled, typechecked and passed its unit tests first.
    `every_panel_is_reachable_or_a_named_variant` walks every entry and
    step to prove no panel is gallery-only except four named content
    variants (DR3, DA3, DT4, DT3b).
-6. **`section_header` was split, not duplicated**, so the assets
+6. **T4's empty card orders its CTA differently on mobile and desktop**,
+   because the two mocks do. T4 puts 添加代币 above the "已经收到代币但没有
+   显示?" question; DT4L puts it below. Each client follows its own mock.
+7. **`vela.flowState=SD2B`** opens the Android gallery straight onto one
+   state, beside the existing route extra. Same reason as `VELA_FLOW` on
+   the desktop: a thirty-state chip strip walked by hand is not a
+   repeatable device pass.
+8. **`section_header` was split, not duplicated**, so the assets
    header's title and its 添加 action can lead to two different panels
    without two different-looking headers.
 
@@ -123,9 +161,21 @@ Each of these compiled, typechecked and passed its unit tests first.
    so it is the design owner's call.
 2. **`assets.emptyCaption` says "Tap here"** on the desktop panel, where
    there is nothing to tap. Shared mobile-first copy.
-3. **Android has had no device pass.** Source, fixtures and
-   `testDebugUnitTest` only. The Xiaomi alioth loop is the way to do it.
-4. **Web e2e is inherited-red**: 30 Welcome failures trace to spec 020's
+3. **S1's scanner follows the theme on all four clients**, so in the
+   light palette the viewfinder surround is near-white. Every mobile mock
+   in `design/wallet-2` is drawn dark, so they cannot say whether a
+   scanner should be fixed-dark the way the QR card is fixed-light. The
+   four clients agree with each other; it is one decision to make, not
+   drift.
+4. **SD1B's title wraps to two lines at 360 dp** where the 392-wide mock
+   fits one. The leading now makes that legible rather than overlapping;
+   whether to drop the title a size on narrow phones is a design call.
+5. **Local gradle JDK**: `org.gradle.configuration-cache=true` plus a
+   stale daemon picks up the VS Code Red Hat JRE, which has no `jlink`,
+   and `assembleDebug` dies in `JdkImageTransform`. Build with
+   `JAVA_HOME=<Android Studio>/Contents/jbr/Contents/Home` and
+   `--no-configuration-cache`. Environment, not product.
+6. **Web e2e is inherited-red**: 30 Welcome failures trace to spec 020's
    first-run intro gate hiding `.headline` while those tests never pass
    the `skipIntro` hook. Present at `de343e7f` and `62f4598c`, untouched
    by this branch.
@@ -137,8 +187,17 @@ Each of these compiled, typechecked and passed its unit tests first.
 | core/i18n | gen:i18n, lint:i18n, verify:i18n, dump:vectors, root leaf pin | pass |
 | web | check (721 files), test:unit (208) | pass |
 | desktop | cargo build, clippy --all-targets, cargo test (83) | pass |
-| android | testDebugUnitTest (17 new), assembleDebug | pass |
+| android | testDebugUnitTest, assembleDebug, device walkthrough | pass |
 | ios | xcodebuild build + test (19 new) | pass |
 
-Visual passes: web (browser), iOS (simulator), desktop (all 19 panels,
-light + dark spot check). Android outstanding.
+Visual passes, and exactly what each covered:
+
+- **desktop** — all 19 panels via `VELA_FLOW`, light, plus a dark spot
+  check on DR2/DSD2.
+- **android** — 15 of 30 states on a Xiaomi alioth via `vela.flowState`,
+  light.
+- **ios** — the flow states on an iPhone 17 Pro simulator, light.
+- **web** — the flows screens and the `d1`/`r1` gallery states in a
+  browser. The signed-in `/[locale]/wallet` route itself was checked at
+  desktop width for the shell chain (sidebar full height, third column
+  beside it), not walked state by state.

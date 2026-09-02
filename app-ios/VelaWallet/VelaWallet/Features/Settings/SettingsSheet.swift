@@ -1,0 +1,378 @@
+//
+//  SettingsSheet.swift
+//  VelaWallet
+//
+//  Every overlay the phone draws as a bottom sheet (spec 023). One `.sheet`
+//  whose CONTENT swaps, not one per overlay: presenting a second sheet while a
+//  first is dismissing fails silently on iOS (the nesting bug the founder hit
+//  on iPhone, 2026-08-27), and the settings screen can move between an account
+//  switcher and a sign-out confirm in one tap.
+//
+
+import SwiftUI
+
+struct SettingsSheet: View {
+    @Environment(\.theme) private var theme
+    let model: SettingsScreenModel
+    let overlay: SettingsOverlay
+    let onDismiss: () -> Void
+    let onSignOut: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                switch overlay {
+                case .accounts:
+                    AccountsSheetBody(sheet: model.accountsSheet)
+                case .signOut:
+                    ConfirmSheetBody(sheet: model.signOutSheet,
+                                     onConfirm: onSignOut, onCancel: onDismiss)
+                case .language:
+                    SelectSheetBody(sheet: model.languageSheet)
+                case .currency:
+                    SelectSheetBody(sheet: model.currencySheet)
+                case .numberFormat:
+                    SelectSheetBody(sheet: model.numberSheet)
+                case .dateFormat:
+                    SelectSheetBody(sheet: model.dateSheet)
+                case .timeFormat:
+                    SelectSheetBody(sheet: model.timeSheet)
+                case .clearCaches:
+                    ConfirmSheetBody(sheet: model.clearCachesSheet,
+                                     onConfirm: onDismiss, onCancel: onDismiss)
+                case .eraseDevice:
+                    ConfirmSheetBody(sheet: model.eraseSheet,
+                                     onConfirm: onDismiss, onCancel: onDismiss)
+                case .feedback:
+                    FeedbackSheetBody(model: model.feedback)
+                case .rpcFix:
+                    RpcFixSheetBody(model: model.rpcFix, onPrimary: onDismiss)
+                case .balanceDetail:
+                    BalanceDetailSheetBody(model: model.balanceDetail)
+                case .relayer:
+                    RelayerSheetBody(model: model.relayer, onPrimary: onDismiss)
+                case .none:
+                    EmptyView()
+                }
+            }
+            .padding(.horizontal, Tokens.Space.s24)
+            .padding(.vertical, Tokens.Space.s24)
+        }
+        .background(theme.bgBase)
+        .presentationDragIndicator(.visible)
+    }
+}
+
+private struct SheetTitle: View {
+    @Environment(\.theme) private var theme
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            Text(title)
+                .typeRole(Typography.title)
+                .foregroundStyle(theme.fgBase)
+            if let subtitle {
+                Text(subtitle)
+                    .typeRole(Typography.flowCaption)
+                    .foregroundStyle(theme.fgSubtle)
+            }
+        }
+        .padding(.bottom, Tokens.Space.s12)
+    }
+}
+
+private struct SelectSheetBody: View {
+    @Environment(\.theme) private var theme
+    let sheet: SelectSheetModel
+
+    var body: some View {
+        SheetTitle(title: sheet.title, subtitle: sheet.subtitle)
+        if let placeholder = sheet.searchPlaceholder {
+            SettingsUrlField(field: UrlFieldModel(id: "search", label: "", value: "",
+                                                  placeholder: placeholder))
+                .padding(.bottom, Tokens.Space.s12)
+        }
+        ForEach(sheet.rows) { SelectRow(row: $0) }
+        if let note = sheet.footerNote {
+            Text(note)
+                .typeRole(Typography.label)
+                .foregroundStyle(theme.fgSubtle)
+                .padding(.top, Tokens.Space.s16)
+        }
+        if let link = sheet.footerLink {
+            Text(link)
+                .typeRole(Typography.flowCaption)
+                .foregroundStyle(theme.infoBase)
+                .padding(.top, Tokens.Space.s8)
+        }
+    }
+}
+
+private struct ConfirmSheetBody: View {
+    @Environment(\.theme) private var theme
+    let sheet: ConfirmSheetModel
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        SheetTitle(title: sheet.title)
+        Text(sheet.body)
+            .typeRole(Typography.fieldLabel)
+            .foregroundStyle(theme.fgBase)
+            .padding(.bottom, Tokens.Space.s16)
+        if let note = sheet.note {
+            Text(note)
+                .typeRole(Typography.flowCaption)
+                .foregroundStyle(theme.fgSubtle)
+                .padding(.bottom, Tokens.Space.s16)
+        }
+        if let callout = sheet.callout {
+            SettingsCallout(callout: callout)
+                .padding(.bottom, Tokens.Space.s16)
+        }
+        // The tone picks the CTA's colour, so "清除缓存" is accent and "全部清除"
+        // is red without either screen owning a button of its own.
+        VelaButton(title: sheet.confirm, kind: sheet.danger ? .danger : .primary,
+                   action: onConfirm)
+            .padding(.bottom, Tokens.Space.s12)
+        VelaButton(title: sheet.cancel, kind: .secondary, action: onCancel)
+    }
+}
+
+private struct AccountsSheetBody: View {
+    @Environment(\.theme) private var theme
+    let sheet: AccountsSheetModel
+
+    var body: some View {
+        SheetTitle(title: sheet.title)
+        Text(sheet.summary)
+            .typeRole(Typography.flowCaption)
+            .foregroundStyle(theme.fgSubtle)
+            .padding(.bottom, Tokens.Space.s12)
+        ForEach(sheet.rows) { row in
+            VStack(spacing: 0) {
+                HStack(spacing: Tokens.Space.s12) {
+                    IdenticonAvatar(seed: row.addressFull, size: 40)
+                    VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                        Text(row.name)
+                            .typeRole(Typography.fieldLabel)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(row.selected ? theme.accentBase : theme.fgBase)
+                        Text(row.addressDisplay)
+                            .typeRole(Typography.monoSmall)
+                            .foregroundStyle(theme.fgSubtle)
+                    }
+                    Spacer(minLength: Tokens.Space.s8)
+                    Text(row.amount)
+                        .typeRole(Typography.fieldLabel)
+                        .foregroundStyle(theme.fgBase)
+                    if row.selected {
+                        LucideIcon(.check, size: LucideIconSize.action)
+                            .foregroundStyle(theme.accentBase)
+                    }
+                }
+                .padding(.vertical, Tokens.Space.s12)
+                SettingsDivider()
+            }
+        }
+        VelaButton(title: sheet.primary, kind: .primary) {}
+            .padding(.top, Tokens.Space.s24)
+            .padding(.bottom, Tokens.Space.s12)
+        VelaButton(title: sheet.secondary, kind: .secondary) {}
+    }
+}
+
+private struct FeedbackSheetBody: View {
+    @Environment(\.theme) private var theme
+    let model: FeedbackModel
+
+    var body: some View {
+        SheetTitle(title: model.title, subtitle: model.subtitle)
+        SettingsUrlField(field: UrlFieldModel(id: "what", label: "", value: "",
+                                              placeholder: model.placeholder))
+        Text(model.addSteps)
+            .typeRole(Typography.flowCaption)
+            .foregroundStyle(theme.infoBase)
+            .padding(.vertical, Tokens.Space.s12)
+        // Open by default: the point of the disclosure is that somebody can see
+        // what is about to leave their device before pressing send, and a
+        // closed box would be a promise instead of a showing.
+        VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            Text(model.previewToggle)
+                .typeRole(Typography.flowCaption)
+                .foregroundStyle(theme.fgMuted)
+            ForEach(model.previewLines, id: \.self) { line in
+                Text(line)
+                    .typeRole(Typography.monoSmall)
+                    .foregroundStyle(theme.fgSubtle)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(Tokens.Space.s12)
+        .background(theme.bgSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+        SettingsCallout(callout: CalloutModel(tone: .info, text: model.consent))
+            .padding(.vertical, Tokens.Space.s16)
+        VelaButton(title: model.send, kind: .primary) {}
+        Text(model.githubLink)
+            .typeRole(Typography.flowCaption)
+            .foregroundStyle(theme.infoBase)
+            .frame(maxWidth: .infinity)
+            .padding(.top, Tokens.Space.s12)
+    }
+}
+
+private struct RpcFixSheetBody: View {
+    @Environment(\.theme) private var theme
+    let model: RpcFixModel
+    let onPrimary: () -> Void
+
+    var body: some View {
+        SheetTitle(title: model.title)
+        HStack(spacing: Tokens.Space.s12) {
+            ChainMark(mark: model.mark)
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                Text(model.name)
+                    .typeRole(Typography.title)
+                    .foregroundStyle(theme.fgBase)
+                Text(model.meta)
+                    .typeRole(Typography.monoSmall)
+                    .foregroundStyle(theme.fgSubtle)
+            }
+            Spacer()
+            StatusPill(pill: model.badge)
+        }
+        .padding(.bottom, Tokens.Space.s16)
+        SettingsCallout(callout: model.callout)
+            .padding(.bottom, Tokens.Space.s16)
+        SettingsUrlField(field: model.field)
+            .padding(.bottom, Tokens.Space.s16)
+        VelaButton(title: model.primary, kind: .primary, action: onPrimary)
+        if let label = model.providersLabel {
+            Text(label)
+                .typeRole(Typography.label)
+                .foregroundStyle(theme.fgSubtle)
+                .padding(.top, Tokens.Space.s16)
+                .padding(.bottom, Tokens.Space.s8)
+            HStack(spacing: Tokens.Space.s8) {
+                ForEach(model.providers, id: \.self) { name in
+                    Text(name)
+                        .typeRole(Typography.flowCaption)
+                        .foregroundStyle(theme.fgBase)
+                        .padding(.horizontal, Tokens.Space.s12)
+                        .padding(.vertical, Tokens.Space.s8)
+                        .background(theme.bgRaised,
+                                    in: RoundedRectangle(cornerRadius: Tokens.Radius.r8))
+                }
+            }
+        }
+        if let report = model.report {
+            Text(report)
+                .typeRole(Typography.flowCaption)
+                .foregroundStyle(theme.infoBase)
+                .padding(.top, Tokens.Space.s16)
+        }
+    }
+}
+
+private struct BalanceDetailSheetBody: View {
+    @Environment(\.theme) private var theme
+    let model: BalanceDetailModel
+
+    var body: some View {
+        SheetTitle(title: model.title)
+        Text(model.summary)
+            .typeRole(Typography.flowCaption)
+            .foregroundStyle(theme.fgSubtle)
+            .padding(.bottom, Tokens.Space.s16)
+        Text(model.sectionPending)
+            .typeRole(Typography.flowCaption)
+            .fontWeight(.semibold)
+            .foregroundStyle(theme.fgBase)
+        Text(model.pendingNote)
+            .typeRole(Typography.label)
+            .foregroundStyle(theme.fgSubtle)
+            .padding(.vertical, Tokens.Space.s8)
+        ForEach(model.pending) { row(model: $0) }
+        Text(model.sectionDone)
+            .typeRole(Typography.flowCaption)
+            .fontWeight(.semibold)
+            .foregroundStyle(theme.fgBase)
+            .padding(.top, Tokens.Space.s16)
+        ForEach(model.done) { row(model: $0) }
+    }
+
+    @ViewBuilder private func row(model row: BalanceDetailRowModel) -> some View {
+        HStack(spacing: Tokens.Space.s12) {
+            ChainMark(mark: row.mark)
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                Text(row.name)
+                    .typeRole(Typography.fieldLabel)
+                    .foregroundStyle(theme.fgBase)
+                if let status = row.status {
+                    // Rate-limiting gets a grey line and no button because it
+                    // resolves itself; a dead RPC gets red and 立即重试.
+                    Text(status)
+                        .typeRole(Typography.label)
+                        .foregroundStyle(row.tone == .error ? theme.errorBase : theme.fgSubtle)
+                }
+            }
+            Spacer(minLength: Tokens.Space.s8)
+            if let action = row.action {
+                Text(action)
+                    .typeRole(Typography.flowCaption)
+                    .foregroundStyle(theme.infoBase)
+            }
+            if let amount = row.amount {
+                Text(amount)
+                    .typeRole(Typography.fieldLabel)
+                    .foregroundStyle(theme.fgBase)
+            }
+        }
+        .padding(.vertical, Tokens.Space.s12)
+    }
+}
+
+private struct RelayerSheetBody: View {
+    @Environment(\.theme) private var theme
+    let model: RelayerModel
+    let onPrimary: () -> Void
+
+    var body: some View {
+        SheetTitle(title: model.title)
+        Text(model.lead)
+            .typeRole(Typography.flowCaption)
+            .foregroundStyle(theme.fgMuted)
+            .padding(.bottom, Tokens.Space.s16)
+        HStack(spacing: Tokens.Space.s12) {
+            ChainMark(mark: model.mark)
+            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                Text(model.name)
+                    .typeRole(Typography.title)
+                    .foregroundStyle(theme.fgBase)
+                Text(model.amountHint)
+                    .typeRole(Typography.label)
+                    .foregroundStyle(theme.fgSubtle)
+            }
+            Spacer()
+        }
+        .padding(.bottom, Tokens.Space.s16)
+        QRPlaceholder(caption: model.qrCaption)
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, Tokens.Space.s16)
+        Text(model.addressDisplay)
+            .typeRole(Typography.monoSmall)
+            .foregroundStyle(theme.fgBase)
+            .frame(maxWidth: .infinity)
+            .padding(Tokens.Space.s12)
+            .background(theme.bgSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+            .padding(.bottom, Tokens.Space.s16)
+        // Non-refundable, and it goes to the bundler operator rather than to
+        // Vela or to this transaction — which is why the note sits between the
+        // address and the CTA rather than under it.
+        SettingsCallout(callout: model.callout)
+            .padding(.bottom, Tokens.Space.s16)
+        VelaButton(title: model.primary, kind: .primary, action: onPrimary)
+    }
+}

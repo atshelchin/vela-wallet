@@ -138,6 +138,10 @@ struct RootView: View {
             ContactsStateHost(state: .c1, loc: loc)
         case .contactsGallery:
             ContactsGalleryScreen(loc: loc)
+        case .settings:
+            SettingsScreen(model: SettingsFixtures.build(.st1, loc: loc), loc: loc)
+        case .settingsGallery:
+            SettingsGalleryScreen(loc: loc)
         case nil:
             NavigationStack(path: path) {
                 signedInOrWelcome
@@ -151,6 +155,9 @@ struct RootView: View {
                                 onLink: openPolicy
                             )
                             .navigationBarBackButtonHidden()
+                        case .settings:
+                            settingsScreen
+                                .navigationBarBackButtonHidden()
                         }
                     }
             }
@@ -234,16 +241,49 @@ struct RootView: View {
                     .withName(session.view.activeName),
                 loc: loc,
                 onSelectTab: { tab in
-                    // Sign-out is the only thing behind Settings today. The
-                    // other three tabs stay on this screen rather than
-                    // navigating to fixtures a signed-in person would read as
-                    // their real data.
-                    if tab == .settings { session.signOut() }
+                    // 设置 has a screen now (spec 023), and the 退出登录 row
+                    // inside it is where signing out lives. Until then the TAB
+                    // itself signed you out — which meant tapping 设置 to change
+                    // your language logged you out instead. 通讯录 and 探索 stay
+                    // on this screen rather than navigating to fixtures a
+                    // signed-in person would read as their real data.
+                    if tab == .settings { router.path.append(.settings) }
                 }
             )
         } else {
             WelcomeScreen(loc: loc, model: model, signingIn: onboarding.loginView.busy)
         }
+    }
+
+    /// Settings, wearing the signed-in identity.
+    ///
+    /// Fixture-driven still (spec 023 scope) apart from the two things that
+    /// identify the account — its name and address, both the real ones. A
+    /// fixture name over a real address would tell somebody they are signed in
+    /// as a stranger (spec 019's finding).
+    @ViewBuilder private var settingsScreen: some View {
+        SettingsScreen(
+            model: SettingsFixtures.build(.st1, loc: loc)
+                .withIdentity(
+                    name: session.view.activeName,
+                    address: session.view.address,
+                    display: Self.shortenAddress(session.view.address)
+                ),
+            loc: loc,
+            onSelectTab: { tab in
+                if tab == .wallet { router.path.removeLast() }
+            },
+            // The way out of a signed-in wallet, on the row a person would
+            // look for it.
+            onSignOut: { session.signOut() }
+        )
+    }
+
+    /// `0x14fB1f…D1eA5c` — the phone's short form, matching the wallet header's
+    /// own truncation so one account never reads as two.
+    private static func shortenAddress(_ address: String) -> String {
+        guard address.count > 14 else { return address }
+        return "\(address.prefix(6))…\(address.suffix(4))"
     }
 
     /// The single onboarding sheet's presentation. A swipe-to-dismiss routes to
@@ -319,7 +359,7 @@ struct RootView: View {
 /// gallery; unset keeps the Welcome flow. Never part of production
 /// navigation (FR-004).
 enum PageOverride {
-    enum Page { case wallet, gallery, contacts, contactsGallery }
+    enum Page { case wallet, gallery, contacts, contactsGallery, settings, settingsGallery }
 
     static let page: Page? = {
         switch ProcessInfo.processInfo.environment["VELA_PAGE"] {
@@ -327,6 +367,8 @@ enum PageOverride {
         case "gallery": .gallery
         case "contacts": .contacts
         case "contacts-gallery": .contactsGallery
+        case "settings": .settings
+        case "settings-gallery": .settingsGallery
         default: nil
         }
     }()

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.components.VelaPrimaryButton
 import app.getvela.wallet.core.designsystem.components.VelaSecondaryButton
@@ -114,6 +115,15 @@ fun ReceiveListBody(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
+        // R1 prints this directly under the title: the list below is not eight
+        // addresses, and the sentence is the only thing that says so.
+        Text(
+            text = model.subtitle,
+            color = colors.fgMuted,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.base,
+        )
+        Spacer(modifier = Modifier.height(VelaSpacing.lg))
         FlowSearchField(
             placeholder = model.searchPlaceholder,
             value = query,
@@ -451,6 +461,7 @@ fun TokenDetailBody(
             fontFamily = VelaFontFamily,
             fontWeight = VelaFontWeight.bold,
             fontSize = VelaTextSize.xl4,
+            lineHeight = VelaLeading.amountHero * VelaTextSize.xl4,
             maxLines = 1,
         )
         Text(
@@ -1201,6 +1212,7 @@ fun SendConfirmBody(
                 fontFamily = VelaFontFamily,
                 fontWeight = VelaFontWeight.bold,
                 fontSize = VelaTextSize.xl4,
+                lineHeight = VelaLeading.amountHero * VelaTextSize.xl4,
             )
             Text(
                 text = model.subline,

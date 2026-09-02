@@ -94,6 +94,7 @@ fun VelaNavHost(
     themePreference: ThemePreference,
     onThemeSelected: (ThemePreference) -> Unit,
     startDestination: String = VelaDestinations.WELCOME,
+    startFlowState: String? = null,
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -290,7 +291,7 @@ fun VelaNavHost(
         }
 
         composable(VelaDestinations.FLOWS_GALLERY) {
-            FlowGalleryScreen(systemDarkTheme = darkTheme)
+            FlowGalleryScreen(systemDarkTheme = darkTheme, initialState = startFlowState)
         }
     }
 
@@ -405,10 +406,11 @@ private fun android.content.Context.openUrl(url: String) {
 }
 
 /** Reached only by the `vela.startDestination` extra; the guard leaves them alone. */
-private val DEVELOPER_ROUTES = setOf(
+internal val DEVELOPER_ROUTES = setOf(
     VelaDestinations.GALLERY,
     VelaDestinations.CONTACTS_GALLERY,
     VelaDestinations.CONTACTS,
+    VelaDestinations.FLOWS_GALLERY,
     VelaDestinations.IMPORT,
 )
 

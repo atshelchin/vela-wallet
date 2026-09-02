@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
@@ -36,6 +37,7 @@ import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
 import app.getvela.wallet.core.designsystem.tokens.VelaIconSize
 import app.getvela.wallet.core.designsystem.tokens.VelaSizing
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.designsystem.tokens.VelaLeading
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 import app.getvela.wallet.feature.flows.components.FlowScaffold
 import app.getvela.wallet.feature.flows.components.ScanSurface
@@ -298,6 +300,7 @@ private fun SheetTitleRow(title: String?, close: String, onClose: () -> Unit) {
                 fontFamily = VelaFontFamily,
                 fontWeight = VelaFontWeight.bold,
                 fontSize = VelaTextSize.xl2,
+                lineHeight = VelaLeading.hero * VelaTextSize.xl2,
                 modifier = Modifier.weight(1f),
             )
         } else {

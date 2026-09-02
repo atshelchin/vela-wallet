@@ -48,9 +48,16 @@ import app.getvela.wallet.feature.flows.FlowState
  * here is the state that ships — there is no second render path to drift.
  */
 @Composable
-fun FlowGalleryScreen(systemDarkTheme: Boolean) {
+fun FlowGalleryScreen(systemDarkTheme: Boolean, initialState: String? = null) {
     var dark by rememberSaveable { mutableStateOf(systemDarkTheme) }
-    var state by rememberSaveable { mutableStateOf(FlowState.R1) }
+    // An unknown or absent name is R1, not a crash: the extra is a convenience
+    // for a device walkthrough, and a typo should not take the gallery down.
+    var state by rememberSaveable {
+        mutableStateOf(
+            FlowState.entries.firstOrNull { it.name.equals(initialState?.trim(), true) }
+                ?: FlowState.R1,
+        )
+    }
 
     VelaTheme(darkTheme = dark) {
         val colors = VelaTheme.colors

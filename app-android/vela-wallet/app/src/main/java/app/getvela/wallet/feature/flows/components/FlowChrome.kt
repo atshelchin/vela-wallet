@@ -14,7 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
@@ -44,6 +48,7 @@ import app.getvela.wallet.core.designsystem.tokens.VelaMonoFontFamily
 import app.getvela.wallet.core.designsystem.tokens.VelaRadius
 import app.getvela.wallet.core.designsystem.tokens.VelaSizing
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.designsystem.tokens.VelaLeading
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 import app.getvela.wallet.feature.flows.FilterChipModel
 import app.getvela.wallet.feature.flows.FlowHeaderModel
@@ -135,6 +140,7 @@ fun FlowScaffold(
                     fontFamily = VelaFontFamily,
                     fontWeight = VelaFontWeight.bold,
                     fontSize = VelaTextSize.xl4,
+                    lineHeight = VelaLeading.hero * VelaTextSize.xl4,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
@@ -181,6 +187,13 @@ fun FlowScaffold(
             Spacer(modifier = Modifier.height(VelaSpacing.xl))
             content()
             Spacer(modifier = Modifier.height(VelaSpacing.xl3))
+            // Only when nothing is pinned below: with a footer the inset is
+            // the footer's, and taking it twice leaves a gap the mocks do not
+            // draw. Without one the last row runs under the navigation bar —
+            // R1's eighth network did exactly that on the first device run.
+            if (footer == null) {
+                Spacer(modifier = Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
+            }
         }
         footer?.let {
             Box(

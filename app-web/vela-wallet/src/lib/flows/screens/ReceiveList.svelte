@@ -80,12 +80,6 @@
 		color: var(--color-fg-muted);
 	}
 
-	/* On the phone the screen frame already printed the subtitle under its
-	   own title, so this copy of it is the desktop panel's. */
-	.chrome .subtitle {
-		display: none;
-	}
-
 	ul {
 		list-style: none;
 		margin: 0;

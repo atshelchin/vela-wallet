@@ -40,6 +40,11 @@ struct ReceiveListBody: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s12) {
+            // R1 prints this directly under the title: the list below is not
+            // eight addresses, and the sentence is the only thing that says so.
+            Text(verbatim: model.subtitle)
+                .typeRole(Typography.body.scaled(textScale))
+                .foregroundStyle(theme.fgMuted)
             FlowSearchField(placeholder: model.searchPlaceholder, text: $query)
             if shown.isEmpty {
                 Text(verbatim: model.emptyText.replacingOccurrences(

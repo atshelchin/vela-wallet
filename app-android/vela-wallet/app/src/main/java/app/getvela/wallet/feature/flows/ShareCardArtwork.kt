@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaLogo
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
@@ -30,6 +31,7 @@ import app.getvela.wallet.core.designsystem.tokens.VelaOpacity
 import app.getvela.wallet.core.designsystem.tokens.VelaRadius
 import app.getvela.wallet.core.designsystem.tokens.VelaSizing
 import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.designsystem.tokens.VelaLeading
 import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
 import app.getvela.wallet.core.identicon.IdenticonImage
 import app.getvela.wallet.feature.flows.components.QrCard
@@ -64,6 +66,7 @@ fun ShareCardArtwork(model: ShareCardModel, modifier: Modifier = Modifier) {
             fontFamily = VelaFontFamily,
             fontWeight = VelaFontWeight.bold,
             fontSize = VelaTextSize.xl3,
+            lineHeight = VelaLeading.hero * VelaTextSize.xl3,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(vertical = VelaSpacing.xl),
         )
@@ -146,6 +149,7 @@ fun ShareCardArtwork(model: ShareCardModel, modifier: Modifier = Modifier) {
                 fontFamily = VelaFontFamily,
                 fontWeight = VelaFontWeight.bold,
                 fontSize = VelaTextSize.xl3,
+                lineHeight = VelaLeading.tight * VelaTextSize.xl3,
             )
         }
     }

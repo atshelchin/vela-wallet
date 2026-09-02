@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.times
 import app.getvela.wallet.core.designsystem.components.VelaIcons
 import app.getvela.wallet.core.designsystem.theme.VelaTheme
 import app.getvela.wallet.core.designsystem.tokens.VelaBorder
@@ -247,6 +248,7 @@ fun AmountInput(
             fontFamily = VelaFontFamily,
             fontWeight = VelaFontWeight.bold,
             fontSize = VelaTextSize.xl5,
+            lineHeight = VelaLeading.amountHero * VelaTextSize.xl5,
             maxLines = 1,
         )
         Spacer(modifier = Modifier.height(VelaSpacing.sm))
@@ -300,6 +302,7 @@ fun AmountHero(
             fontFamily = VelaFontFamily,
             fontWeight = VelaFontWeight.bold,
             fontSize = VelaTextSize.xl4,
+            lineHeight = VelaLeading.amountHero * VelaTextSize.xl4,
             maxLines = 1,
         )
         Text(
@@ -376,6 +379,7 @@ fun StatusHero(
             fontFamily = VelaFontFamily,
             fontWeight = VelaFontWeight.bold,
             fontSize = VelaTextSize.xl2,
+            lineHeight = VelaLeading.hero * VelaTextSize.xl2,
             textAlign = TextAlign.Center,
         )
         captions.forEachIndexed { index, caption ->

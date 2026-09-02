@@ -21,6 +21,7 @@ mod outcome;
 mod passkey_directory;
 mod raster;
 mod session;
+mod settings;
 mod theme;
 mod ui;
 mod wallet;
@@ -104,14 +105,16 @@ impl Render for Root {
     }
 }
 
-/// Which root the window hosts. `VELA_PAGE=wallet|contacts|gallery` (spec 015
-/// research.md D4, extended by spec 018 research.md D1) — same env-pin family
-/// as `VELA_THEME`/`VELA_LANG`; the default remains the onboarding flow.
+/// Which root the window hosts. `VELA_PAGE=wallet|contacts|settings|gallery`
+/// (spec 015 research.md D4, extended by spec 018 research.md D1 and spec 023)
+/// — same env-pin family as `VELA_THEME`/`VELA_LANG`; the default remains the
+/// onboarding flow.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum RootPage {
     Onboarding,
     Wallet,
     Contacts,
+    Settings,
     Gallery,
 }
 
@@ -120,6 +123,7 @@ impl RootPage {
         match std::env::var("VELA_PAGE").as_deref() {
             Ok("wallet") => Self::Wallet,
             Ok("contacts") => Self::Contacts,
+            Ok("settings") => Self::Settings,
             Ok("gallery") => Self::Gallery,
             _ => Self::Onboarding,
         }
@@ -147,6 +151,9 @@ fn open_main_window(cx: &mut App) {
         }),
         RootPage::Contacts => open_window_with(cx, |window, cx| {
             cx.new(|cx| WalletPage::contacts(window, cx))
+        }),
+        RootPage::Settings => open_window_with(cx, |window, cx| {
+            cx.new(|cx| WalletPage::settings(window, cx))
         }),
         RootPage::Gallery => open_window_with(cx, |window, cx| {
             cx.new(|cx| WalletPage::new(true, window, cx))

@@ -194,6 +194,7 @@ fn runtime_json_catalogs_fit_the_same_budget() {
             "componentsUi",
             "settingsModals",
             "contacts",
+            "explore",
         ] {
             let raw = std::fs::read_to_string(repo.join(lng).join(format!("{ns}.json")))
                 .unwrap_or_else(|e| unreachable!("corpus must be readable: {e}"));

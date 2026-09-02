@@ -1,0 +1,201 @@
+package app.getvela.wallet.feature.signing
+
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.Color
+
+/**
+ * Signing view models (spec 022, data-model.md §3 — the Android port of the
+ * web's `src/lib/signing/model.ts`): the universal renderer.
+ *
+ * A scenario is a header, an ORDERED list of blocks, and a fixed footer. Every
+ * one of the 33 CS mocks is expressible that way, and nothing in the renderer
+ * knows what "a swap" is: the six-rung ERC-7730 degradation ladder is made
+ * structural, so a deeper rung emits more warning blocks and fewer decoded
+ * ones instead of forking the layout.
+ */
+
+enum class SigningScreenState {
+    CS1, CS2, CS3, CS4, CS5, CS6, CS7, CS8, CS9, CS10, CS11,
+    CS12, CS13, CS14, CS15, CS16, CS17, CS18, CS19, CS20, CS21, CS22,
+    CS23, CS24, CS25, CS26, CS27, CS28, CS29, CS30, CS31, CS32, CS33,
+}
+
+/** Semantic weight. `Accent` is the intent sentence; the rest colour warnings. */
+enum class SigningTone { Neutral, Accent, Success, Caution, Danger }
+
+@Immutable
+data class TokenMark(val letter: String, val tint: Color)
+
+@Immutable
+data class AmountLine(
+    /** Rendered ahead of the value and coloured with it: "−", "+", or "". */
+    val sign: String,
+    val value: String,
+    val symbol: String,
+    val token: TokenMark? = null,
+    val fiat: String? = null,
+    /** "支付" / "最少收到" / "存入资产" — the line's own small label. */
+    val caption: String? = null,
+    val tone: SigningTone = SigningTone.Neutral,
+)
+
+@Immutable
+data class SigningRow(
+    val label: String,
+    val value: String,
+    val valueTone: SigningTone = SigningTone.Neutral,
+    val mono: Boolean = false,
+)
+
+@Immutable
+data class AllowanceChip(val id: String, val label: String, val state: ChipState) {
+    enum class ChipState { Idle, Selected, Disabled }
+}
+
+@Immutable
+data class PartyBadge(val text: String, val tone: SigningTone)
+
+@Immutable
+data class BalanceDeltaRow(val symbol: String, val delta: String, val tone: SigningTone)
+
+@Immutable
+sealed interface SigningBlock {
+    /** The eyebrow above the hero — "发送", "授权", "盲签". */
+    data class Intent(val text: String, val tone: SigningTone) : SigningBlock
+
+    /** The hero number. `card` boxes it in its tone (cs28's burn intercept). */
+    data class Amount(
+        val line: AmountLine,
+        val card: Boolean = false,
+        val note: String? = null,
+    ) : SigningBlock
+
+    /** Two amount lines with the ↓ badge between them. */
+    data class Swap(val pay: AmountLine, val receive: AmountLine) : SigningBlock
+
+    data class Nft(val id: String, val collection: String) : SigningBlock
+
+    /** The one-sentence plain-language summary. */
+    data class Sentence(val text: String, val tone: SigningTone) : SigningBlock
+
+    data class Allowance(
+        val label: String,
+        val value: String,
+        val valueTone: SigningTone,
+        val chips: List<AllowanceChip>,
+        val note: String? = null,
+        val resultingTotal: SigningRow? = null,
+    ) : SigningBlock
+
+    data class Party(
+        val label: String,
+        val name: String,
+        val address: String? = null,
+        val badge: PartyBadge? = null,
+    ) : SigningBlock
+
+    data class Rows(val rows: List<SigningRow>) : SigningBlock
+
+    data class Warning(val tone: SigningTone, val text: String) : SigningBlock
+
+    data class Positive(val text: String) : SigningBlock
+
+    /** Message, hex, typed-data JSON or calldata — always monospace. */
+    data class Code(val lines: List<String>, val note: String? = null) : SigningBlock
+
+    /** A batch step or a Safe inner call. */
+    data class Card(
+        val title: String?,
+        val rows: List<SigningRow>,
+        val tone: SigningTone,
+    ) : SigningBlock
+
+    data class Balances(
+        val title: String,
+        val rows: List<BalanceDeltaRow>,
+        val note: String? = null,
+        val noteTone: SigningTone = SigningTone.Neutral,
+    ) : SigningBlock
+}
+
+@Immutable
+data class TechIdentity(
+    val role: String,
+    val name: String,
+    val address: String,
+    val mark: TokenMark? = null,
+)
+
+@Immutable
+data class TechModel(
+    val title: String,
+    /** Byte count shown on the collapsed row when there is one. */
+    val summary: String? = null,
+    val functionLabel: String? = null,
+    val signature: String? = null,
+    val params: List<SigningRow> = emptyList(),
+    val identities: List<TechIdentity> = emptyList(),
+    val simResult: SigningRow? = null,
+    val rawLabel: String? = null,
+    val rawHex: String? = null,
+    val copyLabel: String,
+    val explorerLabel: String,
+)
+
+@Immutable
+data class FeeTokenOption(
+    val id: String,
+    val mark: TokenMark,
+    val name: String,
+    val balance: String,
+    val fee: String,
+    val selected: Boolean,
+)
+
+@Immutable
+sealed interface FeeModel {
+    data class OnChain(
+        val label: String,
+        val value: String,
+        /** Present only while the selector is open (cs33). */
+        val selectorTitle: String? = null,
+        val options: List<FeeTokenOption> = emptyList(),
+    ) : FeeModel
+
+    /** Off-chain signature: the ✓ line, in place of a fee row. */
+    data class OffChain(val note: String) : FeeModel
+
+    /** Nothing at all — cs20–cs22, where there is no fee and no reassurance. */
+    data object Hidden : FeeModel
+}
+
+@Immutable
+data class SigningScreenModel(
+    val state: SigningScreenState,
+    val dappName: String,
+    val dappHost: String,
+    val dappLetter: String,
+    val dappTint: Color,
+    val networkName: String,
+    val networkDot: Color,
+    val blocks: List<SigningBlock>,
+    val tech: TechModel,
+    /** cs29 ships the disclosure open — the whole point of that mock. */
+    val techOpen: Boolean,
+    val fee: FeeModel,
+    val signerLabel: String,
+    val signerName: String,
+    val signerSeed: String,
+    /**
+     * The slide. There is no reject button anywhere in this vocabulary:
+     * dismissing the sheet is the rejection (product contract, SPEC 签名).
+     */
+    val confirmHint: String,
+    val confirmAction: String,
+    val confirmEnabled: Boolean,
+    val panelTitle: String,
+)
+
+/** The signed-in wallet's identity over the fixture's signer row. */
+fun SigningScreenModel.withIdentity(name: String, address: String): SigningScreenModel =
+    copy(signerName = name, signerSeed = address)

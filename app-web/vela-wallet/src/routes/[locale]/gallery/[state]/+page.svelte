@@ -5,6 +5,9 @@
 	import WalletHome from '$lib/wallet/WalletHome.svelte';
 	import ContactsDesktop from '$lib/contacts/ContactsDesktop.svelte';
 	import ContactsHome from '$lib/contacts/ContactsHome.svelte';
+	import ExploreDesktop from '$lib/explore/ExploreDesktop.svelte';
+	import ExploreHome from '$lib/explore/ExploreHome.svelte';
+	import SigningSheet from '$lib/signing/SigningSheet.svelte';
 	import Controls from '../Controls.svelte';
 
 	let { data } = $props();
@@ -36,6 +39,30 @@
 			<ContactsHome model={data.model} />
 		</div>
 	</div>
+{:else if data.kind === 'explore-mobile'}
+	<div class="stage">
+		<div class="frame">
+			<ExploreHome model={data.model} copy={data.copy} signing={data.signing} />
+		</div>
+	</div>
+{:else if data.kind === 'signing'}
+	<!-- A CS state IS the sheet over the page that asked for it, so the mock is
+	     reproduced whole rather than as a floating panel. -->
+	<div class="stage">
+		<div class="frame">
+			<ExploreHome model={data.model} copy={data.copy} />
+			<SigningSheet model={data.signing} />
+		</div>
+	</div>
+{:else if data.kind === 'explore-desktop'}
+	<div class="desktop-stage">
+		<ExploreDesktop
+			model={data.model}
+			copy={data.copy}
+			sidebar={data.sidebar}
+			signing={data.signing}
+		/>
+	</div>
 {:else if data.kind === 'contacts-desktop'}
 	<div class="desktop-stage" class:narrow={narrowStage}>
 		<ContactsDesktop model={data.model} />
@@ -57,6 +84,7 @@
 	}
 
 	.frame {
+		position: relative;
 		width: var(--layout-frameW);
 		height: var(--layout-frameH);
 		border: var(--border-hairline) solid var(--color-border-strong);

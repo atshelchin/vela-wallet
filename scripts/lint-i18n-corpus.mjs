@@ -29,7 +29,7 @@ const LOCALES = ['en', 'zh', 'zh-TW', 'zh-HK', 'ja', 'ko', 'vi', 'id', 'tr', 'es
 const NAMESPACE_FILES = [
   'home', 'send', 'receive', 'assets', 'addToken', 'tokenDetail', 'history',
   'onboarding', 'connect', 'about', 'clearSigning', 'componentsTx',
-  'componentsUi', 'settingsModals', 'contacts',
+  'componentsUi', 'settingsModals', 'contacts', 'explore',
 ];
 const PLURAL_SUFFIXES = ['_zero', '_one', '_two', '_few', '_many', '_other'];
 

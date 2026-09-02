@@ -15,6 +15,8 @@
 
 	interface Props {
 		model: WalletHomeModel;
+		/** Spec 022: the web app has no 探索 — see TabBar's `destinations`. */
+		destinations?: readonly ('wallet' | 'contacts' | 'explore' | 'settings')[];
 		/** Tab selection. Absent in the gallery, where the bar is a picture. */
 		onselect?: (id: 'wallet' | 'contacts' | 'explore' | 'settings') => void;
 		/** Open the identicon viewer; absent in the gallery. */
@@ -22,7 +24,7 @@
 		identiconViewerLabel?: string;
 	}
 
-	let { model, onselect, onidenticon, identiconViewerLabel }: Props = $props();
+	let { model, destinations, onselect, onidenticon, identiconViewerLabel }: Props = $props();
 
 	// Pure UI state: the fixture-provided sheet, once dismissed, stays dismissed.
 	// Nothing on this screen reopens it any more — the pill that did is gone.
@@ -91,7 +93,7 @@
 		{/if}
 	</div>
 
-	<TabBar tabs={model.tabs} {onselect} />
+	<TabBar tabs={model.tabs} {destinations} {onselect} />
 
 	{#if showSheet && model.sheet !== undefined}
 		<BottomSheet

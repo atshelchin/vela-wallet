@@ -29,6 +29,10 @@ export const load: PageServerLoad = ({ params }) => {
 	const home = buildMobileState('h1', messages, identiconSvgFor);
 	const desktop = buildDesktopState('d1', messages, identiconSvgFor);
 
+	// No explore data here (spec 022 founder call): 探索 is the in-app dApp
+	// browser, and this client IS a browser tab — it cannot host one. The
+	// vocabulary still ships for the gallery, which is the design source the
+	// three native clients are reviewed against.
 	return {
 		walletMessages: messages,
 		home: { ...home, header: EMPTY_HEADER },

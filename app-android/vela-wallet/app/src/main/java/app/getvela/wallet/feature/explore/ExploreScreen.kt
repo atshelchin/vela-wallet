@@ -1,0 +1,322 @@
+package app.getvela.wallet.feature.explore
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.designsystem.tokens.VelaBorder
+import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
+import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
+import app.getvela.wallet.core.designsystem.tokens.VelaRadius
+import app.getvela.wallet.core.designsystem.tokens.VelaSizing
+import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
+import app.getvela.wallet.core.i18n.LocalVelaStrings
+import app.getvela.wallet.feature.explore.components.AddressBar
+import app.getvela.wallet.feature.explore.components.BrowserToolbar
+import app.getvela.wallet.feature.explore.components.ConnectionPanel
+import app.getvela.wallet.feature.explore.components.DemoPage
+import app.getvela.wallet.feature.explore.components.ExploreEmpty
+import app.getvela.wallet.feature.explore.components.ExploreMetrics
+import app.getvela.wallet.feature.explore.components.ExploreSearchField
+import app.getvela.wallet.feature.explore.components.ExploreTabsScreen
+import app.getvela.wallet.feature.explore.components.GroupManageSheetContent
+import app.getvela.wallet.feature.explore.components.SiteMenuSheetContent
+import app.getvela.wallet.feature.explore.components.SiteRow
+import app.getvela.wallet.feature.explore.components.SiteTile
+import app.getvela.wallet.feature.signing.SigningScreenModel
+import app.getvela.wallet.feature.signing.SigningSheet
+import app.getvela.wallet.feature.wallet.components.SectionHeader
+import app.getvela.wallet.feature.wallet.components.VelaTab
+import app.getvela.wallet.feature.wallet.components.VelaTabBar
+
+/**
+ * The Explore tab (spec 022 FR-002): one surface with three views — the start
+ * page, a page being browsed, and the tab switcher — assembled from the
+ * component vocabulary. Screens compose components, never re-implement them.
+ *
+ * Every E-state renders from fixtures alone; what a person DOES here is local
+ * state layered over the model, so swapping the model (a locale change, the
+ * preview gallery's state picker) still lands.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ExploreScreen(
+    model: ExploreScreenModel,
+    modifier: Modifier = Modifier,
+    signing: SigningScreenModel? = null,
+    onSelectTab: (VelaTab) -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    val strings = LocalVelaStrings.current
+
+    var viewOverride by rememberSaveable(model.state) { mutableStateOf<ExploreView?>(null) }
+    var sheet by remember(model.state) { mutableStateOf(model.sheet) }
+    var signingUp by remember(model.state) { mutableStateOf(false) }
+    /// Groups hidden HERE rather than in the fixture: hiding is something a
+    /// person does, and the sheet has to show it happening.
+    var hidden by rememberSaveable(model.state) { mutableStateOf(emptySet<String>()) }
+
+    val view = viewOverride ?: model.view
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(colors.bgBase),
+    ) {
+        when (view) {
+            ExploreView.Tabs -> ExploreTabsScreen(
+                modifier = Modifier
+                    .weight(1f)
+                    .statusBarsPadding()
+                    .navigationBarsPadding(),
+                tabs = model.tabs,
+                copy = model.tabsScreen,
+                onDone = { viewOverride = ExploreView.Browsing },
+                onOpen = { viewOverride = ExploreView.Browsing },
+                onClose = { viewOverride = ExploreView.Start },
+                onNew = { viewOverride = ExploreView.Start },
+                onCloseAll = { viewOverride = ExploreView.Start },
+            )
+
+            ExploreView.Browsing -> {
+                AddressBar(
+                    modifier = Modifier.statusBarsPadding(),
+                    host = model.browser.host,
+                    secure = model.browser.secure,
+                    secureLabel = strings.t("explore.secureSite"),
+                    closeLabel = strings.t("explore.closePage"),
+                    menuLabel = strings.t("explore.siteMenu"),
+                    onClose = { viewOverride = ExploreView.Start },
+                    onMenu = { sheet = model.siteMenuSheet },
+                )
+                Box(Modifier.weight(1f)) {
+                    DemoPage(model.browser.page, onAction = { if (signing != null) signingUp = true })
+                }
+                BrowserToolbar(
+                    modifier = Modifier.navigationBarsPadding(),
+                    browser = model.browser,
+                    backLabel = strings.t("explore.back"),
+                    forwardLabel = strings.t("explore.forward"),
+                    accountLabel = strings.t("explore.account"),
+                    connectedLabel = strings.t("explore.connectedTag"),
+                    bookmarkLabel = strings.t("explore.addToFavorites"),
+                    tabsLabel = strings.t("explore.tabs"),
+                    onAccount = { sheet = ExploreSheet.Connection(model.connection) },
+                    onTabs = { viewOverride = ExploreView.Tabs },
+                )
+            }
+
+            ExploreView.Start -> {
+                StartPage(
+                    model = model,
+                    hidden = hidden,
+                    onBrowse = { viewOverride = ExploreView.Browsing },
+                    onTabs = { viewOverride = ExploreView.Tabs },
+                    onManageGroups = { sheet = model.groupManageSheet },
+                    modifier = Modifier.weight(1f),
+                )
+                // Device-found on the Xiaomi (2026-09-02): without this the bar
+                // sits UNDER the system navigation and the four labels are cut
+                // in half. WalletScreen has always done it; Explore inherited
+                // the bar without the padding that makes it reachable.
+                VelaTabBar(
+                    tabs = model.nav,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding(),
+                    selected = VelaTab.Explore,
+                    onSelect = onSelectTab,
+                )
+            }
+        }
+    }
+
+    sheet?.let { current ->
+        ModalBottomSheet(
+            onDismissRequest = { sheet = null },
+            containerColor = colors.bgBase,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                when (current) {
+                    is ExploreSheet.GroupManage -> GroupManageSheetContent(
+                        sheet = current,
+                        hidden = hidden,
+                        closeLabel = strings.t("explore.close"),
+                        hideLabel = strings.t("explore.hide"),
+                        showLabel = strings.t("explore.show"),
+                        deleteLabel = strings.t("explore.delete"),
+                        onClose = { sheet = null },
+                        onToggle = { id ->
+                            hidden = if (hidden.contains(id)) hidden - id else hidden + id
+                        },
+                        onNew = {},
+                    )
+
+                    is ExploreSheet.SiteMenu -> SiteMenuSheetContent(
+                        sheet = current,
+                        closeLabel = strings.t("explore.close"),
+                        onClose = { sheet = null },
+                        onPick = { id ->
+                            sheet = null
+                            if (id == "close") viewOverride = ExploreView.Start
+                        },
+                    )
+
+                    is ExploreSheet.Connection -> ConnectionPanel(
+                        connection = current.connection,
+                        closeLabel = strings.t("explore.close"),
+                        onClose = { sheet = null },
+                        onDisconnect = { sheet = null },
+                    )
+                }
+            }
+        }
+    }
+
+    if (signingUp && signing != null) {
+        SigningSheet(model = signing, onDismiss = { signingUp = false })
+    }
+}
+
+@Composable
+private fun StartPage(
+    model: ExploreScreenModel,
+    hidden: Set<String>,
+    onBrowse: () -> Unit,
+    onTabs: () -> Unit,
+    onManageGroups: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = VelaTheme.colors
+    val strings = LocalVelaStrings.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            // Same convention as WalletScreen/ContactsScreen: the scrolling
+            // body clears the status bar, the bars at the edges clear the
+            // navigation bar. Without it the title sat under the clock and the
+            // tab labels under the gesture bar (device-found, Xiaomi alioth).
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = VelaSizing.screenPaddingX),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = VelaSpacing.xl2, bottom = VelaSpacing.xl),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = model.title,
+                color = colors.fgBase,
+                fontFamily = VelaFontFamily,
+                fontWeight = VelaFontWeight.bold,
+                fontSize = VelaTextSize.xl3,
+            )
+            model.tabCountLabel?.let { count ->
+                Box(
+                    modifier = Modifier
+                        .defaultMinSize(ExploreMetrics.tabCount, ExploreMetrics.tabCount)
+                        .border(
+                            VelaBorder.emphasis, colors.fgBase,
+                            RoundedCornerShape(VelaRadius.sm),
+                        )
+                        .clickable(onClick = onTabs),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = count,
+                        color = colors.fgBase,
+                        fontFamily = VelaFontFamily,
+                        fontWeight = VelaFontWeight.semibold,
+                        fontSize = VelaTextSize.base,
+                    )
+                }
+            }
+        }
+
+        ExploreSearchField(
+            placeholder = model.searchPlaceholder,
+            scanLabel = model.scanLabel,
+            onSubmit = { onBrowse() },
+        )
+
+        model.empty?.let {
+            ExploreEmpty(it, onBrowse = onBrowse)
+        }
+
+        model.favorites?.let { favorites ->
+            SectionHeader(
+                title = favorites.title,
+                action = favorites.action,
+                onAction = onManageGroups,
+                modifier = Modifier.padding(top = VelaSpacing.xl),
+            )
+            // A fixed four-column grid, not a lazy one: this sits inside a
+            // scrolling column, and nesting a lazy grid in one is what makes
+            // Compose throw about infinite height constraints.
+            favorites.tiles.chunked(4).forEach { row ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = VelaSpacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(VelaSpacing.md),
+                ) {
+                    row.forEach { tile ->
+                        SiteTile(
+                            tile = tile,
+                            onOpen = { onBrowse() },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    repeat(4 - row.size) { Box(Modifier.weight(1f)) }
+                }
+            }
+        }
+
+        model.groups.filterNot { hidden.contains(it.id) }.forEach { group ->
+            SectionHeader(
+                title = group.title,
+                action = if (group.action == GroupAction.Clear) {
+                    strings.t("explore.clear")
+                } else {
+                    "⋯"
+                },
+                onAction = onManageGroups,
+            )
+            group.sites.forEach { site ->
+                SiteRow(site = site, onOpen = { onBrowse() })
+            }
+        }
+
+        Box(Modifier.padding(bottom = VelaSpacing.xl3))
+    }
+}

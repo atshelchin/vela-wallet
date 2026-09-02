@@ -51,7 +51,7 @@ const LOCALES = ['en', 'zh', 'zh-TW', 'zh-HK', 'ja', 'ko', 'vi', 'id', 'tr', 'es
 const NAMESPACE_FILES = [
   'home', 'send', 'receive', 'assets', 'addToken', 'tokenDetail', 'history',
   'onboarding', 'connect', 'about', 'clearSigning', 'componentsTx',
-  'componentsUi', 'settingsModals', 'contacts',
+  'componentsUi', 'settingsModals', 'contacts', 'explore',
 ];
 
 /** `es-MX` -> `es-mx`, matching the cargo feature name. */
@@ -225,9 +225,16 @@ for (let i = 1; i < PATHS.length; i++) {
 //   shipped font, the widest authored line runs from 6.9em (zh) to 15.0em (id)
 //   — a 2.2x spread that one font size cannot serve, so the tier rides with the
 //   copy instead of being guessed per client.
-if (PATHS.length !== 1419) fail(`expected 1419 paths (1340 leaf + 79 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1340) fail(`expected 1340 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 79) fail(`expected 79 branch paths, got ${branchSet.size}`);
+// + 98 more (spec 022, explore + dApp signing): a whole new `explore.*`
+//   namespace (54 keys — the browser home, tabs, the three sheets and the
+//   browsing chrome) and 43 additions under `componentsUi.signing` for the
+//   rungs of the ERC-7730 degradation ladder the 33 CS mocks walk down —
+//   verified-ABI decode, 4byte best-effort, the un-simulatable case, the drain
+//   reveal, Safe's inner call, deploy, and the slide-to-confirm labels. The
+//   other ~95% of the signing copy was already here, which is why this is 43.
+if (PATHS.length !== 1517) fail(`expected 1517 paths (1437 leaf + 80 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1437) fail(`expected 1437 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 80) fail(`expected 80 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

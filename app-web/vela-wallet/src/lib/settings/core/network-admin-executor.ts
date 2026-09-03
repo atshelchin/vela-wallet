@@ -26,6 +26,8 @@
  */
 
 import { getItem, setItem } from '$lib/services/storage';
+import { refreshCustomNetworks } from '$lib/services/networks';
+import { invalidateAllPools, refreshPool } from '$lib/services/rpc-pool';
 import { fetchRawChainData, loadSearchIndex } from '$lib/services/chain-registry';
 import { fetchWithTimeout, NET_TIMEOUTS } from '$lib/services/net';
 import {
@@ -396,8 +398,9 @@ export async function executeNetworkAdminOperation(effect: NetEffect): Promise<N
 				KEYS.customNetworks,
 				JSON.stringify(operation.networks.map(encodeCustomNetwork))
 			);
-			// The Expo caller also refreshed a synchronous model cache here; this
-			// app has no such cache yet — the pool arrives with spec 025.
+			// Cache invalidation, not a decision (the Expo comment's rule): the
+			// synchronous network snapshot must re-read the bytes just written.
+			await refreshCustomNetworks();
 			return { type: 'written' };
 
 		case 'write_network_configs':
@@ -486,12 +489,15 @@ export async function executeNetworkAdminOperation(effect: NetEffect): Promise<N
 			return { type: 'fiat_rates', body, latency_ms: latencyMs };
 		}
 
-		// -- Platform-absent caches: acknowledged, never skipped ----------------
-
 		case 'invalidate_pools':
+			// Live since spec 025: the pool facade is the one resident router.
+			if (operation.chain_id === null) invalidateAllPools();
+			else await refreshPool(operation.chain_id);
 			return { type: 'invalidated' };
 
 		case 'clear_bundler_cache':
+			// Still an acknowledged no-op: the bundler CACHE is 026's (there is
+			// no bundler client yet). Answered, never skipped.
 			return { type: 'bundler_cache_cleared' };
 
 		default: {

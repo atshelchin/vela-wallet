@@ -20,30 +20,30 @@ Paths repo-root-relative; `pnpm` runs in app-web/vela-wallet.
 
 ## Phase 2: The pool (one commit) — blocks 3–5
 
-- [ ] T110 [US3] Port src/services/rpc-pool-endpoints.ts →
+- [X] T110 [US3] Port src/services/rpc-pool-endpoints.ts (+ its support graph, discovered at port time: chains.ts content table [audit-whitelisted like fixtures], networks.ts trimmed model w/ custom-cache+subscribe, records.ts KV readers, rpc-providers.ts verbatim, endpoints.ts getters, chain-registry fetchChainInfo) →
       app-web/…/src/lib/services/rpc-pool-endpoints.ts (endpoint assembly,
       NEVER_BANNED, BANNED_STORAGE_KEY, RPCResponse type)
-- [ ] T111 [US3] Port src/services/endpoint-admission.ts (user-URL hygiene
+- [X] T111 [US3] Port src/services/endpoint-admission.ts (verbatim) (user-URL hygiene
       gate, pre-fetch)
-- [ ] T112 [US3] Port wallet-state-core/rpc-pool-{types,executor,session}.ts
+- [X] T112 [US3] Port wallet-state-core/rpc-pool-{types,executor,session}.ts
       → app-web/…/src/lib/wallet/core/ (AsyncStorage→KV; call registry;
       transport via $lib/services/net)
-- [ ] T113 [US3] Port src/services/rpc-pool.ts (the FACADE) →
+- [X] T113 [US3] Port src/services/rpc-pool.ts (the FACADE; + trimmed metrics.ts counter seam + fault-injection.ts read-path arms; ensureReady awaits loadCore before construction) →
       $lib/services/rpc-pool.ts — module-resident single session (D9);
       exports poolRpcCall/getRateLimitedChains/refreshPool/invalidateAllPools/
       getChainRpcUrl/getLogsRangeCap per the Expo web surface
-- [ ] T114 [US3] Flip 024's no-op arms live: network_admin
+- [X] T114 [US3] Flip 024's no-op arms live (invalidate_pools→facade; clear_bundler_cache stays an answered no-op until 026's bundler client; write_custom_networks regains its snapshot refresh): network_admin
       invalidate_pools→facade, clear_bundler_cache→bundler-cache seam stub
       that 026 fills (still answers; provenance note)
-- [ ] T115 [US3] Settings HOME RPC-health tiles live (the `// live in 025`
+- [X] T115 [US3] — MOOT on inspection: 024 already made every settings health surface live through network_admin's own probes; the remaining fixture 'tiles' are the SR rescue overlays, which belong to the WALLET screen and land with Phase 3's home wiring (recorded) (the `// live in 025`
       markers in settings/live.ts + route arms feed pool verdicts)
-- [ ] T116 [P] [US3] Unit: rpc-pool executor (ban codec byte-compat,
+- [X] T116 [P] [US3] Unit: rpc-pool executor (8 tests: ban bytes, outcome classes, vanished-caller, X-Rpc-Url, failure twin) (ban codec byte-compat,
       conclude registry, transport outcomes incl. timeout→network) + facade
       single-session pin
-- [ ] T117 [US3] e2e e2e/pool-resilience.e2e.ts on the NEW
+- [X] T117 [US3] e2e e2e/pool-resilience.e2e.ts on the NEW stub-chain.ts harness (deny-off-origin default + JSON-RPC stubs + KV reader + gated window.vela console w/ poolCall — dynamic import so no glue enters the first-paint chunk); SC-102 green first run on the NEW
       e2e/stub-chain.ts harness (D11): failing primary → routed read; ban
       persists across reload (SC-102)
-- [ ] T118 [US3] Full gate; results.md phase entry
+- [X] T118 [US3] Full gate (check 1181/0; lint clean; unit 435; build; e2e 69+1 — one webkit artifact-assertion flake, clean on re-run); results.md phase entry
 
 ## Phase 3: Home live (one commit) 🎯 MVP with 1–2
 

@@ -34,3 +34,31 @@ origin/main's tip; the spec header's "stacked" note is thereby moot).
 
 Inherited from 024 close-out on the same tree state; re-run at each phase
 gate as usual.
+
+
+---
+
+## Phase 2 — the pool (T110–T118)
+
+**What shipped**: chain reads exist. `RpcPoolCore` routes them through the
+ported facade (`$lib/services/rpc-pool.ts` — fetch + the caller's promise;
+every decision in Rust), over the ported endpoint collection
+(six-tier candidates; NEVER_BANNED at collection because the core filters at
+selection), with the ban map persisting byte-compatibly under
+`vela.rpc.banned`. The port pulled in its support graph: the canonical
+chains table (audit-whitelisted as content), a trimmed networks model whose
+custom-cache refresh also restored the invalidation 024's executor had to
+leave out, KV record readers, provider URL builders, endpoint getters and a
+parsed `fetchChainInfo`.
+
+**The harness (D11)**: `e2e/stub-chain.ts` — deny-off-origin by default
+(silence about a missed stub is a failed request, never a live call), JSON-RPC
+stubs by method, an IndexedDB reader, and a `window.vela` console gated on
+`vela.dev.console` + dev builds, loaded via DYNAMIC import so no core glue
+reaches the first-paint chunk. SC-102 passed first run: a 401 primary is
+routed around, its permanent ban persists, and a reload gives it zero free
+attempts (the bans-before-first-selection ordering proven end to end).
+
+**Gates**: check 1181 files/0 · lint clean · unit 435 · build ×15 · e2e full
+suite green (one webkit artifact-assertion flake, clean on isolated re-run —
+watched, not suppressed).

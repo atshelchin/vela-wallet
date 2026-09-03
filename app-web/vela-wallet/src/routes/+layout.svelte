@@ -26,6 +26,16 @@
 	let appearance = $state<Appearance>('dark');
 
 	onMount(() => {
+		// The dev/e2e console (spec 025) is a DYNAMIC import behind its gate:
+		// a static one would drag the core's JS glue into the first-paint
+		// chunk of every page, Welcome included.
+		try {
+			if (import.meta.env.DEV || localStorage.getItem('vela.dev.console') === '1') {
+				void import('$lib/services/dev-console').then((m) => m.maybeInstallDevConsole());
+			}
+		} catch {
+			// storage denied — no console, no harm
+		}
 		// The inline script in app.html already made this decision before paint
 		// and recorded it on <html>. Reading it back — rather than re-deciding —
 		// is what guarantees the two cannot disagree and leave the page hidden

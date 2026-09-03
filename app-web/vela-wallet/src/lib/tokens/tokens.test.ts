@@ -51,7 +51,7 @@ describe('literal audit — product UI references tokens, never raw values', () 
 	 * not ours to express in our tokens — the day it becomes a real WebView,
 	 * those values leave with it.
 	 */
-	const LITERAL_WHITELIST = new Set(['BrandMark.svelte', 'DemoPage.svelte']);
+	const LITERAL_WHITELIST = new Set(['BrandMark.svelte', 'DemoPage.svelte', 'chains.ts']);
 
 	const collect = (dir: string): string[] =>
 		readdirSync(dir).flatMap((name) => {

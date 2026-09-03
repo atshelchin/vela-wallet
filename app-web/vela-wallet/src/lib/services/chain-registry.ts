@@ -55,3 +55,38 @@ export async function loadSearchIndex(): Promise<unknown[]> {
 		return _searchCache ?? [];
 	}
 }
+
+/** Parsed chain metadata the endpoint collector needs (Expo `ChainInfo`, trimmed). */
+export interface ChainInfo {
+	chainId: number;
+	name: string;
+	rpcUrls: string[];
+}
+
+/** Placeholder-key URLs never make usable candidates (Expo parse rule). */
+const KEY_PLACEHOLDER = /\$\{|\{[A-Z_]+\}|YOUR[-_]?API[-_]?KEY/i;
+
+/**
+ * `/chains/eip155-{id}.json`, parsed just far enough for endpoint collection:
+ * clean HTTPS rpc URLs, placeholders rejected. The full parsing DECISIONS for
+ * the add-network wizard stay in the core (024); this trimmed view exists for
+ * `collectRpcUrls`' index tiers, exactly as the Expo `fetchChainInfo` did.
+ */
+export async function fetchChainInfo(chainId: number): Promise<ChainInfo | null> {
+	const data = (await fetchRawChainData(chainId)) as {
+		chainId?: unknown;
+		name?: unknown;
+		rpc?: unknown;
+	} | null;
+	if (!data || typeof data.chainId !== 'number') return null;
+	const rpc = Array.isArray(data.rpc) ? data.rpc : [];
+	const rpcUrls = rpc.filter(
+		(u): u is string =>
+			typeof u === 'string' && u.startsWith('https://') && !KEY_PLACEHOLDER.test(u)
+	);
+	return {
+		chainId: data.chainId,
+		name: typeof data.name === 'string' ? data.name : '',
+		rpcUrls
+	};
+}

@@ -73,7 +73,12 @@ const ACCOUNTS = [
 const TOTAL_BALANCE = '$3,262.40';
 
 /** Chain marks — letter over the chain's brand colour, as the mocks draw them. */
-const MARKS: Record<string, ChainMarkModel> = {
+/**
+ * Chain marks are CONTENT (a chain's brand colour), which is why this file is
+ * exempt from the literal audit — and why the live layer imports its marks
+ * from here instead of minting colours of its own (spec 024).
+ */
+export const MARKS: Record<string, ChainMarkModel> = {
 	ethereum: { letter: 'E', color: '#627EEA' },
 	bnb: { letter: 'B', color: '#F0B90B' },
 	polygon: { letter: 'P', color: '#8247E5' },
@@ -164,7 +169,12 @@ function latencyPill(ms: number, prefix?: string) {
 	return { tone, label: prefix === undefined ? label : `${prefix} · ${label}`, dot: true } as const;
 }
 
-function chainMeta(m: SettingsMessages, chainId: number): string {
+/** The live layer's mark lookup: builtin marks by id, else a neutral letter. */
+export function markFor(id: string, name: string): ChainMarkModel {
+	return MARKS[id] ?? { letter: (name.trim()[0] ?? '?').toUpperCase(), color: '#8C8C8C' };
+}
+
+export function chainMeta(m: SettingsMessages, chainId: number): string {
 	return fill(m.networks.chainId, { chainId });
 }
 

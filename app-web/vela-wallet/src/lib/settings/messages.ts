@@ -75,6 +75,9 @@ export interface SettingsMessages {
 		/** The prefix a slow endpoint's pill wears: "Slower · 1.2s". */
 		slow: string;
 		offline: string;
+		/** settingsModals.health.* — endpoint badge labels (live wiring, 024). */
+		httpsRequired: string;
+		invalid: string;
 		/** Template with `{{chainId}}`. */
 		chainId: string;
 		rpcUrl: string;
@@ -90,6 +93,12 @@ export interface SettingsMessages {
 		customRpcTitle: string;
 		customRpcPlaceholder: string;
 		addNetworkBtn: string;
+		/** Wizard phase copy (live wiring, spec 024). */
+		searching: string;
+		checkingCompatibility: string;
+		/** Invariant ③: an unanswered probe is "unable to verify", never "incompatible". */
+		unableToVerify: string;
+		retry: string;
 		incompatibleHint: string;
 		openChainSetupTool: string;
 		recheckWithRpc: string;

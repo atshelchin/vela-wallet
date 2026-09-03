@@ -86,39 +86,39 @@ assertions untouched and green; wasm byte size unchanged vs T001.
 
 ## Phase 3: Settings live — network_admin (one commit) 🎯 MVP
 
-- [ ] T014 [US1] Port src/services/wallet-state-core/network-admin-types.ts →
+- [X] T014 [US1] Port src/services/wallet-state-core/network-admin-types.ts →
       app-web/vela-wallet/src/lib/settings/core/network-admin-types.ts
       (imports repointed to $lib/core/generated; provenance header)
-- [ ] T015 [US1] Port network-admin-executor.ts →
+- [X] T015 [US1] Port network-admin-executor.ts (D1 REVISED during implementation: probes ported live, not fail-closed — core's add_confirmed hard-gates on verified compat, so a probe-less screen could never add a network; only pool/bundler-cache invalidations stay no-op. +3 trimmed service ports: net.ts, endpoints.ts, chain-registry.ts) →
       app-web/vela-wallet/src/lib/settings/core/network-admin-executor.ts per
       contracts/shell-operations.md: KV ops via $lib/services/storage,
       `write_service_endpoints`/read via the onboarding localStorage helper
       (research D3a), `start_search_debounce` via setTimeout, ALL
       network-flavoured ops answered immediately with the failure-twin shapes
       (research D1); exhaustive switch + `never`; `networkAdminFailure()` twin
-- [ ] T016 [US1] Create app-web/vela-wallet/src/lib/settings/core/network-admin.svelte.ts:
+- [X] T016 [US1] Create app-web/vela-wallet/src/lib/settings/core/network-admin.svelte.ts:
       app-resident singleton over createJsonWasmShell + NetworkAdminCore
       (research D8 corrected: Expo network-admin-resident.ts precedent —
       EMPTY_VIEW initial projection, idempotent ensure/boot, one-liner
       dispatch methods)
-- [ ] T017 [US1] Create app-web/vela-wallet/src/lib/settings/live.ts:
+- [X] T017 [US1] Create app-web/vela-wallet/src/lib/settings/live.ts (overlay builders: rows/detail/wizard/providers/endpoints ×{mobile,desktop}; net-events.ts union threads ONE callback through SettingsHome/SettingsDesktop + 5 panels; UrlField gains onblur):
       `buildSettingsFromCore(netView, messages, identicon)` emitting the same
       SettingsHomeModel/SettingsDesktopModel as fixtures.ts; RPC-health tiles
       keep fixture values with `// live in 025` markers
-- [ ] T018 [P] [US1] Unit tests settings/core/network-admin-executor.test.ts:
+- [X] T018 [P] [US1] Unit tests settings/core/network-admin-executor.test.ts (10 tests):
       one-op↔one-call against a mocked KV, fail-closed answers match the
       contract table verbatim, failure twin exhaustive
-- [ ] T019 [P] [US1] Unit tests settings/live.test.ts: builder output vs a
+- [X] T019 [P] [US1] Unit tests settings/live.test.ts (9 tests incl. invariant-③ pin: unverified ≠ incompatible): builder output vs a
       recorded NetworkAdminView JSON fixture; sibling of fixtures.test.ts
-- [ ] T020 [US1] Wire app-web/vela-wallet/src/routes/[locale]/settings/+page.svelte:
+- [X] T020 [US1] Wire app-web/vela-wallet/src/routes/[locale]/settings/+page.svelte (boot + fixture→identity→live overlay chain + onNetEvent translation table; currency row stub awaits Phase 5):
       boot the session on mount, `$derived` view → buildSettingsFromCore,
       dispatch handlers for currency row (stub until Phase 5), network
       add/edit/remove; prerender waiting state preserved (EMPTY_ACCOUNT
       overlay untouched); dispose on unmount
-- [ ] T021 [US1] Check corpus coverage for any interaction-only strings; if a
+- [X] T021 [US1] Check corpus coverage — ZERO corpus delta: 9 new manifest fields (searching/checkingCompatibility/unableToVerify/retry + health.httpsRequired/invalid…) all resolve EXISTING settingsModals keys; 15-locale prerender green is the proof for any interaction-only strings; if a
       key is missing follow contracts/i18n-keys.md (5 steps) and record the
       delta; expected zero
-- [ ] T022 [US1] Full gate + manual quickstart scenarios 2–3; results.md
+- [X] T022 [US1] Full gate (check 1149 files 0 err; lint clean; unit 406; build ok; e2e 58/58; wasm byte-identical) + manual quickstart scenarios 2–3; results.md
       phase entry
 
 **Gate**: gates green; custom-network lifecycle survives reload (manual);

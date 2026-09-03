@@ -139,7 +139,19 @@ export function clearSignedInWallet(): void {
 	}
 }
 
-export type ServiceEndpoints = { passkeyIndexURL?: string };
+/**
+ * The stored `vela.serviceEndpoints` record, camelCase as the Expo client
+ * writes it. Onboarding reads only `passkeyIndexURL`; the settings screen's
+ * network_admin executor (spec 024, research D3a) writes the whole record
+ * THROUGH this module so the shared key keeps exactly one storage home.
+ * Absent fields stay absent — the cores apply their own defaults merge.
+ */
+export type ServiceEndpoints = {
+	ethereumDataURL?: string;
+	passkeyIndexURL?: string;
+	bundlerServiceURL?: string;
+	fiatRatesURL?: string;
+};
 
 export function loadServiceEndpoints(): ServiceEndpoints {
 	try {

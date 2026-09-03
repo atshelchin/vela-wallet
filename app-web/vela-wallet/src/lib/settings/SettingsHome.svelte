@@ -13,6 +13,9 @@
 	 * already exist (signing out, and leaving for another tab).
 	 */
 	import { untrack } from 'svelte';
+	import type { OnNetEvent } from './net-events';
+	import type { NetEndpointField } from '$lib/core/generated/NetEndpointField';
+	import type { NetProviderId } from '$lib/core/generated/NetProviderId';
 	import type { SettingsHomeModel, SettingsOverlayId, SettingsPageId } from './model';
 	import BottomSheet from '$lib/wallet/ui/BottomSheet.svelte';
 	import TabBar from '$lib/wallet/ui/TabBar.svelte';
@@ -48,9 +51,11 @@
 		onsignout?: () => void;
 		/** 通讯录 row — the contacts screens are their own route. */
 		onopencontacts?: () => void;
+		/** The network surfaces' live wiring (spec 024). Absent = gallery. */
+		onnetevent?: OnNetEvent;
 	}
 
-	let { model, onselecttab, onsignout, onopencontacts }: Props = $props();
+	let { model, onselecttab, onsignout, onopencontacts, onnetevent }: Props = $props();
 
 	// Seeds, not bindings: a gallery state pins where this opens, and a person
 	// tapping owns it from then on.
@@ -92,6 +97,11 @@
 		const next = PAGE_OF[id];
 		if (next !== undefined) {
 			page = next;
+			// Opening these surfaces is itself a core event: the machine probes
+			// what the person is about to look at.
+			if (next === 'endpoints') onnetevent?.({ kind: 'endpoints-open' });
+			if (next === 'rpc-providers') onnetevent?.({ kind: 'providers-open' });
+			if (next === 'add-network') onnetevent?.({ kind: 'open-add' });
 			return;
 		}
 		const sheet = OVERLAY_OF[id];
@@ -258,17 +268,50 @@
 						rows={model.networks.rows}
 						addLabel={model.networks.addLabel}
 						deleteLabel={model.networks.addLabel}
-						onselect={() => (page = 'network-detail')}
-						onadd={() => (page = 'add-network')}
+						onselect={(id) => {
+							onnetevent?.({ kind: 'select-network', id });
+							page = 'network-detail';
+						}}
+						ondelete={(id) => onnetevent?.({ kind: 'delete-network', id })}
+						onadd={() => {
+							onnetevent?.({ kind: 'open-add' });
+							page = 'add-network';
+						}}
 					/>
 				{:else if page === 'network-detail'}
-					<NetworkDetailPanel detail={model.networkDetail} />
+					<NetworkDetailPanel
+						detail={model.networkDetail}
+						onfield={(field, value) => onnetevent?.({ kind: 'detail-field', field, value })}
+						onfieldblur={(field) => onnetevent?.({ kind: 'detail-blur', field })}
+					/>
 				{:else if page === 'add-network'}
-					<AddNetworkPanel panel={model.addNetwork} />
+					<AddNetworkPanel
+						panel={model.addNetwork}
+						onsearch={(query) => onnetevent?.({ kind: 'search', query })}
+						onselect={(id) => onnetevent?.({ kind: 'pick-suggestion', chainId: Number(id) })}
+						oncustomrpc={(value) => onnetevent?.({ kind: 'custom-rpc', value })}
+						onprimary={() => onnetevent?.({ kind: 'confirm-add' })}
+						onrecheck={() => onnetevent?.({ kind: 'recheck' })}
+					/>
 				{:else if page === 'rpc-providers'}
-					<RpcProvidersPanel panel={model.rpcProviders} />
+					<RpcProvidersPanel
+						panel={model.rpcProviders}
+						onfield={(id, value) =>
+							onnetevent?.({ kind: 'provider-key', provider: id as NetProviderId, value })}
+						onfieldblur={(id) =>
+							onnetevent?.({ kind: 'provider-blur', provider: id as NetProviderId })}
+						onaction={(id) =>
+							onnetevent?.({ kind: 'provider-test', provider: id as NetProviderId })}
+					/>
 				{:else if page === 'endpoints'}
-					<EndpointsPanel panel={model.endpoints} />
+					<EndpointsPanel
+						panel={model.endpoints}
+						onfield={(id, value) =>
+							onnetevent?.({ kind: 'endpoint', field: id as NetEndpointField, value })}
+						onfieldblur={(id) =>
+							onnetevent?.({ kind: 'endpoint-blur', field: id as NetEndpointField })}
+						onreset={() => onnetevent?.({ kind: 'endpoints-reset' })}
+					/>
 				{:else if page === 'storage'}
 					<StoragePanel panel={model.storage} onclearcaches={() => (overlay = 'clear-caches')} />
 				{:else if page === 'about'}

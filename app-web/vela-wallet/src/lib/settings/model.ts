@@ -326,6 +326,8 @@ export interface AddNetworkModel {
 	title: string;
 	subtitle: string;
 	searchPlaceholder: string;
+	/** The live wizard's controlled query; absent in fixtures (uncontrolled). */
+	query?: string;
 	/** Search-result rows; empty once a candidate is chosen. */
 	results: NetworkRowModel[];
 	/** The chosen candidate's header, once one is chosen. */

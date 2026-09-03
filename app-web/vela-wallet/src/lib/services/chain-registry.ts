@@ -1,0 +1,57 @@
+/**
+ * Chain registry client — WEB.
+ *
+ * Ported (trimmed) from src/services/chain-registry.ts @ e78afdfa (spec 024):
+ * the two RAW fetches the `network_admin` executor supplies to the core. All
+ * parsing DECISIONS — defaults, the HTTPS filter, the key-placeholder
+ * rejection, the search ranking — are core rules; this module only carries
+ * documents.
+ */
+
+import { getEthereumDataURL } from './endpoints';
+import { fetchWithTimeout, NET_TIMEOUTS } from './net';
+
+/**
+ * The unparsed `/chains/eip155-{id}.json` body, or null on any failure —
+ * a `null` body reaches the core and lands in the same not-found rule the
+ * TS parser's `catch` always fed.
+ */
+export async function fetchRawChainData(chainId: number): Promise<unknown> {
+	try {
+		const res = await fetchWithTimeout(
+			`${getEthereumDataURL()}/chains/eip155-${chainId}.json`,
+			{},
+			{ timeoutMs: NET_TIMEOUTS.ethereumData }
+		);
+		if (!res.ok) return null;
+		return await res.json();
+	} catch {
+		return null;
+	}
+}
+
+/** The chain search index: 30-minute cache, stale-on-failure fallback. */
+const SEARCH_CACHE_TTL = 30 * 60 * 1000;
+let _searchCache: unknown[] | null = null;
+let _searchCacheTime = 0;
+
+export async function loadSearchIndex(): Promise<unknown[]> {
+	const now = Date.now();
+	if (_searchCache && now - _searchCacheTime < SEARCH_CACHE_TTL) {
+		return _searchCache;
+	}
+	try {
+		const res = await fetchWithTimeout(
+			`${getEthereumDataURL()}/index/fuse-chains.json`,
+			{},
+			{ timeoutMs: NET_TIMEOUTS.ethereumData }
+		);
+		if (!res.ok) return _searchCache ?? [];
+		const json = (await res.json()) as { data?: unknown };
+		_searchCache = Array.isArray(json.data) ? json.data : [];
+		_searchCacheTime = now;
+		return _searchCache;
+	} catch {
+		return _searchCache ?? [];
+	}
+}

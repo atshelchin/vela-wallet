@@ -26,9 +26,13 @@
 		onprimary?: () => void;
 		onsecondary?: () => void;
 		onrecheck?: () => void;
+		/** Live wiring (spec 024). Absent = the gallery's pure picture. */
+		onsearch?: (query: string) => void;
+		oncustomrpc?: (value: string) => void;
 	}
 
-	let { panel, onselect, onprimary, onsecondary, onrecheck }: Props = $props();
+	let { panel, onselect, onprimary, onsecondary, onrecheck, onsearch, oncustomrpc }: Props =
+		$props();
 </script>
 
 <div class="add-network">
@@ -37,8 +41,10 @@
 			<Icon icon={UTILITY_ICONS.search} size="md" />
 			<input
 				type="search"
+				value={panel.query ?? ''}
 				placeholder={panel.searchPlaceholder}
 				aria-label={panel.searchPlaceholder}
+				oninput={(event) => onsearch?.(event.currentTarget.value)}
 			/>
 		</label>
 		<div class="results">
@@ -61,7 +67,7 @@
 		{/if}
 
 		{#if panel.customRpc !== undefined}
-			<UrlField field={panel.customRpc} />
+			<UrlField field={panel.customRpc} oninput={(value) => oncustomrpc?.(value)} />
 		{/if}
 
 		{#if panel.callout !== undefined}

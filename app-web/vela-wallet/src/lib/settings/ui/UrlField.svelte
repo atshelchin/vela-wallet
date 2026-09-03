@@ -16,9 +16,11 @@
 		action?: string;
 		onaction?: () => void;
 		oninput?: (value: string) => void;
+		/** Leaving the field is the save signal on every network surface. */
+		onblur?: () => void;
 	}
 
-	let { field, action, onaction, oninput }: Props = $props();
+	let { field, action, onaction, oninput, onblur }: Props = $props();
 </script>
 
 <div class="field">
@@ -40,6 +42,7 @@
 			spellcheck="false"
 			autocomplete="off"
 			oninput={(event) => oninput?.(event.currentTarget.value)}
+			onblur={() => onblur?.()}
 		/>
 		{#if action !== undefined}
 			<button type="button" class="action" onclick={onaction}>{action}</button>

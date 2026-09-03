@@ -128,3 +128,38 @@ only `pnpm build` for this app; the local gate is the honest one).
 
 **svelte-check surface**: 823 → 1139 files (the generated mirror joined the
 program), 0 errors.
+
+
+---
+
+## Phase 3 — Settings live: network_admin (T014–T022)
+
+**What shipped**: the settings network surfaces run on `NetworkAdminCore`.
+List, per-network RPC/explorer overrides (blur-to-save with the core's
+chain-mismatch refusal worded from the corpus), custom-network delete, the
+full add wizard (search → candidate → compatibility verdict → add), service
+endpoints (edit/blur/reset + health probes), RPC provider keys (edit/blur/
+test). Both layouts, one `SettingsNetEvent` union, one route-owned
+translation table into core events.
+
+**Research D1 revised in the field**: the "zero-network" boundary as drafted
+would have made adding a network impossible — `add_confirmed` in the core
+hard-gates on a VERIFIED compatibility result (only per-network overrides are
+save-not-gated-on-probe). The executor therefore ports its probes live
+(operation-local HTTP: eth_chainId over POST/WebSocket, no-cors explorer
+reachability, getCode, P256 precompile call, /api/health, fiat count),
+carried by three trimmed service ports (`net.ts`, `endpoints.ts`,
+`chain-registry.ts`, provenance-headed). What genuinely waits for 025:
+`invalidate_pools` / `clear_bundler_cache` (no pool exists — acknowledged
+no-ops) and the RPC-health tiles on the settings HOME page (fixture, marked).
+
+**Corpus**: zero delta. All new manifest fields resolve keys that shipped
+with 023's settingsModals namespace.
+
+**Recorded UX debts** (candidates for Phase 6 polish or 025): custom-network
+delete has no confirm sheet on web (Expo has one); desktop re-click on an
+expanded row does not collapse it; `checkEntryPoint` remains the hardcoded
+proper noun 'EntryPoint v0.7' (fixture precedent).
+
+**Gates**: check (incl. gen-core-types --check) / lint / unit (17 files, 406)
+/ build (×15 locales) / e2e 58-58 — all green; wasm byte-identical.

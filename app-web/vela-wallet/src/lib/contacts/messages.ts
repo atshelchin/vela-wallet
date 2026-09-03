@@ -30,6 +30,15 @@ export interface ContactsMessages {
 	addMember: string;
 	addContact: string;
 	addTitle: string;
+	/** The add/edit form (live wiring, spec 024) — corpus keys from 018. */
+	editTitle: string;
+	nameLabel: string;
+	namePlaceholder: string;
+	addressPlaceholder: string;
+	save: string;
+	invalidAddress: string;
+	groupNameLabel: string;
+	groupNamePlaceholder: string;
 	edit: string;
 	empty: string;
 	emptyHint: string;
@@ -90,6 +99,14 @@ export const CONTACTS_KEYS = [
 	'contacts.moveGroup',
 	'contacts.addMember',
 	'contacts.addContact',
+	'contacts.editTitle',
+	'contacts.nameLabel',
+	'contacts.namePlaceholder',
+	'contacts.addressPlaceholder',
+	'contacts.save',
+	'contacts.invalidAddress',
+	'contacts.groupNameLabel',
+	'contacts.groupNamePlaceholder',
 	'contacts.addTitle',
 	'contacts.edit',
 	'contacts.empty',

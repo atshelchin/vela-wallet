@@ -128,43 +128,43 @@ galleries pixel-unchanged (fixtures untouched).
 
 ## Phase 4: Contacts live — route + interaction surface (one commit)
 
-- [ ] T023 [US2] Create route app-web/vela-wallet/src/routes/[locale]/contacts/
+- [X] T023 [US2] Create route app-web/vela-wallet/src/routes/[locale]/contacts/
       {+page.server.ts,+page.svelte}: EntryGenerator ×15 locales, prerender
       true, resolveContactsMessages load, allowed_route guard → Welcome
       (pattern: wallet/+page.svelte:125-127)
-- [ ] T024 [US2] Un-swallow the contacts tab: route `'contacts'` selections in
+- [X] T024 [US2] Un-swallow the contacts tab (wallet + settings both goto the new route; stale comments refreshed): route `'contacts'` selections in
       src/routes/[locale]/wallet/+page.svelte:134-136 and
       settings/+page.svelte:85-87 to `goto` the new route (both layouts)
-- [ ] T025 [US2] Port src/services/wallet-state-core/contacts-types.ts →
+- [X] T025 [US2] Port src/services/wallet-state-core/contacts-types.ts →
       app-web/vela-wallet/src/lib/contacts/core/contacts-types.ts
-- [ ] T026 [US2] Port contacts-executor.ts →
+- [X] T026 [US2] Port contacts-executor.ts (camelCase + tombstone-map byte-compat; history honest-empty; identity/classify fail-closed; no clearContactsCache — the core is this app's only reader) →
       app-web/vela-wallet/src/lib/contacts/core/contacts-executor.ts: the three
       KV keys byte-compatible (camelCase stored shapes + tombstone map —
       keep the shape-translation and defensive-coercion blocks verbatim),
       `load_send_history` → `{txs: []}`, `resolve_identity`/`classify_recipient`
       fail-closed (contract table); `contactsFailure()` twin
-- [ ] T027 [US2] Create app-web/vela-wallet/src/lib/contacts/core/contacts.ts:
+- [X] T027 [US2] Create app-web/vela-wallet/src/lib/contacts/core/contacts.ts:
       route-scoped factory with dispose()
-- [ ] T028 [US2] Add the callback surface to
+- [X] T028 [US2] Add the callback surface (ContactsUiEvent union via ui-events.ts; SearchHeader gains onquery, AlphaSectionList delete carries its contact, ActionMenuSheet confirm reports its selection, GroupModel gains optional core id; PLUS two new form sheets the 018 boards never drew — ContactEditSheet/GroupEditSheet from existing primitives, flagged as a Penpot catalog gap) to
       app-web/vela-wallet/src/lib/contacts/ContactsHome.svelte and
       ContactsDesktop.svelte: optional props per data-model.md (onselect,
       onadd, onsave, ondelete, ongroupcreate, ongroupassign, onopen, onback,
       ongroupopen — trimmed to what the drawn states expose); absent = pure
       picture; gallery renders unchanged
-- [ ] T029 [US2] Create app-web/vela-wallet/src/lib/contacts/live.ts:
+- [X] T029 [US2] Create app-web/vela-wallet/src/lib/contacts/live.ts (sectioning + search documented as render concerns; core order survives inside each letter):
       `buildContactsFromCore(view, messages, identicon)` — core list order
       authoritative, builder does letter-sectioning only (research D7)
-- [ ] T030 [P] [US2] Unit tests contacts/core/contacts-executor.test.ts:
+- [X] T030 [P] [US2] Unit tests contacts/core/contacts-executor.test.ts (9 tests):
       stored-shape roundtrip (camelCase in/out byte-compatible), coercion of
       malformed rows → empty, fail-closed answers per contract
-- [ ] T031 [P] [US2] Unit tests contacts/live.test.ts: sectioning of a
+- [X] T031 [P] [US2] Unit tests contacts/live.test.ts (8 tests): sectioning of a
       core-ordered list, groups filter projection, empty state
-- [ ] T032 [US2] Wire the route page: session boot, view → build → components,
+- [X] T032 [US2] Wire the route page (route-scoped session w/ dispose; delete = confirm sheet through the drawn ActionMenuSheet; form address gate mirrors the core's is_address shape — deviation recorded: apply_save itself merges unchecked, the form is where garbage stops, as in the Expo client): session boot, view → build → components,
       handlers dispatching core events (add/save/delete/group), identicon via
       identiconSvgForClient; waiting state before core rules
-- [ ] T033 [US2] Corpus check per contracts/i18n-keys.md; record delta
+- [X] T033 [US2] Corpus check — ZERO delta again: 9 new manifest fields (editTitle/nameLabel/…/invalidAddress/groupName*) all resolve 018-era contacts keys per contracts/i18n-keys.md; record delta
       (expected near-zero)
-- [ ] T034 [US2] Full gate + manual quickstart scenarios 4–5; results.md entry
+- [X] T034 [US2] Full gate (check 1162 files 0 err; lint clean; unit 19 files/423; build ×15; e2e 58/58) + manual quickstart scenarios 4–5; results.md entry
 
 **Gate**: gates green; contacts CRUD + groups survive restart (manual);
 `/{locale}/contacts` guarded; galleries unchanged.

@@ -53,6 +53,7 @@
 
 	const welcome = $derived(resolve('/[locale]', { locale: data.locale }));
 	const settings = $derived(resolve('/[locale]/settings', { locale: data.locale }));
+	const contactsHref = $derived(resolve('/[locale]/contacts', { locale: data.locale }));
 	const wide = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
 
 	const view = $derived(session.view);
@@ -133,6 +134,7 @@
 	 */
 	function select(id: 'wallet' | 'contacts' | 'explore' | 'settings') {
 		if (id === 'settings') void goto(settings);
+		else if (id === 'contacts') void goto(contactsHref);
 	}
 
 	function enter(entry: FlowEntry) {

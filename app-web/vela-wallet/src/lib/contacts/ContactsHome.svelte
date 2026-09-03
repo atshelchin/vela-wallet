@@ -7,6 +7,7 @@
 	import TabBar from '$lib/wallet/ui/TabBar.svelte';
 	import { UTILITY_ICONS } from '$lib/wallet/icons';
 	import type { ContactsHomeModel } from './model';
+	import type { OnContactsUiEvent } from './ui-events';
 	import ActionMenuSheet from './ui/ActionMenuSheet.svelte';
 	import AddressBlock from './ui/AddressBlock.svelte';
 	import AlphaIndexRail from './ui/AlphaIndexRail.svelte';
@@ -22,14 +23,20 @@
 
 	interface Props {
 		model: ContactsHomeModel;
+		/** Live wiring (spec 024). Absent = the gallery's pure picture. */
+		onuievent?: OnContactsUiEvent;
 	}
 
-	let { model }: Props = $props();
+	let { model, onuievent }: Props = $props();
+
+	const live = $derived(onuievent !== undefined);
 
 	// Pure UI state: the fixture opens the sheet; closing/reopening is local.
+	// Live models own the sheet's presence instead — the route puts a confirm
+	// in and takes it out, so the local latch must not swallow the second one.
 	let sheetClosed = $state(false);
 	const showSheet = $derived(
-		(model.sheet !== undefined || model.confirm !== undefined) && !sheetClosed
+		(model.sheet !== undefined || model.confirm !== undefined) && (live || !sheetClosed)
 	);
 
 	let scroller = $state<HTMLDivElement | undefined>();
@@ -50,20 +57,39 @@
 			{@const list = model.list}
 			<PageHeader
 				title={model.title}
-				trailing={[{ icon: 'user-round-plus', label: model.addLabel }]}
+				trailing={[
+					{
+						icon: 'user-round-plus',
+						label: model.addLabel,
+						onclick: () => onuievent?.({ kind: 'add' })
+					}
+				]}
 			/>
 			{#if list !== undefined}
-				<SearchHeader search={list.search} clearLabel={model.backLabel} />
+				<SearchHeader
+					search={list.search}
+					clearLabel={model.backLabel}
+					onquery={(value) => onuievent?.({ kind: 'query', value })}
+				/>
 			{/if}
 		{/if}
 
 		{#if model.screen === 'list' && model.list !== undefined}
 			{@const list = model.list}
 			{#if list.groups.length > 0}
-				<SectionHeader title={list.groupsTitle} action={list.groupsAction} />
+				<SectionHeader
+					title={list.groupsTitle}
+					action={list.groupsAction}
+					onaction={() => onuievent?.({ kind: 'group-new' })}
+				/>
 				<div class="groups">
 					{#each list.groups as group, i (group.name)}
-						<GroupRow {group} divider={i < list.groups.length - 1} />
+						<GroupRow
+							{group}
+							divider={i < list.groups.length - 1}
+							onclick={() =>
+								group.id !== undefined && onuievent?.({ kind: 'group-open', id: group.id })}
+						/>
 					{/each}
 				</div>
 			{/if}
@@ -82,7 +108,11 @@
 							sections={list.sections}
 							revealed={list.revealed}
 							swipeActions={list.swipeActions}
-							ondelete={() => (sheetClosed = false)}
+							onselect={(contact) => onuievent?.({ kind: 'open', address: contact.addressFull })}
+							ondelete={(contact) => {
+								sheetClosed = false;
+								onuievent?.({ kind: 'delete', address: contact.addressFull });
+							}}
 						/>
 					{/if}
 				</div>
@@ -92,15 +122,21 @@
 
 		{#if model.screen === 'empty' && model.empty !== undefined}
 			<div class="center">
-				<EmptyStateCTA empty={model.empty} />
+				<EmptyStateCTA
+					empty={model.empty}
+					onprimary={() => onuievent?.({ kind: 'empty-primary' })}
+					onsecondary={() => onuievent?.({ kind: 'empty-secondary' })}
+				/>
 			</div>
 		{/if}
 
 		{#if model.screen === 'detail' && model.detail !== undefined}
 			{@const detail = model.detail}
 			<PageHeader
-				back={{ label: model.backLabel }}
-				trailing={[{ icon: 'pencil', label: model.editLabel }]}
+				back={{ label: model.backLabel, onclick: () => onuievent?.({ kind: 'back' }) }}
+				trailing={[
+					{ icon: 'pencil', label: model.editLabel, onclick: () => onuievent?.({ kind: 'edit' }) }
+				]}
 			/>
 			<div class="hero">
 				<Identicon svg={detail.contact.identiconSvg} size="hero" label={detail.contact.name} />
@@ -132,7 +168,14 @@
 				</ul>
 			</div>
 
-			<button type="button" class="destructive-text" onclick={() => (sheetClosed = false)}>
+			<button
+				type="button"
+				class="destructive-text"
+				onclick={() => {
+					sheetClosed = false;
+					onuievent?.({ kind: 'delete', address: detail.contact.addressFull });
+				}}
+			>
 				{detail.deleteLabel}
 			</button>
 		{/if}
@@ -140,7 +183,7 @@
 		{#if model.screen === 'group' && model.group !== undefined}
 			{@const group = model.group}
 			<PageHeader
-				back={{ label: model.backLabel }}
+				back={{ label: model.backLabel, onclick: () => onuievent?.({ kind: 'back' }) }}
 				trailing={[{ icon: 'ellipsis', label: group.menuLabel }]}
 			/>
 			<h1 class="group-title">{group.group.name}</h1>
@@ -149,7 +192,7 @@
 				{#each group.group.members as member, i (member.addressFull)}
 					<ContactRow contact={member} divider={i < group.group.members.length - 1} />
 				{/each}
-				<GhostAddRow label={group.addMember} />
+				<GhostAddRow label={group.addMember} onclick={() => onuievent?.({ kind: 'add-member' })} />
 			</div>
 		{/if}
 	</div>
@@ -163,14 +206,22 @@
 	{/if}
 
 	{#if model.screen === 'list' || model.screen === 'empty'}
-		<TabBar tabs={model.tabs} selected="contacts" />
+		<TabBar
+			tabs={model.tabs}
+			selected="contacts"
+			onselect={(id) => onuievent?.({ kind: 'tab', id })}
+		/>
 	{/if}
 
 	{#if showSheet}
 		<ActionMenuSheet
 			menu={model.sheet}
 			confirm={model.confirm}
-			onclose={() => (sheetClosed = true)}
+			onselect={(label) => onuievent?.({ kind: 'sheet-select', label })}
+			onclose={() => {
+				sheetClosed = true;
+				onuievent?.({ kind: 'sheet-close' });
+			}}
 		/>
 	{/if}
 </div>

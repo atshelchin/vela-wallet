@@ -45,7 +45,14 @@
 {:else if confirm !== undefined}
 	<BottomSheet title={confirm.title} {onclose}>
 		<p class="body">{confirm.body}</p>
-		<button type="button" class="cancel destructive-cta" onclick={onclose}>
+		<button
+			type="button"
+			class="cancel destructive-cta"
+			onclick={() => {
+				onselect?.(confirm.confirm);
+				onclose?.();
+			}}
+		>
 			{confirm.confirm}
 		</button>
 		<button type="button" class="cancel" onclick={onclose}>{confirm.cancel}</button>

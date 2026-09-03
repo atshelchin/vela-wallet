@@ -10,7 +10,7 @@
 		selected?: string;
 		onselect?: (contact: ContactModel) => void;
 		oncontactmenu?: (contact: ContactModel, event: MouseEvent) => void;
-		ondelete?: () => void;
+		ondelete?: (contact: ContactModel) => void;
 	}
 
 	let { sections, revealed, swipeActions, selected, onselect, oncontactmenu, ondelete }: Props =
@@ -32,7 +32,7 @@
 							divider={i < section.contacts.length - 1}
 							onclick={() => onselect?.(contact)}
 							oncontextmenu={(event) => oncontactmenu?.(contact, event)}
-							{ondelete}
+							ondelete={() => ondelete?.(contact)}
 						/>
 					</li>
 				{/each}

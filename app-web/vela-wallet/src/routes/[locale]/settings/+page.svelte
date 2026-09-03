@@ -39,6 +39,7 @@
 
 	const welcome = $derived(resolve('/[locale]', { locale: data.locale }));
 	const walletHref = $derived(resolve('/[locale]/wallet', { locale: data.locale }));
+	const contactsHref = $derived(resolve('/[locale]/contacts', { locale: data.locale }));
 	const wide = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
 
 	const view = $derived(session.view);
@@ -199,12 +200,12 @@
 	});
 
 	/**
-	 * The tab bar. 钱包 has a route; 通讯录 and 探索 do not yet, so they stay
-	 * put rather than navigating to a 404 — the same call the wallet screen
-	 * made for its own three.
+	 * The tab bar. 钱包 and 通讯录 have routes (spec 024 gave the book its
+	 * own); 探索 has none on web by decision (spec 022), so it stays put.
 	 */
 	function selectTab(id: 'wallet' | 'contacts' | 'explore' | 'settings') {
 		if (id === 'wallet') void goto(walletHref);
+		else if (id === 'contacts') void goto(contactsHref);
 	}
 
 	function signOut() {

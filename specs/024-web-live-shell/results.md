@@ -163,3 +163,40 @@ proper noun 'EntryPoint v0.7' (fixture precedent).
 
 **Gates**: check (incl. gen-core-types --check) / lint / unit (17 files, 406)
 / build (×15 locales) / e2e 58-58 — all green; wasm byte-identical.
+
+
+---
+
+## Phase 4 — Contacts live (T023–T034)
+
+**What shipped**: `/{locale}/contacts` exists (EntryGenerator ×15, prerendered,
+guarded), the tab navigates from both wallet and settings, and the whole book
+runs on `ContactsCore`: add/edit via a new form sheet, delete via the drawn
+confirm sheet (tombstone rules the core's), groups (create + open + member
+views), search, A–Z sectioning, empty-state invitation. Route-scoped session
+with dispose (research D8); screen choice is route render state; book content
+is only ever the core's view.
+
+**The 018 boards never drew a form** — add/edit contact and new-group sheets
+did not exist as designs. Two minimal sheets were composed from existing
+primitives (BottomSheet + NameField + Button), corpus-worded
+(addTitle/nameLabel/invalidAddress/groupName*). Recorded as a Penpot catalog
+gap to backfill.
+
+**Deviation (spec US2/AS4)**: "invalid address refused by the core" — the
+core's `apply_save` merges whatever address it is given (its `is_address`
+gate protects import and inspect paths); historically the form owned this
+gate, on Expo too. The web form keeps it (0x + 40 hex, the same shape as the
+core's predicate), so garbage stops at the form, and the import path stays
+core-guarded. Spec wording stands corrected by this record.
+
+**Corpus**: zero delta (018 keys cover the forms).
+
+**Recorded debts**: desktop ContactsDesktop is view-only this phase (the
+mobile component serves both widths meanwhile via the route's single layout —
+desktop three-column interactivity lands with the Phase-6 polish or 025);
+move-to-group / add-member / import-export await batch_import + menus wiring;
+detail activity rows are honestly empty until 025's history.
+
+**Gates**: all green — check 1162 files / lint / unit 423 / build ×15 / e2e
+58-58; wasm byte-identical.

@@ -53,9 +53,12 @@
 		onopencontacts?: () => void;
 		/** The network surfaces' live wiring (spec 024). Absent = gallery. */
 		onnetevent?: OnNetEvent;
+		/** The person chose a display currency in the sheet (spec 024 phase 5). */
+		oncurrencyselect?: (code: string) => void;
 	}
 
-	let { model, onselecttab, onsignout, onopencontacts, onnetevent }: Props = $props();
+	let { model, onselecttab, onsignout, onopencontacts, onnetevent, oncurrencyselect }: Props =
+		$props();
 
 	// Seeds, not bindings: a gallery state pins where this opens, and a person
 	// tapping owns it from then on.
@@ -335,7 +338,13 @@
 				{:else if overlay === 'language'}
 					<SelectSheetBody sheet={model.languageSheet} />
 				{:else if overlay === 'currency'}
-					<SelectSheetBody sheet={model.currencySheet} />
+					<SelectSheetBody
+						sheet={model.currencySheet}
+						onselect={(id) => {
+							oncurrencyselect?.(id);
+							close();
+						}}
+					/>
 				{:else if overlay === 'number-format'}
 					<SelectSheetBody sheet={model.numberSheet} />
 				{:else if overlay === 'date-format'}

@@ -29,7 +29,8 @@
 	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { session } from '$lib/session/core/session.svelte';
 	import { networkAdmin } from '$lib/settings/core/network-admin.svelte';
-	import { withLiveNetworks, withLiveNetworksDesktop } from '$lib/settings/live';
+	import { currency } from '$lib/settings/core/currency.svelte';
+	import { withLiveCurrency, withLiveNetworks, withLiveNetworksDesktop } from '$lib/settings/live';
 	import type { SettingsNetEvent } from '$lib/settings/net-events';
 	import { identiconSvgForClient } from '$lib/wallet/identicon';
 	import { shortenAddress, type WalletIdentity } from '$lib/wallet/identity';
@@ -73,6 +74,7 @@
 	onMount(() => {
 		void session.boot();
 		void networkAdmin.boot();
+		void currency.boot();
 	});
 
 	/** Which network's editor is open — render state; the ledger is the core's. */
@@ -85,7 +87,10 @@
 	const liveHome = $derived(
 		identity === null
 			? data.home
-			: withLiveNetworks(homeWithIdentity(data.home, identity), net, m, selectedNetworkId)
+			: withLiveCurrency(
+					withLiveNetworks(homeWithIdentity(data.home, identity), net, m, selectedNetworkId),
+					currency.view
+				)
 	);
 	const liveDesktop = $derived(
 		identity === null
@@ -233,6 +238,7 @@
 			onselecttab={selectTab}
 			onsignout={signOut}
 			onnetevent={onNetEvent}
+			oncurrencyselect={(code) => currency.choose(code)}
 		/>
 	{/if}
 {:else}

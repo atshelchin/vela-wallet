@@ -173,27 +173,27 @@ galleries pixel-unchanged (fixtures untouched).
 
 ## Phase 5: display_currency — the SC-008 probe (one commit)
 
-- [ ] T035 [US1] Port the currency arm of
+- [X] T035 [US1] Port the currency arm (read_device_currency → null is the core's own web rule; resolve_rate → null until 025, null ≠ 1) of
       src/services/wallet-state-core/executors.ts (currencyOperationFailure +
       executor cases) → app-web/vela-wallet/src/lib/settings/core/currency-executor.ts:
       read/write `vela.displayCurrency` via KV, `read_device_currency` → null,
       `resolve_rate` → `{rate: null}` (contract table)
-- [ ] T036 [US1] Create app-web/vela-wallet/src/lib/settings/core/currency.svelte.ts:
+- [X] T036 [US1] Create app-web/vela-wallet/src/lib/settings/core/currency.svelte.ts (INITIAL = pristine USD/1/uncommitted; events are refresh/user_chose per the generated wire):
       app-resident singleton (session.svelte.ts pattern: `$state` view,
       idempotent boot, one-liner dispatch methods; initial pair USD/1 mirrors
       the machine's pristine view — see Expo display-currency-resident.ts)
-- [ ] T037 [US1] Wire the Settings currency row live: selection dispatches
+- [X] T037 [US1] Wire the Settings currency row live (withLiveCurrency overlay: row value = committed code, sheet marks selection; SettingsHome gains oncurrencyselect; desktop dropdown recorded as debt with the other desktop interactivity): selection dispatches
       `set_code`, committed view drives the row + persists; rate:null renders
       the degraded (USD-figure) presentation the core rules define
-- [ ] T038 [P] [US1] Unit tests settings/core/currency-executor.test.ts +
+- [X] T038 [P] [US1] Unit tests settings/core/currency-executor.test.ts (4 tests) +
       currency store boot idempotence
-- [ ] T909 [US3] **SC-008 probe (acceptance)**: `git diff --stat HEAD~1` of
+- [X] T909 [US3] **SC-008 probe (acceptance)** — PASSED: the phase diff is 6 files (3 new settings/core files, live.ts, SettingsHome, the route); nothing under src/lib/core/, src/lib/services/ or rust/scripts/. Diffstat in results.md: `git diff --stat HEAD~1` of
       this phase's commit touches NOTHING under
       app-web/vela-wallet/src/lib/core/ or src/lib/services/ or
       rust/scripts/ — paste the diffstat into results.md as the paved-road
       proof; if it fails, the plumbing gap is fixed in Phase 2 terms first and
       the probe re-run
-- [ ] T039 [US1] Full gate + manual quickstart scenario 1; results.md entry
+- [X] T039 [US1] Full gate (check 1167/0; lint clean; unit 20 files/427; build ×15; e2e 58/58) + manual quickstart scenario 1; results.md entry
 
 **Gate**: gates green; currency choice survives restart; SC-008 diffstat
 recorded clean.

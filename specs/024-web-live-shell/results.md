@@ -200,3 +200,31 @@ detail activity rows are honestly empty until 025's history.
 
 **Gates**: all green — check 1162 files / lint / unit 423 / build ×15 / e2e
 58-58; wasm byte-identical.
+
+
+---
+
+## Phase 5 — display_currency, the SC-008 probe (T035–T039, T909)
+
+**What shipped**: the Settings currency row and sheet run on
+`DisplayCurrencyCore` — choosing a currency persists (`vela.displayCurrency`,
+Expo key/format), survives restart, and re-seeds from the core's rules. With
+no rate source until 025 the committed pair carries `rate: null`, which by
+core rule is *cannot price*, never 1 — the row shows the code alone instead
+of a mocked conversion.
+
+**SC-008 verdict: PASSED.** Wiring the third machine touched exactly:
+
+```
+A  src/lib/settings/core/currency-executor.ts
+A  src/lib/settings/core/currency-executor.test.ts
+A  src/lib/settings/core/currency.svelte.ts
+M  src/lib/settings/live.ts            (the overlay's sibling function)
+M  src/lib/settings/SettingsHome.svelte (one callback prop)
+M  src/routes/[locale]/settings/+page.svelte
+```
+
+Zero files under `src/lib/core/`, `src/lib/services/`, or `rust/scripts/` —
+the paved road held: one executor, one store, one builder, route bindings.
+
+**Gates**: all green (unit 427, e2e 58/58); wasm byte-identical.

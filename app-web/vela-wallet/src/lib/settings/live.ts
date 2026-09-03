@@ -16,6 +16,7 @@ import type { NetProbeHealth } from '$lib/core/generated/NetProbeHealth';
 import type { NetServiceHealth } from '$lib/core/generated/NetServiceHealth';
 import type { NetView } from '$lib/core/generated/NetView';
 import type { NetWizardView } from '$lib/core/generated/NetWizardView';
+import type { CurrencyView } from '$lib/core/generated/CurrencyView';
 import { chainMeta, markFor } from './fixtures';
 import type { SettingsMessages } from './messages';
 import type {
@@ -376,5 +377,28 @@ export function withLiveNetworksDesktop(
 		addNetwork: liveAddNetwork(view.wizard, m),
 		rpcProviders: liveRpcProviders(view, m),
 		endpoints: liveEndpoints(view, m)
+	};
+}
+
+/**
+ * The display-currency overlay (phase 5): the localization row shows the
+ * committed code and the sheet marks it selected. The value's sample amount
+ * is presentation the fixture already words; with no rate source yet the row
+ * shows the code alone — honest, not a mocked conversion.
+ */
+export function withLiveCurrency(model: SettingsHomeModel, view: CurrencyView): SettingsHomeModel {
+	return {
+		...model,
+		sections: model.sections.map((section) => ({
+			...section,
+			rows: section.rows.map((row) => (row.id === 'currency' ? { ...row, value: view.code } : row))
+		})),
+		currencySheet: {
+			...model.currencySheet,
+			rows: model.currencySheet.rows.map((row) => ({
+				...row,
+				selected: row.id === view.code
+			}))
+		}
 	};
 }

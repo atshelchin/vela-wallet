@@ -9,6 +9,7 @@ import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { STORAGE_KEY as INTRO_SEEN_KEY } from '../src/lib/intro/gate';
 
 const APP_ROOT = join(import.meta.dirname, '..');
 const LOCALES = [
@@ -100,6 +101,16 @@ for (const locale of LOCALES) {
  * every phone to serve the smallest.
  */
 test.describe('the hero headline holds its authored line count', () => {
+	// The measurement needs the LANDING page's headline in the live DOM; a
+	// fresh context is a first run and would open on the intro carousel
+	// (spec 020) instead. Mark the intro seen before any document loads.
+	test.beforeEach(async ({ page }) => {
+		await page.addInitScript(
+			([key]) => window.localStorage.setItem(key, String(Date.now())),
+			[INTRO_SEEN_KEY]
+		);
+	});
+
 	for (const locale of LOCALES) {
 		test(`/${locale} at 390×844`, async ({ page }) => {
 			await page.setViewportSize({ width: 390, height: 844 });

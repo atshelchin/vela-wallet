@@ -50,6 +50,8 @@ export interface LetterSectionModel {
 }
 
 export interface GroupModel {
+	/** The core's group id — present on live models, absent in fixtures. */
+	id?: string;
 	name: string;
 	/** Mobile trailing label, e.g. "3 人". */
 	countLabel: string;

@@ -362,6 +362,10 @@
 
 		.actions :global(.button) {
 			flex: 0 0 auto;
+			/* The base button is a phone control and fills its column; here each
+			   way in is sized to its label (the row's whole point), so the
+			   inherited width: 100% has to be handed back. */
+			width: auto;
 			min-width: var(--layout-welcomeCtaMin);
 		}
 	}

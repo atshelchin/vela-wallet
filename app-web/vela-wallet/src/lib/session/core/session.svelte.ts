@@ -12,8 +12,8 @@
  */
 
 import { loadOnboardingCore, SessionCore } from '$lib/onboarding/core/wasm-client';
-import { createJsonWasmShell } from '$lib/onboarding/core/json-shell';
-import type { EffectLoop } from '$lib/onboarding/core/effect-loop';
+import { createJsonWasmShell } from '$lib/core/json-shell';
+import type { EffectLoop } from '$lib/core/effect-loop';
 import { executeSession, sessionFailure, type SessionEffect } from './executor';
 
 import type { CompletionMode } from '../generated/CompletionMode';

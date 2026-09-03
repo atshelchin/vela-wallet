@@ -1,6 +1,6 @@
 <script lang="ts">
 	/**
-	 * The desktop's second-level nav (DST1–DST8): the 216px column between the
+	 * The desktop's second-level nav (DST1–DST8): the nav column between the
 	 * app sidebar and the panel. It is the phone's settings list with the rows
 	 * collapsed to their titles — same ids, same order, so a person who learned
 	 * one knows the other.

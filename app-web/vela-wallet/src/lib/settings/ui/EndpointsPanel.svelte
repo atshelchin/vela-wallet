@@ -13,16 +13,23 @@
 	interface Props {
 		panel: EndpointsModel;
 		onreset?: () => void;
+		/** Live wiring (spec 024). Absent = the gallery's pure picture. */
+		onfield?: (id: string, value: string) => void;
+		onfieldblur?: (id: string) => void;
 	}
 
-	let { panel, onreset }: Props = $props();
+	let { panel, onreset, onfield, onfieldblur }: Props = $props();
 </script>
 
 <p class="description">{panel.description}</p>
 
 <div class="fields">
 	{#each panel.fields as field (field.id)}
-		<UrlField {field} />
+		<UrlField
+			{field}
+			oninput={(value) => onfield?.(field.id, value)}
+			onblur={() => onfieldblur?.(field.id)}
+		/>
 	{/each}
 </div>
 

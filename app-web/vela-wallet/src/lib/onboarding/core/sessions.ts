@@ -11,8 +11,8 @@
  */
 
 import { CreateWalletCore, LoginCore } from './wasm-client';
-import { createJsonWasmShell } from './json-shell';
-import type { EffectLoop } from './effect-loop';
+import { createJsonWasmShell } from '$lib/core/json-shell';
+import type { EffectLoop } from '$lib/core/effect-loop';
 import {
 	createOnboardingExecutor,
 	operationFailure,

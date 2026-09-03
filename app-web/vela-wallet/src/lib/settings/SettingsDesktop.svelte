@@ -3,13 +3,16 @@
 	 * The desktop settings surface (spec 023, DST1–DST8 + DST4b + DSR1).
 	 *
 	 * Three columns, per the desktop SPEC: the app sidebar (spec 015's, reused
-	 * verbatim), a 216px second-level nav, and the panel. The phone's sheets
+	 * verbatim), a narrow second-level nav, and the panel. The phone's sheets
 	 * become either a section of the panel it belongs to — the account switcher
 	 * IS the 账户 panel — or a centred dialog, which is what add-network and
 	 * fix-RPC are. Nothing here is a bottom sheet: macOS System Settings is the
 	 * reference, and it has none.
 	 */
 	import { untrack } from 'svelte';
+	import type { OnNetEvent } from './net-events';
+	import type { NetEndpointField } from '$lib/core/generated/NetEndpointField';
+	import type { NetProviderId } from '$lib/core/generated/NetProviderId';
 	import type { SettingsDesktopModel, SettingsOverlayId, SettingsPageId } from './model';
 	import type { SidebarModel } from '$lib/wallet/model';
 	import Button from '$lib/ui/Button.svelte';
@@ -40,9 +43,11 @@
 		sidebar?: SidebarModel;
 		onnav?: (id: 'wallet' | 'contacts' | 'explore' | 'settings') => void;
 		onsignout?: () => void;
+		/** The network surfaces' live wiring (spec 024). Absent = gallery. */
+		onnetevent?: OnNetEvent;
 	}
 
-	let { model, sidebar, onnav, onsignout }: Props = $props();
+	let { model, sidebar, onnav, onsignout, onnetevent }: Props = $props();
 
 	let page = $state<SettingsPageId>(untrack(() => model.page));
 	let overlay = $state<SettingsOverlayId>(untrack(() => model.overlay));
@@ -99,7 +104,14 @@
 					{/if}
 				</div>
 				{#if page === 'networks'}
-					<button type="button" class="add" onclick={() => (overlay = 'add-network')}>
+					<button
+						type="button"
+						class="add"
+						onclick={() => {
+							onnetevent?.({ kind: 'open-add' });
+							overlay = 'add-network';
+						}}
+					>
 						<Icon icon={UTILITY_ICONS.plus} size="sm" />
 						<span>{model.networks.addLabel}</span>
 					</button>
@@ -169,15 +181,36 @@
 					addLabel={model.networks.addLabel}
 					deleteLabel={model.networks.addLabel}
 					expandable
+					onselect={(id) => onnetevent?.({ kind: 'select-network', id })}
+					ondelete={(id) => onnetevent?.({ kind: 'delete-network', id })}
 				>
 					{#snippet detail()}
-						<NetworkDetailPanel detail={model.networks.detail} showIdentity={false} />
+						<NetworkDetailPanel
+							detail={model.networks.detail}
+							showIdentity={false}
+							onfield={(field, value) => onnetevent?.({ kind: 'detail-field', field, value })}
+							onfieldblur={(field) => onnetevent?.({ kind: 'detail-blur', field })}
+						/>
 					{/snippet}
 				</NetworksPanel>
 			{:else if page === 'rpc-providers'}
-				<RpcProvidersPanel panel={model.rpcProviders} />
+				<RpcProvidersPanel
+					panel={model.rpcProviders}
+					onfield={(id, value) =>
+						onnetevent?.({ kind: 'provider-key', provider: id as NetProviderId, value })}
+					onfieldblur={(id) =>
+						onnetevent?.({ kind: 'provider-blur', provider: id as NetProviderId })}
+					onaction={(id) => onnetevent?.({ kind: 'provider-test', provider: id as NetProviderId })}
+				/>
 			{:else if page === 'endpoints'}
-				<EndpointsPanel panel={model.endpoints} />
+				<EndpointsPanel
+					panel={model.endpoints}
+					onfield={(id, value) =>
+						onnetevent?.({ kind: 'endpoint', field: id as NetEndpointField, value })}
+					onfieldblur={(id) =>
+						onnetevent?.({ kind: 'endpoint-blur', field: id as NetEndpointField })}
+					onreset={() => onnetevent?.({ kind: 'endpoints-reset' })}
+				/>
 			{:else if page === 'storage'}
 				<StoragePanel panel={model.storage} />
 			{:else if page === 'about'}
@@ -193,7 +226,14 @@
 			closeLabel={model.closeLabel}
 			onclose={() => (overlay = 'none')}
 		>
-			<AddNetworkPanel panel={model.addNetwork} />
+			<AddNetworkPanel
+				panel={model.addNetwork}
+				onsearch={(query) => onnetevent?.({ kind: 'search', query })}
+				onselect={(id) => onnetevent?.({ kind: 'pick-suggestion', chainId: Number(id) })}
+				oncustomrpc={(value) => onnetevent?.({ kind: 'custom-rpc', value })}
+				onprimary={() => onnetevent?.({ kind: 'confirm-add' })}
+				onrecheck={() => onnetevent?.({ kind: 'recheck' })}
+			/>
 		</Dialog>
 	{:else if overlay === 'rpc-fix'}
 		<Dialog

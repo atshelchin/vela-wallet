@@ -9,9 +9,11 @@
 		/** 'mobile' = full-width well; 'desktop' = header field with the ⌘F badge. */
 		layout?: 'mobile' | 'desktop';
 		clearLabel: string;
+		/** Live wiring (spec 024): every keystroke and the clear, reported. */
+		onquery?: (value: string) => void;
 	}
 
-	let { search, layout = 'mobile', clearLabel }: Props = $props();
+	let { search, layout = 'mobile', clearLabel, onquery }: Props = $props();
 
 	// Pure UI state: the fixture seeds the query once, typing/clearing stays
 	// local (filtering itself is fixture-side — FR-005), so the seed is read
@@ -21,9 +23,21 @@
 
 <label class="field {layout}">
 	<Icon icon={UTILITY_ICONS.search} size="sm" />
-	<input type="search" placeholder={search.placeholder} bind:value={query} />
+	<input
+		type="search"
+		placeholder={search.placeholder}
+		bind:value={query}
+		oninput={() => onquery?.(query)}
+	/>
 	{#if query !== ''}
-		<button type="button" aria-label={clearLabel} onclick={() => (query = '')}>
+		<button
+			type="button"
+			aria-label={clearLabel}
+			onclick={() => {
+				query = '';
+				onquery?.('');
+			}}
+		>
 			<Icon icon={UTILITY_ICONS.x} size="sm" />
 		</button>
 	{:else if search.shortcut !== undefined}

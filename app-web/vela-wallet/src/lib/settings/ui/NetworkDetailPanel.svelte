@@ -16,9 +16,12 @@
 		/** The desktop's inline editor drops the identity line — the row above
 		 *  it already says which chain this is. */
 		showIdentity?: boolean;
+		/** Live wiring (spec 024). Absent = the gallery's pure picture. */
+		onfield?: (field: 'rpc' | 'explorer', value: string) => void;
+		onfieldblur?: (field: 'rpc' | 'explorer') => void;
 	}
 
-	let { detail, showIdentity = true }: Props = $props();
+	let { detail, showIdentity = true, onfield, onfieldblur }: Props = $props();
 </script>
 
 <div class="detail">
@@ -33,11 +36,19 @@
 		</div>
 	{/if}
 
-	<UrlField field={detail.rpc} />
+	<UrlField
+		field={detail.rpc}
+		oninput={(value) => onfield?.('rpc', value)}
+		onblur={() => onfieldblur?.('rpc')}
+	/>
 	{#if detail.callout !== undefined}
 		<Callout callout={detail.callout} />
 	{/if}
-	<UrlField field={detail.explorer} />
+	<UrlField
+		field={detail.explorer}
+		oninput={(value) => onfield?.('explorer', value)}
+		onblur={() => onfieldblur?.('explorer')}
+	/>
 </div>
 
 <style>

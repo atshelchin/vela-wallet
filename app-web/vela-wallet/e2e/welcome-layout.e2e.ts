@@ -10,6 +10,19 @@
  * through the button's busy state.
  */
 import { expect, test } from '@playwright/test';
+import { STORAGE_KEY as INTRO_SEEN_KEY } from '../src/lib/intro/gate';
+
+// Every test here needs the LANDING page. A fresh Playwright context is a
+// first run, and a first run opens on the intro carousel (spec 020) — so the
+// suite marks the intro seen before any document loads, exactly as a
+// returning visitor's browser would. The intro's own behaviour has its own
+// coverage (src/lib/intro/gate.test.ts).
+test.beforeEach(async ({ page }) => {
+	await page.addInitScript(
+		([key]) => window.localStorage.setItem(key, String(Date.now())),
+		[INTRO_SEEN_KEY]
+	);
+});
 
 const WIDTHS = [320, 375, 768, 1279, 1280, 1440, 1920];
 
@@ -104,8 +117,11 @@ test('sign-in stays on Welcome — it has no steps to show', async ({ page }) =>
 test('mobile brand mark and wordmark share one row', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.goto('/en');
-	const mark = page.locator('.brand svg');
-	const wordmark = page.locator('.wordmark');
+	// .column scope: the desktop rail carries its own header.brand in the DOM
+	// at every width (hidden below the breakpoint), so an unscoped `.brand svg`
+	// resolves to two elements. The mobile mark is the one inside the column.
+	const mark = page.locator('.column header.brand svg');
+	const wordmark = page.locator('.column .wordmark');
 	const markBox = (await mark.boundingBox())!;
 	const wordBox = (await wordmark.boundingBox())!;
 	const markMid = markBox.y + markBox.height / 2;

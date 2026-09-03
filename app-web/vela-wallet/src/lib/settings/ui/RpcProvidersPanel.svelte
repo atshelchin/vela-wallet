@@ -11,9 +11,12 @@
 	interface Props {
 		panel: RpcProvidersModel;
 		onaction?: (id: string) => void;
+		/** Live wiring (spec 024). Absent = the gallery's pure picture. */
+		onfield?: (id: string, value: string) => void;
+		onfieldblur?: (id: string) => void;
 	}
 
-	let { panel, onaction }: Props = $props();
+	let { panel, onaction, onfield, onfieldblur }: Props = $props();
 </script>
 
 <p class="description">{panel.description}</p>
@@ -29,6 +32,8 @@
 				field={provider.field}
 				action={provider.action}
 				onaction={() => onaction?.(provider.id)}
+				oninput={(value) => onfield?.(provider.id, value)}
+				onblur={() => onfieldblur?.(provider.id)}
 			/>
 			{#if provider.support !== undefined}
 				<p class="support">{provider.support}</p>

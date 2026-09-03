@@ -76,7 +76,10 @@
 
 		{#if model.screen === 'list' && model.list !== undefined}
 			{@const list = model.list}
-			{#if list.groups.length > 0}
+			{#if list.groups.length > 0 || live}
+				<!-- Live books show the section head even before the first group
+				     exists — 新建分组 has to live somewhere. Fixtures keep the
+				     0-group states exactly as drawn. -->
 				<SectionHeader
 					title={list.groupsTitle}
 					action={list.groupsAction}

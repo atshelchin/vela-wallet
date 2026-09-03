@@ -228,3 +228,59 @@ Zero files under `src/lib/core/`, `src/lib/services/`, or `rust/scripts/` —
 the paved road held: one executor, one store, one builder, route bindings.
 
 **Gates**: all green (unit 427, e2e 58/58); wasm byte-identical.
+
+
+---
+
+## Phase 6 — e2e matrix & close-out (T040–T045)
+
+**New coverage**: `live-helpers.ts` (returning-browser seeding: intro seen +
+a legacy-shape account under the session core's own keys — the session then
+derives the address from the key, proving the address=f(keys) invariant in
+passing) + `settings-persistence.e2e.ts` (5) + `contacts-persistence.e2e.ts`
+(4), running on chromium AND firefox AND webkit (the persistence specs ×3 via
+new playwright projects; everything else stays chromium). One artifact
+assertion: /settings + /contacts fetch exactly one fingerprinted wasm.
+
+**Found by the suite**: an empty live book had nowhere to create its first
+group (the groups section head only rendered when groups existed) — fixed for
+live mode, galleries pixel-unchanged.
+
+**Final numbers**: unit 20 files / 427 · e2e **85/85** (58 chromium + 9
+persistence × 3 engines) · svelte-check 1167 files 0 errors · gen-core-types
+25/11/311 current in their mirrors · wasm **3,630,664 B — byte-identical**.
+
+## Success-criteria verdicts
+
+| SC | Verdict |
+| --- | --- |
+| SC-001 currency + custom-network changes survive reload/restart, 3 engines | ✅ currency + endpoint-override + registry proven ×3 engines by e2e; custom-network ADD verified by unit tests + live probes (full add e2e needs the stubbed registry/RPC harness — noted for 025's interception harness) |
+| SC-002 100-contact book with groups survives restart | ✅ CRUD/group/tombstone durability ×3 engines; the 100×5 scale case is a manual quickstart scenario (no mechanism scales with count) |
+| SC-003 contacts reachable from navigation, both layouts | ✅ tab navigates from wallet + settings (e2e); one route serves both widths — desktop three-column interactivity recorded as debt |
+| SC-004 zero business rules in web code | ✅ executors are switch-only (unit-pinned); the two shell judgements (letter-sectioning, form address gate) documented as render/form concerns with core twins |
+| SC-005 artifact byte-identical; Welcome zero-wasm; worker pure | ✅ 3,630,664 B; both budget e2e green + the one-artifact assertion |
+| SC-006 15 locales, zero untranslated keys | ✅ prerender ×15 green through every phase; corpus delta ZERO across the whole feature |
+| SC-007 pre-existing gates unweakened + new persistence suite | ✅ (and the baseline was REPAIRED first: 30-red → 58-green before Phase 1 closed) |
+| SC-008 third machine touches zero shared plumbing | ✅ diffstat on record (Phase 5) |
+
+## Deviations (consolidated)
+
+1. **D1 revised**: network_admin's probes ported live (its own operation-local
+   HTTP), not fail-closed — the core's `add_confirmed` hard-gates on verified
+   compatibility. Pool/bundler invalidations remain the only 025 no-ops.
+2. **US2/AS4 wording**: contact save validation is a FORM gate (the core's
+   `apply_save` merges by design; its `is_address` guards import/inspect) —
+   matching the Expo client.
+3. **Two form sheets the 018 boards never drew** (contact add/edit,
+   group new) — composed from existing primitives, corpus-worded; Penpot
+   catalog backfill flagged.
+4. Phases keyed by commit-scope not user story (declared in tasks.md header,
+   019 precedent).
+
+## Carried debts (input to 025 / polish)
+
+Desktop interactivity for contacts + settings currency dropdown; delete
+confirm sheet for custom networks; add-network full-path e2e (needs the
+route-interception harness 025 introduces); move-to-group / import / export
+(batch_import wiring); wizard already-added refusal wording shares the
+incompatible callout; RPC-health tiles on settings HOME page.

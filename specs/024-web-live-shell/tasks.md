@@ -202,26 +202,26 @@ recorded clean.
 
 ## Phase 6: Polish — e2e matrix, budgets, closeout (one commit)
 
-- [ ] T040 [P] e2e app-web/vela-wallet/e2e/settings-persistence.e2e.ts:
+- [X] T040 [P] e2e app-web/vela-wallet/e2e/settings-persistence.e2e.ts (5 tests; mobile viewport — desktop interactivity is the recorded debt; assertions speak the EN corpus via live-helpers.ts):
       currency change + custom-network add/edit/remove each survive
       `page.reload()` and a fresh context sharing storageState; runs on
       chromium+firefox+webkit; duplicate-chain-id refusal asserted via
       on-screen corpus copy
-- [ ] T041 [P] e2e app-web/vela-wallet/e2e/contacts-persistence.e2e.ts:
+- [X] T041 [P] e2e app-web/vela-wallet/e2e/contacts-persistence.e2e.ts (4 tests incl. tombstone durability + invalid-address form gate; surfaced+fixed: the first group had nowhere to be created — live books now show the groups section head on an empty book):
       add/edit/group/delete persist across reload; deletion durable
       (tombstone); invalid address refused; guard redirect for fresh profile;
       three engines
-- [ ] T042 e2e budget re-assertions: extend/verify welcome-ssr.e2e.ts still
+- [X] T042 e2e budget re-assertions (welcome zero-wasm + worker purity unchanged; NEW: /settings + /contacts load exactly ONE fingerprinted artifact between them): extend/verify welcome-ssr.e2e.ts still
       asserts zero-wasm Welcome + worker purity; add an assertion that
       /{locale}/settings and /contacts fetch the SAME fingerprinted wasm as
       /wallet (no second artifact)
-- [ ] T043 Verify galleries: `pnpm test:unit -- --run` fixtures suites +
+- [X] T043 Verify galleries (all fixtures suites green in the 427; fixture builders untouched by phases 3–5 — live builders are siblings): `pnpm test:unit -- --run` fixtures suites +
       spot-eyeball /{locale}/gallery/[state] settings & contacts states in
       dark+light (record in results.md)
-- [ ] T044 Close out specs/024-web-live-shell/results.md: gate table per
+- [X] T044 Close out specs/024-web-live-shell/results.md (SC verdict table below): gate table per
       phase, wasm byte delta (must be 0), corpus delta, SC-001…SC-008
       verdicts, deviations.md if any deviations accrued
-- [ ] T045 Final full-repo sanity: `node rust/scripts/gen-core-types.mjs
+- [X] T045 Final full-repo sanity (gen-core-types 25/11/311 current ×mirrors; check 1167/0; lint clean; unit 427; e2e 85/85 across 3 engines; wasm 3,630,664 B — byte-identical to baseline): `node rust/scripts/gen-core-types.mjs
       --check` (all targets) + `pnpm check && pnpm lint && pnpm test:unit --
       --run && pnpm build && pnpm test:e2e`
 

@@ -36,6 +36,10 @@
 	import FlowsPanel from '$lib/flows/FlowsPanel.svelte';
 	import ScanSurface from '$lib/flows/ui/ScanSurface.svelte';
 	import { FlowNav, type FlowEntry } from '$lib/flows/nav.svelte';
+	import { balance } from '$lib/wallet/core/balance.svelte';
+	import { currency } from '$lib/settings/core/currency.svelte';
+	import { withLiveWallet, withLiveWalletDesktop } from '$lib/wallet/live';
+	import { withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
 
 	/** The sidebar's own copy of the rule above: three rows, not four. */
 	function webNav(model: typeof data.desktop) {
@@ -105,6 +109,48 @@
 
 	onMount(() => {
 		void session.boot();
+		void currency.boot();
+	});
+
+	// The account the balances belong to. `account_changed` is also the
+	// hydrate: the core reads its cache and fetches for whoever is signed in.
+	$effect(() => {
+		const address = identity?.address;
+		if (address !== undefined) void balance.setAccount(address);
+	});
+
+	// Page visibility stands in for app focus (research D12): a hidden tab
+	// pauses the pollers, a returning one refreshes by the core's rules.
+	onMount(() => {
+		const onvisibility = () => {
+			if (document.visibilityState === 'visible') balance.focused();
+			else balance.backgrounded();
+		};
+		document.addEventListener('visibilitychange', onvisibility);
+		return () => document.removeEventListener('visibilitychange', onvisibility);
+	});
+
+	/** Fixture base → identity overlay → live balance/holdings (research D10). */
+	const liveInputs = $derived({
+		balance: balance.view,
+		currency: currency.view,
+		m: data.walletMessages
+	});
+	const liveHome = $derived(
+		identity === null
+			? data.home
+			: withLiveWallet(homeWithIdentity(data.home, identity), liveInputs)
+	);
+	const liveDesktop = $derived(
+		identity === null
+			? data.desktop
+			: withLiveWalletDesktop(webNav(desktopWithIdentity(data.desktop, identity)), liveInputs)
+	);
+
+	/** The pushed assets screen shows the same holdings as the home (D10). */
+	const flowInputs = $derived({
+		...liveInputs,
+		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined
 	});
 
 	/**
@@ -128,9 +174,8 @@
 	});
 
 	/**
-	 * 设置 has a route now (spec 023). 通讯录 and 探索 still do not, so they
-	 * stay on this screen rather than navigating to fixtures a signed-in person
-	 * would read as their real data.
+	 * 设置 (spec 023) and 通讯录 (spec 024) have routes; 探索 has none on web
+	 * by decision (spec 022), so it stays put.
 	 */
 	function select(id: 'wallet' | 'contacts' | 'explore' | 'settings') {
 		if (id === 'settings') void goto(settings);
@@ -151,18 +196,19 @@
 	{#if wide.current}
 		<div class="desktop-shell">
 			<WalletDesktop
-				model={webNav(desktopWithIdentity(data.desktop, identity))}
+				model={liveDesktop}
 				onnav={select}
 				onidenticon={() => (viewing = true)}
 				identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
 				onflow={enter}
+				onbalancetoggle={() => balance.togglePrivacy()}
 			/>
 			<!-- `ds1` is the one flow the third column cannot host: a viewfinder
 			     in a narrow strip is the wrong shape, so the desktop shows the
 			     scanner as a centred modal (DS1L). -->
 			{#if desktopFlow !== undefined && desktopFlow !== 'ds1'}
 				<FlowsPanel
-					model={data.desktopFlows[desktopFlow]}
+					model={withLiveDesktopFlow(data.desktopFlows[desktopFlow], flowInputs)}
 					onback={() => nav.back()}
 					onclose={() => nav.close()}
 					onnavigate={(to) => nav.push(to)}
@@ -178,18 +224,19 @@
 		{/if}
 	{:else if flowState !== undefined}
 		<FlowsMobile
-			model={data.flows[flowState]}
+			model={withLiveFlow(data.flows[flowState], flowInputs)}
 			onback={() => nav.back()}
 			onnavigate={(to) => nav.push(to)}
 		/>
 	{:else}
 		<WalletHome
-			model={homeWithIdentity(data.home, identity)}
+			model={liveHome}
 			destinations={DESTINATIONS}
 			onselect={select}
 			onidenticon={() => (viewing = true)}
 			identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
 			onflow={enter}
+			onbalancetoggle={() => balance.togglePrivacy()}
 		/>
 	{/if}
 {:else}

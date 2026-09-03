@@ -30,10 +30,19 @@
 		onflow?: (
 			entry: 'receive' | 'send' | 'scan' | 'activity' | 'assets' | 'token-detail' | 'tx-detail'
 		) => void;
+		/** Spec 025: tap-to-hide. The core owns `hidden`; this only reports the tap. */
+		onbalancetoggle?: () => void;
 	}
 
-	let { model, destinations, onselect, onidenticon, identiconViewerLabel, onflow }: Props =
-		$props();
+	let {
+		model,
+		destinations,
+		onselect,
+		onidenticon,
+		identiconViewerLabel,
+		onflow,
+		onbalancetoggle
+	}: Props = $props();
 
 	// Pure UI state: the fixture-provided sheet, once dismissed, stays dismissed.
 	// Nothing on this screen reopens it any more — the pill that did is gone.
@@ -52,7 +61,7 @@
 		</header>
 
 		<div class="balance">
-			<BalanceDisplay balance={model.balance} />
+			<BalanceDisplay balance={model.balance} ontoggle={onbalancetoggle} />
 		</div>
 
 		<ActionButtonRow

@@ -62,3 +62,49 @@ attempts (the bans-before-first-selection ordering proven end to end).
 **Gates**: check 1181 files/0 · lint clean · unit 435 · build ×15 · e2e full
 suite green (one webkit artifact-assertion flake, clean on isolated re-run —
 watched, not suppressed).
+
+
+---
+
+## Phase 3 — the home tells the truth (T120–T127)
+
+**What shipped**: `/{locale}/wallet` renders the core's balances. The ported
+`balance_dashboard` resident (dedup by structural key, reference-stable
+projections, boot-time privacy hydrate) drives a thin Svelte bridge
+(`balance.svelte.ts`); `wallet/live.ts` overlays the drawn home/desktop
+models with `liveBalance` / `liveAssetRow` (presentation only — the total is
+the core's aggregation, converted at the committed display-currency rate or
+shown as the honest USD figure when `rate: null`); `flows/live.ts` gives the
+pushed Assets screen the SAME holdings through the same row builder. Tap-to-
+hide: the visible figure becomes the toggle target when a handler is present
+(the drawn component only had the hidden-state eye-off), gallery unchanged.
+Page visibility → `app_focused`/`app_backgrounded`.
+
+**The port graph** (all provenance-headed @ c13e89d4): wallet-api (multicall
++ DEX/Chainlink pipeline verbatim), balance-cache (KV), abi, chain-tokens,
+price-service, native-price (core kernels re-exported from `client.ts`),
+tokens-model (trimmed `models/types`), tokens, token-metadata, erc20-meta,
+platform (web haptics no-op + visibility), transfer-types; wallet-state
+balance/token-trust/manage-tokens × types/executor/session/resident. 38
+strict-mode errors surfaced in the port (`unknown` where Expo had `any`,
+multiGet/multiSet, `_param` conventions) — all resolved at the seams, no
+logic touched.
+
+**The hermetic home (e2e/home-truth.e2e.ts)**: every chain's RPC is a seeded
+user override to the stub host (deterministic fastest-endpoint race), the
+registry knows only Ethereum, and ONE stub answer shape serves both decoders
+(word 0 = balance for `decU256`, word 1 = price for `decChainlinkUsd`), so
+1.5 ETH at $3,000 renders $4,500 with zero live traffic. Two real findings:
+(1) since the home now fetches on load, a config seed written afterwards is
+not seen until the next document — tests seed-then-reload, which is also how
+a real settings edit reaches the pool; (2) the fixture Assets screen would
+have shown staged tokens behind a live home — now live.
+
+**Recorded**: the chain-filter pill is not interactive in the drawn web home
+(deferred); manage_tokens/token_trust are ported and typed but their UI
+entries (add-token sheet; incoming scan) land with Phase 4 / a later sheet
+wiring; the pool test's `poolCall` now waits for the dynamically imported
+console (a 2-worker race that passed in isolation).
+
+**Gates**: check 1211/0 · lint clean · unit 456 · build ×15 · **e2e 88/88**
+(chromium + firefox + webkit); wasm byte-identical.

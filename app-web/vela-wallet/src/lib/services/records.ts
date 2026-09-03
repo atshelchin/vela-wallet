@@ -9,6 +9,7 @@
  */
 
 import { getItem, setItem } from './storage';
+import type { CustomToken } from './tokens-model';
 
 /** The Expo `CustomNetwork` stored shape (camelCase), verbatim. */
 export interface CustomNetworkRecord {
@@ -76,10 +77,19 @@ export async function saveTransactions(records: unknown[]): Promise<void> {
 	await setItem('vela.transactionHistory', JSON.stringify(records));
 }
 
-export async function loadCustomTokens<T>(): Promise<T[]> {
-	return loadArray<T>('vela.customTokens');
+export async function loadCustomTokens(): Promise<CustomToken[]> {
+	return loadArray<CustomToken>('vela.customTokens');
 }
 
-export async function saveCustomTokens(records: unknown[]): Promise<void> {
-	await setItem('vela.customTokens', JSON.stringify(records));
+/** Upsert by id — the Expo `saveCustomToken` contract. */
+export async function saveCustomToken(token: CustomToken): Promise<void> {
+	const tokens = await loadCustomTokens();
+	const rest = tokens.filter((t) => t.id !== token.id);
+	rest.push(token);
+	await setItem('vela.customTokens', JSON.stringify(rest));
+}
+
+export async function removeCustomToken(id: string): Promise<void> {
+	const tokens = await loadCustomTokens();
+	await setItem('vela.customTokens', JSON.stringify(tokens.filter((t) => t.id !== id)));
 }

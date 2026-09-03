@@ -17,6 +17,8 @@
 		/** Open the identicon viewer; absent in the gallery. */
 		onidenticon?: () => void;
 		identiconViewerLabel?: string;
+		/** Spec 025: tap-to-hide. The core owns `hidden`; this only reports the tap. */
+		onbalancetoggle?: () => void;
 		/**
 		 * Spec 021: the dock and the two section actions open a flow in the
 		 * third column. When it is wired the flow host owns that column, so
@@ -26,7 +28,8 @@
 		onflow?: (entry: 'receive' | 'send' | 'scan' | 'activity' | 'add-token' | 'tx-detail') => void;
 	}
 
-	let { model, onnav, onidenticon, identiconViewerLabel, onflow }: Props = $props();
+	let { model, onnav, onidenticon, identiconViewerLabel, onflow, onbalancetoggle }: Props =
+		$props();
 
 	// The third column replaces the mobile bottom sheet (research.md D5).
 	// Pure UI state: which content it hosts, seeded by the fixture state.
@@ -38,7 +41,7 @@
 
 	<main>
 		<div class="content">
-			<BalanceDisplay balance={model.balance} />
+			<BalanceDisplay balance={model.balance} ontoggle={onbalancetoggle} />
 
 			<div class="actions">
 				<ActionButtonRow

@@ -78,16 +78,98 @@ export async function poolCall(
 	params: unknown[],
 	chainId: number
 ): Promise<unknown> {
+	// The console arrives by DYNAMIC import after mount (so no core glue rides
+	// the first-paint chunk) — a caller right after a reload must wait for it,
+	// or a slow worker races the import and reads `undefined`.
+	await page.waitForFunction(
+		() =>
+			typeof (window as unknown as { vela?: { poolCall?: unknown } }).vela?.poolCall === 'function',
+		undefined,
+		{ timeout: 15_000 }
+	);
 	return page.evaluate(
 		async ({ method, params, chainId }) => {
 			const vela = (
 				window as unknown as {
-					vela?: { poolCall(m: string, p: unknown[], c: number): Promise<unknown> };
+					vela: { poolCall(m: string, p: unknown[], c: number): Promise<unknown> };
 				}
 			).vela;
-			if (!vela) throw new Error('dev console not installed — seed vela.dev.console');
 			return vela.poolCall(method, params, chainId);
 		},
 		{ method, params, chainId }
+	);
+}
+
+/**
+ * ABI-encode `aggregate3 -> Result[]` — the inverse of the app's
+ * `decAggregate3`. A dynamic array of dynamic `(bool success, bytes
+ * returnData)` tuples: head offset, length, per-element offsets relative to
+ * the offsets table, then each element as [success][bytes offset=0x40][bytes
+ * length][bytes data, right-padded].
+ */
+export function encodeAggregate3Result(results: { success: boolean; data: string }[]): string {
+	const word = (n: number | bigint) => BigInt(n).toString(16).padStart(64, '0');
+	const elements = results.map((r) => {
+		const hex = r.data.startsWith('0x') ? r.data.slice(2) : r.data;
+		const padded = hex.padEnd(Math.ceil(hex.length / 64) * 64, '0');
+		return word(r.success ? 1 : 0) + word(0x40) + word(hex.length / 2) + padded;
+	});
+	let offset = results.length * 32;
+	const offsets = elements.map((e) => {
+		const here = offset;
+		offset += e.length / 2;
+		return word(here);
+	});
+	return '0x' + word(0x20) + word(results.length) + offsets.join('') + elements.join('');
+}
+
+/** How many `Call3`s an `aggregate3` calldata carries (the array length word). */
+export function aggregate3CallCount(calldata: string): number {
+	const hex = calldata.startsWith('0x') ? calldata.slice(2) : calldata;
+	// selector (8) + head offset (64) + length (64)
+	return parseInt(hex.slice(8 + 64, 8 + 128), 16);
+}
+
+/** A 32-byte word from a number/bigint, `0x`-less. */
+export function abiWord(n: number | bigint): string {
+	return BigInt(n).toString(16).padStart(64, '0');
+}
+
+/** Seed the settings editor's per-network RPC overrides (its stored shape). */
+export async function seedNetworkOverrides(
+	page: Page,
+	entries: { chainId: number; rpcURL: string }[]
+): Promise<void> {
+	await page.evaluate((rows) => {
+		return new Promise<void>((resolve, reject) => {
+			const open = indexedDB.open('vela', 1);
+			open.onupgradeneeded = () => open.result.createObjectStore('kv');
+			open.onerror = () => reject(open.error);
+			open.onsuccess = () => {
+				const tx = open.result.transaction('kv', 'readwrite');
+				tx.objectStore('kv').put(JSON.stringify(rows), 'vela.networkConfig');
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			};
+		});
+	}, entries);
+}
+
+/**
+ * The chain registry (ethereum-data): `/chains/eip155-{id}.json` answers the
+ * given document or 404; the search index answers empty.
+ */
+export async function stubChainRegistry(
+	page: Page,
+	docs: Record<number, Record<string, unknown> | null>
+): Promise<void> {
+	await page.route(/\/chains\/eip155-(\d+)\.json$/, (route) => {
+		const id = Number(/eip155-(\d+)\.json$/.exec(route.request().url())?.[1]);
+		const doc = docs[id];
+		if (!doc) return route.fulfill({ status: 404, body: 'no such chain' });
+		return route.fulfill({ contentType: 'application/json', body: JSON.stringify(doc) });
+	});
+	await page.route(/\/index\/fuse-chains\.json$/, (route) =>
+		route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: [] }) })
 	);
 }

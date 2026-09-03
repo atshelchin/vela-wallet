@@ -47,25 +47,25 @@ Paths repo-root-relative; `pnpm` runs in app-web/vela-wallet.
 
 ## Phase 3: Home live (one commit) 🎯 MVP with 1–2
 
-- [ ] T120 [US1] Port src/services/{wallet-api,balance-cache}.ts (RN seams
+- [X] T120 [US1] Port src/services/{wallet-api,balance-cache}.ts (+ the graph they pull: abi, chain-tokens, price-service, native-price [core kernels re-exported from client.ts], tokens-model [trimmed models/types], tokens, token-metadata, erc20-meta, platform [web haptics no-op + visibility], transfer-types) (RN seams
       out; token/price payloads; cache keys byte-compat)
-- [ ] T121 [US1] Port wallet-state-core/balance-{types,executor,session,
-      resident}.ts → $lib/wallet/core/ (fetch gates, retry timer, privacy
+- [X] T121 [US1] Port wallet-state-core/balance-{types,executor,session,
+      resident}.ts (+ `balance.svelte.ts`: the Svelte bridge over the ported resident — $state view, loadCore-gated boot, one-liner dispatches) → $lib/wallet/core/ (fetch gates, retry timer, privacy
       write; rate-limited-chains read via facade)
-- [ ] T122 [US1] Port token-trust + manage-tokens wiring (+
+- [X] T122 [US1] Port token-trust + manage-tokens wiring (modules ported and typechecked; their UI surfaces — incoming scan feeds Phase 4, add-token sheet has no live entry yet — recorded) (+
       src/services/token-metadata.ts) — custom tokens, meta multicall,
       cache invalidation
-- [ ] T123 [US1] Create $lib/wallet/live.ts buildWalletFromCore (D10):
+- [X] T123 [US1] Create $lib/wallet/live.ts (as overlays `withLiveWallet`/`withLiveWalletDesktop` over the identity-filled base — the settings precedent; moneyParts/trimBalance presentation only; PLUS `$lib/flows/live.ts` so the pushed Assets screen shows the same holdings, empty copy borrowed from fixture T4) (D10):
       balance+feed+trust views + messages + identity + ui state → the drawn
       Home/Desktop models; NO arithmetic in the builder
-- [ ] T124 [US1] Wire /[locale]/wallet: residents boot, live model replaces
+- [X] T124 [US1] Wire /[locale]/wallet (balance+currency boot; account_changed on identity; visibilitychange → app_focused/backgrounded; tap-to-hide — BalanceDisplay's visible figure becomes the toggle target when a handler is present, gallery unchanged; chain filter pill is not interactive in the drawn web home → deferred): residents boot, live model replaces
       the identity-only overlay, chain filter + tap-to-hide dispatch to the
       core, EMPTY states stay prerender-safe
-- [ ] T125 [P] [US1] Units: balance executor (cache roundtrip, stale/live),
+- [X] T125 [P] [US1] Units (balance executor 6, wallet/live 13, flows/live 3): balance executor (cache roundtrip, stale/live),
       trust/manage arms, buildWalletFromCore vs recorded view fixtures
-- [ ] T126 [US1] e2e e2e/home-truth.e2e.ts (stubbed): balances+total render,
+- [X] T126 [US1] e2e e2e/home-truth.e2e.ts (stub-chain grew: aggregate3 result encoder, network-override seeding, chain-registry stub; one stub answer shape serves both decU256 and decChainlinkUsd; SC-101 + privacy persistence green on chromium — surfaced two real gaps: page-load fetches race a later config seed [tests seed-then-reload, as a real settings edit would], and the fixture Assets screen would have shown staged tokens [now live]) (stubbed): balances+total render,
       fixture identities absent, privacy persists (SC-101 hermetic half)
-- [ ] T127 [US1] Full gate; results.md entry
+- [X] T127 [US1] Full gate (check 1211/0 incl. codegen drift; lint clean; unit 24 files/456; build ×15; e2e 88/88 across chromium+firefox+webkit); results.md entry
 
 ## Phase 4: Activity + receive (one commit)
 

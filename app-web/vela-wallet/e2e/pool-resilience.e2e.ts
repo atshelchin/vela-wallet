@@ -9,7 +9,7 @@
  */
 import { expect, test } from '@playwright/test';
 import { seedSignedIn } from './live-helpers';
-import { denyOffOrigin, poolCall, readKv, stubJsonRpc } from './stub-chain';
+import { denyOffOrigin, poolCall, readKv, seedNetworkOverrides, stubJsonRpc } from './stub-chain';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -20,27 +20,6 @@ test.beforeEach(async ({ page }) => {
 	await page.addInitScript(() => window.localStorage.setItem('vela.dev.console', '1'));
 	await denyOffOrigin(page);
 });
-
-async function seedUserOverride(page: import('@playwright/test').Page): Promise<void> {
-	// The settings editor's stored shape, seeded directly (its own e2e already
-	// proves the editor writes it).
-	await page.evaluate((primary) => {
-		return new Promise<void>((resolve, reject) => {
-			const open = indexedDB.open('vela', 1);
-			open.onupgradeneeded = () => open.result.createObjectStore('kv');
-			open.onerror = () => reject(open.error);
-			open.onsuccess = () => {
-				const tx = open.result.transaction('kv', 'readwrite');
-				tx.objectStore('kv').put(
-					JSON.stringify([{ chainId: 1, rpcURL: primary }]),
-					'vela.networkConfig'
-				);
-				tx.oncomplete = () => resolve();
-				tx.onerror = () => reject(tx.error);
-			};
-		});
-	}, PRIMARY);
-}
 
 test('a failing primary is routed around; its ban persists; no free retry after reload', async ({
 	page
@@ -60,7 +39,13 @@ test('a failing primary is routed around; its ban persists; no free retry after 
 
 	await page.goto('/en/wallet');
 	await expect(page.getByText('E2E Wallet').first()).toBeVisible();
-	await seedUserOverride(page);
+	await seedNetworkOverrides(page, [{ chainId: 1, rpcURL: PRIMARY }]);
+	// Since spec 025 phase 3 the home fetches balances on load, so chain 1's
+	// pool config is already collected by now — WITHOUT the override. A fresh
+	// document re-collects with it (the same seed-then-reload the home test
+	// uses); this is also how a real settings edit reaches the pool.
+	await page.reload();
+	await expect(page.getByText('E2E Wallet').first()).toBeVisible();
 
 	// The read succeeds despite the poisoned primary.
 	const result = await poolCall(page, 'eth_blockNumber', [], 1);

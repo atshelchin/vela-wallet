@@ -25,6 +25,8 @@ import init, {
 	// The 24 machines, exactly as `vela-core-wasm` registers them
 	// (src/onboarding.rs + src/wallet_state.rs).
 	ActivityFeedCore,
+	bestNativeDexPrice,
+	chooseNativePrice,
 	ApprovalGuardCore,
 	BalanceDashboardCore,
 	BatchImportCore,
@@ -92,6 +94,7 @@ export {
 // key for the registry; identicon and passkey artwork resolved offline by
 // construction.
 export { buildGroupProof, buildMemberProof, groupPublicKeyFromSeed, toHex };
+export { bestNativeDexPrice, chooseNativePrice };
 export { identiconNormalizeSeed, identiconSvgCircular };
 export { passkeyFallbackIconDataUri, passkeyProviderIconDataUri };
 export { passkeyDirectoryEntry, passkeyDirectoryUrl };

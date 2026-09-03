@@ -1,16 +1,35 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import type { AssetRowModel } from '../model';
 	import TokenIcon from './TokenIcon.svelte';
 
 	interface Props {
 		row: AssetRowModel;
+		/**
+		 * Spec 021 SD1b: the row is off the network the multi-send is locked
+		 * to. Still readable, still there — it is a token the person owns —
+		 * but not selectable, and saying so by weight rather than by hiding it.
+		 */
+		dimmed?: boolean;
+		/** Spec 021 SD1b: chosen for a multi-token send. */
+		selected?: boolean;
+		/** Spec 021 SD2d: a trailing control (Max) after the numbers. */
+		trailing?: Snippet;
 		onclick?: () => void;
 	}
 
-	let { row, onclick }: Props = $props();
+	let { row, dimmed = false, selected = false, trailing, onclick }: Props = $props();
 </script>
 
-<button type="button" class="row" {onclick}>
+<button
+	type="button"
+	class="row"
+	class:dimmed
+	class:selected
+	disabled={dimmed}
+	aria-pressed={selected ? true : undefined}
+	{onclick}
+>
 	<TokenIcon ticker={row.ticker} badgeColor={row.badgeColor} />
 	<span class="text">
 		<span class="ticker">{row.ticker}</span>
@@ -22,10 +41,11 @@
 			<span class="fiat">{row.fiat.text}</span>
 		{:else if row.fiat.kind === 'no-price'}
 			<span class="fiat no-price">{row.fiat.text}</span>
-		{:else}
+		{:else if row.fiat.kind === 'masked'}
 			<span class="fiat">••••</span>
 		{/if}
 	</span>
+	{#if trailing}<span class="trailing">{@render trailing()}</span>{/if}
 </button>
 
 <style>
@@ -43,8 +63,29 @@
 		cursor: pointer;
 	}
 
-	.row:active {
+	.row:active:not(:disabled) {
 		transform: scale(var(--motion-press-row));
+	}
+
+	.dimmed {
+		opacity: var(--opacity-disabled);
+		cursor: default;
+	}
+
+	.selected {
+		/* The whole row lifts rather than growing a checkbox: the list is the
+		   selection, and a column of empty boxes down the leading edge would
+		   push the token marks off the margin every other screen aligns to. */
+		background: var(--color-bg-raised);
+		border-radius: var(--radius-lg);
+		padding-inline: var(--space-md);
+		margin-inline: calc(var(--space-md) * -1);
+	}
+
+	.trailing {
+		display: flex;
+		flex-shrink: 0;
+		margin-inline-start: var(--space-lg);
 	}
 
 	.text {

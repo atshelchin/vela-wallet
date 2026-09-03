@@ -51,7 +51,7 @@ const LOCALES = ['en', 'zh', 'zh-TW', 'zh-HK', 'ja', 'ko', 'vi', 'id', 'tr', 'es
 const NAMESPACE_FILES = [
   'home', 'send', 'receive', 'assets', 'addToken', 'tokenDetail', 'history',
   'onboarding', 'connect', 'about', 'clearSigning', 'componentsTx',
-  'componentsUi', 'settingsModals', 'contacts',
+  'componentsUi', 'settingsModals', 'contacts', 'explore',
 ];
 
 /** `es-MX` -> `es-mx`, matching the cargo feature name. */
@@ -225,17 +225,24 @@ for (let i = 1; i < PATHS.length; i++) {
 //   shipped font, the widest authored line runs from 6.9em (zh) to 15.0em (id)
 //   — a 2.2x spread that one font size cannot serve, so the tier rides with the
 //   copy instead of being guessed per client.
-// + 56 more (spec 023, the settings UI): three new sub-namespaces —
-//   `settings.storage.*` (device storage, ST13/DST7), `settings.networks.*`
-//   (list + detail chrome, ST9/ST9b) and `settings.indexDown.*` (the SR5
-//   rescue screen) — plus the two appearance titles the desktop rows need,
-//   `common.done`, the compatibility checklist's three prose rows and two
-//   badges, an average latency, About's links heading, SR3's "updated" group,
-//   the restored-RPC line and the six labels the bug-report disclosure prints.
-//   The other ~200 strings those forty mocks need were already in the corpus.
-if (PATHS.length !== 1479) fail(`expected 1479 paths (1397 leaf + 82 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1397) fail(`expected 1397 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 82) fail(`expected 82 branch paths, got ${branchSet.size}`);
+// + 33 more, spec 021's receive / send / assets / addToken / scanner leaves:
+//   the wallet-2 flows resolve almost entirely against keys the legacy React
+//   Native app already left in the corpus. These are the remainder — the ones
+//   the mocks say and nothing existing says: two add-token failure labels, the
+//   receive network search and its two QR headlines, the share card's network
+//   note, the assets "you received it but can't see it" card, and the send
+//   flow's split / sweep / fee-token / import / receipt copy. No new branch:
+//   every one hangs off a namespace that already exists.
+// + 98 more (spec 022, explore + dApp signing): a whole new `explore.*`
+//   namespace (54 keys — the browser home, tabs, the three sheets and the
+//   browsing chrome) and 43 additions under `componentsUi.signing` for the
+//   rungs of the ERC-7730 degradation ladder the 33 CS mocks walk down —
+//   verified-ABI decode, 4byte best-effort, the un-simulatable case, the drain
+//   reveal, Safe's inner call, deploy, and the slide-to-confirm labels. The
+//   other ~95% of the signing copy was already here, which is why this is 43.
+if (PATHS.length !== 1620) fail(`expected 1620 paths (1536 leaf + 84 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1536) fail(`expected 1536 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 84) fail(`expected 84 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

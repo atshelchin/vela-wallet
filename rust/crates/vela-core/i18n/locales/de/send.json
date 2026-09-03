@@ -119,6 +119,24 @@
     "batchImportFailedTitle": "Datei konnte nicht gelesen werden",
     "batchImportFailedBody": "Bitte verwenden Sie eine CSV-, TSV-, TXT- oder Excel-Datei.",
     "batchCurrencyLabel": "Bepreist in",
-    "feeTokenLabel": "Gebühren-Token"
+    "feeTokenLabel": "Gebühren-Token",
+    "balanceLabel": "Guthaben {{amount}}",
+    "fromContacts": "Aus Kontakten",
+    "splitTotalLabel": "Gesamt",
+    "multiSendChainNotice": "{{network}} ausgewählt — ein Multi-Token-Versand bleibt in einem Netzwerk, die anderen sind ausgegraut",
+    "multiSendSameRecipient": "Alle Token gehen an dieselbe Adresse",
+    "pickContactTitle": "Kontakt wählen",
+    "pickContactSearch": "Kontakte suchen oder Adresse einfügen",
+    "scanToFill": "Scannen, um die Adresse einzutragen",
+    "feeTokenHint": "Zahlt die Netzwerkgebühr dieser Überweisung. Die Schätzung folgt dem Netzwerk in Echtzeit.",
+    "feeTokenEstimate": "Geschätzte Gebühr",
+    "batchRateHint": "Beträge in der Tabelle werden als {{code}} gelesen und zu diesem Kurs in {{sym}} umgerechnet.",
+    "batchParsedCount": "Gelesen · {{n}} Zeilen",
+    "confirmTotalLine": "Gesamt ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "Transaktion wird vorbereitet, warte auf die biometrische Bestätigung",
+    "txBackgroundHint": "Diese Seite zu schließen hält die Transaktion nicht an",
+    "txCloseBackground": "Schließen · weiterlaufen lassen",
+    "txSubmittedTitle": "An das Netzwerk gesendet",
+    "txConfirmedTitle": "{{amount}} {{symbol}} gesendet"
   }
 }

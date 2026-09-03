@@ -7,6 +7,7 @@
 import { error } from '@sveltejs/kit';
 import {
 	resolveContactsMessages,
+	resolveIntroMessages,
 	resolveSettingsMessages,
 	resolveWalletMessages
 } from '$lib/i18n/engine.server';
@@ -79,6 +80,8 @@ export const load: PageServerLoad = ({ params }) => {
 	return {
 		messages,
 		contactsMessages,
+		/** Spec 020: the first-run intro's copy, for the slide board. */
+		intro: resolveIntroMessages(locale),
 		settingsMessages,
 		settingsMobileStates: SETTINGS_MOBILE_STATES,
 		settingsDesktopStates: SETTINGS_DESKTOP_STATES,

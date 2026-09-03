@@ -37,6 +37,8 @@
     "errorAddNetwork": "Không thêm được mạng.",
     "errorAlreadyAdded": "Mạng này đã được thêm",
     "errorChainNotFound": "Không tìm thấy thông tin chain",
-    "errorNotCompatible": "Không tương thích với Vela Wallet"
+    "errorNotCompatible": "Không tương thích với Vela Wallet",
+    "invalidAddress": "Địa chỉ hợp đồng không hợp lệ",
+    "notCompatible": "Không tương thích"
   }
 }

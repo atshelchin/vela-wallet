@@ -118,7 +118,8 @@ export const SECTION_LETTERS = ['A', 'B', 'C', 'D', 'H', 'M'] as const;
 /** The rail renders the full alphabet regardless of which sections exist (D4). */
 export const INDEX_LETTERS: string[] = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'];
 
-const GROUPS: { name: string; count: number; members: ContactFixture[] }[] = [
+/** Exported for spec 021: SD2e's contact picker lists the same groups. */
+export const GROUPS: { name: string; count: number; members: ContactFixture[] }[] = [
 	{
 		name: '家人',
 		count: 3,

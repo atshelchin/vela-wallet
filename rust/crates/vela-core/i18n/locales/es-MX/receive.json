@@ -67,6 +67,12 @@
       "invalidTitle": "Enlace de pago inválido",
       "invalidBody": "A este enlace le falta un destinatario o una red válida. Pídele uno nuevo a quien te lo envió."
     },
-    "addressLabel": "Tu dirección para recibir"
+    "addressLabel": "Tu dirección para recibir",
+    "searchNetworkPlaceholder": "Buscar redes",
+    "searchNetworkEmpty": "Ninguna red coincide con “{{query}}”",
+    "qrTitleNetwork": "Usa esta dirección para recibir activos en {{network}}",
+    "qrTitleAsset": "Usa esta dirección para recibir {{symbol}} en {{network}}",
+    "shareCardNetworkNote": "Solo pagos en {{network}}",
+    "tokenContract": "Contrato del token"
   }
 }

@@ -18,6 +18,10 @@ import { FALLBACK_LOCALE, type Locale } from './locales';
 import { FLOW_KEYS, type FlowMessages, type WelcomeMessages } from './messages';
 import type { WalletMessages } from '$lib/wallet/messages';
 import type { ContactsMessages } from '$lib/contacts/messages';
+import { INTRO_KEYS } from '$lib/intro/slides';
+import { WALLET_FLOW_KEYS, type WalletFlowMessages } from '$lib/flows/messages';
+import type { ExploreMessages } from '$lib/explore/messages';
+import type { SigningMessages } from '$lib/signing/messages';
 import type { SettingsMessages } from '$lib/settings/messages';
 
 /** Generated runtime catalogs (gen-i18n.mjs stage 4), one per locale. */
@@ -82,6 +86,16 @@ export function resolveWelcomeMessages(locale: Locale): WelcomeMessages {
 export function resolveFlowMessages(locale: Locale): FlowMessages {
 	activate(locale);
 	return Object.fromEntries(FLOW_KEYS.map((key) => [key, t(locale, key)])) as FlowMessages;
+}
+
+/**
+ * The first-run intro's copy (spec 020). Same shape as the flow's: dotted key →
+ * resolved template, filled client-side, so the carousel can be handed one map
+ * instead of a field per string.
+ */
+export function resolveIntroMessages(locale: Locale): Readonly<Record<string, string>> {
+	activate(locale);
+	return Object.fromEntries(INTRO_KEYS.map((key) => [key, t(locale, key)]));
 }
 
 /** The serializable strings the wallet screens render (spec 015, research.md D3). */
@@ -522,8 +536,229 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 	};
 }
 
+/**
+ * The Receive / Send / Activity / Assets copy (spec 021). Flat, like the
+ * onboarding flow's and the intro's: with ~120 strings across four journeys a
+ * nested manifest would be more field declarations than copy, and each one
+ * would have to be restated here by hand.
+ */
+export function resolveWalletFlowMessages(locale: Locale): WalletFlowMessages {
+	activate(locale);
+	return Object.fromEntries(
+		WALLET_FLOW_KEYS.map((key) => [key, t(locale, key)])
+	) as WalletFlowMessages;
+}
+
 /** Direct engine access for the differential test only. */
 export function rawResolve(locale: Locale, key: string): string {
 	activate(locale);
 	return engine.t(key);
+}
+
+/** The serializable strings the Explore screens render (spec 022 §5). */
+export function resolveExploreMessages(locale: Locale): ExploreMessages {
+	activate(locale);
+	const k = (key: string) => t(locale, key);
+	return {
+		title: k('explore.title'),
+		searchPlaceholder: k('explore.searchPlaceholder'),
+		scan: k('explore.scan'),
+		startTitle: k('explore.startTitle'),
+		startHint: k('explore.startHint'),
+		startCta: k('explore.startCta'),
+		favorites: k('explore.favorites'),
+		recent: k('explore.recent'),
+		edit: k('explore.edit'),
+		done: k('explore.done'),
+		add: k('explore.add'),
+		clear: k('explore.clear'),
+		groupOptions: k('explore.groupOptions'),
+		manageGroups: k('explore.manageGroups'),
+		newGroup: k('explore.newGroup'),
+		rename: k('explore.rename'),
+		hide: k('explore.hide'),
+		show: k('explore.show'),
+		delete: k('explore.delete'),
+		moveToGroup: k('explore.moveToGroup'),
+		openInNewTab: k('explore.openInNewTab'),
+		removeFromFavorites: k('explore.removeFromFavorites'),
+		systemGroup: k('explore.systemGroup'),
+		hiddenTag: k('explore.hiddenTag'),
+		siteCount: k('explore.siteCount'),
+		hiddenCount: k('explore.hiddenCount'),
+		tabs: k('explore.tabs'),
+		newTab: k('explore.newTab'),
+		startPage: k('explore.startPage'),
+		closeAllTabs: k('explore.closeAllTabs'),
+		closeTab: k('explore.closeTab'),
+		openTabs: k('explore.openTabs'),
+		addToFavorites: k('explore.addToFavorites'),
+		addedToFavorites: k('explore.addedToFavorites'),
+		share: k('explore.share'),
+		copyLink: k('explore.copyLink'),
+		refresh: k('explore.refresh'),
+		openInSystemBrowser: k('explore.openInSystemBrowser'),
+		disconnect: k('explore.disconnect'),
+		closePage: k('explore.closePage'),
+		secureSite: k('explore.secureSite'),
+		connectedTag: k('explore.connectedTag'),
+		connectionTitle: k('explore.connectionTitle'),
+		switchAccount: k('explore.switchAccount'),
+		network: k('explore.network'),
+		connectionExplainer: k('explore.connectionExplainer'),
+		autoRequestHint: k('explore.autoRequestHint'),
+		back: k('explore.back'),
+		forward: k('explore.forward'),
+		reload: k('explore.reload'),
+		siteMenu: k('explore.siteMenu'),
+		account: k('explore.account'),
+		addressBar: k('explore.addressBar'),
+		close: k('explore.close'),
+		nav: {
+			wallet: k('componentsUi.mainNav.wallet'),
+			contacts: k('componentsUi.mainNav.contacts'),
+			explore: k('componentsUi.mainNav.explore'),
+			settings: k('componentsUi.mainNav.settings')
+		},
+		closeLabel: k('componentsUi.signing.close')
+	};
+}
+
+/** The serializable strings the signing sheet renders (spec 022 §5). */
+export function resolveSigningMessages(locale: Locale): SigningMessages {
+	activate(locale);
+	const k = (key: string) => t(locale, key);
+	return {
+		panelTitle: k('componentsUi.signing.signatureRequest'),
+		signingAccount: k('componentsUi.signing.signingAccount'),
+		advancedToggle: k('componentsUi.signing.advancedToggle'),
+		close: k('componentsUi.signing.close'),
+		slideToConfirm: k('componentsUi.signing.slideToConfirm'),
+		slideConfirmAction: k('componentsUi.signing.slideConfirmAction'),
+		confirmSend: k('componentsUi.signing.confirmSend'),
+		confirmSwap: k('componentsUi.signing.confirmSwap'),
+		confirmDeposit: k('componentsUi.signing.confirmDeposit'),
+		confirmWithdraw: k('componentsUi.signing.confirmWithdraw'),
+		confirmPlain: k('componentsUi.signing.confirmLabel'),
+		signLabel: k('componentsUi.signing.signLabel'),
+		intentSend: k('componentsUi.signing.intentSend'),
+		intentApprove: k('componentsUi.signing.intentApprove'),
+		intentApproveAll: k('componentsUi.signingApprove.verbApproveAll'),
+		intentRevoke: k('componentsUi.signing.intentRevoke'),
+		intentSwap: k('componentsUi.signing.intentSwap'),
+		intentDeposit: k('componentsUi.signing.intentDeposit'),
+		intentWithdraw: k('componentsUi.signing.intentWithdraw'),
+		intentTransferNft: k('componentsUi.signing.intentTransferNft'),
+		intentContractCall: k('componentsUi.signing.intentContractCall'),
+		intentBatch: k('componentsUi.signing.batchIntent'),
+		intentBlind: k('componentsUi.signing.ethSignIntent'),
+		intentSignIn: k('componentsUi.signing.signInIntent'),
+		intentMessage: k('componentsUi.signing.messageIntent'),
+		intentTypedData: k('componentsUi.signing.typedDataIntent'),
+		intentPermit: k('componentsUi.signing.permitIntent'),
+		intentDeploy: k('componentsUi.signing.deployIntent'),
+		intentSafe: k('componentsUi.signing.safeIntent'),
+		labelRecipient: k('componentsUi.signing.recipientLabel'),
+		labelSpender: k('componentsUi.signing.spenderLabel'),
+		labelOperator: k('componentsUi.signingApprove.operatorLabel'),
+		labelCollection: k('componentsUi.signingApprove.collectionLabel'),
+		labelInteracting: k('componentsUi.signing.interactingLabel'),
+		labelFrom: k('componentsUi.signing.labelFrom'),
+		labelAmount: k('componentsUi.signing.labelAmount'),
+		labelDeadline: k('componentsUi.signing.labelDeadline'),
+		labelMinReceived: k('componentsUi.signing.labelMinReceived'),
+		labelPay: k('componentsUi.signing.labelPay'),
+		labelSiweSite: k('componentsUi.signing.siweDomain'),
+		labelSiweOrigin: k('componentsUi.signing.siweOrigin'),
+		labelSiweStatement: k('componentsUi.signing.siweStatement'),
+		labelTypedDomain: k('componentsUi.signing.typedDomain'),
+		labelType: k('componentsUi.signing.typeLabel'),
+		labelSigningFor: k('componentsUi.signing.signingFor'),
+		labelSpendingCap: k('componentsUi.signingApprove.spendingCap'),
+		labelExpires: k('componentsUi.signingApprove.expiresLabel'),
+		labelResultingTotal: k('componentsUi.signingApprove.resultingTotal'),
+		labelBytecode: k('componentsUi.signing.deployBytecode'),
+		labelPredictedAddress: k('componentsUi.signing.deployPredictedAddress'),
+		labelDepositAsset: k('componentsUi.signing.depositAsset'),
+		labelSharesReceived: k('componentsUi.signing.sharesReceived'),
+		tagContact: k('componentsUi.signing.contactTag'),
+		tagWallet: k('componentsUi.signing.walletTag'),
+		tagContract: k('componentsUi.signing.contractTag'),
+		tagVerified: k('componentsUi.signing.verifiedTag'),
+		tagUnverified: k('componentsUi.signing.unverifiedTag'),
+		tagFirstTime: k('componentsUi.signing.firstTimeTag'),
+		tagExpired: k('componentsUi.signing.expiredTag'),
+		selfName: k('componentsUi.signing.selfName'),
+		chipRequested: k('componentsUi.signingApprove.requested'),
+		chipBalance: k('componentsUi.signingApprove.balanceCap'),
+		chipCustom: k('componentsUi.signingApprove.custom'),
+		chipRevoke: k('componentsUi.signingApprove.revoke'),
+		chipRevokeAccess: k('componentsUi.signingApprove.revokeAccess'),
+		chipGrantAll: k('componentsUi.signingApprove.grantAllAnyway'),
+		valueRevoke: k('componentsUi.signingApprove.revokeValue'),
+		valueUnlimited: k('componentsUi.signingApprove.unlimitedValue'),
+		valueAllNfts: k('componentsUi.signingApprove.allNfts'),
+		unlimitedDisabled: k('componentsUi.signingApprove.unlimitedDisabled'),
+		choosePrompt: k('componentsUi.signingApprove.choosePrompt'),
+		summarySend: k('componentsUi.signing.summarySend'),
+		summarySendFrom: k('componentsUi.signing.summarySendFrom'),
+		summarySwap: k('componentsUi.signing.summarySwap'),
+		summaryReceive: k('componentsUi.signing.summaryReceive'),
+		summaryApprove: k('componentsUi.signingApprove.capSummary'),
+		summaryApproveUnlimited: k('componentsUi.signing.summaryApproveUnlimited'),
+		summaryRevoke: k('componentsUi.signingApprove.revokeSummary'),
+		summaryTransferNft: k('componentsUi.signing.summaryTransferNft'),
+		summaryApproveNft: k('componentsUi.signing.summaryApproveNft'),
+		summaryPermit: k('componentsUi.signing.summaryPermit'),
+		summaryPermitUnlimited: k('componentsUi.signing.summaryPermitUnlimited'),
+		summaryDeploy: k('componentsUi.signing.summaryDeploy'),
+		summaryBatch: k('componentsUi.signing.batchSubtitle'),
+		summarySafe: k('componentsUi.signing.safeSummary'),
+		summaryBestEffort: k('componentsUi.signing.bestEffortSummary'),
+		summaryVerifiedAbi: k('componentsUi.signing.verifiedAbiSummary'),
+		summaryDrain: k('componentsUi.signing.drainSummary'),
+		warnUnlimited: k('componentsUi.signing.unlimitedWarning'),
+		warnBlindDecode: k('componentsUi.signing.blindDecodeWarning'),
+		warnSelectorNotListed: k('componentsUi.signing.selectorNotListed'),
+		warnExpired: k('componentsUi.signing.expiredWarning'),
+		warnWillFail: k('componentsUi.signing.simWillFail'),
+		warnHexMessage: k('componentsUi.signing.hexMessageWarning'),
+		warnBlindTyped: k('componentsUi.signing.blindTypedWarning'),
+		warnEthSign: k('componentsUi.signing.ethSignWarning'),
+		bodyEthSign: k('componentsUi.signing.ethSignBody'),
+		warnSiweMismatch: k('componentsUi.signing.siweMismatch'),
+		okSiwe: k('componentsUi.signing.siweOk'),
+		warnTokenToContract: k('componentsUi.signing.tokenToContractWarning'),
+		warnUnverifiedAmount: k('componentsUi.signing.unverifiedWarning'),
+		warnApproveAll: k('componentsUi.signingApprove.setApprovalAllWarn'),
+		warnPermitCantCap: k('componentsUi.signingApprove.permitCantCap'),
+		warnBestEffort: k('componentsUi.signing.bestEffortWarning'),
+		warnVerifiedAbi: k('componentsUi.signing.verifiedAbiWarning'),
+		warnSimUnavailable: k('componentsUi.signing.simUnavailableWarning'),
+		warnDrain: k('componentsUi.signing.drainWarning'),
+		okSelfTransfer: k('componentsUi.signing.balanceSelfTransfer'),
+		okNoNetworkFee: k('componentsUi.signing.noNetworkFee'),
+		balancesTitle: k('componentsUi.signing.balanceChangesTitle'),
+		balancesMatchHero: k('componentsUi.signing.balanceMatchesHero'),
+		balancesBlindSimulated: k('componentsUi.signing.blindButSimulated'),
+		balancesBestEffort: k('componentsUi.signing.bestEffortSimulated'),
+		feeLabel: k('componentsUi.gas.networkFee'),
+		feeTokenTitle: k('componentsUi.signing.feeTokenTitle'),
+		feeEstimated: k('componentsUi.signing.feeEstimated'),
+		feeBalance: k('componentsUi.gas.rowBalance'),
+		techFunction: k('componentsUi.signing.techFunction'),
+		techParam: k('componentsUi.signing.techParam'),
+		techRawUnits: k('componentsUi.signing.techRawUnits'),
+		techRawData: k('componentsUi.signing.techRawData'),
+		techSimResult: k('componentsUi.signing.simResultLabel'),
+		techIdentityToken: k('componentsUi.signing.techIdentityToken'),
+		techIdentityRecipient: k('componentsUi.signing.techIdentityRecipient'),
+		copyValue: k('componentsUi.signing.copyValue'),
+		viewOnExplorer: k('componentsUi.signing.viewOnExplorer'),
+		byteSize: k('componentsUi.signing.byteSize'),
+		safeInnerCall: k('componentsUi.signing.safeInnerCall'),
+		batchStep: k('componentsUi.signing.batchStep'),
+		expiredValue: k('componentsUi.signing.expiredValue'),
+		sentToTokenContract: k('componentsUi.signing.sendingToTokenContract')
+	};
 }

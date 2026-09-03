@@ -125,6 +125,24 @@
     "batchImportFailedTitle": "Не удалось прочитать файл",
     "batchImportFailedBody": "Используйте файл CSV, TSV, TXT или Excel.",
     "batchCurrencyLabel": "В валюте",
-    "feeTokenLabel": "Токен комиссии"
+    "feeTokenLabel": "Токен комиссии",
+    "balanceLabel": "Баланс {{amount}}",
+    "fromContacts": "Из контактов",
+    "splitTotalLabel": "Итого",
+    "multiSendChainNotice": "Выбрана сеть {{network}} — отправка нескольких токенов идёт в одной сети, поэтому остальные затемнены",
+    "multiSendSameRecipient": "Все токены уходят на один адрес",
+    "pickContactTitle": "Выберите контакт",
+    "pickContactSearch": "Найдите контакт или вставьте адрес",
+    "scanToFill": "Отсканируйте, чтобы вставить адрес",
+    "feeTokenHint": "Оплачивает сетевую комиссию этого перевода. Оценка следует за сетью в реальном времени.",
+    "feeTokenEstimate": "Оценка комиссии",
+    "batchRateHint": "Суммы в таблице читаются как {{code}} и переводятся в {{sym}} по этому курсу.",
+    "batchParsedCount": "Разобрано · {{n}} строк",
+    "confirmTotalLine": "Итого ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "Готовим транзакцию и ждём подтверждения по биометрии",
+    "txBackgroundHint": "Если закрыть страницу, транзакция продолжится",
+    "txCloseBackground": "Закрыть · продолжить в фоне",
+    "txSubmittedTitle": "Отправлено в сеть",
+    "txConfirmedTitle": "Отправлено {{amount}} {{symbol}}"
   }
 }

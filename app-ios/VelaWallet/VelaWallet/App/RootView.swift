@@ -27,6 +27,9 @@ struct RootView: View {
     // Spec 012. `true` only for the first construction in this process — a
     // cold start (FR-008); SwiftUI never rebuilds `RootView`'s State on a
     // navigation, so there is no path back once it flips.
+    /// The wallet-flow stack (spec 021). Lives here, beside the session, so
+    /// it survives the wallet body's own re-renders.
+    @State private var flows = FlowNav()
     @State private var launching = !LaunchAnimation.isDisabled
     /// Welcome content fades IN as the launch lockup fades OUT (FR-012).
     @State private var pageOpacity: Double = LaunchAnimation.isDisabled ? 1 : 0
@@ -138,6 +141,8 @@ struct RootView: View {
             ContactsStateHost(state: .c1, loc: loc)
         case .contactsGallery:
             ContactsGalleryScreen(loc: loc)
+        case .flowsGallery:
+            FlowGalleryScreen(loc: loc)
         case .settings:
             SettingsScreen(model: SettingsFixtures.build(.st1, loc: loc), loc: loc)
         case .settingsGallery:
@@ -234,22 +239,38 @@ struct RootView: View {
     @ViewBuilder
     private var signedInOrWelcome: some View {
         if session.view.allowedRoute == .wallet {
-            WalletScreen(
-                model: WalletFixtures
-                    .buildMobileState(.h1, loc: loc)
-                    .withAddress(session.view.address)
-                    .withName(session.view.activeName),
-                loc: loc,
-                onSelectTab: { tab in
-                    // 设置 has a screen now (spec 023), and the 退出登录 row
-                    // inside it is where signing out lives. Until then the TAB
-                    // itself signed you out — which meant tapping 设置 to change
-                    // your language logged you out instead. 通讯录 and 探索 stay
-                    // on this screen rather than navigating to fixtures a
-                    // signed-in person would read as their real data.
-                    if tab == .settings { router.path.append(.settings) }
-                }
-            )
+            // Spec 021: Receive / Send / Activity / Assets, as pushed screens
+            // over this one. A stack rather than NavigationStack destinations
+            // because these are still fixtures — and because the flows push
+            // full-bleed surfaces (the scanner, the share card) that a
+            // navigation bar would frame wrongly.
+            if let state = flows.top {
+                FlowHost(
+                    model: WalletFlowFixtures.build(state, loc: loc),
+                    onBack: { flows.back() },
+                    onNavigate: { flows.push($0) }
+                )
+                .transition(.move(edge: .trailing))
+            } else {
+                WalletScreen(
+                    model: WalletFixtures
+                        .buildMobileState(.h1, loc: loc)
+                        .withAddress(session.view.address)
+                        .withName(session.view.activeName),
+                    loc: loc,
+                    onSelectTab: { tab in
+                        // 设置 has a screen now (spec 023), and the 退出登录 row
+                        // inside it is where signing out lives. Until then the
+                        // TAB itself signed you out — which meant tapping 设置
+                        // to change your language logged you out instead. 通讯录
+                        // and 探索 stay on this screen rather than navigating to
+                        // fixtures a signed-in person would read as their real
+                        // data.
+                        if tab == .settings { router.path.append(.settings) }
+                    },
+                    onFlow: { flows.enter($0) }
+                )
+            }
         } else {
             WelcomeScreen(loc: loc, model: model, signingIn: onboarding.loginView.busy)
         }
@@ -359,7 +380,9 @@ struct RootView: View {
 /// gallery; unset keeps the Welcome flow. Never part of production
 /// navigation (FR-004).
 enum PageOverride {
-    enum Page { case wallet, gallery, contacts, contactsGallery, settings, settingsGallery }
+    enum Page {
+        case wallet, gallery, contacts, contactsGallery, flowsGallery, settings, settingsGallery
+    }
 
     static let page: Page? = {
         switch ProcessInfo.processInfo.environment["VELA_PAGE"] {
@@ -367,6 +390,7 @@ enum PageOverride {
         case "gallery": .gallery
         case "contacts": .contacts
         case "contacts-gallery": .contactsGallery
+        case "flows-gallery": .flowsGallery
         case "settings": .settings
         case "settings-gallery": .settingsGallery
         default: nil

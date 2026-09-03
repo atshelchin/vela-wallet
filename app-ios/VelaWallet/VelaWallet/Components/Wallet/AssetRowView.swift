@@ -59,6 +59,8 @@ struct AssetRowView: View {
             Text(verbatim: WalletFixtures.mask)
                 .typeRole(Typography.rowSub.scaled(textScale))
                 .foregroundStyle(theme.fgMuted)
+        case .none:
+            EmptyView()
         }
     }
 }

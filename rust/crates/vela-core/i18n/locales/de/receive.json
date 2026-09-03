@@ -67,6 +67,12 @@
       "invalidTitle": "Ungültiger Zahlungslink",
       "invalidBody": "In diesem Link fehlt ein gültiger Empfänger oder ein gültiges Netzwerk. Bitten Sie den Absender um einen neuen."
     },
-    "addressLabel": "Ihre Empfangsadresse"
+    "addressLabel": "Ihre Empfangsadresse",
+    "searchNetworkPlaceholder": "Netzwerke suchen",
+    "searchNetworkEmpty": "Keine Netzwerke passen zu „{{query}}“",
+    "qrTitleNetwork": "Mit dieser Adresse Werte auf {{network}} empfangen",
+    "qrTitleAsset": "Mit dieser Adresse {{symbol}} auf {{network}} empfangen",
+    "shareCardNetworkNote": "Nur Zahlungen über {{network}}",
+    "tokenContract": "Token-Vertrag"
   }
 }

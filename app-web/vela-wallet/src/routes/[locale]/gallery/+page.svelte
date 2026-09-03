@@ -28,6 +28,9 @@
 	import GroupRow from '$lib/contacts/ui/GroupRow.svelte';
 	import PinnedCTABar from '$lib/contacts/ui/PinnedCTABar.svelte';
 	import SearchHeader from '$lib/contacts/ui/SearchHeader.svelte';
+	import IntroSlide from '$lib/ui/intro/IntroSlide.svelte';
+	import PageDots from '$lib/ui/intro/PageDots.svelte';
+	import { INTRO_SLIDES } from '$lib/intro/slides';
 	import AboutPanel from '$lib/settings/ui/AboutPanel.svelte';
 	import AccountRow from '$lib/settings/ui/AccountRow.svelte';
 	import Callout from '$lib/settings/ui/Callout.svelte';
@@ -60,6 +63,7 @@
 	const h1s = $derived(data.models.h1s);
 	const c = $derived(data.contacts);
 	const alice = $derived(c.list?.sections[0].contacts[0]);
+	const intro = $derived(data.intro);
 	const ahao = $derived(c.list?.sections[0].contacts[1]);
 	const st = $derived(data.settings);
 </script>
@@ -371,6 +375,27 @@
 			</div>
 		{/if}
 	</section>
+
+	<!-- Spec 020. The three slides side by side is the ONE view the carousel
+	     cannot give you: on a phone you see them one at a time, and whether the
+	     drawings are the same weight is a judgement about all three at once. -->
+	<section id="gallery-section-intro">
+		<h2>Intro slides · PageDots</h2>
+		<div class="board">
+			{#each INTRO_SLIDES as slide, i (slide.art)}
+				<figure id="gallery-intro-{slide.art}">
+					<IntroSlide art={slide.art} title={intro[slide.titleKey]} body={intro[slide.bodyKey]} />
+					<figcaption>{i + 1} · {slide.art}</figcaption>
+				</figure>
+			{/each}
+		</div>
+		{#each [...INTRO_SLIDES.keys()] as i (i)}
+			<div class="cell" id="gallery-intro-dots-{i}">
+				<PageDots total={INTRO_SLIDES.length} current={i} label="{i + 1} / {INTRO_SLIDES.length}" />
+			</div>
+		{/each}
+	</section>
+
 	<!-- Spec 023: the settings vocabulary. Every one of the forty mocks in
 	     design/settings/ is assembled from the components below. -->
 	<section id="gallery-section-settings-rows">

@@ -280,7 +280,7 @@
 		<TabBar tabs={model.tabs} selected={model.tab} onselect={onselecttab} />
 
 		{#if overlay !== 'none'}
-			<BottomSheet title={sheetTitle} closeLabel={model.closeLabel} tall onclose={close}>
+			<BottomSheet title={sheetTitle} closeLabel={model.closeLabel} height="tall" onclose={close}>
 				{#if sheetSubtitle !== undefined}
 					<p class="sheet-subtitle">{sheetSubtitle}</p>
 				{/if}

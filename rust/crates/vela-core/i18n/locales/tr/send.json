@@ -119,6 +119,24 @@
     "batchImportFailedTitle": "Dosya okunamadı",
     "batchImportFailedBody": "Lütfen bir CSV, TSV, TXT veya Excel dosyası kullanın.",
     "batchCurrencyLabel": "Fiyat birimi",
-    "feeTokenLabel": "Ücret token'ı"
+    "feeTokenLabel": "Ücret token'ı",
+    "balanceLabel": "Bakiye {{amount}}",
+    "fromContacts": "Kişilerden",
+    "splitTotalLabel": "Toplam",
+    "multiSendChainNotice": "{{network}} seçildi — çoklu token gönderimi tek ağda kalır, diğerleri soluklaştırıldı",
+    "multiSendSameRecipient": "Tüm tokenlar aynı adrese gider",
+    "pickContactTitle": "Kişi seç",
+    "pickContactSearch": "Kişi ara ya da adres yapıştır",
+    "scanToFill": "Adresi doldurmak için tara",
+    "feeTokenHint": "Bu transferin ağ ücretini öder. Tahmin, ağı gerçek zamanlı izler.",
+    "feeTokenEstimate": "Tahmini ücret",
+    "batchRateHint": "Tablodaki tutarlar {{code}} olarak okunur ve bu kurla {{sym}} birimine çevrilir.",
+    "batchParsedCount": "Okunan · {{n}} satır",
+    "confirmTotalLine": "Toplam ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "İşlem hazırlanıyor, biyometrik onay bekleniyor",
+    "txBackgroundHint": "Bu sayfayı kapatsanız da işlem devam eder",
+    "txCloseBackground": "Kapat · çalışmaya devam",
+    "txSubmittedTitle": "Ağa gönderildi",
+    "txConfirmedTitle": "{{amount}} {{symbol}} gönderildi"
   }
 }

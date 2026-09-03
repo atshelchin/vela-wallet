@@ -15,14 +15,25 @@
 
 	interface Props {
 		model: WalletHomeModel;
+		/** Spec 022: the web app has no 探索 — see TabBar's `destinations`. */
+		destinations?: readonly ('wallet' | 'contacts' | 'explore' | 'settings')[];
 		/** Tab selection. Absent in the gallery, where the bar is a picture. */
 		onselect?: (id: 'wallet' | 'contacts' | 'explore' | 'settings') => void;
 		/** Open the identicon viewer; absent in the gallery. */
 		onidenticon?: () => void;
 		identiconViewerLabel?: string;
+		/**
+		 * Spec 021: the dock, the two section actions and the rows are the
+		 * entries into Receive / Send / Scan / Activity / Assets. Absent in the
+		 * gallery, where this screen is a picture.
+		 */
+		onflow?: (
+			entry: 'receive' | 'send' | 'scan' | 'activity' | 'assets' | 'token-detail' | 'tx-detail'
+		) => void;
 	}
 
-	let { model, onselect, onidenticon, identiconViewerLabel }: Props = $props();
+	let { model, destinations, onselect, onidenticon, identiconViewerLabel, onflow }: Props =
+		$props();
 
 	// Pure UI state: the fixture-provided sheet, once dismissed, stays dismissed.
 	// Nothing on this screen reopens it any more — the pill that did is gone.
@@ -48,9 +59,16 @@
 			receive={model.actions.receive}
 			send={model.actions.send}
 			scan={model.actions.scan}
+			onreceive={() => onflow?.('receive')}
+			onsend={() => onflow?.('send')}
+			onscan={() => onflow?.('scan')}
 		/>
 
-		<SectionHeader title={model.activitySection.title} action={model.activitySection.action} />
+		<SectionHeader
+			title={model.activitySection.title}
+			action={model.activitySection.action}
+			onaction={() => onflow?.('activity')}
+		/>
 		{#if model.activitySection.mode === 'loading'}
 			<SkeletonRow />
 			<SkeletonRow />
@@ -65,13 +83,17 @@
 				<p class="day">{group.label}</p>
 				<ul>
 					{#each group.rows as row, i (i)}
-						<li><ActivityRow {row} /></li>
+						<li><ActivityRow {row} onclick={() => onflow?.('tx-detail')} /></li>
 					{/each}
 				</ul>
 			{/each}
 		{/if}
 
-		<SectionHeader title={model.assetsSection.title} action={model.assetsSection.action} />
+		<SectionHeader
+			title={model.assetsSection.title}
+			action={model.assetsSection.action}
+			onaction={() => onflow?.('assets')}
+		/>
 		{#if model.assetsSection.mode === 'loading'}
 			<SkeletonRow />
 			<SkeletonRow />
@@ -85,13 +107,13 @@
 		{:else}
 			<ul>
 				{#each model.assetRows as row, i (i)}
-					<li><AssetRow {row} /></li>
+					<li><AssetRow {row} onclick={() => onflow?.('token-detail')} /></li>
 				{/each}
 			</ul>
 		{/if}
 	</div>
 
-	<TabBar tabs={model.tabs} {onselect} />
+	<TabBar tabs={model.tabs} {destinations} {onselect} />
 
 	{#if showSheet && model.sheet !== undefined}
 		<BottomSheet

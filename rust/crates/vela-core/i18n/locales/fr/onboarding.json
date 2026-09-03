@@ -21,6 +21,17 @@
 			"heroTitleFit": "long",
 			"heroSubtitle": "Signez avec une passkey. Vela ne voit jamais votre clé."
 		},
+		"intro": {
+			"skip": "Passer",
+			"next": "Continuer",
+			"pageOf": "Page {{current}} sur {{total}}",
+			"noSeedTitle": "Pas de phrase à recopier",
+			"noSeedBody": "Créez votre portefeuille avec l'empreinte ou le visage de cet appareil. Aucune liste de 12 mots à recopier sur papier, ranger dans un tiroir, puis ne plus retrouver.",
+			"custodyTitle": "Les clés restent chez vous",
+			"custodyBody": "Vos clés d'accès restent là où vous les gardez : le gestionnaire de mots de passe de l'appareil, ou une clé de sécurité physique. Vela n'y touche pas et ne peut rien dépenser.",
+			"chainsTitle": "Une adresse, toutes les chaînes",
+			"chainsBody": "La même adresse fonctionne sur plus de 12 réseaux, et les frais se paient en stablecoins — inutile de stocker la monnaie native de chaque chaîne."
+		},
 		"welcomeWeb": {
 			"meta": {
 				"title": "Vela Wallet — le portefeuille à clé d'accès",

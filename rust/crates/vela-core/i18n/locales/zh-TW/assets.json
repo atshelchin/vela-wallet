@@ -22,6 +22,8 @@
     "rpcProvidersHint": "以下為免費節點服務——註冊後複製您的網址，貼到上方。",
     "rpcReport": "仍無法解決？回報給我們",
     "chainFallback": "Chain {{chainId}}",
-    "rpcFixRestored": "已恢復連線——正在重新取得該網路的餘額與記錄。"
-  }
+    "rpcFixRestored": "已恢復連線——正在重新取得該網路的餘額與記錄。",
+    "addByAddress": "用位址新增代幣",
+    "notShowingTitle": "已經收到代幣但沒有顯示？",
+    "notShowingBody": "確認到帳的轉帳會自動入帳。若代幣仍未出現，可透過合約位址手動新增，或新增對應網路。"  }
 }

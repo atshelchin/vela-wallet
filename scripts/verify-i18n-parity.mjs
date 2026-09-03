@@ -47,7 +47,7 @@ const LOCALES = ['en', 'zh', 'zh-TW', 'zh-HK', 'ja', 'ko', 'vi', 'id', 'tr', 'es
 const NAMESPACE_FILES = [
   'home', 'send', 'receive', 'assets', 'addToken', 'tokenDetail', 'history',
   'onboarding', 'connect', 'about', 'clearSigning', 'componentsTx',
-  'componentsUi', 'settingsModals', 'contacts',
+  'componentsUi', 'settingsModals', 'contacts', 'explore',
 ];
 const CORPUS = join(REPO_ROOT, 'rust/crates/vela-core/i18n/locales');
 

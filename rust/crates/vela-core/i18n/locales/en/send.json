@@ -126,6 +126,24 @@
     "batchCurrencyLabel": "Priced in",
     "batchOverBalance": "Total exceeds your {{sym}} balance.",
     "batchClose": "Close",
-    "feeTokenLabel": "Fee token"
+    "feeTokenLabel": "Fee token",
+    "balanceLabel": "Balance {{amount}}",
+    "fromContacts": "From contacts",
+    "splitTotalLabel": "Total",
+    "multiSendChainNotice": "{{network}} selected — a multi-token send stays on one network, so the others are greyed out",
+    "multiSendSameRecipient": "Every token goes to the same address",
+    "pickContactTitle": "Choose a contact",
+    "pickContactSearch": "Search contacts or paste an address",
+    "scanToFill": "Scan to fill the address",
+    "feeTokenHint": "Pays this transfer’s network fee. The estimate follows the network in real time.",
+    "feeTokenEstimate": "Estimated fee",
+    "batchRateHint": "Amounts in the sheet are read as {{code}} and converted to {{sym}} at this rate.",
+    "batchParsedCount": "Parsed · {{n}} rows",
+    "confirmTotalLine": "Total ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "Preparing the transaction and waiting for biometric confirmation",
+    "txBackgroundHint": "Closing this page keeps the transaction running",
+    "txCloseBackground": "Close · keep running",
+    "txSubmittedTitle": "Submitted to the network",
+    "txConfirmedTitle": "Sent {{amount}} {{symbol}}"
   }
 }

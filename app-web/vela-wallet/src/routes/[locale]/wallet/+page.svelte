@@ -32,6 +32,21 @@
 	import { session } from '$lib/session/core/session.svelte';
 	import { identiconSvgForClient } from '$lib/wallet/identicon';
 	import { desktopWithIdentity, homeWithIdentity, type WalletIdentity } from '$lib/wallet/identity';
+	import FlowsMobile from '$lib/flows/FlowsMobile.svelte';
+	import FlowsPanel from '$lib/flows/FlowsPanel.svelte';
+	import ScanSurface from '$lib/flows/ui/ScanSurface.svelte';
+	import { FlowNav, type FlowEntry } from '$lib/flows/nav.svelte';
+
+	/** The sidebar's own copy of the rule above: three rows, not four. */
+	function webNav(model: typeof data.desktop) {
+		return {
+			...model,
+			sidebar: {
+				...model.sidebar,
+				nav: model.sidebar.nav.filter((item) => item.id !== 'explore')
+			}
+		};
+	}
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -66,8 +81,42 @@
 	 */
 	let viewing = $state(false);
 
+	/**
+	 * Spec 021: Receive / Send / Activity / Assets, as pushed screens inside
+	 * this route. `flows` and `desktopFlows` arrive prerendered from `load`;
+	 * this only decides which one is showing.
+	 */
+	const nav = new FlowNav();
+	const flowState = $derived(nav.mobileTop);
+	const desktopFlow = $derived(nav.desktopTop);
+
+	/**
+	 * The destinations THIS client has (spec 022 founder call).
+	 *
+	 * 探索 is the in-app dApp browser, and this client already lives inside a
+	 * browser: a page cannot host another site's dApp with a wallet injected
+	 * into it, so there is nothing behind that tab here. The native clients
+	 * have it; the web shows three tabs rather than a fourth that opens
+	 * nothing. The explore/signing vocabulary still ships — the gallery boards
+	 * are the design source all four clients are reviewed against.
+	 */
+	const DESTINATIONS = ['wallet', 'contacts', 'settings'] as const;
+
 	onMount(() => {
 		void session.boot();
+	});
+
+	/**
+	 * The browser's Back unwinds the flow stack before it leaves the wallet.
+	 * `FlowNav` pushed a history entry for every step, so each `popstate` here
+	 * corresponds to exactly one of them.
+	 */
+	onMount(() => {
+		const onpop = () => {
+			if (nav.open) nav.back();
+		};
+		addEventListener('popstate', onpop);
+		return () => removeEventListener('popstate', onpop);
 	});
 
 	// The route guard's other half. `loading` is deliberately not acted on: the
@@ -85,6 +134,10 @@
 	function select(id: 'wallet' | 'contacts' | 'explore' | 'settings') {
 		if (id === 'settings') void goto(settings);
 	}
+
+	function enter(entry: FlowEntry) {
+		nav.enter(entry);
+	}
 </script>
 
 <svelte:head>
@@ -94,18 +147,47 @@
 
 {#if identity}
 	{#if wide.current}
-		<WalletDesktop
-			model={desktopWithIdentity(data.desktop, identity)}
-			onnav={select}
-			onidenticon={() => (viewing = true)}
-			identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
+		<div class="desktop-shell">
+			<WalletDesktop
+				model={webNav(desktopWithIdentity(data.desktop, identity))}
+				onnav={select}
+				onidenticon={() => (viewing = true)}
+				identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
+				onflow={enter}
+			/>
+			<!-- `ds1` is the one flow the third column cannot host: a viewfinder
+			     in a narrow strip is the wrong shape, so the desktop shows the
+			     scanner as a centred modal (DS1L). -->
+			{#if desktopFlow !== undefined && desktopFlow !== 'ds1'}
+				<FlowsPanel
+					model={data.desktopFlows[desktopFlow]}
+					onback={() => nav.back()}
+					onclose={() => nav.close()}
+					onnavigate={(to) => nav.push(to)}
+				/>
+			{/if}
+		</div>
+		{#if desktopFlow === 'ds1'}
+			<div class="scan-scrim" role="presentation">
+				<div class="scan-modal">
+					<ScanSurface model={data.desktopScan} variant="modal" onclose={() => nav.close()} />
+				</div>
+			</div>
+		{/if}
+	{:else if flowState !== undefined}
+		<FlowsMobile
+			model={data.flows[flowState]}
+			onback={() => nav.back()}
+			onnavigate={(to) => nav.push(to)}
 		/>
 	{:else}
 		<WalletHome
 			model={homeWithIdentity(data.home, identity)}
+			destinations={DESTINATIONS}
 			onselect={select}
 			onidenticon={() => (viewing = true)}
 			identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
+			onflow={enter}
 		/>
 	{/if}
 {:else}
@@ -135,5 +217,30 @@
 	.waiting {
 		min-height: 100dvh;
 		background: var(--color-bg-base);
+	}
+
+	/* The desktop keeps the wallet visible behind the third column — that is
+	   the whole point of a column over a pushed screen. */
+	.desktop-shell {
+		display: flex;
+		height: 100dvh;
+		overflow: hidden;
+	}
+
+	.scan-scrim {
+		position: fixed;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-fixed-backdrop);
+	}
+
+	.scan-modal {
+		width: min(90vw, calc(var(--size-qrCard) + var(--space-5xl) * 2));
+		border-radius: var(--radius-2xl);
+		background: var(--color-bg-base);
+		box-shadow: var(--shadow-lg);
+		overflow: hidden;
 	}
 </style>

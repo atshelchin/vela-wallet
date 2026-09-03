@@ -133,6 +133,34 @@
 	--layout-settingsDialogW: 520px; /* web addition: spec 023: the centred desktop dialog (DST4b / DSR1), measured 520 — wide enough for a URL in the mono face without becoming a second page */
 	--layout-flowColumn: 440px; /* web addition: spec 019: the v2 onboarding flow column. The design centres every step in one column of this width at every viewport; the Welcome hero is the only wider one */
 	--layout-welcomeColumn: 620px; /* web addition: spec 019: the v2 Welcome column, wider than the flow it starts */
+	--text-introTitle: 28px; /* web addition: spec 020: the intro slide headline. Measured 28 on the boards, and the DTCG scale steps 26 -> 32 straight past it */
+	--text-introBody: 16px; /* web addition: spec 020: the intro slide's supporting paragraph. Measured 16 — a step above the 15 the Welcome subtitle uses, because this copy is the slide's whole point rather than a line under a headline */
+	--size-introArtW: 160px; /* web addition: spec 020: the illustration box. One size for all three slides, so the artwork does not resize as the carousel pages */
+	--size-introArtH: 128px; /* web addition: spec 020: the illustration box, see size-introArtW */
+	--layout-introGapTitle: 64px; /* web addition: spec 020: headline to illustration, measured off the boards */
+	--layout-introGapBody: 72px; /* web addition: spec 020: illustration to body copy, measured off the boards */
+	--layout-introBodyMeasure: 320px; /* web addition: spec 020: the body's line length. Narrower than the content column — the boards wrap this copy well inside the 24px screen padding */
+	--size-introDot: 8px; /* web addition: spec 020: one page dot; the gap between two is the same 8 */
+	--size-qrCard: 344px; /* web addition: spec 021: the receive QR card, measured 344x344 in R2. Fixed, NOT fluid — the SPEC sheet pins it at 1.35x text scale too, because a QR that shrinks with its caption stops scanning */
+	--size-statusHero: 88px; /* web addition: spec 021: the send-receipt status circle, measured 88 in SD4a/SD4c. One size for all four outcomes so the disc does not resize as the transaction moves through them */
+	--size-chainBadge: 40px; /* web addition: spec 021: the network-row chain badge, measured 40 in R1. Larger than the 32 token icon because this row IS the network, not a token that happens to be on one */
+	--layout-shareCardW: 480px; /* web addition: spec 021: the receive share card (R4) — a render product saved to the photo library, so its geometry is fixed rather than responsive */
+	--layout-shareCardH: 700px; /* web addition: spec 021: the receive share card, see layout-shareCardW */
+	--size-siteTile: 56px; /* web addition: spec 022: favourites tile avatar, measured 56 in E2 (x33–88) */
+	--size-siteRow: 40px; /* web addition: spec 022: site-row avatar, measured 40 in E2 recent rows */
+	--size-searchField: 48px; /* web addition: spec 022: start-page search box, measured 48 in E2 (y116–163) */
+	--size-addressPill: 40px; /* web addition: spec 022: browsing address pill, measured 40 in E4 */
+	--size-browserBar: 56px; /* web addition: spec 022: browsing toolbar row, measured 56 in E4 */
+	--size-signingAvatar: 36px; /* web addition: spec 022: dApp avatar in the signing header, measured 36 in CS1 */
+	--size-networkChip: 26px; /* web addition: spec 022: the network chip beside it, measured 26 in CS1 */
+	--size-slideTrack: 56px; /* web addition: spec 022: slide-to-confirm track, measured 342x56 in CS1 */
+	--size-slideKnob: 48px; /* web addition: spec 022: its knob; the 4px inset either side is what makes the travel W-56 */
+	--size-tabCount: 26px; /* web addition: spec 022: the boxed tab count — the header chip in E2 and the toolbar box in E4 are the same square */
+	--size-desktopTabStrip: 36px; /* web addition: spec 022: desktop tab strip height, measured 36 in DE3 */
+	--size-desktopTab: 32px; /* web addition: spec 022: one desktop tab inside it */
+	--size-desktopToolbar: 56px; /* web addition: spec 022: desktop browser toolbar, measured 56 in DE3 */
+	--size-desktopControl: 32px; /* web addition: spec 022: its icon buttons and address field */
+	--layout-desktopTabW: 200px; /* web addition: spec 022: one desktop tab’s width, measured in DE3 */
 	--layout-contactsRailW: 216px; /* web addition: spec 018 research D9: desktop group-rail width (DC1) */
 	--layout-contactsMenuW: 216px; /* web addition: spec 018 research D9: dropdown/context menu width (M1/M2) */
 	--color-onAccent: #FFFFFF; /* web addition: CTA label on accent.base, white in BOTH modes per mocks (fg.inverse flips) */

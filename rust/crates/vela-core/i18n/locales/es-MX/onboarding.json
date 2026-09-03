@@ -21,6 +21,17 @@
 			"heroTitleFit": "long",
 			"heroSubtitle": "Firma con una passkey. Vela nunca ve tu clave."
 		},
+		"intro": {
+			"skip": "Omitir",
+			"next": "Continuar",
+			"pageOf": "Página {{current}} de {{total}}",
+			"noSeedTitle": "Sin frase de recuperación",
+			"noSeedBody": "Crea tu cartera con la huella o el rostro de este dispositivo. No hay 12 palabras que copiar en papel, guardar en un cajón y un día no encontrar.",
+			"custodyTitle": "Las llaves se quedan contigo",
+			"custodyBody": "Tus llaves de acceso viven donde tú las guardas: el gestor de contraseñas del dispositivo o una llave de seguridad física. Vela no puede tocarlas ni gastar por ti.",
+			"chainsTitle": "Una dirección, todas las redes",
+			"chainsBody": "La misma dirección sirve en más de 12 redes y las comisiones se pagan con stablecoins: no hace falta guardar la moneda nativa de cada cadena."
+		},
 		"welcomeWeb": {
 			"meta": {
 				"title": "Vela Wallet — la billetera con passkey",

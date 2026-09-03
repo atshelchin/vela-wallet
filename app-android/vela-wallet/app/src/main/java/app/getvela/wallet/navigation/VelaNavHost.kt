@@ -42,6 +42,12 @@ import app.getvela.wallet.feature.onboarding.flow.UsbPinDialog
 import app.getvela.wallet.feature.onboarding.flow.UsbTouchIndicator
 import app.getvela.wallet.feature.onboarding.flow.UsbWalletPicker
 import app.getvela.wallet.feature.onboarding.placeholder.ImportPlaceholderScreen
+import androidx.activity.compose.BackHandler
+import app.getvela.wallet.feature.flows.FlowFixtures
+import app.getvela.wallet.feature.flows.FlowHost
+import app.getvela.wallet.feature.flows.gallery.FlowGalleryScreen
+import app.getvela.wallet.feature.flows.WalletFlowEntry
+import app.getvela.wallet.feature.flows.rememberFlowNavState
 import app.getvela.wallet.feature.settings.SettingsActions
 import app.getvela.wallet.feature.settings.SettingsFixtures
 import app.getvela.wallet.feature.settings.SettingsRoute
@@ -66,6 +72,13 @@ object VelaDestinations {
     const val CONTACTS = "contacts"
     const val CONTACTS_GALLERY = "contacts-gallery"
 
+    /**
+     * Spec 021: the wallet-flow preview gallery. The flows THEMSELVES are not
+     * destinations — they are a stack inside [WALLET], because they are still
+     * fixtures and a `composable(...)` per state would put them in the app's
+     * real back stack and let `vela.startDestination` launch one.
+     */
+    const val FLOWS_GALLERY = "flows-gallery"
     // Spec 023: the settings screen a signed-in person reaches from the tab bar,
     // plus its preview gallery.
     const val SETTINGS = "settings"
@@ -80,6 +93,7 @@ object VelaDestinations {
         GALLERY,
         CONTACTS,
         CONTACTS_GALLERY,
+        FLOWS_GALLERY,
         SETTINGS,
         SETTINGS_GALLERY,
     )
@@ -91,6 +105,7 @@ fun VelaNavHost(
     themePreference: ThemePreference,
     onThemeSelected: (ThemePreference) -> Unit,
     startDestination: String = VelaDestinations.WELCOME,
+    startFlowState: String? = null,
     settingsState: String? = null,
     settingsDark: Boolean? = null,
 ) {
@@ -229,18 +244,42 @@ fun VelaNavHost(
                 WalletFixtures.buildMobileState(WalletScreenState.H1, strings)
                     .withAddress(session.address).withName(session.activeName)
             }
-            WalletScreen(
-                model = model,
-                onSelectTab = { tab ->
-                    // 设置 has a screen now (spec 023), and the 退出登录 row
-                    // inside it is where signing out lives. Until then the TAB
-                    // itself signed you out — which meant tapping 设置 to change
-                    // your language logged you out instead. 通讯录 and 探索 stay
-                    // on this screen rather than navigating to fixtures a
-                    // signed-in person would read as their real data.
-                    if (tab == VelaTab.Settings) navController.push(VelaDestinations.SETTINGS)
-                },
-            )
+            // Spec 021: Receive / Send / Activity / Assets, as pushed screens
+            // inside this route. The system Back unwinds the flow stack before
+            // it leaves the wallet — on a phone that is the most common way out
+            // of a flow, and losing the whole wallet from four screens deep is
+            // not what the gesture means.
+            val flows = rememberFlowNavState()
+            BackHandler(enabled = flows.isOpen) { flows.back() }
+
+            val flowState = flows.top
+            if (flowState != null) {
+                val flowModel = remember(flowState, strings) {
+                    FlowFixtures.build(flowState, strings)
+                }
+                FlowHost(
+                    model = flowModel,
+                    onBack = { flows.back() },
+                    onNavigate = { flows.push(it) },
+                )
+            } else {
+                WalletScreen(
+                    model = model,
+                    onSelectTab = { tab ->
+                        // 设置 has a screen now (spec 023), and the 退出登录 row
+                        // inside it is where signing out lives. Until then the
+                        // TAB itself signed you out — which meant tapping 设置
+                        // to change your language logged you out instead. 通讯录
+                        // and 探索 stay on this screen rather than navigating to
+                        // fixtures a signed-in person would read as their real
+                        // data.
+                        if (tab == VelaTab.Settings) {
+                            navController.push(VelaDestinations.SETTINGS)
+                        }
+                    },
+                    onFlow = { flows.enter(it) },
+                )
+            }
         }
 
         composable(VelaDestinations.GALLERY) {
@@ -302,6 +341,10 @@ fun VelaNavHost(
                 systemDarkTheme = settingsDark ?: darkTheme,
                 initialState = settingsState,
             )
+        }
+
+        composable(VelaDestinations.FLOWS_GALLERY) {
+            FlowGalleryScreen(systemDarkTheme = darkTheme, initialState = startFlowState)
         }
     }
 
@@ -423,10 +466,11 @@ private fun android.content.Context.openUrl(url: String) {
 }
 
 /** Reached only by the `vela.startDestination` extra; the guard leaves them alone. */
-private val DEVELOPER_ROUTES = setOf(
+internal val DEVELOPER_ROUTES = setOf(
     VelaDestinations.GALLERY,
     VelaDestinations.CONTACTS_GALLERY,
     VelaDestinations.CONTACTS,
+    VelaDestinations.FLOWS_GALLERY,
     VelaDestinations.SETTINGS_GALLERY,
     VelaDestinations.IMPORT,
 )

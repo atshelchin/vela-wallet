@@ -37,6 +37,8 @@
     "errorAddNetwork": "添加网络失败。",
     "errorAlreadyAdded": "该网络已添加",
     "errorChainNotFound": "未找到链信息",
-    "errorNotCompatible": "与 Vela Wallet 不兼容"
+    "errorNotCompatible": "与 Vela Wallet 不兼容",
+    "invalidAddress": "无效的合约地址",
+    "notCompatible": "不兼容"
   }
 }

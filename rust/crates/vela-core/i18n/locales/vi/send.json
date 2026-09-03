@@ -119,6 +119,24 @@
     "batchImportFailedTitle": "Không đọc được tệp",
     "batchImportFailedBody": "Vui lòng dùng tệp CSV, TSV, TXT hoặc Excel.",
     "batchCurrencyLabel": "Định giá bằng",
-    "feeTokenLabel": "Token trả phí"
+    "feeTokenLabel": "Token trả phí",
+    "balanceLabel": "Số dư {{amount}}",
+    "fromContacts": "Từ danh bạ",
+    "splitTotalLabel": "Tổng cộng",
+    "multiSendChainNotice": "Đã chọn {{network}} — gửi nhiều token phải cùng một mạng, nên các mạng khác bị mờ đi",
+    "multiSendSameRecipient": "Mọi token đều được gửi tới cùng một địa chỉ",
+    "pickContactTitle": "Chọn liên hệ",
+    "pickContactSearch": "Tìm liên hệ hoặc dán địa chỉ",
+    "scanToFill": "Quét mã để điền địa chỉ",
+    "feeTokenHint": "Dùng để trả phí mạng cho lần chuyển này. Ước tính bám theo mạng theo thời gian thực.",
+    "feeTokenEstimate": "Phí ước tính",
+    "batchRateHint": "Số tiền trong bảng được đọc theo {{code}} và quy đổi sang {{sym}} theo tỷ giá này.",
+    "batchParsedCount": "Đã đọc · {{n}} dòng",
+    "confirmTotalLine": "Tổng ≈ {{fiat}} · {{network}}",
+    "txPreparingBiometric": "Đang chuẩn bị giao dịch và chờ xác nhận sinh trắc học",
+    "txBackgroundHint": "Đóng trang này thì giao dịch vẫn chạy tiếp",
+    "txCloseBackground": "Đóng · vẫn chạy tiếp",
+    "txSubmittedTitle": "Đã gửi lên mạng",
+    "txConfirmedTitle": "Đã gửi {{amount}} {{symbol}}"
   }
 }

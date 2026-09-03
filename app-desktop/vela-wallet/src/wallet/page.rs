@@ -47,10 +47,13 @@ use crate::window_frame::{
 use super::WalletStrings;
 use super::components::{
     action_pill, activity_row, asset_row, balance_display, chain_row, empty_state, icon_img,
-    identicon_avatar, nav_row, qr_placeholder, section_header, sidebar_search, skeleton_row,
-    token_icon, wallet_header,
+    identicon_avatar, nav_row, qr_placeholder, section_header, section_header_parts,
+    section_header_row, sidebar_search, skeleton_row, token_icon, wallet_header,
 };
 use super::fixtures::{self, ADDRESS_FULL, IDENTICON_BOARD_SEEDS, WALLET_NAME};
+use crate::flows::{
+    FlowEntry, FlowPanel, FlowStep, FlowStrings, fixtures as flow_fixtures, panels,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PanelId {
@@ -59,6 +62,9 @@ pub enum PanelId {
     AssetDetail,
     /// Spec 018 DC2 — the contacts third-column content.
     ContactDetail,
+    /// Spec 021 — whatever is on top of `flows`. The stack is the state; this
+    /// variant only says the column belongs to it.
+    Flow,
 }
 
 /// What the contacts header row adds on top so its search field, buttons and
@@ -162,6 +168,13 @@ impl GalleryTab {
         (GalleryTab::Identicons, "Identicons"),
     ];
 
+    /// Spec 021's chips are generated from `FlowPanel::ALL` rather than listed
+    /// again here, so a state cannot be added to the matrix and forgotten in
+    /// the gallery.
+    fn flow_chips() -> impl Iterator<Item = (FlowPanel, &'static str)> {
+        FlowPanel::ALL.into_iter()
+    }
+
     /// The contacts state code this chip reproduces, if any
     /// (data-model.md §Screen states — `dc1`…`dc6`).
     /// The chip `VELA_SETTINGS_STATE` names, if it names one.
@@ -221,6 +234,14 @@ pub struct WalletPage {
     /// Which localization dropdown is open (DST3), by form-row id.
     settings_open_dropdown: Option<&'static str>,
     panel: PanelId,
+    /// Spec 021: the open flow panels, deepest last. Empty means no flow.
+    ///
+    /// A stack, not a single id — the mocks stack: Receive opens a network list
+    /// and a network opens its QR; Send runs picker → form → confirm → receipt.
+    /// DR2L, DA2L, DT3L and DSD2L all draw a back chevron, and a chevron has to
+    /// lead somewhere.
+    flows: Vec<FlowPanel>,
+    flow_strings: FlowStrings,
     /// `None` = 全部联系人; `Some(i)` = the group view for `GROUPS[i]` (DC4).
     group: Option<usize>,
     /// Which contact the third column shows (index into the canon roster).
@@ -348,11 +369,19 @@ impl WalletPage {
             contacts,
             settings,
             section,
+            panel: if FlowPanel::from_env().is_some() {
+                PanelId::Flow
+            } else {
+                PanelId::None
+            },
+            flows: FlowPanel::from_env()
+                .map(FlowPanel::stack)
+                .unwrap_or_default(),
+            flow_strings: FlowStrings::resolve(&loc),
             settings_page: SettingsPage::Account,
             settings_dialog: None,
             settings_expanded_network: None,
             settings_open_dropdown: None,
-            panel: PanelId::None,
             group: None,
             contact: 0,
             contacts_empty: false,
@@ -505,7 +534,7 @@ impl WalletPage {
                 .flex()
                 .items_center()
                 .justify_center()
-                .bg(theme.bg_base.opacity(0.55))
+                .bg(theme.backdrop)
                 .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .child(card)
                 .into_any_element(),
@@ -640,28 +669,49 @@ impl WalletPage {
                     self.strings.action_receive.clone(),
                 )
                 .on_click(cx.listener(|this, _, _, cx| {
-                    this.panel = PanelId::Receive;
+                    this.enter_flow(FlowEntry::Receive);
                     cx.notify();
                 })),
             )
-            .child(action_pill(
-                "pill-send",
-                theme,
-                &mut self.icons,
-                Icon::ArrowUpRight,
-                self.strings.action_send.clone(),
-            ))
-            .child(action_pill(
-                "pill-scan",
-                theme,
-                &mut self.icons,
-                Icon::ScanLine,
-                self.strings.action_scan.clone(),
-            ));
+            .child(
+                action_pill(
+                    "pill-send",
+                    theme,
+                    &mut self.icons,
+                    Icon::ArrowUpRight,
+                    self.strings.action_send.clone(),
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.enter_flow(FlowEntry::Send);
+                    cx.notify();
+                })),
+            )
+            .child(
+                action_pill(
+                    "pill-scan",
+                    theme,
+                    &mut self.icons,
+                    Icon::ScanLine,
+                    self.strings.action_scan.clone(),
+                )
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.enter_flow(FlowEntry::Scan);
+                    cx.notify();
+                })),
+            );
 
         let mut activity_col = div().flex().flex_col();
-        for row in &activity {
-            activity_col = activity_col.child(activity_row(theme, &mut self.icons, row));
+        for (i, row) in activity.iter().enumerate() {
+            activity_col = activity_col.child(
+                div()
+                    .id(ElementId::from(("activity", i)))
+                    .cursor_pointer()
+                    .child(activity_row(theme, &mut self.icons, row))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.enter_flow(FlowEntry::TxDetail);
+                        cx.notify();
+                    })),
+            );
         }
 
         let mut assets_col = div().flex().flex_col();
@@ -687,9 +737,45 @@ impl WalletPage {
             .flex_col()
             .child(balance_display(theme, &mut self.icons, &balance))
             .child(pills)
-            .child(section_header(theme, &mut self.icons, s_activity, s_all))
+            .child(
+                div()
+                    .id("section-activity")
+                    .cursor_pointer()
+                    .child(section_header(theme, &mut self.icons, s_activity, s_all))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.enter_flow(FlowEntry::Activity);
+                        cx.notify();
+                    })),
+            )
             .child(activity_col)
-            .child(section_header(theme, &mut self.icons, s_assets, s_add))
+            .child({
+                // The two halves lead to two different panels: the title names
+                // the assets list, and the action reads 添加, so it opens the
+                // add-token panel stacked on it — which is what makes DT3L's
+                // back chevron lead somewhere.
+                let (title, action) = section_header_parts(theme, &mut self.icons, s_assets, s_add);
+                section_header_row()
+                    .child(
+                        div()
+                            .id("section-assets")
+                            .cursor_pointer()
+                            .child(title)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.enter_flow(FlowEntry::Assets);
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        div()
+                            .id("section-assets-add")
+                            .cursor_pointer()
+                            .child(action)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.enter_flow(FlowEntry::AddToken);
+                                cx.notify();
+                            })),
+                    )
+            })
             .child(assets_col)
     }
 
@@ -1208,6 +1294,43 @@ impl WalletPage {
         body: Div,
         cx: &mut Context<Self>,
     ) -> Div {
+        self.panel_scaffold_with(theme, title, None, false, body, cx)
+    }
+
+    /// `panel_scaffold`, with the two things the flow panels need: a chevron
+    /// beside the title inside the SAME bar (the mocks draw one row, not a
+    /// close floating above a title), and the hairline the flow mocks rule
+    /// under it.
+    fn panel_scaffold_with(
+        &mut self,
+        theme: &Theme,
+        title: SharedString,
+        lead: Option<gpui::AnyElement>,
+        underline: bool,
+        body: Div,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let mut heading = div().flex().items_center().gap(px(6.));
+        if let Some(lead) = lead {
+            heading = heading.child(lead);
+        }
+        heading = heading.child(
+            div()
+                .text_size(theme::text_panel_title())
+                .font_weight(gpui::FontWeight::BOLD)
+                .text_color(theme.fg_base)
+                .child(title),
+        );
+        let mut bar = div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .px(px(20.))
+            .pt(px(SIDEBAR_TOP))
+            .pb(px(8.));
+        if underline {
+            bar = bar.border_b_1().border_color(theme.divider);
+        }
         div()
             .w(px(THIRD_PANEL_W))
             .h_full()
@@ -1218,40 +1341,26 @@ impl WalletPage {
             .flex()
             .flex_col()
             .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .px(px(20.))
-                    .pt(px(SIDEBAR_TOP))
-                    .pb(px(8.))
-                    .child(
-                        div()
-                            .text_size(theme::text_panel_title())
-                            .font_weight(gpui::FontWeight::BOLD)
-                            .text_color(theme.fg_base)
-                            .child(title),
-                    )
-                    .child(
-                        div()
-                            .id("panel-close")
-                            .w(px(32.))
-                            .h(px(32.))
-                            .rounded(px(16.))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .cursor_pointer()
-                            .hover(|el| el.bg(theme.bg_sunken))
-                            .child(crate::wallet::components::close_icon(
-                                theme,
-                                &mut self.icons,
-                            ))
-                            .on_click(cx.listener(|this, _, _, cx| {
-                                this.panel = PanelId::None;
-                                cx.notify();
-                            })),
-                    ),
+                bar.child(heading).child(
+                    div()
+                        .id("panel-close")
+                        .w(px(32.))
+                        .h(px(32.))
+                        .rounded(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .hover(|el| el.bg(theme.bg_sunken))
+                        .child(crate::wallet::components::close_icon(
+                            theme,
+                            &mut self.icons,
+                        ))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.panel = PanelId::None;
+                            cx.notify();
+                        })),
+                ),
             )
             .child(
                 div()
@@ -1262,6 +1371,118 @@ impl WalletPage {
                     .pb(px(20.))
                     .child(body),
             )
+    }
+
+    /// The flow column: spec 015's panel scaffold plus the back chevron the
+    /// wallet-2 mocks draw beside the title.
+    fn flow_scaffold(
+        &mut self,
+        theme: &Theme,
+        title: SharedString,
+        back: Option<SharedString>,
+        body: Div,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        // The root of a flow has nowhere to step back TO — closing the column
+        // and stepping back one level are different gestures, and only the
+        // close button should offer the first.
+        let Some(_label) = back else {
+            return self.panel_scaffold_with(theme, title, None, true, body, cx);
+        };
+        let chevron = div()
+            .id("flow-back")
+            .w(px(28.))
+            .h(px(28.))
+            .rounded(px(14.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .cursor_pointer()
+            .hover(|el| el.bg(theme.bg_sunken))
+            .child(crate::wallet::components::icon_img(
+                &mut self.icons,
+                Icon::ChevronLeft,
+                false,
+                theme.fg_muted,
+                16.,
+            ))
+            .on_click(cx.listener(|this, _, _, cx| {
+                this.flows.pop();
+                if this.flows.is_empty() {
+                    this.panel = PanelId::None;
+                }
+                cx.notify();
+            }));
+        self.panel_scaffold_with(
+            theme,
+            title,
+            Some(chevron.into_any_element()),
+            true,
+            body,
+            cx,
+        )
+    }
+
+    /// Open a flow from the wallet home (spec 021 SC-002).
+    fn enter_flow(&mut self, entry: FlowEntry) {
+        self.flows = FlowPanel::entry(entry);
+        self.panel = PanelId::Flow;
+    }
+
+    /// Take one step deeper into the open flow.
+    ///
+    /// `FlowPanel::step` is the only place that knows where a step leads, so a
+    /// step the mocks do not draw is a no-op here rather than a wrong panel.
+    fn push_step(&mut self, step: FlowStep) {
+        let Some(current) = self.flows.last().copied() else {
+            return;
+        };
+        if let Some(next) = current.step(step) {
+            self.flows.push(next);
+        }
+    }
+
+    /// One bound listener that pushes `step` onto the flow stack.
+    fn step_action(step: FlowStep, cx: &mut Context<Self>) -> panels::Click {
+        Box::new(cx.listener(move |this, _: &gpui::ClickEvent, _, cx| {
+            this.push_step(step);
+            cx.notify();
+        }))
+    }
+
+    /// The listeners this panel's affordances answer to.
+    ///
+    /// Bound from `FlowPanel::step`, so an affordance is live exactly when the
+    /// mocks draw somewhere for it to go — the chevron and the destination
+    /// cannot drift apart.
+    fn flow_actions(panel: FlowPanel, cx: &mut Context<Self>) -> panels::PanelActions {
+        let bind = |step: FlowStep, cx: &mut Context<Self>| {
+            panel.step(step).map(|_| Self::step_action(step, cx))
+        };
+        let mut actions = panels::PanelActions {
+            open_qr: bind(FlowStep::ReceiveQr, cx),
+            open_tx: bind(FlowStep::TxDetail, cx),
+            open_send_form: bind(FlowStep::SendForm, cx),
+            open_fee_token: bind(FlowStep::FeeToken, cx),
+            open_contact_pick: bind(FlowStep::ContactPick, cx),
+            open_add_token: bind(FlowStep::AddToken, cx),
+            open_scan: bind(FlowStep::Scan, cx),
+            add_recipient: bind(FlowStep::AddRecipient, cx),
+            open_batch_import: bind(FlowStep::BatchImport, cx),
+            advance: bind(FlowStep::SendConfirm, cx).or(bind(FlowStep::SendReceipt, cx)),
+        };
+        // DSD4's CTA is "close · keep running": the transfer outlives the
+        // panel, so the last step out of the flow is out of the column.
+        if panel == FlowPanel::Dsd4 {
+            actions.advance = Some(Box::new(cx.listener(
+                |this, _: &gpui::ClickEvent, _, cx| {
+                    this.flows.clear();
+                    this.panel = PanelId::None;
+                    cx.notify();
+                },
+            )));
+        }
+        actions
     }
 
     fn receive_body(&mut self, theme: &Theme) -> Div {
@@ -1522,6 +1743,15 @@ impl WalletPage {
     /// One gallery chip = one mock state (FR-004: ≤ 2 interactions from the
     /// gallery root). Every field the mocks differ in is set here, so the
     /// states cannot leak into each other.
+    /// Gallery-only: show one flow panel, with the stack the mocks imply so
+    /// its back chevron behaves the way it does in the app.
+    fn select_flow(&mut self, panel: FlowPanel) {
+        self.section = Section::Wallet;
+        self.menu = None;
+        self.flows = panel.stack();
+        self.panel = PanelId::Flow;
+    }
+
     fn select_tab(&mut self, tab: GalleryTab, window: &Window) {
         self.tab = tab;
         self.section = match tab {
@@ -1543,6 +1773,7 @@ impl WalletPage {
             | GalleryTab::Dsr1 => Section::Settings,
             _ => Section::Wallet,
         };
+        self.flows.clear();
         // Spec 023: which panel, which dialog, and which row is expanded — set
         // together so one chip is one mock and the states cannot leak.
         self.settings_page = match tab {
@@ -1616,6 +1847,22 @@ impl WalletPage {
                         this.select_tab(tab, window);
                         cx.notify();
                     })),
+            );
+        }
+        // Spec 021's nineteen chips, generated from the matrix.
+        for (i, (panel, label)) in GalleryTab::flow_chips().enumerate() {
+            let active = self.panel == PanelId::Flow && self.flows.last() == Some(&panel);
+            bar = bar.child(
+                self.chip(
+                    ElementId::from(("flow-tab", i)),
+                    theme,
+                    label.into(),
+                    active,
+                )
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.select_flow(panel);
+                    cx.notify();
+                })),
             );
         }
         let mode_label: SharedString = match self.theme_mode() {
@@ -3191,6 +3438,28 @@ impl WalletPage {
                 let title = self.contacts.section_contacts.clone();
                 columns.child(self.panel_scaffold(theme, title, body, cx))
             }
+            PanelId::Flow => match self.flows.last().copied() {
+                // DS1L is a centred modal over the window, not a column — the
+                // page root draws it; see `scan_overlay`.
+                None | Some(FlowPanel::Ds1) => columns,
+                Some(panel) => {
+                    let body = flow_fixtures::body(panel, &self.flow_strings);
+                    let title = flow_fixtures::panel_title(panel, &self.flow_strings);
+                    let actions = Self::flow_actions(panel, cx);
+                    let rendered = panels::render(
+                        &body,
+                        theme,
+                        &mut self.icons,
+                        &mut self.identicons,
+                        actions,
+                    );
+                    // The chevron appears only once the column is more than one
+                    // level deep: closing the whole column is not the same
+                    // gesture as stepping back one.
+                    let back = (self.flows.len() > 1).then(|| self.flow_strings.back.clone());
+                    columns.child(self.flow_scaffold(theme, title, back, rendered, cx))
+                }
+            },
         };
         columns
     }
@@ -3198,6 +3467,40 @@ impl WalletPage {
     /// The anchored menu overlay (DC5/DC6). Appended last in the page root and
     /// deferred so it paints above the columns; `occlude` keeps clicks off the
     /// list underneath and `on_mouse_down_out` dismisses it (research.md D2).
+    /// DS1L — the scanner, centred over a dimmed window.
+    ///
+    /// The one flow the third column does not host: a scanner is a viewfinder,
+    /// and a 400px column is the wrong shape for one. Same scrim idiom as the
+    /// sign-out dialog.
+    fn scan_overlay(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        if self.flows.last() != Some(&FlowPanel::Ds1) {
+            return None;
+        }
+        let flow_fixtures::FlowBody::Scan(model) =
+            flow_fixtures::body(FlowPanel::Ds1, &self.flow_strings)
+        else {
+            return None;
+        };
+        let card = panels::scan_modal(&model, theme, &mut self.icons);
+        Some(
+            div()
+                .id("scan-scrim")
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(theme.backdrop)
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.flows.clear();
+                    this.panel = PanelId::None;
+                    cx.notify();
+                }))
+                .child(card)
+                .into_any_element(),
+        )
+    }
+
     fn menu_overlay(&mut self, theme: &Theme, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
         let (kind, position, anchor) = self.menu?;
         let model = match kind {
@@ -3263,6 +3566,7 @@ impl Render for WalletPage {
                 .child(self.wallet_columns(&theme, caption, cx))
         };
 
+        let scan = self.scan_overlay(&theme, cx);
         let menu = self.menu_overlay(&theme, cx);
         let sign_out = self.sign_out_dialog(&theme, cx);
         let settings_dialog = self.settings_dialog_overlay(&theme, cx);
@@ -3272,6 +3576,9 @@ impl Render for WalletPage {
             .bg(theme.bg_base)
             .text_color(theme.fg_base)
             .child(body);
+        if let Some(scan) = scan {
+            root = root.child(scan);
+        }
         if let Some(menu) = menu {
             root = root.child(menu);
         }

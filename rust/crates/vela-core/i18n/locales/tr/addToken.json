@@ -37,6 +37,8 @@
     "errorAddNetwork": "Ağ eklenemedi.",
     "errorAlreadyAdded": "Bu ağ zaten eklenmiş",
     "errorChainNotFound": "Zincir bilgisi bulunamadı",
-    "errorNotCompatible": "Vela Wallet ile uyumlu değil"
+    "errorNotCompatible": "Vela Wallet ile uyumlu değil",
+    "invalidAddress": "Geçersiz sözleşme adresi",
+    "notCompatible": "Uyumlu değil"
   }
 }

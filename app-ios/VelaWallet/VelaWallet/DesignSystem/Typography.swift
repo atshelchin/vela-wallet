@@ -10,7 +10,9 @@
 import SwiftUI
 
 /// Bundled Plus Jakarta Sans PostScript names (see DesignSystem/Fonts/).
-private enum FontName {
+/// Not `private`: spec 022's demo-page chrome draws a MOCK WEBSITE, which is
+/// the one surface that is deliberately not a wallet type role.
+enum FontName {
     static let regular = "PlusJakartaSans-Regular"
     static let medium = "PlusJakartaSans-Medium"
     static let semiBold = "PlusJakartaSans-SemiBold"

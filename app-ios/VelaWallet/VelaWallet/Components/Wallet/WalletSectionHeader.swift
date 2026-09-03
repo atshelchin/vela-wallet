@@ -17,6 +17,8 @@ struct WalletSectionHeader: View {
     /// Trailing chevron. Off for read-only trailing values such as the
     /// contacts 联系人 / 8 位 header (spec 018 mock C1).
     var chevron: Bool = true
+    /// Spec 021: the trailing action opens a flow. Absent in the gallery.
+    var onAction: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -24,14 +26,23 @@ struct WalletSectionHeader: View {
                 .typeRole(Typography.title.scaled(textScale))
                 .foregroundStyle(theme.fgBase)
             Spacer(minLength: Tokens.Space.s12)
-            HStack(spacing: Tokens.Space.s4) {
-                Text(verbatim: action)
-                    .typeRole(Typography.label.scaled(textScale))
+            if let onAction {
+                Button(action: onAction) { trailing.contentShape(Rectangle()) }
+                    .buttonStyle(.plain)
+            } else {
+                trailing
+            }
+        }
+    }
+
+    private var trailing: some View {
+        HStack(spacing: Tokens.Space.s4) {
+            Text(verbatim: action)
+                .typeRole(Typography.label.scaled(textScale))
+                .foregroundStyle(theme.fgMuted)
+            if chevron {
+                LucideIcon(.chevronRight, size: LucideIconSize.smallChevron)
                     .foregroundStyle(theme.fgMuted)
-                if chevron {
-                    LucideIcon(.chevronRight, size: LucideIconSize.smallChevron)
-                        .foregroundStyle(theme.fgMuted)
-                }
             }
         }
     }

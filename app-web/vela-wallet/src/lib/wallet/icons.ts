@@ -144,6 +144,29 @@ export type UtilityIconId =
 	| 'qr-code'
 	| 'plus'
 	| 'chevron-left'
+	// spec 021 additions (specs/021-wallet-flows-ui/contracts/icons.json)
+	| 'user-round'
+	| 'chevrons-up-down'
+	| 'credit-card'
+	| 'clock'
+	| 'file-text'
+	| 'image'
+	| 'zap'
+	| 'rotate-ccw'
+	// spec 022 additions (explore browser chrome + signing sheet). `star` is a
+	// computed five-point path, not a remembered lucide one — a mis-recalled
+	// star draws a shape nobody can name.
+	| 'arrow-left'
+	| 'arrow-right'
+	| 'arrow-down'
+	| 'star'
+	| 'star-filled'
+	| 'share-2'
+	| 'power'
+	| 'lock'
+	| 'grip-vertical'
+	| 'external-link'
+	| 'compass'
 	// spec 023 additions (the settings rows' leading glyphs + their chrome)
 	| 'globe'
 	| 'sun'
@@ -152,15 +175,12 @@ export type UtilityIconId =
 	| 'coins'
 	| 'hash'
 	| 'calendar'
-	| 'clock'
 	| 'network'
 	| 'server'
-	| 'zap'
 	| 'hard-drive'
 	| 'info'
 	| 'log-out'
 	| 'message-square-text'
-	| 'external-link'
 	| 'circle-alert';
 
 export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
@@ -382,6 +402,162 @@ export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 		]
 	},
 	'chevron-left': { style: 'stroke', elements: [{ tag: 'path', d: 'm15 18-6-6 6-6' }] },
+	// The single-person glyph. `users-round` (spec 018) is the group; SD2's
+	// recipient field opens a picker for exactly one person, and drawing two
+	// heads there reads as "add several".
+	'user-round': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '8', r: '5' },
+			{ tag: 'path', d: 'M20 21a8 8 0 0 0-16 0' }
+		]
+	},
+	// SD2's denomination toggle: the amount is enterable in the token or in
+	// the display currency, and this is the affordance that says so.
+	'chevrons-up-down': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'm7 15 5 5 5-5' },
+			{ tag: 'path', d: 'm7 9 5-5 5 5' }
+		]
+	},
+	'credit-card': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '20', height: '14', x: '2', y: '5', rx: '2' },
+			{ tag: 'line', x1: '2', x2: '22', y1: '10', y2: '10' }
+		]
+	},
+	clock: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '12', cy: '12', r: '10' },
+			{ tag: 'polyline', points: '12 6 12 12 16 14' }
+		]
+	},
+	'file-text': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' },
+			{ tag: 'path', d: 'M14 2v4a2 2 0 0 0 2 2h4' },
+			{ tag: 'path', d: 'M10 9H8' },
+			{ tag: 'path', d: 'M16 13H8' },
+			{ tag: 'path', d: 'M16 17H8' }
+		]
+	},
+	image: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '18', height: '18', x: '3', y: '3', rx: '2' },
+			{ tag: 'circle', cx: '9', cy: '9', r: '2' },
+			{ tag: 'path', d: 'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21' }
+		]
+	},
+	zap: {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'
+			}
+		]
+	},
+	'rotate-ccw': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8' },
+			{ tag: 'path', d: 'M3 3v5h5' }
+		]
+	},
+	'arrow-left': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M19 12H5' },
+			{ tag: 'path', d: 'm12 19-7-7 7-7' }
+		]
+	},
+	'arrow-right': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M5 12h14' },
+			{ tag: 'path', d: 'm12 5 7 7-7 7' }
+		]
+	},
+	'arrow-down': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M12 5v14' },
+			{ tag: 'path', d: 'm19 12-7 7-7-7' }
+		]
+	},
+	star: {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'M12.00 2.70 L14.35 8.76 L20.84 9.13 L15.80 13.24 L17.47 19.52 L12.00 16.00 L6.53 19.52 L8.20 13.24 L3.16 9.13 L9.65 8.76 Z'
+			}
+		]
+	},
+	'star-filled': {
+		style: 'fill',
+		paths: [
+			'M12.00 2.70 L14.35 8.76 L20.84 9.13 L15.80 13.24 L17.47 19.52 L12.00 16.00 L6.53 19.52 L8.20 13.24 L3.16 9.13 L9.65 8.76 Z'
+		]
+	},
+	'share-2': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'circle', cx: '18', cy: '5', r: '3' },
+			{ tag: 'circle', cx: '6', cy: '12', r: '3' },
+			{ tag: 'circle', cx: '18', cy: '19', r: '3' },
+			{ tag: 'line', x1: '8.59', x2: '15.42', y1: '13.51', y2: '17.49' },
+			{ tag: 'line', x1: '15.41', x2: '8.59', y1: '6.51', y2: '10.49' }
+		]
+	},
+	power: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M12 2v10' },
+			{ tag: 'path', d: 'M18.4 6.6a9 9 0 1 1-12.77.04' }
+		]
+	},
+	lock: {
+		style: 'stroke',
+		elements: [
+			{ tag: 'rect', width: '18', height: '11', x: '3', y: '11', rx: '2' },
+			{ tag: 'path', d: 'M7 11V7a5 5 0 0 1 10 0v4' }
+		]
+	},
+	'grip-vertical': {
+		style: 'fill',
+		paths: [
+			'M10 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z',
+			'M10 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z',
+			'M10 18.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z',
+			'M17 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z',
+			'M17 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z',
+			'M17 18.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z'
+		]
+	},
+	'external-link': {
+		style: 'stroke',
+		elements: [
+			{ tag: 'path', d: 'M15 3h6v6' },
+			{ tag: 'path', d: 'M10 14 21 3' },
+			{ tag: 'path', d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }
+		]
+	},
+	compass: {
+		style: 'stroke',
+		elements: [
+			{
+				tag: 'path',
+				d: 'm16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z'
+			},
+			{ tag: 'circle', cx: '12', cy: '12', r: '10' }
+		]
+	},
 	// spec 023 — lucide v1.11.0, verbatim stroke defs like every glyph above.
 	globe: {
 		style: 'stroke',
@@ -449,13 +625,6 @@ export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 			{ tag: 'path', d: 'M3 10h18' }
 		]
 	},
-	clock: {
-		style: 'stroke',
-		elements: [
-			{ tag: 'circle', cx: '12', cy: '12', r: '10' },
-			{ tag: 'path', d: 'M12 6v6l4 2' }
-		]
-	},
 	network: {
 		style: 'stroke',
 		elements: [
@@ -473,15 +642,6 @@ export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 			{ tag: 'rect', width: '20', height: '8', x: '2', y: '14', rx: '2' },
 			{ tag: 'line', x1: '6', x2: '6.01', y1: '6', y2: '6' },
 			{ tag: 'line', x1: '6', x2: '6.01', y1: '18', y2: '18' }
-		]
-	},
-	zap: {
-		style: 'stroke',
-		elements: [
-			{
-				tag: 'path',
-				d: 'M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z'
-			}
 		]
 	},
 	'hard-drive': {
@@ -522,14 +682,6 @@ export const UTILITY_ICONS: Record<UtilityIconId, IconDef> = {
 			{ tag: 'path', d: 'M7 11h10' },
 			{ tag: 'path', d: 'M7 15h6' },
 			{ tag: 'path', d: 'M7 7h8' }
-		]
-	},
-	'external-link': {
-		style: 'stroke',
-		elements: [
-			{ tag: 'path', d: 'M15 3h6v6' },
-			{ tag: 'path', d: 'M10 14 21 3' },
-			{ tag: 'path', d: 'M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6' }
 		]
 	},
 	'circle-alert': {

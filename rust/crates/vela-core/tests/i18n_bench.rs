@@ -182,6 +182,7 @@ fn i18n_bench() {
         "componentsUi",
         "settingsModals",
         "contacts",
+        "explore",
     ] {
         absorb(repo.join("ja").join(format!("{ns}.json")));
     }

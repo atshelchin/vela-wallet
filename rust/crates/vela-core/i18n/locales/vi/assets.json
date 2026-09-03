@@ -22,6 +22,8 @@
     "rpcProvidersHint": "Điểm cuối miễn phí — đăng ký, sao chép URL của bạn và dán vào ô phía trên.",
     "rpcReport": "Vẫn không hoạt động? Báo cáo",
     "chainFallback": "Chain {{chainId}}",
-    "rpcFixRestored": "Đã khôi phục kết nối — đang tải lại số dư và bản ghi của mạng này."
-  }
+    "rpcFixRestored": "Đã khôi phục kết nối — đang tải lại số dư và bản ghi của mạng này.",
+    "addByAddress": "Thêm token bằng địa chỉ",
+    "notShowingTitle": "Đã nhận token nhưng không thấy?",
+    "notShowingBody": "Các giao dịch đã xác nhận sẽ tự được thêm vào. Nếu token vẫn chưa xuất hiện, hãy thêm bằng địa chỉ hợp đồng, hoặc thêm mạng chứa nó."  }
 }

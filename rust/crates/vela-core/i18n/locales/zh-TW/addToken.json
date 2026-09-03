@@ -37,6 +37,8 @@
     "errorAddNetwork": "新增網路失敗。",
     "errorAlreadyAdded": "此網路已新增過",
     "errorChainNotFound": "找不到鏈資訊",
-    "errorNotCompatible": "與 Vela Wallet 不相容"
+    "errorNotCompatible": "與 Vela Wallet 不相容",
+    "invalidAddress": "無效的合約位址",
+    "notCompatible": "不相容"
   }
 }

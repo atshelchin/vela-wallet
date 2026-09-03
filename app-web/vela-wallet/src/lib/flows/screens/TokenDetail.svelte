@@ -1,0 +1,153 @@
+<script lang="ts">
+	/**
+	 * T2 — one token: what you hold, what it is, and what it has done.
+	 *
+	 * Receive and Send sit directly under the balance because they are the two
+	 * reasons anyone opens this sheet. Everything below them is reference.
+	 */
+	import Button from '$lib/ui/Button.svelte';
+	import ActivityRow from '$lib/wallet/ui/ActivityRow.svelte';
+	import TokenIcon from '$lib/wallet/ui/TokenIcon.svelte';
+	import FactRow from '../ui/FactRow.svelte';
+	import type { TokenDetailModel } from '../model';
+
+	interface Props {
+		model: TokenDetailModel;
+		onreceive?: () => void;
+		onsend?: () => void;
+		onexplorer?: () => void;
+	}
+
+	let { model, onreceive, onsend, onexplorer }: Props = $props();
+
+	let copiedIndex = $state(-1);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	function copy(index: number) {
+		copiedIndex = index;
+		clearTimeout(timer);
+		timer = setTimeout(() => (copiedIndex = -1), 150);
+	}
+</script>
+
+<div class="token">
+	<div class="head">
+		<TokenIcon ticker={model.mark.ticker} badgeColor={model.mark.badgeColor} />
+		<span class="names">
+			<span class="symbol">{model.symbol}</span>
+			<span class="chain">{model.chain}</span>
+		</span>
+	</div>
+
+	<p class="balance">{model.balance}</p>
+	<p class="fiat">{model.fiat}</p>
+
+	<div class="actions">
+		<Button variant="secondary" onclick={onreceive}>{model.receive}</Button>
+		<Button variant="secondary" onclick={onsend}>{model.send}</Button>
+	</div>
+
+	<ul class="facts">
+		{#each model.facts as fact, i (fact.label)}
+			<li><FactRow {fact} copied={copiedIndex === i} oncopy={() => copy(i)} /></li>
+		{/each}
+	</ul>
+
+	<h3>{model.transactionsTitle}</h3>
+	<ul class="rows">
+		{#each model.rows as row, i (i)}
+			<li><ActivityRow {row} /></li>
+		{/each}
+	</ul>
+
+	<button type="button" class="explorer" onclick={onexplorer}>{model.viewOnExplorer}</button>
+</div>
+
+<style>
+	.token {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-lg);
+		padding-bottom: var(--space-lg);
+	}
+
+	.names {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xs);
+		min-width: 0;
+	}
+
+	.symbol {
+		font-size: calc(var(--text-lg) * var(--text-scale, 1));
+		font-weight: var(--weight-semibold);
+		color: var(--color-fg-base);
+	}
+
+	.chain {
+		font-size: calc(var(--text-sm) * var(--text-scale, 1));
+		color: var(--color-fg-muted);
+	}
+
+	.balance {
+		margin: 0;
+		font-family: var(--font-numeric);
+		font-size: calc(var(--text-4xl) * var(--text-scale, 1));
+		font-weight: var(--weight-bold);
+		font-variant-numeric: tabular-nums;
+		line-height: var(--leading-tight);
+		color: var(--color-fg-base);
+	}
+
+	.fiat {
+		margin: 0;
+		padding-top: var(--space-xs);
+		font-family: var(--font-numeric);
+		font-size: calc(var(--text-base) * var(--text-scale, 1));
+		color: var(--color-fg-subtle);
+	}
+
+	.actions {
+		display: flex;
+		gap: var(--space-md);
+		padding-block: var(--space-xl);
+	}
+
+	ul {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.facts {
+		border-top: var(--border-hairline) solid var(--color-border-base);
+	}
+
+	.facts li + li {
+		border-top: var(--border-hairline) solid var(--color-border-base);
+	}
+
+	h3 {
+		margin: 0;
+		padding-block: var(--space-xl) var(--space-sm);
+		font-size: calc(var(--text-lg) * var(--text-scale, 1));
+		font-weight: var(--weight-bold);
+		color: var(--color-fg-base);
+	}
+
+	.explorer {
+		align-self: center;
+		padding: var(--space-lg);
+		border: none;
+		background: none;
+		font-family: var(--font-ui);
+		font-size: calc(var(--text-base) * var(--text-scale, 1));
+		color: var(--color-fg-muted);
+		cursor: pointer;
+	}
+</style>

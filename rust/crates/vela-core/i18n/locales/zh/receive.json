@@ -67,6 +67,12 @@
       "invalidTitle": "无效的收款链接",
       "invalidBody": "此链接缺少有效的收款地址或网络，请向发送方索取新链接。"
     },
-    "addressLabel": "你的收款地址"
+    "addressLabel": "你的收款地址",
+    "searchNetworkPlaceholder": "搜索网络",
+    "searchNetworkEmpty": "没有匹配「{{query}}」的网络",
+    "qrTitleNetwork": "使用这个地址接收 {{network}} 上的资产",
+    "qrTitleAsset": "使用这个地址接收 {{network}} 上的 {{symbol}}",
+    "shareCardNetworkNote": "仅支持 {{network}} 网络付款",
+    "tokenContract": "代币合约"
   }
 }

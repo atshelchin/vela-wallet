@@ -1,0 +1,113 @@
+//
+//  SigningFooter.swift
+//  VelaWallet
+//
+//  The fee row, its expanded fee-token selector, and the signer row — the
+//  three things that sit between the last block and the slide, in that order
+//  on every scenario.
+//
+
+import SwiftUI
+
+struct SigningFeeView: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.walletTextScale) private var textScale
+
+    let fee: FeeModel
+    var onToggle: () -> Void = {}
+
+    var body: some View {
+        switch fee {
+        case .hidden:
+            EmptyView()
+        case .offchain(let note):
+            SigningPositive(text: note, quiet: true)
+        case .onchain(let label, let value, let selector):
+            if let selector {
+                VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+                    HStack {
+                        Text(verbatim: selector.title)
+                            .typeRole(Typography.rowSub.scaled(textScale))
+                            .foregroundStyle(theme.fgMuted)
+                        Spacer()
+                        LucideIcon(.chevronDown, size: LucideIconSize.disclosure)
+                            .foregroundStyle(theme.fgMuted)
+                    }
+                    .padding(.vertical, Tokens.Space.s8)
+                    ForEach(selector.options) { option in
+                        HStack(spacing: Tokens.Space.s12) {
+                            LetterAvatarView(letter: option.mark.letter, tint: option.mark.tint,
+                                             size: Tokens.Space.s32)
+                            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                                Text(verbatim: option.name)
+                                    .typeRole(Typography.rowTitle.scaled(textScale))
+                                    .foregroundStyle(theme.fgBase)
+                                Text(verbatim: option.balance)
+                                    .typeRole(Typography.rowSub.scaled(textScale))
+                                    .foregroundStyle(theme.fgMuted)
+                            }
+                            Spacer(minLength: Tokens.Space.s8)
+                            Text(verbatim: option.fee)
+                                .typeRole(Typography.label.scaled(textScale))
+                                .foregroundStyle(theme.fgBase)
+                            if option.selected {
+                                LucideIcon(.check, size: LucideIconSize.checkmark)
+                                    .foregroundStyle(theme.accentBase)
+                            }
+                        }
+                        .padding(Tokens.Space.s8)
+                        .background(option.selected ? theme.bgRaised : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+                    }
+                }
+                .padding(.horizontal, Tokens.Space.s16)
+                .padding(.vertical, Tokens.Space.s8)
+                .background(theme.bgSunken, in: RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+            } else {
+                Button(action: onToggle) {
+                    HStack(spacing: Tokens.Space.s8) {
+                        Text(verbatim: label)
+                            .typeRole(Typography.rowSub.scaled(textScale))
+                            .foregroundStyle(theme.fgMuted)
+                        Spacer()
+                        Text(verbatim: value)
+                            .typeRole(Typography.label.scaled(textScale))
+                            .foregroundStyle(theme.fgBase)
+                        LucideIcon(.chevronRight, size: LucideIconSize.smallChevron)
+                            .foregroundStyle(theme.fgMuted)
+                    }
+                    .padding(.horizontal, Tokens.Space.s16)
+                    .padding(.vertical, Tokens.Space.s12)
+                    .background(theme.bgSunken,
+                                in: RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+                    .contentShape(RoundedRectangle(cornerRadius: Tokens.Radius.r12))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+struct SigningSignerRow: View {
+    @Environment(\.theme) private var theme
+    @Environment(\.walletTextScale) private var textScale
+
+    let label: String
+    let name: String
+    let seed: String
+
+    var body: some View {
+        HStack {
+            Text(verbatim: label)
+                .typeRole(Typography.rowSub.scaled(textScale))
+                .foregroundStyle(theme.fgMuted)
+            Spacer()
+            HStack(spacing: Tokens.Space.s8) {
+                IdenticonAvatar(seed: seed, size: ExploreGeometry.signerAvatar)
+                Text(verbatim: name)
+                    .typeRole(Typography.rowSub.scaled(textScale))
+                    .foregroundStyle(theme.fgBase)
+            }
+        }
+    }
+}

@@ -21,6 +21,17 @@
 			"heroTitleFit": "regular",
 			"heroSubtitle": "用通行密鑰簽名，Vela 睇唔到你條鑰匙。"
 		},
+		"intro": {
+			"skip": "略過",
+			"next": "繼續",
+			"pageOf": "第 {{current}} 頁，共 {{total}} 頁",
+			"noSeedTitle": "唔使抄助記詞",
+			"noSeedBody": "用呢部機嘅指紋或者面容開錢包。冇 12 個字要抄喺紙度、擺入櫃桶，然後有日搵唔返。",
+			"custodyTitle": "條匙喺你自己手上",
+			"custodyBody": "通行密鑰擺喺你自己度：部機嘅密碼管理程式，或者一條硬件安全鎖匙。Vela 掂唔到，亦冇辦法幫你使錢。",
+			"chainsTitle": "一個地址，行勻成條鏈",
+			"chainsBody": "同一個地址喺 12+ 條網絡上通用，手續費可以用穩定幣畀，唔使預先幫每條鏈準備原生幣。"
+		},
 		"welcomeWeb": {
 			"meta": {
 				"title": "Vela Wallet — 通行密鑰錢包",

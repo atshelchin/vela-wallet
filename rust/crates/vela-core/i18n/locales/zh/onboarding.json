@@ -21,6 +21,17 @@
 			"heroTitleFit": "regular",
 			"heroSubtitle": "用通行密钥签名，Vela 看不到你的密钥。"
 		},
+		"intro": {
+			"skip": "跳过",
+			"next": "继续",
+			"pageOf": "第 {{current}} 页，共 {{total}} 页",
+			"noSeedTitle": "不用抄助记词",
+			"noSeedBody": "用这台设备的指纹或面容创建钱包。没有 12 个单词要抄在纸上、藏进抽屉、然后某天想不起来放哪了。",
+			"custodyTitle": "钥匙在你自己手里",
+			"custodyBody": "通行密钥存在你自己手上：设备的密码管理器，或一把硬件安全密钥。Vela 接触不到，也没法替你花钱。",
+			"chainsTitle": "一个地址，走遍链上",
+			"chainsBody": "同一个地址在 12+ 条网络上通用，手续费可以用稳定币付，不用先给每条链备一份原生币。"
+		},
 		"welcomeWeb": {
 			"meta": {
 				"title": "Vela Wallet — 通行密钥钱包",

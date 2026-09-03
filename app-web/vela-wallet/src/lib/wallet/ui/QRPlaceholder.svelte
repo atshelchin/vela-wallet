@@ -1,40 +1,17 @@
 <script lang="ts">
+	import { PLACEHOLDER_MODULES, PLACEHOLDER_SEED, qrPattern } from '../qr-pattern';
+
 	interface Props {
 		caption: string;
 	}
 
 	let { caption }: Props = $props();
 
-	// Deterministic 21×21 demo pattern (data-model.md): three standard finder
-	// squares + xorshift32-seeded noise. Identical on every platform so
-	// screenshots diff cleanly. Never encodes data.
-	const N = 21;
-
-	function pattern(): boolean[][] {
-		let s = 0x5eed;
-		const next = () => {
-			s ^= s << 13;
-			s ^= s >>> 17;
-			s ^= s << 5;
-			s >>>= 0;
-			return s;
-		};
-		const inFinder = (r: number, c: number) =>
-			(r < 7 && c < 7) || (r < 7 && c >= N - 7) || (r >= N - 7 && c < 7);
-		const finderOn = (r: number, c: number) => {
-			const lr = r < 7 ? r : r - (N - 7);
-			const lc = c < 7 ? c : c - (N - 7);
-			const ring = Math.min(lr, lc, 6 - lr, 6 - lc);
-			return ring !== 1;
-		};
-		return Array.from({ length: N }, (_, r) =>
-			Array.from({ length: N }, (_, c) =>
-				inFinder(r, c) ? finderOn(r, c) : (next() & 3) === 0 ? false : next() % 2 === 0
-			)
-		);
-	}
-
-	const cells = pattern();
+	// Spec 015's deterministic demo pattern. The generator moved to
+	// `qr-pattern.ts` in spec 021 so the receive card draws the same code;
+	// the modules and seed here are unchanged, so this stays pixel-identical.
+	const N = PLACEHOLDER_MODULES;
+	const cells = qrPattern(N, PLACEHOLDER_SEED);
 </script>
 
 <figure class="qr">

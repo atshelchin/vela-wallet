@@ -552,7 +552,7 @@ export interface SettingsHomeModel {
 	closeLabel: string;
 }
 
-/** One second-level nav entry on the desktop (DST1's 216px column). */
+/** One second-level nav entry on the desktop (DST1's nav column). */
 export interface SettingsNavItemModel {
 	id: SettingsPageId;
 	icon: UtilityIconId;

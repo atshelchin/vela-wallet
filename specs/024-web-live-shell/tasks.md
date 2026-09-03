@@ -42,40 +42,40 @@ its gate green (paths below are repo-root-relative; `pnpm` commands run in
 
 ## Phase 2: Foundational — the paved road (one commit; behaviour-neutral: ALL gates including e2e must stay green with zero behaviour change)
 
-- [ ] T004 [US3] Add `app-web/vela-wallet/src/lib/core/generated` as second
+- [X] T004 [US3] Add `app-web/vela-wallet/src/lib/core/generated` as second
       outDir of the `wallet-state` target in rust/scripts/gen-core-types.mjs
       TARGETS; run `npm run gen:core-types -- wallet-state`; commit the
       generated mirror (311 files + index.ts barrel)
-- [ ] T005 [US3] git mv app-web/vela-wallet/src/lib/onboarding/core/effect-loop.ts
+- [X] T005 [US3] git mv app-web/vela-wallet/src/lib/onboarding/core/effect-loop.ts
       and json-shell.ts → app-web/vela-wallet/src/lib/core/ (contents
       unchanged); repoint all importers (onboarding sessions.ts, session/core)
-- [ ] T006 [US3] Hoist `SessionOptions<View>` into
+- [X] T006 [US3] Hoist (adjusted: onboarding's SessionOptions carries screen deps and stays put; the generic onView/onError shape was ported from Expo wallet-state-core/types.ts into $lib/core/types.ts instead) `SessionOptions<View>` into
       app-web/vela-wallet/src/lib/core/types.ts; repoint
       src/lib/onboarding/core/sessions.ts
-- [ ] T007 [US3] Create app-web/vela-wallet/src/lib/core/client.ts: move the
+- [X] T007 [US3] Create app-web/vela-wallet/src/lib/core/client.ts: move the
       idempotent promise-cached loader out of onboarding/core/wasm-client.ts
       as `loadCore()`, re-export all 24 bridge classes from rust/pkg-web
       (list in rust/crates/vela-core-wasm/src/wallet_state.rs + onboarding.rs);
       reduce onboarding/core/wasm-client.ts to a thin re-export of
       `loadOnboardingCore = loadCore` + its existing class re-exports
-- [ ] T008 [US3] Create app-web/vela-wallet/src/lib/services/storage.ts: async
+- [X] T008 [US3] Create app-web/vela-wallet/src/lib/services/storage.ts: async
       KV `getItem/setItem/removeItem(key: string)` over IndexedDB (db `vela`,
       store `kv`, hand-rolled promise wrapper, no deps); absence/quota/denied
       answers as rejection for the executor's failure twin to classify
       (research D2); JSDoc records the Expo-compat key/value contract
-- [ ] T009 [P] [US3] Unit tests
-      app-web/vela-wallet/src/lib/services/storage.test.ts: roundtrip, absent
+- [X] T009 [P] [US3] Unit tests
+      app-web/vela-wallet/src/lib/services/storage.svelte.test.ts (browser project — node has no IndexedDB; 7 tests): roundtrip, absent
       key → null, removeItem, oversized value ok, concurrent writes last-wins
-- [ ] T010 [P] [US3] Add `src/lib/core` and `src/lib/services` (and,
+- [X] T010 [P] [US3] Add (also added src/lib/settings + src/lib/session, the unlisted 019/023 gap — surfaced 1 hex + 4 px-in-comment violations in the settings layer, all fixed: ChainMark #fff → var(--color-onAccent), comments de-px'd) `src/lib/core` and `src/lib/services` (and,
       pre-emptively, `src/lib/settings`, `src/lib/session`) to the
       literal-audit source list in
       app-web/vela-wallet/src/lib/tokens/tokens.test.ts:65-77
-- [ ] T011 [P] [US3] Unit test app-web/vela-wallet/src/lib/core/client.test.ts:
+- [X] T011 [P] [US3] Unit test app-web/vela-wallet/src/lib/core/client.test.ts:
       loadCore() is promise-cached and retries after a failed load (port the
       existing wasm-client behaviour assertions if any; else write them)
-- [ ] T012 [US3] Wire `node ../../rust/scripts/gen-core-types.mjs wallet-state
+- [X] T012 [US3] Wire (wallet-state AND session targets) `node ../../rust/scripts/gen-core-types.mjs wallet-state
       --check` into app-web/vela-wallet/package.json `check` script
-- [ ] T013 [US3] Full gate: `pnpm check && pnpm lint && pnpm test:unit -- --run
+- [X] T013 [US3] Full gate (check 1139 files 0 errors; lint clean after .prettierignore gains core/generated; unit 389; build ok; e2e 58/58; wasm byte-identical 3,630,664): `pnpm check && pnpm lint && pnpm test:unit -- --run
       && pnpm build && pnpm test:e2e` — e2e green proves behaviour neutrality;
       `git diff --stat` recorded in results.md
 

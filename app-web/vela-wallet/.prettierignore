@@ -13,4 +13,5 @@ src/lib/tokens/tokens.css
 src/lib/tokens/tokens.ts
 src/lib/onboarding/generated/
 src/lib/session/generated/
+src/lib/core/generated/
 worker-configuration.d.ts

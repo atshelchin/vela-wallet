@@ -16,7 +16,7 @@
 
 	let { panel, layout = 'stacked' }: Props = $props();
 
-	// The mark is drawn INTO the 56px circle the mock shows, so it is sized to
+	// The mark is drawn INTO the circle the mock shows, so it is sized to
 	// fit it rather than to fill it. A prop, not CSS — BrandMark writes width
 	// and height attributes on its own <svg>.
 	const MARK_SIZE = 32;

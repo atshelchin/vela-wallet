@@ -73,6 +73,14 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		// chain colour are CONTENT, and a design token cannot name them.
 		...collect(join(APP_ROOT, 'src/lib/explore')),
 		...collect(join(APP_ROOT, 'src/lib/signing')),
+		// spec 024 T010: the live-wiring layers. `core` and `services` hold no
+		// visuals at all, which is exactly why they are audited — a colour
+		// appearing there would be a category error, not a taste question.
+		// settings and session were an unlisted gap since 023/019.
+		...collect(join(APP_ROOT, 'src/lib/core')),
+		...collect(join(APP_ROOT, 'src/lib/services')),
+		...collect(join(APP_ROOT, 'src/lib/settings')),
+		...collect(join(APP_ROOT, 'src/lib/session')),
 		...collect(join(APP_ROOT, 'src/routes')),
 		join(APP_ROOT, 'src/app.css')
 	].filter(

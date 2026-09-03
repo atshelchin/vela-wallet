@@ -96,3 +96,35 @@ suite (`npx playwright test` at repo root) currently lands 28 passed /
 onboarding-signin, onboarding-sync — all pass on retry) / 1 skipped.
 Pre-existing; recorded for later reference since 026 will port
 parallel-space from this suite.
+
+
+---
+
+## Phase 2 — the paved road (T004–T013)
+
+**What shipped**: `wallet-state` codegen target gained the app-web mirror
+(`src/lib/core/generated/`, 311 files, `--check` green in 2 mirrors);
+`effect-loop.ts` + `json-shell.ts` moved to `$lib/core/` (git mv, contents
+unchanged; 2 importers repointed); `$lib/core/client.ts` now owns the runtime
+loader (`loadCore()`) and exports all 24 machine classes — the old
+`wasm-client.ts` is a thin compatibility re-export, so its 10 importers are
+untouched; `$lib/core/types.ts` carries the generic `SessionOptions` (ported
+from Expo `wallet-state-core/types.ts`); `$lib/services/storage.ts` is the
+IndexedDB-backed AsyncStorage-shaped KV (+7 browser-project tests — the
+`.svelte.test.ts` name is the vitest browser-project selector).
+
+**Behaviour-neutrality proof**: all five gates green with zero product
+behaviour change; e2e 58/58; wasm byte-identical to baseline (3,630,664).
+
+**Literal-audit expansion** (T010): `core`, `services`, `settings`, `session`
+joined the audited set. settings/session had been an unlisted gap since
+023/019 — the audit immediately caught `ChainMark.svelte`'s `color: #fff`
+(now `var(--color-onAccent)`) and four px-values living in comments (reworded;
+the audit's letter counts comment text, and the letter is the gate).
+
+**New gate in `check`**: `gen-core-types.mjs wallet-state session --check` —
+the first drift fence anywhere for the 311 wallet-state types (CI still runs
+only `pnpm build` for this app; the local gate is the honest one).
+
+**svelte-check surface**: 823 → 1139 files (the generated mirror joined the
+program), 0 errors.

@@ -3,7 +3,7 @@
 	 * The desktop settings surface (spec 023, DST1–DST8 + DST4b + DSR1).
 	 *
 	 * Three columns, per the desktop SPEC: the app sidebar (spec 015's, reused
-	 * verbatim), a 216px second-level nav, and the panel. The phone's sheets
+	 * verbatim), a narrow second-level nav, and the panel. The phone's sheets
 	 * become either a section of the panel it belongs to — the account switcher
 	 * IS the 账户 panel — or a centred dialog, which is what add-network and
 	 * fix-RPC are. Nothing here is a bottom sheet: macOS System Settings is the

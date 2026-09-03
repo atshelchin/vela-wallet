@@ -11,7 +11,7 @@
 		"build": "node scripts/gen-tokens.mjs --check && node scripts/sync-wasm.mjs && wrangler types && vite build",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
 		"prepare": "svelte-kit sync || echo ''",
-		"check": "node scripts/gen-tokens.mjs --check && node scripts/sync-wasm.mjs --check && wrangler types && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "node scripts/gen-tokens.mjs --check && node scripts/sync-wasm.mjs --check && node ../../rust/scripts/gen-core-types.mjs wallet-state session --check && wrangler types && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",

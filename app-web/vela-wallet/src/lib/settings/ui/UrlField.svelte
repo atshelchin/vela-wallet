@@ -79,7 +79,7 @@
 		padding-inline: var(--space-lg);
 		border-radius: var(--radius-lg);
 		background: var(--color-bg-sunken);
-		/* 1px border.base even at rest: on dark, sunken and base are one step
+		/* hairline border.base even at rest: on dark, sunken and base are one step
 		   apart and the box would otherwise have no edge at all. */
 		border: var(--border-hairline) solid var(--color-border-base);
 	}

@@ -22,7 +22,7 @@
 		align-items: center;
 		justify-content: center;
 		border-radius: var(--radius-full);
-		color: #fff;
+		color: var(--color-onAccent);
 		font-weight: var(--weight-bold);
 		flex-shrink: 0;
 	}

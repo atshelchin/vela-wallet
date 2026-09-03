@@ -64,6 +64,7 @@
     "a11yHideBalance": "Скрыть баланс",
     "a11yShowBalance": "Показать баланс",
     "a11ySwitchAccount": "Аккаунт {{name}}. Сменить аккаунт",
-    "a11yOpenSettings": "Настройки"
+    "a11yOpenSettings": "Настройки",
+    "balanceDetailUpdatedLabel": "Обновлено"
   }
 }

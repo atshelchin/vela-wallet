@@ -5,7 +5,8 @@
     "automatic": "Otomatik",
     "error": "Hata",
     "somethingWrong": "Bir şeyler ters gitti",
-    "tryAgain": "Tekrar Dene"
+    "tryAgain": "Tekrar Dene",
+    "done": "Bitti"
   },
   "language": {
     "title": "Dil",
@@ -27,14 +28,18 @@
       "developer": "Geliştirici"
     },
     "account": {
-      "switch": "Hesap değiştir"
+      "switch": "Hesap değiştir",
+      "contactsSubtitle": "Kayıtlı adresler ve son alıcılar"
     },
     "appearance": {
       "themeLight": "Açık",
       "themeDark": "Koyu",
       "themeAuto": "Sistemi Takip Et",
       "avatarInitials": "Baş harfler",
-      "avatarIdenticon": "Identicon"
+      "avatarIdenticon": "Identicon",
+      "themeTitle": "Tema",
+      "textScale": "Yazı boyutu",
+      "avatarTitle": "Avatar stili"
     },
     "localization": {
       "currencyTitle": "Para birimi",
@@ -94,6 +99,48 @@
       "indian": "Hint",
       "h24": "24 saat",
       "h12": "12 saat"
+    },
+    "networks": {
+      "count": "{{count}} ağ",
+      "custom": "Özel",
+      "builtinNote": "Yerleşik ağ · kaldırılamaz",
+      "saveHint": "Alandan çıktığınız anda kaydedilir. Yalnızca RPC farklı bir zincir kimliği bildirirse reddedilir.",
+      "online": "Çevrimiçi",
+      "slow": "Daha yavaş"
+    },
+    "storage": {
+      "title": "Cihaz depolaması",
+      "subtitle": "Yerel veriler ve önbellek",
+      "summary": "Toplam {{count}} kayıt",
+      "userData": "Verileriniz · silindikten sonra geri alınamaz",
+      "caches": "Önbellek · otomatik olarak yeniden oluşturulur",
+      "connections": "Bağlantılar · temizlemek dApp bağlantısını keser",
+      "legendUserData": "Verileriniz",
+      "legendCaches": "Önbellek",
+      "legendSessions": "Oturumlar",
+      "itemTransactions": "İşlem geçmişi",
+      "itemContacts": "Kişiler ve gruplar",
+      "itemCustom": "Özel tokenlar ve ağlar",
+      "itemBrowsing": "Gezinme geçmişi",
+      "itemBalances": "Bakiye ve token önbelleği",
+      "itemRates": "Kur önbelleği",
+      "itemScan": "Tarama ilerlemesi",
+      "itemDapps": "dApp izinleri ve oturumları",
+      "records": "{{count}} kayıt",
+      "contactsCount": "{{count}} kişi",
+      "itemsCount": "{{count}} öğe",
+      "sitesCount": "{{count}} site",
+      "clear": "Temizle",
+      "clearAllCaches": "Tüm önbelleği temizle",
+      "disconnectAll": "Tümünü kes",
+      "clearTitle": "Tüm önbellek temizlensin mi?",
+      "clearBody": "Bakiye, token ve kur önbellekleri temizlenir ve uygulamayı bir sonraki açışınızda yeniden alınır. İşlem geçmişiniz, kişileriniz ve ayarlarınız etkilenmez.",
+      "clearConfirm": "Önbelleği temizle"
+    },
+    "indexDown": {
+      "title": "Servis geçici olarak kullanılamıyor",
+      "subtitle": "Passkey dizinine ulaşılamıyor; hem cüzdan oluşturmak hem de giriş yapmak buna ihtiyaç duyar.",
+      "editEndpoint": "Dizin servisi adresini değiştir"
     }
   },
   "time": {

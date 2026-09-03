@@ -5,7 +5,8 @@
   "automatic": "Automatic",
   "error": "Error",
   "somethingWrong": "Something went wrong",
-  "tryAgain": "Try Again"
+  "tryAgain": "Try Again",
+  "done": "Done"
  },
  "language": {
   "title": "Language",
@@ -27,14 +28,18 @@
    "developer": "Developer"
   },
   "account": {
-   "switch": "Switch account"
+   "switch": "Switch account",
+   "contactsSubtitle": "Saved addresses and recent payees"
   },
   "appearance": {
    "themeLight": "Light",
    "themeDark": "Dark",
    "themeAuto": "Follow System",
    "avatarInitials": "Initials",
-   "avatarIdenticon": "Identicon"
+   "avatarIdenticon": "Identicon",
+   "themeTitle": "Theme",
+   "textScale": "Text size",
+   "avatarTitle": "Avatar style"
   },
   "localization": {
    "currencyTitle": "Currency",
@@ -94,6 +99,48 @@
    "indian": "Indian",
    "h24": "24-hour",
    "h12": "12-hour"
+  },
+  "networks": {
+   "count": "{{count}} networks",
+   "custom": "Custom",
+   "builtinNote": "Built-in network · cannot be removed",
+   "saveHint": "Saved as soon as you leave the field. It is refused only when the RPC reports a different chain ID.",
+   "online": "Online",
+   "slow": "Slower"
+  },
+  "storage": {
+   "title": "Device storage",
+   "subtitle": "Local data and cache",
+   "summary": "{{count}} records in total",
+   "userData": "Your data · cannot be recovered once cleared",
+   "caches": "Cache · rebuilt automatically",
+   "connections": "Connections · clearing disconnects dApps",
+   "legendUserData": "Your data",
+   "legendCaches": "Cache",
+   "legendSessions": "Sessions",
+   "itemTransactions": "Transaction history",
+   "itemContacts": "Contacts and groups",
+   "itemCustom": "Custom tokens and networks",
+   "itemBrowsing": "Browsing history",
+   "itemBalances": "Balance and token cache",
+   "itemRates": "Exchange-rate cache",
+   "itemScan": "Scan progress",
+   "itemDapps": "dApp permissions and sessions",
+   "records": "{{count}} records",
+   "contactsCount": "{{count}} contacts",
+   "itemsCount": "{{count}} items",
+   "sitesCount": "{{count}} sites",
+   "clear": "Clear",
+   "clearAllCaches": "Clear all caches",
+   "disconnectAll": "Disconnect all",
+   "clearTitle": "Clear all caches?",
+   "clearBody": "Balance, token and rate caches are cleared and re-fetched the next time you open the app. Your transaction history, contacts and settings are not affected.",
+   "clearConfirm": "Clear caches"
+  },
+  "indexDown": {
+   "title": "Service temporarily unavailable",
+   "subtitle": "The passkey index can’t be reached, and both creating and signing in need it.",
+   "editEndpoint": "Change index service address"
   }
  },
  "time": {
@@ -180,7 +227,8 @@
   "a11yHideBalance": "Hide balance",
   "a11yShowBalance": "Show balance",
   "a11ySwitchAccount": "Account {{name}}. Switch account",
-  "a11yOpenSettings": "Settings"
+  "a11yOpenSettings": "Settings",
+  "balanceDetailUpdatedLabel": "Updated"
  },
  "send": {
   "selectTokenTitle": "Select Token",
@@ -428,6 +476,7 @@
   "rpcProvidersHint": "Free endpoints — sign up, copy your URL, and paste it above.",
   "rpcReport": "Still not working? Report it",
   "chainFallback": "Chain {{chainId}}",
+  "rpcFixRestored": "Connection restored — re-fetching this network’s balances and records.",
   "addByAddress": "Add a token by address",
   "notShowingTitle": "Received a token but don’t see it?",
   "notShowingBody": "Confirmed transfers are added on their own. If a token still hasn’t appeared, add it by contract address, or add the network it lives on."
@@ -927,7 +976,8 @@
   "linkWebsite": "Website",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "Built with care. Your keys, your coins."
+  "footer": "Built with care. Your keys, your coins.",
+  "sectionLinks": "Links"
  },
  "clearSigning": {
   "title": "Clear Signing Test",
@@ -1124,7 +1174,13 @@
    "fallbackBody": "We couldn't submit automatically, but we've prefilled a GitHub form with the details.",
    "openGithub": "Open GitHub form",
    "openGithubForm": "Prefer GitHub? Open the issue form →",
-   "done": "Done"
+   "done": "Done",
+   "previewVersion": "App version",
+   "previewPlatform": "Platform",
+   "previewLanguage": "Language",
+   "previewRpc": "Unreachable RPC",
+   "previewFailures": "Recent failures",
+   "previewNone": "None"
   },
   "signing": {
    "loading": "Loading...",
@@ -1445,7 +1501,8 @@
    "checkKey": "Check key",
    "activeNetworks": "{{count}} networks",
    "supportsCount": "Supports {{count}} of {{total}} networks",
-   "unavailable": "Unavailable"
+   "unavailable": "Unavailable",
+   "avgLatency": "avg {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "Service Endpoints",
@@ -1458,7 +1515,8 @@
    "bundlerHint": "Vela Relay compatible endpoint required",
    "fiatLabel": "FIAT RATES",
    "fiatHint": "USD-based exchange rates that drive the currency list — swap for wider coverage.",
-   "resetToDefaults": "Reset to Defaults"
+   "resetToDefaults": "Reset to Defaults",
+   "selfHostGuide": "Self-hosting guide →"
   },
   "addNetwork": {
    "modalTitle": "Add Network",
@@ -1480,7 +1538,12 @@
    "recheck": "Re-check",
    "chainIdLabel": "Chain ID: {{chainId}}",
    "nativeLabel": "Native: {{symbol}}",
-   "testnet": "Testnet"
+   "testnet": "Testnet",
+   "compatible": "Compatible",
+   "incompatible": "Incompatible",
+   "checkSafe": "Safe L2 contracts",
+   "checkSigner": "WebAuthn signer module",
+   "checkRemaining": "{{count}} more contracts"
   },
   "treasury": {
    "modalTitle": "Treasury",

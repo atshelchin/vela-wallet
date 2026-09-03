@@ -64,6 +64,7 @@
     "a11yHideBalance": "Guthaben ausblenden",
     "a11yShowBalance": "Guthaben anzeigen",
     "a11ySwitchAccount": "Konto {{name}}. Konto wechseln",
-    "a11yOpenSettings": "Einstellungen"
+    "a11yOpenSettings": "Einstellungen",
+    "balanceDetailUpdatedLabel": "Aktualisiert"
   }
 }

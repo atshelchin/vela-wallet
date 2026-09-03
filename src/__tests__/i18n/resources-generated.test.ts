@@ -74,7 +74,7 @@ describe('generated i18n resources', () => {
     expect(en['common']).toBeDefined();
   });
 
-  it('carries the whole corpus — 21,273 leaves across 15 locales', () => {
+  it('carries the whole corpus — 22,758 leaves across 15 locales', () => {
     // A generator that silently dropped a namespace would still produce a
     // structurally valid object; only the count catches it.
     //
@@ -160,7 +160,7 @@ describe('generated i18n resources', () => {
     // signing copy was already in the corpus, which is why 33 scenarios cost
     // 43 strings and not 400.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(21_903);
+    expect(total).toBe(22_758);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

@@ -308,7 +308,13 @@
       "fallbackBody": "자동으로 제출하지 못했지만, 세부 정보를 채운 GitHub 양식을 준비해 두었습니다.",
       "openGithub": "GitHub 양식 열기",
       "openGithubForm": "GitHub가 더 편한가요? 이슈 양식 열기 →",
-      "done": "완료"
+      "done": "완료",
+      "previewVersion": "앱 버전",
+      "previewPlatform": "플랫폼",
+      "previewLanguage": "언어",
+      "previewRpc": "연결 불가 RPC",
+      "previewFailures": "최근 실패",
+      "previewNone": "없음"
     },
     "identiconViewer": {
       "title": "아이덴티콘",

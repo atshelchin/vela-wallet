@@ -64,6 +64,7 @@
     "a11yHideBalance": "잔액 숨기기",
     "a11yShowBalance": "잔액 표시",
     "a11ySwitchAccount": "{{name}} 계정. 계정 전환",
-    "a11yOpenSettings": "설정"
+    "a11yOpenSettings": "설정",
+    "balanceDetailUpdatedLabel": "업데이트됨"
   }
 }

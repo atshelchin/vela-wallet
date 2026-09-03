@@ -308,7 +308,13 @@
       "fallbackBody": "Das automatische Senden hat nicht geklappt, aber wir haben ein GitHub-Formular mit den Details vorausgefüllt.",
       "openGithub": "GitHub-Formular öffnen",
       "openGithubForm": "Lieber GitHub? Issue-Formular öffnen →",
-      "done": "Fertig"
+      "done": "Fertig",
+      "previewVersion": "App-Version",
+      "previewPlatform": "Plattform",
+      "previewLanguage": "Sprache",
+      "previewRpc": "Nicht erreichbarer RPC",
+      "previewFailures": "Letzte Fehler",
+      "previewNone": "Keine"
     },
     "identiconViewer": {
       "title": "Identicon",

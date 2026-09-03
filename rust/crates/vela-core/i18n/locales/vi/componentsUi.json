@@ -308,7 +308,13 @@
       "fallbackBody": "Chúng tôi không gửi tự động được, nhưng đã điền sẵn một biểu mẫu GitHub với các chi tiết.",
       "openGithub": "Mở biểu mẫu GitHub",
       "openGithubForm": "Thích dùng GitHub? Mở biểu mẫu báo lỗi →",
-      "done": "Xong"
+      "done": "Xong",
+      "previewVersion": "Phiên bản ứng dụng",
+      "previewPlatform": "Nền tảng",
+      "previewLanguage": "Ngôn ngữ",
+      "previewRpc": "RPC không truy cập được",
+      "previewFailures": "Lỗi gần đây",
+      "previewNone": "Không có"
     },
     "identiconViewer": {
       "title": "Identicon",

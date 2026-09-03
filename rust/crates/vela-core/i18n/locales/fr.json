@@ -5,7 +5,8 @@
     "automatic": "Automatique",
     "error": "Erreur",
     "somethingWrong": "Une erreur s'est produite",
-    "tryAgain": "Réessayer"
+    "tryAgain": "Réessayer",
+    "done": "Terminé"
   },
   "language": {
     "title": "Langue",
@@ -27,14 +28,18 @@
       "developer": "Développeur"
     },
     "account": {
-      "switch": "Changer de compte"
+      "switch": "Changer de compte",
+      "contactsSubtitle": "Adresses enregistrées et destinataires récents"
     },
     "appearance": {
       "themeLight": "Clair",
       "themeDark": "Sombre",
       "themeAuto": "Suivre le système",
       "avatarInitials": "Initiales",
-      "avatarIdenticon": "Identicon"
+      "avatarIdenticon": "Identicon",
+      "themeTitle": "Thème",
+      "textScale": "Taille du texte",
+      "avatarTitle": "Style d'avatar"
     },
     "localization": {
       "currencyTitle": "Devise",
@@ -94,6 +99,48 @@
       "indian": "Indien",
       "h24": "24 heures",
       "h12": "12 heures"
+    },
+    "networks": {
+      "count": "{{count}} réseaux",
+      "custom": "Personnalisé",
+      "builtinNote": "Réseau intégré · non supprimable",
+      "saveHint": "Enregistré dès que vous quittez le champ. Refusé uniquement si le RPC annonce un autre Chain ID.",
+      "online": "En ligne",
+      "slow": "Plus lent"
+    },
+    "storage": {
+      "title": "Stockage de l’appareil",
+      "subtitle": "Données locales et cache",
+      "summary": "{{count}} enregistrements au total",
+      "userData": "Vos données · irrécupérables une fois effacées",
+      "caches": "Cache · reconstruit automatiquement",
+      "connections": "Connexions · les effacer déconnecte les dApps",
+      "legendUserData": "Vos données",
+      "legendCaches": "Cache",
+      "legendSessions": "Sessions",
+      "itemTransactions": "Historique des transactions",
+      "itemContacts": "Contacts et groupes",
+      "itemCustom": "Jetons et réseaux personnalisés",
+      "itemBrowsing": "Historique de navigation",
+      "itemBalances": "Cache des soldes et jetons",
+      "itemRates": "Cache des taux de change",
+      "itemScan": "Progression du scan",
+      "itemDapps": "Autorisations et sessions dApp",
+      "records": "{{count}} entrées",
+      "contactsCount": "{{count}} contacts",
+      "itemsCount": "{{count}} éléments",
+      "sitesCount": "{{count}} sites",
+      "clear": "Effacer",
+      "clearAllCaches": "Effacer tous les caches",
+      "disconnectAll": "Tout déconnecter",
+      "clearTitle": "Effacer tous les caches ?",
+      "clearBody": "Les caches de soldes, de jetons et de taux sont effacés puis récupérés à la prochaine ouverture. Votre historique, vos contacts et vos réglages ne changent pas.",
+      "clearConfirm": "Effacer les caches"
+    },
+    "indexDown": {
+      "title": "Service temporairement indisponible",
+      "subtitle": "L’index des clés d’accès est injoignable, et la création comme la connexion en dépendent.",
+      "editEndpoint": "Modifier l’adresse du service d’index"
     }
   },
   "time": {

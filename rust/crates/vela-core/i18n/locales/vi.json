@@ -5,7 +5,8 @@
     "automatic": "Tự động",
     "error": "Lỗi",
     "somethingWrong": "Đã xảy ra sự cố",
-    "tryAgain": "Thử lại"
+    "tryAgain": "Thử lại",
+    "done": "Xong"
   },
   "language": {
     "title": "Ngôn ngữ",
@@ -27,14 +28,18 @@
       "developer": "Nhà phát triển"
     },
     "account": {
-      "switch": "Chuyển tài khoản"
+      "switch": "Chuyển tài khoản",
+      "contactsSubtitle": "Địa chỉ đã lưu và người nhận gần đây"
     },
     "appearance": {
       "themeLight": "Sáng",
       "themeDark": "Tối",
       "themeAuto": "Theo hệ thống",
       "avatarInitials": "Chữ cái đầu",
-      "avatarIdenticon": "Identicon"
+      "avatarIdenticon": "Identicon",
+      "themeTitle": "Chủ đề",
+      "textScale": "Cỡ chữ",
+      "avatarTitle": "Kiểu ảnh đại diện"
     },
     "localization": {
       "currencyTitle": "Tiền tệ",
@@ -94,6 +99,48 @@
       "indian": "Ấn Độ",
       "h24": "24 giờ",
       "h12": "12 giờ"
+    },
+    "networks": {
+      "count": "{{count}} mạng lưới",
+      "custom": "Tùy chỉnh",
+      "builtinNote": "Mạng tích hợp · không thể xoá",
+      "saveHint": "Lưu ngay khi bạn rời khỏi ô nhập. Chỉ bị từ chối khi RPC báo một Chain ID khác.",
+      "online": "Trực tuyến",
+      "slow": "Chậm hơn"
+    },
+    "storage": {
+      "title": "Bộ nhớ thiết bị",
+      "subtitle": "Dữ liệu cục bộ và bộ nhớ đệm",
+      "summary": "Tổng {{count}} bản ghi",
+      "userData": "Dữ liệu của bạn · xoá rồi không khôi phục được",
+      "caches": "Bộ nhớ đệm · tự dựng lại",
+      "connections": "Kết nối · xoá là ngắt kết nối dApp",
+      "legendUserData": "Dữ liệu",
+      "legendCaches": "Bộ nhớ đệm",
+      "legendSessions": "Phiên kết nối",
+      "itemTransactions": "Lịch sử giao dịch",
+      "itemContacts": "Danh bạ và nhóm",
+      "itemCustom": "Token và mạng tuỳ chỉnh",
+      "itemBrowsing": "Lịch sử duyệt",
+      "itemBalances": "Bộ nhớ đệm số dư và token",
+      "itemRates": "Bộ nhớ đệm tỷ giá",
+      "itemScan": "Tiến trình quét",
+      "itemDapps": "Quyền và phiên dApp",
+      "records": "{{count}} bản ghi",
+      "contactsCount": "{{count}} người",
+      "itemsCount": "{{count}} mục",
+      "sitesCount": "{{count}} trang",
+      "clear": "Xoá",
+      "clearAllCaches": "Xoá toàn bộ bộ nhớ đệm",
+      "disconnectAll": "Ngắt tất cả",
+      "clearTitle": "Xoá toàn bộ bộ nhớ đệm?",
+      "clearBody": "Bộ nhớ đệm số dư, token và tỷ giá sẽ bị xoá và được tải lại ở lần mở ứng dụng kế tiếp. Lịch sử giao dịch, danh bạ và cài đặt không bị ảnh hưởng.",
+      "clearConfirm": "Xoá bộ nhớ đệm"
+    },
+    "indexDown": {
+      "title": "Dịch vụ tạm thời không khả dụng",
+      "subtitle": "Không kết nối được tới chỉ mục passkey — cả việc tạo ví lẫn đăng nhập đều cần nó.",
+      "editEndpoint": "Đổi địa chỉ dịch vụ chỉ mục"
     }
   },
   "time": {

@@ -5,7 +5,8 @@
   "automatic": "자동",
   "error": "오류",
   "somethingWrong": "문제가 발생했습니다",
-  "tryAgain": "다시 시도"
+  "tryAgain": "다시 시도",
+  "done": "완료"
  },
  "language": {
   "title": "언어",
@@ -27,14 +28,18 @@
    "developer": "개발자"
   },
   "account": {
-   "switch": "계정 전환"
+   "switch": "계정 전환",
+   "contactsSubtitle": "저장된 주소와 최근 받는 사람"
   },
   "appearance": {
    "themeLight": "라이트",
    "themeDark": "다크",
    "themeAuto": "시스템 설정 따르기",
    "avatarInitials": "이니셜",
-   "avatarIdenticon": "아이덴티콘"
+   "avatarIdenticon": "아이덴티콘",
+   "themeTitle": "테마",
+   "textScale": "글자 크기",
+   "avatarTitle": "아바타 스타일"
   },
   "localization": {
    "currencyTitle": "통화",
@@ -94,6 +99,48 @@
    "indian": "인도식",
    "h24": "24시간제",
    "h12": "12시간제"
+  },
+  "networks": {
+   "count": "네트워크 {{count}}개",
+   "custom": "사용자 지정",
+   "builtinNote": "기본 제공 네트워크 · 삭제할 수 없음",
+   "saveHint": "입력란에서 벗어나면 저장됩니다. RPC가 다른 체인 ID를 알려줄 때만 저장이 거부됩니다.",
+   "online": "온라인",
+   "slow": "느림"
+  },
+  "storage": {
+   "title": "기기 저장 공간",
+   "subtitle": "로컬 데이터 및 캐시",
+   "summary": "총 {{count}}개 항목",
+   "userData": "사용자 데이터 · 삭제하면 되돌릴 수 없음",
+   "caches": "캐시 · 자동으로 다시 만들어짐",
+   "connections": "연결 · 삭제하면 dApp 연결이 끊깁니다",
+   "legendUserData": "사용자 데이터",
+   "legendCaches": "캐시",
+   "legendSessions": "연결 세션",
+   "itemTransactions": "거래 내역",
+   "itemContacts": "연락처 및 그룹",
+   "itemCustom": "사용자 지정 토큰 및 네트워크",
+   "itemBrowsing": "방문 기록",
+   "itemBalances": "잔액 및 토큰 캐시",
+   "itemRates": "환율 캐시",
+   "itemScan": "스캔 진행 상황",
+   "itemDapps": "dApp 권한 및 세션",
+   "records": "{{count}}개",
+   "contactsCount": "{{count}}명",
+   "itemsCount": "{{count}}개",
+   "sitesCount": "사이트 {{count}}개",
+   "clear": "삭제",
+   "clearAllCaches": "모든 캐시 삭제",
+   "disconnectAll": "모두 연결 해제",
+   "clearTitle": "모든 캐시를 삭제할까요?",
+   "clearBody": "잔액·토큰·환율 캐시가 삭제되고, 다음에 앱을 열 때 다시 가져옵니다. 거래 내역, 연락처, 설정은 영향을 받지 않습니다.",
+   "clearConfirm": "캐시 삭제"
+  },
+  "indexDown": {
+   "title": "서비스를 일시적으로 사용할 수 없음",
+   "subtitle": "패스키 인덱스에 연결할 수 없습니다. 지갑 생성과 로그인 모두 이 서비스가 필요합니다.",
+   "editEndpoint": "인덱스 서비스 주소 변경"
   }
  },
  "time": {
@@ -180,7 +227,8 @@
   "a11yHideBalance": "잔액 숨기기",
   "a11yShowBalance": "잔액 표시",
   "a11ySwitchAccount": "{{name}} 계정. 계정 전환",
-  "a11yOpenSettings": "설정"
+  "a11yOpenSettings": "설정",
+  "balanceDetailUpdatedLabel": "업데이트됨"
  },
  "send": {
   "filterStable": "스테이블코인",
@@ -421,6 +469,7 @@
   "rpcProvidersHint": "무료 엔드포인트 — 가입한 뒤 URL을 복사해서 위에 붙여넣으세요.",
   "rpcReport": "여전히 안 되나요? 신고하기",
   "chainFallback": "체인 {{chainId}}",
+  "rpcFixRestored": "연결이 복구되었습니다 — 이 네트워크의 잔액과 기록을 다시 가져오는 중입니다.",
   "addByAddress": "주소로 토큰 추가",
   "notShowingTitle": "토큰을 받았는데 보이지 않나요?",
   "notShowingBody": "확인된 전송은 자동으로 추가됩니다. 그래도 토큰이 보이지 않으면 컨트랙트 주소로 추가하거나 해당 네트워크를 추가하세요."
@@ -920,7 +969,8 @@
   "linkWebsite": "웹사이트",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "정성껏 만들었습니다. 내 키, 내 코인."
+  "footer": "정성껏 만들었습니다. 내 키, 내 코인.",
+  "sectionLinks": "링크"
  },
  "clearSigning": {
   "title": "Clear Signing 테스트",
@@ -1368,7 +1418,13 @@
    "fallbackBody": "자동으로 제출하지 못했지만, 세부 정보를 채운 GitHub 양식을 준비해 두었습니다.",
    "openGithub": "GitHub 양식 열기",
    "openGithubForm": "GitHub가 더 편한가요? 이슈 양식 열기 →",
-   "done": "완료"
+   "done": "완료",
+   "previewVersion": "앱 버전",
+   "previewPlatform": "플랫폼",
+   "previewLanguage": "언어",
+   "previewRpc": "연결 불가 RPC",
+   "previewFailures": "최근 실패",
+   "previewNone": "없음"
   },
   "identiconViewer": {
    "title": "아이덴티콘",
@@ -1435,7 +1491,8 @@
    "checkKey": "키 확인",
    "activeNetworks": "네트워크 {{count}}개",
    "supportsCount": "네트워크 {{total}}개 중 {{count}}개 지원",
-   "unavailable": "사용 불가"
+   "unavailable": "사용 불가",
+   "avgLatency": "평균 {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "서비스 엔드포인트",
@@ -1448,7 +1505,8 @@
    "bundlerHint": "Vela Relay 호환 엔드포인트가 필요합니다",
    "fiatLabel": "법정화폐 환율",
    "fiatHint": "USD 기준 환율로 통화 목록을 구성합니다 — 더 넓은 범위의 소스로 교체 가능.",
-   "resetToDefaults": "기본값으로 재설정"
+   "resetToDefaults": "기본값으로 재설정",
+   "selfHostGuide": "직접 배포 가이드 →"
   },
   "addNetwork": {
    "modalTitle": "네트워크 추가",
@@ -1470,7 +1528,12 @@
    "recheck": "다시 확인",
    "chainIdLabel": "체인 ID: {{chainId}}",
    "nativeLabel": "기본 토큰: {{symbol}}",
-   "testnet": "테스트넷"
+   "testnet": "테스트넷",
+   "compatible": "호환됨",
+   "incompatible": "호환되지 않음",
+   "checkSafe": "Safe L2 컨트랙트",
+   "checkSigner": "WebAuthn 서명 모듈",
+   "checkRemaining": "나머지 컨트랙트 {{count}}개"
   },
   "treasury": {
    "modalTitle": "트레저리",

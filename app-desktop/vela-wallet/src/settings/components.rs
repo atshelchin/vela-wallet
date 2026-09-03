@@ -1,0 +1,874 @@
+//! Settings visuals (spec 023): theme + resolved strings + fixture models in,
+//! elements out. Same contract `wallet::components` and `contacts::components`
+//! follow — no i18n keys, no page state, no window management.
+//!
+//! The forty mocks in `design/settings/` are a small vocabulary re-dealt, and
+//! this is the vocabulary: a status pill, a callout, a nav row, a form row, a
+//! labelled URL field, a checklist, a storage line and a key/value row. Every
+//! panel in `wallet::page` is a composition of these.
+
+use gpui::prelude::FluentBuilder as _;
+use gpui::{
+    Div, ElementId, InteractiveElement as _, IntoElement, ParentElement, Stateful, Styled, div, px,
+    rgb,
+};
+
+use crate::icons::{Icon, IconCache};
+use crate::theme::{self, SETTINGS_NAV_ROW_H, Theme, WALLET_CONTROL_H};
+use crate::wallet::components::icon_img;
+
+use super::fixtures::{Pill, StorageGroup, Tone};
+
+/// Leading glyph in a nav row / form control.
+const GLYPH_SM: f32 = 16.;
+/// A chain's circular mark.
+const MARK: f32 = 32.;
+
+// -- StatusPill ---------------------------------------------------------------
+
+/// The one badge every settings screen uses: latency, reachability, provider
+/// state and compatibility are all this object in the mocks, differing only in
+/// tone. One component, not four.
+pub fn status_pill(theme: &Theme, pill: &Pill) -> Div {
+    let (fg, bg) = match pill.tone {
+        Tone::Ok => (theme.success_base, theme.success_soft),
+        Tone::Warn => (theme.warning_base, theme.warning_soft),
+        Tone::Error => (theme.error_base, theme.error_soft),
+        // Unset, not failed — the mocks grey these rather than colouring them.
+        Tone::Neutral => (theme.fg_subtle, theme.bg_raised),
+    };
+    div()
+        .flex()
+        .flex_none()
+        .items_center()
+        .gap(px(6.))
+        .px(px(8.))
+        .py(px(3.))
+        .rounded_full()
+        .bg(bg)
+        .when(pill.dot, |el| {
+            el.child(div().size(px(6.)).rounded_full().bg(fg))
+        })
+        .child(
+            div()
+                .text_size(theme::text_label())
+                .text_color(fg)
+                .child(pill.label.clone()),
+        )
+}
+
+// -- Callout ------------------------------------------------------------------
+
+/// Warning / danger / info / success. Eight mocks use it; `Success` swaps the
+/// triangle for a check, because a green triangle reads as an alarm.
+///
+/// Only `Warning` has a desktop mock (DSR1) — the danger, info and success
+/// callouts belong to phone screens the desktop folds into panels. They stay
+/// because this is a component vocabulary and the tone is the ONE thing that
+/// distinguishes the four; a callout that could only warn would be a warning
+/// box, and the next desktop state that needs a red one would fork it.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(
+    dead_code,
+    reason = "component vocabulary; the desktop mocks use one tone so far"
+)]
+pub enum CalloutTone {
+    Warning,
+    Danger,
+    Info,
+    Success,
+}
+
+pub fn callout(
+    theme: &Theme,
+    icons: &mut IconCache,
+    tone: CalloutTone,
+    text: impl Into<gpui::SharedString>,
+) -> Div {
+    let (fg, bg, icon) = match tone {
+        CalloutTone::Warning => (theme.warning_base, theme.warning_soft, Icon::TriangleAlert),
+        CalloutTone::Danger => (theme.error_base, theme.error_soft, Icon::TriangleAlert),
+        CalloutTone::Info => (theme.info_base, theme.info_soft, Icon::Info),
+        CalloutTone::Success => (theme.success_base, theme.success_soft, Icon::Check),
+    };
+    div()
+        .flex()
+        .items_start()
+        .gap(px(12.))
+        .p(px(12.))
+        .rounded(px(10.))
+        .bg(bg)
+        .child(
+            div()
+                .flex_none()
+                .mt(px(2.))
+                .child(icon_img(icons, icon, false, fg, GLYPH_SM)),
+        )
+        .child(
+            div()
+                .flex_1()
+                .text_size(theme::text_row_sub())
+                .text_color(fg)
+                .child(text.into()),
+        )
+}
+
+// -- SettingsNavList ----------------------------------------------------------
+
+/// One row of the 216px second-level nav (DST1–DST8). The selected row takes
+/// `bg_raised` PLUS a hairline: on dark, raised is barely a step off sunken and
+/// the fill alone does not read as a selection (desktop SPEC 暗色注意).
+pub fn settings_nav_row(
+    id: impl Into<ElementId>,
+    theme: &Theme,
+    icons: &mut IconCache,
+    icon: Icon,
+    label: gpui::SharedString,
+    selected: bool,
+) -> Stateful<Div> {
+    let tint = if selected {
+        theme.fg_base
+    } else {
+        theme.fg_muted
+    };
+    let row = div()
+        .id(id)
+        .h(px(SETTINGS_NAV_ROW_H))
+        .px(px(12.))
+        .rounded(px(10.))
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .cursor_pointer()
+        .child(icon_img(icons, icon, false, tint, GLYPH_SM))
+        .child(
+            div()
+                .text_size(theme::text_row_sub())
+                .text_color(tint)
+                .when(selected, |el| el.font_weight(gpui::FontWeight::SEMIBOLD))
+                .child(label),
+        );
+    if selected {
+        row.bg(theme.bg_raised)
+            .border_1()
+            .border_color(theme.divider)
+    } else {
+        row.hover(|el| el.bg(theme.bg_raised))
+    }
+}
+
+// -- FormRow ------------------------------------------------------------------
+
+/// A desktop panel row: label at the start, one control at the end, hairline
+/// underneath. The same de-containered language the phone list uses, on its
+/// side (DST2 / DST3).
+pub fn form_row(theme: &Theme, label: gpui::SharedString, control: impl IntoElement) -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(24.))
+                .py(px(16.))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w(px(0.))
+                        .text_size(theme::text_row_title())
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(theme.fg_base)
+                        .child(label),
+                )
+                .child(
+                    div()
+                        .w(px(theme::SETTINGS_CONTROL_W))
+                        .flex_none()
+                        .flex()
+                        .justify_end()
+                        .child(control),
+                ),
+        )
+        .child(div().h(px(1.)).bg(theme.divider))
+}
+
+/// The closed dropdown DST2/DST3 draw: current value plus a caret.
+pub fn dropdown_trigger(theme: &Theme, icons: &mut IconCache, value: gpui::SharedString) -> Div {
+    div()
+        .w_full()
+        .h(px(WALLET_CONTROL_H))
+        .px(px(12.))
+        .rounded(px(10.))
+        .bg(theme.bg_raised)
+        .border_1()
+        .border_color(theme.divider)
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap(px(8.))
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.))
+                .whitespace_nowrap()
+                .truncate()
+                .text_size(theme::text_row_sub())
+                .text_color(theme.fg_base)
+                .child(value),
+        )
+        .child(icon_img(
+            icons,
+            Icon::ChevronDown,
+            false,
+            theme.fg_subtle,
+            GLYPH_SM,
+        ))
+}
+
+/// The menu an open dropdown drops (DST3). Rendered as an absolutely-positioned
+/// child of the trigger's cell, because the desktop SPEC requires it to escape
+/// the panel's clipping rather than push the rows below it down.
+pub fn dropdown_menu(
+    theme: &Theme,
+    icons: &mut IconCache,
+    rows: &[(gpui::SharedString, Option<gpui::SharedString>, bool)],
+) -> Div {
+    let mut col = div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .px(px(12.))
+        .rounded(px(10.))
+        .bg(theme.bg_raised)
+        .border_1()
+        .border_color(theme.divider)
+        .shadow_lg()
+        .flex()
+        .flex_col();
+    let last = rows.len().saturating_sub(1);
+    for (i, (label, note, selected)) in rows.iter().enumerate() {
+        let mut row = div()
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .py(px(10.))
+            .child(
+                div()
+                    .font_family(theme::font_mono())
+                    .text_size(theme::text_row_sub())
+                    .text_color(if *selected {
+                        theme.accent
+                    } else {
+                        theme.fg_base
+                    })
+                    .when(*selected, |el| el.font_weight(gpui::FontWeight::SEMIBOLD))
+                    .child(label.clone()),
+            )
+            .child(div().flex_1());
+        if let Some(note) = note {
+            row = row.child(
+                div()
+                    .text_size(theme::text_label())
+                    .text_color(theme.fg_subtle)
+                    .child(note.clone()),
+            );
+        }
+        if *selected {
+            row = row.child(icon_img(icons, Icon::Check, false, theme.accent, 16.));
+        }
+        col = col.child(row);
+        if i != last {
+            col = col.child(div().h(px(1.)).bg(theme.divider));
+        }
+    }
+    col
+}
+
+// -- SegmentedControl ---------------------------------------------------------
+
+/// The product's ONE segmented control (design review 2026-07). Three-up for
+/// the theme picker, two-up for the avatar style; the desktop reuses the same
+/// component the phone does.
+pub fn segmented(
+    theme: &Theme,
+    icons: &mut IconCache,
+    items: &[(Option<Icon>, gpui::SharedString)],
+    selected: usize,
+) -> Div {
+    let mut row = div()
+        .flex()
+        .p(px(3.))
+        .rounded(px(10.))
+        .bg(theme.bg_sunken)
+        .border_1()
+        .border_color(theme.divider);
+    for (i, (icon, label)) in items.iter().enumerate() {
+        let is_selected = i == selected;
+        let tint = if is_selected {
+            theme.fg_base
+        } else {
+            theme.fg_muted
+        };
+        let mut cell = div()
+            .flex_1()
+            .h(px(32.))
+            .px(px(8.))
+            .rounded(px(8.))
+            .flex()
+            .items_center()
+            .justify_center()
+            .gap(px(6.));
+        if is_selected {
+            cell = cell.bg(theme.bg_raised);
+        }
+        if let Some(icon) = *icon {
+            cell = cell.child(icon_img(icons, icon, false, tint, 14.));
+        }
+        row = row.child(
+            cell.child(
+                div()
+                    .text_size(theme::text_row_sub())
+                    .text_color(tint)
+                    .when(is_selected, |el| el.font_weight(gpui::FontWeight::SEMIBOLD))
+                    .child(label.clone()),
+            ),
+        );
+    }
+    row
+}
+
+/// A ——●—— A. The desktop mock draws seven stops with the thumb on the fourth;
+/// this is a picture of the control, not a live one (spec 023 is UI only).
+pub fn text_scale(theme: &Theme, steps: usize, index: usize) -> Div {
+    let mut track = div()
+        .flex_1()
+        .h(px(20.))
+        .flex()
+        .items_center()
+        .justify_between();
+    for i in 0..steps {
+        track = track.child(if i == index {
+            div().size(px(16.)).rounded_full().bg(theme.fg_muted)
+        } else {
+            div().size(px(4.)).rounded_full().bg(theme.outline_strong)
+        });
+    }
+    div()
+        .w_full()
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .child(
+            div()
+                .text_size(theme::text_row_sub())
+                .font_weight(gpui::FontWeight::BOLD)
+                .text_color(theme.fg_base)
+                .child("A"),
+        )
+        .child(track)
+        .child(
+            div()
+                .text_size(theme::text_panel_title())
+                .font_weight(gpui::FontWeight::BOLD)
+                .text_color(theme.fg_base)
+                .child("A"),
+        )
+}
+
+// -- ChainMark / NetworkRow ---------------------------------------------------
+
+/// A chain's circular avatar — one letter over its own brand colour.
+pub fn chain_mark(letter: &'static str, color: u32, size: f32) -> Div {
+    div()
+        .size(px(size))
+        .flex_none()
+        .rounded_full()
+        .bg(rgb(color))
+        .flex()
+        .items_center()
+        .justify_center()
+        .text_size(theme::text_label())
+        .font_weight(gpui::FontWeight::BOLD)
+        .text_color(gpui::white())
+        .child(letter)
+}
+
+/// One network row (DST4): mark, name, chain-id line, an optional latency
+/// pill, an optional 自定义 tag, and a disclosure caret. The desktop expands in
+/// place rather than pushing a page, so the caret is a state and not a chevron.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one row, one call site, all data"
+)]
+pub fn network_row(
+    id: impl Into<ElementId>,
+    theme: &Theme,
+    icons: &mut IconCache,
+    letter: &'static str,
+    color: u32,
+    name: &'static str,
+    meta: gpui::SharedString,
+    badge: Option<&Pill>,
+    tag: Option<gpui::SharedString>,
+    removable: bool,
+    expanded: bool,
+) -> Stateful<Div> {
+    let mut name_row = div().flex().items_center().gap(px(8.)).child(
+        div()
+            .text_size(theme::text_row_title())
+            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .text_color(theme.fg_base)
+            .child(name),
+    );
+    if let Some(tag) = tag {
+        name_row = name_row.child(
+            div()
+                .px(px(6.))
+                .py(px(2.))
+                .rounded(px(4.))
+                .bg(theme.warning_soft)
+                .text_size(theme::text_label())
+                .text_color(theme.warning_base)
+                .child(tag),
+        );
+    }
+
+    let mut row = div()
+        .id(id)
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .py(px(12.))
+        .cursor_pointer()
+        .child(chain_mark(letter, color, MARK))
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.))
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(name_row)
+                .child(
+                    div()
+                        .font_family(theme::font_mono())
+                        .text_size(theme::text_row_sub())
+                        .text_color(theme.fg_subtle)
+                        .child(meta),
+                ),
+        );
+    if let Some(badge) = badge {
+        row = row.child(status_pill(theme, badge));
+    }
+    if removable {
+        row = row.child(icon_img(
+            icons,
+            Icon::Trash2,
+            false,
+            theme.fg_subtle,
+            GLYPH_SM,
+        ));
+    }
+    // The caret says what the tap DOES, which is why it flips rather than
+    // pointing at the row: down opens this network's editor, up closes it. A
+    // right-facing chevron would promise a page that does not exist here.
+    row.child(icon_img(
+        icons,
+        if expanded {
+            Icon::ChevronUp
+        } else {
+            Icon::ChevronDown
+        },
+        false,
+        theme.fg_subtle,
+        GLYPH_SM,
+    ))
+}
+
+// -- UrlField -----------------------------------------------------------------
+
+/// A labelled mono field: a label row that may carry a latency pill, the value
+/// in a sunken box, and an optional hint under it. Every endpoint on
+/// DST4 / DST5 / DST6 / DSR1 is one of these.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one field, one call site, all data"
+)]
+pub fn url_field(
+    theme: &Theme,
+    label: Option<gpui::SharedString>,
+    value: gpui::SharedString,
+    badge: Option<&Pill>,
+    hint: Option<gpui::SharedString>,
+    tone: Option<Tone>,
+    // `action`: the blue action inside the box — DST5's 检查密钥 / 获取密钥.
+    action: Option<gpui::SharedString>,
+) -> Div {
+    let border = match tone {
+        Some(Tone::Error) => theme.error_base,
+        Some(Tone::Ok) => theme.success_base,
+        _ => theme.divider,
+    };
+    let mut col = div().flex().flex_col().gap(px(8.));
+    if label.is_some() || badge.is_some() {
+        let mut head = div().flex().items_center().justify_between().gap(px(8.));
+        if let Some(label) = label {
+            head = head.child(
+                div()
+                    .text_size(theme::text_label())
+                    .text_color(theme.fg_subtle)
+                    .child(label),
+            );
+        }
+        if let Some(badge) = badge {
+            head = head.child(status_pill(theme, badge));
+        }
+        col = col.child(head);
+    }
+    col = col.child(
+        div()
+            .h(px(WALLET_CONTROL_H))
+            .px(px(12.))
+            .rounded(px(10.))
+            .bg(theme.bg_sunken)
+            // A 1px border even at rest: on dark, sunken and base are one step
+            // apart and the box would otherwise have no edge at all.
+            .border_1()
+            .border_color(border)
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w(px(0.))
+                    .whitespace_nowrap()
+                    .truncate()
+                    .font_family(theme::font_mono())
+                    .text_size(theme::text_row_sub())
+                    .text_color(theme.fg_base)
+                    .child(value),
+            )
+            .when_some(action, |el, action| {
+                el.child(
+                    div()
+                        .flex_none()
+                        .text_size(theme::text_row_sub())
+                        .text_color(theme.info_base)
+                        .child(action),
+                )
+            }),
+    );
+    if let Some(hint) = hint {
+        col = col.child(
+            div()
+                .text_size(theme::text_row_sub())
+                .text_color(theme.fg_subtle)
+                .child(hint),
+        );
+    }
+    col
+}
+
+// -- CheckList ----------------------------------------------------------------
+
+/// DST4b's compatibility list: a green check or a red cross per requirement.
+/// Both verdicts show all four rows — a shortened list would hide WHICH one
+/// failed, and that is the only useful part of "incompatible".
+pub fn check_list(
+    theme: &Theme,
+    icons: &mut IconCache,
+    title: gpui::SharedString,
+    items: &[(gpui::SharedString, bool)],
+) -> Div {
+    let mut col = div()
+        .flex()
+        .flex_col()
+        .gap(px(10.))
+        .p(px(16.))
+        .rounded(px(10.))
+        .bg(theme.bg_sunken)
+        .border_1()
+        .border_color(theme.divider)
+        .child(
+            div()
+                .text_size(theme::text_row_sub())
+                .text_color(theme.fg_subtle)
+                .child(title),
+        );
+    for (label, ok) in items {
+        let (icon, tint) = if *ok {
+            (Icon::Check, theme.success_base)
+        } else {
+            (Icon::X, theme.error_base)
+        };
+        col = col.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(12.))
+                .child(icon_img(icons, icon, false, tint, GLYPH_SM))
+                .child(
+                    div()
+                        .text_size(theme::text_row_sub())
+                        .text_color(theme.fg_base)
+                        .child(label.clone()),
+                ),
+        );
+    }
+    col
+}
+
+// -- Storage ------------------------------------------------------------------
+
+/// DST7's stacked bar. Shares, not pixels, so it tells the truth at any width.
+pub fn storage_bar(theme: &Theme, segments: &[(f32, u32)]) -> Div {
+    let mut bar = div()
+        .w_full()
+        .h(px(8.))
+        .rounded(px(4.))
+        .overflow_hidden()
+        .bg(theme.bg_sunken)
+        .flex();
+    for (fraction, color) in segments {
+        bar = bar.child(div().h_full().flex_grow(*fraction).bg(rgb(*color)));
+    }
+    bar
+}
+
+/// One storage group. The group label carries the consequence — "清除后无法
+/// 找回" against "清除后自动重建" — which is why the same word 清除 is red in
+/// the first group and plain in the second.
+pub fn storage_group(theme: &Theme, group: &StorageGroup) -> Div {
+    let mut col = div().flex().flex_col().pt(px(16.)).child(
+        div()
+            .pb(px(4.))
+            .text_size(theme::text_label())
+            .text_color(theme.fg_subtle)
+            .child(group.label.clone()),
+    );
+    for item in &group.items {
+        let action_tint = if item.destructive {
+            theme.error_base
+        } else {
+            theme.fg_muted
+        };
+        col = col.child(
+            div()
+                .flex()
+                .flex_col()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        .py(px(12.))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.))
+                                .whitespace_nowrap()
+                                .truncate()
+                                .text_size(theme::text_row_title())
+                                .text_color(theme.fg_base)
+                                .child(item.label.clone()),
+                        )
+                        .child(
+                            div()
+                                .text_size(theme::text_label())
+                                .text_color(theme.fg_subtle)
+                                .child(item.meta.clone()),
+                        )
+                        .child(
+                            div()
+                                .text_size(theme::text_row_sub())
+                                .text_color(action_tint)
+                                .child(item.action.clone()),
+                        ),
+                )
+                .child(div().h(px(1.)).bg(theme.divider)),
+        );
+    }
+    col
+}
+
+// -- KeyValueRow --------------------------------------------------------------
+
+/// DST8's technical-detail and link rows: label at the start, value at the end,
+/// mono where the value is an identifier, external glyph where it is a place.
+pub fn key_value_row(
+    theme: &Theme,
+    icons: &mut IconCache,
+    label: gpui::SharedString,
+    value: gpui::SharedString,
+    mono: bool,
+    external: bool,
+) -> Div {
+    let mut row = div()
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .py(px(12.))
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.))
+                .text_size(theme::text_row_sub())
+                .text_color(if external {
+                    theme.fg_base
+                } else {
+                    theme.fg_muted
+                })
+                .when(external, |el| el.font_weight(gpui::FontWeight::SEMIBOLD))
+                .child(label),
+        )
+        .child(
+            div()
+                .whitespace_nowrap()
+                .truncate()
+                .text_size(theme::text_row_sub())
+                .text_color(if external {
+                    theme.fg_subtle
+                } else {
+                    theme.fg_base
+                })
+                .when(mono, |el| el.font_family(theme::font_mono()))
+                .child(value),
+        );
+    if external {
+        row = row.child(icon_img(
+            icons,
+            Icon::ExternalLink,
+            false,
+            theme.fg_subtle,
+            14.,
+        ));
+    }
+    div()
+        .flex()
+        .flex_col()
+        .child(row)
+        .child(div().h(px(1.)).bg(theme.divider))
+}
+
+// -- DangerCard ---------------------------------------------------------------
+
+/// DST1's 清理数据 card — the one thing in settings drawn as a bordered box
+/// rather than a hairline row, because it is the only action on the screen
+/// that cannot be undone.
+pub fn danger_card(
+    theme: &Theme,
+    title: gpui::SharedString,
+    subtitle: gpui::SharedString,
+    action: gpui::SharedString,
+) -> Div {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(12.))
+        .p(px(16.))
+        .rounded(px(10.))
+        .bg(theme.error_soft)
+        .border_1()
+        .border_color(theme.error_base)
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.))
+                .flex()
+                .flex_col()
+                .gap(px(2.))
+                .child(
+                    div()
+                        .text_size(theme::text_row_title())
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(theme.error_base)
+                        .child(title),
+                )
+                .child(
+                    div()
+                        .text_size(theme::text_label())
+                        .text_color(theme.fg_muted)
+                        .child(subtitle),
+                ),
+        )
+        .child(
+            div()
+                .text_size(theme::text_row_sub())
+                .text_color(theme.error_base)
+                .child(action),
+        )
+}
+
+// -- RpcBanner ----------------------------------------------------------------
+
+/// DSR1's amber banner: the count of unreachable networks, then one chip per
+/// network with its own 修复. Per-chain rather than one global button, because
+/// the fix IS per chain — a shared button would have to ask which one first.
+pub fn rpc_banner(
+    theme: &Theme,
+    icons: &mut IconCache,
+    text: gpui::SharedString,
+    chips: Vec<(&'static str, u32, &'static str, gpui::SharedString)>,
+) -> Div {
+    let mut row = div().flex().flex_wrap().gap(px(8.));
+    for (letter, color, name, action) in chips {
+        row = row.child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .px(px(8.))
+                .py(px(6.))
+                .rounded_full()
+                .bg(theme.bg_base)
+                .child(chain_mark(letter, color, 20.))
+                .child(
+                    div()
+                        .text_size(theme::text_row_sub())
+                        .text_color(theme.fg_base)
+                        .child(name),
+                )
+                // The only accent on this banner: the thing that fixes it.
+                .child(
+                    div()
+                        .text_size(theme::text_row_sub())
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(theme.accent)
+                        .child(action),
+                ),
+        );
+    }
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(12.))
+        .p(px(16.))
+        .rounded(px(10.))
+        .bg(theme.warning_soft)
+        .border_1()
+        .border_color(theme.warning_base)
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .child(icon_img(
+                    icons,
+                    Icon::TriangleAlert,
+                    false,
+                    theme.warning_base,
+                    GLYPH_SM,
+                ))
+                .child(
+                    div()
+                        .text_size(theme::text_row_sub())
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
+                        .text_color(theme.warning_base)
+                        .child(text),
+                ),
+        )
+        .child(row)
+}

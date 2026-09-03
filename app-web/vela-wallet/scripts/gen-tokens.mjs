@@ -123,6 +123,21 @@ const WEB_ADDITIONS = [
 		'spec 019: the /03, a step further up from the background than the ordinal'
 	],
 	[
+		'layout-settingsNavW',
+		'216px',
+		"spec 023 desktop SPEC: the settings second-level nav column, measured 216 in DST1–DST8 (the app sidebar's 240 is a different column and keeps its own width)"
+	],
+	[
+		'layout-settingsControlW',
+		'280px',
+		'spec 023: the desktop panel\u2019s right-hand control column — measured 280 across DST2/DST3, so a dropdown, a segmented control and a slider all end on the same line'
+	],
+	[
+		'layout-settingsDialogW',
+		'520px',
+		'spec 023: the centred desktop dialog (DST4b / DSR1), measured 520 — wide enough for a URL in the mono face without becoming a second page'
+	],
+	[
 		'layout-flowColumn',
 		'440px',
 		'spec 019: the v2 onboarding flow column. The design centres every step in one column of this width at every viewport; the Welcome hero is the only wider one'

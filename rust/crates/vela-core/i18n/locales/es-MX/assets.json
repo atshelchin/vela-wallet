@@ -22,8 +22,8 @@
     "rpcProvidersHint": "Endpoints gratis — regístrate, copia tu URL y pégala arriba.",
     "rpcReport": "¿Sigue sin funcionar? Repórtalo",
     "chainFallback": "Cadena {{chainId}}",
+    "rpcFixRestored": "Conexión restablecida: volviendo a obtener los saldos y registros de esta red.",
     "addByAddress": "Agregar un token por dirección",
     "notShowingTitle": "¿Recibiste un token y no aparece?",
-    "notShowingBody": "Las transferencias confirmadas se agregan solas. Si el token sigue sin aparecer, agrégalo por dirección de contrato o agrega la red donde vive."
-  }
+    "notShowingBody": "Las transferencias confirmadas se agregan solas. Si el token sigue sin aparecer, agrégalo por dirección de contrato o agrega la red donde vive."  }
 }

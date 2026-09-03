@@ -2,7 +2,13 @@
 	import type { Snippet } from 'svelte';
 
 	interface Props {
-		variant: 'primary' | 'secondary';
+		/**
+		 * `danger` is spec 023's addition: 退出登录 / 仍然退出 / 全部清除 are
+		 * filled buttons in the error colour, not accent ones. Accent is reserved
+		 * for the action that moves value (design review 2026-07), and signing out
+		 * or erasing a device moves none — it destroys.
+		 */
+		variant: 'primary' | 'secondary' | 'danger';
 		/**
 		 * `pill` is the Welcome page's shape (spec 006); `rounded` is the v2
 		 * onboarding flow's, whose design draws rectangles at `--radius-lg`
@@ -157,5 +163,10 @@
 		background: transparent;
 		border: var(--border-hairline) solid var(--color-border-strong);
 		color: var(--color-fg-muted);
+	}
+
+	.danger {
+		background: var(--color-error-base);
+		color: var(--color-onAccent);
 	}
 </style>

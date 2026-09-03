@@ -103,6 +103,36 @@ fun VelaSecondaryButton(
     }
 }
 
+/**
+ * The destructive CTA (spec 023): 退出登录 / 仍然退出 / 全部清除 are filled
+ * buttons in the error colour, not accent ones. Accent is reserved for the
+ * action that moves value (design review 2026-07), and signing out or erasing
+ * a device moves none — it destroys.
+ */
+@Composable
+fun VelaDangerButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+) {
+    VelaButtonSurface(
+        onClick = onClick,
+        modifier = modifier,
+        enabled = enabled,
+        loading = loading,
+    ) { pressModifier ->
+        Box(
+            modifier = pressModifier.background(VelaTheme.colors.errorBase),
+            contentAlignment = Alignment.Center,
+        ) {
+            ButtonLabel(text = text, color = VelaOnAccent, loading = loading)
+            ButtonSpinner(color = VelaOnAccent, visible = loading)
+        }
+    }
+}
+
 /** Shared press-feedback surface; internal so VelaActionStack rows reuse it. */
 @Composable
 internal fun VelaButtonSurface(

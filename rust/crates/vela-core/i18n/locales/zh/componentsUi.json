@@ -308,7 +308,13 @@
       "fallbackBody": "我们无法自动提交，但已为你预填好一份带有详情的 GitHub 表单。",
       "openGithub": "打开 GitHub 表单",
       "openGithubForm": "更想用 GitHub？打开问题表单 →",
-      "done": "完成"
+      "done": "完成",
+      "previewVersion": "应用版本",
+      "previewPlatform": "平台",
+      "previewLanguage": "语言",
+      "previewRpc": "不可达 RPC",
+      "previewFailures": "最近失败",
+      "previewNone": "无"
     },
     "identiconViewer": {
       "title": "身份图标",

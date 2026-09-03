@@ -64,6 +64,7 @@
     "a11yHideBalance": "残高を隠す",
     "a11yShowBalance": "残高を表示",
     "a11ySwitchAccount": "アカウント {{name}}。アカウントを切り替える",
-    "a11yOpenSettings": "設定"
+    "a11yOpenSettings": "設定",
+    "balanceDetailUpdatedLabel": "更新済み"
   }
 }

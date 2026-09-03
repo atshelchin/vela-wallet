@@ -31,6 +31,28 @@
 	import IntroSlide from '$lib/ui/intro/IntroSlide.svelte';
 	import PageDots from '$lib/ui/intro/PageDots.svelte';
 	import { INTRO_SLIDES } from '$lib/intro/slides';
+	import AboutPanel from '$lib/settings/ui/AboutPanel.svelte';
+	import AccountRow from '$lib/settings/ui/AccountRow.svelte';
+	import Callout from '$lib/settings/ui/Callout.svelte';
+	import ChainMark from '$lib/settings/ui/ChainMark.svelte';
+	import CheckList from '$lib/settings/ui/CheckList.svelte';
+	import ConfirmSheet from '$lib/settings/ui/ConfirmSheet.svelte';
+	import DangerCard from '$lib/settings/ui/DangerCard.svelte';
+	import Dropdown from '$lib/settings/ui/Dropdown.svelte';
+	import EndpointsPanel from '$lib/settings/ui/EndpointsPanel.svelte';
+	import FormRow from '$lib/settings/ui/FormRow.svelte';
+	import NetworkRow from '$lib/settings/ui/NetworkRow.svelte';
+	import RpcBanner from '$lib/settings/ui/RpcBanner.svelte';
+	import RpcProvidersPanel from '$lib/settings/ui/RpcProvidersPanel.svelte';
+	import SectionLabel from '$lib/settings/ui/SectionLabel.svelte';
+	import SegmentedControl from '$lib/settings/ui/SegmentedControl.svelte';
+	import SelectRow from '$lib/settings/ui/SelectRow.svelte';
+	import SettingsRow from '$lib/settings/ui/SettingsRow.svelte';
+	import StatusPill from '$lib/settings/ui/StatusPill.svelte';
+	import StorageBar from '$lib/settings/ui/StorageBar.svelte';
+	import StorageGroup from '$lib/settings/ui/StorageGroup.svelte';
+	import TextScaleSlider from '$lib/settings/ui/TextScaleSlider.svelte';
+	import UrlField from '$lib/settings/ui/UrlField.svelte';
 	import Controls from './Controls.svelte';
 
 	let { data } = $props();
@@ -43,6 +65,7 @@
 	const alice = $derived(c.list?.sections[0].contacts[0]);
 	const intro = $derived(data.intro);
 	const ahao = $derived(c.list?.sections[0].contacts[1]);
+	const st = $derived(data.settings);
 </script>
 
 <svelte:head>
@@ -68,6 +91,12 @@
 				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
 			{/each}
 			{#each data.contactsDesktopStates as state (state)}
+				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
+			{/each}
+			{#each data.settingsMobileStates as state (state)}
+				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
+			{/each}
+			{#each data.settingsDesktopStates as state (state)}
 				<a href={resolve('/[locale]/gallery/[state]', { locale, state })}>{state.toUpperCase()}</a>
 			{/each}
 		</div>
@@ -365,6 +394,190 @@
 				<PageDots total={INTRO_SLIDES.length} current={i} label="{i + 1} / {INTRO_SLIDES.length}" />
 			</div>
 		{/each}
+	</section>
+
+	<!-- Spec 023: the settings vocabulary. Every one of the forty mocks in
+	     design/settings/ is assembled from the components below. -->
+	<section id="gallery-section-settings-rows">
+		<h2>SettingsRow · SectionLabel · AccountRow</h2>
+		<div class="cell" id="gallery-settings-account">
+			<AccountRow account={st.account} />
+		</div>
+		{#each st.sections as section, i (i)}
+			{#if section.label !== undefined}
+				<div class="cell" id="gallery-settings-label-{i}">
+					<SectionLabel
+						label={section.label}
+						collapsible={section.collapsible}
+						collapsed={section.collapsed}
+					/>
+				</div>
+			{/if}
+			{#each section.rows as row (row.id)}
+				<div class="cell" id="gallery-settings-row-{row.id}">
+					<SettingsRow {row} />
+				</div>
+			{/each}
+		{/each}
+	</section>
+
+	<section id="gallery-section-settings-controls">
+		<h2>SegmentedControl · TextScaleSlider</h2>
+		<div class="cell" id="gallery-settings-theme">
+			<SegmentedControl model={st.appearance.theme} />
+		</div>
+		<div class="cell" id="gallery-settings-avatar">
+			<SegmentedControl model={st.appearance.avatar} />
+		</div>
+		<div class="cell" id="gallery-settings-textscale">
+			<TextScaleSlider model={st.appearance.textScale} />
+		</div>
+	</section>
+
+	<section id="gallery-section-settings-pills">
+		<h2>StatusPill · Callout</h2>
+		<div class="cell row" id="gallery-settings-pills">
+			<StatusPill pill={{ tone: 'ok', label: '45ms', dot: true }} />
+			<StatusPill pill={{ tone: 'warn', label: '1.2s', dot: true }} />
+			<StatusPill pill={{ tone: 'error', label: st.rpcFixFailing.badge.label, dot: true }} />
+			<StatusPill pill={{ tone: 'neutral', label: '—', dot: true }} />
+			<StatusPill pill={{ tone: 'accent', label: '112ms' }} />
+		</div>
+		<div class="cell" id="gallery-settings-callout-warning">
+			<Callout callout={st.rpcFixFailing.callout} />
+		</div>
+		<div class="cell" id="gallery-settings-callout-success">
+			<Callout callout={st.rpcFixRestored.callout} />
+		</div>
+		<div class="cell" id="gallery-settings-callout-danger">
+			<Callout callout={{ tone: 'danger', text: st.networkDetail.callout?.text ?? '' }} />
+		</div>
+		<div class="cell" id="gallery-settings-callout-info">
+			<Callout callout={{ tone: 'info', text: st.feedback.consent }} />
+		</div>
+	</section>
+
+	<section id="gallery-section-settings-select">
+		<h2>SelectRow</h2>
+		{#each st.languageSheet.rows.slice(0, 3) as row (row.id)}
+			<div class="cell" id="gallery-settings-select-{row.id}">
+				<SelectRow {row} />
+			</div>
+		{/each}
+		{#each st.currencySheet.rows.slice(0, 2) as row (row.id)}
+			<div class="cell" id="gallery-settings-currency-{row.id}">
+				<SelectRow {row} />
+			</div>
+		{/each}
+		{#each st.numberSheet.rows.slice(0, 2) as row (row.id)}
+			<div class="cell" id="gallery-settings-number-{row.id}">
+				<SelectRow {row} />
+			</div>
+		{/each}
+	</section>
+
+	<section id="gallery-section-settings-networks">
+		<h2>NetworkRow · ChainMark · UrlField</h2>
+		<div class="cell row" id="gallery-settings-marks">
+			{#each st.networks.rows as row (row.id)}
+				<ChainMark mark={row.mark} />
+			{/each}
+		</div>
+		{#each st.networks.rows.slice(0, 3) as row (row.id)}
+			<div class="cell" id="gallery-settings-network-{row.id}">
+				<NetworkRow {row} deleteLabel={st.networks.addLabel} />
+			</div>
+		{/each}
+		<div class="cell" id="gallery-settings-url-rpc">
+			<UrlField field={st.networkDetail.rpc} />
+		</div>
+		<div class="cell" id="gallery-settings-url-explorer">
+			<UrlField field={st.networkDetail.explorer} />
+		</div>
+	</section>
+
+	<section id="gallery-section-settings-checks">
+		<h2>CheckList</h2>
+		{#if st.checks.compatible.checks !== undefined && st.checks.compatible.checksTitle !== undefined}
+			<div class="cell" id="gallery-settings-checks-ok">
+				<CheckList title={st.checks.compatible.checksTitle} items={st.checks.compatible.checks} />
+			</div>
+		{/if}
+		{#if st.checks.incompatible.checks !== undefined && st.checks.incompatible.checksTitle !== undefined}
+			<div class="cell" id="gallery-settings-checks-bad">
+				<CheckList
+					title={st.checks.incompatible.checksTitle}
+					items={st.checks.incompatible.checks}
+				/>
+			</div>
+		{/if}
+	</section>
+
+	<section id="gallery-section-settings-storage">
+		<h2>StorageBar · StorageGroup · DangerCard</h2>
+		<div class="cell" id="gallery-settings-storagebar">
+			<StorageBar segments={st.storage.segments} />
+		</div>
+		{#each st.storage.groups as group (group.label)}
+			<div class="cell" id="gallery-settings-storagegroup-{group.label}">
+				<StorageGroup {group} />
+			</div>
+		{/each}
+		<div class="cell" id="gallery-settings-dangercard">
+			<DangerCard title={st.erase.title} subtitle={st.erase.subtitle} />
+		</div>
+	</section>
+
+	<section id="gallery-section-settings-panels">
+		<h2>RpcProvidersPanel · EndpointsPanel · AboutPanel</h2>
+		<div class="cell" id="gallery-settings-providers">
+			<RpcProvidersPanel panel={st.rpcProviders} />
+		</div>
+		<div class="cell" id="gallery-settings-endpoints">
+			<EndpointsPanel panel={st.endpoints} />
+		</div>
+		<div class="cell" id="gallery-settings-about">
+			<AboutPanel panel={st.about} />
+		</div>
+	</section>
+
+	<section id="gallery-section-settings-desktop">
+		<h2>FormRow · Dropdown</h2>
+		<div class="cell" id="gallery-settings-formrow-dropdown">
+			<FormRow label={st.numberSheet.title}>
+				<Dropdown value={st.numberSheet.rows[0].label} label={st.numberSheet.title} />
+			</FormRow>
+		</div>
+		<div class="cell" id="gallery-settings-formrow-open">
+			<FormRow label={st.numberSheet.title}>
+				<Dropdown
+					value={st.numberSheet.rows[0].label}
+					label={st.numberSheet.title}
+					open
+					rows={st.numberSheet.rows}
+				/>
+			</FormRow>
+		</div>
+		<div class="cell" id="gallery-settings-formrow-segmented">
+			<FormRow label={st.appearance.theme.label}>
+				<SegmentedControl model={st.appearance.theme} />
+			</FormRow>
+		</div>
+	</section>
+
+	<section id="gallery-section-settings-rescue">
+		<h2>RpcBanner · ConfirmSheet</h2>
+		{#if st.banner !== undefined}
+			<div class="cell" id="gallery-settings-banner">
+				<RpcBanner banner={st.banner} />
+			</div>
+		{/if}
+		<div class="cell" id="gallery-settings-confirm-danger">
+			<ConfirmSheet sheet={st.signOutSheet} />
+		</div>
+		<div class="cell" id="gallery-settings-confirm-accent">
+			<ConfirmSheet sheet={st.clearCachesSheet} />
+		</div>
 	</section>
 </main>
 

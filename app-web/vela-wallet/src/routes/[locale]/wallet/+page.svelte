@@ -15,8 +15,10 @@
 	 *    BROWSER through vela-core, which is already loaded here: the session
 	 *    machine that holds the address is that same module. Welcome stays
 	 *    wasm-free; this page never could be.
-	 * 3. **The way out.** The Settings tab signs out, which is the exit the
-	 *    other three clients already have.
+	 * 3. **The way out.** The Settings tab opens the settings screen, and the
+	 *    退出登录 row inside it signs out. Until spec 023 there was no such
+	 *    screen, so the tab itself was the sign-out — which meant tapping
+	 *    设置 to change your language logged you out instead.
 	 */
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -50,6 +52,7 @@
 	let { data }: PageProps = $props();
 
 	const welcome = $derived(resolve('/[locale]', { locale: data.locale }));
+	const settings = $derived(resolve('/[locale]/settings', { locale: data.locale }));
 	const wide = new MediaQuery(`(min-width: ${BREAKPOINT_DESKTOP}px)`, false);
 
 	const view = $derived(session.view);
@@ -124,13 +127,12 @@
 	});
 
 	/**
-	 * Sign-out is the only thing behind Settings today. The other three tabs
+	 * 设置 has a route now (spec 023). 通讯录 and 探索 still do not, so they
 	 * stay on this screen rather than navigating to fixtures a signed-in person
-	 * would read as their real data — the same call all three native clients
-	 * made.
+	 * would read as their real data.
 	 */
 	function select(id: 'wallet' | 'contacts' | 'explore' | 'settings') {
-		if (id === 'settings') session.signOut();
+		if (id === 'settings') void goto(settings);
 	}
 
 	function enter(entry: FlowEntry) {

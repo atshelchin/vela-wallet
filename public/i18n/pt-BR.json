@@ -5,7 +5,8 @@
   "automatic": "Automático",
   "error": "Erro",
   "somethingWrong": "Algo deu errado",
-  "tryAgain": "Tentar de novo"
+  "tryAgain": "Tentar de novo",
+  "done": "Concluído"
  },
  "language": {
   "title": "Idioma",
@@ -27,14 +28,18 @@
    "developer": "Desenvolvedor"
   },
   "account": {
-   "switch": "Trocar de conta"
+   "switch": "Trocar de conta",
+   "contactsSubtitle": "Endereços salvos e destinatários recentes"
   },
   "appearance": {
    "themeLight": "Claro",
    "themeDark": "Escuro",
    "themeAuto": "Seguir o sistema",
    "avatarInitials": "Iniciais",
-   "avatarIdenticon": "Identicon"
+   "avatarIdenticon": "Identicon",
+   "themeTitle": "Tema",
+   "textScale": "Tamanho do texto",
+   "avatarTitle": "Estilo do avatar"
   },
   "localization": {
    "currencyTitle": "Moeda",
@@ -94,6 +99,48 @@
    "indian": "Indiano",
    "h24": "24 horas",
    "h12": "12 horas"
+  },
+  "networks": {
+   "count": "{{count}} redes",
+   "custom": "Personalizada",
+   "builtinNote": "Rede integrada · não pode ser removida",
+   "saveHint": "Salvo assim que você sai do campo. Só é recusado se o RPC informar um Chain ID diferente.",
+   "online": "Online",
+   "slow": "Mais lento"
+  },
+  "storage": {
+   "title": "Armazenamento do dispositivo",
+   "subtitle": "Dados locais e cache",
+   "summary": "{{count}} registros no total",
+   "userData": "Seus dados · não podem ser recuperados após a limpeza",
+   "caches": "Cache · reconstruído automaticamente",
+   "connections": "Conexões · limpar desconecta os dApps",
+   "legendUserData": "Seus dados",
+   "legendCaches": "Cache",
+   "legendSessions": "Sessões",
+   "itemTransactions": "Histórico de transações",
+   "itemContacts": "Contatos e grupos",
+   "itemCustom": "Tokens e redes personalizados",
+   "itemBrowsing": "Histórico de navegação",
+   "itemBalances": "Cache de saldos e tokens",
+   "itemRates": "Cache de câmbio",
+   "itemScan": "Progresso da varredura",
+   "itemDapps": "Permissões e sessões de dApps",
+   "records": "{{count}} registros",
+   "contactsCount": "{{count}} contatos",
+   "itemsCount": "{{count}} itens",
+   "sitesCount": "{{count}} sites",
+   "clear": "Limpar",
+   "clearAllCaches": "Limpar todo o cache",
+   "disconnectAll": "Desconectar tudo",
+   "clearTitle": "Limpar todo o cache?",
+   "clearBody": "Os caches de saldos, tokens e câmbio são limpos e obtidos de novo na próxima vez que você abrir o app. Seu histórico, contatos e configurações não são afetados.",
+   "clearConfirm": "Limpar cache"
+  },
+  "indexDown": {
+   "title": "Serviço temporariamente indisponível",
+   "subtitle": "Não foi possível acessar o índice de passkeys, e tanto criar quanto entrar dependem dele.",
+   "editEndpoint": "Alterar o endereço do serviço de índice"
   }
  },
  "time": {
@@ -180,7 +227,8 @@
   "a11yHideBalance": "Ocultar saldo",
   "a11yShowBalance": "Mostrar saldo",
   "a11ySwitchAccount": "Conta {{name}}. Trocar de conta",
-  "a11yOpenSettings": "Configurações"
+  "a11yOpenSettings": "Configurações",
+  "balanceDetailUpdatedLabel": "Atualizado"
  },
  "send": {
   "filterStable": "Stablecoins",
@@ -424,6 +472,7 @@
   "rpcProvidersHint": "Endpoints gratuitos — cadastre-se, copie sua URL e cole acima.",
   "rpcReport": "Ainda não funciona? Reporte",
   "chainFallback": "Chain {{chainId}}",
+  "rpcFixRestored": "Conexão restabelecida — obtendo de novo os saldos e registros desta rede.",
   "addByAddress": "Adicionar um token pelo endereço",
   "notShowingTitle": "Recebeu um token e ele não aparece?",
   "notShowingBody": "Transferências confirmadas são adicionadas sozinhas. Se o token ainda não apareceu, adicione-o pelo endereço do contrato ou adicione a rede dele."
@@ -923,7 +972,8 @@
   "linkWebsite": "Site",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "Feito com cuidado. Suas chaves, suas moedas."
+  "footer": "Feito com cuidado. Suas chaves, suas moedas.",
+  "sectionLinks": "Links"
  },
  "clearSigning": {
   "title": "Teste de Clear Signing",
@@ -1371,7 +1421,13 @@
    "fallbackBody": "Não conseguimos enviar automaticamente, mas já preenchemos um formulário do GitHub com os detalhes.",
    "openGithub": "Abrir formulário do GitHub",
    "openGithubForm": "Prefere o GitHub? Abrir o formulário de issue →",
-   "done": "Concluído"
+   "done": "Concluído",
+   "previewVersion": "Versão do app",
+   "previewPlatform": "Plataforma",
+   "previewLanguage": "Idioma",
+   "previewRpc": "RPC inacessível",
+   "previewFailures": "Falhas recentes",
+   "previewNone": "Nenhum"
   },
   "identiconViewer": {
    "title": "Identicon",
@@ -1438,7 +1494,8 @@
    "checkKey": "Verificar chave",
    "activeNetworks": "{{count}} redes",
    "supportsCount": "Suporta {{count}} de {{total}} redes",
-   "unavailable": "Indisponível"
+   "unavailable": "Indisponível",
+   "avgLatency": "méd. {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "Endpoints de serviço",
@@ -1451,7 +1508,8 @@
    "bundlerHint": "É necessário um endpoint compatível com o Vela Relay",
    "fiatLabel": "COTAÇÕES FIAT",
    "fiatHint": "Taxas de câmbio baseadas em USD que definem a lista de moedas — substituível por uma cobertura mais ampla.",
-   "resetToDefaults": "Restaurar padrões"
+   "resetToDefaults": "Restaurar padrões",
+   "selfHostGuide": "Guia de auto-hospedagem →"
   },
   "addNetwork": {
    "modalTitle": "Adicionar rede",
@@ -1473,7 +1531,12 @@
    "recheck": "Verificar de novo",
    "chainIdLabel": "Chain ID: {{chainId}}",
    "nativeLabel": "Nativo: {{symbol}}",
-   "testnet": "Testnet"
+   "testnet": "Testnet",
+   "compatible": "Compatível",
+   "incompatible": "Incompatível",
+   "checkSafe": "Contratos Safe L2",
+   "checkSigner": "Módulo de assinatura WebAuthn",
+   "checkRemaining": "outros {{count}} contratos"
   },
   "treasury": {
    "modalTitle": "Tesouraria",

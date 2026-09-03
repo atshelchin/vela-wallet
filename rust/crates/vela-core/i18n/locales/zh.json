@@ -5,7 +5,8 @@
     "automatic": "自动",
     "error": "错误",
     "somethingWrong": "出错了",
-    "tryAgain": "重试"
+    "tryAgain": "重试",
+    "done": "完成"
   },
   "language": {
     "title": "语言",
@@ -27,14 +28,18 @@
       "developer": "开发者"
     },
     "account": {
-      "switch": "切换账户"
+      "switch": "切换账户",
+      "contactsSubtitle": "已保存地址与最近收款人"
     },
     "appearance": {
       "themeLight": "浅色",
       "themeDark": "深色",
       "themeAuto": "跟随系统",
       "avatarInitials": "首字母",
-      "avatarIdenticon": "图形头像"
+      "avatarIdenticon": "图形头像",
+      "themeTitle": "主题",
+      "textScale": "文字大小",
+      "avatarTitle": "头像样式"
     },
     "localization": {
       "currencyTitle": "货币",
@@ -94,6 +99,48 @@
       "indian": "印度计数",
       "h24": "24 小时制",
       "h12": "12 小时制"
+    },
+    "networks": {
+      "count": "{{count}} 个网络",
+      "custom": "自定义",
+      "builtinNote": "内置网络 · 不可移除",
+      "saveHint": "离开输入框即保存。仅当该 RPC 报告的链 ID 与本网络不符时才拒绝保存。",
+      "online": "在线",
+      "slow": "较慢"
+    },
+    "storage": {
+      "title": "设备存储",
+      "subtitle": "本地数据与缓存管理",
+      "summary": "共 {{count}} 条记录",
+      "userData": "用户数据 · 清除后无法找回",
+      "caches": "缓存 · 清除后自动重建",
+      "connections": "连接 · 清除即断开 dApp",
+      "legendUserData": "用户数据",
+      "legendCaches": "缓存",
+      "legendSessions": "连接会话",
+      "itemTransactions": "交易记录",
+      "itemContacts": "联系人与分组",
+      "itemCustom": "自定义代币与网络",
+      "itemBrowsing": "浏览记录",
+      "itemBalances": "余额与代币缓存",
+      "itemRates": "汇率缓存",
+      "itemScan": "扫描进度",
+      "itemDapps": "dApp 授权与会话",
+      "records": "{{count}} 条",
+      "contactsCount": "{{count}} 位",
+      "itemsCount": "{{count}} 项",
+      "sitesCount": "{{count}} 个站点",
+      "clear": "清除",
+      "clearAllCaches": "清除全部缓存",
+      "disconnectAll": "断开全部",
+      "clearTitle": "清除全部缓存？",
+      "clearBody": "余额、代币与汇率缓存将被清除，下次打开时自动重新拉取。你的交易记录、联系人和各项设置不受影响。",
+      "clearConfirm": "清除缓存"
+    },
+    "indexDown": {
+      "title": "服务暂时不可用",
+      "subtitle": "通行密钥索引服务无法访问，创建和登录都需要它。",
+      "editEndpoint": "修改索引服务地址"
     }
   },
   "time": {

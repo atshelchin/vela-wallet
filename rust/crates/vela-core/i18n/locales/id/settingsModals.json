@@ -27,7 +27,8 @@
       "checkKey": "Periksa kunci",
       "activeNetworks": "{{count}} jaringan",
       "supportsCount": "Mendukung {{count}} dari {{total}} jaringan",
-      "unavailable": "Tidak tersedia"
+      "unavailable": "Tidak tersedia",
+      "avgLatency": "rata-rata {{ms}}ms"
     },
     "endpoints": {
       "modalTitle": "Endpoint Layanan",
@@ -40,7 +41,8 @@
       "bundlerHint": "Endpoint yang kompatibel dengan Vela Relay diperlukan",
       "fiatLabel": "KURS FIAT",
       "fiatHint": "Kurs berbasis USD yang menentukan daftar mata uang — ganti untuk cakupan lebih luas.",
-      "resetToDefaults": "Setel Ulang ke Bawaan"
+      "resetToDefaults": "Setel Ulang ke Bawaan",
+      "selfHostGuide": "Panduan self-hosting →"
     },
     "addNetwork": {
       "modalTitle": "Tambah Jaringan",
@@ -62,7 +64,12 @@
       "recheck": "Periksa ulang",
       "chainIdLabel": "Chain ID: {{chainId}}",
       "nativeLabel": "Native: {{symbol}}",
-      "testnet": "Testnet"
+      "testnet": "Testnet",
+      "compatible": "Kompatibel",
+      "incompatible": "Tidak kompatibel",
+      "checkSafe": "Kontrak Safe L2",
+      "checkSigner": "Modul penanda tangan WebAuthn",
+      "checkRemaining": "{{count}} kontrak lainnya"
     },
     "treasury": {
       "modalTitle": "Treasury",

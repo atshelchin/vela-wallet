@@ -11,6 +11,8 @@
 	import ExploreDesktop from '$lib/explore/ExploreDesktop.svelte';
 	import ExploreHome from '$lib/explore/ExploreHome.svelte';
 	import SigningSheet from '$lib/signing/SigningSheet.svelte';
+	import SettingsDesktop from '$lib/settings/SettingsDesktop.svelte';
+	import SettingsHome from '$lib/settings/SettingsHome.svelte';
 	import Controls from '../Controls.svelte';
 
 	let { data } = $props();
@@ -43,6 +45,16 @@
 		<div class="frame">
 			<ContactsHome model={data.model} />
 		</div>
+	</div>
+{:else if data.kind === 'settings-mobile'}
+	<div class="stage">
+		<div class="frame">
+			<SettingsHome model={data.model} />
+		</div>
+	</div>
+{:else if data.kind === 'settings-desktop'}
+	<div class="desktop-stage">
+		<SettingsDesktop model={data.model} sidebar={data.sidebar} />
 	</div>
 {:else if data.kind === 'flow-mobile'}
 	<div class="stage">

@@ -22,8 +22,8 @@
     "rpcProvidersHint": "Ücretsiz uç noktalar — kaydolun, URL'nizi kopyalayıp yukarıya yapıştırın.",
     "rpcReport": "Hâlâ çalışmıyor mu? Bildirin",
     "chainFallback": "Zincir {{chainId}}",
+    "rpcFixRestored": "Bağlantı geri geldi — bu ağın bakiyeleri ve kayıtları yeniden alınıyor.",
     "addByAddress": "Adresle token ekle",
     "notShowingTitle": "Token geldi ama görünmüyor mu?",
-    "notShowingBody": "Onaylanan transferler kendiliğinden eklenir. Token hâlâ görünmüyorsa sözleşme adresiyle ekleyin ya da bulunduğu ağı ekleyin."
-  }
+    "notShowingBody": "Onaylanan transferler kendiliğinden eklenir. Token hâlâ görünmüyorsa sözleşme adresiyle ekleyin ya da bulunduğu ağı ekleyin."  }
 }

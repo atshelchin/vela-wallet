@@ -163,6 +163,25 @@ class MainActivity : ComponentActivity() {
      *
      *   adb shell am start -n app.getvela.wallet/.MainActivity --es vela.startDestination gallery
      */
+    /**
+     * Settings-gallery state pin (spec 023). The gallery's chip row scrolls, so
+     * driving it by tap is 21 fragile coordinate guesses; this makes every state
+     * a one-line launch, which is how the desktop's VELA_SETTINGS_STATE and the
+     * iOS pin already work.
+     *
+     *   adb shell am start -n app.getvela.wallet/.MainActivity \
+     *     --es vela.startDestination settings-gallery --es vela.settingsState ST7
+     */
+    private fun settingsState(): String? = intent?.getStringExtra("vela.settingsState")
+
+    /** Forces the gallery's theme, so a sweep can cover light and dark. */
+    private fun settingsDark(): Boolean? =
+        if (intent?.hasExtra("vela.settingsDark") == true) {
+            intent?.getBooleanExtra("vela.settingsDark", false)
+        } else {
+            null
+        }
+
     private fun startDestination(): String =
         intent?.getStringExtra("vela.startDestination")
             ?.takeIf { it in VelaDestinations.ALL }
@@ -286,6 +305,8 @@ class MainActivity : ComponentActivity() {
                                     },
                                     startDestination = startDestination(),
                                     startFlowState = startFlowState(),
+                                    settingsState = settingsState(),
+                                    settingsDark = settingsDark(),
                                 )
                             }
 

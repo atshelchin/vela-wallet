@@ -308,7 +308,13 @@
       "fallbackBody": "L'envoi automatique a échoué, mais nous avons prérempli un formulaire GitHub avec les détails.",
       "openGithub": "Ouvrir le formulaire GitHub",
       "openGithubForm": "Vous préférez GitHub ? Ouvrir le formulaire de signalement →",
-      "done": "Terminé"
+      "done": "Terminé",
+      "previewVersion": "Version de l'app",
+      "previewPlatform": "Plateforme",
+      "previewLanguage": "Langue",
+      "previewRpc": "RPC injoignable",
+      "previewFailures": "Échecs récents",
+      "previewNone": "Aucun"
     },
     "identiconViewer": {
       "title": "Identicon",

@@ -27,7 +27,8 @@
       "checkKey": "Проверьте ключ",
       "activeNetworks": "сетей: {{count}}",
       "supportsCount": "Поддерживает {{count}} из {{total}} сетей",
-      "unavailable": "Недоступно"
+      "unavailable": "Недоступно",
+      "avgLatency": "сред. {{ms}}мс"
     },
     "endpoints": {
       "modalTitle": "Сервисные эндпоинты",
@@ -40,7 +41,8 @@
       "bundlerHint": "Требуется эндпоинт, совместимый с Vela Relay",
       "fiatLabel": "КУРСЫ ВАЛЮТ",
       "fiatHint": "Курсы валют на основе USD, формирующие список валют — можно заменить для более широкого охвата.",
-      "resetToDefaults": "Сбросить к стандартным"
+      "resetToDefaults": "Сбросить к стандартным",
+      "selfHostGuide": "Руководство по self-hosting →"
     },
     "addNetwork": {
       "modalTitle": "Добавить сеть",
@@ -62,7 +64,12 @@
       "recheck": "Перепроверить",
       "chainIdLabel": "ID сети: {{chainId}}",
       "nativeLabel": "Нативный токен: {{symbol}}",
-      "testnet": "Тестовая сеть"
+      "testnet": "Тестовая сеть",
+      "compatible": "Совместима",
+      "incompatible": "Несовместима",
+      "checkSafe": "Контракты Safe L2",
+      "checkSigner": "Модуль подписи WebAuthn",
+      "checkRemaining": "ещё контрактов: {{count}}"
     },
     "treasury": {
       "modalTitle": "Treasury",

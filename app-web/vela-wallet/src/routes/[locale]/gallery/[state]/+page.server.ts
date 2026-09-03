@@ -9,6 +9,7 @@ import {
 	resolveWalletFlowMessages,
 	resolveExploreMessages,
 	resolveSigningMessages,
+	resolveSettingsMessages,
 	resolveWalletMessages
 } from '$lib/i18n/engine.server';
 import { toLocale } from '$lib/i18n/locales';
@@ -45,6 +46,13 @@ import {
 import { ALL_STATES as SIGNING_STATES, buildSigningState } from '$lib/signing/fixtures';
 import type { ExploreDesktopStateId, ExploreStateId } from '$lib/explore/model';
 import type { SigningStateId } from '$lib/signing/model';
+import {
+	buildDesktopState as buildSettingsDesktopState,
+	buildMobileState as buildSettingsMobileState,
+	DESKTOP_STATES as SETTINGS_DESKTOP_STATES,
+	MOBILE_STATES as SETTINGS_MOBILE_STATES
+} from '$lib/settings/fixtures';
+import type { DesktopSettingsStateId, MobileSettingsStateId } from '$lib/settings/model';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
 export const entries: EntryGenerator = () =>
@@ -58,7 +66,9 @@ export const entries: EntryGenerator = () =>
 			...DESKTOP_FLOW_STATES,
 			...EXPLORE_MOBILE_STATES,
 			...EXPLORE_DESKTOP_STATES,
-			...SIGNING_STATES
+			...SIGNING_STATES,
+			...SETTINGS_MOBILE_STATES,
+			...SETTINGS_DESKTOP_STATES
 		].map((state) => ({ locale, state }))
 	);
 
@@ -90,6 +100,29 @@ export const load: PageServerLoad = ({ params }) => {
 		return {
 			kind: 'contacts-desktop' as const,
 			model: buildContactsDesktopState(state, messages, identiconSvgFor)
+		};
+	}
+	if ((SETTINGS_MOBILE_STATES as string[]).includes(params.state)) {
+		const messages = resolveSettingsMessages(locale);
+		const state = params.state as MobileSettingsStateId;
+		return {
+			kind: 'settings-mobile' as const,
+			model: buildSettingsMobileState(state, messages, identiconSvgFor)
+		};
+	}
+	if ((SETTINGS_DESKTOP_STATES as string[]).includes(params.state)) {
+		const messages = resolveSettingsMessages(locale);
+		const state = params.state as DesktopSettingsStateId;
+		// The app sidebar is spec 015's, with 设置 selected — the settings page
+		// is a destination inside the wallet shell, not a shell of its own.
+		const wallet = buildDesktopState('d1', resolveWalletMessages(locale), identiconSvgFor);
+		return {
+			kind: 'settings-desktop' as const,
+			model: buildSettingsDesktopState(state, messages, identiconSvgFor),
+			sidebar: {
+				...wallet.sidebar,
+				nav: wallet.sidebar.nav.map((item) => ({ ...item, selected: item.id === 'settings' }))
+			}
 		};
 	}
 	if ((MOBILE_FLOW_STATES as string[]).includes(params.state)) {

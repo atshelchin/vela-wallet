@@ -305,6 +305,32 @@ pub const WALLET_CONTROL_H: f32 = 44.;
 
 /// Groups rail (column between sidebar and the contact list), DC1.
 pub const CONTACTS_RAIL_W: f32 = 216.;
+
+/// Spec 023 desktop SPEC: the settings second-level nav column, measured 216
+/// in DST1–DST8. Same width as the contacts group rail and for the same
+/// reason — it is the same column, doing the same job, one section over.
+pub const SETTINGS_NAV_W: f32 = 216.;
+
+/// One row of that column.
+pub const SETTINGS_NAV_ROW_H: f32 = 36.;
+
+/// The panel's right-hand control column — measured 280 across DST2/DST3, so a
+/// dropdown, a segmented control and a slider all end on the same line.
+pub const SETTINGS_CONTROL_W: f32 = 280.;
+
+/// The centred dialog DST4b and DSR1 draw — wide enough for a URL in the mono
+/// face without becoming a second page.
+pub const SETTINGS_DIALOG_W: f32 = 520.;
+
+/// The panel's own content column. Measured on DST7: the storage bar runs
+/// 505 -> 1146 inside the 1280 frame, so the content is 640 wide and starts
+/// 48 past the nav column's right edge (240 + 216 + 48 = 504).
+pub const SETTINGS_PANEL_W: f32 = 640.;
+
+/// That 48. Left-aligned like the wallet's own content column, never centred:
+/// centring parks the form in the middle of a wide window and opens a gap the
+/// size of the nav column beside it (founder-found, 2026-09-02).
+pub const SETTINGS_PANEL_PAD_X: f32 = 48.;
 /// Rail row height (全部联系人 / group rows / 新建分组).
 pub const CONTACTS_RAIL_ROW_H: f32 = 36.;
 /// The `分组` caption block between the 全部联系人 row and the group rows.

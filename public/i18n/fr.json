@@ -5,7 +5,8 @@
   "automatic": "Automatique",
   "error": "Erreur",
   "somethingWrong": "Une erreur s'est produite",
-  "tryAgain": "Réessayer"
+  "tryAgain": "Réessayer",
+  "done": "Terminé"
  },
  "language": {
   "title": "Langue",
@@ -27,14 +28,18 @@
    "developer": "Développeur"
   },
   "account": {
-   "switch": "Changer de compte"
+   "switch": "Changer de compte",
+   "contactsSubtitle": "Adresses enregistrées et destinataires récents"
   },
   "appearance": {
    "themeLight": "Clair",
    "themeDark": "Sombre",
    "themeAuto": "Suivre le système",
    "avatarInitials": "Initiales",
-   "avatarIdenticon": "Identicon"
+   "avatarIdenticon": "Identicon",
+   "themeTitle": "Thème",
+   "textScale": "Taille du texte",
+   "avatarTitle": "Style d'avatar"
   },
   "localization": {
    "currencyTitle": "Devise",
@@ -94,6 +99,48 @@
    "indian": "Indien",
    "h24": "24 heures",
    "h12": "12 heures"
+  },
+  "networks": {
+   "count": "{{count}} réseaux",
+   "custom": "Personnalisé",
+   "builtinNote": "Réseau intégré · non supprimable",
+   "saveHint": "Enregistré dès que vous quittez le champ. Refusé uniquement si le RPC annonce un autre Chain ID.",
+   "online": "En ligne",
+   "slow": "Plus lent"
+  },
+  "storage": {
+   "title": "Stockage de l’appareil",
+   "subtitle": "Données locales et cache",
+   "summary": "{{count}} enregistrements au total",
+   "userData": "Vos données · irrécupérables une fois effacées",
+   "caches": "Cache · reconstruit automatiquement",
+   "connections": "Connexions · les effacer déconnecte les dApps",
+   "legendUserData": "Vos données",
+   "legendCaches": "Cache",
+   "legendSessions": "Sessions",
+   "itemTransactions": "Historique des transactions",
+   "itemContacts": "Contacts et groupes",
+   "itemCustom": "Jetons et réseaux personnalisés",
+   "itemBrowsing": "Historique de navigation",
+   "itemBalances": "Cache des soldes et jetons",
+   "itemRates": "Cache des taux de change",
+   "itemScan": "Progression du scan",
+   "itemDapps": "Autorisations et sessions dApp",
+   "records": "{{count}} entrées",
+   "contactsCount": "{{count}} contacts",
+   "itemsCount": "{{count}} éléments",
+   "sitesCount": "{{count}} sites",
+   "clear": "Effacer",
+   "clearAllCaches": "Effacer tous les caches",
+   "disconnectAll": "Tout déconnecter",
+   "clearTitle": "Effacer tous les caches ?",
+   "clearBody": "Les caches de soldes, de jetons et de taux sont effacés puis récupérés à la prochaine ouverture. Votre historique, vos contacts et vos réglages ne changent pas.",
+   "clearConfirm": "Effacer les caches"
+  },
+  "indexDown": {
+   "title": "Service temporairement indisponible",
+   "subtitle": "L’index des clés d’accès est injoignable, et la création comme la connexion en dépendent.",
+   "editEndpoint": "Modifier l’adresse du service d’index"
   }
  },
  "time": {
@@ -180,7 +227,8 @@
   "a11yHideBalance": "Masquer le solde",
   "a11yShowBalance": "Afficher le solde",
   "a11ySwitchAccount": "Compte {{name}}. Changer de compte",
-  "a11yOpenSettings": "Réglages"
+  "a11yOpenSettings": "Réglages",
+  "balanceDetailUpdatedLabel": "À jour"
  },
  "send": {
   "filterStable": "Stablecoins",
@@ -424,6 +472,7 @@
   "rpcProvidersHint": "Points d'accès gratuits — inscrivez-vous, copiez votre URL et collez-la ci-dessus.",
   "rpcReport": "Toujours pas ? Signalez-le",
   "chainFallback": "Chaîne {{chainId}}",
+  "rpcFixRestored": "Connexion rétablie — récupération des soldes et enregistrements de ce réseau.",
   "addByAddress": "Ajouter un jeton par adresse",
   "notShowingTitle": "Vous avez reçu un jeton qui n’apparaît pas ?",
   "notShowingBody": "Les transferts confirmés s’ajoutent tout seuls. Si un jeton n’apparaît toujours pas, ajoutez-le par adresse de contrat, ou ajoutez son réseau."
@@ -923,7 +972,8 @@
   "linkWebsite": "Site web",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "Conçu avec soin. Vos clés, vos cryptos."
+  "footer": "Conçu avec soin. Vos clés, vos cryptos.",
+  "sectionLinks": "Liens"
  },
  "clearSigning": {
   "title": "Test de signature claire",
@@ -1371,7 +1421,13 @@
    "fallbackBody": "L'envoi automatique a échoué, mais nous avons prérempli un formulaire GitHub avec les détails.",
    "openGithub": "Ouvrir le formulaire GitHub",
    "openGithubForm": "Vous préférez GitHub ? Ouvrir le formulaire de signalement →",
-   "done": "Terminé"
+   "done": "Terminé",
+   "previewVersion": "Version de l'app",
+   "previewPlatform": "Plateforme",
+   "previewLanguage": "Langue",
+   "previewRpc": "RPC injoignable",
+   "previewFailures": "Échecs récents",
+   "previewNone": "Aucun"
   },
   "identiconViewer": {
    "title": "Identicon",
@@ -1438,7 +1494,8 @@
    "checkKey": "Vérifier la clé",
    "activeNetworks": "{{count}} réseaux",
    "supportsCount": "Prend en charge {{count}} réseaux sur {{total}}",
-   "unavailable": "Indisponible"
+   "unavailable": "Indisponible",
+   "avgLatency": "moy. {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "Points d'accès des services",
@@ -1451,7 +1508,8 @@
    "bundlerHint": "Un point d'accès compatible Vela Relay est requis",
    "fiatLabel": "TAUX FIAT",
    "fiatHint": "Taux de change en USD qui alimentent la liste des devises — remplaçable pour une couverture plus large.",
-   "resetToDefaults": "Réinitialiser par défaut"
+   "resetToDefaults": "Réinitialiser par défaut",
+   "selfHostGuide": "Guide d’auto-hébergement →"
   },
   "addNetwork": {
    "modalTitle": "Ajouter un réseau",
@@ -1473,7 +1531,12 @@
    "recheck": "Revérifier",
    "chainIdLabel": "Chain ID : {{chainId}}",
    "nativeLabel": "Natif : {{symbol}}",
-   "testnet": "Testnet"
+   "testnet": "Testnet",
+   "compatible": "Compatible",
+   "incompatible": "Incompatible",
+   "checkSafe": "Contrats Safe L2",
+   "checkSigner": "Module de signature WebAuthn",
+   "checkRemaining": "{{count}} autres contrats"
   },
   "treasury": {
    "modalTitle": "Trésorerie",

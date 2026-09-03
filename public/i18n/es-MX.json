@@ -5,7 +5,8 @@
   "automatic": "Automático",
   "error": "Error",
   "somethingWrong": "Algo salió mal",
-  "tryAgain": "Intentar de nuevo"
+  "tryAgain": "Intentar de nuevo",
+  "done": "Listo"
  },
  "language": {
   "title": "Idioma",
@@ -27,14 +28,18 @@
    "developer": "Desarrollador"
   },
   "account": {
-   "switch": "Cambiar de cuenta"
+   "switch": "Cambiar de cuenta",
+   "contactsSubtitle": "Direcciones guardadas y destinatarios recientes"
   },
   "appearance": {
    "themeLight": "Claro",
    "themeDark": "Oscuro",
    "themeAuto": "Seguir al sistema",
    "avatarInitials": "Iniciales",
-   "avatarIdenticon": "Identicón"
+   "avatarIdenticon": "Identicón",
+   "themeTitle": "Tema",
+   "textScale": "Tamaño del texto",
+   "avatarTitle": "Estilo de avatar"
   },
   "localization": {
    "currencyTitle": "Moneda",
@@ -94,6 +99,48 @@
    "indian": "India (lakh)",
    "h24": "24 horas",
    "h12": "12 horas"
+  },
+  "networks": {
+   "count": "{{count}} redes",
+   "custom": "Personalizada",
+   "builtinNote": "Red integrada · no se puede eliminar",
+   "saveHint": "Se guarda al salir del campo. Solo se rechaza si el RPC informa un Chain ID distinto.",
+   "online": "En línea",
+   "slow": "Más lento"
+  },
+  "storage": {
+   "title": "Almacenamiento del dispositivo",
+   "subtitle": "Datos locales y caché",
+   "summary": "{{count}} registros en total",
+   "userData": "Tus datos · no se pueden recuperar una vez borrados",
+   "caches": "Caché · se reconstruye automáticamente",
+   "connections": "Conexiones · borrarlas desconecta las dApps",
+   "legendUserData": "Tus datos",
+   "legendCaches": "Caché",
+   "legendSessions": "Sesiones",
+   "itemTransactions": "Historial de transacciones",
+   "itemContacts": "Contactos y grupos",
+   "itemCustom": "Tokens y redes personalizados",
+   "itemBrowsing": "Historial de navegación",
+   "itemBalances": "Caché de saldos y tokens",
+   "itemRates": "Caché de tipos de cambio",
+   "itemScan": "Progreso del escaneo",
+   "itemDapps": "Permisos y sesiones de dApps",
+   "records": "{{count}} registros",
+   "contactsCount": "{{count}} contactos",
+   "itemsCount": "{{count}} elementos",
+   "sitesCount": "{{count}} sitios",
+   "clear": "Borrar",
+   "clearAllCaches": "Borrar toda la caché",
+   "disconnectAll": "Desconectar todo",
+   "clearTitle": "¿Borrar toda la caché?",
+   "clearBody": "Se borran las cachés de saldos, tokens y tipos de cambio, y se vuelven a obtener la próxima vez que abras la app. Tu historial, contactos y ajustes no se ven afectados.",
+   "clearConfirm": "Borrar caché"
+  },
+  "indexDown": {
+   "title": "Servicio no disponible temporalmente",
+   "subtitle": "No se puede acceder al índice de claves de acceso, y tanto crear como iniciar sesión lo necesitan.",
+   "editEndpoint": "Cambiar la dirección del servicio de índice"
   }
  },
  "time": {
@@ -180,7 +227,8 @@
   "a11yHideBalance": "Ocultar saldo",
   "a11yShowBalance": "Mostrar saldo",
   "a11ySwitchAccount": "Cuenta {{name}}. Cambiar de cuenta",
-  "a11yOpenSettings": "Ajustes"
+  "a11yOpenSettings": "Ajustes",
+  "balanceDetailUpdatedLabel": "Actualizado"
  },
  "send": {
   "filterStable": "Estables",
@@ -424,6 +472,7 @@
   "rpcProvidersHint": "Endpoints gratis — regístrate, copia tu URL y pégala arriba.",
   "rpcReport": "¿Sigue sin funcionar? Repórtalo",
   "chainFallback": "Cadena {{chainId}}",
+  "rpcFixRestored": "Conexión restablecida: volviendo a obtener los saldos y registros de esta red.",
   "addByAddress": "Agregar un token por dirección",
   "notShowingTitle": "¿Recibiste un token y no aparece?",
   "notShowingBody": "Las transferencias confirmadas se agregan solas. Si el token sigue sin aparecer, agrégalo por dirección de contrato o agrega la red donde vive."
@@ -923,7 +972,8 @@
   "linkWebsite": "Sitio web",
   "linkGitHub": "GitHub",
   "linkSafeWallet": "Safe Wallet",
-  "footer": "Hecho con cariño. Tus llaves, tus monedas."
+  "footer": "Hecho con cariño. Tus llaves, tus monedas.",
+  "sectionLinks": "Enlaces"
  },
  "clearSigning": {
   "title": "Prueba de Clear Signing",
@@ -1371,7 +1421,13 @@
    "fallbackBody": "No pudimos enviarlo automáticamente, pero ya llenamos un formulario de GitHub con los detalles.",
    "openGithub": "Abrir formulario de GitHub",
    "openGithubForm": "¿Prefieres GitHub? Abre el formulario de incidencia →",
-   "done": "Listo"
+   "done": "Listo",
+   "previewVersion": "Versión de la app",
+   "previewPlatform": "Plataforma",
+   "previewLanguage": "Idioma",
+   "previewRpc": "RPC inaccesible",
+   "previewFailures": "Fallos recientes",
+   "previewNone": "Ninguno"
   },
   "identiconViewer": {
    "title": "Identicon",
@@ -1438,7 +1494,8 @@
    "checkKey": "Revisa la clave",
    "activeNetworks": "{{count}} redes",
    "supportsCount": "Admite {{count}} de {{total}} redes",
-   "unavailable": "No disponible"
+   "unavailable": "No disponible",
+   "avgLatency": "prom. {{ms}}ms"
   },
   "endpoints": {
    "modalTitle": "Endpoints de servicio",
@@ -1451,7 +1508,8 @@
    "bundlerHint": "Se requiere un endpoint compatible con Vela Relay",
    "fiatLabel": "TIPOS DE CAMBIO FIAT",
    "fiatHint": "Tipos de cambio en USD que definen la lista de monedas — cámbialo para mayor cobertura.",
-   "resetToDefaults": "Restablecer a los valores predeterminados"
+   "resetToDefaults": "Restablecer a los valores predeterminados",
+   "selfHostGuide": "Guía de autoalojamiento →"
   },
   "addNetwork": {
    "modalTitle": "Agregar red",
@@ -1473,7 +1531,12 @@
    "recheck": "Volver a verificar",
    "chainIdLabel": "Chain ID: {{chainId}}",
    "nativeLabel": "Nativo: {{symbol}}",
-   "testnet": "Testnet"
+   "testnet": "Testnet",
+   "compatible": "Compatible",
+   "incompatible": "Incompatible",
+   "checkSafe": "Contratos Safe L2",
+   "checkSigner": "Módulo de firma WebAuthn",
+   "checkRemaining": "otros {{count}} contratos"
   },
   "treasury": {
    "modalTitle": "Tesorería",

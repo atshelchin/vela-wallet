@@ -27,7 +27,8 @@
       "checkKey": "Kiểm tra khóa",
       "activeNetworks": "{{count}} mạng",
       "supportsCount": "Hỗ trợ {{count}}/{{total}} mạng",
-      "unavailable": "Không khả dụng"
+      "unavailable": "Không khả dụng",
+      "avgLatency": "TB {{ms}}ms"
     },
     "endpoints": {
       "modalTitle": "Điểm cuối dịch vụ",
@@ -40,7 +41,8 @@
       "bundlerHint": "Cần điểm cuối tương thích với Vela Relay",
       "fiatLabel": "TỶ GIÁ FIAT",
       "fiatHint": "Tỷ giá theo USD tạo nên danh sách tiền tệ — có thể thay bằng nguồn phủ rộng hơn.",
-      "resetToDefaults": "Khôi phục mặc định"
+      "resetToDefaults": "Khôi phục mặc định",
+      "selfHostGuide": "Hướng dẫn tự triển khai →"
     },
     "addNetwork": {
       "modalTitle": "Thêm mạng",
@@ -62,7 +64,12 @@
       "recheck": "Kiểm tra lại",
       "chainIdLabel": "Chain ID: {{chainId}}",
       "nativeLabel": "Token gốc: {{symbol}}",
-      "testnet": "Testnet"
+      "testnet": "Testnet",
+      "compatible": "Tương thích",
+      "incompatible": "Không tương thích",
+      "checkSafe": "Hợp đồng Safe L2",
+      "checkSigner": "Mô-đun ký WebAuthn",
+      "checkRemaining": "{{count}} hợp đồng còn lại"
     },
     "treasury": {
       "modalTitle": "Ngân quỹ",

@@ -64,6 +64,7 @@
     "a11yHideBalance": "Ocultar saldo",
     "a11yShowBalance": "Mostrar saldo",
     "a11ySwitchAccount": "Conta {{name}}. Trocar de conta",
-    "a11yOpenSettings": "Configurações"
+    "a11yOpenSettings": "Configurações",
+    "balanceDetailUpdatedLabel": "Atualizado"
   }
 }

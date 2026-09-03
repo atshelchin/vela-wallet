@@ -240,9 +240,9 @@ for (let i = 1; i < PATHS.length; i++) {
 //   verified-ABI decode, 4byte best-effort, the un-simulatable case, the drain
 //   reveal, Safe's inner call, deploy, and the slide-to-confirm labels. The
 //   other ~95% of the signing copy was already here, which is why this is 43.
-if (PATHS.length !== 1560) fail(`expected 1560 paths (1479 leaf + 81 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1479) fail(`expected 1479 leaf paths, got ${leafSet.size}`);
-if (branchSet.size !== 81) fail(`expected 81 branch paths, got ${branchSet.size}`);
+if (PATHS.length !== 1620) fail(`expected 1620 paths (1536 leaf + 84 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1536) fail(`expected 1536 leaf paths, got ${leafSet.size}`);
+if (branchSet.size !== 84) fail(`expected 84 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */
 function packBits(bits) {

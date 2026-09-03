@@ -308,7 +308,13 @@
       "fallbackBody": "我們無法自動送出，但已為你預先填好一份 GitHub 表單。",
       "openGithub": "開啟 GitHub 表單",
       "openGithubForm": "想用 GitHub？開啟問題表單 →",
-      "done": "完成"
+      "done": "完成",
+      "previewVersion": "應用版本",
+      "previewPlatform": "平台",
+      "previewLanguage": "語言",
+      "previewRpc": "無法連線的 RPC",
+      "previewFailures": "最近失敗",
+      "previewNone": "無"
     },
     "identiconViewer": {
       "title": "Identicon",

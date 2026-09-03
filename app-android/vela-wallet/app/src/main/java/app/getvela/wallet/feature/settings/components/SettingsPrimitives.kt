@@ -1,0 +1,419 @@
+package app.getvela.wallet.feature.settings.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import app.getvela.wallet.core.designsystem.components.VelaIcons
+import app.getvela.wallet.core.designsystem.theme.VelaTheme
+import app.getvela.wallet.core.designsystem.tokens.VelaBorder
+import app.getvela.wallet.core.designsystem.tokens.VelaFontFamily
+import app.getvela.wallet.core.designsystem.tokens.VelaFontWeight
+import app.getvela.wallet.core.designsystem.tokens.VelaIconSize
+import app.getvela.wallet.core.designsystem.tokens.VelaMonoFontFamily
+import app.getvela.wallet.core.designsystem.tokens.VelaRadius
+import app.getvela.wallet.core.designsystem.tokens.VelaSizing
+import app.getvela.wallet.core.designsystem.tokens.VelaSpacing
+import app.getvela.wallet.core.designsystem.tokens.VelaTextSize
+import app.getvela.wallet.feature.settings.CalloutModel
+import app.getvela.wallet.feature.settings.CalloutTone
+import app.getvela.wallet.feature.settings.ChainMarkModel
+import app.getvela.wallet.feature.settings.SettingsIcon
+import app.getvela.wallet.feature.settings.SettingsTone
+import app.getvela.wallet.feature.settings.StatusPillModel
+
+/**
+ * The settings vocabulary's smallest pieces (spec 023).
+ *
+ * Every one of the forty mocks in `design/settings/` is assembled from these
+ * plus the row/list components beside them. Nothing here reads a model bigger
+ * than it draws, and nothing formats.
+ */
+
+/** Model glyph → drawable. Models stay UI-type free; this is the one bridge. */
+fun settingsIcon(icon: SettingsIcon): ImageVector = when (icon) {
+    SettingsIcon.Contacts -> VelaIcons.UsersRound
+    SettingsIcon.Feedback -> VelaIcons.MessageSquareText
+    SettingsIcon.Globe -> VelaIcons.Globe
+    SettingsIcon.Coins -> VelaIcons.Coins
+    SettingsIcon.Hash -> VelaIcons.Hash
+    SettingsIcon.Calendar -> VelaIcons.Calendar
+    SettingsIcon.Clock -> VelaIcons.Clock
+    SettingsIcon.Network -> VelaIcons.Network
+    SettingsIcon.Server -> VelaIcons.Server
+    SettingsIcon.Plus -> VelaIcons.Plus
+    SettingsIcon.Zap -> VelaIcons.Zap
+    SettingsIcon.HardDrive -> VelaIcons.HardDrive
+    SettingsIcon.Info -> VelaIcons.Info
+    SettingsIcon.Sun -> VelaIcons.Sun
+    SettingsIcon.Moon -> VelaIcons.Moon
+    SettingsIcon.Monitor -> VelaIcons.Monitor
+}
+
+/**
+ * The one badge every settings screen uses. Latency, reachability, provider
+ * state and compatibility are all this object in the mocks, differing only in
+ * tone — so they are one component and not four.
+ */
+@Composable
+fun VelaStatusPill(pill: StatusPillModel, modifier: Modifier = Modifier) {
+    val colors = VelaTheme.colors
+    val (fg, bg) = when (pill.tone) {
+        SettingsTone.Ok -> colors.successBase to colors.successSoft
+        SettingsTone.Warn -> colors.warningBase to colors.warningSoft
+        SettingsTone.Error -> colors.errorBase to colors.errorSoft
+        // Unset, not failed — the mocks grey these rather than colouring them.
+        SettingsTone.Neutral -> colors.fgSubtle to colors.bgRaised
+    }
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(VelaRadius.full))
+            .background(bg)
+            .padding(horizontal = VelaSpacing.md, vertical = VelaSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(VelaSpacing.sm),
+    ) {
+        if (pill.dot) {
+            Box(
+                modifier = Modifier
+                    .size(VelaSpacing.md)
+                    .clip(RoundedCornerShape(VelaRadius.full))
+                    .background(fg),
+            )
+        }
+        Text(
+            text = pill.label,
+            color = fg,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.medium,
+            fontSize = VelaTextSize.sm,
+        )
+    }
+}
+
+/**
+ * The tinted explanation box. Eight mocks use it; `Success` swaps the triangle
+ * for a check, because a green triangle reads as an alarm.
+ */
+@Composable
+fun VelaCallout(callout: CalloutModel, modifier: Modifier = Modifier) {
+    val colors = VelaTheme.colors
+    val (fg, bg, icon) = when (callout.tone) {
+        CalloutTone.Warning -> Triple(colors.warningBase, colors.warningSoft, VelaIcons.TriangleAlert)
+        CalloutTone.Danger -> Triple(colors.errorBase, colors.errorSoft, VelaIcons.TriangleAlert)
+        CalloutTone.Info -> Triple(colors.infoBase, colors.infoSoft, VelaIcons.Info)
+        CalloutTone.Success -> Triple(colors.successBase, colors.successSoft, VelaIcons.Check)
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(VelaRadius.lg))
+            .background(bg)
+            .padding(VelaSpacing.lg),
+        horizontalArrangement = Arrangement.spacedBy(VelaSpacing.lg),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = fg,
+            // Optical alignment with the first line, not the box.
+            modifier = Modifier.padding(top = VelaSpacing.xs).size(VelaIconSize.md),
+        )
+        Text(
+            text = callout.text,
+            color = fg,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.base,
+            lineHeight = VelaTextSize.base * 1.4f,
+        )
+    }
+}
+
+/** A chain's circular avatar — one letter over its own brand colour. */
+@Composable
+fun VelaChainMark(mark: ChainMarkModel, size: Dp = VelaSpacing.xl4) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(VelaRadius.full))
+            .background(Color(mark.colorArgb)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = mark.letter,
+            color = Color.White,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.bold,
+            fontSize = VelaTextSize.base,
+        )
+    }
+}
+
+/** The hairline the mocks draw between rows. */
+@Composable
+fun SettingsDivider(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(VelaBorder.hairline)
+            .background(VelaTheme.colors.borderBase),
+    )
+}
+
+/**
+ * The small caps label above a group of rows — 外观 / 区域格式 / 高级. 高级 is
+ * the one that collapses (ST1b), so the chevron is optional and the whole label
+ * becomes tappable only when it is present.
+ */
+@Composable
+fun SettingsSectionLabel(
+    label: String,
+    collapsible: Boolean = false,
+    collapsed: Boolean = false,
+    onToggle: () -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (collapsible) Modifier.clickable(onClick = onToggle) else Modifier)
+            .padding(top = VelaSpacing.xl2, bottom = VelaSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            color = colors.fgSubtle,
+            fontFamily = VelaFontFamily,
+            fontSize = VelaTextSize.base,
+            modifier = Modifier.weight(1f),
+        )
+        if (collapsible) {
+            Icon(
+                imageVector = if (collapsed) VelaIcons.ChevronDown else VelaIcons.ChevronRight,
+                contentDescription = null,
+                tint = colors.fgSubtle,
+                modifier = Modifier.size(VelaIconSize.sm),
+            )
+        }
+    }
+}
+
+/**
+ * A labelled mono field. Every endpoint on ST9b / ST11 / ST12 / SR2 / SR5 is
+ * one of these: a label row that may carry a latency pill, the value in a
+ * sunken box, an optional in-field action, and an optional hint under it.
+ */
+@Composable
+fun VelaUrlField(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    placeholder: String? = null,
+    hint: String? = null,
+    badge: StatusPillModel? = null,
+    tone: SettingsTone? = null,
+    action: String? = null,
+) {
+    val colors = VelaTheme.colors
+    val border = when (tone) {
+        SettingsTone.Error -> colors.errorBase
+        SettingsTone.Ok -> colors.successBase
+        // A hairline even at rest: on dark, sunken and base are one step apart
+        // and the box would otherwise have no edge at all.
+        else -> colors.borderBase
+    }
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(VelaSpacing.md)) {
+        if (label.isNotEmpty() || badge != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                if (label.isNotEmpty()) {
+                    Text(
+                        text = label,
+                        color = colors.fgSubtle,
+                        fontFamily = VelaFontFamily,
+                        fontSize = VelaTextSize.sm,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                if (badge != null) VelaStatusPill(badge)
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = VelaSizing.controlMd)
+                .clip(RoundedCornerShape(VelaRadius.lg))
+                .background(colors.bgSunken)
+                .border(VelaBorder.hairline, border, RoundedCornerShape(VelaRadius.lg))
+                .padding(horizontal = VelaSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(VelaSpacing.md),
+        ) {
+            Text(
+                text = value.ifEmpty { placeholder.orEmpty() },
+                color = if (value.isEmpty()) colors.fgSubtle else colors.fgBase,
+                fontFamily = VelaMonoFontFamily,
+                fontSize = VelaTextSize.base,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (action != null) {
+                Text(
+                    text = action,
+                    color = colors.infoBase,
+                    fontFamily = VelaFontFamily,
+                    fontSize = VelaTextSize.base,
+                )
+            }
+        }
+        if (hint != null) {
+            Text(
+                text = hint,
+                color = colors.fgSubtle,
+                fontFamily = VelaFontFamily,
+                fontSize = VelaTextSize.base,
+                lineHeight = VelaTextSize.base * 1.4f,
+            )
+        }
+    }
+}
+
+/**
+ * The product's ONE segmented control (design review 2026-07): three-up for the
+ * theme picker, two-up for the avatar style.
+ */
+@Composable
+fun VelaSegmentedControl(
+    label: String,
+    segments: List<Triple<String, String, ImageVector?>>,
+    selectedId: String,
+    modifier: Modifier = Modifier,
+    onSelect: (String) -> Unit = {},
+) {
+    val colors = VelaTheme.colors
+    Row(
+        // The label is the GROUP's name, not a visible caption: the phone mock
+        // shows the control alone under the 语言 row, so the only place it can
+        // be said is to a screen reader.
+        modifier = modifier
+            .semantics { contentDescription = label }
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(VelaRadius.lg))
+            .background(colors.bgSunken)
+            // Dark mode sinks sunken BELOW raised, so the unselected track
+            // needs a hairline to stay legible against bg.base.
+            .border(VelaBorder.hairline, colors.borderBase, RoundedCornerShape(VelaRadius.lg))
+            .padding(VelaSpacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(VelaSpacing.sm),
+    ) {
+        segments.forEach { (id, text, icon) ->
+            val selected = id == selectedId
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = VelaSizing.controlSm)
+                    .clip(RoundedCornerShape(VelaRadius.md))
+                    .background(if (selected) colors.bgRaised else Color.Transparent)
+                    .clickable { onSelect(id) },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (selected) colors.fgBase else colors.fgMuted,
+                        modifier = Modifier.size(VelaIconSize.sm),
+                    )
+                    Spacer(modifier = Modifier.width(VelaSpacing.md))
+                }
+                Text(
+                    text = text,
+                    color = if (selected) colors.fgBase else colors.fgMuted,
+                    fontFamily = VelaFontFamily,
+                    fontWeight = if (selected) VelaFontWeight.semibold else VelaFontWeight.regular,
+                    maxLines = 1,
+                    // Three equal thirds of a 392dp screen do not hold "Follow
+                    // System" at the base size, and clipping turned it into
+                    // "Follow" — a different, wrong promise, with no ellipsis
+                    // to admit it. Shrinking is the only failure here that
+                    // still tells the truth.
+                    autoSize = TextAutoSize.StepBased(
+                        minFontSize = VelaTextSize.xs,
+                        maxFontSize = VelaTextSize.base,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A ——●—— A. The tick row plus the two glyph ends, sized to what they promise.
+ * A picture of the control: spec 023 is UI only, so nothing moves yet.
+ */
+@Composable
+fun VelaTextScaleSlider(steps: Int, index: Int, modifier: Modifier = Modifier) {
+    val colors = VelaTheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = VelaSpacing.lg),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(VelaSpacing.lg),
+    ) {
+        Text(
+            text = "A",
+            color = colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.bold,
+            fontSize = VelaTextSize.base,
+        )
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            repeat(steps) { i ->
+                Box(
+                    modifier = Modifier
+                        .size(if (i == index) VelaIconSize.lg else VelaSpacing.sm)
+                        .clip(RoundedCornerShape(VelaRadius.full))
+                        .background(if (i == index) colors.fgMuted else colors.borderStrong),
+                )
+            }
+        }
+        Text(
+            text = "A",
+            color = colors.fgBase,
+            fontFamily = VelaFontFamily,
+            fontWeight = VelaFontWeight.bold,
+            fontSize = VelaTextSize.xl2,
+        )
+    }
+}

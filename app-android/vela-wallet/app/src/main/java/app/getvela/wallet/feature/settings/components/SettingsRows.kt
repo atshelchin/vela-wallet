@@ -495,7 +495,11 @@ fun VelaStorageGroup(
                     color = colors.fgBase,
                     fontFamily = VelaFontFamily,
                     fontSize = VelaTextSize.lg,
-                    maxLines = 1,
+                    // "Custom tokens and networks" does not fit beside its size
+                    // and its Clear on a 392dp screen, and one line clipped it
+                    // to "Custom tokens and netw…". The label is what the row
+                    // IS, so it wraps; the size and the action keep their space.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )

@@ -19,6 +19,11 @@ struct SettingsSheet: View {
     let onSignOut: () -> Void
 
     var body: some View {
+        // The ✕ sits in the host, not in each body: every sheet opens with a
+        // SheetTitle, so one overlay pinned top-trailing lands on the title
+        // line for all of them — and none of them can forget it. The drag
+        // indicator alone is not an affordance a first-time reader recognises.
+        ZStack(alignment: .topTrailing) {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 switch overlay {
@@ -57,6 +62,20 @@ struct SettingsSheet: View {
             }
             .padding(.horizontal, Tokens.Space.s24)
             .padding(.vertical, Tokens.Space.s24)
+        }
+        .background(theme.bgBase)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(theme.fgMuted)
+                    .frame(width: 32, height: 32)
+                    .background(theme.bgRaised, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(model.closeLabel)
+            .padding(.trailing, Tokens.Space.s24)
+            .padding(.top, Tokens.Space.s24)
         }
         .background(theme.bgBase)
         .presentationDragIndicator(.visible)

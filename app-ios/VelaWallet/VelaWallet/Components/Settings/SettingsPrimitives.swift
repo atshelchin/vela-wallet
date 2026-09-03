@@ -209,6 +209,10 @@ struct SettingsSegmentedControl: View {
                         .fontWeight(selected ? .semibold : .regular)
                         .foregroundStyle(selected ? theme.fgBase : theme.fgMuted)
                         .lineLimit(1)
+                    // Three equal thirds of a 392pt screen do not hold "Follow
+                    // System": clipping it to "Follow" is a different, wrong
+                    // promise. Shrinking is the failure that still tells the truth.
+                    .minimumScaleFactor(0.72)
                 }
                 .frame(maxWidth: .infinity, minHeight: 36)
                 .background(

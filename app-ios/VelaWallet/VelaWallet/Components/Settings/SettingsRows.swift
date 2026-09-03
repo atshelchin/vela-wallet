@@ -298,12 +298,22 @@ struct StorageGroupView: View {
                     Text(item.label)
                         .typeRole(Typography.fieldLabel)
                         .foregroundStyle(theme.fgBase)
-                        .lineLimit(1)
+                        // "Custom tokens and networks" does not fit beside its
+                        // size and its Clear on a 392pt screen, and one line
+                        // clipped it to "Custom tokens and netw…". The label is
+                        // what the row IS, so it wraps and keeps the space.
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: Tokens.Space.s8)
                     Text(item.meta)
                         .typeRole(Typography.label)
                         .foregroundStyle(theme.fgSubtle)
                         .lineLimit(1)
+                        // The size is a number pair — "5 items · 1…" is worse
+                        // than useless. It and the action hold their width, and
+                        // the label wraps into whatever is left.
+                        .fixedSize()
+                        .layoutPriority(1)
                     Text(item.action)
                         .typeRole(Typography.flowCaption)
                         .foregroundStyle(item.destructive ? theme.errorBase : theme.fgMuted)

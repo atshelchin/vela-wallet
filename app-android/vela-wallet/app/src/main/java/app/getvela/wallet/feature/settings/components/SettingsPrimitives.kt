@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -358,8 +359,16 @@ fun VelaSegmentedControl(
                     color = if (selected) colors.fgBase else colors.fgMuted,
                     fontFamily = VelaFontFamily,
                     fontWeight = if (selected) VelaFontWeight.semibold else VelaFontWeight.regular,
-                    fontSize = VelaTextSize.base,
                     maxLines = 1,
+                    // Three equal thirds of a 392dp screen do not hold "Follow
+                    // System" at the base size, and clipping turned it into
+                    // "Follow" — a different, wrong promise, with no ellipsis
+                    // to admit it. Shrinking is the only failure here that
+                    // still tells the truth.
+                    autoSize = TextAutoSize.StepBased(
+                        minFontSize = VelaTextSize.xs,
+                        maxFontSize = VelaTextSize.base,
+                    ),
                 )
             }
         }

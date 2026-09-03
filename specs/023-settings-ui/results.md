@@ -136,6 +136,44 @@ tests; iOS `xcodebuild test` exit 0. Android `lintDebug` reports 3 NewApi
 errors inside the generated `rust/bindings/kotlin` uniffi file — pre-existing,
 not from this work.
 
+## iOS and desktop sweep, 2026-09-03 — three more, all English-only
+
+Android's pass found five bugs, so the same one-state-at-a-time comparison ran
+on iOS (28 states, simulator, `VELA_SETTINGS_STATE`) and desktop (10 panels by
+window id). Everything found was invisible in Chinese and obvious in English —
+which is the point: the mocks are drawn in Chinese, and Chinese is the short
+language.
+
+1. **The theme control's third option did not fit.** iOS clipped "Follow
+   System" to "Follow Syst…"; Android clipped it to **"Follow"**, with no
+   ellipsis to admit it — a different, wrong promise. Three equal thirds of a
+   392dp screen cannot hold it at the base size. Both now shrink the label
+   (Android `TextAutoSize`, iOS `minimumScaleFactor`) rather than cut it.
+   Desktop was fine: its segments hug their content instead of splitting the
+   width.
+2. **The storage row clipped "Custom tokens and networks"** to "…and netw…" on
+   both phones. The first attempt — give the label priority — just moved the
+   truncation onto the size, "5 items · 1…", which is worse than useless. The
+   size and the action now hold their width and the label wraps to two lines.
+3. **iOS sheets had no ✕**, the same gap Android had. Same fix, same place: the
+   host, not each body.
+
+Desktop's ten panels were re-compared against the PNGs and no new defect came
+out of it. Two deliberate deviations worth knowing: the desktop storage panel
+carries a "Clear all caches" link the mock does not draw (it shares the phone's
+StorageGroup, and the action is real on desktop too), and the add-network
+dialog draws no scrim — matching the mock, which does not dim either.
+
+**A third way to ship a stale build.** Gradle resolved its toolchain to the
+VS Code Red Hat Java extension's bundled JRE, which has no `jlink`, so
+`assembleDebug` failed — and `adb install` reported Success for the APK already
+on disk, exactly as the `head`-SIGPIPE case did. Caught only by the APK-mtime
+check added last round. Android builds now pass `JAVA_HOME` and
+`-Dorg.gradle.java.home` explicitly.
+
+Gates: Android 79 unit tests, iOS `xcodebuild test` exit 0, desktop
+fmt/clippy/72, web check + lint + 41, vela-core green.
+
 ## Deliberate calls worth a founder eye
 
 1. **Currency names are provider data, not corpus copy.** The mock shows 美元 /

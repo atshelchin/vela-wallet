@@ -12,10 +12,10 @@ Paths repo-root-relative; `pnpm` runs in app-web/vela-wallet.
 
 ## Phase 1: Setup (one commit)
 
-- [ ] T101 Baselines into results.md: wasm bytes/fingerprint (must close
+- [X] T101 Baselines into results.md: wasm bytes/fingerprint (must close
       unchanged), corpus pins, port-provenance list (the D9–D14 files with
       line counts @ base commit), green-tree confirmation on the stacked base
-- [ ] T102 [P] Record the four 024 fail-closed arms this spec supersedes
+- [X] T102 [P] Record the four 024 fail-closed arms this spec supersedes
       (contract cross-reference table in results.md)
 
 ## Phase 2: The pool (one commit) — blocks 3–5

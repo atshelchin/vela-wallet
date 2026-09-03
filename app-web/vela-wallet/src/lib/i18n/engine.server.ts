@@ -140,7 +140,12 @@ export function resolveWalletMessages(locale: Locale): WalletMessages {
 			emptyTitle: k('home.emptyNoActivity'),
 			emptyCaption: k('home.emptySubtitle')
 		},
-		assets: { emptyTitle: k('assets.emptyTitle'), emptyCaption: k('assets.emptySubtext') },
+		assets: {
+			emptyTitle: k('assets.emptyTitle'),
+			emptyCaption: k('assets.emptySubtext'),
+			rpcUnavailableSingle: k('assets.rpcUnavailableSingle'),
+			rpcUnavailableMultiple: k('assets.rpcUnavailableMultiple')
+		},
 		networkFilter: {
 			pillAll: k('componentsUi.networkFilter.pillAll'),
 			sheetTitle: k('componentsUi.networkFilter.selectChain'),

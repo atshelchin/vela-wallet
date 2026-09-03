@@ -93,6 +93,43 @@ describe('liveBalance', () => {
 			status: { kind: 'refreshing', text: m.balance.stale }
 		});
 	});
+	it('a partial zero is NOT live-zero: an unreachable chain names itself (T152 finding)', () => {
+		const partial = {
+			...PRISTINE,
+			balance_unknown: false,
+			balance_partial: true,
+			display_total_usd: 0,
+			failed_chain_ids: [100],
+			banner_chain_ids: [100]
+		};
+		const model = liveBalance(partial, USD, m);
+		expect(model.state).toBe('normal');
+		expect(model.liveText).toBeUndefined();
+		expect(model.status).toEqual({ kind: 'warning', text: 'Gnosis RPC unavailable' });
+		// Several unreachable chains: the count, not a list.
+		expect(
+			liveBalance({ ...partial, failed_chain_ids: [1, 100], banner_chain_ids: [1, 100] }, USD, m)
+				.status?.text
+		).toMatch(/^2 /);
+	});
+	it('a rate-limited chain is not nagged about: failed but not a banner → still-updating', () => {
+		const model = liveBalance(
+			{
+				...PRISTINE,
+				balance_unknown: false,
+				balance_partial: true,
+				display_total_usd: 10,
+				tokens: [ETH],
+				failed_chain_ids: [56],
+				rate_limited_chain_ids: [56],
+				banner_chain_ids: [],
+				notice: 'still_updating'
+			},
+			USD,
+			m
+		);
+		expect(model.status).toEqual({ kind: 'refreshing', text: m.balance.stale });
+	});
 	it('an unpriced notice is a warning; still-updating is refreshing', () => {
 		const live = { ...PRISTINE, balance_unknown: false, display_total_usd: 10, tokens: [ETH] };
 		expect(liveBalance({ ...live, notice: 'unpriced' }, USD, m).status).toEqual({

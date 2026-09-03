@@ -204,3 +204,114 @@ are new KV keys (`vela.fxRates.v1`, `vela.fiatRates.v1`,
 
 **Gates**: check 1233/0 · lint clean · unit 489 · build ×15 · **e2e 90/90**
 (chromium + firefox + webkit); wasm byte-identical; zero corpus delta.
+
+---
+
+## Phase 6 — matrix, budgets, the live sweep, close-out (T150–T154)
+
+**Matrix (T150)**: firefox and webkit now also run the read suites that
+reload on persisted storage — the ban map (pool-resilience) and the privacy
+flag (home-truth) — alongside the 024 persistence pair. Custom tokens have no
+storage e2e yet: the add-token sheet has no UI entry on web (carried).
+
+**Budgets (T151)**: artifact `vela_core_bg.4603c8421603.wasm` = 3,630,664 B,
+byte-identical to the Phase 1 baseline (no change under `rust/` on the
+branch); the deploy bundle carries no wasm, Welcome fetches none, and the
+three live routes load ONE fingerprinted artifact — all three assertions
+green on every engine they run on.
+
+**The live sweep (T152) — read-only, on the real network**: instead of a
+passkey ceremony (which a script cannot perform), the parallel-space fixture
+keyset was seeded as a stored multi-key account; the core derived the golden
+Safe `0x88cCA0…6894` from the three public keys. Against the built preview
+with live endpoints the home showed the real identity, **$0.77**, one asset
+row — XDAI on Gnosis **0.76997** — matching `eth_getBalance` on a public
+Gnosis RPC (0.76997) with zero native elsewhere on five other chains; first
+figure in ~17 s cold (registry + 12 chains + prices); `vela.balanceCache`
+written; no bans; one console warning (`[Chainlink] BNB feed failed:
+success=true dataLen=2` — the BSC price feed answered empty, the DEX path
+covered it; carried). Activity was honestly empty: the Safe's funding was a
+plain xDAI transfer, which leaves no log for the incoming scan.
+
+Then the funded chain's RPC was broken through the dev console before the
+first read. **Finding**: the home showed a confident **$0.00**, "Live ·
+listening for payments" and "Deposit your first asset" — the core had it
+right (`balance_partial`, `failed_chain_ids: [100]`, `banner_chain_ids:
+[100]`), the web overlay mapped none of it. Fixed in this phase: the hero
+status line now says "Gnosis RPC unavailable" (the Expo `RpcTroubleBanner`
+worded with its corpus; several chains → the count), placed first because it
+is the one thing the person can act on; a partial zero is no longer the
+live-zero state. Pinned by unit and by a third home-truth scenario (one chain
+answering 500). Recovery needed no fix: after the fault cleared the core's
+own retries recovered the figure within 30 s (7 Gnosis reads), a focus
+refresh did too, and so did a reload — the earlier "no recovery" read was a
+too-short observation window.
+
+**Not performed**: pulling a REAL deposit onto the receive screen (no funds
+to move from here; the hermetic SC-103 stands); the settings-editor path for
+breaking a chain (covered hermetically by pool-resilience; the console path
+was used live).
+
+**Gates (T154)**: check 1233/0 (incl. `gen-core-types --check`) · lint
+clean · unit 491 · build ×15 · **e2e 99/99** (chromium + firefox +
+webkit) · wasm byte-identical · zero corpus delta.
+
+## Success-criteria verdicts
+
+| SC | Verdict |
+| --- | --- |
+| SC-101 seeded address renders real multi-chain balances + activity; no fixture identities outside galleries | ✅ hermetic (home-truth, $4,500 from stub words) and LIVE (golden Safe: $0.77 = 0.76997 xDAI, matches public RPC); identity/address are the core's derivation. Activity: live path unit-pinned + the store/scan seams wired; no e2e drives a feed ROW yet (needs a Transfer-log stub — 026 handoff) |
+| SC-102 primary endpoint failing → reads succeed, ban persists across reload | ✅ pool-resilience ×3 engines |
+| SC-103 deposit surfaced without manual refresh | ✅ deposit-noticed (stub call count as the clock; $4,500 → $7,500) |
+| SC-104 four 024 seams live | ✅ rate (rate-live: VND via endpoint, ₫112,500,000), settings tiles (network_admin probes, since 024), identity + classification (arm pins; `resolved_name` on screen; trust LINE has no drawn slot — 026 send step) |
+| SC-105 zero business rules in web code | ✅ executors switch-only under unit pin; the shell's own calls are presentation ORDER (status precedence; a partial zero is not live-zero; header rows open groups) — recorded |
+| SC-106 budgets identical; corpus gates green; e2e ≥ 024 | ✅ 3,630,664 B; zero-wasm Welcome + worker purity + one artifact; corpus delta ZERO; e2e 85 → 99/99 |
+
+## Deviations (consolidated)
+
+- **Research D1 (024) stood corrected in 025 too**: `invalidate_pools` went
+  live in Phase 2; `clear_bundler_cache` waits for the bundler seam (026).
+- **T115 moot**: settings health surfaces were already live via
+  network_admin's probes; the fixture "tiles" were rescue overlays of the
+  wallet screen.
+- **Chain-filter pill** on the drawn web home is not interactive — deferred.
+- **manage_tokens / token_trust**: ported and typed; the add-token sheet and
+  the incoming-token trust scan have no UI entry yet.
+- **No toast component** is drawn on the web home — a deposit's
+  acknowledgement is the balance and feed moving; the core's toast state is
+  computed, unread.
+- **FlowNav** does not carry the QR sheet's network index — the QR is the
+  account card, network-agnostic.
+- **payment_request** has its executor and `validatePayQuery` seam but no UI
+  entry (no `/pay` route drawn on web).
+- **Contacts trust line** (`view.recipient`) has no slot in the 018 contacts
+  surface — identity reaches `resolved_name`; verified/is_contract/first-
+  interaction land with 026's recipient step. `inspect_recipient` classifies
+  on mainnet until a send flow names a chain.
+- **T152** ran read-only with the fixture keyset (no passkey ceremony), the
+  RPC break through the fault console (not the settings editor), and no real
+  deposit was pulled.
+- **Presentation rules the shell owns** (twins in Expo's HomeScreen):
+  banner > notice > refreshing for the single status slot; partial zero ≠
+  live zero; header rows open activity groups.
+- **The flows "untouched screens" pin** moved from history (now live) to
+  send-pick (026's).
+
+## Carried debts → 026 handoff
+
+- **tx-store WRITER**: `records.ts` reads/merges/deletes; nothing on web
+  writes a pending-at-submit record yet — the send/dapp flows do (026).
+- **Bundler seam**: `poolBundlerCall` / `getActiveBundlerBaseUrl` are ported;
+  `clear_bundler_cache` still acks as a no-op until a bundler cache exists.
+- **stub-chain.ts extension points**: `stubJsonRpc` by method (add
+  `eth_getLogs` Transfer/EIP-7708 logs to drive a feed row; bundler methods
+  for 026), `stubHttpFailure`, `seedNetworkOverrides`, `stubChainRegistry`,
+  `readKv`, `poolCall`; the FX and passkey-index JSON stubs live inline in
+  rate-live — promote when a second suite needs them.
+- **No refresh affordance on the web home** (Expo has pull-to-refresh):
+  recovery rides the core's retries, focus, and the 10-min auto refresh.
+- **BSC Chainlink BNB feed** answered empty on the live sweep — check the
+  feed address/ABI in the shared pipeline (Expo parity).
+- **Custom-tokens storage e2e** (T150) waits for the add-token UI.
+- **Founder pass**: a real passkey sign-in on a device remains the one sweep
+  a script cannot do.

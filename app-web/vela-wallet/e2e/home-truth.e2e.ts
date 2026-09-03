@@ -103,3 +103,20 @@ test("tap-to-hide masks every figure and survives a reload (privacy is the core'
 	await expect(page.getByText('E2E Wallet').first()).toBeVisible();
 	await expect(page.getByText('••••••').first()).toBeVisible({ timeout: 20_000 });
 });
+
+test('an unreachable chain is SAID, never shown as a confident zero (T152 finding)', async ({
+	page
+}) => {
+	// Ethereum's only endpoint answers 500 to everything: the pool exhausts it,
+	// the core marks the chain failed, and — since it is not rate-limited — it
+	// is a banner chain. Registered last so it wins over the JSON stub.
+	await page.route(/stub-rpc\.test\/rpc\/1$/, (route) =>
+		route.fulfill({ status: 500, body: 'no' })
+	);
+	await openHome(page);
+	await expect(page.getByText('Ethereum RPC unavailable', { exact: true })).toBeVisible({
+		timeout: 20_000
+	});
+	// Not "Live · listening for payments": a partial zero is not a live zero.
+	await expect(page.getByText(en('home.liveIndicator'), { exact: true })).toHaveCount(0);
+});

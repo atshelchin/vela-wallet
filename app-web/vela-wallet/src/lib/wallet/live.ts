@@ -116,15 +116,31 @@ export function liveBalance(
 	}
 
 	const parts = moneyParts(total, currency);
-	const zeroLive = total === 0 && !view.balance_unknown && view.tokens.length === 0;
+	// A zero is "live" only once EVERY chain has answered: a partial zero (some
+	// chain unreachable) is not a listening wallet, it is an unknown one.
+	const zeroLive =
+		total === 0 && !view.balance_unknown && !view.balance_partial && view.tokens.length === 0;
 	const onCache = view.display_total_usd === null && view.cached_total_usd !== null;
 
+	// One status line, most actionable first. `banner_chain_ids` is already
+	// failed MINUS rate-limited — the core's exclusion (a rate limit heals on
+	// its own; the balance quietly stays on cache, no nag) — so a chain here
+	// really is unreachable and the person can fix its RPC (the Expo
+	// `RpcTroubleBanner`, worded with its corpus). Then the core's notice.
+	const banner = view.banner_chain_ids;
 	const status: BalanceModel['status'] =
-		view.refreshing || onCache || view.notice === 'still_updating'
-			? { kind: 'refreshing', text: m.balance.stale }
-			: view.notice === 'unpriced'
-				? { kind: 'warning', text: m.balance.unpriced }
-				: undefined;
+		banner.length === 1
+			? {
+					kind: 'warning',
+					text: fill(m.assets.rpcUnavailableSingle, { name: chainName(banner[0]) })
+				}
+			: banner.length > 1
+				? { kind: 'warning', text: fill(m.assets.rpcUnavailableMultiple, { count: banner.length }) }
+				: view.refreshing || onCache || view.notice === 'still_updating'
+					? { kind: 'refreshing', text: m.balance.stale }
+					: view.notice === 'unpriced'
+						? { kind: 'warning', text: m.balance.unpriced }
+						: undefined;
 
 	return {
 		...base,

@@ -98,15 +98,15 @@ Paths repo-root-relative; `pnpm` runs in app-web/vela-wallet.
 
 ## Phase 6: Matrix + closeout (one commit)
 
-- [ ] T150 [P] Extend the persistence 3-engine matrix to the new read e2e
+- [X] T150 [P] Extend the persistence 3-engine matrix to the new read e2e
       where storage is asserted (ban map, privacy flag, custom tokens)
-- [ ] T151 Budget re-assertions: zero-wasm Welcome, worker purity, ONE
+- [X] T151 Budget re-assertions: zero-wasm Welcome, worker purity, ONE
       artifact across /wallet /settings /contacts, byte-count unchanged
-- [ ] T152 Manual funded-address sweep (quickstart) — results.md record
-- [ ] T153 Close results.md: SC-101…106 verdicts, deviations, 026 handoff
+- [X] T152 Manual funded-address sweep (quickstart) — results.md record
+- [X] T153 Close results.md: SC-101…106 verdicts, deviations, 026 handoff
       list (tx-store writer, bundler-cache seam, parallel-space extension
       points in stub-chain.ts)
-- [ ] T154 Final sanity: all gates + gen-core-types --check
+- [X] T154 Final sanity: all gates + gen-core-types --check
 
 ## Dependencies
 

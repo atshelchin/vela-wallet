@@ -1,6 +1,7 @@
 /**
- * The web display_currency executor (spec 024 T038): the stored key, the
- * web's two null answers, and the failure twin.
+ * The web display_currency executor (spec 024 T038, rate arm live in 025
+ * Phase 5): the stored key, the web's null device currency, the rate
+ * forwarded from the waterfall (null stays null — never 1), the failure twin.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrencyEffect } from './currency-executor';
@@ -10,6 +11,10 @@ vi.mock('$lib/services/storage', () => ({
 	getItem: vi.fn(async (key: string) => kv.get(key) ?? null),
 	setItem: vi.fn(async (key: string, value: string) => void kv.set(key, value)),
 	removeItem: vi.fn(async (key: string) => void kv.delete(key))
+}));
+
+vi.mock('$lib/services/currency-rate', () => ({
+	resolveRate: vi.fn(async (code: string) => (code === 'JPY' ? 155 : null))
 }));
 
 import { currencyOperationFailure, executeCurrencyOperation } from './currency-executor';
@@ -39,10 +44,15 @@ describe('display_currency executor', () => {
 		});
 	});
 
-	it('no rate source yet: rate is null, which is NOT 1', async () => {
+	it('resolve_rate forwards the waterfall answer; an unpriceable code is null, NOT 1', async () => {
 		expect(await executeCurrencyOperation(effect({ type: 'resolve_rate', code: 'JPY' }))).toEqual({
 			type: 'rate_resolved',
 			code: 'JPY',
+			rate: 155
+		});
+		expect(await executeCurrencyOperation(effect({ type: 'resolve_rate', code: 'XXX' }))).toEqual({
+			type: 'rate_resolved',
+			code: 'XXX',
 			rate: null
 		});
 	});

@@ -12,9 +12,11 @@
  * Three web differences, all recorded in contracts/shell-operations.md:
  * - `load_send_history` answers truthfully empty — this app has no local
  *   transaction store yet (it arrives with spec 025/026).
- * - `resolve_identity` / `classify_recipient` answer their no-information
- *   variants (`identity: null` / `code: null` — unknown, never a verdict):
- *   the name-service waterfall and the RPC pool are spec 025.
+ * - `resolve_identity` runs the identity waterfall (passkey index → name
+ *   services); `classify_recipient` hands the raw `eth_getCode` answer back
+ *   — the core owns both projections (address-book kind, risk badge). A
+ *   transport-level non-answer is `null` (unknown), never a verdict. Live
+ *   since spec 025 Phase 5.
  * - There is no lazy TS contacts cache to invalidate after writes (the Expo
  *   `clearContactsCache()`); the core's ledger is this app's only reader.
  *
@@ -22,6 +24,8 @@
  * converted into the result variant that operation answers with.
  */
 
+import { resolveRecipientIdentity } from '$lib/services/recipient-identity';
+import { poolRpcCall } from '$lib/services/rpc-pool';
 import { getItem, setItem } from '$lib/services/storage';
 
 import type { Contact } from '$lib/core/generated/Contact';
@@ -208,18 +212,32 @@ export async function executeContactOperation(effect: ContactEffect): Promise<Co
 		case 'load_send_history':
 			// Truthfully empty: no local tx store on web yet (spec 025/026).
 			return { type: 'history_loaded', txs: [] };
-		case 'resolve_identity':
-			// No name-service waterfall yet (spec 025). `null` = no identity
-			// anywhere; only `Some` is ever cached by the core.
-			return { type: 'identity_resolved', address: operation.address, identity: null };
-		case 'classify_recipient':
-			// No RPC pool yet (spec 025). `null` = unknown, NOT a verdict.
+		case 'resolve_identity': {
+			// `null` = no identity anywhere; only `Some` is ever cached by the core.
+			const identity = await resolveRecipientIdentity(operation.address);
+			return {
+				type: 'identity_resolved',
+				address: operation.address,
+				identity: identity ? { name: identity.name, source: identity.source } : null
+			};
+		}
+		case 'classify_recipient': {
+			// The raw `eth_getCode` answer goes back untouched. A transport-level
+			// non-answer is `null` — unknown, NOT a verdict.
+			const response = await poolRpcCall(
+				'eth_getCode',
+				[operation.address, 'latest'],
+				operation.chain_id
+			);
+			const code =
+				response.error != null || typeof response.result !== 'string' ? null : response.result;
 			return {
 				type: 'recipient_classified',
 				chain_id: operation.chain_id,
 				address: operation.address,
-				code: null
+				code
 			};
+		}
 		default: {
 			const never: never = operation;
 			throw new Error(`unhandled contacts operation: ${JSON.stringify(never)}`);

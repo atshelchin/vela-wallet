@@ -18,6 +18,13 @@ vi.mock('$lib/services/activity', async (importOriginal) => {
 	return { ...original, syncReceivedTransfers: vi.fn(async () => 2) };
 });
 
+const waterfall = vi.fn(async (addr: string) =>
+	addr === '0x' + 'b1'.repeat(20) ? { name: 'vitalik.eth', source: 'ENS' } : null
+);
+vi.mock('$lib/services/recipient-identity', () => ({
+	resolveRecipientIdentity: (addr: string) => waterfall(addr)
+}));
+
 import { createFeedExecutor, toFeedRecord } from './feed-executor';
 
 const effect = (operation: FeedEffect['operation']): FeedEffect => ({ id: 1, operation });
@@ -105,7 +112,7 @@ describe('the store and the scan', () => {
 });
 
 describe('identity', () => {
-	it('an own account aliases locally with no network; anyone else is null until Phase 5', async () => {
+	it('an own account aliases locally with no network; anyone else asks the waterfall', async () => {
 		const executor = createFeedExecutor(() => [{ address: ME, name: 'Me' }], {
 			storeLoaded: () => {}
 		});
@@ -113,9 +120,14 @@ describe('identity', () => {
 		expect(
 			await executor.execute(effect({ type: 'resolve_recipient_identity', addr: ME }), signal)
 		).toEqual({ type: 'alias_resolved', addr: ME, name: 'Me' });
+		expect(waterfall).not.toHaveBeenCalled();
 		expect(
 			await executor.execute(effect({ type: 'resolve_recipient_identity', addr: OTHER }), signal)
-		).toEqual({ type: 'alias_resolved', addr: OTHER, name: null });
+		).toEqual({ type: 'alias_resolved', addr: OTHER, name: 'vitalik.eth' });
+		const nobody = '0x' + 'c2'.repeat(20);
+		expect(
+			await executor.execute(effect({ type: 'resolve_recipient_identity', addr: nobody }), signal)
+		).toEqual({ type: 'alias_resolved', addr: nobody, name: null });
 	});
 });
 

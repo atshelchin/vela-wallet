@@ -114,6 +114,11 @@
 				return;
 			case 'open':
 				ui = { ...ui, screen: 'detail', selectedAddress: event.address };
+				// Let the core inspect the address: resolve its identity (written
+				// back onto a saved-but-unnamed contact as `resolved_name`) and
+				// classify it. Deduped and cached per address by the core. The
+				// classification chain is mainnet until a send flow (026) names one.
+				contacts?.dispatch({ type: 'inspect_recipient', chain_id: 1, address: event.address });
 				return;
 			case 'back':
 				ui = { ...ui, screen: 'list', selectedAddress: undefined, selectedGroupId: undefined };

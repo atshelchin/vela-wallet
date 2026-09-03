@@ -87,14 +87,14 @@ Paths repo-root-relative; `pnpm` runs in app-web/vela-wallet.
 
 ## Phase 5: 024 backfills (one commit)
 
-- [ ] T140 [US1] Port recipient-identity.ts (identity waterfall) → contacts
+- [X] T140 [US1] Port recipient-identity.ts (identity waterfall) → contacts
       resolve_identity/classify_recipient live (classify via facade
       eth_getCode); contact detail + risk render what arrives
-- [ ] T141 [US1] Port fiat-rate-quote.ts + the rate arm of currency.ts →
+- [X] T141 [US1] Port fiat-rate-quote.ts + the rate arm of currency.ts →
       display_currency resolve_rate live; currency row converts (or degrades
       by the null rule)
-- [ ] T142 [P] [US1] Arm-level units for both (incl. null-on-failure pins)
-- [ ] T143 [US1] SC-104 sweep recorded; full gate
+- [X] T142 [P] [US1] Arm-level units for both (incl. null-on-failure pins)
+- [X] T143 [US1] SC-104 sweep recorded; full gate
 
 ## Phase 6: Matrix + closeout (one commit)
 

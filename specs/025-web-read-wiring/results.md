@@ -156,3 +156,51 @@ until Phase 5 binds contacts `resolve_identity`; the flows test that pinned
 
 **Gates**: check 1223/0 · lint clean · unit 475 · build ×15 · **e2e 89/89**
 (chromium + firefox + webkit); wasm byte-identical; zero corpus delta.
+
+---
+
+## Phase 5 — the 024 seams go live (T140–T143)
+
+**What shipped**: the two fail-closed answers 024 left in place are now the
+real thing. `display_currency`'s `resolve_rate` runs the ported waterfall
+(`services/currency-rate.ts`, D13: Chainlink `<ccy>-usd.data.eth` feeds via
+ENS on mainnet → the configured fiat-rates endpoint → `null`), so a chosen
+currency converts the home total; `null` still means "show the USD figure,
+refuse to convert" — the core's rule, untouched. Contacts' `resolve_identity`
+runs the ported identity waterfall (`services/recipient-identity.ts`: passkey
+index → .bnb/.arb/.g/Basename/ENS reverse records, positive-only 24h cache)
+and `classify_recipient` hands back the raw `eth_getCode` answer through the
+pool; the feed's alias arm asks the same waterfall after the own-account
+check. Opening a contact's detail dispatches `inspect_recipient` (mainnet for
+the classification until a send flow names a chain), so a saved-but-unnamed
+contact gets its resolved name written back by the core.
+
+**The port graph** (provenance-headed @ c13e89d4): fiat-rate-quote
+(verbatim), fiat-fx (endpoint shapes, KV cache keyed by URL), fiat-rates
+(Chainlink feeds; two multicalls for ENS, one for rounds+decimals; 30d address
+cache, 5 min rate cache, ship-known fallbacks), currency-rate (only the
+waterfall — the seeding half became the core in 016), recipient-identity,
+public-key-index (read half only), and one shared `ens.ts` namehash where the
+two Expo files each carried a copy. `keccak256` joins the client's re-exported
+kernels.
+
+**SC-104 sweep**: (a) rate ≠ null with a reachable source — e2e/rate-live:
+VND (no Chainlink feed) chosen in Settings, the stubbed endpoint prices it at
+25,000, the home reads ₫112,500,000 and the $4,500 is gone; before the choice
+the honest USD figure showed in the same run. (b) settings tiles — already
+live through network_admin's own probes since 024 (T115, recorded in Phase
+2). (c) contact identity/classification — arm-level pins (waterfall order,
+zero-address short-circuit, raw bytecode forwarded, transport non-answer →
+`null`); on screen the identity reaches `resolved_name` (the list/detail name
+fallback), while the recipient TRUST LINE (`view.recipient`: verified /
+is_contract / first_interaction) has no drawn slot in the 018 contacts
+surface — it is the Send recipient step's, and lands with 026.
+
+**Recorded**: the identity waterfall and Chainlink path both ride the pool
+facade, so a hermetic run with every off-origin request denied degrades to
+`null` in milliseconds (aborted, not timed out); the FX and identity caches
+are new KV keys (`vela.fxRates.v1`, `vela.fiatRates.v1`,
+`vela.fiatFeedAddrs.v1`, `recipient_id:<addr>`), byte-compatible with Expo's.
+
+**Gates**: check 1233/0 · lint clean · unit 489 · build ×15 · **e2e 90/90**
+(chromium + firefox + webkit); wasm byte-identical; zero corpus delta.

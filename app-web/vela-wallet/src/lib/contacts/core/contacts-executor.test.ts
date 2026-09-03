@@ -1,6 +1,7 @@
 /**
- * The web contacts executor (spec 024 T030): stored-shape byte compatibility,
- * defensive coercion, and the fail-closed answers for the 025 seams.
+ * The web contacts executor (spec 024 T030; identity + classification live
+ * in 025 Phase 5): stored-shape byte compatibility, defensive coercion, the
+ * forwarded identity / raw bytecode, and the fail-closed twins.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContactEffect } from './contacts-types';
@@ -10,6 +11,15 @@ vi.mock('$lib/services/storage', () => ({
 	getItem: vi.fn(async (key: string) => kv.get(key) ?? null),
 	setItem: vi.fn(async (key: string, value: string) => void kv.set(key, value)),
 	removeItem: vi.fn(async (key: string) => void kv.delete(key))
+}));
+
+const identity = { value: null as { name: string; source: string } | null };
+vi.mock('$lib/services/recipient-identity', () => ({
+	resolveRecipientIdentity: vi.fn(async () => identity.value)
+}));
+const rpc = { response: { jsonrpc: '2.0', id: 1 } as Record<string, unknown> };
+vi.mock('$lib/services/rpc-pool', () => ({
+	poolRpcCall: vi.fn(async () => rpc.response)
 }));
 
 import { contactOperationFailure, executeContactOperation } from './contacts-executor';
@@ -129,12 +139,28 @@ describe('the 025 seams answer, never skip', () => {
 			txs: []
 		});
 	});
-	it('resolve_identity answers no-identity', async () => {
+	it('resolve_identity forwards the waterfall: a name with its source, or null', async () => {
+		identity.value = { name: 'vitalik.eth', source: 'ENS' };
+		expect(
+			await executeContactOperation(effect({ type: 'resolve_identity', address: ADDR }))
+		).toEqual({
+			type: 'identity_resolved',
+			address: ADDR,
+			identity: { name: 'vitalik.eth', source: 'ENS' }
+		});
+		identity.value = null;
 		expect(
 			await executeContactOperation(effect({ type: 'resolve_identity', address: ADDR }))
 		).toEqual({ type: 'identity_resolved', address: ADDR, identity: null });
 	});
-	it('classify_recipient answers unknown, never a verdict', async () => {
+	it('classify_recipient hands back the raw bytecode; a non-answer is null, never a verdict', async () => {
+		rpc.response = { jsonrpc: '2.0', id: 1, result: '0x6080604052' };
+		expect(
+			await executeContactOperation(
+				effect({ type: 'classify_recipient', chain_id: 1, address: ADDR })
+			)
+		).toEqual({ type: 'recipient_classified', chain_id: 1, address: ADDR, code: '0x6080604052' });
+		rpc.response = { jsonrpc: '2.0', id: 1, error: { code: -32000, message: 'nope' } };
 		expect(
 			await executeContactOperation(
 				effect({ type: 'classify_recipient', chain_id: 1, address: ADDR })

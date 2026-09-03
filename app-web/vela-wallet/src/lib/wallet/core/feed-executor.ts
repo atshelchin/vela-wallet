@@ -35,6 +35,7 @@
 import { dayStartMs, syncReceivedTransfers } from '$lib/services/activity';
 import { hapticSuccess } from '$lib/services/platform';
 import { deleteTransaction, loadTransactions } from '$lib/services/records';
+import { resolveRecipientIdentity } from '$lib/services/recipient-identity';
 import type { LocalTransaction } from '$lib/services/transactions-model';
 
 import type { FeedShellResult } from '$lib/core/generated/FeedShellResult';
@@ -180,10 +181,10 @@ export function createFeedExecutor(ownAccounts: () => FeedOwnAccount[], records:
 					(account) => account.address.toLowerCase() === operation.addr
 				);
 				if (own) return { type: 'alias_resolved', addr: operation.addr, name: own.name };
-				// The name-service waterfall (recipient-identity) is spec 025 Phase 5;
-				// until then a non-own counterparty has no alias — `null` is the
-				// core's "no identity anywhere", never an invented name.
-				return { type: 'alias_resolved', addr: operation.addr, name: null };
+				// Then the identity waterfall (passkey index → name services);
+				// `null` is the core's "no identity anywhere", never an invented name.
+				const identity = await resolveRecipientIdentity(operation.addr);
+				return { type: 'alias_resolved', addr: operation.addr, name: identity?.name ?? null };
 			}
 			case 'timer':
 				await delay(operation.ms, signal);

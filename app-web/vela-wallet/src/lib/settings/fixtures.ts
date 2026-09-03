@@ -131,6 +131,11 @@ export const LOCALE_ENDONYMS: { id: string; label: string }[] = [
 ];
 
 /** Currency rows, with the symbol the ST5 badge shows. */
+/** The live money formatter's glyph lookup — content, so it lives here. */
+export function currencyGlyph(code: string): string {
+	return CURRENCIES.find((c) => c.id === code)?.glyph ?? code + ' ';
+}
+
 const CURRENCIES = [
 	{ id: 'USD', glyph: '$', caption: '美元' },
 	{ id: 'EUR', glyph: '€', caption: '欧元' },

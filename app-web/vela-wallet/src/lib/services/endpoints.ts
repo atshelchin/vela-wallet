@@ -22,3 +22,15 @@ export const DEFAULT_SERVICE_ENDPOINTS = {
 export function getEthereumDataURL(): string {
 	return loadServiceEndpoints().ethereumDataURL || DEFAULT_SERVICE_ENDPOINTS.ethereumDataURL;
 }
+
+export function getBundlerServiceURL(): string {
+	return loadServiceEndpoints().bundlerServiceURL || DEFAULT_SERVICE_ENDPOINTS.bundlerServiceURL;
+}
+
+export function getFiatRatesURL(): string {
+	return loadServiceEndpoints().fiatRatesURL || DEFAULT_SERVICE_ENDPOINTS.fiatRatesURL;
+}
+
+export function getPasskeyIndexURL(): string {
+	return loadServiceEndpoints().passkeyIndexURL || DEFAULT_SERVICE_ENDPOINTS.passkeyIndexURL;
+}

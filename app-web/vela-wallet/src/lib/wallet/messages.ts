@@ -34,7 +34,14 @@ export interface WalletMessages {
 		emptyTitle: string;
 		emptyCaption: string;
 	};
-	assets: { emptyTitle: string; emptyCaption: string };
+	assets: {
+		emptyTitle: string;
+		emptyCaption: string;
+		/** Template with `{{name}}` — one chain's RPC is failing (not rate-limited). */
+		rpcUnavailableSingle: string;
+		/** Template with `{{count}}`. */
+		rpcUnavailableMultiple: string;
+	};
 	networkFilter: { pillAll: string; sheetTitle: string; allNetworks: string };
 	sidebar: { networks: string; searchPlaceholder: string };
 	receive: {
@@ -126,6 +133,8 @@ export const WALLET_KEYS = [
 	'home.emptySubtitle',
 	'assets.emptyTitle',
 	'assets.emptySubtext',
+	'assets.rpcUnavailableSingle',
+	'assets.rpcUnavailableMultiple',
 	'componentsUi.networkFilter.pillAll',
 	'componentsUi.networkFilter.selectChain',
 	'componentsUi.networkFilter.allNetworks',

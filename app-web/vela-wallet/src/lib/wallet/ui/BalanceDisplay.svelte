@@ -25,6 +25,19 @@
 				<Icon icon={UTILITY_ICONS['eye-off']} size="lg" />
 			</button>
 		</p>
+	{:else if ontoggle !== undefined}
+		<!-- Live (spec 025): the figure itself is the tap-to-hide target — the
+		     H5 design's gesture, with the hidden state's eye-off as its inverse.
+		     Absent a handler (the gallery), the amount stays a plain figure. -->
+		<button
+			type="button"
+			class="amount amount-toggle"
+			aria-label={balance.a11yHide}
+			onclick={ontoggle}
+		>
+			<span class="integer">{balance.integer}</span><span class="decimals">.{balance.decimals}</span
+			>
+		</button>
 	{:else}
 		<p class="amount">
 			<span class="integer">{balance.integer}</span><span class="decimals">.{balance.decimals}</span
@@ -54,6 +67,19 @@
 </div>
 
 <style>
+	/* The tappable figure wears the paragraph's type exactly; only the
+	   affordance (cursor) is added. */
+	.amount-toggle {
+		background: none;
+		border: 0;
+		padding: 0;
+		margin: 0;
+		font: inherit;
+		color: inherit;
+		text-align: inherit;
+		cursor: pointer;
+	}
+
 	.balance {
 		display: flex;
 		flex-direction: column;

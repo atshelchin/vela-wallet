@@ -56,8 +56,30 @@ export const IDENTICON_BOARD_SEEDS = [
 	''
 ] as const;
 
-const MASK = '••••';
-const BALANCE_MASK = '••••••';
+/** The privacy masks — exported so the live layer masks with the same glyphs. */
+export const MASK = '••••';
+export const BALANCE_MASK = '••••••';
+
+/**
+ * The live layer's chain colour, by chain id: the canon brand colour for a
+ * built-in chain, neutral for anything else. Lives here because chain
+ * colours are CONTENT (this file's audit exemption), not tokens.
+ */
+export function chainColor(chainId: number): string {
+	const id = CHAINS_BY_ID[chainId];
+	return (
+		(id !== undefined ? CHAIN_COLORS[id as keyof typeof CHAIN_COLORS] : undefined) ?? '#8C8C8C'
+	);
+}
+
+const CHAINS_BY_ID: Record<number, string> = {
+	1: 'ethereum',
+	56: 'bnb',
+	137: 'polygon',
+	42161: 'arbitrum',
+	8453: 'base',
+	100: 'gnosis'
+};
 
 type Identicon = (seed: string) => string;
 

@@ -6,13 +6,15 @@
  * format. Two web answers, per contracts/shell-operations.md:
  * - `read_device_currency` → `null`: the core's own rule already says "None
  *   on web and for regionless locales" — the browser has no region currency.
- * - `resolve_rate` → `rate: null`: the rate-source chain is spec 025.
- *   `null` is NOT 1 by core rule — formatting degrades to the USD figure,
- *   conversion refuses.
+ * - `resolve_rate` → the rate waterfall (`services/currency-rate`: Chainlink
+ *   feed → configured FX endpoint → `null`). `null` is NOT 1 by core rule —
+ *   formatting degrades to the USD figure, conversion refuses. Live since
+ *   spec 025 Phase 5.
  *
  * Failure contract (shared effect loop): nothing rejects.
  */
 
+import { resolveRate } from '$lib/services/currency-rate';
 import { getItem, setItem } from '$lib/services/storage';
 import type { CurrencyShellResult } from '$lib/core/generated/CurrencyShellResult';
 import type { CurrencyOperation } from '$lib/core/generated/CurrencyOperation';
@@ -37,9 +39,12 @@ export async function executeCurrencyOperation(
 		case 'read_device_currency':
 			// The core's rule: None on web. Answered, never skipped.
 			return { type: 'device_currency', code: null };
-		case 'resolve_rate':
-			// No rate source until spec 025. null ≠ 1.
-			return { type: 'rate_resolved', code: operation.code, rate: null };
+		case 'resolve_rate': {
+			// The source chain (Chainlink → FX endpoint); null = cannot price it
+			// right now. The strict/fallback split lives in the core. null ≠ 1.
+			const rate = await resolveRate(operation.code);
+			return { type: 'rate_resolved', code: operation.code, rate };
+		}
 		default: {
 			const never: never = operation;
 			throw new Error(`unhandled display_currency operation: ${JSON.stringify(never)}`);

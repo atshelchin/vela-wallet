@@ -6,7 +6,9 @@
  * other domains and stays with them.
  */
 
+import { checksumAddress } from '$lib/core/client';
 import { apiNetworkToChainId } from './chains';
+import { getEthereumDataURL } from './endpoints';
 
 export interface APIToken {
 	network: string;
@@ -80,4 +82,29 @@ export interface CustomToken {
 	name: string;
 	decimals: number;
 	networkName: string;
+}
+
+/** The core's `is_address` shape — 0x + 40 hex. */
+export function isAddress(value: string): boolean {
+	return /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
+/** A native coin's logo — the COIN's chain, not the chain it sits on. */
+export function nativeLogoURLs(chainId: number, symbol: string): string[] {
+	const logoChain = nativeCoinLogoChainId(symbol, chainId);
+	return [`${getEthereumDataURL()}/chainlogos/eip155-${logoChain}.png`];
+}
+
+/**
+ * Logo candidates for a raw (chainId, address): checksummed first, lowercase
+ * fallback. Never throws — a malformed address yields no URLs.
+ */
+export function tokenLogoURLsByAddress(chainId: number, tokenAddress: string): string[] {
+	if (!isAddress(tokenAddress)) return [];
+	const base = `${getEthereumDataURL()}/assets/eip155-${chainId}`;
+	const cs = checksumAddress(tokenAddress);
+	const lc = tokenAddress.toLowerCase();
+	const urls = [`${base}/${cs}/logo.png`];
+	if (lc !== cs) urls.push(`${base}/${lc}/logo.png`);
+	return urls;
 }

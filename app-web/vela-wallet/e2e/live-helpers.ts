@@ -38,6 +38,13 @@ const TEST_ACCOUNT = {
 	keys: []
 };
 
+/**
+ * The address the core DERIVES for TEST_ACCOUNT (address = f(keys), spec 019
+ * invariant ②) — the stored `address` field above is ignored on load. What the
+ * live surfaces show is this, never the fixture's.
+ */
+export const TEST_ACCOUNT_SHORT = '0x0cE19C…084e2e';
+
 /** Runs before every document in the context: intro seen + wallet present. */
 export async function seedSignedIn(page: Page): Promise<void> {
 	await page.addInitScript((account) => {

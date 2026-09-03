@@ -26,6 +26,7 @@ import init, {
 	// (src/onboarding.rs + src/wallet_state.rs).
 	ActivityFeedCore,
 	bestNativeDexPrice,
+	checksumAddress,
 	chooseNativePrice,
 	ApprovalGuardCore,
 	BalanceDashboardCore,
@@ -94,7 +95,7 @@ export {
 // key for the registry; identicon and passkey artwork resolved offline by
 // construction.
 export { buildGroupProof, buildMemberProof, groupPublicKeyFromSeed, toHex };
-export { bestNativeDexPrice, chooseNativePrice };
+export { bestNativeDexPrice, checksumAddress, chooseNativePrice };
 export { identiconNormalizeSeed, identiconSvgCircular };
 export { passkeyFallbackIconDataUri, passkeyProviderIconDataUri };
 export { passkeyDirectoryEntry, passkeyDirectoryUrl };

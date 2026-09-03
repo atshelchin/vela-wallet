@@ -78,8 +78,8 @@ describe('withLiveFlow (assets)', () => {
 		expect(unknown.base.model.rows).toEqual([]);
 	});
 
-	it('leaves non-asset screens alone', () => {
-		const a1 = buildFlowState('a1', fm, identicon);
-		expect(withLiveFlow(a1, { balance: LOOKED, currency: USD, m, emptyCopy })).toBe(a1);
+	it('leaves screens without a live overlay alone (send is 026)', () => {
+		const sd1 = buildFlowState('sd1', fm, identicon);
+		expect(withLiveFlow(sd1, { balance: LOOKED, currency: USD, m, emptyCopy })).toBe(sd1);
 	});
 });

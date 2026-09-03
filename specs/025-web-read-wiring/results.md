@@ -108,3 +108,51 @@ console (a 2-worker race that passed in isolation).
 
 **Gates**: check 1211/0 · lint clean · unit 456 · build ×15 · **e2e 88/88**
 (chromium + firefox + webkit); wasm byte-identical.
+
+---
+
+## Phase 4 — activity + receive (T130–T137)
+
+**What shipped**: the home's activity list is the core's `activity_feed`.
+The ported resident (`feed-resident.ts`, own-accounts supplier, store sink)
+drives a thin bridge (`feed.svelte.ts`); `wallet/live.ts` turns the core's
+grouped rows into the drawn `ActivityGroupModel` — day labels from the corpus
+(today/yesterday) or a short locale date, direction → received/sent, alias
+or short address, `±` amount or a batch count, the privacy mask — wording and
+formatting only, no decisions. Receive: a `receive_watch` session per receive
+surface (created when one shows, disposed when it leaves; mobile `r*` and
+desktop `dr*`), fetch gated on document visibility, `signal_deposit` →
+`balance.refresh(true)` + `feed.liveTick()`. `payment_request` executor +
+`validatePayQuery` seam ported (KV-backed per-account acknowledgement). The
+receive list carries every known network with THE address; the QR sheet
+carries the identity's account card.
+
+**The port graph** (provenance-headed @ c13e89d4): activity (trimmed to what
+the executor calls: day keys, stable set, token index, `incomingToRecord`,
+`syncReceivedTransfers`), incoming-transfers, transactions-model, the tx store
+in records (`withTxLock`, cap 200, tombstoned deletes); wallet-state feed ×
+types/executor/session/resident; flows/core receive-watch + payment-request.
+
+**The hermetic deposit (e2e/deposit-noticed.e2e.ts, SC-103)**: the stub's
+balance is mutable and its call count is the clock — one round for the
+baseline, then the poll that notices and the refresh it asks for — so the
+home reads $7,500 after $4,500 with no reload and no tap. One finding cost a
+debugging loop: a seeded account's stored `address` is IGNORED on load — the
+core derives the Safe address from the keys (spec 019 invariant ②), so live
+surfaces show `0x0cE19C…084e2e`, a value present in no fixture. The first
+assertion looked for the seeded string, saw fixture-shaped rows, and read a
+working overlay as a broken one. `TEST_ACCOUNT_SHORT` in `live-helpers.ts`
+now records the derived value with the why.
+
+**Recorded**: no toast component is drawn on the web home — the deposit's
+acknowledgement is the balance and feed moving (the core's `toast` state is
+computed but unread); FlowNav does not carry the QR sheet's network index
+(the QR is the account card, network-agnostic); `payment_request` has no UI
+entry on web (no `/pay` route drawn) — seam only; the add-token sheet
+(`manage_tokens`) stays deferred; a non-own counterparty's alias is `null`
+until Phase 5 binds contacts `resolve_identity`; the flows test that pinned
+"non-asset screens untouched" moved from history (now live) to send-pick
+(026).
+
+**Gates**: check 1223/0 · lint clean · unit 475 · build ×15 · **e2e 89/89**
+(chromium + firefox + webkit); wasm byte-identical; zero corpus delta.

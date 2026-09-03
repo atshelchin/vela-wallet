@@ -69,21 +69,21 @@ Paths repo-root-relative; `pnpm` runs in app-web/vela-wallet.
 
 ## Phase 4: Activity + receive (one commit)
 
-- [ ] T130 [US2] Port src/services/activity.ts + incoming-transfers.ts +
+- [X] T130 [US2] Port src/services/activity.ts + incoming-transfers.ts +
       the tx-store KV seam (D14: real schema, empty until 026)
-- [ ] T131 [US2] Port feed-{types,executor,session,resident}.ts; haptic→ack
-- [ ] T132 [US2] Feed into buildWalletFromCore (day groups, folding — the
+- [X] T131 [US2] Port feed-{types,executor,session,resident}.ts; haptic→ack
+- [X] T132 [US2] Feed into buildWalletFromCore (day groups, folding — the
       core's; labels the corpus's)
-- [ ] T133 [US2] Port receive-watch wiring (per-screen factory, visibility
+- [X] T133 [US2] Port receive-watch wiring (per-screen factory, visibility
       gate D12) into the flows receive screens (+ callbacks, 024 contacts
       pattern) — arrival celebration renders
-- [ ] T134 [US2] payment_request validation seam (Expo validate-pay port)
+- [X] T134 [US2] payment_request validation seam (Expo validate-pay port)
       prefilling receive context; refusal words from corpus
-- [ ] T135 [P] [US2] Units: feed executor/store seam incl. delete-tombstone,
+- [X] T135 [P] [US2] Units: feed executor/store seam incl. delete-tombstone,
       watch gate (hidden tab → inactive answer), pay validation arms
-- [ ] T136 [US2] e2e e2e/deposit-noticed.e2e.ts (stubbed deltas + fake
+- [X] T136 [US2] e2e e2e/deposit-noticed.e2e.ts (stubbed deltas + fake
       timers) (SC-103)
-- [ ] T137 [US2] Full gate; results.md entry
+- [X] T137 [US2] Full gate; results.md entry
 
 ## Phase 5: 024 backfills (one commit)
 

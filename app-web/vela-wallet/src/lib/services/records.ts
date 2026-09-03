@@ -10,6 +10,7 @@
 
 import { getItem, setItem } from './storage';
 import type { CustomToken } from './tokens-model';
+import type { LocalTransaction } from './transactions-model';
 
 /** The Expo `CustomNetwork` stored shape (camelCase), verbatim. */
 export interface CustomNetworkRecord {
@@ -68,13 +69,51 @@ export async function getRpcProviderKeys(): Promise<RpcProviderKeys> {
 	}
 }
 
-/** The Expo `LocalTransaction` store (spec 025 D14: real seam, 026 writes). */
-export async function loadTransactions<T>(): Promise<T[]> {
-	return loadArray<T>('vela.transactionHistory');
+// ---------------------------------------------------------------------------
+// The local transaction store (spec 025 D14) — Expo `storage.ts` semantics.
+// ---------------------------------------------------------------------------
+
+const TX_KEY = 'vela.transactionHistory';
+/** Same cap the Expo store applies: the newest 200 records. */
+const TX_CAP = 200;
+
+/** Writers queue behind one another — the `withTxLock` port. */
+let txTail: Promise<unknown> = Promise.resolve();
+function withTxLock<T>(task: () => Promise<T>): Promise<T> {
+	const next = txTail.then(task, task);
+	txTail = next.catch(() => undefined);
+	return next;
 }
 
-export async function saveTransactions(records: unknown[]): Promise<void> {
-	await setItem('vela.transactionHistory', JSON.stringify(records));
+export async function loadTransactions(): Promise<LocalTransaction[]> {
+	return loadArray<LocalTransaction>(TX_KEY);
+}
+
+/**
+ * Merge new records in: dedupe by id, newest first, capped. Answers how many
+ * were actually new — the count the feed's celebration is built on.
+ */
+export async function mergeTransactions(incoming: LocalTransaction[]): Promise<number> {
+	if (incoming.length === 0) return 0;
+	return withTxLock(async () => {
+		const existing = await loadTransactions();
+		const ids = new Set(existing.map((t) => t.id));
+		const fresh = incoming.filter((t) => !ids.has(t.id));
+		if (fresh.length === 0) return 0;
+		const merged = [...fresh, ...existing].sort((a, b) => b.timestamp - a.timestamp);
+		if (merged.length > TX_CAP) merged.length = TX_CAP;
+		await setItem(TX_KEY, JSON.stringify(merged));
+		return fresh.length;
+	});
+}
+
+export async function deleteTransaction(id: string): Promise<void> {
+	return withTxLock(async () => {
+		const txs = await loadTransactions();
+		const next = txs.filter((t) => t.id !== id);
+		if (next.length === txs.length) return;
+		await setItem(TX_KEY, JSON.stringify(next));
+	});
 }
 
 export async function loadCustomTokens(): Promise<CustomToken[]> {

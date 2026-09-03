@@ -12,19 +12,24 @@
  * rule), grouping digits, trimming a balance's tail, choosing which drawn
  * state a view maps to.
  *
- * Activity stays in `loading` mode until spec 025 Phase 4 wires the feed: a
- * skeleton is honest about not having looked yet; an empty state would
- * claim there is nothing to show.
+ * Activity rows are the core's (grouped, folded, tombstoned); the shell words
+ * the day headers and formats the amounts.
  */
 
 import type { BalanceToken } from '$lib/core/generated/BalanceToken';
 import type { BalanceView } from '$lib/core/generated/BalanceView';
 import type { CurrencyView } from '$lib/core/generated/CurrencyView';
+import type { FeedItem } from '$lib/core/generated/FeedItem';
+import type { FeedView } from '$lib/core/generated/FeedView';
 import { chainName } from '$lib/services/networks';
+import { shortenAddress } from './identity';
+import { fill } from './messages';
 import { currencyGlyph } from '$lib/settings/fixtures';
 import { BALANCE_MASK, chainColor, MASK } from './fixtures';
 import type { WalletMessages } from './messages';
 import type {
+	ActivityGroupModel,
+	ActivityRowModel,
 	AssetRowModel,
 	BalanceModel,
 	SectionModel,
@@ -36,6 +41,10 @@ export interface WalletLiveInputs {
 	balance: BalanceView;
 	currency: CurrencyView;
 	m: WalletMessages;
+	/** The feed, once Phase 4 boots it; `null` keeps the section a skeleton. */
+	feed?: FeedView | null;
+	/** For date headers older than yesterday — a presentation preset. */
+	locale?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,6 +169,98 @@ function assetsMode(view: BalanceView): SectionModel['mode'] {
 }
 
 // ---------------------------------------------------------------------------
+// Activity — the core's grouped rows, worded and formatted here
+// ---------------------------------------------------------------------------
+
+function localMidnight(ms: number): number {
+	const d = new Date(ms);
+	return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+/** "Today" / "Yesterday" from the corpus; older days as a short date. */
+export function dayLabel(
+	dayStartMs: number,
+	m: WalletMessages,
+	locale = 'en',
+	now = Date.now()
+): string {
+	const today = localMidnight(now);
+	if (dayStartMs === today) return m.activity.today;
+	if (dayStartMs === today - 86_400_000) return m.activity.yesterday;
+	return new Date(dayStartMs).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+}
+
+export function liveActivityRow(
+	item: FeedItem,
+	m: WalletMessages,
+	hidden: boolean
+): ActivityRowModel {
+	const received = item.direction === 'in';
+	const kind: ActivityRowModel['kind'] = received
+		? 'received'
+		: item.direction === 'out'
+			? 'sent'
+			: 'dapp';
+	const who = item.alias ?? (item.counterparty !== null ? shortenAddress(item.counterparty) : null);
+	const subtitle =
+		who === null
+			? chainName(item.chain_id)
+			: fill(received ? m.activity.fromName : m.activity.toName, { name: who });
+	const amount =
+		item.value === null
+			? String(item.batch?.count ?? '')
+			: `${received ? '+' : '-'}${trimBalance(item.value)}`;
+	return {
+		kind,
+		title:
+			kind === 'received'
+				? m.activity.received
+				: kind === 'sent'
+					? m.activity.sent
+					: m.activity.dapp,
+		subtitle,
+		amount: hidden ? MASK : amount,
+		unit: item.symbol,
+		positive: received,
+		masked: hidden,
+		badgeColor: chainColor(item.chain_id)
+	};
+}
+
+/** The core emits headers and items already interleaved (invariant ⑥). */
+export function liveActivityGroups(
+	view: FeedView,
+	m: WalletMessages,
+	hidden: boolean,
+	locale = 'en'
+): ActivityGroupModel[] {
+	const groups: ActivityGroupModel[] = [];
+	for (const row of view.rows) {
+		if (row.type === 'header') {
+			groups.push({ label: dayLabel(row.day_start_ms, m, locale), rows: [] });
+			continue;
+		}
+		const last = groups.at(-1);
+		const model = liveActivityRow(row.item, m, hidden);
+		if (last === undefined) groups.push({ label: '', rows: [model] });
+		else last.rows.push(model);
+	}
+	return groups;
+}
+
+/**
+ * The feed has no "loaded" flag (an empty store and a pristine view are the
+ * same rows). The store read lands in milliseconds while the balance fetch
+ * takes seconds, so "the balance has looked" is a safe proxy for "the feed
+ * has looked" — a presentation choice, recorded as such.
+ */
+function activityMode(view: BalanceView, feed: FeedView | null | undefined): SectionModel['mode'] {
+	if (!feed) return 'loading';
+	if (feed.rows.length > 0) return 'rows';
+	return view.balance_unknown ? 'loading' : 'empty';
+}
+
+// ---------------------------------------------------------------------------
 // Overlays
 // ---------------------------------------------------------------------------
 
@@ -171,9 +272,10 @@ export function withLiveWallet(model: WalletHomeModel, inputs: WalletLiveInputs)
 		balance: liveBalance(view, currency, m),
 		assetsSection: { ...model.assetsSection, mode: assetsMode(view) },
 		assetRows: view.tokens.map((t) => liveAssetRow(t, currency, m, view.hidden)),
-		// Phase 4 wires the feed; until then the section is honestly unloaded.
-		activitySection: { ...model.activitySection, mode: 'loading' },
-		activityGroups: []
+		activitySection: { ...model.activitySection, mode: activityMode(view, inputs.feed) },
+		activityGroups: inputs.feed
+			? liveActivityGroups(inputs.feed, m, view.hidden, inputs.locale)
+			: []
 	};
 }
 
@@ -188,7 +290,9 @@ export function withLiveWalletDesktop(
 		balance: liveBalance(view, currency, m),
 		assetsSection: { ...model.assetsSection, mode: assetsMode(view) },
 		assetRows: view.tokens.map((t) => liveAssetRow(t, currency, m, view.hidden)),
-		activitySection: { ...model.activitySection, mode: 'loading' },
-		activityGroups: []
+		activitySection: { ...model.activitySection, mode: activityMode(view, inputs.feed) },
+		activityGroups: inputs.feed
+			? liveActivityGroups(inputs.feed, m, view.hidden, inputs.locale)
+			: []
 	};
 }

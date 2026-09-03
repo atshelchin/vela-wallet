@@ -37,6 +37,12 @@
 	import ScanSurface from '$lib/flows/ui/ScanSurface.svelte';
 	import { FlowNav, type FlowEntry } from '$lib/flows/nav.svelte';
 	import { balance } from '$lib/wallet/core/balance.svelte';
+	import { feed } from '$lib/wallet/core/feed.svelte';
+	import {
+		createReceiveWatchSession,
+		type ReceiveWatchSession
+	} from '$lib/flows/core/receive-watch';
+	import { loadCore } from '$lib/core/client';
 	import { currency } from '$lib/settings/core/currency.svelte';
 	import { withLiveWallet, withLiveWalletDesktop } from '$lib/wallet/live';
 	import { withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
@@ -116,15 +122,69 @@
 	// hydrate: the core reads its cache and fetches for whoever is signed in.
 	$effect(() => {
 		const address = identity?.address;
-		if (address !== undefined) void balance.setAccount(address);
+		if (address !== undefined) {
+			void balance.setAccount(address);
+			void feed.setAccount(address);
+		}
+	});
+
+	// Balance privacy reaches the feed too — the core withholds the toast
+	// while hidden (invariant ④), and every money row masks together.
+	$effect(() => {
+		feed.privacyChanged(balance.view.hidden);
+	});
+
+	// The 10s Activity poll the Expo home ran, only while the tab is visible.
+	onMount(() => {
+		const id = setInterval(() => {
+			if (document.visibilityState === 'visible') feed.liveTick();
+		}, 10_000);
+		return () => clearInterval(id);
+	});
+
+	/**
+	 * The deposit watcher lives exactly as long as a receive screen is showing
+	 * (research D12): created on entry with THIS address, disposed on leave.
+	 * A detected deposit refreshes the balances and nudges the feed — the row
+	 * appearing and the total moving are the acknowledgement.
+	 */
+	let watcher: ReceiveWatchSession | null = null;
+	const receiving = $derived(
+		(flowState !== undefined && flowState.startsWith('r')) ||
+			(desktopFlow !== undefined && desktopFlow.startsWith('dr'))
+	);
+	$effect(() => {
+		const address = identity?.address;
+		if (!receiving || address === undefined) return;
+		let disposed = false;
+		void loadCore().then(() => {
+			if (disposed) return;
+			watcher = createReceiveWatchSession({
+				address,
+				onView: () => {},
+				onDeposit: () => {
+					balance.refresh(true);
+					feed.liveTick();
+				},
+				onError: (error) => console.error('[receive-watch] core fault:', error)
+			});
+			watcher.start({ type: 'start' });
+		});
+		return () => {
+			disposed = true;
+			watcher?.dispose();
+			watcher = null;
+		};
 	});
 
 	// Page visibility stands in for app focus (research D12): a hidden tab
 	// pauses the pollers, a returning one refreshes by the core's rules.
 	onMount(() => {
 		const onvisibility = () => {
-			if (document.visibilityState === 'visible') balance.focused();
-			else balance.backgrounded();
+			if (document.visibilityState === 'visible') {
+				balance.focused();
+				feed.focusTick();
+			} else balance.backgrounded();
 		};
 		document.addEventListener('visibilitychange', onvisibility);
 		return () => document.removeEventListener('visibilitychange', onvisibility);
@@ -134,7 +194,9 @@
 	const liveInputs = $derived({
 		balance: balance.view,
 		currency: currency.view,
-		m: data.walletMessages
+		m: data.walletMessages,
+		feed: feed.view,
+		locale: data.locale
 	});
 	const liveHome = $derived(
 		identity === null
@@ -150,6 +212,7 @@
 	/** The pushed assets screen shows the same holdings as the home (D10). */
 	const flowInputs = $derived({
 		...liveInputs,
+		identity: identity ?? undefined,
 		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined
 	});
 

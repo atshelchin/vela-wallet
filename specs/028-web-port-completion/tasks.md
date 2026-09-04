@@ -16,15 +16,15 @@ fixed before this feature ships. It is tracked in 027's ledger.
 
 ## Phase 1: Setup (one commit)
 
-- [ ] T401 Baselines into results.md: artifact bytes/fingerprint, corpus pins,
+- [X] T401 Baselines into results.md: artifact bytes/fingerprint, corpus pins,
       green tree (check/lint/unit/e2e counts) @ 28d25ae9
-- [ ] T402 [P] Port-provenance list with line counts: `qrcode 554`,
+- [X] T402 [P] Port-provenance list with line counts: `qrcode 554`,
       `share-card 330`, `locale-format 331`, `contact-io 341`, `erase-device 160`,
       `image-decode 74`, `avatar-style 54`, `saved-contact 22`, plus
       `QRScanner.tsx`'s web decode engine (693) and, as consumers need them,
       `readonly-rpc-gate 109`, `fiat-convert 231`, `currency-catalog 158`,
       `token-list-filter 98`
-- [ ] T403 [P] Declare the two decoder deps (`@undecaf/zbar-wasm`, `jsqr`) in
+- [X] T403 [P] Declare the two decoder deps (`@undecaf/zbar-wasm`, `jsqr`) in
       **app-web's own** package.json — the 026/027 rule — and record that both
       are lazy and bundled from our origin, never a CDN (D45)
 

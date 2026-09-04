@@ -14,6 +14,12 @@ importers:
       '@noble/hashes':
         specifier: 1.8.0
         version: 1.8.0
+      '@undecaf/zbar-wasm':
+        specifier: ^0.11.0
+        version: 0.11.0
+      jsqr:
+        specifier: ^1.4.0
+        version: 1.4.0
       xlsx:
         specifier: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
         version: https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
@@ -987,6 +993,9 @@ packages:
     resolution: {integrity: sha512-8C71BQkGjiMmXtop7pHVJu1l2NNShFdkCyD6a2ezzs5vU/L3LRtb69EtcteFwz0mYMPzIgOw0n6OV4VBUWZd7A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
+  '@undecaf/zbar-wasm@0.11.0':
+    resolution: {integrity: sha512-z2UZ+Uc50+qyE+HbU+Obdk/E5ecB7xYiu0i99bHQ9VlZVH0JMmE/5mJQa16Cutvwt80C9OZl8jEVayf5s5Azow==}
+
   '@vitest/browser-playwright@4.1.10':
     resolution: {integrity: sha512-nMoXGEiRpT7m3W7NsbvrM2aKNwiNHZf+zEpUCvMteGjZFvfT96Q9fh7QyB98dvDWXiKvrLxA7bJ1mCOOv+JQPw==}
     peerDependencies:
@@ -1315,6 +1324,9 @@ packages:
 
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
+
+  jsqr@1.4.0:
+    resolution: {integrity: sha512-dxLob7q65Xg2DvstYkRpkYtmKm2sPJ9oFhrhmudT1dZvNFFTlroai3AWSpLey/w5vMcLBXRgOJsbXpdN9HzU/A==}
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -2518,6 +2530,8 @@ snapshots:
       '@typescript-eslint/types': 8.65.0
       eslint-visitor-keys: 5.0.1
 
+  '@undecaf/zbar-wasm@0.11.0': {}
+
   '@vitest/browser-playwright@4.1.10(playwright@1.62.0)(vite@8.1.5(@types/node@22.20.1)(esbuild@0.28.2))(vitest@4.1.10)':
     dependencies:
       '@vitest/browser': 4.1.10(vite@8.1.5(@types/node@22.20.1)(esbuild@0.28.2))(vitest@4.1.10)
@@ -2890,6 +2904,8 @@ snapshots:
   json-schema-traverse@0.4.1: {}
 
   json-stable-stringify-without-jsonify@1.0.1: {}
+
+  jsqr@1.4.0: {}
 
   keyv@4.5.4:
     dependencies:

@@ -71,16 +71,21 @@ app-web/vela-wallet/
   src/lib/dapp/transport.ts                        # the first REAL 026 transport
   src/lib/explore/ui/ConnectionPanel.svelte        # + callbacks (drawn in 022)
   src/routes/extension/                            # the shell + request window
-extension/                                         # the packaged MV3 artifact
-  manifest.json · inpage.js · content.js · background.js · lib/protocol.js
-  build.mjs                                        # assembles app build + scripts
-e2e/extension-*.e2e.ts · e2e/testdapp/
+  extension/                                       # the MV3 artifact
+    manifest.json · inpage.js · content.js · background.js · lib/protocol.js
+    build.mjs                                      # app build + page scripts → dist/
+  e2e/extension-*.e2e.ts · e2e/testdapp/
 ```
 
-**Structure Decision**: the extension's page-side scripts live in their own
-top-level `extension/` package (they are not SvelteKit modules and must not be
-bundled by it); everything that decides lives in `src/lib/dapp/` beside the other
-domains, exactly as 024–026 placed theirs.
+**Structure Decision**: everything that decides lives in `src/lib/dapp/` beside
+the other domains, exactly as 024–026 placed theirs. The page-side scripts live
+in `app-web/vela-wallet/extension/` — INSIDE the app, not beside
+`packages/safari-extension` — for three reasons: the extension is a build TARGET
+of this app (it packages its client bundle, D35) and `build:extension` is its
+script; one package manager, one lint config, one gate suite; and unlike the
+Safari extension, which is a genuinely separate artifact talking to a native app,
+this one has no life apart from app-web. They sit outside `src/` because they are
+not SvelteKit modules and must never be bundled by it.
 
 ## Phases
 

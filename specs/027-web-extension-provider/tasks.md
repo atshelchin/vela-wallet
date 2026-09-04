@@ -13,13 +13,13 @@ app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 1: Setup (one commit)
 
-- [ ] T301 Baselines into results.md: hosted-site budgets (wasm bytes/fingerprint,
+- [X] T301 Baselines into results.md: hosted-site budgets (wasm bytes/fingerprint,
       deploy-bundle purity, one artifact), corpus pins, green tree
       (check/lint/unit/e2e counts) @ 52ad8fa9
-- [ ] T302 [P] Port-provenance list with line counts: `packages/safari-extension/src/*`,
+- [X] T302 [P] Port-provenance list with line counts: `packages/safari-extension/src/*`,
       `src/services/{extension-bridge-transport,dapp-transport,dapp-permissions,dapp-account-reconcile}.ts`,
       `src/services/wallet-state-core/{dsess-*,dperm-*,ext-cache-*}.ts`
-- [ ] T303 [P] `extension/` package home + `src/lib/dapp` added to the
+- [X] T303 [P] `extension/` package home + `src/lib/dapp` added to the
       literal-audit source list (tokens.test.ts)
 
 ## Phase 2: The package and the shell (one commit) — blocks 3–7

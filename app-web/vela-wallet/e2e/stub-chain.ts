@@ -173,3 +173,151 @@ export async function stubChainRegistry(
 		route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: [] }) })
 	);
 }
+
+// ---------------------------------------------------------------------------
+// The relay (spec 026 T224)
+// ---------------------------------------------------------------------------
+
+/** What a stubbed relay answers, per JSON-RPC method. */
+export type RelayHandler = (
+	method: string,
+	params: unknown[]
+) => unknown | { error: { code: number; message: string } } | undefined;
+
+export interface RelayRestAnswers {
+	/** `/v1/account/{chainId}/{safe}` — the per-Safe gas deposit account. */
+	account?: Record<string, unknown> | null;
+	/** `/v1/treasury/{chainId}` — the relay's float. `null` ⇒ 404 (uncovered). */
+	treasury?: Record<string, unknown> | null;
+	/** `/v1/sponsor` — the silent sponsorship attempt. */
+	sponsor?: Record<string, unknown> | null;
+}
+
+/**
+ * Stub the relay: the ERC-4337 JSON-RPC methods the wallet speaks, plus the
+ * three REST endpoints. Both halves are needed for a send — the quote and the
+ * submit come over JSON-RPC, the gas account and the treasury over REST.
+ *
+ * `handler` answers the JSON-RPC methods; returning `undefined` falls through
+ * to a null result, which is what a relay says for a receipt that has not
+ * landed. Register this AFTER `stubJsonRpc` so the relay's origin wins.
+ */
+export async function stubRelay(
+	page: Page,
+	urlPattern: RegExp,
+	handler: RelayHandler,
+	rest: RelayRestAnswers = {}
+): Promise<void> {
+	await page.route(/\/v1\/account\/(\d+)\/(0x[0-9a-fA-F]+)/, (route) => {
+		if (rest.account === null) return route.fulfill({ status: 404, body: 'no account' });
+		return route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify(
+				rest.account ?? {
+					activeDepositAddress: '0x' + 'a1'.repeat(20),
+					onchainBalance: '0x2386f26fc10000', // 0.01
+					spendableBalance: '0x2386f26fc10000',
+					status: 'ACTIVE'
+				}
+			)
+		});
+	});
+	await page.route(/\/v1\/treasury\/(\d+)/, (route) => {
+		if (rest.treasury === null) return route.fulfill({ status: 404, body: 'uncovered' });
+		return route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify(
+				rest.treasury ?? {
+					address: '0x' + 'b2'.repeat(20),
+					asset: 'native',
+					balance: '0x8ac7230489e80000', // 10
+					floor: '0x2386f26fc10000',
+					bootstrapNeeded: false
+				}
+			)
+		});
+	});
+	await page.route(/\/v1\/sponsor/, (route) =>
+		route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify(rest.sponsor ?? { sponsored: true })
+		})
+	);
+	await page.route(urlPattern, async (route) => {
+		const request = route.request();
+		if (request.method() !== 'POST') return route.fallback();
+		const body = request.postDataJSON() as { id?: number; method: string; params?: unknown[] };
+		const answer = handler(body.method, body.params ?? []);
+		const payload =
+			answer !== null && typeof answer === 'object' && 'error' in (answer as object)
+				? { jsonrpc: '2.0', id: body.id ?? 1, error: (answer as { error: unknown }).error }
+				: { jsonrpc: '2.0', id: body.id ?? 1, result: answer ?? null };
+		return route.fulfill({ contentType: 'application/json', body: JSON.stringify(payload) });
+	});
+}
+
+/**
+ * A relay that quotes, accepts and confirms — the happy path, as one object.
+ * `receipt` decides what the receipt poll answers: 'landed' (confirmed),
+ * 'pending' (accepted, no receipt yet) or 'failed' (reverted on-chain).
+ */
+export function happyRelay(
+	userOpHash: string,
+	txHash: string,
+	receipt: () => 'landed' | 'pending' | 'failed' = () => 'landed'
+): RelayHandler {
+	return (method) => {
+		switch (method) {
+			case 'pimlico_getUserOperationGasPrice':
+				return {
+					slow: { maxFeePerGas: '0x3b9aca00', maxPriorityFeePerGas: '0x3b9aca00' },
+					standard: { maxFeePerGas: '0x3b9aca00', maxPriorityFeePerGas: '0x3b9aca00' },
+					fast: { maxFeePerGas: '0x77359400', maxPriorityFeePerGas: '0x77359400' }
+				};
+			case 'eth_estimateUserOperationGas':
+				return {
+					preVerificationGas: '0xc350',
+					verificationGasLimit: '0x186a0',
+					callGasLimit: '0x186a0'
+				};
+			case 'vela_getInBandGasQuote':
+				// The relay's in-band rows: the fee is paid from the Safe's own
+				// balance to this recipient. Every chain is in-band, so a send
+				// cannot be priced without them.
+				return [
+					{
+						recipient: '0x' + 'fe'.repeat(20),
+						asset: 'native',
+						feeToken: null,
+						balance: '0x14d1120d7b160000',
+						decimals: 18,
+						symbol: 'ETH',
+						usdBalance: '4500',
+						usdPrice: '3000'
+					}
+				];
+			case 'eth_sendUserOperation':
+				return userOpHash;
+			case 'eth_getUserOperationStatus':
+				return { status: receipt() === 'pending' ? 'pending' : 'included' };
+			case 'eth_getUserOperationReceipt': {
+				const state = receipt();
+				if (state === 'pending') return null;
+				return {
+					userOpHash,
+					success: state === 'landed',
+					receipt: {
+						transactionHash: txHash,
+						status: state === 'landed' ? '0x1' : '0x0',
+						blockNumber: '0x11',
+						blockHash: '0x' + 'cd'.repeat(32),
+						gasUsed: '0x5208',
+						logs: []
+					}
+				};
+			}
+			default:
+				return undefined;
+		}
+	};
+}

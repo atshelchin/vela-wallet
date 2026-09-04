@@ -25,9 +25,14 @@
 		onfile?: () => void;
 		ontemplate?: () => void;
 		onapply?: () => void;
+		/**
+		 * Present ⇒ the table can be pasted here (spec 026). Absent, the field
+		 * stays the drawn picture the gallery renders.
+		 */
+		onpaste?: (value: string) => void;
 	}
 
-	let { model, onunit, onfile, ontemplate, onapply }: Props = $props();
+	let { model, onunit, onfile, ontemplate, onapply, onpaste }: Props = $props();
 </script>
 
 <div class="batch">
@@ -41,7 +46,12 @@
 		onselect={onunit}
 	/>
 
-	<MonoField value={model.pasteValue} placeholder={model.pastePlaceholder} rows={4} />
+	<MonoField
+		value={model.pasteValue}
+		placeholder={model.pastePlaceholder}
+		rows={4}
+		oninput={onpaste}
+	/>
 
 	<p class="tools">
 		<button type="button" onclick={onfile}>

@@ -108,3 +108,16 @@ export function tokenLogoURLsByAddress(chainId: number, tokenAddress: string): s
 	if (lc !== cs) urls.push(`${base}/${lc}/logo.png`);
 	return urls;
 }
+
+/**
+ * Candidate logo URLs in priority order (Expo `models/types.ts:160`). For an
+ * ERC-20 the checksummed address is tried first, then lowercase, so an
+ * inconsistently-cased data server still resolves.
+ */
+export function tokenLogoURLs(token: APIToken): string[] {
+	if (token.logo && token.logo.length > 0) return [token.logo];
+	const chainId = tokenChainId(token);
+	if (isNativeToken(token)) return nativeLogoURLs(chainId, token.symbol);
+	if (token.tokenAddress) return tokenLogoURLsByAddress(chainId, token.tokenAddress);
+	return [];
+}

@@ -30,6 +30,16 @@
 		ondenom?: () => void;
 		onmax?: (index: number) => void;
 		onaddRecipient?: () => void;
+		/**
+		 * The primary action (spec 026). Absent, the CTA is the drawn button it
+		 * has always been — the gallery renders a picture, not a dead promise.
+		 */
+		oncontinue?: () => void;
+		/** Present ⇒ the amount and the address can be typed here. */
+		onamount?: (value: string) => void;
+		onrecipient?: (value: string) => void;
+		/** The core's gate: `can_continue`. Absent leaves the button armed. */
+		ctaDisabled?: boolean;
 	}
 
 	let {
@@ -41,7 +51,11 @@
 		onfee,
 		ondenom,
 		onmax,
-		onaddRecipient
+		onaddRecipient,
+		oncontinue,
+		onamount,
+		onrecipient,
+		ctaDisabled = false
 	}: Props = $props();
 </script>
 
@@ -83,6 +97,7 @@
 			fiat={model.amount.fiat}
 			denomLabel={model.amount.denomLabel}
 			{ondenom}
+			oninput={onamount}
 		/>
 	{/if}
 
@@ -96,6 +111,7 @@
 			note={model.recipient.note}
 			onpick={onpickRecipient}
 			{onscan}
+			oninput={onrecipient}
 		/>
 	{/if}
 
@@ -130,7 +146,9 @@
 	<FeeRow fee={model.fee} onopen={onfee} />
 
 	<div class="cta">
-		<Button variant="primary" shape="rounded">{model.cta}</Button>
+		<Button variant="primary" shape="rounded" onclick={oncontinue} disabled={ctaDisabled}>
+			{model.cta}
+		</Button>
 	</div>
 </div>
 

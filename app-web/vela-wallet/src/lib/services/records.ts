@@ -116,6 +116,69 @@ export async function deleteTransaction(id: string): Promise<void> {
 	});
 }
 
+/**
+ * Persist ONE record: de-duped by id (a resubmitted UserOp shares its hash =
+ * the record id), newest first, capped at 200. Ported from storage.ts:453.
+ */
+export async function saveTransaction(tx: LocalTransaction): Promise<void> {
+	return withTxLock(async () => {
+		const txs = (await loadTransactions()).filter((t) => t.id !== tx.id);
+		txs.unshift(tx);
+		if (txs.length > 200) txs.length = 200;
+		await setItem(TX_KEY, JSON.stringify(txs));
+	});
+}
+
+/**
+ * Persist several records in ONE atomic read-modify-write — the batch send's
+ * siblings (split / multi-select). A per-record `Promise.all` raced the RMW
+ * and collapsed a batch to one line in Activity. Ported from storage.ts:472.
+ */
+export async function saveTransactions(incoming: LocalTransaction[]): Promise<void> {
+	if (incoming.length === 0) return;
+	return withTxLock(async () => {
+		const ids = new Set(incoming.map((t) => t.id));
+		const txs = (await loadTransactions()).filter((t) => !ids.has(t.id));
+		txs.unshift(...incoming);
+		if (txs.length > 200) txs.length = 200;
+		await setItem(TX_KEY, JSON.stringify(txs));
+	});
+}
+
+/** Patch one record by id (pending → confirmed); no-op when absent. */
+export async function updateTransaction(
+	id: string,
+	patch: Partial<LocalTransaction>
+): Promise<void> {
+	return withTxLock(async () => {
+		const txs = await loadTransactions();
+		const idx = txs.findIndex((t) => t.id === id);
+		if (idx === -1) return;
+		txs[idx] = { ...txs[idx], ...patch };
+		await setItem(TX_KEY, JSON.stringify(txs));
+	});
+}
+
+/** The same patch over several ids in ONE atomic RMW (a batch's shared receipt). */
+export async function updateTransactions(
+	ids: string[],
+	patch: Partial<LocalTransaction>
+): Promise<void> {
+	if (ids.length === 0) return;
+	const idSet = new Set(ids);
+	return withTxLock(async () => {
+		const txs = await loadTransactions();
+		let changed = false;
+		for (let i = 0; i < txs.length; i++) {
+			if (idSet.has(txs[i].id)) {
+				txs[i] = { ...txs[i], ...patch };
+				changed = true;
+			}
+		}
+		if (changed) await setItem(TX_KEY, JSON.stringify(txs));
+	});
+}
+
 export async function loadCustomTokens(): Promise<CustomToken[]> {
 	return loadArray<CustomToken>('vela.customTokens');
 }

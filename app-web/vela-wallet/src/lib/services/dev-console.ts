@@ -24,6 +24,41 @@ export function maybeInstallDevConsole(): void {
 	}
 
 	installFaultConsole();
+	// The parallel space's own verbs, behind the same gate and one more dynamic
+	// import: `vela.parallel.enter()` is how a test (or a developer) swaps in the
+	// fixture wallet without visiting its page. The fixture keys ride along with
+	// THIS import, never with a product chunk.
+	void import('$lib/dev/parallel-space').then((m) => m.installParallelConsole());
+	// The signing requester: the seam a real transport plugs into (027). Behind
+	// the same gate, and it registers itself with the resident so the core can
+	// answer the request it delivered — never a shared reference.
+	void Promise.all([
+		import('$lib/dev/test-requester'),
+		import('$lib/signing/core/sign-resident.svelte')
+	]).then(([requester, resident]) => {
+		const transportId = resident.signRequest.registerTransport({
+			sendResponse: (id, result, error) => requester.bindRequesterResponse(id, result, error)
+		});
+		requester.bindRequester((request) => {
+			resident.signRequest.syncNetworks();
+			resident.signRequest.dispatch({
+				type: 'request_arrived',
+				id: request.id,
+				method: request.method,
+				params_json: JSON.stringify(request.params),
+				origin: request.origin,
+				transport_id: transportId,
+				dedicated_transport: true,
+				per_request_chain: null,
+				dapp: null,
+				granted_address: null,
+				requested_address: null,
+				request_ts_ms: null,
+				now_ms: Date.now()
+			});
+		});
+		requester.installRequesterConsole();
+	});
 	const vela = (window as unknown as { vela?: Record<string, unknown> }).vela ?? {};
 	Object.assign(vela, {
 		/** Drive one pool-routed read — the harness's entry into the router. */

@@ -41,3 +41,6 @@ export interface LocalTransaction {
 	/** Opaque to this feature; carried so a stored record survives a rewrite. */
 	assetSim?: unknown;
 }
+
+/** Cap on persisted signed content (`storage.ts:434` on Expo) — a record stays a record, not a payload dump. */
+export const MAX_SIGNED_CONTENT = 8000;

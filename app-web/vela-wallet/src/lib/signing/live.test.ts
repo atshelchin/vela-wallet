@@ -1,0 +1,310 @@
+/**
+ * The signing sheet's builder (spec 026 T244).
+ *
+ * Two properties matter more than any layout question, and both are asserted
+ * here: the confirm gate is an AND of three separate answers, and the
+ * never-unlimited mandate reaches the screen as a DISABLED chip plus a shut
+ * slider — not as a warning somebody can slide past.
+ */
+import { describe, expect, it } from 'vitest';
+import type { ClearSignField } from '$lib/core/generated/ClearSignField';
+import type { ClearSigningView } from '$lib/core/generated/ClearSigningView';
+import type { FeeView } from '$lib/core/generated/FeeView';
+import type { GuardView } from '$lib/core/generated/GuardView';
+import type { SignView } from '$lib/core/generated/SignView';
+import { resolveSigningMessages } from '$lib/i18n/engine.server';
+import type { WalletIdentity } from '$lib/wallet/identity';
+import { INITIAL_CLEAR_VIEW, INITIAL_GUARD_VIEW } from './core/sheet.svelte';
+import { INITIAL_SIGN_VIEW } from './core/sign-resident.svelte';
+import { buildSigningModel, type SigningLiveInputs } from './live';
+
+const m = resolveSigningMessages('en');
+const identity: WalletIdentity = {
+	name: 'My Wallet',
+	address: '0x14fB1fB21751E29F7Ec48dC450017552E3D1eA5c',
+	identiconSvg: '<svg/>'
+};
+const identicon = (seed: string) => `<svg data-seed="${seed}"></svg>`;
+
+const REQUEST = {
+	id: 'req-1',
+	method: 'eth_sendTransaction',
+	kind: 'transaction' as const,
+	params_json: '[{"to":"0xdead","data":"0x","value":"0x0"}]',
+	origin: 'https://app.example',
+	dapp: null,
+	chain_id: 1,
+	signer_address: identity.address
+};
+
+const OPEN_SIGN: SignView = {
+	...INITIAL_SIGN_VIEW,
+	surface: 'sheet',
+	request: REQUEST,
+	confirm_gate_open: true
+};
+
+const QUOTED_FEE: FeeView = {
+	busy: false,
+	failed: null,
+	fee: {
+		chain_id: 1,
+		total_wei: '2100000000000000',
+		max_fee_per_gas: '1',
+		network_fee_per_gas: '1',
+		relayer_fee_per_gas: '0',
+		bundler_gas_price: '1',
+		in_band_gas_basis: '1',
+		total_gas: '1',
+		deployed: true,
+		tier: 'fast',
+		quoted: true,
+		fee_asset: { type: 'native' },
+		fee_recipient: null
+	},
+	stale: false,
+	fee_token: null,
+	options: [],
+	confirm_fee_ready: true
+};
+
+function field(over: Partial<ClearSignField> = {}): ClearSignField {
+	return {
+		label: 'Amount',
+		value: '100 USDC',
+		format: 'amount',
+		token_address: null,
+		warning: false,
+		unverified: false,
+		role: 'send_amount',
+		detail: false,
+		expired: false,
+		address: null,
+		usd_value: 100,
+		...over
+	};
+}
+
+const DECODED: ClearSigningView = {
+	...INITIAL_CLEAR_VIEW,
+	resolved: true,
+	surface: 'clear_sign',
+	result: {
+		intent: 'Send USDC',
+		contract_name: 'USD Coin',
+		owner: null,
+		fields: [
+			field(),
+			field({ label: 'To', value: 'alice.eth', role: 'recipient', address: '0xab' })
+		],
+		risk: 'normal',
+		contract_address: '0x' + 'cc'.repeat(20),
+		verified: true,
+		sign_type: 'transaction',
+		partial: false,
+		best_effort: false,
+		to_own_token: false
+	}
+};
+
+function inputs(over: Partial<SigningLiveInputs> = {}): SigningLiveInputs {
+	return {
+		sign: OPEN_SIGN,
+		clear: DECODED,
+		guard: INITIAL_GUARD_VIEW,
+		fee: QUOTED_FEE,
+		m,
+		identity,
+		identicon,
+		...over
+	};
+}
+
+describe('when there is nothing to sign', () => {
+	it('builds no sheet at all — not an empty one', () => {
+		expect(buildSigningModel(inputs({ sign: INITIAL_SIGN_VIEW }))).toBeNull();
+		expect(buildSigningModel(inputs({ sign: { ...OPEN_SIGN, request: null } }))).toBeNull();
+	});
+});
+
+describe('a decoded request', () => {
+	it('leads with what it does, then the amount, then who receives it', () => {
+		const model = buildSigningModel(inputs())!;
+		expect(model.blocks[0]).toMatchObject({ kind: 'intent', text: 'Send USDC' });
+		expect(model.blocks[1]).toMatchObject({ kind: 'amount' });
+		expect(model.blocks.find((b) => b.kind === 'party')).toMatchObject({ name: 'alice.eth' });
+		expect(model.dapp.host).toBe('app.example');
+		expect(model.network.name).toBe('Ethereum');
+	});
+
+	it('carries the core’s risk grade into the intent’s tone, never a guess', () => {
+		const danger = buildSigningModel(
+			inputs({ clear: { ...DECODED, result: { ...DECODED.result!, risk: 'danger' } } })
+		)!;
+		expect(danger.blocks[0]).toMatchObject({ tone: 'danger' });
+	});
+
+	it('says every flag the core raised: a burn, an unverified selector, best effort', () => {
+		const flagged = buildSigningModel(
+			inputs({
+				clear: {
+					...DECODED,
+					result: { ...DECODED.result!, to_own_token: true, verified: false, best_effort: true }
+				}
+			})
+		)!;
+		const warnings = flagged.blocks.filter((b) => b.kind === 'warning');
+		expect(warnings).toHaveLength(3);
+		expect(warnings[0]).toMatchObject({ tone: 'danger' });
+	});
+});
+
+describe('the confirm gate is an AND', () => {
+	it('arms only when the core, the guard and the fee all agree', () => {
+		expect(buildSigningModel(inputs())!.confirm.enabled).toBe(true);
+		// The core has not opened its gate.
+		expect(
+			buildSigningModel(inputs({ sign: { ...OPEN_SIGN, confirm_gate_open: false } }))!.confirm
+				.enabled
+		).toBe(false);
+		// The guard is still waiting for a cap.
+		expect(
+			buildSigningModel(inputs({ guard: { ...INITIAL_GUARD_VIEW, confirm_allowed: false } }))!
+				.confirm.enabled
+		).toBe(false);
+		// The fee has not settled.
+		expect(
+			buildSigningModel(inputs({ fee: { ...QUOTED_FEE, confirm_fee_ready: false } }))!.confirm
+				.enabled
+		).toBe(false);
+		// A signature is already in flight.
+		expect(
+			buildSigningModel(inputs({ sign: { ...OPEN_SIGN, is_signing: true } }))!.confirm.enabled
+		).toBe(false);
+	});
+
+	it('an off-chain signature needs no fee to arm', () => {
+		const model = buildSigningModel(
+			inputs({
+				sign: { ...OPEN_SIGN, request: { ...REQUEST, kind: 'personal_sign' } },
+				fee: { ...QUOTED_FEE, fee: null, confirm_fee_ready: false }
+			})
+		)!;
+		expect(model.fee.kind).toBe('offchain');
+		expect(model.confirm.enabled).toBe(true);
+	});
+});
+
+describe('the never-unlimited mandate reaches the screen', () => {
+	const unbounded: GuardView = {
+		...INITIAL_GUARD_VIEW,
+		surface: 'approval_editor',
+		confirm_allowed: false,
+		meta: { symbol: 'USDC', decimals: 6, verified: true, loading: false },
+		editor: {
+			mode: null,
+			custom_text: '',
+			error: null,
+			choice: null,
+			display_amount_raw: null,
+			requested_finite: false,
+			has_balance_cap: true,
+			balance_raw: '1000'
+		}
+	};
+
+	it('an unbounded request disables its own chip AND the slider', () => {
+		const model = buildSigningModel(inputs({ guard: unbounded }))!;
+		const allowance = model.blocks.find((b) => b.kind === 'allowance');
+		expect(allowance).toBeDefined();
+		if (allowance?.kind !== 'allowance') throw new Error('kind');
+		expect(allowance.value).toBe(m.valueUnlimited);
+		expect(allowance.valueTone).toBe('danger');
+		expect(allowance.chips.find((c) => c.id === 'requested')?.state).toBe('disabled');
+		// The gate: nothing can be signed until a finite cap is chosen.
+		expect(model.confirm.enabled).toBe(false);
+	});
+
+	it('choosing a finite cap re-arms the slider', () => {
+		const capped: GuardView = {
+			...unbounded,
+			confirm_allowed: true,
+			editor: {
+				...unbounded.editor!,
+				mode: 'balance',
+				choice: { type: 'amount', amount_raw: '1000' },
+				display_amount_raw: '1000'
+			}
+		};
+		const model = buildSigningModel(inputs({ guard: capped }))!;
+		const allowance = model.blocks.find((b) => b.kind === 'allowance');
+		if (allowance?.kind !== 'allowance') throw new Error('kind');
+		expect(allowance.chips.find((c) => c.id === 'balance')?.state).toBe('selected');
+		expect(allowance.value).toBe('1000');
+		expect(model.confirm.enabled).toBe(true);
+	});
+
+	it('a balance cap nobody could read is offered as disabled, not as a lie', () => {
+		const noBalance: GuardView = {
+			...unbounded,
+			editor: { ...unbounded.editor!, has_balance_cap: false }
+		};
+		const model = buildSigningModel(inputs({ guard: noBalance }))!;
+		const allowance = model.blocks.find((b) => b.kind === 'allowance');
+		if (allowance?.kind !== 'allowance') throw new Error('kind');
+		expect(allowance.chips.find((c) => c.id === 'balance')?.state).toBe('disabled');
+	});
+});
+
+describe('the deeper rungs of the ladder', () => {
+	it('a blind transaction says so, in danger tone, with no invented fields', () => {
+		const model = buildSigningModel(
+			inputs({ clear: { ...INITIAL_CLEAR_VIEW, resolved: true, surface: 'blind_transaction' } })
+		)!;
+		expect(model.blocks[0]).toMatchObject({ kind: 'intent', tone: 'danger' });
+		expect(model.blocks[1]).toMatchObject({ kind: 'warning', tone: 'danger' });
+		expect(model.blocks.some((b) => b.kind === 'rows')).toBe(false);
+	});
+
+	it('eth_sign is its own danger, not a generic blind warning', () => {
+		const model = buildSigningModel(
+			inputs({ clear: { ...INITIAL_CLEAR_VIEW, resolved: true, surface: 'eth_sign' } })
+		)!;
+		expect(model.blocks[0]).toMatchObject({ text: m.warnEthSign });
+	});
+
+	it('a message shows its text and flags a SIWE domain mismatch as danger', () => {
+		const model = buildSigningModel(
+			inputs({
+				clear: {
+					...INITIAL_CLEAR_VIEW,
+					resolved: true,
+					surface: 'message_sign',
+					message: {
+						payload: 'hello',
+						is_hex: false,
+						decoded_text: 'hello',
+						binary_preview: null,
+						non_printable: false,
+						siwe: null,
+						binding: 'mismatch',
+						danger_class: 'siwe_phish'
+					}
+				}
+			})
+		)!;
+		expect(model.blocks.find((b) => b.kind === 'code')).toMatchObject({ lines: ['hello'] });
+		expect(model.blocks.find((b) => b.kind === 'warning')).toMatchObject({
+			tone: 'danger',
+			text: m.warnSiweMismatch
+		});
+	});
+
+	it('while the core is still resolving, the sheet waits instead of guessing', () => {
+		const model = buildSigningModel(
+			inputs({ clear: { ...INITIAL_CLEAR_VIEW, resolving: true, surface: 'loading' } })
+		)!;
+		expect(model.blocks).toHaveLength(1);
+		expect(model.blocks[0].kind).toBe('sentence');
+	});
+});

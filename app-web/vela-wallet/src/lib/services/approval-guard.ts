@@ -53,13 +53,33 @@ export function isUnboundedAmount(amount: bigint, bits: AmountBits = 256): boole
 
 const sel = (sig: string) => '0x' + toHex(functionSelector(sig)).toLowerCase();
 
-const SELECTORS = {
-	approve: sel('approve(address,uint256)'), // 0x095ea7b3 (ERC-20 approve / ERC-721 approve)
-	increaseAllowance: sel('increaseAllowance(address,uint256)'),
-	decreaseAllowance: sel('decreaseAllowance(address,uint256)'),
-	setApprovalForAll: sel('setApprovalForAll(address,bool)'),
-	permit2Approve: sel('approve(address,address,uint160,uint48)') // 0x87517c45 (Permit2 on-chain approve)
-} as const;
+/**
+ * WEB DELTA (spec 026): computed on first use, not at import.
+ *
+ * These were module constants on Expo, where the core is `initSync`'d at
+ * import time. Here the core is FETCHED, so hashing a signature at import
+ * would throw — and it would take down every page that merely imports this
+ * module, not just the one that needs a selector. Memoised on the first
+ * detection, which is already after `loadCore()`.
+ */
+let selectors: {
+	approve: string;
+	increaseAllowance: string;
+	decreaseAllowance: string;
+	setApprovalForAll: string;
+	permit2Approve: string;
+} | null = null;
+
+function SELECTORS() {
+	selectors ??= {
+		approve: sel('approve(address,uint256)'), // 0x095ea7b3 (ERC-20 / ERC-721 approve)
+		increaseAllowance: sel('increaseAllowance(address,uint256)'),
+		decreaseAllowance: sel('decreaseAllowance(address,uint256)'),
+		setApprovalForAll: sel('setApprovalForAll(address,bool)'),
+		permit2Approve: sel('approve(address,address,uint160,uint48)') // 0x87517c45 (Permit2)
+	};
+	return selectors;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -149,7 +169,7 @@ function detectCalldataApproval(
 	const addrFromWord = (w: string): string => '0x' + w.slice(24);
 	const bigFromWord = (w: string): bigint => (w ? BigInt('0x' + w.padEnd(64, '0')) : 0n);
 
-	if (selector === SELECTORS.approve) {
+	if (selector === SELECTORS().approve) {
 		// approve(address spender, uint256 amount). Same selector as ERC-721
 		// approve(operator, tokenId) — a tokenId is never ≥ cap, so capping is
 		// still safe; metadata resolution upstream refines ERC-20 vs NFT display.
@@ -169,7 +189,7 @@ function detectCalldataApproval(
 		};
 	}
 
-	if (selector === SELECTORS.increaseAllowance) {
+	if (selector === SELECTORS().increaseAllowance) {
 		const spender = addrFromWord(word(0));
 		const amountRaw = bigFromWord(word(1));
 		return {
@@ -186,7 +206,7 @@ function detectCalldataApproval(
 		};
 	}
 
-	if (selector === SELECTORS.decreaseAllowance) {
+	if (selector === SELECTORS().decreaseAllowance) {
 		const spender = addrFromWord(word(0));
 		const amountRaw = bigFromWord(word(1));
 		return {
@@ -203,7 +223,7 @@ function detectCalldataApproval(
 		};
 	}
 
-	if (selector === SELECTORS.permit2Approve) {
+	if (selector === SELECTORS().permit2Approve) {
 		// Permit2 on-chain approve(token, spender, uint160 amount, uint48 expiration).
 		// The token is the FIRST arg (not the tx `to`, which is the Permit2 contract),
 		// and the amount is a uint160 — same unlimited sentinel width as PermitSingle.
@@ -225,7 +245,7 @@ function detectCalldataApproval(
 		};
 	}
 
-	if (selector === SELECTORS.setApprovalForAll) {
+	if (selector === SELECTORS().setApprovalForAll) {
 		const operator = addrFromWord(word(0));
 		const approved = bigFromWord(word(1)) !== 0n;
 		return {

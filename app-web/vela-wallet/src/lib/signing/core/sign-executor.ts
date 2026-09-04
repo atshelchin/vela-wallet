@@ -101,7 +101,7 @@ export function fromWireWei(value: string): bigint {
  * anything it could not parse itself (fail-closed at `approve_with`), so this
  * is only ever the defensive tail.
  */
-function parseParams(json: string): any[] {
+function parseParams(json: string): unknown[] {
 	try {
 		const parsed: unknown = JSON.parse(json);
 		return Array.isArray(parsed) ? parsed : [];

@@ -1,5 +1,9 @@
 import { error } from '@sveltejs/kit';
-import { resolveWalletFlowMessages, resolveWalletMessages } from '$lib/i18n/engine.server';
+import {
+	resolveSigningMessages,
+	resolveWalletFlowMessages,
+	resolveWalletMessages
+} from '$lib/i18n/engine.server';
 import { SUPPORTED_LOCALES, toLocale } from '$lib/i18n/locales';
 import { buildDesktopState, buildMobileState } from '$lib/wallet/fixtures';
 import { buildDesktopFlowState, buildDesktopScan, buildFlowState } from '$lib/flows/fixtures';
@@ -61,6 +65,10 @@ export const load: PageServerLoad = ({ params }) => {
 		// were built with (spec 026), so a live screen and its drawn twin can
 		// never disagree about a label.
 		flowMessages,
+		// The signing sheet's copy (spec 026): the same manifest the gallery
+		// boards are built from, so a live sheet and its drawn twin cannot
+		// disagree about a word.
+		signingMessages: resolveSigningMessages(locale),
 		desktopScan: buildDesktopScan(flowMessages)
 	};
 };

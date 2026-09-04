@@ -143,7 +143,7 @@ export async function executeClearOperation(
 	}
 }
 
-export function clearOperationFailure(effect: ClearEffect, _error: unknown): ClearShellResult {
+export function clearOperationFailure(effect: ClearEffect): ClearShellResult {
 	const operation = effect.operation;
 	switch (operation.type) {
 		case 'http_get':

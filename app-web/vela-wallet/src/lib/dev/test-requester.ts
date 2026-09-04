@@ -49,31 +49,32 @@ export const TEST_TRANSPORT_ID = 'vela-test-requester';
  * `sign_request` resident). Returns the transport the consumer answers on, and
  * an unbind function.
  */
-export function bindRequester(onRequest: Deliver): {
-	transport: RequesterTransport;
-	unbind: () => void;
-} {
+export function bindRequester(onRequest: Deliver): () => void {
 	deliver = onRequest;
-	const transport: RequesterTransport = {
-		id: TEST_TRANSPORT_ID,
-		sendResponse(id, result, error) {
-			const waiter = pending.get(id);
-			if (!waiter) return;
+	return () => {
+		if (deliver === onRequest) deliver = null;
+		for (const [id, waiter] of pending) {
+			waiter.reject({ code: 4900, message: 'requester unbound' });
 			pending.delete(id);
-			if (error) waiter.reject(error);
-			else waiter.resolve(result);
 		}
 	};
-	return {
-		transport,
-		unbind: () => {
-			if (deliver === onRequest) deliver = null;
-			for (const [id, waiter] of pending) {
-				waiter.reject({ code: 4900, message: 'requester unbound' });
-				pending.delete(id);
-			}
-		}
-	};
+}
+
+/**
+ * The wallet's answer, delivered to whoever fired the request. This is the
+ * whole transport contract: the core hands a response to the transport that
+ * OWNS the request, and here that is the page itself.
+ */
+export function bindRequesterResponse(
+	id: string,
+	result: unknown,
+	error?: { code: number; message: string }
+): void {
+	const waiter = pending.get(id);
+	if (!waiter) return;
+	pending.delete(id);
+	if (error) waiter.reject(error);
+	else waiter.resolve(result);
 }
 
 /**

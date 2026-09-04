@@ -103,26 +103,26 @@ runs in app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 5: Signing (one commit)
 
-- [ ] T240 [US2] Port guard-{types,executor,session}.ts →
+- [X] T240 [US2] Port guard-{types,executor,session}.ts →
       `signing/core/guard-*.ts`; clear-{types,executor,session}.ts +
       `clear-batch.ts` → `signing/core/clear-*.ts` (coalescing map)
-- [ ] T241 [US2] Port sign-{types,executor,session,resident}.ts →
+- [X] T241 [US2] Port sign-{types,executor,session,resident}.ts →
       `signing/core/sign-*.ts` (transport registry; requester = 026's
       transport; parallel sponsorship denied)
-- [ ] T242 [US2] `signing/live.ts`: `buildSigningModel(sign, clear, guard, fee)`
+- [X] T242 [US2] `signing/live.ts`: `buildSigningModel(sign, clear, guard, fee)`
       → the 13 block kinds, allowance editor from GuardView, fee from
       FeeView, `confirm.enabled` = gate ∧ guard ∧ fee-ready; SlideToConfirm
       graduates (onconfirm → `approve_tapped`; dismiss → `reject_tapped`)
-- [ ] T243 [US2] Mount `SigningSheet` (mobile) / `SigningPanel` (desktop) in
+- [X] T243 [US2] Mount `SigningSheet` (mobile) / `SigningPanel` (desktop) in
       the wallet route driven by the resident; funding sheet when
       `funding` is set; record persisted pending → tracker
-- [ ] T244 [P] [US2] Units: guard/clear/sign arms; block mapping per ladder
+- [X] T244 [P] [US2] Units: guard/clear/sign arms; block mapping per ladder
       rung (descriptor, selector, simulation, blind); never-unlimited
       default (exact preset) pinned
-- [ ] T245 [US2] e2e `signing-scenarios.e2e.ts` (SC-203: transfer, unlimited
+- [X] T245 [US2] e2e `signing-scenarios.e2e.ts` (SC-203: transfer, unlimited
       approval → exact default + deliberate unlimited, permit, unknown call;
       reject answers the requester; approve submits through the spine)
-- [ ] T246 Full gate; results.md Phase 5 entry
+- [X] T246 Full gate; results.md Phase 5 entry
 
 ## Phase 6: Batch (one commit)
 

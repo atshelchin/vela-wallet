@@ -30,7 +30,7 @@ export function createClearSigningSession(
 		{
 			onView: options.onView,
 			execute: (effect, signal) => executeClearOperation(effect, signal),
-			toFailure: (effect, error) => clearOperationFailure(effect, error),
+			toFailure: (effect) => clearOperationFailure(effect),
 			onError: options.onError
 		}
 	);

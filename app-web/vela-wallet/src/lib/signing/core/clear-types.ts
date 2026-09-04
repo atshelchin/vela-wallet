@@ -38,7 +38,6 @@ export function toClearLocale(keys: {
 		number_format: keys.number,
 		date_format: keys.date,
 		time_format: keys.time,
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a sample, not a clock
 		tz_offset_minutes: -new Date().getTimezoneOffset()
 	};
 }

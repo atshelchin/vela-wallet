@@ -78,7 +78,7 @@ export function createGuardExecutor() {
 	};
 }
 
-export function guardOperationFailure(effect: GuardEffect, _error: unknown): GuardShellResult {
+export function guardOperationFailure(effect: GuardEffect): GuardShellResult {
 	const operation = effect.operation;
 	switch (operation.type) {
 		case 'read_token_metadata':

@@ -142,8 +142,21 @@ function guardBlock(guard: GuardView, m: SigningMessages): Block | null {
  * ladder simply emits more warnings and fewer decoded rows — the ladder is the
  * core's, and this reads it rather than re-deriving it.
  */
+/** The calldata's length in bytes — what the two "unable to decode" lines name. */
+function calldataBytes(paramsJson: string): number {
+	try {
+		const params = JSON.parse(paramsJson) as unknown[];
+		const data = (params[0] as { data?: string } | undefined)?.data;
+		if (typeof data !== 'string') return 0;
+		return Math.max(0, Math.floor((data.replace(/^0x/, '').length || 0) / 2));
+	} catch {
+		return 0;
+	}
+}
+
 function blocksFor(inputs: SigningLiveInputs): Block[] {
-	const { clear, guard, m } = inputs;
+	const { sign, clear, guard, m } = inputs;
+	const bytes = calldataBytes(sign.request?.params_json ?? '[]');
 	const blocks: Block[] = [];
 
 	if (clear.surface === 'loading' || clear.resolving) {
@@ -189,7 +202,11 @@ function blocksFor(inputs: SigningLiveInputs): Block[] {
 			blocks.push({ kind: 'warning', tone: 'danger', text: m.warnDrain });
 		}
 		if (!result.verified) {
-			blocks.push({ kind: 'warning', tone: 'caution', text: m.warnSelectorNotListed });
+			blocks.push({
+				kind: 'warning',
+				tone: 'caution',
+				text: fill(m.warnSelectorNotListed, { bytes })
+			});
 		}
 		if (result.partial) {
 			blocks.push({ kind: 'warning', tone: 'caution', text: m.warnBestEffort });
@@ -206,7 +223,7 @@ function blocksFor(inputs: SigningLiveInputs): Block[] {
 	// No decode at all — the deepest rung. The core said so; the sheet says so.
 	if (clear.surface === 'blind_transaction' || clear.surface === 'blind_typed_data') {
 		blocks.push({ kind: 'intent', text: m.intentBlind, tone: 'danger' });
-		blocks.push({ kind: 'warning', tone: 'danger', text: m.warnBlindDecode });
+		blocks.push({ kind: 'warning', tone: 'danger', text: fill(m.warnBlindDecode, { bytes }) });
 		return blocks;
 	}
 

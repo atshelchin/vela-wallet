@@ -256,3 +256,60 @@ one that matters for a poisoned look-alike.
 **Gates**: check 1306/0 · lint clean · unit **712** · build ×15 · e2e
 **107/107** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
 delta.
+
+---
+
+## Phase 5 — the signing sheet (T240–T246)
+
+**What shipped**: the 022 sheet runs on the real machines. A request arrives,
+`clear_signing` says what it means, `approval_guard` caps what it grants,
+`fee_policy` prices it, `sign_request` gates it — and the drawn 13-block
+vocabulary renders all four without deciding anything.
+
+- **`approval_guard`** (`signing/core/guard-*`): three RPC reads, no
+  judgements. **`clear_signing`** (`clear-*` + `clear-batch`): the coalescing
+  map intact, so N batch legs touching one token cannot print two rows that
+  disagree; per-request sessions, because the machine supersedes rather than
+  accumulates. Its RESULT codec is deliberately NOT ported — that existed to
+  translate into Expo's own TypeScript twin, which Rust replaced; the sheet
+  reads the generated view.
+- **`sign_request`** (`sign-*` + a resident): the transport registry (a
+  response goes to the transport that OWNS the request), the mid-flight
+  `op_submitted`, the VERIFIED account switch that stays fail-closed when it
+  cannot land, the networks-first boot (until a snapshot arrives every chain
+  is unsupported), and the deduped tracker hand-off.
+- **`signing/live.ts`**: the four views → `SigningModel`. The confirm gate is
+  an explicit AND — the core's gate, the guard's cap, the fee's readiness, and
+  no signature already in flight.
+- **The sheet is mounted** in the wallet route above every screen, because a
+  request can arrive while any of them is showing. Dismissal is rejection (the
+  022 contract draws no reject button), and the approve carries the GUARD's
+  rewritten params — passing the original would be the never-unlimited mandate
+  defeated at the last step.
+- **The requester** binds behind the dev gate: the seam 027 replaces with a
+  real transport.
+
+**One finding, the third of its kind**: `approval-guard.ts` computed its five
+selectors at module load. Same class as Phase 3's fixture derivation and
+Phase 4's typehashes — on Expo the core is `initSync`'d at import, here it is
+fetched — and the symptom is the same: every page that imports the module
+becomes a 500. Now memoised on first detection. Three occurrences is a
+pattern, and the rule is now written down: **a ported module may not call a
+kernel at import time.**
+
+**e2e (`signing-scenarios`, SC-203)**: an unlimited `approve` opens the sheet
+with the spending cap reading "Unlimited", its own chip DISABLED and the
+slider shut — the mandate is a gate, not a warning — and the decode warning
+names the real calldata length rather than leaving `{{bytes}}` on screen (a
+second, smaller finding, fixed). Rejecting with Escape answers the requester
+with 4001.
+
+**Recorded**: the sheet's fee row shows the live quote but the fee-token
+sheet is not reachable from it yet (the send flow's is); batch legs render as
+one request (the per-leg `clear-batch` bookkeeping is ported but no batch
+request source exists until 027); `funding` surfaces as the core's state but
+no funding sheet is drawn on web.
+
+**Gates**: check 1320/0 · lint clean · unit **725** · build ×15 · e2e
+**109/109** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
+delta.

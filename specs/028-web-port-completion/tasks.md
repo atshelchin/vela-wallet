@@ -47,16 +47,18 @@ fixed before this feature ships. It is tracked in 027's ledger.
 
 ## Phase 3: Reading a code (one commit)
 
-- [ ] T420 [US1] Port the decode engine from `QRScanner.tsx`: zbar primary at
+- [X] T420 [US1] Port the decode engine from `QRScanner.tsx`: zbar primary at
       [1200, 1000, 800, 600, 400], jsQR fallback with binInvert/invert/binarize,
       the downscale-first preprocessing, all lazy (D45)
-- [ ] T421 [US1] Port `image-decode.ts` for the picked-image path
-- [ ] T422 [US1] `ScanSurface` gains its live half: camera frames through the
+- [X] T421 [US1] ~~Port `image-decode.ts`~~ **NOT NEEDED**: it is a pure-JS JPEG
+      decoder for native, which has no canvas. A browser decodes images itself —
+      the picked-image path is `createImageBitmap`
+- [~] T422 [US1] `ScanSurface` gains its live half: camera frames through the
       ladder, the gallery/torch/flip tools, and every refusal SAID — no camera,
       permission denied, insecure origin, nothing found (carried gotchas: the
       file input must be mounted, `<video>` swallows touches)
 - [ ] T423 [US1] The scan result reaches the send form and the sweep picker
-- [ ] T424 [P] [US1] Units: the ladder's order, each refusal's reason
+- [X] T424 [P] [US1] Units: the ladder's order, each refusal's reason
 - [ ] T425 [US1] e2e `scan.e2e.ts` (SC-402): a generated code is picked from the
       file input and read; a refused camera states its reason
 - [ ] T426 Full gate; results.md Phase 3 entry

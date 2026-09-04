@@ -134,3 +134,65 @@ image") is Phase 3's, alongside the rest of the receive tooling.
 **Gates**: check **1361**/0 · lint clean · unit **771** · build ×15 +
 `build:extension` · e2e **139 passed / 1 skipped** (chromium + firefox + webkit)
 · wasm byte-identical · corpus delta zero.
+
+---
+
+## Phase 3 (wip) — the decode engine (T420, T421, T424)
+
+**What shipped**: the wallet can read a QR code. The engine is ported and proven
+against the encoder Phase 2 landed, in a real browser.
+
+- **`services/qr-decode.ts`** carries the ladder `docs/qr-scanner-web.md`
+  measured, unchanged in substance: zbar at 1200/1000/800/600/400 with a
+  downscale FIRST (a canvas downscale is a low-pass filter — it is what removes
+  JPEG noise and moiré), then jsQR with `binInvert(160)` / `invert` /
+  `binarize(160)` for the clean screenshots zbar refuses. A camera frame decodes
+  at 1000 wide; a picked image is tried thoroughly, because a person is waiting
+  on an answer rather than watching a viewfinder.
+  Both decoders are **lazy** — nothing is fetched until a scanner opens.
+- **`flows/core/scanner.svelte.ts`** is the camera and, mostly, its refusals.
+  Each one is a different thing for a person to do, and only if it is said: a
+  refusal they can undo in site settings (`denied`, which covers both "said no
+  now" and "said no once and the browser remembers"), no camera at all
+  (`absent` — most desktops), an insecure origin (`insecure`, where
+  `getUserMedia` is simply undefined and the fix is the URL, not the device),
+  and `unavailable` for everything else. Support is checked BEFORE asking, so a
+  device without a camera never raises a prompt someone then has to dismiss.
+- **`ScanSurface`** gains an optional `feed` snippet and a `notice` line. Absent,
+  it draws exactly what the gallery has always drawn.
+
+**T421 is not a port, and that is the finding**: Expo's `image-decode.ts` is a
+pure-JS JPEG decoder that exists because native has no canvas. A browser decodes
+images itself, so the picked-image path is `createImageBitmap` and nothing else.
+74 lines not written.
+
+**Proven in a real browser** (`qr-decode.svelte.test.ts`, the vitest browser
+project): the real zbar WASM reads back an address and a full EIP-681 payment
+link from what the receive card renders, and returns null for a blank image
+rather than inventing something. Together with Phase 2's round trip this is the
+whole loop a person performs — one shows a code, another scans it.
+
+**One finding from the literal audit**: it failed on `1200px` / `1000px` / `5px`
+inside this module's PROSE. The audit scans `src/lib/services` for px literals,
+and it was right to: the fix is to write "1200 wide" and "about five pixels per
+module", not to weaken the audit for comments.
+
+### Still open in this phase
+
+- **T422's route wiring** — `ScanSurface` has its slots; `FlowsMobile` /
+  `FlowsPanel` do not yet forward them, and nothing drives `scanner` yet.
+- **T423** — a decoded address does not yet reach the send form
+  (`set_recipient`) or the sweep picker.
+- **T425** — the scan e2e.
+- **Two corpus words are missing** for the refusals the corpus has no phrase
+  for: no camera on this device, and an insecure origin. `permissionText`,
+  `noQrFound`, `noQrFoundMsg` and `errorImage` already cover the rest.
+
+**Gates at this commit**: check **1366**/0 · lint clean · unit **783**
+(+12: seven browser decode cases, five refusal cases). The full Playwright suite
+was NOT cleanly re-run at this commit — several of my own earlier runs had left
+processes holding port 4173 and the results were meaningless (one reported "18
+passed" in 29.8 minutes). **The next session's first act is a clean
+`pnpm test:e2e` with nothing else running.** The changes are additive and every
+new prop defaults to the drawn behaviour, so a regression is unlikely — but
+unlikely is not measured.

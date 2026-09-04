@@ -13,12 +13,12 @@ runs in app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 1: Setup (one commit)
 
-- [ ] T201 Baselines into results.md: wasm bytes/fingerprint (must close
+- [X] T201 Baselines into results.md: wasm bytes/fingerprint (must close
       unchanged), corpus pins (1536 leaf / 84 branch), port-provenance list
       with line counts @ f9bcb278, green tree (check/lint/unit/e2e counts)
-- [ ] T202 [P] Record the deps decision (`@noble/curves`, `xlsx` — lazy, out
+- [X] T202 [P] Record the deps decision (`@noble/curves`, `xlsx` — lazy, out
       of the startup chunk) and the runtime dev-gate deviation (D18)
-- [ ] T203 [P] Add `src/lib/dev`, `src/lib/signing/core`, `src/lib/flows/core`
+- [~] T203 [P] Add `src/lib/dev`, `src/lib/signing/core`, `src/lib/flows/core`
       to the literal-audit source list (tokens.test.ts)
 
 ## Phase 2: Foundation (one commit) — blocks 3–6

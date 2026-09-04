@@ -47,6 +47,8 @@
 	import { withLiveWallet, withLiveWalletDesktop } from '$lib/wallet/live';
 	import { withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
 	import { createSendSession, type SendSession } from '$lib/flows/core/send-session';
+	import { createBatchImportSession, type BatchImportSession } from '$lib/flows/core/batch-session';
+	import type { BatchView } from '$lib/core/generated/BatchView';
 	import { FeeQuote, IDLE_FEE_VIEW } from '$lib/flows/core/fee-quote.svelte';
 	import { setSendTrackerSink } from '$lib/flows/core/send-executor';
 	import { startTxTracker, trackSubmitted } from '$lib/wallet/core/tracker-resident';
@@ -123,6 +125,76 @@
 	/** The fee-coin sheet is a shell surface: the core has no state for it. */
 	let feeSheetOpen = $state(false);
 
+	// --- The batch importer (spec 026 US3) ------------------------------------
+	//
+	// Its own machine, opened with the sheet and disposed with it. The parse,
+	// the duplicate check, the fiat→token conversion and the apply gate are all
+	// its; when no source can price the chosen currency it refuses to convert,
+	// which is the whole reason the machine exists.
+	let batchView = $state<BatchView | null>(null);
+	let batchSession: BatchImportSession | null = null;
+
+	async function openBatch(): Promise<void> {
+		const token = sendView?.selected_token;
+		if (batchSession || !token) return;
+		await loadCore();
+		batchSession = createBatchImportSession({
+			onView: (view) => (batchView = view),
+			onError: (error) => console.error('[batch_import] core fault:', error)
+		});
+		batchSession.start({
+			type: 'open',
+			token: {
+				symbol: token.symbol,
+				decimals: token.decimals,
+				balance: token.balance,
+				price_usd: token.price_usd
+			},
+			currency_code: currency.view.code,
+			max_recipients: 60
+		});
+	}
+
+	function closeBatch(): void {
+		batchSession?.dispose();
+		batchSession = null;
+		batchView = null;
+	}
+
+	const batchActions = $derived(
+		batchView === null
+			? undefined
+			: {
+					unit: (id: string) =>
+						batchSession?.dispatch({ type: 'set_unit', unit: id === 'fiat' ? 'fiat' : 'token' }),
+					paste: (text: string) => batchSession?.dispatch({ type: 'set_raw_text', text }),
+					pickFile: () => batchSession?.dispatch({ type: 'pick_file_requested' }),
+					saveTemplate: () => batchSession?.dispatch({ type: 'save_template_requested' }),
+					apply: () => {
+						const recipients = batchView?.recipients ?? [];
+						if (recipients.length === 0) return;
+						// The core parsed and priced them; the send core seeds its split
+						// from exactly those rows, and nothing is recomputed here.
+						sendSession?.dispatch({
+							type: 'seed_split_recipients',
+							recipients: recipients.map((r, index) => ({
+								id: `b${index}`,
+								address: r.address,
+								amount: r.amount,
+								name: r.name
+							}))
+						});
+						closeBatch();
+					}
+				}
+	);
+
+	const batchInputs = $derived(
+		batchView && sendView?.selected_token
+			? { batch: batchView, m: data.flowMessages, symbol: sendView.selected_token.symbol }
+			: undefined
+	);
+
 	async function openSend(): Promise<void> {
 		if (sendSession || !identity) return;
 		await loadCore();
@@ -185,6 +257,7 @@
 	}
 
 	function closeSend(): void {
+		closeBatch();
 		sendSession?.dispose();
 		sendSession = null;
 		sendView = null;
@@ -198,6 +271,7 @@
 		const view = sendView;
 		if (!view) return undefined;
 		if (feeSheetOpen) return 'sd2f' as const;
+		if (batchView) return 'sd2c' as const;
 		switch (view.stage) {
 			case 'select_token':
 				return 'sd1' as const;
@@ -230,6 +304,11 @@
 					recipientChanged: (value: string) =>
 						sendSession?.dispatch({ type: 'set_recipient', recipient: value }),
 					advance: () => sendSession?.dispatch({ type: 'continue' }),
+					addRecipient: () => sendSession?.dispatch({ type: 'enter_split_mode' }),
+					removeRecipient: (index: number) => {
+						const rows = (sendView?.recipients ?? []).filter((_, i) => i !== index);
+						sendSession?.dispatch({ type: 'recipients_changed', recipients: rows });
+					},
 					confirm: () => sendSession?.dispatch({ type: 'slide_confirm' }),
 					pickFeeToken: (index: number) => {
 						const option = feeQuote.view.options[index];
@@ -390,7 +469,8 @@
 		...liveInputs,
 		identity: identity ?? undefined,
 		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined,
-		send: sendInputs
+		send: sendInputs,
+		batch: batchInputs
 	});
 
 	/**
@@ -545,8 +625,13 @@
 		<FlowsMobile
 			model={withLiveFlow(data.flows[flowState], flowInputs)}
 			onback={() => (sendView ? sendSession?.dispatch({ type: 'back' }) : nav.back())}
-			onnavigate={(to) => (to === 'fee-token' ? (feeSheetOpen = true) : nav.push(to))}
+			onnavigate={(to) => {
+				if (to === 'fee-token') feeSheetOpen = true;
+				else if (to === 'batch-import') void openBatch();
+				else nav.push(to);
+			}}
 			send={sendActions}
+			batch={batchActions}
 		/>
 	{:else}
 		<WalletHome

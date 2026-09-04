@@ -126,9 +126,25 @@ export function liveSendForm(model: SendFormModel, inputs: SendLiveInputs): Send
 	const usd =
 		token?.price_usd != null ? (parseFloat(send.token_amount) || 0) * token.price_usd : null;
 
+	const split = send.split_mode;
+	const amountBlock = {
+		value: send.amount || '0',
+		fiat: usd === null ? '' : `≈ ${moneyText(usd, currency)}`,
+		denomLabel: send.amount_fiat_code ?? token?.symbol ?? ''
+	};
+	const recipientBlock = {
+		label: m['send.recipientLabel'],
+		lines: recipientLines(send),
+		identiconSvg: send.recipient ? identicon(send.recipient) : '',
+		pickLabel: m['send.recipientPickAria'],
+		scanLabel: m['send.scanAria'],
+		// The trust line the core resolved: a name when it knows one, and the
+		// first-interaction note when it does not.
+		note: recipientNote(send, m)
+	};
 	return {
 		...model,
-		mode: 'single',
+		mode: split ? 'split' : 'single',
 		header: {
 			...model.header,
 			title: token ? fill(m['send.sendTitle'], { symbol: token.symbol }) : model.header.title
@@ -143,25 +159,34 @@ export function liveSendForm(model: SendFormModel, inputs: SendLiveInputs): Send
 					max: m['send.maxBtn']
 				}
 			: model.token,
-		amount: {
-			value: send.amount || '0',
-			fiat: usd === null ? '' : `≈ ${moneyText(usd, currency)}`,
-			denomLabel: send.amount_fiat_code ?? token?.symbol ?? ''
-		},
-		recipient: {
-			label: m['send.recipientLabel'],
-			lines: recipientLines(send),
-			identiconSvg: send.recipient ? identicon(send.recipient) : '',
-			pickLabel: m['send.recipientPickAria'],
-			scanLabel: m['send.scanAria'],
-			// The trust line the core resolved: a name when it knows one, and the
-			// first-interaction note when it does not.
-			note: recipientNote(send, m)
-		},
-		addRecipient: undefined,
-		recipients: undefined,
-		recipientActions: undefined,
-		summary: undefined,
+		// Split mode is the core's: it decides when one recipient becomes many,
+		// and the rows below are its drafts, not a list this file keeps.
+		addRecipient: split ? undefined : m['send.addRecipient'],
+		recipients: split
+			? send.recipients.map((draft, index) => ({
+					ordinal: fill(m['send.recipientN'], { n: index + 1 }),
+					name: draft.name ?? shortenAddress(draft.address),
+					identiconSvg: identicon(draft.address),
+					amount: `${draft.amount} ${token?.symbol ?? ''}`.trim(),
+					removeLabel: m['send.removeRecipient']
+				}))
+			: undefined,
+		recipientActions: split
+			? [
+					{ id: 'add' as const, label: m['send.addRecipient'] },
+					{ id: 'contacts' as const, label: m['send.fromContacts'] },
+					{ id: 'import' as const, label: m['send.batchImport'] }
+				]
+			: undefined,
+		// Split shows the total above the fee; single's amount is the hero.
+		summary: split
+			? {
+					label: m['send.splitTotalLabel'],
+					value: `${send.token_amount} ${token?.symbol ?? ''}`.trim()
+				}
+			: undefined,
+		amount: split ? undefined : amountBlock,
+		recipient: split ? undefined : recipientBlock,
 		fee: feeRow(inputs, model.fee),
 		cta: m['send.continueBtn']
 	};

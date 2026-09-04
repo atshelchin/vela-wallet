@@ -313,3 +313,46 @@ no funding sheet is drawn on web.
 **Gates**: check 1320/0 · lint clean · unit **725** · build ×15 · e2e
 **109/109** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
 delta.
+
+---
+
+## Phase 6 — paying many at once (T250–T254)
+
+**What shipped**: the payroll batch. Paste or drop a table, the core parses it,
+prices it and rules on it, and one operation carries every recipient.
+
+- **`batch_import`** (`flows/core/batch-*`) ported with its three operations.
+  The rate arm asks `resolveRate`, NOT a display helper: a display helper ends
+  in `?? 1`, and an unpriceable currency would then reach the core as "the rate
+  really is 1" — a 5,000 CNY payroll line paid as 5,000 tokens, ~7x. `null` is
+  the honest answer, and the core turns it into a refusal.
+- **`services/file-io.ts`**: the two capabilities the core cannot have. The
+  picker is an `<input type=file>` that always settles (a dialog that never
+  answers would leave the core's effect unanswered forever, which the loop
+  cannot tolerate); the save is a Blob download; the workbook reader is the
+  only half of Expo's 324-line `recipient-table` that is ported, because the
+  core owns every rule about what a column means.
+- **SheetJS is lazy and asserted lazy**: `await import('xlsx')` inside the
+  reader, and an e2e that reads the built chunks a normal visit loads and
+  finds no parser in them.
+- **The drawn sheet graduates**: the paste field gains an `oninput`, and the
+  send form learns split mode — the recipient cards, the three ghost actions
+  and the total line are all the core's `split_mode`, not a second list this
+  shell keeps. Applying seeds the send core's split from the rows the importer
+  priced; nothing is recomputed on the way across.
+
+**One finding, from the matrix rather than a unit**: the two budget e2e each
+re-fetched EVERY script the page had loaded, to search it. Six Playwright
+workers doing that against one preview worker starved the other suites — 27
+tests failed with network errors that had nothing to do with their subject.
+Both now read the same chunks off the build output instead. The assertion is
+unchanged and stronger (it reads the artifact, not a response), and the matrix
+went from 84/111 to 111/111.
+
+**Recorded**: sweep mode (N tokens → one address) stays fixture — the core
+supports it, no web surface drives it yet; the importer opens from the split
+form only, which is where 021 drew it.
+
+**Gates**: check 1327/0 · lint clean · unit **731** · build ×15 · e2e
+**111/111** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
+delta.

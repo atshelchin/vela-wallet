@@ -19,6 +19,7 @@ import type { WalletIdentity } from '$lib/wallet/identity';
 import { shortenAddress } from '$lib/wallet/identity';
 import { liveActivityGroups, liveAssetRow } from '$lib/wallet/live';
 import { addressLines } from './fixtures';
+import { liveBatchImport, type BatchLiveInputs } from './live-batch';
 import {
 	liveFeeTokenPick,
 	liveSendConfirm,
@@ -53,6 +54,8 @@ export interface FlowsLiveInputs {
 	 * gallery renders.
 	 */
 	send?: SendLiveInputs;
+	/** The batch importer, while its sheet is open (spec 026 US3). */
+	batch?: BatchLiveInputs;
 }
 
 function liveAssets(model: AssetsModel, inputs: FlowsLiveInputs): AssetsModel {
@@ -150,6 +153,12 @@ export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): F
 				sheet: { kind: 'fee-token', model: liveFeeTokenPick(model.sheet.model, send) }
 			};
 		}
+	}
+	if (inputs.batch && model.sheet?.kind === 'batch-import') {
+		next = {
+			...next,
+			sheet: { kind: 'batch-import', model: liveBatchImport(model.sheet.model, inputs.batch) }
+		};
 	}
 	return next;
 }

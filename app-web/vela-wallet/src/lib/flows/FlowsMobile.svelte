@@ -40,11 +40,23 @@
 		recipientChanged(value: string): void;
 		advance(): void;
 		confirm(): void;
+		/** "+ add recipient" — the core turns one recipient into many. */
+		addRecipient(): void;
+		removeRecipient(index: number): void;
 		pickFeeToken(index: number): void;
 		done(): void;
 		/** The core's gates — `can_continue` / `can_confirm`. */
 		continueDisabled: boolean;
 		confirmDisabled: boolean;
+	}
+
+	/** The batch importer's handlers, when its own core is live. */
+	interface BatchActions {
+		unit(id: string): void;
+		paste(text: string): void;
+		pickFile(): void;
+		saveTemplate(): void;
+		apply(): void;
 	}
 
 	interface Props {
@@ -53,9 +65,10 @@
 		onback?: () => void;
 		onnavigate?: (to: string, index?: number) => void;
 		send?: SendActions;
+		batch?: BatchActions;
 	}
 
-	let { model, onback, onnavigate, send }: Props = $props();
+	let { model, onback, onnavigate, send, batch }: Props = $props();
 
 	const base = $derived(model.base);
 	const sheet = $derived(model.sheet);
@@ -122,6 +135,8 @@
 						id === 'import' ? 'batch-import' : id === 'contacts' ? 'contact-pick' : 'add-recipient'
 					)}
 				oncontinue={() => (send ? send.advance() : go('send-confirm'))}
+				onaddRecipient={send ? () => send.addRecipient() : undefined}
+				onremoveRecipient={send ? (i) => send.removeRecipient(i) : undefined}
 				onamount={send ? (value) => send.amountChanged(value) : undefined}
 				onrecipient={send ? (value) => send.recipientChanged(value) : undefined}
 				ctaDisabled={send?.continueDisabled ?? false}
@@ -207,7 +222,14 @@
 				height="tall"
 				onclose={() => (sheetClosed = true)}
 			>
-				<BatchImport model={sheet.model} />
+				<BatchImport
+					model={sheet.model}
+					onunit={batch ? (id) => batch.unit(id) : undefined}
+					onpaste={batch ? (text) => batch.paste(text) : undefined}
+					onfile={batch ? () => batch.pickFile() : undefined}
+					ontemplate={batch ? () => batch.saveTemplate() : undefined}
+					onapply={batch ? () => batch.apply() : undefined}
+				/>
 			</BottomSheet>
 		{/if}
 	{/if}

@@ -163,6 +163,7 @@ export const WALLET_FLOW_KEYS = [
 	'send.batchParsedCount',
 	'send.batchBadAddress',
 	'send.batchRejected_one',
+	'send.batchRejected_other',
 	'send.batchApply_other',
 
 	// send · confirm

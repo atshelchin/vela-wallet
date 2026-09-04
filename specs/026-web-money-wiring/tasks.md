@@ -126,17 +126,17 @@ runs in app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 6: Batch (one commit)
 
-- [ ] T250 [US3] Port batch-import-{types,executor,session}.ts →
+- [X] T250 [US3] Port batch-import-{types,executor,session}.ts →
       `flows/core/batch-*.ts`; `recipient-table.ts` with lazy `import('xlsx')`;
       file input + Blob download seams
-- [ ] T251 [US3] BatchImport wiring: paste `oninput`, unit toggle, file,
+- [X] T251 [US3] BatchImport wiring: paste `oninput`, unit toggle, file,
       template, apply → send split mode (`seed_split_recipients`); live
       overlay from BatchView (rows, rate status, refusal when no rate)
-- [ ] T252 [P] [US3] Units: batch arms (rate null refusal), table parsing
+- [X] T252 [P] [US3] Units: batch arms (rate null refusal), table parsing
       (paste/xlsx matrix); startup-chunk assertion (no xlsx in first paint)
-- [ ] T253 [US3] e2e `batch.e2e.ts`: paste three rows → preview → one
+- [X] T253 [US3] e2e `batch.e2e.ts`: paste three rows → preview → one
       operation → receipt with three transfers (stub relay)
-- [ ] T254 Full gate; results.md Phase 6 entry
+- [X] T254 Full gate; results.md Phase 6 entry
 
 ## Phase 7: Live sweep + matrix + closeout (one commit)
 

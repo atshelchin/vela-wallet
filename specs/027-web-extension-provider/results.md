@@ -78,3 +78,83 @@ extension quietly becomes a DIFFERENT, empty wallet.
   draws anything (it carries the single hex literal in the whole Safari page
   side). If any extension script ever grows UI, this must be revisited rather
   than discovered.
+
+---
+
+## Phase 2 — the package and the shell (T310–T315)
+
+**What shipped**: the wallet runs inside a Chrome extension, and it is the same
+wallet. `pnpm build:extension` produces a loadable MV3 package; loading it and
+opening the wallet shows **`Parallel Multi · 0x88cCA0…266894`** — the golden
+multi-key Safe, derived by the core inside a `chrome-extension://` origin, at
+exactly the address the hosted site derives from the same keys and
+`core/golden-addresses.test.ts` pins.
+
+- **The manifest** (T310) carries the four constraints research measured: the
+  pinned id (a `key`, so the relying party and the tests address ONE origin),
+  `'wasm-unsafe-eval'` (without it the core does not compile at all),
+  `https://getvela.app/*` (without it the passkey ceremony cannot claim the
+  hosted site's relying party, and the extension silently becomes a different,
+  empty wallet), and **no action popup** — see the revision below.
+- **The build** (T311): `VELA_TARGET=extension` swaps in the static adapter and
+  nothing else. `extension/build.mjs` prunes what the extension has no door to
+  (the fixture galleries — 28.4 MB), externalises **210 inline scripts across
+  105 pages**, copies the extension's own files alongside, and prints the
+  package size, which is a budget: **34 MB**.
+- **Units** (T312) read the BUILT package rather than the source: no inline
+  script anywhere, the CSP declares wasm, the host permission is present, the id
+  is pinned, and no action popup is declared. When the package is missing they
+  fail rather than skipping — a budget you skipped is not a budget you met.
+- **e2e** (T314, `extension-boot.e2e.ts`) loads the unpacked extension under
+  `--headless=new`, recomputes the extension id from the manifest key rather
+  than hardcoding it, and asserts the golden address end to end. It is
+  hermetic: the context aborts every request that is not to the extension's own
+  origin.
+
+### Four things Phase 2 changed about the plan, each because something was measured
+
+1. **D34 revised, and its evidence status corrected.** The manifest declares NO
+   action popup at all. The plan had the popup as "the wallet's own doorway" and
+   the dedicated window only for dApp requests — but signing IN is a passkey
+   ceremony too, so the popup cannot host the wallet's front door either. The
+   toolbar button opens a tab. Separately, D34 is now marked in research.md as
+   **reasoned, not measured**, unlike D31/D33/D35/D39: a virtual authenticator
+   resolves without showing UI, so the focus loss it avoids cannot be reproduced
+   in the harness that proved the others. T360 confirms it on real hardware.
+2. **D35's replacement was itself replaced.** "One client-rendered shell" turned
+   out to be unbuildable: `router.type: 'hash'` — which SvelteKit documents for
+   exactly this case — rejects `+layout.server.ts` as well as `+server.ts`, and
+   this app resolves all 15 locales inside server loads at prerender time. Hash
+   routing would have traded the corpus for a router. The extension therefore
+   packages the SAME prerendered pages the site serves, and `build.mjs`
+   externalises their inline scripts instead. The falsification is written down.
+3. **The app is packaged at the extension ROOT, not under a folder** (found by
+   the wallet page dying with `ERR_FILE_NOT_FOUND`): `WASM_URL` is absolute
+   (`/vela_core_bg.<hash>.wasm`), so a subdirectory would have needed a
+   base-aware rewrite that the hosted build would then have to carry too.
+4. **D42 — a route path is not a file** (new). An extension URL resolves no
+   directory index and no extensionless twin, and a twin cannot even be written
+   where SvelteKit has already made a directory for the route's data. This was
+   not theoretical: the parallel screen's "Enter" does a deliberate full
+   navigation so every resident store re-hydrates, and inside the extension it
+   landed on `chrome-error://chromewebdata/`. `$lib/extension/page-url.ts` now
+   translates at exactly the two moments a document is really fetched — a full
+   navigation, and the address bar after a client one. Both are the identity
+   function on the hosted site, decided by the page's own origin rather than a
+   build flag, so one bundle is correct in both places.
+
+**One finding from the matrix, the same shape as 026's**: adding the extension
+suite killed the preview worker mid-run and took 30 unrelated tests with it. The
+preview is one single-threaded `workerd`; six browser workers plus a seventh
+browser holding a 34 MB unpacked extension is more than it survives. Measured: 6
+workers → dead, 3 workers → 123/123, twelve seconds slower. `workers: 3` is now
+pinned in the config with the reason, so this is not diagnosed a third time.
+
+**Recorded**: the toolbar button opens English until the person's stored locale
+is read (the manifest cannot express "their locale"); the background worker
+does nothing else yet. Both belong to Phase 3, which gives that file its real
+job.
+
+**Gates**: check **1331**/0 · lint clean · unit **738** · build ×15 +
+`build:extension` · e2e **123/123** (chromium + firefox + webkit) · wasm
+byte-identical (3,630,664 B) · extension package 34 MB.

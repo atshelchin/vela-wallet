@@ -93,6 +93,12 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		// too — a fixture is allowed to look alien, but only on purpose and only
 		// where it is written down (see the whitelist).
 		...collect(join(APP_ROOT, 'src/lib/dev')),
+		// spec 027 T303: the packaged-extension layer. It holds no visuals today
+		// — which is the point of auditing it, since a colour appearing there
+		// would be a category error. The extension's own page scripts are plain
+		// `.js` and fall outside this collector entirely; that is acceptable only
+		// while they draw nothing (recorded in results.md).
+		...collect(join(APP_ROOT, 'src/lib/extension')),
 		...collect(join(APP_ROOT, 'src/routes')),
 		join(APP_ROOT, 'src/app.css')
 	].filter(

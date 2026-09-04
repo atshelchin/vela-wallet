@@ -16,11 +16,21 @@
 	import { markPlayed, shouldPlay, type Appearance } from '$lib/launch/constants';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { goto } from '$app/navigation';
+	import { afterNavigate, goto } from '$app/navigation';
+	import { normalizePackagedUrl } from '$lib/extension/page-url';
 	import ParallelSpaceBadge from '$lib/dev/ParallelSpaceBadge.svelte';
 	import { parallelFlagSet } from '$lib/dev/parallel-flag.svelte';
 
 	let { children } = $props();
+
+	/**
+	 * Spec 027 D42. Under the packaged extension a route path is not a file, so
+	 * after a client navigation the address bar names a document that does not
+	 * exist and a reload dies on `chrome-error://`. Put the document's own name
+	 * back. Identity on the hosted site — decided by this page's origin, not by
+	 * a build flag.
+	 */
+	afterNavigate(() => normalizePackagedUrl());
 
 	const parallelHref = $derived(
 		resolve('/[locale]/parallel', { locale: page.params.locale ?? 'en' })

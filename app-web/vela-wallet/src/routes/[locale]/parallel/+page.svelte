@@ -10,10 +10,15 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { packagedHref } from '$lib/extension/page-url';
 	import { parallelActive, parallelFlagSet } from '$lib/dev/parallel-flag.svelte';
 
 	const locale = $derived(page.params.locale ?? 'en');
 	const walletHref = $derived(resolve('/[locale]/wallet', { locale }));
+	/** The DOCUMENT that route is stored as — the two navigations below leave
+	 *  the page, and under the packaged extension a route path is not a file
+	 *  (spec 027 D42). Identity on the hosted site. */
+	const walletDocument = $derived(packagedHref(walletHref));
 
 	let addresses = $state<{ name: string; address: string }[]>([]);
 	let multi = $state('');
@@ -39,7 +44,7 @@
 		busy = false;
 		// A full navigation, not a client one: every resident store must
 		// re-hydrate from the swapped wallet rather than keep the real one.
-		window.location.assign(walletHref);
+		window.location.assign(walletDocument);
 	}
 
 	async function leave(): Promise<void> {
@@ -47,7 +52,7 @@
 		const mod = await import('$lib/dev/parallel-space');
 		await mod.exitParallelSpace();
 		busy = false;
-		window.location.assign(walletHref);
+		window.location.assign(walletDocument);
 	}
 </script>
 

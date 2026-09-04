@@ -117,11 +117,19 @@ ceremony takes focus by definition — the platform authenticator's own prompt.
 A signing sheet living in the action popup would therefore close itself in the
 middle of every signature, and the dApp would see silence.
 
-**Decision**: the action popup is the wallet's own doorway (open the wallet,
-look around, manage connections). Every dApp-initiated request opens a
-**dedicated extension window** that survives focus changes, is bound to the
-requesting tab, and answers exactly once. This mirrors what every shipping
-extension wallet does, for the same reason.
+**Decision**: the extension has **no action popup at all**. The toolbar button
+opens the wallet in a tab, and every dApp-initiated request opens a dedicated
+window that survives focus changes, is bound to the requesting tab, and answers
+exactly once. This mirrors what every shipping extension wallet does, for the
+same reason. (Phase 2 revised this from "the popup is the wallet's own doorway":
+signing IN is a passkey ceremony too, so the popup cannot host the wallet's own
+front door either.)
+
+**Evidence status — reasoned, NOT measured**, unlike D31/D33/D35/D39 on this
+page. A virtual authenticator resolves without showing UI, so the focus loss
+this decision avoids cannot be reproduced in the harness that proved the others.
+It is confirmed on real hardware in T360, and the cost of being wrong is only a
+tab where a popup would have done.
 
 ---
 
@@ -233,3 +241,45 @@ be pinned rather than discovered.
   limitation, not silently omitted.
 - **The 025/026 carried debts** (`manage_tokens`, desktop send actions, sweep
   mode) — one spec, one problem.
+
+
+---
+
+## D42 — A route path is not a file, and an extension URL forgives nothing
+
+Found while making the app actually run inside the package, and it is the reason
+Phase 2 was worth doing before any dApp plumbing.
+
+**What was measured**, against the packaged extension:
+
+| asked for | result |
+| --- | --- |
+| `…/en/wallet.html` | ✅ the page |
+| `…/en/` | ❌ `ERR_FILE_NOT_FOUND` — extension URLs resolve **no directory index** |
+| `…/en` | ❌ `ERR_FILE_NOT_FOUND` — and no extensionless fallback either |
+| an extensionless twin file beside the page | ❌ impossible — SvelteKit has already made `en/wallet/` a directory for the route's `__data.json` |
+
+So every trick at the FILE level is closed, and the consequence is not
+theoretical: the parallel screen's "Enter" does a deliberate `location.assign`
+to `/en/wallet` (a full navigation, so every resident store re-hydrates from the
+swapped wallet), and inside the extension that landed on
+`chrome-error://chromewebdata/`. A reload after any client navigation did the
+same.
+
+**Decision**: the app keeps route paths everywhere and translates them at
+exactly the two moments a document is really fetched —
+`$lib/extension/page-url.ts`:
+
+- `packagedHref()` at a deliberate full navigation (the app has exactly two,
+  both on the parallel screen);
+- `normalizePackagedUrl()` in `afterNavigate`, putting the document's own name
+  back in the address bar so a reload finds a file.
+
+Both are the identity function on the hosted site, decided by the page's own
+origin rather than a build flag — the same bundle is correct in both places.
+
+**Also confirmed here**: `router.type: 'hash'`, which SvelteKit documents for
+exactly this situation, is unusable — it rejects `+layout.server.ts` as well as
+`+server.ts`, and this app resolves all 15 locales inside server loads at
+prerender time. Hash routing would trade the corpus for a router. D35's
+correction stands, now with the falsification written down.

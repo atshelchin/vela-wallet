@@ -10,12 +10,27 @@ const STORAGE_SUITES = [
 
 export default defineConfig({
 	webServer: {
-		command: 'npm run build && npm run preview',
+		// The extension suite reads the PACKAGED artifact, so building it is part
+		// of standing the suite up — not a step someone has to remember (spec 027).
+		command: 'npm run build && npm run build:extension && npm run preview',
 		port: 4173,
 		timeout: 180_000,
 		reuseExistingServer: true
 	},
 	use: { baseURL: 'http://localhost:4173' },
+	/**
+	 * The preview is ONE `workerd` process, and it is single-threaded.
+	 *
+	 * Spec 026 already found it starving under six parallel workers (two budget
+	 * suites re-fetching every chunk; 27 unrelated tests went red). Spec 027 hit
+	 * the same wall from the other side: the extension suite launches a SEVENTH
+	 * browser and hands it a 32 MB unpacked extension, and the preview died
+	 * mid-run — again taking down suites that had nothing to do with it.
+	 *
+	 * Measured: 6 workers → the preview dies; 3 workers → 123/123, twelve seconds
+	 * slower. Pinning it is cheaper than re-diagnosing this a third time.
+	 */
+	workers: 3,
 	testMatch: '**/*.e2e.{ts,js}',
 	projects: [
 		// Everything runs on chromium…

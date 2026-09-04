@@ -24,21 +24,21 @@ app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 2: The package and the shell (one commit) — blocks 3–7
 
-- [ ] T310 [US3] MV3 manifest: pinned id (`key`), `extension_pages` CSP with
+- [X] T310 [US3] MV3 manifest: pinned id (`key`), `extension_pages` CSP with
       `'wasm-unsafe-eval'` (D33), `host_permissions` including
       `https://getvela.app/*` (D31) and `*://*/*` for injection, action popup,
       web-accessible `inpage.js`
-- [ ] T311 [US3] The shell build (`pnpm build:extension`): one client-rendered
+- [X] T311 [US3] The shell build (`pnpm build:extension`): one client-rendered
       page, NO inline script (D35), external bundles, assets under the extension
       root; `extension/build.mjs` assembles it with the page-side scripts
-- [ ] T312 [US3] Unit: the built shell contains zero inline `<script>` (the
+- [X] T312 [US3] Unit: the built shell contains zero inline `<script>` (the
       measured blocker), and the manifest declares the wasm CSP
-- [ ] T313 [US3] The core loads in a `chrome-extension://` page and a REAL
+- [X] T313 [US3] The core loads in a `chrome-extension://` page and a REAL
       passkey login lands — same rpId, same derived address
-- [ ] T314 [US3] e2e `extension-boot.e2e.ts`: unpacked extension under
+- [X] T314 [US3] e2e `extension-boot.e2e.ts`: unpacked extension under
       `--headless=new`, pinned id, CDP virtual authenticator on the SAME page
       (D39); sign in and assert the address the hosted site derives (SC-306)
-- [ ] T315 Full gate; results.md Phase 2 entry
+- [X] T315 Full gate; results.md Phase 2 entry
 
 ## Phase 3: Injection and transport (one commit)
 

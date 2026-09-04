@@ -211,3 +211,119 @@ running at the same time:
 is the same lesson 026 learned as worker starvation and 027 pinned as
 `workers: 3` — this is that lesson applied to the person driving, not to the
 config.
+
+---
+
+## Phase 3 (complete) — the scanner reads, and says why when it cannot
+
+**What closed**: T422, T423, T425, T426. The wallet now reads a code from the
+camera or from a chosen image, on both layouts, and every way it can fail has
+its own sentence on the screen.
+
+### The scanner is the CORE's state, and that is what made T423 small
+
+`SendView` has carried `show_scanner` and the `open_scanner` / `close_scanner` /
+`scan_resolved` events since the machine was written. So the shell holds no
+"scanner is open" flag at all:
+
+- the recipient row's scan button dispatches `open_scanner`;
+- `sendState` reads `view.show_scanner` and shows `s1` — ahead of the fee sheet
+  and the importer, and ahead of the core's own stage;
+- a decode dispatches `scan_resolved`, which fills the row AND closes the
+  surface in one transition, in Rust.
+
+That is also why the **sweep picker needs nothing of its own** (T423's second
+half): the sweep's recipient row is the same `RecipientField` with the same
+`scanLabel`, so it opens the same core scanner and is filled by the same event.
+Had this been a shell boolean, it would have been two.
+
+**The one shell rule left** is the wallet home's, and it is Expo's verbatim
+(`useHomeController.ts:529`): with no session open there is nothing to dispatch
+INTO, so a scanned code OPENS one — prefilled, and `locked: true` when the
+request names a chain to lock to. `parseEIP681` was already ported (spec 026);
+the shell only tokenizes, and every decision about the parse is `send.rs`'s.
+
+### `FlowsPanel` was one surface too many
+
+The wip note listed it as unwired. It has no scan branch and never did — the
+desktop scanner is a centred modal (DS1L) the route draws over the window,
+because a viewfinder in a 380px column is the wrong shape. Both call sites are
+now live and both share ONE `{#snippet}`, so there is one `<video>` and one
+camera no matter which layout is drawn.
+
+### Three carried gotchas, all of them real
+
+- **The file input is mounted, not conditional.** `click()` on an input that is
+  not in the document opens nothing, and "choose a photo" is the entire way out
+  for someone whose camera was refused.
+- **`pointer-events: none` on the `<video>`.** It fills the frame the brackets
+  mark and would otherwise eat the taps meant for the tools under it.
+- **A two-second re-arm.** Expo re-arms its scanner after a decode, and the
+  reason survives the port: a poster with an unusable code in frame must not end
+  the scan, and re-arming instantly would decode that same code forever.
+
+### The corpus grew by three words, and the artifact is NOT byte-identical
+
+`componentsUi.scanner.{noCamera,insecureOrigin,cameraUnavailable}` × 15 locales
+= 45 strings. The corpus was searched before it was grown: `permissionText`
+covers the refusal a person can undo in site settings, and nothing existing said
+"there is no camera here", "this page is not on HTTPS" or "something else has
+the camera". These are refusals **native never had** — a phone has a camera and
+an app has no origin — which is why the port could not carry them.
+
+The Phase 1 baseline said the core artifact must close byte-identical. **It does
+not, and the reason is words rather than machines**: the shared key-path table
+is compiled into `vela-core` (catalogs are not — every locale is fetched as JSON
+at runtime), so three paths cost **129 bytes**:
+
+| | Phase 1 | now |
+| --- | --- | --- |
+| artifact | `vela_core_bg.4603c8421603.wasm` | `vela_core_bg.7caac430e4b3.wasm` |
+| bytes | 3,630,664 | 3,630,793 (+129) |
+| corpus | 1,536 leaf + 84 branch | 1,539 leaf + 84 branch |
+
+T460's budget assertion should be restated accordingly: **one** core artifact,
+still the only one a wallet route loads — which the e2e already proves against
+the new fingerprint — and any byte delta explained. "Byte-identical" was the
+right pin for two machines that were already aboard; it was never the right pin
+for a feature whose own baseline says the corpus will grow.
+
+**The 5-step corpus recipe has a sixth step, and a wrong flag.**
+`cargo test -p vela-core --features i18n-all` does not compile — `app` is behind
+the `crux` feature, so the parity suites cannot see the machines. It is
+`--features i18n-all,crux`.
+
+**The 45 strings are mine, not a translator's.** They follow each locale's own
+register (zh-HK in spoken Cantonese, de/fr formal to match the neighbouring
+lines) and they want a human eye before release, like every machine-written
+batch this project has shipped.
+
+### What the e2e actually proves (SC-402)
+
+`scan.e2e.ts`, five tests, all on real pixels — `qrcode` writes a PNG in Node,
+the browser decodes it with the real ladder, and nothing in the app is on both
+ends:
+
+1. a picked code's address reaches the **send form's recipient field**, exactly;
+2. the scanner opened FROM that form fills the row it was opened from — the
+   core's `open_scanner` → `scan_resolved` round trip;
+3. a refused camera says so, and the photo path is still on the same screen;
+4. a machine with no camera gets a DIFFERENT sentence, because it is a
+   different thing to do about it;
+5. a code that decodes to something that is not a payment says *that* — which
+   is also the control for (1): a decoder returning nothing would report "no QR
+   found" instead.
+
+### Known and named, not hidden
+
+A scan at desktop width opens the send panel with the scanned recipient in it,
+and that panel still cannot be DRIVEN — `FlowsPanel` gets live send data but no
+send actions until **T453** (Phase 6). This is the state the desktop send is
+already in when opened from the sidebar; the scan does not make it worse, and
+one phase closes it.
+
+**Gates**: check **1366**/0 · lint clean · unit **787** (+4 notice cases) ·
+build ×15 + `build:extension` · e2e **144 passed / 1 skipped** on chromium +
+firefox + webkit · root `jest src/__tests__/i18n/` 75 passed (leaf pin
+22,758 → **22,803**) · `cargo test -p vela-core --features i18n-all,crux` green ·
+`lint:i18n` no new defects · `verify:i18n` 73,085 comparisons, zero divergences.

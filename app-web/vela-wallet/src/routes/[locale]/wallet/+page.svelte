@@ -52,10 +52,13 @@
 	import { createBatchImportSession, type BatchImportSession } from '$lib/flows/core/batch-session';
 	import type { BatchView } from '$lib/core/generated/BatchView';
 	import { FeeQuote, IDLE_FEE_VIEW } from '$lib/flows/core/fee-quote.svelte';
+	import { scanner, scanNotice } from '$lib/flows/core/scanner.svelte';
+	import { isHexAddress, parseEIP681 } from '$lib/services/eip681';
 	import { setSendTrackerSink } from '$lib/flows/core/send-executor';
 	import { startTxTracker, trackSubmitted } from '$lib/wallet/core/tracker-resident';
 	import SigningHost from '$lib/signing/SigningHost.svelte';
 	import { signRequest } from '$lib/signing/core/sign-resident.svelte';
+	import type { SendOpenParams } from '$lib/core/generated/SendOpenParams';
 	import type { SendView } from '$lib/core/generated/SendView';
 
 	/** The sidebar's own copy of the rule above: three rows, not four. */
@@ -194,7 +197,7 @@
 			: undefined
 	);
 
-	async function openSend(): Promise<void> {
+	async function openSend(prefill?: Partial<SendOpenParams>): Promise<void> {
 		if (sendSession || !identity) return;
 		await loadCore();
 		if (!identity) return;
@@ -249,7 +252,10 @@
 				prefilled_token_address: null,
 				prefilled_amount_base: null,
 				locked: false,
-				preselected_multi: null
+				preselected_multi: null,
+				// A code scanned from the wallet home arrives here: the core reads
+				// these exactly as it reads the deep-link params on the phone.
+				...prefill
 			},
 			display: { code: currency.view.code, rate: currency.view.rate, fiat_decimals: 2 }
 		});
@@ -269,6 +275,10 @@
 	const sendState = $derived.by(() => {
 		const view = sendView;
 		if (!view) return undefined;
+		// The scanner is the CORE's state, not a shell flag: `open_scanner` is
+		// what the recipient row dispatches and `scan_resolved` is what closes it,
+		// so the picker, the form and the sweep all open the same one.
+		if (view.show_scanner) return 's1' as const;
 		if (feeSheetOpen) return 'sd2f' as const;
 		if (batchView) return 'sd2c' as const;
 		switch (view.stage) {
@@ -343,6 +353,123 @@
 
 	const flowState = $derived(sendState ?? nav.mobileTop);
 	const desktopFlow = $derived(nav.desktopTop);
+
+	// --- The scanner (spec 028 T422/T423) ------------------------------------
+	//
+	// `ScanSurface` owns no camera and knows of none: it draws a frame, a hint
+	// and three tools, and takes a snippet for whatever fills the frame. This is
+	// what fills it. The refusals matter more than the decode — a black
+	// viewfinder tells a person their camera is broken, when the truth is
+	// usually a permission they can change or a URL that is not HTTPS.
+
+	let scanVideo = $state<HTMLVideoElement | null>(null);
+	let scanPicker = $state<HTMLInputElement | null>(null);
+	/** A code that WAS read and is not one this wallet can act on. */
+	let scanUnusable = $state(false);
+
+	/** The scan screen is showing, on whichever layout is drawn. */
+	const scanning = $derived(flowState === 's1' || desktopFlow === 'ds1');
+
+	/**
+	 * Expo re-arms its scanner two seconds after a decode, and the same reason
+	 * applies here: a poster with an unusable code in frame must not end the
+	 * scan, and re-arming instantly would decode that same code forever.
+	 */
+	const SCAN_REARM_MS = 2000;
+	let scanRearm = 0;
+
+	$effect(() => {
+		const video = scanVideo;
+		if (!scanning || !video) return;
+		scanUnusable = false;
+		void scanner.start(video);
+		return () => {
+			clearTimeout(scanRearm);
+			scanner.stop();
+		};
+	});
+
+	// One code is acted on once: the read is taken off the surface before it is
+	// handled, so a still-set `result` cannot fire this twice.
+	$effect(() => {
+		const found = scanner.result;
+		if (found === null) return;
+		scanner.clear();
+		handleScan(found);
+	});
+
+	function handleScan(value: string): void {
+		const request = parseEIP681(value);
+		// Inside a live send the CORE rules on the scan — whether the screen
+		// locks, to which chain, and how base units become a figure are all
+		// `scan_resolved`'s to decide (send.rs). The shell only tokenizes.
+		if (sendSession && sendView) {
+			sendSession.dispatch({
+				type: 'scan_resolved',
+				scan: request
+					? {
+							type: 'request',
+							recipient: request.recipient,
+							chain_id: request.chainId ?? null,
+							token_address: request.tokenAddress ?? null,
+							amount_base_units: request.amountBaseUnits?.toString() ?? null
+						}
+					: { type: 'text', data: value }
+			});
+			return;
+		}
+		// From the wallet home there is no session yet, so the code OPENS one,
+		// prefilled — and locked when the request names a chain to lock to. This
+		// is the phone's `onScan` (useHomeController.ts:529) with a session in
+		// place of a route push.
+		if (request && request.chainId != null) {
+			nav.enter('send');
+			void openSend({
+				prefilled_recipient: request.recipient,
+				prefilled_chain_id: String(request.chainId),
+				prefilled_token_address: request.tokenAddress ?? null,
+				prefilled_amount_base: request.amountBaseUnits?.toString() ?? null,
+				locked: true
+			});
+			return;
+		}
+		const address = request?.recipient ?? value.trim();
+		if (isHexAddress(address)) {
+			nav.enter('send');
+			void openSend({ prefilled_recipient: address });
+			return;
+		}
+		// A code that is not a payment. Said, and the viewfinder stays alive.
+		scanUnusable = true;
+		clearTimeout(scanRearm);
+		scanRearm = setTimeout(() => {
+			if (scanning && scanVideo) void scanner.start(scanVideo);
+		}, SCAN_REARM_MS) as unknown as number;
+	}
+
+	function scanTool(id: 'gallery' | 'torch' | 'flip'): void {
+		if (id === 'gallery') scanPicker?.click();
+		else if (id === 'torch') void scanner.toggleTorch();
+		else void scanner.flip();
+	}
+
+	async function pickScanImage(event: Event): Promise<void> {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		// Clear it before reading: picking the SAME file twice fires no second
+		// change event, and the retry would look like a hang.
+		input.value = '';
+		if (!file) return;
+		scanUnusable = false;
+		await scanner.pick(file);
+	}
+
+	const scanCopy = $derived(
+		scanNotice(
+			{ status: scanner.status, nothingFound: scanner.nothingFound, unusable: scanUnusable },
+			data.flowMessages
+		)
+	);
 
 	/**
 	 * The destinations THIS client has (spec 022 founder call).
@@ -548,6 +675,27 @@
 
 <SigningHost messages={data.signingMessages} fee={feeQuote} />
 
+<!--
+  What fills the scanner's frame. One definition for both layouts — only one of
+  them is ever mounted, so there is only ever one camera.
+
+  The file input is MOUNTED rather than conditional: `click()` on an input that
+  is not in the document opens nothing, and the "choose a photo" tool is the
+  whole way out for a person whose camera was refused.
+-->
+{#snippet scanFeed()}
+	<video class="scan-video" bind:this={scanVideo} muted playsinline></video>
+	<input
+		class="scan-picker"
+		type="file"
+		accept="image/*"
+		tabindex="-1"
+		aria-hidden="true"
+		bind:this={scanPicker}
+		onchange={pickScanImage}
+	/>
+{/snippet}
+
 {#if identity}
 	{#if wide.current}
 		<div class="desktop-shell">
@@ -574,21 +722,36 @@
 		{#if desktopFlow === 'ds1'}
 			<div class="scan-scrim" role="presentation">
 				<div class="scan-modal">
-					<ScanSurface model={data.desktopScan} variant="modal" onclose={() => nav.close()} />
+					<ScanSurface
+						model={data.desktopScan}
+						variant="modal"
+						feed={scanFeed}
+						notice={scanCopy}
+						ontool={scanTool}
+						onclose={() => nav.close()}
+					/>
 				</div>
 			</div>
 		{/if}
 	{:else if flowState !== undefined}
 		<FlowsMobile
 			model={withLiveFlow(data.flows[flowState], flowInputs)}
-			onback={() => (sendView ? sendSession?.dispatch({ type: 'back' }) : nav.back())}
+			onback={() => {
+				// Backing out of the scanner is closing the scanner, not stepping
+				// back a stage — the core opened it and the core closes it.
+				if (sendView?.show_scanner) sendSession?.dispatch({ type: 'close_scanner' });
+				else if (sendView) sendSession?.dispatch({ type: 'back' });
+				else nav.back();
+			}}
 			onnavigate={(to) => {
 				if (to === 'fee-token') feeSheetOpen = true;
 				else if (to === 'batch-import') void openBatch();
+				else if (to === 'scan' && sendSession) sendSession.dispatch({ type: 'open_scanner' });
 				else nav.push(to);
 			}}
 			send={sendActions}
 			batch={batchActions}
+			scan={{ feed: scanFeed, notice: scanCopy, tool: scanTool }}
 		/>
 	{:else}
 		<WalletHome
@@ -653,5 +816,28 @@
 		background: var(--color-bg-base);
 		box-shadow: var(--shadow-lg);
 		overflow: hidden;
+	}
+
+	/* Fills the frame the brackets mark. `pointer-events: none` because a
+	   `<video>` over the surface swallows the taps meant for the tools under
+	   it — measured on the Expo build, and the same element here. */
+	.scan-video {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: var(--radius-md);
+		background: var(--color-bg-sunken);
+		pointer-events: none;
+	}
+
+	/* Mounted, not drawn: `click()` on a detached input opens nothing. */
+	.scan-picker {
+		position: absolute;
+		width: var(--border-hairline);
+		height: var(--border-hairline);
+		opacity: 0;
+		pointer-events: none;
 	}
 </style>

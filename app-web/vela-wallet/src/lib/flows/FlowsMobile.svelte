@@ -8,6 +8,7 @@
 	 * construction rather than by discipline — there is no second code path for
 	 * either to drift down.
 	 */
+	import type { Snippet } from 'svelte';
 	import BottomSheet from '$lib/wallet/ui/BottomSheet.svelte';
 	import FlowScreen from './ui/FlowScreen.svelte';
 	import ScanSurface from './ui/ScanSurface.svelte';
@@ -50,6 +51,18 @@
 		confirmDisabled: boolean;
 	}
 
+	/**
+	 * The scanner's live half (spec 028 T422). Absent — in the gallery — the
+	 * surface draws the inert frame it has always drawn; present, `feed` is the
+	 * `<video>` the camera writes into and `notice` is why there is nothing in
+	 * it.
+	 */
+	interface ScanActions {
+		feed: Snippet;
+		notice?: string;
+		tool(id: 'gallery' | 'torch' | 'flip'): void;
+	}
+
 	/** The batch importer's handlers, when its own core is live. */
 	interface BatchActions {
 		unit(id: string): void;
@@ -66,9 +79,10 @@
 		onnavigate?: (to: string, index?: number) => void;
 		send?: SendActions;
 		batch?: BatchActions;
+		scan?: ScanActions;
 	}
 
-	let { model, onback, onnavigate, send, batch }: Props = $props();
+	let { model, onback, onnavigate, send, batch, scan }: Props = $props();
 
 	const base = $derived(model.base);
 	const sheet = $derived(model.sheet);
@@ -88,7 +102,13 @@
 
 <div class="host" style:--text-scale={model.textScale === 1 ? undefined : model.textScale}>
 	{#if base.kind === 'scan'}
-		<ScanSurface model={base.model} onclose={onback} />
+		<ScanSurface
+			model={base.model}
+			feed={scan?.feed}
+			notice={scan?.notice}
+			ontool={scan ? (id) => scan.tool(id) : undefined}
+			onclose={onback}
+		/>
 	{:else if base.kind === 'share-card'}
 		<!-- Not a screen: the saved image, shown on its own so the gallery and
 		     the save path render the very same artwork. -->

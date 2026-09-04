@@ -17,6 +17,7 @@ import {
 	decodeImage,
 	loadDecoders
 } from '$lib/services/qr-decode';
+import type { WalletFlowMessages } from '../messages';
 
 /** Why there is no picture — each one a different thing to do about it. */
 export type ScanStatus =
@@ -40,6 +41,13 @@ class Scanner {
 	/** Set when a picked image contained no code — a different thing from a
 	 *  camera that never saw one, because the person is waiting on an answer. */
 	nothingFound = $state(false);
+	/** Which camera is aimed. A phone starts on the back one, which is the one
+	 *  pointed at someone else's code. */
+	facing = $state<'environment' | 'user'>('environment');
+	/** The lamp, and whether this camera has one. Most webcams do not, and a
+	 *  torch button that silently does nothing is worse than a dim one. */
+	torchOn = $state(false);
+	torchAvailable = $state(false);
 
 	#stream: MediaStream | null = null;
 	#video: HTMLVideoElement | null = null;
@@ -72,7 +80,7 @@ class Scanner {
 		void loadDecoders();
 		try {
 			this.#stream = await navigator.mediaDevices.getUserMedia({
-				video: { facingMode: 'environment' },
+				video: { facingMode: this.facing },
 				audio: false
 			});
 		} catch (error) {
@@ -88,8 +96,43 @@ class Scanner {
 		video.setAttribute('playsinline', 'true');
 		video.muted = true;
 		await video.play().catch(() => {});
+		// Ask the track what it can do before offering the tool that needs it.
+		const track = this.#stream.getVideoTracks()[0];
+		const capabilities = track?.getCapabilities?.() as { torch?: boolean } | undefined;
+		this.torchAvailable = capabilities?.torch === true;
+		this.torchOn = false;
 		this.status = 'live';
 		this.#loop();
+	}
+
+	/** The other camera. A restart, because `facingMode` is chosen at open. */
+	async flip(): Promise<void> {
+		this.facing = this.facing === 'environment' ? 'user' : 'environment';
+		const video = this.#video;
+		if (!video) return;
+		this.stop();
+		await this.start(video);
+	}
+
+	/**
+	 * The lamp. `torch` is not in the standard constraint set — it is an
+	 * extension every mobile browser that has a lamp implements and no desktop
+	 * does, which is why the failure path leaves the button OFF rather than
+	 * reporting an error about hardware that was never there.
+	 */
+	async toggleTorch(): Promise<void> {
+		const track = this.#stream?.getVideoTracks()[0];
+		if (!track) return;
+		const next = !this.torchOn;
+		try {
+			await track.applyConstraints({
+				advanced: [{ torch: next }]
+			} as unknown as MediaTrackConstraints);
+			this.torchOn = next;
+		} catch {
+			this.torchAvailable = false;
+			this.torchOn = false;
+		}
 	}
 
 	/** A picked image — the way out when the camera cannot be had. */
@@ -99,6 +142,12 @@ class Scanner {
 		if (found) this.result = found;
 		else this.nothingFound = true;
 		return found;
+	}
+
+	/** Take the last read back off the surface, so one code is acted on once. */
+	clear(): void {
+		this.result = null;
+		this.nothingFound = false;
 	}
 
 	stop(): void {
@@ -151,6 +200,37 @@ function classify(error: unknown): ScanStatus {
 	if (name === 'NotAllowedError' || name === 'SecurityError') return 'denied';
 	if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'absent';
 	return 'unavailable';
+}
+
+/**
+ * What to say instead of the hint — or nothing, when the hint is still true.
+ *
+ * The whole module exists for this function. Every state below draws the same
+ * black frame, and the only thing that separates them is the sentence, so the
+ * mapping is pinned by a test rather than left to a `switch` nobody rereads.
+ */
+export function scanNotice(
+	state: { status: ScanStatus; nothingFound: boolean; unusable: boolean },
+	m: WalletFlowMessages
+): string | undefined {
+	// A code that was read and cannot be used is not a scanning failure, and
+	// saying "no QR found" about a QR plainly in frame would be a lie.
+	if (state.unusable) return m['home.invalidQrTitle'];
+	if (state.nothingFound) return m['componentsUi.scanner.noQrFoundMsg'];
+	switch (state.status) {
+		case 'denied':
+			return m['componentsUi.scanner.permissionText'];
+		case 'absent':
+			return m['componentsUi.scanner.noCamera'];
+		case 'insecure':
+			return m['componentsUi.scanner.insecureOrigin'];
+		case 'unavailable':
+			return m['componentsUi.scanner.cameraUnavailable'];
+		default:
+			// idle, starting, live: the hint ("point the camera at a code") is
+			// exactly right, and replacing it would be noise.
+			return undefined;
+	}
 }
 
 /** One scanner per page: two live camera streams is a bug, not a feature. */

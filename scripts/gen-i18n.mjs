@@ -240,8 +240,17 @@ for (let i = 1; i < PATHS.length; i++) {
 //   verified-ABI decode, 4byte best-effort, the un-simulatable case, the drain
 //   reveal, Safe's inner call, deploy, and the slide-to-confirm labels. The
 //   other ~95% of the signing copy was already here, which is why this is 43.
-if (PATHS.length !== 1620) fail(`expected 1620 paths (1536 leaf + 84 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1536) fail(`expected 1536 leaf paths, got ${leafSet.size}`);
+// + 3 more (spec 028, the web scanner's refusals): `componentsUi.scanner.
+//   {noCamera,insecureOrigin,cameraUnavailable}`. Native never needed them —
+//   a phone has a camera and an app has no origin — but a browser refuses in
+//   three ways a person can act on differently, and a viewfinder that just
+//   stays black tells them their camera is broken. The corpus was searched
+//   first: `permissionText` covers the refusal that can be undone in site
+//   settings, and nothing here said "there is no camera", "this page is not on
+//   HTTPS" or "something else has the camera". No new branch — all three hang
+//   off the existing `componentsUi.scanner`.
+if (PATHS.length !== 1623) fail(`expected 1623 paths (1539 leaf + 84 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1539) fail(`expected 1539 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 84) fail(`expected 84 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

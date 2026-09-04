@@ -159,8 +159,13 @@ describe('generated i18n resources', () => {
     // of the ERC-7730 ladder the 33 CS mocks walk down. Roughly 95% of the
     // signing copy was already in the corpus, which is why 33 scenarios cost
     // 43 strings and not 400.
+    // 22,803 = 22,758 plus spec 028's 3 `componentsUi.scanner.*` keys × 15:
+    // noCamera / insecureOrigin / cameraUnavailable. Native never needed them —
+    // a phone has a camera, and an app has no origin to be insecure — but the
+    // web scanner refuses in three ways with three different things to do about
+    // them, and a viewfinder that only stays black says none of it.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(22_758);
+    expect(total).toBe(22_803);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

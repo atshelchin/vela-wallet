@@ -53,15 +53,19 @@ fixed before this feature ships. It is tracked in 027's ledger.
 - [X] T421 [US1] ~~Port `image-decode.ts`~~ **NOT NEEDED**: it is a pure-JS JPEG
       decoder for native, which has no canvas. A browser decodes images itself —
       the picked-image path is `createImageBitmap`
-- [~] T422 [US1] `ScanSurface` gains its live half: camera frames through the
+- [X] T422 [US1] `ScanSurface` gains its live half: camera frames through the
       ladder, the gallery/torch/flip tools, and every refusal SAID — no camera,
       permission denied, insecure origin, nothing found (carried gotchas: the
-      file input must be mounted, `<video>` swallows touches)
-- [ ] T423 [US1] The scan result reaches the send form and the sweep picker
+      file input must be mounted, `<video>` swallows touches). Three corpus
+      words added for the refusals native never had (`noCamera`,
+      `insecureOrigin`, `cameraUnavailable`)
+- [X] T423 [US1] The scan result reaches the send form and the sweep picker —
+      through the CORE's own `open_scanner` / `scan_resolved`, so the sweep
+      picker's scan button needs nothing of its own
 - [X] T424 [P] [US1] Units: the ladder's order, each refusal's reason
-- [ ] T425 [US1] e2e `scan.e2e.ts` (SC-402): a generated code is picked from the
+- [X] T425 [US1] e2e `scan.e2e.ts` (SC-402): a generated code is picked from the
       file input and read; a refused camera states its reason
-- [ ] T426 Full gate; results.md Phase 3 entry
+- [X] T426 Full gate; results.md Phase 3 entry
 
 ## Phase 4: Preferences and erase (one commit)
 

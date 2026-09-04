@@ -7,7 +7,8 @@
  * WHY when it cannot.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { Scanner } from './scanner.svelte';
+import { resolveWalletFlowMessages } from '$lib/i18n/engine.server';
+import { Scanner, scanNotice, type ScanStatus } from './scanner.svelte';
 
 /** Drive `start()` with a `getUserMedia` that rejects the way a browser does. */
 async function statusAfterRejecting(name: string): Promise<string> {
@@ -60,5 +61,42 @@ describe('a camera that will not open says which kind of no it is', () => {
 		vi.stubGlobal('window', { isSecureContext: true });
 		expect(Scanner.supported()).toBe(false);
 		vi.unstubAllGlobals();
+	});
+});
+
+describe('the surface says which no it was', () => {
+	const m = resolveWalletFlowMessages('en');
+	const notice = (status: ScanStatus, extra: { nothingFound?: boolean; unusable?: boolean } = {}) =>
+		scanNotice(
+			{ status, nothingFound: extra.nothingFound ?? false, unusable: extra.unusable ?? false },
+			m
+		);
+
+	it('gives every refusal its own sentence', () => {
+		const sentences = (['denied', 'absent', 'insecure', 'unavailable'] as const).map((status) =>
+			notice(status)
+		);
+		for (const sentence of sentences) expect(sentence?.trim()).toBeTruthy();
+		// Four states, four DIFFERENT things to do. One sentence reused across
+		// two of them is the dead viewfinder wearing words.
+		expect(new Set(sentences).size).toBe(4);
+	});
+
+	it('says nothing while there is nothing wrong', () => {
+		// The hint under the frame already says "point the camera at a code";
+		// overwriting it with a status would be noise.
+		for (const status of ['idle', 'starting', 'live'] as const) {
+			expect(notice(status)).toBeUndefined();
+		}
+	});
+
+	it('a picked image with no code in it is not a camera problem', () => {
+		expect(notice('idle', { nothingFound: true })).toBe(m['componentsUi.scanner.noQrFoundMsg']);
+	});
+
+	it('a code that was READ and cannot be used never says "no QR found"', () => {
+		// The lie this prevents: a QR plainly in frame, decoded, reported as
+		// missing. It outranks every other notice for that reason.
+		expect(notice('live', { unusable: true, nothingFound: true })).toBe(m['home.invalidQrTitle']);
 	});
 });

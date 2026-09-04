@@ -43,6 +43,14 @@ export const WALLET_FLOW_KEYS = [
 	'componentsUi.scanner.fromGallery',
 	'componentsUi.scanner.torch',
 	'componentsUi.scanner.flipCamera',
+	// Why there is nothing to look at. A browser refuses in more ways than a
+	// phone does, and each refusal is a different thing for a person to do.
+	'componentsUi.scanner.permissionText',
+	'componentsUi.scanner.noCamera',
+	'componentsUi.scanner.insecureOrigin',
+	'componentsUi.scanner.cameraUnavailable',
+	'componentsUi.scanner.noQrFoundMsg',
+	'home.invalidQrTitle',
 
 	// -------------------------------------------------------------- activity
 	'history.navTitle',

@@ -60,22 +60,25 @@ app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 4: Connect (one commit) 🎯 MVP
 
-- [ ] T330 [US1] Port `dperm-{types,connect,connect-types,popup}.ts` →
+- [X] T330 [US1] Port `dperm-{types,connect,connect-types,popup}.ts` →
       `src/lib/dapp/core/dperm-*.ts`; `dapp-permissions.ts` +
-      `dapp-account-reconcile.ts` services
-- [ ] T331 [US1] Port `dsess-{types,executor,session,resident}.ts` →
-      `src/lib/dapp/core/dsess-*.ts` (the resident owns the live connection)
-- [ ] T332 [P] [US1] Port `ext-cache-{types,executor,session}.ts` — the fast
+      `dapp-account-reconcile.ts` services (the Expo web-popup entry is the same
+      shape as this extension's request window and uses `dapp_permissions` alone)
+- [X] T331 [US1] ~~Port `dsess-*`~~ **DROPPED (research D43)**: `dapp_session`
+      is the machine for a live TRANSPORT session — WalletPair, or an in-app
+      browser — and both are excluded from this feature. Instead: fix Phase 3's
+      window-close settlement to ask `popupCloseSettlement()` (4900, not 4001)
+- [X] T332 [P] [US1] Port `ext-cache-{types,executor,session}.ts` — the fast
       answers an already-granted origin gets
-- [ ] T333 [US1] `src/lib/dapp/live.ts`: the three views → the 022
+- [X] T333 [US1] `src/lib/dapp/live.ts`: the three views → the 022
       `ConnectionSheet` / `ConnectionModel`; `ConnectionPanel.svelte` gains
       callbacks (gallery pixel-unchanged)
-- [ ] T334 [US1] `eth_requestAccounts` end to end: consent surface → grant →
+- [X] T334 [US1] `eth_requestAccounts` end to end: consent surface → grant →
       the granted account only; dismissal answers `4001` and records nothing
-- [ ] T335 [P] [US1] Units: dperm/dsess/ext-cache arms; live builders
-- [ ] T336 [US1] e2e `extension-connect.e2e.ts` (SC-301) + a MetaMask-only test
+- [X] T335 [P] [US1] Units: dperm/dsess/ext-cache arms; live builders
+- [X] T336 [US1] e2e `extension-connect.e2e.ts` (SC-301) + a MetaMask-only test
       page (SC-302)
-- [ ] T337 Full gate; results.md Phase 4 entry
+- [X] T337 Full gate; results.md Phase 4 entry
 
 ## Phase 5: Sign (one commit)
 

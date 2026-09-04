@@ -10,9 +10,12 @@ Ship the same application a second way — as a Chrome MV3 extension — so that
 dApp in any tab discovers Vela, and its requests reach the signing sheet 026
 already built. The page side is ported from the Safari extension, which already
 implements discovery and the bridge on MV3. The wallet side becomes the FIRST
-real transport on 026's `sign_request` seam. Three machines join the web tier —
-`dapp_permissions`, `dapp_session`, `ext_cache` — and decide everything about
-grants, sessions and the fast answers; the extension only asks and performs.
+real transport on 026's `sign_request` seam. Two machines join the web tier —
+`dapp_permissions` and `ext_cache` — and decide everything about grants and the
+fast answers; the extension only asks and performs. (`dapp_session` was named in
+the first draft and dropped in Phase 4: it is the machine for a live TRANSPORT
+session, and both of its reasons to exist — WalletPair and the in-app browser —
+are excluded from this feature. Research D43.)
 
 The feature's central risk was settled before planning: **the extension can
 perform the passkey ceremony under `rpId = getvela.app`** (research D31), so it
@@ -66,7 +69,7 @@ specs/027-web-extension-provider/
 
 ```text
 app-web/vela-wallet/
-  src/lib/dapp/core/{dperm,dsess,ext-cache}-*.ts   # the three machine loops
+  src/lib/dapp/core/{dperm,ext-cache}-*.ts         # the two machine loops
   src/lib/dapp/live.ts                             # views → the 022 models
   src/lib/dapp/transport.ts                        # the first REAL 026 transport
   src/lib/explore/ui/ConnectionPanel.svelte        # + callbacks (drawn in 022)
@@ -94,7 +97,7 @@ not SvelteKit modules and must never be bundled by it.
 | 1 | Setup — baselines (hosted-site budgets, corpus pins, port-provenance list @ 52ad8fa9), green tree, the `extension/` home, literal-audit list | results.md |
 | 2 | The package and the shell — manifest (`wasm-unsafe-eval`, pinned id, host permission for `getvela.app`), the inline-script-free shell build, the core loading in a `chrome-extension://` page, and a REAL login with a passkey proving the same derived address | gates + an e2e that loads the unpacked extension and signs in |
 | 3 | Injection and transport — port inpage/content/background/protocol with provenance; the wallet-side transport registered on 026's seam; the request window (D34) | gates + a test dApp seeing the provider and reaching the wallet |
-| 4 | Connect (US1) — `dapp_permissions` + `dapp_session` + `ext_cache` wired; consent from the 022 ConnectionPanel; `eth_requestAccounts` end to end | gates + connect e2e (SC-301/302) |
+| 4 | Connect (US1) — `dapp_permissions` + `ext_cache` wired; consent from the 022 ConnectionPanel; `eth_requestAccounts` end to end | gates + connect e2e (SC-301/302) |
 | 5 | Sign (US2) — requests routed into 026's sheet; transaction, message and typed data; the answer back, exactly once | gates + signing e2e (SC-303/304) |
 | 6 | Connections and resilience (US4, US5) — listing, revocation, account/chain events; the answer-or-reject guarantee under worker teardown | gates + revoke and resilience e2e (SC-305/307) |
 | 7 | Real-device pass, budgets, closeout — Touch ID confirmation of D31, hosted-site budgets byte-identical, extension package size recorded, SC verdicts, 028 handoff | full suite + ledger |

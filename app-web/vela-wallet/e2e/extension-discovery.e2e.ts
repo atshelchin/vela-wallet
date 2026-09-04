@@ -107,29 +107,34 @@ test.describe('the injected provider', () => {
 		await expect(win.getByText('eth_requestAccounts')).toBeVisible();
 
 		// Refusing answers the dApp — in the standard shape, and exactly once.
-		await win.getByRole('button').click();
+		await win.getByRole('button', { name: 'Cancel' }).click();
 		const answer = await asked;
 		expect(answer.ok).toBe(false);
 		expect(answer.code).toBe(4001);
 		await context.close();
 	});
 
-	test('closing the window without deciding IS the refusal', async () => {
+	test('closing the window without deciding settles 4900, never 4001', async () => {
 		const context = await loadExtension();
 		const page = await context.newPage();
 		await page.goto(`http://localhost:${DAPP_PORT}/`);
 
 		const asked = page.evaluate(
-			() =>
-				window.__ask('personal_sign', ['0xdeadbeef', `0x${'ab'.repeat(20)}`]) as Promise<AskResult>
+			() => window.__ask('eth_requestAccounts') as Promise<AskResult>
 		) as Promise<AskResult>;
 		const win = await requestWindow(context);
 		await win.close();
 
-		// No decision was made, so the dApp is told no rather than left waiting.
+		// The dApp is told, rather than left waiting — but NOT with 4001. That
+		// code means "the user said no, nothing happened", and a dApp that reads
+		// it re-sends; if the request had reached the bundler, the re-send is a
+		// double spend. The code is `dapp_permissions`', asked rather than
+		// restated (spec 027 D43), and `instant.test.ts` pins the worker's
+		// backstop against the core's own answer.
 		const answer = await asked;
 		expect(answer.ok).toBe(false);
-		expect(answer.code).toBe(4001);
+		expect(answer.code).not.toBe(4001);
+		expect(answer.code).toBe(4900);
 		await context.close();
 	});
 
@@ -144,11 +149,14 @@ test.describe('the injected provider', () => {
 		)) as AskResult;
 		expect(signed.code).toBe(4200);
 
-		// And a state read from an ungranted origin does not open a window: it is
-		// answered as unauthorised, because nothing here may invent an account
-		// list or a chain id (Phase 4 gives them their machines).
+		// And a state read from an ungranted origin opens no window. In this
+		// context no wallet has ever been opened, so there is no published
+		// snapshot and the honest answer is that Vela cannot say yet — not an
+		// invented chain id.
 		const chain = (await page.evaluate(() => window.__ask('eth_chainId'))) as AskResult;
 		expect(chain.code).toBe(4100);
+		const accounts = (await page.evaluate(() => window.__ask('eth_accounts'))) as AskResult;
+		expect(accounts.result).toEqual([]);
 		expect(requestWindowOpen(context)).toBe(false);
 		await context.close();
 	});

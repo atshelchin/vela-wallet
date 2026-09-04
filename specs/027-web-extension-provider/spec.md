@@ -25,9 +25,8 @@ dApp is and to carry its requests to the sheet that already knows how to answer
 them.
 
 The decisions are, as always, already Rust: `dapp_permissions.rs` (1,341 lines)
-rules what an origin is granted, `dapp_session.rs` (1,959) owns the live
-connection, `ext_cache.rs` (692) keeps the cheap answers the page needs
-instantly. The extension contributes only what a machine cannot have: presence
+rules what an origin is granted and how a torn-down window settles, and
+`ext_cache.rs` (692) keeps the cheap answers the page needs instantly. The extension contributes only what a machine cannot have: presence
 in the page, a message channel, and the browser's own APIs.
 
 **Standing rules this feature inherits, not re-decides**: the core decides and
@@ -247,10 +246,12 @@ receives a definite answer rather than hanging.
   accounts, which network, for how long — MUST be decided by
   `dapp_permissions`; the extension only asks and performs. Revocation MUST be
   the same authority in reverse.
-- **FR-305 (Sessions and the fast answers)**: the live connection MUST be owned
-  by `dapp_session`, and the answers a page expects instantly (the current
-  account and chain for an already-granted origin) MUST come from `ext_cache`
-  rather than from a fresh decision each time.
+- **FR-305 (The fast answers)**: the answers a page expects instantly — the
+  current account and chain for an already-granted origin — MUST come from
+  `ext_cache` rather than from a fresh decision each time, and MUST NOT open a
+  window. (`dapp_session`, named here in the first draft, turned out to be the
+  machine for a live TRANSPORT session — WalletPair, or an in-app browser — and
+  both are excluded from this feature; see research D43.)
 - **FR-306 (Signing is 026's, unchanged)**: transaction and signature requests
   MUST be answered through the existing signing sheet and money spine — the
   same clear-signing reading, the same never-unlimited guard, the same
@@ -293,8 +294,6 @@ receives a definite answer rather than hanging.
   arguments.
 - **Grant**: what an origin has been given — accounts, network, and its
   provenance and age. Owned by `dapp_permissions`.
-- **Connection**: a live session with a granted origin, with the site's
-  identity for display. Owned by `dapp_session`.
 - **Cached answer**: the account and chain an already-granted origin may be told
   immediately. Owned by `ext_cache`.
 - **Extension package**: the shippable artifact — the injected script, the page

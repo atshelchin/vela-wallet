@@ -30,6 +30,8 @@
 	import IdenticonViewer from '$lib/wallet/ui/IdenticonViewer.svelte';
 	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { session } from '$lib/session/core/session.svelte';
+	import { publishExtSnapshot } from '$lib/dapp/core/ext-cache';
+	import { inExtension } from '$lib/dapp/transport';
 	import { identiconSvgForClient } from '$lib/wallet/identicon';
 	import { desktopWithIdentity, homeWithIdentity, type WalletIdentity } from '$lib/wallet/identity';
 	import FlowsMobile from '$lib/flows/FlowsMobile.svelte';
@@ -371,6 +373,29 @@
 		// with it — until a snapshot lands every chain is unsupported, which is
 		// the fail-closed default a shell must not leave in place.
 		void signRequest.boot().then(() => signRequest.syncNetworks());
+	});
+
+	/**
+	 * Publish what an already-connected site may be told, whenever this wallet's
+	 * accounts change (spec 027 T332).
+	 *
+	 * A page that is already connected asks `eth_accounts` and `eth_chainId` on
+	 * every load, and the extension's service worker cannot run the core to
+	 * answer them. So `ext_cache` decides what the snapshot contains and this
+	 * stores it; the worker only reads. Off the extension there is no channel
+	 * and no storage to write to, and `publishExtSnapshot` is a no-op.
+	 */
+	$effect(() => {
+		const view = session.view;
+		if (view.loading || !inExtension()) return;
+		void publishExtSnapshot({
+			isLoading: false,
+			hasWallet: view.has_wallet,
+			accounts: view.accounts.map((row) => row.account),
+			active: view.accounts[view.active_index]?.account ?? null,
+			theme: 'dark',
+			locale: data.locale ?? 'en'
+		});
 	});
 
 	// The account the balances belong to. `account_changed` is also the

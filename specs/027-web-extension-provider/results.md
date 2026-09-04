@@ -237,3 +237,92 @@ locale", and the stored one is not readable until the wallet boots).
 **Gates**: check **1341**/0 · lint clean · unit **751** · build ×15 +
 `build:extension` · e2e **127/127** (chromium + firefox + webkit) · wasm
 byte-identical · **corpus delta zero** · extension package 35 MB.
+
+---
+
+## Phase 4 — connecting (T330–T337) 🎯 MVP
+
+**What shipped**: a dApp asks, a person decides, and the site stays connected.
+End to end on the real machines: the site asks → `dapp_permissions` rules →
+the window shows who is asking → the core authors the grant, the audit row and
+the answer → the next question is answered from what the core published, with
+no window and no second decision.
+
+Driven against a test dApp with the fixture wallet seeded through the parallel
+space: `eth_accounts` before any grant is `[]` (a disconnected wallet, no
+prompt — what EIP-1193 asks for); `eth_requestAccounts` opens a window headed
+**"Connect to localhost:8812"**; Connect returns
+`["0xD400866e00B055B20752a826CD5C89b811de130b"]` — the core's own derivation,
+never a stored field; and the same question afterwards is answered instantly.
+
+- **`dapp_permissions`** (T330), ported whole from the Expo web-popup entry's
+  four modules. The core owns every branch: `decide_popup_request` for the
+  question, `consent_approved` for what an approval authors —
+  `WriteGrant` + `SaveConnectionRecord` + `Respond` — and `browser_closed` for
+  how a torn-down window settles. `dperm-connect.ts` came with its own
+  fail-closed rule intact: if the core does not end up with a consent sheet open
+  for exactly this origin, it authors nothing rather than mint a grant the
+  machine never sanctioned.
+- **The audit row is written**, not skipped. It is the reason that port exists
+  in the Expo tree at all — a connection nobody can see is a connection nobody
+  can revoke — and it lands through 026's own transaction writer, under its
+  lock, beside the sends.
+- **`ext_cache`** (T332) with one substitution: on Safari the snapshot is a file
+  in an App Group, because the wallet and the extension are two processes; here
+  they are the same extension, so it is a key in `chrome.storage.local`. The
+  core still owns everything in it, including the chain id (its own constant, by
+  invariant ⑤ — not a shell default). Two of its operations have no counterpart
+  in Chrome and are ANSWERED rather than skipped: the Universal-Link attestation
+  is "never attested", which is simply true here, and an unanswered effect
+  stalls the loop.
+- **Not ported**: `dapp-permissions.ts`'s `resolveGranted` / `shouldDropGrant`
+  (TypeScript twins of rules the core owns — the same call 026 made about
+  `clear-signing`'s twin), and `dapp-account-reconcile.ts`, whose web variant is
+  deliberately empty because `sign_request` does the reconcile.
+
+### One machine dropped, with its reasons written down (D43)
+
+The spec, the plan and the tasks all named three machines. **`dapp_session` is
+not one of them.** It is the machine for a live TRANSPORT session — its
+executor's own documentation is about the mutual exclusion between a WalletPair
+pairing and a browser document — and both of its reasons to exist are excluded
+from this feature: WalletPair by founder decision, the in-app browser by spec
+022. Wiring it would have produced a machine connected to nothing, kept alive by
+tests written to justify it. The Expo tree settles the question by example: its
+web popup, which is the same shape as this window, uses `dapp_permissions`
+alone.
+
+### The fund-safety rule Phase 3 got wrong
+
+Phase 3's service worker answered **4001** when a request window closed. The
+core disagrees, and its reason is the whole point of `SettleForwarded` carrying
+a code at all: a window torn down with an answer still owed settles **4900
+unknown-pending**, because *a dApp reads 4001 as "the user said no, nothing
+happened" and re-sends — double-spending an operation that may already be at the
+bundler.* An explicit Cancel stays 4001; that one really is "nothing happened".
+
+The window now settles itself with the core's own answer on teardown, and the
+worker keeps a backstop for a window that died before it could. Both e2e were
+corrected, and the assertion is written as `not.toBe(4001)` first, because that
+is the failure that costs money.
+
+### Two twins, and how they are held to the core
+
+The service worker cannot run the core — a 3.6 MB binary to answer
+`eth_accounts` on every page load is not a trade anyone would make — so two of
+`dapp_permissions`' rules exist a second time in `extension/lib/protocol.js`:
+what a granted origin may see, and how a closed window settles.
+`instant.test.ts` drives the REAL core over the same matrix and demands
+identical answers, including the load-bearing case: a cold read, before the
+wallet has published anything, must NOT be read as "the account is gone" — that
+would log the person out of every open dApp on every browser start.
+
+**Recorded**: a signing request from a granted origin reaches the window's
+`forward_to_signing` branch and waits there — Phase 5 mounts 026's sheet on it;
+reads and chain switching are classified but not yet routed; the connection
+LIST and revocation are Phase 6's, though the rows they will read are being
+written now.
+
+**Gates**: check **1351**/0 · lint clean · unit **758** · build ×15 +
+`build:extension` · e2e **130/130** (chromium + firefox + webkit) · wasm
+byte-identical · corpus delta zero · extension package 35 MB.

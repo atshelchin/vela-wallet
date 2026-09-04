@@ -239,3 +239,45 @@ export function isWellFormedRequest(value) {
 		return false;
 	}
 }
+
+// ---- what an already-granted origin may be told, without a window ----------
+
+/**
+ * The accounts an origin may see, given its grant and the wallet's snapshot.
+ *
+ * **This is a TWIN of a rule `dapp_permissions` owns** (`resolve_granted`), and
+ * it exists only because the service worker cannot run the core: loading a
+ * 3.6 MB binary to answer `eth_accounts` on every page load is not a trade
+ * anyone would make. `dapp-instant.test.ts` drives the REAL core over the same
+ * matrix of inputs and asserts identical answers, so the two cannot drift in
+ * silence — the same treatment 026 gave the relay's error strings.
+ *
+ * The load-bearing case is the last one. A cold read, before the wallet has
+ * published anything, must NOT be read as "the account is gone" — that would
+ * log the person out of every open dApp on every browser start.
+ */
+export function resolveGrantedAccounts(grant, snapshotAddresses) {
+	if (!grant || typeof grant.address !== 'string') return [];
+	if (!Array.isArray(snapshotAddresses) || snapshotAddresses.length === 0) return [grant.address];
+	const present = snapshotAddresses.some(
+		(a) => typeof a === 'string' && a.toLowerCase() === grant.address.toLowerCase()
+	);
+	return present ? [grant.address] : [];
+}
+
+/**
+ * How a window torn down with an answer still owed settles.
+ *
+ * A TWIN of `dapp_permissions`' `browser_closed` → `SettleForwarded`, for the
+ * same reason as above, and pinned the same way. The code is the whole point:
+ * **4900, never 4001**. A dApp reads 4001 as "the user said no, nothing
+ * happened" and re-sends — double-spending an operation that may already be at
+ * the bundler. An explicit Cancel is a different thing and really is 4001.
+ *
+ * The request WINDOW settles itself with the core's own answer; this is the
+ * backstop for a window that died before it could.
+ */
+export const CLOSED_WITHOUT_ANSWER = {
+	code: ERR.UNKNOWN_PENDING,
+	message: 'The browser closed before the request finished'
+};

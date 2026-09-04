@@ -283,3 +283,50 @@ exactly this situation, is unusable — it rejects `+layout.server.ts` as well a
 `+server.ts`, and this app resolves all 15 locales inside server loads at
 prerender time. Hash routing would trade the corpus for a router. D35's
 correction stands, now with the falsification written down.
+
+
+---
+
+## D43 — `dapp_session` is NOT this feature's machine
+
+Found in Phase 4, reading the port sources before writing any of it.
+
+The spec, the plan and the task list all named three machines. Two of them are
+right. `dapp_session` (1,959 Rust lines, 66 tests) is the machine for **a live
+transport session** — its executor's own documentation is about the mutual
+exclusion between a WalletPair pairing and a browser document, its transport
+table maps `session_ref` to a live `DAppTransport`, and its consumers in the
+Expo tree are `models/dapp-connection.tsx` (the WalletPair pairing screen) and
+`connect-entry.ts`.
+
+**Both of its reasons to exist are excluded from 027**: WalletPair is out by
+founder decision ("not mature"), and the in-app browser is out by spec 022.
+Wiring it here would have produced a machine connected to nothing, kept alive by
+tests written to justify it.
+
+**What actually answers this feature's questions**:
+
+- **`dapp_permissions`** decides the whole connect story, and the Expo tree
+  already proves it: its web popup entry (`app/web-request.tsx`) — which is the
+  same shape as this extension's request window, a one-shot window answering one
+  request — uses `dapp_permissions` alone. `decide_popup_request` rules whether
+  an origin may be answered and from which address; `consent_approved` authors
+  the grant, the audit row and the response; `browser_closed` names how a torn-
+  down window settles.
+- **`ext_cache`** is the snapshot the extension reads to answer instantly
+  without opening a window. On Safari it is a file in an App Group; here it is
+  the same job in `chrome.storage.local`, which is a shorter path to the same
+  place.
+
+**Decision**: 027 wires `dapp_permissions` and `ext_cache`. `dapp_session`
+belongs to whichever spec brings a real transport session — WalletPair, or an
+in-app browser — and is explicitly handed on rather than half-wired here.
+
+**Also corrected here — a fund-safety rule Phase 3 got wrong.** Phase 3's
+service worker answered `4001` when a request window closed. The core disagrees,
+and its reason is the whole point of `SettleForwarded` carrying a code at all:
+a window torn down with an answer still owed settles **4900 unknown-pending**,
+never 4001, because *a dApp reads 4001 as "the user said no, nothing happened"
+and re-sends — double-spending a UserOp that may already be at the bundler*. An
+explicit Cancel stays 4001: that one really is "nothing happened". Phase 4 asks
+`popupCloseSettlement()` instead of restating either.

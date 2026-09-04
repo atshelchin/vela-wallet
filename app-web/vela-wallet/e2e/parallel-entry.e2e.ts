@@ -9,11 +9,9 @@
  *      are public by design, so their presence in a production chunk would be
  *      a real hazard, not a tidiness question.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { readKv } from './stub-chain';
-import { en, seedSignedIn } from './live-helpers';
+import { chunksCarrying, collectScripts, en, seedSignedIn } from './live-helpers';
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -77,11 +75,7 @@ test('the space survives a reload, and the multi-key golden Safe is one of its w
 });
 
 test('a normal visit never loads the fixture keys', async ({ page }) => {
-	const scripts: string[] = [];
-	page.on('response', (response) => {
-		const url = response.url();
-		if (url.endsWith('.js')) scripts.push(url);
-	});
+	const scripts = collectScripts(page);
 
 	await seedSignedIn(page);
 	await page.goto('/en/wallet');
@@ -93,12 +87,10 @@ test('a normal visit never loads the fixture keys', async ({ page }) => {
 	// page loaded — the parallel space is one dynamic import away, never in a
 	// chunk a visitor pays for.
 	const SEED = 'd80133c59ce0943689a9c1ff6006242c27b19412439fbc88f94feb5ca1e802d5';
-	// Read from the BUILT output rather than re-fetching every chunk: the
-	// preview worker is single-threaded and a burst of body fetches from six
-	// parallel workers starves the other suites (found in the full matrix).
-	const bodies = scripts.map((url) => chunkSource(url));
-	const carriers = scripts.filter((_, i) => bodies[i].includes(SEED));
-	expect(carriers, 'fixture keys reached a chunk a normal visit loads').toEqual([]);
+	expect(
+		chunksCarrying(scripts, SEED),
+		'fixture keys reached a chunk a normal visit loads'
+	).toEqual([]);
 
 	// And the wallet is the real one: no badge, no requester, no parallel verbs.
 	await expect(page.getByTestId('parallel-space-badge')).toHaveCount(0);
@@ -110,13 +102,3 @@ test('a normal visit never loads the fixture keys', async ({ page }) => {
 	// The wallet still works — the guard did not cost the page anything.
 	await expect(page.getByRole('button', { name: en('componentsUi.dock.receive') })).toBeVisible();
 });
-
-/** A loaded chunk's source, straight off the build output. */
-function chunkSource(url: string): string {
-	const path = new URL(url).pathname.replace(/^\//, '');
-	try {
-		return readFileSync(join(process.cwd(), '.svelte-kit/output/client', path), 'utf8');
-	} catch {
-		return '';
-	}
-}

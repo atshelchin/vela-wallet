@@ -356,3 +356,200 @@ form only, which is where 021 drew it.
 **Gates**: check 1327/0 · lint clean · unit **731** · build ×15 · e2e
 **111/111** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
 delta.
+
+---
+
+## Phase 7 — the live sweep, the matrix, the budgets (T260–T264)
+
+### The live sweep (T260 — SC-202): real money, on Gnosis
+
+Founder-authorised on 2026-09-04. The built preview (the production artifact,
+not the dev server), the parallel space entered, the active wallet switched to
+the multi-key golden Safe `0x88cCA0…6894` — and from there a dust transfer to
+fixture Safe #2 `0x031d7D…4772b` through **vela-relay.getvela.app**, the real
+relay. One substitution in the whole run: the passkey.
+
+**What the person saw** — `$0.77` total, one asset row, `XDAI · Gnosis
+0.76997`, first figure ~7 s cold. Then `Est. Fee 0.01 xDAI` on the confirm
+screen, `Submitted to the network` with the operation hash, and `Sent 0.001
+XDAI` with the transaction hash ~7 s later.
+
+**What actually happened** —
+
+| | |
+| --- | --- |
+| userOpHash | `0x402ca4d7eb78fe19df5f863a838baa87077773abbc27a840097a46978cc7e24b` |
+| txHash | `0xa4f0d25ad48e8e42dd1e78e28dcba1d62e11fc025f7d1df4d6f1e27c42d1a18e` |
+| block / status | 48,070,180 · `0x1` |
+| Safe before → after | 0.76997 → **0.75897 xDAI** (Δ **0.011**) |
+| of which sent | 0.001 (recipient credited) |
+| of which fee | 0.010 — the in-band quote the wallet SIGNED (`feeToken=native amount=10000000000000000 recipient=0xee2cca98…f0dd`) |
+| relay quote | `pimlico_getUserOperationGasPrice` → 14 wei · `vela_getInBandGasQuote` → native + two TIP-20 fee coins · `eth_estimateUserOperationGas` → call 112,472 / preVerification 101,600 / verification 100,000 |
+| outer transaction | 146,776 gas at 10 wei effective = **1.5 × 10⁻¹² xDAI**; EntryPoint `actualGasCost` 0 (the op is submitted at `maxFeePerGas: 0x0` — the fee is settled in-band, inside the calldata, not by the EntryPoint) |
+
+**SC-202 is met on its own terms**: the amount and the fee shown on screen
+agree with the chain to the unit — 0.001 sent, 0.010 charged, 0.011 gone. The
+wallet's promise ("what you see is what you sign is what you pay") held end to
+end, and a following read showed `0.75897` / `$0.76` on the balance hero.
+
+**And it surfaced the fee question the wallet cannot answer alone.** Gnosis was
+running at an 8-wei base fee during the sweep, so the real chain cost was ~10⁻¹²
+xDAI while the relay charged 0.01. That is not the wallet mispricing: the
+wallet displayed, signed and paid the relay's own quote, unchanged. It is the
+relay's floor, and it is the same thread as the recorded BSC in-band overcharge
+— now with a second data point at the opposite extreme (a ~7 × 10⁹ ratio on a
+near-free chain, where a percentage markup rounds to nothing and only a floor
+can produce 0.01). Handed to the relay repo; nothing to change here.
+
+**Two smaller live findings**, neither fatal, both carried:
+- Two of the Gnosis pool's public endpoints (`gnosis-pokt.nodies.app`,
+  `gnosis.oat.farm`) refuse a browser origin outright — CORS preflight, no
+  `Access-Control-Allow-Origin`. The pool covered it without a visible stumble,
+  which is the design working; but a browser-only endpoint list would spend
+  less time failing. Recorded for a pool-hygiene pass, not fixed here.
+- The public-key index answers `400` to a query for a plain recipient address
+  (`p256-index-v2.getvela.app/api/query?walletRef=…`). The recipient-identity
+  read treats it as "not a Vela wallet" and moves on, so nothing is wrong on
+  screen — but the wallet is asking a question the index has no shape for.
+
+### The matrix (T261)
+
+`reopen-pending` and `parallel-entry` now run on firefox and webkit as well as
+chromium — the two money suites whose subject IS storage: an IndexedDB record
+a closed tab left behind, settled on the next boot with no screen open; and the
+localStorage wallet SWAP the parallel space performs and gives back
+byte-for-byte. Money that survives a crash is not allowed to be one engine's
+promise.
+
+### The budgets (T262)
+
+`e2e/budgets.e2e.ts` holds the two assertions 026 left unpinned, and the three
+chunk-reading suites now share one helper (`collectScripts` / `chunkSource` /
+`chunksCarrying` in `live-helpers.ts`) instead of three copies of it:
+
+- **The landing page carries neither the fixture keys nor SheetJS.** Welcome is
+  the page 15 locales are prerendered for and the one a stranger meets first;
+  the existing assertions covered the WALLET's startup path only. Both faces of
+  it are checked — the first-run intro carousel and the returning visit.
+- **The money routes load ONE core artifact, and the build ships exactly one.**
+  Entering the parallel space, booting the wallet with its tracker and opening
+  the send flow fetches one `vela_core_bg.<hash>.wasm` and no second engine;
+  and `.svelte-kit/output/client` contains exactly one of them, at the path
+  that was actually requested.
+
+Standing assertions re-run and green: Welcome fetches no wasm; the
+`wrangler deploy --dry-run` bundle carries no `WASM_BASE64`; SheetJS is absent
+from the wallet's startup chunks; the fixture private key is absent from every
+chunk a normal visit loads. Artifact `vela_core_bg.4603c8421603.wasm` =
+**3,630,664 B**, byte-identical to the Phase 1 baseline — `git diff main --
+rust/` is empty, and `sync-wasm --check` ties `static/` to `pkg-web` on every
+build.
+
+**One finding, from the budget pass**: `xlsx` was never declared in
+`app-web/vela-wallet/package.json`. It resolved anyway — the repo root is the
+Expo project, and Node walked up into ITS `node_modules` — so every gate here
+passed while a clean checkout that installs only this app would have built a
+lazy import pointing at nothing. Declared now, at the same pinned tarball.
+The plan named both new dependencies; only one of them arrived.
+
+### Gates (T264)
+
+`pnpm check` **1327 files / 0 errors** (carrying `gen-tokens --check`,
+`sync-wasm --check` and `gen-core-types --check`) · `pnpm lint` clean ·
+`pnpm test:unit` **731** · `pnpm build` ×15 locales · `pnpm test:e2e`
+**121/121** across chromium + firefox + webkit, 16 suites · wasm
+byte-identical · corpus delta **zero** (`git diff main -- rust/` is empty).
+
+---
+
+## Success-criteria verdicts
+
+| SC | Verdict |
+| --- | --- |
+| **SC-201** hermetic single send: form → quote → slide → sign → submit → pending record → confirmed receipt → feed row → balance refresh | ✅ `send-lands` drives the whole spine in the parallel space against a stubbed chain and relay, on chromium; the persistence half (`reopen-pending`) runs on all three engines |
+| **SC-202** a live send lands; amount and fee agree with the explorer to the unit | ✅ Gnosis, golden Safe → fixture Safe #2, real relay: 0.001 xDAI sent + 0.010 fee = 0.011 gone, exactly what the screen said. `0x402ca4d7…e24b` / `0xa4f0d25a…a18e`, block 48,070,180 |
+| **SC-203** every fixture signing scenario renders the core's view; the unlimited approval defaults to exact and needs a deliberate choice | ✅ split across the two gates: the ladder's rungs — decoded intent, risk tone, blind transaction, `eth_sign`, message + SIWE mismatch, and the still-resolving wait — are pinned per rung in `signing/live.test.ts`; `signing-scenarios` drives the two that need a real sheet on a real screen: an unlimited approve leaves the slider SHUT (a gate, not a warning) and Escape answers the requester with 4001 |
+| **SC-204** a tab closed after submit shows pending on reopen and settles | ✅ `reopen-pending` ×3 engines: no screen, no tap, the tracker's boot sweep settles it |
+| **SC-205** relay faults each show their designed presentation; no raw relay text on screen | ✅ `relay-faults`: a silent receipt leaves the payment "submitted"; an unreachable relay is quiet and leaks no relay wording; the fault console is unreachable without its gate |
+| **SC-206** zero business rules added to web code; executors switch-only; gallery pixel-unchanged | ✅ every executor is a switch under unit pin; the fixtures were not touched and the drawn journeys render exactly as 021/022 drew them when no callbacks are injected. Recorded as shell judgement, not rule: presentation ORDER (which overlay a stage shows), and the confirm gate's AND (core ∧ guard ∧ fee ∧ no signature in flight) |
+| **SC-207** budgets identical; parallel space and xlsx never on a production path; corpus green; e2e ≥ 025 | ✅ 3,630,664 B byte-identical · zero-wasm Welcome · worker purity · one artifact on the money routes and one in the build · fixture keys and SheetJS absent from Welcome AND from the wallet's startup chunks · corpus delta zero · e2e 99 → **121** |
+
+## Deviations (consolidated)
+
+1. **Runtime dev gate instead of `__DEV__` (D18)** — the web e2e runs the
+   production artifact, so the fixture signer and the parallel verbs gate on
+   `import.meta.env.DEV || vela.dev.console === '1'`. The badge is the
+   compensating control: it renders unconditionally whenever the space is
+   active, on every page.
+2. **`any` kept in six ported modules** behind file-level lint exemptions
+   (`safe-transaction`, `approval-guard`, `selector-registry`, the three
+   simulation engines) — they walk dynamic wire shapes; narrowing them is a
+   rewrite, not a port.
+3. **`clear-signing`'s RESULT codec not ported** — it existed to translate into
+   Expo's TypeScript twin, which Rust replaced. The sheet reads the generated
+   view directly.
+4. **Desktop send actions unwired** — `FlowsDesktop` renders the same live
+   overlays, but mobile is the MVP surface; the desktop panel keeps the drawn
+   journey.
+5. **Sweep mode (N tokens → one address) stays fixture** — the core supports
+   it, no web surface drives it yet.
+6. **The signing sheet's fee-token sheet is not reachable from the sheet** (the
+   send flow's is), and `funding` surfaces as core state with no drawn web
+   sheet behind it.
+7. **Send alert kinds log rather than open a surface** — no alert surface is
+   drawn on web.
+8. **A contract recipient has no send-screen sentence** in the corpus; the
+   first-time tell is what carries the poisoned-look-alike warning.
+9. **The `failed` receipt title (D29)** remains the one known corpus gap; the
+   receipt renders the state without inventing a word for it.
+10. **The live sweep spent real funds by explicit founder authorisation**
+    (2026-09-04) — dust from a Safe whose keys are public by design.
+
+## Handoff
+
+### To 027 — the transports
+
+- **The requester seam is the whole of it.** `sign-resident.ts` holds a
+  transport registry and answers each request to the transport that OWNS it;
+  `$lib/dev/test-requester.ts` is the only transport 026 ships, behind the dev
+  gate. A real transport implements the same interface — post a request, keep
+  the promise, receive the answer (4001 on dismissal) — and nothing above it
+  changes. The sheet, the four machines and the submit spine are already live.
+- **WalletPair** and the remote-inject relay plug in there. `dapp-history.ts`
+  and `dapp-submit.ts` are ported and unused: `dapp-submit` is the `'core'`
+  submit-guard owner the real transports will call.
+- **Batch requests**: `clear-batch.ts`'s per-leg bookkeeping is ported and
+  coalescing, but no request source produces a batch yet — the sheet renders
+  batch legs as one request until 027 gives it one.
+- **Two known live findings to carry**: the browser-hostile Gnosis endpoints
+  (CORS) and the public-key index's `400` on a plain-address query.
+- **The in-band fee floor** belongs to the relay repo, with two data points now
+  (BSC ~$1 on padded limits; Gnosis 0.01 xDAI against a ~10⁻¹² chain cost).
+
+### To the native tier — the machine order to repeat
+
+Web is the first tier to run the money path on the Rust machines, and the order
+the phases went in is the finding, not an accident. Repeat it:
+
+1. **Kernels + `safe-transaction` verbatim, with its vectors.** Everything else
+   stands on it, and porting it faithfully is what makes the rest boring.
+2. **The relay client, the reads, the guard, the simulation family** — all
+   pure ports, all cheap once (1) is done.
+3. **The parallel space BEFORE any flow.** It is what makes every later phase
+   testable without a device, and it costs nothing to build early.
+4. **`fee_policy` and `send` together**, with ONE live fee session per surface.
+   Four earlier integrations failed by splitting the quote the core pre-checks,
+   the quote on screen and the quote that is signed into different objects.
+5. **The tracker as an app-resident**, started on every boot — not when a send
+   screen opens. Money in flight outlives every screen.
+6. **`sign_request` + `clear_signing` + `approval_guard` on the sheet**, with
+   the guard's REWRITTEN params carried into the approval. Passing the original
+   would defeat the never-unlimited mandate at the last step.
+7. **The batch importer last** — it is the only phase that needs a file picker
+   and a spreadsheet parser, and both are seams the core never touches.
+
+**The rule the web tier learned three times, at a cost of three 500-ing pages:
+a ported module may not call a kernel at import time.** Expo `initSync`s its
+core; every other tier fetches or loads it. `safe-transaction`'s typehashes,
+`approval-guard`'s selectors and the fixture signer's derivation each had to
+become lazy. Check for it first on the next tier rather than three times.

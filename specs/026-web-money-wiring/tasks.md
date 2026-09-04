@@ -140,18 +140,18 @@ runs in app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 7: Live sweep + matrix + closeout (one commit)
 
-- [ ] T260 Opt-in live sweep (SC-202): fixture Safe dust send on Gnosis
+- [X] T260 Opt-in live sweep (SC-202): fixture Safe dust send on Gnosis
       through the real relay (in-band fee or gas deposit); hashes, amount,
       fee vs explorer → results.md
-- [ ] T261 [P] Extend the 3-engine matrix to the storage-asserting money e2e
+- [X] T261 [P] Extend the 3-engine matrix to the storage-asserting money e2e
       (reopen-pending, parallel-entry)
-- [ ] T262 [P] Budget re-assertions: zero-wasm Welcome, worker purity, one
+- [X] T262 [P] Budget re-assertions: zero-wasm Welcome, worker purity, one
       artifact, byte-count unchanged, fixture/xlsx chunks absent from the
       startup path and from Welcome
-- [ ] T263 Close results.md: SC-201…207 verdicts, deviations, 027 handoff
+- [X] T263 Close results.md: SC-201…207 verdicts, deviations, 027 handoff
       (real transport onto the requester seam, WalletPair, remote-inject
       relay), native-tier handoff (the machine order to repeat)
-- [ ] T264 Final sanity: all gates + `gen-core-types --check`
+- [X] T264 Final sanity: all gates + `gen-core-types --check`
 
 ## Dependencies
 

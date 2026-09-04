@@ -1,0 +1,88 @@
+/**
+ * The budgets, re-asserted now that the money path is aboard (spec 026 T262 —
+ * SC-207).
+ *
+ * 026 added two dependencies and a dev harness that carries PRIVATE KEYS. The
+ * promise is that none of it reaches the page most people arrive on. The
+ * neighbouring suites already pin their halves — welcome-ssr proves Welcome
+ * fetches no wasm and the deployed Worker carries none, parallel-entry and
+ * batch prove the fixture keys and the spreadsheet parser stay off the
+ * WALLET's startup path. Two things were left unpinned, and this file holds
+ * them:
+ *
+ *   1. the landing page itself — the one 15 locales are prerendered for, and
+ *      the one a stranger sees first;
+ *   2. the artifact count across the MONEY routes: six more state machines
+ *      wired must still cost exactly one 3.4 MB download, and the build must
+ *      carry exactly one of them.
+ */
+import { readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { expect, test } from '@playwright/test';
+import { chunksCarrying, collectScripts, en } from './live-helpers';
+import { denyOffOrigin } from './stub-chain';
+
+const APP_ROOT = join(import.meta.dirname, '..');
+
+/** The first fixture private key, verbatim — the thing that must never ship. */
+const FIXTURE_SEED = 'd80133c59ce0943689a9c1ff6006242c27b19412439fbc88f94feb5ca1e802d5';
+/** SheetJS announces itself in every build it is part of. */
+const SHEETJS = /sheetjs|XLSX\.utils|SheetJS/i;
+
+test('the landing page carries neither the fixture keys nor the spreadsheet parser', async ({
+	page
+}) => {
+	const scripts = collectScripts(page);
+	await denyOffOrigin(page);
+
+	// Both faces of the landing page: a stranger's first run (the 020 intro
+	// carousel) and the returning visit that lands on Welcome itself.
+	await page.goto('/en');
+	await page.waitForLoadState('networkidle');
+	await page.evaluate(() => localStorage.setItem('vela.intro.seen', String(Date.now())));
+	await page.goto('/en');
+	await page.waitForLoadState('networkidle');
+	expect(scripts.length).toBeGreaterThan(0);
+
+	expect(chunksCarrying(scripts, FIXTURE_SEED), 'a fixture private key reached Welcome').toEqual(
+		[]
+	);
+	expect(chunksCarrying(scripts, SHEETJS), 'the spreadsheet parser reached Welcome').toEqual([]);
+});
+
+test('the money routes load ONE core artifact, and the build ships exactly one', async ({
+	page
+}) => {
+	const wasmUrls = new Set<string>();
+	page.on('request', (request) => {
+		if (request.url().endsWith('.wasm')) wasmUrls.add(request.url());
+	});
+	await denyOffOrigin(page);
+
+	// The whole money surface in one context: the harness that swaps the
+	// signer, the wallet the tracker boots on, and the send flow itself.
+	await page.goto('/en/parallel');
+	await page.getByRole('button', { name: 'Enter (seed fixture wallet)' }).click();
+	await page.waitForURL(/\/en\/wallet$/);
+	await expect(page.getByTestId('parallel-space-badge')).toBeVisible();
+	await page
+		.getByRole('button', { name: en('componentsUi.dock.send') })
+		.first()
+		.click();
+	await expect(page.getByRole('heading', { name: en('send.selectTokenTitle') })).toBeVisible();
+	await page.waitForLoadState('networkidle');
+
+	// One artifact, not a per-feature zoo — wiring six more machines costs
+	// 0 bytes, which is the entire reason the core is one binary.
+	expect([...wasmUrls]).toHaveLength(1);
+	expect([...wasmUrls][0]).toMatch(/vela_core_bg\.[0-9a-f]+\.wasm$/);
+
+	// And the build has exactly one to serve: `sync-wasm` drops superseded
+	// fingerprints so `static/` cannot accumulate dead 3.4 MB files, but only
+	// the built output proves what a deploy would actually carry.
+	const artifacts = readdirSync(join(APP_ROOT, '.svelte-kit/output/client')).filter((name) =>
+		/^vela_core_bg\..*\.wasm$/.test(name)
+	);
+	expect(artifacts).toHaveLength(1);
+	expect('/' + artifacts[0]).toBe(new URL([...wasmUrls][0]).pathname);
+});

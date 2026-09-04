@@ -59,3 +59,43 @@ export async function seedSignedIn(page: Page): Promise<void> {
 		}
 	}, TEST_ACCOUNT);
 }
+
+/**
+ * Every `.js` chunk the page loads from now on, by URL.
+ *
+ * A budget assertion needs to know what a visit actually PAID for, not what
+ * the bundler could have split — so the list comes from the network, and the
+ * bodies come from disk (below).
+ */
+export function collectScripts(page: Page): string[] {
+	const scripts: string[] = [];
+	page.on('response', (response) => {
+		const url = response.url();
+		if (url.endsWith('.js')) scripts.push(url);
+	});
+	return scripts;
+}
+
+/**
+ * A loaded chunk's source, straight off the build output.
+ *
+ * Read from `.svelte-kit/output/client` rather than re-fetched: the preview
+ * worker is single-threaded, and a burst of body fetches from six parallel
+ * workers starves the other suites (found in the 026 full matrix). It is also
+ * the stronger assertion — this is the artifact, not a response about it.
+ */
+export function chunkSource(url: string): string {
+	const path = new URL(url).pathname.replace(/^\//, '');
+	try {
+		return readFileSync(join(process.cwd(), '.svelte-kit/output/client', path), 'utf8');
+	} catch {
+		return '';
+	}
+}
+
+/** The subset of `urls` whose chunk source carries `needle` — a budget leak. */
+export function chunksCarrying(urls: string[], needle: RegExp | string): string[] {
+	const match =
+		typeof needle === 'string' ? (s: string) => s.includes(needle) : (s: string) => needle.test(s);
+	return urls.filter((url) => match(chunkSource(url)));
+}

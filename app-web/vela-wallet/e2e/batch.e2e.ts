@@ -10,11 +10,9 @@
  *   2. SheetJS never reaches the startup path. It is ~1 MB, and a person who
  *      never opens a spreadsheet must not pay for it.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { CHAINS } from '../src/lib/services/chains';
-import { en } from './live-helpers';
+import { chunksCarrying, collectScripts, en } from './live-helpers';
 import {
 	abiWord,
 	aggregate3CallCount,
@@ -127,31 +125,16 @@ test('a pasted table becomes a split send — and an unpriceable currency refuse
 });
 
 test('SheetJS is never on the startup path', async ({ page }) => {
-	const scripts: string[] = [];
-	page.on('response', (response) => {
-		if (response.url().endsWith('.js')) scripts.push(response.url());
-	});
+	const scripts = collectScripts(page);
 	await denyOffOrigin(page);
 	await page.addInitScript(() => localStorage.setItem('vela.intro.seen', String(Date.now())));
 	await page.goto('/en/wallet');
 	await page.waitForLoadState('networkidle');
 
-	// Read from the BUILT output rather than re-fetching every chunk: the
-	// preview worker is single-threaded and a burst of body fetches from six
-	// parallel workers starves the other suites (found in the full matrix).
-	const bodies = scripts.map((url) => chunkSource(url));
 	// SheetJS announces itself in every build; a page that never opens a
 	// spreadsheet must not carry ~1 MB of parser.
-	const carriers = scripts.filter((_, i) => /sheetjs|XLSX\.utils|SheetJS/i.test(bodies[i]));
-	expect(carriers, 'the spreadsheet parser reached a startup chunk').toEqual([]);
+	expect(
+		chunksCarrying(scripts, /sheetjs|XLSX\.utils|SheetJS/i),
+		'the spreadsheet parser reached a startup chunk'
+	).toEqual([]);
 });
-
-/** A loaded chunk's source, straight off the build output. */
-function chunkSource(url: string): string {
-	const path = new URL(url).pathname.replace(/^\//, '');
-	try {
-		return readFileSync(join(process.cwd(), '.svelte-kit/output/client', path), 'utf8');
-	} catch {
-		return '';
-	}
-}

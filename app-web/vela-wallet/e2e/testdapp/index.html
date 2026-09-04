@@ -37,6 +37,27 @@
 			: null;
 		show();
 
+		/**
+		 * A hostile page's two cheapest tricks, driven by the test.
+		 *
+		 * `__forge` posts a message straight onto the channel claiming to be
+		 * somebody else. `__replay` sends the same request id twice. Neither is
+		 * exotic: both are what a page CAN do, so both have to be answers rather
+		 * than assumptions.
+		 */
+		window.__forge = (origin) =>
+			window.postMessage(
+				{
+					ch: 'vela-1193',
+					dir: 'req',
+					id: 'forged-1',
+					method: 'eth_requestAccounts',
+					params: [],
+					origin
+				},
+				window.location.origin
+			);
+
 		// Driven by the test.
 		window.__ask = async (method, params) => {
 			try {

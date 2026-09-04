@@ -29,11 +29,24 @@ SAME page that will use it (a virtual authenticator is scoped to its target).
 6. **Resilience (SC-307)** — the request window is closed without a decision and
    the background is torn down mid-flight; both produce a definite answer.
 
-## The real-device pass (before results.md closes)
-D31 was measured with a virtual authenticator. On a real machine, with a real
-platform authenticator: create a wallet on `https://getvela.app`, note the
-address, then open the extension and sign in — the SAME address, and one
-signature that verifies. This is the founder's pass, the thing a script cannot do.
+## The real-device pass (T360 — the founder's, and the only one that counts)
+
+Two of this feature's most serious bugs were found by installing it, and neither
+was reachable from a harness that runs the real extension in a real browser on
+every commit. Do this by hand:
+
+1. `pnpm build:extension`, then `chrome://extensions` → Developer mode →
+   **Load unpacked** → `app-web/vela-wallet/extension/dist`. It must load. (It
+   did not, until Phase 6: Chrome refuses any top-level name starting with `_`,
+   and Playwright's `--load-extension` tolerates what this dialog refuses.)
+2. Create a wallet on **https://getvela.app** first and note its address.
+3. Open the extension's wallet and sign in. **The passkey dialog must say
+   `getvela.app`, never `chrome-extension://…`** — that is the difference
+   between your wallet and a different, empty one — and the address must match
+   step 2. This closes D31's carried caveat and SC-306's real half.
+4. Connect a real dApp and sign something. This is what would close SC-304; if
+   the approve hangs the way it does in CI, the finding in results.md is
+   confirmed on hardware too.
 
 ## Budgets
 The hosted site's build is untouched: Welcome fetches no wasm, the deploy bundle

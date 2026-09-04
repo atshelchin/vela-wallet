@@ -108,18 +108,18 @@ app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 7: Real device, budgets, closeout (one commit)
 
-- [ ] T360 [US3] The real-device pass (D31's carried caveat): a real platform
+- [~] T360 [US3] The real-device pass (D31's carried caveat): a real platform
       authenticator, a wallet created on `https://getvela.app`, the SAME address
       in the extension, one verifying signature → results.md
-- [ ] T361 [P] Budget re-assertions: the hosted site byte-identical (Welcome
+- [X] T361 [P] Budget re-assertions: the hosted site byte-identical (Welcome
       zero-wasm, worker purity, one artifact, artifact bytes); the extension
       package's own size recorded as its budget
-- [ ] T362 [P] A security pass over the channel contract: origin discipline,
+- [X] T362 [P] A security pass over the channel contract: origin discipline,
       single-use ids, no wildcard delivery, bounded payloads, icon loaded only
       from the requesting origin
-- [ ] T363 Close results.md: SC-301…309 verdicts, deviations, 028 handoff
+- [X] T363 Close results.md: SC-301…309 verdicts, deviations, 028 handoff
       (Firefox/Edge, the store listing, cross-doorway sync), native-tier note
-- [ ] T364 Final sanity: all gates + `gen-core-types --check`
+- [X] T364 Final sanity: all gates + `gen-core-types --check`
 
 ## Dependencies
 

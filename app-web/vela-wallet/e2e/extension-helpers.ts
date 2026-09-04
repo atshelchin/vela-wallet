@@ -87,3 +87,22 @@ export async function noRequestWindow(context: BrowserContext, timeoutMs = 15_00
 	}
 	throw new Error('a request window stayed open');
 }
+
+/**
+ * Confirm the slide control — by keyboard.
+ *
+ * The control commits on a pointer drag past 88% of its travel, and it also
+ * commits on Enter, because a slider a keyboard user cannot operate is a
+ * signature they cannot give. The keyboard path is what this drives: it is the
+ * SAME `onconfirm`, and it is the half that would otherwise never be exercised.
+ *
+ * (A synthesized pointer drag was tried first and does not commit here — the
+ * control captures the pointer, and Playwright's synthesized moves do not
+ * reach the captured element. Worth knowing before spending an hour on it.)
+ */
+export async function slideToConfirm(page: Page): Promise<void> {
+	const slider = page.getByRole('button', { name: /^Slide to confirm/ });
+	await slider.waitFor({ state: 'visible', timeout: 30_000 });
+	await slider.focus();
+	await slider.press('Enter');
+}

@@ -476,3 +476,165 @@ until a request opens one.
 **Gates**: check **1354**/0 · lint clean · unit **765** · build ×15 +
 `build:extension` · e2e **135/135** (chromium + firefox + webkit) · wasm
 byte-identical · corpus delta zero.
+
+---
+
+## Phase 7 — budgets, the channel's own promises, and an honest close (T360–T364)
+
+### The security pass (T362)
+
+The channel contract makes seven promises. Five were already asserted by the
+suites that needed them; `extension-security.e2e.ts` covers the two that were
+true only because the code said so — and they are the two a page can actually
+attack:
+
+- **A page cannot rename itself.** It posts a request onto the real channel
+  claiming to be `https://app.uniswap.org`; the window names `localhost:8815`.
+  `sender.origin` is added on the far side of the message boundary by the
+  browser, and the page's own claim never reaches a grant.
+- **A page cannot get one request answered twice.** The same id again opens no
+  second window. An operation answered twice is an operation a dApp may act on
+  twice.
+- **A page cannot use the wallet as an open RPC relay.** `eth_signTransaction`
+  is refused — it is not caught by the signing predicate, which is exactly why
+  the router is an allowlist rather than a denylist.
+
+### Budgets (T361)
+
+The hosted site is untouched by the extension's existence: `git diff main --
+rust/` is empty, the artifact is **3,630,664 B**, Welcome fetches no wasm, the
+deploy bundle carries none, one artifact serves every route. `budgets.e2e.ts`
+gained the 027-shaped assertion: **the dApp channel's vocabulary must not reach
+Welcome** — the layer entered the graph when three routes started using it, and
+the page a stranger meets has no business carrying a line of it.
+
+The extension package: **35 MB**, 120 pages. Its composition is worth writing
+down, because the obvious next saving is not the code:
+
+| | |
+| --- | --- |
+| fonts (`.woff` + `.woff2`) | **17.0 MB** — 632 files, every subset of every family |
+| javascript | 7.6 MB (318 files) |
+| the core | 3.6 MB |
+| route data (`__data.json`) | 3.5 MB |
+| pages | 0.8 MB |
+| the page-side scripts | inpage **39 KB** · background 10 KB · content 4 KB |
+
+Half the package is fonts nobody asked for on any single visit. Recorded as the
+first thing to look at, not fixed here.
+
+### SC-304 is NOT met, and this is what is known
+
+`e2e/extension-signing.e2e.ts` carries a `test.fixme` that states it. Measured
+while writing it:
+
+- the slide control DOES commit — its fill goes 0% → 100%, so `onconfirm` fires
+  and `approve_tapped` reaches the resident;
+- the confirm gate is open (`aria-disabled="false"` — the core's own
+  `confirm_gate_open` ANDed with the guard and the fee);
+- and then nothing. No error on the sheet, no console output, no state change,
+  and the decisive one: **`navigator.credentials.get` is never called**, so the
+  passkey ceremony does not even start. The chain stops between `approve_tapped`
+  and `sign_and_submit`.
+
+It is very likely **not a 027 regression**. 026 shipped `signing-scenarios` with
+a rejection test and an unlimited-approval test and never drove an approve to
+completion; its task list said "approve submits through the spine" and no
+assertion holds it to that. This is the first time anything asked the web
+signing path to finish, and it did not. Un-fixme the test when it does; do not
+weaken it.
+
+### T360 — the device pass, which is the founder's
+
+Two of this feature's most important bugs were found by installing it, and
+neither was reachable from any harness. The remaining confirmations need a real
+platform authenticator and are listed in the quickstart; the short version:
+
+1. Create a wallet on **https://getvela.app**, note the address.
+2. `pnpm build:extension`, load `extension/dist` unpacked, open the wallet, sign
+   in. **The passkey dialog must say `getvela.app`, not `chrome-extension://…`**,
+   and the address must be the same one. That closes D31's carried caveat and
+   SC-306's real half.
+3. Connect a real dApp and sign something. That is what would close SC-304 —
+   and if it fails the same way, the finding above is confirmed on hardware too.
+
+---
+
+## Success-criteria verdicts
+
+| SC | Verdict |
+| --- | --- |
+| **SC-301** discovery + connect returns the derived address, after a visible consent step | ✅ `extension-connect`: EIP-6963 announces Vela with its real identity and icon; consent names the real origin; the grant returns the core's own derivation |
+| **SC-302** a dApp that only knows one wallet can connect | ✅ a fixture page that never listens for 6963 and gates on `isMetaMask` completes the same connect |
+| **SC-303** a transaction request opens 026's sheet; dismissal returns the standard refusal exactly once | ⚠️ **partial**. The sheet is proven on the real machines for `personal_sign` — decoded content, real origin, signing account, no fee for an off-chain signature, and no template placeholder — and dismissal is proven. A transaction that actually SUBMITS is blocked by the same gap as SC-304 |
+| **SC-304** message and typed-data requests return verifying signatures | ❌ **not met** — see above. The test exists and is `fixme`d with everything measured |
+| **SC-305** a connected site is listed with its grant and can be revoked; its next request is first-time | ✅ `extension-connections`: listed by host with its account in the drawn storage group, revoked from its own row, and the next `eth_accounts` is `[]` again |
+| **SC-306** one passkey, the SAME address in both doorways | ⚠️ **hermetically ✅, on hardware pending**. The extension derives `0x88cCA0…266894` — the address the hosted site derives from the same keys. The relying-party bug that would have broken this for a REAL passkey was found by the founder and fixed (rpId is now `getvela.app` under an extension origin); confirming it needs a real authenticator (T360) |
+| **SC-307** no request is left unanswered | ✅ a window closed without deciding settles with the CORE's code — 4900, never 4001 — a record is written on arrival and gone once answered, and stale records are swept on a cold worker start |
+| **SC-308** hosted budgets unchanged; extension size recorded | ✅ artifact byte-identical, zero-wasm Welcome, worker purity, one artifact, dApp channel absent from Welcome; package 35 MB, composition recorded |
+| **SC-309** green in CI on chromium; every live word from the corpus | ✅ e2e **138 passed / 1 skipped** on three engines; **corpus delta zero** — every word the request window and the connections rows show already existed |
+
+## Deviations (consolidated)
+
+1. **`dapp_session` is not wired** (D43). It is the machine for a live transport
+   session; WalletPair and the in-app browser are both excluded from this
+   feature, so wiring it would have produced a machine connected to nothing.
+2. **Two rules exist twice**: `resolve_granted` and the closed-window settlement
+   have twins in `extension/lib/protocol.js`, because a service worker cannot
+   load a 3.6 MB core to answer `eth_accounts`. `instant.test.ts` drives the real
+   core over the same matrix and demands identical answers.
+3. **The extension packages the site's prerendered pages** rather than a
+   client-rendered shell (D35, corrected in Phase 2): hash routing, which
+   SvelteKit documents for this exact case, rejects the server loads this app's
+   build-time i18n lives in.
+4. **A route path is not a file** (D42): full navigations and the address bar are
+   translated to `.html` under the packaged app, as the identity function on the
+   hosted site.
+5. **The per-site `ConnectionPanel` 022 drew has no list route on web**; the
+   drawn settings storage rows are what ships.
+6. **Reads and chain switching are classified but not routed** — `eth_call` and
+   `wallet_switchEthereumChain` answer "Vela cannot answer that yet" rather than
+   an invented default.
+7. **Account- and chain-change events are not pushed to connected sites**: there
+   is no live document to push into until a request opens one.
+8. **`payLinkBase()` builds a `chrome-extension://…/pay` link inside the
+   extension** — cosmetic, reported, unfixed; it wants the hosted `/pay` base.
+9. **D34 (no action popup) is reasoned, not measured** — a virtual authenticator
+   shows no UI, so the focus loss it avoids cannot be reproduced in the harness.
+
+## Handoff
+
+### The next thing anyone should do
+
+**Find out why an approve does not complete.** It blocks SC-303's second half and
+SC-304 entirely, it is the difference between "a dApp can talk to Vela" and "a
+dApp can use Vela", and the evidence is already narrowed to one hop:
+`approve_tapped` arrives, the gate is open, `sign_and_submit` never reaches
+`navigator.credentials.get`.
+
+### To 028
+
+- **Firefox and Edge**: the manifest is close to portable. Chrome-specific today:
+  the `key`-pinned id and `minimum_chrome_version`.
+- **The Chrome Web Store listing**, with the two permissions that need
+  explaining: `*://*/*` (injection) and `https://getvela.app/*` — the second one
+  is what makes the extension the same wallet, and the listing should say so.
+- **Fonts**: half the package. Subset them.
+- **Cross-doorway sync** of contacts, history and settings (D32): storage is
+  per-origin and the account is recovered from the passkey, so identity is
+  shared and everything else is not.
+- **`dapp_session`** waits for whichever spec brings a real transport session.
+
+### The rule this feature earned
+
+**Install it by hand before believing any of it.** Two of the three most
+serious bugs here — a package Chrome refuses to load, and a passkey minted for
+the wrong relying party — were invisible to a suite that runs the real extension
+in a real browser on every commit. The second one could not be caught by the
+test written specifically to catch it, because a fixture signer reading the same
+function is self-consistent whatever that function returns.
+
+**Gates (T364)**: `pnpm check` **1354 / 0** · `pnpm lint` clean · `pnpm test:unit`
+**765** · `pnpm build` ×15 + `pnpm build:extension` · `pnpm test:e2e` **138
+passed / 1 skipped** (chromium + firefox + webkit) · `gen-core-types --check`
+current in every mirror · wasm byte-identical · corpus delta zero.

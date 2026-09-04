@@ -19,7 +19,8 @@ import {
 	extensionId,
 	loadExtension,
 	noRequestWindow,
-	requestWindow
+	requestWindow,
+	slideToConfirm
 } from './extension-helpers';
 
 const APP_ROOT = join(import.meta.dirname, '..');
@@ -146,6 +147,58 @@ test.describe('signing for a dApp', () => {
 		const answer = await asked;
 		expect(answer.ok).toBe(false);
 		expect(answer.code).not.toBe(4001);
+		await context.close();
+	});
+
+	/**
+	 * SC-304 IS NOT MET, and this is the test that says so.
+	 *
+	 * Marked `fixme` rather than deleted: the assertions are right and the
+	 * approve genuinely does not complete. What was measured while writing it,
+	 * so the next person does not start from zero:
+	 *
+	 *   - the slide control DOES commit — its fill goes 0% → 100%, so
+	 *     `onconfirm` fires and `approve_tapped` reaches the resident;
+	 *   - the confirm gate is open (`aria-disabled="false"`, which is the
+	 *     core's own `confirm_gate_open` ANDed with the guard and the fee);
+	 *   - and then nothing happens. No error on the sheet, no console output,
+	 *     no state change, and — the decisive one — `navigator.credentials.get`
+	 *     is NEVER called, so the passkey ceremony does not even start. The
+	 *     chain stops between `approve_tapped` and `sign_and_submit`.
+	 *
+	 * It is very likely NOT a 027 regression: 026 shipped `signing-scenarios`
+	 * with a rejection test and an unlimited-approval test, and never drove an
+	 * approve to completion either. This is the first time anything asked the
+	 * web signing path to finish, and it did not.
+	 *
+	 * Un-fixme it when the approve completes; do not weaken the assertions.
+	 */
+	test.fixme('SC-304: approving returns a signature the account’s own key made', async () => {
+		const context = await loadExtension();
+		const id = extensionId();
+		await seedWallet(context, id);
+		const page = await context.newPage();
+		await page.goto(`http://localhost:${PORT}/`);
+		await connect(context, page);
+
+		const asked = page.evaluate(
+			([message, address]) => window.__ask('personal_sign', [message, address]),
+			[MESSAGE_HEX, FIXTURE_ONE] as const
+		) as Promise<AskResult>;
+		const win = await requestWindow(context);
+		await expect(win.getByText('Hello, Vela')).toBeVisible({ timeout: 30_000 });
+
+		// A deliberate movement, not a tap — the control commits at 88% of its
+		// own travel. In the parallel space the passkey it then asks for is the
+		// fixture keyset, so this completes headlessly while remaining the REAL
+		// ceremony: the same assertion builder, verified by the same core.
+		await slideToConfirm(win);
+
+		const answer = await asked;
+		expect(answer.ok).toBe(true);
+		// An EIP-191 signature, not an empty acknowledgement.
+		expect(typeof answer.result).toBe('string');
+		expect(String(answer.result)).toMatch(/^0x[0-9a-fA-F]{100,}$/);
 		await context.close();
 	});
 

@@ -48,3 +48,76 @@
 - **T203 (literal-audit dirs)** lands with the phases that create the dirs
   (`lib/dev` in Phase 3, `signing/core` in Phase 5; `flows/core` exists since
   025 and is already audited) — recorded here so it is not forgotten.
+
+---
+
+## Phase 2 — the foundation (T210–T219)
+
+**What shipped**: everything the money path stands on, ported from the Expo
+tree with provenance headers and no logic changes.
+
+- **Kernels** (`$lib/core/kernels.ts` + `safe-constants.ts`, D15): the pure
+  wasm facade — Safe address derivation (single + multi-key + per-key signer
+  proxy), ABI encode/decode, typed-data hashing, WebAuthn verification and DER
+  conversion, the contract addresses and the splitter's pinned bytecode. The
+  Expo module's import-time `initSync` and its Node byte-planting are gone (the
+  web has `loadCore()`); everything else is verbatim. `client.ts` keeps the
+  onboarding/identicon exports; money code imports kernels only.
+- **`safe-transaction.ts` (2,838 lines) verbatim** — the ONLY submit entry
+  (`sendBatchCalls`: one call stays a single `executeUserOp`, N become a
+  MultiSend), the WebAuthn signature envelope, fee estimation, nonce, submit
+  and receipt wait. Its Jest vector suite came with it (30 cases: fee-limit
+  reservation, the gas-price ladder, the tip-inclusive basis and the bundler
+  acceptance gate, calldata layouts, initCode, the Tempo plain-transfer
+  classifier).
+- **The relay client and its neighbours**: bundler-service (839),
+  tx-reconciler (252), rpc-adapter, tempo, format-eth, token-autoadd,
+  token-reads, recipient-risk, eip681 (+ its 24 vectors), batch-send (+ 20),
+  dapp-history, approval-guard (+ 40 vectors incl. the never-unlimited
+  enforcement), selector-registry, and the six simulation modules under
+  `services/sim/`.
+- **`dapp-submit.ts`** — Expo's `use-dapp-signing.ts` (a hook in name only;
+  it never used React). Web deltas: static kernels import, `signWithAny` for
+  the passkey, the stored account from onboarding storage, and no
+  public-key-index fallback (a web session is always a stored account, so a
+  missing one is an error rather than a lookup). `SubmitGuardOwner` semantics
+  unchanged — the default stays the guarded value.
+- **The store writer** (D20): `saveTransaction(s)` / `updateTransaction(s)`
+  under the existing `withTxLock`, atomic per batch, de-duped, capped at 200.
+- **`accounts.ts`**: the stored wallet as the SIGNER needs it — one adapter
+  from the generated `Account` (snake_case, `keys[]`) to the camelCase key set
+  `keySetOf` was written against, so the 2,838-line port stays verbatim.
+- **The passkey seam** (D18): `signWithAny(challengeHex, credentials[])`
+  (every founding credential in the allow-list, transports preserved),
+  `cancelSign()`, and `setPasskeyOverride()` — one substitution covering every
+  ceremony, for Phase 3's fixture signer.
+- **The amount codec** (D25) in its own module with vectors.
+- **Fault arms**: `forceFunding` and `zeroGasQuote` joined the console (the
+  hooks `bundler-service` and `safe-transaction` call).
+
+**The golden addresses — the FIFTH surface** (`core/golden-addresses.test.ts`):
+the three fixture public keys derive `0xD400…130b` / `0x031d…772b` /
+`0x58cd…1d3d`, and all three founding one wallet derive
+`0x88cCA0…6894`; key ORDER is pinned as part of the address, N=1 equivalence
+is pinned, and a malformed key throws rather than deriving something
+plausible. Rust, Kotlin, Swift and the Expo wasm already pin these; the web
+is the fifth.
+
+**One finding, pinned rather than fixed**: `decimalToHex('-1')` emits `0x-1` —
+not valid hex. Every downstream consumer re-parses that string and THROWS, so
+a negative amount fails loudly; coercing it to `0x0` would silently sign a
+zero-value transfer, which is the worse failure. The test pins the loud
+refusal so a future "cleanup" cannot quietly turn it into a wrong number.
+
+**Recorded deviations**: three ported files keep `any` where Expo had it
+(`safe-transaction`, `approval-guard`, `selector-registry`, the three
+simulation engines) behind a file-level lint exemption — they walk dynamic
+wire shapes (blocks, gas quotes, receipts, decoded params, simulation results)
+and narrowing them is a rewrite, not a port. `safe-transaction` additionally
+exempts two parity exports and four re-thrown estimation errors that
+deliberately replace the transport's words with the person's. Where the web's
+pool answers `result: unknown` (Expo's was `any`), three read sites got an
+explicit shape rather than a blanket cast.
+
+**Gates**: check 1266/0 · lint clean · unit **680** · build ×15 · e2e **99/99**
+(chromium + firefox + webkit) · wasm byte-identical · zero corpus delta.

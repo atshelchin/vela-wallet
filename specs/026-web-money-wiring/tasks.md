@@ -23,30 +23,30 @@ runs in app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 2: Foundation (one commit) — blocks 3–6
 
-- [ ] T210 Port `services/vela-core/*` → `$lib/core/kernels.ts` +
+- [X] T210 Port `services/vela-core/*` → `$lib/core/kernels.ts` +
       `safe-constants.ts` (D15); golden-address unit (5th surface,
       `0x88cCA0…6894` + the three single-key fixtures)
-- [ ] T211 Port `safe-transaction.ts` verbatim (rpc-adapter → pool facade;
+- [X] T211 Port `safe-transaction.ts` verbatim (rpc-adapter → pool facade;
       fault hook → web fault module); port its Jest vectors to vitest
       (signature envelope, SafeOp hash, MultiSend, initCode)
-- [ ] T212 [P] Port `bundler-service.ts` (+`parseBundlerUnderfunded` pinned
+- [X] T212 [P] Port `bundler-service.ts` (+`parseBundlerUnderfunded` pinned
       against the relay's strings — FR-206), `tx-reconciler.ts`,
       `token-reads.ts`, `recipient-risk.ts`, `eip681.ts`, `batch-send.ts`,
       `dapp-history.ts`, `approval-guard.ts`, `selector-registry.ts`
-- [ ] T213 [P] Port the simulation family → `$lib/services/sim/` (tx-simulation,
+- [X] T213 [P] Port the simulation family → `$lib/services/sim/` (tx-simulation,
       sim-assets, sim-engine-rpc, sim-engine-tevm seam, sim-trust,
       sim-corroboration)
-- [ ] T214 Port `use-dapp-signing.ts::handleDAppRequest` → `dapp-submit.ts`
+- [X] T214 Port `use-dapp-signing.ts::handleDAppRequest` → `dapp-submit.ts`
       (plain module; `'core'` submit-guard owner)
-- [ ] T215 `records.ts` writer: `saveTransaction(s)` / `updateTransaction(s)`
+- [X] T215 `records.ts` writer: `saveTransaction(s)` / `updateTransaction(s)`
       under `withTxLock`, atomic; unit (batch siblings never drop)
-- [ ] T216 [P] `$lib/services/accounts.ts`: `findAccountByAddress` /
+- [X] T216 [P] `$lib/services/accounts.ts`: `findAccountByAddress` /
       `ByCredentialId` / `keySetOf` over `vela.accounts`
-- [ ] T217 `passkey.ts`: `signWithAny(challengeHex, credentials[])` +
+- [X] T217 `passkey.ts`: `signWithAny(challengeHex, credentials[])` +
       `setPasskeyOverride()` seam (runtime dev gate); unit for the
       allowCredentials list and the abort controller
-- [ ] T218 [P] Amount codec (`toShellCall`/`decimalToHex`) + vectors (D25)
-- [ ] T219 Full gate; results.md Phase 2 entry
+- [X] T218 [P] Amount codec (`toShellCall`/`decimalToHex`) + vectors (D25)
+- [X] T219 Full gate; results.md Phase 2 entry
 
 ## Phase 3: Parallel space (one commit) 🎯 enabling
 

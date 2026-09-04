@@ -48,6 +48,10 @@ export class TimeoutError extends Error {
 	}
 }
 
+export function isTimeoutError(e: unknown): boolean {
+	return e instanceof TimeoutError;
+}
+
 export function isAbortError(e: unknown): boolean {
 	return e instanceof DOMException && e.name === 'AbortError';
 }

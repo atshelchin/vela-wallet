@@ -13,13 +13,17 @@ type FaultState = {
 	rateLimitRpcChains: Set<number>;
 	rpcLatencyMs: number;
 	nullPriceChains: Set<number>;
+	fundingForceChains: Set<number>;
+	gasQuoteZeroChains: Set<number>;
 };
 
 const state: FaultState = {
 	failRpcChains: new Set(),
 	rateLimitRpcChains: new Set(),
 	rpcLatencyMs: 0,
-	nullPriceChains: new Set()
+	nullPriceChains: new Set(),
+	fundingForceChains: new Set(),
+	gasQuoteZeroChains: new Set()
 };
 
 export function rpcShouldFail(chainId: number): boolean {
@@ -38,6 +42,16 @@ export function priceShouldNull(chainId: number): boolean {
 	return state.nullPriceChains.has(chainId);
 }
 
+/** Force the gas-account check to report "deposit needed" (the in-sheet funding UX, BUG-1). */
+export function fundingShouldForce(chainId: number): boolean {
+	return state.fundingForceChains.has(chainId);
+}
+
+/** Force the bundler gas quote to 0x0 — the fee must fall back, never read "~0". */
+export function gasQuoteShouldZero(chainId: number): boolean {
+	return state.gasQuoteZeroChains.has(chainId);
+}
+
 /**
  * Install `window.vela.*` (dev builds and the e2e worker only — callers gate;
  * the deployed production Worker never runs this).
@@ -49,10 +63,14 @@ export function installFaultConsole(): void {
 		rateLimitRpc: (chainId: number) => state.rateLimitRpcChains.add(chainId),
 		slowRpc: (ms: number) => (state.rpcLatencyMs = ms),
 		nullPrice: (chainId: number) => state.nullPriceChains.add(chainId),
+		forceFunding: (chainId: number) => state.fundingForceChains.add(chainId),
+		zeroGasQuote: (chainId: number) => state.gasQuoteZeroChains.add(chainId),
 		clearFaults: () => {
 			state.failRpcChains.clear();
 			state.rateLimitRpcChains.clear();
 			state.nullPriceChains.clear();
+			state.fundingForceChains.clear();
+			state.gasQuoteZeroChains.clear();
 			state.rpcLatencyMs = 0;
 		}
 	};

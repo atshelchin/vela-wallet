@@ -16,9 +16,30 @@ isn't."* The comment was honest about a placeholder. What made it a trap is that
 021's card graduated into a live receive screen in 025 and nobody replaced the
 generator, so the honest placeholder became a dishonest product.
 
-**Decision**: port Expo's `src/services/qrcode.ts` — 554 lines, byte mode,
-versions 1–10, error correction level M, **no dependencies**. The live receive
-card, the payment-request code and the share card render from it.
+**Decision, CORRECTED before a line was ported**: use the `qrcode` npm package
+(1.5.4) — the one Expo actually ships — and port the 20-line `qr-path.ts`
+beside it.
+
+The plan said to port `src/services/qrcode.ts`, 554 hand-rolled dependency-free
+lines. Checking its callers first found there are none: **nothing in the Expo
+tree imports it.** Expo's real encoder is `qrcode`, used by
+`components/QRCode.tsx` and `components/ui/TransactionReceipt.tsx`. Porting 554
+lines of code that has never run in production, under a heading that calls it
+"the porting truth", is the worst kind of port — it looks verified and is not.
+A round-trip test would eventually have found whatever is wrong with it; not
+writing it is better.
+
+`qr-path.ts` (20 lines) does come across, and it earns its place: it merges
+consecutive dark modules in a row into one `h` run so the whole code is a single
+SVG path. Per-cell rendering produces hairline white gridlines from pixel
+rounding, which is a code that photographs badly.
+
+**Measured while deciding**: a plain address encodes to **29 modules at version
+3** — exactly the `RECEIVE_MODULES = 29` the card was drawn at, so 021's
+geometry was chosen against a real code. A 131-character EIP-681 payment link
+encodes to **49 modules at version 8**, which at the card's fixed 344px is about
+7px per module — still scannable, but it means the card must accept a varying
+module count rather than assume 29.
 
 `qr-pattern.ts` is NOT deleted. The galleries are canon and their screenshots
 are diffed; a fixture that suddenly encoded a real address would change every

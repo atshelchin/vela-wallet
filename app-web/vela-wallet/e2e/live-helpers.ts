@@ -45,6 +45,14 @@ const TEST_ACCOUNT = {
  */
 export const TEST_ACCOUNT_SHORT = '0x0cE19C…084e2e';
 
+/**
+ * The same address in full. It lives here because the shortened form is a
+ * TRAP: spec 028's receive-code test was first written against a middle
+ * reconstructed from `0x0cE19C…084e2e`, which is unguessable by construction.
+ * Anything asserting the whole address reads it from here.
+ */
+export const TEST_ACCOUNT_ADDRESS = '0x0cE19Cc09A0b561B1AB9ee3B88C93685F5084e2e';
+
 /** Runs before every document in the context: intro seen + wallet present. */
 export async function seedSignedIn(page: Page): Promise<void> {
 	await page.addInitScript((account) => {

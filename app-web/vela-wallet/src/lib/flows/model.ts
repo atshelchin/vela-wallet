@@ -14,6 +14,7 @@
  * parallel type would be the first step towards a parallel component.
  */
 
+import type { QrCode } from '$lib/wallet/qr';
 import type {
 	ActivityGroupModel,
 	ActivityRowModel,
@@ -169,6 +170,11 @@ export interface ReceiveQrModel {
 	/** R3 only: the token's contract, shown above the account card. */
 	contract?: { label: string; value: string; copyLabel: string };
 	account: AddressCardModel;
+	/**
+	 * The code to draw (spec 028). Absent = the drawn placeholder, which is what
+	 * the galleries carry; a live screen always supplies a real one.
+	 */
+	code?: QrCode;
 	/** The mark drawn in the middle of the code — the token, or the network. */
 	centre: TokenMarkModel;
 	warning: string;
@@ -179,6 +185,8 @@ export interface ReceiveQrModel {
 /** R4 — the image "Save image" produces, not a screen someone navigates to. */
 export interface ShareCardModel {
 	headline: string;
+	/** As above: absent in the gallery, real everywhere a person can save it. */
+	code?: QrCode;
 	name: string;
 	lines: [string, string];
 	networkNote: string;

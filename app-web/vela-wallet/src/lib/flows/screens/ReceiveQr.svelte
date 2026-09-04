@@ -59,7 +59,7 @@
 	/>
 
 	<div class="code">
-		<QRCard label={model.title}>
+		<QRCard label={model.title} code={model.code}>
 			{#snippet centre()}
 				<span class="mark" style:background={model.centre.badgeColor}>{model.centre.ticker}</span>
 			{/snippet}

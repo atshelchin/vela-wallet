@@ -27,7 +27,7 @@
 	<p class="headline">{model.headline}</p>
 
 	<div class="sheet">
-		<QRCard label={model.headline}>
+		<QRCard label={model.headline} code={model.code}>
 			{#snippet centre()}
 				<Identicon svg={model.identiconSvg} size="row" />
 			{/snippet}

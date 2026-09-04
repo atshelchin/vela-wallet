@@ -30,20 +30,20 @@ fixed before this feature ships. It is tracked in 027's ledger.
 
 ## Phase 2: The code is data (one commit) 🎯 the trap
 
-- [ ] T410 [US1] Port `qrcode.ts` verbatim with a provenance header; unit
+- [X] T410 [US1] Port `qrcode.ts` verbatim with a provenance header; unit
       vectors (byte mode, versions 1–10, EC level M) including the longest
       payment link the card must carry
-- [ ] T411 [US1] `wallet/qr.ts`: the live code for an address and for a payment
+- [X] T411 [US1] `wallet/qr.ts`: the live code for an address and for a payment
       request. `qr-pattern.ts` stays and keeps its comment — the galleries are
       canon and must not start showing real addresses (D44)
-- [ ] T412 [US1] `QRCard` takes the modules it draws instead of generating
+- [X] T412 [US1] `QRCard` takes the modules it draws instead of generating
       them; fixtures pass the placeholder, live passes the real code. Gallery
       pixel-unchanged
-- [ ] T413 [US1] Port `share-card.ts`: address text + code + the account's
+- [X] T413 [US1] Port `share-card.ts`: address text + code + the account's
       identicon, composed under the founder's existing rules (D46)
-- [ ] T414 [US1] e2e `receive-code.e2e.ts` (SC-401): render → **decode** →
+- [X] T414 [US1] e2e `receive-code.e2e.ts` (SC-401): render → **decode** →
       the address comes back; with a payment request, amount/asset/chain survive
-- [ ] T415 Full gate; results.md Phase 2 entry
+- [X] T415 Full gate; results.md Phase 2 entry
 
 ## Phase 3: Reading a code (one commit)
 

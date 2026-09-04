@@ -15,8 +15,10 @@ import type { FeedView } from '$lib/core/generated/FeedView';
 import type { CurrencyView } from '$lib/core/generated/CurrencyView';
 import { getAllNetworksSync, nativeSymbol } from '$lib/services/networks';
 import { chainColor } from '$lib/wallet/fixtures';
+import type { ShareCardModel } from './model';
 import type { WalletIdentity } from '$lib/wallet/identity';
 import { shortenAddress } from '$lib/wallet/identity';
+import { encodeQr } from '$lib/wallet/qr';
 import { liveActivityGroups, liveAssetRow } from '$lib/wallet/live';
 import { addressLines } from './fixtures';
 import { liveBatchImport, type BatchLiveInputs } from './live-batch';
@@ -102,12 +104,37 @@ function liveReceiveQr(model: ReceiveQrModel, inputs: FlowsLiveInputs): ReceiveQ
 	if (identity === undefined) return model;
 	return {
 		...model,
+		// The code is the ADDRESS, encoded (spec 028 T411). Until now this screen
+		// drew 021's placeholder pattern, which never encoded anything — a person
+		// showed it to a friend and no money arrived.
+		code: encodeQr(identity.address),
 		account: {
 			...model.account,
 			name: identity.name,
 			identiconSvg: identity.identiconSvg,
 			lines: addressLines(identity.address)
 		}
+	};
+}
+
+/**
+ * The share card (spec 028 T413) — the image someone hands to a stranger.
+ *
+ * Three things ride together on purpose, and the third is the reason: the
+ * address in readable text, so a person can check it without a scanner; the
+ * code, so a camera can; and the account's own identicon, which is DERIVED from
+ * the address. A card someone doctored to swap the address carries artwork that
+ * no longer matches it — the mismatch is the tell.
+ */
+function liveShareCard(model: ShareCardModel, inputs: FlowsLiveInputs): ShareCardModel {
+	const identity = inputs.identity;
+	if (identity === undefined) return model;
+	return {
+		...model,
+		code: encodeQr(identity.address),
+		name: identity.name,
+		lines: addressLines(identity.address),
+		identiconSvg: identity.identiconSvg
 	};
 }
 
@@ -118,6 +145,11 @@ export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): F
 		next = { ...next, base: { kind: 'assets', model: liveAssets(model.base.model, inputs) } };
 	} else if (model.base.kind === 'history') {
 		next = { ...next, base: { kind: 'history', model: liveHistory(model.base.model, inputs) } };
+	} else if (model.base.kind === 'share-card') {
+		next = {
+			...next,
+			base: { kind: 'share-card', model: liveShareCard(model.base.model, inputs) }
+		};
 	} else if (model.base.kind === 'receive-list') {
 		next = {
 			...next,

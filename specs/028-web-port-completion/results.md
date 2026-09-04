@@ -68,3 +68,69 @@ using `import.meta`; Vite can, and this repo does not fetch code from third
 parties at runtime (D45).
 
 Encoding needs no dependency at all.
+
+---
+
+## Phase 2 — the code is data (T410–T415) 🎯 the trap
+
+**What shipped**: the receive code, the payment-request code and the share card
+encode the address. `jsqr` — a decoder that knows nothing about the encoder —
+reads it back off the rendered screen.
+
+### The plan said port 554 lines. Checking first said don't.
+
+`src/services/qrcode.ts` is 554 hand-rolled, dependency-free lines, and the plan
+called it the porting truth. **Nothing in the Expo tree imports it.** Expo's real
+encoder is the `qrcode` npm package, used by `components/QRCode.tsx` and
+`components/ui/TransactionReceipt.tsx`.
+
+Porting code that has never run in production, under a heading that calls it
+verified, is the worst kind of port. So the encoder is `qrcode` — the same one
+the phone ships — and the only thing ported is `qr-path.ts` (20 lines), which
+merges consecutive dark modules into one `h` run so the whole code is a single
+SVG path. Per-cell rendering leaves hairline white gridlines from pixel
+rounding, and a code with gridlines photographs badly, which is how most people
+read one. Research D44 is corrected with the reasoning.
+
+**Measured while deciding**: a plain address encodes to **29 modules at version
+3** — exactly the `RECEIVE_MODULES = 29` spec 021 drew the card at, so that
+geometry was chosen against a real code. A 131-character EIP-681 link encodes to
+**49 modules**, so the card takes a varying module count rather than assuming 29.
+
+### The placeholder stays
+
+`qr-pattern.ts` is not deleted and keeps its own honest header. The galleries are
+canon and their screenshots are diffed; a fixture that suddenly encoded a real
+address would put real addresses in the gallery. `QRCard` takes an optional
+`code` — absent means the placeholder, and every live surface supplies a real
+one. Both branches render through the same `<path>`, so the placeholder draws
+the pixels it always drew.
+
+### The assertion that would have caught this in 021
+
+Two round trips, not one screenshot:
+
+- **unit** (`wallet/qr.test.ts`): rasterise what the card draws, hand it to
+  `jsqr`, demand the address back — and the same for a full EIP-681 payment
+  link, so amount, asset and chain are proven to survive.
+- **e2e** (`receive-code.e2e.ts`): drive the real screen, take the path out of
+  the rendered DOM, rasterise it the way a camera would see it, decode. It
+  asserts 29 modules and the exact address.
+
+"A QR appeared" is precisely the assertion a decorative pattern passes, which is
+why neither of these is that.
+
+**One finding, and the test caught ME**: the e2e first asserted an address
+reconstructed from the shortened form `0x0cE19C…084e2e`. The decode returned the
+real one and the test failed — proving the decode is genuinely reading the
+rendered code, since a pattern would have returned nothing. The full derived
+address now lives in `live-helpers.ts` as `TEST_ACCOUNT_ADDRESS` with a note that
+the shortened form is unguessable by construction.
+
+**Recorded**: the share card's live builder is wired and supplies the code, the
+name, the address lines and the identicon; the *image* it produces ("Save
+image") is Phase 3's, alongside the rest of the receive tooling.
+
+**Gates**: check **1361**/0 · lint clean · unit **771** · build ×15 +
+`build:extension` · e2e **139 passed / 1 skipped** (chromium + firefox + webkit)
+· wasm byte-identical · corpus delta zero.

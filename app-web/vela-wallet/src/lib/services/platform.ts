@@ -5,6 +5,12 @@
  * never skipped), and page visibility standing in for app activity.
  */
 
+/**
+ * The failure twin. Web has no vibration commitment either, so this is the
+ * same acknowledged no-op — the screen's own error state is the feedback.
+ */
+export function hapticError(): void {}
+
 export function hapticSuccess(): void {
 	// No haptic surface on web; the caller's visual acknowledgement is the feedback.
 }

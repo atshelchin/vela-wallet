@@ -96,15 +96,15 @@ app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 6: Connections and resilience (one commit)
 
-- [ ] T350 [US4] The connections surface: list with grant and last use, revoke,
+- [X] T350 [US4] The connections surface: list with grant and last use, revoke,
       and the core's rules for what a switch of account or chain tells a site
-- [ ] T351 [US5] The answer-or-reject guarantee: the worker holds no
+- [X] T351 [US5] The answer-or-reject guarantee: the worker holds no
       authoritative state, a request is written down on arrival, a closed window
       answers `4001`, a torn-down worker resumes or refuses (D37)
-- [ ] T352 [P] Units: revocation arms, the resilience paths
-- [ ] T353 e2e `extension-connections.e2e.ts` (SC-305) and
+- [X] T352 [P] Units: revocation arms, the resilience paths
+- [X] T353 e2e `extension-connections.e2e.ts` (SC-305) and
       `extension-resilience.e2e.ts` (SC-307)
-- [ ] T354 Full gate; results.md Phase 6 entry
+- [X] T354 Full gate; results.md Phase 6 entry
 
 ## Phase 7: Real device, budgets, closeout (one commit)
 

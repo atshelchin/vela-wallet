@@ -15,7 +15,7 @@ These files sit outside `src/` on purpose: they are not SvelteKit modules and
 must never be bundled by it. `inpage.js` in particular runs in the page's MAIN
 world, where a bundler's module wrapper would be a bug.
 
-## Four measured constraints this directory has to respect
+## Five measured constraints this directory has to respect
 
 They are recorded with their evidence in [`research.md`](../../../specs/027-web-extension-provider/research.md)
 (D31, D33, D34, D35); the short version, because breaking any of them is silent:
@@ -34,6 +34,13 @@ They are recorded with their evidence in [`research.md`](../../../specs/027-web-
    it and the extension quietly becomes a different, empty wallet.
 4. **A dApp request opens a dedicated window, never the action popup.** The
    popup closes when the passkey prompt takes focus, mid-signature.
+5. **No top-level name in `dist/` may start with `_`.** Chrome reserves that
+   prefix and rejects the whole package — "Cannot load extension with file or
+   directory name \_app … Could not load manifest." SvelteKit's `kit.appDir`
+   defaults to `_app`, so `vite.config.ts` sets it to `app` for this target
+   only. The automated suite cannot stand in for a real install here:
+   Playwright's `--load-extension` loaded the reserved name happily while
+   "Load unpacked" refused it, so `package.test.ts` asserts it directly.
 
 ## Layout (as phases land it)
 

@@ -392,3 +392,87 @@ no e2e of its own yet; reads and chain switching remain classified and unrouted.
 **Gates**: check **1352**/0 · lint clean · unit **759** · build ×15 +
 `build:extension` · e2e **133/133** (chromium + firefox + webkit) · wasm
 byte-identical · corpus delta zero · extension package 35 MB.
+
+---
+
+## Phase 6 — connections, revocation, and two bugs only a real install could find (T350–T354)
+
+**What shipped**: a connected site is listed where 023 drew the row for it, it
+can be cut off, and cutting it off means something — the site's next request is
+a first request again. Plus the durability half of the same promise: a request
+is written down the moment it arrives and gone the moment it is answered.
+
+- **The list** (T350) fills the drawn Settings → Advanced → Device storage →
+  **Connections** group with one row per granted origin — host, the account it
+  holds, and its own "Disconnect". 023 drew that group with a single fixture row
+  ("Connected dApps · 4 sites" + "Disconnect all"); a grant is a standing
+  permission, so a person has to see WHICH sites hold one. No new screen: the
+  drawn rows, filled with real data, the 024–026 sibling-builder pattern.
+  `SettingsHome` gained the `onstorageclear` callback the drawn `StorageGroup`
+  had been waiting for since 023.
+- **The singular label.** A per-site row first read "Disconnect **all**" —
+  the group's own words on a row that cuts off one site. `connect.browser.disconnect`
+  already exists in the corpus, so the manifest gained the field and the row
+  says "Disconnect". A label that gets tapped by someone who meant something
+  else is not a copy nit.
+- **Revocation asks no machine.** What a grant MEANS is `dapp_permissions`';
+  revoking is the ABSENCE of one, and the core rules on the next request exactly
+  as it rules on a first.
+- **The stale sweep** (T351): a record outlives the worker on purpose, but it
+  cannot outlive the tab that asked. On a cold start every record from before is
+  unanswerable — the page's `sendResponse` died with the previous worker and
+  content.js has already settled that page on its deadline — so they are dropped
+  rather than left for a window to open on.
+
+### The two bugs the founder found by installing it
+
+Both were invisible to every gate in this feature, and both are worth more than
+the code that fixed them.
+
+1. **`Cannot load extension with file or directory name _app.`** Chrome reserves
+   every top-level name beginning with `_`; SvelteKit's client assets live in
+   `_app/`. Fixed with `kit.appDir: 'app'` for the extension target only — the
+   hosted site keeps `_app` and its budgets cannot move. **Playwright's
+   `--load-extension` tolerates what `chrome://extensions` refuses**, so the
+   whole automated suite was green while a hand install was impossible.
+   `package.test.ts` now reads the BUILT package and asserts no reserved
+   top-level name, because this is an "it cannot be installed" failure.
+2. **The passkey dialog said `chrome-extension://bjbdmn…` instead of
+   `getvela.app`.** `relyingPartyId()` reads `window.location.hostname`, which
+   under an extension origin is the extension id. The manifest has held the
+   `https://getvela.app/*` host permission since Phase 2 — the entire point of
+   research D31 — and the code never used it. One line:
+   `if (isPackagedApp()) return RELYING_PARTY_NATIVE`. The same function also
+   feeds the public-key index's rpId, so both doorways were wrong and both are
+   fixed by it.
+
+   **Why no gate caught it, which is the part worth keeping**: this failure
+   never errors. It mints a perfectly valid passkey for a relying party nothing
+   else shares, and since the address is derived from the KEYS, the person lands
+   in a different, empty wallet. And `extension-boot.e2e.ts` — the suite written
+   precisely to prove "the SAME address" — derives from the parallel space's
+   FIXTURE public keys, whose signer takes its rpId from the same function: it
+   is self-consistent whatever that function returns. **An address test cannot
+   catch an rpId bug**, because rpId does not enter address derivation; it
+   enters the signature's `rpIdHash`. The unit test now pins the branches
+   directly.
+
+   Carried, reported and not fixed: `eip681.ts::payLinkBase()` builds a payment
+   link from `location.origin`, which inside the extension is a
+   `chrome-extension://…/pay` URL nobody else can open. Cosmetic, not
+   money-losing; it wants the hosted `/pay` base.
+
+**One more harness finding**: the connections e2e hung until it was given a
+phone viewport. A default 1280-wide context renders the DESKTOP settings layout,
+where "Advanced" is not a row to tap — so the test was driving a surface no
+extension user will ever see, since the extension's own windows are phone-width.
+
+**Recorded**: the per-site `ConnectionPanel` 022 drew (account, network, the
+"a connection is not permission to move money" sentence) still has no list route
+to hang off on web; the storage row is what ships. Account- and chain-change
+notifications to connected sites are not wired — no live document to push into
+until a request opens one.
+
+**Gates**: check **1354**/0 · lint clean · unit **765** · build ×15 +
+`build:extension` · e2e **135/135** (chromium + firefox + webkit) · wasm
+byte-identical · corpus delta zero.

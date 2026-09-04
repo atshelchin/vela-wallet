@@ -2,8 +2,8 @@
 /**
  * Assemble the loadable Chrome extension (spec 027 T311).
  *
- * `VELA_TARGET=extension vite build` puts the app's PRERENDERED pages under
- * `extension/dist/app` — the same pages the hosted site serves, because this
+ * `VELA_TARGET=extension vite build` puts the app's PRERENDERED pages into
+ * `extension/dist` — the same pages the hosted site serves, because this
  * app resolves all 15 locales at build time through the wasm i18n engine and a
  * client-rendered shell would have no words (spec 027 D35, corrected). This
  * script takes that output and makes it installable:
@@ -35,6 +35,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = join(HERE, '..');
 const DIST = join(HERE, 'dist');
 const SITE = DIST;
+/**
+ * Where kit puts the client bundle — `kit.appDir`, which vite.config.ts moves
+ * off its `_app` default for this target ONLY, because Chrome refuses to load
+ * any extension holding a top-level name that starts with `_`. It is spelled
+ * out here because this is the file that asserts the build ran: if the two ever
+ * drift, the check below is what says so.
+ */
+const APP_DIR = 'app';
 
 /** The page-side scripts, bundled from their module sources (below). */
 const ENTRIES = ['inpage.js', 'content.js', 'background.js'];
@@ -63,8 +71,11 @@ if (!process.argv.includes('--skip-build')) {
 		env: { ...process.env, VELA_TARGET: 'extension' }
 	});
 }
-if (!existsSync(join(SITE, '_app'))) {
-	console.error('[extension] no build output at extension/dist — run without --skip-build');
+if (!existsSync(join(SITE, APP_DIR))) {
+	console.error(
+		`[extension] no build output at extension/dist/${APP_DIR} — run without --skip-build` +
+			' (or check that vite.config.ts still sets kit.appDir for the extension target)'
+	);
 	process.exit(1);
 }
 
@@ -98,7 +109,7 @@ log(`pruned ${(pruned / 1e6).toFixed(1)} MB the extension has no door to`);
  *   - the first script is render-blocking (it decides before first paint
  *     whether the launch animation plays); a classic `<script src>` still is,
  *     while `type="module"` would be deferred;
- *   - the second resolves `import("../_app/…")` and `document.currentScript`
+ *   - the second resolves `import("../app/…")` and `document.currentScript`
  *     against its own URL, so same directory means same resolution.
  */
 function externalise(htmlPath) {

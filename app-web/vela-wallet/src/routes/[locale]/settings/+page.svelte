@@ -30,7 +30,13 @@
 	import { session } from '$lib/session/core/session.svelte';
 	import { networkAdmin } from '$lib/settings/core/network-admin.svelte';
 	import { currency } from '$lib/settings/core/currency.svelte';
-	import { withLiveCurrency, withLiveNetworks, withLiveNetworksDesktop } from '$lib/settings/live';
+	import {
+		withLiveConnections,
+		withLiveCurrency,
+		withLiveNetworks,
+		withLiveNetworksDesktop
+	} from '$lib/settings/live';
+	import { listGrants, revokeAll, revokeGrant } from '$lib/dapp/connections';
 	import type { SettingsNetEvent } from '$lib/settings/net-events';
 	import { identiconSvgForClient } from '$lib/wallet/identicon';
 	import { shortenAddress, type WalletIdentity } from '$lib/wallet/identity';
@@ -71,11 +77,36 @@
 				}
 	);
 
+	/**
+	 * The sites holding a grant (spec 027 T350). A grant is a standing
+	 * permission, so a person has to be able to see which sites hold one and cut
+	 * any of them off. Empty off the extension, where there is no dApp channel
+	 * and the drawn fixture row stands.
+	 */
+	let grants = $state<{ origin: string; address: string }[]>([]);
+
+	async function refreshGrants(): Promise<void> {
+		grants = await listGrants();
+	}
+
 	onMount(() => {
 		void session.boot();
 		void networkAdmin.boot();
 		void currency.boot();
+		void refreshGrants();
 	});
+
+	/**
+	 * Cut a site off — or all of them, from the fixture row that stands when
+	 * none is connected. Revoking is the ABSENCE of a grant, which is why this
+	 * asks no machine: what a grant means is `dapp_permissions`', and it will
+	 * rule on the next request exactly as it rules on a first one.
+	 */
+	async function disconnect(id: string): Promise<void> {
+		if (id === 'dapps') await revokeAll();
+		else await revokeGrant(id);
+		await refreshGrants();
+	}
 
 	/** Which network's editor is open — render state; the ledger is the core's. */
 	let selectedNetworkId = $state<string | undefined>(undefined);
@@ -87,9 +118,13 @@
 	const liveHome = $derived(
 		identity === null
 			? data.home
-			: withLiveCurrency(
-					withLiveNetworks(homeWithIdentity(data.home, identity), net, m, selectedNetworkId),
-					currency.view
+			: withLiveConnections(
+					withLiveCurrency(
+						withLiveNetworks(homeWithIdentity(data.home, identity), net, m, selectedNetworkId),
+						currency.view
+					),
+					grants,
+					m
 				)
 	);
 	const liveDesktop = $derived(
@@ -239,6 +274,7 @@
 			onsignout={signOut}
 			onnetevent={onNetEvent}
 			oncurrencyselect={(code) => currency.choose(code)}
+			onstorageclear={disconnect}
 		/>
 	{/if}
 {:else}

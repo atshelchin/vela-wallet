@@ -173,6 +173,27 @@ chrome.windows.onRemoved.addListener((windowId) => {
 	}
 });
 
+/**
+ * Drop requests nobody can answer any more.
+ *
+ * A record outlives the worker on purpose — that is the whole point of writing
+ * it down — but it cannot outlive the tab that asked. When this worker starts
+ * cold, every record from before it is unanswerable: the page's own
+ * `sendResponse` died with the previous worker, and content.js has already
+ * settled that page on its deadline. Keeping them would mean a window could
+ * later open on a request whose asker is long gone.
+ */
+async function sweepStaleRequests() {
+	try {
+		const all = await chrome.storage.local.get(null);
+		const stale = Object.keys(all).filter((key) => key.startsWith(REQUEST_PREFIX));
+		if (stale.length) await chrome.storage.local.remove(stale);
+	} catch {
+		/* storage denied — nothing to sweep and nothing to report */
+	}
+}
+void sweepStaleRequests();
+
 // ---------------------------------------------------------------------------
 // The instant answers
 // ---------------------------------------------------------------------------

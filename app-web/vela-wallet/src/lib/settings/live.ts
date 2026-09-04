@@ -10,6 +10,7 @@
  */
 
 import { fill } from '$lib/wallet/messages';
+import { shortenAddress } from '$lib/wallet/identity';
 import type { NetChainIndexEntry } from '$lib/core/generated/NetChainIndexEntry';
 import type { NetNetworkRow } from '$lib/core/generated/NetNetworkRow';
 import type { NetProbeHealth } from '$lib/core/generated/NetProbeHealth';
@@ -401,4 +402,62 @@ export function withLiveCurrency(model: SettingsHomeModel, view: CurrencyView): 
 			}))
 		}
 	};
+}
+
+/**
+ * The connected sites, in the drawn storage row (spec 027 T350).
+ *
+ * 023 drew this group with one fixture row — "Connected dApps · 4 sites" and a
+ * destructive "Disconnect all". A grant is a standing permission, so a person
+ * has to be able to see WHICH sites hold one, not only how many; this fills the
+ * same drawn rows with one per site, keeping the group action as the way to cut
+ * them all off at once.
+ *
+ * `id` is the origin, so the row's own `onclear` says exactly which grant to
+ * revoke. Off the extension there are no grants and the fixture row stands.
+ */
+export function withLiveConnections(
+	model: SettingsHomeModel,
+	grants: { origin: string; address: string }[],
+	m: SettingsMessages
+): SettingsHomeModel {
+	const groups = model.storage.groups.map((group) => {
+		if (group.label !== m.storage.connections) return group;
+		if (grants.length === 0) {
+			return {
+				...group,
+				items: [
+					{
+						id: 'dapps',
+						label: m.storage.itemDapps,
+						meta: fill(m.storage.sitesCount, { count: 0 }),
+						action: m.storage.disconnectAll,
+						destructive: true
+					}
+				]
+			};
+		}
+		return {
+			...group,
+			items: grants.map((grant) => ({
+				id: grant.origin,
+				label: hostOf(grant.origin),
+				meta: shortenAddress(grant.address),
+				// Singular: this row cuts off ONE site. Saying "Disconnect all" on
+				// a row that disconnects one is the kind of label that gets tapped
+				// by someone who meant something else.
+				action: m.storage.disconnectOne,
+				destructive: true
+			}))
+		};
+	});
+	return { ...model, storage: { ...model.storage, groups } };
+}
+
+function hostOf(origin: string): string {
+	try {
+		return new URL(origin).host || origin;
+	} catch {
+		return origin;
+	}
 }

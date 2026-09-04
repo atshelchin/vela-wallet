@@ -20,9 +20,18 @@ const LAUNCH_ANIMATIONS = fileURLToPath(new URL('../../design/onboarding/launch'
  * `VELA_TARGET=extension` builds the browser extension's shell instead of the
  * hosted site. Two kit options change and nothing else does:
  *
- * EXACTLY ONE kit option changes: the STATIC adapter, because a
- * `chrome-extension://` page is a file, not a request — there is no Worker to
- * run. Prerendering and pathname routing stay, and that is deliberate.
+ * 1. the STATIC adapter, because a `chrome-extension://` page is a file, not a
+ *    request — there is no Worker to run. Prerendering and pathname routing
+ *    stay, and that is deliberate.
+ * 2. `appDir`, away from its default `_app`. Chrome reserves every top-level
+ *    name beginning with `_` inside an extension package, so it refuses the
+ *    PACKAGE, not the file: "Cannot load extension with file or directory name
+ *    _app. Filenames starting with `_` are reserved for use by the system."
+ *    Nothing in the automated suite could have caught this — Playwright's
+ *    `--load-extension` tolerates the reserved name, so the extension e2e ran
+ *    green for weeks against a package no person could install by hand from
+ *    chrome://extensions. The hosted site keeps `_app`: its asset URLs are
+ *    public and cached, and no browser rule touches them.
  *
  * The obvious-looking alternative, `router.type: 'hash'` (which SvelteKit
  * documents for exactly this case), is NOT usable here: it forbids server files
@@ -58,6 +67,10 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
+			// `_app` → `app` for the extension only; see (2) above. This has to be
+			// set here rather than fixed up in `extension/build.mjs`, because the
+			// name is baked into every prerendered page's asset references.
+			...(EXTENSION_TARGET ? { appDir: 'app' } : {}),
 			adapter: EXTENSION_TARGET
 				? staticAdapter({
 						// The app is served from the extension's ROOT, not a

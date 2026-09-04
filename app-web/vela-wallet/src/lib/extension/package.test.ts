@@ -1,11 +1,13 @@
 /**
- * The packaged extension's two silent failure modes (spec 027 T312).
+ * The packaged extension's silent failure modes (spec 027 T312).
  *
- * Both were measured, and both fail without an error a person would see: an
+ * Each was measured, and none of them raises an error anyone would notice: an
  * inline `<script>` simply never runs under MV3's extension-page CSP (and a
- * `sha256-` hash for it makes Chrome refuse to LOAD the extension at all), and
- * a manifest without `'wasm-unsafe-eval'` compiles no wasm — which for this
- * product means every decision it makes is gone.
+ * `sha256-` hash for it makes Chrome refuse to LOAD the extension at all), a
+ * manifest without `'wasm-unsafe-eval'` compiles no wasm — which for this
+ * product means every decision it makes is gone — and a top-level name
+ * beginning with `_` makes Chrome reject the package on install, which no e2e
+ * can see because Playwright loads extensions by a path that tolerates it.
  *
  * These read the BUILT package. When it is absent the tests say so rather than
  * passing quietly: a budget you skipped is not a budget you met.
@@ -63,6 +65,20 @@ describe('the packaged pages', () => {
 
 	it('exist — run `pnpm build:extension` before trusting this file', () => {
 		expect(built.length).toBeGreaterThan(0);
+	});
+
+	it('sit beside no top-level `_` name, or Chrome installs none of them', () => {
+		// Chrome refuses the PACKAGE, not the file: "Load unpacked" answers
+		// "Cannot load extension with file or directory name _app. Filenames
+		// starting with `_` are reserved for use by the system." — so this is a
+		// the-extension-cannot-be-installed failure, not an untidy one. Kit's
+		// `appDir` defaults to exactly that name, which is why the fix lives in
+		// vite.config.ts rather than in a rename here. Only this assertion can
+		// catch a regression: every extension e2e passed while the shipped
+		// package was uninstallable by hand, because Playwright's
+		// `--load-extension` accepts a name chrome://extensions rejects.
+		const reserved = readdirSync(DIST).filter((name) => name.startsWith('_'));
+		expect(reserved, 'top-level names Chrome reserves for itself').toEqual([]);
 	});
 
 	it('carry no inline script anywhere', () => {

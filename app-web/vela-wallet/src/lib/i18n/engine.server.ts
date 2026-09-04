@@ -431,6 +431,7 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 			clear: k('settings.storage.clear'),
 			clearAllCaches: k('settings.storage.clearAllCaches'),
 			disconnectAll: k('settings.storage.disconnectAll'),
+			disconnectOne: k('connect.browser.disconnect'),
 			clearTitle: k('settings.storage.clearTitle'),
 			clearBody: k('settings.storage.clearBody'),
 			clearConfirm: k('settings.storage.clearConfirm')

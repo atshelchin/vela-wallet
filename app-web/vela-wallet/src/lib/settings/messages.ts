@@ -162,6 +162,10 @@ export interface SettingsMessages {
 		clear: string;
 		clearAllCaches: string;
 		disconnectAll: string;
+		/** Singular — one site's own row (spec 027). Lives in the `connect`
+		 *  namespace because it was written for the connection panel; one corpus,
+		 *  not one per surface. */
+		disconnectOne: string;
 		clearTitle: string;
 		clearBody: string;
 		clearConfirm: string;
@@ -416,6 +420,7 @@ export const SETTINGS_KEYS = [
 	'settings.storage.clear',
 	'settings.storage.clearAllCaches',
 	'settings.storage.disconnectAll',
+	'connect.browser.disconnect',
 	'settings.storage.clearTitle',
 	'settings.storage.clearBody',
 	'settings.storage.clearConfirm',

@@ -326,3 +326,69 @@ written now.
 **Gates**: check **1351**/0 · lint clean · unit **758** · build ×15 +
 `build:extension` · e2e **130/130** (chromium + firefox + webkit) · wasm
 byte-identical · corpus delta zero · extension package 35 MB.
+
+---
+
+## Phase 5 — signing (T340–T344)
+
+**What shipped**: a dApp asks for a signature and gets **026's sheet** — the
+same four machines, the same clear-signing reading, the same never-unlimited
+guard, the same fee policy. 027 added the transport that delivered the request
+and the window it renders in, and nothing else.
+
+A `personal_sign` from a connected site now opens a window showing
+`localhost:8813` · Ethereum · **Sign message** · **"Hello, Vela"** (decoded, not
+the hex the dApp sent) · "No network fee — off-chain signature" · *Signing
+account: Parallel One* · slide to confirm.
+
+- **One signing path** (T340). `sign_request` is app-resident precisely because
+  a request can arrive while any screen is showing, and its transport registry
+  already says a response goes to the transport that OWNS the request. The
+  window registers itself, dispatches `request_arrived` carrying the core's
+  `granted_address` — invariant ⑨: the signature is pinned to the GRANT's
+  address, never to whichever account happens to be active — and the machine
+  does the rest.
+- **The sheet wiring moved into `<SigningHost>`.** 026 wired it into the wallet
+  route because that was the only place a request could reach a person. Rather
+  than write a second copy for the request window, the wiring became a component
+  both mount. A second copy of the most dangerous screen in the product is not a
+  refactor to postpone.
+- **An ungranted origin cannot ask at all**: the core refuses with 4100 before
+  any sheet exists. Asserted, because "the sheet is the only signing path" is
+  only true if there is no path AROUND it either.
+
+### One finding, and it was on screen
+
+The first real request through the sheet read:
+
+> Slide to confirm · **Slide to confirm · {{action}}**
+
+`live.ts` fell back to `slideConfirmAction` — which is a TEMPLATE,
+`'Slide to confirm · {{action}}'` — where the drawn control wanted a phrase, and
+then rendered `hint · action` around it. When the core names no intent, the
+generic word (`Confirm`) is the honest one. Same class as 026's `{{bytes}}`, and
+pinned the same way: a unit that asserts no `{{` reaches the model, plus an e2e
+that asserts no `{{` reaches the window's text at all.
+
+The window's own body also sat behind the sheet while it was open; it now steps
+aside.
+
+### Two test-harness findings worth keeping
+
+- **A settled request window closes on a short delay** (so the answer reaches
+  the page first), and a test that fires its next request immediately can grab
+  the CLOSING window and then wait forever for content it will never show.
+  `noRequestWindow()` is now the wait, and both suites use it.
+- **A floating `page.evaluate` that never settles** — the dApp is still waiting
+  when the context closes — is reported as a failure of the test whose
+  assertions all passed. Swallowed explicitly, with the reason.
+
+**Recorded**: `eth_sendTransaction` reaches the same path and the same sheet,
+but a transaction that goes out needs the relay and a funded fixture Safe, so
+its end-to-end proof rides with Phase 7's device pass rather than a hermetic
+e2e; typed data is routed and rendered by the same ladder as a message but has
+no e2e of its own yet; reads and chain switching remain classified and unrouted.
+
+**Gates**: check **1352**/0 · lint clean · unit **759** · build ×15 +
+`build:extension` · e2e **133/133** (chromium + firefox + webkit) · wasm
+byte-identical · corpus delta zero · extension package 35 MB.

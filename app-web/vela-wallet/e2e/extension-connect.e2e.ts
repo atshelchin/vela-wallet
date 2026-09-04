@@ -13,7 +13,13 @@ import { createServer, type Server } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { extensionBuilt, extensionId, loadExtension, requestWindow } from './extension-helpers';
+import {
+	extensionBuilt,
+	extensionId,
+	loadExtension,
+	noRequestWindow,
+	requestWindow
+} from './extension-helpers';
 
 const APP_ROOT = join(import.meta.dirname, '..');
 const PORT = 8812;
@@ -71,6 +77,9 @@ test.describe('connecting a dApp', () => {
 		server = await serveDApps();
 	});
 	test.afterAll(async () => {
+		// Keep-alive sockets otherwise hold the server open past the hook's
+		// deadline — the close hangs, and the whole file is reported failed.
+		server.closeAllConnections();
 		await new Promise((resolve) => server.close(() => resolve(null)));
 	});
 
@@ -92,6 +101,9 @@ test.describe('connecting a dApp', () => {
 		const win = await requestWindow(context);
 		await expect(win.getByRole('heading')).toContainText(`localhost:${PORT}`);
 		await win.getByRole('button', { name: 'Connect' }).click();
+		// The window closes on a short delay; the assertions below are about
+		// there being NO second window, so wait for the first one to be gone.
+		await noRequestWindow(context);
 
 		// The address the dApp receives is the GRANT's, which is the core's
 		// derivation — never a stored field.

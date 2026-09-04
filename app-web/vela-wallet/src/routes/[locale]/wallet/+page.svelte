@@ -54,11 +54,8 @@
 	import { FeeQuote, IDLE_FEE_VIEW } from '$lib/flows/core/fee-quote.svelte';
 	import { setSendTrackerSink } from '$lib/flows/core/send-executor';
 	import { startTxTracker, trackSubmitted } from '$lib/wallet/core/tracker-resident';
-	import SigningSheetView from '$lib/signing/SigningSheet.svelte';
+	import SigningHost from '$lib/signing/SigningHost.svelte';
 	import { signRequest } from '$lib/signing/core/sign-resident.svelte';
-	import { signingSheet } from '$lib/signing/core/sheet.svelte';
-	import { buildSigningModel } from '$lib/signing/live';
-	import { IDLE_FEE_VIEW as IDLE_FEE } from '$lib/flows/core/fee-quote.svelte';
 	import type { SendView } from '$lib/core/generated/SendView';
 
 	/** The sidebar's own copy of the rule above: three rows, not four. */
@@ -527,65 +524,12 @@
 		else if (id === 'contacts') void goto(contactsHref);
 	}
 
-	// --- The signing sheet (spec 026 Phase 5) --------------------------------
+	// --- The signing sheet (spec 026 Phase 5, hosted since 027 T340) ---------
 	//
-	// `sign_request` is app-resident: a request can arrive while any screen is
-	// showing, and the sheet is the same one for all of them. The two per-
-	// request machines live beside it, and the transport is whatever registered
-	// itself — in 026 that is the parallel space's in-page requester; 027 plugs
-	// a real one into the same table.
-
-	const signView = $derived(signRequest.view);
-
-	// A request arrives → both per-request machines are told about it. It goes →
-	// they go with it.
-	$effect(() => {
-		const request = signView.request;
-		if (request && signView.surface !== 'hidden') {
-			void signingSheet.present(request, identity?.address ?? null);
-		} else {
-			signingSheet.dismiss();
-		}
-	});
-
-	const signingModel = $derived.by(() => {
-		if (!identity) return null;
-		return buildSigningModel({
-			sign: signView,
-			clear: signingSheet.clear,
-			guard: signingSheet.guard,
-			fee: feeQuote.view ?? IDLE_FEE,
-			m: data.signingMessages,
-			identity,
-			identicon: identiconSvgForClient
-		});
-	});
-
-	/**
-	 * What the approve carries. The fee is the live session's, and the params
-	 * override is the GUARD's rewrite — the capped approval, not the requested
-	 * one. Passing the original params here would be the never-unlimited
-	 * mandate defeated at the last step.
-	 */
-	function approveOpts() {
-		const quote = feeQuote.view?.fee ?? null;
-		return {
-			max_fee_per_gas: quote ? quote.max_fee_per_gas : null,
-			bundler_cost_wei: null,
-			gas_fee_token: feeQuote.view?.fee_token ?? null,
-			quoted_fee: null,
-			fee_collector: null,
-			params_override_json: signingSheet.guard.rewritten_params_json,
-			intent: null
-		};
-	}
-
-	/** The chip ids the drawn editor emits, in the guard's vocabulary. */
-	function guardChip(id: string): void {
-		if (id === 'requested' || id === 'balance' || id === 'custom' || id === 'revoke') {
-			signingSheet.dispatchGuard({ type: 'preset_selected', mode: id });
-		}
-	}
+	// The wiring lives in `<SigningHost>` because 027 added a second place a
+	// request can reach a person — the extension's request window — and a second
+	// copy of the most dangerous screen in the product would be a second
+	// implementation of it.
 
 	function enter(entry: FlowEntry) {
 		if (entry === 'send') {
@@ -602,19 +546,7 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-{#if signingModel}
-	<!--
-		Dismissal IS rejection (the 022 interaction contract draws no reject
-		button), so closing answers the requester with 4001 through the core.
-	-->
-	<SigningSheetView
-		model={signingModel}
-		onclose={() => signRequest.dispatch({ type: 'reject_tapped' })}
-		onconfirm={() => signRequest.dispatch({ type: 'approve_tapped', opts: approveOpts() })}
-		onchip={guardChip}
-		onfee={() => {}}
-	/>
-{/if}
+<SigningHost messages={data.signingMessages} fee={feeQuote} />
 
 {#if identity}
 	{#if wide.current}

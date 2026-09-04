@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { resolveRequestMessages } from '$lib/i18n/engine.server';
+import { resolveRequestMessages, resolveSigningMessages } from '$lib/i18n/engine.server';
 import { SUPPORTED_LOCALES, toLocale } from '$lib/i18n/locales';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
@@ -17,5 +17,9 @@ export const entries: EntryGenerator = () => SUPPORTED_LOCALES.map((locale) => (
 export const load: PageServerLoad = ({ params }) => {
 	const locale = toLocale(params.locale ?? '');
 	if (locale === undefined) error(404, `unsupported locale "${params.locale}"`);
-	return { requestMessages: resolveRequestMessages(locale) };
+	return {
+		requestMessages: resolveRequestMessages(locale),
+		// The sheet is 026's, and so are its words.
+		signingMessages: resolveSigningMessages(locale)
+	};
 };

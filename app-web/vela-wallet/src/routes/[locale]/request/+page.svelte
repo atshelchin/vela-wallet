@@ -22,6 +22,9 @@
 	import { hostLabel } from '$lib/dapp/host';
 	import { publishExtSnapshot } from '$lib/dapp/core/ext-cache';
 	import { approve, evaluate, type RequestStage } from '$lib/dapp/request';
+	import SigningHost from '$lib/signing/SigningHost.svelte';
+	import { signRequest } from '$lib/signing/core/sign-resident.svelte';
+	import { FeeQuote } from '$lib/flows/core/fee-quote.svelte';
 	import {
 		answerRequest,
 		readRequest,
@@ -36,6 +39,12 @@
 	let stage = $state<RequestStage>({ kind: 'loading' });
 	let chainId = $state(0);
 	let busy = $state(false);
+	/**
+	 * ONE live fee session for this window (026's rule): the quote the core
+	 * pre-checks against, the quote on screen and the quote that is signed are
+	 * one object with one owner.
+	 */
+	const feeQuote = new FeeQuote();
 	/** Cleared the moment an answer goes out, so teardown owes nothing. */
 	let owing = $state<string | null>(null);
 
@@ -75,6 +84,12 @@
 			if (stage.kind === 'done' || stage.kind === 'refused') {
 				owing = null;
 				closeSoon();
+			} else if (stage.kind === 'signing') {
+				// The core said this origin may be answered, and named the address
+				// the signature must be pinned to. Hand the request to
+				// `sign_request` — the SAME machine and the SAME sheet the wallet's
+				// own screens use — on a transport that answers this window's page.
+				await handOffToSigning(incoming, stage.grantedAddress);
 			}
 		})();
 
@@ -93,6 +108,43 @@
 			settle();
 		};
 	});
+
+	/**
+	 * Register this window as the transport and deliver the request.
+	 *
+	 * The core speaks a `transport_id` and nothing else about transports: a
+	 * response goes to the transport that OWNS the request, never a shared
+	 * reference. This window owns exactly one, and answering through it is what
+	 * clears what the window owes — so the teardown settlement no longer fires.
+	 */
+	async function handOffToSigning(incoming: ExtensionRequest, grantedAddress: string) {
+		await signRequest.boot();
+		signRequest.syncNetworks();
+		const transportId = signRequest.registerTransport({
+			sendResponse: (_id, result, error) => {
+				owing = null;
+				void answerRequest(incoming.rid, error ? { error } : { result });
+				closeSoon();
+			}
+		});
+		signRequest.dispatch({
+			type: 'request_arrived',
+			id: incoming.id,
+			method: incoming.method,
+			params_json: JSON.stringify(incoming.params),
+			origin: incoming.origin,
+			transport_id: transportId,
+			dedicated_transport: true,
+			per_request_chain: null,
+			dapp: null,
+			// Invariant ⑨: the signature is pinned to the GRANT's address, never
+			// to whichever account happens to be active.
+			granted_address: grantedAddress,
+			requested_address: null,
+			request_ts_ms: null,
+			now_ms: Date.now()
+		});
+	}
 
 	async function settleOnClose(rid: string): Promise<void> {
 		try {
@@ -142,26 +194,32 @@
 
 <svelte:head><title>Vela</title></svelte:head>
 
-<main>
-	{#if stage.kind === 'consent' && request}
-		<h1>{m.title.replace('{{host}}', hostLabel(request.origin))}</h1>
-		<p class="body">{m.body}</p>
-		<p class="method">{request.method}</p>
-		<div class="actions">
-			<button type="button" class="ghost" onclick={onCancel} disabled={busy}>{m.cancel}</button>
-			<button type="button" class="primary" onclick={onConnect} disabled={busy}>
-				{m.connect}
-			</button>
-		</div>
-	{:else if stage.kind === 'refused'}
-		<p class="body">{stage.message}</p>
-	{:else if stage.kind === 'signing'}
-		<!-- Phase 5 mounts 026's signing sheet here. -->
-		<p class="body">{m.preparing}</p>
-	{:else}
-		<p class="body">{m.preparing}</p>
-	{/if}
-</main>
+{#if stage.kind !== 'signing'}
+	<main>
+		{#if stage.kind === 'consent' && request}
+			<h1>{m.title.replace('{{host}}', hostLabel(request.origin))}</h1>
+			<p class="body">{m.body}</p>
+			<p class="method">{request.method}</p>
+			<div class="actions">
+				<button type="button" class="ghost" onclick={onCancel} disabled={busy}>{m.cancel}</button>
+				<button type="button" class="primary" onclick={onConnect} disabled={busy}>
+					{m.connect}
+				</button>
+			</div>
+		{:else if stage.kind === 'refused'}
+			<p class="body">{stage.message}</p>
+		{:else}
+			<p class="body">{m.preparing}</p>
+		{/if}
+	</main>
+{/if}
+
+<!--
+	026's sheet, unchanged: the same four machines, the same 13 block kinds, the
+	same never-unlimited guard. Dismissing it rejects, and the core answers this
+	window's transport.
+-->
+<SigningHost messages={data.signingMessages} fee={feeQuote} />
 
 <style>
 	main {

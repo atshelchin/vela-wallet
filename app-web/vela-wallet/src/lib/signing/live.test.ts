@@ -256,6 +256,18 @@ describe('the never-unlimited mandate reaches the screen', () => {
 	});
 });
 
+describe('the slide control says a phrase, never a template', () => {
+	it('falls back to the generic word when the core names no intent', () => {
+		// The control renders `hint · action`. Falling back to the TEMPLATE put
+		// its own placeholder on screen — a person read "Slide to confirm · Slide
+		// to confirm · {{action}}" the first time a real dApp request reached the
+		// sheet (spec 027). Same class as 026's `{{bytes}}`.
+		const model = buildSigningModel(inputs())!;
+		expect(model.confirm.action).not.toContain('{{');
+		expect(model.confirm.hint).not.toContain('{{');
+	});
+});
+
 describe('the deeper rungs of the ladder', () => {
 	it('a blind transaction says so, in danger tone, with no invented fields', () => {
 		const model = buildSigningModel(

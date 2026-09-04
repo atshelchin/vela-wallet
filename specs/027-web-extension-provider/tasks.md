@@ -82,17 +82,17 @@ app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 5: Sign (one commit)
 
-- [ ] T340 [US2] Route `eth_sendTransaction`, `personal_sign`,
+- [X] T340 [US2] Route `eth_sendTransaction`, `personal_sign`,
       `eth_signTypedData_v4` and the batch verbs into 026's `sign_request` —
       no second signing path
-- [ ] T341 [US2] The answer: an operation identifier at submit time, never a
+- [X] T341 [US2] The answer: an operation identifier at submit time, never a
       blocked page waiting for a receipt; the pending record is written first
-- [ ] T342 [P] [US2] Units: method routing, the answer shapes, the
+- [X] T342 [P] [US2] Units: method routing, the answer shapes, the
       unsupported-chain refusal
-- [ ] T343 [US2] e2e `extension-signing.e2e.ts` (SC-303/304): transaction →
+- [X] T343 [US2] e2e `extension-signing.e2e.ts` (SC-303/304): transaction →
       sheet → operation hash + pending record; reject → `4001` exactly once;
       message and typed data verify; an unlimited approval still cannot be slid
-- [ ] T344 Full gate; results.md Phase 5 entry
+- [X] T344 Full gate; results.md Phase 5 entry
 
 ## Phase 6: Connections and resilience (one commit)
 

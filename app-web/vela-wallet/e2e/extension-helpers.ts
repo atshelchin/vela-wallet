@@ -70,3 +70,20 @@ export async function requestWindow(context: BrowserContext, timeoutMs = 15_000)
 /** Is any request window open right now? */
 export const requestWindowOpen = (context: BrowserContext): boolean =>
 	context.pages().some((p) => p.url().includes('/request.html'));
+
+/**
+ * Wait until no request window is open.
+ *
+ * A settled window closes on a short delay, so that the answer reaches the page
+ * before the document goes away. A test that fires its NEXT request without
+ * waiting can therefore grab the previous, closing window — which then never
+ * shows what it was looking for. Found exactly that way.
+ */
+export async function noRequestWindow(context: BrowserContext, timeoutMs = 15_000): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		if (!requestWindowOpen(context)) return;
+		await new Promise((r) => setTimeout(r, 100));
+	}
+	throw new Error('a request window stayed open');
+}

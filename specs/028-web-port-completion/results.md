@@ -189,10 +189,25 @@ module", not to weaken the audit for comments.
   `noQrFound`, `noQrFoundMsg` and `errorImage` already cover the rest.
 
 **Gates at this commit**: check **1366**/0 · lint clean · unit **783**
-(+12: seven browser decode cases, five refusal cases). The full Playwright suite
-was NOT cleanly re-run at this commit — several of my own earlier runs had left
-processes holding port 4173 and the results were meaningless (one reported "18
-passed" in 29.8 minutes). **The next session's first act is a clean
-`pnpm test:e2e` with nothing else running.** The changes are additive and every
-new prop defaults to the drawn behaviour, so a regression is unlikely — but
-unlikely is not measured.
+(+12: seven browser decode cases, five refusal cases) · e2e **139 passed / 1
+skipped** on chromium + firefox + webkit.
+
+**The e2e number cost four worthless runs to get, and the reason is worth more
+than the number.** Every one of them was poisoned by something else I was
+running at the same time:
+
+- two Playwright suites at once fight over port 4173, and `reuseExistingServer`
+  means the loser silently tests the winner's build — one run reported "18
+  passed" in 29.8 minutes;
+- killing a run to start another leaves the first's partial output looking like
+  a failure (one stopped at test 75/140 because I had just `pkill`ed it);
+- and a manual `pnpm build` alongside a suite's own build is the sharpest of
+  them: two `vite build` processes write `.svelte-kit/output`, one deletes what
+  the other is about to read, and the crash reads
+  `ENOENT: no such file or directory, scandir '.svelte-kit/output/client'` —
+  which looks exactly like a broken build and is not one.
+
+**The rule: one build or suite at a time, and touch nothing while it runs.** It
+is the same lesson 026 learned as worker starvation and 027 pinned as
+`workers: 3` — this is that lesson applied to the person driving, not to the
+config.

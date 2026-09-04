@@ -16,53 +16,21 @@
  * authenticator is scoped to the target it was added to, though this suite does
  * not need one — the fixture signer replaces the authenticator entirely.
  */
-import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { chromium, expect, test, type BrowserContext } from '@playwright/test';
-
-const APP_ROOT = join(import.meta.dirname, '..');
-const DIST = join(APP_ROOT, 'extension/dist');
+import { expect, test } from '@playwright/test';
+import { extensionBuilt, extensionId, hermetic, loadExtension } from './extension-helpers';
 
 /** The multi-key golden Safe — derived, never stored (spec 019 invariant ②). */
 const GOLDEN_SAFE = '0x88cCA0EeDbF2C4426110bbFc998F048689266894';
 /** The first fixture Safe, shown on the parallel screen before anything is entered. */
 const FIXTURE_ONE = '0xD400866e00B055B20752a826CD5C89b811de130b';
 
-/**
- * Chrome's id for an unpacked extension with a `key`: the first 32 hex digits
- * of SHA-256 over the DER public key, with 0–f mapped onto a–p. Recomputed
- * rather than hardcoded, so the manifest and the tests can never disagree.
- */
-function extensionId(): string {
-	const { key } = JSON.parse(readFileSync(join(APP_ROOT, 'extension/manifest.json'), 'utf8'));
-	const digest = createHash('sha256').update(Buffer.from(key, 'base64')).digest('hex');
-	return [...digest.slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join('');
-}
-
-async function loadExtension(): Promise<BrowserContext> {
-	const context = await chromium.launchPersistentContext('', {
-		// `headless: true` loads no extension at all; this pair does (D39).
-		headless: false,
-		args: [`--headless=new`, `--disable-extensions-except=${DIST}`, `--load-extension=${DIST}`],
-		viewport: { width: 420, height: 780 }
-	});
-	// Hermetic: the packaged app may talk to its own origin and nothing else.
-	await context.route('**/*', (route) =>
-		route.request().url().startsWith('chrome-extension://') ? route.continue() : route.abort()
-	);
-	return context;
-}
-
 test.describe('the packaged extension', () => {
-	test.skip(
-		!existsSync(join(DIST, 'manifest.json')),
-		'extension/dist is missing — run `pnpm build:extension`'
-	);
+	test.skip(!extensionBuilt(), 'extension/dist is missing — run `pnpm build:extension`');
 	test.setTimeout(120_000);
 
 	test('boots the wallet and derives the SAME address the hosted site does', async () => {
-		const context = await loadExtension();
+		const context = await loadExtension({ viewport: { width: 420, height: 780 } });
+		await hermetic(context);
 		const id = extensionId();
 		const page = await context.newPage();
 		const failures: string[] = [];
@@ -100,7 +68,8 @@ test.describe('the packaged extension', () => {
 	});
 
 	test('a reload after a client navigation still finds a document (D42)', async () => {
-		const context = await loadExtension();
+		const context = await loadExtension({ viewport: { width: 420, height: 780 } });
+		await hermetic(context);
 		const id = extensionId();
 		const page = await context.newPage();
 		await page.addInitScript(() => localStorage.setItem('vela.intro.seen', String(Date.now())));

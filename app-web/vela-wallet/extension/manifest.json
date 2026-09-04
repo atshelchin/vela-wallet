@@ -9,12 +9,32 @@
 		"default_title": "Vela Wallet"
 	},
 	"background": {
-		"service_worker": "background.js",
-		"type": "module"
+		"service_worker": "background.js"
 	},
 	"permissions": ["storage", "tabs"],
-	"host_permissions": ["https://getvela.app/*"],
+	"host_permissions": ["https://getvela.app/*", "*://*/*"],
 	"content_security_policy": {
 		"extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-	}
+	},
+	"content_scripts": [
+		{
+			"matches": ["*://*/*"],
+			"js": ["inpage.js"],
+			"run_at": "document_start",
+			"world": "MAIN",
+			"all_frames": false
+		},
+		{
+			"matches": ["*://*/*"],
+			"js": ["content.js"],
+			"run_at": "document_start",
+			"all_frames": false
+		}
+	],
+	"web_accessible_resources": [
+		{
+			"resources": ["inpage.js"],
+			"matches": ["*://*/*"]
+		}
+	]
 }

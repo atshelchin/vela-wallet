@@ -158,3 +158,82 @@ job.
 **Gates**: check **1331**/0 · lint clean · unit **738** · build ×15 +
 `build:extension` · e2e **123/123** (chromium + firefox + webkit) · wasm
 byte-identical (3,630,664 B) · extension package 34 MB.
+
+---
+
+## Phase 3 — injection and transport (T320–T325)
+
+**What shipped**: a dApp in any tab now finds Vela, and Vela can answer it. The
+whole path is real — the MAIN-world provider, the isolated-world bridge, the
+service worker, and a window this extension owns — and Phase 3 lands one
+complete answer through it: **a refusal**.
+
+That is the half worth landing first. A wallet that cannot say no is not safe to
+install, and the failure mode of an extension wallet is silence: a dApp promise
+that never settles leaves a person unable to tell whether their money moved.
+Both ways of saying no are asserted — the button, and simply closing the window.
+
+- **The page side** (T320), ported with provenance from
+  `packages/safari-extension/src/`:
+  - `inpage.js` **whole** — EIP-6963 announces `Vela Wallet` / `app.getvela`
+    with a data-URI icon (a remote one would leak every dApp visit to our host),
+    frozen info, announced provider identical to `window.ethereum`; the legacy
+    singleton carries `isMetaMask` for the many dApps that gate on it and never
+    implement 6963, while 6963 keeps stating the truth. Chrome's MAIN world is
+    not subject to the PAGE's CSP, so Safari's second injection path is gone —
+    a strict site can no longer refuse the provider.
+  - `content.js` **in part** — 96 lines out of 820. What did not come across is
+    an in-page consent sheet drawn in a shadow root: Safari needs the decision
+    inside the page because it must launch a native app within a synchronous
+    gesture. Here the decision happens in a window the extension owns, which is
+    a better place for it — the site asking for the signature cannot style,
+    cover or scroll it.
+  - `background.js` **rewritten** — Safari's held policy (per-origin grants, a
+    read proxy, a native round-trip). This one holds none. Every decision
+    belongs to the core's machines, which run in the wallet.
+  - `lib/protocol.js` **whole**, minus the App Group file and the
+    Universal-Link attestation dance, which exist only because Safari hands
+    signing to a native app.
+- **The transport** (T321): `$lib/dapp/transport.ts`, the FIRST real occupant of
+  026's `sign_request` registry. Ported from Expo's
+  `extension-bridge-transport.ts`, but shorter and more honest — it speaks to
+  its own service worker rather than across a native bridge, so there is no
+  second process holding a copy of the answer.
+- **The request window** (T322): a new `[locale]/request` route, prerendered ×15
+  like every other, worded entirely from the EXISTING corpus — the connect
+  copy written for the in-app browser (spec 022) says the right thing wherever
+  a request arrives from, which is what one corpus is for. **Corpus delta:
+  zero.**
+- **Vectors** (T323) import the REAL page-side module rather than a copy: a
+  constant that disagrees with the shipped one is exactly the bug they exist to
+  prevent.
+
+### Two things the phase had to decide, and one it refused to
+
+1. **The page scripts are BUNDLED, not copied.** MV3 content scripts are
+   classic scripts — `import` is a syntax error there, and only the service
+   worker may be a module. They are written as modules anyway, because
+   `lib/protocol.js` has to be one file all three sides agree on, and a shared
+   constant copied three times is a constant that will disagree three ways.
+   `esbuild` now runs inside `build:extension`.
+2. **`esbuild` was declared as a dependency of this app**, not left to resolve.
+   It was resolving from the repo ROOT's `node_modules` — the same hidden-
+   dependency shape 026 found with `xlsx`, caught this time before it shipped.
+   That is twice; the rule is now explicit: **a new build-time import gets
+   declared in `app-web/vela-wallet/package.json` the moment it is used.**
+3. **What the phase refused to invent**: `eth_chainId` and `eth_accounts` from
+   an ungranted origin answer `4100`, and open no window. The obvious
+   convenience — return `0x1` and `[]` — would have been a business rule living
+   in a service worker, which is exactly what this program does not do.
+   `ext_cache` and `dapp_permissions` answer them in Phase 4. The warm-up calls
+   `inpage.js` makes on every page load already swallow their own rejections, so
+   nothing on a dApp's screen is worse for the wait.
+
+**Recorded**: reads (`eth_call` and friends) are classified but not yet routed;
+the toolbar button and the request window both open in the browser's UI language
+rather than the person's stored choice (the manifest cannot express "their
+locale", and the stored one is not readable until the wallet boots).
+
+**Gates**: check **1341**/0 · lint clean · unit **751** · build ×15 +
+`build:extension` · e2e **127/127** (chromium + firefox + webkit) · wasm
+byte-identical · **corpus delta zero** · extension package 35 MB.

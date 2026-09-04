@@ -42,21 +42,21 @@ app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 3: Injection and transport (one commit)
 
-- [ ] T320 [US1] Port `inpage.js` (EIP-1193 + EIP-6963 + the legacy
+- [X] T320 [US1] Port `inpage.js` (EIP-1193 + EIP-6963 + the legacy
       compatibility flag + the MAIN-world guard), `content.js`, `background.js`,
       `lib/protocol.js` with provenance; strip the native-messaging hand-off
       that only Safari needs
-- [ ] T321 [US1] `src/lib/dapp/transport.ts` — the first REAL transport on 026's
+- [X] T321 [US1] `src/lib/dapp/transport.ts` — the first REAL transport on 026's
       `sign_request` registry, against the `dapp-transport.ts` interface;
       ported from `extension-bridge-transport.ts`
-- [ ] T322 [US1] The request window (D34): opened per request, bound to the
+- [X] T322 [US1] The request window (D34): opened per request, bound to the
       requesting tab, answers exactly once, `4001` on close
-- [ ] T323 [P] [US1] Units: protocol vectors (id single-use, origin carried,
+- [X] T323 [P] [US1] Units: protocol vectors (id single-use, origin carried,
       size bound, malformed refused), transport arms
-- [ ] T324 [US1] e2e `extension-discovery.e2e.ts` + `e2e/testdapp/`: the
+- [X] T324 [US1] e2e `extension-discovery.e2e.ts` + `e2e/testdapp/`: the
       provider is announced with Vela's identity before the page's own scripts
       run, and a request reaches the wallet
-- [ ] T325 Full gate; results.md Phase 3 entry
+- [X] T325 Full gate; results.md Phase 3 entry
 
 ## Phase 4: Connect (one commit) 🎯 MVP
 

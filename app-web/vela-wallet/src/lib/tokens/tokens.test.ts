@@ -99,6 +99,10 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		// `.js` and fall outside this collector entirely; that is acceptable only
 		// while they draw nothing (recorded in results.md).
 		...collect(join(APP_ROOT, 'src/lib/extension')),
+		// spec 027 T303/T320: the dApp layer. The request window is the one place
+		// a stranger's site gets to put words on this wallet's screen, so a colour
+		// literal drifting in here would be exactly the wrong kind of surprise.
+		...collect(join(APP_ROOT, 'src/lib/dapp')),
 		...collect(join(APP_ROOT, 'src/routes')),
 		join(APP_ROOT, 'src/app.css')
 	].filter(

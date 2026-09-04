@@ -18,6 +18,7 @@
  * Usage: node extension/build.mjs [--skip-build]
  */
 import { execFileSync } from 'node:child_process';
+import { build as esbuild } from 'esbuild';
 import {
 	cpSync,
 	existsSync,
@@ -34,6 +35,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = join(HERE, '..');
 const DIST = join(HERE, 'dist');
 const SITE = DIST;
+
+/** The page-side scripts, bundled from their module sources (below). */
+const ENTRIES = ['inpage.js', 'content.js', 'background.js'];
+/** What must NOT be copied verbatim: build inputs and the bundler's own sources. */
+const SKIP_COPY = new Set(['dist', 'build.mjs', 'README.md', 'lib', ...ENTRIES]);
 
 /** Route trees the extension has no entry point for. */
 const PRUNE = ['gallery', 'gallery.html'];
@@ -131,8 +137,32 @@ log(`externalised ${scripts} inline scripts across ${htmlFiles.length} pages`);
 // 4. The extension's own files
 // ---------------------------------------------------------------------------
 
+/**
+ * The page-side scripts are BUNDLED, not copied.
+ *
+ * MV3 content scripts are classic scripts: `import` is a syntax error there,
+ * and only the service worker may declare `"type": "module"`. They are written
+ * as modules anyway, because `lib/protocol.js` has to be one file that all
+ * three sides agree on — and a shared constant copied three times is a
+ * constant that will disagree three ways.
+ *
+ * Not minified, on purpose: what runs in a stranger's page should be readable
+ * in their own dev tools.
+ */
+await esbuild({
+	entryPoints: ENTRIES.map((name) => join(HERE, name)),
+	outdir: DIST,
+	bundle: true,
+	format: 'iife',
+	target: ['chrome116'],
+	minify: false,
+	sourcemap: false,
+	logLevel: 'warning'
+});
+log(`bundled ${ENTRIES.join(', ')}`);
+
 for (const name of readdirSync(HERE)) {
-	if (['dist', 'build.mjs', 'README.md'].includes(name)) continue;
+	if (SKIP_COPY.has(name)) continue;
 	cpSync(join(HERE, name), join(DIST, name), { recursive: true });
 }
 

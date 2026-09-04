@@ -75,31 +75,31 @@ runs in app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 4: Send spine (one commit) 🎯 MVP
 
-- [ ] T230 [US1] Port fee-{types,executor,session}.ts + `use-fee-quote.ts` →
+- [X] T230 [US1] Port fee-{types,executor,session}.ts + `use-fee-quote.ts` →
       `flows/core/fee-*.ts` + `fee-quote.ts` (one live session per surface)
-- [ ] T231 [US1] Port send-{types,executor,session}.ts → `flows/core/send-*.ts`
+- [X] T231 [US1] Port send-{types,executor,session}.ts → `flows/core/send-*.ts`
       (ports: tokensFetched/Partial, credentialId/Loaded, signingStarted,
       receiptUpdate, alert, close, feeQuote); `classifySubmit` pinned
-- [ ] T232 [US1] Port tx-tracker-{types,executor,session,resident}.ts →
+- [X] T232 [US1] Port tx-tracker-{types,executor,session,resident}.ts →
       `wallet/core/tracker-*.ts`; sinks: send handoff, feed.liveTick,
       token_trust receipt logs; visibility → app_resumed; wallet page →
       home_focused
-- [ ] T233 [US1] `flows/live.ts` send overlays: send-pick, send-form (recipient
+- [X] T233 [US1] `flows/live.ts` send overlays: send-pick, send-form (recipient
       draft + identity/risk line, amount/fiat, split rows), send-confirm
       (facts + sim), send-receipt (incl. `failed` — corpus check D29),
       fee-token, contact-pick (024 session), tx-detail
-- [ ] T234 [US1] Screen props: `SendForm.oncontinue`, `AmountInput` editable
+- [X] T234 [US1] Screen props: `SendForm.oncontinue`, `AmountInput` editable
       when `oninput`, clipboard on copy handlers, `SendReceipt.onexplorer`;
       gallery pixel-unchanged (fixtures untouched)
-- [ ] T235 [US1] Route translation: `nav.enter('send')` creates the send + fee
+- [X] T235 [US1] Route translation: `nav.enter('send')` creates the send + fee
       sessions; screen callbacks → core events (D28); ports → notice/nav;
       `/pay` query → payment_request → `open` params; dispose on close
-- [ ] T236 [P] [US1] Units: send executor arms (mocked services), fee arms,
+- [X] T236 [P] [US1] Units: send executor arms (mocked services), fee arms,
       tracker arms + `outcomeOf` exhaustiveness, live builders
-- [ ] T237 [US1] e2e `send-lands.e2e.ts` (SC-201: parallel + stub chain + stub
+- [X] T237 [US1] e2e `send-lands.e2e.ts` (SC-201: parallel + stub chain + stub
       relay → confirmed receipt → feed row → balance refresh),
       `reopen-pending.e2e.ts` (SC-204), `relay-faults.e2e.ts` (SC-205)
-- [ ] T238 Full gate; results.md Phase 4 entry
+- [X] T238 Full gate; results.md Phase 4 entry
 
 ## Phase 5: Signing (one commit)
 

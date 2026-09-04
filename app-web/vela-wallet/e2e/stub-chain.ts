@@ -280,6 +280,22 @@ export function happyRelay(
 					verificationGasLimit: '0x186a0',
 					callGasLimit: '0x186a0'
 				};
+			case 'vela_getInBandGasQuote':
+				// The relay's in-band rows: the fee is paid from the Safe's own
+				// balance to this recipient. Every chain is in-band, so a send
+				// cannot be priced without them.
+				return [
+					{
+						recipient: '0x' + 'fe'.repeat(20),
+						asset: 'native',
+						feeToken: null,
+						balance: '0x14d1120d7b160000',
+						decimals: 18,
+						symbol: 'ETH',
+						usdBalance: '4500',
+						usdPrice: '3000'
+					}
+				];
 			case 'eth_sendUserOperation':
 				return userOpHash;
 			case 'eth_getUserOperationStatus':

@@ -188,3 +188,71 @@ badge, and exposes no parallel verbs.
 **Gates**: check 1290/0 · lint clean · unit **698** · build ×15 · e2e
 **102/102** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
 delta.
+
+---
+
+## Phase 4 — the send spine (T230–T238) 🎯 MVP
+
+**What shipped**: the web wallet sends money. Pick a token, type an address
+and an amount, see the relay's fee, confirm, the passkey signs, the relay
+accepts, the record is durable, the tracker brings the receipt home.
+
+- **`fee_policy`** (`flows/core/fee-*` + `fee-quote.svelte.ts`): ONE live
+  session per surface, the Expo hook ported as a reactive class — the quote
+  the core pre-checks against, the quote on screen and the quote that is
+  signed are one object with one owner. Four earlier integrations failed by
+  splitting that.
+- **`send`** (`flows/core/send-*`): all 19 arms, every wording regex, the
+  persist-then-track ordering, the passkey ceremony through `signWithAny`.
+- **`tx_tracker`** (`wallet/core/tracker-*`): the app-resident poller that
+  replaces four separate ones, async-booted because the web fetches its core.
+- **The overlays** (`flows/live-send.ts`): send-pick, send-form, send-confirm,
+  send-receipt and the fee-coin sheet, filled from `SendView`/`FeeView` and
+  worded from the corpus. No new corpus keys — the trust line reuses the
+  signing sheet's first-time tag.
+- **The drawn gaps, closed as props**: `SendForm` gained a CTA handler (it had
+  none), `AmountInput` and `RecipientField` become editable when a handler is
+  present (the balance hero's tap-to-hide pattern), and `FlowsMobile` takes an
+  optional set of send actions — absent, the gallery renders the drawn journey
+  exactly as 021 drew it.
+- **The route** translates taps into core events and lets the core's `stage`
+  decide which screen shows; the nav stack is not consulted while a send is
+  live, because the machine already knows where the person is.
+
+**Four findings, all fixed**:
+1. **A module-level kernel call took down every page that imported the
+   module.** `safe-transaction.ts` hashed two EIP-712 typehashes at import
+   time (fine on Expo, whose core is `initSync`'d). On the web the core is
+   fetched, so importing the module from the wallet route made the whole page
+   a 500. Now computed on first use. This is the same class of bug as Phase
+   3's fixture derivation — recorded twice on purpose.
+2. **The tracker only started when the send flow opened**, so an operation
+   left pending by a closed tab was never swept. It now starts on every wallet
+   boot — which is what "money in flight outlives every screen" has to mean.
+3. **The receipt screen read the wrong field.** The core flips `tx_status` to
+   `confirmed` the moment the signature is a fact; the receipt's own
+   `receipt.status` is what tracks the chain. Reading the first would have
+   told a person their money had arrived while it was still in the air. Pinned
+   by unit.
+4. **The planted-fault seam ran too late.** `__VELA_FAULT_INIT__` was applied
+   by the gated console, which is a dynamic import — so a fault could arrive
+   after the first poll. It now applies at the fault module's own load, which
+   every faultable module already imports.
+
+**e2e**: `send-lands` (SC-201 — the whole spine in the parallel space against
+a stubbed chain and relay: quote → sign → submit → pending record → confirmed
+receipt), `reopen-pending` (SC-204 — a record left by a closed tab is picked
+up and settled with no screen open), `relay-faults` (SC-205 — a silent receipt
+leaves the payment submitted, an unreachable relay is quiet and leaks no relay
+text, and the fault console is unreachable without its gate).
+
+**Recorded**: split, sweep and the batch importer stay fixture (US3, Phase 6);
+the desktop panel renders the same live overlays but its send actions are not
+wired (mobile is the MVP surface); the send alert kinds log rather than open a
+sheet (no alert surface is drawn on web); a contract recipient has no
+send-screen sentence in the corpus — the first-time tell does, and it is the
+one that matters for a poisoned look-alike.
+
+**Gates**: check 1306/0 · lint clean · unit **712** · build ×15 · e2e
+**107/107** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
+delta.

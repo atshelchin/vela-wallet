@@ -57,6 +57,10 @@ export const load: PageServerLoad = ({ params }) => {
 		desktop: { ...desktop, sidebar: { ...desktop.sidebar, header: EMPTY_HEADER } },
 		flows,
 		desktopFlows,
+		// The send overlays word themselves from the same manifest the fixtures
+		// were built with (spec 026), so a live screen and its drawn twin can
+		// never disagree about a label.
+		flowMessages,
 		desktopScan: buildDesktopScan(flowMessages)
 	};
 };

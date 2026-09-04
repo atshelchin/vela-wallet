@@ -2088,11 +2088,24 @@ function calculateSafeOpHash(userOp: UserOperation, chainId: number): Uint8Array
 // Safe Message Hash (EIP-1271)
 // ---------------------------------------------------------------------------
 
-const SAFE_MSG_TYPEHASH = keccak256(new TextEncoder().encode('SafeMessage(bytes message)'));
+// WEB DELTA (spec 026): these two were module-level constants on Expo, where
+// the core is `initSync`'d at import. Here the core is fetched, so hashing at
+// import time throws before it lands — and it would take down any page that
+// merely IMPORTS this module. Computed on first use instead, then kept.
+let safeMsgTypehash: Uint8Array | null = null;
+let eip712DomainTypehash: Uint8Array | null = null;
 
-const EIP712_DOMAIN_TYPEHASH = keccak256(
-	new TextEncoder().encode('EIP712Domain(uint256 chainId,address verifyingContract)')
-);
+function SAFE_MSG_TYPEHASH(): Uint8Array {
+	safeMsgTypehash ??= keccak256(new TextEncoder().encode('SafeMessage(bytes message)'));
+	return safeMsgTypehash;
+}
+
+function EIP712_DOMAIN_TYPEHASH(): Uint8Array {
+	eip712DomainTypehash ??= keccak256(
+		new TextEncoder().encode('EIP712Domain(uint256 chainId,address verifyingContract)')
+	);
+	return eip712DomainTypehash;
+}
 
 /**
  * Compute the Safe message hash that the passkey must sign for EIP-1271 verification.
@@ -2114,12 +2127,12 @@ export function computeSafeMessageHash(
 	const messageHash = keccak256(abiEncodeBytes32(originalHash));
 
 	// structHash = keccak256(abi.encode(SAFE_MSG_TYPEHASH, messageHash))
-	const structHash = keccak256(concatBytes(SAFE_MSG_TYPEHASH, messageHash));
+	const structHash = keccak256(concatBytes(SAFE_MSG_TYPEHASH(), messageHash));
 
 	// domainSep = keccak256(abi.encode(DOMAIN_TYPEHASH, chainId, safeAddress))
 	const domainSep = keccak256(
 		concatBytes(
-			EIP712_DOMAIN_TYPEHASH,
+			EIP712_DOMAIN_TYPEHASH(),
 			abiEncodeUint256(BigInt(chainId)),
 			abiEncodeAddress(safeAddress)
 		)

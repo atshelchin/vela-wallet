@@ -19,6 +19,14 @@ import type { WalletIdentity } from '$lib/wallet/identity';
 import { shortenAddress } from '$lib/wallet/identity';
 import { liveActivityGroups, liveAssetRow } from '$lib/wallet/live';
 import { addressLines } from './fixtures';
+import {
+	liveFeeTokenPick,
+	liveSendConfirm,
+	liveSendForm,
+	liveSendPick,
+	liveSendReceipt,
+	type SendLiveInputs
+} from './live-send';
 import type { WalletMessages } from '$lib/wallet/messages';
 import type {
 	AssetsModel,
@@ -39,6 +47,12 @@ export interface FlowsLiveInputs {
 	feed?: FeedView | null;
 	identity?: WalletIdentity;
 	locale?: string;
+	/**
+	 * The live send flow (spec 026). Present only while a send session exists —
+	 * absent, every send screen stays the picture 021 drew, which is what the
+	 * gallery renders.
+	 */
+	send?: SendLiveInputs;
 }
 
 function liveAssets(model: AssetsModel, inputs: FlowsLiveInputs): AssetsModel {
@@ -113,6 +127,30 @@ export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): F
 			sheet: { kind: 'receive-qr', model: liveReceiveQr(model.sheet.model, inputs) }
 		};
 	}
+	const send = inputs.send;
+	if (send) {
+		if (model.base.kind === 'send-pick') {
+			next = { ...next, base: { kind: 'send-pick', model: liveSendPick(model.base.model, send) } };
+		} else if (model.base.kind === 'send-form') {
+			next = { ...next, base: { kind: 'send-form', model: liveSendForm(model.base.model, send) } };
+		} else if (model.base.kind === 'send-confirm') {
+			next = {
+				...next,
+				base: { kind: 'send-confirm', model: liveSendConfirm(model.base.model, send) }
+			};
+		} else if (model.base.kind === 'send-receipt') {
+			next = {
+				...next,
+				base: { kind: 'send-receipt', model: liveSendReceipt(model.base.model, send) }
+			};
+		}
+		if (model.sheet?.kind === 'fee-token') {
+			next = {
+				...next,
+				sheet: { kind: 'fee-token', model: liveFeeTokenPick(model.sheet.model, send) }
+			};
+		}
+	}
 	return next;
 }
 
@@ -136,6 +174,41 @@ export function withLiveDesktopFlow(
 				...model,
 				body: { kind: 'receive-qr', model: liveReceiveQr(model.body.model, inputs) }
 			};
+		case 'send-pick':
+			return inputs.send
+				? {
+						...model,
+						body: { kind: 'send-pick', model: liveSendPick(model.body.model, inputs.send) }
+					}
+				: model;
+		case 'send-form':
+			return inputs.send
+				? {
+						...model,
+						body: { kind: 'send-form', model: liveSendForm(model.body.model, inputs.send) }
+					}
+				: model;
+		case 'send-confirm':
+			return inputs.send
+				? {
+						...model,
+						body: { kind: 'send-confirm', model: liveSendConfirm(model.body.model, inputs.send) }
+					}
+				: model;
+		case 'send-receipt':
+			return inputs.send
+				? {
+						...model,
+						body: { kind: 'send-receipt', model: liveSendReceipt(model.body.model, inputs.send) }
+					}
+				: model;
+		case 'fee-token':
+			return inputs.send
+				? {
+						...model,
+						body: { kind: 'fee-token', model: liveFeeTokenPick(model.body.model, inputs.send) }
+					}
+				: model;
 		default:
 			return model;
 	}

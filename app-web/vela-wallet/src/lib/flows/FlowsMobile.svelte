@@ -28,14 +28,34 @@
 	import TxDetail from './screens/TxDetail.svelte';
 	import type { FlowScreenModel } from './model';
 
+	/**
+	 * The live send flow's handlers (spec 026). When present, a tap becomes an
+	 * EVENT for the `send` core and the core's own stage decides which screen
+	 * shows next; when absent, the fixture navigation below runs and the
+	 * gallery renders the drawn journey exactly as 021 drew it.
+	 */
+	interface SendActions {
+		selectToken(index: number): void;
+		amountChanged(value: string): void;
+		recipientChanged(value: string): void;
+		advance(): void;
+		confirm(): void;
+		pickFeeToken(index: number): void;
+		done(): void;
+		/** The core's gates — `can_continue` / `can_confirm`. */
+		continueDisabled: boolean;
+		confirmDisabled: boolean;
+	}
+
 	interface Props {
 		model: FlowScreenModel;
 		/** Absent in the gallery, where the screens are pictures. */
 		onback?: () => void;
 		onnavigate?: (to: string, index?: number) => void;
+		send?: SendActions;
 	}
 
-	let { model, onback, onnavigate }: Props = $props();
+	let { model, onback, onnavigate, send }: Props = $props();
 
 	const base = $derived(model.base);
 	const sheet = $derived(model.sheet);
@@ -86,8 +106,8 @@
 		<FlowScreen header={base.model.header} {onback} onpill={() => go('chains')}>
 			<SendPick
 				model={base.model}
-				onselect={(i) => go('send-form', i)}
-				oncta={() => go('send-multi')}
+				onselect={(i) => (send ? send.selectToken(i) : go('send-form', i))}
+				oncta={() => (send ? undefined : go('send-multi'))}
 			/>
 		</FlowScreen>
 	{:else if base.kind === 'send-form'}
@@ -101,15 +121,22 @@
 					go(
 						id === 'import' ? 'batch-import' : id === 'contacts' ? 'contact-pick' : 'add-recipient'
 					)}
+				oncontinue={() => (send ? send.advance() : go('send-confirm'))}
+				onamount={send ? (value) => send.amountChanged(value) : undefined}
+				onrecipient={send ? (value) => send.recipientChanged(value) : undefined}
+				ctaDisabled={send?.continueDisabled ?? false}
 			/>
 		</FlowScreen>
 	{:else if base.kind === 'send-confirm'}
 		<FlowScreen header={base.model.header} {onback}>
-			<SendConfirm model={base.model} onconfirm={() => go('send-receipt')} />
+			<SendConfirm
+				model={base.model}
+				onconfirm={() => (send ? send.confirm() : go('send-receipt'))}
+			/>
 		</FlowScreen>
 	{:else}
 		<FlowScreen header={base.model.header} {onback}>
-			<SendReceipt model={base.model} oncta={() => go('done')} />
+			<SendReceipt model={base.model} oncta={() => (send ? send.done() : go('done'))} />
 		</FlowScreen>
 	{/if}
 
@@ -168,7 +195,10 @@
 				closeLabel={sheet.model.closeLabel}
 				onclose={() => (sheetClosed = true)}
 			>
-				<FeeTokenPick model={sheet.model} />
+				<FeeTokenPick
+					model={sheet.model}
+					onselect={send ? (i) => send.pickFeeToken(i) : undefined}
+				/>
 			</BottomSheet>
 		{:else}
 			<BottomSheet

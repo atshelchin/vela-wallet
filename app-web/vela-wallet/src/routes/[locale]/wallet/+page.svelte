@@ -46,6 +46,11 @@
 	import { currency } from '$lib/settings/core/currency.svelte';
 	import { withLiveWallet, withLiveWalletDesktop } from '$lib/wallet/live';
 	import { withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
+	import { createSendSession, type SendSession } from '$lib/flows/core/send-session';
+	import { FeeQuote, IDLE_FEE_VIEW } from '$lib/flows/core/fee-quote.svelte';
+	import { setSendTrackerSink } from '$lib/flows/core/send-executor';
+	import { startTxTracker, trackSubmitted } from '$lib/wallet/core/tracker-resident';
+	import type { SendView } from '$lib/core/generated/SendView';
 
 	/** The sidebar's own copy of the rule above: three rows, not four. */
 	function webNav(model: typeof data.desktop) {
@@ -98,7 +103,162 @@
 	 * this only decides which one is showing.
 	 */
 	const nav = new FlowNav();
-	const flowState = $derived(nav.mobileTop);
+
+	// --- The send flow (spec 026) ---------------------------------------------
+	//
+	// One `send` session per visit to the flow, and ONE `fee_policy` session
+	// beside it: the quote the core pre-checks against, the quote on screen and
+	// the quote that is signed are one object with one owner. The core's own
+	// `stage` decides which screen shows — the nav stack is not consulted while
+	// a send is live, because the machine already knows where the person is.
+
+	let sendView = $state<SendView | null>(null);
+	let sendSession: SendSession | null = null;
+	const feeQuote = new FeeQuote();
+	/** The fee-coin sheet is a shell surface: the core has no state for it. */
+	let feeSheetOpen = $state(false);
+
+	async function openSend(): Promise<void> {
+		if (sendSession || !identity) return;
+		await loadCore();
+		if (!identity) return;
+		// The tracker owns the receipt from the moment the op is accepted; the
+		// send core only hears the verdict back (invariant ⑥'s ordering half).
+		setSendTrackerSink((handoff) =>
+			trackSubmitted(handoff.userOpHash, handoff.recordIds, handoff.chainId, (outcome) =>
+				sendSession?.dispatch({
+					type: 'receipt_update',
+					user_op_hash: handoff.userOpHash,
+					outcome
+				})
+			)
+		);
+		startTxTracker();
+		const account = identity.address;
+		const credentialId = session.view.accounts[session.view.active_index]?.account.id ?? '';
+		sendSession = createSendSession({
+			onView: (view) => (sendView = view),
+			onError: (error) => console.error('[send] core fault:', error),
+			ports: {
+				tokensPartial: () => {},
+				// The originals are the API's; the core carries the slice it needs and
+				// the overlays read that. Indexing them here (as Expo does for its
+				// token selector's logos) would be a second copy nothing reads.
+				tokensFetched: () => {},
+				credentialId: () => session.view.accounts[session.view.active_index]?.account.id ?? null,
+				credentialLoaded: () => {},
+				signingStarted: () => {},
+				receiptUpdate: () => {},
+				alert: (kind) => console.warn('[send] alert:', kind),
+				close: () => closeSend(),
+				feeQuote: async (request) => {
+					const outcome = await feeQuote.requestQuote(request);
+					if (outcome.kind === 'ok') return { type: 'ok', estimate: outcome.estimate };
+					if (outcome.kind === 'failed') return { type: 'failed', kind: outcome.failure };
+					// The shell could not obtain an input the question requires, or
+					// the surface moved on. Neither is a verdict about a fee — the
+					// core hears the same "not estimated" either way.
+					return { type: 'failed', kind: 'estimate_failed' };
+				}
+			}
+		});
+		sendSession.start({
+			type: 'open',
+			account: { id: credentialId, address: account, name: identity?.name ?? null },
+			params: {
+				preselected_symbol: null,
+				preselected_network: null,
+				prefilled_recipient: null,
+				prefilled_chain_id: null,
+				prefilled_token_address: null,
+				prefilled_amount_base: null,
+				locked: false,
+				preselected_multi: null
+			},
+			display: { code: currency.view.code, rate: currency.view.rate, fiat_decimals: 2 }
+		});
+	}
+
+	function closeSend(): void {
+		sendSession?.dispose();
+		sendSession = null;
+		sendView = null;
+		feeSheetOpen = false;
+		feeQuote.dispose();
+		nav.close();
+	}
+
+	/** The screen the core's stage names. The nav stack is not consulted here. */
+	const sendState = $derived.by(() => {
+		const view = sendView;
+		if (!view) return undefined;
+		if (feeSheetOpen) return 'sd2f' as const;
+		switch (view.stage) {
+			case 'select_token':
+				return 'sd1' as const;
+			case 'enter_details':
+				return 'sd2' as const;
+			case 'confirm':
+				return 'sd3' as const;
+			case 'receipt':
+				return 'sd4b' as const;
+			default:
+				return 'sd1' as const;
+		}
+	});
+
+	const sendActions = $derived(
+		sendView === null
+			? undefined
+			: {
+					selectToken: (index: number) => {
+						const token = sendView?.tokens[index];
+						if (token) {
+							sendSession?.dispatch({
+								type: 'select_token',
+								token_id: `${token.network}_${token.token_address ?? 'native'}_${token.symbol}`
+							});
+						}
+					},
+					amountChanged: (value: string) =>
+						sendSession?.dispatch({ type: 'set_amount', amount: value }),
+					recipientChanged: (value: string) =>
+						sendSession?.dispatch({ type: 'set_recipient', recipient: value }),
+					advance: () => sendSession?.dispatch({ type: 'continue' }),
+					confirm: () => sendSession?.dispatch({ type: 'slide_confirm' }),
+					pickFeeToken: (index: number) => {
+						const option = feeQuote.view.options[index];
+						if (option) {
+							feeQuote.selectAsset(option.contract);
+							sendSession?.dispatch({ type: 'choose_fee_token', token: option.contract });
+						}
+						feeSheetOpen = false;
+					},
+					done: () => {
+						sendSession?.dispatch({ type: 'done' });
+						closeSend();
+					},
+					continueDisabled: !sendView.can_continue,
+					confirmDisabled: !sendView.can_confirm
+				}
+	);
+
+	/** The live inputs the send overlays read, or `undefined` while none is open. */
+	const sendInputs = $derived(
+		sendView && identity
+			? {
+					send: sendView,
+					fee: feeQuote.view ?? IDLE_FEE_VIEW,
+					m: data.flowMessages,
+					currency: currency.view,
+					identity,
+					identicon: identiconSvgForClient,
+					locale: data.locale
+				}
+			: undefined
+	);
+
+	const flowState = $derived(sendState ?? nav.mobileTop);
 	const desktopFlow = $derived(nav.desktopTop);
 
 	/**
@@ -116,6 +276,12 @@
 	onMount(() => {
 		void session.boot();
 		void currency.boot();
+		// Money in flight outlives every screen (spec 026 T232): an operation
+		// submitted before the tab closed is settled by the tracker's own
+		// recovery sweep, which therefore has to run on EVERY wallet boot — not
+		// only when someone opens the send flow. Idempotent and throttled by the
+		// core, so calling it from here costs one dispatch.
+		startTxTracker();
 	});
 
 	// The account the balances belong to. `account_changed` is also the
@@ -213,7 +379,8 @@
 	const flowInputs = $derived({
 		...liveInputs,
 		identity: identity ?? undefined,
-		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined
+		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined,
+		send: sendInputs
 	});
 
 	/**
@@ -246,6 +413,11 @@
 	}
 
 	function enter(entry: FlowEntry) {
+		if (entry === 'send') {
+			nav.enter(entry);
+			void openSend();
+			return;
+		}
 		nav.enter(entry);
 	}
 </script>
@@ -288,8 +460,9 @@
 	{:else if flowState !== undefined}
 		<FlowsMobile
 			model={withLiveFlow(data.flows[flowState], flowInputs)}
-			onback={() => nav.back()}
-			onnavigate={(to) => nav.push(to)}
+			onback={() => (sendView ? sendSession?.dispatch({ type: 'back' }) : nav.back())}
+			onnavigate={(to) => (to === 'fee-token' ? (feeSheetOpen = true) : nav.push(to))}
+			send={sendActions}
 		/>
 	{:else}
 		<WalletHome

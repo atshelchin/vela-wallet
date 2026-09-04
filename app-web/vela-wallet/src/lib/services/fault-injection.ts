@@ -89,68 +89,79 @@ export function receiptShouldStaySilent(chainId: number): boolean {
 	return state.silentReceiptChains.has(chainId);
 }
 
+/** Every verb, in one object: the console publishes it, the seam below plants into it. */
+const api = {
+	failRpc: (chainId: number) => state.failRpcChains.add(chainId),
+	rateLimitRpc: (chainId: number) => state.rateLimitRpcChains.add(chainId),
+	slowRpc: (ms: number) => (state.rpcLatencyMs = ms),
+	nullPrice: (chainId: number) => state.nullPriceChains.add(chainId),
+	forceFunding: (chainId: number) => state.fundingForceChains.add(chainId),
+	zeroGasQuote: (chainId: number) => state.gasQuoteZeroChains.add(chainId),
+	failRelay: (chainId: number) => state.failRelayChains.add(chainId),
+	emptyTreasury: (chainId: number) => state.emptyTreasuryChains.add(chainId),
+	rejectSubmit: (chainId: number) => state.rejectSubmitChains.add(chainId),
+	silentReceipt: (chainId: number) => state.silentReceiptChains.add(chainId),
+	clearFaults: () => {
+		state.failRpcChains.clear();
+		state.rateLimitRpcChains.clear();
+		state.nullPriceChains.clear();
+		state.fundingForceChains.clear();
+		state.gasQuoteZeroChains.clear();
+		state.failRelayChains.clear();
+		state.emptyTreasuryChains.clear();
+		state.rejectSubmitChains.clear();
+		state.silentReceiptChains.clear();
+		state.rpcLatencyMs = 0;
+	},
+	faults: () => ({
+		failRpc: [...state.failRpcChains],
+		rateLimitRpc: [...state.rateLimitRpcChains],
+		nullPrice: [...state.nullPriceChains],
+		forceFunding: [...state.fundingForceChains],
+		zeroGasQuote: [...state.gasQuoteZeroChains],
+		failRelay: [...state.failRelayChains],
+		emptyTreasury: [...state.emptyTreasuryChains],
+		rejectSubmit: [...state.rejectSubmitChains],
+		silentReceipt: [...state.silentReceiptChains],
+		slowRpc: state.rpcLatencyMs
+	})
+};
+
 /**
  * Install `window.vela.*` (dev builds and the e2e worker only — callers gate;
  * the deployed production Worker never runs this).
  */
 export function installFaultConsole(): void {
 	if (typeof window === 'undefined') return;
-	const api = {
-		failRpc: (chainId: number) => state.failRpcChains.add(chainId),
-		rateLimitRpc: (chainId: number) => state.rateLimitRpcChains.add(chainId),
-		slowRpc: (ms: number) => (state.rpcLatencyMs = ms),
-		nullPrice: (chainId: number) => state.nullPriceChains.add(chainId),
-		forceFunding: (chainId: number) => state.fundingForceChains.add(chainId),
-		zeroGasQuote: (chainId: number) => state.gasQuoteZeroChains.add(chainId),
-		failRelay: (chainId: number) => state.failRelayChains.add(chainId),
-		emptyTreasury: (chainId: number) => state.emptyTreasuryChains.add(chainId),
-		rejectSubmit: (chainId: number) => state.rejectSubmitChains.add(chainId),
-		silentReceipt: (chainId: number) => state.silentReceiptChains.add(chainId),
-		clearFaults: () => {
-			state.failRpcChains.clear();
-			state.rateLimitRpcChains.clear();
-			state.nullPriceChains.clear();
-			state.fundingForceChains.clear();
-			state.gasQuoteZeroChains.clear();
-			state.failRelayChains.clear();
-			state.emptyTreasuryChains.clear();
-			state.rejectSubmitChains.clear();
-			state.silentReceiptChains.clear();
-			state.rpcLatencyMs = 0;
-		},
-		faults: () => ({
-			failRpc: [...state.failRpcChains],
-			rateLimitRpc: [...state.rateLimitRpcChains],
-			nullPrice: [...state.nullPriceChains],
-			forceFunding: [...state.fundingForceChains],
-			zeroGasQuote: [...state.gasQuoteZeroChains],
-			failRelay: [...state.failRelayChains],
-			emptyTreasury: [...state.emptyTreasuryChains],
-			rejectSubmit: [...state.rejectSubmitChains],
-			silentReceipt: [...state.silentReceiptChains],
-			slowRpc: state.rpcLatencyMs
-		})
-	};
 	const g = window as unknown as { vela?: Record<string, unknown> };
 	g.vela = Object.assign(g.vela ?? {}, api);
-	applyInitFaults(api);
 }
 
 /**
  * Faults an automation planted BEFORE the app booted.
  *
  * A Playwright `addInitScript` can set `window.__VELA_FAULT_INIT__` to a list
- * of `[verb, arg]` pairs; they are applied the moment the console installs,
- * which is earlier than any component effect — so the very FIRST read already
- * runs under the fault and no test has to play refresh-timing games. No-op
- * unless the global is set, i.e. never in real use.
+ * of `[verb, arg]` pairs. They are applied where the call below sits — at this
+ * module's load, which every product module that can fault already imports —
+ * so the fault is armed before the first read rather than whenever the gated
+ * console happens to arrive. That timing is the whole point: the console is a
+ * DYNAMIC import, and a fault applied after the tracker's first poll proves
+ * nothing.
  */
-function applyInitFaults(api: Record<string, unknown>): void {
+function applyInitFaults(): void {
+	if (typeof window === 'undefined') return;
 	const planted = (window as unknown as { __VELA_FAULT_INIT__?: [string, unknown][] })
 		.__VELA_FAULT_INIT__;
 	if (!Array.isArray(planted)) return;
+	const verbs = api as unknown as Record<string, unknown>;
 	for (const [verb, arg] of planted) {
-		const fn = api[verb];
+		const fn = verbs[verb];
 		if (typeof fn === 'function') (fn as (value: unknown) => void)(arg);
 	}
 }
+
+// At MODULE LOAD — earlier than any component effect, and earlier than the
+// gated console — so the very first read already runs under the fault and no
+// test has to play refresh-timing games. A no-op unless the global is set,
+// i.e. never in real use.
+applyInitFaults();

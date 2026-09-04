@@ -129,6 +129,9 @@ export const WALLET_FLOW_KEYS = [
 	'send.batchImport',
 	'send.removeRecipient',
 	'send.recipientPickAria',
+	// The trust line the `send` core resolves for a recipient (spec 026).
+	'componentsUi.signing.firstTimeTag',
+	'send.txErrorGeneric',
 	'send.scanAria',
 	'send.splitTotalLabel',
 	'send.continueBtn',

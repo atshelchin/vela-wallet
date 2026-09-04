@@ -47,5 +47,9 @@
 		"vitest": "^4.1.8",
 		"vitest-browser-svelte": "^2.1.1",
 		"wrangler": "^4.97.0"
+	},
+	"dependencies": {
+		"@noble/curves": "1.9.7",
+		"@noble/hashes": "1.8.0"
 	}
 }

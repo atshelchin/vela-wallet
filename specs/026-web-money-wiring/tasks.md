@@ -18,7 +18,7 @@ runs in app-web/vela-wallet. Every port carries a provenance header
       with line counts @ f9bcb278, green tree (check/lint/unit/e2e counts)
 - [X] T202 [P] Record the deps decision (`@noble/curves`, `xlsx` — lazy, out
       of the startup chunk) and the runtime dev-gate deviation (D18)
-- [~] T203 [P] Add `src/lib/dev`, `src/lib/signing/core`, `src/lib/flows/core`
+- [X] T203 [P] Add `src/lib/dev`, `src/lib/signing/core`, `src/lib/flows/core`
       to the literal-audit source list (tokens.test.ts)
 
 ## Phase 2: Foundation (one commit) — blocks 3–6
@@ -50,28 +50,28 @@ runs in app-web/vela-wallet. Every port carries a provenance header
 
 ## Phase 3: Parallel space (one commit) 🎯 enabling
 
-- [ ] T220 [US4] Port `passkey-fixture.ts` → `$lib/dev/passkey-fixture.ts`
+- [X] T220 [US4] Port `passkey-fixture.ts` → `$lib/dev/passkey-fixture.ts`
       (noble p256, DER out, live rpId, frozen 0x45 attestation, registration
       cursor, preferred signer); unit: every assertion passes
       `verifySafeWebAuthn` + `derSignatureToRaw`
-- [ ] T221 [US4] `$lib/dev/parallel-space.ts`: enter/exit/backup (idempotent),
+- [X] T221 [US4] `$lib/dev/parallel-space.ts`: enter/exit/backup (idempotent),
       fixture accounts (3 single + multi), fixture contact seed/remove,
       `vela.parallelSpace` flag, module `$state` + boot re-arm; sponsorship
       short-circuit in bundler-service while active
-- [ ] T222 [US4] `ParallelSpaceBadge.svelte` (unconditional, self-gating;
+- [X] T222 [US4] `ParallelSpaceBadge.svelte` (unconditional, self-gating;
       taps → `/parallel`); `/[locale]/parallel/+page.svelte` (EntryGenerator
       ×15; enters + redirects to wallet); console `vela.parallel.*`
-- [ ] T223 [P] [US4] Fault console relay arms (`failRelay`, `emptyTreasury`,
+- [X] T223 [P] [US4] Fault console relay arms (`failRelay`, `emptyTreasury`,
       `rejectSubmit`, `silentReceipt`, `zeroGasQuote`, `forceFunding`) +
       `__VELA_FAULT_INIT__` module-load seam; `vela.rpcState` kept
-- [ ] T224 [P] [US4] `e2e/stub-chain.ts`: `stubRelay(page, handlers)` (JSON-RPC
+- [X] T224 [P] [US4] `e2e/stub-chain.ts`: `stubRelay(page, handlers)` (JSON-RPC
       methods + `/v1/account`, `/v1/sponsor`, `/v1/treasury`)
-- [ ] T225 [US4] `$lib/dev/test-requester.ts` scaffold (transport interface,
+- [X] T225 [US4] `$lib/dev/test-requester.ts` scaffold (transport interface,
       `vela.requester.fire`) — wired to sign_request in Phase 5
-- [ ] T226 [US4] e2e `parallel-entry.e2e.ts`: enter → badge → fixture account
+- [X] T226 [US4] e2e `parallel-entry.e2e.ts`: enter → badge → fixture account
       visible → exit restores the seeded real wallet; production path never
       requests the fixture chunk (asserted)
-- [ ] T227 Full gate; results.md Phase 3 entry
+- [X] T227 Full gate; results.md Phase 3 entry
 
 ## Phase 4: Send spine (one commit) 🎯 MVP
 

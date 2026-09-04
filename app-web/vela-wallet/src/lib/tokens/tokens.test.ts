@@ -51,7 +51,15 @@ describe('literal audit — product UI references tokens, never raw values', () 
 	 * not ours to express in our tokens — the day it becomes a real WebView,
 	 * those values leave with it.
 	 */
-	const LITERAL_WHITELIST = new Set(['BrandMark.svelte', 'DemoPage.svelte', 'chains.ts']);
+	const LITERAL_WHITELIST = new Set([
+		'BrandMark.svelte',
+		'DemoPage.svelte',
+		'chains.ts',
+		// spec 026: the parallel-space badge is deliberately NOT product chrome.
+		// Its violet exists to look foreign — a design token would make a test
+		// wallet look native, which is the exact confusion the badge prevents.
+		'ParallelSpaceBadge.svelte'
+	]);
 
 	const collect = (dir: string): string[] =>
 		readdirSync(dir).flatMap((name) => {
@@ -81,6 +89,10 @@ describe('literal audit — product UI references tokens, never raw values', () 
 		...collect(join(APP_ROOT, 'src/lib/services')),
 		...collect(join(APP_ROOT, 'src/lib/settings')),
 		...collect(join(APP_ROOT, 'src/lib/session')),
+		// spec 026 T203: the money layer and the dev harness. `dev` is audited
+		// too — a fixture is allowed to look alien, but only on purpose and only
+		// where it is written down (see the whitelist).
+		...collect(join(APP_ROOT, 'src/lib/dev')),
 		...collect(join(APP_ROOT, 'src/routes')),
 		join(APP_ROOT, 'src/app.css')
 	].filter(

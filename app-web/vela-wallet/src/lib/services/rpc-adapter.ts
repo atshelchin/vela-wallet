@@ -9,6 +9,7 @@
  * Bundler methods → poolBundlerCall (user bundler + vela-relay.getvela.app)
  */
 
+import { receiptShouldStaySilent, relayShouldFail, submitShouldReject } from './fault-injection';
 import { poolBundlerCall, poolRpcCall } from './rpc-pool';
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,23 @@ export async function rpcCall(
 	chainId: number
 ): Promise<RPCResponse> {
 	if (BUNDLER_METHODS.has(method)) {
+		// The relay faults (spec 026 T223) sit at this chokepoint, so every
+		// caller — fee quote, submit, receipt poll — meets them identically.
+		// Each is a shape the relay really produces, not an invented one.
+		if (relayShouldFail(chainId)) {
+			throw new Error(`[fault] relay unreachable for chain ${chainId}`);
+		}
+		if (method === 'eth_sendUserOperation' && submitShouldReject(chainId)) {
+			return {
+				jsonrpc: '2.0',
+				id: 1,
+				error: { code: -32521, message: '[fault] user operation reverted during simulation' }
+			};
+		}
+		if (method === 'eth_getUserOperationReceipt' && receiptShouldStaySilent(chainId)) {
+			// Accepted, never landed: the answer a busy chain really gives.
+			return { jsonrpc: '2.0', id: 1, result: null };
+		}
 		return poolBundlerCall(method, params, chainId);
 	}
 	return poolRpcCall(method, params, chainId);

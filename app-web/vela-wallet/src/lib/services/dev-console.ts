@@ -24,6 +24,11 @@ export function maybeInstallDevConsole(): void {
 	}
 
 	installFaultConsole();
+	// The parallel space's own verbs, behind the same gate and one more dynamic
+	// import: `vela.parallel.enter()` is how a test (or a developer) swaps in the
+	// fixture wallet without visiting its page. The fixture keys ride along with
+	// THIS import, never with a product chunk.
+	void import('$lib/dev/parallel-space').then((m) => m.installParallelConsole());
 	const vela = (window as unknown as { vela?: Record<string, unknown> }).vela ?? {};
 	Object.assign(vela, {
 		/** Drive one pool-routed read — the harness's entry into the router. */

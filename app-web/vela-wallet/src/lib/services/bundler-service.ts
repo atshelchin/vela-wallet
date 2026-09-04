@@ -12,7 +12,8 @@
  */
 
 import { nativeSymbol } from './networks';
-import { fundingShouldForce } from './fault-injection';
+import { fundingShouldForce, relayShouldFail, treasuryShouldBeEmpty } from './fault-injection';
+import { parallelFlagSet } from '$lib/dev/parallel-flag.svelte';
 import { formatWeiToEth } from './format-eth';
 import {
 	getActiveBundlerBaseUrl,
@@ -231,6 +232,11 @@ export async function attemptSilentSponsorship(
 	funding: FundingNeeded,
 	opts?: { force?: boolean }
 ): Promise<SilentSponsorship> {
+	// The fixture Safes were seeded into storage, never created through the
+	// flow, so their public keys were never uploaded to the relay's index:
+	// free sponsorship is ALWAYS denied for them. Skip the doomed round-trip
+	// and go straight to the funding sheet (founder decision 2026-07-06).
+	if (parallelFlagSet()) return { outcome: 'denied', denialReason: 'parallel_space' };
 	const { chainId, safeAddress, thresholdWei } = funding;
 
 	// Dev seams: `vela.forceFunding()` exists to exercise the funding sheet, and
@@ -307,6 +313,11 @@ export type SponsorProbe =
  * grants for real — mapped to 'granted', which callers treat as sponsored.
  */
 export async function probeGasSponsorship(funding: FundingNeeded): Promise<SponsorProbe> {
+	// The fixture Safes were seeded into storage, never created through the
+	// flow, so their public keys were never uploaded to the relay's index:
+	// free sponsorship is ALWAYS denied for them. Skip the doomed round-trip
+	// and go straight to the funding sheet (founder decision 2026-07-06).
+	if (parallelFlagSet()) return { outcome: 'denied', reason: 'parallel_space' };
 	const { chainId, safeAddress, thresholdWei } = funding;
 	if (
 		fundingShouldForce(chainId) ||
@@ -861,6 +872,22 @@ export type TreasuryProbe =
 	| { kind: 'unknown' };
 
 export async function probeTreasury(chainId: number): Promise<TreasuryProbe> {
+	// The relay's float is empty (spec 026 T223): the shape the relay itself
+	// reports, so the core's bootstrap guidance is what gets exercised.
+	if (treasuryShouldBeEmpty(chainId)) {
+		return {
+			kind: 'low-float',
+			status: {
+				chainId,
+				address: '0x' + '11'.repeat(20),
+				asset: 'native',
+				balance: 0n,
+				floor: 10n ** 16n,
+				bootstrapNeeded: true
+			}
+		};
+	}
+	if (relayShouldFail(chainId)) return { kind: 'unknown' };
 	try {
 		const baseUrl = await getActiveBundlerBaseUrl(chainId);
 		const res = await fetchWithTimeout(

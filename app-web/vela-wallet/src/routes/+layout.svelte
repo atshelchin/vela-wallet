@@ -14,8 +14,17 @@
 	import { onMount } from 'svelte';
 	import LaunchAnimation from '$lib/launch/LaunchAnimation.svelte';
 	import { markPlayed, shouldPlay, type Appearance } from '$lib/launch/constants';
+	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
+	import { goto } from '$app/navigation';
+	import ParallelSpaceBadge from '$lib/dev/ParallelSpaceBadge.svelte';
+	import { parallelFlagSet } from '$lib/dev/parallel-flag.svelte';
 
 	let { children } = $props();
+
+	const parallelHref = $derived(
+		resolve('/[locale]/parallel', { locale: page.params.locale ?? 'en' })
+	);
 
 	// Spec 012. Client-only by construction: `launching` starts false, so the
 	// prerendered HTML contains no overlay and the page is complete without it
@@ -35,6 +44,17 @@
 			}
 		} catch {
 			// storage denied — no console, no harm
+		}
+		// The parallel space re-arms itself on EVERY boot, gate or no gate
+		// (spec 026 US4): a reload inside it must stay inside it, and a wallet
+		// wearing fixture keys must never boot unmarked. The fixture signer and
+		// its key material stay behind this dynamic import, so a real visit
+		// never loads them.
+		if (parallelFlagSet()) {
+			void import('$lib/dev/parallel-space').then((m) => {
+				void m.applyParallelSpaceOnBoot();
+				m.installParallelConsole();
+			});
 		}
 		// The inline script in app.html already made this decision before paint
 		// and recorded it on <html>. Reading it back — rather than re-deciding —
@@ -69,6 +89,8 @@
 	<div class="page" data-launch-page style:opacity={pageOpacity}>
 		{@render children()}
 	</div>
+
+	<ParallelSpaceBadge onopen={() => goto(parallelHref)} />
 
 	{#if launching}
 		<LaunchAnimation

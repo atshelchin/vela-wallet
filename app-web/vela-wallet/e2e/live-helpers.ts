@@ -49,7 +49,13 @@ export const TEST_ACCOUNT_SHORT = '0x0cE19C…084e2e';
 export async function seedSignedIn(page: Page): Promise<void> {
 	await page.addInitScript((account) => {
 		window.localStorage.setItem('vela.intro.seen', String(Date.now()));
-		window.localStorage.setItem('vela.accounts', JSON.stringify([account]));
-		window.localStorage.setItem('vela.activeAccountIndex', '0');
+		// Only when the profile has no wallet yet. This script runs before EVERY
+		// document, so an unconditional write would re-impose this account on
+		// every navigation — including one that deliberately swapped the wallet
+		// (the parallel space), which then looked like the swap had failed.
+		if (window.localStorage.getItem('vela.accounts') === null) {
+			window.localStorage.setItem('vela.accounts', JSON.stringify([account]));
+			window.localStorage.setItem('vela.activeAccountIndex', '0');
+		}
 	}, TEST_ACCOUNT);
 }

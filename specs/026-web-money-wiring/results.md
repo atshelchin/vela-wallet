@@ -121,3 +121,70 @@ explicit shape rather than a blanket cast.
 
 **Gates**: check 1266/0 · lint clean · unit **680** · build ×15 · e2e **99/99**
 (chromium + firefox + webkit) · wasm byte-identical · zero corpus delta.
+
+---
+
+## Phase 3 — the parallel space (T220–T227)
+
+**What shipped**: the verification environment the founder chose as this
+feature's primary route — the real app with exactly one substitution.
+
+- **The fixture signer** (`lib/dev/passkey-fixture.ts`): the three fixed P-256
+  keys, the assertion builder (client data in the field order the validator
+  checks, 37-byte authenticator data with UP|UV, a low-s DER signature), the
+  frozen `0x45` attestation, the registration cursor and the preferred-signer
+  seam. Its unit test proves the assertions are REAL: the core's client-data
+  validator accepts them, `derSignatureToRaw` parses them, and the signature
+  verifies against the account's public key over the exact bytes a device
+  would have signed.
+- **Enter / leave / boot** (`lib/dev/parallel-space.ts`): the wallet swap with
+  a backup that survives re-entry, the fixture contact seeded and removed by
+  exact address, and the boot re-arm that runs unconditionally — skipping it
+  would boot a fixture wallet UNMARKED, which is the audited P0 this design
+  exists to prevent.
+- **The badge**: rendered whenever the space is active, on every page, in a
+  deliberately non-product violet (whitelisted in the literal audit for that
+  reason), and it is the door back out.
+- **`/{locale}/parallel`**: prerendered ×15 like every route, English on
+  purpose (a developer switch is not product chrome, and its words stay out of
+  the corpus), listing the fixture Safes with the warning that their keys are
+  public.
+- **Relay faults** (T223): `failRelay`, `emptyTreasury`, `rejectSubmit` and
+  `silentReceipt` join the console — the gap the Expo harness's own
+  TEST-OUTLINE names — at the bundler chokepoint, each answering the shape the
+  relay really produces. `__VELA_FAULT_INIT__` applies faults at module load,
+  so the FIRST read already runs under them.
+- **`stubRelay` + `happyRelay`** (T224): the JSON-RPC methods the client
+  speaks plus the three REST endpoints, and a one-object happy path whose
+  receipt state a test can drive.
+- **The test requester** (T225): the seam a transport will plug into, with the
+  promise semantics a dApp sees (4001 on rejection). Phase 5 binds it to
+  `sign_request`; 027 replaces it with a real transport.
+- **Sponsorship** short-circuits to denied while the space is active: the
+  fixture Safes were seeded, never created through the flow, so their keys were
+  never indexed and a sponsorship request is doomed by construction (founder
+  decision 2026-07-06).
+
+**Two findings, both fixed**:
+1. **The fixture module could not be imported before the core was aboard.**
+   Deriving a Safe address is a core call, and the Expo module derives at
+   import time (its core is `initSync`'d). On the web that threw
+   `__wbindgen_malloc` of undefined the moment the page loaded the module. The
+   derivation is now lazy and memoised, and every entry point awaits
+   `loadCore()` first — the same rule every machine already follows.
+2. **The e2e sign-in seed re-imposed its wallet on every navigation.**
+   `addInitScript` runs before EVERY document, so the parallel space's swap
+   looked like it had failed when the very next page re-seeded the test
+   account over it. The seed is now conditional (only when no wallet exists),
+   which is also what "this person already had a wallet" actually means.
+
+**e2e (`parallel-entry.e2e.ts`)**: entering swaps the wallet, marks it and
+seeds the fixture contact; the badge leads back out and leaving restores the
+person's wallet byte-for-byte along with their untouched contacts; the space
+survives a reload (re-armed, not remembered); and — the budget promise — a
+normal visit loads no chunk containing the fixture private key, shows no
+badge, and exposes no parallel verbs.
+
+**Gates**: check 1290/0 · lint clean · unit **698** · build ×15 · e2e
+**102/102** (chromium + firefox + webkit) · wasm byte-identical · zero corpus
+delta.

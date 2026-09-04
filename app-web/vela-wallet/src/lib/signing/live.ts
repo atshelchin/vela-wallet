@@ -322,7 +322,16 @@ export function buildSigningModel(inputs: SigningLiveInputs): SigningModel | nul
 		},
 		confirm: {
 			hint: m.slideToConfirm,
-			action: clear.confirm.type === 'confirm_intent' ? clear.confirm.intent : m.slideConfirmAction,
+			/*
+			 * The drawn control renders `hint · action`, so `action` is a PHRASE
+			 * ("Confirm send"), not a sentence. Falling back to
+			 * `slideConfirmAction` put its raw template on screen — the person read
+			 * "Slide to confirm · Slide to confirm · {{action}}" (spec 027 T340,
+			 * found the first time a real request reached the sheet, and the same
+			 * class as 026's `{{bytes}}`). With no intent from the core, the
+			 * generic word is the honest one.
+			 */
+			action: clear.confirm.type === 'confirm_intent' ? clear.confirm.intent : m.confirmPlain,
 			enabled
 		},
 		panelTitle: m.panelTitle

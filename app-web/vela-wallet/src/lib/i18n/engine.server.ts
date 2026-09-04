@@ -21,6 +21,7 @@ import type { ContactsMessages } from '$lib/contacts/messages';
 import { INTRO_KEYS } from '$lib/intro/slides';
 import { WALLET_FLOW_KEYS, type WalletFlowMessages } from '$lib/flows/messages';
 import type { ExploreMessages } from '$lib/explore/messages';
+import type { RequestMessages } from '$lib/dapp/messages';
 import type { SigningMessages } from '$lib/signing/messages';
 import type { SettingsMessages } from '$lib/settings/messages';
 
@@ -430,6 +431,7 @@ export function resolveSettingsMessages(locale: Locale): SettingsMessages {
 			clear: k('settings.storage.clear'),
 			clearAllCaches: k('settings.storage.clearAllCaches'),
 			disconnectAll: k('settings.storage.disconnectAll'),
+			disconnectOne: k('connect.browser.disconnect'),
 			clearTitle: k('settings.storage.clearTitle'),
 			clearBody: k('settings.storage.clearBody'),
 			clearConfirm: k('settings.storage.clearConfirm')
@@ -575,6 +577,23 @@ export function rawResolve(locale: Locale, key: string): string {
 }
 
 /** The serializable strings the Explore screens render (spec 022 §5). */
+/**
+ * The request window's copy (spec 027). These keys were written for the in-app
+ * browser's connect sheet and say the right thing wherever a request arrives
+ * from — one corpus, not one per surface.
+ */
+export function resolveRequestMessages(locale: Locale): RequestMessages {
+	activate(locale);
+	const k = (key: string) => t(locale, key);
+	return {
+		title: k('connect.browser.title'),
+		body: k('connect.browser.body'),
+		connect: k('connect.browser.connect'),
+		cancel: k('connect.browser.cancel'),
+		preparing: k('connect.browser.preparing')
+	};
+}
+
 export function resolveExploreMessages(locale: Locale): ExploreMessages {
 	activate(locale);
 	const k = (key: string) => t(locale, key);

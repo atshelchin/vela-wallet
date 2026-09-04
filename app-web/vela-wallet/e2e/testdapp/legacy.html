@@ -1,0 +1,38 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>MetaMask-only dApp</title>
+<body>
+	<h1>Legacy dApp</h1>
+	<pre id="out">waiting…</pre>
+	<script>
+		/**
+		 * A dApp of the kind that still makes up most of the web: it never listens
+		 * for EIP-6963, it looks for one global, and it refuses to proceed unless
+		 * that global says isMetaMask. Vela must be usable here or "works with
+		 * dApps" is not true.
+		 */
+		const out = document.getElementById('out');
+		const state = { found: false, gated: false, results: {} };
+		const show = () => (out.textContent = JSON.stringify(state, null, 2));
+
+		state.found = typeof window.ethereum !== 'undefined';
+		state.gated = state.found && window.ethereum.isMetaMask === true;
+		show();
+
+		window.__ask = async (method, params) => {
+			if (!state.gated) {
+				state.results[method] = { ok: false, message: 'no MetaMask-compatible provider' };
+				show();
+				return state.results[method];
+			}
+			try {
+				const result = await window.ethereum.request({ method, params: params ?? [] });
+				state.results[method] = { ok: true, result };
+			} catch (error) {
+				state.results[method] = { ok: false, code: error.code, message: error.message };
+			}
+			show();
+			return state.results[method];
+		};
+	</script>
+</body>

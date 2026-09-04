@@ -11,9 +11,10 @@
  * owns what happens next.
  */
 
+import { isPackagedApp } from '$lib/extension/page-url';
 import type { FailureKind } from '../generated/FailureKind';
 
-/** The native relying party. Web resolves per-hostname; see `relyingPartyId`. */
+/** The native relying party, shared by the extension. See `relyingPartyId`. */
 const RELYING_PARTY_NATIVE = 'getvela.app';
 
 /**
@@ -65,6 +66,21 @@ export function relyingPartyId(): string {
 	const proxied = (window as unknown as { __VELA_WEBAUTHN_PROXY_RPID__?: string })
 		.__VELA_WEBAUTHN_PROXY_RPID__;
 	if (proxied) return proxied;
+
+	// An extension page's origin is `chrome-extension://<id>`, which has NO
+	// registrable domain of its own — so the hostname below is the extension id,
+	// and taking it is the one mistake here that never announces itself: the
+	// ceremony succeeds, a perfectly valid passkey is minted under a relying
+	// party nothing else in the world shares, and since the address is derived
+	// from the keys (spec 019 invariant ②) the person lands in a DIFFERENT,
+	// empty wallet — no error, no warning, just somebody else's money missing.
+	// Chrome permits an extension to claim a relying party it holds host
+	// permission for and no other; `extension/manifest.json`'s
+	// `https://getvela.app/*` entry is what unlocks this line, and
+	// `$lib/extension/package.test.ts` guards that the entry stays. Measured in
+	// spec 027 D31, down to the assertion's rpIdHash being sha256("getvela.app")
+	// whatever origin called for it — one passkey, one address, two doorways.
+	if (isPackagedApp()) return RELYING_PARTY_NATIVE;
 
 	const host = window.location.hostname;
 	if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {

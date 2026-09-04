@@ -28,6 +28,13 @@ const APP_ROOT = join(import.meta.dirname, '..');
 const FIXTURE_SEED = 'd80133c59ce0943689a9c1ff6006242c27b19412439fbc88f94feb5ca1e802d5';
 /** SheetJS announces itself in every build it is part of. */
 const SHEETJS = /sheetjs|XLSX\.utils|SheetJS/i;
+/**
+ * The dApp channel's own vocabulary (spec 027). The layer entered the graph
+ * when the wallet, settings and request routes started using it, and Welcome
+ * has no business carrying a line of it — it is the page a stranger meets, and
+ * a wallet that has not been opened has no connections to speak of.
+ */
+const DAPP_CHANNEL = /vela-1193|vela\.perm\.|vela\.ext\.cache/;
 
 test('the landing page carries neither the fixture keys nor the spreadsheet parser', async ({
 	page
@@ -48,6 +55,7 @@ test('the landing page carries neither the fixture keys nor the spreadsheet pars
 		[]
 	);
 	expect(chunksCarrying(scripts, SHEETJS), 'the spreadsheet parser reached Welcome').toEqual([]);
+	expect(chunksCarrying(scripts, DAPP_CHANNEL), 'the dApp channel reached Welcome').toEqual([]);
 });
 
 test('the money routes load ONE core artifact, and the build ships exactly one', async ({

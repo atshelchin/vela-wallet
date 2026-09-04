@@ -55,10 +55,22 @@
 		onnetevent?: OnNetEvent;
 		/** The person chose a display currency in the sheet (spec 024 phase 5). */
 		oncurrencyselect?: (code: string) => void;
+		/**
+		 * A storage row's action was tapped, by its own id (spec 027 phase 6).
+		 * Absent in the gallery, where every row is canon data.
+		 */
+		onstorageclear?: (id: string) => void;
 	}
 
-	let { model, onselecttab, onsignout, onopencontacts, onnetevent, oncurrencyselect }: Props =
-		$props();
+	let {
+		model,
+		onselecttab,
+		onsignout,
+		onopencontacts,
+		onnetevent,
+		oncurrencyselect,
+		onstorageclear
+	}: Props = $props();
 
 	// Seeds, not bindings: a gallery state pins where this opens, and a person
 	// tapping owns it from then on.
@@ -316,7 +328,11 @@
 						onreset={() => onnetevent?.({ kind: 'endpoints-reset' })}
 					/>
 				{:else if page === 'storage'}
-					<StoragePanel panel={model.storage} onclearcaches={() => (overlay = 'clear-caches')} />
+					<StoragePanel
+						panel={model.storage}
+						onclear={onstorageclear}
+						onclearcaches={() => (overlay = 'clear-caches')}
+					/>
 				{:else if page === 'about'}
 					<AboutPanel panel={model.about} />
 				{/if}

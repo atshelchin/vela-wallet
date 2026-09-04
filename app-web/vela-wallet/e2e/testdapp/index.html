@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Test dApp</title>
+<body>
+	<h1>Test dApp</h1>
+	<pre id="out">waiting…</pre>
+	<script>
+		const out = document.getElementById('out');
+		const state = { announced: [], legacy: null, results: {} };
+		const show = () => (out.textContent = JSON.stringify(state, null, 2));
+
+		// EIP-6963: ask, and record every wallet that answers.
+		window.addEventListener('eip6963:announceProvider', (ev) => {
+			const { info, provider } = ev.detail;
+			state.announced.push({
+				uuid: typeof info.uuid,
+				name: info.name,
+				rdns: info.rdns,
+				iconScheme: String(info.icon).slice(0, 15),
+				sameAsWindowEthereum: provider === window.ethereum,
+				frozenInfo: Object.isFrozen(info)
+			});
+			window.__velaProvider = provider;
+			show();
+		});
+		window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+		// The legacy singleton, as an old MetaMask-only dApp would find it.
+		state.legacy = window.ethereum
+			? {
+					isMetaMask: window.ethereum.isMetaMask === true,
+					isVela: window.ethereum.isVela === true,
+					hasRequest: typeof window.ethereum.request === 'function',
+					hasEnable: typeof window.ethereum.enable === 'function',
+					hasSendAsync: typeof window.ethereum.sendAsync === 'function'
+				}
+			: null;
+		show();
+
+		/**
+		 * A hostile page's two cheapest tricks, driven by the test.
+		 *
+		 * `__forge` posts a message straight onto the channel claiming to be
+		 * somebody else. `__replay` sends the same request id twice. Neither is
+		 * exotic: both are what a page CAN do, so both have to be answers rather
+		 * than assumptions.
+		 */
+		window.__forge = (origin) =>
+			window.postMessage(
+				{
+					ch: 'vela-1193',
+					dir: 'req',
+					id: 'forged-1',
+					method: 'eth_requestAccounts',
+					params: [],
+					origin
+				},
+				window.location.origin
+			);
+
+		// Driven by the test.
+		window.__ask = async (method, params) => {
+			try {
+				const result = await window.ethereum.request({ method, params: params ?? [] });
+				state.results[method] = { ok: true, result };
+			} catch (error) {
+				state.results[method] = { ok: false, code: error.code, message: error.message };
+			}
+			show();
+			return state.results[method];
+		};
+	</script>
+</body>

@@ -64,6 +64,7 @@
     "batchSend": "グループ送金",
     "batchSendHint": "このグループの {{count}} 名に送金します。金額は個別に設定できます。",
     "batchSendHintTitled": "グループ送金：このグループの {{count}} 名に送金します。金額は個別に設定できます。",
+    "batchSendNeedsMembers": "グループ送金には先にメンバーを追加してください。",
     "importFile": "ファイルから取り込む",
     "importAll": "連絡先を取り込む",
     "exportAll": "すべての連絡先を書き出す",

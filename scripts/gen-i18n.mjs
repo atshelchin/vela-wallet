@@ -254,8 +254,11 @@ for (let i = 1; i < PATHS.length; i++) {
 //   core enforces) and `contacts.importDoneInvalid` (the importer counts rows
 //   with no valid address; `importDoneBody` only had words for added/skipped,
 //   so the third number had nowhere to go). No new branch.
-if (PATHS.length !== 1625) fail(`expected 1625 paths (1541 leaf + 84 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1541) fail(`expected 1541 leaf paths, got ${leafSet.size}`);
+// + 1 more (spec 028 US5, 6c): `contacts.batchSendNeedsMembers` — the group
+//   send's disabled CTA had no words for WHY (an empty group); the founder
+//   asked for the hint.
+if (PATHS.length !== 1626) fail(`expected 1626 paths (1542 leaf + 84 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1542) fail(`expected 1542 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 84) fail(`expected 84 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

@@ -1617,6 +1617,7 @@
   "batchSend": "Kirim ke grup",
   "batchSendHint": "Kirim ke {{count}} anggota grup ini; jumlah bisa diatur per orang.",
   "batchSendHintTitled": "Kirim ke grup: kirim ke {{count}} anggota; jumlah bisa diatur per orang.",
+  "batchSendNeedsMembers": "Tambahkan anggota dulu agar bisa mengirim ke grup.",
   "importFile": "Impor dari file",
   "importAll": "Impor kontak",
   "exportAll": "Ekspor semua kontak",

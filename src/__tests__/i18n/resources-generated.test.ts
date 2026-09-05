@@ -170,7 +170,8 @@ describe('generated i18n resources', () => {
     // group keeps its contacts) and importDoneInvalid (the importer counts rows
     // with no valid address, and `importDoneBody` had words for only two of
     // the three numbers).
-    expect(total).toBe(22_833);
+    // 22,848 = 22,833 plus 028 6c's `contacts.batchSendNeedsMembers` × 15.
+    expect(total).toBe(22_848);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

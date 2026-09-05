@@ -797,7 +797,7 @@ run the same book.
   generated wallet-state types regenerated into both mirrors (4 new files,
   2 changed) — a founder-level decision ("业务规则要在 vela core 里面写"), not
   a slip. Phase 6c moved it once more (the initial tables); every later spec's
-  "artifact byte-identical" budget restarts from 0d35936e2e2f.
+  "artifact byte-identical" budget restarts from 643c05990ef3.
 - **Desktop import fork, with an end date.** Until the desktop dispatches the
   core's `import_file` / `export_requested` and deletes its `contact_io.rs`
   (owner: the vela-wallet-native session, 032+), the same malformed file
@@ -848,13 +848,23 @@ exactly why the web landed on `#`. Four platforms answering a question with
 one right answer is four chances to disagree, so the answer moved to the one
 place that can decide for the platform with the least:
 
-- `app/contacts_initials.rs` (new): one ASCII initial per codepoint for
-  U+4E00–U+9FFF (20,992) and U+00C0–U+024F (400), generated once from ICU's
-  Han→Latin (pinyin, common reading) + `stripDiacritics` via a Swift snippet
-  (below). Pinyin initials are contiguous in GB2312 order, not Unicode order,
-  so the table is per codepoint — ~21 KB against build-web's 4,000,000 B
-  ceiling. Polyphones take their common reading (曾 → C, 重 → Z); Hangul,
-  kana, Cyrillic file under `#` today; a nameless address is `#`.
+- `app/contacts_initials.rs` (new): one ASCII initial per codepoint for Han
+  U+4E00–U+9FFF (20,992), Latin-with-diacritics U+00C0–U+024F (400), kana
+  U+3040–U+30FF (192), Greek U+0370–U+03FF (144) and Cyrillic U+0400–U+04FF
+  (256), plus Hangul syllables by ARITHMETIC (`S = 0xAC00 + L·588 + V·28 + T`:
+  a 19-entry lead table and a 21-entry vowel table for the silent ㅇ — the
+  generator checked all 11,172 syllables against ICU, 0 mismatches). All
+  generated once from ICU's `Any-Latin` + `stripDiacritics` via the Swift
+  snippets below. Pinyin initials are contiguous in GB2312 order, not Unicode
+  order, so Han admits no compression — ~22 KB in all against build-web's
+  4,000,000 B ceiling. Polyphones take their common reading (曾 → C, 重 → Z);
+  a nameless address is `#`; Arabic, Devanagari, Thai file under `#` today
+  (extend the table, never special-case a shell).
+  **The first cut was Han + Latin only** — the iOS session measured that as a
+  NARROWING for its shipped ja/ko locales (ICU's `.toLatin` already filed
+  さくら → S, 김민준 → G), so the scripts were added before anyone switched:
+  the rule must be "better everywhere", not "same for Chinese, worse for
+  Japanese and Korean".
 - `ContactsView.sections: [{ letter, addresses }]` — the whole book as an
   A–Z directory, `#` last, the BOOK's order inside a letter (favourites first,
   then most-recent). NOT a field on the stored `Contact`: the four-shell rule
@@ -882,7 +892,11 @@ func initial(_ cp: UInt32) -> Character {
     for ch in latin.uppercased() where ch.isASCII && ch.isLetter { return ch }
     return "#"
 }
-// U+4E00...U+9FFF → HAN, U+00C0...U+024F → LATIN, one char per codepoint.
+// Per codepoint: U+4E00...U+9FFF → HAN, U+00C0...U+024F → LATIN,
+// U+3040...U+30FF → KANA, U+0370...U+03FF → GREEK, U+0400...U+04FF → CYRILLIC.
+// Hangul: for code in 0xAC00...0xD7A3 { L = off/588; V = (off%588)/28 } —
+// lead L ≠ 11 → HANGUL_LEAD[L]; L == 11 (silent ㅇ) → HANGUL_VOWEL[V];
+// assert every syllable agrees with initial(code) before writing the tables.
 ```
 
 ### The add-network search that sat on 搜索中 forever
@@ -896,6 +910,22 @@ refused the ENTIRE `search_index` result over one row, and the wizard showed
 real id. Found by the iOS session, which lost an hour to it; the shell's fault
 hook defaulting to silence is the deeper debt and is not fixed here.
 
+### Three more from the founder's own hands, same day
+
+- **The group view's ⋯ opened rightwards into nothing.** The button sits at
+  the far right of its column and `DropdownMenu` placed the card's left edge
+  at the pointer — measured: x 1416, width 216, viewport 1440. Floating menus
+  now measure themselves once mounted and slide back inside the viewport (8 px
+  margin) in whichever direction they overflowed — the right-click menus near
+  an edge get the same.
+- **群发转账 "did nothing".** Two truths behind one report: an EMPTY group's
+  CTA was disabled with no words (the caption still read "向本组 0 人转账"),
+  and a group of ONE handed off to the token picker, which reads as nothing
+  much. Now the empty group's caption says why (`contacts.batchSendNeedsMembers`,
+  corpus +1 × 15, pins 1626/1542, jest leaves 22,848), and a group of one is a
+  send to that one — the recipient arrives prefilled and the form opens on them
+  at once. Two or more seed split mode once a token is chosen, as before.
+
 ### Gates
 
 `cargo test app_contacts` **57** (54 + roster acceptance, initial edges,
@@ -905,9 +935,11 @@ regenerated (`ContactSection` new, `ContactsView` +1 field) into both mirrors
 `pnpm check` **1410 files / 0 errors** · eslint/prettier clean on the touched
 files · unit **870** passed (869 + the over-u32 index test) · build ×15 +
 `build:extension` · e2e `contacts-io` **4/4** + `contacts-persistence` **4/4**
-on chromium. **The wasm moved again**: 08aa37e9ddf9 → **0d35936e2e2f**,
-3,675,329 → **3,702,690 B** (+27,361 B: the 21,392-byte initial tables and
-the sectioning). 297,310 B remain under `MAX_WASM_BYTES` 4,000,000.
+on chromium (**8/8** re-run after the same-day additions, with the
+empty-group caption asserted). **The wasm moved again**: 08aa37e9ddf9 →
+**643c05990ef3**, 3,675,329 → **3,703,606 B** (+28,277 B: the initial tables
+for six scripts — 21,984 bytes of them — the sectioning, and one corpus key).
+296,394 B remain under `MAX_WASM_BYTES` 4,000,000.
 
 ---
 
@@ -1012,8 +1044,8 @@ warnings will name the `getUserMedia` error it did not recognise.
   wired to their machines; the six preference rows work; erase erases.
 - **Measured, not assumed**: the core artifact is `vela_core_bg.7caac430e4b3.wasm`
   at 3,630,793 B at this branch's last commit by this session; a later session
-  rebuilt it for the contacts core — landing at `0d35936e2e2f`
-  (3,702,690 B; Phases 6b–6c) — the fingerprint test reads whatever is served,
+  rebuilt it for the contacts core — landing at `643c05990ef3`
+  (3,703,606 B; Phases 6b–6c) — the fingerprint test reads whatever is served,
   so it holds either way.
 - **The isolated gate is reusable**: `git worktree add --detach
   /Volumes/data/production/vela-wallet-e2e <sha>`, apply a patch, `pnpm

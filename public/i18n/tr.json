@@ -1617,6 +1617,7 @@
   "batchSend": "Gruba gönder",
   "batchSendHint": "Bu gruptaki {{count}} kişiye gönderin; tutarlar ayrı ayrı ayarlanabilir.",
   "batchSendHintTitled": "Gruba gönder: bu gruptaki {{count}} kişiye; tutarlar ayrı ayarlanabilir.",
+  "batchSendNeedsMembers": "Gruba göndermek için önce bir üye ekleyin.",
   "importFile": "Dosyadan içe aktar",
   "importAll": "Kişileri içe aktar",
   "exportAll": "Tüm kişileri dışa aktar",

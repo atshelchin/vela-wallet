@@ -1617,6 +1617,7 @@
   "batchSend": "Gửi cho cả nhóm",
   "batchSendHint": "Gửi cho {{count}} người trong nhóm; số tiền có thể đặt riêng từng người.",
   "batchSendHintTitled": "Gửi cho cả nhóm: gửi cho {{count}} người; số tiền đặt riêng từng người.",
+  "batchSendNeedsMembers": "Hãy thêm thành viên trước để có thể gửi cho nhóm.",
   "importFile": "Nhập từ tệp",
   "importAll": "Nhập danh bạ",
   "exportAll": "Xuất toàn bộ danh bạ",

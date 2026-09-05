@@ -1909,8 +1909,23 @@ fn initials_fold_diacritics_and_file_the_nameless_under_hash() {
     assert_eq!(initial_of('曾'), 'C');
     assert_eq!(initial_of('重'), 'Z');
     assert_eq!(initial_of('金'), 'J');
-    // Outside every table: Hangul, kana, Cyrillic file under `#` today.
-    assert_eq!(initial_of('한'), '#');
+    // The scripts the app ships locales for (ja, ko) and two more ICU knows —
+    // the iOS shell's transliteration filed these; the core must not do worse.
+    assert_eq!(section_letter("さくら"), 'S');
+    assert_eq!(section_letter("スズキ"), 'S');
+    assert_eq!(initial_of('ヴ'), 'V');
+    assert_eq!(section_letter("김민준"), 'G');
+    assert_eq!(
+        section_letter("안녕"),
+        'A',
+        "a silent ㅇ files under its vowel"
+    );
+    assert_eq!(section_letter("한"), 'H');
+    assert_eq!(section_letter("Ελένη"), 'E');
+    assert_eq!(section_letter("Дмитрий"), 'D');
+    // Outside every table: Arabic, Devanagari, Thai file under `#` today.
+    assert_eq!(initial_of('ع'), '#');
+    assert_eq!(initial_of('क'), '#');
 }
 
 /// Sections run A–Z then `#`, and inside a letter the book's order holds —

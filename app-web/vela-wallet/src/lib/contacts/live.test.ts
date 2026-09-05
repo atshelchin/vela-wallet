@@ -275,3 +275,24 @@ describe('importReport', () => {
 		expect(refused).toEqual({ title: m.importFailTitle, body: m.importFailBody });
 	});
 });
+
+describe('the group screen says why its button is dead', () => {
+	it('an empty group captions the CTA with the reason; a filled one with the count', () => {
+		const emptyGroup = { id: 'g2', name: 'Nobody', color: null, members: [] };
+		const view: ContactsView = { ...VIEW, groups: [...VIEW.groups, emptyGroup] };
+		const empty = buildContactsLive(view, m, identicon, {
+			screen: 'group',
+			query: '',
+			selectedGroupId: 'g2'
+		});
+		expect(empty.group?.ctaCaption).toBe(m.batchSendNeedsMembers);
+		expect(empty.group?.captionTitled).toBe(m.batchSendNeedsMembers);
+		const filled = buildContactsLive(view, m, identicon, {
+			screen: 'group',
+			query: '',
+			selectedGroupId: 'g1'
+		});
+		expect(filled.group?.ctaCaption).toContain('2');
+		expect(filled.group?.ctaCaption).not.toBe(m.batchSendNeedsMembers);
+	});
+});

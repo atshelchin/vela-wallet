@@ -312,8 +312,18 @@
 		handOff({ kind: 'receive' });
 	}
 
+	/**
+	 * 群发转账. A group of one is a send to that one — the recipient arrives
+	 * prefilled and the form opens on them at once; two or more seed split
+	 * mode once a token is chosen. An empty group's button is disabled and its
+	 * caption says why, so this is never reached with nobody.
+	 */
 	function batchSend(groupId: string): void {
-		handOff({ kind: 'group-send', groupId });
+		const group = view?.groups.find((g) => g.id === groupId);
+		if (group === undefined || group.members.length === 0) return;
+		const only = group.members.length === 1 ? group.members[0] : undefined;
+		if (only !== undefined) sendTo(only.address);
+		else handOff({ kind: 'group-send', groupId });
 	}
 
 	async function copyAddress(address: string): Promise<void> {

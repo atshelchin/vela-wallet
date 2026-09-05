@@ -49,6 +49,8 @@ export interface ContactsMessages {
 	batchSendHint: string;
 	/** Template with `{{count}}`. */
 	batchSendHintTitled: string;
+	/** Why the group send is disabled: nobody to send to yet. */
+	batchSendNeedsMembers: string;
 	importFile: string;
 	importAll: string;
 	importGroup: string;
@@ -137,6 +139,7 @@ export const CONTACTS_KEYS = [
 	'contacts.batchSend',
 	'contacts.batchSendHint',
 	'contacts.batchSendHintTitled',
+	'contacts.batchSendNeedsMembers',
 	'contacts.importFile',
 	'contacts.importAll',
 	'contacts.importGroup',

@@ -180,6 +180,9 @@ test('a CSV imported into a group seats every valid row in it', async ({ page })
 	await addContact(page, 'Alice', ALICE_ADDR);
 	await addGroup(page, 'Payroll');
 	await page.getByText('Payroll', { exact: true }).click();
+	// An empty group's 群发转账 is disabled — and says why.
+	await expect(page.getByRole('button', { name: en('contacts.batchSend') })).toBeDisabled();
+	await expect(page.getByText(en('contacts.batchSendNeedsMembers'))).toBeVisible();
 	// The group screen's ⋯ → 导入到本组.
 	await importFile(
 		page,

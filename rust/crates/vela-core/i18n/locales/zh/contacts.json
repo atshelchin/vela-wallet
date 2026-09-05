@@ -64,6 +64,7 @@
     "batchSend": "群发转账",
     "batchSendHint": "向本组 {{count}} 人转账，金额可分别设置。",
     "batchSendHintTitled": "群发转账：向本组 {{count}} 人转账，金额可分别设置。",
+    "batchSendNeedsMembers": "先添加成员，才能群发转账。",
     "importFile": "从文件导入",
     "importAll": "导入通讯录",
     "exportAll": "导出全部通讯录",

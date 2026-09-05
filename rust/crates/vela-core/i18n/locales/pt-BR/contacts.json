@@ -65,6 +65,7 @@
     "batchSend": "Enviar ao grupo",
     "batchSendHint": "Envie aos {{count}} membros do grupo; os valores podem ser definidos individualmente.",
     "batchSendHintTitled": "Enviar ao grupo: envie aos {{count}} membros; valores individuais.",
+    "batchSendNeedsMembers": "Adicione um membro primeiro para enviar ao grupo.",
     "importFile": "Importar de arquivo",
     "importAll": "Importar contatos",
     "exportAll": "Exportar todos os contatos",

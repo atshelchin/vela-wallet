@@ -1617,6 +1617,7 @@
   "batchSend": "An Gruppe senden",
   "batchSendHint": "An alle {{count}} Mitglieder senden; Beträge lassen sich einzeln festlegen.",
   "batchSendHintTitled": "An Gruppe senden: an alle {{count}} Mitglieder; Beträge einzeln festlegbar.",
+  "batchSendNeedsMembers": "Fügen Sie zuerst ein Mitglied hinzu, um an die Gruppe zu senden.",
   "importFile": "Aus Datei importieren",
   "importAll": "Kontakte importieren",
   "exportAll": "Alle Kontakte exportieren",

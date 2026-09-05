@@ -10,14 +10,28 @@
 //! is why the web filed every Chinese name under `#` for two specs. The core
 //! is the one place that can decide for the platform with the least.
 //!
-//! The tables are per codepoint, generated once (2026-09-05) from ICU's
-//! Han→Latin (pinyin, the most common reading) + `stripDiacritics` transforms
-//! via Foundation on macOS — the same transform the iOS shell used locally and
-//! measured against the drawing. Pinyin initials are contiguous in GB2312
-//! collation order and not in Unicode order, so no range compression applies:
-//! one ASCII byte per codepoint, 20,992 for U+4E00–U+9FFF and 400 for
-//! U+00C0–U+024F. Polyphones take their common reading (曾 → C, 重 → Z).
-//! Regenerate with the Swift snippet in specs/028-web-port-completion/results.md
+//! The tables are generated once (2026-09-05) from ICU's `Any-Latin`
+//! transliteration + `stripDiacritics` via Foundation on macOS — the same
+//! transform the iOS shell used locally and measured against the drawing —
+//! for every script the app ships a locale in or a person is likely to name a
+//! friend in:
+//!
+//! | script | range | how | bytes |
+//! |---|---|---|---|
+//! | Han (pinyin, common reading; 曾 → C, 重 → Z) | U+4E00–U+9FFF | per codepoint | 20,992 |
+//! | Latin with diacritics (É → E, Ø → `#`) | U+00C0–U+024F | per codepoint | 400 |
+//! | Kana (さくら → S, ヴ → V) | U+3040–U+30FF | per codepoint | 192 |
+//! | Greek (Ελένη → E) | U+0370–U+03FF | per codepoint | 144 |
+//! | Cyrillic (Дмитрий → D) | U+0400–U+04FF | per codepoint | 256 |
+//! | Hangul syllables (김민준 → G, 안녕 → A) | U+AC00–U+D7A3 | arithmetic: lead consonant, or the vowel after a silent ㅇ | 19 + 21 |
+//!
+//! Pinyin initials are contiguous in GB2312 order and not in Unicode order, so
+//! Han admits no range compression; Hangul is the opposite — `S = 0xAC00 +
+//! L·588 + V·28 + T` — so 11,172 syllables collapse to two small tables (the
+//! generator verified the arithmetic against ICU for every syllable: 0
+//! mismatches). Everything outside these ranges files under `#` (Arabic,
+//! Devanagari, Thai … — extend the table, do not special-case a shell).
+//! Regenerate with the Swift snippets in specs/028-web-port-completion/results.md
 //! (Phase 6c) if ICU's readings ever move.
 
 /// CJK Unified Ideographs, U+4E00..=U+9FFF, one initial per codepoint.
@@ -196,10 +210,44 @@ const LATIN: &str = concat!(
     "################",
 );
 
+/// Hiragana + Katakana, U+3040..=U+30FF.
+const KANA: &str = concat!(
+    "#AAIIUUEEOOKGKGKGKGKGSZSJSZSZSZTDCDTTDTDTDNNNNNHBPHBPFBPHBPHBPMMMMMYYYYYYRRRRRWWWWWNV############AAIIUUEEOOKGKGKGKGKGSZSJSZSZSZT",
+    "DCDTTDTDTDNNNNNHBPHBPFBPHBPHBPMMMMMYYYYYYRRRRRWWWWWNVKKVVVV#####",
+);
+
+/// Greek and Coptic, U+0370..=U+03FF.
+const GREEK: &str = concat!(
+    "##########I###########A#EEI#O#YOIABGDEZETIKLMNXOPR#STYPCPOIYAEEIYABGDEZETIKLMNXOPRSSTYPCPOIYOYO#BTYYYPP#########################",
+    "KRSJTE#SSSSS####",
+);
+
+/// Cyrillic, U+0400..=U+04FF.
+const CYRILLIC: &str = concat!(
+    "EE#GEZIIJLNCKIUDABVGDEZZIJKLMNOPRSTUFHCCSS#Y#EUAABVGDEZZIJKLMNOPRSTUFHCCSS#Y#EUAEE#GEZIIJLNCKIUD################################",
+    "################GGGGGG##ZZKK######NN##########UUUU########HH#####ZZ#############AAAA##EE####ZZZZ##IIIIOOOO##EEUUUUUUCC##YY######",
+);
+
+/// Hangul lead consonants in jamo order (ㄱ ㄲ ㄴ ㄷ ㄸ ㄹ ㅁ ㅂ ㅃ ㅅ ㅆ ㅇ ㅈ ㅉ ㅊ ㅋ ㅌ ㅍ ㅎ);
+/// the `#` at index 11 is the silent ㅇ, whose syllable files under its vowel.
+const HANGUL_LEAD: &str = "GKNDTLMBPSS#JJCKTPH";
+
+/// The vowel's initial after a silent ㅇ, in jamo order (ㅏ ㅐ ㅑ ㅒ ㅓ ㅔ ㅕ ㅖ ㅗ ㅘ ㅙ ㅚ ㅛ ㅜ ㅝ ㅞ ㅟ ㅠ ㅡ ㅢ ㅣ).
+const HANGUL_VOWEL: &str = "AAYYEEYYOWWOYUWWWYEUI";
+
 const HAN_START: u32 = 0x4E00;
 const HAN_END: u32 = 0x9FFF;
 const LATIN_START: u32 = 0x00C0;
 const LATIN_END: u32 = 0x024F;
+const KANA_START: u32 = 0x3040;
+const KANA_END: u32 = 0x30FF;
+const GREEK_START: u32 = 0x0370;
+const GREEK_END: u32 = 0x03FF;
+const CYRILLIC_START: u32 = 0x0400;
+const CYRILLIC_END: u32 = 0x04FF;
+const HANGUL_START: u32 = 0xAC00;
+const HANGUL_END: u32 = 0xD7A3;
+const HANGUL_SILENT_LEAD: u32 = 11;
 
 /// The letter one character files under: `'A'..='Z'`, or `'#'`.
 #[must_use]
@@ -212,6 +260,21 @@ pub fn initial_of(ch: char) -> char {
         Some((HAN, cp - HAN_START))
     } else if (LATIN_START..=LATIN_END).contains(&cp) {
         Some((LATIN, cp - LATIN_START))
+    } else if (KANA_START..=KANA_END).contains(&cp) {
+        Some((KANA, cp - KANA_START))
+    } else if (GREEK_START..=GREEK_END).contains(&cp) {
+        Some((GREEK, cp - GREEK_START))
+    } else if (CYRILLIC_START..=CYRILLIC_END).contains(&cp) {
+        Some((CYRILLIC, cp - CYRILLIC_START))
+    } else if (HANGUL_START..=HANGUL_END).contains(&cp) {
+        let offset = cp - HANGUL_START;
+        let lead = offset / 588;
+        let vowel = (offset % 588) / 28;
+        if lead == HANGUL_SILENT_LEAD {
+            Some((HANGUL_VOWEL, vowel))
+        } else {
+            Some((HANGUL_LEAD, lead))
+        }
     } else {
         None
     };

@@ -64,6 +64,7 @@
     "batchSend": "그룹 송금",
     "batchSendHint": "이 그룹의 {{count}}명에게 송금합니다. 금액은 각각 설정할 수 있습니다.",
     "batchSendHintTitled": "그룹 송금: 이 그룹의 {{count}}명에게 송금합니다. 금액은 각각 설정할 수 있습니다.",
+    "batchSendNeedsMembers": "그룹 송금을 하려면 먼저 구성원을 추가하세요.",
     "importFile": "파일에서 가져오기",
     "importAll": "연락처 가져오기",
     "exportAll": "모든 연락처 내보내기",

@@ -185,6 +185,29 @@ function toGroupModel(
 	};
 }
 
+/**
+ * The group screen. The CTA's caption says what the button will do — and,
+ * when the group is empty and the button is disabled, WHY (the founder's
+ * ask: a dead button with no words is a button that "does nothing").
+ */
+function liveGroupDetail(
+	group: ContactGroupView,
+	view: ContactsView,
+	m: ContactsMessages,
+	identicon: Identicon
+): GroupDetailModel {
+	const count = group.members.length;
+	const empty = count === 0;
+	return {
+		group: toGroupModel(group, view, m, identicon),
+		addMember: m.addMember,
+		cta: m.batchSend,
+		ctaCaption: empty ? m.batchSendNeedsMembers : fill(m.batchSendHint, { count }),
+		captionTitled: empty ? m.batchSendNeedsMembers : fill(m.batchSendHintTitled, { count }),
+		menuLabel: m.manage
+	};
+}
+
 function emptyModel(m: ContactsMessages): EmptyCtaModel {
 	return {
 		title: m.empty,
@@ -280,18 +303,7 @@ export function buildContactsLive(
 	if (ui.screen === 'group' && ui.selectedGroupId !== undefined) {
 		const group = view.groups.find((g) => g.id === ui.selectedGroupId);
 		if (group !== undefined) {
-			return {
-				...base,
-				screen: 'group',
-				group: {
-					group: toGroupModel(group, view, m, identicon),
-					addMember: m.addMember,
-					cta: m.batchSend,
-					ctaCaption: fill(m.batchSendHint, { count: group.members.length }),
-					captionTitled: fill(m.batchSendHintTitled, { count: group.members.length }),
-					menuLabel: m.manage
-				}
-			};
+			return { ...base, screen: 'group', group: liveGroupDetail(group, view, m, identicon) };
 		}
 	}
 
@@ -340,16 +352,7 @@ export function buildContactsDesktopLive(
 	const empty = view.loaded && view.contacts.length === 0;
 
 	const group: GroupDetailModel | undefined =
-		selectedGroup === undefined
-			? undefined
-			: {
-					group: toGroupModel(selectedGroup, view, m, identicon),
-					addMember: m.addMember,
-					cta: m.batchSend,
-					ctaCaption: fill(m.batchSendHint, { count: selectedGroup.members.length }),
-					captionTitled: fill(m.batchSendHintTitled, { count: selectedGroup.members.length }),
-					menuLabel: m.manage
-				};
+		selectedGroup === undefined ? undefined : liveGroupDetail(selectedGroup, view, m, identicon);
 
 	return {
 		state: 'dc1',

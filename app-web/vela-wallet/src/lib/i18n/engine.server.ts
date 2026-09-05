@@ -235,6 +235,7 @@ export function resolveContactsMessages(locale: Locale): ContactsMessages {
 		batchSend: k('contacts.batchSend'),
 		batchSendHint: k('contacts.batchSendHint'),
 		batchSendHintTitled: k('contacts.batchSendHintTitled'),
+		batchSendNeedsMembers: k('contacts.batchSendNeedsMembers'),
 		importFile: k('contacts.importFile'),
 		importAll: k('contacts.importAll'),
 		importGroup: k('contacts.importGroup'),

@@ -1617,6 +1617,7 @@
   "batchSend": "群發轉賬",
   "batchSendHint": "向本群組 {{count}} 人轉賬，金額可分別設定。",
   "batchSendHintTitled": "群發轉賬：向本群組 {{count}} 人轉賬，金額可分別設定。",
+  "batchSendNeedsMembers": "請先新增成員，才能群發轉帳。",
   "importFile": "從檔案匯入",
   "importAll": "匯入聯絡人",
   "exportAll": "匯出全部聯絡人",

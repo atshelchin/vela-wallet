@@ -112,7 +112,10 @@ test('two assets on one network go out as ONE operation carrying both', async ({
 	});
 	page.on('pageerror', (error) => errors.push(error.message));
 	await stubChain(page);
-	const relay = happyRelay(USER_OP_HASH, TX_HASH);
+	// The receipt stays PENDING for the whole test: with the default "landed"
+	// answer, the tracker's poll can confirm the operation before the test
+	// looks for the submitted title, and the assertion races the receipt.
+	const relay = happyRelay(USER_OP_HASH, TX_HASH, () => 'pending');
 	await stubRelay(page, RELAY, (method, params) => {
 		seen.push(method);
 		if (method === 'eth_sendUserOperation') sent.push(params);

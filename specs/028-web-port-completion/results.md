@@ -614,3 +614,114 @@ webkit 52/52** re-measured at `--workers=1` after the same run timed 29 of them
 out at machine load 54→94 — the 026 starvation, which the box's other sessions'
 builds turned into a certainty. Recorded as two numbers rather than one
 because they were two runs; the second is the fair one.
+
+---
+
+## Phase 6 — the desktop sends; the book's travels were reassigned
+
+**What shipped**: T453 and its e2e. The wide layout drives the send flow
+through the same session the phone does, and a send completes in the third
+column (SC-409).
+
+**What did not, and why**: T450–T452 (the contacts export/import port) were
+reassigned mid-phase — the founder handed the whole app-web contacts feature,
+import/export included, to a separate session (`vela-wallet-63`). Everything
+this session had learned went to them in one message rather than into code
+that would have collided with theirs: the core already owns the import policy
+(`import_parsed` → `apply_import` → `last_import: ContactImportReport`), so the
+web port is parse/serialize only; `file-io.ts` has `pickTable()` (no `.json`
+yet) and `saveTextFile()`; the desktop header dropdown already emits
+`sheet-select` with `importAll` / `exportAll`; the phone's "+" opens the add
+form, so the phone has no export entry until the drawn `addMenu` is wired.
+SC-408 is theirs to prove.
+
+### T453 — one session, two hosts
+
+`FlowsPanel` now takes the SAME `SendActions` / `BatchActions` interfaces
+`FlowsMobile` takes, and the route's third column reads the core's stage
+(`desktopSendState`: `dsd1` / `dsd2` / `dsd2b` / `dsd3` / `dsd4`, the fee sheet
+and the importer as `dsd2f` / `dsd2c`, the scanner as the `ds1` modal) ahead of
+the nav stack — exactly the rule the phone host has followed since 026. Until
+now the column showed the send screens with live DATA (026's overlays) and
+dead controls: a Continue that did nothing on a form that knew the balance.
+
+The three surfaces the phone raises as sheets and the desktop opens as panels
+— the fee coin, the importer, the scanner — became methods on the session's
+actions (`openFeeSheet` / `openBatch` / `openScanner`) rather than nav steps,
+so the host that asks does not need to know which layout it is on. The panel's
+Back closes a sub-panel before it steps the core back; its Close closes the
+session.
+
+### The incident: a 0-byte file, and how it came back
+
+Mid-phase, an edit script of this session opened the wallet route for writing
+BEFORE its transform ran; the transform's assertion failed and the file was
+left at 0 bytes — with another session's complete, unstaged hunks in it. That
+session had just `git add`ed the file and restored the worktree from the
+index; this session's reflex `git checkout HEAD -- <file>` then clobbered the
+index copy too. The content survived as a dangling blob (`git fsck
+--dangling` → `b3b85692`, 1057 lines), was restored, and the other session
+committed its hunks from it (`0053cf22`). This session's T453 edits were
+re-applied on top by a script that reads, transforms, and only then writes.
+
+Two rules from it, written into the concurrent-sessions memory: **never open
+the destination before the transform has succeeded**, and **never `checkout
+HEAD` a shared file to "reset" it** — a peer's restore may be sitting in the
+index, and the object database is where a wiped file actually lives.
+
+### Gating three sessions deep
+
+The Phase 6 gate went red twice before it was measured — both times with
+`ERR_CONNECTION_REFUSED` / "Could not connect to the server" across every
+firefox and webkit test, and the preview's log ending in `wrangler dev`'s own
+crash: an EMPTY `✘ [ERROR]` after serving `/en/wallet`, "if you think this is a
+bug then please create an issue". Chromium, which runs first, was already
+through with ONE real failure.
+
+The single-threaded preview crashing under three engines is 026's starvation
+in a new coat, and the third session's builds in the same worktree made it
+unmeasurable. So the gate moved: `git worktree add` at HEAD with this
+session's staged patch applied, its own `node_modules` (offline install), a
+`playwright.isolated.config.ts` that serves on **4174** with
+`reuseExistingServer: false` — a run there measures exactly the code it built,
+and nobody else's build dir or port is in the room.
+
+The one chromium failure was the sweep e2e racing its own receipt: the relay
+stub's default answer is "landed", so the tracker's poll confirmed the
+operation before the test looked for the submitted title (the page said "Sent
+1.49694 ETH · Done"). The stub now answers `pending` for the whole test, as
+`desktop-send` already did.
+
+**Gates (Phase 6)**: check **0 errors on this session's files** (the shared
+tree carries 2 from the third session's in-flight `SendActions` /
+`ContactsView` changes) · lint clean on this session's files · unit **857** ·
+build ×15 + `build:extension` · e2e in the isolated worktree on 4174:
+**180 passed / 1 skipped / 1 failed** on chromium + firefox + webkit, the one
+failure being T460's decoder budget mid-construction (below), re-run **3/3**
+once finished. Every SC-409 assertion is in `desktop-send.e2e.ts`.
+
+---
+
+## Phase 7 (in progress) — budgets
+
+### T460: the decoders stay lazy — and a budget nobody could trip
+
+`budgets.e2e.ts` gained the decoder budget D45 promised: `jsqr` (a 130 KB
+chunk, marked by its own `onlyInvert` literal, which `qr-decode.ts` never
+spells) and the zbar glue (the one chunk naming `zbar.<hash>.wasm`) reach
+neither Welcome nor the wallet's startup path; the wallet's startup fetches ONE
+wasm and it is the core. Then the control, in two steps: opening the scanner
+brings both decoders' CODE; only the first DECODE brings the 239 KB zbar
+binary. A budget nobody can trip is not a budget, and this one can be.
+
+**The control found one.** Its first run reported the decoders absent
+everywhere — including after the scanner opened. `chunkSource()` reads a served
+chunk back off the build output, and it read `.svelte-kit/output/client/_app/…`;
+since 027 the extension build runs AFTER the web build and re-emits
+`output/client` under `app/` (Chrome refuses `_`-prefixed paths), so every
+served `/_app/…` URL resolved to no file, every chunk read as `''`, and every
+`chunksCarrying` budget — SheetJS off Welcome, the fixture keys off Welcome,
+the dApp channel off Welcome, the artifact test's neighbours — **has passed
+vacuously for two specs.** `chunkSource` now reads `.svelte-kit/cloudflare`
+(what the preview serves) first, and the decoder test asserts that at least one
+served chunk was readable before it asserts that any of them carries nothing.

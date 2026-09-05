@@ -94,11 +94,22 @@ export function collectScripts(page: Page): string[] {
  */
 export function chunkSource(url: string): string {
 	const path = new URL(url).pathname.replace(/^\//, '');
-	try {
-		return readFileSync(join(process.cwd(), '.svelte-kit/output/client', path), 'utf8');
-	} catch {
-		return '';
+	// `.svelte-kit/cloudflare` is what the preview SERVES. `output/client` is
+	// not: since 027 the extension build runs after the web build and re-emits
+	// it under `app/` (Chrome refuses `_`-prefixed paths), so a served
+	// `/_app/…` URL never resolved there and every chunk read back as '' —
+	// which made every `chunksCarrying` budget in this suite pass vacuously
+	// for two specs. Found by 028's decoder budget, whose positive control
+	// (open the scanner, the decoders MUST appear) is the only reason it could
+	// not pass by accident.
+	for (const root of ['.svelte-kit/cloudflare', '.svelte-kit/output/client']) {
+		try {
+			return readFileSync(join(process.cwd(), root, path), 'utf8');
+		} catch {
+			/* try the next root */
+		}
 	}
+	return '';
 }
 
 /** The subset of `urls` whose chunk source carries `needle` — a budget leak. */

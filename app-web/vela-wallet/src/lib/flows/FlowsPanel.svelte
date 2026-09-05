@@ -27,6 +27,52 @@
 	import TxDetail from './screens/TxDetail.svelte';
 	import type { DesktopFlowModel } from './model';
 
+	/**
+	 * The live send flow's handlers (spec 028 T453) — the SAME interface
+	 * `FlowsMobile` takes, because the desktop drives the same session through
+	 * the same events. Until this phase the third column showed the send
+	 * screens with live data and dead controls: a Continue that did nothing
+	 * on a form that knew the balance.
+	 */
+	interface SendActions {
+		selectToken(index: number): void;
+		amountChanged(value: string): void;
+		recipientChanged(value: string): void;
+		advance(): void;
+		confirm(): void;
+		addRecipient(): void;
+		removeRecipient(index: number): void;
+		pickFeeToken(index: number): void;
+		done(): void;
+		selectAll(): void;
+		pickCta(): void;
+		/**
+		 * The three surfaces the phone raises as sheets and this column opens
+		 * as panels. They belong to the session, not to the nav stack — which
+		 * is why the desktop asks the session rather than pushing a step.
+		 */
+		openFeeSheet(): void;
+		openBatch(): void;
+		openScanner(): void;
+		/**
+		 * The recipient picker's two answers (spec 028 US5, wired by the contacts
+		 * session): one person from the book, or a whole group as split-mode
+		 * recipients. Optional, and the same shape `FlowsMobile` declares.
+		 */
+		pickContact?(index: number): void;
+		pickGroup?(index: number): void;
+		continueDisabled: boolean;
+		confirmDisabled: boolean;
+	}
+
+	interface BatchActions {
+		unit(id: string): void;
+		paste(text: string): void;
+		pickFile(): void;
+		saveTemplate(): void;
+		apply(): void;
+	}
+
 	interface Props {
 		model: DesktopFlowModel;
 		onback?: () => void;
@@ -34,9 +80,11 @@
 		onnavigate?: (to: string, index?: number) => void;
 		/** The add-token panel's handlers, when the `manage_tokens` core is live (spec 028). */
 		addToken?: { input(value: string): void; submit(): void };
+		send?: SendActions;
+		batch?: BatchActions;
 	}
 
-	let { model, onback, onclose, onnavigate, addToken }: Props = $props();
+	let { model, onback, onclose, onnavigate, addToken, send, batch }: Props = $props();
 
 	const body = $derived(model.body);
 	const go = (to: string, index?: number) => onnavigate?.(to, index);
@@ -71,23 +119,55 @@
 			onsubmit={addToken ? () => addToken.submit() : undefined}
 		/>
 	{:else if body.kind === 'send-pick'}
-		<SendPick model={body.model} onselect={(i) => go('send-form', i)} />
+		<SendPick
+			model={body.model}
+			onselect={(i) => (send ? send.selectToken(i) : go('send-form', i))}
+			onselectall={send ? () => send.selectAll() : undefined}
+			oncta={send ? () => send.pickCta() : undefined}
+		/>
 	{:else if body.kind === 'send-form'}
 		<SendForm
 			model={body.model}
 			onpickRecipient={() => go('contact-pick')}
-			onscan={() => go('scan')}
-			onfee={() => go('fee-token')}
+			onscan={() => (send ? send.openScanner() : go('scan'))}
+			onfee={() => (send ? send.openFeeSheet() : go('fee-token'))}
+			onrecipientAction={(id) => {
+				if (id === 'import') {
+					if (send) send.openBatch();
+					else go('batch-import');
+				} else go(id === 'contacts' ? 'contact-pick' : 'add-recipient');
+			}}
+			oncontinue={() => (send ? send.advance() : go('send-confirm'))}
+			onaddRecipient={send ? () => send.addRecipient() : undefined}
+			onremoveRecipient={send ? (i) => send.removeRecipient(i) : undefined}
+			onamount={send ? (value) => send.amountChanged(value) : undefined}
+			onrecipient={send ? (value) => send.recipientChanged(value) : undefined}
+			ctaDisabled={send?.continueDisabled ?? false}
 		/>
 	{:else if body.kind === 'send-confirm'}
-		<SendConfirm model={body.model} onconfirm={() => go('send-receipt')} />
+		<SendConfirm
+			model={body.model}
+			onconfirm={() => (send ? send.confirm() : go('send-receipt'))}
+		/>
 	{:else if body.kind === 'contact-pick'}
-		<ContactPick model={body.model} onscan={() => go('scan')} />
+		<ContactPick
+			model={body.model}
+			onscan={() => (send ? send.openScanner() : go('scan'))}
+			onselect={send?.pickContact ? (i) => send.pickContact?.(i) : undefined}
+			ongroup={send?.pickGroup ? (i) => send.pickGroup?.(i) : undefined}
+		/>
 	{:else if body.kind === 'fee-token'}
-		<FeeTokenPick model={body.model} />
+		<FeeTokenPick model={body.model} onselect={send ? (i) => send.pickFeeToken(i) : undefined} />
 	{:else if body.kind === 'batch-import'}
-		<BatchImport model={body.model} />
+		<BatchImport
+			model={body.model}
+			onunit={batch ? (id) => batch.unit(id) : undefined}
+			onpaste={batch ? (text) => batch.paste(text) : undefined}
+			onfile={batch ? () => batch.pickFile() : undefined}
+			ontemplate={batch ? () => batch.saveTemplate() : undefined}
+			onapply={batch ? () => batch.apply() : undefined}
+		/>
 	{:else}
-		<SendReceipt model={body.model} oncta={() => go('done')} />
+		<SendReceipt model={body.model} oncta={() => (send ? send.done() : go('done'))} />
 	{/if}
 </ThirdPanel>

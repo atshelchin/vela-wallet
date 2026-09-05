@@ -479,6 +479,14 @@
 						sendSession?.dispatch({ type: 'done' });
 						closeSend();
 					},
+					// The three surfaces the phone raises as sheets and the desktop opens
+					// as panels (spec 028 T453). They are the session's, so the host that
+					// asks does not need to know which layout it is on.
+					openFeeSheet: () => {
+						feeSheetOpen = true;
+					},
+					openBatch: () => void openBatch(),
+					openScanner: () => sendSession?.dispatch({ type: 'open_scanner' }),
 					continueDisabled: !sendView.can_continue,
 					confirmDisabled: !sendView.can_confirm
 				}
@@ -511,7 +519,35 @@
 	);
 
 	const flowState = $derived(sendState ?? nav.mobileTop);
-	const desktopFlow = $derived(nav.desktopTop);
+	/**
+	 * The desktop's copy of the same rule (spec 028 T453): while a send is
+	 * live, the core's stage names the panel and the nav stack is not
+	 * consulted. Until this phase the third column read `nav.desktopTop` alone,
+	 * so it showed the send screens with live DATA (026's overlays) and dead
+	 * controls — a Continue that did nothing on a form that knew the balance.
+	 */
+	const desktopSendState = $derived.by(() => {
+		const view = sendView;
+		if (!view) return undefined;
+		// The scanner is a centred modal on this layout; the host below draws
+		// it for `ds1` and hides the panel.
+		if (view.show_scanner) return 'ds1' as const;
+		if (feeSheetOpen) return 'dsd2f' as const;
+		if (batchView) return 'dsd2c' as const;
+		switch (view.stage) {
+			case 'select_token':
+				return 'dsd1' as const;
+			case 'enter_details':
+				return view.split_mode ? ('dsd2b' as const) : ('dsd2' as const);
+			case 'confirm':
+				return 'dsd3' as const;
+			case 'receipt':
+				return 'dsd4' as const;
+			default:
+				return 'dsd1' as const;
+		}
+	});
+	const desktopFlow = $derived(desktopSendState ?? nav.desktopTop);
 
 	// --- The scanner (spec 028 T422/T423) ------------------------------------
 	//
@@ -893,10 +929,22 @@
 						txDetail
 					)}
 					onback={() => {
+						if (sendView) {
+							// The sheets the phone raises are panels here; leaving one is
+							// closing it, not stepping the core back a stage.
+							if (feeSheetOpen) feeSheetOpen = false;
+							else if (batchView) closeBatch();
+							else sendSession?.dispatch({ type: 'back' });
+							return;
+						}
 						if (nav.desktopTop === 'dt3') closeAddToken();
 						nav.back();
 					}}
 					onclose={() => {
+						if (sendView) {
+							closeSend();
+							return;
+						}
 						closeAddToken();
 						nav.close();
 					}}
@@ -906,6 +954,8 @@
 						if (to === 'add-token') void openAddToken();
 					}}
 					addToken={addTokenActions}
+					send={sendActions}
+					batch={batchActions}
 				/>
 			{/if}
 		</div>
@@ -918,7 +968,10 @@
 						feed={scanFeed}
 						notice={scanCopy}
 						ontool={scanTool}
-						onclose={() => nav.close()}
+						onclose={() =>
+							sendView?.show_scanner
+								? sendSession?.dispatch({ type: 'close_scanner' })
+								: nav.close()}
 					/>
 				</div>
 			</div>
@@ -938,11 +991,23 @@
 				if (to === 'fee-token') feeSheetOpen = true;
 				else if (to === 'batch-import') void openBatch();
 				else if (to === 'scan' && sendSession) sendSession.dispatch({ type: 'open_scanner' });
-				else nav.push(to);
+				else if (to === 'add-token') {
+					nav.push(to);
+					void openAddToken();
+				} else nav.push(to);
+			}}
+			onsheetclose={() => {
+				// The sheet was a pushed step; dismissing it pops the step, so the
+				// next tap on "add by address" pushes a fresh one.
+				if (nav.mobileTop === 't3') {
+					closeAddToken();
+					nav.back();
+				}
 			}}
 			send={sendActions}
 			batch={batchActions}
 			scan={{ feed: scanFeed, notice: scanCopy, tool: scanTool }}
+			addToken={addTokenActions}
 		/>
 	{:else}
 		<WalletHome

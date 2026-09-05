@@ -113,21 +113,32 @@ fixed before this feature ships. It is tracked in 027's ledger.
 
 ## Phase 6: The book travels, and the desktop sends (one commit)
 
-- [ ] T450 [US5] Port `contact-io.ts` + `saved-contact.ts`: export to a file,
-      import with **existing entry wins**, groups preserved, malformed refused
-      before any write (D50)
-- [ ] T451 [US5] The contacts route gains export/import through 026's file seams
-- [ ] T452 [P] [US5] Units: the collision matrix, a malformed file, a round trip
-- [ ] T453 [US6] The wallet route hands `FlowsPanel` the same send actions
-      `FlowsMobile` has
-- [ ] T454 e2e `contacts-io.e2e.ts` (SC-408) + `desktop-send.e2e.ts` (SC-409)
-- [ ] T455 Full gate; results.md Phase 6 entry
+**Reassigned 2026-09-05**: the founder handed the app-web contacts feature —
+import/export included — to a separate session (`vela-wallet-63`, working in
+`contacts.rs` + new files under `lib/contacts/`). T450–T452 are theirs now and
+are not done here; what this session had learned was handed over in a message
+(the core already owns the import policy via `import_parsed` →
+`last_import`; the web port is parse/serialize only; the desktop header
+dropdown already emits `sheet-select` with `importAll` / `exportAll`).
+
+- [~] T450 [US5] Port `contact-io.ts` + `saved-contact.ts` — **reassigned**
+- [~] T451 [US5] The contacts route gains export/import — **reassigned**
+- [~] T452 [P] [US5] Units: the collision matrix, a malformed file — **reassigned**
+- [X] T453 [US6] The wallet route hands `FlowsPanel` the same send actions
+      `FlowsMobile` has — and reads the core's stage for the third column
+      (`desktopSendState`), as the phone host has since 026
+- [X] T454 e2e ~~`contacts-io.e2e.ts` (SC-408)~~ (reassigned) +
+      `desktop-send.e2e.ts` (SC-409)
+- [X] T455 Full gate; results.md Phase 6 entry (isolated worktree, port 4174)
 
 ## Phase 7: Budgets and closeout (one commit)
 
-- [ ] T460 [P] Budget re-assertions: the decoder's wasm absent from Welcome and
+- [X] T460 [P] Budget re-assertions: the decoder's wasm absent from Welcome and
       from every startup chunk (the 026 SheetJS treatment); the core artifact
-      byte-identical and still the only one a wallet route loads
+      ~~byte-identical~~ (+129 B for three corpus words, Phase 3) and still the
+      only one a wallet route loads. **Finding**: every `chunksCarrying` budget
+      had passed vacuously since 027 (`output/client` is the extension build's
+      `app/` dir); `chunkSource` now reads what the preview serves
 - [ ] T461 [~] The device pass: scan a real code with a real camera, and a photo
       of one — the ladder was measured on hardware and the port must keep it
 - [ ] T462 Close results.md: SC-401…410 verdicts, deviations, 029 handoff

@@ -30,9 +30,10 @@
 	import IdenticonViewer from '$lib/wallet/ui/IdenticonViewer.svelte';
 	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { session } from '$lib/session/core/session.svelte';
+	import { preferences } from '$lib/services/preferences.svelte';
 	import { publishExtSnapshot } from '$lib/dapp/core/ext-cache';
 	import { inExtension } from '$lib/dapp/transport';
-	import { identiconSvgForClient } from '$lib/wallet/identicon';
+	import { avatarSvgForClient } from '$lib/wallet/identicon';
 	import { desktopWithIdentity, homeWithIdentity, type WalletIdentity } from '$lib/wallet/identity';
 	import FlowsMobile from '$lib/flows/FlowsMobile.svelte';
 	import FlowsPanel from '$lib/flows/FlowsPanel.svelte';
@@ -93,7 +94,10 @@
 			? {
 					name: view.accounts[view.active_index]?.account.name ?? '',
 					address: view.address,
-					identiconSvg: identiconSvgForClient(view.address)
+					identiconSvg: avatarSvgForClient(
+						view.address,
+						view.accounts[view.active_index]?.account.name ?? ''
+					)
 				}
 			: null
 	);
@@ -345,8 +349,7 @@
 					m: data.flowMessages,
 					currency: currency.view,
 					identity,
-					identicon: identiconSvgForClient,
-					locale: data.locale
+					identicon: avatarSvgForClient
 				}
 			: undefined
 	);
@@ -486,6 +489,7 @@
 	onMount(() => {
 		void session.boot();
 		void currency.boot();
+		preferences.boot();
 		// Money in flight outlives every screen (spec 026 T232): an operation
 		// submitted before the tab closed is settled by the tracker's own
 		// recovery sweep, which therefore has to run on EVERY wallet boot — not
@@ -599,8 +603,7 @@
 		balance: balance.view,
 		currency: currency.view,
 		m: data.walletMessages,
-		feed: feed.view,
-		locale: data.locale
+		feed: feed.view
 	});
 	const liveHome = $derived(
 		identity === null

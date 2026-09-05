@@ -21,6 +21,7 @@ import type { BalanceView } from '$lib/core/generated/BalanceView';
 import type { CurrencyView } from '$lib/core/generated/CurrencyView';
 import type { FeedItem } from '$lib/core/generated/FeedItem';
 import type { FeedView } from '$lib/core/generated/FeedView';
+import { formatDate, groupDigits, numberSeparators } from '$lib/services/locale-format';
 import { chainName } from '$lib/services/networks';
 import { shortenAddress } from './identity';
 import { fill } from './messages';
@@ -43,8 +44,6 @@ export interface WalletLiveInputs {
 	m: WalletMessages;
 	/** The feed, once Phase 4 boots it; `null` keeps the section a skeleton. */
 	feed?: FeedView | null;
-	/** For date headers older than yesterday — a presentation preset. */
-	locale?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,22 +64,38 @@ export function moneyParts(
 	const amount = convertible ? usd * (currency.rate as number) : usd;
 	const fixed = Math.abs(amount).toFixed(2);
 	const [whole, frac] = fixed.split('.');
-	const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+	// The person's own number preset, not the platform's idea of one (spec 028
+	// D47). Money is where this stops being cosmetic: a wallet that groups one
+	// way here and another way on the next machine is a wallet whose totals a
+	// person has to re-read before believing.
+	const grouped = groupDigits(whole);
 	const glyph = currencyGlyph(code);
 	return { code, glyph, integer: `${glyph}${grouped}`, decimals: frac };
 }
 
 export function moneyText(usd: number, currency: CurrencyView): string {
 	const parts = moneyParts(usd, currency);
-	return `${parts.integer}.${parts.decimals}`;
+	return `${parts.integer}${numberSeparators().decimal}${parts.decimals}`;
 }
 
-/** A human decimal balance, tail trimmed — the number is the core's. */
+/**
+ * A human decimal balance, tail trimmed — the number is the core's.
+ *
+ * The DECIMAL MARK follows the chosen preset; the grouping deliberately does
+ * not. A decimal comma read as a thousands separator is a hundredfold mistake
+ * about an amount, which is the whole reason presets exist — but the mocks draw
+ * token amounts ungrouped, and this feature wires preferences rather than
+ * redrawing screens. Money (`moneyParts`) gets both.
+ *
+ * String operations only: a uint256 balance must never pass through a JS
+ * `number`, and a "tidy" `parseFloat` here would be a wrong figure on the
+ * screen someone signs from.
+ */
 export function trimBalance(balance: string, maxDecimals = 6): string {
 	if (!balance.includes('.')) return balance;
 	const [whole, frac] = balance.split('.');
 	const cut = frac.slice(0, maxDecimals).replace(/0+$/, '');
-	return cut === '' ? whole : `${whole}.${cut}`;
+	return cut === '' ? whole : `${whole}${numberSeparators().decimal}${cut}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,17 +208,15 @@ function localMidnight(ms: number): number {
 	return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-/** "Today" / "Yesterday" from the corpus; older days as a short date. */
-export function dayLabel(
-	dayStartMs: number,
-	m: WalletMessages,
-	locale = 'en',
-	now = Date.now()
-): string {
+/** "Today" / "Yesterday" from the corpus; older days in the date preset. */
+export function dayLabel(dayStartMs: number, m: WalletMessages, now = Date.now()): string {
 	const today = localMidnight(now);
 	if (dayStartMs === today) return m.activity.today;
 	if (dayStartMs === today - 86_400_000) return m.activity.yesterday;
-	return new Date(dayStartMs).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+	// Older days read in the person's own date preset — which is what the phone
+	// does (`activity.ts::dayGroupLabel` calls the same `formatDate`), so the
+	// two clients group a history the same way.
+	return formatDate(dayStartMs);
 }
 
 export function liveActivityRow(
@@ -247,13 +260,12 @@ export function liveActivityRow(
 export function liveActivityGroups(
 	view: FeedView,
 	m: WalletMessages,
-	hidden: boolean,
-	locale = 'en'
+	hidden: boolean
 ): ActivityGroupModel[] {
 	const groups: ActivityGroupModel[] = [];
 	for (const row of view.rows) {
 		if (row.type === 'header') {
-			groups.push({ label: dayLabel(row.day_start_ms, m, locale), rows: [] });
+			groups.push({ label: dayLabel(row.day_start_ms, m), rows: [] });
 			continue;
 		}
 		const last = groups.at(-1);
@@ -289,9 +301,7 @@ export function withLiveWallet(model: WalletHomeModel, inputs: WalletLiveInputs)
 		assetsSection: { ...model.assetsSection, mode: assetsMode(view) },
 		assetRows: view.tokens.map((t) => liveAssetRow(t, currency, m, view.hidden)),
 		activitySection: { ...model.activitySection, mode: activityMode(view, inputs.feed) },
-		activityGroups: inputs.feed
-			? liveActivityGroups(inputs.feed, m, view.hidden, inputs.locale)
-			: []
+		activityGroups: inputs.feed ? liveActivityGroups(inputs.feed, m, view.hidden) : []
 	};
 }
 
@@ -307,8 +317,6 @@ export function withLiveWalletDesktop(
 		assetsSection: { ...model.assetsSection, mode: assetsMode(view) },
 		assetRows: view.tokens.map((t) => liveAssetRow(t, currency, m, view.hidden)),
 		activitySection: { ...model.activitySection, mode: activityMode(view, inputs.feed) },
-		activityGroups: inputs.feed
-			? liveActivityGroups(inputs.feed, m, view.hidden, inputs.locale)
-			: []
+		activityGroups: inputs.feed ? liveActivityGroups(inputs.feed, m, view.hidden) : []
 	};
 }

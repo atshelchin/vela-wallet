@@ -25,7 +25,16 @@ next year is erased by default.
 
 ## Exceptions — and each needs its reason
 
-*(To be filled in Phase 4, one line each. A blank reason is not an exception.)*
+| Key | Why it survives |
+| --- | --- |
+| `vela.pendingUploads` | A record here is a passkey public key the index service has never confirmed. The retry on the next launch needs no account list to re-send it, but a DELETED record can never be retried — and that credential then cannot be found at login on **any** device. Erasing it downgrades "recoverable" to "possibly ruined", which is strictly worse here than at sign-out, because the account list is going too and the retry is the only remaining path to that key. Uploading first and erasing after was rejected: it makes a destructive action the person asked for depend on a network that may be down. |
+
+That is the whole list, and it is the same one Expo carries. Everything else
+under `vela.` goes, in all three stores.
+
+**Not exceptions, because they are not ours**: keys outside the `vela.`
+namespace are left alone. On the web that is whatever the browser and any other
+tool on the origin wrote; this module does not judge them.
 
 ## What it must NOT claim
 

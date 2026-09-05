@@ -327,3 +327,145 @@ build ×15 + `build:extension` · e2e **144 passed / 1 skipped** on chromium +
 firefox + webkit · root `jest src/__tests__/i18n/` 75 passed (leaf pin
 22,758 → **22,803**) · `cargo test -p vela-core --features i18n-all,crux` green ·
 `lint:i18n` no new defects · `verify:i18n` 73,085 comparisons, zero divergences.
+
+---
+
+## Phase 4 — preferences that do what they say (T430–T437)
+
+**What shipped**: the six rows 023 drew and nobody wired. Theme, language, the
+number / date / time presets and the avatar style now change what they name,
+survive a reload, and are read everywhere the app prints a figure. "Erase this
+device" erases this device.
+
+### The presets are the product's, and `Intl` gets one job
+
+`services/locale-format.ts` is the port, and the rule it exists for survives the
+platform change: **explicit rules, never `Intl` for the output**. A wallet that
+renders a figure by the browser's idea of a locale is a wallet where the same
+balance reads two ways on two machines, and where a person cannot tell a
+thousands separator from a decimal point in a language they are guessing at.
+
+`Intl` appears exactly once — in the `auto` DETECTION, reading the platform's
+conventions to pick a preset. That is a different act from letting it format
+money, and its result is a preset like any other.
+
+**Where the preset landed, and where it deliberately did not**:
+
+| Surface | What changed | Why |
+| --- | --- | --- |
+| Money (`moneyParts`, `moneyText`) | grouping **and** decimal mark | D47's own sentence: this includes money, which is why it is not cosmetic |
+| Token amounts (`trimBalance`) | the decimal mark only | a decimal comma read as a thousands separator is a hundredfold mistake about an amount; but the mocks draw token amounts ungrouped, and this feature wires preferences rather than redrawing screens |
+| Day headers older than yesterday | the date preset | which is what the phone does — `activity.ts::dayGroupLabel` calls the same `formatDate`, so the two clients group a history the same way |
+| `services/activity.ts::formatUsd` | **untouched** | it writes a STORED field in a record whose shape is the Expo compatibility contract, not a string anyone renders. Reformatting it would change data, not presentation |
+
+**A dead parameter went with it.** `dayLabel(…, locale)` and
+`liveActivityGroups(…, locale)` no longer consult a locale, so the parameter and
+the `locale?: string` field in three input interfaces were removed rather than
+left as a signature that lies about what it reads.
+
+### Preferences have no machine, and none was invented
+
+`services/preferences.svelte.ts` is shell state (D48). A Rust machine holding
+four enums and no rule would be a machine in name only — compare
+`display_currency`, which HAS one, because choosing a currency has a rule behind
+it (a rate must exist, and an unpriceable currency must refuse).
+
+**localStorage, not the IndexedDB KV**, and the reason is the same one 024 gave
+`vela.serviceEndpoints`: these are read SYNCHRONOUSLY while a screen renders —
+every money figure asks the number preset — and the theme has to be on the
+document before the first paint. Record shapes are Expo's byte-for-byte
+(`vela.localePrefs` one JSON object, `vela.avatarStyle` and `vela.language` bare
+strings), so a phone and a browser would read each other.
+
+`vela.theme` is the one key Expo has no counterpart for: a phone follows the OS
+and offers no choice; a browser tab is a window inside someone else's chrome,
+where "follow the OS" is a preference rather than the only option. `system`
+**removes** the attribute rather than writing a resolved value — a pinned "dark"
+would stop following an OS that changes at sunset, which is the whole meaning of
+the choice.
+
+**Applied before first paint**, in `app.html`'s existing inline script, for the
+same reason spec 012 put the launch decision there: a theme that arrives in
+`onMount` paints the OS palette first and then flips, which on a wallet reads as
+a glitch rather than a setting.
+
+**`avatar-style.ts` was not ported as a module.** Its 54 lines are an
+AsyncStorage cache plus a listener set plus a version counter — all three of
+which are what `$state` already is. The preference folded into `preferences`;
+what WAS ported is the artwork: `initialsSvg` is `WalletAvatar.tsx`'s
+non-identicon branch, same 0.34 letter-to-diameter ratio, same `V` fallback when
+there is no name. It is composed as an SVG STRING because every avatar in the
+app already takes one (the identicon comes from vela-core that way), and its
+colours are `var(--…)` token references — so it wears whatever palette the page
+is wearing and follows a theme change without being rebuilt.
+
+### Erase deletes a namespace, and names its one exception
+
+Carried verbatim, including the reasoning that produced it: **a delete-list
+erase is wrong by default and only accidentally right**. Nothing about a
+hand-maintained list of keys fails when the app grows a key, so it drifts in
+silence and the failure is found by someone whose data was supposed to be gone.
+
+The web made one thing bigger: Expo had ONE AsyncStorage; a browser has three
+stores — `localStorage`, the IndexedDB KV, and (extension build only)
+`chrome.storage.local`. All three are swept by the same rule, and a store this
+build does not have contributes nothing rather than failing. `storage.ts` gained
+`getAllKeys()` for exactly this: a sweep has to be able to ask what is actually
+here.
+
+The keep-list is one key — `vela.pendingUploads` — and
+`contracts/erase-scope.md` now carries its reason rather than implying it. The
+verification pass re-enumerates and `EraseIncompleteError` rejects, which is
+what stops the route sending a person to first run over a partial wipe. On
+failure they stay signed in, on the same sheet, with the reason in the sheet's
+own danger callout and the button still live.
+
+**No corpus change**: `settings.eraseDevice.*` already carried all eight
+strings, `failed` included. It only needed adding to the settings message
+manifest, which is a type and a mapping, not a word.
+
+### One finding, from the e2e
+
+`seedSignedIn` re-imposes a wallet before EVERY document (it is an
+`addInitScript`), so after an erase navigates to Welcome the harness has already
+written `vela.accounts` back. The first version of the test read that as a
+failed erase. What the erase did is therefore measured on the keys the harness
+does not write — a key no feature has ever written, and an IndexedDB store that
+must come back empty — with the reason recorded in the test rather than in
+somebody's memory.
+
+### What is live in Settings now, and what is still a picture
+
+FR-411 asked for the route's own description of itself to stop lying, and it
+does. **Live**: the network list, its editor, the add-network wizard (024); the
+display currency (024); the connected sites (027); and now the theme, the
+language row, the three format presets, the avatar style and the erase. **Still
+canon data**: the latency figures, the storage accounting and the RPC-provider
+health — those wait for the features that measure them.
+
+### Named, not hidden
+
+- The desktop's localization dropdowns gained per-row `options`, so a live panel
+  can open any of the three menus while DST3's single pinned-open `dropdown`
+  stays exactly the board it was drawn as.
+- Choosing a language NAVIGATES, because on the web a language is a route: every
+  locale is its own prerendered page. The choice is also stored, but `/`'s
+  Accept-Language negotiation is server-side and cannot read it — a returning
+  person who lands on `/` still gets their browser's answer. Recorded here
+  rather than fixed, because fixing it means a redirect on a page whose whole
+  budget is that it ships no JavaScript.
+
+**Gates**: check **1373**/0 · lint clean · unit **812** (+25: 12 format presets,
+6 erase, 7 preference store) · build ×15 + `build:extension` · e2e **159 passed /
+1 skipped** on chromium + firefox + webkit · corpus delta **zero** (the erase
+copy already existed, `failed` included — it needed a manifest entry, not a
+word) · core artifact unchanged from Phase 3.
+
+**And the run before it failed 30 tests, which was my machine and not the code.**
+An ORPHANED `workerd` (parent gone, 31 minutes old) was still on the box beside
+an 18-hour `vite dev` from someone's editor; with `reuseExistingServer: true` a
+suite can end up measuring a server nobody owns, and when that one went away
+thirty tests reported "Could not connect to the server" at once. Killed the
+orphan, re-ran, 159/1 in 2.4 minutes. Phase 3's rule stands and now has a
+corollary: **one suite at a time, and check for orphans before believing a red
+run** — `lsof -ti tcp:4173` and `pgrep -f workerd` before, not after.

@@ -42,7 +42,6 @@ export interface SendLiveInputs {
 	currency: CurrencyView;
 	identity: WalletIdentity;
 	identicon: (seed: string) => string;
-	locale?: string;
 }
 
 // ---------------------------------------------------------------------------

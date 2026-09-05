@@ -21,7 +21,8 @@
 	import type { ContactsView } from '$lib/core/generated/ContactsView';
 	import { loadCore } from '$lib/core/client';
 	import { fill } from '$lib/wallet/messages';
-	import { identiconSvgForClient } from '$lib/wallet/identicon';
+	import { avatarSvgForClient } from '$lib/wallet/identicon';
+	import { preferences } from '$lib/services/preferences.svelte';
 	import { session } from '$lib/session/core/session.svelte';
 	import type { PageProps } from './$types';
 
@@ -43,6 +44,7 @@
 
 	onMount(() => {
 		void session.boot();
+		preferences.boot();
 		void (async () => {
 			await loadCore();
 			if (disposed) return;
@@ -78,7 +80,7 @@
 
 	const model = $derived.by(() => {
 		if (view === null) return null;
-		const built = buildContactsLive(view, m, identiconSvgForClient, ui);
+		const built = buildContactsLive(view, m, avatarSvgForClient, ui);
 		if (sheet.kind === 'confirm-delete') {
 			return {
 				...built,

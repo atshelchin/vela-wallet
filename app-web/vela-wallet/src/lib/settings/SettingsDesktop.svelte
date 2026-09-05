@@ -11,6 +11,7 @@
 	 */
 	import { untrack } from 'svelte';
 	import type { OnNetEvent } from './net-events';
+	import type { SettingsPrefEvent } from './pref-events';
 	import type { NetEndpointField } from '$lib/core/generated/NetEndpointField';
 	import type { NetProviderId } from '$lib/core/generated/NetProviderId';
 	import type { SettingsDesktopModel, SettingsOverlayId, SettingsPageId } from './model';
@@ -45,9 +46,11 @@
 		onsignout?: () => void;
 		/** The network surfaces' live wiring (spec 024). Absent = gallery. */
 		onnetevent?: OnNetEvent;
+		/** A preference control was used (spec 028 T433). Absent = gallery. */
+		onprefevent?: (event: SettingsPrefEvent) => void;
 	}
 
-	let { model, sidebar, onnav, onsignout, onnetevent }: Props = $props();
+	let { model, sidebar, onnav, onsignout, onnetevent, onprefevent }: Props = $props();
 
 	let page = $state<SettingsPageId>(untrack(() => model.page));
 	let overlay = $state<SettingsOverlayId>(untrack(() => model.overlay));
@@ -158,10 +161,16 @@
 					<TextScaleSlider model={model.appearance.textScale.scale} />
 				</FormRow>
 				<FormRow label={model.appearance.theme.label}>
-					<SegmentedControl model={model.appearance.theme.segmented} />
+					<SegmentedControl
+						model={model.appearance.theme.segmented}
+						onselect={(id) => onprefevent?.({ kind: 'theme', id })}
+					/>
 				</FormRow>
 				<FormRow label={model.appearance.avatar.label}>
-					<SegmentedControl model={model.appearance.avatar.segmented} />
+					<SegmentedControl
+						model={model.appearance.avatar.segmented}
+						onselect={(id) => onprefevent?.({ kind: 'avatar', id })}
+					/>
 				</FormRow>
 			{:else if page === 'localization'}
 				{#each model.localization.rows as row (row.id)}
@@ -170,8 +179,13 @@
 							value={row.value ?? ''}
 							label={row.label}
 							open={openDropdown === row.id}
-							rows={model.dropdown?.rowId === row.id ? model.dropdown.rows : undefined}
+							rows={row.options ??
+								(model.dropdown?.rowId === row.id ? model.dropdown.rows : undefined)}
 							ontoggle={() => toggleDropdown(row.id)}
+							onselect={(id) => {
+								onprefevent?.({ kind: row.id as 'number-format', id });
+								openDropdown = undefined;
+							}}
 						/>
 					</FormRow>
 				{/each}

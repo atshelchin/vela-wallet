@@ -219,6 +219,8 @@ export interface SettingsMessages {
 		keeps: string;
 		confirm: string;
 		cancel: string;
+		/** The erase ran and something survived — said, never swallowed. */
+		failed: string;
 	};
 	bugReport: {
 		title: string;
@@ -463,6 +465,7 @@ export const SETTINGS_KEYS = [
 	'settings.eraseDevice.keeps',
 	'settings.eraseDevice.confirm',
 	'settings.eraseDevice.cancel',
+	'settings.eraseDevice.failed',
 	'componentsUi.bugReport.title',
 	'componentsUi.bugReport.subtitle',
 	'componentsUi.bugReport.whatPlaceholder',

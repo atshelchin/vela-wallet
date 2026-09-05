@@ -32,7 +32,8 @@ import type {
 /** The full rail, always — letters without a section still render (018 D4). */
 const INDEX_LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '#'];
 
-type Identicon = (seed: string) => string;
+/** The avatar producer. `name` matters only in the initials style (spec 028). */
+type Identicon = (seed: string, name?: string) => string;
 
 /** What the person calls this contact — their name wins over a resolved one,
  *  and an unnamed address introduces itself as its short form. */
@@ -45,7 +46,7 @@ function toContactModel(contact: Contact, view: ContactsView, identicon: Identic
 		name: displayName(contact),
 		addressDisplay: shortenAddress(contact.address),
 		addressFull: contact.address,
-		identiconSvg: identicon(contact.address),
+		identiconSvg: identicon(contact.address, displayName(contact)),
 		groups: view.groups
 			.filter((g) => g.members.some((mb) => mb.address === contact.address))
 			.map((g) => g.name)

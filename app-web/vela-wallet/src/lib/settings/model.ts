@@ -568,6 +568,13 @@ export interface FormRowModel {
 	kind: 'dropdown' | 'segmented' | 'slider';
 	/** Dropdown's current value. */
 	value?: string;
+	/**
+	 * What this row's dropdown offers, when it is live (spec 028 T433). Absent
+	 * in the fixtures, where `SettingsDesktopModel.dropdown` pins ONE menu open
+	 * because DST3 is a board OF that menu — a live panel instead carries every
+	 * row's options and opens whichever one is tapped.
+	 */
+	options?: SelectRowModel[];
 }
 
 export interface DropdownModel {

@@ -69,22 +69,25 @@ fixed before this feature ships. It is tracked in 027's ledger.
 
 ## Phase 4: Preferences and erase (one commit)
 
-- [ ] T430 [US2] Port `locale-format.ts` — explicit presets, never `Intl` (D47);
+- [X] T430 [US2] Port `locale-format.ts` — explicit presets, never `Intl` (D47);
       units pinning each preset, including money
-- [ ] T431 [US2] Port `avatar-style.ts`; `preferences.ts` for theme + language +
-      the three formats + avatar style, persisted under `vela.` (D48)
-- [ ] T432 [US2] Every figure, timestamp and avatar in the app reads the chosen
-      preset; theme choosing writes what `isDarkTheme()` already reads
-- [ ] T433 [US2] `SettingsHome` gains the callbacks these rows have never had;
-      the route wires them. **Correct the route's own stale header comment** (FR-411)
-- [ ] T434 [US2] Port `erase-device.ts` as a NAMESPACE sweep with the exception
-      list filled in `contracts/erase-scope.md` (D49); the copy says local data,
-      never the wallet
-- [ ] T435 [P] [US2] Units: format presets, the erase enumeration, the exception
+- [X] T431 [US2] Port `avatar-style.ts` (folded into `preferences.svelte.ts`);
+      theme + language + the three formats + avatar style, persisted under
+      `vela.` in the Expo record shapes (D48)
+- [X] T432 [US2] Every figure, timestamp and avatar in the app reads the chosen
+      preset; theme choosing writes what `isDarkTheme()` already reads — and is
+      applied BEFORE first paint, in `app.html`'s inline script
+- [X] T433 [US2] `SettingsHome` **and `SettingsDesktop`** gain the callbacks
+      these rows have never had; the route wires them through one
+      `SettingsPrefEvent` table. **Corrected the route's stale header** (FR-411)
+- [X] T434 [US2] Port `erase-device.ts` as a NAMESPACE sweep over THREE stores,
+      with the exception list filled in `contracts/erase-scope.md` (D49); the
+      copy says local data, never the wallet
+- [X] T435 [P] [US2] Units: format presets, the erase enumeration, the exception
       list as a test
-- [ ] T436 [US2] e2e `preferences.e2e.ts` (SC-406/407) ×3 engines: each row
+- [X] T436 [US2] e2e `preferences.e2e.ts` (SC-406/407) ×3 engines: each row
       survives a reload; erase leaves nothing under `vela.`; cancel changes nothing
-- [ ] T437 Full gate; results.md Phase 4 entry
+- [X] T437 Full gate; results.md Phase 4 entry
 
 ## Phase 5: Sweep and custom tokens (one commit)
 

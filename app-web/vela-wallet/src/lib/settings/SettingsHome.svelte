@@ -17,6 +17,7 @@
 	import type { NetEndpointField } from '$lib/core/generated/NetEndpointField';
 	import type { NetProviderId } from '$lib/core/generated/NetProviderId';
 	import type { SettingsHomeModel, SettingsOverlayId, SettingsPageId } from './model';
+	import type { SettingsPrefEvent } from './pref-events';
 	import BottomSheet from '$lib/wallet/ui/BottomSheet.svelte';
 	import TabBar from '$lib/wallet/ui/TabBar.svelte';
 	import AboutPanel from './ui/AboutPanel.svelte';
@@ -60,6 +61,11 @@
 		 * Absent in the gallery, where every row is canon data.
 		 */
 		onstorageclear?: (id: string) => void;
+		/**
+		 * A preference row was used (spec 028 T433). Absent in the gallery,
+		 * where these controls are pictures of themselves.
+		 */
+		onprefevent?: (event: SettingsPrefEvent) => void;
 	}
 
 	let {
@@ -69,7 +75,8 @@
 		onopencontacts,
 		onnetevent,
 		oncurrencyselect,
-		onstorageclear
+		onstorageclear,
+		onprefevent
 	}: Props = $props();
 
 	// Seeds, not bindings: a gallery state pins where this opens, and a person
@@ -259,10 +266,16 @@
 						{#if section.appearanceControls === true}
 							<TextScaleSlider model={model.appearance.textScale} />
 							<div class="control">
-								<SegmentedControl model={model.appearance.theme} />
+								<SegmentedControl
+									model={model.appearance.theme}
+									onselect={(id) => onprefevent?.({ kind: 'theme', id })}
+								/>
 							</div>
 							<div class="control">
-								<SegmentedControl model={model.appearance.avatar} />
+								<SegmentedControl
+									model={model.appearance.avatar}
+									onselect={(id) => onprefevent?.({ kind: 'avatar', id })}
+								/>
 							</div>
 						{/if}
 					{/each}
@@ -352,7 +365,13 @@
 				{:else if overlay === 'sign-out'}
 					<ConfirmSheet sheet={model.signOutSheet} onconfirm={onsignout} oncancel={close} />
 				{:else if overlay === 'language'}
-					<SelectSheetBody sheet={model.languageSheet} />
+					<SelectSheetBody
+						sheet={model.languageSheet}
+						onselect={(id) => {
+							onprefevent?.({ kind: 'language', id });
+							close();
+						}}
+					/>
 				{:else if overlay === 'currency'}
 					<SelectSheetBody
 						sheet={model.currencySheet}
@@ -362,15 +381,41 @@
 						}}
 					/>
 				{:else if overlay === 'number-format'}
-					<SelectSheetBody sheet={model.numberSheet} />
+					<SelectSheetBody
+						sheet={model.numberSheet}
+						onselect={(id) => {
+							onprefevent?.({ kind: 'number-format', id });
+							close();
+						}}
+					/>
 				{:else if overlay === 'date-format'}
-					<SelectSheetBody sheet={model.dateSheet} />
+					<SelectSheetBody
+						sheet={model.dateSheet}
+						onselect={(id) => {
+							onprefevent?.({ kind: 'date-format', id });
+							close();
+						}}
+					/>
 				{:else if overlay === 'time-format'}
-					<SelectSheetBody sheet={model.timeSheet} />
+					<SelectSheetBody
+						sheet={model.timeSheet}
+						onselect={(id) => {
+							onprefevent?.({ kind: 'time-format', id });
+							close();
+						}}
+					/>
 				{:else if overlay === 'clear-caches'}
 					<ConfirmSheet sheet={model.clearCachesSheet} onconfirm={close} oncancel={close} />
 				{:else if overlay === 'erase-device'}
-					<ConfirmSheet sheet={model.eraseSheet} onconfirm={close} oncancel={close} />
+					<!-- The sheet does NOT close on confirm: an erase that fails must
+					     say so where the person is looking, and the route reports it
+					     through this sheet's own callout. A success leaves this page
+					     entirely. -->
+					<ConfirmSheet
+						sheet={model.eraseSheet}
+						onconfirm={() => onprefevent?.({ kind: 'erase' })}
+						oncancel={close}
+					/>
 				{:else if overlay === 'feedback'}
 					<FeedbackBody panel={model.feedback} />
 				{:else if overlay === 'rpc-fix'}

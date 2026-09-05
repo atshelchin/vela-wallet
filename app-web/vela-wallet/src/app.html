@@ -9,6 +9,24 @@
 		<meta name="color-scheme" content="dark light" />
 		<script>
 			/*
+			 * Spec 028: the chosen palette, applied BEFORE first paint — the same
+			 * argument the block below makes for the launch animation. A theme
+			 * applied in `onMount` means the page paints in the OS palette and then
+			 * flips to the chosen one, which on a wallet reads as a glitch rather
+			 * than a setting. `vela.theme` is written by
+			 * `services/preferences.svelte.ts` and read by `isDarkTheme()` off this
+			 * same attribute; `system` writes nothing, so the OS keeps deciding.
+			 */
+			try {
+				var theme = localStorage.getItem('vela.theme');
+				if (theme === 'dark' || theme === 'light') {
+					document.documentElement.dataset.theme = theme;
+				}
+			} catch (e) {
+				/* Blocked storage: the OS palette, which is the default anyway. */
+			}
+
+			/*
 			 * Spec 012: decide BEFORE first paint whether the launch animation plays,
 			 * and if so hide the page in the same frame the document appears.
 			 *

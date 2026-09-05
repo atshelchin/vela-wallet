@@ -49,7 +49,6 @@ export interface FlowsLiveInputs {
 	/** Phase 4: the feed (history screen) and the person (receive card). */
 	feed?: FeedView | null;
 	identity?: WalletIdentity;
-	locale?: string;
 	/**
 	 * The live send flow (spec 026). Present only while a send session exists —
 	 * absent, every send screen stays the picture 021 drew, which is what the
@@ -71,7 +70,7 @@ function liveAssets(model: AssetsModel, inputs: FlowsLiveInputs): AssetsModel {
 function liveHistory(model: HistoryModel, inputs: FlowsLiveInputs): HistoryModel {
 	const { feed, balance: view, m } = inputs;
 	if (!feed) return { ...model, mode: 'loading', groups: [] };
-	const groups = liveActivityGroups(feed, m, view.hidden, inputs.locale);
+	const groups = liveActivityGroups(feed, m, view.hidden);
 	return {
 		...model,
 		mode: groups.length > 0 ? 'rows' : view.balance_unknown ? 'loading' : 'empty',

@@ -18,6 +18,16 @@ import type { NetServiceHealth } from '$lib/core/generated/NetServiceHealth';
 import type { NetView } from '$lib/core/generated/NetView';
 import type { NetWizardView } from '$lib/core/generated/NetWizardView';
 import type { CurrencyView } from '$lib/core/generated/CurrencyView';
+import {
+	dateFormatOptions,
+	formatDate,
+	formatNumber,
+	formatTime,
+	numberFormatOptions,
+	timeFormatOptions,
+	type FormatOption
+} from '$lib/services/locale-format';
+import { preferences, type ThemeChoice } from '$lib/services/preferences.svelte';
 import { chainMeta, markFor } from './fixtures';
 import type { SettingsMessages } from './messages';
 import type {
@@ -28,6 +38,8 @@ import type {
 	NetworkDetailModel,
 	NetworkRowModel,
 	RpcProvidersModel,
+	SelectRowModel,
+	SelectSheetModel,
 	SettingsHomeModel,
 	StatusPillModel,
 	UrlFieldModel
@@ -460,4 +472,203 @@ function hostOf(origin: string): string {
 	} catch {
 		return origin;
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Preferences — the rows that have never done anything (spec 028 T431/T432)
+// ---------------------------------------------------------------------------
+
+/** The theme segment ids the mocks drew, against the values we store. */
+const THEME_SEGMENT: Record<string, ThemeChoice> = {
+	light: 'light',
+	dark: 'dark',
+	auto: 'system'
+};
+
+const THEME_ID: Record<ThemeChoice, string> = { light: 'light', dark: 'dark', system: 'auto' };
+
+/** A mock segment id → what `preferences` is told. Unknown ids change nothing. */
+export function themeFromSegment(id: string): ThemeChoice | undefined {
+	return THEME_SEGMENT[id];
+}
+
+function noteFor(
+	noteKey: FormatOption<string>['noteKey'],
+	m: SettingsMessages
+): string | undefined {
+	switch (noteKey) {
+		case 'system':
+			// The fixture's own wording for the first row, kept verbatim so the
+			// live sheet reads as the drawn one.
+			return `${m.common.automatic} · ${m.common.system}`;
+		case 'indian':
+			return m.formatNote.indian;
+		case 'h24':
+			return m.formatNote.h24;
+		case 'h12':
+			return m.formatNote.h12;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * One format sheet: every preset, its live example as the label, the chosen one
+ * ticked.
+ *
+ * The examples are GENERATED rather than the fixture's canon strings, because
+ * the label of a format option has to be that format doing its job — a row
+ * reading "1,234,567.89" while the app groups differently is the picker lying
+ * about what it will do.
+ */
+function formatSheet<K extends string>(
+	sheet: SelectSheetModel,
+	options: FormatOption<K>[],
+	current: K,
+	m: SettingsMessages
+): SelectSheetModel {
+	return {
+		...sheet,
+		rows: options.map((option) => ({
+			id: option.key,
+			label: option.example,
+			mono: true,
+			note: noteFor(option.noteKey, m),
+			selected: option.key === current
+		}))
+	};
+}
+
+/** What the localization list shows beside each row: the current example. */
+function currentExamples(): { number: string; date: string; time: string } {
+	return {
+		number: formatNumber(1234567.89, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+		date: formatDate(FORMAT_SAMPLE),
+		time: formatTime(FORMAT_SAMPLE)
+	};
+}
+
+/** The same sample the pickers use, so a row and its sheet agree. */
+const FORMAT_SAMPLE = new Date(2026, 5, 13, 13, 45);
+
+/**
+ * The preference rows, wired to what is actually stored (spec 028 T432).
+ *
+ * Everything here was drawn in 023 and inert until now: the theme and avatar
+ * segments showed a fixed selection, and the three format sheets showed five
+ * canon strings with the first one ticked no matter what the app did. This
+ * overlay makes each of them show — and offer — the truth.
+ */
+export function withLivePreferences(
+	model: SettingsHomeModel,
+	m: SettingsMessages,
+	languageValue: string
+): SettingsHomeModel {
+	const examples = currentExamples();
+	const value: Record<string, string> = {
+		'number-format': examples.number,
+		'date-format': examples.date,
+		'time-format': examples.time,
+		language: languageValue
+	};
+	return {
+		...model,
+		sections: model.sections.map((section) => ({
+			...section,
+			rows: section.rows.map((row) =>
+				value[row.id] === undefined ? row : { ...row, value: value[row.id] }
+			)
+		})),
+		appearance: {
+			...model.appearance,
+			theme: { ...model.appearance.theme, selected: THEME_ID[preferences.theme] },
+			avatar: { ...model.appearance.avatar, selected: preferences.avatarStyle }
+		},
+		languageSheet: {
+			...model.languageSheet,
+			rows: model.languageSheet.rows.map((row) => ({
+				...row,
+				selected:
+					preferences.language === 'auto' ? row.id === 'system' : row.id === preferences.language
+			}))
+		},
+		numberSheet: formatSheet(model.numberSheet, numberFormatOptions(), preferences.numberFormat, m),
+		dateSheet: formatSheet(model.dateSheet, dateFormatOptions(), preferences.dateFormat, m),
+		timeSheet: formatSheet(model.timeSheet, timeFormatOptions(), preferences.timeFormat, m)
+	};
+}
+
+/**
+ * The desktop's own two panels (spec 028 T433).
+ *
+ * Its localization rows are `FormRowModel`s with a dropdown each, so the OPTIONS
+ * ride on the row — the fixture's single pinned-open `dropdown` stays exactly
+ * what it is (the DST3 board), and a live row carries the menu it opens.
+ */
+export function withLivePreferencesDesktop(
+	model: SettingsDesktopModel,
+	m: SettingsMessages,
+	languageValue: string
+): SettingsDesktopModel {
+	const examples = currentExamples();
+	const empty: SelectSheetModel = { title: '', rows: [] };
+	const menus: Record<string, SelectRowModel[]> = {
+		'number-format': formatSheet(empty, numberFormatOptions(), preferences.numberFormat, m).rows,
+		'date-format': formatSheet(empty, dateFormatOptions(), preferences.dateFormat, m).rows,
+		'time-format': formatSheet(empty, timeFormatOptions(), preferences.timeFormat, m).rows
+	};
+	const values: Record<string, string> = {
+		'number-format': examples.number,
+		'date-format': examples.date,
+		'time-format': examples.time
+	};
+	return {
+		...model,
+		appearance: {
+			...model.appearance,
+			language: { ...model.appearance.language, value: languageValue },
+			theme: {
+				...model.appearance.theme,
+				segmented: { ...model.appearance.theme.segmented, selected: THEME_ID[preferences.theme] }
+			},
+			avatar: {
+				...model.appearance.avatar,
+				segmented: {
+					...model.appearance.avatar.segmented,
+					selected: preferences.avatarStyle
+				}
+			}
+		},
+		localization: {
+			...model.localization,
+			rows: model.localization.rows.map((row) =>
+				values[row.id] === undefined
+					? row
+					: { ...row, value: values[row.id], options: menus[row.id] }
+			)
+		}
+	};
+}
+
+/**
+ * The failure the erase can have, said where the person is looking.
+ *
+ * The sheet already draws a danger callout — the one listing what is lost — so
+ * a failed erase replaces that text rather than growing a second surface. The
+ * distinction it preserves is the whole reason `EraseIncompleteError` exists:
+ * data is still here, and the person is still signed in.
+ */
+export function withEraseFailure(
+	model: SettingsHomeModel,
+	m: SettingsMessages,
+	failed: boolean
+): SettingsHomeModel {
+	if (!failed) return model;
+	return {
+		...model,
+		eraseSheet: {
+			...model.eraseSheet,
+			callout: { tone: 'danger', text: m.erase.failed }
+		}
+	};
 }

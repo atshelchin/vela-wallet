@@ -23,7 +23,7 @@
 	import { signingSheet } from '$lib/signing/core/sheet.svelte';
 	import { signRequest } from '$lib/signing/core/sign-resident.svelte';
 	import { session } from '$lib/session/core/session.svelte';
-	import { identiconSvgForClient } from '$lib/wallet/identicon';
+	import { avatarSvgForClient } from '$lib/wallet/identicon';
 	import { IDLE_FEE_VIEW, type FeeQuote } from '$lib/flows/core/fee-quote.svelte';
 	import type { SigningMessages } from '$lib/signing/messages';
 
@@ -44,7 +44,10 @@
 			? {
 					name: view.accounts[view.active_index]?.account.name ?? '',
 					address: view.address,
-					identiconSvg: identiconSvgForClient(view.address)
+					identiconSvg: avatarSvgForClient(
+						view.address,
+						view.accounts[view.active_index]?.account.name ?? ''
+					)
 				}
 			: null
 	);
@@ -69,7 +72,7 @@
 			fee: fee.view ?? IDLE_FEE_VIEW,
 			m: messages,
 			identity,
-			identicon: identiconSvgForClient
+			identicon: avatarSvgForClient
 		});
 	});
 

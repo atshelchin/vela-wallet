@@ -15,9 +15,17 @@
 	 *    now the tab opens this page and the row inside does the work, which is
 	 *    where a person would look for it.
 	 *
-	 * Everything else is fixture-driven by design (spec 023 scope): the
-	 * networks, latencies, storage figures and endpoints are canon data, and
-	 * wiring them to real preferences is the next feature, not this one.
+	 * What is live and what is a picture — corrected here rather than left to
+	 * rot (spec 028 FR-411). This comment used to say everything but the
+	 * identity was fixture-driven, which stopped being true in 024:
+	 *
+	 * - **Live**: the network list, its detail editor and the add-network
+	 *   wizard (024); the display currency (024); the connected sites (027);
+	 *   and, since 028, the theme, the language row, the number / date / time
+	 *   presets, the avatar style and "erase this device".
+	 * - **Still canon data**: the latency figures, the storage accounting and
+	 *   the RPC-provider panel's health — those wait for the features that
+	 *   measure them.
 	 */
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -37,8 +45,19 @@
 		withLiveNetworksDesktop
 	} from '$lib/settings/live';
 	import { listGrants, revokeAll, revokeGrant } from '$lib/dapp/connections';
+	import {
+		themeFromSegment,
+		withEraseFailure,
+		withLivePreferences,
+		withLivePreferencesDesktop
+	} from '$lib/settings/live';
+	import { preferences } from '$lib/services/preferences.svelte';
+	import { SUPPORTED_LOCALES, type Locale } from '$lib/i18n/locales';
+	import { eraseDeviceData } from '$lib/services/erase-device';
+	import type { SettingsPrefEvent } from '$lib/settings/pref-events';
+	import { LOCALE_ENDONYMS } from '$lib/settings/fixtures';
 	import type { SettingsNetEvent } from '$lib/settings/net-events';
-	import { identiconSvgForClient } from '$lib/wallet/identicon';
+	import { avatarSvgForClient } from '$lib/wallet/identicon';
 	import { shortenAddress, type WalletIdentity } from '$lib/wallet/identity';
 	import type { PageProps } from './$types';
 
@@ -57,7 +76,10 @@
 			? {
 					name: view.accounts[view.active_index]?.account.name ?? '',
 					address: view.address,
-					identiconSvg: identiconSvgForClient(view.address)
+					identiconSvg: avatarSvgForClient(
+						view.address,
+						view.accounts[view.active_index]?.account.name ?? ''
+					)
 				}
 			: null
 	);
@@ -93,8 +115,91 @@
 		void session.boot();
 		void networkAdmin.boot();
 		void currency.boot();
+		preferences.boot();
 		void refreshGrants();
 	});
+
+	// --- Preferences (spec 028 T431–T434) -------------------------------------
+	//
+	// No core rules on any of these, so there is no session to open — only the
+	// stored value, the control that shows it, and the one place that writes it.
+
+	/** Set when an erase ran and something survived. Said, never swallowed. */
+	let eraseFailed = $state(false);
+
+	/**
+	 * The language row's own text: the endonym, plus "· system" when the person
+	 * has not pinned one. The web's language is the URL, so choosing one
+	 * NAVIGATES — every locale is its own prerendered page.
+	 */
+	const languageValue = $derived.by(() => {
+		const pinned = preferences.language;
+		const shown = pinned === 'auto' ? data.locale : pinned;
+		const endonym = LOCALE_ENDONYMS.find((l) => l.id === shown)?.label ?? shown;
+		return pinned === 'auto' ? `${endonym} · ${m.common.system}` : endonym;
+	});
+
+	/** The one translation table: what the person did → what is stored. */
+	function onPrefEvent(event: SettingsPrefEvent): void {
+		switch (event.kind) {
+			case 'theme': {
+				const choice = themeFromSegment(event.id);
+				if (choice !== undefined) preferences.setTheme(choice);
+				return;
+			}
+			case 'avatar':
+				if (event.id === 'initials' || event.id === 'identicon') {
+					preferences.setAvatarStyle(event.id);
+				}
+				return;
+			case 'language': {
+				// `system` unpins and follows the browser again; anything else is a
+				// locale, and on the web a locale is a route.
+				const chosen = event.id === 'system' ? 'auto' : event.id;
+				preferences.setLanguage(chosen);
+				const target = chosen === 'auto' ? data.locale : chosen;
+				if (target !== data.locale && SUPPORTED_LOCALES.includes(target as Locale)) {
+					void goto(resolve('/[locale]/settings', { locale: target as Locale }));
+				}
+				return;
+			}
+			case 'number-format':
+				preferences.setNumberFormat(event.id as 'auto');
+				return;
+			case 'date-format':
+				preferences.setDateFormat(event.id as 'auto');
+				return;
+			case 'time-format':
+				preferences.setTimeFormat(event.id as 'auto');
+				return;
+			case 'erase':
+				void erase();
+				return;
+		}
+	}
+
+	/**
+	 * Erase, then leave (spec 028 T434).
+	 *
+	 * The order matters and it is the module's: the sweep VERIFIES before it
+	 * resolves, so a rejected promise means data is still here — and a person
+	 * sent to first run over a partial wipe would have been told their browser
+	 * is clean when it is not. On failure they stay signed in, on this sheet,
+	 * with the reason in the sheet's own callout, and the button still live.
+	 */
+	async function erase(): Promise<void> {
+		eraseFailed = false;
+		try {
+			await eraseDeviceData();
+		} catch (error) {
+			console.error('[erase] incomplete:', error);
+			eraseFailed = true;
+			return;
+		}
+		// Nothing of this wallet is left to read, so the session machine's own
+		// view is stale by construction: a full reload is the first run.
+		location.assign(welcome);
+	}
 
 	/**
 	 * Cut a site off — or all of them, from the fixture row that stands when
@@ -118,23 +223,35 @@
 	const liveHome = $derived(
 		identity === null
 			? data.home
-			: withLiveConnections(
-					withLiveCurrency(
-						withLiveNetworks(homeWithIdentity(data.home, identity), net, m, selectedNetworkId),
-						currency.view
+			: withEraseFailure(
+					withLivePreferences(
+						withLiveConnections(
+							withLiveCurrency(
+								withLiveNetworks(homeWithIdentity(data.home, identity), net, m, selectedNetworkId),
+								currency.view
+							),
+							grants,
+							m
+						),
+						m,
+						languageValue
 					),
-					grants,
-					m
+					m,
+					eraseFailed
 				)
 	);
 	const liveDesktop = $derived(
 		identity === null
 			? data.desktop
-			: withLiveNetworksDesktop(
-					desktopWithIdentity(data.desktop, identity),
-					net,
+			: withLivePreferencesDesktop(
+					withLiveNetworksDesktop(
+						desktopWithIdentity(data.desktop, identity),
+						net,
+						m,
+						selectedNetworkId
+					),
 					m,
-					selectedNetworkId
+					languageValue
 				)
 	);
 
@@ -266,6 +383,7 @@
 			onnav={selectTab}
 			onsignout={signOut}
 			onnetevent={onNetEvent}
+			onprefevent={onPrefEvent}
 		/>
 	{:else}
 		<SettingsHome
@@ -275,6 +393,7 @@
 			onnetevent={onNetEvent}
 			oncurrencyselect={(code) => currency.choose(code)}
 			onstorageclear={disconnect}
+			onprefevent={onPrefEvent}
 		/>
 	{/if}
 {:else}

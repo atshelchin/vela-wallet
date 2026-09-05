@@ -1843,6 +1843,12 @@ fn open(
         SendStep::SelectToken
     };
     model.resolving_lock = params.locked;
+    // A prefilled recipient IS the recipient from the first frame (spec 028
+    // US5): a hand-off from the address book, or a scanned address, must not
+    // wait on the token list to show who the money is for — and a fetch that
+    // fails must not leave the form open on nobody. `tokens_fetched` still
+    // restates it beside the token it picks.
+    model.recipient = params.prefilled_recipient.clone().unwrap_or_default();
     model.params = params;
     model.loading = true;
     boot_fetch(model)
@@ -2666,7 +2672,12 @@ fn recipients_changed(model: &mut Model, rows: Vec<SendRecipientDraft>) -> Cmd {
     render()
 }
 
+/// A pick from the book lands in its row and closes the picker — the same
+/// way `seed_split` does for a whole group. Leaving the sheet up after the
+/// person chose would make the shell dispatch a second event to say what the
+/// first one already meant (spec 028 US5).
 fn apply_picked_address(model: &mut Model, address: String) -> Cmd {
+    model.show_contact_picker = false;
     match model.picker_target.clone() {
         Some(target) => {
             for row in &mut model.recipients {

@@ -122,6 +122,8 @@ export interface ContactDetailModel {
 	/** Desktop link below the rows (查看全部往来). */
 	activityLink: string;
 	rows: ActivityRowModel[];
+	/** Live only: the reused history empty state when the feed has no row for this contact. */
+	emptyActivity?: string;
 	editLabel: string;
 	deleteLabel: string;
 }

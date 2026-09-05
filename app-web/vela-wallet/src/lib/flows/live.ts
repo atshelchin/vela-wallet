@@ -24,6 +24,7 @@ import { encodeQr } from '$lib/wallet/qr';
 import { liveActivityGroups, liveAssetRow } from '$lib/wallet/live';
 import { addressLines } from './fixtures';
 import { liveBatchImport, type BatchLiveInputs } from './live-batch';
+import { liveContactPick, type ContactPickLiveInputs } from './live-contact-pick';
 import {
 	liveFeeTokenPick,
 	liveSendConfirm,
@@ -60,6 +61,11 @@ export interface FlowsLiveInputs {
 	send?: SendLiveInputs;
 	/** The batch importer, while its sheet is open (spec 026 US3). */
 	batch?: BatchLiveInputs;
+	/**
+	 * The address book, for the recipient picker (spec 028 US5). Present while
+	 * a send is open; absent, the picker stays the gallery's picture.
+	 */
+	contactPick?: ContactPickLiveInputs;
 	/**
 	 * The `manage_tokens` core's view while the add-token sheet is open (spec
 	 * 028 US4), with the flat flow corpus beside it — the same shape `batch`
@@ -257,6 +263,15 @@ export function withLiveFlow(model: FlowScreenModel, inputs: FlowsLiveInputs): F
 			sheet: { kind: 'batch-import', model: liveBatchImport(model.sheet.model, inputs.batch) }
 		};
 	}
+	if (inputs.contactPick && model.sheet?.kind === 'contact-pick') {
+		next = {
+			...next,
+			sheet: {
+				kind: 'contact-pick',
+				model: liveContactPick(model.sheet.model, inputs.contactPick)
+			}
+		};
+	}
 	if (inputs.addToken && model.sheet?.kind === 'add-token') {
 		next = {
 			...next,
@@ -326,6 +341,16 @@ export function withLiveDesktopFlow(
 				? {
 						...model,
 						body: { kind: 'add-token', model: liveAddToken(model.body.model, inputs.addToken) }
+					}
+				: model;
+		case 'contact-pick':
+			return inputs.contactPick
+				? {
+						...model,
+						body: {
+							kind: 'contact-pick',
+							model: liveContactPick(model.body.model, inputs.contactPick)
+						}
 					}
 				: model;
 		default:

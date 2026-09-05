@@ -249,8 +249,13 @@ for (let i = 1; i < PATHS.length; i++) {
 //   settings, and nothing here said "there is no camera", "this page is not on
 //   HTTPS" or "something else has the camera". No new branch — all three hang
 //   off the existing `componentsUi.scanner`.
-if (PATHS.length !== 1623) fail(`expected 1623 paths (1539 leaf + 84 branch), got ${PATHS.length}`);
-if (leafSet.size !== 1539) fail(`expected 1539 leaf paths, got ${leafSet.size}`);
+// + 2 more (spec 028 US5, the book as a file): `contacts.groupDeleteBody`
+//   (deleting a group keeps its contacts — the confirm must SAY the rule the
+//   core enforces) and `contacts.importDoneInvalid` (the importer counts rows
+//   with no valid address; `importDoneBody` only had words for added/skipped,
+//   so the third number had nowhere to go). No new branch.
+if (PATHS.length !== 1625) fail(`expected 1625 paths (1541 leaf + 84 branch), got ${PATHS.length}`);
+if (leafSet.size !== 1541) fail(`expected 1541 leaf paths, got ${leafSet.size}`);
 if (branchSet.size !== 84) fail(`expected 84 branch paths, got ${branchSet.size}`);
 
 /** Pack a bit-per-path bitmap, LSB first within each byte. */

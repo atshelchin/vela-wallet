@@ -165,7 +165,12 @@ describe('generated i18n resources', () => {
     // web scanner refuses in three ways with three different things to do about
     // them, and a viewfinder that only stays black says none of it.
     const total = SUPPORTED_LANGUAGES.reduce((n, l) => n + countLeaves(resources[l].translation), 0);
-    expect(total).toBe(22_803);
+    // 22,833 = 22,803 plus spec 028 US5's 2 `contacts.*` keys × 15:
+    // groupDeleteBody (the confirm says the rule the core enforces — a deleted
+    // group keeps its contacts) and importDoneInvalid (the importer counts rows
+    // with no valid address, and `importDoneBody` had words for only two of
+    // the three numbers).
+    expect(total).toBe(22_833);
   });
 
   it('preserves load-bearing leading and trailing whitespace', () => {

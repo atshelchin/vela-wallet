@@ -40,6 +40,8 @@ const EMPTY_VIEW: ContactsView = {
   contacts: [],
   groups: [],
   last_import: null,
+  import_failure: null,
+  export: null,
   recipient: null,
 };
 

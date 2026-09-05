@@ -147,30 +147,62 @@
 				<Identicon svg={detail.contact.identiconSvg} size="hero" label={detail.contact.name} />
 				<p class="hero-name">{detail.contact.name}</p>
 				<p class="hero-address">{detail.contact.addressDisplay}</p>
-				<GroupChips chips={detail.chips} addLabel={detail.addChipLabel} />
+				<GroupChips
+					chips={detail.chips}
+					addLabel={detail.addChipLabel}
+					onadd={() =>
+						onuievent?.({ kind: 'action', id: 'move-group', address: detail.contact.addressFull })}
+				/>
 			</div>
 
 			<div class="detail-actions">
 				<ActionButtonRow
 					items={[
-						{ label: detail.actions.send, icon: UTILITY_ICONS['arrow-up-right'] },
-						{ label: detail.actions.receive, icon: UTILITY_ICONS['arrow-down-left'] },
-						{ label: detail.actions.qr, icon: UTILITY_ICONS['qr-code'] }
+						{
+							label: detail.actions.send,
+							icon: UTILITY_ICONS['arrow-up-right'],
+							onclick: () =>
+								onuievent?.({ kind: 'action', id: 'send', address: detail.contact.addressFull })
+						},
+						{
+							label: detail.actions.receive,
+							icon: UTILITY_ICONS['arrow-down-left'],
+							onclick: () =>
+								onuievent?.({ kind: 'action', id: 'receive', address: detail.contact.addressFull })
+						},
+						{
+							label: detail.actions.qr,
+							icon: UTILITY_ICONS['qr-code'],
+							onclick: () =>
+								onuievent?.({ kind: 'action', id: 'qr', address: detail.contact.addressFull })
+						}
 					]}
 				/>
 			</div>
 
 			<hr />
 
-			<AddressBlock address={detail.address} />
+			<AddressBlock
+				address={detail.address}
+				oncopy={() =>
+					onuievent?.({ kind: 'action', id: 'copy', address: detail.contact.addressFull })}
+			/>
 
 			<div class="activity">
-				<SectionHeader title={detail.activityTitle} action={detail.activityAction} />
-				<ul>
-					{#each detail.rows as row, i (i)}
-						<li><ActivityRow {row} /></li>
-					{/each}
-				</ul>
+				<SectionHeader
+					title={detail.activityTitle}
+					action={detail.rows.length > 0 ? detail.activityAction : undefined}
+					onaction={() => onuievent?.({ kind: 'activity-all' })}
+				/>
+				{#if detail.rows.length === 0 && detail.emptyActivity !== undefined}
+					<p class="activity-empty">{detail.emptyActivity}</p>
+				{:else}
+					<ul>
+						{#each detail.rows as row, i (i)}
+							<li><ActivityRow {row} /></li>
+						{/each}
+					</ul>
+				{/if}
 			</div>
 
 			<button
@@ -189,13 +221,27 @@
 			{@const group = model.group}
 			<PageHeader
 				back={{ label: model.backLabel, onclick: () => onuievent?.({ kind: 'back' }) }}
-				trailing={[{ icon: 'ellipsis', label: group.menuLabel }]}
+				trailing={[
+					{
+						icon: 'ellipsis',
+						label: group.menuLabel,
+						onclick: () => {
+							if (group.group.id === undefined) return;
+							sheetClosed = false;
+							onuievent?.({ kind: 'group-menu', id: group.group.id });
+						}
+					}
+				]}
 			/>
 			<h1 class="group-title">{group.group.name}</h1>
 			<p class="group-count">{group.group.membersLabel}</p>
 			<div class="members">
 				{#each group.group.members as member, i (member.addressFull)}
-					<ContactRow contact={member} divider={i < group.group.members.length - 1} />
+					<ContactRow
+						contact={member}
+						divider={i < group.group.members.length - 1}
+						onclick={() => onuievent?.({ kind: 'open', address: member.addressFull })}
+					/>
 				{/each}
 				<GhostAddRow label={group.addMember} onclick={() => onuievent?.({ kind: 'add-member' })} />
 			</div>
@@ -203,10 +249,13 @@
 	</div>
 
 	{#if model.screen === 'group' && model.group !== undefined}
+		{@const group = model.group}
 		<PinnedCTABar
-			label={model.group.cta}
-			caption={model.group.ctaCaption}
-			disabled={model.group.group.members.length === 0}
+			label={group.cta}
+			caption={group.ctaCaption}
+			disabled={group.group.members.length === 0}
+			onclick={() =>
+				group.group.id !== undefined && onuievent?.({ kind: 'batch-send', id: group.group.id })}
 		/>
 	{/if}
 
@@ -323,6 +372,12 @@
 		list-style: none;
 		margin: 0;
 		padding: 0;
+	}
+
+	.activity-empty {
+		margin: var(--space-md) 0 0;
+		font-size: calc(var(--text-base) * var(--text-scale, 1));
+		color: var(--color-fg-muted);
 	}
 
 	.destructive-text {

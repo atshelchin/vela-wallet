@@ -743,10 +743,19 @@ run the same book.
 - **A pick closes the picker** (`send.rs::apply_picked_address`), as
   `seed_split` already did for a group — the shell should not need a second
   sentence to say what the first one meant.
+- **A prefilled recipient is the recipient from the first frame**
+  (`send.rs::open`). The hand-off e2e found the old order: `open` only
+  remembered `prefilled_recipient` in `params`, and `tokens_fetched` was what
+  wrote it into `recipient` — so with the chain unreachable (the test's
+  hermetic deny, or a real outage) the form opened on nobody, and the probe
+  read an empty field under a heading that still said "Send USDT" from the
+  fixture. The recipient is known before any token is; `open` now says so, and
+  `tokens_fetched` restates it beside the token it picks.
 - Tests: `app_contacts` 44 → **54** (export→import restore + re-import is a
   no-op, import-into-group, the four refusals write nothing, group export
   covers its members only, filename slugs, add/remove/reseat members, the
-  four parse heuristics); `app_send` +1 (pick fills and closes).
+  four parse heuristics); `app_send` 91 → **93** (pick fills and closes; a
+  prefilled recipient shows before the tokens arrive).
 
 ### What the web gained
 
@@ -783,12 +792,12 @@ run the same book.
 
 ### Deviations, recorded
 
-- **The wasm moved** (4603c8421603 → 6c12c861449a, 3,630,664 → 3,675,342 B;
-  +44,678 B for the file format, the seven events and the picker rule) and the
+- **The wasm moved** (4603c8421603 → 08aa37e9ddf9, 3,630,664 → 3,675,329 B;
+  +44,665 B for the file format, the seven events and the two send rules) and the
   generated wallet-state types regenerated into both mirrors (4 new files,
   2 changed) — a founder-level decision ("业务规则要在 vela core 里面写"), not
   a slip. Every later spec's "artifact byte-identical" budget restarts from
-  6c12c861449a.
+  08aa37e9ddf9.
 - **Desktop import fork, with an end date.** Until the desktop dispatches the
   core's `import_file` / `export_requested` and deletes its `contact_io.rs`
   (owner: the vela-wallet-native session, 032+), the same malformed file
@@ -804,7 +813,22 @@ run the same book.
 
 ### Gates
 
-<!-- GATES-6B -->
+Shared tree at `48558b3b` + this work, machine load 20–120 (three sessions
+building): `cargo test app_contacts` **54** · `app_send` **93** · `cargo fmt`
+clean · `clippy` clean on the touched files · corpus pipeline (gen / lint /
+verify / dump:vectors / root jest i18n **22,833** leaves) green · root
+`tsc --noEmit` clean (the Expo `use-contacts-book.ts` empty view gained the
+two fields) · `gen-core-types` regenerated into both mirrors and `--check`
+current · `pnpm check` **1409 files / 0 errors** · `pnpm lint` (whole app-web)
+clean · unit **869** passed · build ×15 + `build:extension` · e2e on 4173,
+preview owned for the run: `contacts-io` **4/4** + `contacts-persistence`
+**4/4** on chromium. Four e2e reruns were selector ambiguities (the same word
+on a sheet's close and the page's back; a member count repeated in the CTA
+caption; an address on the page and in the sheet); the fifth was the real
+finding above (a hand-off that opened on nobody) and moved a rule into the
+core. Firefox/webkit not run for `contacts-io` — it is not in the
+`STORAGE_SUITES` list; the persistence pair already proves the store on three
+engines.
 
 ---
 
@@ -847,7 +871,7 @@ served chunk was readable before it asserts that any of them carries nothing.
 | SC-405 a token added by address shows the chain's identity, survives a reload, can be sent | **met** (sent: by construction) | `add-token.e2e.ts` ×2: identity from the stubbed chain, listed with its balance, present after reload; it is a `SendToken` like any other — a send of it was not separately driven |
 | SC-406 each preference takes effect and survives a reload; number and date presets show in the app's own figures | **met** | `preferences.e2e.ts` (date, number, theme ×3 engines); `live-activity.test.ts` (day headers), `locale-format.test.ts` (money) |
 | SC-407 erase leaves nothing; cancel changes nothing | **met** | `preferences.e2e.ts` ×3 engines: localStorage + IndexedDB swept, the one named exception kept; cancel leaves the keys byte-identical |
-| SC-408 an export re-imported changes nothing; a collision leaves the existing entry and reports it | **reassigned** | the founder handed contacts import/export to session `vela-wallet-63` mid-Phase 6; not proven here |
+| SC-408 an export re-imported changes nothing; a collision leaves the existing entry and reports it | **met** (Phase 6b, `vela-wallet-63`) | `contacts-io.e2e.ts`: export → re-import reports "0 added, 1 already existed" and changes nothing; a local rename survives a file spelling the old name; delete → import restores contact AND group; a no-address CSV is refused with nothing written; `app_contacts` proves the same in Rust |
 | SC-409 a send completes at desktop width | **met** | `desktop-send.e2e.ts` |
 | SC-410 (FR-410) nothing regresses: galleries pixel-unchanged, corpus via the 5-step process, budgets hold | **met with one restated budget** | galleries untouched (fixtures never changed); the corpus grew by 3 words through all six steps; the artifact is **+129 B** (Phase 3) — "byte-identical" was the wrong pin for a feature whose baseline said words would be added; the decoder budget is real and has a control |
 
@@ -869,7 +893,8 @@ served chunk was readable before it asserts that any of them carries nothing.
    overlay converted it twice; the e2e caught it.
 7. **The add-token sheet has no network picker and no native tab** (Phase 5):
    the core probes every chain; the native tab is `network_admin`'s.
-8. **T450–T452 reassigned** (Phase 6) to `vela-wallet-63` by the founder.
+8. **T450–T452 reassigned** (Phase 6) to `vela-wallet-63` by the founder —
+   and done in Phase 6b, with the format in the core rather than a TS port.
 9. **Gates moved to an isolated worktree** (Phase 6) after the shared preview
    crashed twice under three engines with three sessions building.
 10. **`chunksCarrying` had been vacuous since 027** (Phase 7): fixed, and the
@@ -901,24 +926,27 @@ warnings will name the `getUserMedia` error it did not recognise.
 
 ### 029 handoff
 
-- **What the next feature inherits**: every drawn surface of 024–027 is live
-  except the contacts import/export (with `vela-wallet-63`) and the phone's
-  export entry (the drawn `addMenu` sheet, still a picture). The desktop send
+- **What the next feature inherits**: every drawn surface of 024–027 is live,
+  the contacts import/export and the phone's export entry (the drawn `addMenu`
+  sheet) included since Phase 6b. The desktop send
   drives the same session as the phone; the sweep and add-token screens are
   wired to their machines; the six preference rows work; erase erases.
 - **Measured, not assumed**: the core artifact is `vela_core_bg.7caac430e4b3.wasm`
   at 3,630,793 B at this branch's last commit by this session; a later session
-  rebuilt it again for the contacts core (`5992756ce06b`, uncommitted at the
-  time of writing) — the fingerprint test reads whatever is served, so it holds
-  either way.
+  rebuilt it for the contacts core — twice, landing at `08aa37e9ddf9`
+  (3,675,329 B; Phase 6b) — the fingerprint test reads whatever is served, so
+  it holds either way.
 - **The isolated gate is reusable**: `git worktree add --detach
   /Volumes/data/production/vela-wallet-e2e <sha>`, apply a patch, `pnpm
   install --offline`, `pnpm sync:wasm`, `playwright.isolated.config.ts` on
   4174. Remove the worktree with `git worktree remove` when done.
 - **Debts named for Penpot/029**: SD1b has no desktop twin; the add-token
-  sheet's network picker and native tab; the phone's contacts export entry;
-  `formatUsd` in `activity.ts` still writes a `$`-formatted string into a
-  stored record (the Expo contract) rather than a number.
+  sheet's network picker and native tab; the desktop's drag-a-contact-onto-a-
+  group (018's `dropTarget` board — the tick-list covers the need); the
+  desktop's own import path (it still parses files in its shell; the core's
+  `import_file` is there for it); `formatUsd` in `activity.ts` still writes a
+  `$`-formatted string into a stored record (the Expo contract) rather than a
+  number.
 
 ### T463 — final sanity, at the branch's last commit by this session
 
@@ -930,6 +958,5 @@ Shared tree, after the third session fixed its in-flight types: `pnpm check`
 minutes, at machine load 77→38. The one skip is 027's `test.fixme` for SC-304,
 this feature's stated precondition and not its task.
 
-**Open at close**: T461 (a human with a phone, five steps above) and SC-408
-(with `vela-wallet-63`). Everything else this feature named is done and
-measured.
+**Open at close**: T461 (a human with a phone, five steps above). SC-408
+closed in Phase 6b. Everything else this feature named is done and measured.

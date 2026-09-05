@@ -21,10 +21,11 @@
 //! account's history would keep feeding suggestions, which is exactly the bug
 //! the event exists to prevent (inventory.md integration notes).
 //!
-//! The shell owns file parsing (JSON/CSV), storage, RPC and every word on
+//! The shell owns storage, RPC, the file picker/saver and every word on
 //! screen; the core owns the merge, the tombstones, the group ledger, the
-//! import policy and the trust semantics (green check = saved ∧ favorite,
-//! `RecipientTrust.tsx:5-8`).
+//! import policy, the file FORMAT (`contacts_io.rs`, since spec 028 — four
+//! shells read each other's backups) and the trust semantics (green check =
+//! saved ∧ favorite, `RecipientTrust.tsx:5-8`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -35,6 +36,9 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "bindings")]
 use ts_rs::TS;
+
+use super::contacts_io;
+pub use super::contacts_io::ContactImportFailure;
 
 // ---------------------------------------------------------------------------
 // Wire value types
@@ -212,6 +216,37 @@ pub struct ContactImportReport {
     pub groups_created: u32,
 }
 
+/// The two file formats the book travels in (`contacts_io.rs`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub enum ContactFileFormat {
+    Json,
+    Csv,
+}
+
+/// What an export covers: the whole saved book, or one group with its members.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub enum ContactExportScope {
+    All,
+    Group { id: String },
+}
+
+/// A file the core has written and the shell hands to the person — a download
+/// on the web, a save panel on the desktop, a share sheet on a phone. One-shot:
+/// it sits in the view until [`Event::ExportTaken`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "bindings", derive(TS))]
+pub struct ContactExportFile {
+    pub filename: String,
+    pub mime: String,
+    pub content: String,
+    /// How many contacts the file carries — the shell's confirmation line.
+    pub contacts: u32,
+}
+
 // ---------------------------------------------------------------------------
 // Protocol
 // ---------------------------------------------------------------------------
@@ -355,6 +390,45 @@ pub enum Event {
         chain_id: u32,
         address: String,
     },
+    /// An import FILE as the person picked it — its text and its name. The
+    /// core sniffs JSON from CSV, parses (refusing a bad file before any write,
+    /// D50), applies the existing-wins policy, and — with `into_group` — seats
+    /// every valid row in that group ("导入到本组"). The outcome is
+    /// `ContactsView::last_import` or `import_failure`, until acknowledged.
+    ImportFile {
+        content: String,
+        filename: Option<String>,
+        into_group: Option<String>,
+        now_ms: f64,
+    },
+    /// The report (or refusal) was shown; the view's line clears.
+    ImportAcknowledged,
+    /// Write the book — or one group — into a file for the shell to hand
+    /// over. `exported_at_iso` is the shell's clock (the 016 now-from-shell
+    /// pattern): it stamps the backup and dates the filename.
+    ExportRequested {
+        scope: ContactExportScope,
+        format: ContactFileFormat,
+        exported_at_iso: String,
+    },
+    /// The shell handed the file over; the one-shot leaves the view.
+    ExportTaken,
+    /// Seat more members in a group — a union, normalised, never a duplicate
+    /// (the "添加成员" picker's answer; `SetGroupMembers` replaces instead).
+    AddGroupMembers {
+        id: String,
+        members: Vec<String>,
+    },
+    RemoveGroupMember {
+        id: String,
+        address: String,
+    },
+    /// Which groups hold one contact — the "移入分组" picker's whole answer:
+    /// the contact joins every listed group and leaves every other.
+    SetContactGroups {
+        address: String,
+        group_ids: Vec<String>,
+    },
     /// Internal: an effect resolved. `attempt` is captured when the request
     /// is made; a result carrying an older attempt belongs to a previous
     /// account's session and is dropped.
@@ -409,6 +483,8 @@ pub struct Model {
     inflight_classify: BTreeSet<(u32, String)>,
     inspected: Option<Inspected>,
     last_import: Option<ContactImportReport>,
+    import_failure: Option<ContactImportFailure>,
+    export: Option<ContactExportFile>,
     /// Bumped on every account switch; stale results are dropped by it.
     attempt: u64,
 }
@@ -465,6 +541,11 @@ pub struct ContactsView {
     pub contacts: Vec<Contact>,
     pub groups: Vec<ContactGroupView>,
     pub last_import: Option<ContactImportReport>,
+    /// Why the last `ImportFile` was refused — before anything was written.
+    /// Mutually exclusive with `last_import`; both clear on `ImportAcknowledged`.
+    pub import_failure: Option<ContactImportFailure>,
+    /// The file an `ExportRequested` produced, until the shell takes it.
+    pub export: Option<ContactExportFile>,
     pub recipient: Option<ContactRecipientView>,
 }
 
@@ -641,6 +722,7 @@ impl App for Contacts {
                 if !model.loaded {
                     return Command::done();
                 }
+                model.import_failure = None;
                 let ops = apply_import(model, contacts, groups, now_ms);
                 if ops.is_empty() {
                     // Nothing was added and no group changed — no writes, as
@@ -648,6 +730,81 @@ impl App for Contacts {
                     return render();
                 }
                 requests(model, ops)
+            }
+            Event::ImportFile {
+                content,
+                filename,
+                into_group,
+                now_ms,
+            } => {
+                if !model.loaded {
+                    return Command::done();
+                }
+                match apply_import_file(
+                    model,
+                    &content,
+                    filename.as_deref(),
+                    into_group.as_deref(),
+                    now_ms,
+                ) {
+                    Ok(ops) if !ops.is_empty() => requests(model, ops),
+                    // Nothing written: a refusal (said in `import_failure`) or
+                    // an import with nothing new (said in `last_import`).
+                    _ => render(),
+                }
+            }
+            Event::ImportAcknowledged => {
+                model.last_import = None;
+                model.import_failure = None;
+                render()
+            }
+            Event::ExportRequested {
+                scope,
+                format,
+                exported_at_iso,
+            } => {
+                if !model.loaded {
+                    return Command::done();
+                }
+                model.export = export_book(model, &scope, format, &exported_at_iso);
+                render()
+            }
+            Event::ExportTaken => {
+                model.export = None;
+                render()
+            }
+            Event::AddGroupMembers { id, members } => {
+                if !model.loaded {
+                    return Command::done();
+                }
+                let joining = normalize_members(&members);
+                let changed = match model.groups.iter_mut().find(|g| g.id == id) {
+                    Some(group) => union_members(&mut group.members, joining),
+                    None => false,
+                };
+                write_groups_if(model, changed)
+            }
+            Event::RemoveGroupMember { id, address } => {
+                if !model.loaded {
+                    return Command::done();
+                }
+                let addr = address.to_lowercase();
+                let changed = match model.groups.iter_mut().find(|g| g.id == id) {
+                    Some(group) => {
+                        let before = group.members.len();
+                        group.members.retain(|m| *m != addr);
+                        group.members.len() != before
+                    }
+                    None => false,
+                };
+                write_groups_if(model, changed)
+            }
+            Event::SetContactGroups { address, group_ids } => {
+                if !model.loaded {
+                    return Command::done();
+                }
+                let changed = set_contact_groups(&mut model.groups, &address, &group_ids);
+                write_groups_if(model, changed)
             }
             Event::InspectRecipient { chain_id, address } => {
                 let addr = address.to_lowercase();
@@ -721,6 +878,8 @@ impl App for Contacts {
                 })
                 .collect(),
             last_import: model.last_import,
+            import_failure: model.import_failure,
+            export: model.export.clone(),
             recipient: model
                 .inspected
                 .as_ref()
@@ -1027,6 +1186,141 @@ fn apply_import(
         });
     }
     ops
+}
+
+/// [`Event::ImportFile`]: parse (refusing a bad file before any write, D50),
+/// apply the existing-wins policy, then — for "import into this group" — seat
+/// every VALID row in that group, whether it was just added or already saved.
+/// The person named the group; membership is the one thing an existing entry
+/// does not get to veto (its name, note and star still win, as always).
+///
+/// `Err` carries the refusal already recorded on the model; `Ok` the writes.
+fn apply_import_file(
+    model: &mut Model,
+    content: &str,
+    filename: Option<&str>,
+    into_group: Option<&str>,
+    now_ms: f64,
+) -> Result<Vec<ContactOperation>, ContactImportFailure> {
+    model.last_import = None;
+    model.import_failure = None;
+    if let Some(id) = into_group {
+        if !model.groups.iter().any(|g| g.id == id) {
+            model.import_failure = Some(ContactImportFailure::UnknownGroup);
+            return Err(ContactImportFailure::UnknownGroup);
+        }
+    }
+    let parsed = match contacts_io::parse(content, filename) {
+        Ok(parsed) => parsed,
+        Err(failure) => {
+            model.import_failure = Some(failure);
+            return Err(failure);
+        }
+    };
+    let joining: Vec<String> = parsed
+        .contacts
+        .iter()
+        .filter(|entry| is_address(&entry.address))
+        .map(|entry| entry.address.to_lowercase())
+        .collect();
+    let mut ops = apply_import(model, parsed.contacts, parsed.groups, now_ms);
+    if let Some(id) = into_group {
+        let seated = match model.groups.iter_mut().find(|g| g.id == id) {
+            Some(group) => union_members(&mut group.members, normalize_members(&joining)),
+            None => false,
+        };
+        if seated {
+            // The snapshot `apply_import` took predates the seating.
+            ops.retain(|op| !matches!(op, ContactOperation::WriteGroups { .. }));
+            ops.push(ContactOperation::WriteGroups {
+                groups: model.groups.clone(),
+            });
+        }
+    }
+    Ok(ops)
+}
+
+/// [`Event::ExportRequested`]: the saved book, or one group resolved to its
+/// members (an unsaved member is still a payee — it travels as its address,
+/// invariant ③). A group that no longer exists exports nothing.
+fn export_book(
+    model: &Model,
+    scope: &ContactExportScope,
+    format: ContactFileFormat,
+    exported_at_iso: &str,
+) -> Option<ContactExportFile> {
+    let (contacts, groups, group_name): (Vec<Contact>, Vec<ContactGroup>, Option<String>) =
+        match scope {
+            ContactExportScope::All => (model.saved.clone(), model.groups.clone(), None),
+            ContactExportScope::Group { id } => {
+                let group = model.groups.iter().find(|g| g.id == *id)?;
+                let members = group
+                    .members
+                    .iter()
+                    .map(|addr| resolve_member(&model.saved, addr))
+                    .collect();
+                (members, vec![group.clone()], Some(group.name.clone()))
+            }
+        };
+    let content = match format {
+        ContactFileFormat::Json => contacts_io::to_json(&contacts, &groups, exported_at_iso),
+        ContactFileFormat::Csv => contacts_io::to_csv(&contacts, &groups),
+    };
+    Some(ContactExportFile {
+        filename: contacts_io::export_filename(group_name.as_deref(), format, exported_at_iso),
+        mime: contacts_io::mime_for(format).to_owned(),
+        content,
+        contacts: u32::try_from(contacts.len()).unwrap_or(u32::MAX),
+    })
+}
+
+/// Append every `incoming` member not already seated. `incoming` is expected
+/// normalised (lowercased, valid, de-duplicated). Answers whether anything changed.
+fn union_members(target: &mut Vec<String>, incoming: Vec<String>) -> bool {
+    let mut changed = false;
+    for member in incoming {
+        if !target.contains(&member) {
+            target.push(member);
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// [`Event::SetContactGroups`]: one contact's whole membership at once. A
+/// malformed address changes nothing. Answers whether anything changed.
+fn set_contact_groups(groups: &mut [ContactGroup], address: &str, group_ids: &[String]) -> bool {
+    if !is_address(address) {
+        return false;
+    }
+    let addr = address.to_lowercase();
+    let mut changed = false;
+    for group in groups.iter_mut() {
+        let wanted = group_ids.contains(&group.id);
+        let seated = group.members.contains(&addr);
+        if wanted && !seated {
+            group.members.push(addr.clone());
+            changed = true;
+        } else if !wanted && seated {
+            group.members.retain(|m| *m != addr);
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// A group edit that changed nothing writes nothing — only renders.
+fn write_groups_if(model: &Model, changed: bool) -> Command<ContactEffect, Event> {
+    if changed {
+        requests(
+            model,
+            vec![ContactOperation::WriteGroups {
+                groups: model.groups.clone(),
+            }],
+        )
+    } else {
+        render()
+    }
 }
 
 // ---------------------------------------------------------------------------

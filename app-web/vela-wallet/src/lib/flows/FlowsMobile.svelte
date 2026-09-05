@@ -54,6 +54,13 @@
 		 */
 		selectAll(): void;
 		pickCta(): void;
+		/**
+		 * The recipient picker's two answers (spec 028 US5): one person from
+		 * the book, or a whole group as split-mode recipients. Indices into the
+		 * live `ContactPickModel`'s lists.
+		 */
+		pickContact?(index: number): void;
+		pickGroup?(index: number): void;
 		/** The core's gates — `can_continue` / `can_confirm`. */
 		continueDisabled: boolean;
 		confirmDisabled: boolean;
@@ -252,7 +259,12 @@
 				height="tall"
 				onclose={() => (sheetClosed = true)}
 			>
-				<ContactPick model={sheet.model} onscan={() => go('scan')} />
+				<ContactPick
+					model={sheet.model}
+					onscan={() => go('scan')}
+					onselect={send?.pickContact ? (i) => send.pickContact?.(i) : undefined}
+					ongroup={send?.pickGroup ? (i) => send.pickGroup?.(i) : undefined}
+				/>
 			</BottomSheet>
 		{:else if sheet.kind === 'fee-token'}
 			<BottomSheet

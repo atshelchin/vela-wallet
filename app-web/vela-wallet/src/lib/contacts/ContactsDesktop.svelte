@@ -7,7 +7,7 @@
 	import { BREAKPOINT_CONTACTS_OVERLAY } from '$lib/tokens/tokens';
 	import type { ChainRowModel } from '$lib/wallet/model';
 	import type { ContactDraft, ContactFormCopy } from './forms';
-	import type { ContactsDesktopModel, ContactsPanelId } from './model';
+	import type { ContactModel, ContactsDesktopModel, ContactsPanelId } from './model';
 	import type { OnContactsUiEvent } from './ui-events';
 	import AlphaSectionList from './ui/AlphaSectionList.svelte';
 	import ContactDetailPanel from './ui/ContactDetailPanel.svelte';
@@ -49,7 +49,7 @@
 	let closing = $state(false);
 	let selected = $derived(model.selectedContact);
 
-	let openMenu = $derived<'header' | 'group' | undefined>(model.openMenu);
+	let openMenu = $derived<'header' | 'group' | 'contact' | undefined>(model.openMenu);
 	let menuAt = $state<{ x: number; y: number } | undefined>(undefined);
 	let railHost = $state<HTMLDivElement | undefined>();
 
@@ -77,10 +77,35 @@
 		menuAt = { x: box.left + box.width / 2, y: box.bottom };
 	});
 
-	function openContext(_group: string, event: MouseEvent) {
+	/** A rail row's right-click: the menu opens here, and the route learns whose it is. */
+	function openContext(group: string, event: MouseEvent) {
 		event.preventDefault();
 		menuAt = { x: event.clientX, y: event.clientY };
 		openMenu = 'group';
+		const id = model.rail.groups.find((row) => row.name === group)?.id;
+		if (id !== undefined) onuievent?.({ kind: 'group-menu', id });
+	}
+
+	/** The open group's ⋯ — the same menu, anchored under the button. */
+	function openGroupMenuAt(event: MouseEvent) {
+		const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		menuAt = { x: box.right, y: box.bottom };
+		openMenu = 'group';
+		const id = model.group?.group.id;
+		if (id !== undefined) onuievent?.({ kind: 'group-menu', id });
+	}
+
+	/** A contact row's right-click (the drawn M2 menu). */
+	function openContactContext(contact: ContactModel, event: MouseEvent) {
+		event.preventDefault();
+		menuAt = { x: event.clientX, y: event.clientY };
+		openMenu = 'contact';
+		onuievent?.({ kind: 'contact-menu', address: contact.addressFull });
+	}
+
+	function closeContext() {
+		openMenu = undefined;
+		menuAt = undefined;
 	}
 
 	function closePanel() {
@@ -181,15 +206,39 @@
 						<h2>{group.group.name}</h2>
 						<p class="members">{group.group.membersLabel}</p>
 						<span class="spacer"></span>
-						<button type="button" class="cta">{group.cta}</button>
-						<button type="button" class="icon-button" aria-label={group.menuLabel}>
+						<button
+							type="button"
+							class="cta"
+							disabled={group.group.members.length === 0}
+							onclick={() =>
+								group.group.id !== undefined &&
+								onuievent?.({ kind: 'batch-send', id: group.group.id })}
+						>
+							{group.cta}
+						</button>
+						<button
+							type="button"
+							class="icon-button"
+							aria-label={group.menuLabel}
+							aria-haspopup="menu"
+							onclick={openGroupMenuAt}
+						>
 							<Icon icon={UTILITY_ICONS.ellipsis} size="base" />
 						</button>
 					</div>
 					<ul class="members-list">
 						{#each group.group.members as member, i (member.addressFull)}
 							<li>
-								<ContactRow contact={member} divider={i < group.group.members.length - 1} />
+								<ContactRow
+									contact={member}
+									divider={i < group.group.members.length - 1}
+									onclick={() => {
+										panel = 'contact-detail';
+										selected = member.name;
+										onuievent?.({ kind: 'open', address: member.addressFull });
+									}}
+									oncontextmenu={(event) => openContactContext(member, event)}
+								/>
 							</li>
 						{/each}
 					</ul>
@@ -207,6 +256,7 @@
 							selected = contact.name;
 							onuievent?.({ kind: 'open', address: contact.addressFull });
 						}}
+						oncontactmenu={openContactContext}
 					/>
 				{/if}
 			</div>
@@ -244,6 +294,17 @@
 						{detail}
 						onedit={() => onuievent?.({ kind: 'edit' })}
 						ondelete={() => onuievent?.({ kind: 'delete', address: detail.contact.addressFull })}
+						onaction={(id) =>
+							onuievent?.({ kind: 'action', id, address: detail.contact.addressFull })}
+						oncopy={() =>
+							onuievent?.({ kind: 'action', id: 'copy', address: detail.contact.addressFull })}
+						onaddgroup={() =>
+							onuievent?.({
+								kind: 'action',
+								id: 'move-group',
+								address: detail.contact.addressFull
+							})}
+						onactivityall={() => onuievent?.({ kind: 'activity-all' })}
 					/>
 				{/if}
 			</ThirdPanel>
@@ -254,10 +315,21 @@
 		<ContextMenu
 			menu={model.groupMenu}
 			at={menuAt}
-			onclose={() => {
-				openMenu = undefined;
-				menuAt = undefined;
+			onselect={(label) => {
+				closeContext();
+				onuievent?.({ kind: 'sheet-select', label });
 			}}
+			onclose={closeContext}
+		/>
+	{:else if openMenu === 'contact'}
+		<ContextMenu
+			menu={model.contactMenu}
+			at={menuAt}
+			onselect={(label) => {
+				closeContext();
+				onuievent?.({ kind: 'sheet-select', label });
+			}}
+			onclose={closeContext}
 		/>
 	{/if}
 </div>
@@ -416,6 +488,11 @@
 
 	.cta:active {
 		transform: scale(var(--motion-press-button));
+	}
+
+	.cta:disabled {
+		opacity: var(--opacity-disabled, 0.4);
+		cursor: default;
 	}
 
 	.members-list {

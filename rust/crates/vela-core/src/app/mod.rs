@@ -43,6 +43,7 @@ pub mod batch_import;
 pub mod browser_history;
 pub mod clear_signing;
 pub mod contacts;
+pub mod contacts_io;
 pub mod create_wallet;
 pub mod dapp_permissions;
 pub mod dapp_session;

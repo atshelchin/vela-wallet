@@ -30,6 +30,10 @@
 	import IdenticonViewer from '$lib/wallet/ui/IdenticonViewer.svelte';
 	import { BREAKPOINT_DESKTOP } from '$lib/tokens/tokens';
 	import { session } from '$lib/session/core/session.svelte';
+	import { createContactsSession, type ContactsSession } from '$lib/contacts/core/contacts';
+	import type { ContactGroupView } from '$lib/core/generated/ContactGroupView';
+	import type { ContactsView } from '$lib/core/generated/ContactsView';
+	import { readFlowHandoff } from '$lib/flows/contact-handoff';
 	import { preferences } from '$lib/services/preferences.svelte';
 	import { publishExtSnapshot } from '$lib/dapp/core/ext-cache';
 	import { inExtension } from '$lib/dapp/transport';
@@ -317,10 +321,51 @@
 		addTokenView ? { view: addTokenView, m: data.flowMessages } : undefined
 	);
 
+	// --- The address book beside a send (spec 028 US5) -----------------------
+	//
+	// The recipient picker (SD2e / DSD2e) showed the gallery's three fixture
+	// people in the middle of a live transfer, and `show_contact_picker` —
+	// the core's own state for it — was read by nothing. While a send is open
+	// this route holds its own ContactsCore session (024 D8: route-scoped,
+	// not a global ledger) and hands its view to the picker; a pick dispatches
+	// the core's `picked_address`, a group seeds split mode with its members.
+	let contactsView = $state<ContactsView | null>(null);
+	let contactsSession: ContactsSession | null = null;
+
+	function openContactsBook(): void {
+		if (contactsSession) return;
+		contactsSession = createContactsSession({
+			onView: (view) => (contactsView = view),
+			onError: (error) => console.error('[contacts] core fault:', error)
+		});
+		contactsSession.start({ type: 'account_switched', my_address: identity?.address ?? null });
+	}
+
+	function closeContactsBook(): void {
+		contactsSession?.dispose();
+		contactsSession = null;
+		contactsView = null;
+	}
+
+	/** A whole group as split-mode recipients: the core's `seed_split_recipients`, amounts blank. */
+	function seedGroup(group: ContactGroupView): void {
+		if (group.members.length === 0) return;
+		sendSession?.dispatch({
+			type: 'seed_split_recipients',
+			recipients: group.members.map((member) => ({
+				id: '',
+				address: member.address,
+				amount: '',
+				name: member.name ?? member.resolved_name
+			}))
+		});
+	}
+
 	async function openSend(prefill?: Partial<SendOpenParams>): Promise<void> {
 		if (sendSession || !identity) return;
 		await loadCore();
 		if (!identity) return;
+		openContactsBook();
 		// The tracker owns the receipt from the moment the op is accepted; the
 		// send core only hears the verdict back (invariant ⑥'s ordering half).
 		setSendTrackerSink((handoff) =>
@@ -383,6 +428,7 @@
 
 	function closeSend(): void {
 		closeBatch();
+		closeContactsBook();
 		sendSession?.dispose();
 		sendSession = null;
 		sendView = null;
@@ -400,6 +446,10 @@
 		// what the recipient row dispatches and `scan_resolved` is what closes it,
 		// so the picker, the form and the sweep all open the same one.
 		if (view.show_scanner) return 's1' as const;
+		// The picker too (spec 028 US5): `open_contact_picker` is what the
+		// recipient row dispatches, and a pick — or `close_contact_picker` —
+		// is what takes it down.
+		if (view.show_contact_picker) return 'sd2e' as const;
 		if (feeSheetOpen) return 'sd2f' as const;
 		if (batchView) return 'sd2c' as const;
 		switch (view.stage) {
@@ -462,6 +512,15 @@
 						sendSession?.dispatch({ type: 'set_recipient', recipient: value }),
 					advance: () => sendSession?.dispatch({ type: 'continue' }),
 					addRecipient: () => sendSession?.dispatch({ type: 'enter_split_mode' }),
+					pickContact: (index: number) => {
+						const contact = contactsView?.contacts[index];
+						if (contact)
+							sendSession?.dispatch({ type: 'picked_address', address: contact.address });
+					},
+					pickGroup: (index: number) => {
+						const group = contactsView?.groups[index];
+						if (group) seedGroup(group);
+					},
 					removeRecipient: (index: number) => {
 						const rows = (sendView?.recipients ?? []).filter((_, i) => i !== index);
 						sendSession?.dispatch({ type: 'recipients_changed', recipients: rows });
@@ -532,6 +591,8 @@
 		// The scanner is a centred modal on this layout; the host below draws
 		// it for `ds1` and hides the panel.
 		if (view.show_scanner) return 'ds1' as const;
+		// The picker is the core's state too (spec 028 US5).
+		if (view.show_contact_picker) return 'dsd2e' as const;
 		if (feeSheetOpen) return 'dsd2f' as const;
 		if (batchView) return 'dsd2c' as const;
 		switch (view.stage) {
@@ -813,7 +874,11 @@
 		emptyCopy: data.flows.t4.base.kind === 'assets' ? data.flows.t4.base.model.empty : undefined,
 		send: sendInputs,
 		batch: batchInputs,
-		addToken: addTokenInputs
+		addToken: addTokenInputs,
+		contactPick:
+			contactsView && sendView
+				? { view: contactsView, m: data.flowMessages, identicon: avatarSvgForClient }
+				: undefined
 	});
 
 	/**
@@ -851,6 +916,44 @@
 	// request can reach a person — the extension's request window — and a second
 	// copy of the most dangerous screen in the product would be a second
 	// implementation of it.
+
+	/**
+	 * A person arriving from the address book (spec 028 US5): `?to=` opens a
+	 * send with the recipient filled — what a scanned address does — `?group=`
+	 * opens one and seeds split mode with the group's members once the book has
+	 * answered, `?flow=receive` opens the receive card. Read once; the query is
+	 * then dropped from the URL so a reload is a plain visit.
+	 */
+	let handedOff = false;
+	$effect(() => {
+		if (handedOff || !identity) return;
+		const handoff = readFlowHandoff(location.search);
+		handedOff = true;
+		if (handoff === null) return;
+		void goto(resolve('/[locale]/wallet', { locale: data.locale }), { replaceState: true });
+		if (handoff.kind === 'receive') {
+			nav.enter('receive');
+			return;
+		}
+		nav.enter('send');
+		void openSend(
+			handoff.kind === 'send' ? { prefilled_recipient: handoff.recipient } : undefined
+		).then(() => {
+			if (handoff.kind !== 'group-send') return;
+			pendingGroup = handoff.groupId;
+		});
+	});
+
+	/** A group hand-off waits for the book to load, then seeds the split. */
+	let pendingGroup = $state<string | null>(null);
+	$effect(() => {
+		const id = pendingGroup;
+		const view = contactsView;
+		if (id === null || !view?.loaded || !sendSession) return;
+		pendingGroup = null;
+		const group = view.groups.find((g) => g.id === id);
+		if (group) seedGroup(group);
+	});
 
 	function enter(entry: FlowEntry) {
 		// One column: a flow opening closes the asset detail (and vice versa).
@@ -934,6 +1037,8 @@
 							// closing it, not stepping the core back a stage.
 							if (feeSheetOpen) feeSheetOpen = false;
 							else if (batchView) closeBatch();
+							else if (sendView.show_contact_picker)
+								sendSession?.dispatch({ type: 'close_contact_picker' });
 							else sendSession?.dispatch({ type: 'back' });
 							return;
 						}
@@ -950,6 +1055,11 @@
 					}}
 					onnavigate={(to, index) => {
 						if (to === 'tx-detail' && index !== undefined) selectTxAt(index);
+						// The picker opens through the core, as the scanner does.
+						if (to === 'contact-pick' && sendSession) {
+							sendSession.dispatch({ type: 'open_contact_picker', target: null });
+							return;
+						}
 						nav.push(to);
 						if (to === 'add-token') void openAddToken();
 					}}
@@ -983,6 +1093,8 @@
 				// Backing out of the scanner is closing the scanner, not stepping
 				// back a stage — the core opened it and the core closes it.
 				if (sendView?.show_scanner) sendSession?.dispatch({ type: 'close_scanner' });
+				else if (sendView?.show_contact_picker)
+					sendSession?.dispatch({ type: 'close_contact_picker' });
 				else if (sendView) sendSession?.dispatch({ type: 'back' });
 				else nav.back();
 			}}
@@ -991,6 +1103,8 @@
 				if (to === 'fee-token') feeSheetOpen = true;
 				else if (to === 'batch-import') void openBatch();
 				else if (to === 'scan' && sendSession) sendSession.dispatch({ type: 'open_scanner' });
+				else if (to === 'contact-pick' && sendSession)
+					sendSession.dispatch({ type: 'open_contact_picker', target: null });
 				else if (to === 'add-token') {
 					nav.push(to);
 					void openAddToken();
@@ -1003,6 +1117,7 @@
 					closeAddToken();
 					nav.back();
 				}
+				if (sendView?.show_contact_picker) sendSession?.dispatch({ type: 'close_contact_picker' });
 			}}
 			send={sendActions}
 			batch={batchActions}

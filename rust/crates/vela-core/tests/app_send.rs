@@ -752,6 +752,29 @@ fn progressive_chunks_paint_early_but_never_after_the_load_settled() {
     assert_eq!(sut.view().tokens.len(), 2);
 }
 
+/// A prefilled recipient (the address book's 转账, a scanned address) is the
+/// recipient from the first frame — before the token list answers, and even
+/// if it never does (spec 028 US5). The web hand-off found the old order: the
+/// form opened on nobody while the fetch was out.
+#[test]
+fn a_prefilled_recipient_is_shown_before_the_tokens_arrive() {
+    let mut sut = Sut::new();
+    sut.dispatch(open_event(SendOpenParams {
+        prefilled_recipient: Some(RECIPIENT.to_owned()),
+        ..SendOpenParams::default()
+    }));
+    let view = sut.view();
+    assert_eq!(view.stage, SendStage::EnterDetails, "optimistic step");
+    assert_eq!(view.recipient, RECIPIENT, "known before any token is");
+    assert!(view.selected_token.is_none());
+
+    // The tokens land: the highest-value one is picked, the recipient stays.
+    sut.resolve(loaded(vec![eth("2"), usdc("5")]));
+    let view = sut.view();
+    assert_eq!(view.recipient, RECIPIENT);
+    assert!(view.selected_token.is_some());
+}
+
 #[test]
 fn preselected_symbol_and_network_land_on_enter_details() {
     let mut sut = Sut::new();
@@ -2755,6 +2778,41 @@ fn a_row_scoped_scan_takes_only_the_address_and_spares_the_other_rows() {
     assert_eq!(view.recipients[1].address, RECIPIENT_B);
     assert_eq!(view.recipients[1].amount, "0.25", "amount untouched");
     assert!(!view.locked);
+}
+
+/// The picker is the core's state (spec 028 US5): opening it is an event,
+/// and a pick both fills the recipient and closes it — the shell never has
+/// to say "and now close it" as a second sentence.
+#[test]
+fn a_pick_from_the_book_fills_the_recipient_and_closes_the_picker() {
+    let mut sut = boot(vec![eth("2")]);
+    select_eth(&mut sut);
+    sut.dispatch(Event::OpenContactPicker { target: None });
+    assert!(sut.view().show_contact_picker);
+    sut.dispatch(Event::PickedAddress {
+        address: RECIPIENT.to_owned(),
+    });
+    let view = sut.view();
+    assert_eq!(view.recipient, RECIPIENT);
+    assert!(!view.show_contact_picker, "the pick closes the picker");
+    assert!(!view.split_mode);
+
+    // A row-scoped pick does the same for its row.
+    sut.dispatch(Event::EnterSplitMode);
+    let rows = sut.view().recipients;
+    let second = rows.get(1).map(|r| r.id.clone()).unwrap_or_default();
+    sut.dispatch(Event::OpenContactPicker {
+        target: Some(second.clone()),
+    });
+    sut.dispatch(Event::PickedAddress {
+        address: RECIPIENT_B.to_owned(),
+    });
+    let view = sut.view();
+    assert!(!view.show_contact_picker);
+    assert!(view
+        .recipients
+        .iter()
+        .any(|r| r.id == second && r.address == RECIPIENT_B));
 }
 
 #[test]

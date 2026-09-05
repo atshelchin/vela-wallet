@@ -336,7 +336,19 @@
 		// After the storage numbers: the connections row is the grants', not a key count.
 		model = withLiveConnections(model, grants, m);
 		model = withLivePreferences(model, m, languageValue, data.locale);
-		return withEraseFailure(model, m, eraseFailed);
+		model = withEraseFailure(model, m, eraseFailed);
+		// The phone's first block (founder, 2026-09-05): 通讯录 is a tab on the
+		// bar under this very screen, and 反馈 is not wanted here — so the block
+		// they made up goes with them. The desktop nav keeps its own list.
+		return {
+			...model,
+			sections: model.sections
+				.map((section) => ({
+					...section,
+					rows: section.rows.filter((row) => row.id !== 'contacts' && row.id !== 'feedback')
+				}))
+				.filter((section) => section.rows.length > 0 || section.appearanceControls === true)
+		};
 	});
 	const liveDesktop = $derived.by(() => {
 		if (identity === null) return data.desktop;

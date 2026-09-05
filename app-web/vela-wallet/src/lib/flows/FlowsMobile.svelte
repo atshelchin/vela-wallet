@@ -63,6 +63,14 @@
 		 */
 		pickContact?(index: number): void;
 		pickGroup?(index: number): void;
+		/**
+		 * The split rows (spec 028 Phase 10): a row typed into, the book opened
+		 * for one row — or for a NEW row when `index` is null — and the
+		 * picker's class chips.
+		 */
+		recipientRowChanged?(index: number, patch: { address?: string; amount?: string }): void;
+		pickContactFor?(index: number | null): void;
+		filterClass?(id: string): void;
 		/** The core's gates — `can_continue` / `can_confirm`. */
 		continueDisabled: boolean;
 		confirmDisabled: boolean;
@@ -72,6 +80,9 @@
 	interface AddTokenActions {
 		input(value: string): void;
 		submit(): void;
+		/** The ERC-20 / native toggle, and a chain picked on the native tab (Phase 10). */
+		tab?(id: string): void;
+		pick?(id: string): void;
 	}
 
 	/**
@@ -113,10 +124,25 @@
 		onsheetclose?: () => void;
 		/** The open transaction's delete (spec 028 Phase 8). Absent in the gallery. */
 		ondeletetx?: () => void;
+		/**
+		 * The header pill (spec 028 Phase 10): the network filter, which on the
+		 * phone is a sheet the route raises. Absent in the gallery.
+		 */
+		onchains?: () => void;
 	}
 
-	let { model, onback, onnavigate, send, batch, scan, addToken, onsheetclose, ondeletetx }: Props =
-		$props();
+	let {
+		model,
+		onback,
+		onnavigate,
+		send,
+		batch,
+		scan,
+		addToken,
+		onsheetclose,
+		ondeletetx,
+		onchains
+	}: Props = $props();
 
 	const base = $derived(model.base);
 	const sheet = $derived(model.sheet);
@@ -152,7 +178,7 @@
 			<ReceiveList model={base.model} onqr={(i) => go('receive-qr', i)} />
 		</FlowScreen>
 	{:else if base.kind === 'history'}
-		<FlowScreen header={base.model.header} {onback} onpill={() => go('chains')}>
+		<FlowScreen header={base.model.header} {onback} onpill={onchains}>
 			<History model={base.model} onselect={(g, r) => go('tx-detail', g * 100 + r)} />
 		</FlowScreen>
 	{:else if base.kind === 'assets'}
@@ -160,7 +186,7 @@
 			header={base.model.header}
 			{onback}
 			onaction={() => go('add-token')}
-			onpill={() => go('chains')}
+			onpill={onchains}
 		>
 			<Assets
 				model={base.model}
@@ -170,9 +196,10 @@
 			/>
 		</FlowScreen>
 	{:else if base.kind === 'send-pick'}
-		<FlowScreen header={base.model.header} {onback} onpill={() => go('chains')}>
+		<FlowScreen header={base.model.header} {onback} onpill={onchains}>
 			<SendPick
 				model={base.model}
+				onfilter={send?.filterClass ? (id) => send.filterClass?.(id) : undefined}
 				onselect={(i) => (send ? send.selectToken(i) : go('send-form', i))}
 				onselectall={send ? () => send.selectAll() : undefined}
 				oncta={() => (send ? send.pickCta() : go('send-multi'))}
@@ -186,13 +213,28 @@
 				onscan={() => go('scan')}
 				onfee={() => go('fee-token')}
 				onmax={send ? () => send.max() : undefined}
-				onrecipientAction={(id) =>
-					go(
-						id === 'import' ? 'batch-import' : id === 'contacts' ? 'contact-pick' : 'add-recipient'
-					)}
+				onrecipientAction={(id) => {
+					// The split form's three pills (Phase 10): a blank row, the book
+					// into a new row, the importer sheet. Live, the first two are the
+					// session's; the gallery keeps the drawn navigation.
+					if (id === 'add' && send) send.addRecipient();
+					else if (id === 'contacts' && send?.pickContactFor) send.pickContactFor(null);
+					else
+						go(
+							id === 'import'
+								? 'batch-import'
+								: id === 'contacts'
+									? 'contact-pick'
+									: 'add-recipient'
+						);
+				}}
 				oncontinue={() => (send ? send.advance() : go('send-confirm'))}
 				onaddRecipient={send ? () => send.addRecipient() : undefined}
 				onremoveRecipient={send ? (i) => send.removeRecipient(i) : undefined}
+				onrecipientRow={send?.recipientRowChanged
+					? (i, patch) => send.recipientRowChanged?.(i, patch)
+					: undefined}
+				onpickRecipientRow={send?.pickContactFor ? (i) => send.pickContactFor?.(i) : undefined}
 				onamount={send ? (value) => send.amountChanged(value) : undefined}
 				onrecipient={send ? (value) => send.recipientChanged(value) : undefined}
 				ctaDisabled={send?.continueDisabled ?? false}
@@ -260,6 +302,8 @@
 					model={sheet.model}
 					oninput={addToken ? (value) => addToken.input(value) : undefined}
 					onsubmit={addToken ? () => addToken.submit() : undefined}
+					ontab={addToken?.tab ? (id) => addToken.tab?.(id) : undefined}
+					onpick={addToken?.pick ? (id) => addToken.pick?.(id) : undefined}
 				/>
 			</BottomSheet>
 		{:else if sheet.kind === 'contact-pick'}

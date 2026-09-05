@@ -107,7 +107,7 @@ export function liveChainRows(
  * A day header whose items all fell away goes with them, or the list would
  * show dates with nothing under them.
  */
-function narrowedFeed(feed: FeedView, filter: number | null): FeedView {
+export function narrowedFeed(feed: FeedView, filter: number | null): FeedView {
 	if (filter === null) return feed;
 	const kept = feed.rows.filter((row) => row.type === 'header' || row.item.chain_id === filter);
 	return {

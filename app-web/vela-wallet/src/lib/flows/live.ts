@@ -14,6 +14,7 @@ import type { BalanceView } from '$lib/core/generated/BalanceView';
 import type { FeedView } from '$lib/core/generated/FeedView';
 import type { CurrencyView } from '$lib/core/generated/CurrencyView';
 import type { MtokView } from '$lib/core/generated/MtokView';
+import type { NetWizardView } from '$lib/core/generated/NetWizardView';
 import type { WalletFlowMessages } from './messages';
 import {
 	chainName,
@@ -25,7 +26,15 @@ import { chainLogoURL } from '$lib/services/tokens-model';
 import type { BalanceToken } from '$lib/core/generated/BalanceToken';
 import { balanceTokenMark, chainMark, tokenMarkFor } from './marks';
 import { chainColor, MASK } from '$lib/wallet/fixtures';
-import type { FactRowModel, FlowHeaderModel, ShareCardModel, TokenDetailModel } from './model';
+import type {
+	AddTokenTab,
+	FactRowModel,
+	FlowHeaderModel,
+	ShareCardModel,
+	StatusChipModel,
+	TokenDetailModel,
+	TokenMarkModel
+} from './model';
 import type { WalletIdentity } from '$lib/wallet/identity';
 import { shortenAddress } from '$lib/wallet/identity';
 import { fill } from '$lib/wallet/messages';
@@ -35,6 +44,7 @@ import {
 	liveActivityRow,
 	liveAssetRow,
 	moneyText,
+	narrowedFeed,
 	tokenExplorerURL,
 	trimBalance
 } from '$lib/wallet/live';
@@ -43,6 +53,7 @@ import { liveBatchImport, type BatchLiveInputs } from './live-batch';
 import { liveContactPick, type ContactPickLiveInputs } from './live-contact-pick';
 import {
 	liveFeeTokenPick,
+	liveNetworkPill,
 	liveSendConfirm,
 	liveSendForm,
 	liveSendPick,
@@ -113,20 +124,55 @@ export function receiveNetworks(): ReturnType<typeof getAllNetworksSync> {
 
 export { balanceTokenMark, chainMark } from './marks';
 
+/**
+ * The held tokens a pushed screen lists — the home's rule (`liveSections`):
+ * narrowed to the sidebar's / the pill's chain when one is chosen. The page
+ * indexes the assets screen through this same list (`visibleBalanceTokens`),
+ * so a tapped row names the token that was tapped.
+ */
+export function visibleBalanceTokens(
+	tokens: BalanceToken[],
+	chainFilter: number | null | undefined
+): BalanceToken[] {
+	const filter = chainFilter ?? null;
+	return filter === null ? tokens : tokens.filter((t) => t.chain_id === filter);
+}
+
+/** The pill on A1 / T1 / SD1, about the chain the screen is narrowed to. */
+function livePill(model: { header: FlowHeaderModel }, inputs: FlowsLiveInputs): FlowHeaderModel {
+	const pillAll =
+		inputs.fm?.['componentsUi.networkFilter.pillAll'] ?? inputs.m.networkFilter.pillAll;
+	return { ...model.header, pill: liveNetworkPill(inputs.chainFilter, pillAll, model.header.pill) };
+}
+
 function liveAssets(model: AssetsModel, inputs: FlowsLiveInputs): AssetsModel {
 	const { balance: view, currency, m } = inputs;
-	const rows = view.tokens.map((t) => liveAssetRow(t, currency, m, view.hidden));
-	// Empty only once the core has actually looked (never while unknown/loading).
+	const tokens = visibleBalanceTokens(view.tokens, inputs.chainFilter);
+	const rows = tokens.map((t) => liveAssetRow(t, currency, m, view.hidden));
+	// Empty only once the core has actually looked (never while unknown/loading)
+	// — or when the chosen chain holds nothing while others do (spec 028 Phase
+	// 10: the pill narrows this screen as the sidebar narrows the home).
 	const settledEmpty = rows.length === 0 && !view.balance_unknown && !view.holdings_loading;
-	return { ...model, rows, empty: settledEmpty ? inputs.emptyCopy : undefined };
+	const filteredEmpty = rows.length === 0 && view.tokens.length > 0;
+	return {
+		...model,
+		header: livePill(model, inputs),
+		rows,
+		empty: settledEmpty || filteredEmpty ? inputs.emptyCopy : undefined
+	};
 }
 
 function liveHistory(model: HistoryModel, inputs: FlowsLiveInputs): HistoryModel {
-	const { feed, balance: view, m } = inputs;
-	if (!feed) return { ...model, mode: 'loading', groups: [] };
+	const { balance: view, m } = inputs;
+	const header = livePill(model, inputs);
+	if (!inputs.feed) return { ...model, header, mode: 'loading', groups: [] };
+	// The same narrowing the home applies (`narrowedFeed`), so the pushed
+	// list and the page's row index walk one feed.
+	const feed = narrowedFeed(inputs.feed, inputs.chainFilter ?? null);
 	const groups = liveActivityGroups(feed, m, view.hidden);
 	return {
 		...model,
+		header,
 		mode: groups.length > 0 ? 'rows' : view.balance_unknown ? 'loading' : 'empty',
 		groups
 	};
@@ -324,10 +370,158 @@ function liveShareCard(model: ShareCardModel, inputs: FlowsLiveInputs): ShareCar
 export interface AddTokenLiveInputs {
 	view: MtokView;
 	m: WalletFlowMessages;
+	/**
+	 * Which tab is showing (spec 028 Phase 10). The drawn toggle switched
+	 * nothing until this phase: the ERC-20 half is `manage_tokens`' and the
+	 * native half is `network_admin`'s add-network wizard, driven through the
+	 * app-resident session the settings screen already uses.
+	 */
+	tab?: AddTokenTab;
+	native?: AddNetworkTabInputs;
+}
+
+/** T3b's inputs: what was typed, the wizard's state, and the chain just added. */
+export interface AddNetworkTabInputs {
+	query: string;
+	wizard: NetWizardView;
+	/** The chain this sheet added, so the card can say so and the CTA can rest. */
+	addedChainId: number | null;
+}
+
+/** A chain's mark for the native tab: its logo when the index has one, its coin's letters otherwise. */
+function wizardMark(chainId: number, symbol: string, hasLogo: boolean): TokenMarkModel {
+	return {
+		ticker: symbol,
+		badgeColor: chainColor(chainId),
+		logoUrls: hasLogo ? [chainLogoURL(chainId)] : undefined,
+		badgeHidden: true
+	};
+}
+
+/**
+ * T3b / T5b — adding a network by name or chain ID (spec 028 Phase 10).
+ *
+ * Every state the drawings show is the wizard's phase, worded here: the
+ * index's matches while typing, one card with a neutral chip while the
+ * chain is probed, a verdict once it has answered — and an inconclusive
+ * probe is worded as "unable to verify", never as incompatible (024's
+ * invariant ③, kept where the words are chosen).
+ */
+function liveAddNetworkTab(
+	model: AddTokenModel,
+	m: WalletFlowMessages,
+	native: AddNetworkTabInputs
+): AddTokenModel {
+	const { wizard, query, addedChainId } = native;
+	const info = wizard.chain_info;
+	const facts = (chainId: number, symbol: string): FactRowModel[] => [
+		{ label: m['addToken.labelChainId'], value: String(chainId) },
+		{ label: m['addToken.labelNativeToken'], value: symbol }
+	];
+	const notFound = (): AddTokenModel['result'] => ({
+		kind: 'not-found',
+		text: fill(m['addToken.netPickerEmpty'], { query })
+	});
+	const card = (
+		chip: StatusChipModel,
+		link?: string,
+		chainId = info?.chain_id,
+		name = info?.name,
+		symbol = info?.native_symbol
+	): AddTokenModel['result'] => ({
+		kind: 'network',
+		mark:
+			chainId === undefined
+				? { ticker: symbol ?? '', badgeColor: chainColor(0), badgeHidden: true }
+				: wizardMark(chainId, symbol ?? nativeSymbol(chainId), true),
+		name: name ?? query,
+		chip,
+		link,
+		facts: chainId === undefined ? [] : facts(chainId, symbol ?? nativeSymbol(chainId))
+	});
+
+	let result: AddTokenModel['result'];
+	let canAdd = false;
+	if (addedChainId !== null) {
+		// The network is in the registry now: its own name and coin.
+		result = card(
+			{ text: m['addToken.networkAdded'], tone: 'success' },
+			undefined,
+			addedChainId,
+			chainName(addedChainId),
+			nativeSymbol(addedChainId)
+		);
+	} else if (query.trim() === '') {
+		result = { kind: 'none' };
+	} else if (wizard.phase === 'searching') {
+		result = { kind: 'searching', text: m['addToken.searchingNetworks'] };
+	} else if (wizard.phase === 'idle' || wizard.phase === 'suggested') {
+		result =
+			wizard.suggestions.length === 0
+				? notFound()
+				: {
+						kind: 'suggestions',
+						rows: wizard.suggestions.map((s) => ({
+							id: String(s.chain_id),
+							mark: wizardMark(s.chain_id, s.native_currency_symbol, s.has_logo),
+							name: s.name,
+							meta: `${m['addToken.labelChainId']} ${s.chain_id}`
+						}))
+					};
+	} else if (wizard.phase === 'resolving' || wizard.phase === 'checking') {
+		result = card({ text: m['addToken.searchingNetworks'], tone: 'info' });
+	} else if (wizard.phase === 'error') {
+		const error = wizard.error;
+		if (error === null || error.type === 'not_found') result = notFound();
+		else if (error.type === 'already_added') {
+			result = card(
+				{ text: m['addToken.networkAdded'], tone: 'success' },
+				undefined,
+				error.chain_id,
+				info?.name ?? chainName(error.chain_id),
+				info?.native_symbol ?? nativeSymbol(error.chain_id)
+			);
+		} else {
+			result = card(
+				{ text: m['addToken.notCompatible'], tone: 'error' },
+				`${m['addToken.errorNotCompatible']} · ${m['addToken.deployContracts']}`
+			);
+		}
+	} else {
+		// Checked: the verdict.
+		const compat = wizard.compat;
+		if (compat === null || compat.rpc_failure !== null) {
+			result = card({ text: m['settingsModals.addNetwork.unableToVerify'], tone: 'warning' });
+		} else if (compat.compatible) {
+			result = card({ text: m['addToken.compatible'], tone: 'success' });
+			canAdd = wizard.can_add;
+		} else {
+			result = card(
+				{ text: m['addToken.notCompatible'], tone: 'error' },
+				`${m['addToken.errorNotCompatible']} · ${m['addToken.deployContracts']}`
+			);
+		}
+	}
+
+	return {
+		...model,
+		tab: 'native',
+		network: undefined,
+		fieldLabel: m['addToken.netSearchLabel'],
+		fieldValue: query,
+		fieldPlaceholder: m['addToken.netSearchPlaceholder'],
+		fieldError: undefined,
+		result,
+		cta: m['addToken.addNetworkBtn'],
+		ctaDisabled: !canAdd
+	};
 }
 
 export function liveAddToken(model: AddTokenModel, inputs: AddTokenLiveInputs): AddTokenModel {
 	const { view, m } = inputs;
+	if (inputs.tab === 'native' && inputs.native !== undefined) {
+		return liveAddNetworkTab(model, m, inputs.native);
+	}
 	const first = view.found[0];
 	const typed = view.input_address.trim() !== '';
 	const result: AddTokenModel['result'] = view.detecting

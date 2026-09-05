@@ -117,6 +117,8 @@ export const WALLET_FLOW_KEYS = [
 	// write that failed — both existed in the corpus, neither was on a mock.
 	'addToken.searchingNetworks',
 	'addToken.errorSaveToken',
+	// T3b live: an inconclusive probe is never worded as incompatible (024 invariant ③).
+	'settingsModals.addNetwork.unableToVerify',
 
 	// ------------------------------------------------------------------ send
 	'send.selectTokenTitle',

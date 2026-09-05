@@ -1553,3 +1553,66 @@ the same walk, now wears the found token's own logo by its contract.
   (+1: twelve rows, the tapped chain's title, the PNG download),
   `send-lands.e2e.ts` (Max's `1.4…` fill and a fee figure before Continue,
   inside the existing walk).
+
+## Phase 10 — The founder's third pass (2026-09-05, ten screenshots)
+
+Ten defects reported against `app-web/vela-wallet` after Phase 9, every one
+of them a drawn control that did not do what it said or a rule the pushed
+screens did not share with the home. What changed, by number:
+
+1. **Add-token toggle.** The ERC-20 / native tabs switched nothing. The
+   native half is now `network_admin`'s add-network wizard driven through
+   the app-resident session Settings already uses: type a name or chain ID,
+   the index's matches are listed (`AddTokenResult` gained `suggestions`), a
+   tap probes the chain, the card carries the verdict — and an inconclusive
+   probe says "unable to verify" (`settingsModals.addNetwork.unableToVerify`
+   joined the flow's key list), never "not compatible". The add lands through
+   `add_confirmed`; the ledger's `last_added_chain_id` flips the chip and
+   refreshes the balances. Closing the sheet resets the wizard.
+2. **Share image.** Redrawn to the reference: the identicon clipped to a
+   circle (the clip on a `<g>` in the card's space — on the nested `<svg>`
+   it was read in the artwork's 64-unit space and blanked the centre), the
+   chain's logo fetched and EMBEDDED as a data URI (an SVG-in-`<img>` cannot
+   reach across origins, which is why Phase 9 drew a lettered disc), a white
+   foot with one curve across its top, and the canonical app icon
+   (`design/icon/app-icon.svg`, now `APP_ICON` in brand-mark.ts and
+   `AppIcon.svelte`) beside the wordmark in ink. `ShareCard.svelte` matches.
+3. **Picker chips + network filter.** `visibleSendTokens` narrows the
+   core's list by the sidebar's chain and the class chip (gas = the chain's
+   own coin, stable = the symbol table `activity_feed.rs` mirrors, other =
+   the rest); the picker's indices, `select_token` and `toggle_all`'s
+   `visible_ids` all walk that one list.
+4. **Phone network filter.** The pill on A1 / T1 / SD1 raises a chain sheet
+   (`liveChainRows`, the sidebar's rule) that sets the same `chainFilter`;
+   the pushed assets and history screens now narrow to it as the home does,
+   and the page indexes their taps through the same narrowed lists.
+5. **Fee / Max latency.** Measured at 5–6 s from a complete form. Two
+   halves: the core now warms a transfer-sized quote the moment a token is
+   picked (`select_token` → `warm_estimate_start`, the sweep's own path;
+   the preselected and prefilled `open` paths too), and re-arms the form's
+   payee-aware quote when the warm one lands; the shell calls the
+   `prefetchForSend` the core always said was its (deployment, nonce, gas)
+   on selection. The fee row keeps a figure in hand while a re-quote is out.
+   Probe on the dev server against real relays: fee 5.8 s after the pick
+   (public RPCs answering 429), Max **26 ms** — the wait moved behind typing.
+6. **Split rows.** `RecipientCard` is editable live (address + amount per
+   row, the book's door per row); "+ add recipient" appends a blank row on
+   the split form; "from contacts" appends a row and opens the picker
+   targeted at it (shell-minted `rcpt_s{n}` ids, the core's `picker_target`
+   rule); sweep rows carry the logo triple. Both hosts pass the handlers.
+7. **Two columns.** A door taken while a send is open closes that send
+   (`openSend` used to return early and the picker stayed beside the token's
+   detail); tapping an asset closes whatever flow held the column; the asset
+   panel yields while a flow shows (`selectedToken` masked for the desktop
+   model, kept for the flow's own inputs).
+8–9. **Phone settings.** The 通讯录 and 反馈 rows are dropped on the phone
+   (the tab bar has the book; feedback is not wanted here); the desktop nav
+   keeps its list.
+10. **⌘F badge.** Gone from the live contacts search: nothing listened.
+
+Gates: `svelte-check` 1,429 files / 0 errors; vitest **70 files / 912 →**
+(+7 tests: picker narrowing ×6, share image ×2, one fee-stickiness);
+`cargo test -p vela-core --features i18n-all,crux` all green (`app_send`
+96, six tests taught to settle the warm quote); wasm
+`vela_core_bg.2c025da3bc54.wasm` 3,725,860 B (−54 B). Playwright probe on
+the dev server (parallel space, real relays) walked all ten on both widths.

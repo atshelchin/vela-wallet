@@ -53,6 +53,7 @@ describe('literal audit — product UI references tokens, never raw values', () 
 	 */
 	const LITERAL_WHITELIST = new Set([
 		'BrandMark.svelte',
+		'AppIcon.svelte',
 		// spec 028 Phase 9 (T488): the same brand asset as data, and the receive
 		// share IMAGE — a render product composed as an SVG string with the app's
 		// faces embedded (`@font-face` needs `font-family:`). Its surfaces still

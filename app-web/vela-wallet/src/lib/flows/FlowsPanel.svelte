@@ -63,6 +63,14 @@
 		 */
 		pickContact?(index: number): void;
 		pickGroup?(index: number): void;
+		/**
+		 * The split rows (spec 028 Phase 10): a row typed into, the book opened
+		 * for one row — or for a NEW row when `index` is null — and the
+		 * picker's class chips.
+		 */
+		recipientRowChanged?(index: number, patch: { address?: string; amount?: string }): void;
+		pickContactFor?(index: number | null): void;
+		filterClass?(id: string): void;
 		continueDisabled: boolean;
 		confirmDisabled: boolean;
 	}
@@ -81,7 +89,12 @@
 		onclose?: () => void;
 		onnavigate?: (to: string, index?: number) => void;
 		/** The add-token panel's handlers, when the `manage_tokens` core is live (spec 028). */
-		addToken?: { input(value: string): void; submit(): void };
+		addToken?: {
+			input(value: string): void;
+			submit(): void;
+			tab?(id: string): void;
+			pick?(id: string): void;
+		};
 		send?: SendActions;
 		batch?: BatchActions;
 		/** The open transaction's delete (spec 028 Phase 8). Absent in the gallery. */
@@ -121,10 +134,13 @@
 			model={body.model}
 			oninput={addToken ? (value) => addToken.input(value) : undefined}
 			onsubmit={addToken ? () => addToken.submit() : undefined}
+			ontab={addToken?.tab ? (id) => addToken.tab?.(id) : undefined}
+			onpick={addToken?.pick ? (id) => addToken.pick?.(id) : undefined}
 		/>
 	{:else if body.kind === 'send-pick'}
 		<SendPick
 			model={body.model}
+			onfilter={send?.filterClass ? (id) => send.filterClass?.(id) : undefined}
 			onselect={(i) => (send ? send.selectToken(i) : go('send-form', i))}
 			onselectall={send ? () => send.selectAll() : undefined}
 			oncta={send ? () => send.pickCta() : undefined}
@@ -140,11 +156,17 @@
 				if (id === 'import') {
 					if (send) send.openBatch();
 					else go('batch-import');
-				} else go(id === 'contacts' ? 'contact-pick' : 'add-recipient');
+				} else if (id === 'add' && send) send.addRecipient();
+				else if (id === 'contacts' && send?.pickContactFor) send.pickContactFor(null);
+				else go(id === 'contacts' ? 'contact-pick' : 'add-recipient');
 			}}
 			oncontinue={() => (send ? send.advance() : go('send-confirm'))}
 			onaddRecipient={send ? () => send.addRecipient() : undefined}
 			onremoveRecipient={send ? (i) => send.removeRecipient(i) : undefined}
+			onrecipientRow={send?.recipientRowChanged
+				? (i, patch) => send.recipientRowChanged?.(i, patch)
+				: undefined}
+			onpickRecipientRow={send?.pickContactFor ? (i) => send.pickContactFor?.(i) : undefined}
 			onamount={send ? (value) => send.amountChanged(value) : undefined}
 			onrecipient={send ? (value) => send.recipientChanged(value) : undefined}
 			ctaDisabled={send?.continueDisabled ?? false}

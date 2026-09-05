@@ -309,7 +309,16 @@ export type AddTokenResult =
 			/** T5b's "deploy the missing contracts" link, on the incompatible chip. */
 			link?: string;
 	  }
-	| { kind: 'not-found'; text: string };
+	| { kind: 'not-found'; text: string }
+	/**
+	 * T3b live (spec 028 Phase 10): the chain index's matches for what was
+	 * typed, before one is chosen and probed. The drawn sheet shows one card;
+	 * a registry of two thousand chains needs the list in between.
+	 */
+	| {
+			kind: 'suggestions';
+			rows: { id: string; mark: TokenMarkModel; name: string; meta: string }[];
+	  };
 
 export interface AddTokenModel {
 	title: string;
@@ -355,12 +364,22 @@ export interface SendTokenCardModel {
 
 /** SD2b's recipient card: who, how much, and a way to drop them. */
 export interface RecipientCardModel {
+	/** Live rows only: the core's draft id, so a per-row pick can name its target. */
+	id?: string;
 	ordinal: string;
 	name: string;
 	/** The seed of the artwork — what the identicon viewer shows beside it. */
 	address: string;
 	identiconSvg: string;
 	amount: string;
+	/**
+	 * Live rows only (spec 028 Phase 10): the figure as typed, in token units,
+	 * for the editable card. `amount` above stays the worded "5 USDT".
+	 */
+	amountValue?: string;
+	/** Live rows only: the field names the editable card announces. */
+	addressLabel?: string;
+	pickLabel?: string;
 	removeLabel: string;
 }
 

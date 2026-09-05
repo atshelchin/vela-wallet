@@ -360,8 +360,9 @@ export function buildContactsDesktopLive(
 		title: m.title,
 		search: {
 			placeholder: m.searchPlaceholder,
-			query: ui.query === '' ? undefined : ui.query,
-			shortcut: '⌘F'
+			query: ui.query === '' ? undefined : ui.query
+			// No ⌘F badge live (founder, 2026-09-05): nothing listens for the
+			// chord, and a key cap that promises one is a control that lies.
 		},
 		addLabel: m.addContact,
 		menuLabel: m.manage,

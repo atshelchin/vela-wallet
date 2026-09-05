@@ -16,6 +16,7 @@ import type { FeeEstimateView } from '$lib/core/generated/FeeEstimateView';
 import type { FeeView } from '$lib/core/generated/FeeView';
 import type { SendToken } from '$lib/core/generated/SendToken';
 import type { SendView } from '$lib/core/generated/SendView';
+import { isStable } from '$lib/services/activity';
 import { chainName, nativeSymbol } from '$lib/services/networks';
 import { chainColor } from '$lib/wallet/fixtures';
 import type { WalletIdentity } from '$lib/wallet/identity';
@@ -27,6 +28,7 @@ import { chainMark, tokenMarkFor } from './marks';
 import type {
 	FactRowModel,
 	FeeRowModel,
+	FlowHeaderModel,
 	FeeTokenPickModel,
 	SendConfirmModel,
 	SendFormModel,
@@ -52,6 +54,72 @@ export interface SendLiveInputs {
 	 * are the core's; whether the checkboxes are showing is the screen's.
 	 */
 	sweepPicking?: boolean;
+	/**
+	 * The picker's two narrowings (spec 028 Phase 10): the sidebar's network
+	 * filter (the phone's pill), and the token-class chips 021 drew and
+	 * nothing wired. Shell render state, like the home's `chainFilter`: which
+	 * rows are on screen is the screen's; what a tap on a row means stays the
+	 * core's. Every index the picker emits is into `visibleSendTokens`.
+	 */
+	chainFilter?: number | null;
+	classFilter?: SendClassFilter;
+}
+
+/** SD1's chips: all, the stables, the chains' own coins, the rest. */
+export type SendClassFilter = 'all' | 'stable' | 'gas' | 'other';
+export const SEND_CLASS_FILTERS: readonly SendClassFilter[] = ['all', 'stable', 'gas', 'other'];
+
+/**
+ * Which chip a token answers to. A chain's native coin is what pays its gas;
+ * a stable is one by the symbol table `activity_feed.rs` mirrors; everything
+ * else is "other". One rule, so the chip and the row can never disagree.
+ */
+export function sendTokenClass(token: SendToken): Exclude<SendClassFilter, 'all'> {
+	if (token.token_address === null) return 'gas';
+	if (isStable(token.symbol)) return 'stable';
+	return 'other';
+}
+
+/** The picker's rows after both narrowings, in the core's order. */
+export function visibleSendTokens(
+	send: SendView,
+	filters: { chainFilter?: number | null; classFilter?: SendClassFilter }
+): SendToken[] {
+	const chain = filters.chainFilter ?? null;
+	const cls = filters.classFilter ?? 'all';
+	return send.tokens.filter(
+		(token) =>
+			(chain === null || token.chain_id === chain) &&
+			(cls === 'all' || sendTokenClass(token) === cls)
+	);
+}
+
+/**
+ * The header pill, live: the drawn cluster of dots and "all networks" until
+ * a chain is chosen, then that chain's own dot and name. Only screens the
+ * drawings gave a pill to get one — the template says which.
+ */
+export function liveNetworkPill(
+	chainFilter: number | null | undefined,
+	pillAll: string,
+	template: FlowHeaderModel['pill']
+): FlowHeaderModel['pill'] {
+	if (template === undefined) return undefined;
+	if (chainFilter === null || chainFilter === undefined) return { ...template, label: pillAll };
+	return { dots: [chainColor(chainFilter)], label: chainName(chainFilter) };
+}
+
+/**
+ * Ids for recipient rows the SHELL adds (a blank row, a row a contact is
+ * picked into). The `s` marks the minter: the core seeds its own rows from a
+ * `rcpt_{n}` counter this module cannot see, and two counters sharing one
+ * namespace would eventually hand two rows the same id — a duplicate key,
+ * and a picker that fills both. Ids are opaque everywhere they are read.
+ */
+let recipientSeq = 0;
+export function makeRecipientId(): string {
+	recipientSeq += 1;
+	return `rcpt_s${recipientSeq}`;
 }
 
 /**
@@ -125,7 +193,11 @@ function feeRow(inputs: SendLiveInputs, template: FeeRowModel): FeeRowModel {
 			symbol,
 			quote?.fee_asset.type === 'erc20' ? quote.fee_asset.token : null
 		),
-		value: send.fee_busy || fee.busy ? '…' : feeText(quote),
+		// A figure in hand stays on screen while a re-quote is out (spec 028
+		// Phase 10): the warm quote lands before the form is complete, and the
+		// payee-aware re-ask must not blank the row it just filled. "…" is for
+		// the frame where there is nothing to show yet.
+		value: quote ? feeText(quote) : send.fee_busy || fee.busy ? '…' : '—',
 		openLabel: template.openLabel
 	};
 }
@@ -145,11 +217,31 @@ function feeRow(inputs: SendLiveInputs, template: FeeRowModel): FeeRowModel {
  */
 export function liveSendPick(model: SendPickModel, inputs: SendLiveInputs): SendPickModel {
 	const { send, currency, m } = inputs;
-	const rows = send.tokens.map((token) => tokenRow(token, currency));
+	const visible = visibleSendTokens(send, inputs);
+	const rows = visible.map((token) => tokenRow(token, currency));
+	const classFilter = inputs.classFilter ?? 'all';
+	const filters = SEND_CLASS_FILTERS.map((id) => ({
+		id,
+		label:
+			id === 'all'
+				? m['history.filterAll']
+				: id === 'stable'
+					? m['send.filterStable']
+					: id === 'gas'
+						? m['send.filterGas']
+						: m['send.filterOther'],
+		selected: id === classFilter
+	}));
+	const pill = liveNetworkPill(
+		inputs.chainFilter,
+		m['componentsUi.networkFilter.pillAll'],
+		model.header.pill
+	);
 	if (!inputs.sweepPicking) {
 		return {
 			...model,
-			header: { ...model.header, title: m['send.selectTokenTitle'] },
+			header: { ...model.header, title: m['send.selectTokenTitle'], pill },
+			filters,
 			notice: undefined,
 			selection: undefined,
 			rows,
@@ -161,7 +253,8 @@ export function liveSendPick(model: SendPickModel, inputs: SendLiveInputs): Send
 	const count = picked.length;
 	return {
 		...model,
-		header: { ...model.header, title: m['send.multiSendTitle'] },
+		header: { ...model.header, title: m['send.multiSendTitle'], pill },
+		filters,
 		notice:
 			chain === null
 				? undefined
@@ -171,8 +264,8 @@ export function liveSendPick(model: SendPickModel, inputs: SendLiveInputs): Send
 					},
 		rows,
 		selection: {
-			selected: send.tokens.map((token) => picked.includes(sendTokenId(token))),
-			dimmed: send.tokens.map((token) => chain !== null && token.chain_id !== chain),
+			selected: visible.map((token) => picked.includes(sendTokenId(token))),
+			dimmed: visible.map((token) => chain !== null && token.chain_id !== chain),
 			selectAll: m['send.selectAllValuable']
 		},
 		cta:
@@ -287,11 +380,15 @@ export function liveSendForm(model: SendFormModel, inputs: SendLiveInputs): Send
 		addRecipient: split ? undefined : m['send.addRecipient'],
 		recipients: split
 			? send.recipients.map((draft, index) => ({
+					id: draft.id,
 					ordinal: fill(m['send.recipientN'], { n: index + 1 }),
 					name: draft.name ?? shortenAddress(draft.address),
 					address: draft.address,
-					identiconSvg: identicon(draft.address),
+					identiconSvg: draft.address ? identicon(draft.address) : '',
 					amount: `${draft.amount} ${token?.symbol ?? ''}`.trim(),
+					amountValue: draft.amount,
+					addressLabel: m['send.recipientLabel'],
+					pickLabel: m['send.recipientPickAria'],
 					removeLabel: m['send.removeRecipient']
 				}))
 			: undefined,

@@ -30,6 +30,7 @@
 	import AccountSwitcher from '$lib/session/ui/AccountSwitcher.svelte';
 	import IdenticonViewerHost from '$lib/wallet/ui/IdenticonViewerHost.svelte';
 	import BottomSheet from '$lib/wallet/ui/BottomSheet.svelte';
+	import ChainFilterList from '$lib/wallet/ui/ChainFilterList.svelte';
 	import Dialog from '$lib/settings/ui/Dialog.svelte';
 	import RpcFixBody from '$lib/settings/ui/RpcFixBody.svelte';
 	import BalanceDetailBody from '$lib/settings/ui/BalanceDetailBody.svelte';
@@ -44,10 +45,10 @@
 	import { readFlowHandoff } from '$lib/flows/contact-handoff';
 	import { preferences } from '$lib/services/preferences.svelte';
 	import { publishExtSnapshot } from '$lib/dapp/core/ext-cache';
-	import { inExtension } from '$lib/dapp/transport';
 	import { publishExtChains } from '$lib/dapp/core/ext-chains';
 	import { followActiveAccount } from '$lib/dapp/follow';
 	import { subscribeNetworks } from '$lib/services/networks';
+	import { inExtension } from '$lib/dapp/transport';
 	import { avatarSvgForClient } from '$lib/wallet/identicon';
 	import { desktopWithIdentity, homeWithIdentity, type WalletIdentity } from '$lib/wallet/identity';
 	import FlowsMobile from '$lib/flows/FlowsMobile.svelte';
@@ -63,7 +64,12 @@
 	import { loadCore } from '$lib/core/client';
 	import { currency } from '$lib/settings/core/currency.svelte';
 	import { withLiveWallet, withLiveWalletDesktop } from '$lib/wallet/live';
-	import { receiveNetworks, withLiveDesktopFlow, withLiveFlow } from '$lib/flows/live';
+	import {
+		receiveNetworks,
+		visibleBalanceTokens,
+		withLiveDesktopFlow,
+		withLiveFlow
+	} from '$lib/flows/live';
 	import { createSendSession, type SendSession } from '$lib/flows/core/send-session';
 	import { createBatchImportSession, type BatchImportSession } from '$lib/flows/core/batch-session';
 	import {
@@ -72,7 +78,13 @@
 	} from '$lib/wallet/core/manage-tokens-session';
 	import type { MtokView } from '$lib/core/generated/MtokView';
 	import { getAllNetworksSync, networkId } from '$lib/services/networks';
-	import { sendTokenId } from '$lib/flows/live-send';
+	import {
+		makeRecipientId,
+		sendTokenId,
+		visibleSendTokens,
+		type SendClassFilter
+	} from '$lib/flows/live-send';
+	import { prefetchForSend } from '$lib/services/safe-transaction';
 	import type { BatchView } from '$lib/core/generated/BatchView';
 	import { FeeQuote, IDLE_FEE_VIEW } from '$lib/flows/core/fee-quote.svelte';
 	import { scanner, scanNotice } from '$lib/flows/core/scanner.svelte';
@@ -86,7 +98,7 @@
 
 	import { WEB_DESTINATIONS, webNavItems } from '$lib/wallet/destinations';
 	import { chainFilter } from '$lib/wallet/chain-filter.svelte';
-	import { balanceTokenId } from '$lib/wallet/live';
+	import { balanceTokenId, liveChainRows, narrowedFeed } from '$lib/wallet/live';
 	import {
 		feedItemAt,
 		findFeedItem,
@@ -197,6 +209,20 @@
 	 * moves) is the core's.
 	 */
 	let sweepPicking = $state(false);
+	/**
+	 * SD1's class chips (spec 028 Phase 10) — shell render state like the
+	 * sidebar's chain filter. Both narrow the SAME list the picker's indices
+	 * point into (`visibleSendTokens`), so a tap names the row that was tapped.
+	 */
+	let sendClassFilter = $state<SendClassFilter>('all');
+	const sendVisible = $derived(
+		sendView === null
+			? []
+			: visibleSendTokens(sendView, {
+					chainFilter: chainFilter.chainId,
+					classFilter: sendClassFilter
+				})
+	);
 
 	// --- The batch importer (spec 026 US3) ------------------------------------
 	//
@@ -279,11 +305,25 @@
 	// learns to look again.
 	let addTokenView = $state<MtokView | null>(null);
 	let manageTokens: ManageTokensSession | null = null;
+	/**
+	 * T3's two tabs (spec 028 Phase 10). The drawn toggle switched nothing:
+	 * the ERC-20 half is `manage_tokens`' and the native half — a network by
+	 * name or chain ID — is `network_admin`'s add-network wizard, the same
+	 * app-resident session the settings screen drives. The query, the tab and
+	 * the chain this sheet added are the sheet's own.
+	 */
+	let addTokenTab = $state<'erc20' | 'native'>('erc20');
+	let netQuery = $state('');
+	let netAddedChainId = $state<number | null>(null);
+	/** The chain whose add was confirmed here, until the ledger says it landed. */
+	let netPendingAdd = $state<number | null>(null);
 
 	async function openAddToken(): Promise<void> {
 		if (manageTokens) return;
 		await loadCore();
 		if (manageTokens) return;
+		// The wizard is ready the moment the native tab is chosen.
+		void networkAdmin.boot();
 		manageTokens = createManageTokensSession({
 			account: () => identity?.address ?? '',
 			onInvalidated: () => balance.refresh(true),
@@ -297,7 +337,25 @@
 		manageTokens?.dispose();
 		manageTokens = null;
 		addTokenView = null;
+		if (addTokenTab === 'native' || netQuery !== '') {
+			networkAdmin.dispatch({ type: 'wizard_reset' });
+		}
+		addTokenTab = 'erc20';
+		netQuery = '';
+		netAddedChainId = null;
+		netPendingAdd = null;
 	}
+
+	// The ledger answers the add: the chain is in the registry, the card says
+	// so, and the balances go and look at it.
+	$effect(() => {
+		const pending = netPendingAdd;
+		const landed = networkAdmin.view.last_added_chain_id;
+		if (pending === null || landed !== pending) return;
+		netPendingAdd = null;
+		netAddedChainId = pending;
+		balance.refresh(true);
+	});
 
 	/**
 	 * The registry as the core's `u32` can carry it — wire representability,
@@ -315,13 +373,44 @@
 			? undefined
 			: {
 					input: (value: string) => {
+						if (addTokenTab === 'native') {
+							netQuery = value;
+							netAddedChainId = null;
+							networkAdmin.dispatch({ type: 'search_input', query: value });
+							return;
+						}
 						manageTokens?.dispatch({ type: 'address_input', s: value });
 					},
 					submit: () => {
+						if (addTokenTab === 'native') {
+							const candidate = networkAdmin.view.wizard.chain_info?.chain_id ?? null;
+							if (candidate === null || !networkAdmin.view.wizard.can_add) return;
+							netPendingAdd = candidate;
+							// A timestamp, not a clock: the record carries when it was added.
+							const nowIso = new Date().toISOString();
+							networkAdmin.dispatch({ type: 'add_confirmed', now_iso: nowIso });
+							return;
+						}
 						const first = addTokenView?.found[0];
 						if (first && !first.added) {
 							manageTokens?.dispatch({ type: 'save_requested', chain_id: first.chain_id });
 						}
+					},
+					tab: (id: string) => {
+						const next = id === 'native' ? 'native' : 'erc20';
+						if (next === addTokenTab) return;
+						addTokenTab = next;
+						if (next === 'native') void networkAdmin.boot();
+						else if (netQuery !== '') networkAdmin.dispatch({ type: 'wizard_reset' });
+					},
+					pick: (id: string) => {
+						const chainId = Number(id);
+						if (!Number.isInteger(chainId)) return;
+						networkAdmin.dispatch({
+							type: 'chain_selected',
+							chain_id: chainId,
+							keep_custom_rpc: false
+						});
 					}
 				}
 	);
@@ -338,7 +427,18 @@
 	});
 
 	const addTokenInputs = $derived(
-		addTokenView ? { view: addTokenView, m: data.flowMessages } : undefined
+		addTokenView
+			? {
+					view: addTokenView,
+					m: data.flowMessages,
+					tab: addTokenTab,
+					native: {
+						query: netQuery,
+						wizard: networkAdmin.view.wizard,
+						addedChainId: netAddedChainId
+					}
+				}
+			: undefined
 	);
 
 	// --- The address book beside a send (spec 028 US5) -----------------------
@@ -454,9 +554,28 @@
 		sendView = null;
 		feeSheetOpen = false;
 		sweepPicking = false;
+		sendClassFilter = 'all';
 		feeQuote.dispose();
 		nav.close();
 	}
+
+	/**
+	 * The shell's half of the warm-up (spec 028 Phase 10): the core asks for
+	 * a transfer-sized quote the moment a token is picked; this warms the RPC
+	 * reads that quote needs — deployment, nonce, gas — so the pipeline's
+	 * first waves answer from cache. The core says this is the shell's
+	 * (`prefetchForSend`, send-executor.ts), and until now nothing called it.
+	 */
+	let prefetched = '';
+	$effect(() => {
+		const token = sendView?.selected_token;
+		const address = identity?.address;
+		if (!token || address === undefined) return;
+		const key = `${address}:${token.chain_id}`;
+		if (key === prefetched) return;
+		prefetched = key;
+		prefetchForSend(address, token.chain_id);
+	});
 
 	/** The screen the core's stage names. The nav stack is not consulted here. */
 	const sendState = $derived.by(() => {
@@ -492,7 +611,8 @@
 			? undefined
 			: {
 					selectToken: (index: number) => {
-						const token = sendView?.tokens[index];
+						// The picker's index is into what it is SHOWING (Phase 10).
+						const token = sendVisible[index];
 						if (!token) return;
 						if (!sweepPicking) {
 							sendSession?.dispatch({ type: 'select_token', token_id: sendTokenId(token) });
@@ -513,8 +633,12 @@
 						// valuable inside that scope stays the core's.
 						sendSession?.dispatch({
 							type: 'toggle_all_multi_tokens',
-							visible_ids: (sendView?.tokens ?? []).map(sendTokenId)
+							visible_ids: sendVisible.map(sendTokenId)
 						});
+					},
+					filterClass: (id: string) => {
+						sendClassFilter =
+							id === 'stable' || id === 'gas' || id === 'other' ? id : ('all' as const);
 					},
 					pickCta: () => {
 						if (!sweepPicking) {
@@ -534,7 +658,39 @@
 					recipientChanged: (value: string) =>
 						sendSession?.dispatch({ type: 'set_recipient', recipient: value }),
 					advance: () => sendSession?.dispatch({ type: 'continue' }),
-					addRecipient: () => sendSession?.dispatch({ type: 'enter_split_mode' }),
+					// "+ add recipient" turns one into many (the core's transition); on
+					// the split form the same words add a blank row (Phase 10).
+					addRecipient: () => {
+						if (!sendView?.split_mode) {
+							sendSession?.dispatch({ type: 'enter_split_mode' });
+							return;
+						}
+						sendSession?.dispatch({
+							type: 'recipients_changed',
+							recipients: [...(sendView?.recipients ?? []), blankRecipient()]
+						});
+					},
+					recipientRowChanged: (index: number, patch: { address?: string; amount?: string }) => {
+						const rows = (sendView?.recipients ?? []).map((row, i) =>
+							i === index ? { ...row, ...patch } : row
+						);
+						sendSession?.dispatch({ type: 'recipients_changed', recipients: rows });
+					},
+					// The book, for one row — or for a new one appended for it. The
+					// core's `picker_target` puts the pick where it was asked for.
+					pickContactFor: (index: number | null) => {
+						const rows = sendView?.recipients ?? [];
+						let target = index === null ? undefined : rows[index]?.id;
+						if (target === undefined) {
+							const row = blankRecipient();
+							target = row.id;
+							sendSession?.dispatch({
+								type: 'recipients_changed',
+								recipients: [...rows, row]
+							});
+						}
+						sendSession?.dispatch({ type: 'open_contact_picker', target });
+					},
 					pickContact: (index: number) => {
 						const contact = contactsView?.contacts[index];
 						if (contact)
@@ -574,6 +730,11 @@
 				}
 	);
 
+	/** A row the shell adds: its own id, nothing in it yet. */
+	function blankRecipient() {
+		return { id: makeRecipientId(), address: '', amount: '', name: null };
+	}
+
 	// An emptied selection unpins the chain (see `selectToken`). The core keeps
 	// `multi_chain_id` until told otherwise, and a picker locked to a chain with
 	// nothing ticked would grey every other row for no reason a person can see.
@@ -595,7 +756,9 @@
 					currency: currency.view,
 					identity,
 					identicon: avatarSvgForClient,
-					sweepPicking
+					sweepPicking,
+					chainFilter: chainFilter.chainId,
+					classFilter: sendClassFilter
 				}
 			: undefined
 	);
@@ -796,6 +959,37 @@
 		});
 	});
 
+	/**
+	 * The network catalog the worker answers reads and chain switches from —
+	 * built-in chains plus the custom networks a person added. Published once
+	 * the wallet is up, and again whenever the network list changes.
+	 */
+	onMount(() => {
+		if (!inExtension()) return;
+		void publishExtChains();
+		return subscribeNetworks(() => void publishExtChains());
+	});
+
+	/**
+	 * A connected site follows the active account (spec 027 T350's rule,
+	 * performed). The FIRST address the session settles on is a boot, not a
+	 * switch: only a change from one known address to another asks the core to
+	 * re-pin the grants, and the worker announces each re-pinned grant to the
+	 * site's tabs as `accountsChanged`.
+	 */
+	let followedAddress: string | null = null;
+	$effect(() => {
+		const view = session.view;
+		if (view.loading || !inExtension() || !view.address) return;
+		const previous = followedAddress;
+		followedAddress = view.address;
+		if (previous === null || previous.toLowerCase() === view.address.toLowerCase()) return;
+		void followActiveAccount({
+			activeAddress: view.address,
+			addresses: view.accounts.map((row) => row.account.address)
+		});
+	});
+
 	// The account the balances belong to. `account_changed` is also the
 	// hydrate: the core reads its cache and fetches for whoever is signed in.
 	$effect(() => {
@@ -890,7 +1084,14 @@
 	const liveDesktop = $derived(
 		identity === null
 			? data.desktop
-			: withLiveWalletDesktop(webNav(desktopWithIdentity(data.desktop, identity)), liveInputs)
+			: withLiveWalletDesktop(webNav(desktopWithIdentity(data.desktop, identity)), {
+					...liveInputs,
+					// Two things cannot occupy one column (founder, 2026-09-05: the
+					// token's detail and the picker were drawn side by side). While a
+					// flow holds the column the asset panel stays closed; the flow
+					// itself still reads `selectedToken` through `flowInputs`.
+					selectedToken: desktopFlow === undefined ? liveInputs.selectedToken : undefined
+				})
 	);
 
 	/** The pushed assets screen shows the same holdings as the home (D10). */
@@ -959,37 +1160,6 @@
 		handedOff = true;
 		if (handoff === null) return;
 		void goto(resolve('/[locale]/wallet', { locale: data.locale }), { replaceState: true });
-	/**
-	 * The network catalog the worker answers reads and chain switches from —
-	 * built-in chains plus the custom networks a person added. Published once
-	 * the wallet is up, and again whenever the network list changes.
-	 */
-	onMount(() => {
-		if (!inExtension()) return;
-		void publishExtChains();
-		return subscribeNetworks(() => void publishExtChains());
-	});
-
-	/**
-	 * A connected site follows the active account (spec 027 T350's rule,
-	 * performed). The FIRST address the session settles on is a boot, not a
-	 * switch: only a change from one known address to another asks the core to
-	 * re-pin the grants, and the worker announces each re-pinned grant to the
-	 * site's tabs as `accountsChanged`.
-	 */
-	let followedAddress: string | null = null;
-	$effect(() => {
-		const view = session.view;
-		if (view.loading || !inExtension() || !view.address) return;
-		const previous = followedAddress;
-		followedAddress = view.address;
-		if (previous === null || previous.toLowerCase() === view.address.toLowerCase()) return;
-		void followActiveAccount({
-			activeAddress: view.address,
-			addresses: view.accounts.map((row) => row.account.address)
-		});
-	});
-
 		if (handoff.kind === 'receive') {
 			nav.enter('receive');
 			return;
@@ -1026,7 +1196,8 @@
 		else if (to === 'receive-qr')
 			selectedReceiveChainId = receiveNetworks()[index]?.chainId ?? null;
 		else if (to === 'token-detail') {
-			const token = balance.view.tokens[index];
+			// The assets screen lists the filtered holdings (Phase 10): same list.
+			const token = visibleBalanceTokens(balance.view.tokens, chainFilter.chainId)[index];
 			selectedAssetId = token === undefined ? null : balanceTokenId(token);
 		}
 	}
@@ -1038,6 +1209,11 @@
 	 * own code — no picker in between, the token already names its chain.
 	 */
 	function enter(entry: FlowEntry, detail?: { assetId?: string }) {
+		// A door taken while a send is open leaves that send (Phase 10): a
+		// picker already up used to swallow a token's own 转账 — `openSend`
+		// returned early — and stay beside the token's detail.
+		if (sendSession) closeSend();
+		if (manageTokens && entry !== 'add-token') closeAddToken();
 		// One column: a flow opening closes the asset detail (and vice versa) —
 		// except the token screen and the token's code, which ARE the asset.
 		if (entry !== 'token-detail' && entry !== 'receive-token') selectedAssetId = null;
@@ -1072,8 +1248,21 @@
 	 * own convention); the feed is walked the way the groups were built.
 	 */
 	function selectTxAt(index: number) {
-		selectedTxId = feedItemAt(feed.view, Math.floor(index / 100), index % 100)?.id ?? null;
+		// The history screen lists the narrowed feed (Phase 10): same feed.
+		const shown = feed.view ? narrowedFeed(feed.view, chainFilter.chainId) : feed.view;
+		selectedTxId = feedItemAt(shown, Math.floor(index / 100), index % 100)?.id ?? null;
 	}
+
+	/**
+	 * The phone's network filter (spec 028 Phase 10): the pill on A1 / T1 /
+	 * SD1 raises this sheet, and a row sets the same `chainFilter` the
+	 * desktop's sidebar does — the home, the pushed lists and the picker all
+	 * narrow to it. Shell state, as the sidebar's is.
+	 */
+	let chainSheetOpen = $state(false);
+	const chainRows = $derived(
+		liveChainRows(balance.view, data.walletMessages.networkFilter.allNetworks, chainFilter.chainId)
+	);
 
 	/**
 	 * The open transaction's delete (spec 028 Phase 8). The feed tombstones the
@@ -1235,6 +1424,9 @@
 				onstatus={openRescue}
 				onchainselect={(row) => chainFilter.select(row.chainId ?? null)}
 				onasset={(row) => {
+					// The column is the asset's now: whatever flow held it closes.
+					if (sendSession) closeSend();
+					closeAddToken();
 					nav.close();
 					selectedAssetId = row.id ?? null;
 				}}
@@ -1363,6 +1555,7 @@
 					scan={{ feed: scanFeed, notice: scanCopy, tool: scanTool }}
 					addToken={addTokenActions}
 					ondeletetx={deleteSelectedTx}
+					onchains={() => (chainSheetOpen = true)}
 				/>
 			{:else}
 				<WalletHome
@@ -1376,6 +1569,21 @@
 					onactivity={(row) => (selectedTxId = row.id ?? null)}
 					onasset={(row) => (selectedAssetId = row.id ?? null)}
 				/>
+			{/if}
+			{#if chainSheetOpen}
+				<BottomSheet
+					title={data.walletMessages.networkFilter.sheetTitle}
+					closeLabel={data.walletMessages.identiconViewer.close}
+					onclose={() => (chainSheetOpen = false)}
+				>
+					<ChainFilterList
+						rows={chainRows}
+						onselect={(row) => {
+							chainFilter.select(row.chainId ?? null);
+							chainSheetOpen = false;
+						}}
+					/>
+				</BottomSheet>
 			{/if}
 		</main>
 	{/if}
@@ -1450,6 +1658,7 @@
 	   scrolled away with it (founder, 2026-09-05). The contacts route frames
 	   its phone the same way. */
 	.page {
+		position: relative;
 		height: 100dvh;
 		display: flex;
 		flex-direction: column;

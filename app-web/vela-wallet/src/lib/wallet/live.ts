@@ -23,6 +23,11 @@ import type { FeedItem } from '$lib/core/generated/FeedItem';
 import type { FeedView } from '$lib/core/generated/FeedView';
 import { formatDate, groupDigits, numberSeparators } from '$lib/services/locale-format';
 import { chainName } from '$lib/services/networks';
+import {
+	balanceTokenBadgeChainId,
+	balanceTokenLogoURLs,
+	chainLogoURL
+} from '$lib/services/tokens-model';
 import { shortenAddress } from './identity';
 import { fill } from './messages';
 import { currencyGlyph } from '$lib/settings/fixtures';
@@ -31,8 +36,10 @@ import type { WalletMessages } from './messages';
 import type {
 	ActivityGroupModel,
 	ActivityRowModel,
+	AssetDetailPanelModel,
 	AssetRowModel,
 	BalanceModel,
+	ChainRowModel,
 	SectionModel,
 	WalletDesktopModel,
 	WalletHomeModel
@@ -44,6 +51,73 @@ export interface WalletLiveInputs {
 	m: WalletMessages;
 	/** The feed, once Phase 4 boots it; `null` keeps the section a skeleton. */
 	feed?: FeedView | null;
+	/** The sidebar's network filter: one chain, or `null` for every network. */
+	chainFilter?: number | null;
+	/**
+	 * The held token whose detail the third column shows (spec 015's D3
+	 * panel, live). Absent, the column is closed — or the flow host's.
+	 */
+	selectedToken?: BalanceToken;
+}
+
+/** A held token's key — chain, contract (or `native`), symbol — for a tap to name. */
+export function balanceTokenId(token: BalanceToken): string {
+	return `${token.chain_id}:${token.token_address ?? 'native'}:${token.symbol}`;
+}
+
+// ---------------------------------------------------------------------------
+// The network filter
+// ---------------------------------------------------------------------------
+
+/**
+ * The sidebar's network rows, from what is actually held: 全部 first, then one
+ * row per chain with a holding, counted in tokens — the numbers the drawn
+ * board shows for its fixture wallet, made true for this one. `selected`
+ * follows the filter.
+ */
+export function liveChainRows(
+	view: BalanceView,
+	allNetworksLabel: string,
+	filter: number | null
+): ChainRowModel[] {
+	const counts = new Map<number, number>();
+	for (const token of view.tokens)
+		counts.set(token.chain_id, (counts.get(token.chain_id) ?? 0) + 1);
+	return [
+		{
+			name: allNetworksLabel,
+			dot: 'all',
+			count: view.tokens.length,
+			selected: filter === null,
+			chainId: null
+		},
+		...[...counts.entries()].map(([chainId, count]) => ({
+			name: chainName(chainId),
+			dot: chainColor(chainId),
+			logoUrl: chainLogoURL(chainId),
+			count,
+			selected: filter === chainId,
+			chainId
+		}))
+	];
+}
+
+/**
+ * The feed narrowed to one chain — the phone app's `filterFeedRowsByChain`.
+ * A day header whose items all fell away goes with them, or the list would
+ * show dates with nothing under them.
+ */
+function narrowedFeed(feed: FeedView, filter: number | null): FeedView {
+	if (filter === null) return feed;
+	const kept = feed.rows.filter((row) => row.type === 'header' || row.item.chain_id === filter);
+	return {
+		...feed,
+		rows: kept.filter((row, i) => {
+			if (row.type !== 'header') return true;
+			const next = kept[i + 1];
+			return next !== undefined && next.type !== 'header';
+		})
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +248,7 @@ export function liveAssetRow(
 	m: WalletMessages,
 	hidden: boolean
 ): AssetRowModel {
+	const badgeChain = balanceTokenBadgeChainId(token);
 	const fiat: AssetRowModel['fiat'] = hidden
 		? { kind: 'masked' }
 		: token.price_usd === null
@@ -183,9 +258,13 @@ export function liveAssetRow(
 					text: moneyText((parseFloat(token.balance) || 0) * token.price_usd, currency)
 				};
 	return {
+		id: balanceTokenId(token),
 		ticker: token.symbol,
 		chain: chainName(token.chain_id),
 		badgeColor: chainColor(token.chain_id),
+		logoUrls: balanceTokenLogoURLs(token),
+		badgeLogoUrl: badgeChain === null ? undefined : chainLogoURL(badgeChain),
+		badgeHidden: badgeChain === null,
 		balance: hidden ? MASK : trimBalance(token.balance),
 		fiat,
 		masked: hidden
@@ -240,6 +319,7 @@ export function liveActivityRow(
 			? String(item.batch?.count ?? '')
 			: `${received ? '+' : '-'}${trimBalance(item.value)}`;
 	return {
+		id: item.id,
 		kind,
 		title:
 			kind === 'received'
@@ -252,7 +332,8 @@ export function liveActivityRow(
 		unit: item.symbol,
 		positive: received,
 		masked: hidden,
-		badgeColor: chainColor(item.chain_id)
+		badgeColor: chainColor(item.chain_id),
+		badgeLogoUrl: chainLogoURL(item.chain_id)
 	};
 }
 
@@ -289,34 +370,139 @@ function activityMode(view: BalanceView, feed: FeedView | null | undefined): Sec
 }
 
 // ---------------------------------------------------------------------------
-// Overlays
+// The asset-detail column (spec 015 D3, live)
 // ---------------------------------------------------------------------------
 
-/** Live balance + holdings over an identity-filled home model. */
-export function withLiveWallet(model: WalletHomeModel, inputs: WalletLiveInputs): WalletHomeModel {
+/**
+ * One held token in the third column: what the drawn D3 panel shows for its
+ * fixture BNB, for whichever row was tapped. The transactions under it are
+ * the feed's rows for this token on this chain — the same rows the home
+ * lists, narrowed the way the phone's token screen narrows them.
+ */
+export function liveAssetDetail(
+	token: BalanceToken,
+	inputs: WalletLiveInputs,
+	drawn: AssetDetailPanelModel
+): AssetDetailPanelModel {
 	const { balance: view, currency, m } = inputs;
+	const hidden = view.hidden;
+	const badgeChain = balanceTokenBadgeChainId(token);
+	const held = parseFloat(token.balance) || 0;
+	const fiat =
+		hidden || token.price_usd === null ? undefined : moneyText(held * token.price_usd, currency);
+	const rows = (inputs.feed?.rows ?? [])
+		.flatMap((row) => (row.type === 'item' ? [row.item] : []))
+		.filter((item) => item.chain_id === token.chain_id && item.symbol === token.symbol)
+		.map((item) => liveActivityRow(item, m, hidden));
 	return {
-		...model,
-		balance: liveBalance(view, currency, m),
-		assetsSection: { ...model.assetsSection, mode: assetsMode(view) },
-		assetRows: view.tokens.map((t) => liveAssetRow(t, currency, m, view.hidden)),
-		activitySection: { ...model.activitySection, mode: activityMode(view, inputs.feed) },
-		activityGroups: inputs.feed ? liveActivityGroups(inputs.feed, m, view.hidden) : []
+		...drawn,
+		title: token.symbol,
+		token: {
+			ticker: token.symbol,
+			badgeColor: chainColor(token.chain_id),
+			balance: hidden ? MASK : `${trimBalance(token.balance)} ${token.symbol}`,
+			fiatLine: [fiat, chainName(token.chain_id)].filter((part) => part !== undefined).join(' · '),
+			logoUrls: balanceTokenLogoURLs(token),
+			badgeLogoUrl: badgeChain === null ? undefined : chainLogoURL(badgeChain),
+			badgeHidden: badgeChain === null
+		},
+		facts: [
+			{ label: m.assetDetail.labelName, value: token.name },
+			{
+				label: m.assetDetail.labelPrice,
+				value:
+					token.price_usd === null
+						? m.balance.noPrice
+						: fill(m.assetDetail.priceValue, {
+								symbol: token.symbol,
+								value: moneyText(token.price_usd, currency)
+							})
+			},
+			{
+				label: m.assetDetail.labelContract,
+				value:
+					token.token_address === null
+						? m.assetDetail.nativeToken
+						: shortenAddress(token.token_address)
+			},
+			{ label: m.assetDetail.labelDecimals, value: String(token.decimals) }
+		],
+		rows
 	};
 }
 
-/** The desktop shape of the same overlay. */
+// ---------------------------------------------------------------------------
+// Overlays
+// ---------------------------------------------------------------------------
+
+/**
+ * What both shapes share: the hero, and the two sections under the filter.
+ *
+ * The filter narrows the holdings and the feed the way the phone app's
+ * `selectedChainId` does (`HoldingsList.tsx`, `useHomeController.ts`); the
+ * hero total stays the whole wallet's, as it does there. A chain filtered
+ * down to nothing reads as the empty state, not as a blank list.
+ */
+function liveSections(inputs: WalletLiveInputs) {
+	const { balance: view, currency, m } = inputs;
+	const filter = inputs.chainFilter ?? null;
+	const tokens = filter === null ? view.tokens : view.tokens.filter((t) => t.chain_id === filter);
+	const feed = inputs.feed ? narrowedFeed(inputs.feed, filter) : inputs.feed;
+	return {
+		balance: liveBalance(view, currency, m),
+		assetsMode:
+			filter !== null && tokens.length === 0 && view.tokens.length > 0
+				? ('empty' as const)
+				: assetsMode(view),
+		assetRows: tokens.map((t) => liveAssetRow(t, currency, m, view.hidden)),
+		activityMode: activityMode(view, feed),
+		activityGroups: feed ? liveActivityGroups(feed, m, view.hidden) : []
+	};
+}
+
+/** Live balance + holdings over an identity-filled home model. */
+export function withLiveWallet(model: WalletHomeModel, inputs: WalletLiveInputs): WalletHomeModel {
+	const live = liveSections(inputs);
+	return {
+		...model,
+		balance: live.balance,
+		assetsSection: { ...model.assetsSection, mode: live.assetsMode },
+		assetRows: live.assetRows,
+		activitySection: { ...model.activitySection, mode: live.activityMode },
+		activityGroups: live.activityGroups
+	};
+}
+
+/** The desktop shape of the same overlay — plus the sidebar's network list. */
 export function withLiveWalletDesktop(
 	model: WalletDesktopModel,
 	inputs: WalletLiveInputs
 ): WalletDesktopModel {
-	const { balance: view, currency, m } = inputs;
+	const live = liveSections(inputs);
 	return {
 		...model,
-		balance: liveBalance(view, currency, m),
-		assetsSection: { ...model.assetsSection, mode: assetsMode(view) },
-		assetRows: view.tokens.map((t) => liveAssetRow(t, currency, m, view.hidden)),
-		activitySection: { ...model.activitySection, mode: activityMode(view, inputs.feed) },
-		activityGroups: inputs.feed ? liveActivityGroups(inputs.feed, m, view.hidden) : []
+		sidebar: {
+			...model.sidebar,
+			networks: liveChainRows(
+				inputs.balance,
+				inputs.m.networkFilter.allNetworks,
+				inputs.chainFilter ?? null
+			)
+		},
+		balance: live.balance,
+		assetsSection: { ...model.assetsSection, mode: live.assetsMode },
+		assetRows: live.assetRows,
+		activitySection: { ...model.activitySection, mode: live.activityMode },
+		activityGroups: live.activityGroups,
+		// The third column is the model's to open on a live page: a tapped row
+		// puts its token here, and closing the column takes it away again.
+		panels:
+			inputs.selectedToken === undefined
+				? model.panels
+				: {
+						...model.panels,
+						assetDetail: liveAssetDetail(inputs.selectedToken, inputs, model.panels.assetDetail)
+					},
+		initialPanel: inputs.selectedToken === undefined ? 'none' : 'asset-detail'
 	};
 }

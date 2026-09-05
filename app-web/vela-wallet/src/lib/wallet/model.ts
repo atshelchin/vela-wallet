@@ -45,6 +45,8 @@ export interface BalanceModel {
 export type ActivityKind = 'sent' | 'received' | 'dapp';
 
 export interface ActivityRowModel {
+	/** Live rows only: the feed item's id, so a tap can name what it hit. */
+	id?: string;
 	kind: ActivityKind;
 	title: string;
 	subtitle: string;
@@ -53,6 +55,8 @@ export interface ActivityRowModel {
 	positive: boolean;
 	masked: boolean;
 	badgeColor: string;
+	/** Live rows only: the chain's logo over the badge dot. */
+	badgeLogoUrl?: string;
 }
 
 export interface ActivityGroupModel {
@@ -72,9 +76,17 @@ export type AssetFiatModel =
 	| { kind: 'none' };
 
 export interface AssetRowModel {
+	/** Live rows only: the held token's key, so a tap can name what it hit. */
+	id?: string;
 	ticker: string;
 	chain: string;
 	badgeColor: string;
+	/** Live rows only: logo candidates, tried in order; the glyph shows otherwise. */
+	logoUrls?: string[];
+	/** Live rows only: the badge chain's logo over the dot. */
+	badgeLogoUrl?: string;
+	/** Live rows only: no badge — a native coin on its own chain wears one logo, not two. */
+	badgeHidden?: boolean;
 	balance: string;
 	fiat: AssetFiatModel;
 	masked: boolean;
@@ -93,6 +105,10 @@ export interface ChainRowModel {
 	dot: string;
 	count: number;
 	selected: boolean;
+	/** Live rows only: the chain this row filters to; `null` is 全部. */
+	chainId?: number | null;
+	/** Live rows only: the chain's logo; the dot shows until it loads, and if it never does. */
+	logoUrl?: string;
 }
 
 export interface TabsModel {
@@ -134,7 +150,16 @@ export interface ReceivePanelModel {
 export interface AssetDetailPanelModel {
 	kind: 'asset-detail';
 	title: string;
-	token: { ticker: string; badgeColor: string; balance: string; fiatLine: string };
+	token: {
+		ticker: string;
+		badgeColor: string;
+		balance: string;
+		fiatLine: string;
+		/** Live only — see `AssetRowModel`. */
+		logoUrls?: string[];
+		badgeLogoUrl?: string;
+		badgeHidden?: boolean;
+	};
 	send: string;
 	receive: string;
 	facts: { label: string; value: string }[];

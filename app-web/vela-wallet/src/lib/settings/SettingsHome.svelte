@@ -46,6 +46,8 @@
 
 	interface Props {
 		model: SettingsHomeModel;
+		/** Spec 022: the web app has no 探索 — see TabBar's `destinations`. */
+		destinations?: readonly ('wallet' | 'contacts' | 'explore' | 'settings')[];
 		/** Leaving settings for another tab. Absent in the gallery. */
 		onselecttab?: (id: 'wallet' | 'contacts' | 'explore' | 'settings') => void;
 		/** The one real behaviour behind this screen today. */
@@ -70,6 +72,7 @@
 
 	let {
 		model,
+		destinations,
 		onselecttab,
 		onsignout,
 		onopencontacts,
@@ -264,7 +267,10 @@
 						<!-- The three appearance controls are not rows: they are the
 						     control itself, shown inline under 语言 (ST1). -->
 						{#if section.appearanceControls === true}
-							<TextScaleSlider model={model.appearance.textScale} />
+							<TextScaleSlider
+								model={model.appearance.textScale}
+								onchange={(index) => onprefevent?.({ kind: 'text-scale', index })}
+							/>
 							<div class="control">
 								<SegmentedControl
 									model={model.appearance.theme}
@@ -352,7 +358,7 @@
 			{/if}
 		</div>
 
-		<TabBar tabs={model.tabs} selected={model.tab} onselect={onselecttab} />
+		<TabBar tabs={model.tabs} selected={model.tab} {destinations} onselect={onselecttab} />
 
 		{#if overlay !== 'none'}
 			<BottomSheet title={sheetTitle} closeLabel={model.closeLabel} height="tall" onclose={close}>

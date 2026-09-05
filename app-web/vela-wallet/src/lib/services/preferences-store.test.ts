@@ -6,6 +6,7 @@
  * browser would read each other), and `system` UNPINS the theme rather than
  * writing out a resolved one.
  */
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The store is browser-only by construction — every read, write and theme
@@ -14,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // what happens in a browser, so they say so.
 vi.mock('$app/environment', () => ({ browser: true }));
 
-import { PREF_KEYS, preferences } from './preferences.svelte';
+import { PREF_KEYS, preferences, TEXT_SCALE_LEVELS } from './preferences.svelte';
 
 function fakeLocalStorage(seed: Record<string, string> = {}) {
 	const map = new Map(Object.entries(seed));
@@ -31,9 +32,22 @@ function fakeLocalStorage(seed: Record<string, string> = {}) {
 	};
 }
 
-/** `applyTheme` writes to the document; a bare object is enough to watch it. */
+/**
+ * `applyTheme` writes to the document's dataset and `applyTextScale` to its
+ * inline style; a bare object with those two is enough to watch both.
+ */
 function fakeDocument() {
-	return { documentElement: { dataset: {} as Record<string, string> } };
+	const props = new Map<string, string>();
+	return {
+		documentElement: {
+			dataset: {} as Record<string, string>,
+			style: {
+				setProperty: (name: string, value: string) => void props.set(name, value),
+				removeProperty: (name: string) => void props.delete(name),
+				getPropertyValue: (name: string) => props.get(name) ?? ''
+			}
+		}
+	};
 }
 
 beforeEach(() => {
@@ -131,6 +145,41 @@ describe('what is written', () => {
 		expect(doc.documentElement.dataset.theme).toBeUndefined();
 	});
 
+	it('a text size is a level name on disk and a multiplier on the document', () => {
+		// The record is Expo's (`vela.textScale` = `large`, never `1.22`), so a
+		// phone and a browser would read each other; what the stylesheet sees is
+		// the factor, on the one custom property every `--text-*` use multiplies by.
+		const doc = fakeDocument();
+		const store = fakeLocalStorage();
+		vi.stubGlobal('localStorage', store);
+		vi.stubGlobal('document', doc);
+		preferences.boot();
+		expect(preferences.textScaleIndex).toBe(2);
+		expect(doc.documentElement.style.getPropertyValue('--text-scale')).toBe('');
+
+		preferences.setTextScaleIndex(4);
+		expect(store.getItem(PREF_KEYS.textScale)).toBe('large');
+		expect(doc.documentElement.style.getPropertyValue('--text-scale')).toBe('1.22');
+
+		// `standard` UNSETS rather than writing `1`: the stylesheet's own fallback
+		// stays the single source of the default.
+		preferences.setTextScaleIndex(2);
+		expect(doc.documentElement.style.getPropertyValue('--text-scale')).toBe('');
+
+		// A stop past the end is a slider bug, not a size; the choice stands.
+		preferences.setTextScaleIndex(99);
+		expect(preferences.textScale).toBe('standard');
+	});
+
+	it('reads a stored level back onto the document at boot', () => {
+		const doc = fakeDocument();
+		vi.stubGlobal('localStorage', fakeLocalStorage({ [PREF_KEYS.textScale]: 'compact' }));
+		vi.stubGlobal('document', doc);
+		preferences.boot();
+		expect(preferences.textScaleIndex).toBe(0);
+		expect(doc.documentElement.style.getPropertyValue('--text-scale')).toBe('0.82');
+	});
+
 	it('a browser that refuses storage still honours the choice for this visit', () => {
 		const denied = fakeLocalStorage();
 		denied.setItem = () => {
@@ -141,5 +190,32 @@ describe('what is written', () => {
 		preferences.boot();
 		expect(() => preferences.setAvatarStyle('initials')).not.toThrow();
 		expect(preferences.avatarStyle).toBe('initials');
+	});
+});
+
+describe('the pre-paint script', () => {
+	it('carries the same level table as the store', () => {
+		// The table exists in TWO places: here, and inline in `app.html`, which
+		// applies the size before any module loads so the page never paints at
+		// one size and jumps to another. A divergence would mean a level the
+		// store knows paints standard until `boot()`, or the reverse — exactly
+		// the flash the inline copy exists to prevent.
+		const html = readFileSync(new URL('../../app.html', import.meta.url), 'utf8');
+		const table = html.match(/var scales = \{([^}]*)\}/)?.[1];
+		expect(table).toBeDefined();
+		const inline = Object.fromEntries(
+			[...(table as string).matchAll(/(\w+):\s*([\d.]+)/g)].map(([, key, factor]) => [
+				key,
+				Number(factor)
+			])
+		);
+		const store = Object.fromEntries(
+			TEXT_SCALE_LEVELS.filter((level) => level.factor !== 1).map((level) => [
+				level.key,
+				level.factor
+			])
+		);
+		expect(inline).toEqual(store);
+		expect(html).toContain(`localStorage.getItem('${PREF_KEYS.textScale}')`);
 	});
 });

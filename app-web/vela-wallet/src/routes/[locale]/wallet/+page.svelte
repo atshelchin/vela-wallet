@@ -69,17 +69,22 @@
 	import type { SendOpenParams } from '$lib/core/generated/SendOpenParams';
 	import type { SendView } from '$lib/core/generated/SendView';
 
-	/** The sidebar's own copy of the rule above: three rows, not four. */
-	function webNav(model: typeof data.desktop) {
-		return {
-			...model,
-			sidebar: {
-				...model.sidebar,
-				nav: model.sidebar.nav.filter((item) => item.id !== 'explore')
-			}
-		};
-	}
+	import { WEB_DESTINATIONS, webNavItems } from '$lib/wallet/destinations';
+	import { chainFilter } from '$lib/wallet/chain-filter.svelte';
+	import { balanceTokenId } from '$lib/wallet/live';
+	import {
+		feedItemAt,
+		findFeedItem,
+		liveTxDetail,
+		withLiveTxDetailDesktop,
+		withLiveTxDetailMobile
+	} from '$lib/wallet/live-detail';
 	import type { PageProps } from './$types';
+
+	/** The sidebar's copy of the rule in `destinations.ts`: three rows, not four. */
+	function webNav(model: typeof data.desktop) {
+		return { ...model, sidebar: { ...model.sidebar, nav: webNavItems(model.sidebar.nav) } };
+	}
 
 	let { data }: PageProps = $props();
 
@@ -116,6 +121,28 @@
 	 * drawn — the header on the phone layout, the sidebar on the wide one.
 	 */
 	let viewing = $state(false);
+
+	/**
+	 * The third column's own two subjects (spec 015 D3 and 021 A2, live): the
+	 * held token whose detail is open, and the feed item whose detail the
+	 * flow shows. Keys, not copies — the live models re-derive from the
+	 * stores, so a balance refresh updates an open detail rather than
+	 * stranding a snapshot.
+	 */
+	let selectedAssetId = $state<string | null>(null);
+	let selectedTxId = $state<string | null>(null);
+	const selectedTx = $derived(findFeedItem(feed.view, selectedTxId));
+	const txDetail = $derived(
+		selectedTx === undefined
+			? undefined
+			: liveTxDetail(selectedTx, {
+					m: data.flowMessages,
+					wm: data.walletMessages,
+					currency: currency.view,
+					hidden: balance.view.hidden,
+					identicon: (seed) => avatarSvgForClient(seed, '')
+				})
+	);
 
 	/**
 	 * Spec 021: Receive / Send / Activity / Assets, as pushed screens inside
@@ -603,17 +630,8 @@
 		)
 	);
 
-	/**
-	 * The destinations THIS client has (spec 022 founder call).
-	 *
-	 * 探索 is the in-app dApp browser, and this client already lives inside a
-	 * browser: a page cannot host another site's dApp with a wallet injected
-	 * into it, so there is nothing behind that tab here. The native clients
-	 * have it; the web shows three tabs rather than a fourth that opens
-	 * nothing. The explore/signing vocabulary still ships — the gallery boards
-	 * are the design source all four clients are reviewed against.
-	 */
-	const DESTINATIONS = ['wallet', 'contacts', 'settings'] as const;
+	// The destinations THIS client has — `WEB_DESTINATIONS` (spec 022 founder
+	// call): the web has no 探索, and every route reads the same list.
 
 	onMount(() => {
 		void session.boot();
@@ -732,7 +750,14 @@
 		balance: balance.view,
 		currency: currency.view,
 		m: data.walletMessages,
-		feed: feed.view
+		feed: feed.view,
+		// The sidebar's network filter: holdings and feed narrow to it, the
+		// hero total does not (the phone app's `selectedChainId` semantics).
+		chainFilter: chainFilter.chainId,
+		selectedToken:
+			selectedAssetId === null
+				? undefined
+				: balance.view.tokens.find((t) => balanceTokenId(t) === selectedAssetId)
 	});
 	const liveHome = $derived(
 		identity === null
@@ -792,6 +817,8 @@
 	// implementation of it.
 
 	function enter(entry: FlowEntry) {
+		// One column: a flow opening closes the asset detail (and vice versa).
+		selectedAssetId = null;
 		if (entry === 'send') {
 			nav.enter(entry);
 			void openSend();
@@ -799,6 +826,14 @@
 		}
 		nav.enter(entry);
 		if (entry === 'add-token') void openAddToken();
+	}
+
+	/**
+	 * The history screen names a row by position (`group * 100 + row`, its
+	 * own convention); the feed is walked the way the groups were built.
+	 */
+	function selectTxAt(index: number) {
+		selectedTxId = feedItemAt(feed.view, Math.floor(index / 100), index % 100)?.id ?? null;
 	}
 </script>
 
@@ -840,13 +875,23 @@
 				identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
 				onflow={enter}
 				onbalancetoggle={() => balance.togglePrivacy()}
+				onchainselect={(row) => chainFilter.select(row.chainId ?? null)}
+				onasset={(row) => {
+					nav.close();
+					selectedAssetId = row.id ?? null;
+				}}
+				onassetclose={() => (selectedAssetId = null)}
+				onactivity={(row) => (selectedTxId = row.id ?? null)}
 			/>
 			<!-- `ds1` is the one flow the third column cannot host: a viewfinder
 			     in a narrow strip is the wrong shape, so the desktop shows the
 			     scanner as a centred modal (DS1L). -->
 			{#if desktopFlow !== undefined && desktopFlow !== 'ds1'}
 				<FlowsPanel
-					model={withLiveDesktopFlow(data.desktopFlows[desktopFlow], flowInputs)}
+					model={withLiveTxDetailDesktop(
+						withLiveDesktopFlow(data.desktopFlows[desktopFlow], flowInputs),
+						txDetail
+					)}
 					onback={() => {
 						if (nav.desktopTop === 'dt3') closeAddToken();
 						nav.back();
@@ -855,7 +900,8 @@
 						closeAddToken();
 						nav.close();
 					}}
-					onnavigate={(to) => {
+					onnavigate={(to, index) => {
+						if (to === 'tx-detail' && index !== undefined) selectTxAt(index);
 						nav.push(to);
 						if (to === 'add-token') void openAddToken();
 					}}
@@ -879,7 +925,7 @@
 		{/if}
 	{:else if flowState !== undefined}
 		<FlowsMobile
-			model={withLiveFlow(data.flows[flowState], flowInputs)}
+			model={withLiveTxDetailMobile(withLiveFlow(data.flows[flowState], flowInputs), txDetail)}
 			onback={() => {
 				// Backing out of the scanner is closing the scanner, not stepping
 				// back a stage — the core opened it and the core closes it.
@@ -887,7 +933,8 @@
 				else if (sendView) sendSession?.dispatch({ type: 'back' });
 				else nav.back();
 			}}
-			onnavigate={(to) => {
+			onnavigate={(to, index) => {
+				if (to === 'tx-detail' && index !== undefined) selectTxAt(index);
 				if (to === 'fee-token') feeSheetOpen = true;
 				else if (to === 'batch-import') void openBatch();
 				else if (to === 'scan' && sendSession) sendSession.dispatch({ type: 'open_scanner' });
@@ -900,12 +947,13 @@
 	{:else}
 		<WalletHome
 			model={liveHome}
-			destinations={DESTINATIONS}
+			destinations={WEB_DESTINATIONS}
 			onselect={select}
 			onidenticon={() => (viewing = true)}
 			identiconViewerLabel={data.walletMessages.identiconViewer.a11yOpen}
 			onflow={enter}
 			onbalancetoggle={() => balance.togglePrivacy()}
+			onactivity={(row) => (selectedTxId = row.id ?? null)}
 		/>
 	{/if}
 {:else}
@@ -943,6 +991,16 @@
 		display: flex;
 		height: 100dvh;
 		overflow: hidden;
+	}
+
+	/* The wallet is a flex ITEM here, beside the flow column, and a flex item
+	   given no `flex` is as wide as its content — which with a skeleton
+	   balance and an empty feed was a strip down the left of the screen. It
+	   takes every column the flow panel leaves, as the gallery's block stage
+	   gives it for free. */
+	.desktop-shell > :global(.desktop) {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.scan-scrim {

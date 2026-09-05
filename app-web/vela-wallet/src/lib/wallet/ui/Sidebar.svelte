@@ -11,9 +11,11 @@
 		/** Open the identicon viewer; absent in the gallery. */
 		onidenticon?: () => void;
 		identiconLabel?: string;
+		/** A network row was chosen. Absent in the gallery, where the list is a picture. */
+		onchainselect?: (row: SidebarModel['networks'][number]) => void;
 	}
 
-	let { sidebar, onnav, onidenticon, identiconLabel }: Props = $props();
+	let { sidebar, onnav, onidenticon, identiconLabel, onchainselect }: Props = $props();
 </script>
 
 <aside class="sidebar">
@@ -40,7 +42,7 @@
 
 	<p class="networks-title">{sidebar.networksTitle}</p>
 	<div class="networks">
-		<ChainFilterList rows={sidebar.networks} />
+		<ChainFilterList rows={sidebar.networks} onselect={onchainselect} />
 	</div>
 
 	<label class="search">

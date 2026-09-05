@@ -13,9 +13,12 @@
 	 */
 	interface Props {
 		detail: ContactDetailModel;
+		/** The footer's two actions. Absent in the gallery, where they are drawn. */
+		onedit?: () => void;
+		ondelete?: () => void;
 	}
 
-	let { detail }: Props = $props();
+	let { detail, onedit, ondelete }: Props = $props();
 </script>
 
 <div class="panel">
@@ -63,11 +66,11 @@
 	</section>
 
 	<footer>
-		<button type="button" class="foot">
+		<button type="button" class="foot" onclick={onedit}>
 			<Icon icon={UTILITY_ICONS.pencil} size="sm" />
 			<span>{detail.editLabel}</span>
 		</button>
-		<button type="button" class="foot destructive">{detail.deleteLabel}</button>
+		<button type="button" class="foot destructive" onclick={ondelete}>{detail.deleteLabel}</button>
 	</footer>
 </div>
 

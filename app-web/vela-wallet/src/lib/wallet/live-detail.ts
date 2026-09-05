@@ -1,0 +1,159 @@
+/**
+ * The third column's transaction detail, live (spec 021 A2 / DA2; wired
+ * 2026-09-05). The flow fixtures draw a received USDT and a sent POL; a live
+ * page has to show the row that was tapped, worded and formatted the way the
+ * home's activity rows already are.
+ *
+ * Kept beside the wallet's live builders rather than in `flows/live.ts`: it
+ * reads the FEED (a wallet resident) and the wallet's own formatters, and the
+ * flow overlay only needs to be handed the finished model.
+ */
+import type { CurrencyView } from '$lib/core/generated/CurrencyView';
+import type { FeedItem } from '$lib/core/generated/FeedItem';
+import type { FeedView } from '$lib/core/generated/FeedView';
+import type { WalletFlowMessages } from '$lib/flows/messages';
+import type {
+	DesktopFlowModel,
+	FactRowModel,
+	FlowScreenModel,
+	TxDetailModel
+} from '$lib/flows/model';
+import { chainMeta } from '$lib/services/chains';
+import { formatTime } from '$lib/services/locale-format';
+import { chainName } from '$lib/services/networks';
+import { chainColor, MASK } from './fixtures';
+import { shortenAddress } from './identity';
+import { dayLabel, moneyText, trimBalance } from './live';
+import { fill, type WalletMessages } from './messages';
+
+/** The feed item a tap named, by the id the live rows carry. */
+export function findFeedItem(
+	feed: FeedView | null | undefined,
+	id: string | null
+): FeedItem | undefined {
+	if (!feed || id === null) return undefined;
+	for (const row of feed.rows) {
+		if (row.type === 'item' && row.item.id === id) return row.item;
+	}
+	return undefined;
+}
+
+/**
+ * The item at a (group, row) position — the history screen's own way of
+ * naming a tap. The feed is walked exactly as `liveActivityGroups` groups it:
+ * a header opens a group, an item before any header opens an unlabelled one.
+ */
+export function feedItemAt(
+	feed: FeedView | null | undefined,
+	group: number,
+	row: number
+): FeedItem | undefined {
+	if (!feed) return undefined;
+	let g = -1;
+	let r = 0;
+	for (const entry of feed.rows) {
+		if (entry.type === 'header') {
+			g += 1;
+			r = 0;
+			continue;
+		}
+		if (g === -1) g = 0;
+		if (g === group && r === row) return entry.item;
+		r += 1;
+	}
+	return undefined;
+}
+
+export interface TxDetailContext {
+	/** The flow corpus (flat), which names the facts. */
+	m: WalletFlowMessages;
+	/** The wallet corpus, for the day words the home already uses. */
+	wm: WalletMessages;
+	currency: CurrencyView;
+	hidden: boolean;
+	identicon: (seed: string) => string;
+	now?: number;
+}
+
+/** Feed timestamps are Unix seconds; a millisecond value is tolerated. */
+function whenMs(item: FeedItem): number {
+	return item.timestamp < 1e12 ? item.timestamp * 1000 : item.timestamp;
+}
+
+/** One feed item as the A2 / DA2 detail. */
+export function liveTxDetail(item: FeedItem, ctx: TxDetailContext): TxDetailModel {
+	const { m, wm, currency, hidden } = ctx;
+	const received = item.direction === 'in';
+	const chain = chainMeta(item.chain_id);
+	const facts: FactRowModel[] = [];
+
+	if (item.counterparty !== null) {
+		facts.push({
+			label: received ? m['componentsTx.detail.from'] : m['componentsTx.detail.to'],
+			value: item.alias ?? shortenAddress(item.counterparty),
+			lead: { kind: 'identicon', svg: ctx.identicon(item.counterparty) },
+			mono: item.alias === null,
+			copy: m['componentsUi.identiconViewer.copyAddress']
+		});
+	}
+
+	facts.push(
+		{
+			label: m['componentsTx.detail.labelChain'],
+			value: chainName(item.chain_id),
+			lead: {
+				kind: 'token',
+				mark: {
+					ticker: chain?.iconLabel ?? chainName(item.chain_id).slice(0, 3).toUpperCase(),
+					badgeColor: chainColor(item.chain_id)
+				}
+			}
+		},
+		{
+			label: m['componentsTx.detail.labelDate'],
+			value: `${dayLabel(item.day_start_ms, wm, ctx.now)} ${formatTime(new Date(whenMs(item)))}`
+		}
+	);
+
+	if (item.tx_hash !== null) {
+		facts.push({
+			label: m['componentsTx.detail.labelHash'],
+			value: shortenAddress(item.tx_hash),
+			mono: true,
+			copy: m['componentsUi.identiconViewer.copyAddress']
+		});
+	}
+
+	const amount = item.value === null ? '' : `${trimBalance(item.value)} `;
+	return {
+		title: fill(received ? m['history.txLabelReceived'] : m['history.txLabelSent'], {
+			symbol: item.symbol
+		}),
+		// The feed holds settled history; a pending send lives in its receipt.
+		status: { text: m['componentsTx.receipt.statusConfirmed'], tone: 'success' },
+		closeLabel: m['componentsUi.identiconViewer.close'],
+		amount: hidden ? MASK : `${received ? '+' : '−'}${amount}${item.symbol}`,
+		fiat: hidden ? MASK : `≈ ${moneyText(item.usd_value, currency)}`,
+		positive: received,
+		facts,
+		viewOnExplorer: m['history.viewOnExplorer']
+	};
+}
+
+/** The desktop column showing a transaction gets the live one, if there is one. */
+export function withLiveTxDetailDesktop(
+	model: DesktopFlowModel,
+	detail: TxDetailModel | undefined
+): DesktopFlowModel {
+	if (detail === undefined || model.body.kind !== 'tx-detail') return model;
+	return { ...model, body: { kind: 'tx-detail', model: detail } };
+}
+
+/** The phone's transaction sheet, likewise. */
+export function withLiveTxDetailMobile(
+	model: FlowScreenModel,
+	detail: TxDetailModel | undefined
+): FlowScreenModel {
+	if (detail === undefined || model.sheet?.kind !== 'tx-detail') return model;
+	return { ...model, sheet: { kind: 'tx-detail', model: detail } };
+}

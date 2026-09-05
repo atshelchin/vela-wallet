@@ -21,9 +21,26 @@
 	}
 
 	let { value, label, open = false, rows, ontoggle, onselect }: Props = $props();
+
+	let host = $state<HTMLDivElement | undefined>();
+
+	/**
+	 * A way out that is not a choice. The menu opens OVER its trigger (the
+	 * macOS popup shape the SPEC asks for), so the trigger cannot be clicked
+	 * again to close it — Escape and a click anywhere else have to.
+	 */
+	function onkeydown(event: KeyboardEvent) {
+		if (open && event.key === 'Escape') ontoggle?.();
+	}
+
+	function onpointerdown(event: PointerEvent) {
+		if (open && host !== undefined && !host.contains(event.target as Node)) ontoggle?.();
+	}
 </script>
 
-<div class="dropdown">
+<svelte:window {onkeydown} {onpointerdown} />
+
+<div class="dropdown" bind:this={host}>
 	<button
 		type="button"
 		class="trigger"

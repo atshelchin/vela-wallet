@@ -23,11 +23,13 @@
 
 	interface Props {
 		model: ContactsHomeModel;
+		/** Spec 022: the web app has no 探索 — see TabBar's `destinations`. */
+		destinations?: readonly ('wallet' | 'contacts' | 'explore' | 'settings')[];
 		/** Live wiring (spec 024). Absent = the gallery's pure picture. */
 		onuievent?: OnContactsUiEvent;
 	}
 
-	let { model, onuievent }: Props = $props();
+	let { model, destinations, onuievent }: Props = $props();
 
 	const live = $derived(onuievent !== undefined);
 
@@ -212,6 +214,7 @@
 		<TabBar
 			tabs={model.tabs}
 			selected="contacts"
+			{destinations}
 			onselect={(id) => onuievent?.({ kind: 'tab', id })}
 		/>
 	{/if}

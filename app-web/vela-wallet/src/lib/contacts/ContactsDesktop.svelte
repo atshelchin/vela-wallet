@@ -5,9 +5,13 @@
 	import ThirdPanel from '$lib/wallet/ui/ThirdPanel.svelte';
 	import { UTILITY_ICONS } from '$lib/wallet/icons';
 	import { BREAKPOINT_CONTACTS_OVERLAY } from '$lib/tokens/tokens';
+	import type { ChainRowModel } from '$lib/wallet/model';
+	import type { ContactDraft, ContactFormCopy } from './forms';
 	import type { ContactsDesktopModel, ContactsPanelId } from './model';
+	import type { OnContactsUiEvent } from './ui-events';
 	import AlphaSectionList from './ui/AlphaSectionList.svelte';
 	import ContactDetailPanel from './ui/ContactDetailPanel.svelte';
+	import ContactForm from './ui/ContactForm.svelte';
 	import ContactRow from './ui/ContactRow.svelte';
 	import ContextMenu from './ui/ContextMenu.svelte';
 	import DropdownMenu from './ui/DropdownMenu.svelte';
@@ -18,9 +22,26 @@
 
 	interface Props {
 		model: ContactsDesktopModel;
+		/** Live wiring (spec 024). Absent = the gallery's pure picture. */
+		onuievent?: OnContactsUiEvent;
+		/** The sidebar's network filter was used. Absent in the gallery. */
+		onchainselect?: (row: ChainRowModel) => void;
+		/**
+		 * The add/edit form, when one is open. It takes the third column — what
+		 * the phone draws as a bottom sheet — because a sheet sliding up the
+		 * bottom of a desktop window is a phone control at the wrong size.
+		 * `initial` present = editing, and the column offers a way BACK to the
+		 * detail it replaced.
+		 */
+		contactForm?: {
+			copy: ContactFormCopy;
+			initial?: ContactDraft;
+			onsave: (draft: ContactDraft) => void;
+			onclose: () => void;
+		};
 	}
 
-	let { model }: Props = $props();
+	let { model, onuievent, onchainselect, contactForm }: Props = $props();
 
 	// The third column plays the mobile bottom-sheet role (spec 015 mechanics
 	// reused); pure UI state seeded by the fixture.
@@ -71,20 +92,41 @@
 		closing = false;
 		panel = 'none';
 		selected = undefined;
+		// The route's `ui` still names the contact; `back` is what forgets it.
+		onuievent?.({ kind: 'back' });
+	}
+
+	/** A rail row names a group; the route speaks in ids. 全部 is `back`. */
+	function selectGroup(name: string | undefined) {
+		if (name === undefined) {
+			onuievent?.({ kind: 'back' });
+			return;
+		}
+		const id = model.rail.groups.find((group) => group.name === name)?.id;
+		if (id !== undefined) onuievent?.({ kind: 'group-open', id });
 	}
 </script>
 
 <div class="desktop" class:overlay-mode={model.forceOverlay}>
-	<Sidebar sidebar={model.sidebar} />
+	<Sidebar
+		sidebar={model.sidebar}
+		onnav={(id) => onuievent?.({ kind: 'tab', id })}
+		{onchainselect}
+	/>
 
 	<main>
 		<header class="page-head">
 			<h1>{model.title}</h1>
 			<span class="spacer"></span>
 			<div class="search">
-				<SearchHeader search={model.search} layout="desktop" clearLabel={model.closeLabel} />
+				<SearchHeader
+					search={model.search}
+					layout="desktop"
+					clearLabel={model.closeLabel}
+					onquery={(value) => onuievent?.({ kind: 'query', value })}
+				/>
 			</div>
-			<button type="button" class="add">
+			<button type="button" class="add" onclick={() => onuievent?.({ kind: 'add' })}>
 				<Icon icon={UTILITY_ICONS['user-round-plus']} size="base" />
 				<span>{model.addLabel}</span>
 			</button>
@@ -99,7 +141,14 @@
 					<Icon icon={UTILITY_ICONS.ellipsis} size="base" />
 				</button>
 				{#if openMenu === 'header'}
-					<DropdownMenu menu={model.headerMenu} onclose={() => (openMenu = undefined)} />
+					<DropdownMenu
+						menu={model.headerMenu}
+						onselect={(label) => {
+							openMenu = undefined;
+							onuievent?.({ kind: 'sheet-select', label });
+						}}
+						onclose={() => (openMenu = undefined)}
+					/>
 				{/if}
 			</div>
 		</header>
@@ -108,13 +157,23 @@
 
 		<div class="body">
 			<div class="rail-host" bind:this={railHost}>
-				<GroupRail rail={model.rail} ongroupmenu={openContext} />
+				<GroupRail
+					rail={model.rail}
+					onselect={selectGroup}
+					ongroupmenu={openContext}
+					onnew={() => onuievent?.({ kind: 'group-new' })}
+				/>
 			</div>
 
 			<div class="content">
 				{#if model.empty !== undefined}
 					<div class="center">
-						<EmptyStateCTA empty={model.empty} layout="desktop" />
+						<EmptyStateCTA
+							empty={model.empty}
+							layout="desktop"
+							onprimary={() => onuievent?.({ kind: 'empty-primary' })}
+							onsecondary={() => onuievent?.({ kind: 'empty-secondary' })}
+						/>
 					</div>
 				{:else if model.group !== undefined}
 					{@const group = model.group}
@@ -134,14 +193,19 @@
 							</li>
 						{/each}
 					</ul>
-					<GhostAddRow label={group.addMember} />
+					<GhostAddRow
+						label={group.addMember}
+						onclick={() => onuievent?.({ kind: 'add-member' })}
+					/>
 					<p class="caption">{group.captionTitled}</p>
 				{:else}
 					<AlphaSectionList
 						sections={model.sections}
 						{selected}
-						onselect={() => {
+						onselect={(contact) => {
 							panel = 'contact-detail';
+							selected = contact.name;
+							onuievent?.({ kind: 'open', address: contact.addressFull });
 						}}
 					/>
 				{/if}
@@ -149,13 +213,39 @@
 		</div>
 	</main>
 
-	{#if panel === 'contact-detail' || closing}
+	{#if contactForm !== undefined}
+		{@const form = contactForm}
+		{#if overlay}
+			<div class="scrim" role="presentation" onclick={form.onclose}></div>
+		{/if}
+		<div class="panel-host">
+			<ThirdPanel
+				title={form.copy.title}
+				closeLabel={form.copy.cancel}
+				backLabel={form.initial !== undefined ? form.copy.cancel : undefined}
+				onback={form.initial !== undefined ? form.onclose : undefined}
+				onclose={form.onclose}
+			>
+				<!-- Keyed per contact: the form seeds its fields once, on open. -->
+				{#key form.initial?.address ?? ''}
+					<ContactForm copy={form.copy} initial={form.initial} onsave={form.onsave} />
+				{/key}
+			</ThirdPanel>
+		</div>
+	{:else if panel === 'contact-detail' || closing}
 		{#if overlay}
 			<div class="scrim" role="presentation" onclick={closePanel}></div>
 		{/if}
 		<div class="panel-host" class:closing onanimationend={onPanelAnimationEnd}>
 			<ThirdPanel title={model.panelTitle} closeLabel={model.closeLabel} onclose={closePanel}>
-				<ContactDetailPanel detail={model.detail} />
+				{#if model.detail !== undefined}
+					{@const detail = model.detail}
+					<ContactDetailPanel
+						{detail}
+						onedit={() => onuievent?.({ kind: 'edit' })}
+						ondelete={() => onuievent?.({ kind: 'delete', address: detail.contact.addressFull })}
+					/>
+				{/if}
 			</ThirdPanel>
 		</div>
 	{/if}

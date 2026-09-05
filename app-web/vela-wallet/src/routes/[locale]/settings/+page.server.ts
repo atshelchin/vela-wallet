@@ -13,6 +13,7 @@ import { resolveSettingsMessages, resolveWalletMessages } from '$lib/i18n/engine
 import { SUPPORTED_LOCALES, toLocale } from '$lib/i18n/locales';
 import { buildDesktopState, buildMobileState } from '$lib/settings/fixtures';
 import { EMPTY_ACCOUNT } from '$lib/settings/identity';
+import { webNavItems } from '$lib/wallet/destinations';
 import { buildDesktopState as buildWalletDesktopState } from '$lib/wallet/fixtures';
 import { identiconSvgFor } from '$lib/wallet/identicon.server';
 import { EMPTY_HEADER } from '$lib/wallet/identity';
@@ -34,7 +35,11 @@ export const load: PageServerLoad = ({ params }) => {
 	const sidebar = {
 		...wallet.sidebar,
 		header: EMPTY_HEADER,
-		nav: wallet.sidebar.nav.map((item) => ({ ...item, selected: item.id === 'settings' }))
+		// Three rows, not the board's four: the web has no 探索 (spec 022).
+		nav: webNavItems(wallet.sidebar.nav).map((item) => ({
+			...item,
+			selected: item.id === 'settings'
+		}))
 	};
 
 	return {
@@ -49,6 +54,8 @@ export const load: PageServerLoad = ({ params }) => {
 				rows: desktop.account.rows.map((row) => (row.selected ? { ...row, ...EMPTY_ACCOUNT } : row))
 			}
 		},
-		sidebar
+		sidebar,
+		/** 全部 in the sidebar's network list, which the live rows rebuild. */
+		allNetworksLabel: walletMessages.networkFilter.allNetworks
 	};
 };

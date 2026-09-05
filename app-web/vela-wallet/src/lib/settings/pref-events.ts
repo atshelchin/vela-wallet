@@ -19,6 +19,8 @@ export type SettingsPrefEvent =
 	| { kind: 'avatar'; id: string }
 	/** `system`, or a shipped locale code. */
 	| { kind: 'language'; id: string }
+	/** The slider's stop, 0-based — `TEXT_SCALE_LEVELS` names what it means. */
+	| { kind: 'text-scale'; index: number }
 	| { kind: 'number-format'; id: string }
 	| { kind: 'date-format'; id: string }
 	| { kind: 'time-format'; id: string }

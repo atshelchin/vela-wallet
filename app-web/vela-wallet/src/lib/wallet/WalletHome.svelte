@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { WalletHomeModel } from './model';
+	import type { ActivityRowModel, WalletHomeModel } from './model';
 	import { UTILITY_ICONS } from './icons';
 	import ActionButtonRow from './ui/ActionButtonRow.svelte';
 	import ActivityRow from './ui/ActivityRow.svelte';
@@ -32,6 +32,8 @@
 		) => void;
 		/** Spec 025: tap-to-hide. The core owns `hidden`; this only reports the tap. */
 		onbalancetoggle?: () => void;
+		/** An activity row was tapped (live): which one, before the flow opens. */
+		onactivity?: (row: ActivityRowModel) => void;
 	}
 
 	let {
@@ -41,7 +43,8 @@
 		onidenticon,
 		identiconViewerLabel,
 		onflow,
-		onbalancetoggle
+		onbalancetoggle,
+		onactivity
 	}: Props = $props();
 
 	// Pure UI state: the fixture-provided sheet, once dismissed, stays dismissed.
@@ -92,7 +95,15 @@
 				<p class="day">{group.label}</p>
 				<ul>
 					{#each group.rows as row, i (i)}
-						<li><ActivityRow {row} onclick={() => onflow?.('tx-detail')} /></li>
+						<li>
+							<ActivityRow
+								{row}
+								onclick={() => {
+									onactivity?.(row);
+									onflow?.('tx-detail');
+								}}
+							/>
+						</li>
 					{/each}
 				</ul>
 			{/each}

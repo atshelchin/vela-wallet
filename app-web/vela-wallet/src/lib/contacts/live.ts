@@ -18,13 +18,17 @@ import type { ContactGroupView } from '$lib/core/generated/ContactGroupView';
 import type { ContactsView } from '$lib/core/generated/ContactsView';
 import { fill } from '$lib/wallet/messages';
 import { shortenAddress } from '$lib/wallet/identity';
+import type { SidebarModel } from '$lib/wallet/model';
+import { contactContextMenu, groupContextMenu, headerDropdown } from './fixtures';
 import type { ContactsMessages } from './messages';
 import type {
 	ContactDetailModel,
 	ContactModel,
+	ContactsDesktopModel,
 	ContactsHomeModel,
 	ContactsListModel,
 	EmptyCtaModel,
+	GroupDetailModel,
 	GroupModel,
 	LetterSectionModel
 } from './model';
@@ -214,4 +218,81 @@ export function buildContactsLive(
 			ui.query !== '' && sections.length === 0 ? fill(m.noResults, { query: ui.query }) : undefined
 	};
 	return { ...base, screen: 'list', list };
+}
+
+/**
+ * The desktop shape of the same book (spec 018's DC boards, live).
+ *
+ * One `ContactsUiState` renders two ways. What the phone pushes as a screen,
+ * the desktop keeps beside the list: a chosen contact is the third column, a
+ * chosen group is the rail's highlight with its members where the A–Z list
+ * was. `sidebar` is the app sidebar the route already carries, identity and
+ * network rows filled in by the page.
+ */
+export function buildContactsDesktopLive(
+	view: ContactsView,
+	m: ContactsMessages,
+	identicon: Identicon,
+	ui: ContactsUiState,
+	sidebar: SidebarModel
+): ContactsDesktopModel {
+	const selectedGroup =
+		ui.screen === 'group' && ui.selectedGroupId !== undefined
+			? view.groups.find((g) => g.id === ui.selectedGroupId)
+			: undefined;
+	const selectedContact =
+		ui.screen === 'detail' && ui.selectedAddress !== undefined
+			? view.contacts.find((c) => c.address === ui.selectedAddress)
+			: undefined;
+	const empty = view.loaded && view.contacts.length === 0;
+
+	const group: GroupDetailModel | undefined =
+		selectedGroup === undefined
+			? undefined
+			: {
+					group: toGroupModel(selectedGroup, view, m, identicon),
+					addMember: m.addMember,
+					cta: m.batchSend,
+					ctaCaption: fill(m.batchSendHint, { count: selectedGroup.members.length }),
+					captionTitled: fill(m.batchSendHintTitled, { count: selectedGroup.members.length }),
+					menuLabel: m.manage
+				};
+
+	return {
+		state: 'dc1',
+		sidebar,
+		title: m.title,
+		search: {
+			placeholder: m.searchPlaceholder,
+			query: ui.query === '' ? undefined : ui.query,
+			shortcut: '⌘F'
+		},
+		addLabel: m.addContact,
+		menuLabel: m.manage,
+		rail: {
+			allLabel: m.allContacts,
+			allCount: String(view.contacts.length),
+			allSelected: selectedGroup === undefined,
+			groupsTitle: m.sectionGroups,
+			groups: view.groups.map((g) => toGroupModel(g, view, m, identicon)),
+			selectedGroup: selectedGroup?.name,
+			newGroup: m.groupNew
+		},
+		sections:
+			selectedGroup === undefined && !empty ? letterSections(view, identicon, ui.query) : [],
+		group,
+		empty: empty ? emptyModel(m) : undefined,
+		detail:
+			selectedContact === undefined
+				? undefined
+				: liveContactDetail(selectedContact, view, m, identicon),
+		panelTitle: m.sectionContacts,
+		initialPanel: selectedContact === undefined ? 'none' : 'contact-detail',
+		selectedContact: selectedContact === undefined ? undefined : displayName(selectedContact),
+		forceOverlay: false,
+		headerMenu: headerDropdown(m),
+		groupMenu: groupContextMenu(m),
+		contactMenu: contactContextMenu(m),
+		closeLabel: m.shell.close
+	};
 }

@@ -131,6 +131,62 @@ test('choosing a theme pins the palette the whole app already reads', async ({ p
 	await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light');
 });
 
+test('a chosen text size multiplies every token, and survives a reload', async ({ page }) => {
+	await openSettings(page);
+	// The slider is a native range input, so it speaks in stops: the sixth is
+	// `xlarge`, and what the stylesheet reads is the factor on the root.
+	await page.getByRole('slider', { name: en('settings.appearance.textScale') }).fill('5');
+	await expect(page.locator('html')).toHaveCSS('--text-scale', '1.35');
+
+	await page.reload();
+	// Applied before first paint by the inline script in app.html, like the
+	// theme — a size that arrives in `onMount` paints standard first and jumps.
+	await expect(page.locator('html')).toHaveCSS('--text-scale', '1.35');
+	await expect(page.getByText('E2E Wallet').first()).toBeVisible();
+	await expect(page.getByRole('slider', { name: en('settings.appearance.textScale') })).toHaveValue(
+		'5'
+	);
+
+	// Standard UNSETS the property rather than writing 1.
+	await page.getByRole('slider', { name: en('settings.appearance.textScale') }).fill('2');
+	await expect(page.locator('html')).not.toHaveCSS('--text-scale', '1.35');
+});
+
+test.describe('on the desktop', () => {
+	// Past the desktop breakpoint (1280): the three-column settings, whose
+	// language row is a dropdown rather than a sheet.
+	test.use({ viewport: { width: 1440, height: 900 } });
+
+	test('the app sidebar and the settings nav stand the full height', async ({ page }) => {
+		await openSettings(page);
+		// Both columns are sunken panels; ending mid-screen reads as a broken
+		// layout, which is what happened when nothing framed them.
+		for (const column of [page.locator('aside.sidebar'), page.locator('nav.settings-nav')]) {
+			const box = await column.boundingBox();
+			expect(box?.height).toBe(900);
+		}
+	});
+
+	test('choosing a language from the dropdown moves to that locale', async ({ page }) => {
+		await openSettings(page);
+		await page.getByRole('button', { name: en('settings.sections.appearance') }).click();
+		await page.getByRole('button', { name: en('language.title') }).click();
+		// Endonyms, not corpus strings: 日本語 reads the same in every locale.
+		await page.getByRole('option', { name: '日本語' }).click();
+
+		// On the web a language is a route, and the choice is pinned for next time.
+		await page.waitForURL(/\/ja\/settings$/);
+		expect(await page.evaluate(() => localStorage.getItem('vela.language'))).toBe('ja');
+	});
+
+	test('the text size slider is live on the desktop too', async ({ page }) => {
+		await openSettings(page);
+		await page.getByRole('button', { name: en('settings.sections.appearance') }).click();
+		await page.getByRole('slider', { name: en('settings.appearance.textScale') }).fill('0');
+		await expect(page.locator('html')).toHaveCSS('--text-scale', '0.82');
+	});
+});
+
 test('erasing leaves nothing of this wallet in the browser (SC-407)', async ({ page }) => {
 	await openSettings(page);
 	// Something to lose in BOTH stores — including a key no feature has written

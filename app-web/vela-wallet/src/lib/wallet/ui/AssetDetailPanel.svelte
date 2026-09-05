@@ -7,14 +7,23 @@
 
 	interface Props {
 		panel: AssetDetailPanelModel;
+		/** The two actions, live. Absent in the gallery, where they are drawn. */
+		onsend?: () => void;
+		onreceive?: () => void;
 	}
 
-	let { panel }: Props = $props();
+	let { panel, onsend, onreceive }: Props = $props();
 </script>
 
 <div class="detail">
 	<div class="head">
-		<TokenIcon ticker={panel.token.ticker} badgeColor={panel.token.badgeColor} />
+		<TokenIcon
+			ticker={panel.token.ticker}
+			badgeColor={panel.token.badgeColor}
+			logoUrls={panel.token.logoUrls}
+			badgeLogoUrl={panel.token.badgeLogoUrl}
+			badgeHidden={panel.token.badgeHidden}
+		/>
 		<div class="head-text">
 			<p class="balance">{panel.token.balance}</p>
 			<p class="fiat">{panel.token.fiatLine}</p>
@@ -22,11 +31,11 @@
 	</div>
 
 	<div class="actions">
-		<button type="button">
+		<button type="button" onclick={onsend}>
 			<Icon icon={UTILITY_ICONS['arrow-up-right']} size="base" />
 			<span>{panel.send}</span>
 		</button>
-		<button type="button">
+		<button type="button" onclick={onreceive}>
 			<Icon icon={UTILITY_ICONS['arrow-down-left']} size="base" />
 			<span>{panel.receive}</span>
 		</button>

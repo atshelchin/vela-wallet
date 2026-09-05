@@ -59,6 +59,11 @@
 	import type { SettingsNetEvent } from '$lib/settings/net-events';
 	import { avatarSvgForClient } from '$lib/wallet/identicon';
 	import { shortenAddress, type WalletIdentity } from '$lib/wallet/identity';
+	import { WEB_DESTINATIONS } from '$lib/wallet/destinations';
+	import { balance } from '$lib/wallet/core/balance.svelte';
+	import { chainFilter } from '$lib/wallet/chain-filter.svelte';
+	import { liveChainRows } from '$lib/wallet/live';
+	import type { ChainRowModel } from '$lib/wallet/model';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -84,7 +89,11 @@
 			: null
 	);
 
-	/** The wide layout's app sidebar wears the same identity the phone header does. */
+	/**
+	 * The wide layout's app sidebar wears the same identity the phone header
+	 * does — and the same network list the wallet shows, from the same balance
+	 * resident, so the counts here are this wallet's and not the board's.
+	 */
 	const sidebar = $derived(
 		identity === null
 			? data.sidebar
@@ -95,9 +104,20 @@
 						addressDisplay: shortenAddress(identity.address),
 						addressFull: identity.address,
 						identiconSvg: identity.identiconSvg
-					}
+					},
+					networks: liveChainRows(balance.view, data.allNetworksLabel, chainFilter.chainId)
 				}
 	);
+
+	/** The filter is the wallet's to show: choose a network here, land there. */
+	function pickChain(row: ChainRowModel) {
+		chainFilter.select(row.chainId ?? null);
+		void goto(walletHref);
+	}
+
+	$effect(() => {
+		if (identity !== null) void balance.setAccount(identity.address);
+	});
 
 	/**
 	 * The sites holding a grant (spec 027 T350). A grant is a standing
@@ -115,6 +135,7 @@
 		void session.boot();
 		void networkAdmin.boot();
 		void currency.boot();
+		void balance.boot();
 		preferences.boot();
 		void refreshGrants();
 	});
@@ -163,6 +184,9 @@
 				}
 				return;
 			}
+			case 'text-scale':
+				preferences.setTextScaleIndex(event.index);
+				return;
 			case 'number-format':
 				preferences.setNumberFormat(event.id as 'auto');
 				return;
@@ -234,7 +258,8 @@
 							m
 						),
 						m,
-						languageValue
+						languageValue,
+						data.locale
 					),
 					m,
 					eraseFailed
@@ -251,7 +276,8 @@
 						selectedNetworkId
 					),
 					m,
-					languageValue
+					languageValue,
+					data.locale
 				)
 	);
 
@@ -377,17 +403,21 @@
 
 {#if identity}
 	{#if wide.current}
-		<SettingsDesktop
-			model={liveDesktop}
-			{sidebar}
-			onnav={selectTab}
-			onsignout={signOut}
-			onnetevent={onNetEvent}
-			onprefevent={onPrefEvent}
-		/>
+		<div class="desktop-shell">
+			<SettingsDesktop
+				model={liveDesktop}
+				{sidebar}
+				onnav={selectTab}
+				onsignout={signOut}
+				onnetevent={onNetEvent}
+				onprefevent={onPrefEvent}
+				onchainselect={pickChain}
+			/>
+		</div>
 	{:else}
 		<SettingsHome
 			model={liveHome}
+			destinations={WEB_DESTINATIONS}
 			onselecttab={selectTab}
 			onsignout={signOut}
 			onnetevent={onNetEvent}
@@ -405,5 +435,14 @@
 	.waiting {
 		min-height: 100dvh;
 		background: var(--color-bg-base);
+	}
+
+	/* The three columns are `height: 100%` of whatever holds them, and nothing
+	   above this page has a height — the body has a MIN-height — so without a
+	   frame they stood as tall as their own rows and the sunken sidebars ended
+	   mid-screen. The wallet route frames its desktop the same way. */
+	.desktop-shell {
+		height: 100dvh;
+		overflow: hidden;
 	}
 </style>

@@ -27,6 +27,24 @@
 			}
 
 			/*
+			 * The chosen text size, for the same reason: applied in `onMount` it
+			 * would paint at the standard size and then jump. `vela.textScale` holds
+			 * a level NAME (Expo's record), and the table is `TEXT_SCALE_LEVELS` in
+			 * `services/preferences.svelte.ts` — duplicated here because nothing can
+			 * be imported yet; `preferences-store.test.ts` asserts the two agree.
+			 * `standard` writes nothing: `--text-scale` falls back to 1.
+			 */
+			try {
+				var scales = { compact: 0.82, small: 0.91, comfortable: 1.1, large: 1.22, xlarge: 1.35 };
+				var level = localStorage.getItem('vela.textScale');
+				if (level !== null && scales[level] !== undefined) {
+					document.documentElement.style.setProperty('--text-scale', String(scales[level]));
+				}
+			} catch (e) {
+				/* Blocked storage: the standard size. */
+			}
+
+			/*
 			 * Spec 012: decide BEFORE first paint whether the launch animation plays,
 			 * and if so hide the page in the same frame the document appears.
 			 *

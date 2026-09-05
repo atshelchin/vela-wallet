@@ -214,7 +214,8 @@ export interface ContactsDesktopModel {
 	/** Present for the group view (dc4, dc6). */
 	group?: GroupDetailModel;
 	empty?: EmptyCtaModel;
-	detail: ContactDetailModel;
+	/** The third column's body — absent on a live page until a contact is chosen. */
+	detail?: ContactDetailModel;
 	panelTitle: string;
 	initialPanel: ContactsPanelId;
 	/** Which list row renders selected (the one the third column shows). */

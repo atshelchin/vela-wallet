@@ -32,6 +32,7 @@ import type {
 	RpcBannerModel,
 	RpcFixModel,
 	RpcProvidersModel,
+	SelectRowModel,
 	SelectSheetModel,
 	SettingsDesktopModel,
 	SettingsHomeModel,
@@ -647,20 +648,29 @@ function signOutSheet(m: SettingsMessages, warned: boolean): ConfirmSheetModel {
 	};
 }
 
-function languageSheet(m: SettingsMessages, current: string): SelectSheetModel {
+/**
+ * The language picker's rows: 跟随系统 first, with the locale that currently
+ * resolves to beside it, then every shipped locale by its endonym. Shared by
+ * the phone's sheet and the desktop's dropdown, which offer the same choice.
+ */
+export function languageRows(m: SettingsMessages, current: string): SelectRowModel[] {
 	const currentLabel = LOCALE_ENDONYMS.find((l) => l.id === current)?.label ?? current;
+	return [
+		{
+			id: 'system',
+			label: m.language.followSystem,
+			note: `${m.common.system} · ${currentLabel}`,
+			selected: true
+		},
+		...LOCALE_ENDONYMS.map((l) => ({ id: l.id, label: l.label }))
+	];
+}
+
+function languageSheet(m: SettingsMessages, current: string): SelectSheetModel {
 	return {
 		title: m.language.pickerTitle,
 		subtitle: m.language.pickerSubtitle,
-		rows: [
-			{
-				id: 'system',
-				label: m.language.followSystem,
-				note: `${m.common.system} · ${currentLabel}`,
-				selected: true
-			},
-			...LOCALE_ENDONYMS.map((l) => ({ id: l.id, label: l.label }))
-		],
+		rows: languageRows(m, current),
 		footerNote: m.language.contributeNote,
 		footerLink: m.language.contributeCta
 	};
@@ -956,7 +966,9 @@ export function buildMobileState(
 					{ id: 'identicon', label: m.appearance.avatarIdenticon }
 				]
 			},
-			textScale: { label: m.appearance.textScale, steps: 7, index: 3 }
+			// Six stops, standard in the third — `src/constants/text-scale.ts`, which
+			// the boards had rounded to seven.
+			textScale: { label: m.appearance.textScale, steps: 6, index: 2 }
 		},
 		signOut: { label: m.signOut.button },
 		erase: { title: m.erase.title, subtitle: m.erase.subtitle },
@@ -1067,7 +1079,7 @@ export function buildDesktopState(
 				id: 'text-scale',
 				label: m.appearance.textScale,
 				kind: 'slider',
-				scale: { label: m.appearance.textScale, steps: 7, index: 3 }
+				scale: { label: m.appearance.textScale, steps: 6, index: 2 }
 			},
 			theme: {
 				id: 'theme',

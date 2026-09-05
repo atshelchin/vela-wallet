@@ -27,11 +27,13 @@ import {
 	timeFormatOptions,
 	type FormatOption
 } from '$lib/services/locale-format';
-import { preferences, type ThemeChoice } from '$lib/services/preferences.svelte';
-import { chainMeta, markFor } from './fixtures';
+import { preferences, TEXT_SCALE_LEVELS, type ThemeChoice } from '$lib/services/preferences.svelte';
+import { chainLogoURL } from '$lib/services/tokens-model';
+import { chainMeta, languageRows, markFor } from './fixtures';
 import type { SettingsMessages } from './messages';
 import type {
 	AddNetworkModel,
+	ChainMarkModel,
 	SettingsDesktopModel,
 	CheckItemModel,
 	EndpointsModel,
@@ -93,6 +95,16 @@ function servicePill(health: NetServiceHealth, m: SettingsMessages): StatusPillM
 // Networks list + detail
 // ---------------------------------------------------------------------------
 
+/**
+ * A chain's mark with its logo from the data endpoint, the drawn letter and
+ * colour beneath for when the fetch fails. No chain id — an index row the
+ * index itself says has no logo — draws the letter and asks for nothing.
+ */
+function chainMark(id: string, name: string, chainId?: number): ChainMarkModel {
+	const drawn = markFor(id, name);
+	return chainId === undefined ? drawn : { ...drawn, logoUrl: chainLogoURL(chainId) };
+}
+
 export function liveNetworkRows(
 	view: NetView,
 	m: SettingsMessages,
@@ -100,7 +112,7 @@ export function liveNetworkRows(
 ): NetworkRowModel[] {
 	return view.networks.map((row) => ({
 		id: row.id,
-		mark: markFor(row.id, row.display_name),
+		mark: chainMark(row.id, row.display_name, row.chain_id),
 		name: row.display_name,
 		meta: chainMeta(m, row.chain_id),
 		badge: row.is_custom ? undefined : probePill(row.rpc_health, m),
@@ -123,7 +135,7 @@ export function liveNetworkDetail(row: NetNetworkRow, m: SettingsMessages): Netw
 	return {
 		title: row.display_name,
 		subtitle: `${chainMeta(m, row.chain_id)} · ${row.native_symbol}`,
-		mark: markFor(row.id, row.display_name),
+		mark: chainMark(row.id, row.display_name, row.chain_id),
 		name: row.display_name,
 		note: row.is_custom ? m.networks.custom : m.networks.builtinNote,
 		badge: probePill(row.rpc_health, m) ?? { tone: 'neutral', label: m.networks.online },
@@ -154,7 +166,7 @@ export function liveNetworkDetail(row: NetNetworkRow, m: SettingsMessages): Netw
 function suggestionRow(entry: NetChainIndexEntry, m: SettingsMessages): NetworkRowModel {
 	return {
 		id: String(entry.chain_id),
-		mark: markFor('', entry.name),
+		mark: chainMark('', entry.name, entry.has_logo ? entry.chain_id : undefined),
 		name: entry.name,
 		meta: chainMeta(m, entry.chain_id)
 	};
@@ -175,7 +187,7 @@ export function liveAddNetwork(wizard: NetWizardView, m: SettingsMessages): AddN
 	const info = wizard.chain_info;
 	const name = info?.name ?? '';
 	const meta = info !== null ? chainMeta(m, info.chain_id) : '';
-	const mark = markFor('', name);
+	const mark = chainMark('', name, info?.chain_id);
 
 	// Resolving / checking: a candidate with the neutral "checking" badge.
 	if (wizard.phase === 'resolving' || wizard.phase === 'checking') {
@@ -552,6 +564,24 @@ function currentExamples(): { number: string; date: string; time: string } {
 const FORMAT_SAMPLE = new Date(2026, 5, 13, 13, 45);
 
 /**
+ * The language choices with the stored one ticked. `locale` is the page's own
+ * — what 跟随系统 currently resolves to — because the fixture's note names a
+ * canon locale that is right only on the board.
+ */
+function liveLanguageRows(m: SettingsMessages, locale: string): SelectRowModel[] {
+	return languageRows(m, locale).map((row) => ({
+		...row,
+		selected:
+			preferences.language === 'auto' ? row.id === 'system' : row.id === preferences.language
+	}));
+}
+
+/** The slider at the stored stop. Six stops, whatever a board drew. */
+function liveTextScale<T extends { steps: number; index: number }>(scale: T): T {
+	return { ...scale, steps: TEXT_SCALE_LEVELS.length, index: preferences.textScaleIndex };
+}
+
+/**
  * The preference rows, wired to what is actually stored (spec 028 T432).
  *
  * Everything here was drawn in 023 and inert until now: the theme and avatar
@@ -562,7 +592,8 @@ const FORMAT_SAMPLE = new Date(2026, 5, 13, 13, 45);
 export function withLivePreferences(
 	model: SettingsHomeModel,
 	m: SettingsMessages,
-	languageValue: string
+	languageValue: string,
+	locale: string
 ): SettingsHomeModel {
 	const examples = currentExamples();
 	const value: Record<string, string> = {
@@ -582,15 +613,12 @@ export function withLivePreferences(
 		appearance: {
 			...model.appearance,
 			theme: { ...model.appearance.theme, selected: THEME_ID[preferences.theme] },
-			avatar: { ...model.appearance.avatar, selected: preferences.avatarStyle }
+			avatar: { ...model.appearance.avatar, selected: preferences.avatarStyle },
+			textScale: liveTextScale(model.appearance.textScale)
 		},
 		languageSheet: {
 			...model.languageSheet,
-			rows: model.languageSheet.rows.map((row) => ({
-				...row,
-				selected:
-					preferences.language === 'auto' ? row.id === 'system' : row.id === preferences.language
-			}))
+			rows: liveLanguageRows(m, locale)
 		},
 		numberSheet: formatSheet(model.numberSheet, numberFormatOptions(), preferences.numberFormat, m),
 		dateSheet: formatSheet(model.dateSheet, dateFormatOptions(), preferences.dateFormat, m),
@@ -608,7 +636,8 @@ export function withLivePreferences(
 export function withLivePreferencesDesktop(
 	model: SettingsDesktopModel,
 	m: SettingsMessages,
-	languageValue: string
+	languageValue: string,
+	locale: string
 ): SettingsDesktopModel {
 	const examples = currentExamples();
 	const empty: SelectSheetModel = { title: '', rows: [] };
@@ -626,7 +655,17 @@ export function withLivePreferencesDesktop(
 		...model,
 		appearance: {
 			...model.appearance,
-			language: { ...model.appearance.language, value: languageValue },
+			// The language row is a dropdown like the localization rows, and like
+			// them it carries the menu it opens; choosing one navigates (the page).
+			language: {
+				...model.appearance.language,
+				value: languageValue,
+				options: liveLanguageRows(m, locale)
+			},
+			textScale: {
+				...model.appearance.textScale,
+				scale: liveTextScale(model.appearance.textScale.scale)
+			},
 			theme: {
 				...model.appearance.theme,
 				segmented: { ...model.appearance.theme.segmented, selected: THEME_ID[preferences.theme] }

@@ -48,9 +48,12 @@
 		onnetevent?: OnNetEvent;
 		/** A preference control was used (spec 028 T433). Absent = gallery. */
 		onprefevent?: (event: SettingsPrefEvent) => void;
+		/** The sidebar's network filter was used. Absent in the gallery. */
+		onchainselect?: (row: SidebarModel['networks'][number]) => void;
 	}
 
-	let { model, sidebar, onnav, onsignout, onnetevent, onprefevent }: Props = $props();
+	let { model, sidebar, onnav, onsignout, onnetevent, onprefevent, onchainselect }: Props =
+		$props();
 
 	let page = $state<SettingsPageId>(untrack(() => model.page));
 	let overlay = $state<SettingsOverlayId>(untrack(() => model.overlay));
@@ -87,7 +90,7 @@
 
 <div class="desktop">
 	{#if sidebar !== undefined}
-		<Sidebar {sidebar} {onnav} />
+		<Sidebar {sidebar} {onnav} {onchainselect} />
 	{/if}
 
 	<SettingsNavList
@@ -155,10 +158,20 @@
 					<Dropdown
 						value={model.appearance.language.value ?? ''}
 						label={model.appearance.language.label}
+						open={openDropdown === 'language'}
+						rows={model.appearance.language.options}
+						ontoggle={() => toggleDropdown('language')}
+						onselect={(id) => {
+							onprefevent?.({ kind: 'language', id });
+							openDropdown = undefined;
+						}}
 					/>
 				</FormRow>
 				<FormRow label={model.appearance.textScale.label} wide>
-					<TextScaleSlider model={model.appearance.textScale.scale} />
+					<TextScaleSlider
+						model={model.appearance.textScale.scale}
+						onchange={(index) => onprefevent?.({ kind: 'text-scale', index })}
+					/>
 				</FormRow>
 				<FormRow label={model.appearance.theme.label}>
 					<SegmentedControl

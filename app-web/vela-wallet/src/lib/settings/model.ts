@@ -275,6 +275,8 @@ export interface ConfirmSheetModel {
 export interface ChainMarkModel {
 	letter: string;
 	color: string;
+	/** Live only: the chain's logo on the data endpoint; the letter shows until it loads, and if it never does. */
+	logoUrl?: string;
 }
 
 export interface NetworkRowModel {
